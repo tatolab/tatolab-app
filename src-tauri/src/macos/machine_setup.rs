@@ -189,40 +189,16 @@ pub fn run_machine_setup_behind_one_administrator_prompt(
 /// directory at 0755 and the lock file at exactly 0666, both owned by this user — with no prompt.
 pub fn prepare_local_proof_test_machine_root(paths: &TatolabMachinePaths) -> Result<(), String> {
     let expected_owner_uid = paths.machine_runtime_lock_owner.uid();
-    let refuse = |path: &Path, what_is_wrong: &str| {
-        format!(
-            "the local-proof machine root cannot be prepared: {} {what_is_wrong}",
-            path.display()
-        )
-    };
     let lock_directory = &paths.machine_runtime_lock_directory;
-    std::fs::create_dir_all(lock_directory)
-        .map_err(|failure| refuse(lock_directory, &format!("could not be created ({failure})")))?;
-    let lock_directory_metadata = std::fs::symlink_metadata(lock_directory).map_err(|failure| {
-        refuse(
-            lock_directory,
-            &format!("could not be inspected ({failure})"),
-        )
+    std::fs::create_dir_all(lock_directory).map_err(|failure| {
+        local_proof_refusal(lock_directory, &format!("could not be created ({failure})"))
     })?;
-    if !lock_directory_metadata.file_type().is_dir() {
-        return Err(refuse(lock_directory, "is not a real directory"));
-    }
-    if lock_directory_metadata.uid() != expected_owner_uid {
-        return Err(refuse(
-            lock_directory,
-            &format!("is owned by uid {}", lock_directory_metadata.uid()),
-        ));
-    }
-    std::fs::set_permissions(
+    verify_the_owner_and_set_the_mode(
         lock_directory,
-        std::fs::Permissions::from_mode(MACHINE_RUNTIME_LOCK_DIRECTORY_MODE),
-    )
-    .map_err(|failure| {
-        refuse(
-            lock_directory,
-            &format!("could not be set to 0755 ({failure})"),
-        )
-    })?;
+        LocalProofMachineRootEntryKind::Directory,
+        expected_owner_uid,
+        MACHINE_RUNTIME_LOCK_DIRECTORY_MODE,
+    )?;
 
     let lock_file = &paths.machine_runtime_lock_file;
     std::fs::OpenOptions::new()
@@ -231,24 +207,70 @@ pub fn prepare_local_proof_test_machine_root(paths: &TatolabMachinePaths) -> Res
         .mode(MACHINE_RUNTIME_LOCK_FILE_MODE)
         .custom_flags(libc::O_NOFOLLOW)
         .open(lock_file)
-        .map_err(|failure| refuse(lock_file, &format!("could not be created ({failure})")))?;
-    let lock_file_metadata = std::fs::symlink_metadata(lock_file)
-        .map_err(|failure| refuse(lock_file, &format!("could not be inspected ({failure})")))?;
-    if !lock_file_metadata.file_type().is_file() {
-        return Err(refuse(lock_file, "is not a regular file"));
+        .map_err(|failure| {
+            local_proof_refusal(lock_file, &format!("could not be created ({failure})"))
+        })?;
+    verify_the_owner_and_set_the_mode(
+        lock_file,
+        LocalProofMachineRootEntryKind::RegularFile,
+        expected_owner_uid,
+        MACHINE_RUNTIME_LOCK_FILE_MODE,
+    )
+}
+
+/// What a local-proof machine root entry must be, not a symlink to one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LocalProofMachineRootEntryKind {
+    Directory,
+    RegularFile,
+}
+
+impl LocalProofMachineRootEntryKind {
+    fn describes(self, file_type: std::fs::FileType) -> bool {
+        match self {
+            LocalProofMachineRootEntryKind::Directory => file_type.is_dir(),
+            LocalProofMachineRootEntryKind::RegularFile => file_type.is_file(),
+        }
     }
-    if lock_file_metadata.uid() != expected_owner_uid {
-        return Err(refuse(
-            lock_file,
-            &format!("is owned by uid {}", lock_file_metadata.uid()),
+
+    fn what_any_other_entry_is(self) -> &'static str {
+        match self {
+            LocalProofMachineRootEntryKind::Directory => "is not a real directory",
+            LocalProofMachineRootEntryKind::RegularFile => "is not a regular file",
+        }
+    }
+}
+
+/// Refuse `path` unless it is a `kind` owned by `expected_owner_uid`, then set its mode to exactly
+/// `mode`, which the process umask stripped from any mode it was created with.
+fn verify_the_owner_and_set_the_mode(
+    path: &Path,
+    kind: LocalProofMachineRootEntryKind,
+    expected_owner_uid: u32,
+    mode: u32,
+) -> Result<(), String> {
+    let metadata = std::fs::symlink_metadata(path).map_err(|failure| {
+        local_proof_refusal(path, &format!("could not be inspected ({failure})"))
+    })?;
+    if !kind.describes(metadata.file_type()) {
+        return Err(local_proof_refusal(path, kind.what_any_other_entry_is()));
+    }
+    if metadata.uid() != expected_owner_uid {
+        return Err(local_proof_refusal(
+            path,
+            &format!("is owned by uid {}", metadata.uid()),
         ));
     }
-    // The process umask strips bits from the create mode, so the exact mode is set afterwards.
-    std::fs::set_permissions(
-        lock_file,
-        std::fs::Permissions::from_mode(MACHINE_RUNTIME_LOCK_FILE_MODE),
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|failure| {
+        local_proof_refusal(path, &format!("could not be set to {mode:04o} ({failure})"))
+    })
+}
+
+fn local_proof_refusal(path: &Path, what_is_wrong: &str) -> String {
+    format!(
+        "the local-proof machine root cannot be prepared: {} {what_is_wrong}",
+        path.display()
     )
-    .map_err(|failure| refuse(lock_file, &format!("could not be set to 0666 ({failure})")))
 }
 
 #[cfg(test)]
