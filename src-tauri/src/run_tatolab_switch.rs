@@ -81,9 +81,9 @@ impl RunTatolabSwitch {
         now.saturating_duration_since(self.runtime_expected_up_since)
     }
 
-    /// Bring the agent in line with the switch, as when the app is opened: with the switch on and
-    /// the machine set up, an unregistered agent is registered.
-    pub fn reconcile_on_app_opened(
+    /// Bring the agent in line with the switch: with the switch on and the machine set up, an
+    /// unregistered agent is registered and an enabled one is started if it is not running.
+    pub fn reconcile_the_agent_with_the_run_tatolab_switch(
         &mut self,
         machine_setup_complete: bool,
         now: Instant,
@@ -120,7 +120,8 @@ impl RunTatolabSwitch {
             tracing::warn!(%failure, run_tatolab, "the Run Tatolab switch could not be remembered");
         }
         if run_tatolab {
-            return self.reconcile_on_app_opened(machine_setup_complete, now);
+            return self
+                .reconcile_the_agent_with_the_run_tatolab_switch(machine_setup_complete, now);
         }
         match self.runtime_launch_agent.registration_status() {
             RuntimeAgentRegistrationStatus::NotRegistered
@@ -329,7 +330,7 @@ mod tests {
 
             let reconciliation = under_test
                 .switch
-                .reconcile_on_app_opened(true, Instant::now());
+                .reconcile_the_agent_with_the_run_tatolab_switch(true, Instant::now());
 
             assert_eq!(reconciliation, RunTatolabReconciliation::Registered);
             assert_eq!(
@@ -348,7 +349,7 @@ mod tests {
 
         let reconciliation = under_test
             .switch
-            .reconcile_on_app_opened(false, Instant::now());
+            .reconcile_the_agent_with_the_run_tatolab_switch(false, Instant::now());
 
         assert_eq!(
             reconciliation,
@@ -364,7 +365,7 @@ mod tests {
         assert_eq!(
             under_test
                 .switch
-                .reconcile_on_app_opened(true, Instant::now()),
+                .reconcile_the_agent_with_the_run_tatolab_switch(true, Instant::now()),
             RunTatolabReconciliation::AlreadyEnabled
         );
         assert_eq!(
@@ -382,7 +383,7 @@ mod tests {
         assert_eq!(
             under_test
                 .switch
-                .reconcile_on_app_opened(true, Instant::now()),
+                .reconcile_the_agent_with_the_run_tatolab_switch(true, Instant::now()),
             RunTatolabReconciliation::SwitchIsOff
         );
         assert!(under_test.service_management.calls().is_empty());
@@ -441,7 +442,7 @@ mod tests {
         assert_eq!(
             under_test
                 .switch
-                .reconcile_on_app_opened(true, Instant::now()),
+                .reconcile_the_agent_with_the_run_tatolab_switch(true, Instant::now()),
             RunTatolabReconciliation::NeedsApprovalInLoginItems {
                 opened_login_items_settings: true
             }
@@ -452,7 +453,7 @@ mod tests {
         assert_eq!(
             under_test
                 .switch
-                .reconcile_on_app_opened(true, Instant::now()),
+                .reconcile_the_agent_with_the_run_tatolab_switch(true, Instant::now()),
             RunTatolabReconciliation::NeedsApprovalInLoginItems {
                 opened_login_items_settings: false
             }
@@ -472,7 +473,7 @@ mod tests {
 
         let reconciliation = under_test
             .switch
-            .reconcile_on_app_opened(true, Instant::now());
+            .reconcile_the_agent_with_the_run_tatolab_switch(true, Instant::now());
 
         assert_eq!(
             reconciliation,
@@ -499,7 +500,7 @@ mod tests {
         assert_eq!(
             under_test
                 .switch
-                .reconcile_on_app_opened(true, Instant::now()),
+                .reconcile_the_agent_with_the_run_tatolab_switch(true, Instant::now()),
             RunTatolabReconciliation::RegistrationFailed {
                 failure_description: "Invalid argument".into()
             }
@@ -511,7 +512,7 @@ mod tests {
         assert_eq!(
             under_test
                 .switch
-                .reconcile_on_app_opened(true, Instant::now()),
+                .reconcile_the_agent_with_the_run_tatolab_switch(true, Instant::now()),
             RunTatolabReconciliation::Registered
         );
     }
@@ -543,7 +544,9 @@ mod tests {
                 .time_since_the_runtime_was_expected_up(later),
             Duration::from_secs(60)
         );
-        under_test.switch.reconcile_on_app_opened(true, later);
+        under_test
+            .switch
+            .reconcile_the_agent_with_the_run_tatolab_switch(true, later);
         assert_eq!(
             under_test
                 .switch

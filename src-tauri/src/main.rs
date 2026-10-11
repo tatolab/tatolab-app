@@ -64,7 +64,7 @@ fn main() {
                 on_tray_menu_choice,
             )?);
             std::thread::spawn(move || {
-                controller.reconcile_on_app_opened();
+                controller.reconcile_the_agent_with_the_run_tatolab_switch();
                 status_publisher.start_polling();
                 controller.set_up_the_machine_on_app_opened();
                 status_publisher.request_refresh();
@@ -80,7 +80,7 @@ fn main() {
     app.run(|app, run_event| {
         if let RunEvent::Reopen { .. } = run_event {
             run_off_the_main_thread_with_the_controller(app, |controller, status_publisher| {
-                controller.reconcile_on_app_opened();
+                controller.reconcile_the_agent_with_the_run_tatolab_switch();
                 status_publisher.request_refresh();
             });
         }

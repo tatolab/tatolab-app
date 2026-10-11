@@ -131,21 +131,28 @@ impl TatolabAppController {
         }
     }
 
-    /// What opening the app does: a local-proof build prepares its test root, then the switch
-    /// registers the agent when it is on and the machine is set up.
-    pub fn reconcile_on_app_opened(&self) -> RunTatolabReconciliation {
+    /// Bring the agent in line with the switch, as opening or reopening the app does: a
+    /// local-proof build prepares its test root, then the switch registers the agent when it is on
+    /// and the machine is set up.
+    pub fn reconcile_the_agent_with_the_run_tatolab_switch(&self) -> RunTatolabReconciliation {
         self.prepare_a_local_proof_test_root_if_this_build_uses_one();
         let machine_setup_complete = self.machine_setup_is_complete();
         let reconciliation = lock_ignoring_poison(&self.run_tatolab_switch)
-            .reconcile_on_app_opened(machine_setup_complete, Instant::now());
-        tracing::info!(?reconciliation, "reconciled Run Tatolab on app open");
+            .reconcile_the_agent_with_the_run_tatolab_switch(
+                machine_setup_complete,
+                Instant::now(),
+            );
+        tracing::info!(
+            ?reconciliation,
+            "reconciled the agent with the Run Tatolab switch"
+        );
         reconciliation
     }
 
     /// What opening the app does once machine setup is missing in a real build: the one
     /// administrator prompt, shown at most once per launch, then the switch is reconciled. A
     /// local-proof build already prepared its test root silently in
-    /// [`Self::reconcile_on_app_opened`].
+    /// [`Self::reconcile_the_agent_with_the_run_tatolab_switch`].
     pub fn set_up_the_machine_on_app_opened(&self) {
         if self.machine_paths.local_proof_test_machine_root.is_some() {
             return;
@@ -153,7 +160,7 @@ impl TatolabAppController {
         if self.run_machine_setup_behind_the_administrator_prompt(
             AdministratorPromptThisLaunch::begin_prompt_on_app_opened,
         ) {
-            self.reconcile_on_app_opened();
+            self.reconcile_the_agent_with_the_run_tatolab_switch();
         }
     }
 
@@ -165,7 +172,7 @@ impl TatolabAppController {
                 AdministratorPromptThisLaunch::begin_prompt_the_user_asked_for,
             );
         }
-        self.reconcile_on_app_opened();
+        self.reconcile_the_agent_with_the_run_tatolab_switch();
     }
 
     /// Show the administrator prompt for whatever setup is missing, if `begin_prompt` allows it
