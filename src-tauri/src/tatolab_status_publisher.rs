@@ -88,10 +88,56 @@ impl TatolabStatusPublisher {
         let publisher = Arc::clone(self);
         spawn_named_app_thread("tatolab-status-poller", move || loop {
             publisher.refresh_and_publish();
-            match refresh_now_receiver.recv_timeout(STATUS_POLL_INTERVAL) {
-                Ok(()) | Err(RecvTimeoutError::Timeout) => {}
-                Err(RecvTimeoutError::Disconnected) => return,
+            if !wait_for_the_next_status_round(&refresh_now_receiver, STATUS_POLL_INTERVAL) {
+                return;
             }
         });
+    }
+}
+
+/// Wait up to `poll_interval` for a refresh request, then take every other request already
+/// queued, so a burst of requests asks for one round; whether another round should run.
+fn wait_for_the_next_status_round(
+    refresh_now_receiver: &Receiver<()>,
+    poll_interval: Duration,
+) -> bool {
+    match refresh_now_receiver.recv_timeout(poll_interval) {
+        Ok(()) => {
+            refresh_now_receiver.try_iter().for_each(drop);
+            true
+        }
+        Err(RecvTimeoutError::Timeout) => true,
+        Err(RecvTimeoutError::Disconnected) => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc::TryRecvError;
+
+    #[test]
+    fn a_burst_of_refresh_requests_collapses_into_one_round() {
+        let (refresh_now_sender, refresh_now_receiver) = mpsc::channel();
+        for _ in 0..3 {
+            refresh_now_sender.send(()).unwrap();
+        }
+
+        assert!(wait_for_the_next_status_round(
+            &refresh_now_receiver,
+            STATUS_POLL_INTERVAL
+        ));
+        assert_eq!(refresh_now_receiver.try_recv(), Err(TryRecvError::Empty));
+    }
+
+    #[test]
+    fn no_more_rounds_once_every_requester_is_gone() {
+        let (refresh_now_sender, refresh_now_receiver) = mpsc::channel::<()>();
+        drop(refresh_now_sender);
+
+        assert!(!wait_for_the_next_status_round(
+            &refresh_now_receiver,
+            STATUS_POLL_INTERVAL
+        ));
     }
 }
