@@ -2,17 +2,22 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 //! Polls the status every couple of seconds on its own thread and publishes each change to the
-//! tray menu.
+//! tray menu and, as the `tatolab-status-changed` event, to the window.
 
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use tauri::{AppHandle, Emitter};
+
 use crate::named_app_thread::spawn_named_app_thread;
-use crate::poison_tolerant_mutex::lock_ignoring_poison;
+use crate::poison_tolerant_mutex::{lock_ignoring_poison, wait_ignoring_poison_while};
 use crate::tatolab_app_controller::TatolabAppController;
 use crate::tatolab_status::TatolabStatus;
 use crate::tatolab_tray_menu::TatolabTrayMenu;
+
+/// The event the window hears each status change on, and the status again each time it is shown.
+const TATOLAB_STATUS_CHANGED_EVENT: &str = "tatolab-status-changed";
 
 /// How often the poller observes the runtime when nothing asks it to sooner.
 const STATUS_POLL_INTERVAL: Duration = Duration::from_secs(2);
@@ -20,19 +25,24 @@ const STATUS_POLL_INTERVAL: Duration = Duration::from_secs(2);
 /// The last status published, and where each change goes.
 pub struct TatolabStatusPublisher {
     controller: Arc<TatolabAppController>,
+    app: AppHandle,
     last_published_status: Mutex<Option<TatolabStatus>>,
+    status_published: Condvar,
     tray_menu: OnceLock<TatolabTrayMenu>,
     refresh_now_sender: Sender<()>,
     refresh_now_receiver: Mutex<Option<Receiver<()>>>,
 }
 
 impl TatolabStatusPublisher {
-    /// A publisher of `controller`'s status, polling once [`Self::start_polling`] is called.
-    pub fn new(controller: Arc<TatolabAppController>) -> Self {
+    /// A publisher of `controller`'s status to `app`'s window, polling once
+    /// [`Self::start_polling`] is called.
+    pub fn new(controller: Arc<TatolabAppController>, app: AppHandle) -> Self {
         let (refresh_now_sender, refresh_now_receiver) = mpsc::channel();
         Self {
             controller,
+            app,
             last_published_status: Mutex::new(None),
+            status_published: Condvar::new(),
             tray_menu: OnceLock::new(),
             refresh_now_sender,
             refresh_now_receiver: Mutex::new(Some(refresh_now_receiver)),
@@ -54,29 +64,76 @@ impl TatolabStatusPublisher {
     /// The poller's one round: observe everything, react to an agent needing approval or a runtime
     /// that is down, and publish the status if it changed. Everyone else asks for a round with
     /// [`Self::request_refresh`].
-    fn refresh_and_publish(&self) {
+    fn refresh_and_publish(self: &Arc<Self>) {
         let now = Instant::now();
         let status = self.controller.compose_status(now);
         self.controller
             .open_login_items_if_the_runtime_agent_needs_approval(status.runtime_agent);
         self.controller
             .start_the_runtime_if_the_poller_found_it_down(&status, now);
-        let mut last_published_status = lock_ignoring_poison(&self.last_published_status);
-        if last_published_status.as_ref() != Some(&status) {
-            tracing::info!(
-                runtime_state = ?status.runtime_state,
-                runtime_agent = ?status.runtime_agent,
-                run_tatolab = status.run_tatolab,
-                listed_stream_count = ?status.streams.as_ref().map(Vec::len),
-                machine_name = ?status.machine_name,
-                machine_setup_state = ?status.machine_setup_state,
-                "Tatolab status changed"
-            );
-            if let Some(tray_menu) = self.tray_menu.get() {
-                tray_menu.show_status(&status);
-            }
-            *last_published_status = Some(status);
+        if !self.remember_if_changed(&status) {
+            return;
         }
+        tracing::info!(
+            runtime_state = ?status.runtime_state,
+            runtime_agent = ?status.runtime_agent,
+            run_tatolab = status.run_tatolab,
+            listed_stream_count = ?status.streams.as_ref().map(Vec::len),
+            machine_name = ?status.machine_name,
+            machine_setup_state = ?status.machine_setup_state,
+            "Tatolab status changed"
+        );
+        self.send_the_last_published_status_to_the_window();
+        if let Some(tray_menu) = self.tray_menu.get() {
+            tray_menu.show_status(&status);
+        }
+    }
+
+    /// Remember `status` when it differs from the last one published, waking whoever waits for
+    /// the first; whether it did.
+    fn remember_if_changed(&self, status: &TatolabStatus) -> bool {
+        let mut last_published_status = lock_ignoring_poison(&self.last_published_status);
+        if last_published_status.as_ref() == Some(status) {
+            return false;
+        }
+        *last_published_status = Some(status.clone());
+        self.status_published.notify_all();
+        true
+    }
+
+    /// Send the window the last status published, from the main thread. Each send reads the
+    /// status as it is when it runs there, and every change asks for one after it is remembered,
+    /// so the window always ends on the newest, whichever thread asked first.
+    pub fn send_the_last_published_status_to_the_window(self: &Arc<Self>) {
+        let publisher = Arc::clone(self);
+        let send_on_the_main_thread = self.app.run_on_main_thread(move || {
+            let last_published_status =
+                lock_ignoring_poison(&publisher.last_published_status).clone();
+            let Some(status) = last_published_status else {
+                return;
+            };
+            if let Err(failure) = publisher.app.emit(TATOLAB_STATUS_CHANGED_EVENT, &status) {
+                tracing::warn!(%failure, "the status could not be sent to the window");
+            }
+        });
+        if let Err(failure) = send_on_the_main_thread {
+            tracing::warn!(%failure, "the main thread could not be asked to send the window the status");
+        }
+    }
+
+    /// The last status published, waiting up to `wait_limit` for the poller's first round;
+    /// `None` when it has published nothing by then.
+    pub fn last_published_status_waiting_up_to(
+        &self,
+        wait_limit: Duration,
+    ) -> Option<TatolabStatus> {
+        wait_ignoring_poison_while(
+            &self.status_published,
+            lock_ignoring_poison(&self.last_published_status),
+            wait_limit,
+            |last_published_status| last_published_status.is_none(),
+        )
+        .clone()
     }
 
     /// Ask the poller to observe again now rather than at its next interval.

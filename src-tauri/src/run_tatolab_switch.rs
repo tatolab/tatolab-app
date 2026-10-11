@@ -134,7 +134,7 @@ impl RunTatolabSwitch {
 
     /// Turn the switch on or off and remember it. On registers the agent once the machine is set
     /// up; off unregisters it, which stops the runtime.
-    fn set_run_tatolab(
+    pub fn set_run_tatolab(
         &mut self,
         run_tatolab: bool,
         machine_setup_complete: bool,
@@ -185,6 +185,13 @@ impl RunTatolabSwitch {
             let _the_poller_reports_the_status_not_the_reconciliation =
                 self.needs_approval_in_login_items();
         }
+    }
+
+    /// Open System Settings at Login Items because the user asked. It counts as this launch's
+    /// opening, so the poller seeing the agent need approval does not open it again.
+    pub fn open_login_items_settings_on_request(&mut self) {
+        self.runtime_launch_agent.open_login_items_settings();
+        self.login_items_settings_opened_this_launch = true;
     }
 
     fn register(&mut self, now: Instant) -> RunTatolabReconciliation {
@@ -564,6 +571,56 @@ mod tests {
         assert_eq!(
             under_test.service_management.calls(),
             vec![FakeServiceManagementCall::OpenLoginItemsSettings]
+        );
+    }
+
+    #[test]
+    fn login_items_opened_on_request_is_not_opened_again_by_the_poller() {
+        let mut under_test = switch_with(RuntimeAgentRegistrationStatus::RequiresApproval, None);
+
+        under_test.switch.open_login_items_settings_on_request();
+        under_test.switch.notice_runtime_agent_registration_status(
+            RuntimeAgentRegistrationStatus::RequiresApproval,
+        );
+
+        assert_eq!(
+            under_test.service_management.calls(),
+            vec![FakeServiceManagementCall::OpenLoginItemsSettings]
+        );
+    }
+
+    #[test]
+    fn login_items_opens_on_request_even_after_this_launch_opened_it() {
+        let mut under_test = switch_with(RuntimeAgentRegistrationStatus::RequiresApproval, None);
+        under_test.switch.notice_runtime_agent_registration_status(
+            RuntimeAgentRegistrationStatus::RequiresApproval,
+        );
+
+        under_test.switch.open_login_items_settings_on_request();
+
+        assert_eq!(
+            under_test.service_management.calls(),
+            vec![
+                FakeServiceManagementCall::OpenLoginItemsSettings,
+                FakeServiceManagementCall::OpenLoginItemsSettings
+            ]
+        );
+    }
+
+    #[test]
+    fn setting_the_switch_on_while_it_is_on_starts_an_enabled_agent_again() {
+        let mut under_test = switch_with(RuntimeAgentRegistrationStatus::Enabled, None);
+
+        assert_eq!(
+            under_test
+                .switch
+                .set_run_tatolab(true, true, Instant::now()),
+            RunTatolabReconciliation::AlreadyEnabled
+        );
+        assert!(under_test.preference_file.load_run_tatolab());
+        assert_eq!(
+            under_test.service_management.calls(),
+            vec![FakeServiceManagementCall::StartIfNotRunning]
         );
     }
 

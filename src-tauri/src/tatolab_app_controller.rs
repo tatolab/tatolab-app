@@ -251,9 +251,26 @@ impl TatolabAppController {
         );
     }
 
+    /// "Run Tatolab" set from the window: set the switch, remember it, and reconcile the agent,
+    /// all under one lock.
+    pub fn set_run_tatolab(&self, run_tatolab: bool) {
+        let machine_setup_complete = self.machine_setup_is_complete();
+        let reconciliation = lock_ignoring_poison(&self.run_tatolab_switch).set_run_tatolab(
+            run_tatolab,
+            machine_setup_complete,
+            Instant::now(),
+        );
+        tracing::info!(run_tatolab, ?reconciliation, "Run Tatolab set");
+    }
+
     /// Whether the switch is on.
     pub fn run_tatolab(&self) -> bool {
         lock_ignoring_poison(&self.run_tatolab_switch).run_tatolab()
+    }
+
+    /// Open System Settings at Login Items, where a user approves the runtime's login item.
+    pub fn open_login_items_settings(&self) {
+        lock_ignoring_poison(&self.run_tatolab_switch).open_login_items_settings_on_request();
     }
 
     /// With the switch on, open System Settings at Login Items the first time this launch the
