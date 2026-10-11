@@ -23,8 +23,9 @@ use crate::poison_tolerant_mutex::lock_ignoring_poison;
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::run_tatolab_switch::RunTatolabSwitch;
 use crate::tatolab_status::{
-    derive_runtime_state, the_runtime_just_became_unreachable, MachineSetupState,
-    RuntimeAgentRegistrationStatus, RuntimeHealthObservation, RuntimeState, TatolabStatus,
+    derive_runtime_state, the_runtime_just_became_unreachable,
+    the_stream_listing_just_started_failing, MachineSetupState, RuntimeAgentRegistrationStatus,
+    RuntimeHealthObservation, RuntimeState, TatolabStatus,
 };
 
 /// How long one local API request may take before the runtime reads as not answering.
@@ -80,6 +81,7 @@ pub struct TatolabAppController {
     local_api_client: LocalApiClient,
     administrator_prompt_this_launch: Mutex<AdministratorPromptThisLaunch>,
     runtime_state_last_observed: Mutex<Option<RuntimeState>>,
+    stream_listing_failed_last_round: Mutex<bool>,
 }
 
 impl TatolabAppController {
@@ -109,6 +111,7 @@ impl TatolabAppController {
             bundled_command_line_tool,
             administrator_prompt_this_launch: Mutex::new(AdministratorPromptThisLaunch::default()),
             runtime_state_last_observed: Mutex::new(None),
+            stream_listing_failed_last_round: Mutex::new(false),
         }
     }
 
@@ -251,7 +254,7 @@ impl TatolabAppController {
         let stream_count = if runtime_health == RuntimeHealthObservation::Healthy {
             self.listed_stream_count()
         } else {
-            0
+            None
         };
 
         let runtime_state = {
@@ -286,13 +289,24 @@ impl TatolabAppController {
         }
     }
 
-    fn listed_stream_count(&self) -> usize {
-        self.local_api_client
-            .count_listed_streams()
-            .unwrap_or_else(|failure| {
+    /// The runtime's stream count, or `None` when listing failed, which is logged on the round it
+    /// starts failing.
+    fn listed_stream_count(&self) -> Option<usize> {
+        let stream_count = self.local_api_client.count_listed_streams();
+        let stream_listing_failed_this_round = stream_count.is_err();
+        let stream_listing_failed_last_round = std::mem::replace(
+            &mut *lock_ignoring_poison(&self.stream_listing_failed_last_round),
+            stream_listing_failed_this_round,
+        );
+        if the_stream_listing_just_started_failing(
+            stream_listing_failed_last_round,
+            stream_listing_failed_this_round,
+        ) {
+            if let Err(failure) = &stream_count {
                 tracing::warn!(%failure, "the runtime's streams could not be listed");
-                0
-            })
+            }
+        }
+        stream_count.ok()
     }
 }
 

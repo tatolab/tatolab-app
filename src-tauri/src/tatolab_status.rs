@@ -16,7 +16,8 @@ pub struct TatolabStatus {
     pub run_tatolab: bool,
     pub runtime_agent: RuntimeAgentRegistrationStatus,
     pub runtime_state: RuntimeState,
-    pub stream_count: usize,
+    /// How many streams the runtime lists; `None` when they were not listed or listing failed.
+    pub stream_count: Option<usize>,
     pub machine_setup_state: MachineSetupState,
 }
 
@@ -105,6 +106,14 @@ pub fn the_runtime_just_became_unreachable(
         && previous_runtime_state != Some(RuntimeState::Unreachable)
 }
 
+/// Whether this round is the one listing the runtime's streams started failing in.
+pub fn the_stream_listing_just_started_failing(
+    stream_listing_failed_last_round: bool,
+    stream_listing_failed_this_round: bool,
+) -> bool {
+    stream_listing_failed_this_round && !stream_listing_failed_last_round
+}
+
 /// The tray's one-line status, the disabled first item of its menu.
 pub fn tray_status_line(status: &TatolabStatus) -> String {
     match status.machine_setup_state {
@@ -120,8 +129,9 @@ pub fn tray_status_line(status: &TatolabStatus) -> String {
     }
     match status.runtime_state {
         RuntimeState::Running => match status.stream_count {
-            1 => "Runtime running · 1 stream".to_string(),
-            stream_count => format!("Runtime running · {stream_count} streams"),
+            None => "Runtime running".to_string(),
+            Some(1) => "Runtime running · 1 stream".to_string(),
+            Some(stream_count) => format!("Runtime running · {stream_count} streams"),
         },
         RuntimeState::Starting => "Starting…".to_string(),
         RuntimeState::Stopped => "Runtime stopped".to_string(),
@@ -136,7 +146,7 @@ mod tests {
     fn status_with(
         runtime_state: RuntimeState,
         runtime_agent: RuntimeAgentRegistrationStatus,
-        stream_count: usize,
+        stream_count: Option<usize>,
     ) -> TatolabStatus {
         TatolabStatus {
             run_tatolab: true,
@@ -242,6 +252,25 @@ mod tests {
     }
 
     #[test]
+    fn the_stream_listing_failure_is_new_only_on_the_round_it_starts_failing() {
+        for (stream_listing_failed_last_round, stream_listing_failed_this_round, expected) in [
+            (false, true, true),
+            (true, true, false),
+            (true, false, false),
+            (false, false, false),
+        ] {
+            assert_eq!(
+                the_stream_listing_just_started_failing(
+                    stream_listing_failed_last_round,
+                    stream_listing_failed_this_round
+                ),
+                expected,
+                "{stream_listing_failed_last_round} -> {stream_listing_failed_this_round}"
+            );
+        }
+    }
+
+    #[test]
     fn machine_setup_waits_for_the_administrator_only_while_the_prompt_shows() {
         for (machine_setup_pieces_missing, administrator_prompt_showing, expected) in [
             (false, false, MachineSetupState::Complete),
@@ -264,7 +293,7 @@ mod tests {
         let mut status = status_with(
             RuntimeState::Stopped,
             RuntimeAgentRegistrationStatus::NotRegistered,
-            0,
+            None,
         );
         status.machine_setup_state = MachineSetupState::WaitingForAdministrator;
         assert_eq!(tray_status_line(&status), "Setting up Tatolab…");
@@ -281,14 +310,15 @@ mod tests {
                 stream_count,
             ))
         };
-        assert_eq!(running(3), "Runtime running · 3 streams");
-        assert_eq!(running(1), "Runtime running · 1 stream");
-        assert_eq!(running(0), "Runtime running · 0 streams");
+        assert_eq!(running(Some(3)), "Runtime running · 3 streams");
+        assert_eq!(running(Some(1)), "Runtime running · 1 stream");
+        assert_eq!(running(Some(0)), "Runtime running · 0 streams");
+        assert_eq!(running(None), "Runtime running");
         assert_eq!(
             tray_status_line(&status_with(
                 RuntimeState::Stopped,
                 RuntimeAgentRegistrationStatus::NotRegistered,
-                0
+                None
             )),
             "Runtime stopped"
         );
@@ -296,7 +326,7 @@ mod tests {
             tray_status_line(&status_with(
                 RuntimeState::Starting,
                 RuntimeAgentRegistrationStatus::Enabled,
-                0
+                None
             )),
             "Starting…"
         );
@@ -304,7 +334,7 @@ mod tests {
             tray_status_line(&status_with(
                 RuntimeState::Stopped,
                 RuntimeAgentRegistrationStatus::RequiresApproval,
-                0
+                None
             )),
             "Needs approval in Login Items"
         );
