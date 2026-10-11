@@ -21,7 +21,7 @@ use crate::macos::tatolab_machine_paths::{
 };
 use crate::poison_tolerant_mutex::lock_ignoring_poison;
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
-use crate::run_tatolab_switch::{RunTatolabReconciliation, RunTatolabSwitch};
+use crate::run_tatolab_switch::RunTatolabSwitch;
 use crate::tatolab_status::{
     derive_runtime_state, the_runtime_just_became_unreachable, MachineSetupState,
     RuntimeHealthObservation, RuntimeState, TatolabStatus,
@@ -134,7 +134,7 @@ impl TatolabAppController {
     /// Bring the agent in line with the switch, as opening or reopening the app does: a
     /// local-proof build prepares its test root, then the switch registers the agent when it is on
     /// and the machine is set up.
-    pub fn reconcile_the_agent_with_the_run_tatolab_switch(&self) -> RunTatolabReconciliation {
+    pub fn reconcile_the_agent_with_the_run_tatolab_switch(&self) {
         self.prepare_a_local_proof_test_root_if_this_build_uses_one();
         let machine_setup_complete = self.machine_setup_is_complete();
         let reconciliation = lock_ignoring_poison(&self.run_tatolab_switch)
@@ -146,7 +146,6 @@ impl TatolabAppController {
             ?reconciliation,
             "reconciled the agent with the Run Tatolab switch"
         );
-        reconciliation
     }
 
     /// What opening the app does once machine setup is missing in a real build: the one
@@ -202,16 +201,17 @@ impl TatolabAppController {
         true
     }
 
-    /// Turn the switch on or off and remember it.
-    pub fn set_run_tatolab(&self, run_tatolab: bool) -> RunTatolabReconciliation {
+    /// "Run Tatolab" chosen from the tray: flip the switch, remember it, and reconcile the agent,
+    /// all under one lock.
+    pub fn toggle_run_tatolab(&self) {
         let machine_setup_complete = self.machine_setup_is_complete();
-        let reconciliation = lock_ignoring_poison(&self.run_tatolab_switch).set_run_tatolab(
-            run_tatolab,
-            machine_setup_complete,
-            Instant::now(),
+        let mut switch = lock_ignoring_poison(&self.run_tatolab_switch);
+        let reconciliation = switch.toggle(machine_setup_complete, Instant::now());
+        tracing::info!(
+            run_tatolab = switch.run_tatolab(),
+            ?reconciliation,
+            "Run Tatolab switched"
         );
-        tracing::info!(run_tatolab, ?reconciliation, "Run Tatolab switched");
-        reconciliation
     }
 
     /// Whether the switch is on.

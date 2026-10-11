@@ -103,7 +103,7 @@ fn on_tray_menu_choice(app: &AppHandle, choice: TrayMenuChoice) {
     match choice {
         TrayMenuChoice::ToggleRunTatolabSwitch => {
             run_off_the_main_thread_with_the_controller(app, |controller, status_publisher| {
-                controller.set_run_tatolab(!controller.run_tatolab());
+                controller.toggle_run_tatolab();
                 status_publisher.refresh_and_publish();
             });
         }

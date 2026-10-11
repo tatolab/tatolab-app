@@ -141,6 +141,15 @@ impl RunTatolabSwitch {
         }
     }
 
+    /// Flip the switch and reconcile the agent with its new value, as one step under one borrow.
+    pub fn toggle(
+        &mut self,
+        machine_setup_complete: bool,
+        now: Instant,
+    ) -> RunTatolabReconciliation {
+        self.set_run_tatolab(!self.run_tatolab, machine_setup_complete, now)
+    }
+
     /// React to the agent's status as the poller saw it: the first time this launch the switch
     /// is on and the agent needs approval, Login Items opens by itself.
     pub fn notice_runtime_agent_registration_status(
@@ -433,6 +442,47 @@ mod tests {
 
         assert_eq!(reconciliation, RunTatolabReconciliation::Registered);
         assert!(under_test.preference_file.load_run_tatolab());
+    }
+
+    #[test]
+    fn toggling_flips_the_switch_and_reconciles_the_agent_each_time() {
+        let mut under_test = switch_with(RuntimeAgentRegistrationStatus::Enabled, None);
+
+        assert_eq!(
+            under_test.switch.toggle(true, Instant::now()),
+            RunTatolabReconciliation::Unregistered
+        );
+        assert!(!under_test.switch.run_tatolab());
+        assert!(!under_test.preference_file.load_run_tatolab());
+
+        assert_eq!(
+            under_test.switch.toggle(true, Instant::now()),
+            RunTatolabReconciliation::Registered
+        );
+        assert!(under_test.switch.run_tatolab());
+        assert!(under_test.preference_file.load_run_tatolab());
+        assert_eq!(
+            under_test.service_management.calls(),
+            vec![
+                FakeServiceManagementCall::Unregister,
+                FakeServiceManagementCall::Register,
+                FakeServiceManagementCall::StartIfNotRunning
+            ]
+        );
+    }
+
+    #[test]
+    fn toggling_on_before_machine_setup_remembers_on_and_registers_nothing() {
+        let mut under_test =
+            switch_with(RuntimeAgentRegistrationStatus::NotRegistered, Some(false));
+
+        assert_eq!(
+            under_test.switch.toggle(false, Instant::now()),
+            RunTatolabReconciliation::WaitingForMachineSetup
+        );
+        assert!(under_test.switch.run_tatolab());
+        assert!(under_test.preference_file.load_run_tatolab());
+        assert!(under_test.service_management.calls().is_empty());
     }
 
     #[test]
