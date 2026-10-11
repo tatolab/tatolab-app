@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 //! The app's one controller: it owns the "Run Tatolab" switch, the machine setup, and the local
-//! API client, and composes the [`TatolabStatus`] the tray shows. Everything here may block on the
-//! service manager, the filesystem, the socket or the administrator prompt, so callers run it off
-//! the main thread.
+//! API client, and composes the [`TatolabStatus`] the tray and the window show. Everything here
+//! may block on the service manager, the filesystem, the socket or the administrator prompt, so
+//! callers run it off the main thread.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -12,8 +12,9 @@ use std::time::{Duration, Instant};
 
 use crate::local_api_client::LocalApiClient;
 use crate::macos::machine_setup::{
-    missing_machine_setup_pieces, prepare_local_proof_test_machine_root,
-    run_machine_setup_behind_one_administrator_prompt, MissingMachineSetupPiece,
+    command_line_tool_linked_at, missing_machine_setup_pieces,
+    prepare_local_proof_test_machine_root, run_machine_setup_behind_one_administrator_prompt,
+    MissingMachineSetupPiece,
 };
 use crate::macos::service_management_runtime_launch_agent::ServiceManagementRuntimeLaunchAgent;
 use crate::macos::tatolab_machine_paths::{
@@ -24,8 +25,8 @@ use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::run_tatolab_switch::RunTatolabSwitch;
 use crate::tatolab_status::{
     derive_runtime_state, the_runtime_just_became_unreachable,
-    the_stream_listing_just_started_failing, MachineSetupState, RuntimeAgentRegistrationStatus,
-    RuntimeHealthObservation, RuntimeState, TatolabStatus,
+    the_stream_listing_just_started_failing, ListedStream, MachineSetupState,
+    RuntimeAgentRegistrationStatus, RuntimeHealthObservation, RuntimeState, TatolabStatus,
 };
 
 /// How long one local API request may take before the runtime reads as not answering.
@@ -73,8 +74,31 @@ impl AdministratorPromptThisLaunch {
     }
 }
 
+/// The machine's name, asked of the runtime once each time it comes up.
+#[derive(Debug, Default)]
+struct MachineNameAskedOncePerRuntimeUpEpisode {
+    /// `None` until asked since the runtime came up; then what it answered, `None` when it did
+    /// not say.
+    answer_this_episode: Option<Option<String>>,
+}
+
+impl MachineNameAskedOncePerRuntimeUpEpisode {
+    /// This episode's answer, calling `ask_the_runtime` only the first time.
+    fn machine_name(&mut self, ask_the_runtime: impl FnOnce() -> Option<String>) -> Option<String> {
+        self.answer_this_episode
+            .get_or_insert_with(ask_the_runtime)
+            .clone()
+    }
+
+    /// The runtime is down, so the next time it is up it is asked again.
+    fn runtime_is_down(&mut self) {
+        self.answer_this_episode = None;
+    }
+}
+
 /// The switch, the machine's paths, and what the controller remembers between status rounds.
 pub struct TatolabAppController {
+    app_version: String,
     run_tatolab_switch: Mutex<RunTatolabSwitch>,
     machine_paths: TatolabMachinePaths,
     bundled_command_line_tool: Option<PathBuf>,
@@ -82,12 +106,17 @@ pub struct TatolabAppController {
     administrator_prompt_this_launch: Mutex<AdministratorPromptThisLaunch>,
     runtime_state_last_observed: Mutex<Option<RuntimeState>>,
     stream_listing_failed_last_round: Mutex<bool>,
+    machine_name_of_the_running_runtime: Mutex<MachineNameAskedOncePerRuntimeUpEpisode>,
 }
 
 impl TatolabAppController {
-    /// The controller for this build, remembering the switch in `app_config_directory`, as the
-    /// app launches at `app_launched_at`.
-    pub fn for_this_build(app_config_directory: &Path, app_launched_at: Instant) -> Self {
+    /// The controller for this build of the app at `app_version`, remembering the switch in
+    /// `app_config_directory`, as the app launches at `app_launched_at`.
+    pub fn for_this_build(
+        app_config_directory: &Path,
+        app_launched_at: Instant,
+        app_version: String,
+    ) -> Self {
         let machine_paths = TatolabMachinePaths::for_this_build(current_process_uid());
         let bundled_command_line_tool = bundled_command_line_tool_path();
         tracing::info!(
@@ -98,6 +127,7 @@ impl TatolabAppController {
             "Tatolab app paths"
         );
         Self {
+            app_version,
             run_tatolab_switch: Mutex::new(RunTatolabSwitch::load(
                 Box::new(ServiceManagementRuntimeLaunchAgent::for_the_bundled_runtime()),
                 RunTatolabPreferenceFile::in_app_config_directory(app_config_directory),
@@ -112,6 +142,9 @@ impl TatolabAppController {
             administrator_prompt_this_launch: Mutex::new(AdministratorPromptThisLaunch::default()),
             runtime_state_last_observed: Mutex::new(None),
             stream_listing_failed_last_round: Mutex::new(false),
+            machine_name_of_the_running_runtime: Mutex::new(
+                MachineNameAskedOncePerRuntimeUpEpisode::default(),
+            ),
         }
     }
 
@@ -265,10 +298,14 @@ impl TatolabAppController {
             Ok(()) => RuntimeHealthObservation::Healthy,
             Err(_) => RuntimeHealthObservation::Failing,
         };
-        let stream_count = if runtime_health == RuntimeHealthObservation::Healthy {
-            self.listed_stream_count()
+        let (streams, machine_name) = if runtime_health == RuntimeHealthObservation::Healthy {
+            (
+                self.listed_streams(),
+                self.machine_name_of_the_running_runtime(),
+            )
         } else {
-            None
+            lock_ignoring_poison(&self.machine_name_of_the_running_runtime).runtime_is_down();
+            (None, None)
         };
 
         let (run_tatolab, runtime_agent, runtime_state) = {
@@ -295,22 +332,30 @@ impl TatolabAppController {
         }
 
         TatolabStatus {
+            app_version: self.app_version.clone(),
             run_tatolab,
             runtime_agent,
             runtime_state,
-            stream_count,
+            machine_name,
+            streams,
             machine_setup_state: MachineSetupState::from_observation(
                 !missing_setup.is_empty(),
                 administrator_prompt_showing,
             ),
+            command_line_tool_linked_at: command_line_tool_linked_at(
+                &self.machine_paths,
+                self.bundled_command_line_tool.as_deref(),
+                &missing_setup,
+            )
+            .map(|link_path| link_path.display().to_string()),
         }
     }
 
-    /// The runtime's stream count, or `None` when listing failed, which is logged on the round it
+    /// The runtime's streams, or `None` when listing failed, which is logged on the round it
     /// starts failing.
-    fn listed_stream_count(&self) -> Option<usize> {
-        let stream_count = self.local_api_client.count_listed_streams();
-        let stream_listing_failed_this_round = stream_count.is_err();
+    fn listed_streams(&self) -> Option<Vec<ListedStream>> {
+        let streams = self.local_api_client.list_streams();
+        let stream_listing_failed_this_round = streams.is_err();
         let stream_listing_failed_last_round = std::mem::replace(
             &mut *lock_ignoring_poison(&self.stream_listing_failed_last_round),
             stream_listing_failed_this_round,
@@ -319,11 +364,28 @@ impl TatolabAppController {
             stream_listing_failed_last_round,
             stream_listing_failed_this_round,
         ) {
-            if let Err(failure) = &stream_count {
+            if let Err(failure) = &streams {
                 tracing::warn!(%failure, "the runtime's streams could not be listed");
             }
         }
-        stream_count.ok()
+        streams.ok()
+    }
+
+    /// The running runtime's name for this machine, asked once each time the runtime comes up;
+    /// only the poller asks, so holding the lock across the request holds up no one.
+    fn machine_name_of_the_running_runtime(&self) -> Option<String> {
+        lock_ignoring_poison(&self.machine_name_of_the_running_runtime).machine_name(|| {
+            match self.local_api_client.machine_name() {
+                Ok(machine_name) => Some(machine_name),
+                Err(failure) => {
+                    tracing::warn!(
+                        %failure,
+                        "the runtime's machine name could not be read; it is asked again once the runtime restarts"
+                    );
+                    None
+                }
+            }
+        })
     }
 }
 
@@ -362,6 +424,40 @@ mod tests {
 
         assert!(!administrator_prompt.begin_prompt(AdministratorPromptTrigger::UserAsked));
         assert!(!administrator_prompt.begin_prompt(AdministratorPromptTrigger::AppOpened));
+    }
+
+    #[test]
+    fn the_machine_name_is_asked_once_while_the_runtime_stays_up() {
+        let mut machine_name = MachineNameAskedOncePerRuntimeUpEpisode::default();
+        let mut times_asked = 0;
+
+        for _ in 0..3 {
+            let answer = machine_name.machine_name(|| {
+                times_asked += 1;
+                Some("jonathanf-macbook".to_string())
+            });
+            assert_eq!(answer.as_deref(), Some("jonathanf-macbook"));
+        }
+        assert_eq!(times_asked, 1);
+    }
+
+    #[test]
+    fn a_machine_name_the_runtime_did_not_give_is_asked_again_only_after_a_restart() {
+        let mut machine_name = MachineNameAskedOncePerRuntimeUpEpisode::default();
+
+        assert_eq!(machine_name.machine_name(|| None), None);
+        assert_eq!(
+            machine_name.machine_name(|| Some("asked-twice".to_string())),
+            None
+        );
+
+        machine_name.runtime_is_down();
+        assert_eq!(
+            machine_name
+                .machine_name(|| Some("jonathanf-macbook".to_string()))
+                .as_deref(),
+            Some("jonathanf-macbook")
+        );
     }
 
     #[test]

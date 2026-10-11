@@ -53,6 +53,7 @@ fn main() {
             let controller = Arc::new(TatolabAppController::for_this_build(
                 &app_config_directory,
                 app_launched_at,
+                app.package_info().version.to_string(),
             ));
             let status_publisher = Arc::new(TatolabStatusPublisher::new(Arc::clone(&controller)));
             app.manage(TatolabAppSharedState {

@@ -67,7 +67,8 @@ impl TatolabStatusPublisher {
                 runtime_state = ?status.runtime_state,
                 runtime_agent = ?status.runtime_agent,
                 run_tatolab = status.run_tatolab,
-                stream_count = ?status.stream_count,
+                listed_stream_count = ?status.streams.as_ref().map(Vec::len),
+                machine_name = ?status.machine_name,
                 machine_setup_state = ?status.machine_setup_state,
                 "Tatolab status changed"
             );

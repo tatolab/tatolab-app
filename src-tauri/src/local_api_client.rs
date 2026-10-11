@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 //! The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
-//! local API's Unix socket. `GET /health` says the runtime is up, and the MCP tool `list_streams`
-//! over `POST /mcp` lists its streams.
+//! local API's Unix socket. `GET /health` says the runtime is up, the MCP tool `list_streams` over
+//! `POST /mcp` lists its streams, and `GET /api/graph` names the machine.
 //!
 //! The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
 //! `mcp.rs` serves rmcp's stateless Streamable HTTP with per-request protocol metadata
@@ -16,9 +16,10 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use serde::de::IgnoredAny;
 use serde::Deserialize;
 use serde_json::{json, Value};
+
+use crate::tatolab_status::ListedStream;
 
 /// The MCP protocol revision the runtime serves, and the only one.
 pub const LOCAL_API_MCP_PROTOCOL_VERSION: &str = "2026-07-28";
@@ -63,10 +64,33 @@ pub struct LocalApiClient {
     request_timeout: Duration,
 }
 
-/// The `list_streams` result read only as far as the tray needs: how many streams it lists.
+/// The `list_streams` tool's result.
 #[derive(Deserialize)]
 struct ListStreamsToolResultOnTheWire {
-    streams: Vec<IgnoredAny>,
+    streams: Vec<ListedStream>,
+}
+
+/// The machine-wide `GET /api/graph`, read only as far as the machine's name.
+#[derive(Deserialize)]
+struct MachineWideGraphOnTheWire {
+    machine: String,
+}
+
+/// The body the runtime's REST routes refuse a request with.
+#[derive(Deserialize)]
+struct LocalApiErrorResponseOnTheWire {
+    error: String,
+}
+
+/// Every stream a `list_streams` tool result lists.
+pub fn listed_streams_from_the_list_streams_tool_result(
+    tool_result_text: &str,
+) -> Result<Vec<ListedStream>, String> {
+    serde_json::from_str::<ListStreamsToolResultOnTheWire>(tool_result_text)
+        .map(|tool_result| tool_result.streams)
+        .map_err(|failure| {
+            format!("the runtime's list_streams result could not be read: {failure}")
+        })
 }
 
 impl LocalApiClient {
@@ -95,16 +119,45 @@ impl LocalApiClient {
         }
     }
 
-    /// How many streams the runtime holds, from its `list_streams` tool.
-    pub fn count_listed_streams(&self) -> Result<usize, LocalApiRequestFailure> {
+    /// Every stream the runtime holds, from its `list_streams` tool.
+    pub fn list_streams(&self) -> Result<Vec<ListedStream>, LocalApiRequestFailure> {
         let tool_result_text = self.call_mcp_tool("list_streams", json!({}))?;
-        serde_json::from_str::<ListStreamsToolResultOnTheWire>(&tool_result_text)
-            .map(|tool_result| tool_result.streams.len())
+        listed_streams_from_the_list_streams_tool_result(&tool_result_text)
+            .map_err(LocalApiRequestFailure::new)
+    }
+
+    /// This machine's name, as `GET /api/graph` states it beside every loaded stream's graph.
+    pub fn machine_name(&self) -> Result<String, LocalApiRequestFailure> {
+        let graph_body = self.get_body_of_an_ok_answer("/api/graph")?;
+        serde_json::from_slice::<MachineWideGraphOnTheWire>(&graph_body)
+            .map(|graph| graph.machine)
             .map_err(|failure| {
                 LocalApiRequestFailure::new(format!(
-                    "the runtime's list_streams result could not be read: {failure}"
+                    "the runtime's /api/graph names no machine: {failure}"
                 ))
             })
+    }
+
+    /// `GET request_target`, answering the body of a `200`; any other answer is refused in the
+    /// runtime's own words when its body carries them.
+    fn get_body_of_an_ok_answer(
+        &self,
+        request_target: &str,
+    ) -> Result<Vec<u8>, LocalApiRequestFailure> {
+        let response = self.exchange("GET", request_target, &[], None)?;
+        if response.status_code == 200 {
+            return Ok(response.body);
+        }
+        let refusal = match serde_json::from_slice::<LocalApiErrorResponseOnTheWire>(&response.body)
+        {
+            Ok(error_response) => error_response.error,
+            Err(_) => format!(
+                "the runtime answered {request_target} with {}: {}",
+                response.status_code,
+                String::from_utf8_lossy(&response.body).trim()
+            ),
+        };
+        Err(LocalApiRequestFailure::new(refusal))
     }
 
     /// Call the MCP tool `tool_name` with `tool_arguments` in one stateless request, answering
@@ -513,11 +566,11 @@ mod tests {
     }
 
     #[test]
-    fn counting_listed_streams_sends_the_headers_and_meta_the_runtime_requires() {
+    fn listing_streams_sends_the_headers_and_meta_the_runtime_requires() {
         let server =
             FakeLocalApiServer::answering(vec![tool_result_response(json!({ "streams": [] }))]);
 
-        assert_eq!(server.client().count_listed_streams().unwrap(), 0);
+        assert_eq!(server.client().list_streams().unwrap(), Vec::new());
 
         let request = &server.received_requests()[0];
         let (head, body) = request.split_once("\r\n\r\n").unwrap();
@@ -558,19 +611,136 @@ mod tests {
         );
     }
 
+    fn listed_stream(
+        name: &str,
+        state: &str,
+        project_directory: &str,
+        node_count: Option<u64>,
+        failed_because: Option<&str>,
+    ) -> ListedStream {
+        ListedStream {
+            name: name.to_string(),
+            state: state.to_string(),
+            project_directory: project_directory.to_string(),
+            node_count,
+            failed_because: failed_because.map(str::to_string),
+        }
+    }
+
+    /// The text block a real runtime answered `list_streams` with, holding one kept stream.
+    const A_REAL_LIST_STREAMS_TOOL_RESULT: &str = "{\n  \"streams\": [\n    {\n      \"name\": \"main\",\n      \"state\": \"kept\",\n      \"project_directory\": \"/private/tmp/tatolab-proof-projects/pattern\",\n      \"node_count\": 4,\n      \"failed_because\": null\n    }\n  ]\n}";
+
     #[test]
-    fn counting_listed_streams_counts_every_listed_stream_whatever_its_state() {
+    fn a_real_list_streams_result_lists_its_streams() {
+        assert_eq!(
+            listed_streams_from_the_list_streams_tool_result(A_REAL_LIST_STREAMS_TOOL_RESULT)
+                .unwrap(),
+            vec![listed_stream(
+                "main",
+                "kept",
+                "/private/tmp/tatolab-proof-projects/pattern",
+                Some(4),
+                None
+            )]
+        );
+    }
+
+    #[test]
+    fn a_stream_in_a_state_or_with_fields_this_app_does_not_know_is_still_listed() {
+        let tool_result = json!({
+            "streams": [
+                { "name": "from-a-newer-runtime", "state": "migrating", "project_directory": "/Users/me/newer", "node_count": 1, "failed_because": null, "a_field_from_later": true },
+                { "name": "without-a-project", "state": "attached" }
+            ],
+            "a_top_level_field_from_later": [1, 2]
+        });
+
+        assert_eq!(
+            listed_streams_from_the_list_streams_tool_result(&tool_result.to_string()).unwrap(),
+            vec![
+                listed_stream(
+                    "from-a-newer-runtime",
+                    "migrating",
+                    "/Users/me/newer",
+                    Some(1),
+                    None
+                ),
+                listed_stream("without-a-project", "attached", "", None, None),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_list_streams_result_naming_no_stream_name_is_refused() {
+        let failure = listed_streams_from_the_list_streams_tool_result(
+            &json!({ "streams": [{ "state": "kept" }] }).to_string(),
+        )
+        .unwrap_err();
+
+        assert!(failure.contains("list_streams"), "{failure}");
+    }
+
+    #[test]
+    fn listing_streams_lists_every_stream_whatever_its_state() {
         let server = FakeLocalApiServer::answering(vec![tool_result_response(json!({
             "streams": [
                 { "name": "camera-preview", "state": "attached", "project_directory": "/Users/me/camera", "node_count": 3, "failed_because": null },
                 { "name": "encoder", "state": "kept", "project_directory": "/Users/me/encoder", "node_count": null, "failed_because": null },
                 { "name": "paused", "state": "stopped", "project_directory": "/Users/me/paused", "node_count": null, "failed_because": null },
-                { "name": "crashy", "state": "failed", "project_directory": "/Users/me/crashy", "node_count": null, "failed_because": "implicated in the runtime's last two crashes in a row" },
-                { "name": "from-a-newer-runtime", "state": "migrating", "project_directory": "/Users/me/newer", "node_count": 1, "failed_because": null, "a_field_from_later": true }
+                { "name": "crashy", "state": "failed", "project_directory": "/Users/me/crashy", "node_count": null, "failed_because": "implicated in the runtime's last two crashes in a row" }
             ]
         }))]);
 
-        assert_eq!(server.client().count_listed_streams().unwrap(), 5);
+        assert_eq!(
+            server.client().list_streams().unwrap(),
+            vec![
+                listed_stream(
+                    "camera-preview",
+                    "attached",
+                    "/Users/me/camera",
+                    Some(3),
+                    None
+                ),
+                listed_stream("encoder", "kept", "/Users/me/encoder", None, None),
+                listed_stream("paused", "stopped", "/Users/me/paused", None, None),
+                listed_stream(
+                    "crashy",
+                    "failed",
+                    "/Users/me/crashy",
+                    None,
+                    Some("implicated in the runtime's last two crashes in a row")
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_machine_name_comes_from_the_machine_wide_graph() {
+        let graph = json!({ "machine": "jonathanf-macbook", "streams": [{ "stream": "main", "nodes": [], "links": [], "exposed": [], "machine": "jonathanf-macbook" }] });
+        let server = FakeLocalApiServer::answering(vec![http_response(
+            "200 OK",
+            "application/json",
+            &graph.to_string(),
+        )]);
+
+        assert_eq!(server.client().machine_name().unwrap(), "jonathanf-macbook");
+        assert!(server.received_requests()[0].starts_with("GET /api/graph HTTP/1.1\r\n"));
+    }
+
+    #[test]
+    fn a_refused_rest_request_carries_the_runtimes_own_words() {
+        let server = FakeLocalApiServer::answering(vec![http_response(
+            "500 Internal Server Error",
+            "application/json",
+            r#"{"error":"graph export failed: the engine is shutting down"}"#,
+        )]);
+
+        let failure = server.client().machine_name().unwrap_err();
+
+        assert_eq!(
+            failure.failure_description,
+            "graph export failed: the engine is shutting down"
+        );
     }
 
     #[test]
@@ -585,7 +755,7 @@ mod tests {
             &refusal.to_string(),
         )]);
 
-        let failure = server.client().count_listed_streams().unwrap_err();
+        let failure = server.client().list_streams().unwrap_err();
 
         assert!(failure.failure_description.contains("400"), "{failure}");
         assert!(
@@ -608,7 +778,7 @@ mod tests {
             &body.to_string(),
         )]);
 
-        let failure = server.client().count_listed_streams().unwrap_err();
+        let failure = server.client().list_streams().unwrap_err();
 
         assert!(
             failure
@@ -630,19 +800,20 @@ mod tests {
     /// Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> cargo test -- --ignored`.
     #[test]
     #[ignore = "needs a running tatolabd; name its socket in TATOLAB_APP_LIVE_LOCAL_API_SOCKET"]
-    fn a_real_runtime_answers_health_and_counts_its_listed_streams() {
+    fn a_real_runtime_answers_health_its_streams_and_its_machine_name() {
         let socket_path = std::env::var_os("TATOLAB_APP_LIVE_LOCAL_API_SOCKET")
             .expect("TATOLAB_APP_LIVE_LOCAL_API_SOCKET names a running runtime's local API socket");
         let client = LocalApiClient::new(Path::new(&socket_path), Duration::from_secs(5));
 
         client.check_health().unwrap();
-        let stream_count = client.count_listed_streams().unwrap();
+        let streams = client.list_streams().unwrap();
+        assert!(!client.machine_name().unwrap().is_empty());
 
         if let Some(expected_stream_count) =
             std::env::var_os("TATOLAB_APP_LIVE_EXPECTED_STREAM_COUNT")
         {
             assert_eq!(
-                stream_count,
+                streams.len(),
                 expected_stream_count
                     .to_string_lossy()
                     .parse::<usize>()

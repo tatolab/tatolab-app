@@ -73,6 +73,21 @@ pub fn missing_machine_setup_pieces(
     missing
 }
 
+/// The PATH link when it points at the CLI this bundle carries, read from the pieces
+/// [`missing_machine_setup_pieces`] found `missing`, so it costs no second readlink.
+pub fn command_line_tool_linked_at(
+    paths: &TatolabMachinePaths,
+    bundled_command_line_tool: Option<&Path>,
+    missing: &[MissingMachineSetupPiece],
+) -> Option<PathBuf> {
+    bundled_command_line_tool?;
+    let link_path = paths.command_line_tool_link.as_ref()?;
+    let link_is_missing = missing
+        .iter()
+        .any(|piece| matches!(piece, MissingMachineSetupPiece::CommandLineToolLink { .. }));
+    (!link_is_missing).then(|| link_path.clone())
+}
+
 fn command_line_tool_link_target(link_path: &Path) -> Option<PathBuf> {
     std::fs::read_link(link_path).ok()
 }
@@ -406,6 +421,45 @@ mod tests {
         assert!(misses_the_cli_link(
             &root.path().join("Old.app/Contents/MacOS/tatolab-cli")
         ));
+    }
+
+    #[test]
+    fn the_cli_reads_linked_only_while_its_link_points_at_this_bundle() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = real_shaped_paths_under(root.path());
+        let link_path = root.path().join("bin").join("tatolab");
+        let bundled = root.path().join("Tatolab.app/Contents/MacOS/tatolab-cli");
+        let linked_at = |bundled_command_line_tool: &Path| {
+            let missing = missing_machine_setup_pieces(&paths, Some(bundled_command_line_tool));
+            command_line_tool_linked_at(&paths, Some(bundled_command_line_tool), &missing)
+        };
+
+        assert_eq!(linked_at(&bundled), None);
+
+        std::fs::create_dir_all(root.path().join("bin")).unwrap();
+        std::os::unix::fs::symlink(&bundled, &link_path).unwrap();
+        assert_eq!(linked_at(&bundled), Some(link_path));
+        assert_eq!(
+            linked_at(&root.path().join("Old.app/Contents/MacOS/tatolab-cli")),
+            None
+        );
+    }
+
+    #[test]
+    fn outside_a_bundle_or_in_a_local_proof_build_the_cli_reads_unlinked() {
+        let root = tempfile::tempdir().unwrap();
+        let bundled = root.path().join("Tatolab.app/Contents/MacOS/tatolab-cli");
+
+        let real_shaped_paths = real_shaped_paths_under(root.path());
+        assert_eq!(
+            command_line_tool_linked_at(&real_shaped_paths, None, &[]),
+            None
+        );
+        let local_proof_paths = paths_under(root.path());
+        assert_eq!(
+            command_line_tool_linked_at(&local_proof_paths, Some(&bundled), &[]),
+            None
+        );
     }
 
     #[test]
