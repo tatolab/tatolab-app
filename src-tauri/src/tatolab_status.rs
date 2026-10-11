@@ -18,7 +18,6 @@ pub struct TatolabStatus {
     pub run_tatolab: bool,
     pub runtime_agent: RuntimeAgentRegistrationStatus,
     pub runtime: RuntimeStatus,
-    pub machine: MachineStatus,
     pub streams: Vec<ListedStream>,
     pub machine_setup: MachineSetupStatus,
     pub cli: CommandLineToolStatus,
@@ -47,12 +46,6 @@ pub enum RuntimeState {
     Starting,
     Stopped,
     Unreachable,
-}
-
-/// This machine as the runtime names it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachineStatus {
-    pub name: Option<String>,
 }
 
 /// One stream the runtime holds, as its `list_streams` tool lists it.
@@ -219,7 +212,6 @@ mod tests {
                 state: runtime_state,
                 detail: None,
             },
-            machine: MachineStatus { name: None },
             streams: (0..stream_count)
                 .map(|index| ListedStream {
                     name: format!("stream-{index}"),

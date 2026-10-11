@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 //! The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
-//! local API's Unix socket. `GET /health` says the runtime is up, the MCP tool `list_streams`
-//! over `POST /mcp` lists its streams, and `GET /api/graph` names the machine.
+//! local API's Unix socket. `GET /health` says the runtime is up, and the MCP tool `list_streams`
+//! over `POST /mcp` lists its streams.
 //!
 //! The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
 //! `mcp.rs` serves rmcp's stateless Streamable HTTP with per-request protocol metadata
@@ -104,27 +104,6 @@ impl LocalApiClient {
                     "the runtime's list_streams result could not be read: {failure}"
                 ))
             })
-    }
-
-    /// This machine's name, as `GET /api/graph` states it beside every loaded stream's graph.
-    pub fn machine_name(&self) -> Result<String, LocalApiRequestFailure> {
-        let response = self.exchange("GET", "/api/graph", &[], None)?;
-        if response.status_code != 200 {
-            return Err(LocalApiRequestFailure::new(format!(
-                "the runtime answered /api/graph with {}",
-                response.status_code
-            )));
-        }
-        let graph: Value = serde_json::from_slice(&response.body).map_err(|failure| {
-            LocalApiRequestFailure::new(format!(
-                "the runtime's /api/graph could not be read: {failure}"
-            ))
-        })?;
-        graph
-            .get("machine")
-            .and_then(Value::as_str)
-            .map(str::to_string)
-            .ok_or_else(|| LocalApiRequestFailure::new("the runtime's /api/graph names no machine"))
     }
 
     /// Call the MCP tool `tool_name` with `tool_arguments` in one stateless request, answering
@@ -633,22 +612,6 @@ mod tests {
     }
 
     #[test]
-    fn the_machine_name_comes_from_the_machine_wide_graph() {
-        let graph = json!({ "machine": "fontas-macbook-pro", "streams": [] });
-        let server = FakeLocalApiServer::answering(vec![http_response(
-            "200 OK",
-            "application/json",
-            &graph.to_string(),
-        )]);
-
-        assert_eq!(
-            server.client().machine_name().unwrap(),
-            "fontas-macbook-pro"
-        );
-        assert!(server.received_requests()[0].starts_with("GET /api/graph HTTP/1.1\r\n"));
-    }
-
-    #[test]
     fn a_chunked_response_is_dechunked() {
         let server = FakeLocalApiServer::answering(vec![
             b"HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n1\r\no\r\n1;ext=1\r\nk\r\n0\r\n\r\n".to_vec(),
@@ -660,16 +623,14 @@ mod tests {
     /// Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> cargo test -- --ignored`.
     #[test]
     #[ignore = "needs a running tatolabd; name its socket in TATOLAB_APP_LIVE_LOCAL_API_SOCKET"]
-    fn a_real_runtime_answers_health_list_streams_and_machine_name() {
+    fn a_real_runtime_answers_health_and_list_streams() {
         let socket_path = std::env::var_os("TATOLAB_APP_LIVE_LOCAL_API_SOCKET")
             .expect("TATOLAB_APP_LIVE_LOCAL_API_SOCKET names a running runtime's local API socket");
         let client = LocalApiClient::new(Path::new(&socket_path), Duration::from_secs(5));
 
         client.check_health().unwrap();
         let streams = client.list_streams().unwrap();
-        let machine_name = client.machine_name().unwrap();
 
-        assert!(!machine_name.is_empty());
         if let Some(expected_listing) = std::env::var_os("TATOLAB_APP_LIVE_EXPECTED_STREAMS_JSON") {
             let expected_streams: Vec<ListedStream> =
                 serde_json::from_str(&expected_listing.to_string_lossy()).unwrap();

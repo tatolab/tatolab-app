@@ -25,7 +25,7 @@ use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::run_tatolab_switch::{RunTatolabReconciliation, RunTatolabSwitch};
 use crate::tatolab_status::{
     derive_runtime_status, CommandLineToolStatus, MachineSetupState, MachineSetupStatus,
-    MachineStatus, RuntimeHealthObservation, RuntimeState, TatolabStatus,
+    RuntimeHealthObservation, RuntimeState, TatolabStatus,
 };
 
 /// How long one local API request may take before the runtime reads as not answering.
@@ -77,7 +77,6 @@ pub struct TatolabAppController {
     machine_paths: TatolabMachinePaths,
     bundled_command_line_tool: Option<PathBuf>,
     local_api_client: LocalApiClient,
-    machine_name_of_the_running_runtime: Mutex<Option<String>>,
     administrator_prompt_this_launch: Mutex<AdministratorPromptThisLaunch>,
 }
 
@@ -106,7 +105,6 @@ impl TatolabAppController {
             ),
             machine_paths,
             bundled_command_line_tool,
-            machine_name_of_the_running_runtime: Mutex::new(None),
             administrator_prompt_this_launch: Mutex::new(AdministratorPromptThisLaunch::default()),
         }
     }
@@ -231,14 +229,10 @@ impl TatolabAppController {
                 failure_description: failure.failure_description,
             },
         };
-        let (streams, machine_name) = if runtime_health == RuntimeHealthObservation::Healthy {
-            (
-                self.listed_streams(),
-                self.machine_name_of_the_running_runtime(),
-            )
+        let streams = if runtime_health == RuntimeHealthObservation::Healthy {
+            self.listed_streams()
         } else {
-            *lock_ignoring_poison(&self.machine_name_of_the_running_runtime) = None;
-            (Vec::new(), None)
+            Vec::new()
         };
 
         let (mut runtime, last_registration_failure) = {
@@ -269,7 +263,6 @@ impl TatolabAppController {
             run_tatolab,
             runtime_agent,
             runtime,
-            machine: MachineStatus { name: machine_name },
             streams,
             machine_setup: MachineSetupStatus {
                 state: MachineSetupState::from_observation(
@@ -298,26 +291,6 @@ impl TatolabAppController {
                 tracing::warn!(%failure, "the runtime's streams could not be listed");
                 Vec::new()
             })
-    }
-
-    /// The running runtime's machine name, asked once per runtime it sees come up.
-    fn machine_name_of_the_running_runtime(&self) -> Option<String> {
-        if let Some(machine_name) =
-            lock_ignoring_poison(&self.machine_name_of_the_running_runtime).clone()
-        {
-            return Some(machine_name);
-        }
-        match self.local_api_client.machine_name() {
-            Ok(machine_name) => {
-                *lock_ignoring_poison(&self.machine_name_of_the_running_runtime) =
-                    Some(machine_name.clone());
-                Some(machine_name)
-            }
-            Err(failure) => {
-                tracing::warn!(%failure, "the runtime's machine name could not be read");
-                None
-            }
-        }
     }
 }
 
