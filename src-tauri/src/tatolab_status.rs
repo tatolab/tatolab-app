@@ -1,22 +1,20 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-//! The status the app shows: the JSON the frontend receives from `get_tatolab_status` and the
-//! `tatolab-status-changed` event, and the pure rules that derive the runtime's state from what
-//! the poller observed.
+//! The status the tray shows, and the pure rules that derive the runtime's state from what the
+//! poller observed.
 
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 /// How long an enabled runtime may fail its health check before it reads unreachable rather
 /// than starting.
 pub const RUNTIME_STARTING_GRACE_PERIOD: Duration = Duration::from_secs(20);
 
-/// Everything the frontend and the tray show about Tatolab on this machine.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Everything the app knows about Tatolab on this machine.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TatolabStatus {
-    pub app_version: String,
     pub run_tatolab: bool,
     pub runtime_agent: RuntimeAgentRegistrationStatus,
     pub runtime: RuntimeStatus,
@@ -27,8 +25,7 @@ pub struct TatolabStatus {
 }
 
 /// What launchd's Service Management says about the runtime's launch agent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeAgentRegistrationStatus {
     Enabled,
     RequiresApproval,
@@ -37,15 +34,14 @@ pub enum RuntimeAgentRegistrationStatus {
 }
 
 /// The runtime's state and, when it is not plainly running or stopped, why.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStatus {
     pub state: RuntimeState,
     pub detail: Option<String>,
 }
 
 /// Whether the runtime answers its local API.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeState {
     Running,
     Starting,
@@ -54,13 +50,13 @@ pub enum RuntimeState {
 }
 
 /// This machine as the runtime names it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineStatus {
     pub name: Option<String>,
 }
 
 /// One stream the runtime holds, as its `list_streams` tool lists it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct ListedStream {
     pub name: String,
     pub state: ListedStreamState,
@@ -70,7 +66,7 @@ pub struct ListedStream {
 }
 
 /// The state of one listed stream, spelled as the runtime's wire spells it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ListedStreamState {
     Attached,
@@ -80,7 +76,7 @@ pub enum ListedStreamState {
 }
 
 /// Whether the machine-wide pieces the runtime needs exist, and which are missing.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineSetupStatus {
     pub state: MachineSetupState,
     /// The paths still to be created or corrected.
@@ -88,15 +84,31 @@ pub struct MachineSetupStatus {
 }
 
 /// Whether first-launch machine setup still needs the administrator prompt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineSetupState {
     Complete,
+    /// Setup is missing and no administrator prompt is showing.
     NeedsAdministrator,
+    /// Setup is missing and the administrator prompt is showing.
+    WaitingForAdministrator,
+}
+
+impl MachineSetupState {
+    /// The state from whether any setup piece is missing and whether the prompt is showing.
+    pub fn from_observation(
+        machine_setup_pieces_missing: bool,
+        administrator_prompt_showing: bool,
+    ) -> Self {
+        match (machine_setup_pieces_missing, administrator_prompt_showing) {
+            (false, _) => MachineSetupState::Complete,
+            (true, true) => MachineSetupState::WaitingForAdministrator,
+            (true, false) => MachineSetupState::NeedsAdministrator,
+        }
+    }
 }
 
 /// Where the `tatolab` command-line tool is linked onto the PATH from this bundle.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandLineToolStatus {
     pub linked_at: Option<String>,
 }
@@ -163,8 +175,10 @@ pub fn derive_runtime_status(
 
 /// The tray's one-line status, the disabled first item of its menu.
 pub fn tray_status_line(status: &TatolabStatus) -> String {
-    if status.machine_setup.state == MachineSetupState::NeedsAdministrator {
-        return "Finish setup in Tatolab".to_string();
+    match status.machine_setup.state {
+        MachineSetupState::Complete => {}
+        MachineSetupState::NeedsAdministrator => return "Setup unfinished".to_string(),
+        MachineSetupState::WaitingForAdministrator => return "Setting up Tatolab…".to_string(),
     }
     if status.runtime.state != RuntimeState::Running
         && status.run_tatolab
@@ -199,7 +213,6 @@ mod tests {
         stream_count: usize,
     ) -> TatolabStatus {
         TatolabStatus {
-            app_version: "0.45.0".into(),
             run_tatolab: true,
             runtime_agent,
             runtime: RuntimeStatus {
@@ -286,38 +299,34 @@ mod tests {
     }
 
     #[test]
-    fn the_status_serializes_to_the_frontend_contract() {
+    fn machine_setup_waits_for_the_administrator_only_while_the_prompt_shows() {
+        for (machine_setup_pieces_missing, administrator_prompt_showing, expected) in [
+            (false, false, MachineSetupState::Complete),
+            (false, true, MachineSetupState::Complete),
+            (true, true, MachineSetupState::WaitingForAdministrator),
+            (true, false, MachineSetupState::NeedsAdministrator),
+        ] {
+            assert_eq!(
+                MachineSetupState::from_observation(
+                    machine_setup_pieces_missing,
+                    administrator_prompt_showing
+                ),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn the_tray_line_says_setup_is_unfinished_until_the_administrator_prompt_succeeds() {
         let mut status = status_with(
-            RuntimeState::Running,
-            RuntimeAgentRegistrationStatus::RequiresApproval,
-            1,
+            RuntimeState::Stopped,
+            RuntimeAgentRegistrationStatus::NotRegistered,
+            0,
         );
-        status.streams[0].state = ListedStreamState::Failed;
-        status.streams[0].node_count = None;
-        status.streams[0].failed_because = Some("crashed twice".into());
-        status.machine_setup = MachineSetupStatus {
-            state: MachineSetupState::NeedsAdministrator,
-            missing: vec!["/usr/local/bin/tatolab".into()],
-        };
-        assert_eq!(
-            serde_json::to_value(&status).unwrap(),
-            serde_json::json!({
-                "app_version": "0.45.0",
-                "run_tatolab": true,
-                "runtime_agent": "requires_approval",
-                "runtime": { "state": "running", "detail": null },
-                "machine": { "name": null },
-                "streams": [{
-                    "name": "stream-0",
-                    "state": "failed",
-                    "project_directory": "/p",
-                    "node_count": null,
-                    "failed_because": "crashed twice"
-                }],
-                "machine_setup": { "state": "needs_administrator", "missing": ["/usr/local/bin/tatolab"] },
-                "cli": { "linked_at": null }
-            })
-        );
+        status.machine_setup.state = MachineSetupState::WaitingForAdministrator;
+        assert_eq!(tray_status_line(&status), "Setting up Tatolab…");
+        status.machine_setup.state = MachineSetupState::NeedsAdministrator;
+        assert_eq!(tray_status_line(&status), "Setup unfinished");
     }
 
     #[test]

@@ -1,21 +1,16 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-//! Polls the status every couple of seconds on its own thread and publishes each change: the
-//! `tatolab-status-changed` event to the frontend and the tray's status line and check mark.
+//! Polls the status every couple of seconds on its own thread and publishes each change to the
+//! tray menu.
 
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use tauri::{AppHandle, Emitter};
-
 use crate::tatolab_app_controller::TatolabAppController;
 use crate::tatolab_status::TatolabStatus;
 use crate::tatolab_tray_menu::TatolabTrayMenu;
-
-/// The event the frontend listens on for every status change.
-pub const TATOLAB_STATUS_CHANGED_EVENT: &str = "tatolab-status-changed";
 
 /// How often the poller observes the runtime when nothing asks it to sooner.
 const STATUS_POLL_INTERVAL: Duration = Duration::from_secs(2);
@@ -59,7 +54,7 @@ impl TatolabStatusPublisher {
     }
 
     /// Observe everything now and publish the status if it changed; blocks on the observation.
-    pub fn refresh_and_publish(&self, app: &AppHandle) -> TatolabStatus {
+    pub fn refresh_and_publish(&self) {
         let status = self.controller.compose_status(Instant::now());
         let mut last_published_status = self.last_published_status();
         if last_published_status.as_ref() != Some(&status) {
@@ -71,15 +66,11 @@ impl TatolabStatusPublisher {
                 machine_setup = ?status.machine_setup.state,
                 "Tatolab status changed"
             );
-            if let Err(failure) = app.emit(TATOLAB_STATUS_CHANGED_EVENT, &status) {
-                tracing::warn!(%failure, "the status change could not be sent to the window");
-            }
             if let Some(tray_menu) = self.tray_menu.get() {
                 tray_menu.show_status(&status);
             }
-            *last_published_status = Some(status.clone());
+            *last_published_status = Some(status);
         }
-        status
     }
 
     /// Ask the poller to observe again now rather than at its next interval.
@@ -92,7 +83,7 @@ impl TatolabStatusPublisher {
     }
 
     /// Start the poller thread; a second call starts nothing.
-    pub fn start_polling(self: &Arc<Self>, app: AppHandle) {
+    pub fn start_polling(self: &Arc<Self>) {
         let Some(refresh_now_receiver) = self
             .refresh_now_receiver
             .lock()
@@ -105,7 +96,7 @@ impl TatolabStatusPublisher {
         let spawned = std::thread::Builder::new()
             .name("tatolab-status-poller".to_string())
             .spawn(move || loop {
-                publisher.refresh_and_publish(&app);
+                publisher.refresh_and_publish();
                 match refresh_now_receiver.recv_timeout(STATUS_POLL_INTERVAL) {
                     Ok(()) | Err(RecvTimeoutError::Timeout) => {}
                     Err(RecvTimeoutError::Disconnected) => return,

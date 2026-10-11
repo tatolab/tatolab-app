@@ -76,11 +76,6 @@ impl RunTatolabSwitch {
         self.runtime_launch_agent.registration_status()
     }
 
-    /// Open System Settings at Login Items.
-    pub fn open_login_items_settings(&self) {
-        self.runtime_launch_agent.open_login_items_settings();
-    }
-
     /// Note that the runtime answered its health check at `now`, so a later failure gets the
     /// starting grace period again, as when launchd restarts a runtime that crashed.
     pub fn note_runtime_healthy(&mut self, now: Instant) {

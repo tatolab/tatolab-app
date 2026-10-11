@@ -1,8 +1,8 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-//! Tatolab.app: opening it starts the runtime as a launch agent, the "Run Tatolab" switch is that
-//! same registration, and quitting quits only the app — the runtime stays on.
+//! Tatolab.app: opening it starts the runtime as a launch agent, the "Run Tatolab" switch in the
+//! menu bar is that same registration, and quitting quits only the app — the runtime stays on.
 
 mod local_api_client;
 #[cfg(target_os = "macos")]
@@ -11,8 +11,6 @@ mod run_tatolab_preference;
 mod run_tatolab_switch;
 mod runtime_launch_agent_registration;
 mod tatolab_app_controller;
-mod tatolab_commands;
-mod tatolab_main_window;
 mod tatolab_status;
 mod tatolab_status_publisher;
 mod tatolab_tray_menu;
@@ -23,10 +21,14 @@ use std::time::Instant;
 use tauri::{AppHandle, Manager, RunEvent};
 
 use crate::tatolab_app_controller::TatolabAppController;
-use crate::tatolab_commands::TatolabAppSharedState;
-use crate::tatolab_main_window::{create_main_window, show_main_window};
 use crate::tatolab_status_publisher::TatolabStatusPublisher;
 use crate::tatolab_tray_menu::{TatolabTrayMenu, TrayMenuChoice};
+
+/// The controller and the status publisher, reachable from the tray and from app events.
+struct TatolabAppSharedState {
+    controller: Arc<TatolabAppController>,
+    status_publisher: Arc<TatolabStatusPublisher>,
+}
 
 fn main() {
     tracing_subscriber::fmt()
@@ -38,18 +40,6 @@ fn main() {
     let app_launched_at = Instant::now();
 
     let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(
-            |app, _arguments, _working_directory| {
-                show_main_window(app);
-            },
-        ))
-        .invoke_handler(tauri::generate_handler![
-            tatolab_commands::get_tatolab_status,
-            tatolab_commands::set_run_tatolab,
-            tatolab_commands::open_login_items_settings,
-            tatolab_commands::run_first_launch_machine_setup,
-            tatolab_commands::quit_tatolab_app,
-        ])
         .setup(move |app| {
             let app_config_directory = app.path().app_config_dir()?;
             let controller = Arc::new(TatolabAppController::for_this_build(
@@ -62,16 +52,16 @@ fn main() {
                 status_publisher: Arc::clone(&status_publisher),
             });
 
-            create_main_window(app.handle())?;
             status_publisher.attach_tray_menu(TatolabTrayMenu::build(
                 app.handle(),
                 controller.run_tatolab(),
                 on_tray_menu_choice,
             )?);
-            let app_for_the_first_reconcile = app.handle().clone();
             std::thread::spawn(move || {
                 controller.reconcile_on_app_opened();
-                status_publisher.start_polling(app_for_the_first_reconcile);
+                status_publisher.start_polling();
+                controller.set_up_the_machine_on_app_opened();
+                status_publisher.request_refresh();
             });
             Ok(())
         })
@@ -83,35 +73,38 @@ fn main() {
 
     app.run(|app, run_event| {
         if let RunEvent::Reopen { .. } = run_event {
-            show_main_window(app);
-            reconcile_run_tatolab_off_the_main_thread(app);
+            run_off_the_main_thread_with_the_controller(app, |controller, status_publisher| {
+                controller.reconcile_on_app_opened();
+                status_publisher.request_refresh();
+            });
         }
     });
 }
 
-/// Opening the app registers the runtime's agent when "Run Tatolab" is on and the machine is set
-/// up; that may block on Service Management, so it runs on its own thread.
-fn reconcile_run_tatolab_off_the_main_thread(app: &AppHandle) {
+/// Run `work` on its own thread: it may block on Service Management, the filesystem, the local
+/// API or the administrator prompt.
+fn run_off_the_main_thread_with_the_controller(
+    app: &AppHandle,
+    work: impl FnOnce(&TatolabAppController, &TatolabStatusPublisher) + Send + 'static,
+) {
     let shared_state = app.state::<TatolabAppSharedState>();
     let controller = Arc::clone(&shared_state.controller);
     let status_publisher = Arc::clone(&shared_state.status_publisher);
-    std::thread::spawn(move || {
-        controller.reconcile_on_app_opened();
-        status_publisher.request_refresh();
-    });
+    std::thread::spawn(move || work(&controller, &status_publisher));
 }
 
 fn on_tray_menu_choice(app: &AppHandle, choice: TrayMenuChoice) {
     match choice {
-        TrayMenuChoice::OpenMainWindow => show_main_window(app),
         TrayMenuChoice::ToggleRunTatolabSwitch => {
-            let shared_state = app.state::<TatolabAppSharedState>();
-            let controller = Arc::clone(&shared_state.controller);
-            let status_publisher = Arc::clone(&shared_state.status_publisher);
-            let app = app.clone();
-            std::thread::spawn(move || {
+            run_off_the_main_thread_with_the_controller(app, |controller, status_publisher| {
                 controller.set_run_tatolab(!controller.run_tatolab());
-                status_publisher.refresh_and_publish(&app);
+                status_publisher.refresh_and_publish();
+            });
+        }
+        TrayMenuChoice::SetUpTatolab => {
+            run_off_the_main_thread_with_the_controller(app, |controller, status_publisher| {
+                controller.set_up_the_machine_on_request();
+                status_publisher.refresh_and_publish();
             });
         }
         TrayMenuChoice::QuitTheApp => {
