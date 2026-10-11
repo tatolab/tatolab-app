@@ -233,18 +233,12 @@ impl TatolabAppController {
             .notice_runtime_agent_registration_status(runtime_agent);
     }
 
-    /// Observe everything once and compose the status, as of `now`; opens nothing.
+    /// Observe everything once and compose the status, as of `now`; opens nothing. The local API
+    /// is asked with no lock held, so a slow runtime never holds up the tray's switch.
     pub fn compose_status(&self, now: Instant) -> TatolabStatus {
         let administrator_prompt_showing =
             lock_ignoring_poison(&self.administrator_prompt_this_launch).showing();
         let missing_setup = self.missing_machine_setup_pieces();
-        let (run_tatolab, runtime_agent) = {
-            let switch = lock_ignoring_poison(&self.run_tatolab_switch);
-            (
-                switch.run_tatolab(),
-                switch.runtime_agent_registration_status(),
-            )
-        };
 
         let health_check = self.local_api_client.check_health();
         let runtime_health = match health_check {
@@ -257,17 +251,20 @@ impl TatolabAppController {
             None
         };
 
-        let runtime_state = {
+        let (run_tatolab, runtime_agent, runtime_state) = {
             let mut switch = lock_ignoring_poison(&self.run_tatolab_switch);
+            let run_tatolab = switch.run_tatolab();
+            let runtime_agent = switch.runtime_agent_registration_status();
             if runtime_health == RuntimeHealthObservation::Healthy {
                 switch.note_runtime_healthy(now);
             }
-            derive_runtime_state(
+            let runtime_state = derive_runtime_state(
                 run_tatolab,
                 runtime_agent,
                 runtime_health,
                 switch.time_since_the_runtime_was_expected_up(now),
-            )
+            );
+            (run_tatolab, runtime_agent, runtime_state)
         };
         let previous_runtime_state =
             lock_ignoring_poison(&self.runtime_state_last_observed).replace(runtime_state);
