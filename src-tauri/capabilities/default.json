@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The status window calls the app's own commands and listens for status events.",
-  "windows": ["status"],
+  "description": "The main window calls the app's own commands and listens for status events.",
+  "windows": ["main"],
   "permissions": ["core:default"]
 }

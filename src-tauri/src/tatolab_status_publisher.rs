@@ -1,0 +1,118 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
+//! Polls the status every couple of seconds on its own thread and publishes each change: the
+//! `tatolab-status-changed` event to the frontend and the tray's status line and check mark.
+
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
+
+use tauri::{AppHandle, Emitter};
+
+use crate::tatolab_app_controller::TatolabAppController;
+use crate::tatolab_status::TatolabStatus;
+use crate::tatolab_tray_menu::TatolabTrayMenu;
+
+/// The event the frontend listens on for every status change.
+pub const TATOLAB_STATUS_CHANGED_EVENT: &str = "tatolab-status-changed";
+
+/// How often the poller observes the runtime when nothing asks it to sooner.
+const STATUS_POLL_INTERVAL: Duration = Duration::from_secs(2);
+
+/// The last status published, and where each change goes.
+pub struct TatolabStatusPublisher {
+    controller: Arc<TatolabAppController>,
+    last_published_status: Mutex<Option<TatolabStatus>>,
+    tray_menu: OnceLock<TatolabTrayMenu>,
+    refresh_now_sender: Mutex<Sender<()>>,
+    refresh_now_receiver: Mutex<Option<Receiver<()>>>,
+}
+
+impl TatolabStatusPublisher {
+    /// A publisher of `controller`'s status, polling once [`Self::start_polling`] is called.
+    pub fn new(controller: Arc<TatolabAppController>) -> Self {
+        let (refresh_now_sender, refresh_now_receiver) = mpsc::channel();
+        Self {
+            controller,
+            last_published_status: Mutex::new(None),
+            tray_menu: OnceLock::new(),
+            refresh_now_sender: Mutex::new(refresh_now_sender),
+            refresh_now_receiver: Mutex::new(Some(refresh_now_receiver)),
+        }
+    }
+
+    /// Hand the tray menu every later change.
+    pub fn attach_tray_menu(&self, tray_menu: TatolabTrayMenu) {
+        if let Some(last_published_status) = self.last_published_status().as_ref() {
+            tray_menu.show_status(last_published_status);
+        }
+        if self.tray_menu.set(tray_menu).is_err() {
+            tracing::warn!("the tray menu was attached twice; keeping the first");
+        }
+    }
+
+    fn last_published_status(&self) -> std::sync::MutexGuard<'_, Option<TatolabStatus>> {
+        self.last_published_status
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Observe everything now and publish the status if it changed; blocks on the observation.
+    pub fn refresh_and_publish(&self, app: &AppHandle) -> TatolabStatus {
+        let status = self.controller.compose_status(Instant::now());
+        let mut last_published_status = self.last_published_status();
+        if last_published_status.as_ref() != Some(&status) {
+            tracing::info!(
+                runtime_state = ?status.runtime.state,
+                runtime_agent = ?status.runtime_agent,
+                run_tatolab = status.run_tatolab,
+                stream_count = status.streams.len(),
+                machine_setup = ?status.machine_setup.state,
+                "Tatolab status changed"
+            );
+            if let Err(failure) = app.emit(TATOLAB_STATUS_CHANGED_EVENT, &status) {
+                tracing::warn!(%failure, "the status change could not be sent to the window");
+            }
+            if let Some(tray_menu) = self.tray_menu.get() {
+                tray_menu.show_status(&status);
+            }
+            *last_published_status = Some(status.clone());
+        }
+        status
+    }
+
+    /// Ask the poller to observe again now rather than at its next interval.
+    pub fn request_refresh(&self) {
+        let refresh_now_sender = self
+            .refresh_now_sender
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _poller_gone_means_the_app_is_exiting = refresh_now_sender.send(());
+    }
+
+    /// Start the poller thread; a second call starts nothing.
+    pub fn start_polling(self: &Arc<Self>, app: AppHandle) {
+        let Some(refresh_now_receiver) = self
+            .refresh_now_receiver
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+        else {
+            return;
+        };
+        let publisher = Arc::clone(self);
+        let spawned = std::thread::Builder::new()
+            .name("tatolab-status-poller".to_string())
+            .spawn(move || loop {
+                publisher.refresh_and_publish(&app);
+                match refresh_now_receiver.recv_timeout(STATUS_POLL_INTERVAL) {
+                    Ok(()) | Err(RecvTimeoutError::Timeout) => {}
+                    Err(RecvTimeoutError::Disconnected) => return,
+                }
+            });
+        if let Err(failure) = spawned {
+            tracing::error!(%failure, "the status poller could not be started");
+        }
+    }
+}
