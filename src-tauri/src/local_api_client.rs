@@ -10,6 +10,7 @@
 //! required): the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers, an `Accept` of
 //! both JSON and SSE, and `_meta` carrying the protocol version, client info and capabilities.
 
+use std::fmt::Write as _;
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -148,17 +149,12 @@ impl LocalApiClient {
                     "the socket {socket_text} refused a timeout: {failure}"
                 ))
             })?;
-        let mut request = format!("{method} {request_target} HTTP/1.1\r\nHost: localhost\r\n");
-        for (header_name, header_value) in extra_headers {
-            request.push_str(&format!("{header_name}: {header_value}\r\n"));
-        }
-        let request_body = request_body.unwrap_or_default();
-        if method == "POST" {
-            request.push_str(&format!("Content-Length: {}\r\n", request_body.len()));
-        }
-        request.push_str("Connection: close\r\n\r\n");
-        let mut request_bytes = request.into_bytes();
-        request_bytes.extend_from_slice(request_body);
+        let request_bytes = http_request_bytes(method, request_target, extra_headers, request_body)
+            .map_err(|failure| {
+                LocalApiRequestFailure::new(format!(
+                    "the request {method} {request_target} could not be written: {failure}"
+                ))
+            })?;
         stream.write_all(&request_bytes).map_err(|failure| {
             LocalApiRequestFailure::new(format!(
                 "the request {method} {request_target} to {socket_text} could not be sent: {failure}"
@@ -187,6 +183,31 @@ impl LocalApiClient {
             ))
         })
     }
+}
+
+/// One HTTP/1.1 request on a connection the server closes after answering; it carries a
+/// `Content-Length` exactly when it carries a body.
+fn http_request_bytes(
+    method: &str,
+    request_target: &str,
+    extra_headers: &[(&str, &str)],
+    request_body: Option<&[u8]>,
+) -> Result<Vec<u8>, std::fmt::Error> {
+    let mut request_head = String::new();
+    write!(
+        request_head,
+        "{method} {request_target} HTTP/1.1\r\nHost: localhost\r\n"
+    )?;
+    for (header_name, header_value) in extra_headers {
+        write!(request_head, "{header_name}: {header_value}\r\n")?;
+    }
+    if let Some(request_body) = request_body {
+        write!(request_head, "Content-Length: {}\r\n", request_body.len())?;
+    }
+    request_head.push_str("Connection: close\r\n\r\n");
+    let mut request_bytes = request_head.into_bytes();
+    request_bytes.extend_from_slice(request_body.unwrap_or_default());
+    Ok(request_bytes)
 }
 
 /// The JSON-RPC `tools/call` request for `tool_name`, carrying the per-request `_meta` the
@@ -450,6 +471,7 @@ mod tests {
             "{request}"
         );
         assert!(request.contains("Connection: close\r\n"), "{request}");
+        assert!(!request.contains("Content-Length"), "{request}");
     }
 
     #[test]
@@ -512,6 +534,10 @@ mod tests {
                 "{required_header} missing from {head}"
             );
         }
+        assert!(
+            head.contains(&format!("Content-Length: {}\r\n", body.len())),
+            "{head}"
+        );
         let body: Value = serde_json::from_str(body).unwrap();
         assert_eq!(body["method"], "tools/call");
         assert_eq!(body["params"]["name"], "list_streams");
@@ -623,6 +649,21 @@ mod tests {
                     .unwrap()
             );
         }
+    }
+
+    #[test]
+    fn a_request_carries_a_content_length_exactly_when_it_carries_a_body() {
+        let without_body = http_request_bytes("POST", "/mcp", &[], None).unwrap();
+        assert_eq!(
+            String::from_utf8(without_body).unwrap(),
+            "POST /mcp HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+        );
+
+        let with_empty_body = http_request_bytes("GET", "/health", &[], Some(b"")).unwrap();
+        assert_eq!(
+            String::from_utf8(with_empty_body).unwrap(),
+            "GET /health HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        );
     }
 
     #[test]
