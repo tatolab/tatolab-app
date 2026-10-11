@@ -4,8 +4,13 @@
 //! Tatolab.app: opening it starts the runtime as a launch agent, the "Run Tatolab" switch in the
 //! menu bar is that same registration, and quitting quits only the app — the runtime stays on.
 
+#[cfg(not(target_os = "macos"))]
+compile_error!(
+    "Tatolab.app builds for macOS only; it registers the runtime through Service Management's \
+     SMAppService and sets up the machine behind the macOS administrator prompt."
+);
+
 mod local_api_client;
-#[cfg(target_os = "macos")]
 mod macos;
 mod poison_tolerant_mutex;
 mod run_tatolab_preference;
