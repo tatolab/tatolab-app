@@ -19,8 +19,7 @@ pub struct TatolabStatus {
     pub runtime_agent: RuntimeAgentRegistrationStatus,
     pub runtime: RuntimeStatus,
     pub streams: Vec<ListedStream>,
-    pub machine_setup: MachineSetupStatus,
-    pub cli: CommandLineToolStatus,
+    pub machine_setup_state: MachineSetupState,
 }
 
 /// What launchd's Service Management says about the runtime's launch agent.
@@ -68,14 +67,6 @@ pub enum ListedStreamState {
     Failed,
 }
 
-/// Whether the machine-wide pieces the runtime needs exist, and which are missing.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachineSetupStatus {
-    pub state: MachineSetupState,
-    /// The paths still to be created or corrected.
-    pub missing: Vec<String>,
-}
-
 /// Whether first-launch machine setup still needs the administrator prompt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineSetupState {
@@ -98,12 +89,6 @@ impl MachineSetupState {
             (true, false) => MachineSetupState::NeedsAdministrator,
         }
     }
-}
-
-/// Where the `tatolab` command-line tool is linked onto the PATH from this bundle.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommandLineToolStatus {
-    pub linked_at: Option<String>,
 }
 
 /// What the poller saw of the runtime's local API in one round.
@@ -168,7 +153,7 @@ pub fn derive_runtime_status(
 
 /// The tray's one-line status, the disabled first item of its menu.
 pub fn tray_status_line(status: &TatolabStatus) -> String {
-    match status.machine_setup.state {
+    match status.machine_setup_state {
         MachineSetupState::Complete => {}
         MachineSetupState::NeedsAdministrator => return "Setup unfinished".to_string(),
         MachineSetupState::WaitingForAdministrator => return "Setting up Tatolab…".to_string(),
@@ -221,11 +206,7 @@ mod tests {
                     failed_because: None,
                 })
                 .collect(),
-            machine_setup: MachineSetupStatus {
-                state: MachineSetupState::Complete,
-                missing: Vec::new(),
-            },
-            cli: CommandLineToolStatus { linked_at: None },
+            machine_setup_state: MachineSetupState::Complete,
         }
     }
 
@@ -315,9 +296,9 @@ mod tests {
             RuntimeAgentRegistrationStatus::NotRegistered,
             0,
         );
-        status.machine_setup.state = MachineSetupState::WaitingForAdministrator;
+        status.machine_setup_state = MachineSetupState::WaitingForAdministrator;
         assert_eq!(tray_status_line(&status), "Setting up Tatolab…");
-        status.machine_setup.state = MachineSetupState::NeedsAdministrator;
+        status.machine_setup_state = MachineSetupState::NeedsAdministrator;
         assert_eq!(tray_status_line(&status), "Setup unfinished");
     }
 

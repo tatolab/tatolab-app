@@ -42,17 +42,6 @@ pub enum MissingMachineSetupPiece {
     },
 }
 
-impl MissingMachineSetupPiece {
-    /// The path this piece lives at, as the status lists it.
-    pub fn path(&self) -> &Path {
-        match self {
-            MissingMachineSetupPiece::MachineRuntimeLockDirectory { path }
-            | MissingMachineSetupPiece::MachineRuntimeLockFile { path } => path,
-            MissingMachineSetupPiece::CommandLineToolLink { link_path, .. } => link_path,
-        }
-    }
-}
-
 /// Every piece of machine setup that is missing or wrong for `paths`, given the CLI this bundle
 /// carries (none outside a bundle, which links nothing).
 pub fn missing_machine_setup_pieces(
@@ -82,17 +71,6 @@ pub fn missing_machine_setup_pieces(
         }
     }
     missing
-}
-
-/// The PATH link when it points at `bundled_command_line_tool`.
-pub fn command_line_tool_linked_at(
-    paths: &TatolabMachinePaths,
-    bundled_command_line_tool: Option<&Path>,
-) -> Option<PathBuf> {
-    let link_path = paths.command_line_tool_link.as_ref()?;
-    let bundled_command_line_tool = bundled_command_line_tool?;
-    (command_line_tool_link_target(link_path).as_deref() == Some(bundled_command_line_tool))
-        .then(|| link_path.clone())
 }
 
 fn command_line_tool_link_target(link_path: &Path) -> Option<PathBuf> {
@@ -301,17 +279,20 @@ mod tests {
         let missing = missing_machine_setup_pieces(&paths, Some(&bundled));
 
         assert_eq!(
-            missing
-                .iter()
-                .map(|piece| piece.path().to_path_buf())
-                .collect::<Vec<_>>(),
+            missing,
             vec![
-                paths.machine_runtime_lock_directory.clone(),
-                paths.machine_runtime_lock_file.clone(),
-                root.path().join("bin").join("tatolab"),
+                MissingMachineSetupPiece::MachineRuntimeLockDirectory {
+                    path: paths.machine_runtime_lock_directory.clone(),
+                },
+                MissingMachineSetupPiece::MachineRuntimeLockFile {
+                    path: paths.machine_runtime_lock_file.clone(),
+                },
+                MissingMachineSetupPiece::CommandLineToolLink {
+                    link_path: root.path().join("bin").join("tatolab"),
+                    bundled_command_line_tool: bundled.clone(),
+                },
             ]
         );
-        assert_eq!(command_line_tool_linked_at(&paths, Some(&bundled)), None);
     }
 
     #[test]
@@ -387,26 +368,22 @@ mod tests {
     }
 
     #[test]
-    fn a_cli_link_pointing_at_this_bundle_is_reported_linked() {
+    fn a_cli_link_counts_as_set_up_only_while_it_points_at_this_bundle() {
         let root = tempfile::tempdir().unwrap();
         let paths = real_shaped_paths_under(root.path());
         let bundled = root.path().join("Tatolab.app/Contents/MacOS/tatolab-cli");
         std::fs::create_dir_all(root.path().join("bin")).unwrap();
         std::os::unix::fs::symlink(&bundled, root.path().join("bin").join("tatolab")).unwrap();
+        let misses_the_cli_link = |bundled_command_line_tool: &Path| {
+            missing_machine_setup_pieces(&paths, Some(bundled_command_line_tool))
+                .iter()
+                .any(|piece| matches!(piece, MissingMachineSetupPiece::CommandLineToolLink { .. }))
+        };
 
-        assert_eq!(
-            command_line_tool_linked_at(&paths, Some(&bundled)),
-            Some(root.path().join("bin").join("tatolab"))
-        );
-        assert!(missing_machine_setup_pieces(&paths, Some(&bundled))
-            .iter()
-            .all(|piece| !matches!(piece, MissingMachineSetupPiece::CommandLineToolLink { .. })));
-
-        let another_bundle = root.path().join("Old.app/Contents/MacOS/tatolab-cli");
-        assert_eq!(
-            command_line_tool_linked_at(&paths, Some(&another_bundle)),
-            None
-        );
+        assert!(!misses_the_cli_link(&bundled));
+        assert!(misses_the_cli_link(
+            &root.path().join("Old.app/Contents/MacOS/tatolab-cli")
+        ));
     }
 
     #[test]

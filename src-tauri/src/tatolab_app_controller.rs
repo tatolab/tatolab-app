@@ -12,9 +12,8 @@ use std::time::{Duration, Instant};
 
 use crate::local_api_client::LocalApiClient;
 use crate::macos::machine_setup::{
-    command_line_tool_linked_at, missing_machine_setup_pieces,
-    prepare_local_proof_test_machine_root, run_machine_setup_behind_one_administrator_prompt,
-    MissingMachineSetupPiece,
+    missing_machine_setup_pieces, prepare_local_proof_test_machine_root,
+    run_machine_setup_behind_one_administrator_prompt, MissingMachineSetupPiece,
 };
 use crate::macos::service_management_runtime_launch_agent::ServiceManagementRuntimeLaunchAgent;
 use crate::macos::tatolab_machine_paths::{
@@ -24,8 +23,7 @@ use crate::poison_tolerant_mutex::lock_ignoring_poison;
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::run_tatolab_switch::{RunTatolabReconciliation, RunTatolabSwitch};
 use crate::tatolab_status::{
-    derive_runtime_status, CommandLineToolStatus, MachineSetupState, MachineSetupStatus,
-    RuntimeHealthObservation, RuntimeState, TatolabStatus,
+    derive_runtime_status, MachineSetupState, RuntimeHealthObservation, RuntimeState, TatolabStatus,
 };
 
 /// How long one local API request may take before the runtime reads as not answering.
@@ -264,23 +262,10 @@ impl TatolabAppController {
             runtime_agent,
             runtime,
             streams,
-            machine_setup: MachineSetupStatus {
-                state: MachineSetupState::from_observation(
-                    !missing_setup.is_empty(),
-                    administrator_prompt_showing,
-                ),
-                missing: missing_setup
-                    .iter()
-                    .map(|piece| piece.path().display().to_string())
-                    .collect(),
-            },
-            cli: CommandLineToolStatus {
-                linked_at: command_line_tool_linked_at(
-                    &self.machine_paths,
-                    self.bundled_command_line_tool.as_deref(),
-                )
-                .map(|link_path| link_path.display().to_string()),
-            },
+            machine_setup_state: MachineSetupState::from_observation(
+                !missing_setup.is_empty(),
+                administrator_prompt_showing,
+            ),
         }
     }
 

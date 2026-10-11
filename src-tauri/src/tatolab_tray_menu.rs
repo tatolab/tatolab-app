@@ -148,7 +148,7 @@ impl TatolabTrayMenu {
             tracing::warn!(%failure, "the tray's Run Tatolab check could not be updated");
         }
         self.show_set_up_tatolab_menu_item(set_up_tatolab_menu_item_presentation(
-            status.machine_setup.state,
+            status.machine_setup_state,
         ));
     }
 

@@ -60,7 +60,7 @@ impl TatolabStatusPublisher {
                 runtime_agent = ?status.runtime_agent,
                 run_tatolab = status.run_tatolab,
                 stream_count = status.streams.len(),
-                machine_setup = ?status.machine_setup.state,
+                machine_setup_state = ?status.machine_setup_state,
                 "Tatolab status changed"
             );
             if let Some(tray_menu) = self.tray_menu.get() {
