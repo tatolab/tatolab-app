@@ -657,6 +657,26 @@ mod tests {
         server.client().check_health().unwrap();
     }
 
+    /// Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> cargo test -- --ignored`.
+    #[test]
+    #[ignore = "needs a running tatolabd; name its socket in TATOLAB_APP_LIVE_LOCAL_API_SOCKET"]
+    fn a_real_runtime_answers_health_list_streams_and_machine_name() {
+        let socket_path = std::env::var_os("TATOLAB_APP_LIVE_LOCAL_API_SOCKET")
+            .expect("TATOLAB_APP_LIVE_LOCAL_API_SOCKET names a running runtime's local API socket");
+        let client = LocalApiClient::new(Path::new(&socket_path), Duration::from_secs(5));
+
+        client.check_health().unwrap();
+        let streams = client.list_streams().unwrap();
+        let machine_name = client.machine_name().unwrap();
+
+        assert!(!machine_name.is_empty());
+        if let Some(expected_listing) = std::env::var_os("TATOLAB_APP_LIVE_EXPECTED_STREAMS_JSON") {
+            let expected_streams: Vec<ListedStream> =
+                serde_json::from_str(&expected_listing.to_string_lossy()).unwrap();
+            assert_eq!(streams, expected_streams);
+        }
+    }
+
     #[test]
     fn a_truncated_body_is_malformed() {
         assert!(

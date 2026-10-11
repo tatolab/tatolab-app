@@ -68,8 +68,11 @@ fn main() {
                 controller.run_tatolab(),
                 on_tray_menu_choice,
             )?);
-            reconcile_run_tatolab_off_the_main_thread(app.handle());
-            status_publisher.start_polling(app.handle().clone());
+            let app_for_the_first_reconcile = app.handle().clone();
+            std::thread::spawn(move || {
+                controller.reconcile_on_app_opened();
+                status_publisher.start_polling(app_for_the_first_reconcile);
+            });
             Ok(())
         })
         .build(tauri::generate_context!())
