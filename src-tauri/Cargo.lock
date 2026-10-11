@@ -3156,6 +3156,7 @@ dependencies = [
  "objc2",
  "objc2-foundation",
  "objc2-service-management",
+ "percent-encoding",
  "serde",
  "serde_json",
  "tauri",

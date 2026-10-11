@@ -1,0 +1,247 @@
+{
+  "stream": "main",
+  "nodes": [
+    {
+      "id": "Pe9fffgi3l6sg3m4molzy4pov",
+      "type": "tatolab.stream:TestPatternSource",
+      "name": "testpatternsource",
+      "config": {},
+      "config_checksum": 6086514543335466803,
+      "ports": {
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "video",
+            "description": "Test-pattern video frames",
+            "port_kind": "data",
+            "delivery_profile": null
+          }
+        ]
+      },
+      "components": {
+        "state": "Running",
+        "shutdown_channel": {
+          "attached": true,
+          "receiver_taken": true
+        },
+        "paused": false,
+        "thread_handle": {
+          "attached": true,
+          "thread_id": "ThreadId(24)",
+          "thread_name": "<unnamed>"
+        },
+        "processor_instance": {
+          "attached": true,
+          "arc_strong_count": 2,
+          "arc_weak_count": 0
+        },
+        "metrics": {
+          "frames_dropped": 0,
+          "dropped_bags_by_link": {},
+          "refused_bags_by_output_port": {
+            "video": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "Pgwl3rys4jaz8k9g6pqxxv8kd",
+      "type": "nodes.inverting_effect:InvertingEffect",
+      "name": "invertingeffect",
+      "config": {},
+      "config_checksum": 6086514543335466803,
+      "ports": {
+        "inputs": [
+          {
+            "name": "video_from_upstream",
+            "description": "",
+            "port_kind": "data",
+            "delivery_profile": "newest"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "video_to_downstream",
+            "description": "",
+            "port_kind": "data",
+            "delivery_profile": null
+          }
+        ]
+      },
+      "components": {
+        "state": "Running",
+        "shutdown_channel": {
+          "attached": true,
+          "receiver_taken": true
+        },
+        "paused": false,
+        "thread_handle": {
+          "attached": true,
+          "thread_id": "ThreadId(25)",
+          "thread_name": "<unnamed>"
+        },
+        "processor_instance": {
+          "attached": true,
+          "arc_strong_count": 2,
+          "arc_weak_count": 0
+        },
+        "metrics": {
+          "frames_dropped": 0,
+          "dropped_bags_by_link": {
+            "Lj17fu4mdczivji99oua37i06": 0
+          },
+          "refused_bags_by_output_port": {
+            "video_to_downstream": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "Pak2of8mm6v631e1f30cw7zjo",
+      "type": "nodes.brightness_meter:BrightnessMeter",
+      "name": "brightnessmeter",
+      "config": {},
+      "config_checksum": 6086514543335466803,
+      "ports": {
+        "inputs": [
+          {
+            "name": "video_from_upstream",
+            "description": "",
+            "port_kind": "data",
+            "delivery_profile": "newest"
+          }
+        ],
+        "outputs": []
+      },
+      "components": {
+        "state": "Running",
+        "shutdown_channel": {
+          "attached": true,
+          "receiver_taken": true
+        },
+        "paused": false,
+        "thread_handle": {
+          "attached": true,
+          "thread_id": "ThreadId(26)",
+          "thread_name": "<unnamed>"
+        },
+        "processor_instance": {
+          "attached": true,
+          "arc_strong_count": 2,
+          "arc_weak_count": 0
+        },
+        "metrics": {
+          "frames_dropped": 0,
+          "dropped_bags_by_link": {
+            "Lizkqmkmmu5ldam8dbymcc4bc": 0
+          },
+          "refused_bags_by_output_port": {}
+        }
+      }
+    },
+    {
+      "id": "Pk79b96s4d8fumlitkntmn5dg",
+      "type": "tatolab.stream:DisplayWindow",
+      "name": "displaywindow",
+      "config": {
+        "title": "Tatolab",
+        "scaling": "fit"
+      },
+      "config_checksum": 15071898633716066277,
+      "ports": {
+        "inputs": [
+          {
+            "name": "video",
+            "description": "Video frames to show in the window",
+            "port_kind": "data",
+            "delivery_profile": "newest"
+          }
+        ],
+        "outputs": []
+      },
+      "components": {
+        "state": "Running",
+        "shutdown_channel": {
+          "attached": true,
+          "receiver_taken": true
+        },
+        "paused": false,
+        "thread_handle": {
+          "attached": true,
+          "thread_id": "ThreadId(27)",
+          "thread_name": "<unnamed>"
+        },
+        "processor_instance": {
+          "attached": true,
+          "arc_strong_count": 2,
+          "arc_weak_count": 0
+        },
+        "metrics": {
+          "frames_dropped": 0,
+          "dropped_bags_by_link": {
+            "Lv5ujotcx5rnh9f4s6xewjot9": 0
+          },
+          "refused_bags_by_output_port": {}
+        }
+      }
+    }
+  ],
+  "links": [
+    {
+      "id": "Lj17fu4mdczivji99oua37i06",
+      "source": {
+        "node": "testpatternsource",
+        "port": "video"
+      },
+      "target": {
+        "node": "invertingeffect",
+        "port": "video_from_upstream"
+      },
+      "capacity": 4,
+      "state": "wired",
+      "components": {
+        "state": "Wired"
+      }
+    },
+    {
+      "id": "Lv5ujotcx5rnh9f4s6xewjot9",
+      "source": {
+        "node": "invertingeffect",
+        "port": "video_to_downstream"
+      },
+      "target": {
+        "node": "displaywindow",
+        "port": "video"
+      },
+      "capacity": 4,
+      "state": "wired",
+      "components": {
+        "state": "Wired"
+      }
+    },
+    {
+      "id": "Lizkqmkmmu5ldam8dbymcc4bc",
+      "source": {
+        "node": "invertingeffect",
+        "port": "video_to_downstream"
+      },
+      "target": {
+        "node": "brightnessmeter",
+        "port": "video_from_upstream"
+      },
+      "capacity": 4,
+      "state": "wired",
+      "components": {
+        "state": "Wired"
+      }
+    }
+  ],
+  "exposed": [
+    {
+      "node": "invertingeffect",
+      "port": "video_to_downstream",
+      "level": "private"
+    }
+  ],
+  "machine": "jonathanf-macbook"
+}

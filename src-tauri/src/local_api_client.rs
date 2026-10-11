@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 //! The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
-//! local API's Unix socket. `GET /health` says the runtime is up, the MCP tool `list_streams` over
-//! `POST /mcp` lists its streams, and `GET /api/graph` names the machine.
+//! local API's Unix socket. `GET /health` says the runtime is up, the MCP tools `list_streams` and
+//! `logs` over `POST /mcp` list its streams and read one's log records, and `GET /api/graph` names
+//! the machine and draws one stream's graph.
 //!
 //! The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
 //! `mcp.rs` serves rmcp's stateless Streamable HTTP with per-request protocol metadata
@@ -16,9 +17,14 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use crate::stream_graph_summary::{stream_graph_summary_from_the_graph_json, StreamGraphSummary};
+use crate::stream_log_records_page::{
+    stream_log_records_page_from_the_logs_tool_result, StreamLogRecordsPage,
+};
 use crate::tatolab_status::ListedStream;
 
 /// The MCP protocol revision the runtime serves, and the only one.
@@ -29,6 +35,13 @@ const LOCAL_API_MCP_CLIENT_NAME: &str = "tatolab-app";
 
 /// The most bytes one local API response may carry before the client gives up on it.
 const LARGEST_LOCAL_API_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
+
+/// Every byte outside RFC 3986's unreserved set, percent-encoded into a query value.
+const QUERY_VALUE_PERCENT_ENCODED_BYTES: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~');
 
 /// Why a local API request came back without an answer.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,6 +151,36 @@ impl LocalApiClient {
             })
     }
 
+    /// Up to `count` of `stream`'s log records numbered after `after`, from the runtime's `logs`
+    /// tool.
+    pub fn read_stream_log_records(
+        &self,
+        stream: &str,
+        after: u64,
+        count: u32,
+    ) -> Result<StreamLogRecordsPage, LocalApiRequestFailure> {
+        let tool_result_text = self.call_mcp_tool(
+            "logs",
+            json!({ "stream": stream, "after": after, "count": count }),
+        )?;
+        stream_log_records_page_from_the_logs_tool_result(&tool_result_text)
+            .map_err(LocalApiRequestFailure::new)
+    }
+
+    /// The graph of the loaded stream `stream`, from `GET /api/graph?stream=`.
+    pub fn describe_stream_graph(
+        &self,
+        stream: &str,
+    ) -> Result<StreamGraphSummary, LocalApiRequestFailure> {
+        let request_target = format!(
+            "/api/graph?stream={}",
+            utf8_percent_encode(stream, QUERY_VALUE_PERCENT_ENCODED_BYTES)
+        );
+        let graph_body = self.get_body_of_an_ok_answer(&request_target)?;
+        stream_graph_summary_from_the_graph_json(stream, &graph_body)
+            .map_err(LocalApiRequestFailure::new)
+    }
+
     /// `GET request_target`, answering the body of a `200`; any other answer is refused in the
     /// runtime's own words when its body carries them.
     fn get_body_of_an_ok_answer(
@@ -161,7 +204,7 @@ impl LocalApiClient {
     }
 
     /// Call the MCP tool `tool_name` with `tool_arguments` in one stateless request, answering
-    /// the text of its first content block.
+    /// the text of its first content block; a tool that ran and failed is refused in its own words.
     fn call_mcp_tool(
         &self,
         tool_name: &str,
@@ -323,9 +366,9 @@ fn first_text_block_of_tool_call_response(
         });
     let tool_failed = tool_result.get("isError").and_then(Value::as_bool) == Some(true);
     match (tool_failed, first_text) {
-        (true, failure_text) => Err(LocalApiRequestFailure::new(format!(
-            "`{tool_name}` failed: {}",
-            failure_text.unwrap_or("no reason given")
+        (true, Some(refusal)) => Err(LocalApiRequestFailure::new(refusal)),
+        (true, None) => Err(LocalApiRequestFailure::new(format!(
+            "`{tool_name}` failed and gave no reason"
         ))),
         (false, Some(text)) => Ok(text.to_string()),
         (false, None) => Err(LocalApiRequestFailure::new(format!(
@@ -780,11 +823,105 @@ mod tests {
 
         let failure = server.client().list_streams().unwrap_err();
 
+        assert_eq!(
+            failure.failure_description,
+            "the stream action did not finish"
+        );
+    }
+
+    #[test]
+    fn reading_log_records_asks_the_logs_tool_for_the_page_after_a_sequence_number() {
+        let server = FakeLocalApiServer::answering(vec![tool_result_response(json!({
+            "stream": "main",
+            "stream_instance": "4",
+            "records": [{ "sequence": 8, "record": { "level": "info", "message": "hello" } }],
+            "next_after": 8,
+            "records_no_longer_held": 0
+        }))]);
+
+        let page = server
+            .client()
+            .read_stream_log_records("main", 7, 500)
+            .unwrap();
+
+        assert_eq!(page.stream_instance, "4");
+        assert_eq!(page.next_after, 8);
+        assert_eq!(page.records[0].message, "hello");
+        let request = &server.received_requests()[0];
+        let (head, body) = request.split_once("\r\n\r\n").unwrap();
+        assert!(head.contains("Mcp-Name: logs"), "{head}");
+        let body: Value = serde_json::from_str(body).unwrap();
+        assert_eq!(body["params"]["name"], "logs");
+        assert_eq!(
+            body["params"]["arguments"],
+            json!({ "stream": "main", "after": 7, "count": 500 })
+        );
+    }
+
+    #[test]
+    fn a_log_read_the_runtime_refuses_carries_its_own_words() {
+        let refusal = "logs failed: Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
+        let body = json!({
+            "jsonrpc": "2.0", "id": 1,
+            "result": { "resultType": "complete", "content": [{ "type": "text", "text": refusal }], "isError": true }
+        });
+        let server = FakeLocalApiServer::answering(vec![http_response(
+            "200 OK",
+            "application/json",
+            &body.to_string(),
+        )]);
+
+        let failure = server
+            .client()
+            .read_stream_log_records("nope", 0, 500)
+            .unwrap_err();
+
+        assert_eq!(failure.failure_description, refusal);
+    }
+
+    #[test]
+    fn describing_a_stream_graph_names_the_stream_percent_encoded() {
+        let graph = json!({
+            "stream": "two words&more",
+            "nodes": [{ "id": "P1", "type": "tatolab.stream:TestPatternSource", "name": "testpatternsource", "components": { "state": "Running" } }],
+            "links": [],
+            "exposed": [],
+            "machine": "jonathanf-macbook"
+        });
+        let server = FakeLocalApiServer::answering(vec![http_response(
+            "200 OK",
+            "application/json",
+            &graph.to_string(),
+        )]);
+
+        let summary = server
+            .client()
+            .describe_stream_graph("two words&more")
+            .unwrap();
+
+        assert_eq!(summary.stream, "two words&more");
+        assert_eq!(summary.nodes[0].state.as_deref(), Some("Running"));
         assert!(
-            failure
-                .failure_description
-                .contains("the stream action did not finish"),
-            "{failure}"
+            server.received_requests()[0]
+                .starts_with("GET /api/graph?stream=two%20words%26more HTTP/1.1\r\n"),
+            "{}",
+            server.received_requests()[0]
+        );
+    }
+
+    #[test]
+    fn a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words() {
+        let server = FakeLocalApiServer::answering(vec![http_response(
+            "404 Not Found",
+            "application/json",
+            r#"{"error":"Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main"}"#,
+        )]);
+
+        let failure = server.client().describe_stream_graph("nope").unwrap_err();
+
+        assert_eq!(
+            failure.failure_description,
+            "Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main"
         );
     }
 
@@ -800,7 +937,7 @@ mod tests {
     /// Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> cargo test -- --ignored`.
     #[test]
     #[ignore = "needs a running tatolabd; name its socket in TATOLAB_APP_LIVE_LOCAL_API_SOCKET"]
-    fn a_real_runtime_answers_health_its_streams_and_its_machine_name() {
+    fn a_real_runtime_answers_health_its_streams_their_graphs_and_logs_and_its_machine_name() {
         let socket_path = std::env::var_os("TATOLAB_APP_LIVE_LOCAL_API_SOCKET")
             .expect("TATOLAB_APP_LIVE_LOCAL_API_SOCKET names a running runtime's local API socket");
         let client = LocalApiClient::new(Path::new(&socket_path), Duration::from_secs(5));
@@ -808,6 +945,17 @@ mod tests {
         client.check_health().unwrap();
         let streams = client.list_streams().unwrap();
         assert!(!client.machine_name().unwrap().is_empty());
+        for listed_stream in streams
+            .iter()
+            .filter(|listed_stream| listed_stream.node_count.is_some())
+        {
+            let graph = client.describe_stream_graph(&listed_stream.name).unwrap();
+            assert_eq!(graph.stream, listed_stream.name);
+            let page = client
+                .read_stream_log_records(&listed_stream.name, 0, 500)
+                .unwrap();
+            assert_eq!(page.stream, listed_stream.name);
+        }
 
         if let Some(expected_stream_count) =
             std::env::var_os("TATOLAB_APP_LIVE_EXPECTED_STREAM_COUNT")

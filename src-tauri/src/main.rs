@@ -18,6 +18,8 @@ mod poison_tolerant_mutex;
 mod run_tatolab_preference;
 mod run_tatolab_switch;
 mod runtime_launch_agent_registration;
+mod stream_graph_summary;
+mod stream_log_records_page;
 mod tatolab_app_controller;
 mod tatolab_app_shared_state;
 mod tatolab_commands;
@@ -57,6 +59,8 @@ fn main() {
             tatolab_commands::open_login_items_settings,
             tatolab_commands::set_up_tatolab,
             tatolab_commands::quit_tatolab_app,
+            tatolab_commands::read_stream_log_records,
+            tatolab_commands::describe_stream_graph,
         ])
         .setup(move |app| {
             let app_config_directory = app.path().app_config_dir()?;

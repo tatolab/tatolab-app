@@ -1,0 +1,56 @@
+{
+  "stream": "main",
+  "stream_instance": "1",
+  "records": [
+    {
+      "sequence": 1,
+      "record": {
+        "schema_version": 1,
+        "host_ts": 1791759307069355000,
+        "runtime_id": "Rtefbduuxbizuojf77eijxxbd",
+        "stream": "main",
+        "source": "rust",
+        "level": "info",
+        "message": "Loading the stream `main` from /private/tmp/tatolab-proof-projects/pattern",
+        "target": "streamlib_engine::core::runtime::loaded_stream",
+        "intercepted": false
+      }
+    },
+    {
+      "sequence": 2,
+      "record": {
+        "schema_version": 1,
+        "host_ts": 1791759307221236000,
+        "runtime_id": "Rtefbduuxbizuojf77eijxxbd",
+        "stream": "main",
+        "source": "rust",
+        "level": "info",
+        "message": "node type described in the stream's processor interpreter registered",
+        "target": "streamlib_engine::core::processors::node_types_one_stream_resolves",
+        "intercepted": false,
+        "attrs": {
+          "processor_class_import_path": "nodes.inverting_effect:InvertingEffect"
+        }
+      }
+    },
+    {
+      "sequence": 3,
+      "record": {
+        "schema_version": 1,
+        "host_ts": 1791759307221244000,
+        "runtime_id": "Rtefbduuxbizuojf77eijxxbd",
+        "stream": "main",
+        "source": "rust",
+        "level": "info",
+        "message": "node type described in the stream's processor interpreter registered",
+        "target": "streamlib_engine::core::processors::node_types_one_stream_resolves",
+        "intercepted": false,
+        "attrs": {
+          "processor_class_import_path": "nodes.brightness_meter:BrightnessMeter"
+        }
+      }
+    }
+  ],
+  "next_after": 3,
+  "records_no_longer_held": 0
+}

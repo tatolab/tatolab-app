@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use crate::local_api_client::LocalApiClient;
+use crate::local_api_client::{LocalApiClient, LocalApiRequestFailure};
 use crate::macos::machine_setup::{
     command_line_tool_linked_at, missing_machine_setup_pieces,
     prepare_local_proof_test_machine_root, run_machine_setup_behind_one_administrator_prompt,
@@ -23,6 +23,8 @@ use crate::macos::tatolab_machine_paths::{
 use crate::poison_tolerant_mutex::lock_ignoring_poison;
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::run_tatolab_switch::RunTatolabSwitch;
+use crate::stream_graph_summary::StreamGraphSummary;
+use crate::stream_log_records_page::StreamLogRecordsPage;
 use crate::tatolab_status::{
     derive_runtime_state, the_runtime_just_became_unreachable,
     the_stream_listing_just_started_failing, ListedStream, MachineSetupState,
@@ -31,6 +33,9 @@ use crate::tatolab_status::{
 
 /// How long one local API request may take before the runtime reads as not answering.
 const LOCAL_API_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// How many log records one page the window reads holds.
+const STREAM_LOG_RECORDS_PER_PAGE: u32 = 500;
 
 /// What asked for the administrator prompt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -366,6 +371,24 @@ impl TatolabAppController {
             )
             .map(|link_path| link_path.display().to_string()),
         }
+    }
+
+    /// The window's next page of `stream`'s log records: those numbered after `after`.
+    pub fn read_stream_log_records(
+        &self,
+        stream: &str,
+        after: u64,
+    ) -> Result<StreamLogRecordsPage, LocalApiRequestFailure> {
+        self.local_api_client
+            .read_stream_log_records(stream, after, STREAM_LOG_RECORDS_PER_PAGE)
+    }
+
+    /// The graph of the loaded stream `stream`.
+    pub fn describe_stream_graph(
+        &self,
+        stream: &str,
+    ) -> Result<StreamGraphSummary, LocalApiRequestFailure> {
+        self.local_api_client.describe_stream_graph(stream)
     }
 
     /// The runtime's streams, or `None` when listing failed, which is logged on the round it

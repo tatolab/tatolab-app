@@ -12,6 +12,8 @@ use std::time::Duration;
 use tauri::{AppHandle, State};
 
 use crate::named_app_thread::spawn_named_app_thread;
+use crate::stream_graph_summary::StreamGraphSummary;
+use crate::stream_log_records_page::StreamLogRecordsPage;
 use crate::tatolab_app_shared_state::{
     quit_the_tatolab_app, run_off_the_main_thread_with_the_controller, set_up_tatolab_on_request,
     TatolabAppSharedState,
@@ -83,4 +85,226 @@ pub fn set_up_tatolab(app: AppHandle) {
 #[tauri::command(rename_all = "snake_case")]
 pub fn quit_tatolab_app(app: AppHandle) {
     quit_the_tatolab_app(&app);
+}
+
+/// `stream`'s log records numbered after `after`; refused in the runtime's own words.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn read_stream_log_records(
+    shared_state: State<'_, TatolabAppSharedState>,
+    stream: String,
+    after: u64,
+) -> Result<StreamLogRecordsPage, String> {
+    let controller = Arc::clone(&shared_state.controller);
+    answer_from_a_named_app_thread("tatolab-read-stream-log-records", move || {
+        controller
+            .read_stream_log_records(&stream, after)
+            .map_err(|failure| failure.failure_description)
+    })
+    .await
+}
+
+/// The graph of the loaded stream `stream`; refused in the runtime's own words.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn describe_stream_graph(
+    shared_state: State<'_, TatolabAppSharedState>,
+    stream: String,
+) -> Result<StreamGraphSummary, String> {
+    let controller = Arc::clone(&shared_state.controller);
+    answer_from_a_named_app_thread("tatolab-describe-stream-graph", move || {
+        controller
+            .describe_stream_graph(&stream)
+            .map_err(|failure| failure.failure_description)
+    })
+    .await
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::stream_graph_summary::{StreamGraphExposedPort, StreamGraphLink, StreamGraphNode};
+    use crate::stream_log_records_page::StreamLogRecord;
+    use crate::tatolab_status::{
+        ListedStream, MachineSetupState, RuntimeAgentRegistrationStatus, RuntimeState,
+    };
+
+    fn status_with(
+        runtime_agent: RuntimeAgentRegistrationStatus,
+        runtime_state: RuntimeState,
+        machine_setup_state: MachineSetupState,
+    ) -> TatolabStatus {
+        TatolabStatus {
+            app_version: "0.45.0".to_string(),
+            run_tatolab: true,
+            runtime_agent,
+            runtime_state,
+            machine_name: Some("jonathanf-macbook".to_string()),
+            streams: Some(vec![ListedStream {
+                name: "main".to_string(),
+                state: "kept".to_string(),
+                project_directory: "/private/tmp/x/pattern".to_string(),
+                node_count: Some(4),
+                failed_because: None,
+            }]),
+            machine_setup_state,
+            command_line_tool_linked_at: Some("/usr/local/bin/tatolab".to_string()),
+        }
+    }
+
+    /// The window's TypeScript types read exactly this JSON, key for key and in this order.
+    #[test]
+    fn the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_them() {
+        let status = status_with(
+            RuntimeAgentRegistrationStatus::Enabled,
+            RuntimeState::Running,
+            MachineSetupState::Complete,
+        );
+        assert_eq!(
+            serde_json::to_string(&status).unwrap(),
+            concat!(
+                r#"{"app_version":"0.45.0","run_tatolab":true,"runtime_agent":"enabled","#,
+                r#""runtime_state":"running","machine_name":"jonathanf-macbook","streams":["#,
+                r#"{"name":"main","state":"kept","project_directory":"/private/tmp/x/pattern","#,
+                r#""node_count":4,"failed_because":null}],"machine_setup_state":"complete","#,
+                r#""command_line_tool_linked_at":"/usr/local/bin/tatolab"}"#
+            )
+        );
+        let status_of_a_runtime_that_is_down = TatolabStatus {
+            machine_name: None,
+            streams: None,
+            command_line_tool_linked_at: None,
+            ..status.clone()
+        };
+        assert_eq!(
+            serde_json::to_string(&status_of_a_runtime_that_is_down).unwrap(),
+            concat!(
+                r#"{"app_version":"0.45.0","run_tatolab":true,"runtime_agent":"enabled","#,
+                r#""runtime_state":"running","machine_name":null,"streams":null,"#,
+                r#""machine_setup_state":"complete","command_line_tool_linked_at":null}"#
+            )
+        );
+        for (runtime_agent, runtime_agent_on_the_wire) in [
+            (RuntimeAgentRegistrationStatus::Enabled, "enabled"),
+            (
+                RuntimeAgentRegistrationStatus::RequiresApproval,
+                "requires_approval",
+            ),
+            (
+                RuntimeAgentRegistrationStatus::NotRegistered,
+                "not_registered",
+            ),
+            (RuntimeAgentRegistrationStatus::NotFound, "not_found"),
+        ] {
+            assert_eq!(
+                serde_json::to_value(runtime_agent).unwrap(),
+                runtime_agent_on_the_wire
+            );
+        }
+        for (runtime_state, runtime_state_on_the_wire) in [
+            (RuntimeState::Running, "running"),
+            (RuntimeState::Starting, "starting"),
+            (RuntimeState::Stopped, "stopped"),
+            (RuntimeState::Unreachable, "unreachable"),
+        ] {
+            assert_eq!(
+                serde_json::to_value(runtime_state).unwrap(),
+                runtime_state_on_the_wire
+            );
+        }
+        for (machine_setup_state, machine_setup_state_on_the_wire) in [
+            (MachineSetupState::Complete, "complete"),
+            (MachineSetupState::NeedsAdministrator, "needs_administrator"),
+            (
+                MachineSetupState::WaitingForAdministrator,
+                "waiting_for_administrator",
+            ),
+        ] {
+            assert_eq!(
+                serde_json::to_value(machine_setup_state).unwrap(),
+                machine_setup_state_on_the_wire
+            );
+        }
+
+        let page = StreamLogRecordsPage {
+            stream: "main".to_string(),
+            stream_instance: "4".to_string(),
+            records: vec![
+                StreamLogRecord {
+                    sequence: 7,
+                    host_ts_ns: Some(1791757115431254000),
+                    level: Some("info".to_string()),
+                    source: Some("rust".to_string()),
+                    target: Some("streamlib_engine::core::runtime::loaded_stream".to_string()),
+                    message: "Loading the stream `main`".to_string(),
+                    attrs: BTreeMap::from([(
+                        "processor_class_import_path".to_string(),
+                        "nodes.x:X".to_string(),
+                    )]),
+                },
+                StreamLogRecord {
+                    sequence: 8,
+                    host_ts_ns: None,
+                    level: None,
+                    source: None,
+                    target: None,
+                    message: String::new(),
+                    attrs: BTreeMap::new(),
+                },
+            ],
+            next_after: 8,
+            records_no_longer_held: 0,
+        };
+        assert_eq!(
+            serde_json::to_string(&page).unwrap(),
+            concat!(
+                r#"{"stream":"main","stream_instance":"4","records":["#,
+                r#"{"sequence":7,"host_ts_ns":1791757115431254000,"level":"info","source":"rust","#,
+                r#""target":"streamlib_engine::core::runtime::loaded_stream","#,
+                r#""message":"Loading the stream `main`","#,
+                r#""attrs":{"processor_class_import_path":"nodes.x:X"}},"#,
+                r#"{"sequence":8,"host_ts_ns":null,"level":null,"source":null,"target":null,"#,
+                r#""message":"","attrs":{}}],"next_after":8,"records_no_longer_held":0}"#
+            )
+        );
+
+        let graph = StreamGraphSummary {
+            stream: "main".to_string(),
+            nodes: vec![
+                StreamGraphNode {
+                    name: "testpatternsource".to_string(),
+                    node_type: "tatolab.stream:TestPatternSource".to_string(),
+                    state: Some("Running".to_string()),
+                },
+                StreamGraphNode {
+                    name: "invertingeffect".to_string(),
+                    node_type: "nodes.inverting_effect:InvertingEffect".to_string(),
+                    state: None,
+                },
+            ],
+            links: vec![StreamGraphLink {
+                source_node: "testpatternsource".to_string(),
+                source_port: "video".to_string(),
+                target_node: "invertingeffect".to_string(),
+                target_port: "video_from_upstream".to_string(),
+                state: "wired".to_string(),
+            }],
+            exposed: vec![StreamGraphExposedPort {
+                node: "invertingeffect".to_string(),
+                port: "video_to_downstream".to_string(),
+                level: "private".to_string(),
+            }],
+        };
+        assert_eq!(
+            serde_json::to_string(&graph).unwrap(),
+            concat!(
+                r#"{"stream":"main","nodes":["#,
+                r#"{"name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running"},"#,
+                r#"{"name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null}],"#,
+                r#""links":[{"source_node":"testpatternsource","source_port":"video","#,
+                r#""target_node":"invertingeffect","target_port":"video_from_upstream","state":"wired"}],"#,
+                r#""exposed":[{"node":"invertingeffect","port":"video_to_downstream","level":"private"}]}"#
+            )
+        );
+    }
 }
