@@ -1,0 +1,36 @@
+[package]
+name = "tatolab-app"
+version = "0.45.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "Tatolab"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dirs = "6"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-service-management = "0.3"
+
+[features]
+# Local-proof builds only: the bundled runtime was built with
+# `cargo xtask build-runtime --machine-directories-under-a-test-root`, so the
+# machine lock lives under its test root and first launch needs no administrator.
+machine-directories-under-a-test-root = []
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
