@@ -14,6 +14,10 @@ pub trait RuntimeLaunchAgentRegistration: Send + Sync {
     /// Register the agent so the service manager starts the runtime now and at every login.
     fn register_runtime_launch_agent(&self) -> Result<(), String>;
 
+    /// Start the registered agent's runtime unless it is already running. Service Management
+    /// loads a newly registered agent but launchd may defer its first start.
+    fn start_runtime_launch_agent_if_not_running(&self) -> Result<(), String>;
+
     /// Unregister the agent, which stops the runtime and keeps it from starting at login.
     fn unregister_runtime_launch_agent(&self) -> Result<(), String>;
 

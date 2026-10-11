@@ -4,14 +4,20 @@
 //! The runtime's launch agent registered through Service Management's `SMAppService`, from the
 //! plist the bundle carries in `Contents/Library/LaunchAgents/`.
 
+use std::process::Command;
+
 use objc2_foundation::NSString;
 use objc2_service_management::{SMAppService, SMAppServiceStatus};
 
+use crate::macos::tatolab_machine_paths::current_process_uid;
 use crate::runtime_launch_agent_registration::RuntimeLaunchAgentRegistration;
 use crate::tatolab_status::RuntimeAgentRegistrationStatus;
 
 /// The agent plist's file name inside the bundle's `Contents/Library/LaunchAgents/`.
 pub const RUNTIME_LAUNCH_AGENT_PLIST_NAME: &str = "com.tatolab.tatolabd.plist";
+
+/// The agent plist's `Label`, which names the job in the user's launchd domain.
+pub const RUNTIME_LAUNCH_AGENT_LABEL: &str = "com.tatolab.tatolabd";
 
 /// The runtime's launch agent as `SMAppService` sees it.
 #[derive(Debug, Clone)]
@@ -48,6 +54,23 @@ impl RuntimeLaunchAgentRegistration for ServiceManagementRuntimeLaunchAgent {
         // SAFETY: `registerAndReturnError:` has no preconditions; failure comes back as an NSError.
         unsafe { self.service().registerAndReturnError() }
             .map_err(|error| error.localizedDescription().to_string())
+    }
+
+    fn start_runtime_launch_agent_if_not_running(&self) -> Result<(), String> {
+        // Without `-k`, kickstart leaves a running job alone.
+        let launchd_job = format!("gui/{}/{RUNTIME_LAUNCH_AGENT_LABEL}", current_process_uid());
+        let kickstart = Command::new("/bin/launchctl")
+            .args(["kickstart", &launchd_job])
+            .output()
+            .map_err(|failure| format!("launchctl could not be run: {failure}"))?;
+        if kickstart.status.success() {
+            return Ok(());
+        }
+        Err(format!(
+            "launchctl kickstart {launchd_job} failed ({}): {}",
+            kickstart.status,
+            String::from_utf8_lossy(&kickstart.stderr).trim()
+        ))
     }
 
     fn unregister_runtime_launch_agent(&self) -> Result<(), String> {

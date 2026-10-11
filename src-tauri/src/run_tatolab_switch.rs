@@ -102,7 +102,10 @@ impl RunTatolabSwitch {
             return RunTatolabReconciliation::WaitingForMachineSetup;
         }
         match self.runtime_launch_agent.registration_status() {
-            RuntimeAgentRegistrationStatus::Enabled => RunTatolabReconciliation::AlreadyEnabled,
+            RuntimeAgentRegistrationStatus::Enabled => {
+                self.start_the_runtime_if_not_running();
+                RunTatolabReconciliation::AlreadyEnabled
+            }
             RuntimeAgentRegistrationStatus::RequiresApproval => {
                 self.needs_approval_in_login_items()
             }
@@ -168,6 +171,7 @@ impl RunTatolabSwitch {
             }
             (Ok(()), _) => {
                 self.last_registration_failure = None;
+                self.start_the_runtime_if_not_running();
                 RunTatolabReconciliation::Registered
             }
             (Err(failure_description), _) => {
@@ -177,6 +181,15 @@ impl RunTatolabSwitch {
                     failure_description,
                 }
             }
+        }
+    }
+
+    fn start_the_runtime_if_not_running(&self) {
+        if let Err(failure_description) = self
+            .runtime_launch_agent
+            .start_runtime_launch_agent_if_not_running()
+        {
+            tracing::warn!(%failure_description, "the runtime's launch agent could not be started");
         }
     }
 
@@ -200,6 +213,7 @@ mod tests {
     #[derive(Debug, Clone, PartialEq, Eq)]
     enum FakeServiceManagementCall {
         Register,
+        StartIfNotRunning,
         Unregister,
         OpenLoginItemsSettings,
     }
@@ -257,6 +271,14 @@ mod tests {
                 }
                 Err(failure) => Err(failure),
             }
+        }
+
+        fn start_runtime_launch_agent_if_not_running(&self) -> Result<(), String> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(FakeServiceManagementCall::StartIfNotRunning);
+            Ok(())
         }
 
         fn unregister_runtime_launch_agent(&self) -> Result<(), String> {
@@ -323,7 +345,10 @@ mod tests {
             assert_eq!(reconciliation, RunTatolabReconciliation::Registered);
             assert_eq!(
                 under_test.service_management.calls(),
-                vec![FakeServiceManagementCall::Register]
+                vec![
+                    FakeServiceManagementCall::Register,
+                    FakeServiceManagementCall::StartIfNotRunning
+                ]
             );
         }
     }
@@ -344,7 +369,7 @@ mod tests {
     }
 
     #[test]
-    fn opening_the_app_leaves_an_enabled_agent_alone() {
+    fn opening_the_app_starts_an_enabled_agent_without_registering_it_again() {
         let mut under_test = switch_with(RuntimeAgentRegistrationStatus::Enabled, None);
 
         assert_eq!(
@@ -353,7 +378,10 @@ mod tests {
                 .reconcile_on_app_opened(true, Instant::now()),
             RunTatolabReconciliation::AlreadyEnabled
         );
-        assert!(under_test.service_management.calls().is_empty());
+        assert_eq!(
+            under_test.service_management.calls(),
+            vec![FakeServiceManagementCall::StartIfNotRunning]
+        );
     }
 
     #[test]
