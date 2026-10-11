@@ -4,3 +4,4 @@ src-tauri/target/
 build/
 *.dmg
 .DS_Store
+src-tauri/gen/

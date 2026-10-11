@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>LSUIElement</key>
+  <true/>
+  <key>NSCameraUsageDescription</key>
+  <string>Tatolab lets the streams you run read this Mac's cameras.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Tatolab lets the streams you run read this Mac's microphones.</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Tatolab connects the streams you run to devices and machines on this network.</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>Tatolab runs stream projects you keep in your Documents folder.</string>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>Tatolab runs stream projects you keep on your Desktop.</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>Tatolab runs stream projects you keep in your Downloads folder.</string>
+</dict>
+</plist>
