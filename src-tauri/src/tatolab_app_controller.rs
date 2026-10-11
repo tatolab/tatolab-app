@@ -30,6 +30,15 @@ use crate::tatolab_status::{
 /// How long one local API request may take before the runtime reads as not answering.
 const LOCAL_API_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
+/// What asked for the administrator prompt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AdministratorPromptTrigger {
+    /// Opening the app, which shows the prompt at most once per launch.
+    AppOpened,
+    /// "Set Up Tatolab…", which shows it again whenever none is showing.
+    UserAsked,
+}
+
 /// What this launch has done with the administrator prompt: opening the app shows it at most
 /// once, and "Set Up Tatolab…" shows it again on request, never while one is showing.
 #[derive(Debug, Default)]
@@ -39,24 +48,17 @@ struct AdministratorPromptThisLaunch {
 }
 
 impl AdministratorPromptThisLaunch {
-    /// Whether opening the app may show the prompt now; if so, it counts as showing.
-    fn begin_prompt_on_app_opened(&mut self) -> bool {
-        if self.shown_this_launch || self.showing {
-            return false;
+    /// Whether `trigger` may show the prompt now; if so, it counts as showing.
+    fn begin_prompt(&mut self, trigger: AdministratorPromptTrigger) -> bool {
+        let prompt_may_show_now = match trigger {
+            AdministratorPromptTrigger::AppOpened => !self.shown_this_launch && !self.showing,
+            AdministratorPromptTrigger::UserAsked => !self.showing,
+        };
+        if prompt_may_show_now {
+            self.shown_this_launch = true;
+            self.showing = true;
         }
-        self.shown_this_launch = true;
-        self.showing = true;
-        true
-    }
-
-    /// Whether the prompt the user asked for may show now; if so, it counts as showing.
-    fn begin_prompt_the_user_asked_for(&mut self) -> bool {
-        if self.showing {
-            return false;
-        }
-        self.shown_this_launch = true;
-        self.showing = true;
-        true
+        prompt_may_show_now
     }
 
     /// The prompt was answered, cancelled, or failed to show.
@@ -157,7 +159,7 @@ impl TatolabAppController {
             return;
         }
         if self.run_machine_setup_behind_the_administrator_prompt(
-            AdministratorPromptThisLaunch::begin_prompt_on_app_opened,
+            AdministratorPromptTrigger::AppOpened,
         ) {
             self.reconcile_the_agent_with_the_run_tatolab_switch();
         }
@@ -168,28 +170,27 @@ impl TatolabAppController {
     pub fn set_up_the_machine_on_request(&self) {
         if self.machine_paths.local_proof_test_machine_root.is_none() {
             self.run_machine_setup_behind_the_administrator_prompt(
-                AdministratorPromptThisLaunch::begin_prompt_the_user_asked_for,
+                AdministratorPromptTrigger::UserAsked,
             );
         }
         self.reconcile_the_agent_with_the_run_tatolab_switch();
     }
 
-    /// Show the administrator prompt for whatever setup is missing, if `begin_prompt` allows it
-    /// now, blocking until it is answered; whether it was shown.
+    /// Show the administrator prompt for whatever setup is missing, if `trigger` may show it now,
+    /// blocking until it is answered; whether it was shown.
     fn run_machine_setup_behind_the_administrator_prompt(
         &self,
-        begin_prompt: fn(&mut AdministratorPromptThisLaunch) -> bool,
+        trigger: AdministratorPromptTrigger,
     ) -> bool {
         let missing = self.missing_machine_setup_pieces();
         if missing.is_empty()
-            || !begin_prompt(&mut lock_ignoring_poison(
-                &self.administrator_prompt_this_launch,
-            ))
+            || !lock_ignoring_poison(&self.administrator_prompt_this_launch).begin_prompt(trigger)
         {
             return false;
         }
         tracing::info!(
             ?missing,
+            ?trigger,
             "showing the administrator prompt for machine setup"
         );
         let machine_setup = run_machine_setup_behind_one_administrator_prompt(&missing);
@@ -303,41 +304,41 @@ mod tests {
     fn opening_the_app_shows_the_administrator_prompt_once_per_launch_even_when_cancelled() {
         let mut administrator_prompt = AdministratorPromptThisLaunch::default();
 
-        assert!(administrator_prompt.begin_prompt_on_app_opened());
+        assert!(administrator_prompt.begin_prompt(AdministratorPromptTrigger::AppOpened));
         assert!(administrator_prompt.showing());
         administrator_prompt.finish_prompt();
         assert!(!administrator_prompt.showing());
 
-        assert!(!administrator_prompt.begin_prompt_on_app_opened());
+        assert!(!administrator_prompt.begin_prompt(AdministratorPromptTrigger::AppOpened));
         assert!(!administrator_prompt.showing());
     }
 
     #[test]
     fn set_up_tatolab_shows_the_prompt_again_after_a_cancelled_one() {
         let mut administrator_prompt = AdministratorPromptThisLaunch::default();
-        assert!(administrator_prompt.begin_prompt_on_app_opened());
+        assert!(administrator_prompt.begin_prompt(AdministratorPromptTrigger::AppOpened));
         administrator_prompt.finish_prompt();
 
-        assert!(administrator_prompt.begin_prompt_the_user_asked_for());
+        assert!(administrator_prompt.begin_prompt(AdministratorPromptTrigger::UserAsked));
         administrator_prompt.finish_prompt();
-        assert!(administrator_prompt.begin_prompt_the_user_asked_for());
+        assert!(administrator_prompt.begin_prompt(AdministratorPromptTrigger::UserAsked));
     }
 
     #[test]
     fn no_second_prompt_shows_while_one_is_showing() {
         let mut administrator_prompt = AdministratorPromptThisLaunch::default();
-        assert!(administrator_prompt.begin_prompt_the_user_asked_for());
+        assert!(administrator_prompt.begin_prompt(AdministratorPromptTrigger::UserAsked));
 
-        assert!(!administrator_prompt.begin_prompt_the_user_asked_for());
-        assert!(!administrator_prompt.begin_prompt_on_app_opened());
+        assert!(!administrator_prompt.begin_prompt(AdministratorPromptTrigger::UserAsked));
+        assert!(!administrator_prompt.begin_prompt(AdministratorPromptTrigger::AppOpened));
     }
 
     #[test]
     fn a_prompt_the_user_asked_for_counts_as_the_launch_prompt() {
         let mut administrator_prompt = AdministratorPromptThisLaunch::default();
-        assert!(administrator_prompt.begin_prompt_the_user_asked_for());
+        assert!(administrator_prompt.begin_prompt(AdministratorPromptTrigger::UserAsked));
         administrator_prompt.finish_prompt();
 
-        assert!(!administrator_prompt.begin_prompt_on_app_opened());
+        assert!(!administrator_prompt.begin_prompt(AdministratorPromptTrigger::AppOpened));
     }
 }
