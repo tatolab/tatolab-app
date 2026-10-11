@@ -104,13 +104,13 @@ fn on_tray_menu_choice(app: &AppHandle, choice: TrayMenuChoice) {
         TrayMenuChoice::ToggleRunTatolabSwitch => {
             run_off_the_main_thread_with_the_controller(app, |controller, status_publisher| {
                 controller.toggle_run_tatolab();
-                status_publisher.refresh_and_publish();
+                status_publisher.request_refresh();
             });
         }
         TrayMenuChoice::SetUpTatolab => {
             run_off_the_main_thread_with_the_controller(app, |controller, status_publisher| {
                 controller.set_up_the_machine_on_request();
-                status_publisher.refresh_and_publish();
+                status_publisher.request_refresh();
             });
         }
         TrayMenuChoice::QuitTheApp => {

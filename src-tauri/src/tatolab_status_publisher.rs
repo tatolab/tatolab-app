@@ -50,9 +50,12 @@ impl TatolabStatusPublisher {
         }
     }
 
-    /// Observe everything now and publish the status if it changed; blocks on the observation.
-    pub fn refresh_and_publish(&self) {
+    /// The poller's one round: observe everything, react to an agent needing approval, and publish
+    /// the status if it changed. Everyone else asks for a round with [`Self::request_refresh`].
+    fn refresh_and_publish(&self) {
         let status = self.controller.compose_status(Instant::now());
+        self.controller
+            .open_login_items_if_the_runtime_agent_needs_approval(status.runtime_agent);
         let mut last_published_status = lock_ignoring_poison(&self.last_published_status);
         if last_published_status.as_ref() != Some(&status) {
             tracing::info!(

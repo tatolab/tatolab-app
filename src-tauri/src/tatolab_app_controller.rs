@@ -24,7 +24,7 @@ use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::run_tatolab_switch::RunTatolabSwitch;
 use crate::tatolab_status::{
     derive_runtime_state, the_runtime_just_became_unreachable, MachineSetupState,
-    RuntimeHealthObservation, RuntimeState, TatolabStatus,
+    RuntimeAgentRegistrationStatus, RuntimeHealthObservation, RuntimeState, TatolabStatus,
 };
 
 /// How long one local API request may take before the runtime reads as not answering.
@@ -219,16 +219,27 @@ impl TatolabAppController {
         lock_ignoring_poison(&self.run_tatolab_switch).run_tatolab()
     }
 
-    /// Observe everything once and compose the status, as of `now`.
+    /// With the switch on, open System Settings at Login Items the first time this launch the
+    /// poller sees `runtime_agent` needing approval.
+    pub fn open_login_items_if_the_runtime_agent_needs_approval(
+        &self,
+        runtime_agent: RuntimeAgentRegistrationStatus,
+    ) {
+        lock_ignoring_poison(&self.run_tatolab_switch)
+            .notice_runtime_agent_registration_status(runtime_agent);
+    }
+
+    /// Observe everything once and compose the status, as of `now`; opens nothing.
     pub fn compose_status(&self, now: Instant) -> TatolabStatus {
         let administrator_prompt_showing =
             lock_ignoring_poison(&self.administrator_prompt_this_launch).showing();
         let missing_setup = self.missing_machine_setup_pieces();
         let (run_tatolab, runtime_agent) = {
-            let mut switch = lock_ignoring_poison(&self.run_tatolab_switch);
-            let runtime_agent = switch.runtime_agent_registration_status();
-            switch.notice_runtime_agent_registration_status(runtime_agent);
-            (switch.run_tatolab(), runtime_agent)
+            let switch = lock_ignoring_poison(&self.run_tatolab_switch);
+            (
+                switch.run_tatolab(),
+                switch.runtime_agent_registration_status(),
+            )
         };
 
         let health_check = self.local_api_client.check_health();
