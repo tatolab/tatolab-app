@@ -288,7 +288,7 @@ impl TatolabAppController {
 
     fn listed_stream_count(&self) -> usize {
         self.local_api_client
-            .list_streams()
+            .count_listed_streams()
             .unwrap_or_else(|failure| {
                 tracing::warn!(%failure, "the runtime's streams could not be listed");
                 0

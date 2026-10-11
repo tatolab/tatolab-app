@@ -95,7 +95,7 @@ impl LocalApiClient {
     }
 
     /// How many streams the runtime holds, from its `list_streams` tool.
-    pub fn list_streams(&self) -> Result<usize, LocalApiRequestFailure> {
+    pub fn count_listed_streams(&self) -> Result<usize, LocalApiRequestFailure> {
         let tool_result_text = self.call_mcp_tool("list_streams", json!({}))?;
         serde_json::from_str::<ListStreamsToolResultOnTheWire>(&tool_result_text)
             .map(|tool_result| tool_result.streams.len())
@@ -491,11 +491,11 @@ mod tests {
     }
 
     #[test]
-    fn list_streams_sends_the_headers_and_meta_the_runtime_requires() {
+    fn counting_listed_streams_sends_the_headers_and_meta_the_runtime_requires() {
         let server =
             FakeLocalApiServer::answering(vec![tool_result_response(json!({ "streams": [] }))]);
 
-        assert_eq!(server.client().list_streams().unwrap(), 0);
+        assert_eq!(server.client().count_listed_streams().unwrap(), 0);
 
         let request = &server.received_requests()[0];
         let (head, body) = request.split_once("\r\n\r\n").unwrap();
@@ -533,7 +533,7 @@ mod tests {
     }
 
     #[test]
-    fn list_streams_counts_every_listed_stream_whatever_its_state() {
+    fn counting_listed_streams_counts_every_listed_stream_whatever_its_state() {
         let server = FakeLocalApiServer::answering(vec![tool_result_response(json!({
             "streams": [
                 { "name": "camera-preview", "state": "attached", "project_directory": "/Users/me/camera", "node_count": 3, "failed_because": null },
@@ -544,7 +544,7 @@ mod tests {
             ]
         }))]);
 
-        assert_eq!(server.client().list_streams().unwrap(), 5);
+        assert_eq!(server.client().count_listed_streams().unwrap(), 5);
     }
 
     #[test]
@@ -559,7 +559,7 @@ mod tests {
             &refusal.to_string(),
         )]);
 
-        let failure = server.client().list_streams().unwrap_err();
+        let failure = server.client().count_listed_streams().unwrap_err();
 
         assert!(failure.failure_description.contains("400"), "{failure}");
         assert!(
@@ -582,7 +582,7 @@ mod tests {
             &body.to_string(),
         )]);
 
-        let failure = server.client().list_streams().unwrap_err();
+        let failure = server.client().count_listed_streams().unwrap_err();
 
         assert!(
             failure
@@ -604,13 +604,13 @@ mod tests {
     /// Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> cargo test -- --ignored`.
     #[test]
     #[ignore = "needs a running tatolabd; name its socket in TATOLAB_APP_LIVE_LOCAL_API_SOCKET"]
-    fn a_real_runtime_answers_health_and_list_streams() {
+    fn a_real_runtime_answers_health_and_counts_its_listed_streams() {
         let socket_path = std::env::var_os("TATOLAB_APP_LIVE_LOCAL_API_SOCKET")
             .expect("TATOLAB_APP_LIVE_LOCAL_API_SOCKET names a running runtime's local API socket");
         let client = LocalApiClient::new(Path::new(&socket_path), Duration::from_secs(5));
 
         client.check_health().unwrap();
-        let stream_count = client.list_streams().unwrap();
+        let stream_count = client.count_listed_streams().unwrap();
 
         if let Some(expected_stream_count) =
             std::env::var_os("TATOLAB_APP_LIVE_EXPECTED_STREAM_COUNT")
