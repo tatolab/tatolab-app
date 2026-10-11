@@ -2,7 +2,8 @@
 # Checks a signed Tatolab.app, or the Tatolab.app inside a .dmg, against the bundle contract:
 # a strict deep signature, the hardened runtime on every Mach-O unless ad-hoc, no Mach-O outside
 # Contents/MacOS and Contents/Frameworks, every symlink resolving inside the bundle, the launch
-# agent plist, the Info.plist usage strings, and the entitlements of tatolabd and the app.
+# agent plist, the Info.plist usage strings, the lend's CPython 3.10-3.14 bytecode, and the
+# entitlements of tatolabd and the app.
 # A stapled target must also pass Gatekeeper.
 #
 # Usage: verify-tatolab-app-bundle.sh <Tatolab.app|file.dmg> [--shipping]
@@ -52,6 +53,7 @@ required_usage_description_keys=(
   NSDocumentsFolderUsageDescription NSDesktopFolderUsageDescription NSDownloadsFolderUsageDescription
 )
 required_device_entitlements=(com.apple.security.device.camera com.apple.security.device.audio-input)
+required_lend_bytecode_cache_tags=(cpython-310 cpython-311 cpython-312 cpython-313 cpython-314)
 
 verify_app_bundle() {
   local app_bundle contents canonical_app_bundle
@@ -141,6 +143,20 @@ verify_app_bundle() {
     && pass "Resources/lend carries the runtime package" || fail "Resources/lend has no tatolab/runtime package"
   [ "$lend_mach_o_links" -gt 0 ] && pass "Resources/lend links $lend_mach_o_links Mach-O into Frameworks/tatolab-runtime" \
     || fail "Resources/lend links no Mach-O into Frameworks/tatolab-runtime"
+
+  local lend_python_source lend_bytecode_cache_tag lend_bytecode_file missing_lend_bytecode_count=0 first_missing_lend_bytecode=""
+  while IFS= read -r -d '' lend_python_source; do
+    for lend_bytecode_cache_tag in "${required_lend_bytecode_cache_tags[@]}"; do
+      lend_bytecode_file="$(dirname "$lend_python_source")/__pycache__/$(basename "$lend_python_source" .py).$lend_bytecode_cache_tag.pyc"
+      if [ ! -f "$lend_bytecode_file" ]; then
+        missing_lend_bytecode_count=$((missing_lend_bytecode_count + 1))
+        [ -n "$first_missing_lend_bytecode" ] || first_missing_lend_bytecode="${lend_bytecode_file#"$contents/"}"
+      fi
+    done
+  done < <(find "$contents/Resources/lend/tatolab/runtime" -name '*.py' -type f -print0 2>/dev/null)
+  [ "$missing_lend_bytecode_count" -eq 0 ] \
+    && pass "every .py under Resources/lend/tatolab/runtime has ${required_lend_bytecode_cache_tags[*]} bytecode" \
+    || fail "$missing_lend_bytecode_count .pyc missing under Resources/lend/tatolab/runtime (first: $first_missing_lend_bytecode); a processor interpreter would write it into the signed bundle"
 
   local launch_agent_plist="$contents/Library/LaunchAgents/com.tatolab.tatolabd.plist"
   if plutil -lint -s "$launch_agent_plist" 2>/dev/null; then

@@ -25,7 +25,8 @@ Tatolab.app/Contents/
     _vulkan_driver/libvulkan.1.dylib
     _vulkan_driver/libMoltenVK.dylib
   Resources/lend/                             streamlib's lib/tatolab/lend; each Mach-O is a relative
-                                              symlink into Frameworks/tatolab-runtime
+                                              symlink into Frameworks/tatolab-runtime; precompiled
+                                              (unchecked-hash .pyc) for CPython 3.10-3.14
   Library/LaunchAgents/com.tatolab.tatolabd.plist
                                               the SMAppService agent (packaging/launch-agent/)
 ```
@@ -33,7 +34,9 @@ Tatolab.app/Contents/
 The CLI is named `tatolab-cli` inside the bundle because APFS is case-insensitive by default, so a
 file called `tatolab` would overwrite `Tatolab`. Code signing only accepts code under `MacOS/` and
 `Frameworks/`. The lend keeps its shape through the symlinks, so `tatolabd` finds it at
-`../Resources/lend` relative to its own directory.
+`../Resources/lend` relative to its own directory. Processor interpreters (the user's venv Python)
+import `tatolab.runtime` from that lend with every `PYTHON*` variable stripped. Without the shipped
+bytecode they would write `__pycache__` into the signed bundle, which breaks its seal.
 
 Entitlements: `src-tauri/macos/Tatolab.entitlements` (the app) and
 `packaging/entitlements/tatolabd.entitlements` (the runtime) carry `device.camera` and
