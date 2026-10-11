@@ -6,8 +6,6 @@
 
 use std::time::Duration;
 
-use serde::Deserialize;
-
 /// How long an enabled runtime may fail its health check before it reads unreachable rather
 /// than starting.
 pub const RUNTIME_STARTING_GRACE_PERIOD: Duration = Duration::from_secs(20);
@@ -18,7 +16,7 @@ pub struct TatolabStatus {
     pub run_tatolab: bool,
     pub runtime_agent: RuntimeAgentRegistrationStatus,
     pub runtime_state: RuntimeState,
-    pub streams: Vec<ListedStream>,
+    pub stream_count: usize,
     pub machine_setup_state: MachineSetupState,
 }
 
@@ -38,26 +36,6 @@ pub enum RuntimeState {
     Starting,
     Stopped,
     Unreachable,
-}
-
-/// One stream the runtime holds, as its `list_streams` tool lists it.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct ListedStream {
-    pub name: String,
-    pub state: ListedStreamState,
-    pub project_directory: String,
-    pub node_count: Option<u64>,
-    pub failed_because: Option<String>,
-}
-
-/// The state of one listed stream, spelled as the runtime's wire spells it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ListedStreamState {
-    Attached,
-    Kept,
-    Stopped,
-    Failed,
 }
 
 /// Whether first-launch machine setup still needs the administrator prompt.
@@ -141,7 +119,7 @@ pub fn tray_status_line(status: &TatolabStatus) -> String {
         return "Needs approval in Login Items".to_string();
     }
     match status.runtime_state {
-        RuntimeState::Running => match status.streams.len() {
+        RuntimeState::Running => match status.stream_count {
             1 => "Runtime running · 1 stream".to_string(),
             stream_count => format!("Runtime running · {stream_count} streams"),
         },
@@ -164,15 +142,7 @@ mod tests {
             run_tatolab: true,
             runtime_agent,
             runtime_state,
-            streams: (0..stream_count)
-                .map(|index| ListedStream {
-                    name: format!("stream-{index}"),
-                    state: ListedStreamState::Kept,
-                    project_directory: "/p".into(),
-                    node_count: Some(2),
-                    failed_because: None,
-                })
-                .collect(),
+            stream_count,
             machine_setup_state: MachineSetupState::Complete,
         }
     }

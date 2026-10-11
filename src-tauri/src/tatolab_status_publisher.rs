@@ -59,7 +59,7 @@ impl TatolabStatusPublisher {
                 runtime_state = ?status.runtime_state,
                 runtime_agent = ?status.runtime_agent,
                 run_tatolab = status.run_tatolab,
-                stream_count = status.streams.len(),
+                stream_count = status.stream_count,
                 machine_setup_state = ?status.machine_setup_state,
                 "Tatolab status changed"
             );

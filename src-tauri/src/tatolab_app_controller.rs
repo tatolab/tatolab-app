@@ -229,10 +229,10 @@ impl TatolabAppController {
             Ok(()) => RuntimeHealthObservation::Healthy,
             Err(_) => RuntimeHealthObservation::Failing,
         };
-        let streams = if runtime_health == RuntimeHealthObservation::Healthy {
-            self.listed_streams()
+        let stream_count = if runtime_health == RuntimeHealthObservation::Healthy {
+            self.listed_stream_count()
         } else {
-            Vec::new()
+            0
         };
 
         let runtime_state = {
@@ -259,7 +259,7 @@ impl TatolabAppController {
             run_tatolab,
             runtime_agent,
             runtime_state,
-            streams,
+            stream_count,
             machine_setup_state: MachineSetupState::from_observation(
                 !missing_setup.is_empty(),
                 administrator_prompt_showing,
@@ -267,12 +267,12 @@ impl TatolabAppController {
         }
     }
 
-    fn listed_streams(&self) -> Vec<crate::tatolab_status::ListedStream> {
+    fn listed_stream_count(&self) -> usize {
         self.local_api_client
             .list_streams()
             .unwrap_or_else(|failure| {
                 tracing::warn!(%failure, "the runtime's streams could not be listed");
-                Vec::new()
+                0
             })
     }
 }

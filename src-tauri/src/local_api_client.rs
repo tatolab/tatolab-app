@@ -15,10 +15,9 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use serde::de::IgnoredAny;
 use serde::Deserialize;
 use serde_json::{json, Value};
-
-use crate::tatolab_status::ListedStream;
 
 /// The MCP protocol revision the runtime serves, and the only one.
 pub const LOCAL_API_MCP_PROTOCOL_VERSION: &str = "2026-07-28";
@@ -63,9 +62,10 @@ pub struct LocalApiClient {
     request_timeout: Duration,
 }
 
+/// The `list_streams` result read only as far as the tray needs: how many streams it lists.
 #[derive(Deserialize)]
 struct ListStreamsToolResultOnTheWire {
-    streams: Vec<ListedStream>,
+    streams: Vec<IgnoredAny>,
 }
 
 impl LocalApiClient {
@@ -94,11 +94,11 @@ impl LocalApiClient {
         }
     }
 
-    /// Every stream the runtime holds, from its `list_streams` tool.
-    pub fn list_streams(&self) -> Result<Vec<ListedStream>, LocalApiRequestFailure> {
+    /// How many streams the runtime holds, from its `list_streams` tool.
+    pub fn list_streams(&self) -> Result<usize, LocalApiRequestFailure> {
         let tool_result_text = self.call_mcp_tool("list_streams", json!({}))?;
         serde_json::from_str::<ListStreamsToolResultOnTheWire>(&tool_result_text)
-            .map(|tool_result| tool_result.streams)
+            .map(|tool_result| tool_result.streams.len())
             .map_err(|failure| {
                 LocalApiRequestFailure::new(format!(
                     "the runtime's list_streams result could not be read: {failure}"
@@ -338,7 +338,6 @@ fn dechunked_body(mut chunked_body: &[u8]) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tatolab_status::ListedStreamState;
     use std::os::unix::net::UnixListener;
     use std::sync::{Arc, Mutex};
 
@@ -496,7 +495,7 @@ mod tests {
         let server =
             FakeLocalApiServer::answering(vec![tool_result_response(json!({ "streams": [] }))]);
 
-        assert_eq!(server.client().list_streams().unwrap(), Vec::new());
+        assert_eq!(server.client().list_streams().unwrap(), 0);
 
         let request = &server.received_requests()[0];
         let (head, body) = request.split_once("\r\n\r\n").unwrap();
@@ -534,36 +533,18 @@ mod tests {
     }
 
     #[test]
-    fn list_streams_reads_every_state_the_runtime_lists() {
+    fn list_streams_counts_every_listed_stream_whatever_its_state() {
         let server = FakeLocalApiServer::answering(vec![tool_result_response(json!({
             "streams": [
                 { "name": "camera-preview", "state": "attached", "project_directory": "/Users/me/camera", "node_count": 3, "failed_because": null },
                 { "name": "encoder", "state": "kept", "project_directory": "/Users/me/encoder", "node_count": null, "failed_because": null },
                 { "name": "paused", "state": "stopped", "project_directory": "/Users/me/paused", "node_count": null, "failed_because": null },
-                { "name": "crashy", "state": "failed", "project_directory": "/Users/me/crashy", "node_count": null, "failed_because": "implicated in the runtime's last two crashes in a row" }
+                { "name": "crashy", "state": "failed", "project_directory": "/Users/me/crashy", "node_count": null, "failed_because": "implicated in the runtime's last two crashes in a row" },
+                { "name": "from-a-newer-runtime", "state": "migrating", "project_directory": "/Users/me/newer", "node_count": 1, "failed_because": null, "a_field_from_later": true }
             ]
         }))]);
 
-        let streams = server.client().list_streams().unwrap();
-
-        assert_eq!(
-            streams
-                .iter()
-                .map(|stream| stream.state)
-                .collect::<Vec<_>>(),
-            vec![
-                ListedStreamState::Attached,
-                ListedStreamState::Kept,
-                ListedStreamState::Stopped,
-                ListedStreamState::Failed
-            ]
-        );
-        assert_eq!(streams[0].node_count, Some(3));
-        assert_eq!(streams[0].project_directory, "/Users/me/camera");
-        assert_eq!(
-            streams[3].failed_because.as_deref(),
-            Some("implicated in the runtime's last two crashes in a row")
-        );
+        assert_eq!(server.client().list_streams().unwrap(), 5);
     }
 
     #[test]
@@ -629,12 +610,18 @@ mod tests {
         let client = LocalApiClient::new(Path::new(&socket_path), Duration::from_secs(5));
 
         client.check_health().unwrap();
-        let streams = client.list_streams().unwrap();
+        let stream_count = client.list_streams().unwrap();
 
-        if let Some(expected_listing) = std::env::var_os("TATOLAB_APP_LIVE_EXPECTED_STREAMS_JSON") {
-            let expected_streams: Vec<ListedStream> =
-                serde_json::from_str(&expected_listing.to_string_lossy()).unwrap();
-            assert_eq!(streams, expected_streams);
+        if let Some(expected_stream_count) =
+            std::env::var_os("TATOLAB_APP_LIVE_EXPECTED_STREAM_COUNT")
+        {
+            assert_eq!(
+                stream_count,
+                expected_stream_count
+                    .to_string_lossy()
+                    .parse::<usize>()
+                    .unwrap()
+            );
         }
     }
 
