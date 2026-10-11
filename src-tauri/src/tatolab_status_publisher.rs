@@ -56,7 +56,7 @@ impl TatolabStatusPublisher {
         let mut last_published_status = lock_ignoring_poison(&self.last_published_status);
         if last_published_status.as_ref() != Some(&status) {
             tracing::info!(
-                runtime_state = ?status.runtime.state,
+                runtime_state = ?status.runtime_state,
                 runtime_agent = ?status.runtime_agent,
                 run_tatolab = status.run_tatolab,
                 stream_count = status.streams.len(),

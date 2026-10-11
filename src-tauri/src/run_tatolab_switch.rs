@@ -39,7 +39,6 @@ pub struct RunTatolabSwitch {
     run_tatolab: bool,
     login_items_settings_opened_this_launch: bool,
     runtime_expected_up_since: Instant,
-    last_registration_failure: Option<String>,
 }
 
 impl RunTatolabSwitch {
@@ -57,18 +56,12 @@ impl RunTatolabSwitch {
             run_tatolab,
             login_items_settings_opened_this_launch: false,
             runtime_expected_up_since: app_launched_at,
-            last_registration_failure: None,
         }
     }
 
     /// Whether the switch is on.
     pub fn run_tatolab(&self) -> bool {
         self.run_tatolab
-    }
-
-    /// Why the last registration attempt failed, until one succeeds.
-    pub fn last_registration_failure(&self) -> Option<&str> {
-        self.last_registration_failure.as_deref()
     }
 
     /// The agent's registration status now.
@@ -129,7 +122,6 @@ impl RunTatolabSwitch {
         if run_tatolab {
             return self.reconcile_on_app_opened(machine_setup_complete, now);
         }
-        self.last_registration_failure = None;
         match self.runtime_launch_agent.registration_status() {
             RuntimeAgentRegistrationStatus::NotRegistered
             | RuntimeAgentRegistrationStatus::NotFound => RunTatolabReconciliation::Unregistered,
@@ -166,17 +158,14 @@ impl RunTatolabSwitch {
         // while recording it as awaiting approval.
         match (registered, self.runtime_launch_agent.registration_status()) {
             (_, RuntimeAgentRegistrationStatus::RequiresApproval) => {
-                self.last_registration_failure = None;
                 self.needs_approval_in_login_items()
             }
             (Ok(()), _) => {
-                self.last_registration_failure = None;
                 self.start_the_runtime_if_not_running();
                 RunTatolabReconciliation::Registered
             }
             (Err(failure_description), _) => {
                 tracing::warn!(%failure_description, "the runtime's launch agent could not be registered");
-                self.last_registration_failure = Some(failure_description.clone());
                 RunTatolabReconciliation::RegistrationFailed {
                     failure_description,
                 }
@@ -491,7 +480,6 @@ mod tests {
                 opened_login_items_settings: true
             }
         );
-        assert_eq!(under_test.switch.last_registration_failure(), None);
         assert_eq!(
             under_test.service_management.calls(),
             vec![
@@ -502,7 +490,7 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_registration_is_reported_and_remembered_until_one_succeeds() {
+    fn a_failed_registration_is_reported_and_the_next_attempt_registers_again() {
         let mut under_test = switch_with(RuntimeAgentRegistrationStatus::NotFound, None);
         under_test
             .service_management
@@ -516,18 +504,16 @@ mod tests {
                 failure_description: "Invalid argument".into()
             }
         );
-        assert_eq!(
-            under_test.switch.last_registration_failure(),
-            Some("Invalid argument")
-        );
 
         under_test
             .service_management
             .register_answers(Ok(RuntimeAgentRegistrationStatus::Enabled));
-        under_test
-            .switch
-            .reconcile_on_app_opened(true, Instant::now());
-        assert_eq!(under_test.switch.last_registration_failure(), None);
+        assert_eq!(
+            under_test
+                .switch
+                .reconcile_on_app_opened(true, Instant::now()),
+            RunTatolabReconciliation::Registered
+        );
     }
 
     #[test]

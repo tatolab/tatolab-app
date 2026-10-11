@@ -17,7 +17,7 @@ pub const RUNTIME_STARTING_GRACE_PERIOD: Duration = Duration::from_secs(20);
 pub struct TatolabStatus {
     pub run_tatolab: bool,
     pub runtime_agent: RuntimeAgentRegistrationStatus,
-    pub runtime: RuntimeStatus,
+    pub runtime_state: RuntimeState,
     pub streams: Vec<ListedStream>,
     pub machine_setup_state: MachineSetupState,
 }
@@ -29,13 +29,6 @@ pub enum RuntimeAgentRegistrationStatus {
     RequiresApproval,
     NotRegistered,
     NotFound,
-}
-
-/// The runtime's state and, when it is not plainly running or stopped, why.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeStatus {
-    pub state: RuntimeState,
-    pub detail: Option<String>,
 }
 
 /// Whether the runtime answers its local API.
@@ -92,63 +85,46 @@ impl MachineSetupState {
 }
 
 /// What the poller saw of the runtime's local API in one round.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeHealthObservation {
     Healthy,
-    Failing { failure_description: String },
+    Failing,
 }
 
 /// The runtime's state from the switch, the agent's registration, the health check, and how
 /// long the runtime has had to come up since it was last registered, launched or healthy.
-pub fn derive_runtime_status(
+pub fn derive_runtime_state(
     run_tatolab: bool,
     runtime_agent: RuntimeAgentRegistrationStatus,
-    runtime_health: &RuntimeHealthObservation,
+    runtime_health: RuntimeHealthObservation,
     time_since_the_runtime_was_expected_up: Duration,
-) -> RuntimeStatus {
-    let failure_description = match runtime_health {
-        RuntimeHealthObservation::Healthy => {
-            return RuntimeStatus {
-                state: RuntimeState::Running,
-                detail: None,
-            };
-        }
-        RuntimeHealthObservation::Failing {
-            failure_description,
-        } => failure_description,
-    };
+) -> RuntimeState {
+    if runtime_health == RuntimeHealthObservation::Healthy {
+        return RuntimeState::Running;
+    }
     if !run_tatolab {
-        return RuntimeStatus {
-            state: RuntimeState::Stopped,
-            detail: None,
-        };
+        return RuntimeState::Stopped;
     }
     match runtime_agent {
         RuntimeAgentRegistrationStatus::NotRegistered
-        | RuntimeAgentRegistrationStatus::NotFound => RuntimeStatus {
-            state: RuntimeState::Stopped,
-            detail: None,
-        },
-        RuntimeAgentRegistrationStatus::RequiresApproval => RuntimeStatus {
-            state: RuntimeState::Stopped,
-            detail: Some(
-                "the runtime's login item needs approval in System Settings > Login Items"
-                    .to_string(),
-            ),
-        },
+        | RuntimeAgentRegistrationStatus::NotFound
+        | RuntimeAgentRegistrationStatus::RequiresApproval => RuntimeState::Stopped,
         RuntimeAgentRegistrationStatus::Enabled
             if time_since_the_runtime_was_expected_up < RUNTIME_STARTING_GRACE_PERIOD =>
         {
-            RuntimeStatus {
-                state: RuntimeState::Starting,
-                detail: None,
-            }
+            RuntimeState::Starting
         }
-        RuntimeAgentRegistrationStatus::Enabled => RuntimeStatus {
-            state: RuntimeState::Unreachable,
-            detail: Some(failure_description.clone()),
-        },
+        RuntimeAgentRegistrationStatus::Enabled => RuntimeState::Unreachable,
     }
+}
+
+/// Whether this round is the one the runtime turned unreachable in, after `previous_runtime_state`.
+pub fn the_runtime_just_became_unreachable(
+    previous_runtime_state: Option<RuntimeState>,
+    runtime_state: RuntimeState,
+) -> bool {
+    runtime_state == RuntimeState::Unreachable
+        && previous_runtime_state != Some(RuntimeState::Unreachable)
 }
 
 /// The tray's one-line status, the disabled first item of its menu.
@@ -158,13 +134,13 @@ pub fn tray_status_line(status: &TatolabStatus) -> String {
         MachineSetupState::NeedsAdministrator => return "Setup unfinished".to_string(),
         MachineSetupState::WaitingForAdministrator => return "Setting up Tatolab…".to_string(),
     }
-    if status.runtime.state != RuntimeState::Running
+    if status.runtime_state != RuntimeState::Running
         && status.run_tatolab
         && status.runtime_agent == RuntimeAgentRegistrationStatus::RequiresApproval
     {
         return "Needs approval in Login Items".to_string();
     }
-    match status.runtime.state {
+    match status.runtime_state {
         RuntimeState::Running => match status.streams.len() {
             1 => "Runtime running · 1 stream".to_string(),
             stream_count => format!("Runtime running · {stream_count} streams"),
@@ -179,12 +155,6 @@ pub fn tray_status_line(status: &TatolabStatus) -> String {
 mod tests {
     use super::*;
 
-    fn failing() -> RuntimeHealthObservation {
-        RuntimeHealthObservation::Failing {
-            failure_description: "no runtime answers at /tmp/streamlib-501/local-api.sock".into(),
-        }
-    }
-
     fn status_with(
         runtime_state: RuntimeState,
         runtime_agent: RuntimeAgentRegistrationStatus,
@@ -193,10 +163,7 @@ mod tests {
         TatolabStatus {
             run_tatolab: true,
             runtime_agent,
-            runtime: RuntimeStatus {
-                state: runtime_state,
-                detail: None,
-            },
+            runtime_state,
             streams: (0..stream_count)
                 .map(|index| ListedStream {
                     name: format!("stream-{index}"),
@@ -213,26 +180,25 @@ mod tests {
     #[test]
     fn a_healthy_runtime_is_running_whatever_the_switch_says() {
         for run_tatolab in [true, false] {
-            let status = derive_runtime_status(
+            let runtime_state = derive_runtime_state(
                 run_tatolab,
                 RuntimeAgentRegistrationStatus::NotRegistered,
-                &RuntimeHealthObservation::Healthy,
+                RuntimeHealthObservation::Healthy,
                 Duration::from_secs(600),
             );
-            assert_eq!(status.state, RuntimeState::Running);
+            assert_eq!(runtime_state, RuntimeState::Running);
         }
     }
 
     #[test]
     fn the_switch_off_or_an_unregistered_agent_is_stopped() {
         assert_eq!(
-            derive_runtime_status(
+            derive_runtime_state(
                 false,
                 RuntimeAgentRegistrationStatus::Enabled,
-                &failing(),
+                RuntimeHealthObservation::Failing,
                 Duration::ZERO
-            )
-            .state,
+            ),
             RuntimeState::Stopped
         );
         for runtime_agent in [
@@ -241,7 +207,12 @@ mod tests {
             RuntimeAgentRegistrationStatus::RequiresApproval,
         ] {
             assert_eq!(
-                derive_runtime_status(true, runtime_agent, &failing(), Duration::ZERO).state,
+                derive_runtime_state(
+                    true,
+                    runtime_agent,
+                    RuntimeHealthObservation::Failing,
+                    Duration::ZERO
+                ),
                 RuntimeState::Stopped,
                 "{runtime_agent:?}"
             );
@@ -250,25 +221,54 @@ mod tests {
 
     #[test]
     fn an_enabled_agent_failing_health_is_starting_inside_the_grace_period_then_unreachable() {
-        let starting = derive_runtime_status(
-            true,
-            RuntimeAgentRegistrationStatus::Enabled,
-            &failing(),
-            Duration::from_secs(19),
+        assert_eq!(
+            derive_runtime_state(
+                true,
+                RuntimeAgentRegistrationStatus::Enabled,
+                RuntimeHealthObservation::Failing,
+                Duration::from_secs(19),
+            ),
+            RuntimeState::Starting
         );
-        assert_eq!(starting.state, RuntimeState::Starting);
+        assert_eq!(
+            derive_runtime_state(
+                true,
+                RuntimeAgentRegistrationStatus::Enabled,
+                RuntimeHealthObservation::Failing,
+                RUNTIME_STARTING_GRACE_PERIOD,
+            ),
+            RuntimeState::Unreachable
+        );
+    }
 
-        let unreachable = derive_runtime_status(
-            true,
-            RuntimeAgentRegistrationStatus::Enabled,
-            &failing(),
-            RUNTIME_STARTING_GRACE_PERIOD,
-        );
-        assert_eq!(unreachable.state, RuntimeState::Unreachable);
-        assert!(unreachable
-            .detail
-            .unwrap()
-            .contains("/tmp/streamlib-501/local-api.sock"));
+    #[test]
+    fn the_runtime_becomes_unreachable_only_on_the_round_it_turns_unreachable() {
+        for (previous_runtime_state, runtime_state, expected) in [
+            (None, RuntimeState::Unreachable, true),
+            (
+                Some(RuntimeState::Starting),
+                RuntimeState::Unreachable,
+                true,
+            ),
+            (Some(RuntimeState::Running), RuntimeState::Unreachable, true),
+            (
+                Some(RuntimeState::Unreachable),
+                RuntimeState::Unreachable,
+                false,
+            ),
+            (
+                Some(RuntimeState::Unreachable),
+                RuntimeState::Starting,
+                false,
+            ),
+            (None, RuntimeState::Stopped, false),
+        ] {
+            assert_eq!(
+                the_runtime_just_became_unreachable(previous_runtime_state, runtime_state),
+                expected,
+                "{previous_runtime_state:?} -> {runtime_state:?}"
+            );
+        }
     }
 
     #[test]

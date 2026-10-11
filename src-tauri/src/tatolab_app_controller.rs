@@ -23,7 +23,8 @@ use crate::poison_tolerant_mutex::lock_ignoring_poison;
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::run_tatolab_switch::{RunTatolabReconciliation, RunTatolabSwitch};
 use crate::tatolab_status::{
-    derive_runtime_status, MachineSetupState, RuntimeHealthObservation, RuntimeState, TatolabStatus,
+    derive_runtime_state, the_runtime_just_became_unreachable, MachineSetupState,
+    RuntimeHealthObservation, RuntimeState, TatolabStatus,
 };
 
 /// How long one local API request may take before the runtime reads as not answering.
@@ -76,6 +77,7 @@ pub struct TatolabAppController {
     bundled_command_line_tool: Option<PathBuf>,
     local_api_client: LocalApiClient,
     administrator_prompt_this_launch: Mutex<AdministratorPromptThisLaunch>,
+    runtime_state_last_observed: Mutex<Option<RuntimeState>>,
 }
 
 impl TatolabAppController {
@@ -104,6 +106,7 @@ impl TatolabAppController {
             machine_paths,
             bundled_command_line_tool,
             administrator_prompt_this_launch: Mutex::new(AdministratorPromptThisLaunch::default()),
+            runtime_state_last_observed: Mutex::new(None),
         }
     }
 
@@ -221,11 +224,10 @@ impl TatolabAppController {
             (switch.run_tatolab(), runtime_agent)
         };
 
-        let runtime_health = match self.local_api_client.check_health() {
+        let health_check = self.local_api_client.check_health();
+        let runtime_health = match health_check {
             Ok(()) => RuntimeHealthObservation::Healthy,
-            Err(failure) => RuntimeHealthObservation::Failing {
-                failure_description: failure.failure_description,
-            },
+            Err(_) => RuntimeHealthObservation::Failing,
         };
         let streams = if runtime_health == RuntimeHealthObservation::Healthy {
             self.listed_streams()
@@ -233,34 +235,30 @@ impl TatolabAppController {
             Vec::new()
         };
 
-        let (mut runtime, last_registration_failure) = {
+        let runtime_state = {
             let mut switch = lock_ignoring_poison(&self.run_tatolab_switch);
             if runtime_health == RuntimeHealthObservation::Healthy {
                 switch.note_runtime_healthy(now);
             }
-            let runtime = derive_runtime_status(
+            derive_runtime_state(
                 run_tatolab,
                 runtime_agent,
-                &runtime_health,
+                runtime_health,
                 switch.time_since_the_runtime_was_expected_up(now),
-            );
-            (
-                runtime,
-                switch.last_registration_failure().map(str::to_string),
             )
         };
-        if runtime.state == RuntimeState::Stopped && run_tatolab {
-            if let Some(registration_failure) = last_registration_failure {
-                runtime.detail = Some(format!(
-                    "the runtime's launch agent could not be registered: {registration_failure}"
-                ));
+        let previous_runtime_state =
+            lock_ignoring_poison(&self.runtime_state_last_observed).replace(runtime_state);
+        if the_runtime_just_became_unreachable(previous_runtime_state, runtime_state) {
+            if let Err(failure) = health_check {
+                tracing::warn!(%failure, "the runtime is not responding to its health check");
             }
         }
 
         TatolabStatus {
             run_tatolab,
             runtime_agent,
-            runtime,
+            runtime_state,
             streams,
             machine_setup_state: MachineSetupState::from_observation(
                 !missing_setup.is_empty(),
