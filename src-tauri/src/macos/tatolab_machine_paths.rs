@@ -25,8 +25,9 @@ pub const LOCAL_PROOF_TEST_MACHINE_ROOT: &str = "/tmp/tatolab-proof";
 /// The shared temporary directory the runtime's per-user runtime directory sits in on macOS.
 const SHARED_TEMPORARY_DIRECTORY: &str = "/tmp";
 
-/// The CLI's file name beside the app binary in `Contents/MacOS/`.
-const BUNDLED_COMMAND_LINE_TOOL_FILE_NAME: &str = "tatolab";
+/// The CLI's file name beside the app binary in `Contents/MacOS/`. Not `tatolab`: a default APFS
+/// volume folds case, so that name would overwrite the app's own `Tatolab`.
+const BUNDLED_COMMAND_LINE_TOOL_FILE_NAME: &str = "tatolab-cli";
 
 /// Who must own the machine runtime lock and its directory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -114,7 +115,7 @@ pub fn bundled_command_line_tool_path() -> Option<PathBuf> {
     bundled_command_line_tool_beside(&app_executable).filter(|path| path.is_file())
 }
 
-/// `<bundle>/Contents/MacOS/tatolab` for an executable in `<bundle>/Contents/MacOS/`.
+/// `<bundle>/Contents/MacOS/tatolab-cli` for an executable in `<bundle>/Contents/MacOS/`.
 fn bundled_command_line_tool_beside(app_executable: &Path) -> Option<PathBuf> {
     let macos_directory = app_executable.parent()?;
     let contents_directory = macos_directory.parent()?;
@@ -179,7 +180,7 @@ mod tests {
                 "/Applications/Tatolab.app/Contents/MacOS/Tatolab"
             )),
             Some(PathBuf::from(
-                "/Applications/Tatolab.app/Contents/MacOS/tatolab"
+                "/Applications/Tatolab.app/Contents/MacOS/tatolab-cli"
             ))
         );
         assert_eq!(

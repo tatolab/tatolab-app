@@ -296,7 +296,7 @@ mod tests {
     fn a_fresh_machine_misses_the_lock_directory_lock_file_and_cli_link() {
         let root = tempfile::tempdir().unwrap();
         let paths = real_shaped_paths_under(root.path());
-        let bundled = root.path().join("Tatolab.app/Contents/MacOS/tatolab");
+        let bundled = root.path().join("Tatolab.app/Contents/MacOS/tatolab-cli");
 
         let missing = missing_machine_setup_pieces(&paths, Some(&bundled));
 
@@ -390,7 +390,7 @@ mod tests {
     fn a_cli_link_pointing_at_this_bundle_is_reported_linked() {
         let root = tempfile::tempdir().unwrap();
         let paths = real_shaped_paths_under(root.path());
-        let bundled = root.path().join("Tatolab.app/Contents/MacOS/tatolab");
+        let bundled = root.path().join("Tatolab.app/Contents/MacOS/tatolab-cli");
         std::fs::create_dir_all(root.path().join("bin")).unwrap();
         std::os::unix::fs::symlink(&bundled, root.path().join("bin").join("tatolab")).unwrap();
 
@@ -402,7 +402,7 @@ mod tests {
             .iter()
             .all(|piece| !matches!(piece, MissingMachineSetupPiece::CommandLineToolLink { .. })));
 
-        let another_bundle = root.path().join("Old.app/Contents/MacOS/tatolab");
+        let another_bundle = root.path().join("Old.app/Contents/MacOS/tatolab-cli");
         assert_eq!(
             command_line_tool_linked_at(&paths, Some(&another_bundle)),
             None
@@ -421,7 +421,7 @@ mod tests {
             MissingMachineSetupPiece::CommandLineToolLink {
                 link_path: PathBuf::from("/usr/local/bin/tatolab"),
                 bundled_command_line_tool: PathBuf::from(
-                    "/Applications/Tatolab.app/Contents/MacOS/tatolab",
+                    "/Applications/Tatolab.app/Contents/MacOS/tatolab-cli",
                 ),
             },
         ];
@@ -437,18 +437,18 @@ mod tests {
              && chown root:wheel '/Library/Application Support/Tatolab/runtime.lock' \
              && chmod 0666 '/Library/Application Support/Tatolab/runtime.lock' \
              && mkdir -p '/usr/local/bin' \
-             && ln -sfn '/Applications/Tatolab.app/Contents/MacOS/tatolab' '/usr/local/bin/tatolab'"
+             && ln -sfn '/Applications/Tatolab.app/Contents/MacOS/tatolab-cli' '/usr/local/bin/tatolab'"
         );
         assert_eq!(
             machine_setup_administrator_shell_script(&missing[2..]),
-            "mkdir -p '/usr/local/bin' && ln -sfn '/Applications/Tatolab.app/Contents/MacOS/tatolab' '/usr/local/bin/tatolab'"
+            "mkdir -p '/usr/local/bin' && ln -sfn '/Applications/Tatolab.app/Contents/MacOS/tatolab-cli' '/usr/local/bin/tatolab'"
         );
     }
 
     #[test]
     fn paths_with_quotes_stay_one_shell_word_and_one_applescript_string() {
         let bundled =
-            PathBuf::from("/Users/o'neil/Apps/\"Tatolab\" \\ copy.app/Contents/MacOS/tatolab");
+            PathBuf::from("/Users/o'neil/Apps/\"Tatolab\" \\ copy.app/Contents/MacOS/tatolab-cli");
         let script = machine_setup_administrator_shell_script(&[
             MissingMachineSetupPiece::CommandLineToolLink {
                 link_path: PathBuf::from("/usr/local/bin/tatolab"),
@@ -456,7 +456,7 @@ mod tests {
             },
         ]);
         assert!(script.contains(
-            r#"ln -sfn '/Users/o'\''neil/Apps/"Tatolab" \ copy.app/Contents/MacOS/tatolab' '/usr/local/bin/tatolab'"#
+            r#"ln -sfn '/Users/o'\''neil/Apps/"Tatolab" \ copy.app/Contents/MacOS/tatolab-cli' '/usr/local/bin/tatolab'"#
         ));
 
         let applescript = administrator_prompt_applescript(&script);
