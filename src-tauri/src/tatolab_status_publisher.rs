@@ -8,6 +8,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use crate::named_app_thread::spawn_named_app_thread;
 use crate::poison_tolerant_mutex::lock_ignoring_poison;
 use crate::tatolab_app_controller::TatolabAppController;
 use crate::tatolab_status::TatolabStatus;
@@ -85,17 +86,12 @@ impl TatolabStatusPublisher {
             return;
         };
         let publisher = Arc::clone(self);
-        let spawned = std::thread::Builder::new()
-            .name("tatolab-status-poller".to_string())
-            .spawn(move || loop {
-                publisher.refresh_and_publish();
-                match refresh_now_receiver.recv_timeout(STATUS_POLL_INTERVAL) {
-                    Ok(()) | Err(RecvTimeoutError::Timeout) => {}
-                    Err(RecvTimeoutError::Disconnected) => return,
-                }
-            });
-        if let Err(failure) = spawned {
-            tracing::error!(%failure, "the status poller could not be started");
-        }
+        spawn_named_app_thread("tatolab-status-poller", move || loop {
+            publisher.refresh_and_publish();
+            match refresh_now_receiver.recv_timeout(STATUS_POLL_INTERVAL) {
+                Ok(()) | Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => return,
+            }
+        });
     }
 }
