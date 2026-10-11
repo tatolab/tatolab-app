@@ -109,7 +109,7 @@ impl RunTatolabSwitch {
 
     /// Turn the switch on or off and remember it. On registers the agent once the machine is set
     /// up; off unregisters it, which stops the runtime.
-    pub fn set_run_tatolab(
+    fn set_run_tatolab(
         &mut self,
         run_tatolab: bool,
         machine_setup_complete: bool,
@@ -157,7 +157,8 @@ impl RunTatolabSwitch {
         runtime_agent: RuntimeAgentRegistrationStatus,
     ) {
         if self.run_tatolab && runtime_agent == RuntimeAgentRegistrationStatus::RequiresApproval {
-            self.needs_approval_in_login_items();
+            let _the_poller_reports_the_status_not_the_reconciliation =
+                self.needs_approval_in_login_items();
         }
     }
 
