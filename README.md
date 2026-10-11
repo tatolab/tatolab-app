@@ -1,9 +1,17 @@
 # Tatolab.app
 
-The macOS app for [Tatolab](https://tatolab.com). Opening it starts the Tatolab runtime
-(`tatolabd`) as a login item that the app registers with `SMAppService`. The "Run Tatolab" switch
-in the menu bar turns that registration on and off. Quitting the app only closes the menu bar
-item; the runtime keeps running.
+The macOS app for [Tatolab](https://tatolab.com): a menu-bar app with a window. Opening it starts
+the Tatolab runtime (`tatolabd`) as a login item that the app registers with `SMAppService`, and
+shows the window. The window lists the streams the runtime holds as they start and stop, and shows
+each stream's graph and logs. The "Run Tatolab" switch turns the login item on and off. Closing
+the window leaves the app in the menu bar, where "Open Tatolab" brings the window back. Quitting the
+app closes the window and the menu bar item; the runtime keeps running.
+
+The menu bar menu shows a one-line status, "Open Tatolab", the "Run Tatolab" switch, "Set Up
+Tatolab…" while first-launch setup is unfinished, and "Quit Tatolab". The window reads everything
+from the runtime's local API (`/tmp/streamlib-<uid>/local-api.sock`): `list_streams` and `logs`
+over MCP, `GET /api/graph` for the machine's name and each stream's graph. It shows the streams
+and does not start or stop them; the `tatolab` CLI does.
 
 The runtime and the `tatolab` CLI come from [tatolab/streamlib](https://github.com/tatolab/streamlib)
 (BUSL-1.1). This repository is proprietary (see `LICENSE`). It holds the app itself and the
@@ -55,8 +63,9 @@ scripts/build-tatolab-app.sh
 ```
 
 It builds streamlib's runtime unit (`cargo xtask build-runtime --release`, in streamlib's own
-target directory), then the Tauri app. It assembles the bundle, signs it, builds the branded
-`.dmg` and checks the result. The output is `build/Tatolab.app` and
+target directory), then the Tauri app; Tauri's build runs `npm run build`, which builds the
+window's frontend into `dist/` for the app to embed. It assembles the bundle, signs it, builds the
+branded `.dmg` and checks the result. The output is `build/Tatolab.app` and
 `build/Tatolab-<version>-arm64.dmg`.
 
 | Option | |
@@ -76,6 +85,12 @@ nothing is written to `/Library` or `/usr/local/bin`. Use it to prove the app on
 Mac. It is never shipped: `assemble-tatolab-app-bundle.sh` refuses a test-root unit without the
 flag, and `verify-tatolab-app-bundle.sh --shipping` fails such a bundle.
 
+**Working on the window.** `npx tauri dev` runs `npm run dev` (the frontend's dev server on
+`http://localhost:1420`) and the app against it, unbundled. It shows whatever runtime is already
+running on the socket its build names: add `--features machine-directories-under-a-test-root` to
+read a local-proof runtime's `/tmp/tatolab-proof/run/local-api.sock`. An unbundled app finds no
+launch agent, so "Run Tatolab" registers nothing there.
+
 The individual steps are separate scripts in `scripts/`:
 
 | Script | |
@@ -92,7 +107,7 @@ The installer background is `packaging/dmg/tatolab-dmg-background.svg`, rendered
 committed `@1x`/`@2x` PNGs by `packaging/dmg/render-dmg-background.sh` (needs `rsvg-convert`; it
 fetches Instrument Sans with `npm pack`).
 
-Tools: Xcode command line tools, Rust, Node 22+ (the Tauri CLI), `uv` (`uvx` runs the pinned dmgbuild), and
+Tools: Xcode command line tools, Rust, Node 22+ (the window's frontend and the Tauri CLI), `uv` (`uvx` runs the pinned dmgbuild), and
 whatever streamlib's runtime build needs (`brew install shaderc cmake ninja`).
 
 ## CI
