@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Writes Casks/tatolab.rb in a homebrew-tap checkout for a released Tatolab .dmg.
+#
+# Usage: bump-homebrew-cask.sh <version> <Tatolab-<version>-arm64.dmg> <tap checkout>
+#   version  without the leading v, e.g. 0.45.0; the dmg must already be on streamlib's v<version>
+#            release, where the cask's url points
+set -euo pipefail
+
+usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$0" >&2; exit 2; }
+[ $# -eq 3 ] || usage
+cask_version="${1#v}"
+released_dmg="$2"
+tap_checkout="$3"
+repository_root="$(cd "$(dirname "$0")/.." && pwd)"
+cask_template="$repository_root/packaging/homebrew/tatolab.rb.template"
+
+[[ "$cask_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "not a version: $1" >&2; exit 1; }
+[ -f "$released_dmg" ] || { echo "no such dmg: $released_dmg" >&2; exit 1; }
+[ "$(basename "$released_dmg")" = "Tatolab-$cask_version-arm64.dmg" ] \
+  || { echo "expected Tatolab-$cask_version-arm64.dmg, got $(basename "$released_dmg")" >&2; exit 1; }
+[ -d "$tap_checkout" ] || { echo "no such tap checkout: $tap_checkout" >&2; exit 1; }
+
+released_dmg_sha256="$(shasum -a 256 "$released_dmg" | cut -d' ' -f1)"
+mkdir -p "$tap_checkout/Casks"
+sed -e "s/@VERSION@/$cask_version/" -e "s/@SHA256@/$released_dmg_sha256/" "$cask_template" \
+  > "$tap_checkout/Casks/tatolab.rb"
+echo "wrote $tap_checkout/Casks/tatolab.rb: version $cask_version, sha256 $released_dmg_sha256"

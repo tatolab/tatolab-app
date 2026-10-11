@@ -1,0 +1,233 @@
+name: macOS app
+
+# Builds Tatolab.app and Tatolab-<version>-arm64.dmg around a streamlib runtime unit. With the
+# Developer ID secrets present the app and the image are signed, notarized and stapled; without
+# them the build is ad-hoc signed, never notarized, and never published. Publishing uploads the
+# image to the streamlib release it bundles and bumps the tatolab cask in tatolab/homebrew-tap.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      streamlib_ref:
+        description: "streamlib branch, tag or sha to bundle (publishing needs a release tag, e.g. v0.46.0)"
+        required: false
+        default: "main"
+      publish:
+        description: "Upload the .dmg to the streamlib release and bump the Homebrew cask"
+        type: boolean
+        required: false
+        default: false
+  repository_dispatch:
+    types: [streamlib-release]
+
+concurrency:
+  group: macos-app-${{ github.event.client_payload.tag || inputs.streamlib_ref || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  build:
+    name: Build Tatolab.app (arm64)
+    runs-on: macos-15
+    timeout-minutes: 120
+    outputs:
+      streamlib_ref: ${{ steps.release.outputs.streamlib_ref }}
+      release_tag: ${{ steps.release.outputs.release_tag }}
+      app_version: ${{ steps.release.outputs.app_version }}
+      publish: ${{ steps.release.outputs.publish }}
+      notarized: ${{ steps.build.outputs.notarized }}
+      dmg_name: ${{ steps.build.outputs.dmg_name }}
+    steps:
+      - name: Resolve the streamlib ref, the app version and whether to publish
+        id: release
+        env:
+          DISPATCHED_RELEASE_TAG: ${{ github.event.client_payload.tag }}
+          REQUESTED_STREAMLIB_REF: ${{ inputs.streamlib_ref }}
+          REQUESTED_PUBLISH: ${{ inputs.publish }}
+        run: |
+          case "$GITHUB_EVENT_NAME" in
+            repository_dispatch) streamlib_ref="$DISPATCHED_RELEASE_TAG"; publish=true ;;
+            workflow_dispatch) streamlib_ref="${REQUESTED_STREAMLIB_REF:-main}"; publish="${REQUESTED_PUBLISH:-false}" ;;
+            *) streamlib_ref=main; publish=false ;;
+          esac
+          [ -n "$streamlib_ref" ] || { echo "::error::no streamlib ref (repository_dispatch needs client_payload.tag)"; exit 1; }
+          release_tag=""; app_version=""
+          if [[ "$streamlib_ref" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            release_tag="$streamlib_ref"; app_version="${BASH_REMATCH[1]}"
+          elif [ "$publish" = true ]; then
+            echo "::error::publishing needs a streamlib release tag like v0.46.0, not '$streamlib_ref'"; exit 1
+          fi
+          {
+            echo "streamlib_ref=$streamlib_ref"
+            echo "release_tag=$release_tag"
+            echo "app_version=$app_version"
+            echo "publish=$publish"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check out streamlib at ${{ steps.release.outputs.streamlib_ref }}
+        uses: actions/checkout@v4
+        with:
+          repository: tatolab/streamlib
+          ref: ${{ steps.release.outputs.streamlib_ref }}
+          path: streamlib
+          persist-credentials: false
+
+      # `glslc` stages the engine's SPIR-V; cmake and ninja build shaderc's C++ and the bundled
+      # Vulkan loader (streamlib's macos-wheel.yml installs the same).
+      - name: Install glslc and the C++ build tools
+        run: brew install shaderc cmake ninja
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            streamlib -> target
+            src-tauri -> target
+          shared-key: tatolab-app-macos
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Import the Developer ID certificate (when configured)
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ] || [ -z "$APPLE_SIGNING_IDENTITY" ]; then
+            echo "No Developer ID certificate: the build will be ad-hoc signed and not notarized."
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"; keychain_password="$(openssl rand -hex 16)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/developer-id.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          echo "DEVELOPER_ID_READY=1" >> "$GITHUB_ENV"
+          if [ -n "$APPLE_API_KEY_P8_BASE64" ] && [ -n "$APPLE_API_KEY_ID" ] && [ -n "$APPLE_API_ISSUER" ]; then
+            echo "$APPLE_API_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+            echo "NOTARIZATION_READY=1" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Developer ID present but the App Store Connect API key is not: signed, not notarized."
+          fi
+
+      - name: Build, sign, package and verify
+        id: build
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APP_VERSION: ${{ steps.release.outputs.app_version }}
+          STREAMLIB_REF: ${{ steps.release.outputs.streamlib_ref }}
+        run: |
+          build_arguments=(--streamlib "$GITHUB_WORKSPACE/streamlib")
+          [ -z "$APP_VERSION" ] || build_arguments+=(--app-version "$APP_VERSION")
+          notarized=false
+          if [ "${DEVELOPER_ID_READY:-0}" = 1 ]; then
+            build_arguments+=(--sign-identity "$APPLE_SIGNING_IDENTITY")
+            if [ "${NOTARIZATION_READY:-0}" = 1 ]; then
+              export APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+              build_arguments+=(--notarize)
+              notarized=true
+            fi
+          fi
+          scripts/build-tatolab-app.sh "${build_arguments[@]}"
+          dmg_path="$(ls build/Tatolab-*-arm64.dmg)"
+          echo "dmg_name=$(basename "$dmg_path")" >> "$GITHUB_OUTPUT"
+          echo "notarized=$notarized" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Tatolab.app"
+            echo "- streamlib: \`$STREAMLIB_REF\`"
+            echo "- image: \`$(basename "$dmg_path")\` ($(du -h "$dmg_path" | cut -f1))"
+            echo "- signed: $([ "${DEVELOPER_ID_READY:-0}" = 1 ] && echo 'Developer ID' || echo 'ad-hoc')"
+            echo "- notarized: $notarized"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tatolab-macos-arm64
+          path: build/Tatolab-*-arm64.dmg
+          if-no-files-found: error
+
+      - name: Remove the signing keychain and API key
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/AuthKey.p8"
+
+  publish:
+    name: Publish to the streamlib release and the Homebrew tap
+    needs: build
+    if: needs.build.outputs.publish == 'true'
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Refuse to publish an image Gatekeeper would refuse
+        if: needs.build.outputs.notarized != 'true'
+        run: |
+          echo "::error::the build was not notarized (Developer ID or API key secrets missing): nothing is published"
+          exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tatolab-macos-arm64
+          path: build
+
+      - name: Upload the image to tatolab/streamlib ${{ needs.build.outputs.release_tag }}
+        env:
+          GH_TOKEN: ${{ secrets.STREAMLIB_RELEASE_UPLOAD_TOKEN }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          DMG_NAME: ${{ needs.build.outputs.dmg_name }}
+        run: gh release upload "$RELEASE_TAG" "build/$DMG_NAME" --repo tatolab/streamlib --clobber
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+
+      - name: Bump Casks/tatolab.rb in tatolab/homebrew-tap
+        env:
+          APP_VERSION: ${{ needs.build.outputs.app_version }}
+          DMG_NAME: ${{ needs.build.outputs.dmg_name }}
+        run: |
+          git clone --depth 1 git@github.com:tatolab/homebrew-tap.git "$RUNNER_TEMP/homebrew-tap"
+          scripts/bump-homebrew-cask.sh "$APP_VERSION" "build/$DMG_NAME" "$RUNNER_TEMP/homebrew-tap"
+          cd "$RUNNER_TEMP/homebrew-tap"
+          if [ -z "$(git status --porcelain -- Casks/tatolab.rb)" ]; then echo "Casks/tatolab.rb already at $APP_VERSION"; exit 0; fi
+          git config user.name "tatolab-release-bot"
+          git config user.email "tatolab-release-bot@users.noreply.github.com"
+          git add Casks/tatolab.rb
+          git commit -m "tatolab $APP_VERSION"
+          git push origin HEAD
