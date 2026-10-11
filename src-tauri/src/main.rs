@@ -7,6 +7,7 @@
 mod local_api_client;
 #[cfg(target_os = "macos")]
 mod macos;
+mod poison_tolerant_mutex;
 mod run_tatolab_preference;
 mod run_tatolab_switch;
 mod runtime_launch_agent_registration;

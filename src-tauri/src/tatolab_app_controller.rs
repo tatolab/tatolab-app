@@ -20,6 +20,7 @@ use crate::macos::service_management_runtime_launch_agent::ServiceManagementRunt
 use crate::macos::tatolab_machine_paths::{
     bundled_command_line_tool_path, current_process_uid, TatolabMachinePaths,
 };
+use crate::poison_tolerant_mutex::lock_ignoring_poison;
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::run_tatolab_switch::{RunTatolabReconciliation, RunTatolabSwitch};
 use crate::tatolab_status::{
@@ -110,25 +111,11 @@ impl TatolabAppController {
         }
     }
 
-    fn lock_the_administrator_prompt(
-        &self,
-    ) -> std::sync::MutexGuard<'_, AdministratorPromptThisLaunch> {
-        self.administrator_prompt_this_launch
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-    }
-
     fn missing_machine_setup_pieces(&self) -> Vec<MissingMachineSetupPiece> {
         missing_machine_setup_pieces(
             &self.machine_paths,
             self.bundled_command_line_tool.as_deref(),
         )
-    }
-
-    fn lock_the_switch(&self) -> std::sync::MutexGuard<'_, RunTatolabSwitch> {
-        self.run_tatolab_switch
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     fn machine_setup_is_complete(&self) -> bool {
@@ -150,8 +137,7 @@ impl TatolabAppController {
     pub fn reconcile_on_app_opened(&self) -> RunTatolabReconciliation {
         self.prepare_a_local_proof_test_root_if_this_build_uses_one();
         let machine_setup_complete = self.machine_setup_is_complete();
-        let reconciliation = self
-            .lock_the_switch()
+        let reconciliation = lock_ignoring_poison(&self.run_tatolab_switch)
             .reconcile_on_app_opened(machine_setup_complete, Instant::now());
         tracing::info!(?reconciliation, "reconciled Run Tatolab on app open");
         reconciliation
@@ -190,7 +176,11 @@ impl TatolabAppController {
         begin_prompt: fn(&mut AdministratorPromptThisLaunch) -> bool,
     ) -> bool {
         let missing = self.missing_machine_setup_pieces();
-        if missing.is_empty() || !begin_prompt(&mut self.lock_the_administrator_prompt()) {
+        if missing.is_empty()
+            || !begin_prompt(&mut lock_ignoring_poison(
+                &self.administrator_prompt_this_launch,
+            ))
+        {
             return false;
         }
         tracing::info!(
@@ -198,7 +188,7 @@ impl TatolabAppController {
             "showing the administrator prompt for machine setup"
         );
         let machine_setup = run_machine_setup_behind_one_administrator_prompt(&missing);
-        self.lock_the_administrator_prompt().finish_prompt();
+        lock_ignoring_poison(&self.administrator_prompt_this_launch).finish_prompt();
         match machine_setup {
             Ok(()) => tracing::info!("machine setup is complete"),
             Err(failure) => tracing::warn!(%failure, "machine setup is unfinished"),
@@ -209,7 +199,7 @@ impl TatolabAppController {
     /// Turn the switch on or off and remember it.
     pub fn set_run_tatolab(&self, run_tatolab: bool) -> RunTatolabReconciliation {
         let machine_setup_complete = self.machine_setup_is_complete();
-        let reconciliation = self.lock_the_switch().set_run_tatolab(
+        let reconciliation = lock_ignoring_poison(&self.run_tatolab_switch).set_run_tatolab(
             run_tatolab,
             machine_setup_complete,
             Instant::now(),
@@ -220,15 +210,16 @@ impl TatolabAppController {
 
     /// Whether the switch is on.
     pub fn run_tatolab(&self) -> bool {
-        self.lock_the_switch().run_tatolab()
+        lock_ignoring_poison(&self.run_tatolab_switch).run_tatolab()
     }
 
     /// Observe everything once and compose the status, as of `now`.
     pub fn compose_status(&self, now: Instant) -> TatolabStatus {
-        let administrator_prompt_showing = self.lock_the_administrator_prompt().showing();
+        let administrator_prompt_showing =
+            lock_ignoring_poison(&self.administrator_prompt_this_launch).showing();
         let missing_setup = self.missing_machine_setup_pieces();
         let (run_tatolab, runtime_agent) = {
-            let mut switch = self.lock_the_switch();
+            let mut switch = lock_ignoring_poison(&self.run_tatolab_switch);
             let runtime_agent = switch.runtime_agent_registration_status();
             switch.notice_runtime_agent_registration_status(runtime_agent);
             (switch.run_tatolab(), runtime_agent)
@@ -246,12 +237,12 @@ impl TatolabAppController {
                 self.machine_name_of_the_running_runtime(),
             )
         } else {
-            *self.lock_the_machine_name() = None;
+            *lock_ignoring_poison(&self.machine_name_of_the_running_runtime) = None;
             (Vec::new(), None)
         };
 
         let (mut runtime, last_registration_failure) = {
-            let mut switch = self.lock_the_switch();
+            let mut switch = lock_ignoring_poison(&self.run_tatolab_switch);
             if runtime_health == RuntimeHealthObservation::Healthy {
                 switch.note_runtime_healthy(now);
             }
@@ -309,20 +300,17 @@ impl TatolabAppController {
             })
     }
 
-    fn lock_the_machine_name(&self) -> std::sync::MutexGuard<'_, Option<String>> {
-        self.machine_name_of_the_running_runtime
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-    }
-
     /// The running runtime's machine name, asked once per runtime it sees come up.
     fn machine_name_of_the_running_runtime(&self) -> Option<String> {
-        if let Some(machine_name) = self.lock_the_machine_name().clone() {
+        if let Some(machine_name) =
+            lock_ignoring_poison(&self.machine_name_of_the_running_runtime).clone()
+        {
             return Some(machine_name);
         }
         match self.local_api_client.machine_name() {
             Ok(machine_name) => {
-                *self.lock_the_machine_name() = Some(machine_name.clone());
+                *lock_ignoring_poison(&self.machine_name_of_the_running_runtime) =
+                    Some(machine_name.clone());
                 Some(machine_name)
             }
             Err(failure) => {
