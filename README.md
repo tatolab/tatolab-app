@@ -86,10 +86,10 @@ The individual steps are separate scripts in `scripts/`:
 | `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tatolab.rb` from `packaging/homebrew/tatolab.rb.template` |
 
 The installer background is `packaging/dmg/tatolab-dmg-background.svg`, rendered to the
-committed `@1x`/`@2x` PNGs by `packaging/dmg/render-dmg-background.sh` (needs `rsvg-convert` and
-`npm ci` for the Instrument Sans files).
+committed `@1x`/`@2x` PNGs by `packaging/dmg/render-dmg-background.sh` (needs `rsvg-convert`; it
+fetches Instrument Sans with `npm pack`).
 
-Tools: Xcode command line tools, Rust, Node 22+, `uv` (`uvx` runs the pinned dmgbuild), and
+Tools: Xcode command line tools, Rust, Node 22+ (the Tauri CLI), `uv` (`uvx` runs the pinned dmgbuild), and
 whatever streamlib's runtime build needs (`brew install shaderc cmake ninja`).
 
 ## CI

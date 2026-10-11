@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # Renders the installer window's background at 1x and 2x from its SVG, in Instrument Sans from the
-# app's own @fontsource dependency. The PNGs are committed; rerun this after editing the SVG.
+# @fontsource/instrument-sans package, fetched with npm pack. The PNGs are committed; rerun this after
+# editing the SVG.
 set -euo pipefail
 dmg_directory="$(cd "$(dirname "$0")" && pwd)"
-repository_root="$(cd "$dmg_directory/../.." && pwd)"
-fontsource_directory="$repository_root/node_modules/@fontsource/instrument-sans/files"
+instrument_sans_package="@fontsource/instrument-sans@5.3.0"
 command -v rsvg-convert >/dev/null || { echo "rsvg-convert is required (brew install librsvg)" >&2; exit 1; }
-[ -d "$fontsource_directory" ] || { echo "run npm ci first: $fontsource_directory is missing" >&2; exit 1; }
 
 font_scratch_directory="$(mktemp -d)"
 trap 'rm -rf "$font_scratch_directory"' EXIT
-cp "$fontsource_directory"/instrument-sans-latin-{500,600}-normal.woff "$font_scratch_directory/"
+instrument_sans_tarball="$(cd "$font_scratch_directory" && npm pack --silent "$instrument_sans_package")"
+tar -xzf "$font_scratch_directory/$instrument_sans_tarball" -C "$font_scratch_directory"
+cp "$font_scratch_directory"/package/files/instrument-sans-latin-{500,600}-normal.woff "$font_scratch_directory/"
 system_fontconfig="$(brew --prefix 2>/dev/null || echo /opt/homebrew)/etc/fonts/fonts.conf"
 cat > "$font_scratch_directory/fonts.conf" <<CONF
 <?xml version="1.0"?>

@@ -4,14 +4,10 @@
   "version": "0.45.0",
   "identifier": "com.tatolab.tatolab",
   "build": {
-    "frontendDist": "../dist",
-    "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "frontendDist": "../web"
   },
   "app": {
-    "windows": [],
-    "security": { "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:" }
+    "windows": []
   },
   "bundle": {
     "active": true,
