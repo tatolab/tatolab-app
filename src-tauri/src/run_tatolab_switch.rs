@@ -3,13 +3,36 @@
 
 //! The "Run Tatolab" switch: one registration is both "the runtime runs now" and "the runtime
 //! starts at login". Opening the app with the switch on registers the agent once the machine is
-//! set up; turning it off unregisters it, which stops the runtime, and is remembered.
+//! set up; turning it off unregisters it, which stops the runtime, and is remembered. While the
+//! app runs, the switch on also starts an enabled agent whose runtime the poller finds down.
 
 use std::time::{Duration, Instant};
 
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::runtime_launch_agent_registration::RuntimeLaunchAgentRegistration;
-use crate::tatolab_status::RuntimeAgentRegistrationStatus;
+use crate::tatolab_status::{RuntimeAgentRegistrationStatus, RuntimeHealthObservation};
+
+/// The least time between two starts of the runtime's launch agent: launchd's own minimum
+/// runtime, the 10 s it lets pass before it spawns a job again.
+const RUNTIME_LAUNCH_AGENT_START_MINIMUM_INTERVAL: Duration = Duration::from_secs(10);
+
+/// Whether to start the runtime's launch agent now. launchd may leave even an enabled agent's job
+/// pended as a speculative or nondemand spawn, so while the app runs it starts a runtime failing
+/// its health check itself — only with the switch on and the agent enabled, and no sooner than
+/// [`RUNTIME_LAUNCH_AGENT_START_MINIMUM_INTERVAL`] after the last start attempt.
+fn the_runtime_launch_agent_should_be_started_now(
+    run_tatolab: bool,
+    runtime_agent: RuntimeAgentRegistrationStatus,
+    runtime_health: RuntimeHealthObservation,
+    time_since_the_last_start_attempt: Option<Duration>,
+) -> bool {
+    run_tatolab
+        && runtime_agent == RuntimeAgentRegistrationStatus::Enabled
+        && runtime_health == RuntimeHealthObservation::Failing
+        && time_since_the_last_start_attempt.is_none_or(|time_since_the_last_start_attempt| {
+            time_since_the_last_start_attempt >= RUNTIME_LAUNCH_AGENT_START_MINIMUM_INTERVAL
+        })
+}
 
 /// What reconciling the switch with the agent's registration did.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +62,7 @@ pub struct RunTatolabSwitch {
     run_tatolab: bool,
     login_items_settings_opened_this_launch: bool,
     runtime_expected_up_since: Instant,
+    runtime_launch_agent_last_start_attempt_at: Option<Instant>,
 }
 
 impl RunTatolabSwitch {
@@ -56,6 +80,7 @@ impl RunTatolabSwitch {
             run_tatolab,
             login_items_settings_opened_this_launch: false,
             runtime_expected_up_since: app_launched_at,
+            runtime_launch_agent_last_start_attempt_at: None,
         }
     }
 
@@ -96,7 +121,7 @@ impl RunTatolabSwitch {
         }
         match self.runtime_launch_agent.registration_status() {
             RuntimeAgentRegistrationStatus::Enabled => {
-                self.start_the_runtime_if_not_running();
+                self.start_the_runtime_if_not_running(now);
                 RunTatolabReconciliation::AlreadyEnabled
             }
             RuntimeAgentRegistrationStatus::RequiresApproval => {
@@ -172,7 +197,7 @@ impl RunTatolabSwitch {
                 self.needs_approval_in_login_items()
             }
             (Ok(()), _) => {
-                self.start_the_runtime_if_not_running();
+                self.start_the_runtime_if_not_running(now);
                 RunTatolabReconciliation::Registered
             }
             (Err(failure_description), _) => {
@@ -184,7 +209,34 @@ impl RunTatolabSwitch {
         }
     }
 
-    fn start_the_runtime_if_not_running(&self) {
+    /// Start the runtime when the poller found it failing its health check at `now` and
+    /// [`the_runtime_launch_agent_should_be_started_now`] says to.
+    pub fn start_the_runtime_if_the_poller_found_it_down(
+        &mut self,
+        runtime_agent: RuntimeAgentRegistrationStatus,
+        runtime_health: RuntimeHealthObservation,
+        now: Instant,
+    ) {
+        let time_since_the_last_start_attempt = self
+            .runtime_launch_agent_last_start_attempt_at
+            .map(|last_start_attempt_at| now.saturating_duration_since(last_start_attempt_at));
+        if !the_runtime_launch_agent_should_be_started_now(
+            self.run_tatolab,
+            runtime_agent,
+            runtime_health,
+            time_since_the_last_start_attempt,
+        ) {
+            return;
+        }
+        tracing::info!(
+            ?time_since_the_last_start_attempt,
+            "the runtime's agent is enabled but the runtime is not answering; starting it"
+        );
+        self.start_the_runtime_if_not_running(now);
+    }
+
+    fn start_the_runtime_if_not_running(&mut self, now: Instant) {
+        self.runtime_launch_agent_last_start_attempt_at = Some(now);
         if let Err(failure_description) = self
             .runtime_launch_agent
             .start_runtime_launch_agent_if_not_running()
@@ -612,5 +664,123 @@ mod tests {
                 .time_since_the_runtime_was_expected_up(healthy_at + Duration::from_secs(5)),
             Duration::from_secs(5)
         );
+    }
+
+    #[test]
+    fn the_runtime_launch_agent_is_started_only_while_on_enabled_and_failing_health() {
+        let never_attempted = None;
+        assert!(the_runtime_launch_agent_should_be_started_now(
+            true,
+            RuntimeAgentRegistrationStatus::Enabled,
+            RuntimeHealthObservation::Failing,
+            never_attempted,
+        ));
+        assert!(!the_runtime_launch_agent_should_be_started_now(
+            false,
+            RuntimeAgentRegistrationStatus::Enabled,
+            RuntimeHealthObservation::Failing,
+            never_attempted,
+        ));
+        assert!(!the_runtime_launch_agent_should_be_started_now(
+            true,
+            RuntimeAgentRegistrationStatus::Enabled,
+            RuntimeHealthObservation::Healthy,
+            never_attempted,
+        ));
+        for runtime_agent in [
+            RuntimeAgentRegistrationStatus::RequiresApproval,
+            RuntimeAgentRegistrationStatus::NotRegistered,
+            RuntimeAgentRegistrationStatus::NotFound,
+        ] {
+            assert!(
+                !the_runtime_launch_agent_should_be_started_now(
+                    true,
+                    runtime_agent,
+                    RuntimeHealthObservation::Failing,
+                    never_attempted,
+                ),
+                "{runtime_agent:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_runtime_launch_agent_is_started_at_most_once_per_minimum_interval() {
+        for (time_since_the_last_start_attempt, expected) in [
+            (Duration::ZERO, false),
+            (Duration::from_secs(9), false),
+            (RUNTIME_LAUNCH_AGENT_START_MINIMUM_INTERVAL, true),
+            (Duration::from_secs(60), true),
+        ] {
+            assert_eq!(
+                the_runtime_launch_agent_should_be_started_now(
+                    true,
+                    RuntimeAgentRegistrationStatus::Enabled,
+                    RuntimeHealthObservation::Failing,
+                    Some(time_since_the_last_start_attempt),
+                ),
+                expected,
+                "{time_since_the_last_start_attempt:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_runtime_found_down_is_started_ten_seconds_after_the_last_start_attempt() {
+        let opened_at = Instant::now();
+        let mut under_test = switch_with(RuntimeAgentRegistrationStatus::Enabled, None);
+        under_test
+            .switch
+            .reconcile_the_agent_with_the_run_tatolab_switch(true, opened_at);
+        let start_calls = |under_test: &SwitchUnderTest| {
+            under_test
+                .service_management
+                .calls()
+                .iter()
+                .filter(|call| **call == FakeServiceManagementCall::StartIfNotRunning)
+                .count()
+        };
+        assert_eq!(start_calls(&under_test), 1);
+
+        for (seconds_after_opening, expected_start_calls) in
+            [(2, 1), (9, 1), (10, 2), (12, 2), (20, 3)]
+        {
+            under_test
+                .switch
+                .start_the_runtime_if_the_poller_found_it_down(
+                    RuntimeAgentRegistrationStatus::Enabled,
+                    RuntimeHealthObservation::Failing,
+                    opened_at + Duration::from_secs(seconds_after_opening),
+                );
+            assert_eq!(
+                start_calls(&under_test),
+                expected_start_calls,
+                "{seconds_after_opening} s after opening"
+            );
+        }
+    }
+
+    #[test]
+    fn a_runtime_found_down_with_the_switch_off_or_healthy_is_left_alone() {
+        let later = Instant::now() + Duration::from_secs(60);
+        let mut switched_off = switch_with(RuntimeAgentRegistrationStatus::Enabled, Some(false));
+        switched_off
+            .switch
+            .start_the_runtime_if_the_poller_found_it_down(
+                RuntimeAgentRegistrationStatus::Enabled,
+                RuntimeHealthObservation::Failing,
+                later,
+            );
+        assert!(switched_off.service_management.calls().is_empty());
+
+        let mut healthy = switch_with(RuntimeAgentRegistrationStatus::Enabled, None);
+        healthy
+            .switch
+            .start_the_runtime_if_the_poller_found_it_down(
+                RuntimeAgentRegistrationStatus::Enabled,
+                RuntimeHealthObservation::Healthy,
+                later,
+            );
+        assert!(healthy.service_management.calls().is_empty());
     }
 }

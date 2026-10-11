@@ -233,6 +233,26 @@ impl TatolabAppController {
             .notice_runtime_agent_registration_status(runtime_agent);
     }
 
+    /// Start the runtime when the poller's `status`, observed at `now`, found it down with the
+    /// switch on and the agent enabled, at most once per launchd's minimum runtime.
+    pub fn start_the_runtime_if_the_poller_found_it_down(
+        &self,
+        status: &TatolabStatus,
+        now: Instant,
+    ) {
+        let runtime_health = if status.runtime_state == RuntimeState::Running {
+            RuntimeHealthObservation::Healthy
+        } else {
+            RuntimeHealthObservation::Failing
+        };
+        lock_ignoring_poison(&self.run_tatolab_switch)
+            .start_the_runtime_if_the_poller_found_it_down(
+                status.runtime_agent,
+                runtime_health,
+                now,
+            );
+    }
+
     /// Observe everything once and compose the status, as of `now`; opens nothing. The local API
     /// is asked with no lock held, so a slow runtime never holds up the tray's switch.
     pub fn compose_status(&self, now: Instant) -> TatolabStatus {
