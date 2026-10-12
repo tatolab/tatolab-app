@@ -24,8 +24,17 @@
 }
 .log-dock-jump { color: var(--accent-text); }
 .log-dock-jump:hover { color: var(--accent-text); }
-.log-dock-filter { width: 200px; }
-.log-dock-console[data-in-logs-tab="true"] .log-dock-filter { width: 240px; }
+.log-dock-filter { flex: 0 1 auto; min-width: 200px; }
+.log-dock-filter-input-sizer { display: grid; min-width: 0; height: 100%; }
+.log-dock-filter-input-sizer > * { grid-area: 1 / 1; }
+.log-dock-filter-input-sizer .filter-field-input { width: 100%; }
+.log-dock-filter-placeholder-measure {
+  height: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  white-space: pre;
+  visibility: hidden;
+}
 
 .log-dock-list {
   flex: 1;

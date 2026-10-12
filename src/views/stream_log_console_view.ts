@@ -17,6 +17,8 @@ import { createFailureIcon, createIcon, createWindowShortcutCap, SegmentedContro
 const MOST_LOG_LINES_HELD = 2000;
 /** Scrolled within this many pixels of the end, the console keeps following new lines. */
 const FOLLOW_TAIL_DISTANCE_PIXELS = 16;
+/** The filter field is exactly as wide as this hint in the platform's own font, so it is never cut. */
+const LOG_TEXT_FILTER_PLACEHOLDER = "Filter by text or key=value";
 
 type LogLevelSegmentLabel = "All" | "Warnings" | "Errors";
 
@@ -102,7 +104,8 @@ export class StreamLogConsoleView implements StreamLogRecordsDestination {
     this.textFilterInput = createElement("input", {
       class: "filter-field-input",
       type: "text",
-      placeholder: "Filter by text or key=value",
+      size: "1",
+      placeholder: LOG_TEXT_FILTER_PLACEHOLDER,
       spellcheck: "false",
       autocomplete: "off",
       "aria-label": `Filter ${streamName} logs`,
@@ -127,7 +130,10 @@ export class StreamLogConsoleView implements StreamLogRecordsDestination {
     });
     this.textFilterField = createElement("label", { class: "filter-field log-dock-filter", "data-has-text": "false" }, [
       createIcon(SEARCH_ICON_SVG, 14),
-      this.textFilterInput,
+      createElement("span", { class: "log-dock-filter-input-sizer" }, [
+        createElement("span", { class: "log-dock-filter-placeholder-measure", "aria-hidden": "true" }, [LOG_TEXT_FILTER_PLACEHOLDER]),
+        this.textFilterInput,
+      ]),
       createWindowShortcutCap(platform, "F"),
     ]);
 

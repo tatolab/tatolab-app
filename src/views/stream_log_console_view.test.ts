@@ -42,6 +42,15 @@ describe("StreamLogConsoleView", () => {
     expect(shownMessages(logConsole)).toEqual(["read skipped"]);
   });
 
+  it("sizes the filter field by its own hint, so the whole placeholder always shows", () => {
+    const logConsole = new StreamLogConsoleView("main", "linux");
+    const filterInput = logConsole.element.querySelector<HTMLInputElement>(".filter-field-input")!;
+    const placeholderMeasure = logConsole.element.querySelector(".log-dock-filter-placeholder-measure")!;
+    expect(placeholderMeasure.textContent).toBe(filterInput.placeholder);
+    expect(placeholderMeasure.getAttribute("aria-hidden")).toBe("true");
+    expect(filterInput.parentElement).toBe(placeholderMeasure.parentElement);
+  });
+
   it("clears the text filter on the first Esc and leaves the field on the second", () => {
     const logConsole = new StreamLogConsoleView("main", "macos");
     document.body.replaceChildren(logConsole.element);
