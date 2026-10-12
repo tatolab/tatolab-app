@@ -65,20 +65,24 @@ pub fn set_run_tatolab(app: AppHandle, enabled: bool) {
     );
 }
 
-/// Open System Settings at Login Items, where a user approves the runtime's login item.
+/// Open System Settings at Login Items, where a user approves the runtime's login item; refused
+/// where the platform has no Login Items.
 #[tauri::command(rename_all = "snake_case")]
-pub fn open_login_items_settings(app: AppHandle) {
-    run_off_the_main_thread_with_the_controller(
-        &app,
-        "tatolab-open-login-items-settings",
-        |controller, _status_publisher| controller.open_login_items_settings(),
-    );
+pub async fn open_login_items_settings(
+    shared_state: State<'_, TatolabAppSharedState>,
+) -> Result<(), String> {
+    let controller = Arc::clone(&shared_state.controller);
+    answer_from_a_named_app_thread("tatolab-open-login-items-settings", move || {
+        controller.open_login_items_settings()
+    })
+    .await
 }
 
-/// "Set Up Tatolab…": the one administrator prompt, as the tray's item shows it.
+/// "Set Up Tatolab…": the one administrator prompt, as the tray's item shows it; refused where the
+/// platform has no machine setup.
 #[tauri::command(rename_all = "snake_case")]
-pub fn set_up_tatolab(app: AppHandle) {
-    set_up_tatolab_on_request(&app);
+pub fn set_up_tatolab(app: AppHandle) -> Result<(), String> {
+    set_up_tatolab_on_request(&app)
 }
 
 /// Quit the app; the runtime keeps running.

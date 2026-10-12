@@ -6,20 +6,12 @@
 //! may block on the service manager, the filesystem, the socket or the administrator prompt, so
 //! callers run it off the main thread.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use crate::local_api_client::{LocalApiClient, LocalApiRequestFailure};
-use crate::macos::machine_setup::{
-    command_line_tool_linked_at, missing_machine_setup_pieces,
-    prepare_local_proof_test_machine_root, run_machine_setup_behind_one_administrator_prompt,
-    MissingMachineSetupPiece,
-};
-use crate::macos::service_management_runtime_launch_agent::ServiceManagementRuntimeLaunchAgent;
-use crate::macos::tatolab_machine_paths::{
-    bundled_command_line_tool_path, current_process_uid, TatolabMachinePaths,
-};
+use crate::platform::{tatolab_platform_for_this_build, MachineSetupTrigger, TatolabMachineSetup};
 use crate::poison_tolerant_mutex::lock_ignoring_poison;
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::run_tatolab_switch::RunTatolabSwitch;
@@ -36,48 +28,6 @@ const LOCAL_API_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// How many log records one page the window reads holds.
 const STREAM_LOG_RECORDS_PER_PAGE: u32 = 500;
-
-/// What asked for the administrator prompt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AdministratorPromptTrigger {
-    /// Opening the app, which shows the prompt at most once per launch.
-    AppOpened,
-    /// "Set Up Tatolab…", which shows it again whenever none is showing.
-    UserAsked,
-}
-
-/// What this launch has done with the administrator prompt: opening the app shows it at most
-/// once, and "Set Up Tatolab…" shows it again on request, never while one is showing.
-#[derive(Debug, Default)]
-struct AdministratorPromptThisLaunch {
-    shown_this_launch: bool,
-    showing: bool,
-}
-
-impl AdministratorPromptThisLaunch {
-    /// Whether `trigger` may show the prompt now; if so, it counts as showing.
-    fn begin_prompt(&mut self, trigger: AdministratorPromptTrigger) -> bool {
-        let prompt_may_show_now = match trigger {
-            AdministratorPromptTrigger::AppOpened => !self.shown_this_launch && !self.showing,
-            AdministratorPromptTrigger::UserAsked => !self.showing,
-        };
-        if prompt_may_show_now {
-            self.shown_this_launch = true;
-            self.showing = true;
-        }
-        prompt_may_show_now
-    }
-
-    /// The prompt was answered, cancelled, or failed to show.
-    fn finish_prompt(&mut self) {
-        self.showing = false;
-    }
-
-    /// Whether the prompt is showing now.
-    fn showing(&self) -> bool {
-        self.showing
-    }
-}
 
 /// The machine's name, asked of the runtime once each time it comes up.
 #[derive(Debug, Default)]
@@ -101,14 +51,12 @@ impl MachineNameAskedOncePerRuntimeUpEpisode {
     }
 }
 
-/// The switch, the machine's paths, and what the controller remembers between status rounds.
+/// The switch, the machine setup, and what the controller remembers between status rounds.
 pub struct TatolabAppController {
     app_version: String,
     run_tatolab_switch: Mutex<RunTatolabSwitch>,
-    machine_paths: TatolabMachinePaths,
-    bundled_command_line_tool: Option<PathBuf>,
+    machine_setup: Box<dyn TatolabMachineSetup>,
     local_api_client: LocalApiClient,
-    administrator_prompt_this_launch: Mutex<AdministratorPromptThisLaunch>,
     runtime_state_last_observed: Mutex<Option<RuntimeState>>,
     stream_listing_failed_last_round: Mutex<bool>,
     machine_name_of_the_running_runtime: Mutex<MachineNameAskedOncePerRuntimeUpEpisode>,
@@ -122,29 +70,19 @@ impl TatolabAppController {
         app_launched_at: Instant,
         app_version: String,
     ) -> Self {
-        let machine_paths = TatolabMachinePaths::for_this_build(current_process_uid());
-        let bundled_command_line_tool = bundled_command_line_tool_path();
-        tracing::info!(
-            local_api_socket = %machine_paths.local_api_socket.display(),
-            machine_runtime_lock = %machine_paths.machine_runtime_lock_file.display(),
-            bundled_command_line_tool = ?bundled_command_line_tool,
-            local_proof_test_machine_root = ?machine_paths.local_proof_test_machine_root,
-            "Tatolab app paths"
-        );
+        let platform = tatolab_platform_for_this_build();
         Self {
             app_version,
             run_tatolab_switch: Mutex::new(RunTatolabSwitch::load(
-                Box::new(ServiceManagementRuntimeLaunchAgent::for_the_bundled_runtime()),
+                platform.runtime_agent,
                 RunTatolabPreferenceFile::in_app_config_directory(app_config_directory),
                 app_launched_at,
             )),
+            machine_setup: platform.machine_setup,
             local_api_client: LocalApiClient::new(
-                &machine_paths.local_api_socket,
+                &platform.local_api_socket,
                 LOCAL_API_REQUEST_TIMEOUT,
             ),
-            machine_paths,
-            bundled_command_line_tool,
-            administrator_prompt_this_launch: Mutex::new(AdministratorPromptThisLaunch::default()),
             runtime_state_last_observed: Mutex::new(None),
             stream_listing_failed_last_round: Mutex::new(false),
             machine_name_of_the_running_runtime: Mutex::new(
@@ -153,32 +91,19 @@ impl TatolabAppController {
         }
     }
 
-    fn missing_machine_setup_pieces(&self) -> Vec<MissingMachineSetupPiece> {
-        missing_machine_setup_pieces(
-            &self.machine_paths,
-            self.bundled_command_line_tool.as_deref(),
-        )
-    }
-
     fn machine_setup_is_complete(&self) -> bool {
-        self.missing_machine_setup_pieces().is_empty()
+        self.machine_setup
+            .observe_machine_setup()
+            .machine_setup_state
+            == MachineSetupState::Complete
     }
 
-    /// A local-proof build prepares its test root by itself, with no prompt.
-    fn prepare_a_local_proof_test_root_if_this_build_uses_one(&self) {
-        if self.machine_paths.local_proof_test_machine_root.is_none() {
-            return;
-        }
-        if let Err(failure) = prepare_local_proof_test_machine_root(&self.machine_paths) {
-            tracing::error!(%failure, "the local-proof machine root could not be prepared");
-        }
-    }
-
-    /// Bring the agent in line with the switch, as opening or reopening the app does: a
-    /// local-proof build prepares its test root, then the switch registers the agent when it is on
+    /// Bring the agent in line with the switch, as opening or reopening the app does: whatever
+    /// machine setup needs no prompt is set up, then the switch registers the agent when it is on
     /// and the machine is set up.
     pub fn reconcile_the_agent_with_the_run_tatolab_switch(&self) {
-        self.prepare_a_local_proof_test_root_if_this_build_uses_one();
+        self.machine_setup
+            .set_up_the_machine(MachineSetupTrigger::ReconcilingTheSwitch);
         let machine_setup_complete = self.machine_setup_is_complete();
         let reconciliation = lock_ignoring_poison(&self.run_tatolab_switch)
             .reconcile_the_agent_with_the_run_tatolab_switch(
@@ -191,17 +116,13 @@ impl TatolabAppController {
         );
     }
 
-    /// What opening the app does once machine setup is missing in a real build: the one
-    /// administrator prompt, shown at most once per launch, then the switch is reconciled. A
-    /// local-proof build already prepared its test root silently in
-    /// [`Self::reconcile_the_agent_with_the_run_tatolab_switch`].
+    /// What opening the app does once the switch is reconciled: the administrator prompt for
+    /// whatever setup is missing, at most once per launch, then the switch is reconciled again.
     pub fn set_up_the_machine_on_app_opened(&self) {
-        if self.machine_paths.local_proof_test_machine_root.is_some() {
-            return;
-        }
-        if self.run_machine_setup_behind_the_administrator_prompt(
-            AdministratorPromptTrigger::AppOpened,
-        ) {
+        if self
+            .machine_setup
+            .set_up_the_machine(MachineSetupTrigger::AppOpened)
+        {
             self.reconcile_the_agent_with_the_run_tatolab_switch();
         }
     }
@@ -209,38 +130,14 @@ impl TatolabAppController {
     /// "Set Up Tatolab…": create whatever machine setup is missing — behind the administrator
     /// prompt in a real build, silently in a local-proof build — then reconcile the switch.
     pub fn set_up_the_machine_on_request(&self) {
-        if self.machine_paths.local_proof_test_machine_root.is_none() {
-            self.run_machine_setup_behind_the_administrator_prompt(
-                AdministratorPromptTrigger::UserAsked,
-            );
-        }
+        self.machine_setup
+            .set_up_the_machine(MachineSetupTrigger::UserAsked);
         self.reconcile_the_agent_with_the_run_tatolab_switch();
     }
 
-    /// Show the administrator prompt for whatever setup is missing, if `trigger` may show it now,
-    /// blocking until it is answered; whether it was shown.
-    fn run_machine_setup_behind_the_administrator_prompt(
-        &self,
-        trigger: AdministratorPromptTrigger,
-    ) -> bool {
-        let missing = self.missing_machine_setup_pieces();
-        if missing.is_empty()
-            || !lock_ignoring_poison(&self.administrator_prompt_this_launch).begin_prompt(trigger)
-        {
-            return false;
-        }
-        tracing::info!(
-            ?missing,
-            ?trigger,
-            "showing the administrator prompt for machine setup"
-        );
-        let machine_setup = run_machine_setup_behind_one_administrator_prompt(&missing);
-        lock_ignoring_poison(&self.administrator_prompt_this_launch).finish_prompt();
-        match machine_setup {
-            Ok(()) => tracing::info!("machine setup is complete"),
-            Err(failure) => tracing::warn!(%failure, "machine setup is unfinished"),
-        }
-        true
+    /// Why "Set Up Tatolab…" is refused on this platform; `None` where it runs.
+    pub fn set_up_tatolab_refusal(&self) -> Option<&'static str> {
+        self.machine_setup.set_up_tatolab_refusal()
     }
 
     /// "Run Tatolab" chosen from the tray: flip the switch, remember it, and reconcile the agent,
@@ -273,9 +170,10 @@ impl TatolabAppController {
         lock_ignoring_poison(&self.run_tatolab_switch).run_tatolab()
     }
 
-    /// Open System Settings at Login Items, where a user approves the runtime's login item.
-    pub fn open_login_items_settings(&self) {
-        lock_ignoring_poison(&self.run_tatolab_switch).open_login_items_settings_on_request();
+    /// Open System Settings at Login Items, where a user approves the runtime's login item;
+    /// refused where the platform has no Login Items.
+    pub fn open_login_items_settings(&self) -> Result<(), String> {
+        lock_ignoring_poison(&self.run_tatolab_switch).open_login_items_settings_on_request()
     }
 
     /// With the switch on, open System Settings at Login Items the first time this launch the
@@ -311,9 +209,7 @@ impl TatolabAppController {
     /// Observe everything once and compose the status, as of `now`; opens nothing. The local API
     /// is asked with no lock held, so a slow runtime never holds up the tray's switch.
     pub fn compose_status(&self, now: Instant) -> TatolabStatus {
-        let administrator_prompt_showing =
-            lock_ignoring_poison(&self.administrator_prompt_this_launch).showing();
-        let missing_setup = self.missing_machine_setup_pieces();
+        let machine_setup = self.machine_setup.observe_machine_setup();
 
         let health_check = self.local_api_client.check_health();
         let runtime_health = match health_check {
@@ -360,16 +256,10 @@ impl TatolabAppController {
             runtime_state,
             machine_name,
             streams,
-            machine_setup_state: MachineSetupState::from_observation(
-                !missing_setup.is_empty(),
-                administrator_prompt_showing,
-            ),
-            command_line_tool_linked_at: command_line_tool_linked_at(
-                &self.machine_paths,
-                self.bundled_command_line_tool.as_deref(),
-                &missing_setup,
-            )
-            .map(|link_path| link_path.display().to_string()),
+            machine_setup_state: machine_setup.machine_setup_state,
+            command_line_tool_linked_at: machine_setup
+                .command_line_tool_linked_at
+                .map(|link_path| link_path.display().to_string()),
         }
     }
 
@@ -434,39 +324,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn opening_the_app_shows_the_administrator_prompt_once_per_launch_even_when_cancelled() {
-        let mut administrator_prompt = AdministratorPromptThisLaunch::default();
-
-        assert!(administrator_prompt.begin_prompt(AdministratorPromptTrigger::AppOpened));
-        assert!(administrator_prompt.showing());
-        administrator_prompt.finish_prompt();
-        assert!(!administrator_prompt.showing());
-
-        assert!(!administrator_prompt.begin_prompt(AdministratorPromptTrigger::AppOpened));
-        assert!(!administrator_prompt.showing());
-    }
-
-    #[test]
-    fn set_up_tatolab_shows_the_prompt_again_after_a_cancelled_one() {
-        let mut administrator_prompt = AdministratorPromptThisLaunch::default();
-        assert!(administrator_prompt.begin_prompt(AdministratorPromptTrigger::AppOpened));
-        administrator_prompt.finish_prompt();
-
-        assert!(administrator_prompt.begin_prompt(AdministratorPromptTrigger::UserAsked));
-        administrator_prompt.finish_prompt();
-        assert!(administrator_prompt.begin_prompt(AdministratorPromptTrigger::UserAsked));
-    }
-
-    #[test]
-    fn no_second_prompt_shows_while_one_is_showing() {
-        let mut administrator_prompt = AdministratorPromptThisLaunch::default();
-        assert!(administrator_prompt.begin_prompt(AdministratorPromptTrigger::UserAsked));
-
-        assert!(!administrator_prompt.begin_prompt(AdministratorPromptTrigger::UserAsked));
-        assert!(!administrator_prompt.begin_prompt(AdministratorPromptTrigger::AppOpened));
-    }
-
-    #[test]
     fn the_machine_name_is_asked_once_while_the_runtime_stays_up() {
         let mut machine_name = MachineNameAskedOncePerRuntimeUpEpisode::default();
         let mut times_asked = 0;
@@ -498,14 +355,5 @@ mod tests {
                 .as_deref(),
             Some("jonathanf-macbook")
         );
-    }
-
-    #[test]
-    fn a_prompt_the_user_asked_for_counts_as_the_launch_prompt() {
-        let mut administrator_prompt = AdministratorPromptThisLaunch::default();
-        assert!(administrator_prompt.begin_prompt(AdministratorPromptTrigger::UserAsked));
-        administrator_prompt.finish_prompt();
-
-        assert!(!administrator_prompt.begin_prompt(AdministratorPromptTrigger::AppOpened));
     }
 }

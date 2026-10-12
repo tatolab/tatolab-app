@@ -8,19 +8,19 @@
 
 use std::time::{Duration, Instant};
 
+use crate::platform::RuntimeAgentRegistration;
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
-use crate::runtime_launch_agent_registration::RuntimeLaunchAgentRegistration;
 use crate::tatolab_status::{RuntimeAgentRegistrationStatus, RuntimeHealthObservation};
 
-/// The least time between two starts of the runtime's launch agent: launchd's own minimum
-/// runtime, the 10 s it lets pass before it spawns a job again.
-const RUNTIME_LAUNCH_AGENT_START_MINIMUM_INTERVAL: Duration = Duration::from_secs(10);
+/// The least time between two starts of the runtime's agent: launchd's own minimum runtime, the
+/// 10 s it lets pass before it spawns a job again.
+const RUNTIME_AGENT_START_MINIMUM_INTERVAL: Duration = Duration::from_secs(10);
 
-/// Whether to start the runtime's launch agent now. launchd may leave even an enabled agent's job
-/// pended as a speculative or nondemand spawn, so while the app runs it starts a runtime failing
-/// its health check itself — only with the switch on and the agent enabled, and no sooner than
-/// [`RUNTIME_LAUNCH_AGENT_START_MINIMUM_INTERVAL`] after the last start attempt.
-fn the_runtime_launch_agent_should_be_started_now(
+/// Whether to start the runtime's agent now. launchd may leave even an enabled agent's job pended
+/// as a speculative or nondemand spawn, so while the app runs it starts a runtime failing its
+/// health check itself — only with the switch on and the agent enabled, and no sooner than
+/// [`RUNTIME_AGENT_START_MINIMUM_INTERVAL`] after the last start attempt.
+fn the_runtime_agent_should_be_started_now(
     run_tatolab: bool,
     runtime_agent: RuntimeAgentRegistrationStatus,
     runtime_health: RuntimeHealthObservation,
@@ -30,7 +30,7 @@ fn the_runtime_launch_agent_should_be_started_now(
         && runtime_agent == RuntimeAgentRegistrationStatus::Enabled
         && runtime_health == RuntimeHealthObservation::Failing
         && time_since_the_last_start_attempt.is_none_or(|time_since_the_last_start_attempt| {
-            time_since_the_last_start_attempt >= RUNTIME_LAUNCH_AGENT_START_MINIMUM_INTERVAL
+            time_since_the_last_start_attempt >= RUNTIME_AGENT_START_MINIMUM_INTERVAL
         })
 }
 
@@ -57,30 +57,30 @@ pub enum RunTatolabReconciliation {
 
 /// The switch's remembered value, the agent it drives, and what this launch has already done.
 pub struct RunTatolabSwitch {
-    runtime_launch_agent: Box<dyn RuntimeLaunchAgentRegistration>,
+    runtime_agent: Box<dyn RuntimeAgentRegistration>,
     preference_file: RunTatolabPreferenceFile,
     run_tatolab: bool,
     login_items_settings_opened_this_launch: bool,
     runtime_expected_up_since: Instant,
-    runtime_launch_agent_last_start_attempt_at: Option<Instant>,
+    runtime_agent_last_start_attempt_at: Option<Instant>,
 }
 
 impl RunTatolabSwitch {
-    /// The switch as remembered in `preference_file`, driving `runtime_launch_agent`, as the app
-    /// launches at `app_launched_at`.
+    /// The switch as remembered in `preference_file`, driving `runtime_agent`, as the app launches
+    /// at `app_launched_at`.
     pub fn load(
-        runtime_launch_agent: Box<dyn RuntimeLaunchAgentRegistration>,
+        runtime_agent: Box<dyn RuntimeAgentRegistration>,
         preference_file: RunTatolabPreferenceFile,
         app_launched_at: Instant,
     ) -> Self {
         let run_tatolab = preference_file.load_run_tatolab();
         Self {
-            runtime_launch_agent,
+            runtime_agent,
             preference_file,
             run_tatolab,
             login_items_settings_opened_this_launch: false,
             runtime_expected_up_since: app_launched_at,
-            runtime_launch_agent_last_start_attempt_at: None,
+            runtime_agent_last_start_attempt_at: None,
         }
     }
 
@@ -91,7 +91,7 @@ impl RunTatolabSwitch {
 
     /// The agent's registration status now.
     pub fn runtime_agent_registration_status(&self) -> RuntimeAgentRegistrationStatus {
-        self.runtime_launch_agent.registration_status()
+        self.runtime_agent.registration_status()
     }
 
     /// Note that the runtime answered its health check at `now`, so a later failure gets the
@@ -119,7 +119,7 @@ impl RunTatolabSwitch {
         if !machine_setup_complete {
             return RunTatolabReconciliation::WaitingForMachineSetup;
         }
-        match self.runtime_launch_agent.registration_status() {
+        match self.runtime_agent.registration_status() {
             RuntimeAgentRegistrationStatus::Enabled => {
                 self.start_the_runtime_if_not_running(now);
                 RunTatolabReconciliation::AlreadyEnabled
@@ -148,15 +148,15 @@ impl RunTatolabSwitch {
             return self
                 .reconcile_the_agent_with_the_run_tatolab_switch(machine_setup_complete, now);
         }
-        match self.runtime_launch_agent.registration_status() {
+        match self.runtime_agent.registration_status() {
             RuntimeAgentRegistrationStatus::NotRegistered
             | RuntimeAgentRegistrationStatus::NotFound => RunTatolabReconciliation::Unregistered,
             RuntimeAgentRegistrationStatus::Enabled
             | RuntimeAgentRegistrationStatus::RequiresApproval => {
-                match self.runtime_launch_agent.unregister_runtime_launch_agent() {
+                match self.runtime_agent.unregister_runtime_agent() {
                     Ok(()) => RunTatolabReconciliation::Unregistered,
                     Err(failure_description) => {
-                        tracing::warn!(%failure_description, "the runtime's launch agent could not be unregistered");
+                        tracing::warn!(%failure_description, "the runtime's agent could not be unregistered");
                         RunTatolabReconciliation::UnregistrationFailed {
                             failure_description,
                         }
@@ -187,19 +187,21 @@ impl RunTatolabSwitch {
         }
     }
 
-    /// Open System Settings at Login Items because the user asked. It counts as this launch's
-    /// opening, so the poller seeing the agent need approval does not open it again.
-    pub fn open_login_items_settings_on_request(&mut self) {
-        self.runtime_launch_agent.open_login_items_settings();
+    /// Open System Settings at Login Items because the user asked; refused where the platform has
+    /// no Login Items. It counts as this launch's opening, so the poller seeing the agent need
+    /// approval does not open it again.
+    pub fn open_login_items_settings_on_request(&mut self) -> Result<(), String> {
+        self.runtime_agent.open_login_items_settings()?;
         self.login_items_settings_opened_this_launch = true;
+        Ok(())
     }
 
     fn register(&mut self, now: Instant) -> RunTatolabReconciliation {
-        let registered = self.runtime_launch_agent.register_runtime_launch_agent();
+        let registered = self.runtime_agent.register_runtime_agent();
         self.runtime_expected_up_since = now;
         // Service Management refuses the registration of an agent the user has not approved yet,
         // while recording it as awaiting approval.
-        match (registered, self.runtime_launch_agent.registration_status()) {
+        match (registered, self.runtime_agent.registration_status()) {
             (_, RuntimeAgentRegistrationStatus::RequiresApproval) => {
                 self.needs_approval_in_login_items()
             }
@@ -208,7 +210,7 @@ impl RunTatolabSwitch {
                 RunTatolabReconciliation::Registered
             }
             (Err(failure_description), _) => {
-                tracing::warn!(%failure_description, "the runtime's launch agent could not be registered");
+                tracing::warn!(%failure_description, "the runtime's agent could not be registered");
                 RunTatolabReconciliation::RegistrationFailed {
                     failure_description,
                 }
@@ -217,7 +219,7 @@ impl RunTatolabSwitch {
     }
 
     /// Start the runtime when the poller found it failing its health check at `now` and
-    /// [`the_runtime_launch_agent_should_be_started_now`] says to.
+    /// [`the_runtime_agent_should_be_started_now`] says to.
     pub fn start_the_runtime_if_the_poller_found_it_down(
         &mut self,
         runtime_agent: RuntimeAgentRegistrationStatus,
@@ -225,9 +227,9 @@ impl RunTatolabSwitch {
         now: Instant,
     ) {
         let time_since_the_last_start_attempt = self
-            .runtime_launch_agent_last_start_attempt_at
+            .runtime_agent_last_start_attempt_at
             .map(|last_start_attempt_at| now.saturating_duration_since(last_start_attempt_at));
-        if !the_runtime_launch_agent_should_be_started_now(
+        if !the_runtime_agent_should_be_started_now(
             self.run_tatolab,
             runtime_agent,
             runtime_health,
@@ -243,19 +245,18 @@ impl RunTatolabSwitch {
     }
 
     fn start_the_runtime_if_not_running(&mut self, now: Instant) {
-        self.runtime_launch_agent_last_start_attempt_at = Some(now);
-        if let Err(failure_description) = self
-            .runtime_launch_agent
-            .start_runtime_launch_agent_if_not_running()
-        {
-            tracing::warn!(%failure_description, "the runtime's launch agent could not be started");
+        self.runtime_agent_last_start_attempt_at = Some(now);
+        if let Err(failure_description) = self.runtime_agent.start_runtime_agent_if_not_running() {
+            tracing::warn!(%failure_description, "the runtime's agent could not be started");
         }
     }
 
     fn needs_approval_in_login_items(&mut self) -> RunTatolabReconciliation {
         let opened_login_items_settings = !self.login_items_settings_opened_this_launch;
         if opened_login_items_settings {
-            self.runtime_launch_agent.open_login_items_settings();
+            if let Err(failure) = self.runtime_agent.open_login_items_settings() {
+                tracing::warn!(%failure, "Login Items could not be opened for the agent's approval");
+            }
             self.login_items_settings_opened_this_launch = true;
         }
         RunTatolabReconciliation::NeedsApprovalInLoginItems {
@@ -309,12 +310,12 @@ mod tests {
         }
     }
 
-    impl RuntimeLaunchAgentRegistration for FakeServiceManagement {
+    impl RuntimeAgentRegistration for FakeServiceManagement {
         fn registration_status(&self) -> RuntimeAgentRegistrationStatus {
             self.status()
         }
 
-        fn register_runtime_launch_agent(&self) -> Result<(), String> {
+        fn register_runtime_agent(&self) -> Result<(), String> {
             self.calls
                 .lock()
                 .unwrap()
@@ -332,7 +333,7 @@ mod tests {
             }
         }
 
-        fn start_runtime_launch_agent_if_not_running(&self) -> Result<(), String> {
+        fn start_runtime_agent_if_not_running(&self) -> Result<(), String> {
             self.calls
                 .lock()
                 .unwrap()
@@ -340,7 +341,7 @@ mod tests {
             Ok(())
         }
 
-        fn unregister_runtime_launch_agent(&self) -> Result<(), String> {
+        fn unregister_runtime_agent(&self) -> Result<(), String> {
             self.calls
                 .lock()
                 .unwrap()
@@ -349,11 +350,12 @@ mod tests {
             Ok(())
         }
 
-        fn open_login_items_settings(&self) {
+        fn open_login_items_settings(&self) -> Result<(), String> {
             self.calls
                 .lock()
                 .unwrap()
                 .push(FakeServiceManagementCall::OpenLoginItemsSettings);
+            Ok(())
         }
     }
 
@@ -578,7 +580,10 @@ mod tests {
     fn login_items_opened_on_request_is_not_opened_again_by_the_poller() {
         let mut under_test = switch_with(RuntimeAgentRegistrationStatus::RequiresApproval, None);
 
-        under_test.switch.open_login_items_settings_on_request();
+        under_test
+            .switch
+            .open_login_items_settings_on_request()
+            .unwrap();
         under_test.switch.notice_runtime_agent_registration_status(
             RuntimeAgentRegistrationStatus::RequiresApproval,
         );
@@ -596,7 +601,10 @@ mod tests {
             RuntimeAgentRegistrationStatus::RequiresApproval,
         );
 
-        under_test.switch.open_login_items_settings_on_request();
+        under_test
+            .switch
+            .open_login_items_settings_on_request()
+            .unwrap();
 
         assert_eq!(
             under_test.service_management.calls(),
@@ -724,21 +732,21 @@ mod tests {
     }
 
     #[test]
-    fn the_runtime_launch_agent_is_started_only_while_on_enabled_and_failing_health() {
+    fn the_runtime_agent_is_started_only_while_on_enabled_and_failing_health() {
         let never_attempted = None;
-        assert!(the_runtime_launch_agent_should_be_started_now(
+        assert!(the_runtime_agent_should_be_started_now(
             true,
             RuntimeAgentRegistrationStatus::Enabled,
             RuntimeHealthObservation::Failing,
             never_attempted,
         ));
-        assert!(!the_runtime_launch_agent_should_be_started_now(
+        assert!(!the_runtime_agent_should_be_started_now(
             false,
             RuntimeAgentRegistrationStatus::Enabled,
             RuntimeHealthObservation::Failing,
             never_attempted,
         ));
-        assert!(!the_runtime_launch_agent_should_be_started_now(
+        assert!(!the_runtime_agent_should_be_started_now(
             true,
             RuntimeAgentRegistrationStatus::Enabled,
             RuntimeHealthObservation::Healthy,
@@ -750,7 +758,7 @@ mod tests {
             RuntimeAgentRegistrationStatus::NotFound,
         ] {
             assert!(
-                !the_runtime_launch_agent_should_be_started_now(
+                !the_runtime_agent_should_be_started_now(
                     true,
                     runtime_agent,
                     RuntimeHealthObservation::Failing,
@@ -762,15 +770,15 @@ mod tests {
     }
 
     #[test]
-    fn the_runtime_launch_agent_is_started_at_most_once_per_minimum_interval() {
+    fn the_runtime_agent_is_started_at_most_once_per_minimum_interval() {
         for (time_since_the_last_start_attempt, expected) in [
             (Duration::ZERO, false),
             (Duration::from_secs(9), false),
-            (RUNTIME_LAUNCH_AGENT_START_MINIMUM_INTERVAL, true),
+            (RUNTIME_AGENT_START_MINIMUM_INTERVAL, true),
             (Duration::from_secs(60), true),
         ] {
             assert_eq!(
-                the_runtime_launch_agent_should_be_started_now(
+                the_runtime_agent_should_be_started_now(
                     true,
                     RuntimeAgentRegistrationStatus::Enabled,
                     RuntimeHealthObservation::Failing,

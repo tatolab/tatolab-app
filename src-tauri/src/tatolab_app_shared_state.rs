@@ -18,7 +18,7 @@ pub struct TatolabAppSharedState {
     pub status_publisher: Arc<TatolabStatusPublisher>,
 }
 
-/// Run `work` on its own thread named `thread_name`: it may block on Service Management, the
+/// Run `work` on its own thread named `thread_name`: it may block on the service manager, the
 /// filesystem, the local API or the administrator prompt.
 pub fn run_off_the_main_thread_with_the_controller(
     app: &AppHandle,
@@ -38,8 +38,14 @@ pub fn run_off_the_main_thread_with_the_controller(
 }
 
 /// "Set Up Tatolab…" from the tray or the window: the administrator prompt for whatever machine
-/// setup is missing, then a status round.
-pub fn set_up_tatolab_on_request(app: &AppHandle) {
+/// setup is missing, then a status round; refused at once where the platform has no machine setup.
+pub fn set_up_tatolab_on_request(app: &AppHandle) -> Result<(), String> {
+    let set_up_tatolab_refusal = app
+        .try_state::<TatolabAppSharedState>()
+        .and_then(|shared_state| shared_state.controller.set_up_tatolab_refusal());
+    if let Some(refusal) = set_up_tatolab_refusal {
+        return Err(refusal.to_string());
+    }
     run_off_the_main_thread_with_the_controller(
         app,
         "tatolab-set-up-tatolab",
@@ -48,6 +54,7 @@ pub fn set_up_tatolab_on_request(app: &AppHandle) {
             status_publisher.request_refresh();
         },
     );
+    Ok(())
 }
 
 /// Quit the app from the tray or the window. The runtime is the launch agent's, and keeps running.

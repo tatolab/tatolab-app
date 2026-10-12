@@ -1,9 +1,9 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-//! The menu bar item: the Tatolab mark as a template image, and a native menu — a disabled status
-//! line, "Open Tatolab", the "Run Tatolab" switch, "Set Up Tatolab…" while machine setup is
-//! missing, and "Quit Tatolab" — on either click.
+//! The menu bar item: the Tatolab mark in this platform's tray image, and a native menu — a
+//! disabled status line, "Open Tatolab", the "Run Tatolab" switch, "Set Up Tatolab…" while machine
+//! setup is missing, and "Quit Tatolab" — on either click.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -12,6 +12,7 @@ use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Wry};
 
+use crate::platform::TRAY_ICON_IMAGE;
 use crate::tatolab_status::{tray_status_line, MachineSetupState, TatolabStatus};
 
 const OPEN_TATOLAB_MENU_ITEM_ID: &str = "open_tatolab";
@@ -23,9 +24,6 @@ const TRAY_STATUS_LINE_MENU_ITEM_ID: &str = "tray_status_line";
 /// Where "Set Up Tatolab…" sits while it shows: after the status line, "Open Tatolab" and the
 /// switch.
 const SET_UP_TATOLAB_MENU_ITEM_POSITION: usize = 3;
-
-/// The tray's mark at 36×36, shown at 18pt in the menu bar.
-const TRAY_TEMPLATE_ICON_PNG: &[u8] = include_bytes!("../icons/tray-template@2x.png");
 
 /// What the user chose from the tray menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -122,8 +120,8 @@ impl TatolabTrayMenu {
             ],
         )?;
         let tray_icon = TrayIconBuilder::with_id("tatolab")
-            .icon(Image::from_bytes(TRAY_TEMPLATE_ICON_PNG)?)
-            .icon_as_template(true)
+            .icon(Image::from_bytes(TRAY_ICON_IMAGE.png_bytes)?)
+            .icon_as_template(TRAY_ICON_IMAGE.is_a_template)
             .tooltip("Tatolab")
             .menu(&tray_menu)
             .show_menu_on_left_click(true)

@@ -9,8 +9,7 @@ use std::process::Command;
 use objc2_foundation::NSString;
 use objc2_service_management::{SMAppService, SMAppServiceStatus};
 
-use crate::macos::tatolab_machine_paths::current_process_uid;
-use crate::runtime_launch_agent_registration::RuntimeLaunchAgentRegistration;
+use crate::platform::{current_process_uid, RuntimeAgentRegistration};
 use crate::tatolab_status::RuntimeAgentRegistrationStatus;
 
 /// The agent plist's file name inside the bundle's `Contents/Library/LaunchAgents/`.
@@ -43,20 +42,20 @@ impl ServiceManagementRuntimeLaunchAgent {
     }
 }
 
-impl RuntimeLaunchAgentRegistration for ServiceManagementRuntimeLaunchAgent {
+impl RuntimeAgentRegistration for ServiceManagementRuntimeLaunchAgent {
     fn registration_status(&self) -> RuntimeAgentRegistrationStatus {
         // SAFETY: `status` reads the service's registration and has no preconditions.
         let status = unsafe { self.service().status() };
         runtime_agent_registration_status_from(status)
     }
 
-    fn register_runtime_launch_agent(&self) -> Result<(), String> {
+    fn register_runtime_agent(&self) -> Result<(), String> {
         // SAFETY: `registerAndReturnError:` has no preconditions; failure comes back as an NSError.
         unsafe { self.service().registerAndReturnError() }
             .map_err(|error| error.localizedDescription().to_string())
     }
 
-    fn start_runtime_launch_agent_if_not_running(&self) -> Result<(), String> {
+    fn start_runtime_agent_if_not_running(&self) -> Result<(), String> {
         // Without `-k`, kickstart leaves a running job alone.
         let launchd_job = format!("gui/{}/{RUNTIME_LAUNCH_AGENT_LABEL}", current_process_uid());
         let kickstart = Command::new("/bin/launchctl")
@@ -73,15 +72,16 @@ impl RuntimeLaunchAgentRegistration for ServiceManagementRuntimeLaunchAgent {
         ))
     }
 
-    fn unregister_runtime_launch_agent(&self) -> Result<(), String> {
+    fn unregister_runtime_agent(&self) -> Result<(), String> {
         // SAFETY: `unregisterAndReturnError:` has no preconditions; failure comes back as an NSError.
         unsafe { self.service().unregisterAndReturnError() }
             .map_err(|error| error.localizedDescription().to_string())
     }
 
-    fn open_login_items_settings(&self) {
+    fn open_login_items_settings(&self) -> Result<(), String> {
         // SAFETY: `openSystemSettingsLoginItems` is a class method with no arguments or preconditions.
-        unsafe { SMAppService::openSystemSettingsLoginItems() }
+        unsafe { SMAppService::openSystemSettingsLoginItems() };
+        Ok(())
     }
 }
 

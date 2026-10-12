@@ -12,12 +12,11 @@ compile_error!(
 );
 
 mod local_api_client;
-mod macos;
 mod named_app_thread;
+mod platform;
 mod poison_tolerant_mutex;
 mod run_tatolab_preference;
 mod run_tatolab_switch;
-mod runtime_launch_agent_registration;
 mod stream_graph_summary;
 mod stream_log_records_page;
 mod tatolab_app_controller;
@@ -31,9 +30,10 @@ mod tatolab_tray_menu;
 use std::sync::Arc;
 use std::time::Instant;
 
-use tauri::{AppHandle, Manager, RunEvent};
+use tauri::{AppHandle, Manager};
 
 use crate::named_app_thread::spawn_named_app_thread;
+use crate::platform::the_app_was_opened_again;
 use crate::tatolab_app_controller::TatolabAppController;
 use crate::tatolab_app_shared_state::{
     quit_the_tatolab_app, run_off_the_main_thread_with_the_controller, set_up_tatolab_on_request,
@@ -99,7 +99,7 @@ fn main() {
         });
 
     app.run(|app, run_event| {
-        if let RunEvent::Reopen { .. } = run_event {
+        if the_app_was_opened_again(&run_event) {
             show_main_window(app);
             run_off_the_main_thread_with_the_controller(
                 app,
@@ -126,7 +126,11 @@ fn on_tray_menu_choice(app: &AppHandle, choice: TrayMenuChoice) {
                 },
             );
         }
-        TrayMenuChoice::SetUpTatolab => set_up_tatolab_on_request(app),
+        TrayMenuChoice::SetUpTatolab => {
+            if let Err(refusal) = set_up_tatolab_on_request(app) {
+                tracing::warn!(%refusal, "Set Up Tatolab… was refused");
+            }
+        }
         TrayMenuChoice::QuitTheApp => quit_the_tatolab_app(app),
     }
 }

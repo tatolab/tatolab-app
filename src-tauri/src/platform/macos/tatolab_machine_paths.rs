@@ -9,6 +9,8 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::platform::LOCAL_PROOF_TEST_MACHINE_ROOT;
+
 /// The root-owned directory the real machine runtime lock sits in.
 pub const MACHINE_RUNTIME_LOCK_DIRECTORY_ON_MACOS: &str = "/Library/Application Support/Tatolab";
 
@@ -17,10 +19,6 @@ pub const MACHINE_RUNTIME_LOCK_FILE_NAME: &str = "runtime.lock";
 
 /// Where first launch links the `tatolab` CLI onto the PATH.
 pub const COMMAND_LINE_TOOL_LINK_PATH: &str = "/usr/local/bin/tatolab";
-
-/// The root a local-proof build keeps every machine directory under; the bundled agent plist
-/// hands the same value to `tatolabd` as `TATOLAB_TEST_MACHINE_ROOT`.
-pub const LOCAL_PROOF_TEST_MACHINE_ROOT: &str = "/tmp/tatolab-proof";
 
 /// The shared temporary directory the runtime's per-user runtime directory sits in on macOS.
 const SHARED_TEMPORARY_DIRECTORY: &str = "/tmp";
@@ -50,7 +48,7 @@ impl MachineRuntimeLockOwner {
 
 /// Every machine-wide path this build of the app reads or prepares.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TatolabMachinePaths {
+pub struct TatolabMachinePathsOnMacos {
     pub machine_runtime_lock_directory: PathBuf,
     pub machine_runtime_lock_file: PathBuf,
     pub machine_runtime_lock_owner: MachineRuntimeLockOwner,
@@ -61,7 +59,7 @@ pub struct TatolabMachinePaths {
     pub local_proof_test_machine_root: Option<PathBuf>,
 }
 
-impl TatolabMachinePaths {
+impl TatolabMachinePathsOnMacos {
     /// The paths this build uses for the user with `uid`.
     pub fn for_this_build(uid: u32) -> Self {
         if cfg!(feature = "machine-directories-under-a-test-root") {
@@ -102,12 +100,6 @@ impl TatolabMachinePaths {
     }
 }
 
-/// The real uid of this process.
-pub fn current_process_uid() -> u32 {
-    // SAFETY: getuid takes no arguments, cannot fail and touches no memory.
-    unsafe { libc::getuid() }
-}
-
 /// The CLI inside the bundle this app binary runs from, when it runs from `Contents/MacOS/` of a
 /// bundle that carries one.
 pub fn bundled_command_line_tool_path() -> Option<PathBuf> {
@@ -131,7 +123,7 @@ mod tests {
 
     #[test]
     fn the_real_machine_paths_match_the_runtimes() {
-        let paths = TatolabMachinePaths::for_the_real_machine(501);
+        let paths = TatolabMachinePathsOnMacos::for_the_real_machine(501);
         assert_eq!(
             paths.machine_runtime_lock_file,
             PathBuf::from("/Library/Application Support/Tatolab/runtime.lock")
@@ -150,7 +142,7 @@ mod tests {
 
     #[test]
     fn a_local_proof_build_keeps_every_path_under_its_test_root_and_links_nothing() {
-        let paths = TatolabMachinePaths::under_a_local_proof_test_root(
+        let paths = TatolabMachinePathsOnMacos::under_a_local_proof_test_root(
             Path::new("/tmp/tatolab-proof"),
             501,
         );

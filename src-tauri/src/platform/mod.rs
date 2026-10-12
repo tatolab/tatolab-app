@@ -1,0 +1,50 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
+//! Everything that differs by platform, behind the traits and items the rest of the app uses: the
+//! service manager that runs the runtime, the machine's paths and setup, and the window's and the
+//! tray's platform looks. macOS registers the runtime with Service Management and sets the machine
+//! up behind one administrator prompt.
+
+mod runtime_agent_registration;
+mod tatolab_machine_setup;
+
+#[cfg(target_os = "macos")]
+mod macos;
+
+use std::path::PathBuf;
+
+pub use runtime_agent_registration::RuntimeAgentRegistration;
+pub use tatolab_machine_setup::{
+    MachineSetupObservation, MachineSetupTrigger, TatolabMachineSetup,
+};
+
+#[cfg(target_os = "macos")]
+pub use macos::{
+    show_dock_icon, tatolab_platform_for_this_build, the_app_was_opened_again,
+    with_the_main_window_chrome, TRAY_ICON_IMAGE,
+};
+
+/// The root a local-proof build keeps every machine directory under, which the runtime it talks
+/// to reads as `TATOLAB_TEST_MACHINE_ROOT`; on macOS the bundled agent plist hands it over.
+pub const LOCAL_PROOF_TEST_MACHINE_ROOT: &str = "/tmp/tatolab-proof";
+
+/// What this build's platform hands the app's controller.
+pub struct TatolabPlatformForThisBuild {
+    pub runtime_agent: Box<dyn RuntimeAgentRegistration>,
+    pub machine_setup: Box<dyn TatolabMachineSetup>,
+    pub local_api_socket: PathBuf,
+}
+
+/// The tray's icon as this platform shows it.
+pub struct TrayIconImage {
+    pub png_bytes: &'static [u8],
+    /// Whether the system tints it to the menu bar's appearance, as macOS does a template image.
+    pub is_a_template: bool,
+}
+
+/// The real uid of this process.
+pub fn current_process_uid() -> u32 {
+    // SAFETY: getuid takes no arguments, cannot fail and touches no memory.
+    unsafe { libc::getuid() }
+}
