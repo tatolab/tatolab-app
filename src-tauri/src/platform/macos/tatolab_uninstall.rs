@@ -202,14 +202,7 @@ impl TatolabUninstallSteps for TatolabUninstallStepsOnThisMac<'_> {
     }
 
     fn turn_run_tatolab_off(&self) -> Result<(), String> {
-        match self.controller.set_run_tatolab(false) {
-            RunTatolabReconciliation::UnregistrationFailed {
-                failure_description,
-            } => Err(format!(
-                "the runtime's launch agent could not be unregistered: {failure_description}"
-            )),
-            _unregistered => Ok(()),
-        }
+        run_tatolab_turned_off(self.controller.set_run_tatolab(false))
     }
 
     fn remove_the_app_config_directory(&self) -> Result<(), String> {
@@ -233,6 +226,23 @@ impl TatolabUninstallSteps for TatolabUninstallStepsOnThisMac<'_> {
     fn quit_the_app(&self) {
         tracing::info!("Tatolab is uninstalled; quitting the app");
         self.app.exit(0);
+    }
+}
+
+/// Whether turning "Run Tatolab" off left the runtime's launch agent unregistered: only
+/// `Unregistered` lets the uninstall go on, and any other reconciliation stops it, named.
+fn run_tatolab_turned_off(reconciliation: RunTatolabReconciliation) -> Result<(), String> {
+    match reconciliation {
+        RunTatolabReconciliation::Unregistered => Ok(()),
+        RunTatolabReconciliation::UnregistrationFailed {
+            failure_description,
+        } => Err(format!(
+            "the runtime's launch agent could not be unregistered: {failure_description}"
+        )),
+        unexpected_reconciliation => Err(format!(
+            "turning Run Tatolab off answered {unexpected_reconciliation:?} rather than \
+             unregistering the runtime's launch agent, so nothing more was uninstalled"
+        )),
     }
 }
 
@@ -597,6 +607,36 @@ mod tests {
             .unwrap();
         assert!(output.status.success(), "{output:?}");
         assert_eq!(String::from_utf8(output.stdout).unwrap().trim_end(), script);
+    }
+
+    #[test]
+    fn only_an_unregistered_agent_lets_the_uninstall_go_on_past_run_tatolab() {
+        assert_eq!(
+            run_tatolab_turned_off(RunTatolabReconciliation::Unregistered),
+            Ok(())
+        );
+        assert_eq!(
+            run_tatolab_turned_off(RunTatolabReconciliation::UnregistrationFailed {
+                failure_description: "Operation not permitted".to_string(),
+            }),
+            Err(
+                "the runtime's launch agent could not be unregistered: Operation not permitted"
+                    .to_string()
+            )
+        );
+        for unexpected_reconciliation in [
+            RunTatolabReconciliation::SwitchIsOff,
+            RunTatolabReconciliation::AlreadyEnabled,
+            RunTatolabReconciliation::NeedsApprovalInLoginItems {
+                opened_login_items_settings: false,
+            },
+        ] {
+            let refusal = run_tatolab_turned_off(unexpected_reconciliation.clone()).unwrap_err();
+            assert!(
+                refusal.contains(&format!("{unexpected_reconciliation:?}")),
+                "{refusal}"
+            );
+        }
     }
 
     #[test]
