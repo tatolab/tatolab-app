@@ -32,13 +32,13 @@ pub use tatolab_machine_setup::{
 
 #[cfg(target_os = "linux")]
 pub use linux::{
-    set_dock_icon_visible, tatolab_platform_for_this_build, the_app_was_opened_again,
-    uninstall_tatolab, with_the_main_window_chrome, TRAY_ICON_IMAGE,
+    set_dock_icon_visible, tatolab_platform_for_this_build, uninstall_tatolab,
+    with_the_app_opened_again_handler, with_the_main_window_chrome, TRAY_ICON_IMAGE,
 };
 #[cfg(target_os = "macos")]
 pub use macos::{
-    set_dock_icon_visible, tatolab_platform_for_this_build, the_app_was_opened_again,
-    uninstall_tatolab, with_the_main_window_chrome, TRAY_ICON_IMAGE,
+    set_dock_icon_visible, tatolab_platform_for_this_build, uninstall_tatolab,
+    with_the_app_opened_again_handler, with_the_main_window_chrome, TRAY_ICON_IMAGE,
 };
 
 /// The platform this build runs on, as the status names it.

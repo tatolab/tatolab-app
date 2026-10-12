@@ -13,7 +13,7 @@ mod service_management_runtime_launch_agent;
 mod tatolab_machine_paths;
 mod tatolab_uninstall;
 
-use tauri::RunEvent;
+use tauri::{AppHandle, RunEvent, Wry};
 
 use self::machine_setup::MachineSetupBehindAnAdministratorPrompt;
 use self::service_management_runtime_launch_agent::ServiceManagementRuntimeLaunchAgent;
@@ -50,7 +50,28 @@ pub fn tatolab_platform_for_this_build() -> TatolabPlatformForThisBuild {
     }
 }
 
-/// Whether `run_event` is the user opening the running app again, from the Dock or Finder.
-pub fn the_app_was_opened_again(run_event: &RunEvent) -> bool {
-    matches!(run_event, RunEvent::Reopen { .. })
+/// `app_builder` calling `on_the_app_opened_again` on the main thread whenever the user opens the
+/// running app again from the Dock or Finder, which LaunchServices hands the running app as a
+/// reopen rather than starting a second one.
+pub fn with_the_app_opened_again_handler(
+    app_builder: tauri::Builder<Wry>,
+    on_the_app_opened_again: fn(&AppHandle),
+) -> tauri::Builder<Wry> {
+    let reopen_listener = tauri::plugin::Builder::<Wry>::new("tatolab-app-opened-again")
+        .on_event(move |app, run_event| {
+            if matches!(run_event, RunEvent::Reopen { .. }) {
+                on_the_app_opened_again(app);
+            }
+        })
+        .try_build();
+    match reopen_listener {
+        Ok(reopen_listener) => app_builder.plugin(reopen_listener),
+        Err(failure) => {
+            tracing::error!(
+                %failure,
+                "opening Tatolab again from the Dock or Finder will not show its window"
+            );
+            app_builder
+        }
+    }
 }

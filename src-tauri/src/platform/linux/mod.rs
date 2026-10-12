@@ -10,7 +10,7 @@ mod machine_set_up_by_the_installer;
 mod systemd_user_runtime_service;
 mod tatolab_machine_paths;
 
-use tauri::{AppHandle, Manager, RunEvent, Runtime, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Runtime, WebviewWindowBuilder};
 
 use self::machine_set_up_by_the_installer::MachineSetUpByTheInstaller;
 use self::systemd_user_runtime_service::{
@@ -61,9 +61,26 @@ pub fn with_the_main_window_chrome<'a, R: Runtime, M: Manager<R>>(
 /// with the window.
 pub fn set_dock_icon_visible(_app: &AppHandle, _dock_icon_visible: bool) {}
 
-/// Linux sends a running app no event when it is opened again, so no run event is one.
-pub fn the_app_was_opened_again(_run_event: &RunEvent) -> bool {
-    false
+/// `app_builder` calling `on_the_app_opened_again` on the main thread whenever the app is
+/// launched again: the second launch hands itself to the running app over D-Bus and exits, so one
+/// app, one tray icon and one window serve every launch.
+// The plugin is a Linux-only dependency, and the rest of this module also builds on macOS for its
+// tests.
+#[cfg(target_os = "linux")]
+pub fn with_the_app_opened_again_handler(
+    app_builder: tauri::Builder<tauri::Wry>,
+    on_the_app_opened_again: fn(&AppHandle),
+) -> tauri::Builder<tauri::Wry> {
+    app_builder.plugin(tauri_plugin_single_instance::init(
+        move |app, _second_launch_arguments, _second_launch_working_directory| {
+            let app_on_the_main_thread = app.clone();
+            if let Err(failure) =
+                app.run_on_main_thread(move || on_the_app_opened_again(&app_on_the_main_thread))
+            {
+                tracing::warn!(%failure, "a second launch of Tatolab could not reach its main thread");
+            }
+        },
+    ))
 }
 
 /// Refused with [`LINUX_UNINSTALL_TATOLAB_REFUSAL`]: the installer uninstalls what it installed.

@@ -25,6 +25,9 @@ objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-service-management = { version = "0.3", default-features = false, features = ["std", "SMAppService", "objc2", "objc2-foundation"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+tauri-plugin-single-instance = "2"
+
 [dev-dependencies]
 tempfile = "3"
 
