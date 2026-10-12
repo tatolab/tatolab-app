@@ -126,10 +126,11 @@ impl TatolabAppController {
     /// What opening the app does once the switch is reconciled: the administrator prompt for
     /// whatever setup is missing, at most once per launch, then the switch is reconciled again.
     pub fn set_up_the_machine_on_app_opened(&self) {
-        let administrator_prompt = self
+        let administrator_prompt_outcome = self
             .machine_setup
             .set_up_the_machine(MachineSetupTrigger::AppOpened);
-        if administrator_prompt == MachineSetupAdministratorPromptOutcome::AdministratorPromptShown
+        if administrator_prompt_outcome
+            == MachineSetupAdministratorPromptOutcome::AdministratorPromptShown
         {
             self.reconcile_the_agent_with_the_run_tatolab_switch();
         }
