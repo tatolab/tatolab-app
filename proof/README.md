@@ -2,21 +2,33 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
-## Built: the real frontend in the calm-native design (mock data, before review)
+## Live: the real app in the new design, on a real runtime (installed with `brew install --cask`)
 
-This is the app's own code rendering, not a prototype. A reviewer is checking it against the spec now; the live screenshots on a real runtime come next.
+Test-pattern streams only. Driven from the CLI while the window follows: a second kept stream, an attached stream and a fourth stream at once, `tatolab stop`, then `tatolab rm` and the attached CLI ending.
 
-**main — dark**
+Found and fixed while shooting these:
+- After `brew uninstall` + reinstall, Service Management still read the agent as enabled while launchd had no job, so the app could never start the runtime. A start that finds no job now registers the agent again (proven: "registering it again" → running in ~2 s, kept streams back from the state directory the uninstall kept).
+- launchd gives an agent 256 open files; with three streams the runtime hit EMFILE and its local API stopped answering. The agent plist now allows 65536 (proven: 4 streams, 373 open files, no errors), and the bundle check refuses a plist without it.
 
-![](built-preview/main-dark.png)
+**main, kept, its graph and live logs**
 
-**main — light**
+![01-main.png](live-v2/01-main.png)
 
-![](built-preview/main-light.png)
+**a second kept stream**
 
-**empty — dark**
+![02-second-kept.png](live-v2/02-second-kept.png)
 
-![](built-preview/empty-dark.png)
+**four streams at once, one attached**
+
+![03-four-streams-attached.png](live-v2/03-four-streams-attached.png)
+
+**`tatolab stop pattern-two` — Stopped, dimmed**
+
+![04-stopped.png](live-v2/04-stopped.png)
+
+**after `tatolab rm` and the attached CLI ending**
+
+![05-after-rm.png](live-v2/05-after-rm.png)
 
 ## Chosen design: calm-native (being built into the real app now)
 
