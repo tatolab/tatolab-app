@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 //! Linux: the window and tray over the systemd user service the installer registers. The runtime,
-//! its service and the CLI come only from the installer, so this app installs nothing and sets
-//! nothing up; "Run Tatolab" enables and disables the service. The window keeps the desktop's own
-//! title bar, and the tray's mark keeps its colours.
+//! its service and the CLI come only from the installer, so this app installs nothing, sets
+//! nothing up and uninstalls nothing; "Run Tatolab" enables and disables the service. The window
+//! keeps the desktop's own title bar, and the tray's mark keeps its colours.
 
 mod machine_set_up_by_the_installer;
 mod systemd_user_runtime_service;
 mod tatolab_machine_paths;
 
-use tauri::{Manager, RunEvent, Runtime, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, RunEvent, Runtime, WebviewWindowBuilder};
 
 use self::machine_set_up_by_the_installer::MachineSetUpByTheInstaller;
 use self::systemd_user_runtime_service::{
@@ -18,6 +18,13 @@ use self::systemd_user_runtime_service::{
 };
 use self::tatolab_machine_paths::TatolabMachinePathsOnLinux;
 use crate::platform::{current_process_uid, TatolabPlatformForThisBuild, TrayIconImage};
+use crate::tatolab_app_controller::TatolabAppController;
+
+/// How Tatolab is uninstalled on Linux, where its installer does it and this app removes nothing.
+pub const LINUX_UNINSTALL_INSTRUCTIONS: &str = "On Linux the installer uninstalls Tatolab: run \
+     `curl -fsSL https://get.tatolab.com/install.sh | sh -s -- --uninstall` in a terminal, which \
+     removes the service and the files and keeps the state directory with your streams and logs. \
+     Then remove this app: `sudo apt remove tatolab` for the .deb, or delete the AppImage.";
 
 /// The Tatolab mark at 64×64 in its own colours, which a panel shows as they are.
 pub const TRAY_ICON_IMAGE: TrayIconImage = TrayIconImage {
@@ -54,4 +61,12 @@ pub fn with_the_main_window_chrome<'a, R: Runtime, M: Manager<R>>(
 /// Linux sends a running app no event when it is opened again, so no run event is one.
 pub fn the_app_was_opened_again(_run_event: &RunEvent) -> bool {
     false
+}
+
+/// Refused with [`LINUX_UNINSTALL_INSTRUCTIONS`]: the installer uninstalls what it installed.
+pub fn uninstall_tatolab(
+    _app: &AppHandle,
+    _controller: &TatolabAppController,
+) -> Result<(), String> {
+    Err(LINUX_UNINSTALL_INSTRUCTIONS.to_string())
 }

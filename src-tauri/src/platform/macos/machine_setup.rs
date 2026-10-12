@@ -7,9 +7,11 @@
 
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::Mutex;
 
+use super::administrator_prompt::{
+    run_behind_one_administrator_prompt, shell_word_for_path, AdministratorPromptFailure,
+};
 use super::tatolab_machine_paths::TatolabMachinePathsOnMacos;
 use crate::platform::{MachineSetupObservation, MachineSetupTrigger, TatolabMachineSetup};
 use crate::poison_tolerant_mutex::lock_ignoring_poison;
@@ -25,12 +27,9 @@ const MACHINE_RUNTIME_LOCK_FILE_MODE: u32 = 0o666;
 /// The bits that let a group or other replace an entry in a directory.
 const GROUP_AND_OTHER_WRITE_BITS: u32 = 0o022;
 
-/// The interpreter that shows macOS's administrator prompt.
-const OSASCRIPT_PATH: &str = "/usr/bin/osascript";
-
-/// The words the administrator prompt shows under "Tatolab wants to make changes."
-const ADMINISTRATOR_PROMPT_TEXT: &str = "Tatolab needs to create the machine runtime lock and \
-     link the tatolab command so the runtime can start.";
+/// The words the machine setup's administrator prompt shows under "Tatolab wants to make changes."
+const MACHINE_SETUP_ADMINISTRATOR_PROMPT_TEXT: &str = "Tatolab needs to create the machine \
+     runtime lock and link the tatolab command so the runtime can start.";
 
 /// One machine-wide piece first-launch setup still has to create or correct.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,15 +111,6 @@ fn is_a_trusted_lock_file(path: &Path, expected_owner_uid: u32) -> bool {
     })
 }
 
-/// `value` as one single-quoted POSIX shell word.
-fn single_quoted_shell_word(value: &str) -> String {
-    format!("'{}'", value.replace('\'', r"'\''"))
-}
-
-fn shell_word_for_path(path: &Path) -> String {
-    single_quoted_shell_word(&path.to_string_lossy())
-}
-
 /// The one root shell script that creates or corrects every piece in `missing`, each step joined
 /// so the first failure stops the rest.
 pub fn machine_setup_administrator_shell_script(missing: &[MissingMachineSetupPiece]) -> String {
@@ -161,20 +151,6 @@ pub fn machine_setup_administrator_shell_script(missing: &[MissingMachineSetupPi
     steps.join(" && ")
 }
 
-/// `value` as an AppleScript string literal.
-fn applescript_string_literal(value: &str) -> String {
-    format!("\"{}\"", value.replace('\\', r"\\").replace('"', "\\\""))
-}
-
-/// The AppleScript that runs `shell_script` as root behind the administrator prompt.
-pub fn administrator_prompt_applescript(shell_script: &str) -> String {
-    format!(
-        "do shell script {} with prompt {} with administrator privileges",
-        applescript_string_literal(shell_script),
-        applescript_string_literal(ADMINISTRATOR_PROMPT_TEXT)
-    )
-}
-
 /// Create every piece in `missing` behind one administrator prompt, blocking until the user
 /// answers it.
 pub fn run_machine_setup_behind_one_administrator_prompt(
@@ -183,25 +159,18 @@ pub fn run_machine_setup_behind_one_administrator_prompt(
     if missing.is_empty() {
         return Ok(());
     }
-    let applescript =
-        administrator_prompt_applescript(&machine_setup_administrator_shell_script(missing));
-    let osascript_output = Command::new(OSASCRIPT_PATH)
-        .arg("-e")
-        .arg(applescript)
-        .output()
-        .map_err(|failure| format!("{OSASCRIPT_PATH} could not be started: {failure}"))?;
-    if osascript_output.status.success() {
-        return Ok(());
-    }
-    let osascript_stderr = String::from_utf8_lossy(&osascript_output.stderr);
-    if osascript_stderr.contains("(-128)") {
-        return Err("the administrator prompt was cancelled".to_string());
-    }
-    Err(format!(
-        "machine setup failed ({}): {}",
-        osascript_output.status,
-        osascript_stderr.trim()
-    ))
+    run_behind_one_administrator_prompt(
+        &machine_setup_administrator_shell_script(missing),
+        MACHINE_SETUP_ADMINISTRATOR_PROMPT_TEXT,
+    )
+    .map_err(|failure| match failure {
+        AdministratorPromptFailure::Cancelled => {
+            "the administrator prompt was cancelled".to_string()
+        }
+        AdministratorPromptFailure::Failed {
+            failure_description,
+        } => format!("machine setup failed: {failure_description}"),
+    })
 }
 
 /// Prepare a local-proof build's test root as the runtime's test build requires it — the lock
@@ -445,8 +414,13 @@ impl TatolabMachineSetup for MachineSetupBehindAnAdministratorPrompt {
 
 #[cfg(test)]
 mod tests {
+    use std::process::Command;
+
     use super::*;
     use crate::platform::current_process_uid;
+    use crate::platform::macos::administrator_prompt::{
+        administrator_prompt_applescript, applescript_string_literal, OSASCRIPT_PATH,
+    };
     use crate::platform::macos::tatolab_machine_paths::MachineRuntimeLockOwner;
 
     fn paths_under(root: &Path) -> TatolabMachinePathsOnMacos {
@@ -668,7 +642,8 @@ mod tests {
             r#"ln -sfn '/Users/o'\''neil/Apps/"Tatolab" \ copy.app/Contents/MacOS/tatolab-cli' '/usr/local/bin/tatolab'"#
         ));
 
-        let applescript = administrator_prompt_applescript(&script);
+        let applescript =
+            administrator_prompt_applescript(&script, MACHINE_SETUP_ADMINISTRATOR_PROMPT_TEXT);
         assert!(applescript.starts_with(
             r#"do shell script "mkdir -p '/usr/local/bin' && ln -sfn '/Users/o'\\''neil/Apps/\"Tatolab\" \\ copy.app"#
         ));

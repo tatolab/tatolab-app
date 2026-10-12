@@ -12,6 +12,7 @@ use std::time::Duration;
 use tauri::{AppHandle, State};
 
 use crate::named_app_thread::spawn_named_app_thread;
+use crate::platform;
 use crate::stream_graph_summary::StreamGraphSummary;
 use crate::stream_log_records_page::StreamLogRecordsPage;
 use crate::tatolab_app_shared_state::{
@@ -83,6 +84,21 @@ pub async fn open_login_items_settings(
 #[tauri::command(rename_all = "snake_case")]
 pub fn set_up_tatolab(app: AppHandle) -> Result<(), String> {
     set_up_tatolab_on_request(&app)
+}
+
+/// "Uninstall Tatolab…": on macOS the uninstall, which ends with the app quitting; refused with
+/// the reason when the administrator prompt is cancelled or a step fails, and on Linux with how to
+/// uninstall there.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn uninstall_tatolab(
+    app: AppHandle,
+    shared_state: State<'_, TatolabAppSharedState>,
+) -> Result<(), String> {
+    let controller = Arc::clone(&shared_state.controller);
+    answer_from_a_named_app_thread("tatolab-uninstall-tatolab", move || {
+        platform::uninstall_tatolab(&app, &controller)
+    })
+    .await
 }
 
 /// Quit the app; the runtime keeps running.

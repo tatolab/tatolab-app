@@ -2,14 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 //! macOS: Service Management registers the runtime's launch agent, first-launch setup creates the
-//! machine runtime lock and the CLI's PATH link behind one administrator prompt, the window draws
-//! under an overlay title bar with the Dock icon following it, and the tray's mark is a template
-//! image.
+//! machine runtime lock and the CLI's PATH link behind one administrator prompt, "Uninstall
+//! Tatolab…" removes them behind another, the window draws under an overlay title bar with the
+//! Dock icon following it, and the tray's mark is a template image.
 
+mod administrator_prompt;
 mod machine_setup;
 mod main_window_chrome;
 mod service_management_runtime_launch_agent;
 mod tatolab_machine_paths;
+mod tatolab_uninstall;
 
 use tauri::RunEvent;
 
@@ -19,6 +21,7 @@ use self::tatolab_machine_paths::{bundled_command_line_tool_path, TatolabMachine
 use crate::platform::{current_process_uid, TatolabPlatformForThisBuild, TrayIconImage};
 
 pub use self::main_window_chrome::{show_dock_icon, with_the_main_window_chrome};
+pub use self::tatolab_uninstall::uninstall_tatolab;
 
 /// The tray's mark at 36×36, shown at 18pt in the menu bar and tinted to it as a template image.
 pub const TRAY_ICON_IMAGE: TrayIconImage = TrayIconImage {

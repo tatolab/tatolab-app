@@ -100,21 +100,35 @@ impl TatolabMachinePathsOnMacos {
     }
 }
 
-/// The CLI inside the bundle this app binary runs from, when it runs from `Contents/MacOS/` of a
-/// bundle that carries one.
-pub fn bundled_command_line_tool_path() -> Option<PathBuf> {
+/// The bundle this app binary runs from, when it runs from a bundle's `Contents/MacOS/`.
+pub fn app_bundle_of_this_executable() -> Option<PathBuf> {
     let app_executable = std::env::current_exe().ok()?.canonicalize().ok()?;
-    bundled_command_line_tool_beside(&app_executable).filter(|path| path.is_file())
+    app_bundle_containing(&app_executable)
 }
 
-/// `<bundle>/Contents/MacOS/tatolab-cli` for an executable in `<bundle>/Contents/MacOS/`.
-fn bundled_command_line_tool_beside(app_executable: &Path) -> Option<PathBuf> {
+/// The CLI inside the bundle this app binary runs from, when that bundle carries one.
+pub fn bundled_command_line_tool_path() -> Option<PathBuf> {
+    app_bundle_of_this_executable()
+        .map(|app_bundle| bundled_command_line_tool_in(&app_bundle))
+        .filter(|bundled_command_line_tool| bundled_command_line_tool.is_file())
+}
+
+/// `<bundle>` for an executable in `<bundle>/Contents/MacOS/`.
+fn app_bundle_containing(app_executable: &Path) -> Option<PathBuf> {
     let macos_directory = app_executable.parent()?;
     let contents_directory = macos_directory.parent()?;
     if macos_directory.file_name()? != "MacOS" || contents_directory.file_name()? != "Contents" {
         return None;
     }
-    Some(macos_directory.join(BUNDLED_COMMAND_LINE_TOOL_FILE_NAME))
+    contents_directory.parent().map(Path::to_path_buf)
+}
+
+/// `<bundle>/Contents/MacOS/tatolab-cli`.
+fn bundled_command_line_tool_in(app_bundle: &Path) -> PathBuf {
+    app_bundle
+        .join("Contents")
+        .join("MacOS")
+        .join(BUNDLED_COMMAND_LINE_TOOL_FILE_NAME)
 }
 
 #[cfg(test)]
@@ -166,17 +180,17 @@ mod tests {
     }
 
     #[test]
-    fn the_bundled_cli_is_found_only_beside_an_app_binary_in_contents_macos() {
+    fn the_bundle_and_its_cli_are_found_only_around_an_app_binary_in_contents_macos() {
+        let app_bundle = app_bundle_containing(Path::new(
+            "/Applications/Tatolab.app/Contents/MacOS/Tatolab",
+        ));
+        assert_eq!(app_bundle, Some(PathBuf::from("/Applications/Tatolab.app")));
         assert_eq!(
-            bundled_command_line_tool_beside(Path::new(
-                "/Applications/Tatolab.app/Contents/MacOS/Tatolab"
-            )),
-            Some(PathBuf::from(
-                "/Applications/Tatolab.app/Contents/MacOS/tatolab-cli"
-            ))
+            bundled_command_line_tool_in(Path::new("/Applications/Tatolab.app")),
+            PathBuf::from("/Applications/Tatolab.app/Contents/MacOS/tatolab-cli")
         );
         assert_eq!(
-            bundled_command_line_tool_beside(Path::new("/repo/src-tauri/target/debug/Tatolab")),
+            app_bundle_containing(Path::new("/repo/src-tauri/target/debug/Tatolab")),
             None
         );
     }

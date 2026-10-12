@@ -60,6 +60,7 @@ fn main() {
             tatolab_commands::set_run_tatolab,
             tatolab_commands::open_login_items_settings,
             tatolab_commands::set_up_tatolab,
+            tatolab_commands::uninstall_tatolab,
             tatolab_commands::quit_tatolab_app,
             tatolab_commands::read_stream_log_records,
             tatolab_commands::describe_stream_graph,

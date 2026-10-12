@@ -16,7 +16,7 @@ use crate::platform::{
 };
 use crate::poison_tolerant_mutex::lock_ignoring_poison;
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
-use crate::run_tatolab_switch::RunTatolabSwitch;
+use crate::run_tatolab_switch::{RunTatolabReconciliation, RunTatolabSwitch};
 use crate::stream_graph_summary::StreamGraphSummary;
 use crate::stream_log_records_page::StreamLogRecordsPage;
 use crate::tatolab_status::{
@@ -155,9 +155,9 @@ impl TatolabAppController {
         );
     }
 
-    /// "Run Tatolab" set from the window: set the switch, remember it, and reconcile the agent,
-    /// all under one lock.
-    pub fn set_run_tatolab(&self, run_tatolab: bool) {
+    /// "Run Tatolab" set from the window, or turned off by uninstalling: set the switch, remember
+    /// it, and reconcile the agent, all under one lock; what reconciling did.
+    pub fn set_run_tatolab(&self, run_tatolab: bool) -> RunTatolabReconciliation {
         let machine_setup_complete = self.machine_setup_is_complete();
         let reconciliation = lock_ignoring_poison(&self.run_tatolab_switch).set_run_tatolab(
             run_tatolab,
@@ -165,6 +165,7 @@ impl TatolabAppController {
             Instant::now(),
         );
         tracing::info!(run_tatolab, ?reconciliation, "Run Tatolab set");
+        reconciliation
     }
 
     /// Whether the switch is on.
