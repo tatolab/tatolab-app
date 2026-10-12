@@ -2,75 +2,53 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
-## In progress: three approachable design directions (being judged now)
+## Chosen design: calm-native (being built into the real app now)
 
-After the owner's feedback (no green/red status dots; approachable DevEx, not a VS Code clone), three designers each took one direction. State is shown in words; only a failure gets colour. The tap/preview mock-ups were removed: the owner ruled the app uses only what the architecture keeps (`list_streams`, `graph`, `logs`, health); watching exposed outputs ships later as a feature-flagged placeholder. Two judges — one speaking for the owner — pick a winner and graft the best of the others before it's built into the real app.
+Both judges — one speaking for the owner — picked **calm-native** (OrbStack-spirited): state written as words, no status dots, stopped streams dimmed, only a failure in red with its reason. Grafts from the other directions: a loaded stream lands on its graph with live logs docked below; a reserved slot for future stream actions; the failure reason on a second sidebar line; Built-in / Python on nodes. Per the owner's ruling the app reads only the stream list, graph, logs and health; watching an exposed output is a placeholder behind a feature flag, off by default. Full spec: [FINAL-SPEC.md](design-final/FINAL-SPEC.md). (Mock renders — the runner-ups' main screens are included for comparison.)
 
-### Calm native (OrbStack-spirited)
+**calm-native-empty-dark**
 
-**empty-dark-1040**
+![calm-native-empty-dark.png](design-final/calm-native-empty-dark.png)
 
-![calm-native-empty-dark-1040.png](design-directions/v2/calm-native-empty-dark-1040.png)
+**calm-native-graph-dark**
 
-**main-dark-1040**
+![calm-native-graph-dark.png](design-final/calm-native-graph-dark.png)
 
-![calm-native-main-dark-1040.png](design-directions/v2/calm-native-main-dark-1040.png)
+**calm-native-graph-light**
 
-**main-light-1040-linux**
+![calm-native-graph-light.png](design-final/calm-native-graph-light.png)
 
-![calm-native-main-light-1040-linux.png](design-directions/v2/calm-native-main-light-1040-linux.png)
+**calm-native-linux-main-light**
 
-**main-light-1040**
+![calm-native-linux-main-light.png](design-final/calm-native-linux-main-light.png)
 
-![calm-native-main-light-1040.png](design-directions/v2/calm-native-main-light-1040.png)
+**calm-native-main-dark**
 
-**settings-light-1040**
+![calm-native-main-dark.png](design-final/calm-native-main-dark.png)
 
-![calm-native-settings-light-1040.png](design-directions/v2/calm-native-settings-light-1040.png)
+**calm-native-main-light**
 
-### Focused split (Linear/Vercel-spirited)
+![calm-native-main-light.png](design-final/calm-native-main-light.png)
 
-**empty-dark-1040**
+**calm-native-settings-light**
 
-![focused-split-empty-dark-1040.png](design-directions/v2/focused-split-empty-dark-1040.png)
+![calm-native-settings-light.png](design-final/calm-native-settings-light.png)
 
-**main-dark-1040**
+**calm-native-setup-dark**
 
-![focused-split-main-dark-1040.png](design-directions/v2/focused-split-main-dark-1040.png)
+![calm-native-setup-dark.png](design-final/calm-native-setup-dark.png)
 
-**main-light-1040-linux**
+**calm-native-uninstall-dark**
 
-![focused-split-main-light-1040-linux.png](design-directions/v2/focused-split-main-light-1040-linux.png)
+![calm-native-uninstall-dark.png](design-final/calm-native-uninstall-dark.png)
 
-**main-light-1040**
+**focused-split-main-dark**
 
-![focused-split-main-light-1040.png](design-directions/v2/focused-split-main-light-1040.png)
+![focused-split-main-dark.png](design-final/focused-split-main-dark.png)
 
-**settings-light-1040**
+**guided-devex-main-dark**
 
-![focused-split-settings-light-1040.png](design-directions/v2/focused-split-settings-light-1040.png)
-
-### Guided DevEx (next-step hints, copyable CLI)
-
-**empty-dark-1040**
-
-![guided-devex-empty-dark-1040.png](design-directions/v2/guided-devex-empty-dark-1040.png)
-
-**main-dark-1040**
-
-![guided-devex-main-dark-1040.png](design-directions/v2/guided-devex-main-dark-1040.png)
-
-**main-light-1040-linux**
-
-![guided-devex-main-light-1040-linux.png](design-directions/v2/guided-devex-main-light-1040-linux.png)
-
-**main-light-1040**
-
-![guided-devex-main-light-1040.png](design-directions/v2/guided-devex-main-light-1040.png)
-
-**settings-light-1040**
-
-![guided-devex-settings-light-1040.png](design-directions/v2/guided-devex-settings-light-1040.png)
+![guided-devex-main-dark.png](design-final/guided-devex-main-dark.png)
 
 ## Live on macOS (local-proof build, real runtime, installed with `brew install --cask` from a local tap)
 
