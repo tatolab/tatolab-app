@@ -15,12 +15,20 @@ import "./styles/first_stream_guide.css";
 import "./styles/settings_page.css";
 import "./styles/first_launch_setup.css";
 
-import type { TatolabBackend } from "./backend/tatolab_backend";
+import { isRunningInsideTauri, type TatolabBackend } from "./backend/tatolab_backend";
 import type { TatolabStatus } from "./backend/tatolab_backend_contract";
 import { createTauriTatolabBackend } from "./backend/tauri_tatolab_backend";
 import { mountTatolabWindow } from "./views/tatolab_window_view";
 
 const FIRST_STATUS_RETRY_MILLISECONDS = 1000;
+
+async function createBrowserMockBackend(): Promise<TatolabBackend> {
+  const { createMockTatolabBackend, readMockTatolabScenario } = await import("./backend/mock_tatolab_backend");
+  const pageQuery = new URLSearchParams(window.location.search);
+  const pinnedTheme = pageQuery.get("theme");
+  if (pinnedTheme === "light" || pinnedTheme === "dark") document.documentElement.dataset.theme = pinnedTheme;
+  return createMockTatolabBackend(readMockTatolabScenario(pageQuery));
+}
 
 /** The status, asked again each second until the backend answers: the window has nothing to show without one. */
 async function readFirstTatolabStatus(backend: TatolabBackend): Promise<TatolabStatus> {
@@ -36,7 +44,7 @@ async function readFirstTatolabStatus(backend: TatolabBackend): Promise<TatolabS
 async function startTatolabWindow(): Promise<void> {
   const rootElement = document.getElementById("app");
   if (!rootElement) return;
-  const backend = createTauriTatolabBackend();
+  const backend = isRunningInsideTauri() ? createTauriTatolabBackend() : await createBrowserMockBackend();
   const showTatolabStatus = mountTatolabWindow(rootElement, backend);
   await backend.onTatolabStatusChanged(showTatolabStatus);
   showTatolabStatus(await readFirstTatolabStatus(backend));
