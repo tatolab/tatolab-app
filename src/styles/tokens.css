@@ -1,0 +1,96 @@
+/* tatolab.com brand tokens. The dark set applies under the system preference unless data-theme pins
+   light, and always under data-theme="dark"; the two dark blocks must stay identical. */
+:root {
+  --bg: #ffffff;
+  --bg-2: #f7f7f8;
+  --panel: #ffffff;
+  --ink: #111113;
+  --ink-2: #5d5d66;
+  --ink-3: #6b6b74;
+  --line: #e7e7ea;
+  --line-2: #d9d9de;
+  --accent: #2a5bff;
+  --accent-soft: rgba(42, 91, 255, 0.08);
+  --accent-line: rgba(42, 91, 255, 0.28);
+  --primary: #2a5bff;
+  --primary-ink: #ffffff;
+  --ok: #15803d;
+  --ok-dot: #16a34a;
+  --ok-soft: rgba(22, 163, 74, 0.1);
+  --ok-line: rgba(22, 163, 74, 0.45);
+  --amber: #e0a526;
+  --amber-ink: #8a5a00;
+  --amber-soft: rgba(224, 165, 38, 0.13);
+  --error: #d92d20;
+  --error-soft: rgba(217, 45, 32, 0.08);
+  --idle: #a1a1aa;
+  --selection: rgba(17, 17, 19, 0.055);
+  --hover: rgba(17, 17, 19, 0.035);
+  --graph-grid-dot: rgba(17, 17, 19, 0.085);
+  --console: #fafafb;
+  --shadow-raised: 0 1px 2px rgba(17, 17, 19, 0.05), 0 6px 20px -10px rgba(17, 17, 19, 0.16);
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e0e10;
+    --bg-2: #131316;
+    --panel: #161619;
+    --ink: #ededf0;
+    --ink-2: #a1a1aa;
+    --ink-3: #85858e;
+    --line: #26262b;
+    --line-2: #33333a;
+    --accent: #7c9bff;
+    --accent-soft: rgba(124, 155, 255, 0.12);
+    --accent-line: rgba(124, 155, 255, 0.34);
+    --ok: #34d399;
+    --ok-dot: #34d399;
+    --ok-soft: rgba(52, 211, 153, 0.12);
+    --ok-line: rgba(52, 211, 153, 0.42);
+    --amber-ink: #f2c14e;
+    --amber-soft: rgba(224, 165, 38, 0.1);
+    --error: #ff6b6b;
+    --error-soft: rgba(255, 107, 107, 0.1);
+    --idle: #5d5d66;
+    --selection: rgba(237, 237, 240, 0.07);
+    --hover: rgba(237, 237, 240, 0.04);
+    --graph-grid-dot: rgba(237, 237, 240, 0.075);
+    --console: #111114;
+    --shadow-raised: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e0e10;
+  --bg-2: #131316;
+  --panel: #161619;
+  --ink: #ededf0;
+  --ink-2: #a1a1aa;
+  --ink-3: #85858e;
+  --line: #26262b;
+  --line-2: #33333a;
+  --accent: #7c9bff;
+  --accent-soft: rgba(124, 155, 255, 0.12);
+  --accent-line: rgba(124, 155, 255, 0.34);
+  --ok: #34d399;
+  --ok-dot: #34d399;
+  --ok-soft: rgba(52, 211, 153, 0.12);
+  --ok-line: rgba(52, 211, 153, 0.42);
+  --amber-ink: #f2c14e;
+  --amber-soft: rgba(224, 165, 38, 0.1);
+  --error: #ff6b6b;
+  --error-soft: rgba(255, 107, 107, 0.1);
+  --idle: #5d5d66;
+  --selection: rgba(237, 237, 240, 0.07);
+  --hover: rgba(237, 237, 240, 0.04);
+  --graph-grid-dot: rgba(237, 237, 240, 0.075);
+  --console: #111114;
+  --shadow-raised: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}

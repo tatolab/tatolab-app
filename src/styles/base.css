@@ -1,0 +1,341 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 13px/1.5 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+#app {
+  height: 100%;
+}
+
+h1,
+h2,
+h3,
+p,
+ol,
+ul,
+dl,
+dd {
+  margin: 0;
+}
+
+ol,
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+code {
+  font-family: var(--font-mono);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.selectable-text {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}
+
+/* ---------- buttons ---------- */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font: 500 12.5px/1 var(--font-sans);
+  white-space: nowrap;
+  cursor: default;
+  transition: border-color 140ms ease-out, background-color 140ms ease-out, filter 140ms ease-out;
+}
+
+.button:hover {
+  border-color: var(--ink-3);
+}
+
+.button:active {
+  background: var(--bg-2);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.button-primary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 2px rgba(42, 91, 255, 0.22);
+}
+
+.button-primary:hover {
+  border-color: var(--primary);
+  filter: brightness(1.08);
+}
+
+.button-primary:active {
+  background: var(--primary);
+  filter: brightness(0.95);
+}
+
+.button-large {
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 9px;
+  font-size: 13.5px;
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: default;
+  transition: color 140ms ease-out, background-color 140ms ease-out;
+}
+
+.icon-button:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.icon-button svg {
+  grid-area: 1 / 1;
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- line icons ---------- */
+.line-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- copy button ---------- */
+.copy-button-copied-icon,
+.copy-button[data-copied] .copy-button-copy-icon {
+  opacity: 0;
+}
+
+.copy-button[data-copied] {
+  color: var(--ok);
+}
+
+.copy-button[data-copied] .copy-button-copied-icon {
+  opacity: 1;
+}
+
+/* ---------- status dot ---------- */
+.status-dot {
+  --status-dot-color: var(--idle);
+  position: relative;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--status-dot-color);
+}
+
+.status-dot[data-tone="ok"] {
+  --status-dot-color: var(--ok-dot);
+}
+
+.status-dot[data-tone="progress"] {
+  --status-dot-color: var(--accent);
+}
+
+.status-dot[data-tone="warning"] {
+  --status-dot-color: var(--amber);
+}
+
+.status-dot[data-tone="error"] {
+  --status-dot-color: var(--error);
+}
+
+.status-dot[data-tone="pending"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--idle);
+}
+
+/* A slow ring that leaves the dot: the runtime is live. */
+.status-dot-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--status-dot-color);
+  animation: status-dot-live-ring 2.8s var(--ease-out) infinite;
+}
+
+@keyframes status-dot-live-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  70%,
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+.status-dot-breathing {
+  animation: status-dot-breathe 2s ease-in-out infinite;
+}
+
+@keyframes status-dot-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ---------- state chip ---------- */
+.state-chip {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-2);
+  font: 500 11.5px/1 var(--font-sans);
+  white-space: nowrap;
+}
+
+.state-chip[data-tone="ok"] {
+  background: var(--ok-soft);
+  box-shadow: none;
+  color: var(--ok);
+}
+
+.state-chip[data-tone="accent"] {
+  background: var(--accent-soft);
+  box-shadow: none;
+  color: var(--accent);
+}
+
+.state-chip[data-tone="error"] {
+  background: var(--error-soft);
+  box-shadow: none;
+  color: var(--error);
+}
+
+.state-chip[data-tone="outline"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+/* ---------- a command to run in Terminal ---------- */
+.terminal-command {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 6px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-2);
+  font: 400 12px/1.4 var(--font-mono);
+}
+
+.terminal-command-prompt {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.terminal-command code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------- spinner ---------- */
+.progress-spinner {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1.6px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: progress-spinner-turn 0.9s linear infinite;
+}
+
+@keyframes progress-spinner-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
