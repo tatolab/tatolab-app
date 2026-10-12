@@ -3,8 +3,9 @@
 
 //! Linux: the window and tray over the systemd user service the installer registers. The runtime,
 //! its service and the CLI come only from the installer, so this app installs nothing, sets
-//! nothing up and uninstalls nothing; "Run Tatolab" enables and disables the service. The window
-//! keeps the desktop's own title bar, and the tray's mark keeps its colours.
+//! nothing up and uninstalls nothing; "Run Tatolab" enables and disables the service. A second
+//! launch hands itself to the running app, the window keeps the desktop's own title bar, and the
+//! tray's mark keeps its colours.
 
 mod machine_set_up_by_the_installer;
 mod systemd_user_runtime_service;
@@ -63,7 +64,8 @@ pub fn set_dock_icon_visible(_app: &AppHandle, _dock_icon_visible: bool) {}
 
 /// `app_builder` calling `on_the_app_opened_again` on the main thread whenever the app is
 /// launched again: the second launch hands itself to the running app over D-Bus and exits, so one
-/// app, one tray icon and one window serve every launch.
+/// app, one tray icon and one window serve every launch. The plugin has to be the builder's first:
+/// a second launch exits while the plugins set up, before any later one runs.
 // The plugin is a Linux-only dependency, and the rest of this module also builds on macOS for its
 // tests.
 #[cfg(target_os = "linux")]

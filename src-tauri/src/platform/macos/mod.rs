@@ -3,8 +3,9 @@
 
 //! macOS: Service Management registers the runtime's launch agent, first-launch setup creates the
 //! machine runtime lock and the CLI's PATH link behind one administrator prompt, "Uninstall
-//! Tatolab…" removes them behind another, the window draws under an overlay title bar with the
-//! Dock icon following it, and the tray's mark is a template image.
+//! Tatolab…" removes them behind another, LaunchServices reopens the running app rather than
+//! starting a second, the window draws under an overlay title bar with the Dock icon following
+//! it, and the tray's mark is a template image.
 
 mod administrator_prompt;
 mod machine_setup;
