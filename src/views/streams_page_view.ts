@@ -1,234 +1,280 @@
 import type { TatolabBackend } from "../backend/tatolab_backend";
-import type { ListedStream, TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
-import { createElement, createSvgFromMarkup, setTextIfChanged } from "../dom";
-import { MACHINE_ICON_SVG, RUNTIME_STATE_FIGURE_SVG } from "../icons";
-import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
+import type { ListedStream, StreamGraphExposedPort, TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
+import { createElement, setTextIfChanged } from "../dom";
+import type { TatolabFrontendFeatureFlags } from "../feature_flags";
+import { presentPlatform, shortcutHint, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { presentRuntimeStatus, type RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
-import { countLabel } from "../presentation/stream_presentation";
+import { readableExposedPorts } from "../presentation/stream_overview_presentation";
+import { presentStreamState, streamNotLoadedReason } from "../presentation/stream_presentation";
 import { chooseSelectedStreamName } from "../presentation/stream_selection";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "../window_visibility";
 import { createFirstStreamGuide } from "./first_stream_guide_view";
-import { createRuntimeBanner } from "./runtime_banner_view";
-import { StreamDetailView } from "./stream_detail_view";
+import { createRuntimeStatePage, createStreamsNotListedPage } from "./runtime_state_page_view";
+import { StreamDetailView, type StreamViewTab } from "./stream_detail_view";
+import type { GraphOutputPortAddress } from "./stream_graph_view";
 import { StreamListView } from "./stream_list_view";
 import type { TatolabWindowPage } from "./tatolab_window_page";
+import { createFailureIcon, createSearchButton, SegmentedControlView } from "./window_controls";
 
-type StreamsPageBodyKind = "streams" | "first_stream_guide" | "runtime_not_running" | "streams_not_listed";
+type StreamsPageBodyKind = "stream" | "first_stream_guide" | "runtime_state" | "streams_not_listed";
 
-const SKELETON_ROW_COUNT = 3;
-
-function createRuntimeNotRunningBody(presentation: RuntimeDisplayPresentation): HTMLElement {
-  const isStarting = presentation.displayState === "starting";
-  return createElement("div", { class: "streams-skeleton", "data-starting": String(isStarting), "data-tone": presentation.tone }, [
-    createElement(
-      "div",
-      { class: "streams-skeleton-list", "aria-hidden": "true" },
-      Array.from({ length: SKELETON_ROW_COUNT }, () =>
-        createElement("div", { class: "streams-skeleton-row" }, [
-          createElement("span", { class: "streams-skeleton-dot" }),
-          createElement("span", { class: "streams-skeleton-bar streams-skeleton-bar-name" }),
-          createElement("span", { class: "streams-skeleton-bar streams-skeleton-bar-path" }),
-        ]),
-      ),
-    ),
-    createElement("div", { class: "streams-skeleton-detail" }, [
-      createSvgFromMarkup(RUNTIME_STATE_FIGURE_SVG),
-      createElement("p", { class: "streams-skeleton-message" }, [
-        isStarting
-          ? "Your streams appear here as soon as the runtime answers."
-          : "Streams appear here while the runtime runs.",
-      ]),
-    ]),
-  ]);
+/** What the streams page asks of the window around it. */
+export interface StreamsPageActions {
+  /** A stream was chosen in the sidebar or Search, so the window leaves Settings. */
+  onStreamChosen(): void;
+  onOpenSearch(): void;
 }
 
-function createStreamsNotListedBody(): HTMLElement {
-  return createElement("div", { class: "streams-not-listed" }, [
-    createElement("p", { class: "streams-not-listed-headline" }, ["The runtime didn't list its streams"]),
-    createElement("p", { class: "streams-not-listed-explanation" }, [
-      "It's running, but its stream list couldn't be read. Tatolab asks again every two seconds.",
-    ]),
-  ]);
-}
-
-/** The default page: the runtime at a glance, then every stream it runs beside the selected one's graph and logs. */
+/**
+ * The content beside the sidebar while no other page shows: the band with the selected stream's name, state and
+ * tabs, then its graph, logs or Overview; or the first-stream guide, or the page saying why the runtime isn't running.
+ */
 export class StreamsPageView implements TatolabWindowPage {
   readonly element: HTMLElement;
-  private readonly runtimeStateFact: HTMLElement;
-  private readonly runtimeStateDot: HTMLElement;
-  private readonly runtimeStateLabel: HTMLElement;
-  private readonly machineNameFact: HTMLElement;
-  private readonly machineNameLabel: HTMLElement;
-  private readonly streamCountFact: HTMLElement;
-  private readonly nodeCountFact: HTMLElement;
-  private readonly appVersionFact: HTMLElement;
-  private readonly bannerSlot: HTMLElement;
+  readonly streamList: StreamListView;
+  private readonly bandTitle: HTMLElement;
+  private readonly bandTitleName: HTMLElement;
+  private readonly bandTitleState: HTMLElement;
+  private readonly bandTitleStateIcon: SVGElement;
+  private readonly bandTitleStateText: HTMLElement;
+  private readonly bandTabs: SegmentedControlView<StreamViewTab>;
   private readonly pageBody: HTMLElement;
-  private readonly streamsSplit: HTMLElement;
-  private readonly streamList: StreamListView;
   private readonly streamDetail: StreamDetailView;
-  private firstStreamGuide: { element: HTMLElement; dispose(): void } | null = null;
-  private shownBannerKey: string | null = null;
   private shownBodyKind: StreamsPageBodyKind | null = null;
   /** The body kind, and for a runtime that isn't running which state it is in, so a new state redraws it. */
   private shownBodyKey: string | null = null;
   private selectedStreamName: string | null = null;
   private listedStreams: ListedStream[] = [];
+  private latestStatus: TatolabStatus | null = null;
+  private chosenTab: StreamViewTab = "graph";
+  private runtimeLastAnsweredAt: Date | null = null;
   private isPageShown = false;
 
   constructor(
     private readonly backend: TatolabBackend,
     private readonly platform: TatolabPlatform,
+    featureFlags: TatolabFrontendFeatureFlags,
+    private readonly actions: StreamsPageActions,
   ) {
-    this.runtimeStateDot = createElement("span", { class: "status-dot", "aria-hidden": "true" });
-    this.runtimeStateLabel = createElement("span", { class: "runtime-fact-state-label" });
-    this.runtimeStateFact = createElement("span", { class: "runtime-fact runtime-fact-state" }, [
-      this.runtimeStateDot,
-      this.runtimeStateLabel,
-    ]);
-    this.machineNameLabel = createElement("span", { class: "runtime-fact-machine-name" });
-    this.machineNameFact = createElement(
-      "span",
-      { class: "runtime-fact runtime-fact-machine", title: `${presentPlatform(platform).thisMachineAtSentenceStart}'s name` },
-      [createSvgFromMarkup(MACHINE_ICON_SVG), this.machineNameLabel],
+    this.streamList = new StreamListView((streamName) => {
+      this.chooseStream(streamName);
+      this.actions.onStreamChosen();
+    });
+    this.bandTitleName = createElement("h1", { class: "content-band-name selectable-text" });
+    this.bandTitleStateIcon = createFailureIcon(14);
+    this.bandTitleStateText = createElement("span", {});
+    this.bandTitleState = createElement("span", { class: "content-band-state" }, [this.bandTitleStateIcon, this.bandTitleStateText]);
+    this.bandTitle = createElement("div", { class: "content-band-title" }, [this.bandTitleName, this.bandTitleState]);
+    this.bandTabs = new SegmentedControlView<StreamViewTab>(
+      [
+        { key: "graph", label: "Graph", title: `Graph (${shortcutHint(platform, "1")})` },
+        { key: "logs", label: "Logs", title: `Logs (${shortcutHint(platform, "2")})` },
+        { key: "overview", label: "Overview", title: `Overview (${shortcutHint(platform, "3")})` },
+      ],
+      "Stream views",
+      (tab) => this.showTab(tab),
     );
-    this.streamCountFact = createElement("span", { class: "runtime-fact runtime-fact-count" });
-    this.nodeCountFact = createElement("span", { class: "runtime-fact runtime-fact-count runtime-fact-node-count" });
-    this.appVersionFact = createElement("span", { class: "runtime-fact runtime-fact-version" });
-
-    this.bannerSlot = createElement("div", { class: "runtime-banner-slot" });
-    this.streamList = new StreamListView((streamName) => this.chooseStream(streamName));
-    this.streamDetail = new StreamDetailView(backend, platform);
-    this.streamsSplit = createElement("div", { class: "streams-split" }, [
-      this.streamList.element,
-      createElement("div", { class: "stream-detail-pane" }, [this.streamDetail.element]),
-    ]);
+    this.streamDetail = new StreamDetailView(backend, platform, featureFlags, { onTabRequested: (tab) => this.showTab(tab) });
     this.pageBody = createElement("div", { class: "streams-page-body" });
-
-    this.element = createElement("section", { class: "window-page streams-page", "aria-labelledby": "streams-page-title" }, [
-      createElement("header", { class: "page-top-band", "data-tauri-drag-region": windowDragRegionAttribute(platform, "deep") }, [
-        createElement("h1", { class: "page-title", id: "streams-page-title" }, ["Streams"]),
-        createElement("div", { class: "runtime-facts", "aria-label": "Runtime" }, [
-          this.runtimeStateFact,
-          this.machineNameFact,
-          this.streamCountFact,
-          this.nodeCountFact,
-          this.appVersionFact,
-        ]),
+    this.element = createElement("section", { class: "window-page streams-page", "aria-label": "Streams" }, [
+      createElement("header", { class: "content-band", "data-tauri-drag-region": windowDragRegionAttribute(platform, "deep") }, [
+        this.bandTitle,
+        createElement("div", { class: "content-band-tabs" }, [this.bandTabs.element]),
+        createElement("div", { class: "content-band-spacer" }),
+        createElement("div", { class: "band-actions", "data-slot": "stream-actions" }),
+        createSearchButton(platform, () => this.actions.onOpenSearch()),
       ]),
-      this.bannerSlot,
       this.pageBody,
     ]);
     onTatolabWindowVisibilityChanged(() => this.updatePolling());
   }
 
-  showStatus(status: TatolabStatus): void {
-    const presentation = presentRuntimeStatus(status);
-    this.showRuntimeFacts(status, presentation);
-    this.showBanner(presentation);
+  /** The local time of the last status that found the runtime running, for the not-responding page. */
+  setRuntimeLastAnsweredAt(lastAnsweredAt: Date | null): void {
+    this.runtimeLastAnsweredAt = lastAnsweredAt;
+  }
 
+  showStatus(status: TatolabStatus): void {
+    this.latestStatus = status;
+    const presentation = presentRuntimeStatus(status);
     const isRunning = presentation.displayState === "running";
     const bodyKind: StreamsPageBodyKind = !isRunning
-      ? "runtime_not_running"
+      ? "runtime_state"
       : status.streams === null
         ? "streams_not_listed"
         : status.streams.length === 0
           ? "first_stream_guide"
-          : "streams";
+          : "stream";
     this.showBody(bodyKind, presentation);
 
-    if (bodyKind === "streams" && status.streams !== null) {
+    if (!isRunning) this.streamList.showPlaceholder("runtime_not_running");
+    else if (status.streams === null) this.streamList.showPlaceholder("streams_not_listed");
+
+    if (status.streams !== null && isRunning) {
       this.selectedStreamName = chooseSelectedStreamName(
         status.streams,
         this.selectedStreamName,
         this.listedStreams.map((stream) => stream.name),
       );
       this.listedStreams = status.streams;
-      this.streamList.showStreams(status.streams, this.selectedStreamName);
-      const selectedStream = status.streams.find((stream) => stream.name === this.selectedStreamName);
-      if (selectedStream) this.streamDetail.showStream(selectedStream);
+      this.showStreamListSelection();
+      this.showSelectedStream();
       this.streamDetail.pollNow();
     } else if (status.streams !== null) {
       this.listedStreams = status.streams;
+    } else if (!isRunning) {
+      this.listedStreams = [];
     }
+    this.showBand();
   }
 
   setPageShown(isShown: boolean): void {
     this.isPageShown = isShown;
+    this.showStreamListSelection();
     this.updatePolling();
   }
 
-  /** Focuses the selected stream's log filter; false when no log console is showing. */
-  focusLogFilter(): boolean {
-    return this.shownBodyKind === "streams" && this.streamDetail.focusLogFilter();
-  }
-
-  private chooseStream(streamName: string): void {
-    if (streamName === this.selectedStreamName) return;
+  /** Selects `streamName`, as a sidebar row or Search does. */
+  chooseStream(streamName: string): void {
+    if (!this.listedStreams.some((stream) => stream.name === streamName)) return;
     this.selectedStreamName = streamName;
-    this.streamList.showStreams(this.listedStreams, streamName);
-    const chosenStream = this.listedStreams.find((stream) => stream.name === streamName);
-    if (chosenStream) this.streamDetail.showStream(chosenStream);
+    this.showStreamListSelection();
+    this.showSelectedStream();
+    this.showBand();
   }
 
-  private showRuntimeFacts(status: TatolabStatus, presentation: RuntimeDisplayPresentation): void {
-    this.runtimeStateFact.dataset.tone = presentation.tone;
-    this.runtimeStateDot.dataset.tone = presentation.tone;
-    this.runtimeStateDot.classList.toggle("status-dot-live", presentation.displayState === "running");
-    this.runtimeStateDot.classList.toggle("status-dot-breathing", presentation.displayState === "starting");
-    setTextIfChanged(this.runtimeStateLabel, presentation.shortLabel);
+  /** Selects the stream before (`-1`) or after (`1`) the selected one; false when there is none to select. */
+  selectAdjacentStream(step: -1 | 1): boolean {
+    if (this.shownBodyKind !== "stream" || this.listedStreams.length === 0) return false;
+    const selectedIndex = this.listedStreams.findIndex((stream) => stream.name === this.selectedStreamName);
+    const nextIndex = Math.min(this.listedStreams.length - 1, Math.max(0, selectedIndex + step));
+    this.chooseStream(this.listedStreams[nextIndex].name);
+    return true;
+  }
 
-    this.machineNameFact.hidden = status.machine_name === null;
-    setTextIfChanged(this.machineNameLabel, status.machine_name ?? "");
+  /** Shows `tab` for the selected stream; Overview is the one tab a stream that isn't loaded has. False when no tab applies. */
+  showTab(tab: StreamViewTab): boolean {
+    const selectedStream = this.selectedStream();
+    if (this.shownBodyKind !== "stream" || selectedStream === null) return false;
+    const isLoaded = streamNotLoadedReason(selectedStream) === null;
+    if (!isLoaded) return tab === "overview";
+    this.chosenTab = tab;
+    this.streamDetail.showTab(tab);
+    this.bandTabs.showSelected(tab);
+    return true;
+  }
 
-    const isRunning = presentation.displayState === "running";
-    const listedStreams = isRunning ? status.streams : null;
-    this.streamCountFact.hidden = listedStreams === null;
-    this.nodeCountFact.hidden = listedStreams === null;
-    if (listedStreams !== null) {
-      const loadedNodeCount = listedStreams.reduce((sum, stream) => sum + (stream.node_count ?? 0), 0);
-      setTextIfChanged(this.streamCountFact, countLabel(listedStreams.length, "stream", "streams"));
-      setTextIfChanged(this.nodeCountFact, countLabel(loadedNodeCount, "node", "nodes"));
+  /** Whether the selected stream is loaded, so the Graph and Logs shortcuts apply. */
+  isSelectedStreamLoaded(): boolean {
+    const selectedStream = this.selectedStream();
+    return this.shownBodyKind === "stream" && selectedStream !== null && streamNotLoadedReason(selectedStream) === null;
+  }
+
+  /** Focuses the selected stream's log filter, from Overview by way of Graph; false when no log dock applies. */
+  focusLogFilter(): boolean {
+    if (!this.isSelectedStreamLoaded()) return false;
+    if (this.chosenTab === "overview") this.showTab("graph");
+    return this.streamDetail.focusLogFilter();
+  }
+
+  /** Closes Watch; false when it wasn't open. */
+  closeWatch(): boolean {
+    return this.shownBodyKind === "stream" && this.streamDetail.closeWatch();
+  }
+
+  watchOutput(streamName: string, outputPort: GraphOutputPortAddress, exposureLevel: string | null): void {
+    this.chooseStream(streamName);
+    if (!this.showTab("graph")) return;
+    this.streamDetail.showWatch(outputPort, exposureLevel);
+  }
+
+  showExposedOutputInOverview(streamName: string, outputPort: GraphOutputPortAddress): void {
+    this.chooseStream(streamName);
+    if (!this.showTab("overview")) return;
+    window.requestAnimationFrame(() => this.streamDetail.focusExposedOutput(outputPort));
+  }
+
+  listedStreamsForSearch(): ListedStream[] {
+    return this.shownBodyKind === "stream" ? this.listedStreams : [];
+  }
+
+  selectedStream(): ListedStream | null {
+    return this.listedStreams.find((stream) => stream.name === this.selectedStreamName) ?? null;
+  }
+
+  machineName(): string | null {
+    return this.latestStatus?.machine_name ?? null;
+  }
+
+  exposedPortsAlreadyRead(streamName: string): StreamGraphExposedPort[] | null {
+    if (streamName !== this.selectedStreamName) return null;
+    const graph = this.streamDetail.currentGraph();
+    return graph === null ? null : readableExposedPorts(graph);
+  }
+
+  private showStreamListSelection(): void {
+    if (this.shownBodyKind !== "stream") return;
+    this.streamList.showStreams(this.listedStreams, this.isPageShown ? this.selectedStreamName : null);
+  }
+
+  private showSelectedStream(): void {
+    const selectedStream = this.selectedStream();
+    if (!selectedStream || this.shownBodyKind !== "stream") return;
+    this.streamDetail.showStream(selectedStream, this.latestStatus?.machine_name ?? null, this.chosenTab);
+  }
+
+  private showBand(): void {
+    const selectedStream = this.selectedStream();
+    if (this.shownBodyKind === "stream" && selectedStream) {
+      const statePresentation = presentStreamState(selectedStream);
+      setTextIfChanged(this.bandTitleName, selectedStream.name);
+      this.bandTitleName.title = selectedStream.project_directory;
+      this.bandTitleName.dataset.font = "mono";
+      setTextIfChanged(this.bandTitleStateText, statePresentation.label);
+      this.bandTitleState.dataset.emphasis = statePresentation.emphasis;
+      this.bandTitleState.title = statePresentation.meaning;
+      this.bandTitleStateIcon.toggleAttribute("hidden", statePresentation.emphasis !== "failure");
+      const isLoaded = streamNotLoadedReason(selectedStream) === null;
+      this.bandTabs.element.hidden = !isLoaded;
+      if (isLoaded) this.bandTabs.showSelected(this.chosenTab);
+      return;
     }
-    setTextIfChanged(this.appVersionFact, `Tatolab ${status.app_version}`);
-  }
-
-  private showBanner(presentation: RuntimeDisplayPresentation): void {
-    const bannerKey = presentation.banner === null ? null : presentation.displayState;
-    if (bannerKey === this.shownBannerKey) return;
-    this.shownBannerKey = bannerKey;
-    this.bannerSlot.replaceChildren(
-      ...(presentation.banner === null ? [] : [createRuntimeBanner(this.backend, presentation.banner, presentation.tone)]),
-    );
+    const status = this.latestStatus;
+    setTextIfChanged(this.bandTitleName, status?.machine_name ?? presentPlatform(this.platform).thisMachineAtSentenceStart);
+    this.bandTitleName.title = "";
+    this.bandTitleName.dataset.font = status?.machine_name ? "mono" : "ui";
+    setTextIfChanged(this.bandTitleStateText, status ? `Tatolab ${status.app_version}` : "");
+    this.bandTitleState.dataset.emphasis = "version";
+    this.bandTitleState.title = "";
+    this.bandTitleStateIcon.toggleAttribute("hidden", true);
+    this.bandTabs.element.hidden = true;
   }
 
   private showBody(bodyKind: StreamsPageBodyKind, presentation: RuntimeDisplayPresentation): void {
-    const bodyKey = bodyKind === "runtime_not_running" ? `${bodyKind}:${presentation.displayState}` : bodyKind;
+    const bodyKey = bodyKind === "runtime_state" ? `${bodyKind}:${presentation.displayState}` : bodyKind;
     if (bodyKey === this.shownBodyKey) return;
-    if (this.shownBodyKind === "streams") this.streamDetail.dispose();
-    this.firstStreamGuide?.dispose();
-    this.firstStreamGuide = null;
+    if (this.shownBodyKind === "stream") this.streamDetail.dispose();
     this.shownBodyKind = bodyKind;
     this.shownBodyKey = bodyKey;
     switch (bodyKind) {
-      case "streams":
-        this.pageBody.replaceChildren(this.streamsSplit);
+      case "stream":
+        this.pageBody.replaceChildren(this.streamDetail.element);
         break;
       case "first_stream_guide":
-        this.firstStreamGuide = createFirstStreamGuide(this.platform);
-        this.pageBody.replaceChildren(this.firstStreamGuide.element);
+        this.pageBody.replaceChildren(createFirstStreamGuide());
+        this.streamList.showStreams([], null);
         break;
-      case "runtime_not_running":
-        this.pageBody.replaceChildren(createRuntimeNotRunningBody(presentation));
+      case "runtime_state":
+        this.pageBody.replaceChildren(createRuntimeStatePage(this.backend, presentation, this.runtimeLastAnsweredAt));
         break;
       case "streams_not_listed":
-        this.pageBody.replaceChildren(createStreamsNotListedBody());
+        this.pageBody.replaceChildren(createStreamsNotListedPage());
         break;
     }
     this.updatePolling();
   }
 
   private updatePolling(): void {
-    this.streamDetail.setPollingAllowed(this.isPageShown && isTatolabWindowVisible() && this.shownBodyKind === "streams");
+    this.streamDetail.setPollingAllowed(this.isPageShown && isTatolabWindowVisible() && this.shownBodyKind === "stream");
   }
 }

@@ -1,16 +1,14 @@
 import type { ListedStream } from "../backend/tatolab_backend_contract";
 
-/** The chip's colour says how the runtime holds the stream: attached, kept, stopped, failed, or unknown. */
-export type StreamStateChipTone = "ok" | "accent" | "neutral" | "error" | "outline";
+/** How strongly a stream's state word reads: plain, dimmed while stopped, or red with an alert icon when failed. */
+export type StreamStateEmphasis = "plain" | "quiet" | "failure";
 
-/** The dot's colour says whether the stream runs: loaded, not loaded yet, stopped, or failed. */
-export type StreamStateDotTone = "ok" | "idle" | "error" | "pending";
-
-/** How a stream's row and header show its state. */
+/** How a stream's row and title show its state: a word, its emphasis, and what the word means. */
 export interface StreamStatePresentation {
   label: string;
-  chipTone: StreamStateChipTone;
-  dotTone: StreamStateDotTone;
+  emphasis: StreamStateEmphasis;
+  /** The tooltip on the word; a failed stream's is the runtime's whole reason. */
+  meaning: string;
 }
 
 /** Why a listed stream has no live graph or logs. */
@@ -22,25 +20,34 @@ function isStreamLoaded(stream: ListedStream): boolean {
 }
 
 /** `awaiting_restart` reads `Awaiting restart`. */
-function labelUnknownStreamState(wireState: string): string {
+export function labelUnknownStreamState(wireState: string): string {
   const spaced = wireState.replace(/[_-]+/g, " ").trim();
   return spaced === "" ? "Unknown" : spaced[0].toUpperCase() + spaced.slice(1);
 }
 
-/** The label, chip and dot for a stream's state, including a state newer than this app. */
+/** The word, emphasis and meaning of a stream's state, including a state newer than this app. */
 export function presentStreamState(stream: ListedStream): StreamStatePresentation {
-  const loadedDotTone: StreamStateDotTone = isStreamLoaded(stream) ? "ok" : "pending";
   switch (stream.state) {
     case "attached":
-      return { label: "Attached", chipTone: "ok", dotTone: loadedDotTone };
+      return { label: "Attached", emphasis: "plain", meaning: "Attached: it runs while the terminal that started it does." };
     case "kept":
-      return { label: "Kept", chipTone: "accent", dotTone: loadedDotTone };
+      return {
+        label: "Kept",
+        emphasis: "plain",
+        meaning: "Kept: Tatolab loads it every time the runtime starts, until you stop it.",
+      };
     case "stopped":
-      return { label: "Stopped", chipTone: "neutral", dotTone: "idle" };
+      return {
+        label: "Stopped",
+        emphasis: "quiet",
+        meaning: `Stopped: remembered, not loaded. tatolab start ${stream.name} loads it.`,
+      };
     case "failed":
-      return { label: "Failed", chipTone: "error", dotTone: "error" };
-    default:
-      return { label: labelUnknownStreamState(stream.state), chipTone: "outline", dotTone: loadedDotTone };
+      return { label: "Failed", emphasis: "failure", meaning: stream.failed_because ?? "Failed at its last start." };
+    default: {
+      const label = labelUnknownStreamState(stream.state);
+      return { label, emphasis: "plain", meaning: `${label}: this version of Tatolab doesn't know this state yet.` };
+    }
   }
 }
 

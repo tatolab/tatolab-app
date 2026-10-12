@@ -1,99 +1,82 @@
 import type { TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
-import { createElement, createSvgFromMarkup, setTextIfChanged } from "../dom";
-import { SETTINGS_NAVIGATION_ICON_SVG, STREAMS_NAVIGATION_ICON_SVG, TATOLAB_OUTLINED_MARK_SVG } from "../icons";
+import { createElement, setTextIfChanged } from "../dom";
+import { GEAR_ICON_SVG, MACHINE_ICON_SVG } from "../icons";
 import { presentPlatform, windowDragRegionAttribute, type PlatformPresentation } from "../presentation/platform_presentation";
-import { presentRuntimeStatus } from "../presentation/runtime_presentation";
+import { presentRuntimeStatus, type RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
+import type { StreamListView } from "./stream_list_view";
+import { createFailureIcon, createIcon, createWindowShortcutCap } from "./window_controls";
 
-/** The pages the sidebar navigates between. */
-export type TatolabWindowPageName = "streams" | "settings";
+/** The runtime's sentence under the machine's name: `Tatolab is running`, `Tatolab is off`, or the state's short label. */
+function runtimeSentence(presentation: RuntimeDisplayPresentation): string {
+  switch (presentation.displayState) {
+    case "running":
+      return "Tatolab is running";
+    case "switched_off":
+      return "Tatolab is off";
+    default:
+      return presentation.shortLabel;
+  }
+}
 
-/** The window's sidebar: the mark, the two pages, and the runtime's state with the machine's name. */
+/** The window's sidebar: a strip under the traffic lights, this machine and its runtime, the streams, and Settings. */
 export class WindowSidebarView {
   readonly element: HTMLElement;
   private readonly platformPresentation: PlatformPresentation;
-  private readonly navigationButtons: Record<TatolabWindowPageName, HTMLButtonElement>;
-  private readonly streamCountBadge: HTMLElement;
-  private readonly runtimePill: HTMLButtonElement;
-  private readonly runtimePillDot: HTMLElement;
-  private readonly runtimePillStateLabel: HTMLElement;
-  private readonly runtimePillMachineName: HTMLElement;
+  private readonly machineBlock: HTMLElement;
+  private readonly machineNameLabel: HTMLElement;
+  private readonly runtimeStateLine: HTMLElement;
+  private readonly runtimeStateText: HTMLElement;
+  private readonly runtimeFailureIcon: SVGElement;
+  private readonly settingsRow: HTMLButtonElement;
 
-  constructor(onNavigate: (pageName: TatolabWindowPageName) => void, platform: TatolabPlatform) {
+  constructor(platform: TatolabPlatform, streamList: StreamListView, onSettingsChosen: () => void) {
     this.platformPresentation = presentPlatform(platform);
-    this.streamCountBadge = createElement("span", { class: "window-sidebar-count-badge", hidden: true });
-    this.navigationButtons = {
-      streams: createElement(
-        "button",
-        { type: "button", class: "window-sidebar-navigation-item", onClick: () => onNavigate("streams") },
-        [createSvgFromMarkup(STREAMS_NAVIGATION_ICON_SVG), createElement("span", {}, ["Streams"]), this.streamCountBadge],
-      ),
-      settings: createElement(
-        "button",
-        { type: "button", class: "window-sidebar-navigation-item", onClick: () => onNavigate("settings") },
-        [createSvgFromMarkup(SETTINGS_NAVIGATION_ICON_SVG), createElement("span", {}, ["Settings"])],
-      ),
-    };
-
-    this.runtimePillDot = createElement("span", { class: "status-dot", "aria-hidden": "true" });
-    this.runtimePillStateLabel = createElement("span", { class: "window-sidebar-runtime-pill-state" });
-    this.runtimePillMachineName = createElement("span", { class: "window-sidebar-runtime-pill-machine" });
-    this.runtimePill = createElement(
+    this.machineNameLabel = createElement("span", { class: "machine-block-name selectable-text" });
+    this.runtimeFailureIcon = createFailureIcon(14);
+    this.runtimeStateText = createElement("span", {});
+    this.runtimeStateLine = createElement("span", { class: "machine-block-runtime" }, [this.runtimeFailureIcon, this.runtimeStateText]);
+    this.machineBlock = createElement("div", { class: "machine-block", role: "group" }, [
+      createIcon(MACHINE_ICON_SVG, 16, "machine-block-icon"),
+      this.machineNameLabel,
+      this.runtimeStateLine,
+    ]);
+    this.settingsRow = createElement(
       "button",
-      { type: "button", class: "window-sidebar-runtime-pill", onClick: () => onNavigate("streams") },
+      { type: "button", class: "sidebar-settings-row", onClick: onSettingsChosen, "aria-keyshortcuts": platform === "macos" ? "Meta+," : "Control+," },
       [
-        this.runtimePillDot,
-        createElement("span", { class: "window-sidebar-runtime-pill-copy" }, [
-          this.runtimePillStateLabel,
-          this.runtimePillMachineName,
-        ]),
+        createIcon(GEAR_ICON_SVG, 16, "sidebar-settings-icon"),
+        createElement("span", { class: "sidebar-settings-label" }, ["Settings"]),
+        createWindowShortcutCap(platform, ","),
       ],
     );
-
     this.element = createElement("nav", { class: "window-sidebar", "aria-label": "Tatolab" }, [
-      this.platformPresentation.hasOverlayTitleBar &&
-        createElement("div", {
-          class: "window-sidebar-traffic-light-band",
-          "data-tauri-drag-region": windowDragRegionAttribute(platform, "self"),
-        }),
-      createElement("div", { class: "window-sidebar-brand", "data-tauri-drag-region": windowDragRegionAttribute(platform, "deep") }, [
-        createSvgFromMarkup(TATOLAB_OUTLINED_MARK_SVG),
-        createElement("span", { class: "window-sidebar-wordmark" }, ["Tatolab"]),
-      ]),
-      createElement("div", { class: "window-sidebar-navigation" }, [
-        this.navigationButtons.streams,
-        this.navigationButtons.settings,
-      ]),
-      createElement("div", { class: "window-sidebar-spacer", "data-tauri-drag-region": windowDragRegionAttribute(platform, "self") }),
-      this.runtimePill,
+      createElement("div", {
+        class: "window-sidebar-band-strip",
+        "data-tauri-drag-region": windowDragRegionAttribute(platform, "self"),
+      }),
+      this.machineBlock,
+      createElement("div", { class: "window-sidebar-sections" }, [streamList.element]),
+      createElement("div", { class: "window-sidebar-footer" }, [this.settingsRow]),
     ]);
-  }
-
-  setCurrentPage(currentPageName: TatolabWindowPageName): void {
-    for (const [pageName, navigationButton] of Object.entries(this.navigationButtons)) {
-      const isCurrentPage = pageName === currentPageName;
-      navigationButton.classList.toggle("window-sidebar-navigation-item-current", isCurrentPage);
-      if (isCurrentPage) navigationButton.setAttribute("aria-current", "page");
-      else navigationButton.removeAttribute("aria-current");
-    }
   }
 
   showStatus(status: TatolabStatus): void {
     const presentation = presentRuntimeStatus(status);
-    const listedStreamCount = presentation.displayState === "running" ? (status.streams?.length ?? null) : null;
-    this.streamCountBadge.hidden = listedStreamCount === null;
-    setTextIfChanged(this.streamCountBadge, listedStreamCount === null ? "" : String(listedStreamCount));
-    this.streamCountBadge.dataset.anyFailed = String(status.streams?.some((stream) => stream.state === "failed") ?? false);
-
-    this.runtimePill.dataset.tone = presentation.tone;
-    this.runtimePillDot.dataset.tone = presentation.tone;
-    this.runtimePillDot.classList.toggle("status-dot-live", presentation.displayState === "running");
-    this.runtimePillDot.classList.toggle("status-dot-breathing", presentation.displayState === "starting");
-    setTextIfChanged(this.runtimePillStateLabel, presentation.shortLabel);
-    setTextIfChanged(this.runtimePillMachineName, status.machine_name ?? this.platformPresentation.thisMachineAtSentenceStart);
-    this.runtimePillMachineName.dataset.machineNameKnown = String(status.machine_name !== null);
-    this.runtimePill.setAttribute(
+    setTextIfChanged(this.machineNameLabel, status.machine_name ?? this.platformPresentation.thisMachineAtSentenceStart);
+    this.machineNameLabel.title = status.machine_name ?? "";
+    this.machineNameLabel.dataset.font = status.machine_name === null ? "ui" : "mono";
+    setTextIfChanged(this.runtimeStateText, runtimeSentence(presentation));
+    const isFailure = presentation.tone === "error";
+    this.runtimeStateLine.dataset.failure = String(isFailure);
+    this.runtimeFailureIcon.toggleAttribute("hidden", !isFailure);
+    this.machineBlock.setAttribute(
       "aria-label",
       `Runtime ${presentation.shortLabel.toLowerCase()} on ${status.machine_name ?? this.platformPresentation.thisMachineMidSentence}`,
     );
+  }
+
+  setSettingsSelected(isSelected: boolean): void {
+    if (isSelected) this.settingsRow.setAttribute("aria-current", "page");
+    else this.settingsRow.removeAttribute("aria-current");
   }
 }

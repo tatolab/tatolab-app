@@ -1,260 +1,173 @@
-.stream-graph {
-  flex: none;
-  border-top: 1px solid var(--line);
-}
+/* The canvas: HTML node boxes over an SVG link layer, with the health line, the project path and the exposed strip
+   laid over it. Node metrics must match stream_graph_layout.ts. */
+.graph-canvas { position: relative; min-height: 0; overflow: hidden; background: var(--canvas); }
 
-.stream-graph-canvas {
-  display: flex;
-  align-items: center;
-  min-height: 112px;
-  overflow-x: auto;
-  background-image: radial-gradient(circle at center, var(--graph-grid-dot) 1px, transparent 1.2px);
-  background-size: 14px 14px;
-  background-position: 7px 7px;
-}
+.graph-viewport { position: absolute; inset: 0; overflow: auto; }
+.graph-world-sizer { position: relative; min-width: 100%; min-height: 100%; }
+.graph-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 
-/* Auto margins centre a graph narrower than the canvas, and let a wider one scroll from its left end. */
-.stream-graph-svg {
-  display: block;
-  flex: none;
-  margin-inline: auto;
-  overflow: visible;
-}
-
-/* ---------- nodes ---------- */
-.stream-graph-node {
-  --graph-node-color: var(--idle);
-}
-
-.stream-graph-node[data-tone="ok"] {
-  --graph-node-color: var(--ok-dot);
-}
-
-.stream-graph-node[data-tone="progress"] {
-  --graph-node-color: var(--accent);
-}
-
-.stream-graph-node[data-tone="warning"] {
-  --graph-node-color: var(--amber);
-}
-
-.stream-graph-node[data-tone="error"] {
-  --graph-node-color: var(--error);
-}
-
-.stream-graph-node-pill {
-  fill: var(--panel);
-  stroke: var(--line-2);
-  stroke-width: 1;
-}
-
-.stream-graph-node[data-tone="ok"] .stream-graph-node-pill {
-  stroke: color-mix(in srgb, var(--ok-dot) 38%, var(--line-2));
-}
-
-.stream-graph-node[data-tone="progress"] .stream-graph-node-pill {
-  stroke: var(--accent-line);
-}
-
-.stream-graph-node[data-tone="error"] .stream-graph-node-pill {
-  fill: color-mix(in srgb, var(--error) 6%, var(--panel));
-  stroke: color-mix(in srgb, var(--error) 55%, transparent);
-}
-
-.stream-graph-node[data-outside-this-stream="true"] .stream-graph-node-pill {
-  fill: transparent;
-  stroke-dasharray: 3 3;
-}
-
-.stream-graph-node-state-dot {
-  fill: var(--graph-node-color);
-}
-
-.stream-graph-node[data-tone="progress"] .stream-graph-node-state-dot {
-  animation: status-dot-breathe 1.6s ease-in-out infinite;
-}
-
-.stream-graph-node-name {
-  fill: var(--ink);
-  font: 500 11px var(--font-mono);
-}
-
-.stream-graph-node[data-tone="idle"] .stream-graph-node-name {
-  fill: var(--ink-2);
-}
-
-.stream-graph-node-exposed-mark {
-  color: var(--accent);
-  stroke-width: 1.5;
-}
-
-/* ---------- links and ports ---------- */
-.stream-graph-link {
-  --graph-link-color: var(--line-2);
-  fill: none;
-  stroke: var(--graph-link-color);
-  stroke-width: 1.4;
-}
-
-.stream-graph-link[data-tone="ok"] {
-  --graph-link-color: color-mix(in srgb, var(--ok-dot) 50%, var(--line-2));
-}
-
-.stream-graph-link[data-tone="progress"] {
-  --graph-link-color: var(--accent-line);
-  stroke-dasharray: 4 4;
-}
-
-.stream-graph-link[data-tone="warning"] {
-  --graph-link-color: color-mix(in srgb, var(--amber) 70%, transparent);
-  stroke-dasharray: 4 4;
-}
-
-.stream-graph-link[data-tone="error"] {
-  --graph-link-color: color-mix(in srgb, var(--error) 70%, transparent);
-  stroke-dasharray: 3 3;
-}
-
-.stream-graph-link[data-tone="idle"] {
-  stroke-dasharray: 2 4;
-}
-
-/* A signal travelling the wire: the link is wired and both ends run. */
-.stream-graph-link-pulse {
-  fill: none;
-  stroke: var(--ok-dot);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-dasharray: 7 93;
-  animation-name: stream-graph-link-pulse-travel;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
+.graph-canvas-health {
+  position: absolute;
+  left: 24px;
+  top: 12px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 16px;
   pointer-events: none;
 }
-
-@keyframes stream-graph-link-pulse-travel {
-  from {
-    stroke-dashoffset: 7;
-  }
-  to {
-    stroke-dashoffset: -93;
-  }
-}
-
-.stream-graph-port {
-  fill: var(--bg);
-  stroke: var(--line-2);
-  stroke-width: 1.2;
-}
-
-.stream-graph-port[data-tone="ok"] {
-  stroke: color-mix(in srgb, var(--ok-dot) 60%, var(--line-2));
-}
-
-.stream-graph-port[data-tone="error"] {
-  stroke: var(--error);
-}
-
-/* ---------- the scaffold preview on the empty page ---------- */
-.stream-graph[data-ghost="true"] {
-  border-top: 0;
-}
-
-.stream-graph[data-ghost="true"] .stream-graph-canvas {
-  min-height: 0;
-  background: none;
-}
-
-.stream-graph[data-ghost="true"] .stream-graph-node-pill {
-  fill: var(--bg);
-  stroke: var(--line-2);
-  stroke-dasharray: 3 3;
-}
-
-.stream-graph[data-ghost="true"] .stream-graph-node-state-dot {
-  fill: none;
-  stroke: var(--line-2);
-  stroke-width: 1.4;
-  animation: none;
-}
-
-.stream-graph[data-ghost="true"] .stream-graph-node-name {
-  fill: var(--ink-3);
-}
-
-.stream-graph[data-ghost="true"] .stream-graph-link {
-  stroke: var(--line-2);
-  stroke-dasharray: 3 4;
-}
-
-.stream-graph[data-ghost="true"] .stream-graph-port {
-  stroke: var(--line-2);
-}
-
-/* ---------- exposed ports ---------- */
-.stream-graph-exposed-ports {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 20px 12px;
-}
-
-.stream-graph-exposed-ports:empty {
-  display: none;
-}
-
-.stream-graph-exposed-port {
+.graph-canvas-project {
+  position: absolute;
+  right: 12px;
+  top: 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: var(--ink-3);
-  font-size: 11.5px;
+  gap: 4px;
+  max-width: 45%;
 }
-
-.stream-graph-exposed-port svg {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  color: var(--accent);
-  stroke-width: 1.5;
-}
-
-.stream-graph-exposed-port-address {
+.graph-canvas-project-path {
   overflow: hidden;
-  color: var(--ink-2);
-  font-size: 11px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 16px;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-
-.stream-graph-exposed-port .state-chip {
-  height: 18px;
-  padding: 0 6px;
-  font-size: 11px;
+.graph-canvas-exposed {
+  position: absolute;
+  left: 24px;
+  bottom: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: calc(100% - 48px);
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
 }
+.graph-canvas-exposed-word, .graph-canvas-exposed-level { flex: none; }
+.graph-canvas-exposed-address {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+}
+.graph-canvas-exposed-watch { display: inline-flex; min-width: 0; border-radius: 4px; }
+.graph-canvas-exposed-watch:hover .graph-canvas-exposed-address { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.graph-canvas-exposed .text-link { align-self: center; }
 
-/* ---------- a message in place of the drawing ---------- */
-.stream-graph-message {
+.graph-canvas-message {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  max-width: 460px;
-  padding: 20px 24px;
-  color: var(--ink-2);
-  font-size: 12.5px;
+  padding: 24px;
+  font-size: 12px;
+  line-height: 18px;
   text-align: center;
 }
+.graph-canvas-message-failure { display: inline-flex; align-items: center; gap: 6px; color: var(--text); }
+.graph-canvas-message-detail { max-width: 60ch; color: var(--text-3); font: 400 11.5px/16px var(--font-mono); }
+.graph-canvas-message-quiet { color: var(--text-3); }
 
-.stream-graph-message-detail {
-  color: var(--ink-3);
-  font: 400 11px/1.5 var(--font-mono);
-  overflow-wrap: anywhere;
-}
+/* ---------- links ---------- */
+.graph-links { position: absolute; left: 0; top: 0; overflow: visible; }
+.graph-link-stroke { fill: none; stroke: var(--link-stroke); stroke-width: 1.5; stroke-linecap: round; }
+.graph-link-arrow { fill: var(--link-stroke); stroke: none; }
+.graph-link-hit { fill: none; stroke: transparent; stroke-width: 10; pointer-events: stroke; }
+.graph-link[data-look="pending"] .graph-link-stroke { stroke-dasharray: 4 4; }
+.graph-link[data-look="ending"] { opacity: .45; }
+.graph-link[data-look="ending"] .graph-link-stroke { stroke-dasharray: 4 4; }
+.graph-link[data-look="error"] .graph-link-stroke { stroke: var(--red); }
+.graph-link[data-look="error"] .graph-link-arrow { fill: var(--red); }
+.graph-link[data-watched="true"] .graph-link-stroke { stroke: var(--accent); stroke-width: 2; }
+.graph-link[data-watched="true"] .graph-link-arrow { fill: var(--accent); }
 
-@media (prefers-reduced-motion: reduce) {
-  .stream-graph-link-pulse {
-    display: none;
-  }
+/* ---------- nodes ---------- */
+.graph-node {
+  position: absolute;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-node);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-node);
 }
+.graph-node-head { height: 48px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); }
+.graph-node-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font: 600 12.5px/18px var(--font-mono);
+  font-variant-ligatures: none;
+}
+.graph-node-name-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.graph-node-class-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.graph-node-class {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font: 400 11px/16px var(--font-mono);
+  font-variant-ligatures: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.graph-node-kind { flex: none; color: var(--text-3); font-size: 11px; line-height: 16px; }
+
+.graph-node-ports { padding: 4px 0; }
+.graph-node-port-item { display: block; }
+.graph-node-port {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 22px;
+  padding: 0 12px;
+  color: var(--text-2);
+  font: 400 11.5px/22px var(--font-mono);
+  font-variant-ligatures: none;
+  white-space: nowrap;
+}
+.graph-node-port-output { justify-content: flex-end; }
+.graph-node-port-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.graph-node-port-exposure { flex: none; color: var(--text-3); font: 400 11px/22px var(--font-ui); }
+.graph-node-port-eye { display: none; color: var(--text-3); }
+.graph-node-port-watchable { border-radius: 0; text-align: right; transition: background-color 80ms linear; }
+.graph-node-port-watchable:hover { background: var(--hover); color: var(--text); }
+.graph-node-port-watchable[data-readable="true"]:hover .graph-node-port-eye { display: block; }
+.graph-node-port-watchable[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.graph-node-port-watchable[aria-pressed="true"] .graph-node-port-eye { display: block; color: var(--accent-text); }
+.graph-node-port-watchable[aria-pressed="true"] .graph-node-port-exposure { color: var(--accent-text); }
+/* The level word in accent-text clears AA on the raised node fill only at this lighter wash. */
+:root[data-theme="dark"] .graph-node-port-watchable[aria-pressed="true"] { background: rgba(76, 125, 255, .12); }
+.graph-node-port-watchable:focus-visible { box-shadow: var(--focus); }
+
+.graph-node-foot {
+  display: block;
+  width: 100%;
+  padding: 0 12px 8px;
+  color: var(--text-3);
+  font: 400 11.5px/15px var(--font-ui);
+  text-align: left;
+}
+.graph-node-head + .graph-node-foot { padding-top: 6px; }
+.graph-node-foot-failure { color: var(--red); }
+.graph-node-foot-failure:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+.graph-node[data-look="starting"] { border-style: dashed; border-color: var(--line-dashed); }
+.graph-node[data-look="idle"] { border-style: dashed; border-color: var(--line-dashed); background: transparent; box-shadow: none; }
+.graph-node[data-look="paused"] > :not(.graph-node-foot) { opacity: .62; }
+.graph-node[data-look="error"] { border-color: var(--red-line); box-shadow: 0 0 0 1px var(--red-line), var(--shadow-node); }
+.graph-node[data-look="error"] .graph-node-name { color: var(--red); }
+.graph-node[data-look="outside_this_stream"] { border-color: var(--line); background: transparent; box-shadow: none; }
+.graph-node[data-look="outside_this_stream"] .graph-node-name { color: var(--text-2); }
+.graph-node[data-holds-watched-port="true"] { border-color: var(--accent-line); box-shadow: 0 0 0 1px var(--accent-line); }

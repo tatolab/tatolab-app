@@ -1,49 +1,68 @@
-import type { StreamGraphSummary, TatolabPlatform } from "../backend/tatolab_backend_contract";
 import { createElement } from "../dom";
-import { createTerminalCommand } from "./copy_button";
-import { StreamGraphView } from "./stream_graph_view";
+import { createStandaloneCommand } from "./copy_button";
+import { createSpinner } from "./window_controls";
 
-const FIRST_STREAM_COMMANDS = ["tatolab new my-stream --test-pattern", "cd my-stream && uv sync", "tatolab run -d"];
+const FIRST_STREAM_STEPS: readonly { title: string; command: string; note: string }[] = [
+  { title: "Make a project", command: "tatolab new my-stream --test-pattern", note: "Writes stream.py and two example nodes into my-stream/." },
+  { title: "Install it", command: "cd my-stream && uv sync", note: "Creates the project's .venv with tatolab-stream in it." },
+  { title: "Hand it to the runtime", command: "tatolab run -d", note: "Tatolab keeps it running, across restarts too." },
+];
 
-/** The graph `tatolab new --test-pattern` scaffolds, drawn as a preview of what the first stream shows. */
-const TEST_PATTERN_SCAFFOLD_GRAPH: StreamGraphSummary = {
-  stream: "my-stream",
-  nodes: [
-    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: null },
-    { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: null },
-    { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: null },
-    { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: null },
-  ],
-  links: [
-    { source_node: "testpatternsource", source_port: "video", target_node: "invertingeffect", target_port: "video_from_upstream", state: "pending" },
-    { source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "displaywindow", target_port: "video", state: "pending" },
-    { source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "brightnessmeter", target_port: "video_from_upstream", state: "pending" },
-  ],
-  exposed: [],
-};
-
-/** What the Streams page shows while the runtime runs no streams: the three commands to a first one. */
-export function createFirstStreamGuide(platform: TatolabPlatform): { element: HTMLElement; dispose(): void } {
-  const scaffoldPreview = new StreamGraphView("my-stream", platform, true);
-  scaffoldPreview.showGraph(TEST_PATTERN_SCAFFOLD_GRAPH);
-  const element = createElement("div", { class: "first-stream-guide" }, [
-    createElement("div", { class: "first-stream-guide-column" }, [
-      createElement("div", { class: "first-stream-guide-preview", "aria-hidden": "true" }, [scaffoldPreview.element]),
-      createElement("h2", { class: "first-stream-guide-headline" }, ["Run your first stream"]),
-      createElement("p", { class: "first-stream-guide-explanation" }, [
-        "Make a project with a test pattern, install it, and run it in the background. It shows up here, graph and logs, as soon as it starts.",
-      ]),
-      createElement(
-        "ol",
-        { class: "first-stream-guide-steps", "aria-label": "Commands to run in Terminal" },
-        FIRST_STREAM_COMMANDS.map((commandText, stepIndex) =>
-          createElement("li", { class: "first-stream-guide-step" }, [
-            createElement("span", { class: "numbered-step-marker", "aria-hidden": "true" }, [String(stepIndex + 1)]),
-            createTerminalCommand(commandText),
-          ]),
+/** What the window shows while the runtime runs no streams: three steps to a first one, and what it will look like. */
+export function createFirstStreamGuide(): HTMLElement {
+  return createElement("div", { class: "first-stream-guide" }, [
+    createElement("div", { class: "first-stream-guide-grid" }, [
+      createElement("div", { class: "first-stream-guide-steps-column" }, [
+        createElement("h1", { class: "screen-heading" }, ["Run your first stream"]),
+        createElement("p", { class: "screen-lede" }, [
+          "A stream is a small graph of nodes, like a source, an effect and a window. Tatolab runs it in the background, each Python node in its own process. Start with a test pattern; it needs no camera.",
+        ]),
+        createElement(
+          "ol",
+          { class: "first-stream-guide-steps", "aria-label": "Commands to run in a terminal" },
+          FIRST_STREAM_STEPS.map((step, stepIndex) =>
+            createElement("li", { class: "first-stream-guide-step" }, [
+              createElement("span", { class: "first-stream-guide-step-number", "aria-hidden": "true" }, [String(stepIndex + 1)]),
+              createElement("div", { class: "first-stream-guide-step-copy" }, [
+                createElement("p", { class: "first-stream-guide-step-title" }, [step.title]),
+                createStandaloneCommand(step.command),
+                createElement("p", { class: "first-stream-guide-step-note" }, [step.note]),
+              ]),
+            ]),
+          ),
         ),
-      ),
+        createElement("p", { class: "first-stream-guide-waiting", role: "status" }, [
+          createSpinner(),
+          "This window shows your stream as soon as the runtime loads it.",
+        ]),
+      ]),
+      createElement("aside", { class: "first-stream-guide-preview-column" }, [
+        createElement("h2", { class: "first-stream-guide-preview-title" }, ["What you'll see"]),
+        createElement("img", {
+          class: "first-stream-guide-picture",
+          src: "/first-stream-preview-1280x720.png",
+          alt: "Inverted color bars, the picture the test-pattern stream shows",
+          width: "1280",
+          height: "720",
+        }),
+        createElement("p", { class: "first-stream-guide-preview-text" }, [
+          "A window with these inverted color bars, and a brightness reading in the logs every second.",
+        ]),
+        createElement("p", { class: "first-stream-guide-preview-text" }, [
+          "Then make it yours: edit ",
+          createElement("code", {}, ["nodes/inverting_effect.py"]),
+          " and run ",
+          createElement("code", {}, ["tatolab run -d"]),
+          " again, or keep ",
+          createElement("code", {}, ["tatolab dev"]),
+          " open to reload on every save.",
+        ]),
+        createElement("p", { class: "first-stream-guide-agent-tip" }, [
+          "Using an AI agent? Point its MCP settings at ",
+          createElement("code", {}, ["tatolab mcp"]),
+          ".",
+        ]),
+      ]),
     ]),
   ]);
-  return { element, dispose: () => scaffoldPreview.dispose() };
 }

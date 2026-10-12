@@ -9,14 +9,32 @@ export function rankLogLevel(level: string | null): number {
   return LOG_LEVEL_RANKS[level.toLowerCase()] ?? UNKNOWN_LOG_LEVEL_RANK;
 }
 
-/** The minimum levels the console's level filter offers. */
-export const LOG_LEVEL_FILTER_CHOICES: readonly { label: string; minimumRank: number }[] = [
-  { label: "All levels", minimumRank: LOG_LEVEL_RANKS.trace },
-  { label: "Debug and above", minimumRank: LOG_LEVEL_RANKS.debug },
-  { label: "Info and above", minimumRank: LOG_LEVEL_RANKS.info },
-  { label: "Warnings and errors", minimumRank: LOG_LEVEL_RANKS.warn },
-  { label: "Errors only", minimumRank: LOG_LEVEL_RANKS.error },
+/** One segment of the log dock's level control: the lowest level it shows, and the level its count counts. */
+export interface LogLevelSegment {
+  label: string;
+  minimumRank: number;
+  /** The segment counts the held lines at exactly this rank; `null` for a segment with no count. */
+  countedRank: number | null;
+}
+
+/** All, Warnings and Errors: Warnings shows warn and above, and counts the warn lines alone. */
+export const LOG_LEVEL_SEGMENTS: readonly LogLevelSegment[] = [
+  { label: "All", minimumRank: LOG_LEVEL_RANKS.trace, countedRank: null },
+  { label: "Warnings", minimumRank: LOG_LEVEL_RANKS.warn, countedRank: LOG_LEVEL_RANKS.warn },
+  { label: "Errors", minimumRank: LOG_LEVEL_RANKS.error, countedRank: LOG_LEVEL_RANKS.error },
 ];
+
+/** How a log line's level word reads: quiet for trace and debug, amber for warn, red for error, else plain. */
+export type LogLevelWordTone = "quiet" | "plain" | "warn" | "error";
+
+/** The tone of `level`'s word; a level this app does not know reads as plainly as info. */
+export function presentLogLevelWord(level: string | null): LogLevelWordTone {
+  const rank = rankLogLevel(level);
+  if (rank <= LOG_LEVEL_RANKS.debug) return "quiet";
+  if (rank === LOG_LEVEL_RANKS.warn) return "warn";
+  if (rank === LOG_LEVEL_RANKS.error) return "error";
+  return "plain";
+}
 
 function padNumber(value: number, width: number): string {
   return String(value).padStart(width, "0");

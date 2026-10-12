@@ -1,55 +1,76 @@
 import type { ListedStream } from "../backend/tatolab_backend_contract";
 import { createElement, setTextIfChanged } from "../dom";
-import { abbreviateHomeDirectory, countLabel, presentStreamState } from "../presentation/stream_presentation";
+import { presentStreamState } from "../presentation/stream_presentation";
+import { createFailureIcon } from "./window_controls";
 
-const ARRIVING_ROW_HIGHLIGHT_MILLISECONDS = 1800;
-const LEAVING_ROW_MILLISECONDS = 260;
+/** What the Streams section shows instead of rows. */
+export type StreamListPlaceholder = "no_streams" | "runtime_not_running" | "streams_not_listed";
 
 interface StreamListRow {
   item: HTMLLIElement;
   button: HTMLButtonElement;
-  stateDot: HTMLElement;
   nameLabel: HTMLElement;
-  stateChip: HTMLElement;
-  projectPath: HTMLElement;
-  nodeCountLabel: HTMLElement;
+  stateWord: HTMLElement;
+  stateLabel: HTMLElement;
+  failureIcon: SVGElement;
   failureReason: HTMLElement;
 }
 
-/** Every stream the runtime lists, one row each; new rows arrive highlighted and removed rows fold away. */
+const PLACEHOLDER_TEXT: Record<Exclude<StreamListPlaceholder, "no_streams">, string> = {
+  runtime_not_running: "Your streams show up here while Tatolab runs.",
+  streams_not_listed: "Couldn't list the streams. Asking again…",
+};
+
+/** The sidebar's Streams section: a head with the count, a row per stream, or what stands in for them. */
 export class StreamListView {
   readonly element: HTMLElement;
+  private readonly countLabel: HTMLElement;
   private readonly listElement: HTMLUListElement;
+  private readonly ghostRow: HTMLElement;
+  private readonly placeholderText: HTMLElement;
   private readonly rowsByStreamName = new Map<string, StreamListRow>();
   private shownStreamNames: string[] = [];
-  private hasShownStreams = false;
+  private selectedStreamName: string | null = null;
 
   constructor(private readonly onStreamChosen: (streamName: string) => void) {
-    this.listElement = createElement("ul", { class: "stream-list", "aria-label": "Streams" });
+    this.countLabel = createElement("span", { class: "sidebar-section-count", hidden: true });
+    this.listElement = createElement("ul", { class: "stream-list", role: "list", "aria-label": "Streams" });
     this.listElement.addEventListener("keydown", (keyboardEvent) => this.onListKeyDown(keyboardEvent));
-    this.element = createElement("div", { class: "stream-list-pane" }, [this.listElement]);
+    this.ghostRow = createElement("div", { class: "stream-list-ghost-row", "aria-hidden": "true", hidden: true }, [
+      createElement("span", { class: "stream-list-row-name" }, ["my-stream"]),
+      createElement("span", { class: "stream-list-row-state" }, ["Kept"]),
+    ]);
+    this.placeholderText = createElement("p", { class: "sidebar-section-placeholder", hidden: true });
+    this.element = createElement("section", { class: "sidebar-section", "aria-label": "Streams" }, [
+      createElement("h2", { class: "sidebar-section-head" }, [createElement("span", {}, ["Streams"]), this.countLabel]),
+      this.listElement,
+      createElement("div", { class: "stream-list-placeholder" }, [this.ghostRow, this.placeholderText]),
+    ]);
   }
 
+  /** Shows a row per stream; `selectedStreamName` is `null` while another page is shown. */
   showStreams(streams: ListedStream[], selectedStreamName: string | null): void {
+    this.selectedStreamName = selectedStreamName;
+    this.ghostRow.hidden = true;
+    this.placeholderText.hidden = streams.length > 0;
+    if (streams.length === 0) this.showPlaceholderText("no_streams");
+    this.countLabel.hidden = streams.length === 0;
+    setTextIfChanged(this.countLabel, String(streams.length));
+
     const listedNames = new Set(streams.map((stream) => stream.name));
     for (const [streamName, row] of this.rowsByStreamName) {
       if (listedNames.has(streamName)) continue;
       this.rowsByStreamName.delete(streamName);
-      this.foldAwayRow(row);
+      row.item.remove();
     }
-
     let insertionAnchor: ChildNode | null = this.listElement.firstChild;
     for (const stream of streams) {
       let row = this.rowsByStreamName.get(stream.name);
       if (!row) {
         row = this.createRow(stream.name);
         this.rowsByStreamName.set(stream.name, row);
-        if (this.hasShownStreams) this.highlightArrivingRow(row);
       }
-      this.fillRow(row, stream, stream.name === selectedStreamName);
-      while (insertionAnchor instanceof HTMLElement && insertionAnchor.dataset.leaving === "true") {
-        insertionAnchor = insertionAnchor.nextSibling;
-      }
+      this.fillRow(row, stream);
       if (insertionAnchor === row.item) {
         insertionAnchor = insertionAnchor.nextSibling;
       } else {
@@ -57,70 +78,88 @@ export class StreamListView {
       }
     }
     this.shownStreamNames = streams.map((stream) => stream.name);
-    this.hasShownStreams = true;
+    this.updateRovingFocusTarget();
+  }
+
+  /** Clears the rows and shows what stands in for them. */
+  showPlaceholder(placeholder: StreamListPlaceholder): void {
+    for (const row of this.rowsByStreamName.values()) row.item.remove();
+    this.rowsByStreamName.clear();
+    this.shownStreamNames = [];
+    this.countLabel.hidden = true;
+    this.placeholderText.hidden = false;
+    this.showPlaceholderText(placeholder);
+  }
+
+  private showPlaceholderText(placeholder: StreamListPlaceholder): void {
+    this.ghostRow.hidden = placeholder !== "no_streams";
+    setTextIfChanged(
+      this.placeholderText,
+      placeholder === "no_streams" ? "Your first stream shows up here." : PLACEHOLDER_TEXT[placeholder],
+    );
   }
 
   private createRow(streamName: string): StreamListRow {
-    const stateDot = createElement("span", { class: "status-dot", "aria-hidden": "true" });
     const nameLabel = createElement("span", { class: "stream-list-row-name" });
-    const stateChip = createElement("span", { class: "state-chip" });
-    const projectPath = createElement("span", { class: "stream-list-row-project" });
-    const nodeCountLabel = createElement("span", { class: "stream-list-row-node-count" });
+    const failureIcon = createFailureIcon(14);
+    const stateLabel = createElement("span", {});
+    const stateWord = createElement("span", { class: "stream-list-row-state" }, [failureIcon, stateLabel]);
     const failureReason = createElement("span", { class: "stream-list-row-failure" });
     const button = createElement(
       "button",
-      { type: "button", class: "stream-list-row", onClick: () => this.onStreamChosen(streamName) },
-      [stateDot, nameLabel, stateChip, projectPath, nodeCountLabel, failureReason],
+      { type: "button", class: "stream-list-row", "data-stream-name": streamName, onClick: () => this.onStreamChosen(streamName) },
+      [createElement("span", { class: "stream-list-row-line" }, [nameLabel, stateWord]), failureReason],
     );
     const item = createElement("li", { class: "stream-list-item" }, [button]);
-    return { item, button, stateDot, nameLabel, stateChip, projectPath, nodeCountLabel, failureReason };
+    return { item, button, nameLabel, stateWord, stateLabel, failureIcon, failureReason };
   }
 
-  private fillRow(row: StreamListRow, stream: ListedStream, isSelected: boolean): void {
+  private fillRow(row: StreamListRow, stream: ListedStream): void {
     const statePresentation = presentStreamState(stream);
-    row.button.dataset.state = stream.state;
-    row.button.classList.toggle("stream-list-row-selected", isSelected);
-    row.button.setAttribute("aria-current", isSelected ? "true" : "false");
-    row.stateDot.dataset.tone = statePresentation.dotTone;
+    const isSelected = stream.name === this.selectedStreamName;
+    row.button.dataset.emphasis = statePresentation.emphasis;
+    if (isSelected) row.button.setAttribute("aria-current", "true");
+    else row.button.removeAttribute("aria-current");
     setTextIfChanged(row.nameLabel, stream.name);
-    setTextIfChanged(row.stateChip, statePresentation.label);
-    row.stateChip.dataset.tone = statePresentation.chipTone;
-    setTextIfChanged(row.projectPath, abbreviateHomeDirectory(stream.project_directory));
-    row.projectPath.title = stream.project_directory;
-    setTextIfChanged(row.nodeCountLabel, stream.node_count === null ? "" : countLabel(stream.node_count, "node", "nodes"));
-    const failureText = stream.state === "failed" ? (stream.failed_because ?? "") : "";
+    setTextIfChanged(row.stateLabel, statePresentation.label);
+    row.stateWord.title = statePresentation.meaning;
+    row.failureIcon.toggleAttribute("hidden", statePresentation.emphasis !== "failure");
+    const failureText = statePresentation.emphasis === "failure" ? (stream.failed_because ?? "") : "";
     setTextIfChanged(row.failureReason, failureText);
     row.failureReason.hidden = failureText === "";
-    row.failureReason.title = failureText;
+    row.button.title = statePresentation.emphasis === "failure" ? statePresentation.meaning : "";
   }
 
-  private highlightArrivingRow(row: StreamListRow): void {
-    row.item.dataset.arriving = "true";
-    window.setTimeout(() => delete row.item.dataset.arriving, ARRIVING_ROW_HIGHLIGHT_MILLISECONDS);
-  }
-
-  private foldAwayRow(row: StreamListRow): void {
-    row.item.dataset.leaving = "true";
-    row.button.disabled = true;
-    row.button.classList.remove("stream-list-row-selected");
-    row.item.style.height = `${row.item.offsetHeight}px`;
-    // Reading the height commits it, so setting 0 next transitions from it.
-    void row.item.offsetHeight;
-    row.item.style.height = "0px";
-    window.setTimeout(() => row.item.remove(), LEAVING_ROW_MILLISECONDS);
+  /** One row takes Tab: the selected one, else the first. */
+  private updateRovingFocusTarget(): void {
+    const focusTargetName = this.shownStreamNames.includes(this.selectedStreamName ?? "")
+      ? this.selectedStreamName
+      : (this.shownStreamNames[0] ?? null);
+    for (const [streamName, row] of this.rowsByStreamName) row.button.tabIndex = streamName === focusTargetName ? 0 : -1;
   }
 
   private onListKeyDown(keyboardEvent: KeyboardEvent): void {
-    if (keyboardEvent.key !== "ArrowDown" && keyboardEvent.key !== "ArrowUp") return;
-    if (this.shownStreamNames.length === 0) return;
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(keyboardEvent.key)) return;
+    if (this.shownStreamNames.length === 0 || keyboardEvent.metaKey || keyboardEvent.ctrlKey || keyboardEvent.altKey) return;
     keyboardEvent.preventDefault();
     const focusedIndex = this.shownStreamNames.findIndex(
       (streamName) => this.rowsByStreamName.get(streamName)?.button === document.activeElement,
     );
-    const step = keyboardEvent.key === "ArrowDown" ? 1 : -1;
-    const nextIndex = Math.min(this.shownStreamNames.length - 1, Math.max(0, focusedIndex + step));
+    const lastIndex = this.shownStreamNames.length - 1;
+    const nextIndex =
+      keyboardEvent.key === "Home"
+        ? 0
+        : keyboardEvent.key === "End"
+          ? lastIndex
+          : Math.min(lastIndex, Math.max(0, focusedIndex + (keyboardEvent.key === "ArrowDown" ? 1 : -1)));
     const nextStreamName = this.shownStreamNames[nextIndex];
-    this.rowsByStreamName.get(nextStreamName)?.button.focus();
     this.onStreamChosen(nextStreamName);
+    this.rowsByStreamName.get(nextStreamName)?.button.focus();
+  }
+
+  /** Moves focus to the selected row, as ↑ and ↓ would. */
+  focusSelectedRow(): void {
+    if (this.selectedStreamName === null) return;
+    this.rowsByStreamName.get(this.selectedStreamName)?.button.focus();
   }
 }

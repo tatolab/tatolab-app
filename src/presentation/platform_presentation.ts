@@ -19,6 +19,8 @@ export interface PlatformPresentation {
   runTatolabExplanation: string;
   quitTatolabExplanation: string;
   uninstallTatolabExplanation: string;
+  /** Where the runtime keeps each stream's records, which an uninstall leaves in place. */
+  streamRecordsDirectory: string;
 }
 
 const PLATFORM_PRESENTATIONS: Record<TatolabPlatform, PlatformPresentation> = {
@@ -31,6 +33,7 @@ const PLATFORM_PRESENTATIONS: Record<TatolabPlatform, PlatformPresentation> = {
     runTatolabExplanation: "Starts Tatolab at login and keeps the runtime running. Turning it off stops the runtime.",
     quitTatolabExplanation: "Closes this app and its menu bar icon. The runtime and your streams keep running.",
     uninstallTatolabExplanation: "Stops the runtime and removes Tatolab from this Mac. Your streams' records stay.",
+    streamRecordsDirectory: "~/Library/Application Support/Tatolab",
   },
   linux: {
     hasOverlayTitleBar: false,
@@ -43,6 +46,7 @@ const PLATFORM_PRESENTATIONS: Record<TatolabPlatform, PlatformPresentation> = {
     quitTatolabExplanation: "Closes this app and its tray icon. The runtime and your streams keep running.",
     uninstallTatolabExplanation:
       "The installer removes the runtime, and your package manager removes this app. Your streams' records stay.",
+    streamRecordsDirectory: "~/.local/state/tatolab",
   },
 };
 
@@ -55,6 +59,11 @@ export function presentPlatform(platform: TatolabPlatform): PlatformPresentation
 export function windowDragRegionAttribute(platform: TatolabPlatform, reach: "self" | "deep"): string | null {
   if (!presentPlatform(platform).hasOverlayTitleBar) return null;
   return reach === "deep" ? "deep" : "";
+}
+
+/** The key cap a shortcut shows: `⌘K` on macOS, `Ctrl K` on Linux. */
+export function shortcutHint(platform: TatolabPlatform, key: string): string {
+  return presentPlatform(platform).windowShortcutModifier === "meta" ? `⌘${key}` : `Ctrl ${key}`;
 }
 
 /** Whether exactly the platform's shortcut modifier is held: ⌘ on macOS, Ctrl on Linux, and never with Option or Alt. */
