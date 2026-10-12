@@ -18,6 +18,7 @@
 .uninstall-sheet[data-platform-sheet="linux"] { top: 64px; border-radius: var(--radius-overlay); }
 .uninstall-sheet[open] { animation: uninstall-sheet-in 180ms var(--ease); }
 .uninstall-sheet[data-closing="true"] { animation: uninstall-sheet-out 120ms var(--ease) forwards; }
+.uninstall-sheet[data-closing="true"]::backdrop { opacity: 0; transition: opacity 120ms linear; }
 .uninstall-sheet:focus-visible { box-shadow: var(--shadow-pop); }
 @keyframes uninstall-sheet-in { from { opacity: 0; transform: translate(-50%, -8px); } }
 @keyframes uninstall-sheet-out { to { opacity: 0; transform: translate(-50%, -8px); } }

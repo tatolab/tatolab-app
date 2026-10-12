@@ -49,6 +49,8 @@ interface SearchRow {
 }
 
 const ALWAYS_SHOWN_GROUPS = new Set(["Streams", "Go to"]);
+/** How long Search takes to leave, matching search.css. */
+const SEARCH_CLOSING_MILLISECONDS = 100;
 
 /** Search (⌘K): find a stream, an exposed output or a view and go there. Navigation only. */
 export class TatolabSearchView {
@@ -60,6 +62,7 @@ export class TatolabSearchView {
   private elementFocusedBeforeOpening: Element | null = null;
   private exposedPortsByStream = new Map<string, StreamGraphExposedPort[]>();
   private openCount = 0;
+  private closingTimer: number | undefined;
 
   constructor(
     private readonly backend: Pick<TatolabBackend, "describeStreamGraph">,
@@ -103,8 +106,9 @@ export class TatolabSearchView {
     });
   }
 
+  /** Whether Search is over the window and not on its way out. */
   isOpen(): boolean {
-    return this.element.open;
+    return this.element.open && this.element.dataset.closing !== "true";
   }
 
   toggle(): void {
@@ -114,6 +118,8 @@ export class TatolabSearchView {
 
   open(initialQuery = ""): void {
     if (this.isOpen()) return;
+    window.clearTimeout(this.closingTimer);
+    delete this.element.dataset.closing;
     this.openCount += 1;
     this.elementFocusedBeforeOpening = document.activeElement;
     this.queryInput.value = initialQuery;
@@ -121,17 +127,24 @@ export class TatolabSearchView {
     this.exposedPortsByStream = new Map();
     this.readExposedPortsOfLoadedStreams(this.openCount);
     this.renderRows();
-    this.element.showModal();
+    if (!this.element.open) this.element.showModal();
     this.queryInput.focus();
   }
 
-  close(): void {
+  /** Closes Search, puts focus back where it was, then runs `afterClosing` once the window takes input again. */
+  close(afterClosing?: () => void): void {
     if (!this.isOpen()) return;
-    this.element.close();
-    if (this.elementFocusedBeforeOpening instanceof HTMLElement && this.elementFocusedBeforeOpening.isConnected) {
-      this.elementFocusedBeforeOpening.focus();
-    }
-    this.elementFocusedBeforeOpening = null;
+    this.element.dataset.closing = "true";
+    window.clearTimeout(this.closingTimer);
+    this.closingTimer = window.setTimeout(() => {
+      delete this.element.dataset.closing;
+      this.element.close();
+      if (this.elementFocusedBeforeOpening instanceof HTMLElement && this.elementFocusedBeforeOpening.isConnected) {
+        this.elementFocusedBeforeOpening.focus();
+      }
+      this.elementFocusedBeforeOpening = null;
+      afterClosing?.();
+    }, SEARCH_CLOSING_MILLISECONDS);
   }
 
   /** The exposed outputs of every loaded stream: the selected one's from its last read, the others read once now. */
@@ -307,8 +320,7 @@ export class TatolabSearchView {
   private runRow(rowIndex: number): void {
     const row = this.shownRows[rowIndex];
     if (!row) return;
-    this.close();
-    row.run();
+    this.close(() => row.run());
   }
 
   private onKeyDown(keyboardEvent: KeyboardEvent): void {

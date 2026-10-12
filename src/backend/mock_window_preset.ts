@@ -25,8 +25,8 @@ async function clickWhenShown(selector: string): Promise<boolean> {
 
 /**
  * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=`, `?page=settings`,
- * `?sheet=uninstall`, `?watch=<node>.<port>` and `?search=<query>` name, so each screen can be shown and pictured
- * from its URL.
+ * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`, `?watch=<node>.<port>`, `?levels=errors` and
+ * `?search=<query>` name, so each screen can be shown and pictured from its URL.
  */
 export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platform: TatolabPlatform): Promise<void> {
   const streamName = pageQuery.get("stream");
@@ -45,10 +45,14 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     }
   }
   if (pageQuery.get("levels") === "errors") await clickWhenShown(`.log-dock-console [data-segment="Errors"]`);
-  if (pageQuery.get("page") === "settings" || pageQuery.get("sheet") === "uninstall") {
-    await clickWhenShown(".sidebar-settings-row");
+  if (pageQuery.get("page") === "settings") await clickWhenShown(".sidebar-settings-row");
+  const sheet = pageQuery.get("sheet");
+  if (sheet === "uninstall" || sheet === "uninstalling" || sheet === "uninstalled") {
+    if (pageQuery.get("page") !== "settings") await clickWhenShown(".sidebar-settings-row");
+    await clickWhenShown(`[data-action="uninstall"]`);
   }
-  if (pageQuery.get("sheet") === "uninstall") await clickWhenShown(`[data-action="uninstall"]`);
+  if (sheet === "uninstalling" || sheet === "uninstalled") await clickWhenShown(".uninstall-sheet[open] .button-destructive");
+  if (pageQuery.get("setup") === "waiting") await clickWhenShown(".setup-screen .button-primary");
   const searchQuery = pageQuery.get("search");
   if (searchQuery !== null) {
     document.dispatchEvent(
