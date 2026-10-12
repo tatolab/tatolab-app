@@ -24,6 +24,14 @@ export const LOCK_ICON_SVG = `<svg class="line-icon" viewBox="0 0 20 20" aria-hi
 
 export const TERMINAL_ICON_SVG = `<svg class="line-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3.5" width="16" height="13" rx="3"/><path d="M6 8l2.5 2L6 12M10.5 12.5h3.5"/></svg>`;
 
+/** The power glyph on the 20-unit grid the setup and uninstall rows draw on. */
+export const RUNTIME_POWER_ICON_SVG = `<svg class="line-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.75v6.5"/><path d="M5.9 5.4a6.4 6.4 0 1 0 8.2 0"/></svg>`;
+
+export const TRASH_ICON_SVG = `<svg class="line-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5.75h13"/><path d="M7.75 5.75V4.25c0-.69.56-1.25 1.25-1.25h2c.69 0 1.25.56 1.25 1.25v1.5"/><path d="m5.25 5.75.8 9.7A1.75 1.75 0 0 0 7.8 17h4.4a1.75 1.75 0 0 0 1.75-1.55l.8-9.7"/><path d="M8.5 9v4.75M11.5 9v4.75"/></svg>`;
+
+/** A folder with a check: what an uninstall leaves in place. */
+export const KEPT_RECORDS_ICON_SVG = `<svg class="line-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.75 6.25c0-1.1.9-2 2-2h2.9c.5 0 .98.19 1.35.53l1.1 1.02c.37.34.85.53 1.35.53h3.8c1.1 0 2 .9 2 2v6.42c0 1.1-.9 2-2 2H4.75c-1.1 0-2-.9-2-2z"/><path d="m7.6 11.15 1.7 1.7 3.2-3.25"/></svg>`;
+
 export const SEARCH_ICON_SVG = `<svg class="line-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.25"/><path d="m10.25 10.25 3.25 3.25"/></svg>`;
 
 export const ARROW_DOWN_ICON_SVG = `<svg class="line-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3.75 8.75 8 13l4.25-4.25"/></svg>`;

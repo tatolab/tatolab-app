@@ -63,7 +63,10 @@ describe("chooseSelectedStreamName", () => {
 describe("display helpers", () => {
   it("shortens a home directory to ~", () => {
     expect(abbreviateHomeDirectory("/Users/ada/streams/pattern")).toBe("~/streams/pattern");
+    expect(abbreviateHomeDirectory("/home/ada/streams/pattern")).toBe("~/streams/pattern");
+    expect(abbreviateHomeDirectory("/home/ada")).toBe("~");
     expect(abbreviateHomeDirectory("/private/tmp/pattern")).toBe("/private/tmp/pattern");
+    expect(abbreviateHomeDirectory("/srv/home/ada/pattern")).toBe("/srv/home/ada/pattern");
   });
 
   it("counts in the singular and the plural", () => {

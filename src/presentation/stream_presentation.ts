@@ -58,9 +58,10 @@ export function countLabel(count: number, singular: string, plural: string): str
   return `${count.toLocaleString("en-US")} ${count === 1 ? singular : plural}`;
 }
 
-const MACOS_HOME_DIRECTORY_PREFIX = /^\/Users\/[^/]+(?=\/|$)/;
+/** A home directory where macOS (`/Users/<name>`) and Linux (`/home/<name>`) put one. */
+const HOME_DIRECTORY_PREFIX = /^\/(?:Users|home)\/[^/]+(?=\/|$)/;
 
-/** Shortens `/Users/<name>/…` to `~/…` for display. */
+/** Shortens `/Users/<name>/…` or `/home/<name>/…` to `~/…` for display. */
 export function abbreviateHomeDirectory(absolutePath: string): string {
-  return absolutePath.replace(MACOS_HOME_DIRECTORY_PREFIX, "~");
+  return absolutePath.replace(HOME_DIRECTORY_PREFIX, "~");
 }

@@ -40,3 +40,16 @@ export function createTerminalCommand(commandText: string): HTMLElement {
     createCopyButton(commandText, () => commandText),
   ]);
 }
+
+/** A command too long for one line, shown broken where a shell would continue it; the copy is the one-line command. */
+export function createContinuedTerminalCommand(commandLines: readonly [string, ...string[]]): HTMLElement {
+  const commandText = commandLines.join(" ");
+  const [firstLine, ...continuationLines] = commandLines;
+  return createElement("div", { class: "terminal-command terminal-command-continued" }, [
+    createElement("span", { class: "terminal-command-prompt", "aria-hidden": "true" }, ["$"]),
+    createElement("code", { class: "selectable-text" }, [
+      [firstLine, ...continuationLines.map((continuationLine) => `  ${continuationLine}`)].join("\n"),
+    ]),
+    createCopyButton(commandText, () => commandText),
+  ]);
+}

@@ -1,4 +1,5 @@
 import type { TatolabStatus } from "../backend/tatolab_backend_contract";
+import { platformOf } from "./platform_presentation";
 
 /** The tones every status colour in the window comes from. */
 export type StatusTone = "ok" | "progress" | "idle" | "warning" | "error";
@@ -11,7 +12,8 @@ export type RuntimeDisplayState =
   | "switched_off"
   | "needs_login_items_approval"
   | "runtime_missing_from_app"
-  | "not_registered";
+  | "not_registered"
+  | "runtime_not_installed";
 
 /** What the banner above the streams says, and the one action it offers. */
 export interface RuntimeBannerPresentation {
@@ -28,7 +30,10 @@ export interface RuntimeDisplayPresentation {
   banner: RuntimeBannerPresentation | null;
 }
 
-/** A stopped runtime is explained by the switch first, then by the agent's registration, as the tray explains it. */
+/**
+ * A stopped runtime is explained by the switch first, then by the agent's registration, as the tray explains it. On
+ * Linux a missing unit comes first, since nothing runs until the installer has, and a disabled unit is switched off.
+ */
 export function deriveRuntimeDisplayState(status: TatolabStatus): RuntimeDisplayState {
   switch (status.runtime_state) {
     case "running":
@@ -38,6 +43,9 @@ export function deriveRuntimeDisplayState(status: TatolabStatus): RuntimeDisplay
     case "unreachable":
       return "unreachable";
     case "stopped":
+      if (platformOf(status) === "linux") {
+        return status.runtime_agent === "not_found" ? "runtime_not_installed" : "switched_off";
+      }
       if (!status.run_tatolab) return "switched_off";
       if (status.runtime_agent === "requires_approval") return "needs_login_items_approval";
       if (status.runtime_agent === "not_found") return "runtime_missing_from_app";
@@ -45,9 +53,10 @@ export function deriveRuntimeDisplayState(status: TatolabStatus): RuntimeDisplay
   }
 }
 
-/** The tone, label and banner the window shows for `status`. */
+/** The tone, label and banner the window shows for `status`, in its platform's words. */
 export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPresentation {
   const displayState = deriveRuntimeDisplayState(status);
+  const isLinux = platformOf(status) === "linux";
   switch (displayState) {
     case "running":
       return { displayState, tone: "ok", shortLabel: "Running", banner: null };
@@ -58,7 +67,9 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         shortLabel: "Starting",
         banner: {
           title: "Starting the runtime",
-          explanation: "macOS is launching it. This usually takes a few seconds.",
+          explanation: isLinux
+            ? "systemd is starting tatolabd.service. This usually takes a few seconds."
+            : "macOS is launching it. This usually takes a few seconds.",
           action: null,
         },
       };
@@ -69,7 +80,9 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         shortLabel: "Not responding",
         banner: {
           title: "The runtime isn't responding",
-          explanation: "It's switched on but hasn't answered for 20 seconds. macOS restarts it if it exits.",
+          explanation: isLinux
+            ? "It's switched on but hasn't answered for 20 seconds. systemd restarts tatolabd.service if it fails."
+            : "It's switched on but hasn't answered for 20 seconds. macOS restarts it if it exits.",
           action: null,
         },
       };
@@ -80,7 +93,9 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         shortLabel: "Stopped",
         banner: {
           title: "Tatolab is off",
-          explanation: "The runtime is stopped, so no streams can run.",
+          explanation: isLinux
+            ? "tatolabd.service is stopped, so no streams can run."
+            : "The runtime is stopped, so no streams can run.",
           action: "turn_on_run_tatolab",
         },
       };
@@ -117,5 +132,28 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
           action: "retry_run_tatolab",
         },
       };
+    case "runtime_not_installed":
+      return {
+        displayState,
+        tone: "idle",
+        shortLabel: "Not installed",
+        banner: {
+          title: "Install the Tatolab runtime",
+          explanation: "tatolabd.service isn't on this computer yet. The installer sets it up.",
+          action: null,
+        },
+      };
   }
+}
+
+/** Which screen fills the window: the platform's own setup until Tatolab can run here, then the pages. */
+export type TatolabWindowScreen = "setup" | "pages";
+
+/** macOS sets up behind one administrator prompt; Linux waits for the installer to put tatolabd.service in place. */
+export function chooseTatolabWindowScreen(status: TatolabStatus): TatolabWindowScreen {
+  const needsSetup =
+    platformOf(status) === "linux"
+      ? deriveRuntimeDisplayState(status) === "runtime_not_installed"
+      : status.machine_setup_state !== "complete";
+  return needsSetup ? "setup" : "pages";
 }

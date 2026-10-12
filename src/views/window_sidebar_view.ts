@@ -1,14 +1,16 @@
-import type { TatolabStatus } from "../backend/tatolab_backend_contract";
+import type { TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
 import { createElement, createSvgFromMarkup, setTextIfChanged } from "../dom";
 import { SETTINGS_NAVIGATION_ICON_SVG, STREAMS_NAVIGATION_ICON_SVG, TATOLAB_OUTLINED_MARK_SVG } from "../icons";
+import { presentPlatform, windowDragRegionAttribute, type PlatformPresentation } from "../presentation/platform_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 
 /** The pages the sidebar navigates between. */
 export type TatolabWindowPageName = "streams" | "settings";
 
-/** The window's sidebar: the mark, the two pages, and the runtime's state with this Mac's name. */
+/** The window's sidebar: the mark, the two pages, and the runtime's state with the machine's name. */
 export class WindowSidebarView {
   readonly element: HTMLElement;
+  private readonly platformPresentation: PlatformPresentation;
   private readonly navigationButtons: Record<TatolabWindowPageName, HTMLButtonElement>;
   private readonly streamCountBadge: HTMLElement;
   private readonly runtimePill: HTMLButtonElement;
@@ -16,7 +18,8 @@ export class WindowSidebarView {
   private readonly runtimePillStateLabel: HTMLElement;
   private readonly runtimePillMachineName: HTMLElement;
 
-  constructor(onNavigate: (pageName: TatolabWindowPageName) => void) {
+  constructor(onNavigate: (pageName: TatolabWindowPageName) => void, platform: TatolabPlatform) {
+    this.platformPresentation = presentPlatform(platform);
     this.streamCountBadge = createElement("span", { class: "window-sidebar-count-badge", hidden: true });
     this.navigationButtons = {
       streams: createElement(
@@ -47,8 +50,12 @@ export class WindowSidebarView {
     );
 
     this.element = createElement("nav", { class: "window-sidebar", "aria-label": "Tatolab" }, [
-      createElement("div", { class: "window-sidebar-traffic-light-band", "data-tauri-drag-region": "" }),
-      createElement("div", { class: "window-sidebar-brand", "data-tauri-drag-region": "deep" }, [
+      this.platformPresentation.hasOverlayTitleBar &&
+        createElement("div", {
+          class: "window-sidebar-traffic-light-band",
+          "data-tauri-drag-region": windowDragRegionAttribute(platform, "self"),
+        }),
+      createElement("div", { class: "window-sidebar-brand", "data-tauri-drag-region": windowDragRegionAttribute(platform, "deep") }, [
         createSvgFromMarkup(TATOLAB_OUTLINED_MARK_SVG),
         createElement("span", { class: "window-sidebar-wordmark" }, ["Tatolab"]),
       ]),
@@ -56,7 +63,7 @@ export class WindowSidebarView {
         this.navigationButtons.streams,
         this.navigationButtons.settings,
       ]),
-      createElement("div", { class: "window-sidebar-spacer", "data-tauri-drag-region": "" }),
+      createElement("div", { class: "window-sidebar-spacer", "data-tauri-drag-region": windowDragRegionAttribute(platform, "self") }),
       this.runtimePill,
     ]);
   }
@@ -82,8 +89,11 @@ export class WindowSidebarView {
     this.runtimePillDot.classList.toggle("status-dot-live", presentation.displayState === "running");
     this.runtimePillDot.classList.toggle("status-dot-breathing", presentation.displayState === "starting");
     setTextIfChanged(this.runtimePillStateLabel, presentation.shortLabel);
-    setTextIfChanged(this.runtimePillMachineName, status.machine_name ?? "This Mac");
+    setTextIfChanged(this.runtimePillMachineName, status.machine_name ?? this.platformPresentation.thisMachineAtSentenceStart);
     this.runtimePillMachineName.dataset.machineNameKnown = String(status.machine_name !== null);
-    this.runtimePill.setAttribute("aria-label", `Runtime ${presentation.shortLabel.toLowerCase()} on ${status.machine_name ?? "this Mac"}`);
+    this.runtimePill.setAttribute(
+      "aria-label",
+      `Runtime ${presentation.shortLabel.toLowerCase()} on ${status.machine_name ?? this.platformPresentation.thisMachineMidSentence}`,
+    );
   }
 }

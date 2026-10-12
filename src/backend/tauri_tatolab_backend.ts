@@ -21,6 +21,9 @@ export function createTauriTatolabBackend(): TatolabBackend {
     quitTatolabApp: async () => {
       await invoke<null>("quit_tatolab_app");
     },
+    uninstallTatolab: async () => {
+      await invoke<null>("uninstall_tatolab");
+    },
     readStreamLogRecords: (streamName, afterSequence) =>
       invoke<StreamLogRecordsPage>("read_stream_log_records", { stream: streamName, after: afterSequence }),
     describeStreamGraph: (streamName) => invoke<StreamGraphSummary>("describe_stream_graph", { stream: streamName }),

@@ -1,13 +1,10 @@
 import {
-  FAILED_DEPTH_OVERLAY_STREAM,
-  LOBBY_RECORDER_STREAM,
-  MOCK_MACHINE_NAME,
+  createMockStreamFixtures,
   type MockLiveLogWriter,
   type MockLogRecordDraft,
+  type MockMachine,
   type MockStreamFixture,
   stampMockLogRecord,
-  STOPPED_STUDIO_MIC_STREAM,
-  TEST_PATTERN_STREAM,
 } from "./mock_stream_fixtures";
 import type { TatolabBackend } from "./tatolab_backend";
 import type {
@@ -15,10 +12,11 @@ import type {
   StreamGraphSummary,
   StreamLogRecord,
   StreamLogRecordsPage,
+  TatolabPlatform,
   TatolabStatus,
 } from "./tatolab_backend_contract";
 
-/** Browser-only stand-ins for the app backend, picked with `?state=`. */
+/** Browser-only stand-ins for the app backend, picked with `?state=`; `approval` exists only on macOS. */
 export type MockTatolabScenario =
   | "running"
   | "empty"
@@ -43,6 +41,8 @@ const MOCK_TATOLAB_SCENARIOS: readonly MockTatolabScenario[] = [
 const MOCK_COMMAND_LATENCY_MILLISECONDS = 30;
 const MOCK_RUNTIME_STARTUP_MILLISECONDS = 2400;
 const MOCK_ADMINISTRATOR_PROMPT_MILLISECONDS = 1600;
+/** How long the mock administrator takes to answer the prompt an uninstall shows, long enough to see the sheet wait. */
+const MOCK_UNINSTALL_ADMINISTRATOR_PROMPT_MILLISECONDS = 4000;
 const MOCK_LIVE_TICK_MILLISECONDS = 700;
 const MOCK_STREAM_SETTLE_MILLISECONDS = 1600;
 /** How long the test pattern stream has been running when the window opens. */
@@ -53,11 +53,29 @@ const MOCK_LOBBY_RECORDER_DETACHED_MILLISECONDS = 12_000;
 const MOCK_RECORDS_PAGE_SIZE = 500;
 const MOST_MOCK_RECORDS_HELD = 4000;
 
-/** The scenario `?state=` names; `running` when it names none this mock knows. */
-export function readMockTatolabScenario(pageQuery: URLSearchParams): MockTatolabScenario {
-  const requestedScenario = pageQuery.get("state");
-  return MOCK_TATOLAB_SCENARIOS.find((scenario) => scenario === requestedScenario) ?? "running";
+/** What the page's query asks of the mock. */
+export interface MockTatolabOptions {
+  scenario: MockTatolabScenario;
+  platform: TatolabPlatform;
+  /** `?uninstall=cancel`: the administrator cancels the prompt an uninstall shows, so the uninstall is refused. */
+  isUninstallPromptCancelled: boolean;
 }
+
+/**
+ * `?platform=` (`macos` unless it names `linux`), the scenario `?state=` names (`running` when it names none this
+ * mock knows on that platform), and `?uninstall=`.
+ */
+export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabOptions {
+  const platform: TatolabPlatform = pageQuery.get("platform") === "linux" ? "linux" : "macos";
+  const requestedScenario = pageQuery.get("state");
+  const scenario = MOCK_TATOLAB_SCENARIOS.find(
+    (knownScenario) => knownScenario === requestedScenario && !(platform === "linux" && knownScenario === "approval"),
+  );
+  return { scenario: scenario ?? "running", platform, isUninstallPromptCancelled: pageQuery.get("uninstall") === "cancel" };
+}
+
+const LINUX_INSTALL_COMMAND = "curl -fsSL https://get.tatolab.com/install.sh | sh";
+const LINUX_UNINSTALL_COMMAND = "curl -fsSL https://get.tatolab.com/install.sh | sh -s -- --uninstall";
 
 interface MockLoadedStream {
   fixture: MockStreamFixture;
@@ -69,16 +87,17 @@ interface MockLoadedStream {
   nextSequence: number;
 }
 
-function initialMockStatus(scenario: MockTatolabScenario): TatolabStatus {
+function initialMockStatus(scenario: MockTatolabScenario, platform: TatolabPlatform, machine: MockMachine): TatolabStatus {
   const runningStatus: TatolabStatus = {
     app_version: "0.45.0",
+    platform,
     run_tatolab: true,
     runtime_agent: "enabled",
     runtime_state: "running",
-    machine_name: MOCK_MACHINE_NAME,
+    machine_name: machine.name,
     streams: [],
     machine_setup_state: "complete",
-    command_line_tool_linked_at: "/usr/local/bin/tatolab",
+    command_line_tool_linked_at: machine.commandLineToolLinkedAt,
   };
   switch (scenario) {
     case "running":
@@ -94,6 +113,17 @@ function initialMockStatus(scenario: MockTatolabScenario): TatolabStatus {
     case "unreachable":
       return { ...runningStatus, runtime_state: "unreachable", streams: null };
     case "setup":
+      if (platform === "linux") {
+        return {
+          ...runningStatus,
+          run_tatolab: false,
+          runtime_agent: "not_found",
+          runtime_state: "stopped",
+          machine_name: null,
+          streams: null,
+          command_line_tool_linked_at: null,
+        };
+      }
       return {
         ...runningStatus,
         runtime_agent: "not_registered",
@@ -111,12 +141,13 @@ function sleep(milliseconds: number): Promise<void> {
 }
 
 /** A backend whose commands change its own state and whose streams log on their own, so the window works in a browser. */
-export function createMockTatolabBackend(scenario: MockTatolabScenario): TatolabBackend {
+export function createMockTatolabBackend({ scenario, platform, isUninstallPromptCancelled }: MockTatolabOptions): TatolabBackend {
+  const fixtures = createMockStreamFixtures(platform);
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const loadedStreams = new Map<string, MockLoadedStream>();
   const listedStreamsNotLoaded: ListedStream[] =
-    scenario === "failed" ? [FAILED_DEPTH_OVERLAY_STREAM.listing, STOPPED_STUDIO_MIC_STREAM.listing] : [];
-  let mockStatus = initialMockStatus(scenario);
+    scenario === "failed" ? [fixtures.failedDepthOverlayStream.listing, fixtures.stoppedStudioMicStream.listing] : [];
+  let mockStatus = initialMockStatus(scenario, platform, fixtures.machine);
   let isLoginItemsApproved = scenario !== "approval";
   let runtimeUpSinceMilliseconds: number | null = null;
   let loadedStreamInstanceCount = 3;
@@ -185,9 +216,9 @@ export function createMockTatolabBackend(scenario: MockTatolabScenario): Tatolab
     if (runtimeUpSinceMilliseconds === null) return;
     const now = Date.now();
     const lobbyRecorderShouldBeAttached = isLobbyRecorderAttachedAt(now - runtimeUpSinceMilliseconds);
-    const lobbyRecorderIsAttached = loadedStreams.has(LOBBY_RECORDER_STREAM.listing.name);
-    if (lobbyRecorderShouldBeAttached && !lobbyRecorderIsAttached) loadStream(LOBBY_RECORDER_STREAM, now);
-    if (!lobbyRecorderShouldBeAttached && lobbyRecorderIsAttached) loadedStreams.delete(LOBBY_RECORDER_STREAM.listing.name);
+    const lobbyRecorderIsAttached = loadedStreams.has(fixtures.lobbyRecorderStream.listing.name);
+    if (lobbyRecorderShouldBeAttached && !lobbyRecorderIsAttached) loadStream(fixtures.lobbyRecorderStream, now);
+    if (!lobbyRecorderShouldBeAttached && lobbyRecorderIsAttached) loadedStreams.delete(fixtures.lobbyRecorderStream.listing.name);
     for (const loadedStream of loadedStreams.values()) advanceStreamLog(loadedStream, now - loadedStream.loadedAtMilliseconds);
     if (lobbyRecorderShouldBeAttached !== lobbyRecorderIsAttached) publishStatus({ streams: listStreams() });
   };
@@ -195,10 +226,10 @@ export function createMockTatolabBackend(scenario: MockTatolabScenario): Tatolab
   const bringRuntimeUp = (): void => {
     runtimeUpSinceMilliseconds = Date.now();
     loadedStreams.clear();
-    if (scenario !== "empty") loadStream(TEST_PATTERN_STREAM, Date.now() - MOCK_TEST_PATTERN_UPTIME_MILLISECONDS);
+    if (scenario !== "empty") loadStream(fixtures.testPatternStream, Date.now() - MOCK_TEST_PATTERN_UPTIME_MILLISECONDS);
     window.clearInterval(liveTickTimer);
     liveTickTimer = window.setInterval(runLiveTick, MOCK_LIVE_TICK_MILLISECONDS);
-    publishStatus({ runtime_state: "running", machine_name: MOCK_MACHINE_NAME, streams: listStreams() });
+    publishStatus({ runtime_state: "running", machine_name: fixtures.machine.name, streams: listStreams() });
   };
 
   const takeRuntimeDown = (statusChanges: Partial<TatolabStatus>): void => {
@@ -245,6 +276,9 @@ export function createMockTatolabBackend(scenario: MockTatolabScenario): Tatolab
     },
     setRunTatolab: async (enabled) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (platform === "linux" && mockStatus.runtime_agent === "not_found") {
+        throw `tatolabd.service is not installed; install the runtime with \`${LINUX_INSTALL_COMMAND}\``;
+      }
       if (!enabled) {
         takeRuntimeDown({ run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped" });
       } else if (!isLoginItemsApproved) {
@@ -255,20 +289,32 @@ export function createMockTatolabBackend(scenario: MockTatolabScenario): Tatolab
     },
     openLoginItemsSettings: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (platform === "linux") throw "Login Items are a macOS setting";
       if (isLoginItemsApproved) return;
       isLoginItemsApproved = true;
       window.setTimeout(startRuntime, MOCK_ADMINISTRATOR_PROMPT_MILLISECONDS);
     },
     setUpTatolab: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (platform === "linux") throw "Linux needs no administrator setup";
       publishStatus({ machine_setup_state: "waiting_for_administrator" });
       window.setTimeout(() => {
-        publishStatus({ machine_setup_state: "complete", command_line_tool_linked_at: "/usr/local/bin/tatolab" });
+        publishStatus({ machine_setup_state: "complete", command_line_tool_linked_at: fixtures.machine.commandLineToolLinkedAt });
         startRuntime();
       }, MOCK_ADMINISTRATOR_PROMPT_MILLISECONDS);
     },
     quitTatolabApp: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+    },
+    uninstallTatolab: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (platform === "linux") {
+        throw `remove the runtime with \`${LINUX_UNINSTALL_COMMAND}\`, then this app with your package manager`;
+      }
+      await sleep(MOCK_UNINSTALL_ADMINISTRATOR_PROMPT_MILLISECONDS);
+      if (isUninstallPromptCancelled) throw "the administrator prompt was cancelled, so nothing was removed";
+      publishStatus({ machine_setup_state: "needs_administrator", command_line_tool_linked_at: null });
+      takeRuntimeDown({ run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped" });
     },
     readStreamLogRecords: async (streamName, afterSequence): Promise<StreamLogRecordsPage> => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

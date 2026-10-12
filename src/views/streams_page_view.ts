@@ -1,7 +1,8 @@
 import type { TatolabBackend } from "../backend/tatolab_backend";
-import type { ListedStream, TatolabStatus } from "../backend/tatolab_backend_contract";
+import type { ListedStream, TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
 import { createElement, createSvgFromMarkup, setTextIfChanged } from "../dom";
 import { MACHINE_ICON_SVG, RUNTIME_STATE_FIGURE_SVG } from "../icons";
+import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { presentRuntimeStatus, type RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
 import { countLabel } from "../presentation/stream_presentation";
 import { chooseSelectedStreamName } from "../presentation/stream_selection";
@@ -75,7 +76,10 @@ export class StreamsPageView implements TatolabWindowPage {
   private listedStreams: ListedStream[] = [];
   private isPageShown = false;
 
-  constructor(private readonly backend: TatolabBackend) {
+  constructor(
+    private readonly backend: TatolabBackend,
+    private readonly platform: TatolabPlatform,
+  ) {
     this.runtimeStateDot = createElement("span", { class: "status-dot", "aria-hidden": "true" });
     this.runtimeStateLabel = createElement("span", { class: "runtime-fact-state-label" });
     this.runtimeStateFact = createElement("span", { class: "runtime-fact runtime-fact-state" }, [
@@ -83,17 +87,18 @@ export class StreamsPageView implements TatolabWindowPage {
       this.runtimeStateLabel,
     ]);
     this.machineNameLabel = createElement("span", { class: "runtime-fact-machine-name" });
-    this.machineNameFact = createElement("span", { class: "runtime-fact runtime-fact-machine", title: "This Mac's name" }, [
-      createSvgFromMarkup(MACHINE_ICON_SVG),
-      this.machineNameLabel,
-    ]);
+    this.machineNameFact = createElement(
+      "span",
+      { class: "runtime-fact runtime-fact-machine", title: `${presentPlatform(platform).thisMachineAtSentenceStart}'s name` },
+      [createSvgFromMarkup(MACHINE_ICON_SVG), this.machineNameLabel],
+    );
     this.streamCountFact = createElement("span", { class: "runtime-fact runtime-fact-count" });
     this.nodeCountFact = createElement("span", { class: "runtime-fact runtime-fact-count runtime-fact-node-count" });
     this.appVersionFact = createElement("span", { class: "runtime-fact runtime-fact-version" });
 
     this.bannerSlot = createElement("div", { class: "runtime-banner-slot" });
     this.streamList = new StreamListView((streamName) => this.chooseStream(streamName));
-    this.streamDetail = new StreamDetailView(backend);
+    this.streamDetail = new StreamDetailView(backend, platform);
     this.streamsSplit = createElement("div", { class: "streams-split" }, [
       this.streamList.element,
       createElement("div", { class: "stream-detail-pane" }, [this.streamDetail.element]),
@@ -101,7 +106,7 @@ export class StreamsPageView implements TatolabWindowPage {
     this.pageBody = createElement("div", { class: "streams-page-body" });
 
     this.element = createElement("section", { class: "window-page streams-page", "aria-labelledby": "streams-page-title" }, [
-      createElement("header", { class: "page-top-band", "data-tauri-drag-region": "deep" }, [
+      createElement("header", { class: "page-top-band", "data-tauri-drag-region": windowDragRegionAttribute(platform, "deep") }, [
         createElement("h1", { class: "page-title", id: "streams-page-title" }, ["Streams"]),
         createElement("div", { class: "runtime-facts", "aria-label": "Runtime" }, [
           this.runtimeStateFact,
@@ -210,7 +215,7 @@ export class StreamsPageView implements TatolabWindowPage {
         this.pageBody.replaceChildren(this.streamsSplit);
         break;
       case "first_stream_guide":
-        this.firstStreamGuide = createFirstStreamGuide();
+        this.firstStreamGuide = createFirstStreamGuide(this.platform);
         this.pageBody.replaceChildren(this.firstStreamGuide.element);
         break;
       case "runtime_not_running":

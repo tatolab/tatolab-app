@@ -124,6 +124,38 @@ code {
   filter: brightness(0.95);
 }
 
+/* A destructive action's last, confirming step. */
+.button-destructive {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 1px 2px rgba(217, 45, 32, 0.24);
+}
+
+.button-destructive:hover {
+  border-color: var(--danger);
+  filter: brightness(1.08);
+}
+
+.button-destructive:active {
+  background: var(--danger);
+  filter: brightness(0.95);
+}
+
+/* The way into a destructive action: said in red, drawn as plainly as any other button. */
+.button-quiet-destructive {
+  color: var(--error);
+}
+
+.button-quiet-destructive:hover {
+  border-color: color-mix(in srgb, var(--error) 45%, var(--line-2));
+  background: var(--error-soft);
+}
+
+.button-quiet-destructive:active {
+  background: color-mix(in srgb, var(--error) 14%, var(--panel));
+}
+
 .button-large {
   height: 36px;
   padding: 0 18px;
@@ -311,6 +343,40 @@ code {
   color: var(--ink);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* A command too long for one line, broken where a shell would continue it. */
+.terminal-command-continued {
+  align-items: flex-start;
+  padding-block: 8px;
+}
+
+.terminal-command-continued .terminal-command-prompt {
+  line-height: 18px;
+}
+
+.terminal-command-continued code {
+  line-height: 18px;
+  white-space: pre;
+  text-overflow: clip;
+}
+
+.terminal-command-continued .copy-button {
+  align-self: center;
+}
+
+/* ---------- a numbered step ---------- */
+.numbered-step-marker {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  color: var(--ink-2);
+  font: 600 11px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- spinner ---------- */

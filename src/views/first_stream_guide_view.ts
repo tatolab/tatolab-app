@@ -1,4 +1,4 @@
-import type { StreamGraphSummary } from "../backend/tatolab_backend_contract";
+import type { StreamGraphSummary, TatolabPlatform } from "../backend/tatolab_backend_contract";
 import { createElement } from "../dom";
 import { createTerminalCommand } from "./copy_button";
 import { StreamGraphView } from "./stream_graph_view";
@@ -23,8 +23,8 @@ const TEST_PATTERN_SCAFFOLD_GRAPH: StreamGraphSummary = {
 };
 
 /** What the Streams page shows while the runtime runs no streams: the three commands to a first one. */
-export function createFirstStreamGuide(): { element: HTMLElement; dispose(): void } {
-  const scaffoldPreview = new StreamGraphView("my-stream", true);
+export function createFirstStreamGuide(platform: TatolabPlatform): { element: HTMLElement; dispose(): void } {
+  const scaffoldPreview = new StreamGraphView("my-stream", platform, true);
   scaffoldPreview.showGraph(TEST_PATTERN_SCAFFOLD_GRAPH);
   const element = createElement("div", { class: "first-stream-guide" }, [
     createElement("div", { class: "first-stream-guide-column" }, [
@@ -38,7 +38,7 @@ export function createFirstStreamGuide(): { element: HTMLElement; dispose(): voi
         { class: "first-stream-guide-steps", "aria-label": "Commands to run in Terminal" },
         FIRST_STREAM_COMMANDS.map((commandText, stepIndex) =>
           createElement("li", { class: "first-stream-guide-step" }, [
-            createElement("span", { class: "first-stream-guide-step-number", "aria-hidden": "true" }, [String(stepIndex + 1)]),
+            createElement("span", { class: "numbered-step-marker", "aria-hidden": "true" }, [String(stepIndex + 1)]),
             createTerminalCommand(commandText),
           ]),
         ),

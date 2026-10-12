@@ -1,10 +1,16 @@
-/** What Service Management says about the runtime's launch agent. */
+/** The platform the app runs on, which decides the window's chrome and how Tatolab is installed and removed. */
+export type TatolabPlatform = "macos" | "linux";
+
+/**
+ * What the service manager says about the runtime: Service Management's launch agent on macOS; on Linux the
+ * systemd user unit `tatolabd.service`, enabled, installed but disabled, or absent, and never `requires_approval`.
+ */
 export type RuntimeAgentRegistration = "enabled" | "requires_approval" | "not_registered" | "not_found";
 
 /** Whether the runtime answers its local API. */
 export type RuntimeState = "running" | "starting" | "stopped" | "unreachable";
 
-/** Whether first-launch machine setup still needs the administrator prompt. */
+/** Whether first-launch machine setup still needs the administrator prompt; always `complete` on Linux. */
 export type MachineSetupState = "complete" | "needs_administrator" | "waiting_for_administrator";
 
 /** One stream the runtime lists. `state` is attached, kept, stopped or failed, or a state newer than this app. */
@@ -20,6 +26,7 @@ export interface ListedStream {
 /** What `get_tatolab_status` answers and `tatolab-status-changed` carries. */
 export interface TatolabStatus {
   app_version: string;
+  platform: TatolabPlatform;
   run_tatolab: boolean;
   runtime_agent: RuntimeAgentRegistration;
   runtime_state: RuntimeState;
@@ -27,6 +34,7 @@ export interface TatolabStatus {
   /** `null` when the streams were not listed: the runtime is down or listing them failed. */
   streams: ListedStream[] | null;
   machine_setup_state: MachineSetupState;
+  /** `/usr/local/bin/tatolab` on macOS once linked; on Linux the absolute path of `~/.local/bin/tatolab` while it exists. */
   command_line_tool_linked_at: string | null;
 }
 

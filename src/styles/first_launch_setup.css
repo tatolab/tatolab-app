@@ -144,3 +144,42 @@
   color: var(--error);
   font-size: 13px;
 }
+
+/* ---------- Linux: the installer's one line, and the wait for its service ---------- */
+.linux-runtime-install {
+  padding-top: 40px;
+}
+
+.linux-runtime-install .first-launch-setup-column {
+  max-width: 480px;
+}
+
+.linux-runtime-install-command {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: stretch;
+  margin-top: 24px;
+}
+
+.linux-runtime-install-command-label {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+/* The command is this screen's one action, so it stands at the size of the button it replaces. */
+.linux-runtime-install-command .terminal-command {
+  min-height: 40px;
+  padding-left: 14px;
+  font-size: 12.5px;
+}
+
+.linux-runtime-install-waiting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
