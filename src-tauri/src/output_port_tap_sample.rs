@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::tapped_bag_frame_header::{read_tapped_bag_frame_header, tapped_bag_payload};
+use crate::tapped_bag_frame_header::read_tapped_bag_frame;
 use crate::tapped_bag_payload_fields::{
     decode_tapped_bag_payload, displayed_payload_fields, surface_id_named_by_the_payload,
 };
@@ -17,7 +17,7 @@ use crate::tapped_bag_payload_fields::{
 pub struct TapSample {
     /// The output port's address as the runtime answered it, `<stream>/<node>/<port>`.
     pub channel: String,
-    pub received: usize,
+    pub received: u64,
     /// Bags the tap dropped because the sample fell behind the channel.
     pub dropped_bags: u64,
     /// The longest the runtime waited to fill the sample.
@@ -47,7 +47,7 @@ pub struct TapSampleBag {
 #[derive(Deserialize)]
 struct TapToolResultOnTheWire {
     channel: String,
-    received: usize,
+    received: u64,
     window_ms: u64,
     dropped_bags: u64,
     #[serde(default)]
@@ -134,8 +134,8 @@ fn decode_tapped_bag_into(
     hex_preview: &str,
 ) -> Result<(), String> {
     let bag_bytes = bytes_from_tap_tool_hex(hex_preview)?;
-    let frame_header = read_tapped_bag_frame_header(&bag_bytes)?;
-    tap_sample_bag.timestamp_ns = Some(frame_header.timestamp_ns);
+    let tapped_bag_frame = read_tapped_bag_frame(&bag_bytes)?;
+    tap_sample_bag.timestamp_ns = Some(tapped_bag_frame.timestamp_ns);
     if tap_sample_bag.hex_truncated {
         return Err(format!(
             "the tap returned the first {} of the bag's {} bytes, so its payload was not decoded",
@@ -143,7 +143,7 @@ fn decode_tapped_bag_into(
             tap_sample_bag.byte_len
         ));
     }
-    let payload = decode_tapped_bag_payload(tapped_bag_payload(&bag_bytes, &frame_header)?)?;
+    let payload = decode_tapped_bag_payload(tapped_bag_frame.payload()?)?;
     tap_sample_bag.surface_id = surface_id_named_by_the_payload(&payload);
     tap_sample_bag.fields = displayed_payload_fields(&payload);
     Ok(())
@@ -154,11 +154,9 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-
-    /// What a real runtime's `tap` answered for 3 bags of `main/invertingeffect/video_to_downstream`.
-    const A_REAL_TAP_OF_THREE_VIDEO_BAGS: &str = include_str!(
-        "../test-fixtures/local-api-tap-tool-result-of-main-invertingeffect-video_to_downstream-3-bags.json"
-    );
+    use crate::fake_local_api_server::{
+        tap_tool_result_holding, the_real_tapped_bag_hex, A_REAL_TAP_OF_THREE_VIDEO_BAGS,
+    };
 
     fn video_frame_fields(surface_id: &str, payload_timestamp_ns: &str) -> Vec<(String, String)> {
         [
@@ -171,29 +169,6 @@ mod tests {
         .into_iter()
         .map(|(key, display_text)| (key.to_string(), display_text.to_string()))
         .collect()
-    }
-
-    fn tap_tool_result_holding(bags: serde_json::Value) -> String {
-        json!({
-            "channel": "main/invertingeffect/video_to_downstream",
-            "requested": 1,
-            "received": 1,
-            "window_ms": 500,
-            "dropped_bags": 0,
-            "max_bag_bytes": 65536,
-            "bags_withheld_at_byte_budget": 0,
-            "bags": bags
-        })
-        .to_string()
-    }
-
-    fn the_first_real_bags_hex() -> String {
-        let tap_tool_result: serde_json::Value =
-            serde_json::from_str(A_REAL_TAP_OF_THREE_VIDEO_BAGS).unwrap();
-        tap_tool_result["bags"][0]["hex_preview"]
-            .as_str()
-            .unwrap()
-            .to_string()
     }
 
     #[test]
@@ -255,11 +230,14 @@ mod tests {
 
     #[test]
     fn a_truncated_bag_keeps_its_timestamp_and_says_why_its_payload_was_not_decoded() {
-        let first_100_bytes_of_hex = &the_first_real_bags_hex()[..200];
+        let first_100_bytes_of_hex = &the_real_tapped_bag_hex(0)[..200];
 
-        let tap_sample = tap_sample_from_the_tap_tool_result(&tap_tool_result_holding(json!([
-            { "byte_len": 226, "hex_preview": first_100_bytes_of_hex, "hex_truncated": true }
-        ])))
+        let tap_sample = tap_sample_from_the_tap_tool_result(
+            &tap_tool_result_holding(json!([
+                { "byte_len": 226, "hex_preview": first_100_bytes_of_hex, "hex_truncated": true }
+            ]))
+            .to_string(),
+        )
         .unwrap();
 
         assert_eq!(
@@ -281,12 +259,15 @@ mod tests {
 
     #[test]
     fn a_bag_that_does_not_decode_says_why_and_the_rest_of_the_sample_still_reads() {
-        let tap_sample = tap_sample_from_the_tap_tool_result(&tap_tool_result_holding(json!([
-            { "byte_len": 2, "hex_preview": "zz", "hex_truncated": false },
-            { "byte_len": 3, "hex_preview": "abc", "hex_truncated": false },
-            { "byte_len": 2, "hex_preview": "0102", "hex_truncated": false },
-            { "byte_len": 226, "hex_preview": the_first_real_bags_hex(), "hex_truncated": false }
-        ])))
+        let tap_sample = tap_sample_from_the_tap_tool_result(
+            &tap_tool_result_holding(json!([
+                { "byte_len": 2, "hex_preview": "zz", "hex_truncated": false },
+                { "byte_len": 3, "hex_preview": "abc", "hex_truncated": false },
+                { "byte_len": 2, "hex_preview": "0102", "hex_truncated": false },
+                { "byte_len": 226, "hex_preview": the_real_tapped_bag_hex(0), "hex_truncated": false }
+            ]))
+            .to_string(),
+        )
         .unwrap();
 
         let decode_errors: Vec<Option<&str>> = tap_sample

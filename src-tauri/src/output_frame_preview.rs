@@ -9,7 +9,7 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine as _;
 use serde::Serialize;
 
-use crate::local_api_client::{ExchangedSurfaceImage, LocalApiClient, SurfaceImageExchange};
+use crate::local_api_client::{LocalApiClient, SurfaceImageExchange};
 
 /// Tap-then-exchange rounds one preview spends before a frame recycled on every round refuses it.
 const FRAME_PREVIEW_ATTEMPTS: u32 = 3;
@@ -70,13 +70,23 @@ pub fn preview_output_frame(
             .map_err(|failure| failure.failure_description)?
         {
             SurfaceImageExchange::Exchanged(exchanged_surface_image) => {
-                return frame_preview_of(
-                    tap_sample.channel,
+                let (image_width, image_height) = png_image_dimensions(
+                    &exchanged_surface_image.png_image_bytes,
+                )
+                .ok_or_else(|| {
+                    format!("the runtime exchanged {surface_id} for bytes that are not a PNG")
+                })?;
+                return Ok(FramePreview {
+                    channel: tap_sample.channel,
+                    png_base64: BASE64_STANDARD.encode(&exchanged_surface_image.png_image_bytes),
                     surface_id,
-                    exchanged_surface_image,
-                    tapped_bag.timestamp_ns,
-                    attempt,
-                );
+                    image_width,
+                    image_height,
+                    source_width: exchanged_surface_image.source_surface_pixel_width,
+                    source_height: exchanged_surface_image.source_surface_pixel_height,
+                    timestamp_ns: tapped_bag.timestamp_ns,
+                    attempts: attempt,
+                });
             }
             SurfaceImageExchange::FrameRecycled { refusal } => tracing::debug!(
                 %refusal,
@@ -89,30 +99,6 @@ pub fn preview_output_frame(
         "every frame tapped from {channel} was recycled before it could be exchanged, \
          {FRAME_PREVIEW_ATTEMPTS} times in a row"
     ))
-}
-
-fn frame_preview_of(
-    channel: String,
-    surface_id: String,
-    exchanged_surface_image: ExchangedSurfaceImage,
-    timestamp_ns: Option<i64>,
-    attempts: u32,
-) -> Result<FramePreview, String> {
-    let (image_width, image_height) =
-        png_image_dimensions(&exchanged_surface_image.png_image_bytes).ok_or_else(|| {
-            format!("the runtime exchanged {surface_id} for bytes that are not a PNG")
-        })?;
-    Ok(FramePreview {
-        channel,
-        surface_id,
-        png_base64: BASE64_STANDARD.encode(&exchanged_surface_image.png_image_bytes),
-        image_width,
-        image_height,
-        source_width: exchanged_surface_image.source_surface_pixel_width,
-        source_height: exchanged_surface_image.source_surface_pixel_height,
-        timestamp_ns,
-        attempts,
-    })
 }
 
 /// The width and height a PNG's first chunk, its IHDR, states: after the signature come the
@@ -133,11 +119,12 @@ mod tests {
     use std::path::Path;
     use std::time::Duration;
 
-    use serde_json::{json, Value};
+    use serde_json::json;
 
     use super::*;
     use crate::fake_local_api_server::{
-        http_response, http_response_with_headers, tool_result_response, FakeLocalApiServer,
+        http_response, http_response_with_headers, tap_tool_result_holding, the_real_tapped_bag,
+        tool_result_response, FakeLocalApiServer,
     };
 
     const CHANNEL: &str = "main/invertingeffect/video_to_downstream";
@@ -152,17 +139,11 @@ mod tests {
         "../test-fixtures/local-api-surface-image-exchange-head-of-a-recycled-frame.txt"
     );
 
-    /// A real runtime's `tap` answer carrying only the fixture's bag at `bag_index`.
-    fn tap_tool_result_of_the_real_bag(bag_index: usize) -> Vec<u8> {
-        let mut tap_tool_result: Value = serde_json::from_str(include_str!(
-            "../test-fixtures/local-api-tap-tool-result-of-main-invertingeffect-video_to_downstream-3-bags.json"
-        ))
-        .unwrap();
-        let tapped_bag = tap_tool_result["bags"][bag_index].clone();
-        tap_tool_result["requested"] = json!(1);
-        tap_tool_result["received"] = json!(1);
-        tap_tool_result["bags"] = json!([tapped_bag]);
-        tool_result_response(tap_tool_result)
+    /// The runtime's answer to a one-bag tap that received the real fixture's bag at `bag_index`.
+    fn tap_answer_carrying_the_real_bag(bag_index: usize) -> Vec<u8> {
+        tool_result_response(tap_tool_result_holding(json!([the_real_tapped_bag(
+            bag_index
+        )])))
     }
 
     /// The exchange's `200`, carrying the real 640-pixel PNG of a 1280 × 720 surface.
@@ -178,31 +159,21 @@ mod tests {
         )
     }
 
-    /// The exchange's `410` for `surface_id`, as the runtime words a recycled frame.
-    fn recycled_frame_answer(surface_id: &str) -> Vec<u8> {
-        let refusal = format!(
-            "surface '{surface_id}' names a recycled frame: its pool slot has been rehanded to \
-             the producer since (this id published generation 72516, the slot is on generation \
-             72524), so the frame this id named no longer exists — a frame must be claimed at \
-             read time to outlive the pool's cycling"
-        );
-        let body = json!({ "error": refusal }).to_string();
-        assert_eq!(
-            body.len(),
-            328,
-            "the body the real head's content-length counts"
-        );
+    /// The real recycled-frame head with the 328-byte body its content-length counts: the
+    /// runtime's refusal of the real fixture's first frame.
+    fn a_real_recycled_frame_answer() -> Vec<u8> {
+        let body = json!({
+            "error": "surface 'c6ecf65b-9da5-493d-9017-9799ad80d3ff#72516' names a recycled frame: \
+                 its pool slot has been rehanded to the producer since (this id published \
+                 generation 72516, the slot is on generation 72524), so the frame this id named \
+                 no longer exists — a frame must be claimed at read time to outlive the pool's \
+                 cycling"
+        })
+        .to_string();
+        assert_eq!(body.len(), 328);
         let mut response = A_REAL_RECYCLED_FRAME_RESPONSE_HEAD.to_vec();
         response.extend_from_slice(body.as_bytes());
         response
-    }
-
-    fn tap_tool_result_holding_bags(bags: Value) -> Vec<u8> {
-        tool_result_response(json!({
-            "channel": CHANNEL, "requested": 1, "received": bags.as_array().unwrap().len(),
-            "window_ms": 500, "dropped_bags": 0, "max_bag_bytes": 65536,
-            "bags_withheld_at_byte_budget": 0, "bags": bags
-        }))
     }
 
     /// The hex of a bag whose frame header frames `payload`.
@@ -225,7 +196,7 @@ mod tests {
     #[test]
     fn a_frame_is_tapped_then_exchanged_for_its_png_at_once() {
         let server = FakeLocalApiServer::answering(vec![
-            tap_tool_result_of_the_real_bag(0),
+            tap_answer_carrying_the_real_bag(0),
             the_real_exchange_answer(),
         ]);
 
@@ -263,9 +234,9 @@ mod tests {
     #[test]
     fn a_frame_recycled_before_its_exchange_is_tapped_afresh() {
         let server = FakeLocalApiServer::answering(vec![
-            tap_tool_result_of_the_real_bag(0),
-            recycled_frame_answer("c6ecf65b-9da5-493d-9017-9799ad80d3ff#72516"),
-            tap_tool_result_of_the_real_bag(1),
+            tap_answer_carrying_the_real_bag(0),
+            a_real_recycled_frame_answer(),
+            tap_answer_carrying_the_real_bag(1),
             the_real_exchange_answer(),
         ]);
 
@@ -300,8 +271,8 @@ mod tests {
                 .into_iter()
                 .flat_map(|bag_index| {
                     [
-                        tap_tool_result_of_the_real_bag(bag_index),
-                        recycled_frame_answer("c6ecf65b-9da5-493d-9017-9799ad80d3ff#72516"),
+                        tap_answer_carrying_the_real_bag(bag_index),
+                        a_real_recycled_frame_answer(),
                     ]
                 })
                 .collect(),
@@ -320,7 +291,9 @@ mod tests {
 
     #[test]
     fn a_quiet_channel_or_bags_naming_no_frame_are_refused_in_plain_words() {
-        let quiet = FakeLocalApiServer::answering(vec![tap_tool_result_holding_bags(json!([]))]);
+        let quiet = FakeLocalApiServer::answering(vec![tool_result_response(
+            tap_tool_result_holding(json!([])),
+        )]);
         assert_eq!(
             preview_output_frame(&quiet.client(), CHANNEL, 640),
             Err(
@@ -333,9 +306,11 @@ mod tests {
             rmpv::Value::from("samples"),
             rmpv::Value::Binary(vec![0; 16]),
         )]));
-        let frameless = FakeLocalApiServer::answering(vec![tap_tool_result_holding_bags(json!([
-            { "byte_len": audio_bag.len() / 2, "hex_preview": audio_bag, "hex_truncated": false }
-        ]))]);
+        let frameless = FakeLocalApiServer::answering(vec![tool_result_response(
+            tap_tool_result_holding(json!([
+                { "byte_len": audio_bag.len() / 2, "hex_preview": audio_bag, "hex_truncated": false }
+            ])),
+        )]);
         assert_eq!(
             preview_output_frame(&frameless.client(), CHANNEL, 640),
             Err(
@@ -345,9 +320,10 @@ mod tests {
             )
         );
 
-        let unreadable = FakeLocalApiServer::answering(vec![tap_tool_result_holding_bags(json!([
-            { "byte_len": 2, "hex_preview": "0102", "hex_truncated": false }
-        ]))]);
+        let unreadable =
+            FakeLocalApiServer::answering(vec![tool_result_response(tap_tool_result_holding(
+                json!([{ "byte_len": 2, "hex_preview": "0102", "hex_truncated": false }]),
+            ))]);
         assert_eq!(
             preview_output_frame(&unreadable.client(), CHANNEL, 640),
             Err(
@@ -377,7 +353,7 @@ mod tests {
 
         let exchange_refusal = "Resource not found: no surface `c6ecf65b-9da5-493d-9017-9799ad80d3ff#72516` resolves on this node";
         let refused_exchange = FakeLocalApiServer::answering(vec![
-            tap_tool_result_of_the_real_bag(0),
+            tap_answer_carrying_the_real_bag(0),
             http_response(
                 "404 Not Found",
                 "application/json",
@@ -394,7 +370,7 @@ mod tests {
     fn the_long_edge_asked_for_is_clamped_to_64_through_1920() {
         for (long_edge_px, long_edge_pixel_cap) in [(10, 64), (640, 640), (5000, 1920)] {
             let server = FakeLocalApiServer::answering(vec![
-                tap_tool_result_of_the_real_bag(0),
+                tap_answer_carrying_the_real_bag(0),
                 the_real_exchange_answer(),
             ]);
 
@@ -412,7 +388,7 @@ mod tests {
     #[test]
     fn an_exchange_answering_bytes_that_are_not_a_png_is_refused() {
         let server = FakeLocalApiServer::answering(vec![
-            tap_tool_result_of_the_real_bag(0),
+            tap_answer_carrying_the_real_bag(0),
             http_response_with_headers("200 OK", &[("content-type", "image/png")], b"not a png"),
         ]);
 

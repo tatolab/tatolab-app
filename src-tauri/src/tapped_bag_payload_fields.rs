@@ -21,7 +21,8 @@ const DISPLAYED_ITEM_LIMIT: usize = 16;
 /// The most characters one display text keeps.
 const DISPLAYED_CHARACTER_LIMIT: usize = 512;
 
-/// The msgpack value a bag's payload holds; refused when the payload is not msgpack.
+/// The first msgpack value a bag's payload holds; refused when the payload does not start with
+/// a whole one.
 pub fn decode_tapped_bag_payload(payload: &[u8]) -> Result<Value, String> {
     let mut unread_payload = payload;
     rmpv::decode::read_value(&mut unread_payload)
@@ -360,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn bytes_that_are_not_one_whole_msgpack_value_are_refused() {
+    fn bytes_that_do_not_hold_a_whole_msgpack_value_are_refused() {
         for not_msgpack in [&[][..], &[0xd9, 0x05, b'a'][..]] {
             let failure = decode_tapped_bag_payload(not_msgpack).unwrap_err();
 

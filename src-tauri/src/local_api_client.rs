@@ -618,6 +618,7 @@ mod tests {
     use super::*;
     use crate::fake_local_api_server::{
         http_response, http_response_with_headers, tool_result_response, FakeLocalApiServer,
+        A_REAL_TAP_OF_THREE_VIDEO_BAGS,
     };
     use std::os::unix::net::UnixListener;
 
@@ -951,10 +952,7 @@ mod tests {
 
     #[test]
     fn tapping_an_output_port_asks_the_tap_tool_for_its_channel_count_and_bag_cap() {
-        let tap_tool_result: Value = serde_json::from_str(include_str!(
-            "../test-fixtures/local-api-tap-tool-result-of-main-invertingeffect-video_to_downstream-3-bags.json"
-        ))
-        .unwrap();
+        let tap_tool_result: Value = serde_json::from_str(A_REAL_TAP_OF_THREE_VIDEO_BAGS).unwrap();
         let server = FakeLocalApiServer::answering(vec![tool_result_response(tap_tool_result)]);
 
         let tap_sample = server
