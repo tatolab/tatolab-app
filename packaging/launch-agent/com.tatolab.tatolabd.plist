@@ -15,6 +15,11 @@
   </dict>
   <key>ProcessType</key>
   <string>Interactive</string>
+  <key>SoftResourceLimits</key>
+  <dict>
+    <key>NumberOfFiles</key>
+    <integer>65536</integer>
+  </dict>
   <key>AssociatedBundleIdentifiers</key>
   <array>
     <string>com.tatolab.tatolab</string>

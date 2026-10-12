@@ -169,6 +169,10 @@ verify_app_bundle() {
       && pass "launch agent BundleProgram is the bundled tatolabd" || fail "launch agent BundleProgram is '$bundle_program'"
     [ "$(plutil -extract AssociatedBundleIdentifiers.0 raw -o - "$launch_agent_plist" 2>/dev/null)" = com.tatolab.tatolab ] \
       && pass "launch agent is associated with com.tatolab.tatolab" || fail "launch agent is not associated with com.tatolab.tatolab"
+    # launchd gives an agent 256 open files by default; a runtime with a few streams needs more.
+    agent_open_files_limit="$(plutil -extract SoftResourceLimits.NumberOfFiles raw -o - "$launch_agent_plist" 2>/dev/null || echo 0)"
+    [ "$agent_open_files_limit" -ge 10240 ] \
+      && pass "launch agent may open $agent_open_files_limit files" || fail "launch agent's SoftResourceLimits.NumberOfFiles is ${agent_open_files_limit}, below 10240"
     if plutil -extract EnvironmentVariables.TATOLAB_TEST_MACHINE_ROOT raw -o - "$launch_agent_plist" >/dev/null 2>&1 \
       || [ -e "$contents/Resources/machine-directories-under-a-test-root" ]; then
       if $shipping; then
