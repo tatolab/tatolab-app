@@ -23,12 +23,15 @@
   --amber-soft: rgba(224, 165, 38, 0.13);
   --error: #d92d20;
   --error-soft: rgba(217, 45, 32, 0.08);
+  /* The one filled destructive button; white on it holds 4.8:1 in both themes. */
+  --danger: #d92d20;
   --idle: #a1a1aa;
   --selection: rgba(17, 17, 19, 0.055);
   --hover: rgba(17, 17, 19, 0.035);
   --graph-grid-dot: rgba(17, 17, 19, 0.085);
   --console: #fafafb;
   --shadow-raised: 0 1px 2px rgba(17, 17, 19, 0.05), 0 6px 20px -10px rgba(17, 17, 19, 0.16);
+  --shadow-sheet: 0 2px 6px rgba(17, 17, 19, 0.06), 0 28px 64px -18px rgba(17, 17, 19, 0.34);
   --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -62,6 +65,7 @@
     --graph-grid-dot: rgba(237, 237, 240, 0.075);
     --console: #111114;
     --shadow-raised: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    --shadow-sheet: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 32px 72px -16px rgba(0, 0, 0, 0.78);
     color-scheme: dark;
   }
 }
@@ -92,5 +96,6 @@
   --graph-grid-dot: rgba(237, 237, 240, 0.075);
   --console: #111114;
   --shadow-raised: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  --shadow-sheet: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 32px 72px -16px rgba(0, 0, 0, 0.78);
   color-scheme: dark;
 }

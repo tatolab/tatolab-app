@@ -14,6 +14,7 @@ import "./styles/stream_log_console.css";
 import "./styles/first_stream_guide.css";
 import "./styles/settings_page.css";
 import "./styles/first_launch_setup.css";
+import "./styles/uninstall_sheet.css";
 
 import { isRunningInsideTauri, type TatolabBackend } from "./backend/tatolab_backend";
 import type { TatolabStatus } from "./backend/tatolab_backend_contract";

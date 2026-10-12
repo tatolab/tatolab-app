@@ -8,6 +8,7 @@ import { LinuxRuntimeInstallView } from "./linux_runtime_install_view";
 import { SettingsPageView } from "./settings_page_view";
 import { StreamsPageView } from "./streams_page_view";
 import type { TatolabWindowPage } from "./tatolab_window_page";
+import { UninstallSheetView } from "./uninstall_sheet_view";
 import { WindowSidebarView, type TatolabWindowPageName } from "./window_sidebar_view";
 
 /** What fills the window until Tatolab can run here: macOS's administrator setup, or Linux's installer. */
@@ -24,7 +25,10 @@ export function mountTatolabWindow(
 ): (status: TatolabStatus) => void {
   document.documentElement.dataset.platform = platform;
   const streamsPage = new StreamsPageView(backend, platform);
-  const settingsPage = new SettingsPageView(backend, platform);
+  const settingsPage = new SettingsPageView(backend, platform, () => uninstallSheet.open());
+  const uninstallSheet = new UninstallSheetView(backend, platform, (flowState) =>
+    settingsPage.showUninstallTatolabRefusal(flowState.phase === "closed" ? flowState.refusalReason : null),
+  );
   const pages: Record<TatolabWindowPageName, TatolabWindowPage> = { streams: streamsPage, settings: settingsPage };
   const setupScreen: PlatformSetupScreen =
     platform === "linux" ? new LinuxRuntimeInstallView() : new FirstLaunchSetupView(backend);
@@ -65,14 +69,15 @@ export function mountTatolabWindow(
   }
 
   document.addEventListener("keydown", (keyboardEvent) => {
-    if (isShowingSetupScreen || !holdsWindowShortcutModifier(platform, keyboardEvent)) return;
+    if (isShowingSetupScreen || uninstallSheet.isOpen() || !holdsWindowShortcutModifier(platform, keyboardEvent)) return;
     if (runWindowShortcut(keyboardEvent.key)) keyboardEvent.preventDefault();
   });
 
+  document.body.append(uninstallSheet.element);
   showPage(currentPageName);
 
   return (status) => {
-    isShowingSetupScreen = chooseTatolabWindowScreen(status) === "setup";
+    isShowingSetupScreen = !uninstallSheet.isUninstallUnderway() && chooseTatolabWindowScreen(status) === "setup";
     const shownElement = isShowingSetupScreen ? setupScreen.element : windowShell;
     if (rootElement.firstElementChild !== shownElement) rootElement.replaceChildren(shownElement);
     setupScreen.showStatus?.(status);

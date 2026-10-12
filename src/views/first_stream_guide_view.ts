@@ -38,7 +38,7 @@ export function createFirstStreamGuide(platform: TatolabPlatform): { element: HT
         { class: "first-stream-guide-steps", "aria-label": "Commands to run in Terminal" },
         FIRST_STREAM_COMMANDS.map((commandText, stepIndex) =>
           createElement("li", { class: "first-stream-guide-step" }, [
-            createElement("span", { class: "first-stream-guide-step-number", "aria-hidden": "true" }, [String(stepIndex + 1)]),
+            createElement("span", { class: "numbered-step-marker", "aria-hidden": "true" }, [String(stepIndex + 1)]),
             createTerminalCommand(commandText),
           ]),
         ),

@@ -56,6 +56,15 @@ describe("presentPlatform", () => {
     expect(presentPlatform("linux").runTatolabExplanation).toMatch(/^Runs tatolabd\.service, your systemd user service, at login/);
   });
 
+  it("says what uninstalling does: macOS's app does it, Linux points at the installer and the package manager", () => {
+    expect(presentPlatform("macos").uninstallTatolabExplanation).toBe(
+      "Stops the runtime and removes Tatolab from this Mac. Your streams' records stay.",
+    );
+    expect(presentPlatform("linux").uninstallTatolabExplanation).toBe(
+      "The installer removes the runtime, and your package manager removes this app. Your streams' records stay.",
+    );
+  });
+
   it("names the machine, and where the app's icon lives, as each platform does", () => {
     expect(presentPlatform("macos").thisMachineAtSentenceStart).toBe("This Mac");
     expect(presentPlatform("linux").thisMachineAtSentenceStart).toBe("This computer");

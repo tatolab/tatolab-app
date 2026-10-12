@@ -53,19 +53,6 @@
   gap: 12px;
 }
 
-.first-stream-guide-step-number {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1px var(--line-2);
-  color: var(--ink-2);
-  font: 600 11px/1 var(--font-sans);
-  font-variant-numeric: tabular-nums;
-}
-
 .first-stream-guide-step .terminal-command {
   flex: 1;
   min-width: 0;

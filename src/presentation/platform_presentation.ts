@@ -18,6 +18,7 @@ export interface PlatformPresentation {
   thisMachineMidSentence: string;
   runTatolabExplanation: string;
   quitTatolabExplanation: string;
+  uninstallTatolabExplanation: string;
 }
 
 const PLATFORM_PRESENTATIONS: Record<TatolabPlatform, PlatformPresentation> = {
@@ -29,6 +30,7 @@ const PLATFORM_PRESENTATIONS: Record<TatolabPlatform, PlatformPresentation> = {
     thisMachineMidSentence: "this Mac",
     runTatolabExplanation: "Starts Tatolab at login and keeps the runtime running. Turning it off stops the runtime.",
     quitTatolabExplanation: "Closes this app and its menu bar icon. The runtime and your streams keep running.",
+    uninstallTatolabExplanation: "Stops the runtime and removes Tatolab from this Mac. Your streams' records stay.",
   },
   linux: {
     hasOverlayTitleBar: false,
@@ -39,6 +41,8 @@ const PLATFORM_PRESENTATIONS: Record<TatolabPlatform, PlatformPresentation> = {
     runTatolabExplanation:
       "Runs tatolabd.service, your systemd user service, at login and keeps the runtime running. Turning it off stops the runtime.",
     quitTatolabExplanation: "Closes this app and its tray icon. The runtime and your streams keep running.",
+    uninstallTatolabExplanation:
+      "The installer removes the runtime, and your package manager removes this app. Your streams' records stay.",
   },
 };
 

@@ -24,7 +24,7 @@ function createSettingsGroup(groupTitle: string, rows: ElementChild[]): HTMLElem
   ]);
 }
 
-/** Run Tatolab, the command line tool, Login Items on macOS, the version, and quitting the app. */
+/** Run Tatolab, the command line tool, Login Items on macOS, the version, quitting the app, and uninstalling Tatolab. */
 export class SettingsPageView implements TatolabWindowPage {
   readonly element: HTMLElement;
   private readonly platformPresentation: PlatformPresentation;
@@ -36,12 +36,14 @@ export class SettingsPageView implements TatolabWindowPage {
   private readonly machineNameRow: HTMLElement;
   private readonly machineNameValue: HTMLElement;
   private readonly appVersionValue: HTMLElement;
+  private readonly uninstallTatolabRefusal: HTMLElement;
   private latestStatus: TatolabStatus | null = null;
   private statusesShownCount = 0;
 
   constructor(
     private readonly backend: TatolabBackend,
     private readonly platform: TatolabPlatform,
+    onUninstallTatolabRequested: () => void,
   ) {
     this.platformPresentation = presentPlatform(platform);
     this.runTatolabSwitch = createElement("input", {
@@ -64,6 +66,7 @@ export class SettingsPageView implements TatolabWindowPage {
       [createElement("span", { class: "settings-row-title" }, ["Machine name"])],
       [this.machineNameValue],
     );
+    this.uninstallTatolabRefusal = createElement("span", { class: "settings-row-failure", role: "alert", hidden: true });
 
     this.element = createElement("section", { class: "window-page settings-page", "aria-labelledby": "settings-page-title" }, [
       createElement("header", { class: "page-top-band", "data-tauri-drag-region": windowDragRegionAttribute(platform, "deep") }, [
@@ -116,6 +119,20 @@ export class SettingsPageView implements TatolabWindowPage {
                 ),
               ],
             ),
+            createSettingsRow(
+              [
+                createElement("span", { class: "settings-row-title" }, ["Uninstall Tatolab"]),
+                createElement("span", { class: "settings-row-hint" }, [this.platformPresentation.uninstallTatolabExplanation]),
+                this.uninstallTatolabRefusal,
+              ],
+              [
+                createElement(
+                  "button",
+                  { type: "button", class: "button button-quiet-destructive", onClick: onUninstallTatolabRequested },
+                  ["Uninstall Tatolab…"],
+                ),
+              ],
+            ),
           ]),
         ]),
       ]),
@@ -144,6 +161,13 @@ export class SettingsPageView implements TatolabWindowPage {
     this.machineNameRow.hidden = status.machine_name === null;
     setTextIfChanged(this.machineNameValue, status.machine_name ?? "");
     setTextIfChanged(this.appVersionValue, status.app_version);
+  }
+
+  /** Shows why the last uninstall was refused under its row; `null` clears it. */
+  showUninstallTatolabRefusal(refusalReason: string | null): void {
+    this.uninstallTatolabRefusal.hidden = refusalReason === null;
+    setTextIfChanged(this.uninstallTatolabRefusal, refusalReason === null ? "" : `Uninstall didn't finish: ${refusalReason}`);
+    if (refusalReason !== null) this.uninstallTatolabRefusal.scrollIntoView({ block: "nearest" });
   }
 
   private onRunTatolabSwitched(): void {
