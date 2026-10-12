@@ -6,7 +6,7 @@
 .overview-story strong { color: var(--text); font-weight: 500; }
 .overview-story code { color: var(--text); font-size: 12px; white-space: nowrap; }
 .overview-story .copy-button { display: inline-grid; vertical-align: middle; margin: -3px 0 -3px 2px; }
-.overview-story .progress-spinner { margin-left: 8px; vertical-align: -2px; }
+.overview-story .progress-spinner { margin-right: 8px; vertical-align: -2px; }
 
 .overview-graph-status { color: var(--text-3); font-size: 12px; line-height: 18px; }
 

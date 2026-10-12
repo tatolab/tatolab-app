@@ -131,9 +131,9 @@ export class StreamOverviewView {
   private createStory(stream: ListedStream): HTMLElement {
     const story = presentStreamStory(stream);
     return createElement("p", { class: "overview-story" }, [
+      story.isInProgress && createSpinner(),
       createElement("strong", {}, [story.leadPhrase]),
       ...inlineText(story.rest),
-      story.isInProgress && createSpinner(),
       " Its project is ",
       createElement("code", { class: "selectable-text", title: stream.project_directory }, [abbreviateHomeDirectory(stream.project_directory)]),
       createCopyButton("the project path", () => stream.project_directory),

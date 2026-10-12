@@ -68,4 +68,11 @@ describe("StreamOverviewView", () => {
     view.element.querySelector<HTMLButtonElement>(".section-head-link")?.click();
     expect(actions.onOpenGraph).toHaveBeenCalled();
   });
+
+  it("starts a loading stream's story with its spinner, so the spinner never splits the sentences", () => {
+    const { view } = overviewOf({ ...MAIN_STREAM, node_count: null }, null, false);
+    const story = view.element.querySelector(".overview-story")!;
+    expect(story.firstElementChild?.classList.contains("progress-spinner")).toBe(true);
+    expect(story.textContent).toMatch(/^Loading\. Its graph and logs show up as soon as it runs\. Its project is/);
+  });
 });

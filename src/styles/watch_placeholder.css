@@ -40,12 +40,12 @@
 .watch-details { flex: 1; min-width: 260px; max-width: 420px; }
 .watch-internal { max-width: 560px; display: flex; flex-direction: column; gap: 8px; }
 .watch-details-title { font-size: 13px; line-height: 18px; font-weight: 600; }
-.watch-details-title code { font-size: 12.5px; }
+.watch-details-title code { font-size: 12.5px; white-space: nowrap; }
 .watch-details-text { margin-top: 6px; color: var(--text-2); font-size: 12.5px; line-height: 19px; }
 .watch-internal .watch-details-text { margin-top: 0; }
-.watch-details-text code { color: var(--text); font-size: 12px; }
+.watch-details-text code { color: var(--text); font-size: 12px; white-space: nowrap; }
 .watch-details-address { display: flex; align-items: center; gap: 4px; margin-top: 14px; font-size: 12px; }
 .watch-details-address code { min-width: 0; }
 .watch-details-footnote { margin-top: 14px; color: var(--text-3); font-size: 11.5px; line-height: 16px; }
 .watch-internal .watch-details-footnote { margin-top: 0; font-size: 12px; }
-.watch-details-footnote code { font-size: 11px; }
+.watch-details-footnote code { font-size: 11px; white-space: nowrap; }

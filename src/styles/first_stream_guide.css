@@ -24,7 +24,7 @@
   box-shadow: 0 0 0 1px var(--line-strong);
 }
 .first-stream-guide-preview-text { color: var(--text-2); font-size: 12px; line-height: 18px; }
-.first-stream-guide-preview-text code, .first-stream-guide-agent-tip code { color: var(--text); font-size: 11.5px; }
+.first-stream-guide-preview-text code, .first-stream-guide-agent-tip code { color: var(--text); font-size: 11.5px; white-space: nowrap; }
 .first-stream-guide-agent-tip { margin-top: 2px; color: var(--text-3); font-size: 12px; line-height: 18px; }
 
 @container (max-width: 719px) {

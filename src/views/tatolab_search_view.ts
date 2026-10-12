@@ -18,7 +18,7 @@ import { exposedOutputAddress, readableExposedPorts } from "../presentation/stre
 import { abbreviateHomeDirectory, presentStreamState, streamNotLoadedReason } from "../presentation/stream_presentation";
 import type { StreamViewTab } from "./stream_detail_view";
 import type { GraphOutputPortAddress } from "./stream_graph_view";
-import { createFailureIcon, createIcon, createShortcutCap, createWindowShortcutCap } from "./window_controls";
+import { createExposedAddressLabel, createFailureIcon, createIcon, createShortcutCap, createWindowShortcutCap } from "./window_controls";
 
 /** What Search reads to list its rows: the streams, the selected one, and the selected one's graph already read. */
 export interface TatolabSearchSources {
@@ -200,7 +200,7 @@ export class TatolabSearchView {
         groupLabel: "Exposed outputs",
         iconSvg: OVERVIEW_ICON_SVG,
         matchText: address.fullAddress,
-        label: [createElement("code", { class: "search-row-address" }, [address.streamPath])],
+        label: [createExposedAddressLabel(address, "search-row-address")],
         meta: [capitalise(exposedPort.level)],
         run: () => this.actions.showExposedOutputInOverview(streamName, { node: exposedPort.node, port: exposedPort.port }),
       });
@@ -212,7 +212,7 @@ export class TatolabSearchView {
           groupLabel: "Watch",
           iconSvg: EYE_ICON_SVG,
           matchText: `watch ${address.fullAddress}`,
-          label: [createElement("code", { class: "search-row-address" }, [address.streamPath])],
+          label: [createExposedAddressLabel(address, "search-row-address")],
           meta: [capitalise(exposedPort.level)],
           run: () => this.actions.watchOutput(streamName, { node: exposedPort.node, port: exposedPort.port }, exposedPort.level),
         });

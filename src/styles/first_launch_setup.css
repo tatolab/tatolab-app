@@ -13,7 +13,6 @@
 .setup-screen { display: flex; flex-direction: column; height: 100vh; background: var(--window); }
 .setup-screen-drag-band { flex: none; height: var(--band-height); }
 .setup-screen .centred-page { padding-top: max(40px, 10vh); }
-.setup-screen:not(.setup-screen-linux) .centred-page { padding-top: max(0px, calc(10vh - var(--band-height))); }
 .setup-screen-linux .centred-page-column { width: min(600px, 100%); }
 .setup-screen-mark { display: block; width: 52px; height: 52px; }
 .setup-screen-mark .tatolab-mark, .uninstall-sheet-mark .tatolab-mark { display: block; width: 100%; height: 100%; }
