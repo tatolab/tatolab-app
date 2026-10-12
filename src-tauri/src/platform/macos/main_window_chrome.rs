@@ -25,7 +25,7 @@ pub fn with_the_main_window_chrome<'a, R: Runtime, M: Manager<R>>(
 }
 
 /// A regular app with a Dock icon while the window shows, an accessory without one otherwise.
-pub fn show_dock_icon(app: &AppHandle, dock_icon_visible: bool) {
+pub fn set_dock_icon_visible(app: &AppHandle, dock_icon_visible: bool) {
     let activation_policy = if dock_icon_visible {
         ActivationPolicy::Regular
     } else {

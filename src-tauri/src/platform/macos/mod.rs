@@ -20,7 +20,7 @@ use self::service_management_runtime_launch_agent::ServiceManagementRuntimeLaunc
 use self::tatolab_machine_paths::{bundled_command_line_tool_path, TatolabMachinePathsOnMacos};
 use crate::platform::{current_process_uid, TatolabPlatformForThisBuild, TrayIconImage};
 
-pub use self::main_window_chrome::{show_dock_icon, with_the_main_window_chrome};
+pub use self::main_window_chrome::{set_dock_icon_visible, with_the_main_window_chrome};
 pub use self::tatolab_uninstall::uninstall_tatolab;
 
 /// The tray's mark at 36×36, shown at 18pt in the menu bar and tinted to it as a template image.

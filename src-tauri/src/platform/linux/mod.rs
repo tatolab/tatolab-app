@@ -57,6 +57,10 @@ pub fn with_the_main_window_chrome<'a, R: Runtime, M: Manager<R>>(
     main_window_builder.decorations(true)
 }
 
+/// Nothing to show or hide: Linux has no Dock, and the window's own taskbar entry comes and goes
+/// with the window.
+pub fn set_dock_icon_visible(_app: &AppHandle, _dock_icon_visible: bool) {}
+
 /// Linux sends a running app no event when it is opened again, so no run event is one.
 pub fn the_app_was_opened_again(_run_event: &RunEvent) -> bool {
     false

@@ -7,9 +7,7 @@
 
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
-#[cfg(target_os = "macos")]
-use crate::platform::show_dock_icon;
-use crate::platform::with_the_main_window_chrome;
+use crate::platform::{set_dock_icon_visible, with_the_main_window_chrome};
 use crate::tatolab_app_shared_state::TatolabAppSharedState;
 
 /// The window's label; the capability granting the frontend its permissions names it.
@@ -37,16 +35,14 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
 /// Show the main window, creating it the first time, bring the app forward, and send the window
 /// the last status published.
 pub fn show_main_window(app: &AppHandle) {
-    #[cfg(target_os = "macos")]
-    show_dock_icon(app, true);
+    set_dock_icon_visible(app, true);
     let main_window = match app.get_webview_window(MAIN_WINDOW_LABEL) {
         Some(main_window) => main_window,
         None => match create_main_window(app) {
             Ok(main_window) => main_window,
             Err(failure) => {
                 tracing::error!(%failure, "the Tatolab window could not be created");
-                #[cfg(target_os = "macos")]
-                show_dock_icon(app, false);
+                set_dock_icon_visible(app, false);
                 return;
             }
         },
@@ -74,6 +70,5 @@ fn hide_main_window(app: &AppHandle) {
             tracing::warn!(%failure, "the Tatolab window could not be hidden");
         }
     }
-    #[cfg(target_os = "macos")]
-    show_dock_icon(app, false);
+    set_dock_icon_visible(app, false);
 }

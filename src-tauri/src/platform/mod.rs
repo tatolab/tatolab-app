@@ -1,11 +1,13 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-//! Everything that differs by platform, behind the traits and items the rest of the app uses: the
-//! service manager that runs the runtime, the machine's paths and setup, uninstalling, and the
-//! window's and the tray's platform looks. macOS registers the runtime with Service Management and
-//! sets the machine up behind one administrator prompt; Linux drives the systemd user service its
-//! installer registered.
+//! Everything that differs by platform: the service manager that runs the runtime, the machine's
+//! paths and setup, uninstalling, and the window's and the tray's platform looks. Each platform
+//! module exposes the same items with the same signatures, re-exported here, so the rest of the app
+//! calls them with no `cfg`; where a platform has nothing to do for one — Linux has no Dock icon —
+//! that item's doc says so. macOS registers the runtime with Service Management and sets the
+//! machine up behind one administrator prompt; Linux drives the systemd user service its installer
+//! registered.
 
 mod runtime_agent_registration;
 mod tatolab_machine_setup;
@@ -30,13 +32,13 @@ pub use tatolab_machine_setup::{
 
 #[cfg(target_os = "linux")]
 pub use linux::{
-    tatolab_platform_for_this_build, the_app_was_opened_again, uninstall_tatolab,
-    with_the_main_window_chrome, TRAY_ICON_IMAGE,
+    set_dock_icon_visible, tatolab_platform_for_this_build, the_app_was_opened_again,
+    uninstall_tatolab, with_the_main_window_chrome, TRAY_ICON_IMAGE,
 };
 #[cfg(target_os = "macos")]
 pub use macos::{
-    show_dock_icon, tatolab_platform_for_this_build, the_app_was_opened_again, uninstall_tatolab,
-    with_the_main_window_chrome, TRAY_ICON_IMAGE,
+    set_dock_icon_visible, tatolab_platform_for_this_build, the_app_was_opened_again,
+    uninstall_tatolab, with_the_main_window_chrome, TRAY_ICON_IMAGE,
 };
 
 /// The platform this build runs on, as the status names it.
