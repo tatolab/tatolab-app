@@ -9,7 +9,7 @@ use std::process::Command;
 use objc2_foundation::NSString;
 use objc2_service_management::{SMAppService, SMAppServiceStatus};
 
-use crate::platform::{current_process_uid, RuntimeAgentRegistration};
+use crate::platform::{current_process_uid, RuntimeAgentRegistration, RuntimeAgentStartFailure};
 use crate::tatolab_status::RuntimeAgentRegistrationStatus;
 
 /// The agent plist's file name inside the bundle's `Contents/Library/LaunchAgents/`.
@@ -17,6 +17,9 @@ pub const RUNTIME_LAUNCH_AGENT_PLIST_NAME: &str = "com.tatolab.tatolabd.plist";
 
 /// The agent plist's `Label`, which names the job in the user's launchd domain.
 pub const RUNTIME_LAUNCH_AGENT_LABEL: &str = "com.tatolab.tatolabd";
+
+/// launchctl's exit status when its domain holds no job for the service ("Could not find service").
+const LAUNCHCTL_NO_SUCH_SERVICE_EXIT_STATUS: i32 = 113;
 
 /// The runtime's launch agent as `SMAppService` sees it.
 #[derive(Debug, Clone)]
@@ -55,21 +58,26 @@ impl RuntimeAgentRegistration for ServiceManagementRuntimeLaunchAgent {
             .map_err(|error| error.localizedDescription().to_string())
     }
 
-    fn start_runtime_agent_if_not_running(&self) -> Result<(), String> {
+    fn start_runtime_agent_if_not_running(&self) -> Result<(), RuntimeAgentStartFailure> {
         // Without `-k`, kickstart leaves a running job alone.
         let launchd_job = format!("gui/{}/{RUNTIME_LAUNCH_AGENT_LABEL}", current_process_uid());
         let kickstart = Command::new("/bin/launchctl")
             .args(["kickstart", &launchd_job])
             .output()
-            .map_err(|failure| format!("launchctl could not be run: {failure}"))?;
+            .map_err(|failure| {
+                RuntimeAgentStartFailure::Refused(format!("launchctl could not be run: {failure}"))
+            })?;
         if kickstart.status.success() {
             return Ok(());
         }
-        Err(format!(
+        if kickstart.status.code() == Some(LAUNCHCTL_NO_SUCH_SERVICE_EXIT_STATUS) {
+            return Err(RuntimeAgentStartFailure::NoJobForTheRegisteredAgent);
+        }
+        Err(RuntimeAgentStartFailure::Refused(format!(
             "launchctl kickstart {launchd_job} failed ({}): {}",
             kickstart.status,
             String::from_utf8_lossy(&kickstart.stderr).trim()
-        ))
+        )))
     }
 
     fn unregister_runtime_agent(&self) -> Result<(), String> {

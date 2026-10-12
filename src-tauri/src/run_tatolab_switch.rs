@@ -8,7 +8,7 @@
 
 use std::time::{Duration, Instant};
 
-use crate::platform::RuntimeAgentRegistration;
+use crate::platform::{RuntimeAgentRegistration, RuntimeAgentStartFailure};
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::tatolab_status::{RuntimeAgentRegistrationStatus, RuntimeHealthObservation};
 
@@ -247,8 +247,33 @@ impl RunTatolabSwitch {
 
     fn start_the_runtime_if_not_running(&mut self, now: Instant) {
         self.runtime_agent_last_start_attempt_at = Some(now);
-        if let Err(failure_description) = self.runtime_agent.start_runtime_agent_if_not_running() {
-            tracing::warn!(%failure_description, "the runtime's agent could not be started");
+        match self.runtime_agent.start_runtime_agent_if_not_running() {
+            Ok(()) => {}
+            Err(RuntimeAgentStartFailure::NoJobForTheRegisteredAgent) => {
+                tracing::warn!(
+                    "the service manager holds no job for the registered agent; registering it again"
+                );
+                self.register_the_agent_again_and_start_it();
+            }
+            Err(RuntimeAgentStartFailure::Refused(failure_description)) => {
+                tracing::warn!(%failure_description, "the runtime's agent could not be started");
+            }
+        }
+    }
+
+    fn register_the_agent_again_and_start_it(&mut self) {
+        if let Err(failure_description) = self.runtime_agent.unregister_runtime_agent() {
+            tracing::warn!(%failure_description, "the agent's stale registration could not be removed");
+        }
+        if let Err(failure_description) = self.runtime_agent.register_runtime_agent() {
+            tracing::warn!(%failure_description, "the runtime's agent could not be registered again");
+            return;
+        }
+        if let Err(start_failure) = self.runtime_agent.start_runtime_agent_if_not_running() {
+            tracing::warn!(
+                ?start_failure,
+                "the runtime's agent could not be started after registering it again"
+            );
         }
     }
 
@@ -284,6 +309,7 @@ mod tests {
     struct FakeServiceManagement {
         status: Arc<Mutex<RuntimeAgentRegistrationStatus>>,
         status_after_register: Arc<Mutex<Result<RuntimeAgentRegistrationStatus, String>>>,
+        start_answers: Arc<Mutex<Vec<Result<(), RuntimeAgentStartFailure>>>>,
         calls: Arc<Mutex<Vec<FakeServiceManagementCall>>>,
     }
 
@@ -294,8 +320,14 @@ mod tests {
                 status_after_register: Arc::new(Mutex::new(Ok(
                     RuntimeAgentRegistrationStatus::Enabled,
                 ))),
+                start_answers: Arc::new(Mutex::new(Vec::new())),
                 calls: Arc::new(Mutex::new(Vec::new())),
             }
+        }
+
+        /// Answer the next starts with `answers`, in order; every later start succeeds.
+        fn start_answers(&self, answers: Vec<Result<(), RuntimeAgentStartFailure>>) {
+            *self.start_answers.lock().unwrap() = answers;
         }
 
         fn register_answers(&self, answer: Result<RuntimeAgentRegistrationStatus, String>) {
@@ -334,12 +366,17 @@ mod tests {
             }
         }
 
-        fn start_runtime_agent_if_not_running(&self) -> Result<(), String> {
+        fn start_runtime_agent_if_not_running(&self) -> Result<(), RuntimeAgentStartFailure> {
             self.calls
                 .lock()
                 .unwrap()
                 .push(FakeServiceManagementCall::StartIfNotRunning);
-            Ok(())
+            let mut start_answers = self.start_answers.lock().unwrap();
+            if start_answers.is_empty() {
+                Ok(())
+            } else {
+                start_answers.remove(0)
+            }
         }
 
         fn unregister_runtime_agent(&self) -> Result<(), String> {
@@ -440,6 +477,47 @@ mod tests {
                 .reconcile_the_agent_with_the_run_tatolab_switch(true, Instant::now()),
             RunTatolabReconciliation::AlreadyEnabled
         );
+        assert_eq!(
+            under_test.service_management.calls(),
+            vec![FakeServiceManagementCall::StartIfNotRunning]
+        );
+    }
+
+    #[test]
+    fn an_enabled_agent_the_service_manager_holds_no_job_for_is_registered_again_and_started() {
+        let mut under_test = switch_with(RuntimeAgentRegistrationStatus::Enabled, None);
+        under_test.service_management.start_answers(vec![Err(
+            RuntimeAgentStartFailure::NoJobForTheRegisteredAgent,
+        )]);
+
+        under_test
+            .switch
+            .reconcile_the_agent_with_the_run_tatolab_switch(true, Instant::now());
+
+        assert_eq!(
+            under_test.service_management.calls(),
+            vec![
+                FakeServiceManagementCall::StartIfNotRunning,
+                FakeServiceManagementCall::Unregister,
+                FakeServiceManagementCall::Register,
+                FakeServiceManagementCall::StartIfNotRunning,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_refused_start_is_not_answered_by_registering_again() {
+        let mut under_test = switch_with(RuntimeAgentRegistrationStatus::Enabled, None);
+        under_test
+            .service_management
+            .start_answers(vec![Err(RuntimeAgentStartFailure::Refused(
+                "launchctl kickstart failed".into(),
+            ))]);
+
+        under_test
+            .switch
+            .reconcile_the_agent_with_the_run_tatolab_switch(true, Instant::now());
+
         assert_eq!(
             under_test.service_management.calls(),
             vec![FakeServiceManagementCall::StartIfNotRunning]

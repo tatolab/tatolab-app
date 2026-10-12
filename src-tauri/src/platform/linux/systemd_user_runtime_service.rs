@@ -10,7 +10,7 @@
 use std::process::Command;
 
 use crate::condition_onset_latch::ConditionOnsetLatch;
-use crate::platform::RuntimeAgentRegistration;
+use crate::platform::{RuntimeAgentRegistration, RuntimeAgentStartFailure};
 use crate::tatolab_status::RuntimeAgentRegistrationStatus;
 
 /// The installer's systemd user unit that runs `tatolabd`.
@@ -126,8 +126,9 @@ impl RuntimeAgentRegistration for SystemdUserRuntimeService {
         ])
     }
 
-    fn start_runtime_agent_if_not_running(&self) -> Result<(), String> {
+    fn start_runtime_agent_if_not_running(&self) -> Result<(), RuntimeAgentStartFailure> {
         self.run_systemctl_user_expecting_success(&["start", RUNTIME_SYSTEMD_USER_UNIT_NAME])
+            .map_err(RuntimeAgentStartFailure::Refused)
     }
 
     fn unregister_runtime_agent(&self) -> Result<(), String> {
@@ -456,11 +457,11 @@ mod tests {
         );
         assert_eq!(
             runtime_service.start_runtime_agent_if_not_running(),
-            Err(
+            Err(RuntimeAgentStartFailure::Refused(
                 "systemctl --user start tatolabd.service failed (exit 1): Failed to connect to \
                  bus: No medium found"
                     .to_string()
-            )
+            ))
         );
     }
 
@@ -505,9 +506,12 @@ mod tests {
         }
         let runtime_service = SystemdUserRuntimeService::new(Box::new(StartLimitHit));
 
-        let refusal = runtime_service
+        let RuntimeAgentStartFailure::Refused(refusal) = runtime_service
             .start_runtime_agent_if_not_running()
-            .unwrap_err();
+            .unwrap_err()
+        else {
+            panic!("a start past systemd's start limit is a refusal");
+        };
         assert!(
             refusal.starts_with(
                 "systemctl --user start tatolabd.service failed (exit 1): Job for \

@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 
 use crate::tatolab_status::TatolabPlatform;
 
-pub use runtime_agent_registration::RuntimeAgentRegistration;
+pub use runtime_agent_registration::{RuntimeAgentRegistration, RuntimeAgentStartFailure};
 pub use tatolab_machine_setup::{
     MachineSetupAdministratorPromptOutcome, MachineSetupObservation, MachineSetupTrigger,
     TatolabMachineSetup,
