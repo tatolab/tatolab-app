@@ -9,7 +9,7 @@ use std::path::Path;
 use std::process::Command;
 
 /// The interpreter that shows macOS's administrator prompt.
-pub const OSASCRIPT_PATH: &str = "/usr/bin/osascript";
+const OSASCRIPT_PATH: &str = "/usr/bin/osascript";
 
 /// Why a script behind the administrator prompt did not run to its end.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,7 +21,7 @@ pub enum AdministratorPromptFailure {
 }
 
 /// `value` as one single-quoted POSIX shell word.
-pub fn single_quoted_shell_word(value: &str) -> String {
+fn single_quoted_shell_word(value: &str) -> String {
     format!("'{}'", value.replace('\'', r"'\''"))
 }
 
@@ -31,7 +31,7 @@ pub fn shell_word_for_path(path: &Path) -> String {
 }
 
 /// `value` as an AppleScript string literal.
-pub fn applescript_string_literal(value: &str) -> String {
+fn applescript_string_literal(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', r"\\").replace('"', "\\\""))
 }
 
@@ -69,4 +69,77 @@ pub fn run_behind_one_administrator_prompt(
     Err(AdministratorPromptFailure::Failed {
         failure_description: format!("{} ({})", osascript_stderr.trim(), osascript_output.status),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::platform::macos::machine_setup::{
+        machine_setup_administrator_shell_script, MissingMachineSetupPiece,
+    };
+    use crate::platform::macos::tatolab_uninstall::tatolab_uninstall_administrator_shell_script;
+
+    /// What `osascript` answers for `applescript`, its trailing newline dropped.
+    fn osascript_answer(applescript: &str) -> String {
+        let output = Command::new(OSASCRIPT_PATH)
+            .arg("-e")
+            .arg(applescript)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{applescript}: {output:?}");
+        let answer = String::from_utf8(output.stdout).unwrap();
+        answer
+            .strip_suffix('\n')
+            .map(str::to_string)
+            .unwrap_or(answer)
+    }
+
+    #[test]
+    fn every_administrator_script_round_trips_through_osascript_unchanged() {
+        let bundle_with_quotes_backslashes_and_globs =
+            Path::new("/Users/o'neil/Apps/\"Tatolab\" \\ $HOME * copy.app");
+        let machine_setup_script = machine_setup_administrator_shell_script(&[
+            MissingMachineSetupPiece::CommandLineToolLink {
+                link_path: PathBuf::from("/usr/local/bin/tatolab"),
+                bundled_command_line_tool: bundle_with_quotes_backslashes_and_globs
+                    .join("Contents/MacOS/tatolab-cli"),
+            },
+        ]);
+        let uninstall_script = tatolab_uninstall_administrator_shell_script(
+            Some(Path::new("/usr/local/bin/tatolab")),
+            bundle_with_quotes_backslashes_and_globs,
+            Path::new("/Library/Application Support/Tatolab"),
+        );
+        for shell_script in [machine_setup_script, uninstall_script] {
+            assert_eq!(
+                osascript_answer(&format!(
+                    "return {}",
+                    applescript_string_literal(&shell_script)
+                )),
+                shell_script
+            );
+        }
+
+        for value in [
+            "o'neil",
+            "''",
+            "\"double quoted\"",
+            "back\\slash \\\"",
+            "$HOME `id` $(id) * ? [a] ~",
+            "Ünïcödé ✓",
+            "",
+        ] {
+            let shell_script = format!("printf %s {}", single_quoted_shell_word(value));
+            assert_eq!(
+                osascript_answer(&format!(
+                    "do shell script {}",
+                    applescript_string_literal(&shell_script)
+                )),
+                value,
+                "{shell_script}"
+            );
+        }
+    }
 }

@@ -413,13 +413,9 @@ impl TatolabMachineSetup for MachineSetupBehindAnAdministratorPrompt {
 
 #[cfg(test)]
 mod tests {
-    use std::process::Command;
-
     use super::*;
     use crate::platform::current_process_uid;
-    use crate::platform::macos::administrator_prompt::{
-        administrator_prompt_applescript, applescript_string_literal, OSASCRIPT_PATH,
-    };
+    use crate::platform::macos::administrator_prompt::administrator_prompt_applescript;
     use crate::platform::macos::tatolab_machine_paths::MachineRuntimeLockOwner;
 
     fn paths_under(root: &Path) -> TatolabMachinePathsOnMacos {
@@ -650,24 +646,6 @@ mod tests {
             "with prompt \"Tatolab needs to create the machine runtime lock and link the tatolab \
              command so the runtime can start.\" with administrator privileges"
         ));
-    }
-
-    #[test]
-    fn the_applescript_round_trips_through_osascript_unchanged() {
-        let script = machine_setup_administrator_shell_script(&[
-            MissingMachineSetupPiece::CommandLineToolLink {
-                link_path: PathBuf::from("/usr/local/bin/tatolab"),
-                bundled_command_line_tool: PathBuf::from("/Users/o'neil/\"T\" \\ x.app/tatolab"),
-            },
-        ]);
-        let echo_applescript = format!("return {}", applescript_string_literal(&script));
-        let output = Command::new(OSASCRIPT_PATH)
-            .arg("-e")
-            .arg(echo_applescript)
-            .output()
-            .unwrap();
-        assert!(output.status.success(), "{output:?}");
-        assert_eq!(String::from_utf8(output.stdout).unwrap().trim_end(), script);
     }
 
     #[test]

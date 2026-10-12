@@ -279,9 +279,6 @@ mod tests {
     use std::process::Command;
 
     use super::*;
-    use crate::platform::macos::administrator_prompt::{
-        applescript_string_literal, OSASCRIPT_PATH,
-    };
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     enum FakeUninstallStep {
@@ -590,23 +587,6 @@ mod tests {
         ));
         into_a_bundle_a_glob_would_match.run_the_removal_script_for("Apps/T*.app");
         assert!(into_a_bundle_a_glob_would_match.command_line_tool_link_remains());
-    }
-
-    #[test]
-    fn the_removal_script_round_trips_through_osascript_unchanged() {
-        let script = tatolab_uninstall_administrator_shell_script(
-            Some(Path::new("/usr/local/bin/tatolab")),
-            Path::new("/Users/o'neil/\"T\" \\ x.app"),
-            Path::new("/Library/Application Support/Tatolab"),
-        );
-        let echo_applescript = format!("return {}", applescript_string_literal(&script));
-        let output = Command::new(OSASCRIPT_PATH)
-            .arg("-e")
-            .arg(echo_applescript)
-            .output()
-            .unwrap();
-        assert!(output.status.success(), "{output:?}");
-        assert_eq!(String::from_utf8(output.stdout).unwrap().trim_end(), script);
     }
 
     #[test]
