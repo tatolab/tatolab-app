@@ -64,6 +64,7 @@
 .sidebar-settings-row[aria-current="page"] { background: var(--selected); }
 .sidebar-settings-icon { color: var(--text-2); }
 .sidebar-settings-label { flex: 1; font-size: 13px; }
+.sidebar-settings-row:hover .shortcut-cap, .sidebar-settings-row[aria-current="page"] .shortcut-cap { color: var(--text-2); }
 
 /* ---------- content ---------- */
 .window-content { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--window); }
@@ -152,6 +153,7 @@
 .segmented-control-count { color: var(--text-3); font-weight: 400; font-variant-numeric: tabular-nums; }
 .segmented-control-segment[data-segment="Warnings"] .segmented-control-count { color: var(--amber); }
 .segmented-control-segment[data-segment="Errors"] .segmented-control-count { color: var(--red); }
+.segmented-control-segment[data-segment="Errors"][aria-selected="true"] .segmented-control-count { color: var(--red-on-lifted-fill); }
 
 @media (max-width: 960px) {
   .band-search-button { min-width: 64px; }

@@ -92,7 +92,7 @@ code, kbd, .mono { font-family: var(--font-mono); font-variant-ligatures: none; 
 .button-primary:hover { background: var(--accent-fill); filter: brightness(1.08); }
 .button-primary:disabled:hover { background: var(--accent-fill); filter: none; }
 
-.button-destructive { color: var(--red); }
+.button-destructive { color: var(--red-on-lifted-fill); }
 
 .button-plain { background: transparent; border-color: transparent; box-shadow: none; color: var(--text-2); }
 .button-plain:hover { background: var(--hover); color: var(--text); }

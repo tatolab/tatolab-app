@@ -47,6 +47,7 @@
   line-height: 16px;
 }
 .stream-list-row[aria-current="true"] .stream-list-row-name { font-weight: 500; }
+.stream-list-row:hover .stream-list-row-state,
 .stream-list-row[aria-current="true"] .stream-list-row-state { color: var(--text-2); }
 .stream-list-row[data-emphasis="quiet"] .stream-list-row-name { color: var(--text-3); }
 .stream-list-row[data-emphasis="quiet"][aria-current="true"] .stream-list-row-name,
