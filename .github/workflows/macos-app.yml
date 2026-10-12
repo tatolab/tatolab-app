@@ -1,9 +1,11 @@
-name: macOS app
+name: Tatolab app (macOS and Linux)
 
-# Builds Tatolab.app and Tatolab-<version>-arm64.dmg around a streamlib runtime unit. With the
-# Developer ID secrets present the app and the image are signed, notarized and stapled; without
-# them the build is ad-hoc signed, never notarized, and never published. Publishing uploads the
-# image to the streamlib release it bundles and bumps the tatolab cask in tatolab/homebrew-tap.
+# Builds Tatolab.app and Tatolab-<version>-arm64.dmg around a streamlib runtime unit, and the Linux
+# Tatolab-<version>-amd64.deb and Tatolab-<version>-x86_64.AppImage, which carry no runtime: on
+# Linux the installer installs it. With the Developer ID secrets present the app and the image are
+# signed, notarized and stapled; without them the build is ad-hoc signed, never notarized, and
+# nothing is published. Publishing uploads the image and the Linux packages to the streamlib
+# release the image bundles and bumps the tatolab cask in tatolab/homebrew-tap.
 on:
   push:
     branches: [main]
@@ -14,7 +16,7 @@ on:
         required: false
         default: "main"
       publish:
-        description: "Upload the .dmg to the streamlib release and bump the Homebrew cask"
+        description: "Upload the .dmg, .deb and AppImage to the streamlib release and bump the Homebrew cask"
         type: boolean
         required: false
         default: false
@@ -33,17 +35,15 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
-  build:
-    name: Build Tatolab.app (arm64)
-    runs-on: macos-15
-    timeout-minutes: 120
+  release:
+    name: Resolve the streamlib ref, the app version and whether to publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       streamlib_ref: ${{ steps.release.outputs.streamlib_ref }}
       release_tag: ${{ steps.release.outputs.release_tag }}
       app_version: ${{ steps.release.outputs.app_version }}
       publish: ${{ steps.release.outputs.publish }}
-      notarized: ${{ steps.build.outputs.notarized }}
-      dmg_name: ${{ steps.build.outputs.dmg_name }}
     steps:
       - name: Resolve the streamlib ref, the app version and whether to publish
         id: release
@@ -71,15 +71,24 @@ jobs:
             echo "publish=$publish"
           } >> "$GITHUB_OUTPUT"
 
+  build:
+    name: Build Tatolab.app (arm64)
+    needs: release
+    runs-on: macos-15
+    timeout-minutes: 120
+    outputs:
+      notarized: ${{ steps.build.outputs.notarized }}
+      dmg_name: ${{ steps.build.outputs.dmg_name }}
+    steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - name: Check out streamlib at ${{ steps.release.outputs.streamlib_ref }}
+      - name: Check out streamlib at ${{ needs.release.outputs.streamlib_ref }}
         uses: actions/checkout@v4
         with:
           repository: tatolab/streamlib
-          ref: ${{ steps.release.outputs.streamlib_ref }}
+          ref: ${{ needs.release.outputs.streamlib_ref }}
           path: streamlib
           persist-credentials: false
 
@@ -146,8 +155,8 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APP_VERSION: ${{ steps.release.outputs.app_version }}
-          STREAMLIB_REF: ${{ steps.release.outputs.streamlib_ref }}
+          APP_VERSION: ${{ needs.release.outputs.app_version }}
+          STREAMLIB_REF: ${{ needs.release.outputs.streamlib_ref }}
         run: |
           build_arguments=(--streamlib "$GITHUB_WORKSPACE/streamlib")
           [ -z "$APP_VERSION" ] || build_arguments+=(--app-version "$APP_VERSION")
@@ -184,10 +193,69 @@ jobs:
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
           rm -f "$RUNNER_TEMP/AuthKey.p8"
 
+  linux:
+    name: Build Tatolab for Linux (x86_64 .deb and AppImage)
+    needs: release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Tauri v2's Linux prerequisites (https://v2.tauri.app/start/prerequisites/#linux). The tray
+      # builds against the ayatana appindicator, which the .deb then depends on.
+      - name: Install WebKitGTK, the appindicator and the build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev \
+            libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: tatolab-app-linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Test the app
+        run: |
+          npm ci
+          npm run build
+          cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Build the .deb and the AppImage
+        env:
+          APP_VERSION: ${{ needs.release.outputs.app_version }}
+        run: |
+          build_arguments=()
+          [ -z "$APP_VERSION" ] || build_arguments+=(--app-version "$APP_VERSION")
+          scripts/build-tatolab-linux-app.sh ${build_arguments[@]+"${build_arguments[@]}"}
+          {
+            echo "### Tatolab for Linux"
+            for linux_package in build/linux/Tatolab-*; do
+              echo "- \`$(basename "$linux_package")\` ($(du -h "$linux_package" | cut -f1))"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tatolab-linux-x86_64
+          path: |
+            build/linux/Tatolab-*-amd64.deb
+            build/linux/Tatolab-*-x86_64.AppImage
+          if-no-files-found: error
+
   publish:
     name: Publish to the streamlib release and the Homebrew tap
-    needs: build
-    if: needs.build.outputs.publish == 'true'
+    needs: [release, build, linux]
+    if: needs.release.outputs.publish == 'true'
     runs-on: macos-15
     timeout-minutes: 20
     steps:
@@ -206,12 +274,22 @@ jobs:
           name: tatolab-macos-arm64
           path: build
 
-      - name: Upload the image to tatolab/streamlib ${{ needs.build.outputs.release_tag }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tatolab-linux-x86_64
+          path: build/linux
+
+      - name: Upload the image and the Linux packages to tatolab/streamlib ${{ needs.release.outputs.release_tag }}
         env:
           GH_TOKEN: ${{ secrets.STREAMLIB_RELEASE_UPLOAD_TOKEN }}
-          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          RELEASE_TAG: ${{ needs.release.outputs.release_tag }}
+          APP_VERSION: ${{ needs.release.outputs.app_version }}
           DMG_NAME: ${{ needs.build.outputs.dmg_name }}
-        run: gh release upload "$RELEASE_TAG" "build/$DMG_NAME" --repo tatolab/streamlib --clobber
+        run: |
+          gh release upload "$RELEASE_TAG" "build/$DMG_NAME" \
+            "build/linux/Tatolab-$APP_VERSION-amd64.deb" \
+            "build/linux/Tatolab-$APP_VERSION-x86_64.AppImage" \
+            --repo tatolab/streamlib --clobber
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -219,7 +297,7 @@ jobs:
 
       - name: Bump Casks/tatolab.rb in tatolab/homebrew-tap
         env:
-          APP_VERSION: ${{ needs.build.outputs.app_version }}
+          APP_VERSION: ${{ needs.release.outputs.app_version }}
           DMG_NAME: ${{ needs.build.outputs.dmg_name }}
         run: |
           git clone --depth 1 git@github.com:tatolab/homebrew-tap.git "$RUNNER_TEMP/homebrew-tap"
