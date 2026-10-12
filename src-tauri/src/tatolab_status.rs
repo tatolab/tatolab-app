@@ -90,21 +90,6 @@ pub enum MachineSetupState {
     WaitingForAdministrator,
 }
 
-#[cfg_attr(target_os = "linux", allow(dead_code))]
-impl MachineSetupState {
-    /// The state from whether any setup piece is missing and whether the prompt is showing.
-    pub fn from_observation(
-        machine_setup_pieces_missing: bool,
-        administrator_prompt_showing: bool,
-    ) -> Self {
-        match (machine_setup_pieces_missing, administrator_prompt_showing) {
-            (false, _) => MachineSetupState::Complete,
-            (true, true) => MachineSetupState::WaitingForAdministrator,
-            (true, false) => MachineSetupState::NeedsAdministrator,
-        }
-    }
-}
-
 /// What the poller saw of the runtime's local API in one round.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeHealthObservation {
@@ -324,24 +309,6 @@ mod tests {
                 ),
                 expected,
                 "{stream_listing_failed_last_round} -> {stream_listing_failed_this_round}"
-            );
-        }
-    }
-
-    #[test]
-    fn machine_setup_waits_for_the_administrator_only_while_the_prompt_shows() {
-        for (machine_setup_pieces_missing, administrator_prompt_showing, expected) in [
-            (false, false, MachineSetupState::Complete),
-            (false, true, MachineSetupState::Complete),
-            (true, true, MachineSetupState::WaitingForAdministrator),
-            (true, false, MachineSetupState::NeedsAdministrator),
-        ] {
-            assert_eq!(
-                MachineSetupState::from_observation(
-                    machine_setup_pieces_missing,
-                    administrator_prompt_showing
-                ),
-                expected
             );
         }
     }

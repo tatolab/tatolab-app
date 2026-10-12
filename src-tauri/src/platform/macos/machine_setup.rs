@@ -266,6 +266,18 @@ fn local_proof_refusal(path: &Path, what_is_wrong: &str) -> String {
     )
 }
 
+/// The setup state from whether any setup piece is missing and whether the prompt is showing.
+fn machine_setup_state_from(
+    machine_setup_pieces_missing: bool,
+    administrator_prompt_showing: bool,
+) -> MachineSetupState {
+    match (machine_setup_pieces_missing, administrator_prompt_showing) {
+        (false, _) => MachineSetupState::Complete,
+        (true, true) => MachineSetupState::WaitingForAdministrator,
+        (true, false) => MachineSetupState::NeedsAdministrator,
+    }
+}
+
 /// What this launch has done with the administrator prompt: reconciling the switch never shows
 /// it, opening the app shows it at most once, and "Set Up Tatolab…" shows it again on request,
 /// never while one is showing.
@@ -369,7 +381,7 @@ impl TatolabMachineSetup for MachineSetupBehindAnAdministratorPrompt {
             lock_ignoring_poison(&self.administrator_prompt_this_launch).showing();
         let missing = self.missing_machine_setup_pieces();
         MachineSetupObservation {
-            machine_setup_state: MachineSetupState::from_observation(
+            machine_setup_state: machine_setup_state_from(
                 !missing.is_empty(),
                 administrator_prompt_showing,
             ),
@@ -656,6 +668,24 @@ mod tests {
             .unwrap();
         assert!(output.status.success(), "{output:?}");
         assert_eq!(String::from_utf8(output.stdout).unwrap().trim_end(), script);
+    }
+
+    #[test]
+    fn machine_setup_waits_for_the_administrator_only_while_the_prompt_shows() {
+        for (machine_setup_pieces_missing, administrator_prompt_showing, expected) in [
+            (false, false, MachineSetupState::Complete),
+            (false, true, MachineSetupState::Complete),
+            (true, true, MachineSetupState::WaitingForAdministrator),
+            (true, false, MachineSetupState::NeedsAdministrator),
+        ] {
+            assert_eq!(
+                machine_setup_state_from(
+                    machine_setup_pieces_missing,
+                    administrator_prompt_showing
+                ),
+                expected
+            );
+        }
     }
 
     #[test]
