@@ -10,16 +10,13 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use crate::platform::LOCAL_PROOF_TEST_MACHINE_ROOT;
+use crate::platform::{
+    local_api_socket_under_a_local_proof_test_root, per_user_streamlib_runtime_directory_under_tmp,
+    LOCAL_API_SOCKET_FILE_NAME, LOCAL_PROOF_TEST_MACHINE_ROOT,
+};
 
 /// The folder the runtime keeps inside `$XDG_RUNTIME_DIR`.
 const STREAMLIB_FOLDER_INSIDE_XDG_RUNTIME_DIR: &str = "streamlib";
-
-/// The shared temporary directory the runtime's per-user fallback folder sits in.
-const SHARED_TEMPORARY_DIRECTORY_FOR_THE_FALLBACK: &str = "/tmp";
-
-/// The local API socket's name inside the runtime directory.
-const LOCAL_API_SOCKET_FILE_NAME: &str = "local-api.sock";
 
 /// Where the installer links the `tatolab` CLI, relative to `$HOME`.
 const COMMAND_LINE_TOOL_LINK_INSIDE_HOME: &str = ".local/bin/tatolab";
@@ -61,8 +58,7 @@ impl TatolabMachinePathsOnLinux {
             Some(xdg_runtime_dir) => {
                 PathBuf::from(xdg_runtime_dir).join(STREAMLIB_FOLDER_INSIDE_XDG_RUNTIME_DIR)
             }
-            None => Path::new(SHARED_TEMPORARY_DIRECTORY_FOR_THE_FALLBACK)
-                .join(format!("streamlib-{uid}")),
+            None => per_user_streamlib_runtime_directory_under_tmp(uid),
         };
         Self {
             local_api_socket: runtime_directory.join(LOCAL_API_SOCKET_FILE_NAME),
@@ -77,9 +73,7 @@ impl TatolabMachinePathsOnLinux {
     /// The paths under `test_machine_root`, laid out as StreamLib's test-root build lays them.
     pub fn under_a_local_proof_test_root(test_machine_root: &Path) -> Self {
         Self {
-            local_api_socket: test_machine_root
-                .join("run")
-                .join(LOCAL_API_SOCKET_FILE_NAME),
+            local_api_socket: local_api_socket_under_a_local_proof_test_root(test_machine_root),
             command_line_tool_link: None,
             local_proof_test_machine_root: Some(test_machine_root.to_path_buf()),
         }
