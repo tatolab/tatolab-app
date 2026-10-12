@@ -2,21 +2,99 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
-## In progress: three design directions (early renders, being judged)
+## In progress: three approachable design directions (being judged now)
 
-The owner asked for a modern Docker / VS Code / Cursor feel. Three designers are prototyping one direction each; two judges will pick a winner and graft the best ideas from the others before it is built into the real app.
+After the owner's feedback (no green/red status dots; approachable DevEx, not a VS Code clone), three designers each took one direction. State is shown in words; only a failure gets colour. Each includes the new tap + live frame preview (select an output port to watch its frames). Two judges — one speaking for the owner — pick a winner and graft the best of the others before it's built into the real app.
 
-**Workbench (VS Code / Cursor)**
+### Calm native (OrbStack-spirited)
 
-![workbench](design-directions/early/workbench-main-dark.png)
+**empty-dark-1040**
 
-**Docker Desktop**
+![calm-native-empty-dark-1040.png](design-directions/v2/calm-native-empty-dark-1040.png)
 
-![docker](design-directions/early/docker-main-dark.png)
+**main-dark-1040**
 
-**Native macOS pro tool (Xcode / Raycast)**
+![calm-native-main-dark-1040.png](design-directions/v2/calm-native-main-dark-1040.png)
 
-![native](design-directions/early/native-main-dark.png)
+**main-light-1040-linux**
+
+![calm-native-main-light-1040-linux.png](design-directions/v2/calm-native-main-light-1040-linux.png)
+
+**main-light-1040**
+
+![calm-native-main-light-1040.png](design-directions/v2/calm-native-main-light-1040.png)
+
+**settings-light-1040**
+
+![calm-native-settings-light-1040.png](design-directions/v2/calm-native-settings-light-1040.png)
+
+**tap-dark-1040**
+
+![calm-native-tap-dark-1040.png](design-directions/v2/calm-native-tap-dark-1040.png)
+
+**tap-light-1040**
+
+![calm-native-tap-light-1040.png](design-directions/v2/calm-native-tap-light-1040.png)
+
+### Focused split (Linear/Vercel-spirited)
+
+**empty-dark-1040**
+
+![focused-split-empty-dark-1040.png](design-directions/v2/focused-split-empty-dark-1040.png)
+
+**main-dark-1040**
+
+![focused-split-main-dark-1040.png](design-directions/v2/focused-split-main-dark-1040.png)
+
+**main-light-1040-linux**
+
+![focused-split-main-light-1040-linux.png](design-directions/v2/focused-split-main-light-1040-linux.png)
+
+**main-light-1040**
+
+![focused-split-main-light-1040.png](design-directions/v2/focused-split-main-light-1040.png)
+
+**settings-light-1040**
+
+![focused-split-settings-light-1040.png](design-directions/v2/focused-split-settings-light-1040.png)
+
+**tap-dark-1040**
+
+![focused-split-tap-dark-1040.png](design-directions/v2/focused-split-tap-dark-1040.png)
+
+**tap-light-1040**
+
+![focused-split-tap-light-1040.png](design-directions/v2/focused-split-tap-light-1040.png)
+
+### Guided DevEx (next-step hints, copyable CLI)
+
+**empty-dark-1040**
+
+![guided-devex-empty-dark-1040.png](design-directions/v2/guided-devex-empty-dark-1040.png)
+
+**main-dark-1040**
+
+![guided-devex-main-dark-1040.png](design-directions/v2/guided-devex-main-dark-1040.png)
+
+**main-light-1040-linux**
+
+![guided-devex-main-light-1040-linux.png](design-directions/v2/guided-devex-main-light-1040-linux.png)
+
+**main-light-1040**
+
+![guided-devex-main-light-1040.png](design-directions/v2/guided-devex-main-light-1040.png)
+
+**settings-light-1040**
+
+![guided-devex-settings-light-1040.png](design-directions/v2/guided-devex-settings-light-1040.png)
+
+**tap-dark-1040**
+
+![guided-devex-tap-dark-1040.png](design-directions/v2/guided-devex-tap-dark-1040.png)
+
+**tap-light-1040**
+
+![guided-devex-tap-light-1040.png](design-directions/v2/guided-devex-tap-light-1040.png)
 
 ## Live on macOS (local-proof build, real runtime, installed with `brew install --cask` from a local tap)
 
