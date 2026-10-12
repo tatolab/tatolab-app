@@ -3,15 +3,15 @@
 
 //! The commands the window's frontend invokes. A request that changes the machine runs on its own
 //! named thread, as the tray's choices do, and its outcome reaches the window as the next
-//! `tatolab-status-changed`. A question the window awaits is answered from a named thread too, so
-//! neither the main thread nor the async runtime ever blocks on the runtime or the service manager.
+//! `tatolab-status-changed`. A question the window awaits is answered on Tauri's blocking pool, so
+//! neither the main thread nor the async runtime ever blocks on the runtime or the service
+//! manager, and a question the window asks often starts no thread.
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use tauri::{AppHandle, State};
 
-use crate::named_app_thread::spawn_named_app_thread;
 use crate::platform;
 use crate::stream_graph_summary::StreamGraphSummary;
 use crate::stream_log_records_page::StreamLogRecordsPage;
@@ -24,19 +24,18 @@ use crate::tatolab_status::TatolabStatus;
 /// How long `get_tatolab_status` waits for the poller's first round when the window asks first.
 const FIRST_STATUS_ROUND_WAIT_LIMIT: Duration = Duration::from_secs(15);
 
-/// `blocking_work`'s answer, worked out on its own thread named `thread_name`.
-async fn answer_from_a_named_app_thread<Answer: Send + 'static>(
-    thread_name: &str,
+/// `blocking_work`'s answer to the command `command_name`, worked out on Tauri's blocking pool.
+async fn answer_on_the_blocking_pool<Answer: Send + 'static>(
+    command_name: &str,
     blocking_work: impl FnOnce() -> Result<Answer, String> + Send + 'static,
 ) -> Result<Answer, String> {
-    let (answer_sender, mut answer_receiver) = tauri::async_runtime::channel(1);
-    spawn_named_app_thread(thread_name, move || {
-        let _the_window_stopped_waiting = answer_sender.blocking_send(blocking_work());
-    });
-    answer_receiver
-        .recv()
+    tauri::async_runtime::spawn_blocking(blocking_work)
         .await
-        .unwrap_or_else(|| Err(format!("{thread_name} ended without an answer")))
+        .unwrap_or_else(|join_failure| {
+            Err(format!(
+                "{command_name} ended without an answer: {join_failure}"
+            ))
+        })
 }
 
 /// The status as of the poller's last round.
@@ -45,7 +44,7 @@ pub async fn get_tatolab_status(
     shared_state: State<'_, TatolabAppSharedState>,
 ) -> Result<TatolabStatus, String> {
     let status_publisher = Arc::clone(&shared_state.status_publisher);
-    answer_from_a_named_app_thread("tatolab-get-tatolab-status", move || {
+    answer_on_the_blocking_pool("get_tatolab_status", move || {
         status_publisher
             .last_published_status_waiting_up_to(FIRST_STATUS_ROUND_WAIT_LIMIT)
             .ok_or_else(|| "Tatolab has not observed the runtime yet".to_string())
@@ -73,7 +72,7 @@ pub async fn open_login_items_settings(
     shared_state: State<'_, TatolabAppSharedState>,
 ) -> Result<(), String> {
     let controller = Arc::clone(&shared_state.controller);
-    answer_from_a_named_app_thread("tatolab-open-login-items-settings", move || {
+    answer_on_the_blocking_pool("open_login_items_settings", move || {
         controller.open_login_items_settings()
     })
     .await
@@ -95,7 +94,7 @@ pub async fn uninstall_tatolab(
     shared_state: State<'_, TatolabAppSharedState>,
 ) -> Result<(), String> {
     let controller = Arc::clone(&shared_state.controller);
-    answer_from_a_named_app_thread("tatolab-uninstall-tatolab", move || {
+    answer_on_the_blocking_pool("uninstall_tatolab", move || {
         platform::uninstall_tatolab(&app, &controller)
     })
     .await
@@ -115,7 +114,7 @@ pub async fn read_stream_log_records(
     after: u64,
 ) -> Result<StreamLogRecordsPage, String> {
     let controller = Arc::clone(&shared_state.controller);
-    answer_from_a_named_app_thread("tatolab-read-stream-log-records", move || {
+    answer_on_the_blocking_pool("read_stream_log_records", move || {
         controller
             .read_stream_log_records(&stream, after)
             .map_err(|failure| failure.failure_description)
@@ -130,7 +129,7 @@ pub async fn describe_stream_graph(
     stream: String,
 ) -> Result<StreamGraphSummary, String> {
     let controller = Arc::clone(&shared_state.controller);
-    answer_from_a_named_app_thread("tatolab-describe-stream-graph", move || {
+    answer_on_the_blocking_pool("describe_stream_graph", move || {
         controller
             .describe_stream_graph(&stream)
             .map_err(|failure| failure.failure_description)
@@ -172,6 +171,26 @@ mod tests {
             machine_setup_state,
             command_line_tool_linked_at: Some("/usr/local/bin/tatolab".to_string()),
         }
+    }
+
+    #[test]
+    fn an_awaited_command_answers_with_its_works_answer_or_why_it_has_none() {
+        assert_eq!(
+            tauri::async_runtime::block_on(answer_on_the_blocking_pool(
+                "read_stream_log_records",
+                || Ok(7)
+            )),
+            Ok(7)
+        );
+        let refusal = tauri::async_runtime::block_on(answer_on_the_blocking_pool::<u32>(
+            "describe_stream_graph",
+            || panic!("the blocking work panicked"),
+        ))
+        .unwrap_err();
+        assert!(
+            refusal.starts_with("describe_stream_graph ended without an answer"),
+            "{refusal}"
+        );
     }
 
     /// The window's TypeScript types read exactly this JSON, key for key and in this order.
