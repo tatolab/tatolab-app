@@ -12,6 +12,7 @@ use std::time::Duration;
 
 use tauri::{AppHandle, State};
 
+use crate::output_frame_preview::FramePreview;
 use crate::output_port_tap_sample::TapSample;
 use crate::platform;
 use crate::stream_graph_summary::StreamGraphSummary;
@@ -153,6 +154,24 @@ pub async fn tap_output_port(
         controller
             .tap_output_port(&stream, &node, &port, count)
             .map_err(|failure| failure.failure_description)
+    })
+    .await
+}
+
+/// A preview of the frame the output port `port` of `stream`'s node `node` carries now, its long
+/// edge at most `long_edge_px`, clamped to [64, 1920]; refused in plain words when no bag arrives,
+/// its bags name no frame, the runtime refuses, or the frame is recycled on every attempt.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn preview_output_frame(
+    shared_state: State<'_, TatolabAppSharedState>,
+    stream: String,
+    node: String,
+    port: String,
+    long_edge_px: u32,
+) -> Result<FramePreview, String> {
+    let controller = Arc::clone(&shared_state.controller);
+    answer_on_the_blocking_pool("preview_output_frame", move || {
+        controller.preview_output_frame(&stream, &node, &port, long_edge_px)
     })
     .await
 }
@@ -426,6 +445,49 @@ mod tests {
                 r#""bags":[{"byte_len":2,"timestamp_ns":null,"surface_id":null,"fields":[],"#,
                 r#""hex_truncated":false,"#,
                 r#""decode_error":"the bag's 2 bytes cannot hold a 76-byte frame header"}]}"#
+            )
+        );
+    }
+
+    /// `preview_output_frame`'s answer exactly as the window reads it, with and without the
+    /// surface's own extent and the bag's timestamp.
+    #[test]
+    fn a_frame_preview_serializes_exactly_as_the_window_reads_it() {
+        let frame_preview = FramePreview {
+            channel: "main/invertingeffect/video_to_downstream".to_string(),
+            surface_id: "e17a285e-5861-495a-91fe-30dd9d97c5e5#72517".to_string(),
+            png_base64: "iVBORw0KGgo=".to_string(),
+            image_width: 640,
+            image_height: 360,
+            source_width: Some(1280),
+            source_height: Some(720),
+            timestamp_ns: Some(3527313244200208),
+            attempts: 1,
+        };
+        assert_eq!(
+            serde_json::to_string(&frame_preview).unwrap(),
+            concat!(
+                r#"{"channel":"main/invertingeffect/video_to_downstream","#,
+                r#""surface_id":"e17a285e-5861-495a-91fe-30dd9d97c5e5#72517","#,
+                r#""png_base64":"iVBORw0KGgo=","image_width":640,"image_height":360,"#,
+                r#""source_width":1280,"source_height":720,"timestamp_ns":3527313244200208,"#,
+                r#""attempts":1}"#
+            )
+        );
+        let frame_preview_without_extent_or_timestamp = FramePreview {
+            source_width: None,
+            source_height: None,
+            timestamp_ns: None,
+            attempts: 2,
+            ..frame_preview
+        };
+        assert_eq!(
+            serde_json::to_string(&frame_preview_without_extent_or_timestamp).unwrap(),
+            concat!(
+                r#"{"channel":"main/invertingeffect/video_to_downstream","#,
+                r#""surface_id":"e17a285e-5861-495a-91fe-30dd9d97c5e5#72517","#,
+                r#""png_base64":"iVBORw0KGgo=","image_width":640,"image_height":360,"#,
+                r#""source_width":null,"source_height":null,"timestamp_ns":null,"attempts":2}"#
             )
         );
     }

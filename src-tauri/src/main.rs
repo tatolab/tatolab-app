@@ -18,6 +18,7 @@ compile_error!(
 mod fake_local_api_server;
 mod local_api_client;
 mod named_app_thread;
+mod output_frame_preview;
 mod output_port_tap_sample;
 mod platform;
 mod poison_tolerant_mutex;
@@ -72,6 +73,7 @@ fn main() {
                 tatolab_commands::read_stream_log_records,
                 tatolab_commands::describe_stream_graph,
                 tatolab_commands::tap_output_port,
+                tatolab_commands::preview_output_frame,
             ])
             .setup(move |app| {
                 let app_config_directory = app.path().app_config_dir()?;

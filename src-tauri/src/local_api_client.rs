@@ -4,7 +4,8 @@
 //! The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
 //! local API's Unix socket. `GET /health` says the runtime is up, the MCP tools `list_streams`,
 //! `logs` and `tap` over `POST /mcp` list its streams, read one's log records and sample the bags
-//! an output port carries, and `GET /api/graph` names the machine and draws one stream's graph.
+//! an output port carries, `GET /api/graph` names the machine and draws one stream's graph, and
+//! `GET /api/surfaces/{surface_id}/image` exchanges a published frame for its pixels.
 //!
 //! The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
 //! `mcp.rs` serves rmcp's stateless Streamable HTTP with per-request protocol metadata
@@ -35,14 +36,25 @@ pub const LOCAL_API_MCP_PROTOCOL_VERSION: &str = "2026-07-28";
 const LOCAL_API_MCP_CLIENT_NAME: &str = "tatolab-app";
 
 /// The most bytes one local API response may carry before the client gives up on it.
-pub const LARGEST_LOCAL_API_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
+pub const LARGEST_LOCAL_API_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
 
-/// Every byte outside RFC 3986's unreserved set, percent-encoded into a query value.
-const QUERY_VALUE_PERCENT_ENCODED_BYTES: &AsciiSet = &NON_ALPHANUMERIC
+/// Every byte outside RFC 3986's unreserved set, which a query value or a path segment carries
+/// percent-encoded.
+const BYTES_OUTSIDE_THE_RFC_3986_UNRESERVED_SET: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'-')
     .remove(b'.')
     .remove(b'_')
     .remove(b'~');
+
+/// The status the surface exchange answers for a frame whose pool slot was recycled after its bag
+/// was published, as StreamLib's `local_api_wire_contract.rs` names it: a newer bag's id answers.
+const RECYCLED_FRAME_HTTP_STATUS_CODE: u16 = 410;
+
+/// The header carrying the exchanged surface's own width, which a downscaled PNG does not state.
+const SURFACE_PIXEL_WIDTH_HEADER_NAME: &str = "x-streamlib-surface-pixel-width";
+
+/// The header carrying the exchanged surface's own height.
+const SURFACE_PIXEL_HEIGHT_HEADER_NAME: &str = "x-streamlib-surface-pixel-height";
 
 /// Why a local API request came back without an answer.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,7 +80,46 @@ impl LocalApiRequestFailure {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LocalApiHttpResponse {
     status_code: u16,
+    /// Each header's name and value, in the order the response gave them.
+    headers: Vec<(String, String)>,
     body: Vec<u8>,
+}
+
+impl LocalApiHttpResponse {
+    /// The pixel count the header `header_name` states; `None` when it is absent or malformed.
+    fn pixel_count_header(&self, header_name: &str) -> Option<u32> {
+        header_value_in(&self.headers, header_name)?.parse().ok()
+    }
+}
+
+/// The value of the header `header_name` among `headers`, matched case-insensitively.
+fn header_value_in<'headers>(
+    headers: &'headers [(String, String)],
+    header_name: &str,
+) -> Option<&'headers str> {
+    headers
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case(header_name))
+        .map(|(_, value)| value.as_str())
+}
+
+/// What the runtime answered a surface exchange with.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SurfaceImageExchange {
+    /// The frame's pixels.
+    Exchanged(ExchangedSurfaceImage),
+    /// The id named a frame whose pool slot was recycled since, refused in the runtime's words.
+    FrameRecycled { refusal: String },
+}
+
+/// A frame's pixels as a PNG, and the extent of the surface they came from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExchangedSurfaceImage {
+    pub png_image_bytes: Vec<u8>,
+    /// The surface's own width; `None` when the runtime did not state it.
+    pub source_surface_pixel_width: Option<u32>,
+    /// The surface's own height; `None` when the runtime did not state it.
+    pub source_surface_pixel_height: Option<u32>,
 }
 
 /// A client of the local API served at one socket path.
@@ -190,11 +241,39 @@ impl LocalApiClient {
     ) -> Result<StreamGraphSummary, LocalApiRequestFailure> {
         let request_target = format!(
             "/api/graph?stream={}",
-            utf8_percent_encode(stream, QUERY_VALUE_PERCENT_ENCODED_BYTES)
+            utf8_percent_encode(stream, BYTES_OUTSIDE_THE_RFC_3986_UNRESERVED_SET)
         );
         let graph_body = self.get_body_of_an_ok_answer(&request_target)?;
         stream_graph_summary_from_the_graph_json(stream, &graph_body)
             .map_err(LocalApiRequestFailure::new)
+    }
+
+    /// The frame `surface_id` names as a PNG whose long edge is at most `long_edge_pixel_cap`,
+    /// from `GET /api/surfaces/{surface_id}/image`; a recycled frame is its own answer, and any
+    /// other refusal is in the runtime's own words.
+    pub fn exchange_surface_for_png_image(
+        &self,
+        surface_id: &str,
+        long_edge_pixel_cap: u32,
+    ) -> Result<SurfaceImageExchange, LocalApiRequestFailure> {
+        let request_target = surface_image_exchange_request_target(surface_id, long_edge_pixel_cap);
+        let response = self.exchange("GET", &request_target, &[], None)?;
+        match response.status_code {
+            200 => Ok(SurfaceImageExchange::Exchanged(ExchangedSurfaceImage {
+                source_surface_pixel_width: response
+                    .pixel_count_header(SURFACE_PIXEL_WIDTH_HEADER_NAME),
+                source_surface_pixel_height: response
+                    .pixel_count_header(SURFACE_PIXEL_HEIGHT_HEADER_NAME),
+                png_image_bytes: response.body,
+            })),
+            RECYCLED_FRAME_HTTP_STATUS_CODE => Ok(SurfaceImageExchange::FrameRecycled {
+                refusal: refusal_of_a_rest_answer(&request_target, &response),
+            }),
+            _ => Err(LocalApiRequestFailure::new(refusal_of_a_rest_answer(
+                &request_target,
+                &response,
+            ))),
+        }
     }
 
     /// `GET request_target`, answering the body of a `200`; any other answer is refused in the
@@ -207,16 +286,10 @@ impl LocalApiClient {
         if response.status_code == 200 {
             return Ok(response.body);
         }
-        let refusal = match serde_json::from_slice::<LocalApiErrorResponseOnTheWire>(&response.body)
-        {
-            Ok(error_response) => error_response.error,
-            Err(_) => format!(
-                "the runtime answered {request_target} with {}: {}",
-                response.status_code,
-                String::from_utf8_lossy(&response.body).trim()
-            ),
-        };
-        Err(LocalApiRequestFailure::new(refusal))
+        Err(LocalApiRequestFailure::new(refusal_of_a_rest_answer(
+            request_target,
+            &response,
+        )))
     }
 
     /// Call the MCP tool `tool_name` with `tool_arguments` in one stateless request, answering
@@ -294,6 +367,29 @@ impl LocalApiClient {
                 "{method} {request_target} to {socket_text} answered malformed HTTP: {what_is_wrong}"
             ))
         })
+    }
+}
+
+/// `/api/surfaces/{surface_id}/image?downscale_long_edge_pixel_cap=<cap>`, the id percent-encoded
+/// down to RFC 3986's unreserved set as StreamLib's `surface_image_exchange_route_path_for_surface_id`
+/// encodes it: a pooled frame's id is `<slot>#<generation>`, and a bare `#` would end the path.
+fn surface_image_exchange_request_target(surface_id: &str, long_edge_pixel_cap: u32) -> String {
+    format!(
+        "/api/surfaces/{}/image?downscale_long_edge_pixel_cap={long_edge_pixel_cap}",
+        utf8_percent_encode(surface_id, BYTES_OUTSIDE_THE_RFC_3986_UNRESERVED_SET)
+    )
+}
+
+/// Why the runtime refused `request_target`: the `error` its REST routes answer with, or else the
+/// status and the body's text.
+fn refusal_of_a_rest_answer(request_target: &str, response: &LocalApiHttpResponse) -> String {
+    match serde_json::from_slice::<LocalApiErrorResponseOnTheWire>(&response.body) {
+        Ok(error_response) => error_response.error,
+        Err(_) => format!(
+            "the runtime answered {request_target} with {}: {}",
+            response.status_code,
+            String::from_utf8_lossy(&response.body).trim()
+        ),
     }
 }
 
@@ -393,8 +489,8 @@ fn first_text_block_of_tool_call_response(
     }
 }
 
-/// A complete HTTP/1.1 response read to end of stream: its status and its body, de-chunked when
-/// it was sent chunked.
+/// A complete HTTP/1.1 response read to end of stream: its status, its headers and its body,
+/// de-chunked when it was sent chunked.
 fn parse_http_response(response_bytes: &[u8]) -> Result<LocalApiHttpResponse, String> {
     let head_end = response_bytes
         .windows(4)
@@ -410,21 +506,19 @@ fn parse_http_response(response_bytes: &[u8]) -> Result<LocalApiHttpResponse, St
         .nth(1)
         .and_then(|code| code.parse::<u16>().ok())
         .ok_or_else(|| format!("the status line {status_line:?} names no status"))?;
-    let mut content_length = None;
-    let mut chunked = false;
-    for header_line in head_lines {
-        let Some((header_name, header_value)) = header_line.split_once(':') else {
-            continue;
-        };
-        let header_value = header_value.trim();
-        if header_name.eq_ignore_ascii_case("content-length") {
-            content_length = header_value.parse::<usize>().ok();
-        } else if header_name.eq_ignore_ascii_case("transfer-encoding")
-            && header_value.to_ascii_lowercase().contains("chunked")
-        {
-            chunked = true;
-        }
-    }
+    let headers: Vec<(String, String)> = head_lines
+        .filter_map(|header_line| header_line.split_once(':'))
+        .map(|(header_name, header_value)| {
+            (
+                header_name.trim().to_string(),
+                header_value.trim().to_string(),
+            )
+        })
+        .collect();
+    let content_length =
+        header_value_in(&headers, "content-length").and_then(|value| value.parse::<usize>().ok());
+    let chunked = header_value_in(&headers, "transfer-encoding")
+        .is_some_and(|value| value.to_ascii_lowercase().contains("chunked"));
     let body = if chunked {
         dechunked_body(body)?
     } else if let Some(content_length) = content_length {
@@ -439,7 +533,11 @@ fn parse_http_response(response_bytes: &[u8]) -> Result<LocalApiHttpResponse, St
     } else {
         body.to_vec()
     };
-    Ok(LocalApiHttpResponse { status_code, body })
+    Ok(LocalApiHttpResponse {
+        status_code,
+        headers,
+        body,
+    })
 }
 
 fn dechunked_body(mut chunked_body: &[u8]) -> Result<Vec<u8>, String> {
@@ -471,7 +569,9 @@ fn dechunked_body(mut chunked_body: &[u8]) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fake_local_api_server::{http_response, tool_result_response, FakeLocalApiServer};
+    use crate::fake_local_api_server::{
+        http_response, http_response_with_headers, tool_result_response, FakeLocalApiServer,
+    };
     use std::os::unix::net::UnixListener;
 
     #[test]
@@ -850,6 +950,61 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(failure.failure_description, refusal);
+    }
+
+    #[test]
+    fn exchanging_a_surface_percent_encodes_its_id_and_reads_the_extent_the_runtime_states() {
+        let server = FakeLocalApiServer::answering(vec![
+            http_response_with_headers(
+                "200 OK",
+                &[
+                    ("content-type", "image/png"),
+                    ("X-Streamlib-Surface-Pixel-Width", " 1280 "),
+                    ("x-streamlib-surface-pixel-height", "seven hundred"),
+                ],
+                b"png bytes",
+            ),
+            http_response(
+                "410 Gone",
+                "application/json",
+                r#"{"error":"surface 's#1' names a recycled frame"}"#,
+            ),
+            http_response(
+                "501 Not Implemented",
+                "application/json",
+                r#"{"error":"surface 's#2' has no conversion arm"}"#,
+            ),
+        ]);
+        let client = server.client();
+
+        assert_eq!(
+            client.exchange_surface_for_png_image("two words/é#7", 640),
+            Ok(SurfaceImageExchange::Exchanged(ExchangedSurfaceImage {
+                png_image_bytes: b"png bytes".to_vec(),
+                source_surface_pixel_width: Some(1280),
+                source_surface_pixel_height: None,
+            }))
+        );
+        assert_eq!(
+            client.exchange_surface_for_png_image("s#1", 640),
+            Ok(SurfaceImageExchange::FrameRecycled {
+                refusal: "surface 's#1' names a recycled frame".to_string()
+            })
+        );
+        assert_eq!(
+            client
+                .exchange_surface_for_png_image("s#2", 640)
+                .unwrap_err()
+                .failure_description,
+            "surface 's#2' has no conversion arm"
+        );
+        assert!(
+            server.received_requests()[0].starts_with(
+                "GET /api/surfaces/two%20words%2F%C3%A9%237/image?downscale_long_edge_pixel_cap=640 HTTP/1.1\r\n"
+            ),
+            "{}",
+            server.received_requests()[0]
+        );
     }
 
     #[test]

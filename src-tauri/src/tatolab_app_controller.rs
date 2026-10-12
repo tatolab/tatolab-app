@@ -11,6 +11,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use crate::local_api_client::{LocalApiClient, LocalApiRequestFailure};
+use crate::output_frame_preview::{preview_output_frame, FramePreview};
 use crate::output_port_tap_sample::{
     output_port_channel_address, TapSample, LARGEST_TAP_SAMPLE_BAG_COUNT, TAPPED_BAG_HEX_BYTE_LIMIT,
 };
@@ -306,6 +307,22 @@ impl TatolabAppController {
             &output_port_channel_address(stream, node, port),
             count.clamp(1, LARGEST_TAP_SAMPLE_BAG_COUNT),
             TAPPED_BAG_HEX_BYTE_LIMIT,
+        )
+    }
+
+    /// A preview of the frame the output port `port` of `stream`'s node `node` carries now, its
+    /// long edge at most `long_edge_px`, clamped to [64, 1920].
+    pub fn preview_output_frame(
+        &self,
+        stream: &str,
+        node: &str,
+        port: &str,
+        long_edge_px: u32,
+    ) -> Result<FramePreview, String> {
+        preview_output_frame(
+            &self.local_api_client,
+            &output_port_channel_address(stream, node, port),
+            long_edge_px,
         )
     }
 
