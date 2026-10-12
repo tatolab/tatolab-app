@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 //! Tests' stand-in for the runtime's local API: a Unix socket answering each connection with the
-//! next scripted raw HTTP response, the responses the runtime writes, and what a real runtime's
-//! `tap` answered.
+//! next scripted raw HTTP response, and the responses the runtime writes.
 
 use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -89,29 +88,13 @@ fn read_one_request(connection: &mut UnixStream) -> String {
     String::from_utf8(request).unwrap()
 }
 
-/// An HTTP/1.1 response with `headers` and a `content-length` for `body`.
-pub fn http_response_with_headers(
-    status_line: &str,
-    headers: &[(&str, &str)],
-    body: &[u8],
-) -> Vec<u8> {
-    let mut response = format!("HTTP/1.1 {status_line}\r\n");
-    for (header_name, header_value) in headers {
-        response.push_str(&format!("{header_name}: {header_value}\r\n"));
-    }
-    response.push_str(&format!("content-length: {}\r\n\r\n", body.len()));
-    let mut response = response.into_bytes();
-    response.extend_from_slice(body);
-    response
-}
-
 /// An HTTP/1.1 response carrying `body` as `content_type`.
 pub fn http_response(status_line: &str, content_type: &str, body: &str) -> Vec<u8> {
-    http_response_with_headers(
-        status_line,
-        &[("content-type", content_type)],
-        body.as_bytes(),
+    format!(
+        "HTTP/1.1 {status_line}\r\ncontent-type: {content_type}\r\ncontent-length: {}\r\n\r\n{body}",
+        body.len()
     )
+    .into_bytes()
 }
 
 /// The JSON-RPC response the runtime's rmcp server writes for a tool result: the tool's JSON as
@@ -126,39 +109,4 @@ pub fn tool_result_response(tool_result: Value) -> Vec<u8> {
         }
     });
     http_response("200 OK", "application/json", &body.to_string())
-}
-
-/// What a real runtime's `tap` answered for 3 bags of `main/invertingeffect/video_to_downstream`.
-pub const A_REAL_TAP_OF_THREE_VIDEO_BAGS: &str = include_str!(
-    "../test-fixtures/local-api-tap-tool-result-of-main-invertingeffect-video_to_downstream-3-bags.json"
-);
-
-/// The bag at `bag_index` of [`A_REAL_TAP_OF_THREE_VIDEO_BAGS`], as the `tap` result carries it.
-pub fn the_real_tapped_bag(bag_index: usize) -> Value {
-    let tap_tool_result: Value = serde_json::from_str(A_REAL_TAP_OF_THREE_VIDEO_BAGS).unwrap();
-    tap_tool_result["bags"][bag_index].clone()
-}
-
-/// The hex of the bag at `bag_index` of [`A_REAL_TAP_OF_THREE_VIDEO_BAGS`].
-pub fn the_real_tapped_bag_hex(bag_index: usize) -> String {
-    the_real_tapped_bag(bag_index)["hex_preview"]
-        .as_str()
-        .unwrap()
-        .to_string()
-}
-
-/// A `tap` result from `main/invertingeffect/video_to_downstream` carrying `bags`, shaped as the
-/// runtime writes one.
-pub fn tap_tool_result_holding(bags: Value) -> Value {
-    let received = bags.as_array().map_or(0, Vec::len);
-    json!({
-        "channel": "main/invertingeffect/video_to_downstream",
-        "requested": received.max(1),
-        "received": received,
-        "window_ms": 500,
-        "dropped_bags": 0,
-        "max_bag_bytes": 65536,
-        "bags_withheld_at_byte_budget": 0,
-        "bags": bags
-    })
 }
