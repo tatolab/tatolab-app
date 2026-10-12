@@ -87,8 +87,8 @@ pub fn set_up_tatolab(app: AppHandle) -> Result<(), String> {
 }
 
 /// "Uninstall Tatolab…": on macOS the uninstall, which ends with the app quitting; refused with
-/// the reason when the administrator prompt is cancelled or a step fails, and on Linux with how to
-/// uninstall there.
+/// the reason when the administrator prompt is cancelled or a step fails, and on Linux, where the
+/// installer uninstalls, with a pointer to the window's own steps.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn uninstall_tatolab(
     app: AppHandle,

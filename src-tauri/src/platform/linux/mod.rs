@@ -20,11 +20,10 @@ use self::tatolab_machine_paths::TatolabMachinePathsOnLinux;
 use crate::platform::{current_process_uid, TatolabPlatformForThisBuild, TrayIconImage};
 use crate::tatolab_app_controller::TatolabAppController;
 
-/// How Tatolab is uninstalled on Linux, where its installer does it and this app removes nothing.
-pub const LINUX_UNINSTALL_INSTRUCTIONS: &str = "On Linux the installer uninstalls Tatolab: run \
-     `curl -fsSL https://get.tatolab.com/install.sh | sh -s -- --uninstall` in a terminal, which \
-     removes the service and the files and keeps the state directory with your streams and logs. \
-     Then remove this app: `sudo apt remove tatolab` for the .deb, or delete the AppImage.";
+/// Why Linux refuses "Uninstall Tatolab…": its installer uninstalls, and the window's sheet
+/// shows how.
+pub const LINUX_UNINSTALL_TATOLAB_REFUSAL: &str =
+    "On Linux the installer uninstalls Tatolab: Settings › Uninstall Tatolab… shows how.";
 
 /// The Tatolab mark at 64×64 in its own colours, which a panel shows as they are.
 pub const TRAY_ICON_IMAGE: TrayIconImage = TrayIconImage {
@@ -63,10 +62,10 @@ pub fn the_app_was_opened_again(_run_event: &RunEvent) -> bool {
     false
 }
 
-/// Refused with [`LINUX_UNINSTALL_INSTRUCTIONS`]: the installer uninstalls what it installed.
+/// Refused with [`LINUX_UNINSTALL_TATOLAB_REFUSAL`]: the installer uninstalls what it installed.
 pub fn uninstall_tatolab(
     _app: &AppHandle,
     _controller: &TatolabAppController,
 ) -> Result<(), String> {
-    Err(LINUX_UNINSTALL_INSTRUCTIONS.to_string())
+    Err(LINUX_UNINSTALL_TATOLAB_REFUSAL.to_string())
 }
