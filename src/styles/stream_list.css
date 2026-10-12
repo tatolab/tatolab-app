@@ -49,6 +49,8 @@
 .stream-list-row[aria-current="true"] .stream-list-row-name { font-weight: 500; }
 .stream-list-row[aria-current="true"] .stream-list-row-state { color: var(--text-2); }
 .stream-list-row[data-emphasis="quiet"] .stream-list-row-name { color: var(--text-3); }
+.stream-list-row[data-emphasis="quiet"][aria-current="true"] .stream-list-row-name,
+.stream-list-row[data-emphasis="quiet"]:hover .stream-list-row-name { color: var(--text-2); }
 .stream-list-row[data-emphasis="failure"] { padding-top: 6px; padding-bottom: 6px; }
 .stream-list-row[data-emphasis="failure"] .stream-list-row-state { color: var(--red); }
 .stream-list-row-failure {

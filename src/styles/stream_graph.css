@@ -147,6 +147,8 @@
 }
 .graph-node-port-watchable[aria-pressed="true"] .graph-node-port-eye { display: block; color: var(--accent-text); }
 .graph-node-port-watchable[aria-pressed="true"] .graph-node-port-exposure { color: var(--accent-text); }
+/* The level word in accent-text clears AA on the raised node fill only at this lighter wash. */
+:root[data-theme="dark"] .graph-node-port-watchable[aria-pressed="true"] { background: rgba(76, 125, 255, .12); }
 .graph-node-port-watchable:focus-visible { box-shadow: var(--focus); }
 
 .graph-node-foot {
