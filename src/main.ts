@@ -56,7 +56,7 @@ async function startTatolabWindow(): Promise<void> {
   showTatolabStatus = mountTatolabWindow(rootElement, backend, platformOf(firstStatus), featureFlags);
   showTatolabStatus(firstStatus);
   if (!insideTauri) {
-    const { driveMockWindowToPreset } = await import("./backend/mock_window_preset");
+    const { driveMockWindowToPreset } = await import("./mock_window_preset");
     driveMockWindowToPreset(pageQuery, platformOf(firstStatus));
   }
 }

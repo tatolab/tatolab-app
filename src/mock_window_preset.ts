@@ -1,4 +1,4 @@
-import type { TatolabPlatform } from "./tatolab_backend_contract";
+import type { TatolabPlatform } from "./backend/tatolab_backend_contract";
 
 const PRESET_STEP_TIMEOUT_MILLISECONDS = 3000;
 const PRESET_POLL_MILLISECONDS = 40;
