@@ -113,6 +113,12 @@ impl LocalApiRequestFailure {
     }
 }
 
+impl From<LocalApiRequestFailure> for String {
+    fn from(local_api_request_failure: LocalApiRequestFailure) -> Self {
+        local_api_request_failure.failure_description
+    }
+}
+
 /// One HTTP response as the client read it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LocalApiHttpResponse {

@@ -48,9 +48,7 @@ pub fn preview_output_frame(
     long_edge_px: u32,
 ) -> Result<FramePreview, String> {
     for attempt in 1..=FRAME_PREVIEW_ATTEMPTS {
-        let tap_sample = local_api_client
-            .tap_output_port(channel, 1)
-            .map_err(|failure| failure.failure_description)?;
+        let tap_sample = local_api_client.tap_output_port(channel, 1)?;
         let Some(tapped_bag) = tap_sample.bags.into_iter().next() else {
             return Err(format!(
                 "no bag arrived on {channel} within {} ms",
@@ -65,10 +63,7 @@ pub fn preview_output_frame(
                 "{channel}'s bags carry no surface_id, so there is no frame to show"
             ));
         };
-        match local_api_client
-            .exchange_surface_for_png_image(&surface_id, long_edge_px)
-            .map_err(|failure| failure.failure_description)?
-        {
+        match local_api_client.exchange_surface_for_png_image(&surface_id, long_edge_px)? {
             SurfaceImageExchange::Exchanged(exchanged_surface_image) => {
                 let (image_width, image_height) = png_image_dimensions(
                     &exchanged_surface_image.png_image_bytes,

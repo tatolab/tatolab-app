@@ -119,7 +119,7 @@ pub async fn read_stream_log_records(
     answer_on_the_blocking_pool("read_stream_log_records", move || {
         controller
             .read_stream_log_records(&stream, after)
-            .map_err(|failure| failure.failure_description)
+            .map_err(String::from)
     })
     .await
 }
@@ -134,7 +134,7 @@ pub async fn describe_stream_graph(
     answer_on_the_blocking_pool("describe_stream_graph", move || {
         controller
             .describe_stream_graph(&stream)
-            .map_err(|failure| failure.failure_description)
+            .map_err(String::from)
     })
     .await
 }
@@ -155,7 +155,7 @@ pub async fn tap_output_port(
     answer_on_the_blocking_pool("tap_output_port", move || {
         controller
             .tap_output_port(&stream, &node, &port, count)
-            .map_err(|failure| failure.failure_description)
+            .map_err(String::from)
     })
     .await
 }
