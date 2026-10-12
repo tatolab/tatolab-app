@@ -92,17 +92,20 @@ curl -fsSL https://get.tatolab.com/install.sh | sh -s -- --uninstall
 sudo apt remove tatolab        # the .deb; for the AppImage, delete the file
 ```
 
-The app's "Uninstall Tatolab…" on Linux explains this and removes nothing itself.
+On Linux the app's "Uninstall Tatolab…" shows these steps and removes nothing itself.
 
 ## The app's platform layer
 
 Everything that differs by platform sits in `src-tauri/src/platform/`, behind the traits the rest
 of the app uses: `RuntimeAgentRegistration` (the service manager that runs the runtime),
 `TatolabMachineSetup` (macOS's administrator-prompt setup; always complete on Linux), and each
-platform's window chrome, tray image and uninstall. `platform/macos/` drives `SMAppService`,
-`launchctl kickstart`, `osascript` and `NSFileManager`; `platform/linux/` drives `systemctl
---user` and reads the machine's paths. The Linux module needs nothing Linux-only to build, so
-`cargo test` on a Mac runs its tests too. Any other OS is a compile error.
+platform's window chrome, Dock icon, tray image, uninstall and how it hears the app opened again.
+Both platform modules expose the same items, so the rest of the app calls them with no `cfg`.
+`platform/macos/` drives `SMAppService`, `launchctl kickstart`, `osascript` and `NSFileManager`;
+`platform/linux/` drives `systemctl --user`, reads the machine's paths, and hands a second launch
+to the running app through `tauri-plugin-single-instance`. Apart from that plugin's wiring, the
+Linux module needs nothing Linux-only to build, so `cargo test` on a Mac runs its tests too. Any
+other OS is a compile error.
 
 ## macOS bundle layout
 
@@ -227,7 +230,8 @@ packaged app does. `npm run dev` alone serves the window in a browser against a 
 ## CI
 
 `.github/workflows/macos-app.yml` builds the macOS app on `macos-15` and the Linux packages on
-`ubuntu-22.04`, the Linux job running `cargo test` first:
+`ubuntu-22.04`, each job running `cargo test` and `cargo clippy --all-targets -- -D warnings`
+first (the macOS job in both feature sets), and keeps the uploaded artifacts 7 days:
 
 - **push to `main`**: builds against streamlib `main` and uploads the `.dmg`, the `.deb` and the
   AppImage as artifacts.
