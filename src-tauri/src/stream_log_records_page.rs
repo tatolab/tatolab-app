@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 /// One page of a stream's log records, oldest first.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -70,11 +70,11 @@ pub fn stream_log_records_page_from_the_logs_tool_result(
         stream_instance: logs_tool_result.stream_instance,
         records: logs_tool_result
             .records
-            .iter()
+            .into_iter()
             .map(|numbered_record| {
                 stream_log_record_from_its_jsonl_line(
                     numbered_record.sequence,
-                    &numbered_record.record,
+                    numbered_record.record,
                 )
             })
             .collect(),
@@ -86,36 +86,39 @@ pub fn stream_log_records_page_from_the_logs_tool_result(
 /// The record numbered `sequence`, from its JSONL line: a field that is absent or of another type
 /// reads `None`, an absent message reads empty, and an attribute that is not a string reads as its
 /// JSON text.
-fn stream_log_record_from_its_jsonl_line(sequence: u64, jsonl_line: &Value) -> StreamLogRecord {
-    let text_field = |field_name: &str| {
-        jsonl_line
-            .get(field_name)
-            .and_then(Value::as_str)
-            .map(str::to_string)
+fn stream_log_record_from_its_jsonl_line(sequence: u64, jsonl_line: Value) -> StreamLogRecord {
+    let mut jsonl_fields = match jsonl_line {
+        Value::Object(jsonl_fields) => jsonl_fields,
+        _ => Map::new(),
     };
-    let attrs = jsonl_line
-        .get("attrs")
-        .and_then(Value::as_object)
-        .map(|attrs| {
-            attrs
-                .iter()
-                .map(|(attribute_name, attribute_value)| {
-                    let attribute_text = match attribute_value {
-                        Value::String(text) => text.clone(),
-                        _ => attribute_value.to_string(),
-                    };
-                    (attribute_name.clone(), attribute_text)
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut take_text_field = |field_name: &str| match jsonl_fields.remove(field_name) {
+        Some(Value::String(text)) => Some(text),
+        _ => None,
+    };
+    let level = take_text_field("level");
+    let source = take_text_field("source");
+    let target = take_text_field("target");
+    let message = take_text_field("message").unwrap_or_default();
+    let attrs = match jsonl_fields.remove("attrs") {
+        Some(Value::Object(attrs)) => attrs
+            .into_iter()
+            .map(|(attribute_name, attribute_value)| {
+                let attribute_text = match attribute_value {
+                    Value::String(text) => text,
+                    _ => attribute_value.to_string(),
+                };
+                (attribute_name, attribute_text)
+            })
+            .collect(),
+        _ => BTreeMap::new(),
+    };
     StreamLogRecord {
         sequence,
-        host_ts_ns: jsonl_line.get("host_ts").and_then(Value::as_u64),
-        level: text_field("level"),
-        source: text_field("source"),
-        target: text_field("target"),
-        message: text_field("message").unwrap_or_default(),
+        host_ts_ns: jsonl_fields.get("host_ts").and_then(Value::as_u64),
+        level,
+        source,
+        target,
+        message,
         attrs,
     }
 }
@@ -286,7 +289,7 @@ mod tests {
     fn every_attribute_that_is_not_a_string_reads_as_its_json_text() {
         let record = stream_log_record_from_its_jsonl_line(
             1,
-            &json!({ "attrs": { "count": 2, "ready": true, "nothing": null, "shape": { "w": 1280 }, "note": "as is" } }),
+            json!({ "attrs": { "count": 2, "ready": true, "nothing": null, "shape": { "w": 1280 }, "note": "as is" } }),
         );
 
         assert_eq!(
