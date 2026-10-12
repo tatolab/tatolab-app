@@ -9,7 +9,10 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::platform::LOCAL_PROOF_TEST_MACHINE_ROOT;
+use crate::platform::{
+    local_api_socket_under_a_local_proof_test_root, per_user_streamlib_runtime_directory_under_tmp,
+    LOCAL_API_SOCKET_FILE_NAME, LOCAL_PROOF_TEST_MACHINE_ROOT,
+};
 
 /// The root-owned directory the real machine runtime lock sits in.
 pub const MACHINE_RUNTIME_LOCK_DIRECTORY_ON_MACOS: &str = "/Library/Application Support/Tatolab";
@@ -19,9 +22,6 @@ pub const MACHINE_RUNTIME_LOCK_FILE_NAME: &str = "runtime.lock";
 
 /// Where first launch links the `tatolab` CLI onto the PATH.
 pub const COMMAND_LINE_TOOL_LINK_PATH: &str = "/usr/local/bin/tatolab";
-
-/// The shared temporary directory the runtime's per-user runtime directory sits in on macOS.
-const SHARED_TEMPORARY_DIRECTORY: &str = "/tmp";
 
 /// The CLI's file name beside the app binary in `Contents/MacOS/`. Not `tatolab`: a default APFS
 /// volume folds case, so that name would overwrite the app's own `Tatolab`.
@@ -77,9 +77,8 @@ impl TatolabMachinePathsOnMacos {
                 .join(MACHINE_RUNTIME_LOCK_FILE_NAME),
             machine_runtime_lock_directory,
             machine_runtime_lock_owner: MachineRuntimeLockOwner::Root,
-            local_api_socket: Path::new(SHARED_TEMPORARY_DIRECTORY)
-                .join(format!("streamlib-{uid}"))
-                .join("local-api.sock"),
+            local_api_socket: per_user_streamlib_runtime_directory_under_tmp(uid)
+                .join(LOCAL_API_SOCKET_FILE_NAME),
             command_line_tool_link: Some(PathBuf::from(COMMAND_LINE_TOOL_LINK_PATH)),
             local_proof_test_machine_root: None,
         }
@@ -93,7 +92,7 @@ impl TatolabMachinePathsOnMacos {
                 .join(MACHINE_RUNTIME_LOCK_FILE_NAME),
             machine_runtime_lock_directory,
             machine_runtime_lock_owner: MachineRuntimeLockOwner::ThisUser { uid },
-            local_api_socket: test_machine_root.join("run").join("local-api.sock"),
+            local_api_socket: local_api_socket_under_a_local_proof_test_root(test_machine_root),
             command_line_tool_link: None,
             local_proof_test_machine_root: Some(test_machine_root.to_path_buf()),
         }

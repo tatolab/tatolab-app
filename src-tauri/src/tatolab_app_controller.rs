@@ -10,9 +10,13 @@ use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use crate::condition_onset_latch::ConditionOnsetLatch;
 use crate::local_api_client::{LocalApiClient, LocalApiRequestFailure};
+use crate::output_frame_preview::{preview_output_frame, FramePreview};
+use crate::output_port_tap_sample::{output_port_channel_address, TapSample};
 use crate::platform::{
-    tatolab_platform_for_this_build, MachineSetupTrigger, TatolabMachineSetup, THIS_PLATFORM,
+    tatolab_platform_for_this_build, MachineSetupAdministratorPromptOutcome, MachineSetupTrigger,
+    TatolabMachineSetup, THIS_PLATFORM,
 };
 use crate::poison_tolerant_mutex::lock_ignoring_poison;
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
@@ -20,8 +24,7 @@ use crate::run_tatolab_switch::{RunTatolabReconciliation, RunTatolabSwitch};
 use crate::stream_graph_summary::StreamGraphSummary;
 use crate::stream_log_records_page::StreamLogRecordsPage;
 use crate::tatolab_status::{
-    derive_runtime_state, the_runtime_just_became_unreachable,
-    the_stream_listing_just_started_failing, ListedStream, MachineSetupState,
+    derive_runtime_state, the_runtime_just_became_unreachable, ListedStream, MachineSetupState,
     RuntimeAgentRegistrationStatus, RuntimeHealthObservation, RuntimeState, TatolabStatus,
 };
 
@@ -60,7 +63,7 @@ pub struct TatolabAppController {
     machine_setup: Box<dyn TatolabMachineSetup>,
     local_api_client: LocalApiClient,
     runtime_state_last_observed: Mutex<Option<RuntimeState>>,
-    stream_listing_failed_last_round: Mutex<bool>,
+    stream_listing_failure_onset: ConditionOnsetLatch,
     machine_name_of_the_running_runtime: Mutex<MachineNameAskedOncePerRuntimeUpEpisode>,
 }
 
@@ -86,7 +89,7 @@ impl TatolabAppController {
                 LOCAL_API_REQUEST_TIMEOUT,
             ),
             runtime_state_last_observed: Mutex::new(None),
-            stream_listing_failed_last_round: Mutex::new(false),
+            stream_listing_failure_onset: ConditionOnsetLatch::default(),
             machine_name_of_the_running_runtime: Mutex::new(
                 MachineNameAskedOncePerRuntimeUpEpisode::default(),
             ),
@@ -121,9 +124,11 @@ impl TatolabAppController {
     /// What opening the app does once the switch is reconciled: the administrator prompt for
     /// whatever setup is missing, at most once per launch, then the switch is reconciled again.
     pub fn set_up_the_machine_on_app_opened(&self) {
-        if self
+        let administrator_prompt_outcome = self
             .machine_setup
-            .set_up_the_machine(MachineSetupTrigger::AppOpened)
+            .set_up_the_machine(MachineSetupTrigger::AppOpened);
+        if administrator_prompt_outcome
+            == MachineSetupAdministratorPromptOutcome::AdministratorPromptShown
         {
             self.reconcile_the_agent_with_the_run_tatolab_switch();
         }
@@ -211,7 +216,9 @@ impl TatolabAppController {
     }
 
     /// Observe everything once and compose the status, as of `now`; opens nothing. The local API
-    /// is asked with no lock held, so a slow runtime never holds up the tray's switch.
+    /// is asked with no lock held, so a slow runtime never holds up the tray's switch; the agent's
+    /// registration is read under the switch's lock, which on Linux runs
+    /// `systemctl --user is-enabled` while holding it.
     pub fn compose_status(&self, now: Instant) -> TatolabStatus {
         let machine_setup = self.machine_setup.observe_machine_setup();
 
@@ -286,19 +293,43 @@ impl TatolabAppController {
         self.local_api_client.describe_stream_graph(stream)
     }
 
+    /// Up to `count` bags the output port `port` of `stream`'s node `node` carries, as
+    /// [`LocalApiClient::tap_output_port`] bounds them.
+    pub fn tap_output_port(
+        &self,
+        stream: &str,
+        node: &str,
+        port: &str,
+        count: u32,
+    ) -> Result<TapSample, LocalApiRequestFailure> {
+        self.local_api_client
+            .tap_output_port(&output_port_channel_address(stream, node, port), count)
+    }
+
+    /// A preview of the frame the output port `port` of `stream`'s node `node` carries now, its
+    /// long edge at most `long_edge_px` as [`preview_output_frame`] bounds it.
+    pub fn preview_output_frame(
+        &self,
+        stream: &str,
+        node: &str,
+        port: &str,
+        long_edge_px: u32,
+    ) -> Result<FramePreview, String> {
+        preview_output_frame(
+            &self.local_api_client,
+            &output_port_channel_address(stream, node, port),
+            long_edge_px,
+        )
+    }
+
     /// The runtime's streams, or `None` when listing failed, which is logged on the round it
     /// starts failing.
     fn listed_streams(&self) -> Option<Vec<ListedStream>> {
         let streams = self.local_api_client.list_streams();
-        let stream_listing_failed_this_round = streams.is_err();
-        let stream_listing_failed_last_round = std::mem::replace(
-            &mut *lock_ignoring_poison(&self.stream_listing_failed_last_round),
-            stream_listing_failed_this_round,
-        );
-        if the_stream_listing_just_started_failing(
-            stream_listing_failed_last_round,
-            stream_listing_failed_this_round,
-        ) {
+        if self
+            .stream_listing_failure_onset
+            .condition_just_started_holding(streams.is_err())
+        {
             if let Err(failure) = &streams {
                 tracing::warn!(%failure, "the runtime's streams could not be listed");
             }

@@ -3,15 +3,17 @@
 
 //! The commands the window's frontend invokes. A request that changes the machine runs on its own
 //! named thread, as the tray's choices do, and its outcome reaches the window as the next
-//! `tatolab-status-changed`. A question the window awaits is answered from a named thread too, so
-//! neither the main thread nor the async runtime ever blocks on the runtime or the service manager.
+//! `tatolab-status-changed`. A question the window awaits is answered on Tauri's blocking pool, so
+//! neither the main thread nor the async runtime ever blocks on the runtime or the service
+//! manager, and a question the window asks often starts no thread.
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use tauri::{AppHandle, State};
 
-use crate::named_app_thread::spawn_named_app_thread;
+use crate::output_frame_preview::FramePreview;
+use crate::output_port_tap_sample::TapSample;
 use crate::platform;
 use crate::stream_graph_summary::StreamGraphSummary;
 use crate::stream_log_records_page::StreamLogRecordsPage;
@@ -24,19 +26,18 @@ use crate::tatolab_status::TatolabStatus;
 /// How long `get_tatolab_status` waits for the poller's first round when the window asks first.
 const FIRST_STATUS_ROUND_WAIT_LIMIT: Duration = Duration::from_secs(15);
 
-/// `blocking_work`'s answer, worked out on its own thread named `thread_name`.
-async fn answer_from_a_named_app_thread<Answer: Send + 'static>(
-    thread_name: &str,
+/// `blocking_work`'s answer to the command `command_name`, worked out on Tauri's blocking pool.
+async fn answer_on_the_blocking_pool<Answer: Send + 'static>(
+    command_name: &str,
     blocking_work: impl FnOnce() -> Result<Answer, String> + Send + 'static,
 ) -> Result<Answer, String> {
-    let (answer_sender, mut answer_receiver) = tauri::async_runtime::channel(1);
-    spawn_named_app_thread(thread_name, move || {
-        let _the_window_stopped_waiting = answer_sender.blocking_send(blocking_work());
-    });
-    answer_receiver
-        .recv()
+    tauri::async_runtime::spawn_blocking(blocking_work)
         .await
-        .unwrap_or_else(|| Err(format!("{thread_name} ended without an answer")))
+        .unwrap_or_else(|join_failure| {
+            Err(format!(
+                "{command_name} ended without an answer: {join_failure}"
+            ))
+        })
 }
 
 /// The status as of the poller's last round.
@@ -45,7 +46,7 @@ pub async fn get_tatolab_status(
     shared_state: State<'_, TatolabAppSharedState>,
 ) -> Result<TatolabStatus, String> {
     let status_publisher = Arc::clone(&shared_state.status_publisher);
-    answer_from_a_named_app_thread("tatolab-get-tatolab-status", move || {
+    answer_on_the_blocking_pool("get_tatolab_status", move || {
         status_publisher
             .last_published_status_waiting_up_to(FIRST_STATUS_ROUND_WAIT_LIMIT)
             .ok_or_else(|| "Tatolab has not observed the runtime yet".to_string())
@@ -73,7 +74,7 @@ pub async fn open_login_items_settings(
     shared_state: State<'_, TatolabAppSharedState>,
 ) -> Result<(), String> {
     let controller = Arc::clone(&shared_state.controller);
-    answer_from_a_named_app_thread("tatolab-open-login-items-settings", move || {
+    answer_on_the_blocking_pool("open_login_items_settings", move || {
         controller.open_login_items_settings()
     })
     .await
@@ -87,15 +88,15 @@ pub fn set_up_tatolab(app: AppHandle) -> Result<(), String> {
 }
 
 /// "Uninstall Tatolab…": on macOS the uninstall, which ends with the app quitting; refused with
-/// the reason when the administrator prompt is cancelled or a step fails, and on Linux with how to
-/// uninstall there.
+/// the reason when the administrator prompt is cancelled or a step fails, and on Linux, where the
+/// installer uninstalls, with a pointer to the window's own steps.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn uninstall_tatolab(
     app: AppHandle,
     shared_state: State<'_, TatolabAppSharedState>,
 ) -> Result<(), String> {
     let controller = Arc::clone(&shared_state.controller);
-    answer_from_a_named_app_thread("tatolab-uninstall-tatolab", move || {
+    answer_on_the_blocking_pool("uninstall_tatolab", move || {
         platform::uninstall_tatolab(&app, &controller)
     })
     .await
@@ -115,10 +116,10 @@ pub async fn read_stream_log_records(
     after: u64,
 ) -> Result<StreamLogRecordsPage, String> {
     let controller = Arc::clone(&shared_state.controller);
-    answer_from_a_named_app_thread("tatolab-read-stream-log-records", move || {
+    answer_on_the_blocking_pool("read_stream_log_records", move || {
         controller
             .read_stream_log_records(&stream, after)
-            .map_err(|failure| failure.failure_description)
+            .map_err(String::from)
     })
     .await
 }
@@ -130,10 +131,52 @@ pub async fn describe_stream_graph(
     stream: String,
 ) -> Result<StreamGraphSummary, String> {
     let controller = Arc::clone(&shared_state.controller);
-    answer_from_a_named_app_thread("tatolab-describe-stream-graph", move || {
+    answer_on_the_blocking_pool("describe_stream_graph", move || {
         controller
             .describe_stream_graph(&stream)
-            .map_err(|failure| failure.failure_description)
+            .map_err(String::from)
+    })
+    .await
+}
+
+/// Up to `count` bags — at least 1, at most
+/// [`LARGEST_TAP_SAMPLE_BAG_COUNT`](crate::local_api_client::LARGEST_TAP_SAMPLE_BAG_COUNT) — the
+/// output port `port` of `stream`'s node `node` carries, each decoded as far as it can be; refused
+/// in the runtime's own words.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn tap_output_port(
+    shared_state: State<'_, TatolabAppSharedState>,
+    stream: String,
+    node: String,
+    port: String,
+    count: u32,
+) -> Result<TapSample, String> {
+    let controller = Arc::clone(&shared_state.controller);
+    answer_on_the_blocking_pool("tap_output_port", move || {
+        controller
+            .tap_output_port(&stream, &node, &port, count)
+            .map_err(String::from)
+    })
+    .await
+}
+
+/// A preview of the frame the output port `port` of `stream`'s node `node` carries now, its long
+/// edge at most `long_edge_px`, itself between
+/// [`SMALLEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP`](crate::local_api_client::SMALLEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP)
+/// and
+/// [`LARGEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP`](crate::local_api_client::LARGEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP);
+/// refused in plain words otherwise, and in the runtime's own words when it refuses.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn preview_output_frame(
+    shared_state: State<'_, TatolabAppSharedState>,
+    stream: String,
+    node: String,
+    port: String,
+    long_edge_px: u32,
+) -> Result<FramePreview, String> {
+    let controller = Arc::clone(&shared_state.controller);
+    answer_on_the_blocking_pool("preview_output_frame", move || {
+        controller.preview_output_frame(&stream, &node, &port, long_edge_px)
     })
     .await
 }
@@ -143,6 +186,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
+    use crate::output_port_tap_sample::TapSampleBag;
     use crate::stream_graph_summary::{StreamGraphExposedPort, StreamGraphLink, StreamGraphNode};
     use crate::stream_log_records_page::StreamLogRecord;
     use crate::tatolab_status::{
@@ -172,6 +216,26 @@ mod tests {
             machine_setup_state,
             command_line_tool_linked_at: Some("/usr/local/bin/tatolab".to_string()),
         }
+    }
+
+    #[test]
+    fn an_awaited_command_answers_with_its_works_answer_or_why_it_has_none() {
+        assert_eq!(
+            tauri::async_runtime::block_on(answer_on_the_blocking_pool(
+                "read_stream_log_records",
+                || Ok(7)
+            )),
+            Ok(7)
+        );
+        let refusal = tauri::async_runtime::block_on(answer_on_the_blocking_pool::<u32>(
+            "describe_stream_graph",
+            || panic!("the blocking work panicked"),
+        ))
+        .unwrap_err();
+        assert!(
+            refusal.starts_with("describe_stream_graph ended without an answer"),
+            "{refusal}"
+        );
     }
 
     /// The window's TypeScript types read exactly this JSON, key for key and in this order.
@@ -337,6 +401,107 @@ mod tests {
                 r#""links":[{"source_node":"testpatternsource","source_port":"video","#,
                 r#""target_node":"invertingeffect","target_port":"video_from_upstream","state":"wired"}],"#,
                 r#""exposed":[{"node":"invertingeffect","port":"video_to_downstream","level":"private"}]}"#
+            )
+        );
+    }
+
+    /// `tap_output_port`'s answer, for a video frame bag and for a bag that did not decode, exactly
+    /// as the window reads it.
+    #[test]
+    fn a_tap_sample_serializes_exactly_as_the_window_reads_it() {
+        let tap_sample = TapSample {
+            channel: "main/invertingeffect/video_to_downstream".to_string(),
+            received: 2,
+            dropped_bags: 1,
+            window_ms: 500,
+            bags: vec![
+                TapSampleBag {
+                    byte_len: 226,
+                    timestamp_ns: Some(3527313244200208),
+                    surface_id: Some("e17a285e-5861-495a-91fe-30dd9d97c5e5#72517".to_string()),
+                    fields: [
+                        ("surface_id", "e17a285e-5861-495a-91fe-30dd9d97c5e5#72517"),
+                        ("width", "1280"),
+                        ("height", "720"),
+                        ("timestamp_ns", "3527313234384708"),
+                        ("color_info", "primaries=bt709 transfer=srgb range=full"),
+                    ]
+                    .into_iter()
+                    .map(|(key, display_text)| (key.to_string(), display_text.to_string()))
+                    .collect(),
+                    hex_truncated: false,
+                    decode_error: None,
+                },
+                TapSampleBag {
+                    byte_len: 2,
+                    timestamp_ns: None,
+                    surface_id: None,
+                    fields: Vec::new(),
+                    hex_truncated: false,
+                    decode_error: Some(
+                        "the bag's 2 bytes cannot hold a 76-byte frame header".to_string(),
+                    ),
+                },
+            ],
+        };
+
+        assert_eq!(
+            serde_json::to_string(&tap_sample).unwrap(),
+            concat!(
+                r#"{"channel":"main/invertingeffect/video_to_downstream","received":2,"#,
+                r#""dropped_bags":1,"window_ms":500,"bags":["#,
+                r#"{"byte_len":226,"timestamp_ns":3527313244200208,"#,
+                r#""surface_id":"e17a285e-5861-495a-91fe-30dd9d97c5e5#72517","#,
+                r#""fields":[["surface_id","e17a285e-5861-495a-91fe-30dd9d97c5e5#72517"],"#,
+                r#"["width","1280"],["height","720"],["timestamp_ns","3527313234384708"],"#,
+                r#"["color_info","primaries=bt709 transfer=srgb range=full"]],"#,
+                r#""hex_truncated":false,"decode_error":null},"#,
+                r#"{"byte_len":2,"timestamp_ns":null,"surface_id":null,"fields":[],"#,
+                r#""hex_truncated":false,"#,
+                r#""decode_error":"the bag's 2 bytes cannot hold a 76-byte frame header"}]}"#
+            )
+        );
+    }
+
+    /// `preview_output_frame`'s answer exactly as the window reads it, with and without the
+    /// surface's own extent and the bag's timestamp.
+    #[test]
+    fn a_frame_preview_serializes_exactly_as_the_window_reads_it() {
+        let frame_preview = FramePreview {
+            channel: "main/invertingeffect/video_to_downstream".to_string(),
+            surface_id: "e17a285e-5861-495a-91fe-30dd9d97c5e5#72517".to_string(),
+            png_base64: "iVBORw0KGgo=".to_string(),
+            image_width: 640,
+            image_height: 360,
+            source_width: Some(1280),
+            source_height: Some(720),
+            timestamp_ns: Some(3527313244200208),
+            attempts: 1,
+        };
+        assert_eq!(
+            serde_json::to_string(&frame_preview).unwrap(),
+            concat!(
+                r#"{"channel":"main/invertingeffect/video_to_downstream","#,
+                r#""surface_id":"e17a285e-5861-495a-91fe-30dd9d97c5e5#72517","#,
+                r#""png_base64":"iVBORw0KGgo=","image_width":640,"image_height":360,"#,
+                r#""source_width":1280,"source_height":720,"timestamp_ns":3527313244200208,"#,
+                r#""attempts":1}"#
+            )
+        );
+        let frame_preview_without_extent_or_timestamp = FramePreview {
+            source_width: None,
+            source_height: None,
+            timestamp_ns: None,
+            attempts: 2,
+            ..frame_preview
+        };
+        assert_eq!(
+            serde_json::to_string(&frame_preview_without_extent_or_timestamp).unwrap(),
+            concat!(
+                r#"{"channel":"main/invertingeffect/video_to_downstream","#,
+                r#""surface_id":"e17a285e-5861-495a-91fe-30dd9d97c5e5#72517","#,
+                r#""png_base64":"iVBORw0KGgo=","image_width":640,"image_height":360,"#,
+                r#""source_width":null,"source_height":null,"timestamp_ns":null,"attempts":2}"#
             )
         );
     }

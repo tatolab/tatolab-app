@@ -9,6 +9,7 @@
 
 use std::process::Command;
 
+use crate::condition_onset_latch::ConditionOnsetLatch;
 use crate::platform::RuntimeAgentRegistration;
 use crate::tatolab_status::RuntimeAgentRegistrationStatus;
 
@@ -56,12 +57,17 @@ impl SystemctlUserCommandRunner for SystemctlOnThePath {
 /// The runtime's systemd user unit, driven through `systemctl --user`.
 pub struct SystemdUserRuntimeService {
     systemctl: Box<dyn SystemctlUserCommandRunner>,
+    /// When `is-enabled` starts reading no unit to drive, so why is logged once per drop.
+    unit_not_found_onset: ConditionOnsetLatch,
 }
 
 impl SystemdUserRuntimeService {
     /// The unit, driven through `systemctl`.
     pub fn new(systemctl: Box<dyn SystemctlUserCommandRunner>) -> Self {
-        Self { systemctl }
+        Self {
+            systemctl,
+            unit_not_found_onset: ConditionOnsetLatch::default(),
+        }
     }
 
     /// Run `systemctl --user <arguments>`, refused in systemctl's own words unless it exits 0.
@@ -84,15 +90,32 @@ impl SystemdUserRuntimeService {
 
 impl RuntimeAgentRegistration for SystemdUserRuntimeService {
     fn registration_status(&self) -> RuntimeAgentRegistrationStatus {
-        match self
+        let is_enabled_answer_or_run_failure = self
             .systemctl
-            .run_systemctl_user(&["is-enabled", RUNTIME_SYSTEMD_USER_UNIT_NAME])
-        {
-            Ok(is_enabled) => {
-                runtime_agent_registration_status_from_systemctl_is_enabled(&is_enabled)
+            .run_systemctl_user(&["is-enabled", RUNTIME_SYSTEMD_USER_UNIT_NAME]);
+        let registration_status = match &is_enabled_answer_or_run_failure {
+            Ok(is_enabled_answer) => {
+                runtime_agent_registration_status_from_systemctl_is_enabled(is_enabled_answer)
             }
             Err(_systemctl_could_not_be_run) => RuntimeAgentRegistrationStatus::NotFound,
+        };
+        if self.unit_not_found_onset.condition_just_started_holding(
+            registration_status == RuntimeAgentRegistrationStatus::NotFound,
+        ) {
+            match &is_enabled_answer_or_run_failure {
+                Ok(is_enabled_answer) => tracing::warn!(
+                    exit_code = ?is_enabled_answer.exit_code,
+                    stdout = %is_enabled_answer.stdout.trim(),
+                    stderr = %is_enabled_answer.stderr.trim(),
+                    "systemctl --user is-enabled {RUNTIME_SYSTEMD_USER_UNIT_NAME} names no unit to drive"
+                ),
+                Err(run_failure) => tracing::warn!(
+                    %run_failure,
+                    "{RUNTIME_SYSTEMD_USER_UNIT_NAME} reads as no unit to drive"
+                ),
+            }
         }
+        registration_status
     }
 
     fn register_runtime_agent(&self) -> Result<(), String> {
@@ -125,9 +148,9 @@ impl RuntimeAgentRegistration for SystemdUserRuntimeService {
 /// but not enabled; `not-found` (exit 4), or no state at all, is no unit to drive. Older systemd
 /// names a missing unit only on stderr, and with no user manager to ask the bus refuses.
 pub fn runtime_agent_registration_status_from_systemctl_is_enabled(
-    is_enabled: &SystemctlUserCommandOutput,
+    is_enabled_answer: &SystemctlUserCommandOutput,
 ) -> RuntimeAgentRegistrationStatus {
-    match is_enabled.stdout.lines().next().map(str::trim) {
+    match is_enabled_answer.stdout.lines().next().map(str::trim) {
         Some("enabled" | "enabled-runtime") => RuntimeAgentRegistrationStatus::Enabled,
         None | Some("" | "not-found") => RuntimeAgentRegistrationStatus::NotFound,
         Some(_installed_but_not_enabled) => RuntimeAgentRegistrationStatus::NotRegistered,
@@ -163,7 +186,7 @@ mod tests {
 
     #[test]
     fn is_enabled_reads_enabled_installed_or_no_unit_as_systemctl_answers_it() {
-        for (is_enabled, expected) in [
+        for (is_enabled_answer, expected) in [
             (
                 systemctl_answered(0, "enabled\n", ""),
                 RuntimeAgentRegistrationStatus::Enabled,
@@ -206,9 +229,9 @@ mod tests {
             ),
         ] {
             assert_eq!(
-                runtime_agent_registration_status_from_systemctl_is_enabled(&is_enabled),
+                runtime_agent_registration_status_from_systemctl_is_enabled(&is_enabled_answer),
                 expected,
-                "{is_enabled:?}"
+                "{is_enabled_answer:?}"
             );
         }
     }

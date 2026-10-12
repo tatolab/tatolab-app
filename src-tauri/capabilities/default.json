@@ -1,7 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main window's frontend: Tauri's default core permissions, which carry listening for the status event, and dragging the window by its top band.",
+  "description": "The main window's frontend: listening for the status event and dropping that listener, and its top band's drag region, which drags the window and zooms it on a double click. Invoking the app's own commands needs no permission.",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-start-dragging"]
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize"
+  ]
 }

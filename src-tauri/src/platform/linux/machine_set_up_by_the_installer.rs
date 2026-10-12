@@ -8,7 +8,10 @@
 
 use std::path::PathBuf;
 
-use crate::platform::{MachineSetupObservation, MachineSetupTrigger, TatolabMachineSetup};
+use crate::platform::{
+    MachineSetupAdministratorPromptOutcome, MachineSetupObservation, MachineSetupTrigger,
+    TatolabMachineSetup,
+};
 use crate::tatolab_status::MachineSetupState;
 
 /// Why Linux refuses "Set Up Tatolab…".
@@ -42,8 +45,11 @@ impl TatolabMachineSetup for MachineSetUpByTheInstaller {
     }
 
     /// The installer left nothing for the app to set up, so no trigger shows a prompt.
-    fn set_up_the_machine(&self, _trigger: MachineSetupTrigger) -> bool {
-        false
+    fn set_up_the_machine(
+        &self,
+        _trigger: MachineSetupTrigger,
+    ) -> MachineSetupAdministratorPromptOutcome {
+        MachineSetupAdministratorPromptOutcome::NoAdministratorPromptShown
     }
 
     fn set_up_tatolab_refusal(&self) -> Option<&'static str> {
@@ -88,7 +94,11 @@ mod tests {
             MachineSetupTrigger::AppOpened,
             MachineSetupTrigger::UserAsked,
         ] {
-            assert!(!machine_setup.set_up_the_machine(trigger), "{trigger:?}");
+            assert_eq!(
+                machine_setup.set_up_the_machine(trigger),
+                MachineSetupAdministratorPromptOutcome::NoAdministratorPromptShown,
+                "{trigger:?}"
+            );
         }
         assert_eq!(
             machine_setup.set_up_tatolab_refusal(),
