@@ -2,6 +2,22 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## In progress: three design directions (early renders, being judged)
+
+The owner asked for a modern Docker / VS Code / Cursor feel. Three designers are prototyping one direction each; two judges will pick a winner and graft the best ideas from the others before it is built into the real app.
+
+**Workbench (VS Code / Cursor)**
+
+![workbench](design-directions/early/workbench-main-dark.png)
+
+**Docker Desktop**
+
+![docker](design-directions/early/docker-main-dark.png)
+
+**Native macOS pro tool (Xcode / Raycast)**
+
+![native](design-directions/early/native-main-dark.png)
+
 ## Live on macOS (local-proof build, real runtime, installed with `brew install --cask` from a local tap)
 
 **00** — The app icon — the tatolab.com mark, Big Sur style
