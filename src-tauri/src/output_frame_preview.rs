@@ -9,36 +9,13 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine as _;
 use serde::Serialize;
 
-use crate::local_api_client::{
-    ExchangedSurfaceImage, LocalApiClient, SurfaceImageExchange, LARGEST_LOCAL_API_RESPONSE_BYTES,
-};
-use crate::output_port_tap_sample::TAPPED_BAG_HEX_BYTE_LIMIT;
-
-/// The smallest long edge, in pixels, a preview may be bounded to.
-pub const SMALLEST_FRAME_PREVIEW_LONG_EDGE_PIXELS: u32 = 64;
-
-/// The largest long edge, in pixels, a preview may be bounded to.
-pub const LARGEST_FRAME_PREVIEW_LONG_EDGE_PIXELS: u32 = 1920;
+use crate::local_api_client::{ExchangedSurfaceImage, LocalApiClient, SurfaceImageExchange};
 
 /// Tap-then-exchange rounds one preview spends before a frame recycled on every round refuses it.
 const FRAME_PREVIEW_ATTEMPTS: u32 = 3;
 
 /// The bytes every PNG starts with.
 const PNG_SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', b'\r', b'\n', 0x1a, b'\n'];
-
-/// A PNG's bytes beyond its pixels — row filter bytes, deflate blocks, chunk headers — at the
-/// largest preview, with room to spare.
-const PNG_BYTES_BEYOND_ITS_PIXELS_AT_THE_LARGEST_PREVIEW: usize = 64 * 1024;
-
-// The largest preview — a square RGBA frame that does not compress at all — fits one local API
-// response.
-const _: () = assert!(
-    LARGEST_FRAME_PREVIEW_LONG_EDGE_PIXELS as usize
-        * LARGEST_FRAME_PREVIEW_LONG_EDGE_PIXELS as usize
-        * 4
-        + PNG_BYTES_BEYOND_ITS_PIXELS_AT_THE_LARGEST_PREVIEW
-        <= LARGEST_LOCAL_API_RESPONSE_BYTES
-);
 
 /// A frame an output port carried, as a PNG the window shows.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -63,20 +40,16 @@ pub struct FramePreview {
 }
 
 /// A preview of the frame the output port at `channel` carries now, its long edge at most
-/// `long_edge_px` clamped to [64, 1920]; refused in plain words when no bag arrives, its bags
-/// name no frame, the runtime refuses, or every frame tapped is recycled before its exchange.
+/// `long_edge_px` as [`LocalApiClient::exchange_surface_for_png_image`] bounds it; refused in
+/// plain words otherwise, and in the runtime's own words when it refuses.
 pub fn preview_output_frame(
     local_api_client: &LocalApiClient,
     channel: &str,
     long_edge_px: u32,
 ) -> Result<FramePreview, String> {
-    let long_edge_pixel_cap = long_edge_px.clamp(
-        SMALLEST_FRAME_PREVIEW_LONG_EDGE_PIXELS,
-        LARGEST_FRAME_PREVIEW_LONG_EDGE_PIXELS,
-    );
     for attempt in 1..=FRAME_PREVIEW_ATTEMPTS {
         let tap_sample = local_api_client
-            .tap_output_port(channel, 1, TAPPED_BAG_HEX_BYTE_LIMIT)
+            .tap_output_port(channel, 1)
             .map_err(|failure| failure.failure_description)?;
         let Some(tapped_bag) = tap_sample.bags.into_iter().next() else {
             return Err(format!(
@@ -93,7 +66,7 @@ pub fn preview_output_frame(
             ));
         };
         match local_api_client
-            .exchange_surface_for_png_image(&surface_id, long_edge_pixel_cap)
+            .exchange_surface_for_png_image(&surface_id, long_edge_px)
             .map_err(|failure| failure.failure_description)?
         {
             SurfaceImageExchange::Exchanged(exchanged_surface_image) => {
@@ -474,9 +447,7 @@ mod tests {
             std::env::var("TATOLAB_APP_LIVE_FRAME_CHANNEL").unwrap_or_else(|_| CHANNEL.to_string());
         let client = LocalApiClient::new(Path::new(&socket_path), Duration::from_secs(5));
 
-        let tap_sample = client
-            .tap_output_port(&channel, 3, TAPPED_BAG_HEX_BYTE_LIMIT)
-            .unwrap();
+        let tap_sample = client.tap_output_port(&channel, 3).unwrap();
         assert!(tap_sample.received > 0, "{tap_sample:?}");
         for tapped_bag in &tap_sample.bags {
             assert_eq!(tapped_bag.decode_error, None, "{tapped_bag:?}");

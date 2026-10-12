@@ -36,7 +36,44 @@ pub const LOCAL_API_MCP_PROTOCOL_VERSION: &str = "2026-07-28";
 const LOCAL_API_MCP_CLIENT_NAME: &str = "tatolab-app";
 
 /// The most bytes one local API response may carry before the client gives up on it.
-pub const LARGEST_LOCAL_API_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
+const LARGEST_LOCAL_API_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
+
+/// The most bags one tap asks for.
+pub const LARGEST_TAP_SAMPLE_BAG_COUNT: u32 = 32;
+
+/// The most bytes of each bag a tap asks the runtime to hex-encode; a bigger bag comes back
+/// truncated and undecoded.
+const TAPPED_BAG_HEX_BYTE_LIMIT: u32 = 64 * 1024;
+
+/// The JSON one tap result spends on a bag beyond its hex, with room to spare.
+const TAP_RESULT_JSON_BYTES_PER_BAG: usize = 1024;
+
+// The largest tap's hex — two digits a byte — and its JSON fit one response.
+const _: () = assert!(
+    LARGEST_TAP_SAMPLE_BAG_COUNT as usize
+        * (2 * TAPPED_BAG_HEX_BYTE_LIMIT as usize + TAP_RESULT_JSON_BYTES_PER_BAG)
+        <= LARGEST_LOCAL_API_RESPONSE_BYTES
+);
+
+/// The smallest long edge, in pixels, an exchanged surface image is bounded to.
+pub const SMALLEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP: u32 = 64;
+
+/// The largest long edge, in pixels, an exchanged surface image is bounded to.
+pub const LARGEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP: u32 = 1920;
+
+/// A PNG's bytes beyond its pixels — row filter bytes, deflate blocks, chunk headers — at the
+/// largest long edge, with room to spare.
+const PNG_BYTES_BEYOND_ITS_PIXELS_AT_THE_LARGEST_LONG_EDGE: usize = 64 * 1024;
+
+// The largest exchanged image — a square frame as RGBA8, the runtime's PNG format, that does not
+// compress at all — fits one response.
+const _: () = assert!(
+    LARGEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP as usize
+        * LARGEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP as usize
+        * 4
+        + PNG_BYTES_BEYOND_ITS_PIXELS_AT_THE_LARGEST_LONG_EDGE
+        <= LARGEST_LOCAL_API_RESPONSE_BYTES
+);
 
 /// Every byte outside RFC 3986's unreserved set, which a query value or a path segment carries
 /// percent-encoded.
@@ -219,17 +256,20 @@ impl LocalApiClient {
             .map_err(LocalApiRequestFailure::new)
     }
 
-    /// Up to `count` bags the output port at `channel` carries, from the runtime's `tap` tool, each
-    /// hex-encoded up to `max_bag_bytes`.
+    /// Up to `count` bags the output port at `channel` carries — at least 1, at most
+    /// [`LARGEST_TAP_SAMPLE_BAG_COUNT`] — from the runtime's `tap` tool.
     pub fn tap_output_port(
         &self,
         channel: &str,
         count: u32,
-        max_bag_bytes: u32,
     ) -> Result<TapSample, LocalApiRequestFailure> {
         let tool_result_text = self.call_mcp_tool(
             "tap",
-            json!({ "channel": channel, "count": count, "max_bag_bytes": max_bag_bytes }),
+            json!({
+                "channel": channel,
+                "count": count.clamp(1, LARGEST_TAP_SAMPLE_BAG_COUNT),
+                "max_bag_bytes": TAPPED_BAG_HEX_BYTE_LIMIT,
+            }),
         )?;
         tap_sample_from_the_tap_tool_result(&tool_result_text).map_err(LocalApiRequestFailure::new)
     }
@@ -248,15 +288,22 @@ impl LocalApiClient {
             .map_err(LocalApiRequestFailure::new)
     }
 
-    /// The frame `surface_id` names as a PNG whose long edge is at most `long_edge_pixel_cap`,
-    /// from `GET /api/surfaces/{surface_id}/image`; a recycled frame is its own answer, and any
-    /// other refusal is in the runtime's own words.
+    /// The frame `surface_id` names as a PNG whose long edge is at most `long_edge_pixel_cap` —
+    /// itself between [`SMALLEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP`] and
+    /// [`LARGEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP`] — from `GET /api/surfaces/{surface_id}/image`;
+    /// a recycled frame is its own answer, and any other refusal is in the runtime's own words.
     pub fn exchange_surface_for_png_image(
         &self,
         surface_id: &str,
         long_edge_pixel_cap: u32,
     ) -> Result<SurfaceImageExchange, LocalApiRequestFailure> {
-        let request_target = surface_image_exchange_request_target(surface_id, long_edge_pixel_cap);
+        let request_target = surface_image_exchange_request_target(
+            surface_id,
+            long_edge_pixel_cap.clamp(
+                SMALLEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP,
+                LARGEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP,
+            ),
+        );
         let response = self.exchange("GET", &request_target, &[], None)?;
         match response.status_code {
             200 => Ok(SurfaceImageExchange::Exchanged(ExchangedSurfaceImage {
@@ -912,7 +959,7 @@ mod tests {
 
         let tap_sample = server
             .client()
-            .tap_output_port("main/invertingeffect/video_to_downstream", 3, 65536)
+            .tap_output_port("main/invertingeffect/video_to_downstream", 3)
             .unwrap();
 
         assert_eq!(tap_sample.received, 3);
@@ -932,6 +979,38 @@ mod tests {
     }
 
     #[test]
+    fn a_tap_asks_for_at_least_one_bag_and_at_most_the_largest_sample() {
+        let empty_tap_tool_result = json!({
+            "channel": "main/quiet/out", "requested": 1, "received": 0, "window_ms": 500,
+            "dropped_bags": 0, "max_bag_bytes": 65536, "bags_withheld_at_byte_budget": 0, "bags": []
+        });
+        let server = FakeLocalApiServer::answering(vec![
+            tool_result_response(empty_tap_tool_result.clone()),
+            tool_result_response(empty_tap_tool_result),
+        ]);
+
+        for count in [0, 1000] {
+            server
+                .client()
+                .tap_output_port("main/quiet/out", count)
+                .unwrap();
+        }
+
+        let asked_counts: Vec<Value> = server
+            .received_requests()
+            .iter()
+            .map(|request| {
+                let (_, body) = request.split_once("\r\n\r\n").unwrap();
+                serde_json::from_str::<Value>(body).unwrap()["params"]["arguments"]["count"].clone()
+            })
+            .collect();
+        assert_eq!(
+            asked_counts,
+            vec![json!(1), json!(LARGEST_TAP_SAMPLE_BAG_COUNT)]
+        );
+    }
+
+    #[test]
     fn a_tap_the_runtime_refuses_carries_its_own_words() {
         let refusal = "tap attach failed: Resource not found: no output port `nope` on node `invertingeffect`";
         let body = json!({
@@ -946,7 +1025,7 @@ mod tests {
 
         let failure = server
             .client()
-            .tap_output_port("main/invertingeffect/nope", 1, 65536)
+            .tap_output_port("main/invertingeffect/nope", 1)
             .unwrap_err();
 
         assert_eq!(failure.failure_description, refusal);

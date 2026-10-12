@@ -139,8 +139,10 @@ pub async fn describe_stream_graph(
     .await
 }
 
-/// Up to `count` bags the output port `port` of `stream`'s node `node` carries, each decoded as far
-/// as it can be; refused in the runtime's own words.
+/// Up to `count` bags — at least 1, at most
+/// [`LARGEST_TAP_SAMPLE_BAG_COUNT`](crate::local_api_client::LARGEST_TAP_SAMPLE_BAG_COUNT) — the
+/// output port `port` of `stream`'s node `node` carries, each decoded as far as it can be; refused
+/// in the runtime's own words.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn tap_output_port(
     shared_state: State<'_, TatolabAppSharedState>,
@@ -159,8 +161,11 @@ pub async fn tap_output_port(
 }
 
 /// A preview of the frame the output port `port` of `stream`'s node `node` carries now, its long
-/// edge at most `long_edge_px`, clamped to [64, 1920]; refused in plain words when no bag arrives,
-/// its bags name no frame, the runtime refuses, or the frame is recycled on every attempt.
+/// edge at most `long_edge_px`, itself between
+/// [`SMALLEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP`](crate::local_api_client::SMALLEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP)
+/// and
+/// [`LARGEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP`](crate::local_api_client::LARGEST_SURFACE_IMAGE_LONG_EDGE_PIXEL_CAP);
+/// refused in plain words otherwise, and in the runtime's own words when it refuses.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn preview_output_frame(
     shared_state: State<'_, TatolabAppSharedState>,

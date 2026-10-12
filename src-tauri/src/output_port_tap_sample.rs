@@ -7,28 +7,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::local_api_client::LARGEST_LOCAL_API_RESPONSE_BYTES;
 use crate::tapped_bag_frame_header::{read_tapped_bag_frame_header, tapped_bag_payload};
 use crate::tapped_bag_payload_fields::{
     decode_tapped_bag_payload, displayed_payload_fields, surface_id_named_by_the_payload,
 };
-
-/// The most bags one tap the window asks for samples.
-pub const LARGEST_TAP_SAMPLE_BAG_COUNT: u32 = 32;
-
-/// The most bytes of each bag the runtime hex-encodes into a tap result; a bigger bag comes back
-/// truncated and undecoded.
-pub const TAPPED_BAG_HEX_BYTE_LIMIT: u32 = 64 * 1024;
-
-/// The JSON one tap result spends on a bag beyond its hex, with room to spare.
-const TAP_RESULT_JSON_BYTES_PER_BAG: usize = 1024;
-
-// The largest sample's hex — two digits a byte — and its JSON fit one local API response.
-const _: () = assert!(
-    LARGEST_TAP_SAMPLE_BAG_COUNT as usize
-        * (2 * TAPPED_BAG_HEX_BYTE_LIMIT as usize + TAP_RESULT_JSON_BYTES_PER_BAG)
-        <= LARGEST_LOCAL_API_RESPONSE_BYTES
-);
 
 /// A sample of the bags one output port carried, in the order it carried them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
