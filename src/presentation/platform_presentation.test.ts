@@ -5,6 +5,7 @@ import {
   platformOf,
   presentCommandLineTool,
   presentPlatform,
+  shortcutHint,
   windowDragRegionAttribute,
 } from "./platform_presentation";
 
@@ -70,6 +71,22 @@ describe("presentPlatform", () => {
     expect(presentPlatform("linux").thisMachineAtSentenceStart).toBe("This computer");
     expect(presentPlatform("macos").quitTatolabExplanation).toContain("menu bar icon");
     expect(presentPlatform("linux").quitTatolabExplanation).toContain("tray icon");
+  });
+});
+
+describe("shortcutHint", () => {
+  it("writes ⌘ before the key on macOS and Ctrl and a space before it on Linux", () => {
+    expect(shortcutHint("macos", "K")).toBe("⌘K");
+    expect(shortcutHint("macos", ",")).toBe("⌘,");
+    expect(shortcutHint("linux", "K")).toBe("Ctrl K");
+    expect(shortcutHint("linux", "1")).toBe("Ctrl 1");
+  });
+});
+
+describe("streamRecordsDirectory", () => {
+  it("names where each platform keeps the streams' records", () => {
+    expect(presentPlatform("macos").streamRecordsDirectory).toBe("~/Library/Application Support/Tatolab");
+    expect(presentPlatform("linux").streamRecordsDirectory).toBe("~/.local/state/tatolab");
   });
 });
 

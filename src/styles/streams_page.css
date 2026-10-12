@@ -1,353 +1,49 @@
-/* ---------- runtime facts in the top band ---------- */
-.runtime-facts {
-  container-type: inline-size;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--ink-2);
-  font-size: 12px;
-  white-space: nowrap;
-}
+/* The streams page's body: the selected stream's workspace (canvas over the docked log), or its Overview. */
+.streams-page-body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.stream-detail { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.stream-live { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
-.runtime-fact {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  flex: none;
-  min-width: 0;
-  padding: 0 12px;
-  line-height: 16px;
-}
-
-.runtime-fact + .runtime-fact:not([hidden]) {
-  border-left: 1px solid var(--line);
-}
-
-.runtime-fact:last-child {
-  padding-right: 4px;
-}
-
-.runtime-fact-state {
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.runtime-fact-state[data-tone="ok"] {
-  color: var(--ok);
-}
-
-.runtime-fact-state[data-tone="warning"] {
-  color: var(--amber-ink);
-}
-
-.runtime-fact-state[data-tone="error"] {
-  color: var(--error);
-}
-
-.runtime-fact-machine {
-  flex: 0 1 auto;
-}
-
-.runtime-fact-machine svg {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  color: var(--ink-3);
-}
-
-.runtime-fact-machine-name {
-  overflow: hidden;
-  font: 400 11.5px/16px var(--font-mono);
-  color: var(--ink);
-  text-overflow: ellipsis;
-}
-
-.runtime-fact-count {
-  font-variant-numeric: tabular-nums;
-}
-
-.runtime-fact-version {
-  color: var(--ink-3);
-}
-
-@container (max-width: 470px) {
-  .runtime-fact-version,
-  .runtime-fact-node-count {
-    display: none;
-  }
-}
-
-/* ---------- runtime banner ---------- */
-.runtime-banner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 56px;
-  padding: 10px 16px 10px 20px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg-2);
-}
-
-.runtime-banner[data-tone="progress"] {
-  background: var(--accent-soft);
-  border-bottom-color: var(--accent-line);
-}
-
-.runtime-banner[data-tone="warning"] {
-  background: var(--amber-soft);
-  border-bottom-color: color-mix(in srgb, var(--amber) 32%, transparent);
-}
-
-.runtime-banner[data-tone="error"] {
-  background: var(--error-soft);
-  border-bottom-color: color-mix(in srgb, var(--error) 24%, transparent);
-}
-
-.runtime-banner-icon {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 20px;
-  height: 20px;
-  color: var(--ink-2);
-}
-
-.runtime-banner-icon svg {
-  width: 18px;
-  height: 18px;
-}
-
-.runtime-banner[data-tone="progress"] .runtime-banner-icon {
-  color: var(--accent);
-}
-
-.runtime-banner[data-tone="warning"] .runtime-banner-icon {
-  color: var(--amber-ink);
-}
-
-.runtime-banner[data-tone="error"] .runtime-banner-icon {
-  color: var(--error);
-}
-
-.runtime-banner-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  flex: 1;
-  min-width: 0;
-}
-
-.runtime-banner-title {
-  font: 600 13px/1.4 var(--font-sans);
-}
-
-.runtime-banner-explanation {
-  color: var(--ink-2);
-  font-size: 12.5px;
-  line-height: 1.45;
-}
-
-.runtime-banner-action-failure {
-  margin-top: 2px;
-  color: var(--error);
-  font-size: 12px;
-}
-
-/* ---------- page body ---------- */
-.streams-page-body {
-  display: flex;
+.stream-workspace {
+  position: relative;
   flex: 1;
   min-height: 0;
-}
-
-.streams-split {
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
-  flex: 1;
-  min-height: 0;
+  grid-template-rows: minmax(160px, 1fr) var(--log-dock-height, 298px);
 }
+.stream-live[data-tab="logs"] .stream-workspace { grid-template-rows: minmax(0, 1fr); }
+.stream-live[data-tab="logs"] .graph-canvas,
+.stream-live[data-tab="logs"] .log-dock-splitter { display: none; }
 
-.stream-detail-pane {
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-}
-
-@media (max-width: 960px) {
-  .streams-split,
-  .streams-skeleton {
-    grid-template-columns: 224px minmax(0, 1fr);
-  }
-}
-
-/* ---------- not running: the list's outline, waiting ---------- */
-.streams-skeleton {
-  display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
-  flex: 1;
-  min-height: 0;
-}
-
-.streams-skeleton-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px;
-  border-right: 1px solid var(--line);
-}
-
-.streams-skeleton-row {
-  display: grid;
-  grid-template-columns: 7px minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  align-items: center;
-  column-gap: 11px;
-  row-gap: 9px;
-  padding: 12px 12px;
-}
-
-.streams-skeleton-dot {
-  width: 7px;
+.log-dock-splitter {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--log-dock-height, 298px) - 4px);
   height: 7px;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1.5px var(--line-2);
+  cursor: row-resize;
+  touch-action: none;
+}
+.log-dock-splitter:focus-visible { box-shadow: none; }
+.log-dock-splitter:focus-visible::after,
+.log-dock-splitter[data-dragging="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 3px;
+  height: 1px;
+  background: var(--accent-line);
 }
 
-.streams-skeleton-bar {
-  height: 8px;
-  border-radius: 4px;
-  background: var(--line);
-}
-
-.streams-skeleton-bar-name {
-  width: 46%;
-}
-
-.streams-skeleton-bar-path {
-  grid-column: 2;
-  width: 72%;
-  height: 6px;
-  opacity: 0.7;
-}
-
-.streams-skeleton-row:nth-child(2) .streams-skeleton-bar-name {
-  width: 62%;
-}
-
-.streams-skeleton-row:nth-child(3) {
-  opacity: 0.6;
-}
-
-.streams-skeleton-row:nth-child(3) .streams-skeleton-bar-name {
-  width: 38%;
-}
-
-.streams-skeleton[data-starting="true"] .streams-skeleton-bar {
-  background: linear-gradient(90deg, var(--line) 0%, var(--bg-2) 50%, var(--line) 100%);
-  background-size: 200% 100%;
-  animation: streams-skeleton-shimmer 1.8s ease-in-out infinite;
-}
-
-@keyframes streams-skeleton-shimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: -100% 0;
-  }
-}
-
-.streams-skeleton-detail {
+.log-dock {
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  padding: 32px 32px 64px;
+  border-top: 1px solid var(--line);
+  background: var(--window);
 }
-
-.streams-skeleton-message {
-  max-width: 48ch;
-  color: var(--ink-3);
-  font-size: 13px;
-  text-align: center;
-  text-wrap: balance;
-}
-
-.streams-skeleton {
-  --runtime-state-figure-color: var(--ink-3);
-}
-
-.streams-skeleton[data-tone="progress"] {
-  --runtime-state-figure-color: var(--accent);
-}
-
-.streams-skeleton[data-tone="warning"] {
-  --runtime-state-figure-color: var(--amber);
-}
-
-.streams-skeleton[data-tone="error"] {
-  --runtime-state-figure-color: var(--error);
-}
-
-.runtime-state-figure {
-  display: block;
-  overflow: visible;
-}
-
-.runtime-state-figure-orbit {
-  fill: none;
-  stroke: color-mix(in srgb, var(--runtime-state-figure-color) 40%, var(--line));
-  stroke-width: 1;
-  stroke-dasharray: 2 5;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.runtime-state-figure-tile {
-  fill: var(--panel);
-  stroke: color-mix(in srgb, var(--runtime-state-figure-color) 55%, var(--line-2));
-  stroke-width: 1.5;
-}
-
-.runtime-state-figure-letter {
-  fill: none;
-  stroke: var(--runtime-state-figure-color);
-  stroke-width: 3.2;
-  stroke-linecap: round;
-}
-
-.streams-skeleton[data-starting="true"] .runtime-state-figure-orbit {
-  animation: runtime-state-figure-orbit-turn 12s linear infinite;
-}
-
-@keyframes runtime-state-figure-orbit-turn {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* ---------- running, but not listed ---------- */
-.streams-not-listed {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  flex: 1;
-  padding: 32px;
-  text-align: center;
-}
-
-.streams-not-listed-headline {
-  font: 600 14px/1.4 var(--font-sans);
-}
-
-.streams-not-listed-explanation {
-  max-width: 44ch;
-  color: var(--ink-2);
-  font-size: 13px;
-}
+.stream-live[data-tab="logs"] .log-dock { border-top: 0; }
+.log-dock > * { flex: 1; min-height: 0; }
+.log-dock[data-watching="true"] > .watch-placeholder { animation: log-dock-crossfade 160ms var(--ease); }
+@keyframes log-dock-crossfade { from { opacity: 0; } }

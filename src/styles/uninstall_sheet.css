@@ -1,313 +1,70 @@
+/* The uninstall sheet: attached under the band on macOS, floating on Linux, over a scrim. */
 .uninstall-sheet {
-  width: min(500px, calc(100vw - 48px));
-  max-height: calc(100vh - 48px);
-  padding: 0;
-  overflow-y: auto;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--panel);
-  color: var(--ink);
-  box-shadow: var(--shadow-sheet);
+  position: fixed;
+  inset: 52px auto auto 50%;
+  width: 452px;
+  max-width: calc(100% - 48px);
+  max-height: calc(100vh - 72px);
+  margin: 0;
+  padding: 20px 20px 16px;
+  overflow: auto;
+  transform: translateX(-50%);
+  border: 0;
+  border-radius: 0 0 var(--radius-overlay) var(--radius-overlay);
+  background: var(--overlay);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
 }
+.uninstall-sheet[data-platform-sheet="linux"] { top: 64px; border-radius: var(--radius-overlay); }
+.uninstall-sheet[open] { animation: uninstall-sheet-in 180ms var(--ease); }
+.uninstall-sheet[data-closing="true"] { animation: uninstall-sheet-out 120ms var(--ease) forwards; }
+.uninstall-sheet:focus-visible { box-shadow: var(--shadow-pop); }
+@keyframes uninstall-sheet-in { from { opacity: 0; transform: translate(-50%, -8px); } }
+@keyframes uninstall-sheet-out { to { opacity: 0; transform: translate(-50%, -8px); } }
+.uninstall-sheet::backdrop { background: rgba(28, 28, 32, .18); animation: scrim-in 140ms linear; }
+:root[data-theme="dark"] .uninstall-sheet::backdrop { background: rgba(0, 0, 0, .4); }
+@keyframes scrim-in { from { opacity: 0; } }
 
-.uninstall-sheet:focus-visible {
-  outline: none;
-}
+.uninstall-sheet-head { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 14px; align-items: start; }
+.uninstall-sheet-mark { display: block; width: 44px; height: 44px; }
+.uninstall-sheet-title { margin-top: 2px; font-size: 15px; line-height: 20px; font-weight: 600; }
+.uninstall-sheet-lede { margin-top: 3px; color: var(--text-2); font-size: 13px; line-height: 18px; }
 
-/* ::backdrop inherits no custom properties in older WebKit, so its colours are spelled out. */
-.uninstall-sheet::backdrop {
-  background: rgba(17, 17, 19, 0.28);
-}
-
-:root[data-theme="dark"] .uninstall-sheet::backdrop {
-  background: rgba(0, 0, 0, 0.56);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .uninstall-sheet::backdrop {
-    background: rgba(0, 0, 0, 0.56);
-  }
-}
-
-/* A macOS sheet hangs from the top of its window; a Linux dialog sits in the middle. */
-:root[data-platform="macos"] .uninstall-sheet {
-  margin-top: 52px;
-}
-
-.uninstall-sheet[open] {
-  animation: uninstall-sheet-appear 180ms var(--ease-out);
-}
-
-:root[data-platform="macos"] .uninstall-sheet[open] {
-  animation-name: uninstall-sheet-descend;
-  animation-duration: 240ms;
-}
-
-.uninstall-sheet[open]::backdrop {
-  animation: uninstall-sheet-backdrop-fade 180ms ease-out;
-}
-
-@keyframes uninstall-sheet-descend {
-  from {
-    opacity: 0;
-    transform: translateY(-14px);
-  }
-}
-
-@keyframes uninstall-sheet-appear {
-  from {
-    opacity: 0;
-    transform: scale(0.97);
-  }
-}
-
-@keyframes uninstall-sheet-backdrop-fade {
-  from {
-    opacity: 0;
-  }
-}
-
-.uninstall-sheet-body {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding: 22px 22px 0;
-}
-
-/* ---------- header ---------- */
-.uninstall-sheet-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.uninstall-sheet-mark svg {
-  display: block;
-  width: 42px;
-  height: 42px;
-  filter: drop-shadow(0 5px 12px rgba(42, 91, 255, 0.24));
-}
-
-.uninstall-sheet-heading {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.uninstall-sheet-title {
-  font: 600 17px/1.25 var(--font-sans);
-  letter-spacing: -0.02em;
-}
-
-.uninstall-sheet-lead {
-  color: var(--ink-2);
-  font-size: 13px;
-  line-height: 1.45;
-  text-wrap: pretty;
-}
-
-/* ---------- macOS: what goes ---------- */
-.uninstall-sheet-removals {
-  border: 1px solid var(--line);
-  border-radius: 11px;
-}
-
-.uninstall-sheet-removal {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-}
-
-.uninstall-sheet-removal + .uninstall-sheet-removal {
-  border-top: 1px solid var(--line);
-}
-
-.uninstall-sheet-row-icon {
+.uninstall-sheet-rows { display: flex; flex-direction: column; margin-top: 16px; }
+.uninstall-sheet-row {
   display: grid;
-  place-items: center;
-  flex: none;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--bg-2);
-  box-shadow: inset 0 0 0 1px var(--line);
-  color: var(--ink-2);
-}
-
-.uninstall-sheet-row-icon svg {
-  width: 17px;
-  height: 17px;
-  stroke-width: 1.55;
-}
-
-.uninstall-sheet-removal-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.uninstall-sheet-removal-copy strong {
-  font: 600 13px/1.4 var(--font-sans);
-}
-
-.uninstall-sheet-removal-copy span {
-  color: var(--ink-2);
-  font-size: 12.5px;
-  line-height: 1.45;
-}
-
-.uninstall-sheet-removal-copy code {
-  color: var(--ink-2);
-  font-size: 11.5px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-/* ---------- what stays ---------- */
-.uninstall-sheet-kept {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 15px;
-}
-
-.uninstall-sheet-kept-icon {
-  background: var(--ok-soft);
-  box-shadow: none;
-  color: var(--ok);
-}
-
-.uninstall-sheet-kept-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.uninstall-sheet-kept-copy strong {
-  font: 600 13px/1.4 var(--font-sans);
-}
-
-.uninstall-sheet-kept-copy span {
-  color: var(--ink-2);
-  font-size: 12.5px;
-  line-height: 1.5;
-  text-wrap: pretty;
-}
-
-.uninstall-sheet-kept-copy code {
-  font-size: 11.5px;
-}
-
-/* Under Linux's numbered steps the note takes their column: its mark the size of their numbers. */
-.uninstall-sheet-steps + .uninstall-sheet-kept {
-  align-items: flex-start;
-  padding: 0;
-}
-
-.uninstall-sheet-steps + .uninstall-sheet-kept .uninstall-sheet-row-icon {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-}
-
-.uninstall-sheet-steps + .uninstall-sheet-kept .uninstall-sheet-row-icon svg {
-  width: 13px;
-  height: 13px;
-  stroke-width: 1.8;
-}
-
-.uninstall-sheet-steps + .uninstall-sheet-kept strong {
-  line-height: 22px;
-}
-
-/* ---------- Linux: the two steps ---------- */
-.uninstall-sheet-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.uninstall-sheet-step {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.uninstall-sheet-step-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-}
-
-.uninstall-sheet-step-copy strong {
-  font: 600 13px/22px var(--font-sans);
-}
-
-.uninstall-sheet-step-copy > span {
-  margin-top: -2px;
-  color: var(--ink-2);
-  font-size: 12.5px;
-  line-height: 1.5;
-  text-wrap: pretty;
-}
-
-/* ---------- footer ---------- */
-/* Tall enough for the two-line note an uninstall shows, so confirming doesn't grow the sheet. */
-.uninstall-sheet-footer {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-height: 66px;
-  margin-top: 20px;
-  padding: 14px 22px 16px;
+  grid-template-columns: 16px minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 10px 0;
   border-top: 1px solid var(--line);
 }
+.uninstall-sheet-row:last-child { border-bottom: 1px solid var(--line); }
+.uninstall-sheet-row-icon { margin-top: 1px; color: var(--text-2); }
+.uninstall-sheet-row-title { font-size: 13px; line-height: 18px; font-weight: 500; }
+.uninstall-sheet-row-title code { font-size: 12px; }
+.uninstall-sheet-row-note { margin-top: 2px; color: var(--text-2); font-size: 12px; line-height: 17px; }
+.uninstall-sheet-row-note code { color: var(--text); font-size: 11.5px; white-space: nowrap; }
 
-.uninstall-sheet-note {
-  flex: 1;
-  min-width: 0;
-  color: var(--ink-3);
+.uninstall-sheet-kept {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  column-gap: 12px;
+  margin-top: 12px;
+  color: var(--text-2);
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 18px;
 }
+.uninstall-sheet-kept code { color: var(--text); font-size: 11.5px; white-space: nowrap; }
 
-.uninstall-sheet[data-phase="uninstalling"] .uninstall-sheet-note {
-  color: var(--ink-2);
-}
+.uninstall-sheet-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 
-.uninstall-sheet-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  flex: none;
-  margin-left: auto;
-}
+.uninstall-sheet-uninstalled { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 0 8px; text-align: center; }
+.uninstall-sheet-uninstalled .uninstall-sheet-mark { margin-bottom: 10px; }
 
-.uninstall-sheet-actions .button {
-  min-width: 88px;
-}
-
-.uninstall-sheet .button-destructive:disabled {
-  opacity: 0.88;
-}
-
-/* Done: nothing destructive is left to press. */
-.uninstall-sheet[data-phase="uninstalled"] .button-destructive {
-  border-color: var(--line);
-  background: var(--bg-2);
-  box-shadow: none;
-  color: var(--ok);
-  opacity: 1;
-}
-
-.uninstall-sheet-uninstalled-check {
-  width: 14px;
-  height: 14px;
-  stroke-width: 1.8;
-}
+.uninstall-sheet-close { position: absolute; top: 12px; right: 12px; }
+.uninstall-sheet-steps { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+.uninstall-sheet-step { display: grid; grid-template-columns: 20px minmax(0, 1fr); }
+.uninstall-sheet-step-number { color: var(--text-3); font-size: 13px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.uninstall-sheet-step-copy { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.uninstall-sheet-step > .standalone-command { grid-column: 1 / -1; margin-top: 8px; }
+.uninstall-sheet-step > .standalone-command .command-text { font-size: 11.5px; }

@@ -1,0 +1,51 @@
+/* Watch, behind the watch-exposed-output flag: the place an exposed output's frames will show. */
+.watch-placeholder { display: flex; flex-direction: column; min-height: 0; }
+
+.watch-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  height: 40px;
+  padding: 0 12px 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+.watch-header-eye { color: var(--accent-text); }
+.watch-header-title { display: flex; align-items: baseline; gap: 7px; min-width: 0; white-space: nowrap; }
+.watch-header-node { flex: none; color: var(--text-2); font-size: 12.5px; }
+.watch-header-separator { color: var(--text-3); }
+.watch-header-port { min-width: 0; overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; }
+.watch-header-level { flex: none; color: var(--text-3); font-size: 12px; }
+.watch-header .button-plain .shortcut-cap { margin-left: 4px; }
+
+.watch-body { flex: 1; min-height: 0; display: flex; gap: 24px; padding: 16px 20px; overflow: auto; }
+
+.watch-frame {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: min(calc((var(--log-dock-height, 298px) - 72px) * 16 / 9), 45%);
+  aspect-ratio: 16 / 9;
+  align-self: flex-start;
+  border: 1px dashed var(--line-dashed);
+  border-radius: var(--radius-well);
+  background: var(--canvas);
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.watch-details { flex: 1; min-width: 260px; max-width: 420px; }
+.watch-internal { max-width: 560px; display: flex; flex-direction: column; gap: 8px; }
+.watch-details-title { font-size: 13px; line-height: 18px; font-weight: 600; }
+.watch-details-title code { font-size: 12.5px; }
+.watch-details-text { margin-top: 6px; color: var(--text-2); font-size: 12.5px; line-height: 19px; }
+.watch-internal .watch-details-text { margin-top: 0; }
+.watch-details-text code { color: var(--text); font-size: 12px; }
+.watch-details-address { display: flex; align-items: center; gap: 4px; margin-top: 14px; font-size: 12px; }
+.watch-details-address code { min-width: 0; }
+.watch-details-footnote { margin-top: 14px; color: var(--text-3); font-size: 11.5px; line-height: 16px; }
+.watch-internal .watch-details-footnote { margin-top: 0; font-size: 12px; }
+.watch-details-footnote code { font-size: 11px; }

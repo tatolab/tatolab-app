@@ -16,27 +16,40 @@ import type {
   TatolabStatus,
 } from "./tatolab_backend_contract";
 
-/** Browser-only stand-ins for the app backend, picked with `?state=`; `approval` exists only on macOS. */
+/**
+ * Browser-only stand-ins for the app backend, picked with `?state=`. `approval`, `missing` and `not-registered` exist
+ * only on macOS.
+ */
 export type MockTatolabScenario =
   | "running"
   | "empty"
+  | "loading"
+  | "node-error"
+  | "not-listed"
   | "starting"
   | "stopped"
   | "approval"
+  | "missing"
+  | "not-registered"
   | "setup"
-  | "unreachable"
-  | "failed";
+  | "unreachable";
 
 const MOCK_TATOLAB_SCENARIOS: readonly MockTatolabScenario[] = [
   "running",
   "empty",
+  "loading",
+  "node-error",
+  "not-listed",
   "starting",
   "stopped",
   "approval",
+  "missing",
+  "not-registered",
   "setup",
   "unreachable",
-  "failed",
 ];
+
+const MACOS_ONLY_SCENARIOS: readonly MockTatolabScenario[] = ["approval", "missing", "not-registered"];
 
 const MOCK_COMMAND_LATENCY_MILLISECONDS = 30;
 const MOCK_RUNTIME_STARTUP_MILLISECONDS = 2400;
@@ -45,11 +58,10 @@ const MOCK_ADMINISTRATOR_PROMPT_MILLISECONDS = 1600;
 const MOCK_UNINSTALL_ADMINISTRATOR_PROMPT_MILLISECONDS = 4000;
 const MOCK_LIVE_TICK_MILLISECONDS = 700;
 const MOCK_STREAM_SETTLE_MILLISECONDS = 1600;
-/** How long the test pattern stream has been running when the window opens. */
-const MOCK_TEST_PATTERN_UPTIME_MILLISECONDS = 46_000;
-const MOCK_LOBBY_RECORDER_FIRST_ARRIVAL_MILLISECONDS = 4200;
-const MOCK_LOBBY_RECORDER_ATTACHED_MILLISECONDS = 66_000;
-const MOCK_LOBBY_RECORDER_DETACHED_MILLISECONDS = 12_000;
+/** How long `main` stays listed but not loaded in the `loading` scenario. */
+const MOCK_MAIN_LOADING_MILLISECONDS = 9000;
+const MOCK_ATTACHED_DEMO_ATTACHED_MILLISECONDS = 66_000;
+const MOCK_ATTACHED_DEMO_DETACHED_MILLISECONDS = 12_000;
 const MOCK_RECORDS_PAGE_SIZE = 500;
 const MOST_MOCK_RECORDS_HELD = 4000;
 
@@ -69,7 +81,8 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
   const platform: TatolabPlatform = pageQuery.get("platform") === "linux" ? "linux" : "macos";
   const requestedScenario = pageQuery.get("state");
   const scenario = MOCK_TATOLAB_SCENARIOS.find(
-    (knownScenario) => knownScenario === requestedScenario && !(platform === "linux" && knownScenario === "approval"),
+    (knownScenario) =>
+      knownScenario === requestedScenario && !(platform === "linux" && MACOS_ONLY_SCENARIOS.includes(knownScenario)),
   );
   return { scenario: scenario ?? "running", platform, isUninstallPromptCancelled: pageQuery.get("uninstall") === "cancel" };
 }
@@ -102,14 +115,27 @@ function initialMockStatus(scenario: MockTatolabScenario, platform: TatolabPlatf
   switch (scenario) {
     case "running":
     case "empty":
-    case "failed":
+    case "loading":
+    case "node-error":
+    case "not-listed":
       return runningStatus;
     case "starting":
       return { ...runningStatus, runtime_state: "starting", machine_name: null, streams: null };
     case "stopped":
-      return { ...runningStatus, run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped", machine_name: null, streams: null };
+      return {
+        ...runningStatus,
+        run_tatolab: false,
+        runtime_agent: "not_registered",
+        runtime_state: "stopped",
+        machine_name: null,
+        streams: null,
+      };
     case "approval":
       return { ...runningStatus, runtime_agent: "requires_approval", runtime_state: "stopped", machine_name: null, streams: null };
+    case "missing":
+      return { ...runningStatus, runtime_agent: "not_found", runtime_state: "stopped", machine_name: null, streams: null };
+    case "not-registered":
+      return { ...runningStatus, runtime_agent: "not_registered", runtime_state: "stopped", machine_name: null, streams: null };
     case "unreachable":
       return { ...runningStatus, runtime_state: "unreachable", streams: null };
     case "setup":
@@ -143,10 +169,13 @@ function sleep(milliseconds: number): Promise<void> {
 /** A backend whose commands change its own state and whose streams log on their own, so the window works in a browser. */
 export function createMockTatolabBackend({ scenario, platform, isUninstallPromptCancelled }: MockTatolabOptions): TatolabBackend {
   const fixtures = createMockStreamFixtures(platform);
+  const mainStream = scenario === "node-error" ? fixtures.mainStreamWithDisplayWindowInError : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const loadedStreams = new Map<string, MockLoadedStream>();
-  const listedStreamsNotLoaded: ListedStream[] =
-    scenario === "failed" ? [fixtures.failedDepthOverlayStream.listing, fixtures.stoppedStudioMicStream.listing] : [];
+  const listedStreamsNotLoaded = new Map<string, ListedStream>([
+    [fixtures.stoppedPatternTwo.name, fixtures.stoppedPatternTwo],
+    [fixtures.failedLobbyRecorder.name, fixtures.failedLobbyRecorder],
+  ]);
   let mockStatus = initialMockStatus(scenario, platform, fixtures.machine);
   let isLoginItemsApproved = scenario !== "approval";
   let runtimeUpSinceMilliseconds: number | null = null;
@@ -158,10 +187,13 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
     for (const statusListener of statusListeners) statusListener(structuredClone(mockStatus));
   };
 
-  const listStreams = (): ListedStream[] =>
-    [...[...loadedStreams.values()].map((loadedStream) => loadedStream.fixture.listing), ...listedStreamsNotLoaded].sort(
-      (first, second) => first.name.localeCompare(second.name),
-    );
+  const listStreams = (): ListedStream[] | null => {
+    if (scenario === "not-listed") return null;
+    if (scenario === "empty") return [];
+    return fixtures.listingOrder
+      .map((streamName) => loadedStreams.get(streamName)?.fixture.listing ?? listedStreamsNotLoaded.get(streamName) ?? null)
+      .filter((listing): listing is ListedStream => listing !== null);
+  };
 
   const holdRecords = (loadedStream: MockLoadedStream, drafts: MockLogRecordDraft[]): void => {
     for (const draft of drafts) {
@@ -200,33 +232,52 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
       nextSequence: 1,
     };
     loadedStreams.set(fixture.listing.name, loadedStream);
+    listedStreamsNotLoaded.delete(fixture.listing.name);
     const alreadyRunningMilliseconds = Date.now() - loadedAtMilliseconds;
     for (let replayedMilliseconds = 0; replayedMilliseconds <= alreadyRunningMilliseconds; replayedMilliseconds += MOCK_LIVE_TICK_MILLISECONDS) {
       advanceStreamLog(loadedStream, replayedMilliseconds);
     }
+    advanceStreamLog(loadedStream, alreadyRunningMilliseconds);
   };
 
-  const isLobbyRecorderAttachedAt = (millisecondsSinceRuntimeUp: number): boolean => {
-    if (scenario !== "running" || millisecondsSinceRuntimeUp < MOCK_LOBBY_RECORDER_FIRST_ARRIVAL_MILLISECONDS) return false;
-    const cycleMilliseconds = MOCK_LOBBY_RECORDER_ATTACHED_MILLISECONDS + MOCK_LOBBY_RECORDER_DETACHED_MILLISECONDS;
-    return (millisecondsSinceRuntimeUp - MOCK_LOBBY_RECORDER_FIRST_ARRIVAL_MILLISECONDS) % cycleMilliseconds < MOCK_LOBBY_RECORDER_ATTACHED_MILLISECONDS;
+  const isAttachedDemoAttachedAt = (millisecondsSinceRuntimeUp: number): boolean => {
+    const cycleMilliseconds = MOCK_ATTACHED_DEMO_ATTACHED_MILLISECONDS + MOCK_ATTACHED_DEMO_DETACHED_MILLISECONDS;
+    return millisecondsSinceRuntimeUp % cycleMilliseconds < MOCK_ATTACHED_DEMO_ATTACHED_MILLISECONDS;
   };
 
   const runLiveTick = (): void => {
     if (runtimeUpSinceMilliseconds === null) return;
     const now = Date.now();
-    const lobbyRecorderShouldBeAttached = isLobbyRecorderAttachedAt(now - runtimeUpSinceMilliseconds);
-    const lobbyRecorderIsAttached = loadedStreams.has(fixtures.lobbyRecorderStream.listing.name);
-    if (lobbyRecorderShouldBeAttached && !lobbyRecorderIsAttached) loadStream(fixtures.lobbyRecorderStream, now);
-    if (!lobbyRecorderShouldBeAttached && lobbyRecorderIsAttached) loadedStreams.delete(fixtures.lobbyRecorderStream.listing.name);
+    let listingChanged = false;
+    if (scenario === "running" || scenario === "node-error" || scenario === "loading") {
+      const attachedDemoName = fixtures.attachedDemoStream.listing.name;
+      const shouldBeAttached = isAttachedDemoAttachedAt(now - runtimeUpSinceMilliseconds);
+      const isAttached = loadedStreams.has(attachedDemoName);
+      if (shouldBeAttached && !isAttached) loadStream(fixtures.attachedDemoStream, now);
+      if (!shouldBeAttached && isAttached) loadedStreams.delete(attachedDemoName);
+      listingChanged = shouldBeAttached !== isAttached;
+    }
+    if (scenario === "loading" && !loadedStreams.has(mainStream.listing.name) && now - runtimeUpSinceMilliseconds >= MOCK_MAIN_LOADING_MILLISECONDS) {
+      loadStream(mainStream, now);
+      listingChanged = true;
+    }
     for (const loadedStream of loadedStreams.values()) advanceStreamLog(loadedStream, now - loadedStream.loadedAtMilliseconds);
-    if (lobbyRecorderShouldBeAttached !== lobbyRecorderIsAttached) publishStatus({ streams: listStreams() });
+    if (listingChanged) publishStatus({ streams: listStreams() });
   };
 
   const bringRuntimeUp = (): void => {
-    runtimeUpSinceMilliseconds = Date.now();
+    const now = Date.now();
+    runtimeUpSinceMilliseconds = now;
     loadedStreams.clear();
-    if (scenario !== "empty") loadStream(fixtures.testPatternStream, Date.now() - MOCK_TEST_PATTERN_UPTIME_MILLISECONDS);
+    if (scenario !== "empty" && scenario !== "not-listed") {
+      if (scenario === "loading") {
+        listedStreamsNotLoaded.set(mainStream.listing.name, { ...mainStream.listing, node_count: null });
+      } else {
+        loadStream(mainStream, now - mainStream.loadedForMillisecondsAtOpen);
+      }
+      loadStream(fixtures.cameraStream, now - fixtures.cameraStream.loadedForMillisecondsAtOpen);
+      loadStream(fixtures.attachedDemoStream, now - fixtures.attachedDemoStream.loadedForMillisecondsAtOpen);
+    }
     window.clearInterval(liveTickTimer);
     liveTickTimer = window.setInterval(runLiveTick, MOCK_LIVE_TICK_MILLISECONDS);
     publishStatus({ runtime_state: "running", machine_name: fixtures.machine.name, streams: listStreams() });
@@ -257,7 +308,6 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
 
   const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraphSummary => {
     const fixtureGraph = loadedStream.fixture.graph;
-    if (fixtureGraph === null) return { stream: loadedStream.fixture.listing.name, nodes: [], links: [], exposed: [] };
     const hasSettled = Date.now() - loadedStream.loadedAtMilliseconds >= MOCK_STREAM_SETTLE_MILLISECONDS;
     if (hasSettled) return structuredClone(fixtureGraph);
     return {

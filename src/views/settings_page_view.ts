@@ -7,12 +7,15 @@ import {
   windowDragRegionAttribute,
   type PlatformPresentation,
 } from "../presentation/platform_presentation";
+import { createCopyButton } from "./copy_button";
 import type { TatolabWindowPage } from "./tatolab_window_page";
+import { createFailureLine, createSearchButton } from "./window_controls";
 
-function createSettingsRow(labelChildren: ElementChild[], controlChildren: ElementChild[]): HTMLDivElement {
+function createSettingsRow(textChildren: ElementChild[], controlChildren: ElementChild[], failureLine: HTMLElement | null = null): HTMLDivElement {
   return createElement("div", { class: "settings-row" }, [
-    createElement("div", { class: "settings-row-label" }, labelChildren),
+    createElement("div", { class: "settings-row-text" }, textChildren),
     createElement("div", { class: "settings-row-control" }, controlChildren),
+    failureLine,
   ]);
 }
 
@@ -20,118 +23,133 @@ function createSettingsGroup(groupTitle: string, rows: ElementChild[]): HTMLElem
   const groupTitleId = `settings-group-${groupTitle.toLowerCase().replace(/\s+/g, "-")}`;
   return createElement("section", { class: "settings-group", "aria-labelledby": groupTitleId }, [
     createElement("h2", { class: "settings-group-title", id: groupTitleId }, [groupTitle]),
-    createElement("div", { class: "settings-group-rows" }, rows),
+    createElement("div", { class: "well settings-group-rows" }, rows),
   ]);
 }
 
-/** Run Tatolab, the command line tool, Login Items on macOS, the version, quitting the app, and uninstalling Tatolab. */
+/** Run Tatolab, Login Items on macOS, the `tatolab` command, the version and machine, quitting, and uninstalling. */
 export class SettingsPageView implements TatolabWindowPage {
   readonly element: HTMLElement;
   private readonly platformPresentation: PlatformPresentation;
-  private readonly runTatolabSwitch: HTMLInputElement;
-  private readonly runTatolabFailure: HTMLElement;
-  private readonly loginItemsHint: HTMLElement | null;
+  private readonly runTatolabSwitch: HTMLButtonElement;
+  private readonly runTatolabFailure = createFailureLine();
+  private readonly loginItemsDescription: HTMLElement | null;
+  private readonly commandLineToolDescription: HTMLElement;
   private readonly commandLineToolValue: HTMLElement;
-  private readonly commandLineToolHint: HTMLElement;
+  private readonly commandLineToolCopyButton: HTMLButtonElement;
   private readonly machineNameRow: HTMLElement;
   private readonly machineNameValue: HTMLElement;
   private readonly appVersionValue: HTMLElement;
-  private readonly uninstallTatolabRefusal: HTMLElement;
+  private readonly uninstallTatolabRefusal = createFailureLine();
   private latestStatus: TatolabStatus | null = null;
   private statusesShownCount = 0;
+  private isRunTatolabSwitching = false;
 
   constructor(
     private readonly backend: TatolabBackend,
     private readonly platform: TatolabPlatform,
     onUninstallTatolabRequested: () => void,
+    onOpenSearch: () => void,
   ) {
     this.platformPresentation = presentPlatform(platform);
-    this.runTatolabSwitch = createElement("input", {
-      type: "checkbox",
+    this.runTatolabSwitch = createElement("button", {
+      type: "button",
       role: "switch",
       class: "toggle-switch",
       id: "run-tatolab-switch",
+      "aria-checked": "false",
+      "aria-labelledby": "run-tatolab-title",
       "aria-describedby": "run-tatolab-description",
+      onClick: () => this.onRunTatolabSwitched(),
     });
-    this.runTatolabSwitch.addEventListener("change", () => this.onRunTatolabSwitched());
-    this.runTatolabFailure = createElement("span", { class: "settings-row-failure", role: "alert", hidden: true });
-    this.loginItemsHint = this.platformPresentation.showsLoginItems
-      ? createElement("span", { class: "settings-row-hint" })
+    this.loginItemsDescription = this.platformPresentation.showsLoginItems
+      ? createElement("p", { class: "settings-row-description" })
       : null;
+    this.commandLineToolDescription = createElement("p", { class: "settings-row-description" });
     this.commandLineToolValue = createElement("code", { class: "settings-row-value selectable-text" });
-    this.commandLineToolHint = createElement("span", { class: "settings-row-hint" });
+    this.commandLineToolCopyButton = createCopyButton("the tatolab command's path", () => this.latestStatus?.command_line_tool_linked_at ?? "");
     this.machineNameValue = createElement("code", { class: "settings-row-value selectable-text" });
-    this.appVersionValue = createElement("code", { class: "settings-row-value selectable-text" });
+    this.appVersionValue = createElement("span", { class: "settings-row-value selectable-text" });
     this.machineNameRow = createSettingsRow(
-      [createElement("span", { class: "settings-row-title" }, ["Machine name"])],
+      [createElement("p", { class: "settings-row-title" }, [this.platformPresentation.thisMachineAtSentenceStart])],
       [this.machineNameValue],
     );
-    this.uninstallTatolabRefusal = createElement("span", { class: "settings-row-failure", role: "alert", hidden: true });
+    const streamRecordsDirectory = this.platformPresentation.streamRecordsDirectory;
 
     this.element = createElement("section", { class: "window-page settings-page", "aria-labelledby": "settings-page-title" }, [
-      createElement("header", { class: "page-top-band", "data-tauri-drag-region": windowDragRegionAttribute(platform, "deep") }, [
-        createElement("h1", { class: "page-title", id: "settings-page-title" }, ["Settings"]),
+      createElement("header", { class: "content-band", "data-tauri-drag-region": windowDragRegionAttribute(platform, "deep") }, [
+        createElement("div", { class: "content-band-title" }, [
+          createElement("h1", { class: "content-band-page-name", id: "settings-page-title" }, ["Settings"]),
+        ]),
+        createElement("div", { class: "content-band-tabs" }),
+        createElement("div", { class: "content-band-spacer" }),
+        createElement("div", { class: "band-actions", "data-slot": "stream-actions" }),
+        createSearchButton(platform, onOpenSearch),
       ]),
       createElement("div", { class: "settings-scroller" }, [
         createElement("div", { class: "settings-column" }, [
           createSettingsGroup("Runtime", [
             createSettingsRow(
               [
-                createElement("label", { class: "settings-row-title", for: "run-tatolab-switch" }, ["Run Tatolab"]),
-                createElement("span", { class: "settings-row-hint", id: "run-tatolab-description" }, [
+                createElement("p", { class: "settings-row-title", id: "run-tatolab-title" }, ["Run Tatolab"]),
+                createElement("p", { class: "settings-row-description", id: "run-tatolab-description" }, [
                   this.platformPresentation.runTatolabExplanation,
                 ]),
-                this.runTatolabFailure,
               ],
               [this.runTatolabSwitch],
+              this.runTatolabFailure.element,
             ),
-            this.loginItemsHint &&
+            this.loginItemsDescription &&
               createSettingsRow(
-                [createElement("span", { class: "settings-row-title" }, ["Login Items"]), this.loginItemsHint],
+                [createElement("p", { class: "settings-row-title" }, ["Login Items"]), this.loginItemsDescription],
                 [
-                  createElement(
-                    "button",
-                    { type: "button", class: "button", onClick: () => void backend.openLoginItemsSettings() },
-                    ["Open Login Items"],
-                  ),
+                  createElement("button", { type: "button", class: "button", onClick: () => void backend.openLoginItemsSettings() }, [
+                    "Open Login Items…",
+                  ]),
                 ],
               ),
           ]),
           createSettingsGroup("Command line", [
             createSettingsRow(
-              [createElement("span", { class: "settings-row-title" }, ["tatolab command"]), this.commandLineToolHint],
-              [this.commandLineToolValue],
+              [
+                createElement("p", { class: "settings-row-title" }, ["The ", createElement("code", {}, ["tatolab"]), " command"]),
+                this.commandLineToolDescription,
+              ],
+              [this.commandLineToolValue, this.commandLineToolCopyButton],
             ),
           ]),
           createSettingsGroup("About", [
-            createSettingsRow([createElement("span", { class: "settings-row-title" }, ["Version"])], [this.appVersionValue]),
+            createSettingsRow([createElement("p", { class: "settings-row-title" }, ["Version"])], [this.appVersionValue]),
             this.machineNameRow,
             createSettingsRow(
+              [createElement("p", { class: "settings-row-title" }, ["Stream records"])],
               [
-                createElement("span", { class: "settings-row-title" }, ["Quit Tatolab"]),
-                createElement("span", { class: "settings-row-hint" }, [this.platformPresentation.quitTatolabExplanation]),
+                createElement("code", { class: "settings-row-value selectable-text" }, [streamRecordsDirectory]),
+                createCopyButton("the stream records' folder", () => streamRecordsDirectory),
               ],
+            ),
+          ]),
+          createSettingsGroup("Quit or uninstall", [
+            createSettingsRow(
               [
-                createElement(
-                  "button",
-                  { type: "button", class: "button", onClick: () => void backend.quitTatolabApp() },
-                  ["Quit Tatolab"],
-                ),
+                createElement("p", { class: "settings-row-title" }, ["Quit Tatolab"]),
+                createElement("p", { class: "settings-row-description" }, [this.platformPresentation.quitTatolabExplanation]),
               ],
+              [createElement("button", { type: "button", class: "button", onClick: () => void backend.quitTatolabApp() }, ["Quit Tatolab"])],
             ),
             createSettingsRow(
               [
-                createElement("span", { class: "settings-row-title" }, ["Uninstall Tatolab"]),
-                createElement("span", { class: "settings-row-hint" }, [this.platformPresentation.uninstallTatolabExplanation]),
-                this.uninstallTatolabRefusal,
+                createElement("p", { class: "settings-row-title" }, ["Uninstall Tatolab"]),
+                createElement("p", { class: "settings-row-description" }, [this.platformPresentation.uninstallTatolabExplanation]),
               ],
               [
                 createElement(
                   "button",
-                  { type: "button", class: "button button-quiet-destructive", onClick: onUninstallTatolabRequested },
+                  { type: "button", class: "button button-destructive", "data-action": "uninstall", onClick: onUninstallTatolabRequested },
                   ["Uninstall Tatolab…"],
                 ),
               ],
+              this.uninstallTatolabRefusal.element,
             ),
           ]),
         ]),
@@ -142,53 +160,62 @@ export class SettingsPageView implements TatolabWindowPage {
   showStatus(status: TatolabStatus): void {
     this.latestStatus = status;
     this.statusesShownCount += 1;
-    if (!this.runTatolabSwitch.disabled) this.runTatolabSwitch.checked = status.run_tatolab;
-    if (this.loginItemsHint) {
+    if (!this.isRunTatolabSwitching) this.showRunTatolab(status.run_tatolab);
+    if (this.loginItemsDescription) {
       setTextIfChanged(
-        this.loginItemsHint,
+        this.loginItemsDescription,
         status.runtime_agent === "requires_approval"
           ? "Tatolab is waiting for you to switch it on under Allow in the Background."
-          : "Tatolab is listed under Allow in the Background. That entry and Run Tatolab are the same setting.",
+          : "Tatolab is listed under Allow in the Background. Run Tatolab and that entry are the same setting.",
       );
     }
     const linkedAt = status.command_line_tool_linked_at;
     const commandLineTool = presentCommandLineTool(this.platform, linkedAt);
+    this.commandLineToolDescription.replaceChildren(
+      commandLineTool.explanation,
+      ...(commandLineTool.isLinked ? [" Try ", createElement("code", {}, ["tatolab streams"]), "."] : []),
+    );
     setTextIfChanged(this.commandLineToolValue, commandLineTool.shownValue);
     this.commandLineToolValue.dataset.linked = String(commandLineTool.isLinked);
+    this.commandLineToolCopyButton.hidden = !commandLineTool.isLinked;
     if (linkedAt !== null && linkedAt !== commandLineTool.shownValue) this.commandLineToolValue.title = linkedAt;
     else this.commandLineToolValue.removeAttribute("title");
-    setTextIfChanged(this.commandLineToolHint, commandLineTool.explanation);
     this.machineNameRow.hidden = status.machine_name === null;
     setTextIfChanged(this.machineNameValue, status.machine_name ?? "");
-    setTextIfChanged(this.appVersionValue, status.app_version);
+    setTextIfChanged(this.appVersionValue, `Tatolab ${status.app_version}`);
   }
 
   /** Shows why the last uninstall was refused under its row; `null` clears it. */
   showUninstallTatolabRefusal(refusalReason: string | null): void {
-    this.uninstallTatolabRefusal.hidden = refusalReason === null;
-    setTextIfChanged(this.uninstallTatolabRefusal, refusalReason === null ? "" : `Uninstall didn't finish: ${refusalReason}`);
-    if (refusalReason !== null) this.uninstallTatolabRefusal.scrollIntoView({ block: "nearest" });
+    this.uninstallTatolabRefusal.show(refusalReason === null ? null : `Uninstall didn't finish: ${refusalReason}`);
+    if (refusalReason !== null) this.uninstallTatolabRefusal.element.scrollIntoView({ block: "nearest" });
+  }
+
+  private showRunTatolab(isOn: boolean): void {
+    this.runTatolabSwitch.setAttribute("aria-checked", String(isOn));
   }
 
   private onRunTatolabSwitched(): void {
-    const requestedRunTatolab = this.runTatolabSwitch.checked;
+    if (this.isRunTatolabSwitching) return;
+    const requestedRunTatolab = this.runTatolabSwitch.getAttribute("aria-checked") !== "true";
     const statusesShownBeforeSwitching = this.statusesShownCount;
+    this.isRunTatolabSwitching = true;
+    this.showRunTatolab(requestedRunTatolab);
     this.runTatolabSwitch.disabled = true;
-    this.runTatolabFailure.hidden = true;
+    this.runTatolabFailure.show(null);
     void this.backend
       .setRunTatolab(requestedRunTatolab)
       .catch((rejection: unknown) => {
-        setTextIfChanged(
-          this.runTatolabFailure,
+        this.runTatolabFailure.show(
           `Couldn't turn Run Tatolab ${requestedRunTatolab ? "on" : "off"}: ${describeBackendRejection(rejection)}`,
         );
-        this.runTatolabFailure.hidden = false;
-        this.runTatolabSwitch.checked = this.latestStatus?.run_tatolab ?? !requestedRunTatolab;
+        this.showRunTatolab(this.latestStatus?.run_tatolab ?? !requestedRunTatolab);
       })
       .finally(() => {
+        this.isRunTatolabSwitching = false;
         this.runTatolabSwitch.disabled = false;
         const statusArrivedWhileSwitching = this.statusesShownCount !== statusesShownBeforeSwitching;
-        if (statusArrivedWhileSwitching && this.latestStatus) this.runTatolabSwitch.checked = this.latestStatus.run_tatolab;
+        if (statusArrivedWhileSwitching && this.latestStatus) this.showRunTatolab(this.latestStatus.run_tatolab);
       });
   }
 }

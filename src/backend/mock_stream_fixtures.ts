@@ -13,13 +13,15 @@ export interface MockLogRecordDraft {
 /** What a mock stream writes on one tick of the live log, given how long it has been loaded. */
 export type MockLiveLogWriter = (millisecondsSinceLoad: number) => MockLogRecordDraft[];
 
-/** A stream the mock runtime lists, with its graph and the log it writes. */
+/** A stream the mock runtime loads, with its graph and the log it writes. */
 export interface MockStreamFixture {
   listing: ListedStream;
   /** The graph while loaded; its nodes start `Pending` and their links `pending` until the stream settles. */
-  graph: StreamGraphSummary | null;
+  graph: StreamGraphSummary;
   startupLog: MockLogRecordDraft[];
   createLiveLogWriter: () => MockLiveLogWriter;
+  /** How long it has been loaded when the window opens. */
+  loadedForMillisecondsAtOpen: number;
 }
 
 /** The machine the mock runtime runs on: its name and home, and the lines only its platform logs. */
@@ -30,58 +32,41 @@ export interface MockMachine {
   commandLineToolLinkedAt: string;
   vulkanLoaderLibrary: string;
   vulkanDeviceSelectedMessage: string;
-  vulkanPlatformExtensionMessage: string;
-  audioClockMessage: string;
-  /** What the Vulkan driver prints to a Python helper's stderr as it loads. */
-  vulkanDriverBannerMessages: string[];
-  cameraCaptureMessage: string;
-  cameraDevice: string;
-  h264EncoderSessionMessage: string;
-  recordingsDirectory: string;
+  cameraOpenedAttrs: Record<string, string>;
+  microphoneDevice: string;
+  cameraFailure: string;
 }
 
 const MOCK_MACHINES: Record<TatolabPlatform, MockMachine> = {
   macos: {
-    name: "ada-macbook-pro",
-    homeDirectory: "/Users/ada",
+    name: "jonathanf-macbook",
+    homeDirectory: "/Users/jonathanf",
     commandLineToolLinkedAt: "/usr/local/bin/tatolab",
     vulkanLoaderLibrary: "/Applications/Tatolab.app/Contents/Frameworks/tatolab-runtime/_vulkan_driver/libvulkan.1.dylib",
-    vulkanDeviceSelectedMessage: "Selected Vulkan device: Apple M2 Pro (type: Integrated GPU)",
-    vulkanPlatformExtensionMessage: "VK_EXT_metal_objects enabled - Metal interop available",
-    audioClockMessage: "[start] Creating CoreAudioClock (GCD): 48000Hz, 512 samples/tick",
-    vulkanDriverBannerMessages: [
-      "[mvk-info] MoltenVK version 1.4.2, supporting Vulkan version 1.4.357.",
-      "\tThe following 154 Vulkan extensions are supported:",
-      "\tVK_KHR_16bit_storage v1",
-      "\tVK_KHR_8bit_storage v1",
-      "\tVK_KHR_bind_memory2 v1",
-    ],
-    cameraCaptureMessage: "CameraSource: AVFoundation capture running",
-    cameraDevice: "FaceTime HD Camera",
-    h264EncoderSessionMessage: "H264Encoder: VideoToolbox session minted",
-    recordingsDirectory: "/Users/ada/Movies",
+    vulkanDeviceSelectedMessage: "Selected Vulkan device: Apple M1 Max (type: Integrated GPU)",
+    cameraOpenedAttrs: { device: "FaceTime HD Camera", format: "1920x1080 nv12" },
+    microphoneDevice: "MacBook Pro Microphone",
+    cameraFailure:
+      "the stream's CameraSource could not open camera 0x1420000: camera access is denied for Tatolab — allow it in System Settings › Privacy & Security › Camera",
   },
   linux: {
-    name: "ada-workstation",
-    homeDirectory: "/home/ada",
-    commandLineToolLinkedAt: "/home/ada/.local/bin/tatolab",
-    vulkanLoaderLibrary: "libvulkan.so.1",
-    vulkanDeviceSelectedMessage: "Selected Vulkan device: NVIDIA GeForce RTX 4070 (type: Discrete GPU)",
-    vulkanPlatformExtensionMessage: "VK_KHR_wayland_surface available",
-    audioClockMessage: "[start] Creating LinuxTimerFdAudioClock: 48000Hz, 512 samples/tick",
-    vulkanDriverBannerMessages: [],
-    cameraCaptureMessage: "CameraSource: V4L2 capture running",
-    cameraDevice: "/dev/video0",
-    h264EncoderSessionMessage: "H264Encoder: session minted lazily from the first frame",
-    recordingsDirectory: "/home/ada/Videos",
+    name: "jonathanf-workstation",
+    homeDirectory: "/home/jonathanf",
+    commandLineToolLinkedAt: "/home/jonathanf/.local/bin/tatolab",
+    vulkanLoaderLibrary: "/usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+    vulkanDeviceSelectedMessage: "Selected Vulkan device: NVIDIA GeForce RTX 4090 (type: Discrete GPU)",
+    cameraOpenedAttrs: { device: "/dev/video0", format: "1920x1080 yuyv" },
+    microphoneDevice: "alsa_input.usb-Blue_Yeti",
+    cameraFailure:
+      "the stream's CameraSource could not open camera /dev/video0: permission denied — add your user to the video group, then log in again",
   },
 };
 
 const PYTHON_HELPER_TARGET = "streamlib::polyglot::python";
 const LOADED_STREAM_TARGET = "streamlib_engine::core::runtime::loaded_stream";
-const COMPILER_TARGET = "streamlib_engine::core::compiler::compiler";
-const SPAWN_PROCESSOR_TARGET = "streamlib_engine::core::compiler::compiler_ops::spawn_processor_op";
+const SPAWN_HOST_TARGET = "streamlib_engine::core::compiler::compiler_ops::processor_interpreter_spawn_host";
 const GPU_CONTEXT_TARGET = "streamlib_engine::core::context::gpu_context";
+const VULKAN_DEVICE_TARGET = "streamlib_engine::vulkan::rhi::vulkan_device";
 const ESCALATE_RATE_WARNING =
   "sustained GpuContextLimitedAccess::escalate rate on this thread — processor likely needs more pre-reservation in setup()";
 
@@ -98,150 +83,109 @@ function cadence(everyMilliseconds: number, firstAfterMilliseconds: number): (mi
   };
 }
 
-function loadingLog(
-  machine: MockMachine,
-  streamName: string,
-  projectDirectory: string,
-  processorCount: number,
-  linkCount: number,
-): MockLogRecordDraft[] {
+/** The times, since load, a one-off record fell due since the last tick. */
+function once(atMilliseconds: number): (millisecondsSinceLoad: number) => number[] {
+  let hasFallenDue = false;
+  return (millisecondsSinceLoad) => {
+    if (hasFallenDue || millisecondsSinceLoad < atMilliseconds) return [];
+    hasFallenDue = true;
+    return [atMilliseconds];
+  };
+}
+
+function loadingLines(machine: MockMachine, streamName: string, projectDirectory: string): MockLogRecordDraft[] {
   return [
     { millisecondsAfterLoad: 0, source: "rust", level: "info", target: LOADED_STREAM_TARGET, message: `Loading the stream \`${streamName}\` from ${projectDirectory}` },
-    { millisecondsAfterLoad: 151, source: "rust", level: "info", target: LOADED_STREAM_TARGET, message: `[start] Starting the stream \`${streamName}\`` },
-    { millisecondsAfterLoad: 151, source: "rust", level: "info", target: "streamlib_engine::core::runtime::runtime", message: "[start] Initializing the engine's GPU context..." },
     {
-      millisecondsAfterLoad: 156,
+      millisecondsAfterLoad: 113,
       source: "rust",
       level: "info",
       target: "streamlib_consumer_rhi::vulkan_loader_library",
       message: "Vulkan loader library opened",
       attrs: { vulkan_loader_library: machine.vulkanLoaderLibrary },
     },
-    { millisecondsAfterLoad: 163, source: "rust", level: "info", target: "streamlib_engine::vulkan::rhi::vulkan_device", message: machine.vulkanDeviceSelectedMessage },
-    { millisecondsAfterLoad: 171, source: "rust", level: "info", target: "streamlib_engine::vulkan::rhi::vulkan_device", message: machine.vulkanPlatformExtensionMessage },
-    { millisecondsAfterLoad: 178, source: "rust", level: "info", target: GPU_CONTEXT_TARGET, message: "GPU: Using Vulkan device" },
-    { millisecondsAfterLoad: 178, source: "rust", level: "info", target: "streamlib_engine::core::runtime::runtime", message: "[start] The engine's GPU context is initialized" },
-    { millisecondsAfterLoad: 180, source: "rust", level: "info", target: LOADED_STREAM_TARGET, message: machine.audioClockMessage },
-    { millisecondsAfterLoad: 181, source: "rust", level: "info", target: COMPILER_TARGET, message: `Compiling: +${processorCount} -0 processors, +${linkCount} -0 links, 0 config updates` },
+    { millisecondsAfterLoad: 146, source: "rust", level: "info", target: VULKAN_DEVICE_TARGET, message: machine.vulkanDeviceSelectedMessage },
   ];
 }
 
-function startedLog(streamName: string, processorCount: number, linkCount: number, atMilliseconds: number): MockLogRecordDraft[] {
-  return [
-    {
-      millisecondsAfterLoad: atMilliseconds,
-      source: "rust",
-      level: "info",
-      target: "streamlib_engine::core::compiler::compiler_ops::open_iceoryx2_service_op",
-      message: "Opened iceoryx2 channel: [Lj17fu4mdczivji99oua37i06] (state: Wired)",
-    },
-    { millisecondsAfterLoad: atMilliseconds + 4, source: "rust", level: "info", target: COMPILER_TARGET, message: `Compile complete: CompileResult { +${processorCount} -0 processors, +${linkCount} -0 links, 0 configs }` },
-    { millisecondsAfterLoad: atMilliseconds + 4, source: "rust", level: "info", target: LOADED_STREAM_TARGET, message: `[start] The stream \`${streamName}\` started` },
-  ];
-}
+const TEST_PATTERN_NODES = [
+  { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running" },
+  { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running" },
+  { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running" },
+  { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running" },
+];
 
-/** `tatolab new --test-pattern`, kept with `tatolab run -d`: the scaffold's four nodes, two of them Python. */
-function createTestPatternStream(machine: MockMachine): MockStreamFixture {
+const TEST_PATTERN_LINKS = [
+  { source_node: "testpatternsource", source_port: "video", target_node: "invertingeffect", target_port: "video_from_upstream", state: "wired" },
+  { source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "displaywindow", target_port: "video", state: "wired" },
+  { source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "brightnessmeter", target_port: "video_from_upstream", state: "wired" },
+];
+
+/** `tatolab new --test-pattern`, run as `streamName`: the scaffold's four nodes, two of them Python. */
+function createTestPatternStream(
+  machine: MockMachine,
+  options: { streamName: string; state: "kept" | "attached"; exposesItsEffect: boolean; withDisplayWindowInError: boolean },
+): MockStreamFixture {
   const projectDirectory = `${machine.homeDirectory}/streams/pattern`;
+  const { streamName } = options;
+  const brightness = (dueAt: number): MockLogRecordDraft => ({
+    millisecondsAfterLoad: dueAt,
+    source: "python",
+    level: "info",
+    target: PYTHON_HELPER_TARGET,
+    message: "brightness",
+    attrs: { height: "720", mean: "127.5", width: "1280" },
+  });
   return {
-    listing: { name: "main", state: "kept", project_directory: projectDirectory, node_count: 4, failed_because: null },
+    listing: { name: streamName, state: options.state, project_directory: projectDirectory, node_count: 4, failed_because: null },
     graph: {
-      stream: "main",
-      nodes: [
-        { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running" },
-        { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running" },
-        { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running" },
-        { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running" },
-      ],
-      links: [
-        { source_node: "testpatternsource", source_port: "video", target_node: "invertingeffect", target_port: "video_from_upstream", state: "wired" },
-        { source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "displaywindow", target_port: "video", state: "wired" },
-        { source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "brightnessmeter", target_port: "video_from_upstream", state: "wired" },
-      ],
-      exposed: [{ node: "invertingeffect", port: "video_to_downstream", level: "private" }],
+      stream: streamName,
+      nodes: TEST_PATTERN_NODES.map((node) =>
+        options.withDisplayWindowInError && node.name === "displaywindow" ? { ...node, state: "Error" } : node,
+      ),
+      links: TEST_PATTERN_LINKS.map((link) =>
+        options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link,
+      ),
+      exposed: options.exposesItsEffect ? [{ node: "invertingeffect", port: "video_to_downstream", level: "private" }] : [],
     },
     startupLog: [
-      ...loadingLog(machine, "main", projectDirectory, 4, 3).slice(0, 1),
+      ...loadingLines(machine, streamName, projectDirectory),
       {
-        millisecondsAfterLoad: 150,
+        millisecondsAfterLoad: 399,
         source: "rust",
         level: "info",
-        target: "streamlib_engine::core::processors::node_types_one_stream_resolves",
-        message: "node type described in the stream's processor interpreter registered",
-        attrs: { processor_class_import_path: "nodes.inverting_effect:InvertingEffect" },
+        target: SPAWN_HOST_TARGET,
+        message: "[brightnessmeter] helper process started: pid=65123, entrypoint=nodes.brightness_meter:BrightnessMeter",
       },
-      {
-        millisecondsAfterLoad: 150,
-        source: "rust",
-        level: "info",
-        target: "streamlib_engine::core::processors::node_types_one_stream_resolves",
-        message: "node type described in the stream's processor interpreter registered",
-        attrs: { processor_class_import_path: "nodes.brightness_meter:BrightnessMeter" },
-      },
-      ...loadingLog(machine, "main", projectDirectory, 4, 3).slice(1),
-      { millisecondsAfterLoad: 182, source: "rust", level: "info", target: SPAWN_PROCESSOR_TARGET, message: "[Pe9fffgi3l6sg3m4molzy4pov] Spawning Rust processor with strategy: dedicated thread (Normal priority (no strict latency))" },
-      { millisecondsAfterLoad: 183, source: "rust", level: "info", target: SPAWN_PROCESSOR_TARGET, message: "[Pgwl3rys4jaz8k9g6pqxxv8kd] Spawning Python processor with strategy: dedicated thread (Normal priority (no strict latency))" },
-      { millisecondsAfterLoad: 183, source: "rust", level: "info", target: SPAWN_PROCESSOR_TARGET, message: "[Pak2of8mm6v631e1f30cw7zjo] Spawning Python processor with strategy: dedicated thread (Normal priority (no strict latency))" },
-      { millisecondsAfterLoad: 184, source: "rust", level: "info", target: SPAWN_PROCESSOR_TARGET, message: "[Pk79b96s4d8fumlitkntmn5dg] Spawning Rust processor with strategy: dedicated thread (High priority (< 33ms latency, elevated))" },
-      ...startedLog("main", 4, 3, 186),
-      {
-        millisecondsAfterLoad: 205,
-        source: "rust",
-        level: "info",
-        target: "streamlib_media_builtins::test_pattern_source",
-        message: "TestPatternSource: pattern surface ready",
-        attrs: { height: "720", surface_id: "f5a5c630-265a-4145-bd7b-262a857f17d1#1", width: "1280" },
-      },
-      { millisecondsAfterLoad: 290, source: "rust", level: "info", target: "streamlib_engine::core::compiler::compiler_ops::processor_interpreter_spawn_host", message: "[invertingeffect] helper process started: pid=54846, entrypoint=nodes.inverting_effect:InvertingEffect" },
-      { millisecondsAfterLoad: 291, source: "rust", level: "info", target: "streamlib_engine::core::compiler::compiler_ops::processor_interpreter_spawn_host", message: "[brightnessmeter] helper process started: pid=54847, entrypoint=nodes.brightness_meter:BrightnessMeter" },
-      { millisecondsAfterLoad: 291, source: "python", level: "info", target: PYTHON_HELPER_TARGET, message: "helper process started", attrs: { entrypoint: "nodes.inverting_effect:InvertingEffect", pid: "54846" } },
-      { millisecondsAfterLoad: 314, source: "python", level: "info", target: PYTHON_HELPER_TARGET, message: "helper process started", attrs: { entrypoint: "nodes.brightness_meter:BrightnessMeter", pid: "54847" } },
-      ...machine.vulkanDriverBannerMessages.map(
-        (message): MockLogRecordDraft => ({ millisecondsAfterLoad: 330, source: "python", level: "warn", target: PYTHON_HELPER_TARGET, message }),
-      ),
-      {
-        millisecondsAfterLoad: 342,
-        source: "rust",
-        level: "info",
-        target: "streamlib_engine::core::processor_owned_window",
-        message: "processor-owned window: window + present target ready",
-        attrs: { height: "1440", width: "2560", window_title: "Tatolab" },
-      },
-      {
-        millisecondsAfterLoad: 355,
-        source: "rust",
-        level: "warn",
-        target: "streamlib_engine::vulkan::rhi::vulkan_pipeline_cache_on_disk",
-        message:
-          "Graphics kernel 'present-compositor-display-blit': failed to persist pipeline cache to /.streamlib/cache/pipeline-cache/4ca6f3d5faba1f6d.gfx.bin: Read-only file system (os error 30)",
-      },
+      ...(options.withDisplayWindowInError
+        ? [
+            {
+              millisecondsAfterLoad: 784,
+              source: "rust",
+              level: "error",
+              target: "streamlib_media_builtins::display_window",
+              message: "DisplayWindow: no window — running degraded (frames drained, nothing shown)",
+            } satisfies MockLogRecordDraft,
+          ]
+        : []),
     ],
     createLiveLogWriter: () => {
-      const brightnessReportsDue = cadence(1021, 1000);
-      const escalateWarningsDue = cadence(5024, 1400);
-      const brightnessReadFailuresDue = cadence(23_000, 17_000);
+      const brightnessReportsDue = cadence(1001, 1493);
+      const escalateWarningDue = once(2772);
+      const brightnessReadFailureDue = options.state === "kept" && !options.withDisplayWindowInError ? once(4120) : once(Number.POSITIVE_INFINITY);
       return (millisecondsSinceLoad) => [
-        ...brightnessReportsDue(millisecondsSinceLoad).map(
-          (dueAt): MockLogRecordDraft => ({
-            millisecondsAfterLoad: dueAt,
-            source: "python",
-            level: "info",
-            target: PYTHON_HELPER_TARGET,
-            message: "brightness",
-            attrs: { mean: "127.5", width: "1280", height: "720" },
-          }),
-        ),
-        ...escalateWarningsDue(millisecondsSinceLoad).map(
+        ...brightnessReportsDue(millisecondsSinceLoad).map(brightness),
+        ...escalateWarningDue(millisecondsSinceLoad).map(
           (dueAt): MockLogRecordDraft => ({
             millisecondsAfterLoad: dueAt,
             source: "rust",
             level: "warn",
             target: GPU_CONTEXT_TARGET,
             message: ESCALATE_RATE_WARNING,
-            attrs: { escalations_last_second: "2", thread: "br-esc-Pgwl3rys" },
+            attrs: { escalations_last_second: "24", thread: "br-esc-Pjbpw35x" },
           }),
         ),
-        ...brightnessReadFailuresDue(millisecondsSinceLoad).map(
+        ...brightnessReadFailureDue(millisecondsSinceLoad).map(
           (dueAt): MockLogRecordDraft => ({
             millisecondsAfterLoad: dueAt,
             source: "python",
@@ -253,121 +197,92 @@ function createTestPatternStream(machine: MockMachine): MockStreamFixture {
         ),
       ];
     },
+    loadedForMillisecondsAtOpen: options.state === "kept" ? 6200 : 3900,
   };
 }
 
-/** A camera and a microphone encoded into one MP4, run attached with `tatolab run`. */
-function createLobbyRecorderStream(machine: MockMachine): MockStreamFixture {
-  const projectDirectory = `${machine.homeDirectory}/streams/lobby-recorder`;
+/** A camera and a microphone, each watched and metered, kept with `tatolab run -d`. */
+function createCameraStream(machine: MockMachine): MockStreamFixture {
+  const projectDirectory = `${machine.homeDirectory}/streams/camera`;
   return {
-    listing: { name: "lobby-recorder", state: "attached", project_directory: projectDirectory, node_count: 5, failed_because: null },
+    listing: { name: "camera", state: "kept", project_directory: projectDirectory, node_count: 4, failed_because: null },
     graph: {
-      stream: "lobby-recorder",
+      stream: "camera",
       nodes: [
         { name: "camerasource", type: "tatolab.stream:CameraSource", state: "Running" },
         { name: "microphonesource", type: "tatolab.stream:MicrophoneSource", state: "Running" },
-        { name: "h264encoder", type: "tatolab.stream:H264Encoder", state: "Running" },
-        { name: "opusencoder", type: "tatolab.stream:OpusEncoder", state: "Running" },
-        { name: "mp4sink", type: "tatolab.stream:Mp4Sink", state: "Running" },
+        { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running" },
+        { name: "levelmeter", type: "nodes.level_meter:LevelMeter", state: "Running" },
       ],
       links: [
-        { source_node: "camerasource", source_port: "video", target_node: "h264encoder", target_port: "video", state: "wired" },
-        { source_node: "h264encoder", source_port: "encoded_video", target_node: "mp4sink", target_port: "tracks", state: "wired" },
-        { source_node: "microphonesource", source_port: "audio", target_node: "opusencoder", target_port: "audio", state: "wired" },
-        { source_node: "opusencoder", source_port: "encoded_audio", target_node: "mp4sink", target_port: "tracks", state: "wired" },
+        { source_node: "camerasource", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired" },
+        { source_node: "microphonesource", source_port: "audio", target_node: "levelmeter", target_port: "audio_from_upstream", state: "wired" },
       ],
-      exposed: [],
+      exposed: [
+        { node: "camerasource", port: "video", level: "private" },
+        { node: "microphonesource", port: "audio", level: "public" },
+      ],
     },
     startupLog: [
-      ...loadingLog(machine, "lobby-recorder", projectDirectory, 5, 4),
-      { millisecondsAfterLoad: 184, source: "rust", level: "info", target: SPAWN_PROCESSOR_TARGET, message: "[Pc3mz0d9q1r7wnyb2f8kx4hte] Spawning Rust processor with strategy: dedicated thread (High priority (< 33ms latency, elevated))" },
-      { millisecondsAfterLoad: 185, source: "rust", level: "info", target: SPAWN_PROCESSOR_TARGET, message: "[Pm8v2kq0x7d1fz3wa9cn5ry4e] Spawning Rust processor with strategy: dedicated thread (High priority (< 33ms latency, elevated))" },
-      ...startedLog("lobby-recorder", 5, 4, 190),
+      { millisecondsAfterLoad: 0, source: "rust", level: "info", target: LOADED_STREAM_TARGET, message: `Loading the stream \`camera\` from ${projectDirectory}` },
+      { millisecondsAfterLoad: 382, source: "rust", level: "info", target: "streamlib_media_builtins::camera_source", message: "Camera opened", attrs: machine.cameraOpenedAttrs },
       {
-        millisecondsAfterLoad: 260,
-        source: "rust",
-        level: "info",
-        target: "streamlib_media_builtins::camera_source",
-        message: machine.cameraCaptureMessage,
-        attrs: { device: machine.cameraDevice, height: "1080", width: "1920" },
-      },
-      {
-        millisecondsAfterLoad: 270,
+        millisecondsAfterLoad: 396,
         source: "rust",
         level: "info",
         target: "streamlib_media_builtins::microphone_source",
-        message: "MicrophoneSource: following the system default input",
-        attrs: { channels: "1", sample_rate: "48000" },
+        message: "Microphone opened",
+        attrs: { channels: "1", device: machine.microphoneDevice, sample_rate: "48000" },
       },
-      { millisecondsAfterLoad: 410, source: "rust", level: "info", target: "streamlib_media_builtins::h264_encoder", message: machine.h264EncoderSessionMessage, attrs: { height: "1080", width: "1920" } },
-      { millisecondsAfterLoad: 430, source: "rust", level: "info", target: "streamlib_media_builtins::opus_encoder", message: "OpusEncoder: libopus encoder minted", attrs: { channels: "1" } },
-      { millisecondsAfterLoad: 1420, source: "rust", level: "info", target: "streamlib_media_builtins::mp4_sink", message: "Mp4Sink: moov written", attrs: { path: `${machine.recordingsDirectory}/lobby.mp4`, tracks: "2" } },
+      { millisecondsAfterLoad: 944, source: "rust", level: "info", target: SPAWN_HOST_TARGET, message: "[levelmeter] helper process started: pid=64410, entrypoint=nodes.level_meter:LevelMeter" },
     ],
     createLiveLogWriter: () => {
-      const fragmentsDue = cadence(2000, 2400);
-      const droppedFrameWarningsDue = cadence(9500, 6100);
-      let closedFragmentCount = 0;
-      return (millisecondsSinceLoad) => [
-        ...fragmentsDue(millisecondsSinceLoad).map((dueAt): MockLogRecordDraft => {
-          closedFragmentCount += 1;
+      const levelReportsDue = cadence(1000, 1500);
+      let reportCount = 0;
+      return (millisecondsSinceLoad) =>
+        levelReportsDue(millisecondsSinceLoad).map((dueAt): MockLogRecordDraft => {
+          reportCount += 1;
           return {
             millisecondsAfterLoad: dueAt,
-            source: "rust",
+            source: "python",
             level: "info",
-            target: "streamlib_media_builtins::mp4_sink",
-            message: "Mp4Sink: fragment closed",
-            attrs: { bytes: String(1_460_000 + ((closedFragmentCount * 7919) % 41_000)), fragment: String(closedFragmentCount) },
+            target: PYTHON_HELPER_TARGET,
+            message: "level",
+            attrs: { rms_dbfs: (-38 - ((reportCount * 7) % 5) * 0.7).toFixed(1) },
           };
-        }),
-        ...droppedFrameWarningsDue(millisecondsSinceLoad).map(
-          (dueAt): MockLogRecordDraft => ({
-            millisecondsAfterLoad: dueAt,
-            source: "rust",
-            level: "warn",
-            target: "streamlib_media_builtins::h264_encoder",
-            message: "H264Encoder: frame dropped while the encoder queue was full",
-            attrs: { queued: "4" },
-          }),
-        ),
-      ];
+        });
     },
-  };
-}
-
-/** A kept stream that could not re-load when the runtime started. */
-function createFailedDepthOverlayStream(machine: MockMachine): MockStreamFixture {
-  return {
-    listing: {
-      name: "depth-overlay",
-      state: "failed",
-      project_directory: `${machine.homeDirectory}/streams/depth-overlay`,
-      node_count: null,
-      failed_because:
-        "it did not re-load at the runtime's start: the processor interpreter for `depthestimator` exited with status 1: ModuleNotFoundError: No module named 'torch'",
-    },
-    graph: null,
-    startupLog: [],
-    createLiveLogWriter: () => () => [],
+    loadedForMillisecondsAtOpen: 266_000,
   };
 }
 
 /** A kept stream its owner stopped with `tatolab stop`. */
-function createStoppedStudioMicStream(machine: MockMachine): MockStreamFixture {
+function stoppedPatternTwoListing(machine: MockMachine): ListedStream {
+  return { name: "pattern-two", state: "stopped", project_directory: `${machine.homeDirectory}/streams/pattern`, node_count: null, failed_because: null };
+}
+
+/** A kept stream that could not load at the runtime's start. */
+function failedLobbyRecorderListing(machine: MockMachine): ListedStream {
   return {
-    listing: { name: "studio-mic", state: "stopped", project_directory: `${machine.homeDirectory}/streams/studio-mic`, node_count: null, failed_because: null },
-    graph: null,
-    startupLog: [],
-    createLiveLogWriter: () => () => [],
+    name: "lobby-recorder",
+    state: "failed",
+    project_directory: `${machine.homeDirectory}/streams/lobby-recorder`,
+    node_count: null,
+    failed_because: machine.cameraFailure,
   };
 }
 
 /** The machine the mock runtime runs on for `platform`, and the streams it lists. */
 export interface MockStreamFixtures {
   machine: MockMachine;
-  testPatternStream: MockStreamFixture;
-  lobbyRecorderStream: MockStreamFixture;
-  failedDepthOverlayStream: MockStreamFixture;
-  stoppedStudioMicStream: MockStreamFixture;
+  mainStream: MockStreamFixture;
+  mainStreamWithDisplayWindowInError: MockStreamFixture;
+  cameraStream: MockStreamFixture;
+  attachedDemoStream: MockStreamFixture;
+  stoppedPatternTwo: ListedStream;
+  failedLobbyRecorder: ListedStream;
+  /** The order the runtime lists its streams in. */
+  listingOrder: readonly string[];
 }
 
 /** The mock runtime's machine and streams as they look on `platform`. */
@@ -375,10 +290,23 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
   const machine = MOCK_MACHINES[platform];
   return {
     machine,
-    testPatternStream: createTestPatternStream(machine),
-    lobbyRecorderStream: createLobbyRecorderStream(machine),
-    failedDepthOverlayStream: createFailedDepthOverlayStream(machine),
-    stoppedStudioMicStream: createStoppedStudioMicStream(machine),
+    mainStream: createTestPatternStream(machine, { streamName: "main", state: "kept", exposesItsEffect: true, withDisplayWindowInError: false }),
+    mainStreamWithDisplayWindowInError: createTestPatternStream(machine, {
+      streamName: "main",
+      state: "kept",
+      exposesItsEffect: true,
+      withDisplayWindowInError: true,
+    }),
+    cameraStream: createCameraStream(machine),
+    attachedDemoStream: createTestPatternStream(machine, {
+      streamName: "attached-demo",
+      state: "attached",
+      exposesItsEffect: false,
+      withDisplayWindowInError: false,
+    }),
+    stoppedPatternTwo: stoppedPatternTwoListing(machine),
+    failedLobbyRecorder: failedLobbyRecorderListing(machine),
+    listingOrder: ["main", "camera", "attached-demo", "pattern-two", "lobby-recorder"],
   };
 }
 

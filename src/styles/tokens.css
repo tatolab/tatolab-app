@@ -1,101 +1,111 @@
-/* tatolab.com brand tokens. The dark set applies under the system preference unless data-theme pins
-   light, and always under data-theme="dark"; the two dark blocks must stay identical. */
+/* The calm-native tokens. The theme is always set as data-theme on <html> before first paint, so each theme has
+   exactly one block. */
 :root {
-  --bg: #ffffff;
-  --bg-2: #f7f7f8;
-  --panel: #ffffff;
-  --ink: #111113;
-  --ink-2: #5d5d66;
-  --ink-3: #6b6b74;
-  --line: #e7e7ea;
-  --line-2: #d9d9de;
-  --accent: #2a5bff;
-  --accent-soft: rgba(42, 91, 255, 0.08);
-  --accent-line: rgba(42, 91, 255, 0.28);
-  --primary: #2a5bff;
-  --primary-ink: #ffffff;
-  --ok: #15803d;
-  --ok-dot: #16a34a;
-  --ok-soft: rgba(22, 163, 74, 0.1);
-  --ok-line: rgba(22, 163, 74, 0.45);
-  --amber: #e0a526;
-  --amber-ink: #8a5a00;
-  --amber-soft: rgba(224, 165, 38, 0.13);
-  --error: #d92d20;
-  --error-soft: rgba(217, 45, 32, 0.08);
-  /* The one filled destructive button; white on it holds 4.8:1 in both themes. */
-  --danger: #d92d20;
-  --idle: #a1a1aa;
-  --selection: rgba(17, 17, 19, 0.055);
-  --hover: rgba(17, 17, 19, 0.035);
-  --graph-grid-dot: rgba(17, 17, 19, 0.085);
-  --console: #fafafb;
-  --shadow-raised: 0 1px 2px rgba(17, 17, 19, 0.05), 0 6px 20px -10px rgba(17, 17, 19, 0.16);
-  --shadow-sheet: 0 2px 6px rgba(17, 17, 19, 0.06), 0 28px 64px -18px rgba(17, 17, 19, 0.34);
-  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Ubuntu, Cantarell, "Noto Sans", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  color-scheme: light;
+  --band-height: 52px;
+  --sidebar-width: clamp(216px, 22vw, 256px);
+  --page-x: 24px;
+  --page-top: 20px;
+  --radius-kbd: 4px;
+  --radius-control: 6px;
+  --radius-field: 7px;
+  --radius-node: 8px;
+  --radius-well: 10px;
+  --radius-overlay: 12px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
 }
+[data-platform="linux"] { --band-strip-height: 12px; }
+[data-platform="macos"] { --band-strip-height: 52px; }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0e0e10;
-    --bg-2: #131316;
-    --panel: #161619;
-    --ink: #ededf0;
-    --ink-2: #a1a1aa;
-    --ink-3: #85858e;
-    --line: #26262b;
-    --line-2: #33333a;
-    --accent: #7c9bff;
-    --accent-soft: rgba(124, 155, 255, 0.12);
-    --accent-line: rgba(124, 155, 255, 0.34);
-    --ok: #34d399;
-    --ok-dot: #34d399;
-    --ok-soft: rgba(52, 211, 153, 0.12);
-    --ok-line: rgba(52, 211, 153, 0.42);
-    --amber-ink: #f2c14e;
-    --amber-soft: rgba(224, 165, 38, 0.1);
-    --error: #ff6b6b;
-    --error-soft: rgba(255, 107, 107, 0.1);
-    --idle: #5d5d66;
-    --selection: rgba(237, 237, 240, 0.07);
-    --hover: rgba(237, 237, 240, 0.04);
-    --graph-grid-dot: rgba(237, 237, 240, 0.075);
-    --console: #111114;
-    --shadow-raised: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
-    --shadow-sheet: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 32px 72px -16px rgba(0, 0, 0, 0.78);
-    color-scheme: dark;
-  }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --window: #ffffff;
+  --sidebar: #f3f3f5;
+  --divider: #e2e2e6;
+  --surface: #f8f8fa;
+  --surface-raised: #ffffff;
+  --overlay: #ffffff;
+  --canvas: #fafafb;
+  --field: #ffffff;
+  --line: rgba(0, 0, 0, .08);
+  --line-strong: rgba(0, 0, 0, .14);
+  --line-dashed: rgba(0, 0, 0, .24);
+  --link-stroke: rgba(0, 0, 0, .45);
+  --text: #1d1d1f;
+  --text-2: #57575e;
+  --text-3: #6b6b72;
+  --accent: #2a5bff;
+  --accent-fill: #2a5bff;
+  --accent-text: #2a5bff;
+  --accent-soft: rgba(42, 91, 255, .09);
+  --accent-line: rgba(42, 91, 255, .85);
+  --text-selection: rgba(42, 91, 255, .2);
+  --red: #c4232d;
+  --red-line: rgba(196, 35, 45, .85);
+  --amber: #8f5f00;
+  --hover: rgba(0, 0, 0, .04);
+  --selected: rgba(0, 0, 0, .065);
+  --seg-bg: rgba(0, 0, 0, .055);
+  --seg-on: #ffffff;
+  --seg-shadow: 0 1px 2px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .06);
+  --btn-bg: #ffffff;
+  --btn-hover: #f6f6f7;
+  --btn-border: rgba(0, 0, 0, .13);
+  --btn-shadow: 0 .5px 1px rgba(0, 0, 0, .08);
+  --switch-off: #dcdce0;
+  --knob-shadow: 0 1px 2px rgba(0, 0, 0, .22), 0 0 0 .5px rgba(0, 0, 0, .06);
+  --shadow-node: 0 1px 2px rgba(0, 0, 0, .06);
+  --shadow-pop: 0 18px 48px rgba(0, 0, 0, .16), 0 2px 6px rgba(0, 0, 0, .07), 0 0 0 .5px rgba(0, 0, 0, .12);
+  --scrim: rgba(28, 28, 32, .18);
+  --focus: 0 0 0 3px rgba(42, 91, 255, .32);
+  --scrollbar-thumb: rgba(0, 0, 0, .22);
 }
 
 :root[data-theme="dark"] {
-  --bg: #0e0e10;
-  --bg-2: #131316;
-  --panel: #161619;
-  --ink: #ededf0;
-  --ink-2: #a1a1aa;
-  --ink-3: #85858e;
-  --line: #26262b;
-  --line-2: #33333a;
-  --accent: #7c9bff;
-  --accent-soft: rgba(124, 155, 255, 0.12);
-  --accent-line: rgba(124, 155, 255, 0.34);
-  --ok: #34d399;
-  --ok-dot: #34d399;
-  --ok-soft: rgba(52, 211, 153, 0.12);
-  --ok-line: rgba(52, 211, 153, 0.42);
-  --amber-ink: #f2c14e;
-  --amber-soft: rgba(224, 165, 38, 0.1);
-  --error: #ff6b6b;
-  --error-soft: rgba(255, 107, 107, 0.1);
-  --idle: #5d5d66;
-  --selection: rgba(237, 237, 240, 0.07);
-  --hover: rgba(237, 237, 240, 0.04);
-  --graph-grid-dot: rgba(237, 237, 240, 0.075);
-  --console: #111114;
-  --shadow-raised: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
-  --shadow-sheet: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 32px 72px -16px rgba(0, 0, 0, 0.78);
   color-scheme: dark;
+  --window: #1e1e20;
+  --sidebar: #262629;
+  --divider: #0f0f11;
+  --surface: #242427;
+  --surface-raised: #2c2c30;
+  --overlay: #2a2a2e;
+  --canvas: #1b1b1d;
+  --field: rgba(255, 255, 255, .045);
+  --line: rgba(255, 255, 255, .075);
+  --line-strong: rgba(255, 255, 255, .13);
+  --line-dashed: rgba(255, 255, 255, .22);
+  --link-stroke: rgba(255, 255, 255, .38);
+  --text: #ececef;
+  --text-2: #a3a3aa;
+  --text-3: #939399;
+  --accent: #4c7dff;
+  --accent-fill: #3a66ff;
+  --accent-text: #7c9bff;
+  --accent-soft: rgba(76, 125, 255, .15);
+  --accent-line: rgba(124, 155, 255, .75);
+  --text-selection: rgba(76, 125, 255, .35);
+  --red: #ff7a70;
+  --red-line: rgba(255, 122, 112, .7);
+  --amber: #f2b24c;
+  --hover: rgba(255, 255, 255, .045);
+  --selected: rgba(255, 255, 255, .085);
+  --seg-bg: rgba(255, 255, 255, .06);
+  --seg-on: rgba(255, 255, 255, .15);
+  --seg-shadow: 0 1px 1px rgba(0, 0, 0, .3);
+  --btn-bg: rgba(255, 255, 255, .08);
+  --btn-hover: rgba(255, 255, 255, .12);
+  --btn-border: rgba(255, 255, 255, .06);
+  --btn-shadow: 0 .5px 0 rgba(255, 255, 255, .04) inset;
+  --switch-off: #48484d;
+  --knob-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow-node: 0 1px 2px rgba(0, 0, 0, .35);
+  --shadow-pop: 0 24px 64px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .35), 0 0 0 .5px rgba(255, 255, 255, .1);
+  --scrim: rgba(0, 0, 0, .4);
+  --focus: 0 0 0 3px rgba(76, 125, 255, .5);
+  --scrollbar-thumb: rgba(255, 255, 255, .2);
+}
+
+@media (min-width: 1280px) {
+  :root { --page-x: 32px; --page-top: 24px; }
 }

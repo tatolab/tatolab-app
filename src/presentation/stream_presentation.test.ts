@@ -8,22 +8,28 @@ function listedStream(name: string, state: string, nodeCount: number | null): Li
 }
 
 describe("presentStreamState", () => {
-  it("labels each state the runtime lists", () => {
-    expect(presentStreamState(listedStream("main", "attached", 4))).toEqual({ label: "Attached", chipTone: "ok", dotTone: "ok" });
-    expect(presentStreamState(listedStream("main", "kept", 4))).toEqual({ label: "Kept", chipTone: "accent", dotTone: "ok" });
-    expect(presentStreamState(listedStream("main", "stopped", null))).toEqual({ label: "Stopped", chipTone: "neutral", dotTone: "idle" });
-    expect(presentStreamState(listedStream("main", "failed", null))).toEqual({ label: "Failed", chipTone: "error", dotTone: "error" });
+  it("words each state the runtime lists, plain while it runs, quiet when stopped and a failure when failed", () => {
+    expect(presentStreamState(listedStream("main", "attached", 4))).toMatchObject({ label: "Attached", emphasis: "plain" });
+    expect(presentStreamState(listedStream("main", "kept", 4))).toMatchObject({ label: "Kept", emphasis: "plain" });
+    expect(presentStreamState(listedStream("main", "stopped", null))).toMatchObject({ label: "Stopped", emphasis: "quiet" });
+    expect(presentStreamState(listedStream("main", "failed", null))).toMatchObject({ label: "Failed", emphasis: "failure" });
   });
 
-  it("shows a kept stream that is not loaded yet with a hollow dot", () => {
-    expect(presentStreamState(listedStream("main", "kept", null)).dotTone).toBe("pending");
+  it("says what each word means, and gives a failed stream's whole reason", () => {
+    expect(presentStreamState(listedStream("main", "kept", 4)).meaning).toBe(
+      "Kept: Tatolab loads it every time the runtime starts, until you stop it.",
+    );
+    expect(presentStreamState(listedStream("pattern-two", "stopped", null)).meaning).toBe(
+      "Stopped: remembered, not loaded. tatolab start pattern-two loads it.",
+    );
+    const failed = { ...listedStream("lobby", "failed", null), failed_because: "camera access is denied" };
+    expect(presentStreamState(failed).meaning).toBe("camera access is denied");
   });
 
-  it("labels a state newer than this app instead of failing", () => {
-    expect(presentStreamState(listedStream("main", "awaiting_restart", 2))).toEqual({
+  it("labels a state newer than this app plainly instead of failing", () => {
+    expect(presentStreamState(listedStream("main", "awaiting_restart", 2))).toMatchObject({
       label: "Awaiting restart",
-      chipTone: "outline",
-      dotTone: "ok",
+      emphasis: "plain",
     });
     expect(presentStreamState(listedStream("main", "", null)).label).toBe("Unknown");
   });

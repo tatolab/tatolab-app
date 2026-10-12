@@ -1,326 +1,81 @@
-.stream-log-console {
-  container: stream-log-console / inline-size;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  border-top: 1px solid var(--line);
-  background: var(--console);
-}
+/* The log dock: its header of levels, follow state and filter, then the lines. */
+.log-dock-console { display: flex; flex-direction: column; min-height: 0; }
 
-/* ---------- toolbar ---------- */
-.stream-log-toolbar {
+.log-dock-header {
   display: flex;
   align-items: center;
   gap: 10px;
   flex: none;
   height: 40px;
-  padding: 0 10px 0 20px;
+  padding: 0 12px 0 24px;
   border-bottom: 1px solid var(--line);
 }
-
-.stream-log-title {
-  font: 600 12.5px/1 var(--font-sans);
-}
-
-.stream-log-line-count {
-  color: var(--ink-3);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.stream-log-live-indicator {
+.log-dock-title { font-size: 13px; line-height: 18px; font-weight: 600; }
+.log-dock-console[data-in-logs-tab="true"] .log-dock-title { display: none; }
+.log-dock-spacer { flex: 1; }
+.log-dock-following {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding-left: 10px;
-  border-left: 1px solid var(--line);
-  color: var(--ok);
-  font: 500 11.5px/1 var(--font-sans);
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
 }
+.log-dock-jump { color: var(--accent-text); }
+.log-dock-jump:hover { color: var(--accent-text); }
+.log-dock-filter { width: 200px; }
+.log-dock-console[data-in-logs-tab="true"] .log-dock-filter { width: 240px; }
 
-.stream-log-live-indicator .status-dot {
-  width: 6px;
-  height: 6px;
-}
-
-.stream-log-toolbar-spacer {
-  flex: 1;
-}
-
-.stream-log-level-filter,
-.stream-log-text-filter {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: none;
-  height: 26px;
-  border: 1px solid var(--line-2);
-  border-radius: 7px;
-  background: var(--panel);
-  color: var(--ink-2);
-  transition: border-color 120ms ease-out;
-}
-
-.stream-log-level-filter:hover,
-.stream-log-text-filter:hover {
-  border-color: var(--ink-3);
-}
-
-.stream-log-level-filter:focus-within,
-.stream-log-text-filter:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.stream-log-level-filter-select {
-  height: 100%;
-  padding: 0 26px 0 9px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--ink);
-  font: 500 12px/1 var(--font-sans);
-  appearance: none;
-  outline: none;
-  cursor: default;
-}
-
-.stream-log-level-filter svg {
-  position: absolute;
-  right: 7px;
-  width: 13px;
-  height: 13px;
-  pointer-events: none;
-}
-
-.stream-log-text-filter {
-  flex: 0 1 168px;
-  min-width: 92px;
-  padding-left: 8px;
-}
-
-.stream-log-text-filter svg {
-  flex: none;
-  width: 13px;
-  height: 13px;
-}
-
-.stream-log-text-filter-input {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  padding: 0 8px 0 6px;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  font: 400 12px/1 var(--font-sans);
-  outline: none;
-}
-
-.stream-log-text-filter-input::placeholder {
-  color: var(--ink-3);
-}
-
-.stream-log-text-filter-input::-webkit-search-cancel-button {
-  -webkit-appearance: none;
-}
-
-/* ---------- lines ---------- */
-.stream-log-body {
-  position: relative;
-  display: flex;
-  flex-direction: column;
+.log-dock-list {
   flex: 1;
   min-height: 0;
+  overflow: auto;
+  padding: 6px 12px 12px 24px;
 }
+.log-dock-list:focus-visible { box-shadow: inset var(--focus); }
 
-/* Lines scrolling up fade out under the toolbar instead of being cut off by it. */
-.stream-log-scroller {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 10px 0 10px;
-  outline: none;
-  mask-image: linear-gradient(to bottom, transparent 0, #000 10px);
-}
-
-.stream-log-lines {
-  font: 400 11.5px/18px var(--font-mono);
+.log-line {
+  display: grid;
+  grid-template-columns: 96px 46px 56px minmax(0, 1fr);
+  column-gap: 8px;
+  padding: 1px 0;
+  font: 400 12px/20px var(--font-mono);
   font-variant-ligatures: none;
 }
+.log-line-time { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.log-line-level { color: var(--text-2); }
+.log-line-level[data-tone="quiet"] { color: var(--text-3); }
+.log-line-level[data-tone="warn"] { color: var(--amber); font-weight: 500; }
+.log-line-level[data-tone="error"] { color: var(--red); font-weight: 500; }
+.log-line-source { overflow: hidden; color: var(--text-3); text-overflow: clip; white-space: nowrap; }
+.log-line-message { min-width: 0; color: var(--text); overflow-wrap: anywhere; }
+.log-line-attr-key { color: var(--text-3); }
+.log-line-attr-value { color: var(--text-2); }
 
-.stream-log-line {
-  display: grid;
-  grid-template-columns: 84px 38px 44px minmax(0, 1fr);
-  column-gap: 8px;
-  padding: 1px 16px 1px 20px;
-  color: var(--ink);
-}
-
-.stream-log-line:hover {
-  background: var(--hover);
-}
-
-.stream-log-line-time {
-  color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.stream-log-line-level {
-  align-self: start;
-  height: 16px;
-  margin-top: 1px;
-  overflow: hidden;
-  border-radius: 4px;
-  color: var(--ink-3);
-  font-size: 10.5px;
-  line-height: 16px;
-  text-align: center;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.stream-log-line[data-level="warn"] .stream-log-line-level {
-  background: var(--amber-soft);
-  color: var(--amber-ink);
-  font-weight: 500;
-}
-
-.stream-log-line[data-level="error"] .stream-log-line-level {
-  background: var(--error-soft);
-  color: var(--error);
-  font-weight: 500;
-}
-
-.stream-log-line-source {
-  overflow: hidden;
-  color: var(--ink-3);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.stream-log-line[data-source="python"] .stream-log-line-source {
-  color: var(--accent);
-}
-
-.stream-log-line-message {
-  min-width: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  tab-size: 4;
-}
-
-.stream-log-line[data-source="rust"][data-level="info"] .stream-log-line-message,
-.stream-log-line[data-level="debug"] .stream-log-line-message,
-.stream-log-line[data-level="trace"] .stream-log-line-message {
-  color: var(--ink-2);
-}
-
-.stream-log-line[data-level="error"] .stream-log-line-message {
-  color: var(--error);
-}
-
-/* An attribute wraps to the next line whole, and breaks inside only when longer than a line. */
-.stream-log-line-attr {
-  display: inline-block;
-  max-width: 100%;
-  vertical-align: top;
-  color: var(--ink-2);
-}
-
-.stream-log-line-attr-key {
-  color: var(--ink-3);
-}
-
-.stream-log-line[data-level="error"] .stream-log-line-attr {
-  color: color-mix(in srgb, var(--error) 75%, var(--ink-2));
-}
-
-.stream-log-divider {
+.log-divider {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin: 6px 0;
-  padding: 0 20px;
-  color: var(--ink-3);
-  font: 400 11.5px/18px var(--font-sans);
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 16px;
 }
+.log-divider::before, .log-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
-.stream-log-divider::before,
-.stream-log-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--line);
-}
-
-.stream-log-console-message {
-  padding: 28px 20px;
-  color: var(--ink-3);
-  font-size: 12.5px;
-  text-align: center;
-}
-
-/* ---------- following ---------- */
-.stream-log-jump-to-latest {
-  position: absolute;
-  bottom: 14px;
-  left: 50%;
-  display: inline-flex;
-  align-items: center;
+.log-dock-read-failure {
+  display: flex;
+  align-items: flex-start;
   gap: 6px;
-  height: 28px;
-  padding: 0 12px 0 10px;
-  border: 0;
-  border-radius: 14px;
-  background: var(--primary);
-  color: var(--primary-ink);
-  box-shadow: 0 4px 14px -4px rgba(42, 91, 255, 0.55), 0 1px 2px rgba(17, 17, 19, 0.12);
-  font: 500 12px/1 var(--font-sans);
-  white-space: nowrap;
-  transform: translateX(-50%);
-  cursor: default;
-  animation: stream-log-jump-to-latest-arrive 200ms var(--ease-out);
-}
-
-.stream-log-jump-to-latest svg {
-  width: 13px;
-  height: 13px;
-  stroke-width: 1.6;
-}
-
-@keyframes stream-log-jump-to-latest-arrive {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 6px);
-  }
-}
-
-.stream-log-read-failure {
-  flex: none;
-  padding: 7px 20px;
-  border-top: 1px solid color-mix(in srgb, var(--error) 24%, transparent);
-  background: var(--error-soft);
-  color: var(--error);
+  margin: 2px 0 6px;
+  color: var(--text-2);
   font-size: 12px;
+  line-height: 18px;
 }
+.log-dock-read-failure .failure-icon { margin-top: 2px; }
+.log-dock-message { padding: 4px 0; color: var(--text-3); font-size: 12px; line-height: 18px; }
 
-/* A narrow console gives the message the whole width, under its time, level and source. */
-@container stream-log-console (max-width: 520px) {
-  .stream-log-line-count {
-    display: none;
-  }
-
-  .stream-log-line {
-    grid-template-columns: 84px 38px minmax(0, 1fr);
-    padding-top: 3px;
-    padding-bottom: 3px;
-  }
-
-  .stream-log-line-message {
-    grid-column: 1 / -1;
-  }
+@media (max-width: 960px) {
+  .log-line { grid-template-columns: 96px 46px 48px minmax(0, 1fr); }
 }

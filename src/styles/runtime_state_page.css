@@ -1,0 +1,29 @@
+/* The page that stands in for the streams while the runtime isn't running. */
+.runtime-page-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  line-height: 26px;
+  letter-spacing: -.01em;
+  font-weight: 600;
+}
+.runtime-page-heading .progress-spinner { width: 18px; height: 18px; }
+.runtime-page-heading-icon { color: var(--text-2); }
+.runtime-page-explanation { max-width: 60ch; margin-top: 8px; color: var(--text-2); font-size: 13px; line-height: 20px; }
+.runtime-page-actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+.runtime-page-action-note { color: var(--text-3); font-size: 12px; }
+
+.runtime-page-facts {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  row-gap: 6px;
+  margin-top: 20px;
+  font-size: 12px;
+  line-height: 18px;
+}
+.runtime-page-facts dt { color: var(--text-3); }
+.runtime-page-facts dd { display: flex; align-items: center; gap: 4px; color: var(--text-2); }
+.runtime-page-facts code { font-size: 12px; }
+.runtime-page-fact-command .copy-button { margin: -4px 0; }
+.runtime-page-waiting { display: flex; align-items: center; gap: 9px; margin-top: 18px; color: var(--text-3); font-size: 12px; }

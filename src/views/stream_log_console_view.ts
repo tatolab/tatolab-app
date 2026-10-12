@@ -1,20 +1,24 @@
-import type { StreamLogRecord } from "../backend/tatolab_backend_contract";
-import { createElement, createSvgFromMarkup, setTextIfChanged } from "../dom";
-import { ARROW_DOWN_ICON_SVG, CHEVRON_UP_DOWN_ICON_SVG, SEARCH_ICON_SVG } from "../icons";
+import type { StreamLogRecord, TatolabPlatform } from "../backend/tatolab_backend_contract";
+import { createElement, setTextIfChanged } from "../dom";
+import { ARROW_DOWN_ICON_SVG, FOLLOW_ICON_SVG, SEARCH_ICON_SVG } from "../icons";
 import {
   formatLogAttrValue,
   formatLogRecordDateTime,
   formatLogRecordTime,
-  LOG_LEVEL_FILTER_CHOICES,
+  LOG_LEVEL_SEGMENTS,
+  presentLogLevelWord,
   rankLogLevel,
 } from "../presentation/log_record_presentation";
 import { countLabel } from "../presentation/stream_presentation";
 import type { StreamLogRecordsDestination } from "./stream_log_follower";
+import { createFailureIcon, createIcon, createWindowShortcutCap, SegmentedControlView } from "./window_controls";
 
 /** The console keeps the newest this many lines and drops older ones. */
 const MOST_LOG_LINES_HELD = 2000;
 /** Scrolled within this many pixels of the end, the console keeps following new lines. */
 const FOLLOW_TAIL_DISTANCE_PIXELS = 16;
+
+type LogLevelSegmentLabel = "All" | "Warnings" | "Errors";
 
 interface HeldLogLine {
   element: HTMLElement;
@@ -26,22 +30,22 @@ interface HeldLogLine {
 function createLogLineElement(record: StreamLogRecord): HTMLElement {
   const levelName = record.level?.toLowerCase() ?? "";
   const sourceName = record.source?.toLowerCase() ?? "";
-  const messageElement = createElement("span", { class: "stream-log-line-message" }, [record.message]);
+  const messageElement = createElement("span", { class: "log-line-message" }, [record.message]);
   for (const [attrKey, attrValue] of Object.entries(record.attrs)) {
     messageElement.append(
       " ",
-      createElement("span", { class: "stream-log-line-attr" }, [
-        createElement("span", { class: "stream-log-line-attr-key" }, [attrKey, "="]),
-        formatLogAttrValue(attrValue),
+      createElement("span", { class: "log-line-attr" }, [
+        createElement("span", { class: "log-line-attr-key" }, [attrKey, "="]),
+        createElement("span", { class: "log-line-attr-value" }, [formatLogAttrValue(attrValue)]),
       ]),
     );
   }
-  return createElement("div", { class: "stream-log-line", "data-level": levelName, "data-source": sourceName }, [
-    createElement("span", { class: "stream-log-line-time", title: formatLogRecordDateTime(record.host_ts_ns) }, [
+  return createElement("div", { class: "log-line", "data-source": sourceName }, [
+    createElement("span", { class: "log-line-time", title: formatLogRecordDateTime(record.host_ts_ns) }, [
       formatLogRecordTime(record.host_ts_ns),
     ]),
-    createElement("span", { class: "stream-log-line-level" }, [levelName]),
-    createElement("span", { class: "stream-log-line-source", title: record.target ?? undefined }, [sourceName]),
+    createElement("span", { class: "log-line-level", "data-tone": presentLogLevelWord(record.level) }, [levelName]),
+    createElement("span", { class: "log-line-source", title: record.target ?? undefined }, [sourceName]),
     messageElement,
   ]);
 }
@@ -53,100 +57,109 @@ function searchableTextOfRecord(record: StreamLogRecord): string {
   return `${record.message} ${attrsText} ${record.target ?? ""} ${record.source ?? ""}`.toLowerCase();
 }
 
-/** One stream's log records as a console: newest at the bottom, followed until the reader scrolls up. */
+/** One stream's log records docked under its graph: newest at the bottom, followed until the reader scrolls up. */
 export class StreamLogConsoleView implements StreamLogRecordsDestination {
   readonly element: HTMLElement;
-  private readonly lineCountLabel: HTMLElement;
-  private readonly liveIndicator: HTMLElement;
-  private readonly levelFilterSelect: HTMLSelectElement;
+  private readonly levelSegments: SegmentedControlView<LogLevelSegmentLabel>;
+  private readonly followingLabel: HTMLElement;
+  private readonly jumpToLatestButton: HTMLButtonElement;
+  private readonly jumpToLatestLabel: HTMLElement;
   private readonly textFilterInput: HTMLInputElement;
+  private readonly textFilterField: HTMLElement;
   private readonly logScroller: HTMLElement;
   private readonly logLines: HTMLElement;
   private readonly consoleMessage: HTMLElement;
-  private readonly jumpToLatestButton: HTMLButtonElement;
   private readonly readFailureNotice: HTMLElement;
+  private readonly readFailureText: HTMLElement;
   private heldLines: HeldLogLine[] = [];
   private hasReadAPage = false;
   private isFollowingTail = true;
   private linesArrivedWhileNotFollowing = 0;
-  private minimumLevelRank = LOG_LEVEL_FILTER_CHOICES[0].minimumRank;
+  private selectedSegmentLabel: LogLevelSegmentLabel = "All";
   private lowercaseTextFilter = "";
 
-  constructor(streamName: string) {
-    this.lineCountLabel = createElement("span", { class: "stream-log-line-count" });
-    this.liveIndicator = createElement("span", { class: "stream-log-live-indicator", hidden: true }, [
-      createElement("span", { class: "status-dot status-dot-live", "data-tone": "ok", "aria-hidden": "true" }),
-      createElement("span", { class: "stream-log-live-indicator-label" }, ["Live"]),
-    ]);
-
-    this.levelFilterSelect = createElement(
-      "select",
-      { class: "stream-log-level-filter-select", "aria-label": "Lowest level shown" },
-      LOG_LEVEL_FILTER_CHOICES.map((choice) =>
-        createElement("option", { value: String(choice.minimumRank) }, [choice.label]),
-      ),
+  constructor(streamName: string, platform: TatolabPlatform) {
+    this.levelSegments = new SegmentedControlView<LogLevelSegmentLabel>(
+      LOG_LEVEL_SEGMENTS.map((segment) => ({ key: segment.label as LogLevelSegmentLabel, label: segment.label })),
+      "Levels shown",
+      (segmentLabel) => this.showLevelSegment(segmentLabel),
+      "small",
     );
-    this.levelFilterSelect.addEventListener("change", () => {
-      this.minimumLevelRank = Number(this.levelFilterSelect.value);
-      this.applyFilters();
-    });
+    this.levelSegments.showSelected(this.selectedSegmentLabel);
+    this.levelSegments.element.dataset.counts = "true";
+
+    this.followingLabel = createElement("span", { class: "log-dock-following", hidden: true }, [
+      createIcon(FOLLOW_ICON_SVG, 14),
+      "Following",
+    ]);
+    this.jumpToLatestLabel = createElement("span", {});
+    this.jumpToLatestButton = createElement(
+      "button",
+      { type: "button", class: "button button-plain button-small log-dock-jump", hidden: true, onClick: () => this.scrollToLatest() },
+      [createIcon(ARROW_DOWN_ICON_SVG, 14), this.jumpToLatestLabel],
+    );
 
     this.textFilterInput = createElement("input", {
-      class: "stream-log-text-filter-input",
-      type: "search",
-      placeholder: "Filter",
+      class: "filter-field-input",
+      type: "text",
+      placeholder: "Filter by text or key=value",
       spellcheck: "false",
       autocomplete: "off",
       "aria-label": `Filter ${streamName} logs`,
     });
     this.textFilterInput.addEventListener("input", () => {
       this.lowercaseTextFilter = this.textFilterInput.value.trim().toLowerCase();
+      this.textFilterField.dataset.hasText = String(this.textFilterInput.value !== "");
       this.applyFilters();
     });
     this.textFilterInput.addEventListener("keydown", (keyboardEvent) => {
       if (keyboardEvent.key !== "Escape") return;
-      this.textFilterInput.value = "";
-      this.lowercaseTextFilter = "";
-      this.applyFilters();
-      this.textFilterInput.blur();
+      keyboardEvent.preventDefault();
+      keyboardEvent.stopPropagation();
+      if (this.textFilterInput.value !== "") {
+        this.textFilterInput.value = "";
+        this.lowercaseTextFilter = "";
+        this.textFilterField.dataset.hasText = "false";
+        this.applyFilters();
+      } else {
+        this.textFilterInput.blur();
+      }
     });
+    this.textFilterField = createElement("label", { class: "filter-field log-dock-filter", "data-has-text": "false" }, [
+      createIcon(SEARCH_ICON_SVG, 14),
+      this.textFilterInput,
+      createWindowShortcutCap(platform, "F"),
+    ]);
 
-    this.logLines = createElement("div", { class: "stream-log-lines selectable-text" });
-    this.consoleMessage = createElement("p", { class: "stream-log-console-message" }, ["Reading logs…"]);
+    this.logLines = createElement("div", { class: "log-lines" });
+    this.consoleMessage = createElement("p", { class: "log-dock-message" }, ["Reading logs…"]);
+    this.readFailureText = createElement("span", {});
+    this.readFailureNotice = createElement("p", { class: "log-dock-read-failure", role: "status", hidden: true }, [
+      createFailureIcon(14),
+      this.readFailureText,
+    ]);
     this.logScroller = createElement(
       "div",
-      { class: "stream-log-scroller", role: "log", tabindex: "0", "aria-label": "Log lines, newest last" },
-      [this.logLines, this.consoleMessage],
+      { class: "log-dock-list selectable-text", role: "log", tabindex: "0", "aria-label": "Log lines, newest last" },
+      [this.readFailureNotice, this.logLines, this.consoleMessage],
     );
     this.logScroller.addEventListener("scroll", () => this.onLogScrolled());
+    this.logScroller.addEventListener("keydown", (keyboardEvent) => {
+      if (keyboardEvent.key !== "End") return;
+      keyboardEvent.preventDefault();
+      this.scrollToLatest();
+    });
 
-    this.jumpToLatestButton = createElement(
-      "button",
-      { type: "button", class: "stream-log-jump-to-latest", hidden: true, onClick: () => this.scrollToLatest() },
-      [createSvgFromMarkup(ARROW_DOWN_ICON_SVG), createElement("span", {}, ["Jump to latest"])],
-    );
-    this.readFailureNotice = createElement("p", { class: "stream-log-read-failure", role: "status", hidden: true });
-
-    this.element = createElement("section", { class: "stream-log-console", "aria-label": `${streamName} logs` }, [
-      createElement("div", { class: "stream-log-toolbar" }, [
-        createElement("h3", { class: "stream-log-title" }, ["Logs"]),
-        this.lineCountLabel,
-        this.liveIndicator,
-        createElement("span", { class: "stream-log-toolbar-spacer" }),
-        createElement("label", { class: "stream-log-level-filter" }, [
-          this.levelFilterSelect,
-          createSvgFromMarkup(CHEVRON_UP_DOWN_ICON_SVG),
-        ]),
-        createElement("label", { class: "stream-log-text-filter" }, [
-          createSvgFromMarkup(SEARCH_ICON_SVG),
-          this.textFilterInput,
-        ]),
-      ]),
-      createElement("div", { class: "stream-log-body" }, [
-        this.logScroller,
+    this.element = createElement("section", { class: "log-dock-console", "aria-label": `${streamName} logs` }, [
+      createElement("header", { class: "log-dock-header" }, [
+        createElement("h2", { class: "log-dock-title" }, ["Logs"]),
+        this.levelSegments.element,
+        createElement("span", { class: "log-dock-spacer" }),
+        this.followingLabel,
         this.jumpToLatestButton,
-        this.readFailureNotice,
+        this.textFilterField,
       ]),
+      this.logScroller,
     ]);
     this.updateCountsAndMessages();
   }
@@ -157,11 +170,9 @@ export class StreamLogConsoleView implements StreamLogRecordsDestination {
     this.appendHeldLines(arrivedLines);
   }
 
-  /** A full-width note between records, such as records the runtime no longer holds. */
+  /** A centred note between records, such as records the runtime no longer holds. */
   appendDivider(dividerText: string): void {
-    const dividerElement = createElement("div", { class: "stream-log-divider", role: "separator" }, [
-      createElement("span", {}, [dividerText]),
-    ]);
+    const dividerElement = createElement("div", { class: "log-divider", role: "separator" }, [createElement("span", {}, [dividerText])]);
     this.appendHeldLines([this.holdLine(dividerElement, true, null)]);
   }
 
@@ -170,22 +181,40 @@ export class StreamLogConsoleView implements StreamLogRecordsDestination {
     this.logLines.replaceChildren();
     this.linesArrivedWhileNotFollowing = 0;
     this.isFollowingTail = true;
-    this.updateJumpToLatestButton();
+    this.updateFollowState();
     this.updateCountsAndMessages();
   }
 
   /** Shows why the last read failed, or clears it with `null`. */
   showReadFailure(failureText: string | null): void {
     this.readFailureNotice.hidden = failureText === null;
-    if (failureText !== null) {
-      setTextIfChanged(this.readFailureNotice, `Couldn't read new records: ${failureText}. Trying again every second.`);
-    }
-    this.updateLiveIndicator();
+    if (failureText !== null) setTextIfChanged(this.readFailureText, `Couldn't read new lines: ${failureText}. Trying again.`);
   }
 
   focusTextFilter(): void {
     this.textFilterInput.focus();
     this.textFilterInput.select();
+  }
+
+  /** Shows only the error lines, as an errored node's foot asks. */
+  showErrorLinesOnly(): void {
+    this.showLevelSegment("Errors");
+  }
+
+  /** In the Logs tab the band already says Logs, so the header drops its title and the filter widens. */
+  setShownInLogsTab(isShownInLogsTab: boolean): void {
+    this.element.dataset.inLogsTab = String(isShownInLogsTab);
+    if (this.isFollowingTail) this.scrollToLatest();
+  }
+
+  private showLevelSegment(segmentLabel: LogLevelSegmentLabel): void {
+    this.selectedSegmentLabel = segmentLabel;
+    this.levelSegments.showSelected(segmentLabel);
+    this.applyFilters();
+  }
+
+  private minimumLevelRank(): number {
+    return LOG_LEVEL_SEGMENTS.find((segment) => segment.label === this.selectedSegmentLabel)?.minimumRank ?? 0;
   }
 
   private holdLine(element: HTMLElement, isDivider: boolean, record: StreamLogRecord | null): HeldLogLine {
@@ -212,7 +241,7 @@ export class StreamLogConsoleView implements StreamLogRecordsDestination {
       this.scrollToLatest();
     } else {
       this.linesArrivedWhileNotFollowing += arrivedLinesShown;
-      this.updateJumpToLatestButton();
+      this.updateFollowState();
     }
     this.updateCountsAndMessages();
   }
@@ -230,7 +259,7 @@ export class StreamLogConsoleView implements StreamLogRecordsDestination {
   private lineMatchesFilters(heldLine: HeldLogLine): boolean {
     if (heldLine.isDivider) return this.lowercaseTextFilter === "";
     return (
-      heldLine.levelRank >= this.minimumLevelRank &&
+      heldLine.levelRank >= this.minimumLevelRank() &&
       (this.lowercaseTextFilter === "" || heldLine.lowercaseSearchableText.includes(this.lowercaseTextFilter))
     );
   }
@@ -243,59 +272,61 @@ export class StreamLogConsoleView implements StreamLogRecordsDestination {
   }
 
   private onLogScrolled(): void {
-    const distanceFromEnd =
-      this.logScroller.scrollHeight - this.logScroller.scrollTop - this.logScroller.clientHeight;
+    const distanceFromEnd = this.logScroller.scrollHeight - this.logScroller.scrollTop - this.logScroller.clientHeight;
     const isAtEnd = distanceFromEnd <= FOLLOW_TAIL_DISTANCE_PIXELS;
     if (isAtEnd === this.isFollowingTail) return;
     this.isFollowingTail = isAtEnd;
     if (isAtEnd) this.linesArrivedWhileNotFollowing = 0;
-    this.updateJumpToLatestButton();
+    this.updateFollowState();
   }
 
   private scrollToLatest(): void {
     this.logScroller.scrollTop = this.logScroller.scrollHeight;
     this.isFollowingTail = true;
     this.linesArrivedWhileNotFollowing = 0;
-    this.updateJumpToLatestButton();
+    this.updateFollowState();
   }
 
-  private updateJumpToLatestButton(): void {
+  /** `Following` while at the end; scrolled up, a button that jumps back, counting what arrived since. */
+  private updateFollowState(): void {
+    this.followingLabel.hidden = !this.hasReadAPage || !this.isFollowingTail;
     this.jumpToLatestButton.hidden = this.isFollowingTail;
-    const buttonLabel =
+    setTextIfChanged(
+      this.jumpToLatestLabel,
       this.linesArrivedWhileNotFollowing > 0
         ? countLabel(this.linesArrivedWhileNotFollowing, "new line", "new lines")
-        : "Jump to latest";
-    setTextIfChanged(this.jumpToLatestButton.lastElementChild as HTMLElement, buttonLabel);
+        : "Jump to latest",
+    );
   }
 
   private updateCountsAndMessages(): void {
     let recordLineCount = 0;
     let shownRecordLineCount = 0;
+    const heldCountByRank = new Map<number, number>();
     for (const heldLine of this.heldLines) {
       if (heldLine.isDivider) continue;
       recordLineCount += 1;
+      heldCountByRank.set(heldLine.levelRank, (heldCountByRank.get(heldLine.levelRank) ?? 0) + 1);
       if (!heldLine.element.hidden) shownRecordLineCount += 1;
     }
-    const isFiltering = this.lowercaseTextFilter !== "" || this.minimumLevelRank > LOG_LEVEL_FILTER_CHOICES[0].minimumRank;
-    setTextIfChanged(
-      this.lineCountLabel,
-      !this.hasReadAPage
-        ? ""
-        : isFiltering
-          ? `${shownRecordLineCount.toLocaleString("en-US")} of ${countLabel(recordLineCount, "line", "lines")}`
-          : countLabel(recordLineCount, "line", "lines"),
-    );
+    for (const segment of LOG_LEVEL_SEGMENTS) {
+      if (segment.countedRank !== null) {
+        this.levelSegments.showCount(segment.label as LogLevelSegmentLabel, heldCountByRank.get(segment.countedRank) ?? 0);
+      }
+    }
     let messageText: string | null = null;
     if (!this.hasReadAPage) messageText = "Reading logs…";
-    else if (recordLineCount === 0) messageText = "No log records yet. New ones appear here as the stream writes them.";
-    else if (shownRecordLineCount === 0) messageText = "No lines match the filter.";
+    else if (recordLineCount === 0) messageText = "No log records yet. New ones show up here as the stream writes them.";
+    else if (shownRecordLineCount === 0) {
+      messageText =
+        this.lowercaseTextFilter !== ""
+          ? `No lines match “${this.textFilterInput.value.trim()}”.`
+          : this.selectedSegmentLabel === "Errors"
+            ? "No errors in the lines held."
+            : "No warnings or errors in the lines held.";
+    }
     this.consoleMessage.hidden = messageText === null;
     if (messageText !== null) setTextIfChanged(this.consoleMessage, messageText);
-    this.updateLiveIndicator();
-  }
-
-  /** Live once a page has been read and while reads succeed. */
-  private updateLiveIndicator(): void {
-    this.liveIndicator.hidden = !this.hasReadAPage || !this.readFailureNotice.hidden;
+    this.updateFollowState();
   }
 }
