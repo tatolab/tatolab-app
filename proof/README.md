@@ -2,6 +2,22 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## Built: the real frontend in the calm-native design (mock data, before review)
+
+This is the app's own code rendering, not a prototype. A reviewer is checking it against the spec now; the live screenshots on a real runtime come next.
+
+**main — dark**
+
+![](built-preview/main-dark.png)
+
+**main — light**
+
+![](built-preview/main-light.png)
+
+**empty — dark**
+
+![](built-preview/empty-dark.png)
+
 ## Chosen design: calm-native (being built into the real app now)
 
 Both judges — one speaking for the owner — picked **calm-native** (OrbStack-spirited): state written as words, no status dots, stopped streams dimmed, only a failure in red with its reason. Grafts from the other directions: a loaded stream lands on its graph with live logs docked below; a reserved slot for future stream actions; the failure reason on a second sidebar line; Built-in / Python on nodes. Per the owner's ruling the app reads only the stream list, graph, logs and health; watching an exposed output is a placeholder behind a feature flag, off by default. Full spec: [FINAL-SPEC.md](design-final/FINAL-SPEC.md). (Mock renders — the runner-ups' main screens are included for comparison.)
