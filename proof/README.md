@@ -4,7 +4,7 @@ Everything below was captured while building ticket tatolab/streamlib#2609. **Li
 
 ## In progress: three approachable design directions (being judged now)
 
-After the owner's feedback (no green/red status dots; approachable DevEx, not a VS Code clone), three designers each took one direction. State is shown in words; only a failure gets colour. Each includes the new tap + live frame preview (select an output port to watch its frames). Two judges — one speaking for the owner — pick a winner and graft the best of the others before it's built into the real app.
+After the owner's feedback (no green/red status dots; approachable DevEx, not a VS Code clone), three designers each took one direction. State is shown in words; only a failure gets colour. The tap/preview mock-ups were removed: the owner ruled the app uses only what the architecture keeps (`list_streams`, `graph`, `logs`, health); watching exposed outputs ships later as a feature-flagged placeholder. Two judges — one speaking for the owner — pick a winner and graft the best of the others before it's built into the real app.
 
 ### Calm native (OrbStack-spirited)
 
@@ -28,14 +28,6 @@ After the owner's feedback (no green/red status dots; approachable DevEx, not a 
 
 ![calm-native-settings-light-1040.png](design-directions/v2/calm-native-settings-light-1040.png)
 
-**tap-dark-1040**
-
-![calm-native-tap-dark-1040.png](design-directions/v2/calm-native-tap-dark-1040.png)
-
-**tap-light-1040**
-
-![calm-native-tap-light-1040.png](design-directions/v2/calm-native-tap-light-1040.png)
-
 ### Focused split (Linear/Vercel-spirited)
 
 **empty-dark-1040**
@@ -58,14 +50,6 @@ After the owner's feedback (no green/red status dots; approachable DevEx, not a 
 
 ![focused-split-settings-light-1040.png](design-directions/v2/focused-split-settings-light-1040.png)
 
-**tap-dark-1040**
-
-![focused-split-tap-dark-1040.png](design-directions/v2/focused-split-tap-dark-1040.png)
-
-**tap-light-1040**
-
-![focused-split-tap-light-1040.png](design-directions/v2/focused-split-tap-light-1040.png)
-
 ### Guided DevEx (next-step hints, copyable CLI)
 
 **empty-dark-1040**
@@ -87,14 +71,6 @@ After the owner's feedback (no green/red status dots; approachable DevEx, not a 
 **settings-light-1040**
 
 ![guided-devex-settings-light-1040.png](design-directions/v2/guided-devex-settings-light-1040.png)
-
-**tap-dark-1040**
-
-![guided-devex-tap-dark-1040.png](design-directions/v2/guided-devex-tap-dark-1040.png)
-
-**tap-light-1040**
-
-![guided-devex-tap-light-1040.png](design-directions/v2/guided-devex-tap-light-1040.png)
 
 ## Live on macOS (local-proof build, real runtime, installed with `brew install --cask` from a local tap)
 
