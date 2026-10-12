@@ -213,7 +213,9 @@ impl TatolabAppController {
     }
 
     /// Observe everything once and compose the status, as of `now`; opens nothing. The local API
-    /// is asked with no lock held, so a slow runtime never holds up the tray's switch.
+    /// is asked with no lock held, so a slow runtime never holds up the tray's switch; the agent's
+    /// registration is read under the switch's lock, which on Linux runs
+    /// `systemctl --user is-enabled` while holding it.
     pub fn compose_status(&self, now: Instant) -> TatolabStatus {
         let machine_setup = self.machine_setup.observe_machine_setup();
 
