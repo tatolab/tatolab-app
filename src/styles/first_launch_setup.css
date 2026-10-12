@@ -1,0 +1,146 @@
+.first-launch-setup {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 52px 32px 40px;
+  overflow-y: auto;
+  background:
+    radial-gradient(60% 50% at 74% 8%, rgba(42, 91, 255, 0.08), transparent 70%),
+    radial-gradient(40% 40% at 16% 92%, rgba(42, 91, 255, 0.045), transparent 70%),
+    var(--bg);
+}
+
+:root[data-theme="dark"] .first-launch-setup {
+  background:
+    radial-gradient(60% 50% at 74% 8%, rgba(42, 91, 255, 0.17), transparent 70%),
+    radial-gradient(40% 40% at 16% 92%, rgba(42, 91, 255, 0.08), transparent 70%),
+    var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .first-launch-setup {
+    background:
+      radial-gradient(60% 50% at 74% 8%, rgba(42, 91, 255, 0.17), transparent 70%),
+      radial-gradient(40% 40% at 16% 92%, rgba(42, 91, 255, 0.08), transparent 70%),
+      var(--bg);
+  }
+}
+
+.first-launch-setup-drag-band {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 52px;
+}
+
+.first-launch-setup-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  max-width: 440px;
+}
+
+.first-launch-setup-mark svg {
+  display: block;
+  width: 56px;
+  height: 56px;
+  filter: drop-shadow(0 8px 18px rgba(42, 91, 255, 0.3));
+}
+
+.first-launch-setup-headline {
+  margin-top: 24px;
+  font: 600 29px/1.1 var(--font-sans);
+  letter-spacing: -0.03em;
+}
+
+.first-launch-setup-lead {
+  margin-top: 8px;
+  color: var(--ink-2);
+  font-size: 15px;
+}
+
+.setup-steps {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-top: 26px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow-raised);
+}
+
+.setup-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 15px 16px;
+}
+
+.setup-step + .setup-step {
+  border-top: 1px solid var(--line);
+}
+
+.setup-step-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.setup-step-icon svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 1.5;
+}
+
+.setup-step-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 1px;
+}
+
+.setup-step-copy strong {
+  font: 600 13.5px/1.35 var(--font-sans);
+}
+
+.setup-step-copy span {
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.first-launch-setup-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 26px;
+}
+
+.first-launch-setup-note {
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.first-launch-setup[data-setting-up="true"] .first-launch-setup-note {
+  color: var(--ink-2);
+}
+
+.first-launch-setup .button-primary:disabled {
+  opacity: 0.85;
+}
+
+.first-launch-setup-failure {
+  margin-top: 14px;
+  color: var(--error);
+  font-size: 13px;
+}

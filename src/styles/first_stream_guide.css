@@ -1,0 +1,72 @@
+.first-stream-guide {
+  display: flex;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 40px 32px;
+}
+
+.first-stream-guide-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  max-width: 500px;
+  margin: auto 0;
+}
+
+.first-stream-guide-preview {
+  align-self: stretch;
+  margin: 0 -18px 18px;
+}
+
+.first-stream-guide-preview .stream-graph-svg {
+  margin-inline: 0;
+}
+
+.first-stream-guide-headline {
+  font: 600 21px/1.2 var(--font-sans);
+  letter-spacing: -0.025em;
+}
+
+.first-stream-guide-explanation {
+  max-width: 54ch;
+  margin-top: 8px;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.first-stream-guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: stretch;
+  margin-top: 22px;
+}
+
+.first-stream-guide-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.first-stream-guide-step-number {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  color: var(--ink-2);
+  font: 600 11px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.first-stream-guide-step .terminal-command {
+  flex: 1;
+  min-width: 0;
+}

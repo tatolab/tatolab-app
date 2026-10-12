@@ -1,0 +1,260 @@
+.stream-graph {
+  flex: none;
+  border-top: 1px solid var(--line);
+}
+
+.stream-graph-canvas {
+  display: flex;
+  align-items: center;
+  min-height: 112px;
+  overflow-x: auto;
+  background-image: radial-gradient(circle at center, var(--graph-grid-dot) 1px, transparent 1.2px);
+  background-size: 14px 14px;
+  background-position: 7px 7px;
+}
+
+/* Auto margins centre a graph narrower than the canvas, and let a wider one scroll from its left end. */
+.stream-graph-svg {
+  display: block;
+  flex: none;
+  margin-inline: auto;
+  overflow: visible;
+}
+
+/* ---------- nodes ---------- */
+.stream-graph-node {
+  --graph-node-color: var(--idle);
+}
+
+.stream-graph-node[data-tone="ok"] {
+  --graph-node-color: var(--ok-dot);
+}
+
+.stream-graph-node[data-tone="progress"] {
+  --graph-node-color: var(--accent);
+}
+
+.stream-graph-node[data-tone="warning"] {
+  --graph-node-color: var(--amber);
+}
+
+.stream-graph-node[data-tone="error"] {
+  --graph-node-color: var(--error);
+}
+
+.stream-graph-node-pill {
+  fill: var(--panel);
+  stroke: var(--line-2);
+  stroke-width: 1;
+}
+
+.stream-graph-node[data-tone="ok"] .stream-graph-node-pill {
+  stroke: color-mix(in srgb, var(--ok-dot) 38%, var(--line-2));
+}
+
+.stream-graph-node[data-tone="progress"] .stream-graph-node-pill {
+  stroke: var(--accent-line);
+}
+
+.stream-graph-node[data-tone="error"] .stream-graph-node-pill {
+  fill: color-mix(in srgb, var(--error) 6%, var(--panel));
+  stroke: color-mix(in srgb, var(--error) 55%, transparent);
+}
+
+.stream-graph-node[data-outside-this-stream="true"] .stream-graph-node-pill {
+  fill: transparent;
+  stroke-dasharray: 3 3;
+}
+
+.stream-graph-node-state-dot {
+  fill: var(--graph-node-color);
+}
+
+.stream-graph-node[data-tone="progress"] .stream-graph-node-state-dot {
+  animation: status-dot-breathe 1.6s ease-in-out infinite;
+}
+
+.stream-graph-node-name {
+  fill: var(--ink);
+  font: 500 11px var(--font-mono);
+}
+
+.stream-graph-node[data-tone="idle"] .stream-graph-node-name {
+  fill: var(--ink-2);
+}
+
+.stream-graph-node-exposed-mark {
+  color: var(--accent);
+  stroke-width: 1.5;
+}
+
+/* ---------- links and ports ---------- */
+.stream-graph-link {
+  --graph-link-color: var(--line-2);
+  fill: none;
+  stroke: var(--graph-link-color);
+  stroke-width: 1.4;
+}
+
+.stream-graph-link[data-tone="ok"] {
+  --graph-link-color: color-mix(in srgb, var(--ok-dot) 50%, var(--line-2));
+}
+
+.stream-graph-link[data-tone="progress"] {
+  --graph-link-color: var(--accent-line);
+  stroke-dasharray: 4 4;
+}
+
+.stream-graph-link[data-tone="warning"] {
+  --graph-link-color: color-mix(in srgb, var(--amber) 70%, transparent);
+  stroke-dasharray: 4 4;
+}
+
+.stream-graph-link[data-tone="error"] {
+  --graph-link-color: color-mix(in srgb, var(--error) 70%, transparent);
+  stroke-dasharray: 3 3;
+}
+
+.stream-graph-link[data-tone="idle"] {
+  stroke-dasharray: 2 4;
+}
+
+/* A signal travelling the wire: the link is wired and both ends run. */
+.stream-graph-link-pulse {
+  fill: none;
+  stroke: var(--ok-dot);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 7 93;
+  animation-name: stream-graph-link-pulse-travel;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  pointer-events: none;
+}
+
+@keyframes stream-graph-link-pulse-travel {
+  from {
+    stroke-dashoffset: 7;
+  }
+  to {
+    stroke-dashoffset: -93;
+  }
+}
+
+.stream-graph-port {
+  fill: var(--bg);
+  stroke: var(--line-2);
+  stroke-width: 1.2;
+}
+
+.stream-graph-port[data-tone="ok"] {
+  stroke: color-mix(in srgb, var(--ok-dot) 60%, var(--line-2));
+}
+
+.stream-graph-port[data-tone="error"] {
+  stroke: var(--error);
+}
+
+/* ---------- the scaffold preview on the empty page ---------- */
+.stream-graph[data-ghost="true"] {
+  border-top: 0;
+}
+
+.stream-graph[data-ghost="true"] .stream-graph-canvas {
+  min-height: 0;
+  background: none;
+}
+
+.stream-graph[data-ghost="true"] .stream-graph-node-pill {
+  fill: var(--bg);
+  stroke: var(--line-2);
+  stroke-dasharray: 3 3;
+}
+
+.stream-graph[data-ghost="true"] .stream-graph-node-state-dot {
+  fill: none;
+  stroke: var(--line-2);
+  stroke-width: 1.4;
+  animation: none;
+}
+
+.stream-graph[data-ghost="true"] .stream-graph-node-name {
+  fill: var(--ink-3);
+}
+
+.stream-graph[data-ghost="true"] .stream-graph-link {
+  stroke: var(--line-2);
+  stroke-dasharray: 3 4;
+}
+
+.stream-graph[data-ghost="true"] .stream-graph-port {
+  stroke: var(--line-2);
+}
+
+/* ---------- exposed ports ---------- */
+.stream-graph-exposed-ports {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 20px 12px;
+}
+
+.stream-graph-exposed-ports:empty {
+  display: none;
+}
+
+.stream-graph-exposed-port {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
+.stream-graph-exposed-port svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+  stroke-width: 1.5;
+}
+
+.stream-graph-exposed-port-address {
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.stream-graph-exposed-port .state-chip {
+  height: 18px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+/* ---------- a message in place of the drawing ---------- */
+.stream-graph-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: 460px;
+  padding: 20px 24px;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.stream-graph-message-detail {
+  color: var(--ink-3);
+  font: 400 11px/1.5 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-graph-link-pulse {
+    display: none;
+  }
+}

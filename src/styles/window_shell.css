@@ -1,0 +1,195 @@
+.tatolab-window {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  height: 100%;
+}
+
+/* ---------- sidebar ---------- */
+.window-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 10px 10px;
+  background: var(--bg-2);
+  border-right: 1px solid var(--line);
+}
+
+/* The overlay title bar draws the traffic lights in this band. */
+.window-sidebar-traffic-light-band {
+  flex: none;
+  height: 52px;
+}
+
+.window-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 30px;
+  padding: 0 9px;
+  margin-bottom: 16px;
+  color: var(--ink);
+}
+
+.window-sidebar-brand svg {
+  flex: none;
+  pointer-events: none;
+}
+
+.tatolab-outlined-mark-letter {
+  stroke: var(--accent);
+}
+
+.window-sidebar-wordmark {
+  font: 600 15.5px/1 var(--font-sans);
+  letter-spacing: -0.015em;
+}
+
+.window-sidebar-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.window-sidebar-navigation-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-2);
+  font: 500 13px/1 var(--font-sans);
+  text-align: left;
+  cursor: default;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+
+.window-sidebar-navigation-item svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.window-sidebar-navigation-item:hover {
+  color: var(--ink);
+}
+
+.window-sidebar-navigation-item-current {
+  background: var(--selection);
+  color: var(--ink);
+}
+
+.window-sidebar-navigation-item-current svg {
+  color: var(--accent);
+}
+
+.window-sidebar-count-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--line);
+  color: var(--ink-2);
+  font: 600 11px/18px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.window-sidebar-count-badge[data-any-failed="true"] {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.window-sidebar-spacer {
+  flex: 1;
+}
+
+.window-sidebar-runtime-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow-raised);
+  text-align: left;
+  cursor: default;
+  transition: border-color 140ms ease-out;
+}
+
+.window-sidebar-runtime-pill:hover {
+  border-color: var(--line-2);
+}
+
+.window-sidebar-runtime-pill-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.window-sidebar-runtime-pill-state {
+  font: 600 12.5px/1.2 var(--font-sans);
+  color: var(--ink);
+}
+
+.window-sidebar-runtime-pill[data-tone="ok"] .window-sidebar-runtime-pill-state {
+  color: var(--ok);
+}
+
+.window-sidebar-runtime-pill[data-tone="warning"] .window-sidebar-runtime-pill-state {
+  color: var(--amber-ink);
+}
+
+.window-sidebar-runtime-pill[data-tone="error"] .window-sidebar-runtime-pill-state {
+  color: var(--error);
+}
+
+.window-sidebar-runtime-pill-machine {
+  overflow: hidden;
+  color: var(--ink-3);
+  font: 400 11px/1.2 var(--font-mono);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.window-sidebar-runtime-pill-machine[data-machine-name-known="false"] {
+  font: 400 11.5px/1.2 var(--font-sans);
+}
+
+/* ---------- content ---------- */
+.window-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.window-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.page-top-band {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: none;
+  height: 52px;
+  padding: 0 16px 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.page-title {
+  flex: none;
+  font: 600 15px/1 var(--font-sans);
+  letter-spacing: -0.01em;
+}
