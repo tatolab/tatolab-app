@@ -67,7 +67,9 @@ case ", $deb_depends," in
   *", libayatana-appindicator3-1,"*|*", libappindicator3-1,"*) ;;
   *) echo "the .deb depends on no appindicator library for the tray (Depends: $deb_depends)" >&2; exit 1 ;;
 esac
-dpkg-deb --contents "$built_deb" | grep -q '\./usr/share/applications/Tatolab\.desktop$' \
+# Tauri's .deb lists its members without the "./" prefix dpkg-deb -b writes.
+deb_contents="$(dpkg-deb --contents "$built_deb")"
+grep -qE '[[:space:]](\./)?usr/share/applications/Tatolab\.desktop$' <<<"$deb_contents" \
   || { echo "the .deb carries no usr/share/applications/Tatolab.desktop" >&2; exit 1; }
 echo "    Depends: $deb_depends"
 
