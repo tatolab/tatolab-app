@@ -7,6 +7,8 @@ export interface TatolabBackend {
   openLoginItemsSettings(): Promise<void>;
   setUpTatolab(): Promise<void>;
   quitTatolabApp(): Promise<void>;
+  /** On macOS uninstalls Tatolab and quits at the end, rejecting with the reason when it can't; on Linux rejects with how to. */
+  uninstallTatolab(): Promise<void>;
   readStreamLogRecords(streamName: string, afterSequence: number): Promise<StreamLogRecordsPage>;
   describeStreamGraph(streamName: string): Promise<StreamGraphSummary>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;

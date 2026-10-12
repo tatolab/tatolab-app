@@ -23,11 +23,11 @@ import { mountTatolabWindow } from "./views/tatolab_window_view";
 const FIRST_STATUS_RETRY_MILLISECONDS = 1000;
 
 async function createBrowserMockBackend(): Promise<TatolabBackend> {
-  const { createMockTatolabBackend, readMockTatolabScenario } = await import("./backend/mock_tatolab_backend");
+  const { createMockTatolabBackend, readMockTatolabOptions } = await import("./backend/mock_tatolab_backend");
   const pageQuery = new URLSearchParams(window.location.search);
   const pinnedTheme = pageQuery.get("theme");
   if (pinnedTheme === "light" || pinnedTheme === "dark") document.documentElement.dataset.theme = pinnedTheme;
-  return createMockTatolabBackend(readMockTatolabScenario(pageQuery));
+  return createMockTatolabBackend(readMockTatolabOptions(pageQuery));
 }
 
 /** The status, asked again each second until the backend answers: the window has nothing to show without one. */

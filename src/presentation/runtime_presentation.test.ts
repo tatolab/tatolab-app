@@ -5,6 +5,7 @@ import { deriveRuntimeDisplayState, presentRuntimeStatus } from "./runtime_prese
 function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
   return {
     app_version: "0.45.0",
+    platform: "macos",
     run_tatolab: true,
     runtime_agent: "enabled",
     runtime_state: "running",
