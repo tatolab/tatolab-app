@@ -8,6 +8,7 @@
 //! active unit alone.
 
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::platform::RuntimeAgentRegistration;
 use crate::tatolab_status::RuntimeAgentRegistrationStatus;
@@ -56,12 +57,17 @@ impl SystemctlUserCommandRunner for SystemctlOnThePath {
 /// The runtime's systemd user unit, driven through `systemctl --user`.
 pub struct SystemdUserRuntimeService {
     systemctl: Box<dyn SystemctlUserCommandRunner>,
+    /// Whether the last `is-enabled` read no unit to drive, so why is logged once per drop.
+    unit_read_not_found_last_time: AtomicBool,
 }
 
 impl SystemdUserRuntimeService {
     /// The unit, driven through `systemctl`.
     pub fn new(systemctl: Box<dyn SystemctlUserCommandRunner>) -> Self {
-        Self { systemctl }
+        Self {
+            systemctl,
+            unit_read_not_found_last_time: AtomicBool::new(false),
+        }
     }
 
     /// Run `systemctl --user <arguments>`, refused in systemctl's own words unless it exits 0.
@@ -84,15 +90,37 @@ impl SystemdUserRuntimeService {
 
 impl RuntimeAgentRegistration for SystemdUserRuntimeService {
     fn registration_status(&self) -> RuntimeAgentRegistrationStatus {
-        match self
+        let is_enabled_answer_or_run_failure = self
             .systemctl
-            .run_systemctl_user(&["is-enabled", RUNTIME_SYSTEMD_USER_UNIT_NAME])
-        {
-            Ok(is_enabled) => {
-                runtime_agent_registration_status_from_systemctl_is_enabled(&is_enabled)
+            .run_systemctl_user(&["is-enabled", RUNTIME_SYSTEMD_USER_UNIT_NAME]);
+        let registration_status = match &is_enabled_answer_or_run_failure {
+            Ok(is_enabled_answer) => {
+                runtime_agent_registration_status_from_systemctl_is_enabled(is_enabled_answer)
             }
             Err(_systemctl_could_not_be_run) => RuntimeAgentRegistrationStatus::NotFound,
+        };
+        let unit_reads_not_found = registration_status == RuntimeAgentRegistrationStatus::NotFound;
+        let unit_read_not_found_last_time = self
+            .unit_read_not_found_last_time
+            .swap(unit_reads_not_found, Ordering::AcqRel);
+        if the_unit_just_started_reading_not_found(
+            unit_read_not_found_last_time,
+            unit_reads_not_found,
+        ) {
+            match &is_enabled_answer_or_run_failure {
+                Ok(is_enabled_answer) => tracing::warn!(
+                    exit_code = ?is_enabled_answer.exit_code,
+                    stdout = %is_enabled_answer.stdout.trim(),
+                    stderr = %is_enabled_answer.stderr.trim(),
+                    "systemctl --user is-enabled {RUNTIME_SYSTEMD_USER_UNIT_NAME} names no unit to drive"
+                ),
+                Err(run_failure) => tracing::warn!(
+                    %run_failure,
+                    "{RUNTIME_SYSTEMD_USER_UNIT_NAME} reads as no unit to drive"
+                ),
+            }
         }
+        registration_status
     }
 
     fn register_runtime_agent(&self) -> Result<(), String> {
@@ -125,13 +153,22 @@ impl RuntimeAgentRegistration for SystemdUserRuntimeService {
 /// but not enabled; `not-found` (exit 4), or no state at all, is no unit to drive. Older systemd
 /// names a missing unit only on stderr, and with no user manager to ask the bus refuses.
 pub fn runtime_agent_registration_status_from_systemctl_is_enabled(
-    is_enabled: &SystemctlUserCommandOutput,
+    is_enabled_answer: &SystemctlUserCommandOutput,
 ) -> RuntimeAgentRegistrationStatus {
-    match is_enabled.stdout.lines().next().map(str::trim) {
+    match is_enabled_answer.stdout.lines().next().map(str::trim) {
         Some("enabled" | "enabled-runtime") => RuntimeAgentRegistrationStatus::Enabled,
         None | Some("" | "not-found") => RuntimeAgentRegistrationStatus::NotFound,
         Some(_installed_but_not_enabled) => RuntimeAgentRegistrationStatus::NotRegistered,
     }
+}
+
+/// Whether this `is-enabled` is the one the unit first read as no unit to drive in, after
+/// reading anything else.
+fn the_unit_just_started_reading_not_found(
+    unit_read_not_found_last_time: bool,
+    unit_reads_not_found: bool,
+) -> bool {
+    unit_reads_not_found && !unit_read_not_found_last_time
 }
 
 #[cfg(test)]
@@ -163,7 +200,7 @@ mod tests {
 
     #[test]
     fn is_enabled_reads_enabled_installed_or_no_unit_as_systemctl_answers_it() {
-        for (is_enabled, expected) in [
+        for (is_enabled_answer, expected) in [
             (
                 systemctl_answered(0, "enabled\n", ""),
                 RuntimeAgentRegistrationStatus::Enabled,
@@ -206,9 +243,28 @@ mod tests {
             ),
         ] {
             assert_eq!(
-                runtime_agent_registration_status_from_systemctl_is_enabled(&is_enabled),
+                runtime_agent_registration_status_from_systemctl_is_enabled(&is_enabled_answer),
                 expected,
-                "{is_enabled:?}"
+                "{is_enabled_answer:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn why_the_unit_reads_not_found_is_new_only_on_the_answer_it_starts_reading_so() {
+        for (unit_read_not_found_last_time, unit_reads_not_found, expected) in [
+            (false, true, true),
+            (true, true, false),
+            (true, false, false),
+            (false, false, false),
+        ] {
+            assert_eq!(
+                the_unit_just_started_reading_not_found(
+                    unit_read_not_found_last_time,
+                    unit_reads_not_found
+                ),
+                expected,
+                "{unit_read_not_found_last_time} -> {unit_reads_not_found}"
             );
         }
     }
