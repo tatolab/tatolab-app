@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 //! The seam between the "Run Tatolab" decision and the platform's service manager that runs the
-//! runtime as the user's agent: Service Management's `SMAppService` launch agent on macOS.
+//! runtime as the user's agent: Service Management's `SMAppService` launch agent on macOS, the
+//! installer's systemd user unit on Linux.
 
 use crate::tatolab_status::RuntimeAgentRegistrationStatus;
 
@@ -15,7 +16,8 @@ pub trait RuntimeAgentRegistration: Send + Sync {
     fn register_runtime_agent(&self) -> Result<(), String>;
 
     /// Start the registered agent's runtime unless it is already running. Service Management
-    /// loads a newly registered agent but launchd may defer its first start.
+    /// loads a newly registered agent but launchd may defer its first start, and systemd stops
+    /// restarting a runtime that crashed past its start limit.
     fn start_runtime_agent_if_not_running(&self) -> Result<(), String>;
 
     /// Unregister the agent, which stops the runtime and keeps it from starting at login.

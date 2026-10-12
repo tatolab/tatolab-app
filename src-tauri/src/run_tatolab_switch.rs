@@ -13,13 +13,14 @@ use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::tatolab_status::{RuntimeAgentRegistrationStatus, RuntimeHealthObservation};
 
 /// The least time between two starts of the runtime's agent: launchd's own minimum runtime, the
-/// 10 s it lets pass before it spawns a job again.
+/// 10 s it lets pass before it spawns a job again, and systemd's default start-limit interval.
 const RUNTIME_AGENT_START_MINIMUM_INTERVAL: Duration = Duration::from_secs(10);
 
 /// Whether to start the runtime's agent now. launchd may leave even an enabled agent's job pended
-/// as a speculative or nondemand spawn, so while the app runs it starts a runtime failing its
-/// health check itself — only with the switch on and the agent enabled, and no sooner than
-/// [`RUNTIME_AGENT_START_MINIMUM_INTERVAL`] after the last start attempt.
+/// as a speculative or nondemand spawn, and systemd gives up on a unit that crashed past its start
+/// limit, so while the app runs it starts a runtime failing its health check itself — only with
+/// the switch on and the agent enabled, and no sooner than [`RUNTIME_AGENT_START_MINIMUM_INTERVAL`]
+/// after the last start attempt.
 fn the_runtime_agent_should_be_started_now(
     run_tatolab: bool,
     runtime_agent: RuntimeAgentRegistrationStatus,
@@ -95,7 +96,7 @@ impl RunTatolabSwitch {
     }
 
     /// Note that the runtime answered its health check at `now`, so a later failure gets the
-    /// starting grace period again, as when launchd restarts a runtime that crashed.
+    /// starting grace period again, as when the service manager restarts a runtime that crashed.
     pub fn note_runtime_healthy(&mut self, now: Instant) {
         self.runtime_expected_up_since = now;
     }

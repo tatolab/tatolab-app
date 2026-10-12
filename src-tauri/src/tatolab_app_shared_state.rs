@@ -57,7 +57,8 @@ pub fn set_up_tatolab_on_request(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Quit the app from the tray or the window. The runtime is the launch agent's, and keeps running.
+/// Quit the app from the tray or the window. The runtime is the service manager's, and keeps
+/// running.
 pub fn quit_the_tatolab_app(app: &AppHandle) {
     tracing::info!("quitting the Tatolab app; the runtime keeps running");
     app.exit(0);

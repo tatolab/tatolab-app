@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 //! The machine-wide setup a platform's runtime needs before it can start: on macOS the machine
-//! runtime lock and the CLI's PATH link, created behind one administrator prompt.
+//! runtime lock and the CLI's PATH link, created behind one administrator prompt. Linux's
+//! installer sets its machine up, so there it is always complete.
 
 use std::path::PathBuf;
 

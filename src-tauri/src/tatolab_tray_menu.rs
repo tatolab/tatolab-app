@@ -1,9 +1,9 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-//! The menu bar item: the Tatolab mark in this platform's tray image, and a native menu — a
-//! disabled status line, "Open Tatolab", the "Run Tatolab" switch, "Set Up Tatolab…" while machine
-//! setup is missing, and "Quit Tatolab" — on either click.
+//! The tray item, in macOS's menu bar or a Linux panel: the Tatolab mark in this platform's tray
+//! image, and a native menu — a disabled status line, "Open Tatolab", the "Run Tatolab" switch,
+//! "Set Up Tatolab…" while machine setup is missing, and "Quit Tatolab" — on either click.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -67,7 +67,7 @@ pub struct TatolabTrayMenu {
 }
 
 impl TatolabTrayMenu {
-    /// Put the tray icon in the menu bar, calling `on_choice` with each menu choice.
+    /// Put the tray icon in the menu bar or panel, calling `on_choice` with each menu choice.
     pub fn build(
         app: &AppHandle,
         run_tatolab: bool,

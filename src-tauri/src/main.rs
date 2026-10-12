@@ -1,14 +1,16 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-//! Tatolab.app: opening it starts the runtime as a launch agent and shows its window, the
-//! "Run Tatolab" switch is that same registration, closing the window leaves the app in the menu
-//! bar, and quitting quits only the app — the runtime stays on.
+//! Tatolab.app: opening it starts the runtime as the user's agent — a launch agent on macOS, the
+//! installer's systemd user service on Linux — and shows its window, the "Run Tatolab" switch is
+//! that same registration, closing the window leaves the app in the tray, and quitting quits only
+//! the app — the runtime stays on.
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 compile_error!(
-    "Tatolab.app builds for macOS only; it registers the runtime through Service Management's \
-     SMAppService and sets up the machine behind the macOS administrator prompt."
+    "Tatolab.app builds for macOS and Linux only: on macOS it registers the runtime through \
+     Service Management's SMAppService, and on Linux it drives the installer's systemd user \
+     service, tatolabd.service."
 );
 
 mod local_api_client;

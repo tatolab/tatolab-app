@@ -55,7 +55,9 @@ pub struct ListedStream {
     pub failed_because: Option<String>,
 }
 
-/// What launchd's Service Management says about the runtime's launch agent.
+/// What the platform's service manager says about the runtime's agent: Service Management about
+/// the launch agent on macOS; on Linux, `systemctl --user is-enabled` about the systemd user unit,
+/// which never needs approval.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RuntimeAgentRegistrationStatus {
@@ -75,9 +77,11 @@ pub enum RuntimeState {
     Unreachable,
 }
 
-/// Whether first-launch machine setup still needs the administrator prompt.
+/// Whether first-launch machine setup still needs the administrator prompt. Only macOS's is ever
+/// missing; Linux's installer set the machine up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(target_os = "linux", allow(dead_code))]
 pub enum MachineSetupState {
     Complete,
     /// Setup is missing and no administrator prompt is showing.
@@ -86,6 +90,7 @@ pub enum MachineSetupState {
     WaitingForAdministrator,
 }
 
+#[cfg_attr(target_os = "linux", allow(dead_code))]
 impl MachineSetupState {
     /// The state from whether any setup piece is missing and whether the prompt is showing.
     pub fn from_observation(

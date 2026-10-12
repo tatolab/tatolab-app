@@ -189,7 +189,8 @@ impl TatolabAppController {
     }
 
     /// Start the runtime when the poller's `status`, observed at `now`, found it down with the
-    /// switch on and the agent enabled, at most once per launchd's minimum runtime.
+    /// switch on and the agent enabled, no sooner after the last start than the service manager
+    /// would start it again.
     pub fn start_the_runtime_if_the_poller_found_it_down(
         &self,
         status: &TatolabStatus,

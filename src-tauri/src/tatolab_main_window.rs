@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 //! The app's one window. It shows when the app opens, when the app is opened again, and from the
-//! tray's "Open Tatolab"; closing it hides it and the app keeps running in the menu bar. On macOS
-//! the Dock icon shows only while the window does.
+//! tray's "Open Tatolab"; closing it hides it and the app keeps running in the tray. On macOS the
+//! Dock icon shows only while the window does.
 
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
@@ -67,7 +67,7 @@ pub fn show_main_window(app: &AppHandle) {
     }
 }
 
-/// Hide the main window; the app keeps running in the menu bar.
+/// Hide the main window; the app keeps running in the tray.
 fn hide_main_window(app: &AppHandle) {
     if let Some(main_window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         if let Err(failure) = main_window.hide() {
