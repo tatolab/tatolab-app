@@ -110,6 +110,9 @@
 .content-band-state[data-emphasis="quiet"], .content-band-state[data-emphasis="version"] { color: var(--text-3); }
 .content-band-state[data-emphasis="failure"] { color: var(--red); }
 .band-actions { display: flex; align-items: center; gap: 6px; }
+.band-actions:empty { display: none; }
+.content-band:has(> .band-actions:empty) { grid-template-columns: auto auto minmax(0, 1fr) auto; }
+.content-band:has(> .band-actions:empty) > .band-search-button { grid-column: 4; }
 
 .band-search-button {
   display: inline-flex;
