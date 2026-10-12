@@ -133,14 +133,6 @@ pub fn the_runtime_just_became_unreachable(
         && previous_runtime_state != Some(RuntimeState::Unreachable)
 }
 
-/// Whether this round is the one listing the runtime's streams started failing in.
-pub fn the_stream_listing_just_started_failing(
-    stream_listing_failed_last_round: bool,
-    stream_listing_failed_this_round: bool,
-) -> bool {
-    stream_listing_failed_this_round && !stream_listing_failed_last_round
-}
-
 /// The tray's one-line status, the disabled first item of its menu.
 pub fn tray_status_line(status: &TatolabStatus) -> String {
     match status.machine_setup_state {
@@ -290,25 +282,6 @@ mod tests {
                 the_runtime_just_became_unreachable(previous_runtime_state, runtime_state),
                 expected,
                 "{previous_runtime_state:?} -> {runtime_state:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn the_stream_listing_failure_is_new_only_on_the_round_it_starts_failing() {
-        for (stream_listing_failed_last_round, stream_listing_failed_this_round, expected) in [
-            (false, true, true),
-            (true, true, false),
-            (true, false, false),
-            (false, false, false),
-        ] {
-            assert_eq!(
-                the_stream_listing_just_started_failing(
-                    stream_listing_failed_last_round,
-                    stream_listing_failed_this_round
-                ),
-                expected,
-                "{stream_listing_failed_last_round} -> {stream_listing_failed_this_round}"
             );
         }
     }

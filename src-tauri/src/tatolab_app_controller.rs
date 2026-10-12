@@ -10,6 +10,7 @@ use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use crate::condition_onset_latch::ConditionOnsetLatch;
 use crate::local_api_client::{LocalApiClient, LocalApiRequestFailure};
 use crate::output_frame_preview::{preview_output_frame, FramePreview};
 use crate::output_port_tap_sample::{output_port_channel_address, TapSample};
@@ -23,8 +24,7 @@ use crate::run_tatolab_switch::{RunTatolabReconciliation, RunTatolabSwitch};
 use crate::stream_graph_summary::StreamGraphSummary;
 use crate::stream_log_records_page::StreamLogRecordsPage;
 use crate::tatolab_status::{
-    derive_runtime_state, the_runtime_just_became_unreachable,
-    the_stream_listing_just_started_failing, ListedStream, MachineSetupState,
+    derive_runtime_state, the_runtime_just_became_unreachable, ListedStream, MachineSetupState,
     RuntimeAgentRegistrationStatus, RuntimeHealthObservation, RuntimeState, TatolabStatus,
 };
 
@@ -63,7 +63,7 @@ pub struct TatolabAppController {
     machine_setup: Box<dyn TatolabMachineSetup>,
     local_api_client: LocalApiClient,
     runtime_state_last_observed: Mutex<Option<RuntimeState>>,
-    stream_listing_failed_last_round: Mutex<bool>,
+    stream_listing_failure_onset: ConditionOnsetLatch,
     machine_name_of_the_running_runtime: Mutex<MachineNameAskedOncePerRuntimeUpEpisode>,
 }
 
@@ -89,7 +89,7 @@ impl TatolabAppController {
                 LOCAL_API_REQUEST_TIMEOUT,
             ),
             runtime_state_last_observed: Mutex::new(None),
-            stream_listing_failed_last_round: Mutex::new(false),
+            stream_listing_failure_onset: ConditionOnsetLatch::default(),
             machine_name_of_the_running_runtime: Mutex::new(
                 MachineNameAskedOncePerRuntimeUpEpisode::default(),
             ),
@@ -326,15 +326,10 @@ impl TatolabAppController {
     /// starts failing.
     fn listed_streams(&self) -> Option<Vec<ListedStream>> {
         let streams = self.local_api_client.list_streams();
-        let stream_listing_failed_this_round = streams.is_err();
-        let stream_listing_failed_last_round = std::mem::replace(
-            &mut *lock_ignoring_poison(&self.stream_listing_failed_last_round),
-            stream_listing_failed_this_round,
-        );
-        if the_stream_listing_just_started_failing(
-            stream_listing_failed_last_round,
-            stream_listing_failed_this_round,
-        ) {
+        if self
+            .stream_listing_failure_onset
+            .condition_just_started_holding(streams.is_err())
+        {
             if let Err(failure) = &streams {
                 tracing::warn!(%failure, "the runtime's streams could not be listed");
             }

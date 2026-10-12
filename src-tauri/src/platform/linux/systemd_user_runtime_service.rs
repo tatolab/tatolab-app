@@ -8,8 +8,8 @@
 //! active unit alone.
 
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::condition_onset_latch::ConditionOnsetLatch;
 use crate::platform::RuntimeAgentRegistration;
 use crate::tatolab_status::RuntimeAgentRegistrationStatus;
 
@@ -57,8 +57,8 @@ impl SystemctlUserCommandRunner for SystemctlOnThePath {
 /// The runtime's systemd user unit, driven through `systemctl --user`.
 pub struct SystemdUserRuntimeService {
     systemctl: Box<dyn SystemctlUserCommandRunner>,
-    /// Whether the last `is-enabled` read no unit to drive, so why is logged once per drop.
-    unit_read_not_found_last_time: AtomicBool,
+    /// When `is-enabled` starts reading no unit to drive, so why is logged once per drop.
+    unit_not_found_onset: ConditionOnsetLatch,
 }
 
 impl SystemdUserRuntimeService {
@@ -66,7 +66,7 @@ impl SystemdUserRuntimeService {
     pub fn new(systemctl: Box<dyn SystemctlUserCommandRunner>) -> Self {
         Self {
             systemctl,
-            unit_read_not_found_last_time: AtomicBool::new(false),
+            unit_not_found_onset: ConditionOnsetLatch::default(),
         }
     }
 
@@ -99,13 +99,8 @@ impl RuntimeAgentRegistration for SystemdUserRuntimeService {
             }
             Err(_systemctl_could_not_be_run) => RuntimeAgentRegistrationStatus::NotFound,
         };
-        let unit_reads_not_found = registration_status == RuntimeAgentRegistrationStatus::NotFound;
-        let unit_read_not_found_last_time = self
-            .unit_read_not_found_last_time
-            .swap(unit_reads_not_found, Ordering::AcqRel);
-        if the_unit_just_started_reading_not_found(
-            unit_read_not_found_last_time,
-            unit_reads_not_found,
+        if self.unit_not_found_onset.condition_just_started_holding(
+            registration_status == RuntimeAgentRegistrationStatus::NotFound,
         ) {
             match &is_enabled_answer_or_run_failure {
                 Ok(is_enabled_answer) => tracing::warn!(
@@ -160,15 +155,6 @@ pub fn runtime_agent_registration_status_from_systemctl_is_enabled(
         None | Some("" | "not-found") => RuntimeAgentRegistrationStatus::NotFound,
         Some(_installed_but_not_enabled) => RuntimeAgentRegistrationStatus::NotRegistered,
     }
-}
-
-/// Whether this `is-enabled` is the one the unit first read as no unit to drive in, after
-/// reading anything else.
-fn the_unit_just_started_reading_not_found(
-    unit_read_not_found_last_time: bool,
-    unit_reads_not_found: bool,
-) -> bool {
-    unit_reads_not_found && !unit_read_not_found_last_time
 }
 
 #[cfg(test)]
@@ -246,25 +232,6 @@ mod tests {
                 runtime_agent_registration_status_from_systemctl_is_enabled(&is_enabled_answer),
                 expected,
                 "{is_enabled_answer:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn why_the_unit_reads_not_found_is_new_only_on_the_answer_it_starts_reading_so() {
-        for (unit_read_not_found_last_time, unit_reads_not_found, expected) in [
-            (false, true, true),
-            (true, true, false),
-            (true, false, false),
-            (false, false, false),
-        ] {
-            assert_eq!(
-                the_unit_just_started_reading_not_found(
-                    unit_read_not_found_last_time,
-                    unit_reads_not_found
-                ),
-                expected,
-                "{unit_read_not_found_last_time} -> {unit_reads_not_found}"
             );
         }
     }

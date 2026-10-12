@@ -14,6 +14,7 @@ compile_error!(
      service, tatolabd.service."
 );
 
+mod condition_onset_latch;
 #[cfg(test)]
 mod fake_local_api_server;
 mod local_api_client;
