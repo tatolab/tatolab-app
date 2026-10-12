@@ -42,6 +42,7 @@
   --accent-line: rgba(42, 91, 255, .85);
   --text-selection: rgba(42, 91, 255, .2);
   --red: #c4232d;
+  --red-on-lifted-fill: #c4232d;
   --red-line: rgba(196, 35, 45, .85);
   --amber: #8f5f00;
   --hover: rgba(0, 0, 0, .04);
@@ -86,6 +87,7 @@
   --accent-line: rgba(124, 155, 255, .75);
   --text-selection: rgba(76, 125, 255, .35);
   --red: #ff7a70;
+  --red-on-lifted-fill: #ffa8a0;
   --red-line: rgba(255, 122, 112, .7);
   --amber: #f2b24c;
   --hover: rgba(255, 255, 255, .045);

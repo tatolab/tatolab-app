@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import type { StreamLogRecord } from "../backend/tatolab_backend_contract";
-import { StreamLogConsoleView } from "./stream_log_console_view";
+import { logTextFilterPlaceholderThatFits, StreamLogConsoleView } from "./stream_log_console_view";
 
 function logRecord(sequence: number, level: string, message: string): StreamLogRecord {
   return { sequence, host_ts_ns: null, level, source: "python", target: null, message, attrs: {} };
@@ -42,13 +42,20 @@ describe("StreamLogConsoleView", () => {
     expect(shownMessages(logConsole)).toEqual(["read skipped"]);
   });
 
-  it("sizes the filter field by its own hint, so the whole placeholder always shows", () => {
+  it("sizes the filter field by its whole hint", () => {
     const logConsole = new StreamLogConsoleView("main", "linux");
     const filterInput = logConsole.element.querySelector<HTMLInputElement>(".filter-field-input")!;
     const placeholderMeasure = logConsole.element.querySelector(".log-dock-filter-placeholder-measure")!;
     expect(placeholderMeasure.textContent).toBe(filterInput.placeholder);
     expect(placeholderMeasure.getAttribute("aria-hidden")).toBe("true");
     expect(filterInput.parentElement).toBe(placeholderMeasure.parentElement);
+  });
+
+  it("shortens the filter hint only when the input is too narrow for the whole one", () => {
+    expect(logTextFilterPlaceholderThatFits(150, 150)).toBe("Filter by text or key=value");
+    expect(logTextFilterPlaceholderThatFits(149, 150)).toBe("Filter by text or key=value");
+    expect(logTextFilterPlaceholderThatFits(126, 150)).toBe("Text or key=value");
+    expect(logTextFilterPlaceholderThatFits(0, 150)).toBe("Filter by text or key=value");
   });
 
   it("clears the text filter on the first Esc and leaves the field on the second", () => {

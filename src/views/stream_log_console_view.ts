@@ -17,8 +17,17 @@ import { createFailureIcon, createIcon, createWindowShortcutCap, SegmentedContro
 const MOST_LOG_LINES_HELD = 2000;
 /** Scrolled within this many pixels of the end, the console keeps following new lines. */
 const FOLLOW_TAIL_DISTANCE_PIXELS = 16;
-/** The filter field is exactly as wide as this hint in the platform's own font, so it is never cut. */
+/** The filter field grows to this hint's width in the platform's own font. */
 const LOG_TEXT_FILTER_PLACEHOLDER = "Filter by text or key=value";
+/** The hint a narrow header shows instead of cutting the whole one off mid-word. */
+const SHORT_LOG_TEXT_FILTER_PLACEHOLDER = "Text or key=value";
+
+/** The whole filter hint while the input has room for it, else the short one. An input not laid out yet gets the whole. */
+export function logTextFilterPlaceholderThatFits(inputWidthPixels: number, wholePlaceholderWidthPixels: number): string {
+  return inputWidthPixels === 0 || inputWidthPixels + 1 >= wholePlaceholderWidthPixels
+    ? LOG_TEXT_FILTER_PLACEHOLDER
+    : SHORT_LOG_TEXT_FILTER_PLACEHOLDER;
+}
 
 type LogLevelSegmentLabel = "All" | "Warnings" | "Errors";
 
@@ -67,7 +76,9 @@ export class StreamLogConsoleView implements StreamLogRecordsDestination {
   private readonly jumpToLatestButton: HTMLButtonElement;
   private readonly jumpToLatestLabel: HTMLElement;
   private readonly textFilterInput: HTMLInputElement;
+  private readonly textFilterPlaceholderMeasure: HTMLElement;
   private readonly textFilterField: HTMLElement;
+  private readonly textFilterResizeObserver: ResizeObserver;
   private readonly logScroller: HTMLElement;
   private readonly logLines: HTMLElement;
   private readonly consoleMessage: HTMLElement;
@@ -128,14 +139,19 @@ export class StreamLogConsoleView implements StreamLogRecordsDestination {
         this.textFilterInput.blur();
       }
     });
+    this.textFilterPlaceholderMeasure = createElement("span", { class: "log-dock-filter-placeholder-measure", "aria-hidden": "true" }, [
+      LOG_TEXT_FILTER_PLACEHOLDER,
+    ]);
     this.textFilterField = createElement("label", { class: "filter-field log-dock-filter", "data-has-text": "false" }, [
       createIcon(SEARCH_ICON_SVG, 14),
-      createElement("span", { class: "log-dock-filter-input-sizer" }, [
-        createElement("span", { class: "log-dock-filter-placeholder-measure", "aria-hidden": "true" }, [LOG_TEXT_FILTER_PLACEHOLDER]),
-        this.textFilterInput,
-      ]),
+      createElement("span", { class: "log-dock-filter-input-sizer" }, [this.textFilterPlaceholderMeasure, this.textFilterInput]),
       createWindowShortcutCap(platform, "F"),
     ]);
+    this.textFilterResizeObserver = new ResizeObserver(() => {
+      const placeholder = logTextFilterPlaceholderThatFits(this.textFilterInput.clientWidth, this.textFilterPlaceholderMeasure.scrollWidth);
+      if (this.textFilterInput.placeholder !== placeholder) this.textFilterInput.placeholder = placeholder;
+    });
+    this.textFilterResizeObserver.observe(this.textFilterInput);
 
     this.logLines = createElement("div", { class: "log-lines" });
     this.consoleMessage = createElement("p", { class: "log-dock-message" }, ["Reading logs…"]);
@@ -205,6 +221,11 @@ export class StreamLogConsoleView implements StreamLogRecordsDestination {
   /** Shows only the error lines, as an errored node's foot asks. */
   showErrorLinesOnly(): void {
     this.showLevelSegment("Errors");
+  }
+
+  /** Stops watching the filter field's width. */
+  dispose(): void {
+    this.textFilterResizeObserver.disconnect();
   }
 
   /** In the Logs tab the band already says Logs, so the header drops its title and the filter widens. */

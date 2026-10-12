@@ -147,6 +147,7 @@ class LoadedStreamLiveView {
     this.isDisposed = true;
     this.graphPoll.stop();
     this.logFollower.dispose();
+    this.logConsole.dispose();
     this.graphView.dispose();
     this.splitter.dispose();
   }
