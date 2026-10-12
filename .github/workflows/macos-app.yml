@@ -98,6 +98,8 @@ jobs:
         run: brew install shaderc cmake ninja
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -111,6 +113,19 @@ jobs:
         with:
           node-version: 24
           cache: npm
+
+      # The app's Rust embeds the built frontend, so it is built first; the local-proof feature
+      # set is the build --local-proof-test-root bundles.
+      - name: Test and lint the app (default and local-proof feature sets)
+        run: |
+          npm ci
+          npm run build
+          cargo test --manifest-path src-tauri/Cargo.toml --locked
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml --locked \
+            --features machine-directories-under-a-test-root
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked \
+            --features machine-directories-under-a-test-root -- -D warnings
 
       - uses: actions/setup-python@v5
         with:
@@ -186,6 +201,7 @@ jobs:
           name: tatolab-macos-arm64
           path: build/Tatolab-*-arm64.dmg
           if-no-files-found: error
+          retention-days: 7
 
       - name: Remove the signing keychain and API key
         if: always()
@@ -212,6 +228,8 @@ jobs:
             libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -224,11 +242,12 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Test the app
+      - name: Test and lint the app
         run: |
           npm ci
           npm run build
           cargo test --manifest-path src-tauri/Cargo.toml --locked
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
 
       - name: Build the .deb and the AppImage
         env:
@@ -251,6 +270,7 @@ jobs:
             build/linux/Tatolab-*-amd64.deb
             build/linux/Tatolab-*-x86_64.AppImage
           if-no-files-found: error
+          retention-days: 7
 
   publish:
     name: Publish to the streamlib release and the Homebrew tap
