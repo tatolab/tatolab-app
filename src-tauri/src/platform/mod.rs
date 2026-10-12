@@ -14,6 +14,8 @@ mod macos;
 
 use std::path::PathBuf;
 
+use crate::tatolab_status::TatolabPlatform;
+
 pub use runtime_agent_registration::RuntimeAgentRegistration;
 pub use tatolab_machine_setup::{
     MachineSetupObservation, MachineSetupTrigger, TatolabMachineSetup,
@@ -23,6 +25,13 @@ pub use tatolab_machine_setup::{
 pub use macos::{
     show_dock_icon, tatolab_platform_for_this_build, the_app_was_opened_again,
     with_the_main_window_chrome, TRAY_ICON_IMAGE,
+};
+
+/// The platform this build runs on, as the status names it.
+pub const THIS_PLATFORM: TatolabPlatform = if cfg!(target_os = "macos") {
+    TatolabPlatform::Macos
+} else {
+    TatolabPlatform::Linux
 };
 
 /// The root a local-proof build keeps every machine directory under, which the runtime it talks

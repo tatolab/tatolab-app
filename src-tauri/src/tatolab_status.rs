@@ -17,6 +17,7 @@ pub const RUNTIME_STARTING_GRACE_PERIOD: Duration = Duration::from_secs(20);
 pub struct TatolabStatus {
     /// The app's version as its bundle states it.
     pub app_version: String,
+    pub platform: TatolabPlatform,
     pub run_tatolab: bool,
     pub runtime_agent: RuntimeAgentRegistrationStatus,
     pub runtime_state: RuntimeState,
@@ -28,6 +29,14 @@ pub struct TatolabStatus {
     pub machine_setup_state: MachineSetupState,
     /// The PATH link to this bundle's `tatolab` CLI; `None` when there is none.
     pub command_line_tool_linked_at: Option<String>,
+}
+
+/// The platform the app runs on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TatolabPlatform {
+    Macos,
+    Linux,
 }
 
 /// One stream the runtime holds, as its `list_streams` tool lists it. A state this app does not
@@ -190,6 +199,7 @@ mod tests {
     ) -> TatolabStatus {
         TatolabStatus {
             app_version: "0.45.0".to_string(),
+            platform: TatolabPlatform::Macos,
             run_tatolab: true,
             runtime_agent,
             runtime_state,

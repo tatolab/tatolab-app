@@ -11,7 +11,9 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use crate::local_api_client::{LocalApiClient, LocalApiRequestFailure};
-use crate::platform::{tatolab_platform_for_this_build, MachineSetupTrigger, TatolabMachineSetup};
+use crate::platform::{
+    tatolab_platform_for_this_build, MachineSetupTrigger, TatolabMachineSetup, THIS_PLATFORM,
+};
 use crate::poison_tolerant_mutex::lock_ignoring_poison;
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
 use crate::run_tatolab_switch::RunTatolabSwitch;
@@ -251,6 +253,7 @@ impl TatolabAppController {
 
         TatolabStatus {
             app_version: self.app_version.clone(),
+            platform: THIS_PLATFORM,
             run_tatolab,
             runtime_agent,
             runtime_state,

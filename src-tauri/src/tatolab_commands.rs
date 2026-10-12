@@ -131,6 +131,7 @@ mod tests {
     use crate::stream_log_records_page::StreamLogRecord;
     use crate::tatolab_status::{
         ListedStream, MachineSetupState, RuntimeAgentRegistrationStatus, RuntimeState,
+        TatolabPlatform,
     };
 
     fn status_with(
@@ -140,6 +141,7 @@ mod tests {
     ) -> TatolabStatus {
         TatolabStatus {
             app_version: "0.45.0".to_string(),
+            platform: TatolabPlatform::Macos,
             run_tatolab: true,
             runtime_agent,
             runtime_state,
@@ -167,8 +169,9 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&status).unwrap(),
             concat!(
-                r#"{"app_version":"0.45.0","run_tatolab":true,"runtime_agent":"enabled","#,
-                r#""runtime_state":"running","machine_name":"jonathanf-macbook","streams":["#,
+                r#"{"app_version":"0.45.0","platform":"macos","run_tatolab":true,"#,
+                r#""runtime_agent":"enabled","runtime_state":"running","#,
+                r#""machine_name":"jonathanf-macbook","streams":["#,
                 r#"{"name":"main","state":"kept","project_directory":"/private/tmp/x/pattern","#,
                 r#""node_count":4,"failed_because":null}],"machine_setup_state":"complete","#,
                 r#""command_line_tool_linked_at":"/usr/local/bin/tatolab"}"#
@@ -183,11 +186,21 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&status_of_a_runtime_that_is_down).unwrap(),
             concat!(
-                r#"{"app_version":"0.45.0","run_tatolab":true,"runtime_agent":"enabled","#,
-                r#""runtime_state":"running","machine_name":null,"streams":null,"#,
-                r#""machine_setup_state":"complete","command_line_tool_linked_at":null}"#
+                r#"{"app_version":"0.45.0","platform":"macos","run_tatolab":true,"#,
+                r#""runtime_agent":"enabled","runtime_state":"running","machine_name":null,"#,
+                r#""streams":null,"machine_setup_state":"complete","#,
+                r#""command_line_tool_linked_at":null}"#
             )
         );
+        for (platform, platform_on_the_wire) in [
+            (TatolabPlatform::Macos, "macos"),
+            (TatolabPlatform::Linux, "linux"),
+        ] {
+            assert_eq!(
+                serde_json::to_value(platform).unwrap(),
+                platform_on_the_wire
+            );
+        }
         for (runtime_agent, runtime_agent_on_the_wire) in [
             (RuntimeAgentRegistrationStatus::Enabled, "enabled"),
             (
