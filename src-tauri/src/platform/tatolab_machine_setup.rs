@@ -20,12 +20,20 @@ pub struct MachineSetupObservation {
 /// What asks for machine setup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineSetupTrigger {
-    /// The switch is about to be reconciled, which sets up only what needs no prompt.
+    /// The switch is about to be reconciled, which sets up only what needs no prompt and never
+    /// shows the administrator prompt.
     ReconcilingTheSwitch,
     /// Opening the app, which shows the administrator prompt at most once per launch.
     AppOpened,
     /// "Set Up Tatolab…", which shows it again whenever none is showing.
     UserAsked,
+}
+
+/// Whether setting up the machine showed the administrator prompt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineSetupAdministratorPromptOutcome {
+    AdministratorPromptShown,
+    NoAdministratorPromptShown,
 }
 
 /// The machine setup a platform's runtime needs before it can start.
@@ -34,8 +42,11 @@ pub trait TatolabMachineSetup: Send + Sync {
     fn observe_machine_setup(&self) -> MachineSetupObservation;
 
     /// Set up whatever is missing as `trigger` asks, blocking while an administrator prompt
-    /// shows; whether one was shown.
-    fn set_up_the_machine(&self, trigger: MachineSetupTrigger) -> bool;
+    /// shows.
+    fn set_up_the_machine(
+        &self,
+        trigger: MachineSetupTrigger,
+    ) -> MachineSetupAdministratorPromptOutcome;
 
     /// Why "Set Up Tatolab…" is refused on this platform, answered at once with no lock or I/O;
     /// `None` where it runs.

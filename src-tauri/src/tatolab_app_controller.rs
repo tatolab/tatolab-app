@@ -12,7 +12,8 @@ use std::time::{Duration, Instant};
 
 use crate::local_api_client::{LocalApiClient, LocalApiRequestFailure};
 use crate::platform::{
-    tatolab_platform_for_this_build, MachineSetupTrigger, TatolabMachineSetup, THIS_PLATFORM,
+    tatolab_platform_for_this_build, MachineSetupAdministratorPromptOutcome, MachineSetupTrigger,
+    TatolabMachineSetup, THIS_PLATFORM,
 };
 use crate::poison_tolerant_mutex::lock_ignoring_poison;
 use crate::run_tatolab_preference::RunTatolabPreferenceFile;
@@ -121,9 +122,10 @@ impl TatolabAppController {
     /// What opening the app does once the switch is reconciled: the administrator prompt for
     /// whatever setup is missing, at most once per launch, then the switch is reconciled again.
     pub fn set_up_the_machine_on_app_opened(&self) {
-        if self
+        let administrator_prompt = self
             .machine_setup
-            .set_up_the_machine(MachineSetupTrigger::AppOpened)
+            .set_up_the_machine(MachineSetupTrigger::AppOpened);
+        if administrator_prompt == MachineSetupAdministratorPromptOutcome::AdministratorPromptShown
         {
             self.reconcile_the_agent_with_the_run_tatolab_switch();
         }

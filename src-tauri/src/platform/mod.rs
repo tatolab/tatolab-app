@@ -24,7 +24,8 @@ use crate::tatolab_status::TatolabPlatform;
 
 pub use runtime_agent_registration::RuntimeAgentRegistration;
 pub use tatolab_machine_setup::{
-    MachineSetupObservation, MachineSetupTrigger, TatolabMachineSetup,
+    MachineSetupAdministratorPromptOutcome, MachineSetupObservation, MachineSetupTrigger,
+    TatolabMachineSetup,
 };
 
 #[cfg(target_os = "linux")]
