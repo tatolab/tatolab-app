@@ -1,5 +1,5 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
-import type { ListedStream } from "../backend/tatolab_backend_contract";
+import type { ListedStream, TatolabPlatform } from "../backend/tatolab_backend_contract";
 import { createElement, createSvgFromMarkup, setTextIfChanged } from "../dom";
 import { STREAM_FAILED_ICON_SVG, STREAM_NOT_LOADED_ICON_SVG, STREAM_STOPPED_ICON_SVG } from "../icons";
 import {
@@ -30,8 +30,9 @@ class LoadedStreamLiveView {
   constructor(
     private readonly backend: TatolabBackend,
     private readonly streamName: string,
+    platform: TatolabPlatform,
   ) {
-    this.graphView = new StreamGraphView(streamName);
+    this.graphView = new StreamGraphView(streamName, platform);
     this.graphPoll = new RepeatingBackendPoll(() => this.readGraph(), STREAM_GRAPH_POLL_MILLISECONDS);
     this.logConsole = new StreamLogConsoleView(streamName);
     this.logFollower = new StreamLogFollower(backend, streamName, this.logConsole);
@@ -159,7 +160,10 @@ export class StreamDetailView {
   private notLoadedPanel: StreamNotLoadedPanel | null = null;
   private isPollingAllowed = false;
 
-  constructor(private readonly backend: TatolabBackend) {
+  constructor(
+    private readonly backend: TatolabBackend,
+    private readonly platform: TatolabPlatform,
+  ) {
     this.streamNameHeading = createElement("h2", { class: "stream-detail-name selectable-text" });
     this.stateChip = createElement("span", { class: "state-chip" });
     this.nodeCountLabel = createElement("span", { class: "stream-detail-node-count" });
@@ -231,7 +235,7 @@ export class StreamDetailView {
       this.detailBody.replaceChildren();
     }
     if (!this.liveView) {
-      this.liveView = new LoadedStreamLiveView(this.backend, stream.name);
+      this.liveView = new LoadedStreamLiveView(this.backend, stream.name, this.platform);
       this.detailBody.replaceChildren(this.liveView.element);
       this.liveView.setPolling(this.isPollingAllowed);
     }

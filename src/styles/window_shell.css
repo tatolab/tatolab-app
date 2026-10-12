@@ -30,6 +30,12 @@
   color: var(--ink);
 }
 
+/* Under a native title bar the brand row lines up with the page's top band instead of sitting below the traffic lights. */
+:root[data-platform="linux"] .window-sidebar-brand {
+  height: 52px;
+  margin-bottom: 6px;
+}
+
 .window-sidebar-brand svg {
   flex: none;
   pointer-events: none;

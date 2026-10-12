@@ -1,6 +1,12 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
-import type { TatolabStatus } from "../backend/tatolab_backend_contract";
+import type { TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
 import { createElement, setTextIfChanged, type ElementChild } from "../dom";
+import {
+  presentCommandLineTool,
+  presentPlatform,
+  windowDragRegionAttribute,
+  type PlatformPresentation,
+} from "../presentation/platform_presentation";
 import type { TatolabWindowPage } from "./tatolab_window_page";
 
 function createSettingsRow(labelChildren: ElementChild[], controlChildren: ElementChild[]): HTMLDivElement {
@@ -10,7 +16,7 @@ function createSettingsRow(labelChildren: ElementChild[], controlChildren: Eleme
   ]);
 }
 
-function createSettingsGroup(groupTitle: string, rows: HTMLElement[]): HTMLElement {
+function createSettingsGroup(groupTitle: string, rows: ElementChild[]): HTMLElement {
   const groupTitleId = `settings-group-${groupTitle.toLowerCase().replace(/\s+/g, "-")}`;
   return createElement("section", { class: "settings-group", "aria-labelledby": groupTitleId }, [
     createElement("h2", { class: "settings-group-title", id: groupTitleId }, [groupTitle]),
@@ -18,12 +24,13 @@ function createSettingsGroup(groupTitle: string, rows: HTMLElement[]): HTMLEleme
   ]);
 }
 
-/** Run Tatolab, the command line tool, Login Items, the version, and quitting the app. */
+/** Run Tatolab, the command line tool, Login Items on macOS, the version, and quitting the app. */
 export class SettingsPageView implements TatolabWindowPage {
   readonly element: HTMLElement;
+  private readonly platformPresentation: PlatformPresentation;
   private readonly runTatolabSwitch: HTMLInputElement;
   private readonly runTatolabFailure: HTMLElement;
-  private readonly loginItemsHint: HTMLElement;
+  private readonly loginItemsHint: HTMLElement | null;
   private readonly commandLineToolValue: HTMLElement;
   private readonly commandLineToolHint: HTMLElement;
   private readonly machineNameRow: HTMLElement;
@@ -32,7 +39,11 @@ export class SettingsPageView implements TatolabWindowPage {
   private latestStatus: TatolabStatus | null = null;
   private statusesShownCount = 0;
 
-  constructor(private readonly backend: TatolabBackend) {
+  constructor(
+    private readonly backend: TatolabBackend,
+    private readonly platform: TatolabPlatform,
+  ) {
+    this.platformPresentation = presentPlatform(platform);
     this.runTatolabSwitch = createElement("input", {
       type: "checkbox",
       role: "switch",
@@ -42,7 +53,9 @@ export class SettingsPageView implements TatolabWindowPage {
     });
     this.runTatolabSwitch.addEventListener("change", () => this.onRunTatolabSwitched());
     this.runTatolabFailure = createElement("span", { class: "settings-row-failure", role: "alert", hidden: true });
-    this.loginItemsHint = createElement("span", { class: "settings-row-hint" });
+    this.loginItemsHint = this.platformPresentation.showsLoginItems
+      ? createElement("span", { class: "settings-row-hint" })
+      : null;
     this.commandLineToolValue = createElement("code", { class: "settings-row-value selectable-text" });
     this.commandLineToolHint = createElement("span", { class: "settings-row-hint" });
     this.machineNameValue = createElement("code", { class: "settings-row-value selectable-text" });
@@ -53,7 +66,7 @@ export class SettingsPageView implements TatolabWindowPage {
     );
 
     this.element = createElement("section", { class: "window-page settings-page", "aria-labelledby": "settings-page-title" }, [
-      createElement("header", { class: "page-top-band", "data-tauri-drag-region": "deep" }, [
+      createElement("header", { class: "page-top-band", "data-tauri-drag-region": windowDragRegionAttribute(platform, "deep") }, [
         createElement("h1", { class: "page-title", id: "settings-page-title" }, ["Settings"]),
       ]),
       createElement("div", { class: "settings-scroller" }, [
@@ -63,22 +76,23 @@ export class SettingsPageView implements TatolabWindowPage {
               [
                 createElement("label", { class: "settings-row-title", for: "run-tatolab-switch" }, ["Run Tatolab"]),
                 createElement("span", { class: "settings-row-hint", id: "run-tatolab-description" }, [
-                  "Starts Tatolab at login and keeps the runtime running. Turning it off stops the runtime.",
+                  this.platformPresentation.runTatolabExplanation,
                 ]),
                 this.runTatolabFailure,
               ],
               [this.runTatolabSwitch],
             ),
-            createSettingsRow(
-              [createElement("span", { class: "settings-row-title" }, ["Login Items"]), this.loginItemsHint],
-              [
-                createElement(
-                  "button",
-                  { type: "button", class: "button", onClick: () => void backend.openLoginItemsSettings() },
-                  ["Open Login Items"],
-                ),
-              ],
-            ),
+            this.loginItemsHint &&
+              createSettingsRow(
+                [createElement("span", { class: "settings-row-title" }, ["Login Items"]), this.loginItemsHint],
+                [
+                  createElement(
+                    "button",
+                    { type: "button", class: "button", onClick: () => void backend.openLoginItemsSettings() },
+                    ["Open Login Items"],
+                  ),
+                ],
+              ),
           ]),
           createSettingsGroup("Command line", [
             createSettingsRow(
@@ -92,9 +106,7 @@ export class SettingsPageView implements TatolabWindowPage {
             createSettingsRow(
               [
                 createElement("span", { class: "settings-row-title" }, ["Quit Tatolab"]),
-                createElement("span", { class: "settings-row-hint" }, [
-                  "Closes this app and its menu bar icon. The runtime and your streams keep running.",
-                ]),
+                createElement("span", { class: "settings-row-hint" }, [this.platformPresentation.quitTatolabExplanation]),
               ],
               [
                 createElement(
@@ -114,21 +126,21 @@ export class SettingsPageView implements TatolabWindowPage {
     this.latestStatus = status;
     this.statusesShownCount += 1;
     if (!this.runTatolabSwitch.disabled) this.runTatolabSwitch.checked = status.run_tatolab;
-    setTextIfChanged(
-      this.loginItemsHint,
-      status.runtime_agent === "requires_approval"
-        ? "Tatolab is waiting for you to switch it on under Allow in the Background."
-        : "Tatolab is listed under Allow in the Background. That entry and Run Tatolab are the same setting.",
-    );
+    if (this.loginItemsHint) {
+      setTextIfChanged(
+        this.loginItemsHint,
+        status.runtime_agent === "requires_approval"
+          ? "Tatolab is waiting for you to switch it on under Allow in the Background."
+          : "Tatolab is listed under Allow in the Background. That entry and Run Tatolab are the same setting.",
+      );
+    }
     const linkedAt = status.command_line_tool_linked_at;
-    setTextIfChanged(this.commandLineToolValue, linkedAt ?? "Not linked");
-    this.commandLineToolValue.dataset.linked = linkedAt === null ? "false" : "true";
-    setTextIfChanged(
-      this.commandLineToolHint,
-      linkedAt === null
-        ? "Setting up Tatolab links it, so it works in every terminal."
-        : "Linked to the copy inside Tatolab.app, so it works in every terminal.",
-    );
+    const commandLineTool = presentCommandLineTool(this.platform, linkedAt);
+    setTextIfChanged(this.commandLineToolValue, commandLineTool.shownValue);
+    this.commandLineToolValue.dataset.linked = String(commandLineTool.isLinked);
+    if (linkedAt !== null && linkedAt !== commandLineTool.shownValue) this.commandLineToolValue.title = linkedAt;
+    else this.commandLineToolValue.removeAttribute("title");
+    setTextIfChanged(this.commandLineToolHint, commandLineTool.explanation);
     this.machineNameRow.hidden = status.machine_name === null;
     setTextIfChanged(this.machineNameValue, status.machine_name ?? "");
     setTextIfChanged(this.appVersionValue, status.app_version);

@@ -1,6 +1,7 @@
-import type { StreamGraphExposedPort, StreamGraphSummary } from "../backend/tatolab_backend_contract";
+import type { StreamGraphExposedPort, StreamGraphSummary, TatolabPlatform } from "../backend/tatolab_backend_contract";
 import { createElement, createSvgElement, createSvgFromMarkup } from "../dom";
 import { EXPOSED_PORT_ICON_SVG } from "../icons";
+import { presentPlatform } from "../presentation/platform_presentation";
 import type { StatusTone } from "../presentation/runtime_presentation";
 import {
   GRAPH_EXPOSED_PORT_MARK_WIDTH,
@@ -53,11 +54,19 @@ function toneOfGraphLinkState(linkState: string): StatusTone {
   }
 }
 
-const EXPOSURE_LEVEL_EXPLANATIONS: Record<string, string> = {
-  internal: "Only this stream's own nodes read it",
-  private: "Other streams on this Mac can read it",
-  public: "Machines off this Mac can read it too",
-};
+/** Who may read a port exposed at `level`, said of `thisMachine`; `undefined` for a level newer than this app. */
+function explainExposureLevel(level: string, thisMachine: string): string | undefined {
+  switch (level) {
+    case "internal":
+      return "Only this stream's own nodes read it";
+    case "private":
+      return `Other streams on ${thisMachine} can read it`;
+    case "public":
+      return `Machines off ${thisMachine} can read it too`;
+    default:
+      return undefined;
+  }
+}
 
 function describeGraphNode(layoutNode: StreamGraphLayoutNode): string {
   const descriptionLines = [layoutNode.name];
@@ -191,7 +200,7 @@ function exposedPortAddress(streamName: string, exposedPort: StreamGraphExposedP
   return `${streamName}/${exposedPort.node}/${exposedPort.port}`;
 }
 
-function createExposedPortCaption(streamName: string, exposedPort: StreamGraphExposedPort): HTMLElement {
+function createExposedPortCaption(streamName: string, exposedPort: StreamGraphExposedPort, thisMachine: string): HTMLElement {
   return createElement("li", { class: "stream-graph-exposed-port" }, [
     createSvgFromMarkup(EXPOSED_PORT_ICON_SVG),
     createElement("code", { class: "stream-graph-exposed-port-address selectable-text" }, [
@@ -202,7 +211,7 @@ function createExposedPortCaption(streamName: string, exposedPort: StreamGraphEx
       {
         class: "state-chip",
         "data-tone": exposedPort.level === "public" ? "accent" : "outline",
-        title: EXPOSURE_LEVEL_EXPLANATIONS[exposedPort.level],
+        title: explainExposureLevel(exposedPort.level, thisMachine),
       },
       [exposedPort.level],
     ),
@@ -221,6 +230,7 @@ export class StreamGraphView {
 
   constructor(
     private readonly streamName: string,
+    private readonly platform: TatolabPlatform,
     private readonly isGhost = false,
   ) {
     this.graphCanvas = createElement("div", { class: "stream-graph-canvas" });
@@ -247,7 +257,9 @@ export class StreamGraphView {
       this.exposedPortList.replaceChildren(
         ...(this.isGhost
           ? []
-          : graphSummary.exposed.map((exposedPort) => createExposedPortCaption(this.streamName, exposedPort))),
+          : graphSummary.exposed.map((exposedPort) =>
+              createExposedPortCaption(this.streamName, exposedPort, presentPlatform(this.platform).thisMachineMidSentence),
+            )),
       );
     }
     this.shownGraphSignature = graphSignature;

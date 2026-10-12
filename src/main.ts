@@ -18,6 +18,7 @@ import "./styles/first_launch_setup.css";
 import { isRunningInsideTauri, type TatolabBackend } from "./backend/tatolab_backend";
 import type { TatolabStatus } from "./backend/tatolab_backend_contract";
 import { createTauriTatolabBackend } from "./backend/tauri_tatolab_backend";
+import { platformOf } from "./presentation/platform_presentation";
 import { mountTatolabWindow } from "./views/tatolab_window_view";
 
 const FIRST_STATUS_RETRY_MILLISECONDS = 1000;
@@ -41,13 +42,16 @@ async function readFirstTatolabStatus(backend: TatolabBackend): Promise<TatolabS
   }
 }
 
+/** The window mounts once the first status names its platform; listening before that read misses no change after it. */
 async function startTatolabWindow(): Promise<void> {
   const rootElement = document.getElementById("app");
   if (!rootElement) return;
   const backend = isRunningInsideTauri() ? createTauriTatolabBackend() : await createBrowserMockBackend();
-  const showTatolabStatus = mountTatolabWindow(rootElement, backend);
-  await backend.onTatolabStatusChanged(showTatolabStatus);
-  showTatolabStatus(await readFirstTatolabStatus(backend));
+  let showTatolabStatus: ((status: TatolabStatus) => void) | null = null;
+  await backend.onTatolabStatusChanged((status) => showTatolabStatus?.(status));
+  const firstStatus = await readFirstTatolabStatus(backend);
+  showTatolabStatus = mountTatolabWindow(rootElement, backend, platformOf(firstStatus));
+  showTatolabStatus(firstStatus);
 }
 
 void startTatolabWindow();

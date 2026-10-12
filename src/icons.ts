@@ -24,6 +24,9 @@ export const LOCK_ICON_SVG = `<svg class="line-icon" viewBox="0 0 20 20" aria-hi
 
 export const TERMINAL_ICON_SVG = `<svg class="line-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="3.5" width="16" height="13" rx="3"/><path d="M6 8l2.5 2L6 12M10.5 12.5h3.5"/></svg>`;
 
+/** The power glyph on the 20-unit grid the setup screens' rows draw on. */
+export const RUNTIME_POWER_ICON_SVG = `<svg class="line-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.75v6.5"/><path d="M5.9 5.4a6.4 6.4 0 1 0 8.2 0"/></svg>`;
+
 export const SEARCH_ICON_SVG = `<svg class="line-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.25"/><path d="m10.25 10.25 3.25 3.25"/></svg>`;
 
 export const ARROW_DOWN_ICON_SVG = `<svg class="line-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3.75 8.75 8 13l4.25-4.25"/></svg>`;

@@ -1,29 +1,42 @@
 import type { TatolabBackend } from "../backend/tatolab_backend";
-import type { TatolabStatus } from "../backend/tatolab_backend_contract";
+import type { TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
 import { createElement } from "../dom";
+import { holdsWindowShortcutModifier } from "../presentation/platform_presentation";
+import { chooseTatolabWindowScreen } from "../presentation/runtime_presentation";
 import { FirstLaunchSetupView } from "./first_launch_setup_view";
+import { LinuxRuntimeInstallView } from "./linux_runtime_install_view";
 import { SettingsPageView } from "./settings_page_view";
 import { StreamsPageView } from "./streams_page_view";
 import type { TatolabWindowPage } from "./tatolab_window_page";
 import { WindowSidebarView, type TatolabWindowPageName } from "./window_sidebar_view";
 
-/** Mounts the main window into `rootElement`; the answer shows each status the backend reports. */
-export function mountTatolabWindow(rootElement: HTMLElement, backend: TatolabBackend): (status: TatolabStatus) => void {
-  const streamsPage = new StreamsPageView(backend);
-  const pages: Record<TatolabWindowPageName, TatolabWindowPage> = {
-    streams: streamsPage,
-    settings: new SettingsPageView(backend),
-  };
-  const firstLaunchSetup = new FirstLaunchSetupView(backend);
-  const sidebar = new WindowSidebarView(showPage);
+/** What fills the window until Tatolab can run here: macOS's administrator setup, or Linux's installer. */
+interface PlatformSetupScreen {
+  readonly element: HTMLElement;
+  showStatus?(status: TatolabStatus): void;
+}
+
+/** Mounts the main window, built for `platform`, into `rootElement`; the answer shows each status the backend reports. */
+export function mountTatolabWindow(
+  rootElement: HTMLElement,
+  backend: TatolabBackend,
+  platform: TatolabPlatform,
+): (status: TatolabStatus) => void {
+  document.documentElement.dataset.platform = platform;
+  const streamsPage = new StreamsPageView(backend, platform);
+  const settingsPage = new SettingsPageView(backend, platform);
+  const pages: Record<TatolabWindowPageName, TatolabWindowPage> = { streams: streamsPage, settings: settingsPage };
+  const setupScreen: PlatformSetupScreen =
+    platform === "linux" ? new LinuxRuntimeInstallView() : new FirstLaunchSetupView(backend);
+  const sidebar = new WindowSidebarView(showPage, platform);
   const pageContainer = createElement("div", { class: "window-content" });
   const windowShell = createElement("div", { class: "tatolab-window" }, [sidebar.element, pageContainer]);
   let currentPageName: TatolabWindowPageName = "streams";
-  let isShowingFirstLaunchSetup = false;
+  let isShowingSetupScreen = false;
 
   function tellPagesWhichIsShown(): void {
     for (const [pageName, page] of Object.entries(pages)) {
-      page.setPageShown?.(!isShowingFirstLaunchSetup && pageName === currentPageName);
+      page.setPageShown?.(!isShowingSetupScreen && pageName === currentPageName);
     }
   }
 
@@ -34,7 +47,7 @@ export function mountTatolabWindow(rootElement: HTMLElement, backend: TatolabBac
     tellPagesWhichIsShown();
   }
 
-  /** Runs the ⌘-shortcut for `key`; false when `key` has none here. */
+  /** Runs the window shortcut for `key`, held with ⌘ on macOS and Ctrl on Linux; false when `key` has none here. */
   function runWindowShortcut(key: string): boolean {
     switch (key) {
       case "1":
@@ -52,17 +65,17 @@ export function mountTatolabWindow(rootElement: HTMLElement, backend: TatolabBac
   }
 
   document.addEventListener("keydown", (keyboardEvent) => {
-    if (isShowingFirstLaunchSetup || !keyboardEvent.metaKey || keyboardEvent.altKey || keyboardEvent.ctrlKey) return;
+    if (isShowingSetupScreen || !holdsWindowShortcutModifier(platform, keyboardEvent)) return;
     if (runWindowShortcut(keyboardEvent.key)) keyboardEvent.preventDefault();
   });
 
   showPage(currentPageName);
 
   return (status) => {
-    isShowingFirstLaunchSetup = status.machine_setup_state !== "complete";
-    const shownElement = isShowingFirstLaunchSetup ? firstLaunchSetup.element : windowShell;
+    isShowingSetupScreen = chooseTatolabWindowScreen(status) === "setup";
+    const shownElement = isShowingSetupScreen ? setupScreen.element : windowShell;
     if (rootElement.firstElementChild !== shownElement) rootElement.replaceChildren(shownElement);
-    firstLaunchSetup.showStatus(status);
+    setupScreen.showStatus?.(status);
     sidebar.showStatus(status);
     for (const page of Object.values(pages)) page.showStatus(status);
     tellPagesWhichIsShown();
