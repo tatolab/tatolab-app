@@ -16,12 +16,15 @@ compile_error!(
 
 mod local_api_client;
 mod named_app_thread;
+mod output_port_tap_sample;
 mod platform;
 mod poison_tolerant_mutex;
 mod run_tatolab_preference;
 mod run_tatolab_switch;
 mod stream_graph_summary;
 mod stream_log_records_page;
+mod tapped_bag_frame_header;
+mod tapped_bag_payload_fields;
 mod tatolab_app_controller;
 mod tatolab_app_shared_state;
 mod tatolab_commands;
@@ -66,6 +69,7 @@ fn main() {
                 tatolab_commands::quit_tatolab_app,
                 tatolab_commands::read_stream_log_records,
                 tatolab_commands::describe_stream_graph,
+                tatolab_commands::tap_output_port,
             ])
             .setup(move |app| {
                 let app_config_directory = app.path().app_config_dir()?;

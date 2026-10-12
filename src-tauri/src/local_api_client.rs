@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 //! The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
-//! local API's Unix socket. `GET /health` says the runtime is up, the MCP tools `list_streams` and
-//! `logs` over `POST /mcp` list its streams and read one's log records, and `GET /api/graph` names
-//! the machine and draws one stream's graph.
+//! local API's Unix socket. `GET /health` says the runtime is up, the MCP tools `list_streams`,
+//! `logs` and `tap` over `POST /mcp` list its streams, read one's log records and sample the bags
+//! an output port carries, and `GET /api/graph` names the machine and draws one stream's graph.
 //!
 //! The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
 //! `mcp.rs` serves rmcp's stateless Streamable HTTP with per-request protocol metadata
@@ -21,6 +21,7 @@ use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use crate::output_port_tap_sample::{tap_sample_from_the_tap_tool_result, TapSample};
 use crate::stream_graph_summary::{stream_graph_summary_from_the_graph_json, StreamGraphSummary};
 use crate::stream_log_records_page::{
     stream_log_records_page_from_the_logs_tool_result, StreamLogRecordsPage,
@@ -34,7 +35,7 @@ pub const LOCAL_API_MCP_PROTOCOL_VERSION: &str = "2026-07-28";
 const LOCAL_API_MCP_CLIENT_NAME: &str = "tatolab-app";
 
 /// The most bytes one local API response may carry before the client gives up on it.
-const LARGEST_LOCAL_API_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
+pub const LARGEST_LOCAL_API_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 
 /// Every byte outside RFC 3986's unreserved set, percent-encoded into a query value.
 const QUERY_VALUE_PERCENT_ENCODED_BYTES: &AsciiSet = &NON_ALPHANUMERIC
@@ -165,6 +166,21 @@ impl LocalApiClient {
         )?;
         stream_log_records_page_from_the_logs_tool_result(&tool_result_text)
             .map_err(LocalApiRequestFailure::new)
+    }
+
+    /// Up to `count` bags the output port at `channel` carries, from the runtime's `tap` tool, each
+    /// hex-encoded up to `max_bag_bytes`.
+    pub fn tap_output_port(
+        &self,
+        channel: &str,
+        count: u32,
+        max_bag_bytes: u32,
+    ) -> Result<TapSample, LocalApiRequestFailure> {
+        let tool_result_text = self.call_mcp_tool(
+            "tap",
+            json!({ "channel": channel, "count": count, "max_bag_bytes": max_bag_bytes }),
+        )?;
+        tap_sample_from_the_tap_tool_result(&tool_result_text).map_err(LocalApiRequestFailure::new)
     }
 
     /// The graph of the loaded stream `stream`, from `GET /api/graph?stream=`.
@@ -874,6 +890,56 @@ mod tests {
         let failure = server
             .client()
             .read_stream_log_records("nope", 0, 500)
+            .unwrap_err();
+
+        assert_eq!(failure.failure_description, refusal);
+    }
+
+    #[test]
+    fn tapping_an_output_port_asks_the_tap_tool_for_its_channel_count_and_bag_cap() {
+        let tap_tool_result: Value = serde_json::from_str(include_str!(
+            "../test-fixtures/local-api-tap-tool-result-of-main-invertingeffect-video_to_downstream-3-bags.json"
+        ))
+        .unwrap();
+        let server = FakeLocalApiServer::answering(vec![tool_result_response(tap_tool_result)]);
+
+        let tap_sample = server
+            .client()
+            .tap_output_port("main/invertingeffect/video_to_downstream", 3, 65536)
+            .unwrap();
+
+        assert_eq!(tap_sample.received, 3);
+        assert_eq!(
+            tap_sample.bags[1].surface_id.as_deref(),
+            Some("e17a285e-5861-495a-91fe-30dd9d97c5e5#72517")
+        );
+        let request = &server.received_requests()[0];
+        let (head, body) = request.split_once("\r\n\r\n").unwrap();
+        assert!(head.contains("Mcp-Name: tap"), "{head}");
+        let body: Value = serde_json::from_str(body).unwrap();
+        assert_eq!(body["params"]["name"], "tap");
+        assert_eq!(
+            body["params"]["arguments"],
+            json!({ "channel": "main/invertingeffect/video_to_downstream", "count": 3, "max_bag_bytes": 65536 })
+        );
+    }
+
+    #[test]
+    fn a_tap_the_runtime_refuses_carries_its_own_words() {
+        let refusal = "tap attach failed: Resource not found: no output port `nope` on node `invertingeffect`";
+        let body = json!({
+            "jsonrpc": "2.0", "id": 1,
+            "result": { "content": [{ "type": "text", "text": refusal }], "isError": true }
+        });
+        let server = FakeLocalApiServer::answering(vec![http_response(
+            "200 OK",
+            "application/json",
+            &body.to_string(),
+        )]);
+
+        let failure = server
+            .client()
+            .tap_output_port("main/invertingeffect/nope", 1, 65536)
             .unwrap_err();
 
         assert_eq!(failure.failure_description, refusal);

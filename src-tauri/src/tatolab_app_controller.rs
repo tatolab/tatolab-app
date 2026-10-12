@@ -11,6 +11,9 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use crate::local_api_client::{LocalApiClient, LocalApiRequestFailure};
+use crate::output_port_tap_sample::{
+    output_port_channel_address, TapSample, LARGEST_TAP_SAMPLE_BAG_COUNT, TAPPED_BAG_HEX_BYTE_LIMIT,
+};
 use crate::platform::{
     tatolab_platform_for_this_build, MachineSetupAdministratorPromptOutcome, MachineSetupTrigger,
     TatolabMachineSetup, THIS_PLATFORM,
@@ -288,6 +291,22 @@ impl TatolabAppController {
         stream: &str,
     ) -> Result<StreamGraphSummary, LocalApiRequestFailure> {
         self.local_api_client.describe_stream_graph(stream)
+    }
+
+    /// Up to `count` bags — at least 1, at most [`LARGEST_TAP_SAMPLE_BAG_COUNT`] — the output port
+    /// `port` of `stream`'s node `node` carries.
+    pub fn tap_output_port(
+        &self,
+        stream: &str,
+        node: &str,
+        port: &str,
+        count: u32,
+    ) -> Result<TapSample, LocalApiRequestFailure> {
+        self.local_api_client.tap_output_port(
+            &output_port_channel_address(stream, node, port),
+            count.clamp(1, LARGEST_TAP_SAMPLE_BAG_COUNT),
+            TAPPED_BAG_HEX_BYTE_LIMIT,
+        )
     }
 
     /// The runtime's streams, or `None` when listing failed, which is logged on the round it

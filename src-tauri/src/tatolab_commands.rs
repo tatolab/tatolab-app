@@ -12,6 +12,7 @@ use std::time::Duration;
 
 use tauri::{AppHandle, State};
 
+use crate::output_port_tap_sample::TapSample;
 use crate::platform;
 use crate::stream_graph_summary::StreamGraphSummary;
 use crate::stream_log_records_page::StreamLogRecordsPage;
@@ -137,11 +138,31 @@ pub async fn describe_stream_graph(
     .await
 }
 
+/// Up to `count` bags the output port `port` of `stream`'s node `node` carries, each decoded as far
+/// as it can be; refused in the runtime's own words.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn tap_output_port(
+    shared_state: State<'_, TatolabAppSharedState>,
+    stream: String,
+    node: String,
+    port: String,
+    count: u32,
+) -> Result<TapSample, String> {
+    let controller = Arc::clone(&shared_state.controller);
+    answer_on_the_blocking_pool("tap_output_port", move || {
+        controller
+            .tap_output_port(&stream, &node, &port, count)
+            .map_err(|failure| failure.failure_description)
+    })
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
+    use crate::output_port_tap_sample::tap_sample_from_the_tap_tool_result;
     use crate::stream_graph_summary::{StreamGraphExposedPort, StreamGraphLink, StreamGraphNode};
     use crate::stream_log_records_page::StreamLogRecord;
     use crate::tatolab_status::{
@@ -356,6 +377,55 @@ mod tests {
                 r#""links":[{"source_node":"testpatternsource","source_port":"video","#,
                 r#""target_node":"invertingeffect","target_port":"video_from_upstream","state":"wired"}],"#,
                 r#""exposed":[{"node":"invertingeffect","port":"video_to_downstream","level":"private"}]}"#
+            )
+        );
+    }
+
+    /// `tap_output_port`'s answer, for a real runtime's three video bags and for a bag that does
+    /// not decode, exactly as the window reads it.
+    #[test]
+    fn a_tap_sample_serializes_exactly_as_the_window_reads_it() {
+        let tap_sample = tap_sample_from_the_tap_tool_result(include_str!(
+            "../test-fixtures/local-api-tap-tool-result-of-main-invertingeffect-video_to_downstream-3-bags.json"
+        ))
+        .unwrap();
+        assert_eq!(
+            serde_json::to_string(&tap_sample).unwrap(),
+            concat!(
+                r#"{"channel":"main/invertingeffect/video_to_downstream","received":3,"#,
+                r#""dropped_bags":0,"window_ms":500,"bags":["#,
+                r#"{"byte_len":226,"timestamp_ns":3527313199945666,"#,
+                r#""surface_id":"c6ecf65b-9da5-493d-9017-9799ad80d3ff#72516","#,
+                r#""fields":[["surface_id","c6ecf65b-9da5-493d-9017-9799ad80d3ff#72516"],"#,
+                r#"["width","1280"],["height","720"],["timestamp_ns","3527313191366625"],"#,
+                r#"["color_info","primaries=bt709 transfer=srgb range=full"]],"#,
+                r#""hex_truncated":false,"decode_error":null},"#,
+                r#"{"byte_len":226,"timestamp_ns":3527313244200208,"#,
+                r#""surface_id":"e17a285e-5861-495a-91fe-30dd9d97c5e5#72517","#,
+                r#""fields":[["surface_id","e17a285e-5861-495a-91fe-30dd9d97c5e5#72517"],"#,
+                r#"["width","1280"],["height","720"],["timestamp_ns","3527313234384708"],"#,
+                r#"["color_info","primaries=bt709 transfer=srgb range=full"]],"#,
+                r#""hex_truncated":false,"decode_error":null},"#,
+                r#"{"byte_len":226,"timestamp_ns":3527313290829666,"#,
+                r#""surface_id":"c6ecf65b-9da5-493d-9017-9799ad80d3ff#72517","#,
+                r#""fields":[["surface_id","c6ecf65b-9da5-493d-9017-9799ad80d3ff#72517"],"#,
+                r#"["width","1280"],["height","720"],["timestamp_ns","3527313277551083"],"#,
+                r#"["color_info","primaries=bt709 transfer=srgb range=full"]],"#,
+                r#""hex_truncated":false,"decode_error":null}]}"#
+            )
+        );
+
+        let tap_sample_of_a_bag_that_does_not_decode = tap_sample_from_the_tap_tool_result(
+            r#"{"channel":"main/quiet/out","received":1,"window_ms":500,"dropped_bags":4,"bags":[{"byte_len":2,"hex_preview":"0102","hex_truncated":false}]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_string(&tap_sample_of_a_bag_that_does_not_decode).unwrap(),
+            concat!(
+                r#"{"channel":"main/quiet/out","received":1,"dropped_bags":4,"window_ms":500,"#,
+                r#""bags":[{"byte_len":2,"timestamp_ns":null,"surface_id":null,"fields":[],"#,
+                r#""hex_truncated":false,"#,
+                r#""decode_error":"the bag's 2 bytes cannot hold a 76-byte frame header"}]}"#
             )
         );
     }
