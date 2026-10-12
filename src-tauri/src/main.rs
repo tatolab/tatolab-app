@@ -14,6 +14,8 @@ compile_error!(
      service, tatolabd.service."
 );
 
+#[cfg(test)]
+mod fake_local_api_server;
 mod local_api_client;
 mod named_app_thread;
 mod output_port_tap_sample;
