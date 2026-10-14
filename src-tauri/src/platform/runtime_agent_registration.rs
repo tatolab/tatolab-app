@@ -12,7 +12,8 @@ use crate::tatolab_status::RuntimeAgentRegistrationStatus;
 pub enum RuntimeAgentStartFailure {
     /// The agent reads as registered but the service manager holds no job for it — launchd after
     /// `brew uninstall` or `launchctl bootout` removed the job and left Service Management's record.
-    /// Registering it again restores the job.
+    /// Registering it again restores the job. Only macOS's agent ever reports it.
+    #[cfg_attr(target_os = "linux", allow(dead_code))]
     NoJobForTheRegisteredAgent,
     /// Any other refusal, in the service manager's words.
     Refused(String),
