@@ -24,6 +24,7 @@ process.on("unhandledRejection", (unhandledRejection) => {
 /** Vite's dev server, which an unpackaged app loads the window from when `TATOLAB_APP_WINDOW_DEV_SERVER_URL` names it; a packaged app always serves its built window. */
 const windowDevServerUrl = app.isPackaged ? null : windowDevServerUrlNamedIn(process.env["TATOLAB_APP_WINDOW_DEV_SERVER_URL"]);
 const builtWindowDirectory = path.join(app.getAppPath(), "dist");
+const builtWindowPreloadScript = path.join(app.getAppPath(), "src-electron", "build", "preload", "tatolab_window_preload.cjs");
 registerTheWindowPageSchemeBeforeReady();
 
 function windowDevServerUrlNamedIn(windowDevServerUrlText: string | undefined): string | null {
@@ -50,7 +51,12 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   },
   exitTheApp: (exitCode) => app.exit(exitCode),
   setTheApplicationMenu: (applicationMenu) => Menu.setApplicationMenu(electronApplicationMenu(applicationMenu)),
-  mainWindowHostFactory: createElectronMainWindowHostFactory(windowDevServerUrl ?? TATOLAB_WINDOW_PAGE_URL, !app.isPackaged, tatolabAppLog),
+  mainWindowHostFactory: createElectronMainWindowHostFactory(
+    windowDevServerUrl ?? TATOLAB_WINDOW_PAGE_URL,
+    builtWindowPreloadScript,
+    !app.isPackaged,
+    tatolabAppLog,
+  ),
   trayIconHostFactory: createElectronTrayIconHostFactory(path.join(app.getAppPath(), "src-tauri", "icons")),
   dockIconHost: {
     setActivationPolicy: (activationPolicy) => app.setActivationPolicy(activationPolicy),

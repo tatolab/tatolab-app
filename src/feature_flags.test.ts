@@ -23,7 +23,7 @@ describe("readTatolabFrontendFeatureFlags", () => {
     ).toBe(true);
   });
 
-  it("ignores the page's query inside Tauri, so a shipped app cannot be flipped at runtime", () => {
+  it("ignores the page's query inside the app, so a shipped app cannot be flipped at runtime", () => {
     expect(readTatolabFrontendFeatureFlags(true, WATCH_QUERY).watchExposedOutput).toBe(false);
   });
 
