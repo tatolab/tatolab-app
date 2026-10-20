@@ -10,9 +10,6 @@ import { describeCaughtFailure } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 
-/** The event the window hears each status change on, and the status again each time it is shown. */
-export const TATOLAB_STATUS_CHANGED_EVENT = "tatolab-status-changed";
-
 /** How often the poller observes the runtime when nothing asks it to sooner. */
 export const STATUS_POLL_INTERVAL_MS = 2_000;
 
