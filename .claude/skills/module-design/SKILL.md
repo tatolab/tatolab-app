@@ -24,8 +24,8 @@ Procedure:
    error), trade-offs.
 3. **Compare** on depth, locality, and seam placement. Give ONE opinionated recommendation — never
    a menu.
-4. A shape that changes what the app is or what it needs from the runtime goes to streamlib's
-   plan; an app-internal shape goes in the issue's Design section before `/implement`.
+4. A shape that needs something new from the runtime goes to streamlib as an issue the app waits
+   on; any other shape goes in the issue's Design section before `/implement`.
 
 Testing stance: **the interface is the test surface.** Wanting to test past it means the module is
 the wrong shape. Every OS side effect sits behind a seam a test fakes. One adapter is a

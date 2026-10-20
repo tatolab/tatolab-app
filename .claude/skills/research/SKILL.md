@@ -16,5 +16,5 @@ description: Answer a question from primary sources and file a memo. Use when a 
 3. Report the answer's summary in chat.
 
 This skill never files issues, never edits code. If the findings demand a decision, say so: one
-about what the app is goes to a streamlib `/align` or `/propose-change`; an app-local one goes to
-the owner as a stated question.
+about what the app needs from the runtime goes to streamlib as an issue; any other goes to the
+owner as a stated question.

@@ -13,7 +13,7 @@ body:
     id: design
     attributes:
       label: Design
-      description: "what the app reads from the local API, what it shows, on which platform, and any new module, trait or Tauri command (settled with /module-design); link the streamlib plan entry for anything about what the app is — never restate or extend the plan here"
+      description: "what the app reads from the local API, what it shows, on which platform, and any new module, trait or Tauri command (settled with /module-design); the app's decision is stated here; link streamlib's plan only for the runtime contract the app reads"
     validations:
       required: false
   - type: textarea

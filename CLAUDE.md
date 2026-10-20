@@ -22,11 +22,10 @@ a parallel one. Search first.
 ## The router — how work happens
 
 - **Three kinds of decision, three homes.**
-  1. What the app *is* or needs from the runtime — a capability, a local API contract, a change
-     to the `Tatolab.app` entry — is streamlib's plan (`docs/plan/ARCHITECTURE.md`, §Distribution
-     & versioning and §Control plane & observability), decided in a streamlib session through
-     `/align` / `/propose-change` / `/derive-tickets`. This repository has no `docs/plan/`; never
-     start one.
+  1. What the app *is* — its features, its framework, how it is packaged and updated — is the
+     owner's call, recorded in the tatolab-app issue that builds it. What it needs from the
+     runtime — a capability, a local API contract — is streamlib's: filed there, and the app waits
+     on it. This repository has no `docs/plan/`; never start one.
   2. How the window looks, reads and flows is `proof/design-final/FINAL-SPEC.md` +
      `src/styles/tokens.css`, changed with the owner's say-so in the same PR.
   3. How the app's own code is shaped — modules, traits, platform items, Tauri commands, the
@@ -34,7 +33,8 @@ a parallel one. Search first.
      `/implement`.
 
   A shape that would need tier 1 is tier 1.
-- **Read the plan from streamlib's `main`, never a local checkout's branch**:
+- **When the work depends on what the runtime serves, read streamlib's plan from its `main`,
+  never a local checkout's branch**:
   `gh api repos/tatolab/streamlib/contents/docs/plan/ARCHITECTURE.md -q .content | base64 -d`
   (the same for `GLOSSARY.md`), and read only the sections you need — the file is large.
 - Source edits (`src/`, `src-tauri/`, `scripts/`, `packaging/`) belong inside `/implement`
@@ -51,7 +51,8 @@ a parallel one. Search first.
   sets a rule or a glob to `ask` — the checked-in config asks on `publish`
   (`.claude/scripts/machine-brake` edits it). The doctrine still decides what is right — an
   approved prompt means the owner judged this one case the exception, not that the rule bent.
-- Code is the authority on what IS; the plan and the spec on what we AGREED.
+- Code is the authority on what IS; the issues and the spec on what we AGREED for the app, and
+  streamlib's plan on what the runtime serves.
 
 ## Recording facts vs deciding
 
@@ -62,9 +63,10 @@ sharpen decisions, not to license prose.
   falsified, a stale path, a proof caption that no longer matches the app — fix it in the same PR
   as the change, and say so in the PR body. Leaving the record wrong to avoid ceremony is the
   worse outcome, always.
-- **A decision goes to the owner** — changing what the app is, or settling a question the plan or
-  the spec leaves open by building one answer. Tier 1 goes through streamlib's lifecycle; tier 2
-  is a stated question; tier 3 is the issue's Design section.
+- **A decision goes to the owner** — changing what the app is, or settling a question the issue or
+  the spec leaves open by building one answer. Tier 1 is the owner's call, recorded in the issue,
+  and a runtime need is filed in streamlib; tier 2 is a stated question; tier 3 is the issue's
+  Design section.
 - The test: **could a careful reader derive it from the diff and the tree?** Then it is a fact.
   Does it commit us to something we have not agreed? Then it is a decision — bring it.
 - Doc hygiene inside work you are already doing — fixing a claim your own change falsified — is
@@ -76,7 +78,7 @@ An approved design is standing authority. Implementing it, recording it, and cle
 need no further confirmation. Re-asking is not diligence; it spends the owner's attention, and
 attention spent on settled things is unavailable for real forks.
 
-- **Ask only for a live fork the plan does not settle** — two defensible paths, materially
+- **Ask only for a live fork the issue does not settle** — two defensible paths, materially
   different outcomes, where guessing wrong wastes real work.
 - **Never ask** to re-confirm something already agreed, to re-approve a scope already signed off,
   to check that work is going well, or in place of reading the tree. If the answer is
@@ -111,7 +113,7 @@ attention spent on settled things is unavailable for real forks.
 - **Platform code lives in `src-tauri/src/platform/`** (enforced); both platforms are checked on
   every change, and the `ubuntu-22.04` PR check is the Linux gate — a Mac cannot lint the Linux
   arms.
-- A decision the plan, the spec or the issue doesn't state stops the work and goes to the owner;
+- A decision the issue or the spec doesn't state stops the work and goes to the owner;
   it is never inferred from existing code or git history.
 - Logging is `tracing` only in Rust — no `println!` / `eprintln!` / `dbg!`; the window logs
   nothing to the console in shipped code (enforced).

@@ -13,8 +13,8 @@ The deliverable is shared understanding, not just an answer. No edits from this 
 2. **Answer in labeled layers**:
    - **[CODE]** — what the tree does today, with `file:line`. Code is the authority on current
      behaviour.
-   - **[PLAN]** — what streamlib's `docs/plan/` says is agreed for the app or the local API, or
-     what the calm-native spec says about the window.
+   - **[PLAN]** — what the app's issues say is agreed for the app, what the calm-native spec says
+     about the window, or what streamlib's `docs/plan/` says about the local API.
    - **[INFERRED]** — Claude's judgment or reconstruction, with stated confidence.
 3. **Surface disagreements found on the way.** If the code contradicts the plan, the spec or the
    README, say so in the answer.

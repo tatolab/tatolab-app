@@ -13,8 +13,8 @@ This skill is proactive, not just inquisitive — the owner brings a fuzzy want;
 give it a shape they can react to. Digging and questioning are means; the deliverable is a formed
 picture plus the smallest sensible way to start.
 
-1. **Situate.** Read streamlib's plan entry for the app and the local API it would read, the
-   calm-native spec, the relevant code, and the open issues circling the idea. When the input is a
+1. **Situate.** Read the local API it would read (streamlib's plan, §Control plane &
+   observability), the calm-native spec, the relevant code, and the open issues circling the idea. When the input is a
    messy set of issues, reverse-engineer what they collectively want and present that back first.
 2. **Sharpen the fuzz with `grilling`.** One question at a time, each with a recommended answer.
    Facts get looked up, never asked.
@@ -37,9 +37,9 @@ picture plus the smallest sensible way to start.
 5. **Drive to identical understanding.** Say the idea AND the recommended start back in your own
    words until the owner confirms it matches what is in their head. Unconfirmed = unexplored.
 6. **Exit explicitly**, one of three ways:
-   - **Graduate** → `/file-issue` when the streamlib plan already covers it; a calm-native spec
-     change → a stated question to the owner, then `/file-issue`; a streamlib `/align` or
-     `/propose-change` when it changes what the app is or needs a runtime contract.
+   - **Graduate** → `/file-issue`; a calm-native spec change → a stated question to the owner,
+     then `/file-issue`; a runtime contract the app needs → a streamlib issue the app issue waits
+     on.
    - **Park** → memo at `docs/research/explorations/<slug>.md`: the idea, the shapes considered,
      the recommended start, and what unknown must resolve before it revives.
    - **Kill** → same memo, with the reason — so the idea is not innocently re-explored in three

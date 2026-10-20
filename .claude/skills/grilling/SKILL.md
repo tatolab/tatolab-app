@@ -8,9 +8,9 @@ description: Interview the owner relentlessly, one question at a time, to reach 
 Interview until understanding is genuinely shared — then stop. Never act on the subject
 while grilling.
 
-- **Situate before the first question.** Read how the subject slots into the plan (streamlib's
-  `docs/plan/ARCHITECTURE.md` for what the app is, `proof/design-final/FINAL-SPEC.md` for how it
-  looks) AND the code: is it net-new, a refactor of an existing system, or a lesson learned from
+- **Situate before the first question.** Read how the subject slots into what is agreed (the
+  app's issues for what the app is, `proof/design-final/FINAL-SPEC.md` for how it looks,
+  streamlib's plan for the local API it reads) AND the code: is it net-new, a refactor of an existing system, or a lesson learned from
   using one (developer-experience pain)? A minute of searching beats a wasted opening
   question. State what you found as premises the owner can shoot down before the
   interview starts.

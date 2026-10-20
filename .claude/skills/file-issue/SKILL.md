@@ -1,6 +1,6 @@
 ---
 name: file-issue
-description: File a well-shaped tatolab-app issue from a short intent — pick the right form (feature / bug / research), fill its sections, link the streamlib plan entry and the runtime work it waits on, and set native dependency edges. Use when the owner says "file this", "open an issue for X", "log that bug", or when discussion surfaces a trackable task. Never files an umbrella issue — decomposes into self-contained issues with real blocked-by edges.
+description: File a well-shaped tatolab-app issue from a short intent — pick the right form (feature / bug / research), fill its sections, state the app's decision, link the runtime work it waits on, and set native dependency edges. Use when the owner says "file this", "open an issue for X", "log that bug", or when discussion surfaces a trackable task. Never files an umbrella issue — decomposes into self-contained issues with real blocked-by edges.
 ---
 
 # file-issue
@@ -14,7 +14,8 @@ Match the intent to one of `.github/ISSUE_TEMPLATE/` and fill **its** sections �
 structure:
 - **feature** — a change to the window, the tray, setup, uninstall, the platform layer or
   packaging: What & why · Design (what it reads from the local API, what it shows, on which
-  platform; link the streamlib plan entry, never restate or extend it) · Done means (2–4 outcomes a
+  platform; the app's decision stated here; link streamlib's plan only for the runtime contract it
+  reads) · Done means (2–4 outcomes a
   person could check in the running app) · Validation shape (hermetic tests + the `/verify-app`
   rung) · Platforms · Waits on · Non-derivable notes (default "None").
 - **bug** — Symptom · Where it bit (platform, install kind, versions) · Expected · Repro ·

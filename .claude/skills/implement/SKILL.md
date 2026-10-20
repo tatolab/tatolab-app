@@ -7,8 +7,9 @@ disable-model-invocation: false
 # Implement
 
 1. **Load**: the issue — body plus every comment oldest→newest (a comment IS specification and is
-   newer than the body; conflicts resolve toward the comment) — and the streamlib plan sections it
-   cites, read from streamlib's `main` as `CLAUDE.md` gives (never a local checkout's branch).
+   newer than the body; conflicts resolve toward the comment) — and, when it depends on what the
+   runtime serves, that contract from streamlib's plan at `main` as `CLAUDE.md` gives (never a
+   local checkout's branch).
    Read `proof/design-final/FINAL-SPEC.md` when the issue touches the window.
 2. **Ultracode gate**: an issue whose body opens with **Run with ultracode** is built only in a run
    that has ultracode on — a system-reminder confirms it when the owner's message carries the
@@ -18,14 +19,13 @@ disable-model-invocation: false
    every agent that edits files runs in its own worktree; the steps below hold.
 3. **Plan gate**: list every open item this work needs: a decision, a question you would ask the
    owner, an assumption you would rather not make. Give each one its options, your pick and why.
-   Resolve whatever the issue, its comments, the plan, the spec or the tree answers; that is
+   Resolve whatever the issue, its comments, the spec, the tree or the runtime's contract answers; that is
    discovery, not a question. A new module, trait or Tauri command the issue's Design section
    does not settle goes through `/module-design`, and its recommendation is written into the
    Design. Never infer a decision from existing code or git history. When items remain, spawn
    `owner-attention-grader` with the issue and the items. On **PAUSE**, post one
    `[NEEDS OWNER]` comment on the issue batching every OWNER item, each with its options and your
-   recommendation, and **stop**; an item about what the app _is_ says it is decided in a streamlib
-   session. On **PROCEED**, carry each assumption the grader cleared into the PR's notes for the
+   recommendation, and **stop**. On **PROCEED**, carry each assumption the grader cleared into the PR's notes for the
    owner.
 4. **Waits-on check**: every streamlib issue under "Waits on" is closed and released in the
    runtime the app is built against. One that is not → post a `[WAITS ON]` comment on the issue
