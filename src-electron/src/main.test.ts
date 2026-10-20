@@ -4,6 +4,8 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { FakeTatolabElectronAppShell } from "./fake_tatolab_electron_app_shell.js";
 import { startTatolabApp } from "./main.js";
+import { TatolabMainWindow } from "./tatolab_main_window.js";
+import { TatolabTrayMenu } from "./tatolab_tray_menu.js";
 import { MACOS_MAIN_WINDOW_CHROME, MACOS_TRAY_ICON_IMAGE, setMacosDockIconVisible } from "./platform/macos/mod.js";
 import { LINUX_MAIN_WINDOW_CHROME, LINUX_TRAY_ICON_IMAGE, setLinuxDockIconVisible } from "./platform/linux/mod.js";
 import type { TatolabPlatformItems } from "./platform/mod.js";
@@ -12,14 +14,14 @@ const MACOS_PLATFORM_ITEMS: TatolabPlatformItems = {
   platform: "macos",
   trayIconImage: MACOS_TRAY_ICON_IMAGE,
   mainWindowChrome: MACOS_MAIN_WINDOW_CHROME,
-  keepsTheDefaultApplicationMenu: true,
+  applicationMenu: "macos_menu_bar",
   setDockIconVisible: setMacosDockIconVisible,
 };
 const LINUX_PLATFORM_ITEMS: TatolabPlatformItems = {
   platform: "linux",
   trayIconImage: LINUX_TRAY_ICON_IMAGE,
   mainWindowChrome: LINUX_MAIN_WINDOW_CHROME,
-  keepsTheDefaultApplicationMenu: false,
+  applicationMenu: "none",
   setDockIconVisible: setLinuxDockIconVisible,
 };
 
@@ -30,10 +32,26 @@ describe("the app on macOS", () => {
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
   });
 
+  test("the running app hands back its window and tray for the process to hold", async () => {
+    const otherFakeShell = new FakeTatolabElectronAppShell();
+    const tatolabRunningApp = await startTatolabApp(otherFakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, otherFakeShell.tatolabAppLog);
+    expect(tatolabRunningApp?.tatolabTrayMenu).toBeInstanceOf(TatolabTrayMenu);
+    expect(tatolabRunningApp?.tatolabMainWindow).toBeInstanceOf(TatolabMainWindow);
+  });
+
   test("opening the app puts it in the tray and shows its one window, with the Dock icon, under the hidden title bar", () => {
-    expect(fakeShell.askedFor()).toEqual(["show_tray_menu", "set_activation_policy", "create_main_window", "unminimize", "show", "focus"]);
-    expect(fakeShell.records[1]).toEqual({ asked: "set_activation_policy", activationPolicy: "regular" });
-    expect(fakeShell.records[2]).toEqual({
+    expect(fakeShell.askedFor()).toEqual([
+      "set_application_menu",
+      "show_tray_menu",
+      "set_activation_policy",
+      "create_main_window",
+      "unminimize",
+      "show",
+      "focus",
+    ]);
+    expect(fakeShell.records[0]).toEqual({ asked: "set_application_menu", applicationMenu: "macos_menu_bar" });
+    expect(fakeShell.records[2]).toEqual({ asked: "set_activation_policy", activationPolicy: "regular" });
+    expect(fakeShell.records[3]).toEqual({
       asked: "create_main_window",
       mainWindowSpecification: {
         title: "Tatolab",
@@ -86,7 +104,8 @@ describe("the app on Linux", () => {
   test("the window keeps the desktop's title bar with no menu bar, and nothing asks for a Dock", async () => {
     const fakeShell = new FakeTatolabElectronAppShell();
     await startTatolabApp(fakeShell.tatolabElectronAppShell, LINUX_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
-    expect(fakeShell.askedFor()).toEqual(["remove_the_application_menu", "show_tray_menu", "create_main_window", "unminimize", "show", "focus"]);
+    expect(fakeShell.askedFor()).toEqual(["set_application_menu", "show_tray_menu", "create_main_window", "unminimize", "show", "focus"]);
+    expect(fakeShell.records[0]).toEqual({ asked: "set_application_menu", applicationMenu: "none" });
     expect(fakeShell.records[2]).toMatchObject({ mainWindowSpecification: { chrome: { titleBarStyle: "default" } } });
     fakeShell.forgetTheRecords();
     expect(fakeShell.requestTheWindowClose()).toBe("hide_instead");
@@ -98,13 +117,13 @@ describe("starting the app", () => {
   test("a second launch hands itself to the running app and exits without a window or a tray icon", async () => {
     const fakeShell = new FakeTatolabElectronAppShell();
     fakeShell.holdsTheSingleInstanceLock = false;
-    await startTatolabApp(fakeShell.tatolabElectronAppShell, LINUX_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    expect(await startTatolabApp(fakeShell.tatolabElectronAppShell, LINUX_PLATFORM_ITEMS, fakeShell.tatolabAppLog)).toBeNull();
     expect(fakeShell.records).toEqual([{ asked: "exit", exitCode: 0 }]);
   });
 
   test("an OS Tatolab does not run on is refused with why, and the app exits failed", async () => {
     const fakeShell = new FakeTatolabElectronAppShell();
-    await startTatolabApp(fakeShell.tatolabElectronAppShell, null, fakeShell.tatolabAppLog);
+    expect(await startTatolabApp(fakeShell.tatolabElectronAppShell, null, fakeShell.tatolabAppLog)).toBeNull();
     expect(fakeShell.records).toEqual([{ asked: "exit", exitCode: 1 }]);
     expect(fakeShell.writtenLogLines[0]).toContain("Tatolab runs on macOS and Linux only");
   });
@@ -114,6 +133,7 @@ describe("starting the app", () => {
     fakeShell.mainWindowCreationFailure = "no display";
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     expect(fakeShell.records).toEqual([
+      { asked: "set_application_menu", applicationMenu: "macos_menu_bar" },
       { asked: "show_tray_menu", trayMenuItems: expect.any(Array) },
       { asked: "set_activation_policy", activationPolicy: "regular" },
       { asked: "set_activation_policy", activationPolicy: "accessory" },

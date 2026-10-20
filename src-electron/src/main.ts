@@ -6,7 +6,7 @@
 // quitting quits only the app — the runtime stays on.
 
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import type { DockIconHost, TatolabPlatformItems } from "./platform/mod.js";
+import type { ApplicationMenu, DockIconHost, TatolabPlatformItems } from "./platform/mod.js";
 import { quitTheTatolabApp } from "./tatolab_app_shared_state.js";
 import { TatolabMainWindow, type MainWindowHostFactory } from "./tatolab_main_window.js";
 import { TatolabTrayMenu, type TrayIconHostFactory } from "./tatolab_tray_menu.js";
@@ -21,30 +21,35 @@ export interface TatolabElectronAppShell {
   /** Calls `listener` as the app begins to quit, from the tray, the window or the system. */
   onTheAppQuitting(listener: () => void): void;
   exitTheApp(exitCode: number): void;
-  /** Takes away the default File, Edit, View and Window menus. */
-  removeTheApplicationMenu(): void;
+  setTheApplicationMenu(applicationMenu: ApplicationMenu): void;
   mainWindowHostFactory: MainWindowHostFactory;
   trayIconHostFactory: TrayIconHostFactory;
   dockIconHost: DockIconHost;
 }
 
-/** Start the app on `tatolabElectronAppShell` with this build's platform items, or refuse an OS Tatolab does not run on. */
+/** The running app's window and tray, which the process holds for its whole life: a tray nothing references is collected and leaves the menu bar or panel. */
+export interface TatolabRunningApp {
+  tatolabMainWindow: TatolabMainWindow;
+  tatolabTrayMenu: TatolabTrayMenu;
+}
+
+/** Start the app on `tatolabElectronAppShell` with this build's platform items; `null` when it exits instead — a second launch, or an OS Tatolab does not run on. */
 export async function startTatolabApp(
   tatolabElectronAppShell: TatolabElectronAppShell,
   platformItems: TatolabPlatformItems | null,
   tatolabAppLog: TatolabAppLog,
-): Promise<void> {
+): Promise<TatolabRunningApp | null> {
   if (platformItems === null) {
     tatolabAppLog.error(
       "Tatolab runs on macOS and Linux only: on macOS it registers the runtime through Service Management, and on Linux it drives the installer's systemd user service, tatolabd.service",
     );
     tatolabElectronAppShell.exitTheApp(1);
-    return;
+    return null;
   }
   if (!tatolabElectronAppShell.requestTheSingleInstanceLock()) {
     tatolabAppLog.info("Tatolab is already running; it shows its window");
     tatolabElectronAppShell.exitTheApp(0);
-    return;
+    return null;
   }
   const tatolabMainWindow = new TatolabMainWindow(
     tatolabElectronAppShell.mainWindowHostFactory,
@@ -54,9 +59,9 @@ export async function startTatolabApp(
   );
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabMainWindow.letTheWindowCloseAsTheAppQuits());
   await tatolabElectronAppShell.whenReady();
-  if (!platformItems.keepsTheDefaultApplicationMenu) tatolabElectronAppShell.removeTheApplicationMenu();
+  tatolabElectronAppShell.setTheApplicationMenu(platformItems.applicationMenu);
   tatolabElectronAppShell.onTheAppOpenedAgain(() => tatolabMainWindow.show());
-  TatolabTrayMenu.build(tatolabElectronAppShell.trayIconHostFactory, platformItems.trayIconImage, (trayMenuChoice) => {
+  const tatolabTrayMenu = TatolabTrayMenu.build(tatolabElectronAppShell.trayIconHostFactory, platformItems.trayIconImage, (trayMenuChoice) => {
     switch (trayMenuChoice) {
       case "open_tatolab":
         tatolabMainWindow.show();
@@ -67,4 +72,5 @@ export async function startTatolabApp(
     }
   });
   tatolabMainWindow.show();
+  return { tatolabMainWindow, tatolabTrayMenu };
 }

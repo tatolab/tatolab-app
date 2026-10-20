@@ -7,7 +7,7 @@
 import { failedWith, succeeded } from "./result.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabElectronAppShell } from "./main.js";
-import type { MacosActivationPolicy } from "./platform/mod.js";
+import type { ApplicationMenu, MacosActivationPolicy } from "./platform/mod.js";
 import type { MainWindowCloseRequestAnswer, MainWindowSpecification } from "./tatolab_main_window.js";
 import type { TrayMenuItemDescription, TrayMenuItemId } from "./tatolab_tray_menu.js";
 
@@ -18,7 +18,7 @@ export type FakeShellRecord =
   | { asked: "set_activation_policy"; activationPolicy: MacosActivationPolicy }
   | { asked: "show_tray_menu"; trayMenuItems: readonly TrayMenuItemDescription[] }
   | { asked: "exit"; exitCode: number }
-  | { asked: "remove_the_application_menu" };
+  | { asked: "set_application_menu"; applicationMenu: ApplicationMenu };
 
 /** A fake Electron app shell for the lifecycle's tests. */
 export class FakeTatolabElectronAppShell {
@@ -39,7 +39,7 @@ export class FakeTatolabElectronAppShell {
     onTheAppOpenedAgain: (listener) => this.appOpenedAgainListeners.push(listener),
     onTheAppQuitting: (listener) => this.appQuittingListeners.push(listener),
     exitTheApp: (exitCode) => this.records.push({ asked: "exit", exitCode }),
-    removeTheApplicationMenu: () => this.records.push({ asked: "remove_the_application_menu" }),
+    setTheApplicationMenu: (applicationMenu) => this.records.push({ asked: "set_application_menu", applicationMenu }),
     mainWindowHostFactory: {
       createMainWindowHost: (mainWindowSpecification, answerCloseRequest) => {
         if (this.mainWindowCreationFailure !== null) return failedWith(this.mainWindowCreationFailure);

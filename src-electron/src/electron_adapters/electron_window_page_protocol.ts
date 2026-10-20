@@ -27,7 +27,16 @@ export async function serveTheBuiltWindow(builtWindowDirectory: string, tatolabA
   protocol.handle(TATOLAB_WINDOW_PAGE_SCHEME, async (windowPageRequest) => {
     const builtWindowFile = builtWindowFileForRequest(builtWindowDirectory, windowPageRequest.url);
     if (builtWindowFile === null) return new Response(null, { status: 404 });
-    const builtWindowFileResponse = await net.fetch(pathToFileURL(builtWindowFile).toString());
+    let builtWindowFileResponse: Response;
+    try {
+      builtWindowFileResponse = await net.fetch(pathToFileURL(builtWindowFile).toString());
+    } catch (caughtFailure) {
+      tatolabAppLog.debug("the window asked for a file the built window does not hold", {
+        built_window_file: builtWindowFile,
+        failure: describeCaughtFailure(caughtFailure),
+      });
+      return new Response(null, { status: 404 });
+    }
     const responseHeaders = new Headers(builtWindowFileResponse.headers);
     responseHeaders.set("Content-Security-Policy", windowPageContentSecurityPolicyHeader);
     return new Response(builtWindowFileResponse.body, { status: builtWindowFileResponse.status, headers: responseHeaders });

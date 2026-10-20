@@ -1,8 +1,7 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-// What the tray, the window's commands and the app's events reach once the app is set up, and the
-// requests the tray and the window both make.
+// The requests the tray and the window both make.
 
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabMainWindow } from "./tatolab_main_window.js";

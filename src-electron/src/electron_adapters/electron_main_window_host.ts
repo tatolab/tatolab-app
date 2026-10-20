@@ -6,8 +6,12 @@ import { describeCaughtFailure, failedWith, succeeded, type Result } from "../re
 import type { TatolabAppLog } from "../tatolab_app_log.js";
 import type { MainWindowCloseRequestAnswer, MainWindowHost, MainWindowHostFactory, MainWindowSpecification } from "../tatolab_main_window.js";
 
-/** Creates the window as a sandboxed, context-isolated page with no Node, loading `windowPageUrl`. */
-export function createElectronMainWindowHostFactory(windowPageUrl: string, tatolabAppLog: TatolabAppLog): MainWindowHostFactory {
+/** Creates the window as a sandboxed, context-isolated page with no Node, loading `windowPageUrl`; developer tools open only where `developerToolsAllowed`. */
+export function createElectronMainWindowHostFactory(
+  windowPageUrl: string,
+  developerToolsAllowed: boolean,
+  tatolabAppLog: TatolabAppLog,
+): MainWindowHostFactory {
   const windowPageOrigin = new URL(windowPageUrl).origin;
   return {
     createMainWindowHost(
@@ -25,7 +29,13 @@ export function createElectronMainWindowHostFactory(windowPageUrl: string, tatol
           center: true,
           show: false,
           ...mainWindowSpecification.chrome,
-          webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true },
+          webPreferences: {
+            contextIsolation: true,
+            sandbox: true,
+            nodeIntegration: false,
+            webSecurity: true,
+            devTools: developerToolsAllowed,
+          },
         });
       } catch (caughtFailure) {
         return failedWith(describeCaughtFailure(caughtFailure));
@@ -41,6 +51,7 @@ export function createElectronMainWindowHostFactory(windowPageUrl: string, tatol
       windowContents.session.setPermissionRequestHandler((_requestingContents, _permission, answerPermissionRequest) =>
         answerPermissionRequest(false),
       );
+      windowContents.session.setPermissionCheckHandler(() => false);
       mainBrowserWindow.loadURL(windowPageUrl).catch((loadFailure: unknown) => {
         tatolabAppLog.error("the Tatolab window's page did not load", { window_page_url: windowPageUrl, failure: describeCaughtFailure(loadFailure) });
       });

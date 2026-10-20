@@ -1,11 +1,8 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-// macOS: Service Management registers the runtime's launch agent, first-launch setup creates the
-// machine runtime lock and the CLI's PATH link behind one administrator prompt, "Uninstall
-// Tatolab…" removes them behind another, LaunchServices reopens the running app rather than
-// starting a second, the window draws under a hidden title bar with the Dock icon following it,
-// and the tray's mark is a template image.
+// macOS: the window draws under a hidden title bar with the Dock icon following it, and the tray's
+// mark is a template image.
 
 import type { TrayIconImage } from "../mod.js";
 

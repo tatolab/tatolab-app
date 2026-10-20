@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // The tray item, in macOS's menu bar or a Linux panel: the Tatolab mark in this platform's tray
-// image, and a native menu — a disabled status line, "Open Tatolab", "Set Up Tatolab…" while
-// machine setup is missing, and "Quit Tatolab" — on either click.
+// image, and a native menu — a disabled status line, "Open Tatolab" and "Quit Tatolab" — on either
+// click — and the rule for when "Set Up Tatolab…" shows.
 
 import type { MachineSetupState } from "../../src/backend/tatolab_backend_contract.js";
 import type { TrayIconImage } from "./platform/mod.js";

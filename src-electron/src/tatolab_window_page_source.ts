@@ -54,5 +54,7 @@ export function windowPageContentSecurityPolicy(windowPageHtml: string): string 
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
     "img-src 'self' data:",
+    "object-src 'none'",
+    "base-uri 'self'",
   ].join("; ");
 }

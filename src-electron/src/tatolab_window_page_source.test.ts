@@ -26,6 +26,6 @@ test("the policy allows the window page's own inline theme script by its hash, a
   expect(inlineThemeScript).toContain("prefers-color-scheme");
   expect(inlineScriptHashSources(windowPageHtml)).toEqual([`'sha256-${createHash("sha256").update(inlineThemeScript).digest("base64")}'`]);
   expect(windowPageContentSecurityPolicy(windowPageHtml)).toBe(
-    `default-src 'self'; script-src 'self' ${inlineScriptHashSources(windowPageHtml).join(" ")}; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:`,
+    `default-src 'self'; script-src 'self' ${inlineScriptHashSources(windowPageHtml).join(" ")}; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; object-src 'none'; base-uri 'self'`,
   );
 });

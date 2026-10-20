@@ -18,7 +18,7 @@ body {
    data-tauri-drag-region itself: "deep" drags through its children, "" only on the band itself. */
 [data-tauri-drag-region] { -webkit-app-region: drag; }
 [data-tauri-drag-region=""] *,
-[data-tauri-drag-region] :is(button, a, input, select, textarea, [role="button"], [tabindex]) { -webkit-app-region: no-drag; }
+[data-tauri-drag-region] :is(button, a, input, select, textarea, label, summary, [contenteditable], [role], [tabindex], [title]) { -webkit-app-region: no-drag; }
 
 h1, h2, h3, p, ol, ul, dl, dd, figure { margin: 0; }
 h1, h2, h3 { font-size: inherit; font-weight: 600; }

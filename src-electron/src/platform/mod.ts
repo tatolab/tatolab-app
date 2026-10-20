@@ -45,6 +45,9 @@ export type MainWindowChrome =
 /** Whether macOS shows the app in the Dock and the app switcher (`regular`) or only in the menu bar (`accessory`). */
 export type MacosActivationPolicy = "regular" | "accessory";
 
+/** The app's menu: macOS's menu bar holds the app, File, Edit, View and Window menus as Tauri's does (View with only full screen, and no reload or developer tools); a Linux window shows none. */
+export type ApplicationMenu = "macos_menu_bar" | "none";
+
 /** Where the app's Dock presence is set. */
 export interface DockIconHost {
   setActivationPolicy(activationPolicy: MacosActivationPolicy): void;
@@ -55,8 +58,7 @@ export interface TatolabPlatformItems {
   platform: TatolabPlatform;
   trayIconImage: TrayIconImage;
   mainWindowChrome: MainWindowChrome;
-  /** Whether the app keeps the platform's default application menu: macOS's menu bar does, a Linux window shows none. */
-  keepsTheDefaultApplicationMenu: boolean;
+  applicationMenu: ApplicationMenu;
   setDockIconVisible(dockIconHost: DockIconHost, dockIconVisible: boolean): void;
 }
 
@@ -68,7 +70,7 @@ export function tatolabPlatformItemsForThisBuild(): TatolabPlatformItems | null 
         platform: "macos",
         trayIconImage: MACOS_TRAY_ICON_IMAGE,
         mainWindowChrome: MACOS_MAIN_WINDOW_CHROME,
-        keepsTheDefaultApplicationMenu: true,
+        applicationMenu: "macos_menu_bar",
         setDockIconVisible: setMacosDockIconVisible,
       };
     case "linux":
@@ -76,7 +78,7 @@ export function tatolabPlatformItemsForThisBuild(): TatolabPlatformItems | null 
         platform: "linux",
         trayIconImage: LINUX_TRAY_ICON_IMAGE,
         mainWindowChrome: LINUX_MAIN_WINDOW_CHROME,
-        keepsTheDefaultApplicationMenu: false,
+        applicationMenu: "none",
         setDockIconVisible: setLinuxDockIconVisible,
       };
     default:

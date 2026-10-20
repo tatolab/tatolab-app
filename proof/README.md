@@ -2,6 +2,20 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## Electron skeleton: the window under Electron (Linux container, unbundled; mock backend)
+
+The Electron app from `npm run electron`, run unbundled under Xvfb in a cloud Linux container with
+no window manager (so no title bar or tray shows), serving the built window from `dist/` under
+`tatolab-app://` with its content security policy. The window has no Electron backend yet, so it
+shows the mock backend's default streams and the macOS presentation; no runtime is involved.
+
+**Linux (container, unbundled) · Mock backend**: the window at 1040×700, centred, with no menu
+bar: the `main` stream's graph (testpatternsource → invertingeffect → displaywindow and
+brightnessmeter), its logs docked below, and five streams in the sidebar with `lobby-recorder`
+Failed in red.
+
+![Electron window, Linux container, mock backend](electron-skeleton/01-linux-container-unbundled-window-on-the-mock-backend.png)
+
 ## Live: the real app in the new design, on a real runtime (installed with `brew install --cask`)
 
 Test-pattern streams only. Driven from the CLI while the window follows: a second kept stream, an attached stream and a fourth stream at once, `tatolab stop`, then `tatolab rm` and the attached CLI ending.
