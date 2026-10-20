@@ -5,6 +5,8 @@
 // tray's "Open Tatolab"; closing it hides it and the app keeps running in the tray. On macOS the
 // Dock icon shows only while the window does.
 
+import type { TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
+import { TATOLAB_STATUS_CHANGED_EVENT } from "../../src/backend/tatolab_electron_bridge_contract.js";
 import type { Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { DockIconHost, MainWindowChrome, TatolabPlatformItems } from "./platform/mod.js";
@@ -28,6 +30,8 @@ export interface MainWindowHost {
   show(): void;
   focus(): void;
   hide(): void;
+  /** Send the window's page `eventPayload` on `eventChannel`; a page still loading misses it. */
+  sendTheWindowAnEvent(eventChannel: string, eventPayload: unknown): void;
 }
 
 /** What creates the window, hidden, asking `answerCloseRequest` at each close request whether to close it. */
@@ -61,6 +65,11 @@ export class TatolabMainWindow {
     mainWindowHost.unminimize();
     mainWindowHost.show();
     mainWindowHost.focus();
+  }
+
+  /** Send the window `status` as `tatolab-status-changed`; nothing, before the window is first shown. */
+  sendTheWindowTheStatus(status: TatolabStatus): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STATUS_CHANGED_EVENT, status);
   }
 
   /** Let the window close, rather than hide, from here on: the app is quitting. */

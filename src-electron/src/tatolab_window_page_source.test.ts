@@ -7,6 +7,7 @@ import { expect, test } from "vitest";
 import {
   builtWindowFileForRequest,
   inlineScriptHashSources,
+  isACommandFromTheWindowsOwnPage,
   isOnTheWindowPagesOwnLocation,
   windowPageContentSecurityPolicy,
 } from "./tatolab_window_page_source.js";
@@ -47,4 +48,12 @@ test("the policy allows the window page's own inline theme script by its hash, a
   expect(windowPageContentSecurityPolicy(windowPageHtml)).toBe(
     `default-src 'self'; script-src 'self' ${inlineScriptHashSources(windowPageHtml).join(" ")}; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; object-src 'none'; base-uri 'self'`,
   );
+});
+
+test("a command is answered only from the window page's own top frame, never a frame it embeds, a frame already gone or another page", () => {
+  const windowPageUrl = "tatolab-app://app/index.html";
+  expect(isACommandFromTheWindowsOwnPage(windowPageUrl, "tatolab-app://app/index.html", true)).toBe(true);
+  expect(isACommandFromTheWindowsOwnPage(windowPageUrl, "tatolab-app://app/index.html", false)).toBe(false);
+  expect(isACommandFromTheWindowsOwnPage(windowPageUrl, null, true)).toBe(false);
+  expect(isACommandFromTheWindowsOwnPage(windowPageUrl, "https://example.com/", true)).toBe(false);
 });

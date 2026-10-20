@@ -9,13 +9,13 @@
 import os from "node:os";
 import path from "node:path";
 import type { TatolabPlatform } from "../../../src/backend/tatolab_backend_contract.js";
-import { MACOS_MAIN_WINDOW_CHROME, MACOS_TRAY_ICON_IMAGE, setMacosDockIconVisible } from "./macos/mod.js";
-import { LINUX_MAIN_WINDOW_CHROME, LINUX_TRAY_ICON_IMAGE, setLinuxDockIconVisible } from "./linux/mod.js";
+import { MACOS_MAIN_WINDOW_CHROME, MACOS_TRAY_ICON_IMAGE, macosTatolabPlatformForThisBuild, setMacosDockIconVisible } from "./macos/mod.js";
+import { LINUX_MAIN_WINDOW_CHROME, LINUX_TRAY_ICON_IMAGE, linuxTatolabPlatformForThisBuild, setLinuxDockIconVisible } from "./linux/mod.js";
 import type { RuntimeAgentRegistration } from "./runtime_agent_registration.js";
 import type { TatolabMachineSetup } from "./tatolab_machine_setup.js";
-import type { ServiceManagementAgentServices } from "./macos/service_management_agent_services.js";
 import type { TatolabUninstallAppSurface } from "./macos/tatolab_uninstall.js";
 import type { Result } from "../result.js";
+import type { TatolabAppLog } from "../tatolab_app_log.js";
 import type { RunTatolabReconciliation } from "../run_tatolab_switch.js";
 
 /** The root a local-proof build keeps every machine directory under, which its runtime reads as `TATOLAB_TEST_MACHINE_ROOT`. */
@@ -56,8 +56,8 @@ export interface TatolabPlatformForThisBuild {
 
 /** What a platform takes from the app around it to build its items; only macOS uses them, Linux taking none. */
 export interface TatolabPlatformHostServices {
-  /** Service Management's agent services, through the app's Service Management addon. */
-  serviceManagementAgentServices: ServiceManagementAgentServices;
+  /** The app's root, under which an unpackaged app finds its Service Management addon. */
+  appPath: string;
   /** The app binary's path, by which macOS finds its bundle and the CLI in it. */
   appExecutable: string;
   /** Whether the app runs from its own bundle; an unpackaged app runs from Electron's, which is never uninstalled. */
@@ -98,6 +98,8 @@ export interface TatolabPlatformItems {
   mainWindowChrome: MainWindowChrome;
   applicationMenu: ApplicationMenu;
   setDockIconVisible(dockIconHost: DockIconHost, dockIconVisible: boolean): void;
+  /** This platform's runtime agent, machine setup, local API socket and uninstall, built from the host's services. */
+  tatolabPlatformForThisBuild(tatolabAppLog: TatolabAppLog, tatolabPlatformHostServices: TatolabPlatformHostServices): Promise<TatolabPlatformForThisBuild>;
 }
 
 /** This build's platform items, or `null` on an OS Tatolab does not run on: it registers the runtime through Service Management on macOS and drives the installer's systemd user service on Linux. */
@@ -115,6 +117,7 @@ export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatfo
         mainWindowChrome: MACOS_MAIN_WINDOW_CHROME,
         applicationMenu: "macos_menu_bar",
         setDockIconVisible: setMacosDockIconVisible,
+        tatolabPlatformForThisBuild: macosTatolabPlatformForThisBuild,
       };
     case "linux":
       return {
@@ -123,6 +126,7 @@ export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatfo
         mainWindowChrome: LINUX_MAIN_WINDOW_CHROME,
         applicationMenu: "none",
         setDockIconVisible: setLinuxDockIconVisible,
+        tatolabPlatformForThisBuild: linuxTatolabPlatformForThisBuild,
       };
     default:
       return null;
