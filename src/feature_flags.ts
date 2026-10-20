@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 /** Frontend-only switches for surfaces the plan has decided on but whose data arrives later. */
 export interface TatolabFrontendFeatureFlags {
   /** The Watch surface for exposed outputs, as a placeholder until the sharing step gives it data. */

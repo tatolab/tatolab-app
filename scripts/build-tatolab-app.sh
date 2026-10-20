@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2025 Jonathan Fontanez
+# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+#
 # Builds Tatolab.app and its installer end to end: streamlib's runtime unit, the Tauri app, the
 # assembled bundle, signatures, the branded .dmg, optional notarization, and the bundle checks.
 # Outputs build/Tatolab.app and build/Tatolab-<version>-arm64.dmg.

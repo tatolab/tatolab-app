@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2025 Jonathan Fontanez
+# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+#
 # Signs an assembled Tatolab.app inside-out with the hardened runtime: every Mach-O in
 # Contents/Frameworks, then Contents/MacOS/tatolabd and Contents/MacOS/tatolab-cli, then the app.
 # Ad-hoc ("-") signatures carry no hardened runtime.

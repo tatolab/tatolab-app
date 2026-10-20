@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 import { describe, expect, it } from "vitest";
 import { clampLogDockHeight, defaultLogDockHeight } from "./log_dock_splitter";
 

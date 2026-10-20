@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2025 Jonathan Fontanez
+# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+#
 # Checks a signed Tatolab.app, or the Tatolab.app inside a .dmg, against the bundle contract:
 # a strict deep signature, the hardened runtime on every Mach-O unless ad-hoc, no Mach-O outside
 # Contents/MacOS and Contents/Frameworks, every symlink resolving inside the bundle, the launch

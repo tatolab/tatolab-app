@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2025 Jonathan Fontanez
+# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+#
 # Builds the branded drag-to-Applications installer for a signed Tatolab.app with dmgbuild
 # (headless: no Finder scripting), then signs the image with the app's identity.
 #

@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 import type { StreamGraphLink } from "../backend/tatolab_backend_contract";
 
 /** How a graph node's box reads: solid while running, dashed while starting or idle, faded when paused, red in error. */

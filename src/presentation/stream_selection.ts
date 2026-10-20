@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 import type { ListedStream } from "../backend/tatolab_backend_contract";
 
 /** The stream to select: the one chosen if still listed, else the nearest one after it, else the first. */

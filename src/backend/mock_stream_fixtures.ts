@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 import type { ListedStream, StreamGraphSummary, StreamLogRecord, TatolabPlatform } from "./tatolab_backend_contract";
 
 /** A log record before the mock runtime numbers and stamps it. */

@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 import { createElement } from "../dom";
 import { createStandaloneCommand } from "./copy_button";
 import { createSpinner } from "./window_controls";

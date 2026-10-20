@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 import type { StreamGraphSummary, TatolabPlatform } from "../backend/tatolab_backend_contract";
 import { createElement, createSvgElement, setTextIfChanged, type ElementChild } from "../dom";
 import type { TatolabFrontendFeatureFlags } from "../feature_flags";

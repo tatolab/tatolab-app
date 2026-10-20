@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 import { createElement, createSvgFromMarkup } from "../dom";
 import { POWER_ICON_SVG, TATOLAB_MARK_SVG, TERMINAL_ICON_SVG } from "../icons";
 import { createStandaloneCommand } from "./copy_button";

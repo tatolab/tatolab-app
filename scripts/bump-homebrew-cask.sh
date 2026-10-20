@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2025 Jonathan Fontanez
+# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+#
 # Writes Casks/tatolab.rb in a homebrew-tap checkout for a released Tatolab .dmg.
 #
 # Usage: bump-homebrew-cask.sh <version> <Tatolab-<version>-arm64.dmg> <tap checkout>
