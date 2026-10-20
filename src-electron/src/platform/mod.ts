@@ -13,6 +13,7 @@ import { MACOS_MAIN_WINDOW_CHROME, MACOS_TRAY_ICON_IMAGE, setMacosDockIconVisibl
 import { LINUX_MAIN_WINDOW_CHROME, LINUX_TRAY_ICON_IMAGE, setLinuxDockIconVisible } from "./linux/mod.js";
 import type { RuntimeAgentRegistration } from "./runtime_agent_registration.js";
 import type { TatolabMachineSetup } from "./tatolab_machine_setup.js";
+import type { ServiceManagementAgentServices } from "./macos/service_management_agent_services.js";
 
 /** The root a local-proof build keeps every machine directory under, which its runtime reads as `TATOLAB_TEST_MACHINE_ROOT`. */
 export const LOCAL_PROOF_TEST_MACHINE_ROOT = "/tmp/tatolab-proof";
@@ -44,6 +45,12 @@ export interface TatolabPlatformForThisBuild {
   runtimeAgent: RuntimeAgentRegistration;
   machineSetup: TatolabMachineSetup;
   localApiSocket: string;
+}
+
+/** What a platform takes from Electron to build its items: Service Management's agent services, which only macOS uses, and the app binary's path, by which macOS finds its bundle. */
+export interface TatolabPlatformHostServices {
+  serviceManagementAgentServices: ServiceManagementAgentServices;
+  appExecutable: string;
 }
 
 /** The tray's icon as a platform shows it, by its file name in the app's icons directory. */
