@@ -12,6 +12,9 @@ import { MachineSetUpByTheInstaller } from "./machine_set_up_by_the_installer.js
 import { RUNTIME_SYSTEMD_USER_UNIT_NAME, SystemctlOnThePath, SystemdUserRuntimeService } from "./systemd_user_runtime_service.js";
 import { tatolabMachinePathsOnLinuxForThisBuild } from "./tatolab_machine_paths.js";
 
+/** Why Linux refuses "Uninstall Tatolab…": its installer uninstalls, and the window's sheet shows how. */
+export const LINUX_UNINSTALL_TATOLAB_REFUSAL = "On Linux the installer uninstalls Tatolab: Settings › Uninstall Tatolab… shows how.";
+
 /** The Tatolab mark at 64×64 in its own colours, which a panel shows as they are. */
 export const LINUX_TRAY_ICON_IMAGE: TrayIconImage = { pngFileName: "tray-coloured.png", isATemplate: false };
 
