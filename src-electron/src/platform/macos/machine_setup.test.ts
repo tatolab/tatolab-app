@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { chmod, lstat, mkdir, mkdtemp, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
@@ -27,7 +27,8 @@ import { tatolabMachinePathsOnMacosUnderALocalProofTestRoot, type TatolabMachine
 const temporaryRoots: string[] = [];
 
 async function temporaryRoot(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "tatolab-machine-setup-"));
+  // macOS: os.tmpdir() is under /var, a link to /private/var, and the code under test realpaths.
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "tatolab-machine-setup-")));
   temporaryRoots.push(root);
   return root;
 }
