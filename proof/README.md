@@ -4,7 +4,7 @@ Everything below was captured while building ticket tatolab/streamlib#2609. **Li
 
 ## The window on the Electron backend (Linux container, unbundled; tatolabd stand-in)
 
-Issue #23 together with #18's wiring (PR B at 445bcfe, merged locally for this shot): the window
+Issue #23 together with #18's wiring (01–06 on PR B at 445bcfe merged locally; 07–09 on main after #31): the window
 reads everything through the preload's bridge and the main process's IPC handlers. Electron
 44.9.1 (`--no-sandbox`, as root in the container) under Xvfb, with openbox and stalonetray. **No
 runtime ran.** [`linux-stand-ins/`](electron-window/linux-stand-ins/) puts a `systemctl` stand-in
@@ -20,6 +20,9 @@ in `src-tauri/test-fixtures/`, on `$XDG_RUNTIME_DIR/streamlib/local-api.sock`.
 | ![](electron-window/live-linux-04-back-on-logs-following.png) | Linux (container, unbundled) · stand-in runtime | After switching it on again (`enable --now`, then `starting` → `running`): `main`'s Logs tab following the records the page read again over the bridge. |
 | ![](electron-window/live-linux-05-stopped-stream.png) | Linux (container, unbundled) · stand-in runtime | `pattern-two` selected: "Stopped.", its project path, and its two terminal commands with copy buttons. |
 | ![](electron-window/live-linux-06-copied-command-pasted.png) | Linux (container, unbundled) · stand-in runtime | A copy button pressed, then Ctrl+V into the log filter: "tatolab start pattern-two" arrived, so copying works with every permission check denied. |
+| ![](electron-window/live-linux-07-tray-menu-running.png) | Linux (container, unbundled) · stand-in runtime | On main after #31: the tray menu open over the window, with the status line "Runtime running · 2 streams" greyed, Open Tatolab, Run Tatolab checked, and Quit Tatolab. |
+| ![](electron-window/live-linux-08-tray-run-tatolab-unchecked.png) | Linux (container, unbundled) · stand-in runtime | After choosing Run Tatolab in the tray: the menu now reads "Runtime stopped" with Run Tatolab unchecked, and the window behind it shows "Tatolab is off" with Turn On Tatolab, so the tray and the window follow the same status. |
+| ![](electron-window/live-linux-09-turned-on-from-the-window.png) | Linux (container, unbundled) · stand-in runtime | After Turn On Tatolab in the window: `starting` then `running`, and `main`'s graph and logs back. |
 
 ## The window in Chromium: every mock preset (Mock)
 
