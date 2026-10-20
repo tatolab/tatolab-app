@@ -4,7 +4,12 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
-import { builtWindowFileForRequest, inlineScriptHashSources, windowPageContentSecurityPolicy } from "./tatolab_window_page_source.js";
+import {
+  builtWindowFileForRequest,
+  inlineScriptHashSources,
+  isOnTheWindowPagesOwnLocation,
+  windowPageContentSecurityPolicy,
+} from "./tatolab_window_page_source.js";
 
 test("a request on the app's origin reads its file from the built window, and the root reads index.html", () => {
   expect(builtWindowFileForRequest("/app/dist", "tatolab-app://app/index.html")).toBe("/app/dist/index.html");
@@ -15,9 +20,23 @@ test("a request on the app's origin reads its file from the built window, and th
 test("a request off the app's origin or out of the built window reads nothing", () => {
   expect(builtWindowFileForRequest("/app/dist", "tatolab-app://elsewhere/index.html")).toBeNull();
   expect(builtWindowFileForRequest("/app/dist", "https://app/index.html")).toBeNull();
-  expect(builtWindowFileForRequest("/app/dist", "tatolab-app://app/%2e%2e/%2e%2e/etc/passwd")).toBe("/app/dist/etc/passwd");
   expect(builtWindowFileForRequest("/app/dist", "tatolab-app://app/%2F..%2F..%2Fetc%2Fpasswd")).toBeNull();
   expect(builtWindowFileForRequest("/app/dist", "tatolab-app://app/%E0%A4%A")).toBeNull();
+});
+
+test("an encoded dot-segment is folded by the URL and stays inside the built window", () => {
+  expect(builtWindowFileForRequest("/app/dist", "tatolab-app://app/%2e%2e/%2e%2e/etc/passwd")).toBe("/app/dist/etc/passwd");
+});
+
+test("the window navigates only on its own page's scheme and host, never to a file, data, another host or a web page", () => {
+  const windowPageUrl = "tatolab-app://app/index.html";
+  expect(isOnTheWindowPagesOwnLocation(windowPageUrl, "tatolab-app://app/index.html?stream=main")).toBe(true);
+  expect(isOnTheWindowPagesOwnLocation(windowPageUrl, "tatolab-app://app/assets/index.js")).toBe(true);
+  for (const navigationUrl of ["file:///etc/passwd", "data:text/html,hi", "tatolab-app://elsewhere/", "https://app/", "not a url"]) {
+    expect(isOnTheWindowPagesOwnLocation(windowPageUrl, navigationUrl)).toBe(false);
+  }
+  expect(isOnTheWindowPagesOwnLocation("http://localhost:1420/", "http://localhost:1420/?state=stopped")).toBe(true);
+  expect(isOnTheWindowPagesOwnLocation("http://localhost:1420/", "http://localhost:1421/")).toBe(false);
 });
 
 test("the policy allows the window page's own inline theme script by its hash, and nothing else inline", () => {

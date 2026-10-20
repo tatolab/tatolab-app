@@ -38,6 +38,14 @@ export function builtWindowFileForRequest(builtWindowDirectory: string, requestU
   return builtWindowFile;
 }
 
+/** Whether `navigationUrl` stays on the window page's own scheme and host. A custom scheme's URL origin is the opaque "null", which every file:, data: and custom-scheme URL shares, so origins cannot be compared. */
+export function isOnTheWindowPagesOwnLocation(windowPageUrl: string, navigationUrl: string): boolean {
+  if (!URL.canParse(windowPageUrl) || !URL.canParse(navigationUrl)) return false;
+  const windowPageLocation = new URL(windowPageUrl);
+  const navigationLocation = new URL(navigationUrl);
+  return navigationLocation.protocol === windowPageLocation.protocol && navigationLocation.host === windowPageLocation.host;
+}
+
 /** The `'sha256-…'` source of every inline script in `windowPageHtml`: the theme script that runs before the page paints. */
 export function inlineScriptHashSources(windowPageHtml: string): string[] {
   return [...windowPageHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(

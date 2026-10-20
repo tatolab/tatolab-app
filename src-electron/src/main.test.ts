@@ -6,24 +6,10 @@ import { FakeTatolabElectronAppShell } from "./fake_tatolab_electron_app_shell.j
 import { startTatolabApp } from "./main.js";
 import { TatolabMainWindow } from "./tatolab_main_window.js";
 import { TatolabTrayMenu } from "./tatolab_tray_menu.js";
-import { MACOS_MAIN_WINDOW_CHROME, MACOS_TRAY_ICON_IMAGE, setMacosDockIconVisible } from "./platform/macos/mod.js";
-import { LINUX_MAIN_WINDOW_CHROME, LINUX_TRAY_ICON_IMAGE, setLinuxDockIconVisible } from "./platform/linux/mod.js";
-import type { TatolabPlatformItems } from "./platform/mod.js";
+import { tatolabPlatformItemsFor } from "./platform/mod.js";
 
-const MACOS_PLATFORM_ITEMS: TatolabPlatformItems = {
-  platform: "macos",
-  trayIconImage: MACOS_TRAY_ICON_IMAGE,
-  mainWindowChrome: MACOS_MAIN_WINDOW_CHROME,
-  applicationMenu: "macos_menu_bar",
-  setDockIconVisible: setMacosDockIconVisible,
-};
-const LINUX_PLATFORM_ITEMS: TatolabPlatformItems = {
-  platform: "linux",
-  trayIconImage: LINUX_TRAY_ICON_IMAGE,
-  mainWindowChrome: LINUX_MAIN_WINDOW_CHROME,
-  applicationMenu: "none",
-  setDockIconVisible: setLinuxDockIconVisible,
-};
+const MACOS_PLATFORM_ITEMS = tatolabPlatformItemsFor("darwin");
+const LINUX_PLATFORM_ITEMS = tatolabPlatformItemsFor("linux");
 
 describe("the app on macOS", () => {
   let fakeShell: FakeTatolabElectronAppShell;
@@ -114,6 +100,12 @@ describe("the app on Linux", () => {
 });
 
 describe("starting the app", () => {
+  test("only macOS and Linux have platform items, with macOS's template tray mark and Linux's coloured one", () => {
+    expect(MACOS_PLATFORM_ITEMS).toMatchObject({ platform: "macos", trayIconImage: { pngFileName: "tray-template.png", isATemplate: true } });
+    expect(LINUX_PLATFORM_ITEMS).toMatchObject({ platform: "linux", trayIconImage: { pngFileName: "tray-coloured.png", isATemplate: false } });
+    expect(tatolabPlatformItemsFor("win32")).toBeNull();
+  });
+
   test("a second launch hands itself to the running app and exits without a window or a tray icon", async () => {
     const fakeShell = new FakeTatolabElectronAppShell();
     fakeShell.holdsTheSingleInstanceLock = false;

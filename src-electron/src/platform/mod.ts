@@ -64,7 +64,12 @@ export interface TatolabPlatformItems {
 
 /** This build's platform items, or `null` on an OS Tatolab does not run on: it registers the runtime through Service Management on macOS and drives the installer's systemd user service on Linux. */
 export function tatolabPlatformItemsForThisBuild(): TatolabPlatformItems | null {
-  switch (process.platform) {
+  return tatolabPlatformItemsFor(process.platform);
+}
+
+/** The platform items for Node's name of an OS, or `null` for one Tatolab does not run on. */
+export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatformItems | null {
+  switch (nodePlatformName) {
     case "darwin":
       return {
         platform: "macos",
