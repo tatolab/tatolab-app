@@ -28,12 +28,10 @@ const NO_SESSION_BUS_ADDRESS =
   "Failed to connect to bus: $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined (consider using " +
   "--machine=<user>@.host --user to connect to bus of other user)\n";
 
-const tatolabAppLogLines: string[] = [];
-const tatolabAppLog = createTatolabAppLog("debug", (logLine) => tatolabAppLogLines.push(logLine));
+const tatolabAppLog = createTatolabAppLog("debug", () => {});
 const temporaryConfigDirectories: string[] = [];
 
 afterEach(async () => {
-  tatolabAppLogLines.length = 0;
   await Promise.all(temporaryConfigDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
 });
 
