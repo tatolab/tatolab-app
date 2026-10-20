@@ -198,6 +198,17 @@ describe("starting the app", () => {
     expect(fakeShell.writtenLogLines).toContain("ERROR the Tatolab window could not be created failure=\"no display\"");
   });
 
+  test("each opening reconciles the runtime's agent with Run Tatolab: the first registers it, and opening again registers it once more after it went", async () => {
+    const fakeShell = fakeShellQuitAfterTheTest();
+    fakeShell.runtimeAgent.status = "not_registered";
+    await startTatolabApp(fakeShell.tatolabElectronAppShell, LINUX_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("register");
+    fakeShell.runtimeAgent.status = "not_registered";
+    fakeShell.runtimeAgent.calls.length = 0;
+    fakeShell.openTheAppAgain();
+    await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("register");
+  });
+
   test("the first opening offers the missing machine setup, and Set Up Tatolab… in the tray asks again; a refusal is logged", async () => {
     const fakeShell = fakeShellQuitAfterTheTest();
     fakeShell.machineSetup = new FakeTatolabMachineSetup("needs_administrator", null);

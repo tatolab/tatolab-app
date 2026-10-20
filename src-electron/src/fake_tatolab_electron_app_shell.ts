@@ -55,7 +55,7 @@ export class FakeTatolabElectronAppShell {
     exitTheApp: (exitCode) => this.records.push({ asked: "exit", exitCode }),
     setTheApplicationMenu: (applicationMenu) => this.records.push({ asked: "set_application_menu", applicationMenu }),
     buildTheTatolabPlatformForThisBuild: async () =>
-      fakeTatolabPlatformForThisBuild(this.runtimeAgent, this.machineSetup, "/tmp/tl-app-no-runtime.sock", this.tatolabUninstall),
+      fakeTatolabPlatformForThisBuild(this.runtimeAgent, this.machineSetup, path.join(this.appConfigDirectory, "no-runtime.sock"), this.tatolabUninstall),
     answerTheWindowsCommands: (tatolabWindowCommandHandlers) => {
       this.tatolabWindowCommandHandlers = tatolabWindowCommandHandlers;
     },

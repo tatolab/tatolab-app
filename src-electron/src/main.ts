@@ -79,6 +79,16 @@ export async function startTatolabApp(
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabMainWindow.letTheWindowCloseAsTheAppQuits());
   await tatolabElectronAppShell.whenReady();
   tatolabElectronAppShell.setTheApplicationMenu(platformItems.applicationMenu);
+  let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
+  tatolabElectronAppShell.onTheAppOpenedAgain(() => {
+    tatolabMainWindow.show();
+    if (sharedStateOnceBuilt === null) return;
+    sharedStateOnceBuilt.statusPublisher.sendTheLastPublishedStatusToTheWindow();
+    runInTheBackgroundWithTheController(sharedStateOnceBuilt, "tatolab-app-reopened", async (controller, statusPublisher) => {
+      await controller.reconcileTheAgentWithTheRunTatolabSwitch();
+      statusPublisher.requestRefresh();
+    });
+  });
   const platformForThisBuild = await tatolabElectronAppShell.buildTheTatolabPlatformForThisBuild(platformItems);
   const controller = await TatolabAppController.create({
     platform: platformItems.platform,
@@ -103,13 +113,7 @@ export async function startTatolabApp(
     statusPublisher.sendTheLastPublishedStatusToTheWindow();
   };
   tatolabElectronAppShell.answerTheWindowsCommands(tatolabWindowCommandHandlers(sharedState, quitTheApp));
-  tatolabElectronAppShell.onTheAppOpenedAgain(() => {
-    showTheWindowWithTheLastStatus();
-    runInTheBackgroundWithTheController(sharedState, "tatolab-app-reopened", async (controller, statusPublisher) => {
-      await controller.reconcileTheAgentWithTheRunTatolabSwitch();
-      statusPublisher.requestRefresh();
-    });
-  });
+  sharedStateOnceBuilt = sharedState;
   const onTrayMenuChoice = (trayMenuChoice: TrayMenuChoice) => {
     switch (trayMenuChoice) {
       case "open_tatolab":

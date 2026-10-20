@@ -44,6 +44,11 @@ export function isOnTheWindowPagesOwnLocation(windowPageUrl: string, navigationU
   return navigationLocation.protocol === windowPageLocation.protocol && navigationLocation.host === windowPageLocation.host;
 }
 
+/** Whether a command came from the window's own page at `windowPageUrl`: its top frame, on the page's own location, rather than a frame it embeds, a frame already gone, or a page it navigated to. */
+export function isACommandFromTheWindowsOwnPage(windowPageUrl: string, senderFrameUrl: string | null, senderIsTheTopFrame: boolean): boolean {
+  return senderFrameUrl !== null && senderIsTheTopFrame && isOnTheWindowPagesOwnLocation(windowPageUrl, senderFrameUrl);
+}
+
 /** The `'sha256-…'` source of every inline script in `windowPageHtml`: the theme script that runs before the page paints. */
 export function inlineScriptHashSources(windowPageHtml: string): string[] {
   return [...windowPageHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
