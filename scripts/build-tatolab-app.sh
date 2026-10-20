@@ -88,6 +88,8 @@ mkdir -p "$assembled_app/Contents/Frameworks/tatolab-app-native"
 install -m 0755 "$built_service_management_addon" "$assembled_app/Contents/Frameworks/tatolab-app-native/service_management_agent_services.node"
 info_plist="$assembled_app/Contents/Info.plist"
 plutil -replace LSMinimumSystemVersion -string 15.0 "$info_plist"
+# Electron's own Info.plist lets the main process load any http:// URL; the app loads none.
+plutil -remove NSAppTransportSecurity "$info_plist"
 # Electron's own Info.plist asks for Bluetooth and system audio capture in words that do not name
 # Tatolab; the app uses neither, so those strings go.
 while IFS= read -r usage_description_key; do

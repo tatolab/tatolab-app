@@ -99,6 +99,8 @@ verify_app_bundle() {
     [ -x "$contents/MacOS/$bundled_executable" ] && pass "Contents/MacOS/$bundled_executable is present" \
       || fail "Contents/MacOS/$bundled_executable is missing"
   done
+  plutil -extract NSAppTransportSecurity xml1 -o - "$info_plist" >/dev/null 2>&1 \
+    && fail "Info.plist carries Electron's NSAppTransportSecurity exception" || pass "Info.plist carries no App Transport Security exception"
   local usage_key usage_description
   while IFS= read -r usage_key; do
     [ -n "$usage_key" ] || continue

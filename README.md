@@ -148,7 +148,8 @@ also carry `cs.allow-jit`, because V8 maps its code writable and executable; Ele
 helpers and the CLI carry none. The packaged app's Electron fuses turn off `RunAsNode`,
 `NODE_OPTIONS` and `--inspect`, so no other process can run the signed app as plain Node and
 inherit its camera grant, and turn on asar integrity and asar-only loading. Electron's own
-Bluetooth and audio-capture usage strings are removed; the app uses neither. The main process
+Bluetooth and audio-capture usage strings and its `NSAllowsArbitraryLoads` exception are removed;
+the app uses none of them. The main process
 keeps Chromium's profile in `~/Library/Application Support/com.tatolab.tatolab` (Linux:
 `~/.config/com.tatolab.tatolab`), never in the runtime's `~/Library/Application Support/Tatolab`. Neither carries `cs.disable-library-validation`: every Mach-O in the bundle is
 signed by the same team, so library validation accepts the dylibs `tatolabd` loads. Ad-hoc builds
