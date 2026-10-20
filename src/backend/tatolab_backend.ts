@@ -2,6 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import type { StreamGraphSummary, StreamLogRecordsPage, TatolabStatus } from "./tatolab_backend_contract";
+import { TATOLAB_WINDOW_PAGE_SCHEME, type TatolabElectronBridge } from "./tatolab_electron_bridge_contract";
+
+declare global {
+  interface Window {
+    /** Set by the Electron app's preload; absent in Tauri and in a browser. */
+    tatolabElectronBridge?: TatolabElectronBridge;
+  }
+}
 
 /** The app backend's commands and status event, real inside Tatolab.app or mocked in a browser. */
 export interface TatolabBackend {
@@ -17,14 +25,19 @@ export interface TatolabBackend {
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
 }
 
-/** Where the page runs: Tatolab.app's Tauri webview, its Electron window, or a browser showing the mock. */
-export type TatolabWindowHost = "tauri" | "electron" | "browser";
+/** Where the page runs: Tatolab.app's Tauri webview, its Electron window with the preload's bridge, the Electron app's own page without it, or a browser showing the mock. */
+export type TatolabWindowHost =
+  | { kind: "tauri" }
+  | { kind: "electron"; tatolabElectronBridge: TatolabElectronBridge }
+  | { kind: "electron_without_its_bridge" }
+  | { kind: "browser" };
 
-/** The host this page runs in, told by what each one puts on `window`. */
+/** The host this page runs in, told by what each one puts on `window` and the scheme it is served under. */
 export function tatolabWindowHost(): TatolabWindowHost {
-  if ("__TAURI_INTERNALS__" in window) return "tauri";
-  if (window.tatolabElectronBridge !== undefined) return "electron";
-  return "browser";
+  if ("__TAURI_INTERNALS__" in window) return { kind: "tauri" };
+  if (window.tatolabElectronBridge !== undefined) return { kind: "electron", tatolabElectronBridge: window.tatolabElectronBridge };
+  if (window.location.protocol === `${TATOLAB_WINDOW_PAGE_SCHEME}:`) return { kind: "electron_without_its_bridge" };
+  return { kind: "browser" };
 }
 
 /** The text of a rejected command: Tauri and the Electron backend reject with the backend's refusal string. */

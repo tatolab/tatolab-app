@@ -2,6 +2,40 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## The window in Chromium: every mock preset (Mock)
+
+Issue #23 moves the window from Tauri's WebKit to Electron's Chromium. Each preset of the mock
+backend was shot with [`shoot-mock-presets-in-chromium.mjs`](electron-window/shoot-mock-presets-in-chromium.mjs)
+in Playwright's Chromium 141, the engine Electron renders the window with (Electron 44.9.1 ships
+Chromium 152), against the Vite dev server: a browser page on the mock backend, not the Electron
+window, its `tatolab-app://` origin or its preload. Each at 1040×700, light and dark. They render as
+the WebKit shots in [Platforms and uninstall](#platforms-and-uninstall-mock-data-in-a-browser) do.
+
+| image | label | shows |
+|---|---|---|
+| ![](electron-window/01-macos-running-graph-light.png) ![](electron-window/01-macos-running-graph-dark.png) | Mock (Chromium 141) | `main` (Kept) selected on `jonathanf-macbook`, "Tatolab is running", five streams with `pattern-two` Stopped and dimmed and `lobby-recorder` Failed in red with its reason; the Graph tab with four node cards and their links, and the log dock following below. |
+| ![](electron-window/02-macos-running-logs-light.png) ![](electron-window/02-macos-running-logs-dark.png) | Mock (Chromium 141) | The Logs tab of `main`: timestamped records with info, a yellow warn and a red error, each with its key=value attributes, Following on. |
+| ![](electron-window/03-macos-settings-light.png) ![](electron-window/03-macos-settings-dark.png) | Mock (Chromium 141) | Settings: Run Tatolab on, Login Items with Open Login Items…, the `tatolab` command at `/usr/local/bin/tatolab`, About with the version, the Mac and stream records, Quit Tatolab. |
+| ![](electron-window/04-macos-approval-light.png) ![](electron-window/04-macos-approval-dark.png) | Mock (Chromium 141) | "Needs approval" in the sidebar, the page "Allow Tatolab in Login Items" with its Open Login Items… button. |
+| ![](electron-window/05-macos-setup-light.png) ![](electron-window/05-macos-setup-dark.png) | Mock (Chromium 141) | "Runtime missing" in red, the page "This copy of Tatolab is missing its runtime" with what to do. |
+| ![](electron-window/06-macos-uninstall-sheet-light.png) ![](electron-window/06-macos-uninstall-sheet-dark.png) | Mock (Chromium 141) | The Uninstall Tatolab? sheet over Settings: its three steps, records kept, Cancel and Uninstall. |
+| ![](electron-window/07-macos-uninstalling-light.png) ![](electron-window/07-macos-uninstalling-dark.png) | Mock (Chromium 141) | The same sheet after Uninstall: "macOS asks for your password now", Cancel greyed and Uninstalling… with its spinner. |
+| ![](electron-window/08-macos-unreachable-light.png) ![](electron-window/08-macos-unreachable-dark.png) | Mock (Chromium 141) | "Not responding" in red, the page "The runtime isn't responding" with Run Tatolab On, the `tatolab streams` command and "Still asking." |
+| ![](electron-window/09-linux-running-overview-light.png) ![](electron-window/09-linux-running-overview-dark.png) | Mock (Chromium 141) | `jonathanf-workstation` on Linux: the Overview tab of `main` with its exposed output, four nodes, and three terminal commands with copy buttons; Ctrl key caps. |
+| ![](electron-window/10-linux-settings-light.png) ![](electron-window/10-linux-settings-dark.png) | Mock (Chromium 141) | Linux Settings: Run Tatolab naming `tatolabd.service`, the command in `~/.local/bin`, records in `~/.local/state/tatolab`, Quit and Uninstall Tatolab… |
+| ![](electron-window/11-linux-setup-not-found-light.png) ![](electron-window/11-linux-setup-not-found-dark.png) | Mock (Chromium 141) | "Install the Tatolab runtime": the install command, its two steps, and "Waiting for `tatolabd.service`". |
+| ![](electron-window/12-linux-stopped-light.png) ![](electron-window/12-linux-stopped-dark.png) | Mock (Chromium 141) | "Tatolab is off": `tatolabd.service` stopped, with Turn On Tatolab. |
+| ![](electron-window/13-linux-search-light.png) ![](electron-window/13-linux-search-dark.png) | Mock (Chromium 141) | The search palette over `main`'s graph, with "main" typed: the stream, its exposed output and a copy command. |
+| ![](electron-window/14-macos-empty-light.png) ![](electron-window/14-macos-empty-dark.png) | Mock (Chromium 141) | No streams yet: the dashed `my-stream` placeholder and the "Run your first stream" guide with its three commands and the test-pattern preview. |
+| ![](electron-window/15-macos-loading-light.png) ![](electron-window/15-macos-loading-dark.png) | Mock (Chromium 141) | `main` listed but not loaded: "Loading." with its spinner and the follow-logs command. |
+| ![](electron-window/16-macos-node-error-light.png) ![](electron-window/16-macos-node-error-dark.png) | Mock (Chromium 141) | `main` with `displaywindow` in error: its card outlined red with "In error. The reason is in the logs.", "1 node in error" in the summary, and the red error record in the dock. |
+| ![](electron-window/17-macos-starting-light.png) ![](electron-window/17-macos-starting-dark.png) | Mock (Chromium 141) | "Starting the runtime" with its spinner: "macOS is launching it." |
+| ![](electron-window/18-macos-not-listed-light.png) ![](electron-window/18-macos-not-listed-dark.png) | Mock (Chromium 141) | "The runtime didn't list its streams", and "Couldn't list the streams. Asking again…" in the sidebar. |
+| ![](electron-window/19-macos-logs-errors-only-light.png) ![](electron-window/19-macos-logs-errors-only-dark.png) | Mock (Chromium 141) | The Logs tab filtered to Errors: the one error record only. |
+| ![](electron-window/20-macos-uninstalled-light.png) ![](electron-window/20-macos-uninstalled-dark.png) | Mock (Chromium 141) | "Tatolab is uninstalled. It quits now." over Settings, with Run Tatolab off and the command Not linked. |
+| ![](electron-window/21-macos-uninstall-refused-light.png) ![](electron-window/21-macos-uninstall-refused-dark.png) | Mock (Chromium 141) | The administrator prompt cancelled: Settings scrolled to Uninstall Tatolab with "Uninstall didn't finish: the administrator prompt was cancelled, so nothing was removed" in red. |
+| ![](electron-window/22-linux-uninstall-sheet-light.png) ![](electron-window/22-linux-uninstall-sheet-dark.png) | Mock (Chromium 141) | Linux's Uninstall Tatolab sheet: remove the runtime with the installer's command, then the package; records kept in `~/.local/state/tatolab`; Done. |
+
 ## Electron skeleton: lifecycle and tray (Linux container, unbundled; mock backend)
 
 The Electron app (`npm run electron:dev`, window from Vite at `?platform=linux` on its mock

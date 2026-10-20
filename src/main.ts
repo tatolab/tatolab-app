@@ -20,7 +20,7 @@ import "./styles/runtime_state_page.css";
 import "./styles/uninstall_sheet.css";
 import "./styles/search.css";
 
-import { tatolabWindowHost, type TatolabBackend } from "./backend/tatolab_backend";
+import { tatolabWindowHost, type TatolabBackend, type TatolabWindowHost } from "./backend/tatolab_backend";
 import type { TatolabStatus } from "./backend/tatolab_backend_contract";
 import { createElectronTatolabBackend } from "./backend/electron_tatolab_backend";
 import { createTauriTatolabBackend } from "./backend/tauri_tatolab_backend";
@@ -35,11 +35,21 @@ async function createBrowserMockBackend(pageQuery: URLSearchParams): Promise<Tat
   return createMockTatolabBackend(readMockTatolabOptions(pageQuery));
 }
 
-/** The backend of the host this page runs in: Tauri's IPC, the Electron preload's bridge, or the browser mock. */
-async function createTatolabBackendForThisHost(pageQuery: URLSearchParams): Promise<TatolabBackend> {
-  if (tatolabWindowHost() === "tauri") return createTauriTatolabBackend();
-  if (window.tatolabElectronBridge !== undefined) return createElectronTatolabBackend(window.tatolabElectronBridge);
-  return createBrowserMockBackend(pageQuery);
+/** What the Electron app's window says when its preload did not load: it has no way to the app, and never shows the mock in its place. */
+const WINDOW_WITHOUT_ITS_BRIDGE_TEXT = "Tatolab's window could not reach the app: its preload did not load. Reinstall Tatolab.";
+
+/** The backend of the host this page runs in: Tauri's IPC, the Electron preload's bridge, or the browser mock; `null` for the app's window without its bridge. */
+async function createTatolabBackendFor(windowHost: TatolabWindowHost, pageQuery: URLSearchParams): Promise<TatolabBackend | null> {
+  switch (windowHost.kind) {
+    case "tauri":
+      return createTauriTatolabBackend();
+    case "electron":
+      return createElectronTatolabBackend(windowHost.tatolabElectronBridge);
+    case "electron_without_its_bridge":
+      return null;
+    case "browser":
+      return createBrowserMockBackend(pageQuery);
+  }
 }
 
 /** The status, asked again each second until the backend answers: the window has nothing to show without one. */
@@ -58,8 +68,13 @@ async function startTatolabWindow(): Promise<void> {
   const rootElement = document.getElementById("app");
   if (!rootElement) return;
   const pageQuery = new URLSearchParams(window.location.search);
-  const backend = await createTatolabBackendForThisHost(pageQuery);
-  const insideTheApp = tatolabWindowHost() !== "browser";
+  const windowHost = tatolabWindowHost();
+  const backend = await createTatolabBackendFor(windowHost, pageQuery);
+  if (backend === null) {
+    rootElement.textContent = WINDOW_WITHOUT_ITS_BRIDGE_TEXT;
+    return;
+  }
+  const insideTheApp = windowHost.kind !== "browser";
   const featureFlags = readTatolabFrontendFeatureFlags(insideTheApp, pageQuery);
   let showTatolabStatus: ((status: TatolabStatus) => void) | null = null;
   await backend.onTatolabStatusChanged((status) => showTatolabStatus?.(status));

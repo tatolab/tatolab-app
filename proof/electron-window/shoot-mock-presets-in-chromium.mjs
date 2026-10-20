@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // Shoots the window's mock presets in Chromium, the engine Electron renders the window with,
-// at the window's real size, in both themes. Run with `npm run dev` serving on port 1420:
+// at the window's real size, in both themes. Playwright is not one of the app's dependencies: install
+// it out of the tree (`npm i --no-save playwright`), then, with `npm run dev` serving on port 1420:
 //   node proof/electron-window/shoot-mock-presets-in-chromium.mjs
 import { chromium } from "playwright";
 import path from "node:path";
@@ -23,14 +24,23 @@ const MOCK_PRESETS = [
   ["11-linux-setup-not-found", "platform=linux&state=setup"],
   ["12-linux-stopped", "platform=linux&state=stopped"],
   ["13-linux-search", "platform=linux&state=running&search=main"],
+  ["14-macos-empty", "state=empty"],
+  ["15-macos-loading", "state=loading"],
+  ["16-macos-node-error", "state=node-error&stream=main&tab=graph"],
+  ["17-macos-starting", "state=starting"],
+  ["18-macos-not-listed", "state=not-listed"],
+  ["19-macos-logs-errors-only", "state=running&stream=main&tab=logs&levels=errors"],
+  ["20-macos-uninstalled", "sheet=uninstalled", 8000],
+  ["21-macos-uninstall-refused", "sheet=uninstalling&uninstall=cancel", 6000],
+  ["22-linux-uninstall-sheet", "platform=linux&sheet=uninstall"],
 ];
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1040, height: 700 } });
-for (const [imageName, presetQuery] of MOCK_PRESETS) {
+for (const [imageName, presetQuery, settleMilliseconds = 2500] of MOCK_PRESETS) {
   for (const theme of ["light", "dark"]) {
     await page.goto(`http://localhost:1420/?theme=${theme}&${presetQuery}`);
-    await page.waitForTimeout(2500);
+    await page.waitForTimeout(settleMilliseconds);
     await page.screenshot({ path: path.join(PROOF_DIRECTORY, `${imageName}-${theme}.png`) });
   }
 }

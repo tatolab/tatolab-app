@@ -8,13 +8,6 @@ import type {
   TatolabElectronBridge,
 } from "./tatolab_electron_bridge_contract";
 
-declare global {
-  interface Window {
-    /** Set by the Electron app's preload; absent in Tauri and in a browser. */
-    tatolabElectronBridge?: TatolabElectronBridge;
-  }
-}
-
 /** The backend inside the Electron app: its commands and status event through the preload's bridge, each refusal rejected in the main process's own words. */
 export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElectronBridge): TatolabBackend {
   async function invokeTatolabCommand<CommandName extends TatolabCommandName>(

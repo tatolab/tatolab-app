@@ -7,6 +7,9 @@
 
 import type { StreamGraphSummary, StreamLogRecordsPage, TatolabStatus } from "./tatolab_backend_contract.js";
 
+/** The scheme the Electron app serves its window's page under: a page on it with no bridge is the app's window whose preload did not load. */
+export const TATOLAB_WINDOW_PAGE_SCHEME = "tatolab-app";
+
 /** Every command the window invokes, each an IPC channel the main process handles. */
 export const TATOLAB_COMMAND_NAMES = [
   "get_tatolab_status",
