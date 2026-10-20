@@ -11,9 +11,9 @@ import type { TatolabAppLog } from "../../tatolab_app_log.js";
 import { currentProcessUid, TATOLAB_APP_IDENTIFIER, type TatolabPlatformForThisBuild, type TatolabPlatformHostServices, type TrayIconImage } from "../mod.js";
 import { OSASCRIPT_AT_ITS_SYSTEM_PATH, OsascriptAdministratorPrompt } from "./administrator_prompt.js";
 import { MachineSetupBehindAnAdministratorPrompt } from "./machine_setup.js";
-import { loadServiceManagementAddon, serviceManagementAddonBuiltUnder } from "./service_management_addon.js";
+import { loadServiceManagementAddon, serviceManagementAddonBuiltUnder, serviceManagementAddonInTheAppBundle } from "./service_management_addon.js";
 import { LAUNCHCTL_AT_ITS_SYSTEM_PATH, ServiceManagementRuntimeLaunchAgent } from "./service_management_runtime_launch_agent.js";
-import { bundledCommandLineToolPath, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
+import { appBundleContaining, bundledCommandLineToolPath, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
 import { TatolabUninstallOnThisMac } from "./tatolab_uninstall.js";
 
 export { MACOS_MAIN_WINDOW_CHROME, setMacosDockIconVisible } from "./main_window_chrome.js";
@@ -36,10 +36,12 @@ export async function macosTatolabPlatformForThisBuild(
     local_proof_test_machine_root: machinePaths.localProofTestMachineRoot,
   });
   const administratorPrompt = new OsascriptAdministratorPrompt(OSASCRIPT_AT_ITS_SYSTEM_PATH);
+  const packagedAppBundle = appIsPackaged ? appBundleContaining(appExecutable) : null;
+  const serviceManagementAddonPath = packagedAppBundle === null ? serviceManagementAddonBuiltUnder(appPath) : serviceManagementAddonInTheAppBundle(packagedAppBundle);
   return {
     runtimeAgent: ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(
       uid,
-      loadServiceManagementAddon(serviceManagementAddonBuiltUnder(appPath), tatolabAppLog),
+      loadServiceManagementAddon(serviceManagementAddonPath, tatolabAppLog),
       LAUNCHCTL_AT_ITS_SYSTEM_PATH,
     ),
     machineSetup: MachineSetupBehindAnAdministratorPrompt.create(

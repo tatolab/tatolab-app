@@ -7,6 +7,7 @@ import { createTatolabAppLog } from "../../tatolab_app_log.js";
 import {
   loadServiceManagementAddon,
   serviceManagementAddonBuiltUnder,
+  serviceManagementAddonInTheAppBundle,
   serviceManagementAgentServicesFromTheAddonExports,
 } from "./service_management_addon.js";
 
@@ -89,5 +90,11 @@ test("an addon that cannot be loaded, or exports the wrong functions, leaves Ser
 test("an unpackaged app finds the addon where node-gyp builds it", () => {
   expect(serviceManagementAddonBuiltUnder("/repo")).toBe(
     "/repo/src-electron/native/service_management_agent_services/build/Release/service_management_agent_services.node",
+  );
+});
+
+test("a packaged app finds the addon in its bundle's Frameworks", () => {
+  expect(serviceManagementAddonInTheAppBundle("/Applications/Tatolab.app")).toBe(
+    "/Applications/Tatolab.app/Contents/Frameworks/tatolab-app-native/service_management_agent_services.node",
   );
 });

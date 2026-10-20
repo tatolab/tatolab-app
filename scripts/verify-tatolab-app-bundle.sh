@@ -5,8 +5,9 @@
 # Checks a signed Tatolab.app, or the Tatolab.app inside a .dmg, against the bundle contract:
 # a strict deep signature, the hardened runtime on every Mach-O unless ad-hoc, no Mach-O outside
 # Contents/MacOS and Contents/Frameworks, every symlink resolving inside the bundle, the launch
-# agent plist, the Info.plist usage strings, the lend's CPython 3.10-3.14 bytecode, and the
-# entitlements of tatolabd and the app.
+# agent plist, the Info.plist usage strings, the lend's CPython 3.10-3.14 bytecode, the
+# entitlements of tatolabd, the app and Electron's helpers, Electron's fuses, and the Service
+# Management addon. Reading the fuses needs this checkout's node_modules (npm ci).
 # A stapled target must also pass Gatekeeper.
 #
 # Usage: verify-tatolab-app-bundle.sh <Tatolab.app|file.dmg> [--shipping]
@@ -56,6 +57,22 @@ required_usage_description_keys=(
   NSDocumentsFolderUsageDescription NSDesktopFolderUsageDescription NSDownloadsFolderUsageDescription
 )
 required_device_entitlements=(com.apple.security.device.camera com.apple.security.device.audio-input)
+# The only entitlements each piece of signed code may carry; allow-jit is V8's, in the main
+# process and Blink's renderer (packaging/entitlements/).
+allowed_app_entitlements="com.apple.security.cs.allow-jit com.apple.security.device.audio-input com.apple.security.device.camera"
+allowed_renderer_helper_entitlements="com.apple.security.cs.allow-jit"
+allowed_tatolabd_entitlements="com.apple.security.device.audio-input com.apple.security.device.camera"
+# A process could otherwise run the app as plain Node and inherit its camera and microphone grants.
+required_electron_fuse_states=(
+  "RunAsNode is Disabled" "EnableNodeOptionsEnvironmentVariable is Disabled" "EnableNodeCliInspectArguments is Disabled"
+  "EnableEmbeddedAsarIntegrityValidation is Enabled" "OnlyLoadAppFromAsar is Enabled"
+)
+repository_root="$(cd "$(dirname "$0")/.." && pwd)"
+
+# The entitlement keys `signed_code` carries, sorted, on one line.
+entitlement_keys_of() {
+  codesign -d --entitlements - --xml "$1" 2>/dev/null | grep -o '<key>[^<]*</key>' | sed 's/<[^>]*>//g' | sort | tr '\n' ' ' | sed 's/ $//' || true
+}
 required_lend_bytecode_cache_tags=(cpython-310 cpython-311 cpython-312 cpython-313 cpython-314)
 
 verify_app_bundle() {
@@ -83,6 +100,13 @@ verify_app_bundle() {
       || fail "Contents/MacOS/$bundled_executable is missing"
   done
   local usage_key usage_description
+  while IFS= read -r usage_key; do
+    [ -n "$usage_key" ] || continue
+    case "$(plutil -extract "$usage_key" raw -o - "$info_plist" 2>/dev/null)" in
+      *Tatolab*) ;;
+      *) fail "Info.plist's $usage_key does not name Tatolab" ;;
+    esac
+  done < <(plutil -convert xml1 -o - "$info_plist" | sed -n 's|.*<key>\([A-Za-z]*UsageDescription\)</key>.*|\1|p')
   for usage_key in "${required_usage_description_keys[@]}"; do
     usage_description="$(plutil -extract "$usage_key" raw -o - "$info_plist" 2>/dev/null || true)"
     case "$usage_description" in
@@ -176,8 +200,11 @@ verify_app_bundle() {
     agent_open_files_limit="$(plutil -extract SoftResourceLimits.NumberOfFiles raw -o - "$launch_agent_plist" 2>/dev/null || echo 0)"
     [ "$agent_open_files_limit" -ge 10240 ] \
       && pass "launch agent may open $agent_open_files_limit files" || fail "launch agent's SoftResourceLimits.NumberOfFiles is ${agent_open_files_limit}, below 10240"
+    # The asar stores the main process's modules uncompressed, so the build's feature literal reads as text.
     if plutil -extract EnvironmentVariables.TATOLAB_TEST_MACHINE_ROOT raw -o - "$launch_agent_plist" >/dev/null 2>&1 \
-      || [ -e "$contents/Resources/machine-directories-under-a-test-root" ]; then
+      || [ -e "$contents/Resources/machine-directories-under-a-test-root" ] \
+      || grep -aqF "machineDirectoriesUnderATestRoot: true" "$contents/Resources/app.asar" \
+      || ! grep -aqF "machineDirectoriesUnderATestRoot: false" "$contents/Resources/app.asar"; then
       if $shipping; then
         fail "LOCAL PROOF build (test machine root): never ship it"
       else
@@ -198,6 +225,37 @@ verify_app_bundle() {
         && pass "$entitlement on $(basename "$signed_code")" || fail "no $entitlement on $(basename "$signed_code")"
     done
   done
+  local signed_code_entitlement_keys
+  signed_code_entitlement_keys="$(entitlement_keys_of "$app_bundle")"
+  [ "$signed_code_entitlement_keys" = "$allowed_app_entitlements" ] \
+    && pass "the app carries exactly: $allowed_app_entitlements" || fail "the app's entitlements are '$signed_code_entitlement_keys', not '$allowed_app_entitlements'"
+  signed_code_entitlement_keys="$(entitlement_keys_of "$contents/MacOS/tatolabd")"
+  [ "$signed_code_entitlement_keys" = "$allowed_tatolabd_entitlements" ] \
+    && pass "tatolabd carries exactly: $allowed_tatolabd_entitlements" || fail "tatolabd's entitlements are '$signed_code_entitlement_keys', not '$allowed_tatolabd_entitlements'"
+  local helper_app helper_app_count=0 allowed_helper_entitlements
+  while IFS= read -r -d '' helper_app; do
+    helper_app_count=$((helper_app_count + 1))
+    case "$helper_app" in
+      *"(Renderer).app") allowed_helper_entitlements="$allowed_renderer_helper_entitlements" ;;
+      *) allowed_helper_entitlements="" ;;
+    esac
+    signed_code_entitlement_keys="$(entitlement_keys_of "$helper_app")"
+    [ "$signed_code_entitlement_keys" = "$allowed_helper_entitlements" ] \
+      && pass "$(basename "$helper_app") carries exactly: ${allowed_helper_entitlements:-no entitlements}" \
+      || fail "$(basename "$helper_app")'s entitlements are '$signed_code_entitlement_keys', not '${allowed_helper_entitlements}'"
+  done < <(find "$contents/Frameworks" -maxdepth 1 -name '*.app' -print0)
+  [ "$helper_app_count" -gt 0 ] || fail "Contents/Frameworks holds no Electron helper app"
+
+  local electron_fuse_states electron_fuse_state
+  electron_fuse_states="$(cd "$repository_root" && npx --no-install @electron/fuses read --app "$app_bundle" 2>&1 || true)"
+  for electron_fuse_state in "${required_electron_fuse_states[@]}"; do
+    grep -qF "$electron_fuse_state" <<<"$electron_fuse_states" \
+      && pass "Electron fuse: $electron_fuse_state" || fail "Electron fuse is not '$electron_fuse_state'"
+  done
+  [ -f "$contents/Frameworks/tatolab-app-native/service_management_agent_services.node" ] \
+    && is_mach_o "$contents/Frameworks/tatolab-app-native/service_management_agent_services.node" \
+    && pass "the Service Management addon is in Frameworks/tatolab-app-native" \
+    || fail "no Service Management addon at Contents/Frameworks/tatolab-app-native/service_management_agent_services.node"
 
   stapled_and_accepted_by_gatekeeper "$app_bundle" execute
 }

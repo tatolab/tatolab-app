@@ -2,6 +2,24 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## The packaged Electron app: the .deb and the AppImage (Ubuntu 22.04 container; tatolabd stand-in)
+
+Issue #24. `scripts/build-tatolab-linux-app.sh` on this branch built `Tatolab-0.45.0-amd64.deb` and
+`Tatolab-0.45.0-x86_64.AppImage` on x86_64. In a clean `ubuntu:22.04` container (`docker run
+--security-opt seccomp=unconfined`, so user namespaces work as on a desktop), `apt-get install
+./Tatolab-0.45.0-amd64.deb` pulled every dependency from the 22.04 archive and installed
+`/usr/bin/Tatolab -> ../lib/tatolab/Tatolab` with `chrome-sandbox` `-rwsr-xr-x root`. Each package
+ran as an ordinary user (uid 1000), **with Chromium's sandbox on** (no `--no-sandbox`), under Xvfb
+with openbox and stalonetray; the AppImage ran with `--appimage-extract-and-run` (no FUSE in the
+container). **No runtime ran:** the `systemctl` stand-in and recorded local API from
+[`electron-window/linux-stand-ins/`](electron-window/linux-stand-ins/) answered. Chromium's profile
+went to `~/.config/com.tatolab.tatolab`, and nothing was written to `~/.config/Tatolab`.
+
+| image | label | shows |
+|---|---|---|
+| ![](electron-packaging/live-linux-01-deb-installed-on-ubuntu-22.04.png) | Linux (container, .deb installed) · stand-in runtime | The installed app, started as `/usr/bin/Tatolab`: "Tatolab is running" on `linux-container-stand-in`, `main` Kept with its four nodes and three links, the logs following with three warnings, and the mark in the tray. |
+| ![](electron-packaging/live-linux-02-appimage-on-ubuntu-22.04.png) | Linux (container, AppImage) · stand-in runtime | The AppImage, the same window and tray from the same recorded runtime. |
+
 ## The window on the Electron backend (macOS, unpackaged; Live (local proof))
 
 PR #32 at 7433d46 on the owner's Mac (macOS 26.7.1), with Electron 44.9.1 unpackaged and

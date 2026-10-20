@@ -119,6 +119,7 @@ jobs:
       - name: Test and lint the app (default and local-proof feature sets)
         run: |
           npm ci
+          npm run build:service-management-addon
           npm run build
           npm test
           cargo test --manifest-path src-tauri/Cargo.toml --locked
@@ -220,13 +221,13 @@ jobs:
         with:
           persist-credentials: false
 
-      # Tauri v2's Linux prerequisites (https://v2.tauri.app/start/prerequisites/#linux). The tray
-      # builds against the ayatana appindicator, which the .deb then depends on.
+      # Tauri v2's Linux prerequisites (https://v2.tauri.app/start/prerequisites/#linux) for the
+      # Rust tests; dpkg-dev and desktop-file-utils for the Electron app's .deb and AppImage.
       - name: Install WebKitGTK, the appindicator and the build tools
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev \
-            libssl-dev libayatana-appindicator3-dev librsvg2-dev
+            libssl-dev libayatana-appindicator3-dev librsvg2-dev dpkg-dev desktop-file-utils
 
       - uses: dtolnay/rust-toolchain@stable
         with:

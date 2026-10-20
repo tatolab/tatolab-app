@@ -2,7 +2,7 @@
 # Copyright (c) 2025 Jonathan Fontanez
 # SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 #
-# Lays streamlib's runtime unit into a Tatolab.app that `tauri build` produced:
+# Lays streamlib's runtime unit into a Tatolab.app that @electron/packager produced:
 #   Contents/MacOS/tatolabd, Contents/MacOS/tatolab-cli  the runtime and the CLI (bin/tatolab: the
 #                                                         filesystem is case-insensitive, so "tatolab"
 #                                                         would replace the app's own "Tatolab")
@@ -41,7 +41,7 @@ lent_runtime_package_relative_to_the_lend="tatolab/runtime"
 processor_interpreter_python_versions=(3.10 3.11 3.12 3.13 3.14)
 
 contents="$app_bundle/Contents"
-[ -x "$contents/MacOS/Tatolab" ] || { echo "$app_bundle has no Contents/MacOS/Tatolab: not a tauri-built Tatolab.app" >&2; exit 1; }
+[ -x "$contents/MacOS/Tatolab" ] || { echo "$app_bundle has no Contents/MacOS/Tatolab: not a packaged Tatolab.app" >&2; exit 1; }
 for required in bin/tatolabd bin/tatolab "lib/tatolab/lend/$lent_runtime_package_relative_to_the_lend"; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit $runtime_unit_directory is missing $required" >&2; exit 1; }
 done

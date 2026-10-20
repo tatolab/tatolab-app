@@ -113,7 +113,12 @@ other OS is a compile error.
 ```
 Tatolab.app/Contents/
   Info.plist                                  LSUIElement, usage strings (src-tauri/macos/Info.plist)
-  MacOS/Tatolab                               the app (Tauri)
+  MacOS/Tatolab                               the app (Electron); its window, main process and
+                                              preload in Resources/app.asar
+  Frameworks/Electron Framework.framework, Frameworks/Tatolab Helper*.app
+                                              Electron, and its GPU, plugin and renderer helpers
+  Frameworks/tatolab-app-native/service_management_agent_services.node
+                                              the app's Service Management addon
   MacOS/tatolabd                              the runtime (streamlib bin/tatolabd)
   MacOS/tatolab-cli                           the CLI (streamlib bin/tatolab); first launch links
                                               /usr/local/bin/tatolab to it
@@ -135,21 +140,31 @@ file called `tatolab` would overwrite `Tatolab`. Code signing only accepts code 
 import `tatolab.runtime` from that lend with every `PYTHON*` variable stripped. Without the shipped
 bytecode they would write `__pycache__` into the signed bundle, which breaks its seal.
 
-Entitlements: `src-tauri/macos/Tatolab.entitlements` (the app) and
+Entitlements: `packaging/entitlements/tatolab-app.entitlements` (the app) and
 `packaging/entitlements/tatolabd.entitlements` (the runtime) carry `device.camera` and
 `device.audio-input`. The hardened runtime refuses camera and microphone access without them. The
-CLI needs none. Neither carries `cs.disable-library-validation`: every Mach-O in the bundle is
+app and `Tatolab Helper (Renderer).app` (`packaging/entitlements/tatolab-renderer-helper.entitlements`)
+also carry `cs.allow-jit`, because V8 maps its code writable and executable; Electron's other
+helpers and the CLI carry none. The packaged app's Electron fuses turn off `RunAsNode`,
+`NODE_OPTIONS` and `--inspect`, so no other process can run the signed app as plain Node and
+inherit its camera grant, and turn on asar integrity and asar-only loading. Electron's own
+Bluetooth and audio-capture usage strings are removed; the app uses neither. The main process
+keeps Chromium's profile in `~/Library/Application Support/com.tatolab.tatolab` (Linux:
+`~/.config/com.tatolab.tatolab`), never in the runtime's `~/Library/Application Support/Tatolab`. Neither carries `cs.disable-library-validation`: every Mach-O in the bundle is
 signed by the same team, so library validation accepts the dylibs `tatolabd` loads. Ad-hoc builds
 are signed without the hardened runtime, because ad-hoc code has no Team ID and library
 validation would refuse the bundled dylibs.
 
 ## Linux packages
 
-The `.deb` installs the app as `/usr/bin/Tatolab` with the desktop entry
-`/usr/share/applications/Tatolab.desktop` (`Categories=Development;`) and its icons. Tauri's CLI
-writes its `Depends`: `libwebkit2gtk-4.1-0`, `libgtk-3-0` and, for the tray,
-`libayatana-appindicator3-1`; it recommends `curl` for the installer's command. The AppImage
-carries the same app with WebKitGTK and the appindicator inside it.
+The `.deb` (package `tatolab`) installs the Electron app in `/usr/lib/tatolab/`, linked as
+`/usr/bin/Tatolab`, with the desktop entry `/usr/share/applications/Tatolab.desktop`
+(`Categories=Development;`) and its icons. Its `chrome-sandbox` is setuid root, which Chromium
+needs where unprivileged user namespaces are off. `Depends` names Electron's libraries without
+versions or `t64` suffixes, so one package installs on Ubuntu 22.04 and 24.04; the build fails if
+the app links a library the list does not name. It recommends `curl` for the installer's command.
+The AppImage carries the same app; it has no setuid sandbox helper, so it needs unprivileged user
+namespaces (on by default on Ubuntu 22.04, restricted by AppArmor on 24.04).
 
 ## Building on macOS
 
@@ -160,8 +175,10 @@ scripts/build-tatolab-app.sh
 ```
 
 It builds streamlib's runtime unit (`cargo xtask build-runtime --release`, in streamlib's own
-target directory), then the Tauri app; Tauri's build runs `npm run build`, which builds the
-window's frontend into `dist/` for the app to embed. It assembles the bundle, signs it, builds the
+target directory), then the Electron app: `npm run build` (the window into `dist/`),
+`npm run build:electron` (the main process and the preload), the arm64 Service Management addon,
+and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
+`@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
 branded `.dmg` and checks the result. The output is `build/Tatolab.app` and
 `build/Tatolab-<version>-arm64.dmg`.
 
@@ -174,49 +191,52 @@ branded `.dmg` and checks the result. The output is `build/Tatolab.app` and
 | `--app-version X.Y.Z` | bundle version; a release passes the streamlib version it bundles |
 | `--local-proof-test-root` | local proof build, below |
 
-**Local proof build** (`--local-proof-test-root`). Both the runtime unit and the app are built
-with the `machine-directories-under-a-test-root` feature. The agent plist sets
+**Local proof build** (`--local-proof-test-root`). The runtime unit is built with the
+`machine-directories-under-a-test-root` feature, and the packaged app with
+`TATOLAB_APP_BUILD_FEATURES.machineDirectoriesUnderATestRoot` set to `true`. The agent plist sets
 `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, so the machine lock, the state directory and the
 socket all live under that root. The app prepares the root itself: no administrator prompt, and
 nothing is written to `/Library` or `/usr/local/bin`. Uninstalling a local-proof build removes
 `/tmp/tatolab-proof` instead of prompting. Use it to prove the app on a development Mac. It is
 never shipped: `assemble-tatolab-app-bundle.sh` refuses a test-root unit without the flag, and
-`verify-tatolab-app-bundle.sh --shipping` fails such a bundle.
+`verify-tatolab-app-bundle.sh --shipping` fails such a bundle, whether the marker, the agent's
+environment or the asar's build features give it away.
 
 The individual steps are separate scripts in `scripts/`:
 
 | Script | |
 |---|---|
 | `build-tatolab-runtime-unit.sh <streamlib> [--local-proof-test-root]` | builds the runtime unit |
-| `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> [--local-proof-test-root]` | lays the unit into a Tauri-built app |
-| `sign-tatolab-app-bundle.sh <Tatolab.app> <identity>` | signs inside-out (Frameworks, tatolabd, tatolab-cli, the app) |
+| `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out> [--local-proof-test-root]` | packs the built app with `@electron/packager` and flips its fuses |
+| `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> [--local-proof-test-root]` | lays the unit into the packaged app |
+| `sign-tatolab-app-bundle.sh <Tatolab.app> <identity>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, the app) |
 | `make-tatolab-dmg.sh <Tatolab.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless) and its signature |
 | `notarize-and-staple.sh <Tatolab.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
-| `verify-tatolab-app-bundle.sh <Tatolab.app\|.dmg> [--shipping]` | checks the signature, layout, plists, entitlements, and Gatekeeper once stapled |
+| `verify-tatolab-app-bundle.sh <Tatolab.app\|.dmg> [--shipping]` | checks the signature, layout, plists, entitlements, fuses, and Gatekeeper once stapled |
 | `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tatolab.rb` from `packaging/homebrew/tatolab.rb.template` |
 
 The installer background is `packaging/dmg/tatolab-dmg-background.svg`, rendered to the
 committed `@1x`/`@2x` PNGs by `packaging/dmg/render-dmg-background.sh` (needs `rsvg-convert`; it
 fetches Instrument Sans with `npm pack`).
 
-Tools: Xcode command line tools, Rust, Node 22+ (the window's frontend and the Tauri CLI), `uv` (`uvx` runs the pinned dmgbuild), and
+Tools: Xcode command line tools, Rust, Node 22+ (the window, the Electron app and its addon), `uv` (`uvx` runs the pinned dmgbuild), and
 whatever streamlib's runtime build needs (`brew install shaderc cmake ninja`).
 
 ## Building on Linux
 
-On x86_64 Linux, with Rust, Node 22+ and Tauri v2's Linux prerequisites:
+On x86_64 Linux, with Node 22+:
 
 ```sh
-sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev \
-  libayatana-appindicator3-dev librsvg2-dev
+sudo apt install dpkg-dev desktop-file-utils curl
 scripts/build-tatolab-linux-app.sh
 ```
 
-It runs `npm ci` and `npx tauri build --bundles deb,appimage`, checks the `.deb`'s dependencies
-and desktop entry, and writes `build/linux/Tatolab-<version>-amd64.deb` and
+It builds and packages the Electron app as on macOS, lays out the `.deb` and builds it with
+`dpkg-deb`, builds the AppImage with a pinned `appimagetool` and AppImage runtime (checksums in
+the script), checks the fuses, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Tatolab-<version>-amd64.deb` and
 `build/linux/Tatolab-<version>-x86_64.AppImage`. No streamlib checkout is needed. `--app-version
 X.Y.Z` sets the packages' version; `--local-proof-test-root` builds with
-`machine-directories-under-a-test-root`, so the app reads the runtime under
+`machineDirectoriesUnderATestRoot` on, so the app reads the runtime under
 `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, and names both packages `-local-proof`.
 
 ## Working on the window
