@@ -45,7 +45,7 @@ describe("the app on macOS", () => {
         height: 700,
         minimumWidth: 860,
         minimumHeight: 580,
-        chrome: { titleBarStyle: "hidden", trafficLightPosition: { x: 18, y: 26 } },
+        chrome: { titleBarStyle: "hidden", trafficLightPosition: { x: 18, y: 19 } },
       },
     });
   });
