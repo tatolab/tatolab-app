@@ -7,7 +7,8 @@
 # calls the platform layer's items with no `cfg`. Comment lines don't count. Two shapes are not
 # platform code and are allowed: main.rs's guard that refuses to build for any OS but macOS and
 # Linux, and a lint-only `#[cfg_attr(target_os = "…", allow(…))]` on a shared item one platform
-# never uses.
+# never uses. In the Electron main process the same holds for `process.platform` and
+# `os.platform()`, which only src-electron/src/platform/ reads.
 #
 # Usage: scripts/check-platform-cfg-confinement.sh   (from anywhere inside the repository)
 
@@ -36,9 +37,20 @@ platform_cfg_outside_the_platform_layer="$(
     done
 )"
 
+platform_reads_outside_the_electron_platform_layer="$(
+  git ls-files -z --cached --others --exclude-standard -- 'src-electron/*.ts' 'src-electron/*.cts' ':!:src-electron/src/platform/*' |
+    xargs -0 grep -nHE '\bprocess[[:space:]]*\.[[:space:]]*platform\b|\bos[[:space:]]*\.[[:space:]]*platform[[:space:]]*\(' 2>/dev/null |
+    grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' || true
+)"
+
+if [ -n "$platform_reads_outside_the_electron_platform_layer" ]; then
+  echo "❌ the main process asks which platform it runs on outside src-electron/src/platform/ — move it behind a platform item:"
+  printf '%s\n' "$platform_reads_outside_the_electron_platform_layer" | sed 's/^/  /'
+  exit 1
+fi
 if [ -n "$platform_cfg_outside_the_platform_layer" ]; then
   echo "❌ a platform cfg outside src-tauri/src/platform/ — move it behind a platform item:"
   printf '%s\n' "$platform_cfg_outside_the_platform_layer" | sed 's/^/  /'
   exit 1
 fi
-echo "✅ every platform cfg sits in src-tauri/src/platform/ (plus main.rs's unsupported-OS guard)"
+echo "✅ every platform cfg sits in src-tauri/src/platform/ (plus main.rs's unsupported-OS guard), and every platform read in src-electron/src/platform/"

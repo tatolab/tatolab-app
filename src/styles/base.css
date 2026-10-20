@@ -14,6 +14,12 @@ body {
 
 #app { height: 100%; }
 
+/* Chromium under Electron drags the window only where app-region says, while Tauri reads
+   data-tauri-drag-region itself: "deep" drags through its children, "" only on the band itself. */
+[data-tauri-drag-region] { -webkit-app-region: drag; }
+[data-tauri-drag-region=""] *,
+[data-tauri-drag-region] :is(button, a, input, select, textarea, [role="button"], [tabindex]) { -webkit-app-region: no-drag; }
+
 h1, h2, h3, p, ol, ul, dl, dd, figure { margin: 0; }
 h1, h2, h3 { font-size: inherit; font-weight: 600; }
 ol, ul { padding: 0; list-style: none; }

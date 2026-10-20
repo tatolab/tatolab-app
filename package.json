@@ -3,12 +3,16 @@
   "private": true,
   "version": "0.45.0",
   "type": "module",
+  "main": "src-electron/build/src-electron/src/electron_adapters/electron_app_entry.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && tsc -p src-electron && vite build",
+    "build:electron": "tsc -p src-electron/tsconfig.build.json",
     "preview": "vite preview",
     "test": "vitest run",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "electron": "npm run build && npm run build:electron && electron .",
+    "electron:dev": "npm run build:electron && TATOLAB_APP_WINDOW_DEV_SERVER_URL=http://localhost:1420/ electron ."
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.3.0",
@@ -16,6 +20,8 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.2",
+    "@types/node": "^24.19.2",
+    "electron": "^44.9.1",
     "happy-dom": "^21.0.1",
     "typescript": "^5.9.3",
     "vite": "^8.3.4",
