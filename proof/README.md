@@ -2,19 +2,19 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
-## Electron skeleton: the window under Electron (Linux container, unbundled; mock backend)
+## Electron skeleton: lifecycle and tray (Linux container, unbundled; mock backend)
 
-The Electron app from `npm run electron`, run unbundled under Xvfb in a cloud Linux container with
-no window manager (so no title bar or tray shows), serving the built window from `dist/` under
-`tatolab-app://` with its content security policy. The window has no Electron backend yet, so it
-shows the mock backend's default streams and the macOS presentation; no runtime is involved.
+The Electron app (`npm run electron:dev`, window from Vite at `?platform=linux` on its mock
+backend, since it has no Electron backend yet), run unbundled under Xvfb in a cloud x86_64 Linux
+container with openbox as the window manager and stalonetray as the tray host. No runtime is
+involved.
 
-**Linux (container, unbundled) · Mock backend**: the window at 1040×700, centred, with no menu
-bar: the `main` stream's graph (testpatternsource → invertingeffect → displaywindow and
-brightnessmeter), its logs docked below, and five streams in the sidebar with `lobby-recorder`
-Failed in red.
-
-![Electron window, Linux container, mock backend](electron-skeleton/01-linux-container-unbundled-window-on-the-mock-backend.png)
+| image | label | shows |
+|---|---|---|
+| ![](electron-skeleton/01-linux-window-and-tray-icon.png) | Linux (container, unbundled) · Mock | The window, titled Tatolab in openbox's own title bar with no menu bar, at 1040×700 and centred, showing `jonathanf-workstation`, "Tatolab is running", five streams with `lobby-recorder` Failed, and Ctrl K / Ctrl F key caps; the coloured Tatolab mark in the tray at the top right. |
+| ![](electron-skeleton/02-linux-tray-menu.png) | Linux (container, unbundled) · Mock | The tray menu open under the mark: "Starting…" greyed out, "Open Tatolab", a separator, "Quit Tatolab". |
+| ![](electron-skeleton/03-linux-closed-window-hides-and-the-tray-stays.png) | Linux (container, unbundled) · Mock | After Alt+F4 on the window: no window, the mark still in the tray, and the app process still running. |
+| ![](electron-skeleton/04-linux-second-launch-shows-the-same-window.png) | Linux (container, unbundled) · Mock | After a second `electron .`, which logged "Tatolab is already running; it shows its window" and exited 0: the same window back, its logs still following. |
 
 ### macOS, unpackaged Electron (`npm ci && npm run electron`, Electron's own bundle id, mock backend)
 

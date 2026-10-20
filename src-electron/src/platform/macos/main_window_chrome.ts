@@ -6,8 +6,8 @@
 
 import type { DockIconHost, MainWindowChrome } from "../mod.js";
 
-/** The hidden title bar the window draws under, with the traffic lights at Tauri's inset in the 52 px band the window keeps at the top as its drag region. */
-export const MACOS_MAIN_WINDOW_CHROME: MainWindowChrome = { titleBarStyle: "hidden", trafficLightPosition: { x: 18, y: 26 } };
+/** The hidden title bar the window draws under, with the traffic lights centred in the 52 px band the window keeps at the top as its drag region. */
+export const MACOS_MAIN_WINDOW_CHROME: MainWindowChrome = { titleBarStyle: "hidden", trafficLightPosition: { x: 18, y: 19 } };
 
 /** A regular app with a Dock icon while the window shows, an accessory without one otherwise. */
 export function setMacosDockIconVisible(dockIconHost: DockIconHost, dockIconVisible: boolean): void {
