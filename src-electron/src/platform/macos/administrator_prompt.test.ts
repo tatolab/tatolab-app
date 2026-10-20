@@ -11,6 +11,7 @@ import {
 } from "./administrator_prompt.js";
 import { machineSetupAdministratorShellScript } from "./machine_setup.js";
 import { runProgramToCompletion, type ProgramCompletion } from "./run_program_to_completion.js";
+import { tatolabUninstallAdministratorShellScript } from "./tatolab_uninstall.js";
 
 const OSASCRIPT_RUNS_HERE = process.platform === "darwin";
 
@@ -33,7 +34,12 @@ test.skipIf(!OSASCRIPT_RUNS_HERE)("every_administrator_script_round_trips_throug
       bundledCommandLineTool: `${bundleWithQuotesBackslashesAndGlobs}/Contents/MacOS/tatolab-cli`,
     },
   ]);
-  for (const shellScript of [machineSetupScript]) {
+  const uninstallScript = tatolabUninstallAdministratorShellScript(
+    "/usr/local/bin/tatolab",
+    bundleWithQuotesBackslashesAndGlobs,
+    "/Library/Application Support/Tatolab",
+  );
+  for (const shellScript of [machineSetupScript, uninstallScript]) {
     expect(await programAnswer("/usr/bin/osascript", ["-e", `return ${applescriptStringLiteral(shellScript)}`])).toBe(shellScript);
   }
 
