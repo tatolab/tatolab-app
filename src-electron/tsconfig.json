@@ -17,5 +17,5 @@
     "noEmit": true,
     "rootDir": ".."
   },
-  "include": ["src", "../src/backend/tatolab_backend_contract.ts"]
+  "include": ["src", "../src/backend/tatolab_backend_contract.ts", "../src/backend/tatolab_electron_bridge_contract.ts"]
 }

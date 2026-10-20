@@ -2,18 +2,21 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // What the tray, the window's commands and the app's events reach once the app is set up: the
-// controller and the status publisher, and the requests the tray and the window both make.
+// controller, the status publisher and uninstalling, and the requests the tray and the window both
+// make.
 
+import type { TatolabUninstall } from "./platform/mod.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabMainWindow } from "./tatolab_main_window.js";
 import type { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 
-/** The controller and the status publisher, which the tray's choices and the window's commands reach. */
+/** The controller, the status publisher and uninstalling, which the tray's choices and the window's commands reach. */
 export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;
+  tatolabUninstall: TatolabUninstall;
   tatolabAppLog: TatolabAppLog;
 }
 

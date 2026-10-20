@@ -7,7 +7,8 @@ import { pathToFileURL } from "node:url";
 import { net, protocol } from "electron";
 import { describeCaughtFailure } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
-import { builtWindowFileForRequest, TATOLAB_WINDOW_PAGE_SCHEME, windowPageContentSecurityPolicy } from "../tatolab_window_page_source.js";
+import { TATOLAB_WINDOW_PAGE_SCHEME } from "../../../src/backend/tatolab_electron_bridge_contract.js";
+import { builtWindowFileForRequest, windowPageContentSecurityPolicy } from "../tatolab_window_page_source.js";
 
 /** Makes the window page's scheme a secure, standard origin; Electron takes this only before the app is ready. */
 export function registerTheWindowPageSchemeBeforeReady(): void {

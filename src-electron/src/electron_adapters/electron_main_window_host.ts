@@ -62,6 +62,9 @@ export function createElectronMainWindowHostFactory(
         show: () => mainBrowserWindow.show(),
         focus: () => mainBrowserWindow.focus(),
         hide: () => mainBrowserWindow.hide(),
+        sendTheWindowAnEvent: (eventChannel, eventPayload) => {
+          if (!windowContents.isDestroyed()) windowContents.send(eventChannel, eventPayload);
+        },
       });
     },
   };

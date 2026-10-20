@@ -7,9 +7,7 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
-
-/** The scheme the shipped window's page is served under. */
-export const TATOLAB_WINDOW_PAGE_SCHEME = "tatolab-app";
+import { TATOLAB_WINDOW_PAGE_SCHEME } from "../../src/backend/tatolab_electron_bridge_contract.js";
 
 /** The host of the window page's origin. */
 const TATOLAB_WINDOW_PAGE_HOST = "app";
@@ -44,6 +42,11 @@ export function isOnTheWindowPagesOwnLocation(windowPageUrl: string, navigationU
   const windowPageLocation = new URL(windowPageUrl);
   const navigationLocation = new URL(navigationUrl);
   return navigationLocation.protocol === windowPageLocation.protocol && navigationLocation.host === windowPageLocation.host;
+}
+
+/** Whether a command came from the window's own page at `windowPageUrl`: its top frame, on the page's own location, rather than a frame it embeds, a frame already gone, or a page it navigated to. */
+export function isACommandFromTheWindowsOwnPage(windowPageUrl: string, senderFrameUrl: string | null, senderIsTheTopFrame: boolean): boolean {
+  return senderFrameUrl !== null && senderIsTheTopFrame && isOnTheWindowPagesOwnLocation(windowPageUrl, senderFrameUrl);
 }
 
 /** The `'sha256-…'` source of every inline script in `windowPageHtml`: the theme script that runs before the page paints. */

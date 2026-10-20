@@ -23,6 +23,7 @@ import {
   readStreamLogRecordsArgumentsFrom,
   setRunTatolabArgumentsFrom,
   setUpTatolab,
+  tatolabWindowCommandHandlers,
 } from "./tatolab_commands.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 
@@ -43,9 +44,10 @@ async function sharedStateOverFakes(
   const appConfigDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-config-"));
   cleanUps.push(() => localApiServer.close(), () => rm(appConfigDirectory, { recursive: true, force: true }));
   const machineSetup = new FakeTatolabMachineSetup("complete", setUpTatolabRefusal);
+  const platformForThisBuild = fakeTatolabPlatformForThisBuild(new FakeRuntimeAgentRegistration("enabled"), machineSetup, localApiServer.localApiSocketPath);
   const controller = await TatolabAppController.create({
     platform,
-    platformForThisBuild: fakeTatolabPlatformForThisBuild(new FakeRuntimeAgentRegistration("enabled"), machineSetup, localApiServer.localApiSocketPath),
+    platformForThisBuild,
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
@@ -53,7 +55,7 @@ async function sharedStateOverFakes(
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);
-  return { controller, statusPublisher, tatolabAppLog: quietTatolabAppLog, machineSetup };
+  return { controller, statusPublisher, tatolabUninstall: platformForThisBuild.tatolabUninstall, tatolabAppLog: quietTatolabAppLog, machineSetup };
 }
 
 test("an_awaited_command_answers_with_its_works_answer_or_why_it_has_none", async () => {
@@ -192,4 +194,28 @@ test("a command's arguments are read as the window sends them, and anything else
   expect(readStreamLogRecordsArgumentsFrom({ stream: 7, after: 0 }).ok).toBe(false);
   expect(describeStreamGraphArgumentsFrom({ stream: "main" })).toEqual(succeeded({ stream: "main" }));
   expect(describeStreamGraphArgumentsFrom({}).ok).toBe(false);
+});
+
+test("each command answers the window in the contract's shape, a refusal in its own words and nothing as null", async () => {
+  const graphRefusal = "Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
+  const sharedState = await sharedStateOverFakes(
+    [httpResponse("404 Not Found", "application/json", JSON.stringify({ error: graphRefusal }))],
+    "linux",
+    "the installer sets up Tatolab",
+  );
+  let quitRequests = 0;
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {
+    quitRequests += 1;
+  });
+  expect(await commandHandlers.describe_stream_graph({ stream: "nope" })).toEqual({ ok: false, refusal: graphRefusal });
+  expect(await commandHandlers.set_up_tatolab(undefined)).toEqual({ ok: false, refusal: "the installer sets up Tatolab" });
+  expect(await commandHandlers.uninstall_tatolab(undefined)).toEqual({ ok: false, refusal: "this fake platform uninstalls nothing" });
+  expect(await commandHandlers.quit_tatolab_app(undefined)).toEqual({ ok: true, value: null });
+  expect(quitRequests).toBe(1);
+  expect(await commandHandlers.set_run_tatolab({ enabled: "yes" })).toEqual({ ok: false, refusal: "set_run_tatolab needs `enabled`, true or false" });
+  expect(await commandHandlers.read_stream_log_records({ stream: "camera" })).toEqual({
+    ok: false,
+    refusal: "read_stream_log_records needs `stream`, a stream's name, and `after`, a sequence number from 0",
+  });
+  expect(await commandHandlers.describe_stream_graph(null)).toEqual({ ok: false, refusal: "describe_stream_graph needs `stream`, a stream's name" });
 });

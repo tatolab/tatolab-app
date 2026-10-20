@@ -7,6 +7,7 @@
 // its answer or a refusal in words, never a thrown error.
 
 import type { StreamGraphSummary, StreamLogRecordsPage, TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
+import type { TatolabCommandAnswerTo, TatolabCommandName } from "../../src/backend/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAnUnsignedInteger } from "./json_on_the_wire.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { runInTheBackgroundWithTheController, setUpTatolabOnRequest, type TatolabAppSharedState } from "./tatolab_app_shared_state.js";
@@ -49,6 +50,11 @@ export function setUpTatolab(sharedState: TatolabAppSharedState): Result<void, s
   return setUpTatolabOnRequest(sharedState);
 }
 
+/** `uninstall_tatolab`: uninstall Tatolab, turning "Run Tatolab" off first and ending with the app quitting; refused in words, leaving the app usable, and at once on Linux, where the installer uninstalls. */
+export function uninstallTatolab(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
+  return answerTheWindow("uninstall_tatolab", () => sharedState.tatolabUninstall.uninstallTatolab(sharedState.controller));
+}
+
 /** `read_stream_log_records { stream, after }`: `stream`'s log records numbered after `after`; refused in the runtime's own words. */
 export function readStreamLogRecords(sharedState: TatolabAppSharedState, stream: string, after: number): Promise<Result<StreamLogRecordsPage, string>> {
   return answerTheWindow("read_stream_log_records", async () => {
@@ -87,4 +93,48 @@ export function describeStreamGraphArgumentsFrom(commandArguments: unknown): Res
     return failedWith("describe_stream_graph needs `stream`, a stream's name");
   }
   return succeeded({ stream: commandArguments["stream"] });
+}
+
+/** Each command's handler, taking the arguments as the window sent them and answering in the contract's shape. */
+export type TatolabWindowCommandHandlers = {
+  readonly [CommandName in TatolabCommandName]: (commandArguments: unknown) => Promise<TatolabCommandAnswerTo<CommandName>>;
+};
+
+function commandAnswerFrom<Answer>(outcome: Result<Answer, string>): { ok: true; value: Answer } | { ok: false; refusal: string } {
+  return outcome.ok ? { ok: true, value: outcome.value } : { ok: false, refusal: outcome.failure };
+}
+
+function commandAnswerOfNothingFrom(outcome: Result<void, string>): { ok: true; value: null } | { ok: false; refusal: string } {
+  return outcome.ok ? { ok: true, value: null } : { ok: false, refusal: outcome.failure };
+}
+
+/** The handler of every command the window invokes, over `sharedState`; `quit_tatolab_app` quits through `quitTheApp`. */
+export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState, quitTheApp: () => void): TatolabWindowCommandHandlers {
+  return {
+    get_tatolab_status: async () => commandAnswerFrom(await getTatolabStatus(sharedState)),
+    set_run_tatolab: async (commandArguments) => {
+      const setRunTatolabArguments = setRunTatolabArgumentsFrom(commandArguments);
+      if (!setRunTatolabArguments.ok) return { ok: false, refusal: setRunTatolabArguments.failure };
+      setRunTatolab(sharedState, setRunTatolabArguments.value.enabled);
+      return { ok: true, value: null };
+    },
+    open_login_items_settings: async () => commandAnswerOfNothingFrom(await openLoginItemsSettings(sharedState)),
+    set_up_tatolab: async () => commandAnswerOfNothingFrom(setUpTatolab(sharedState)),
+    uninstall_tatolab: async () => commandAnswerOfNothingFrom(await uninstallTatolab(sharedState)),
+    quit_tatolab_app: async () => {
+      quitTheApp();
+      return { ok: true, value: null };
+    },
+    read_stream_log_records: async (commandArguments) => {
+      const readStreamLogRecordsArguments = readStreamLogRecordsArgumentsFrom(commandArguments);
+      if (!readStreamLogRecordsArguments.ok) return { ok: false, refusal: readStreamLogRecordsArguments.failure };
+      const { stream, after } = readStreamLogRecordsArguments.value;
+      return commandAnswerFrom(await readStreamLogRecords(sharedState, stream, after));
+    },
+    describe_stream_graph: async (commandArguments) => {
+      const describeStreamGraphArguments = describeStreamGraphArgumentsFrom(commandArguments);
+      if (!describeStreamGraphArguments.ok) return { ok: false, refusal: describeStreamGraphArguments.failure };
+      return commandAnswerFrom(await describeStreamGraph(sharedState, describeStreamGraphArguments.value.stream));
+    },
+  };
 }

@@ -17,16 +17,23 @@ export function createElectronTrayIconHostFactory(trayIconDirectory: string): Tr
       return {
         tray,
         showMenu(trayMenuItems: readonly TrayMenuItemDescription[]) {
-          const trayMenuTemplate = trayMenuItems.map((trayMenuItem): MenuItemConstructorOptions =>
-            trayMenuItem.kind === "separator"
-              ? { type: "separator" }
-              : {
+          const trayMenuTemplate = trayMenuItems.map((trayMenuItem): MenuItemConstructorOptions => {
+            switch (trayMenuItem.kind) {
+              case "separator":
+                return { type: "separator" };
+              case "item":
+                return { id: trayMenuItem.id, label: trayMenuItem.label, enabled: trayMenuItem.enabled, click: () => onMenuItemClicked(trayMenuItem.id) };
+              case "check_item":
+                return {
+                  type: "checkbox",
                   id: trayMenuItem.id,
                   label: trayMenuItem.label,
                   enabled: trayMenuItem.enabled,
+                  checked: trayMenuItem.checked,
                   click: () => onMenuItemClicked(trayMenuItem.id),
-                },
-          );
+                };
+            }
+          });
           this.tray.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate));
         },
       };
