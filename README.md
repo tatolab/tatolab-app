@@ -26,9 +26,9 @@ The runtime and the `tatolab` CLI come from [tatolab/streamlib](https://github.c
 that wraps streamlib's runtime unit into a signed, notarized `.app` and `.dmg`, and the Linux
 `.deb` and AppImage, which carry no runtime.
 
-Requirements: macOS 15 (Sequoia) or later on Apple silicon, with Safari 26 or later (the window
-runs on the system's WebKit); or x86_64 Linux with a systemd user session and WebKitGTK 4.1 at 2.50
-or later (an updated Ubuntu 22.04 or later, Debian 12 or later). A GNOME desktop shows the tray
+Requirements: macOS 15 (Sequoia) or later on Apple silicon; or x86_64 Linux with a systemd user
+session (Ubuntu 22.04 or later, Debian 12 or later). The window runs on the Chromium Electron
+bundles, so it needs no system web engine. A GNOME desktop shows the tray
 item only with the AppIndicator extension, which Ubuntu ships.
 
 ## Installing
@@ -97,22 +97,21 @@ On Linux the app's "Uninstall Tatolab…" shows these steps and removes nothing 
 
 ## The app's platform layer
 
-Everything that differs by platform sits in `src-tauri/src/platform/`, behind the traits the rest
-of the app uses: `RuntimeAgentRegistration` (the service manager that runs the runtime),
-`TatolabMachineSetup` (macOS's administrator-prompt setup; always complete on Linux), and each
-platform's window chrome, Dock icon, tray image, uninstall and how it hears the app opened again.
-Both platform modules expose the same items, so the rest of the app calls them with no `cfg`.
-`platform/macos/` drives `SMAppService`, `launchctl kickstart`, `osascript` and `NSFileManager`;
-`platform/linux/` drives `systemctl --user`, reads the machine's paths, and hands a second launch
-to the running app through `tauri-plugin-single-instance`. Apart from that plugin's wiring, the
-Linux module needs nothing Linux-only to build, so `cargo test` on a Mac runs its tests too. Any
-other OS is a compile error.
+Everything that differs by platform sits in `src-electron/src/platform/`, behind the interfaces
+the rest of the main process uses: `RuntimeAgentRegistration` (the service manager that runs the
+runtime), `TatolabMachineSetup` (macOS's administrator-prompt setup; always complete on Linux), and
+each platform's window chrome, Dock icon, tray image, menu and uninstall. Both platform modules
+expose the same items, and only `platform/` reads `process.platform`
+(`scripts/check-platform-cfg-confinement.sh`). `platform/macos/` drives `SMAppService` through the
+app's native addon, `launchctl kickstart` and `osascript`; `platform/linux/` drives
+`systemctl --user` and reads the machine's paths. Neither module needs its OS to run its tests, so
+`npm test` on either platform runs both. On any other OS the app refuses to start.
 
 ## macOS bundle layout
 
 ```
 Tatolab.app/Contents/
-  Info.plist                                  LSUIElement, usage strings (src-tauri/macos/Info.plist)
+  Info.plist                                  LSUIElement, usage strings (packaging/macos/Info.plist)
   MacOS/Tatolab                               the app (Electron); its window, main process and
                                               preload in Resources/app.asar
   Frameworks/Electron Framework.framework, Frameworks/Tatolab Helper*.app
@@ -242,18 +241,20 @@ X.Y.Z` sets the packages' version; `--local-proof-test-root` builds with
 
 ## Working on the window
 
-`npx tauri dev` runs `npm run dev` (the frontend's dev server on `http://localhost:1420`) and the
-app against it, unbundled. It shows whatever runtime is already running on the socket its build
-names: add `--features machine-directories-under-a-test-root` to read a local-proof runtime's
-`/tmp/tatolab-proof/run/local-api.sock`. On macOS an unbundled app finds no launch agent, so "Run
-Tatolab" registers nothing there; on Linux it drives the installer's `tatolabd.service` as the
+`npm run dev` serves the window on `http://localhost:1420`; `npm run electron:dev`, in a second
+terminal, builds the main process and runs the app against it, unpackaged. It shows whatever
+runtime is already running on the machine's local API socket; only a `--local-proof-test-root`
+build reads a local-proof runtime's `/tmp/tatolab-proof/run/local-api.sock`. On macOS an
+unpackaged app finds no launch agent, so "Run Tatolab" registers nothing there; on Linux it drives the installer's `tatolabd.service` as the
 packaged app does. `npm run dev` alone serves the window in a browser against a mock backend.
 
 ## CI
 
+`.github/workflows/pull-request-checks.yml` runs the source gates and, on `macos-15` and
+`ubuntu-22.04`, `npm run build`, `npm run build:electron` and `npm test` on every pull request.
 `.github/workflows/macos-app.yml` builds the macOS app on `macos-15` and the Linux packages on
-`ubuntu-22.04`, each job running `cargo test` and `cargo clippy --all-targets -- -D warnings`
-first (the macOS job in both feature sets), and keeps the uploaded artifacts 7 days:
+`ubuntu-22.04`, each job type-checking and testing the app first, and keeps the uploaded artifacts
+7 days:
 
 - **push to `main`**: builds against streamlib `main` and uploads the `.dmg`, the `.deb` and the
   AppImage as artifacts.

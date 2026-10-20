@@ -7,7 +7,7 @@ import type { StreamGraphLink, StreamGraphNode } from "../../src/backend/tatolab
 import { streamGraphSummaryFromTheGraphJson } from "./stream_graph_summary.js";
 
 /** What a real runtime answered `GET /api/graph?stream=main` with, for a stream of a test pattern, an inverting effect, a brightness meter and a display window. */
-const aRealGraphOfOneStream = () => readFile(new URL("../../src-tauri/test-fixtures/local-api-graph-of-the-stream-main.json", import.meta.url), "utf8");
+const aRealGraphOfOneStream = () => readFile(new URL("../test-fixtures/local-api-graph-of-the-stream-main.json", import.meta.url), "utf8");
 
 function node(name: string, nodeType: string, state: string | null): StreamGraphNode {
   return { name, type: nodeType, state };

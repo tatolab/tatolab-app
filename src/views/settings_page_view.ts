@@ -80,7 +80,7 @@ export class SettingsPageView implements TatolabWindowPage {
     const streamRecordsDirectory = this.platformPresentation.streamRecordsDirectory;
 
     this.element = createElement("section", { class: "window-page settings-page", "aria-labelledby": "settings-page-title" }, [
-      createElement("header", { class: "content-band", "data-tauri-drag-region": windowDragRegionAttribute(platform, "deep") }, [
+      createElement("header", { class: "content-band", "data-window-drag-region": windowDragRegionAttribute(platform, "deep") }, [
         createElement("div", { class: "content-band-title" }, [
           createElement("h1", { class: "content-band-page-name", id: "settings-page-title" }, ["Settings"]),
         ]),

@@ -2,12 +2,12 @@
 # Copyright (c) 2025 Jonathan Fontanez
 # SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 #
-# The Rust rules in the Electron main process's TypeScript (src-electron/), checked line by line
+# CLAUDE.md's code rules in the Electron main process's TypeScript (src-electron/), checked line by line
 # with comments and string literals blanked out:
 # - only src-electron/src/electron_adapters/ and src-electron/src/preload/ import `electron`, so
 #   every other module and its tests run in plain Node;
 # - shipped code has no `any`, no `as` cast but `as const`, no non-null `!`, no `throw` (a failure
-#   is a returned value, as Rust's `?` returns it), no blocking `*Sync(` call, and no wall-clock
+#   is a returned value the caller propagates), no blocking `*Sync(` call, and no wall-clock
 #   `Date.now()` / `new Date(` (time is `performance.now()`);
 # - no test is focused or skipped with `.only`, `.skip` or `.todo`.
 # Shipped code is every .ts/.cts file but *.test.ts and the fake_*.ts test stand-ins. The checks
@@ -100,4 +100,4 @@ report "a focused or skipped main-process test" \
     grep -E '^[^:]+:[0-9]+:.*\b(test|it|describe)[[:space:]]*\.[[:space:]]*(only|skip|todo)\b' || true)"
 
 [ "$found_violation" -eq 0 ] || exit 1
-echo "✅ the Electron main process keeps the TypeScript forms of the Rust rules"
+echo "✅ the Electron main process keeps the code rules"

@@ -15,7 +15,7 @@
 #   --sign-identity ID       codesign identity (default "-", ad-hoc)
 #   --notarize               notarize and staple the app and the .dmg (needs a Developer ID
 #                            identity and APPLE_API_KEY_PATH, APPLE_API_KEY_ID, APPLE_API_ISSUER)
-#   --app-version X.Y.Z      the bundle's version (default: tauri.conf.json's); a release passes
+#   --app-version X.Y.Z      the bundle's version (default: package.json's); a release passes
 #                            the streamlib release it bundles
 set -euo pipefail
 
@@ -57,7 +57,7 @@ local_proof_arguments=()
 $local_proof_test_root && local_proof_arguments=(--local-proof-test-root)
 
 if [ -z "$app_version" ]; then
-  app_version="$(plutil -extract version raw -o - "$repository_root/src-tauri/tauri.conf.json")"
+  app_version="$(plutil -extract version raw -o - "$repository_root/package.json")"
 fi
 [[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not an X.Y.Z app version: $app_version" >&2; exit 1; }
 build_directory="$repository_root/build"

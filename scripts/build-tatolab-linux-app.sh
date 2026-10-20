@@ -8,7 +8,7 @@
 # Outputs build/linux/Tatolab-<version>-amd64.deb and build/linux/Tatolab-<version>-x86_64.AppImage.
 #
 # Usage: build-tatolab-linux-app.sh [--app-version X.Y.Z] [--local-proof-test-root]
-#   --app-version X.Y.Z      the packages' version (default: tauri.conf.json's); a release passes
+#   --app-version X.Y.Z      the packages' version (default: package.json's); a release passes
 #                            the streamlib release they go beside
 #   --local-proof-test-root  read the runtime under TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof;
 #                            for proving on a development machine, never shipped
@@ -65,7 +65,7 @@ fi
 
 cd "$repository_root"
 if [ -z "$app_version" ]; then
-  app_version="$(node -p 'require("./src-tauri/tauri.conf.json").version')"
+  app_version="$(node -p 'require("./package.json").version')"
 fi
 [[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not an X.Y.Z app version: $app_version" >&2; exit 1; }
 linux_build_directory="$repository_root/build/linux-packaging"
@@ -121,7 +121,7 @@ DESKTOP
       *) icon_file="$icon_size.png" ;;
     esac
     mkdir -p "$install_root/usr/share/icons/hicolor/$icon_size/apps"
-    install -m 0644 "src-tauri/icons/$icon_file" "$install_root/usr/share/icons/hicolor/$icon_size/apps/Tatolab.png"
+    install -m 0644 "src-electron/icons/$icon_file" "$install_root/usr/share/icons/hicolor/$icon_size/apps/Tatolab.png"
   done
 }
 

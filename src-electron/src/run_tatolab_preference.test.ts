@@ -47,7 +47,7 @@ test("a_malformed_file_reads_as_on", async () => {
   expect(await RunTatolabPreferenceFile.inAppConfigDirectory(configDirectory, quietTatolabAppLog).loadRunTatolab()).toBe(true);
 });
 
-test("a file the Tauri app wrote is read as it remembered the switch", async () => {
+test("a file an earlier build wrote is read as it remembered the switch", async () => {
   const configDirectory = await temporaryConfigDirectory();
   await writeFile(path.join(configDirectory, RUN_TATOLAB_PREFERENCE_FILE_NAME), '{\n  "run_tatolab": false\n}');
   expect(await RunTatolabPreferenceFile.inAppConfigDirectory(configDirectory, quietTatolabAppLog).loadRunTatolab()).toBe(false);

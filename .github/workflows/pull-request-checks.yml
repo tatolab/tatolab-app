@@ -1,9 +1,8 @@
 name: Pull request checks
 
-# The merge gate: the source gates, the window's tests and the app's Rust tests and lints on macOS
-# and Linux, on every pull request. Hermetic only — no runtime, no signing, no streamlib checkout;
-# building, signing and publishing stay in macos-app.yml. The push to main runs it once more so the
-# Rust caches pull requests read are saved from main.
+# The merge gate: the source gates and the app's type checks and tests on macOS and Linux, on every
+# pull request. Hermetic only — no runtime, no signing, no streamlib checkout; building, signing and
+# publishing stay in macos-app.yml.
 on:
   pull_request:
   push:
@@ -16,10 +15,6 @@ concurrency:
 
 permissions:
   contents: read
-
-env:
-  CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: 0
 
 jobs:
   source-gates:
@@ -55,36 +50,18 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-          shared-key: tatolab-app-pull-request-macos
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
 
-      # The app's Rust embeds the built frontend, so it is built first; the local-proof feature set
-      # is the one build --local-proof-test-root bundles.
-      - name: Test and lint the window and the app (default and local-proof feature sets)
+      - name: Type-check and test the window and the main process
         run: |
           npm ci
           npm run build:service-management-addon
           npm run build
+          npm run build:electron
           npm test
-          cargo fmt --manifest-path src-tauri/Cargo.toml --check
-          cargo test --manifest-path src-tauri/Cargo.toml --locked
-          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
-          cargo test --manifest-path src-tauri/Cargo.toml --locked \
-            --features machine-directories-under-a-test-root
-          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked \
-            --features machine-directories-under-a-test-root -- -D warnings
 
   linux:
     name: Test and lint (Linux)
@@ -95,36 +72,14 @@ jobs:
         with:
           persist-credentials: false
 
-      # Tauri v2's Linux prerequisites, as macos-app.yml installs them.
-      - name: Install WebKitGTK, the appindicator and the build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev \
-            libssl-dev libayatana-appindicator3-dev librsvg2-dev
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-          shared-key: tatolab-app-pull-request-linux
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
 
-      - name: Test and lint the window and the app (default and local-proof feature sets)
+      - name: Type-check and test the window and the main process
         run: |
           npm ci
           npm run build
+          npm run build:electron
           npm test
-          cargo test --manifest-path src-tauri/Cargo.toml --locked
-          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
-          cargo test --manifest-path src-tauri/Cargo.toml --locked \
-            --features machine-directories-under-a-test-root
-          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked \
-            --features machine-directories-under-a-test-root -- -D warnings

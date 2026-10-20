@@ -23,7 +23,6 @@ import "./styles/search.css";
 import { tatolabWindowHost, type TatolabBackend, type TatolabWindowHost } from "./backend/tatolab_backend";
 import type { TatolabStatus } from "./backend/tatolab_backend_contract";
 import { createElectronTatolabBackend } from "./backend/electron_tatolab_backend";
-import { createTauriTatolabBackend } from "./backend/tauri_tatolab_backend";
 import { readTatolabFrontendFeatureFlags } from "./feature_flags";
 import { platformOf } from "./presentation/platform_presentation";
 import { mountTatolabWindow } from "./views/tatolab_window_view";
@@ -38,11 +37,9 @@ async function createBrowserMockBackend(pageQuery: URLSearchParams): Promise<Tat
 /** What the Electron app's window says when its preload did not load: it has no way to the app, and never shows the mock in its place. */
 const WINDOW_WITHOUT_ITS_BRIDGE_TEXT = "Tatolab's window could not reach the app: its preload did not load. Reinstall Tatolab.";
 
-/** The backend of the host this page runs in: Tauri's IPC, the Electron preload's bridge, or the browser mock; `null` for the app's window without its bridge. */
+/** The backend of the host this page runs in: the preload's bridge, or the browser mock; `null` for the app's window without its bridge. */
 async function createTatolabBackendFor(windowHost: TatolabWindowHost, pageQuery: URLSearchParams): Promise<TatolabBackend | null> {
   switch (windowHost.kind) {
-    case "tauri":
-      return createTauriTatolabBackend();
     case "electron":
       return createElectronTatolabBackend(windowHost.tatolabElectronBridge);
     case "electron_without_its_bridge":

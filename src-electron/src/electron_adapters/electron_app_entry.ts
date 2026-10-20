@@ -70,7 +70,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   appVersion: app.getVersion(),
   readMonotonicClockMs: () => performance.now(),
   mainWindowHostFactory: createElectronMainWindowHostFactory(windowPageUrl, builtWindowPreloadScript, !app.isPackaged, tatolabAppLog),
-  trayIconHostFactory: createElectronTrayIconHostFactory(path.join(app.getAppPath(), "src-tauri", "icons")),
+  trayIconHostFactory: createElectronTrayIconHostFactory(path.join(app.getAppPath(), "src-electron", "icons")),
   dockIconHost: {
     setActivationPolicy: (activationPolicy) => app.setActivationPolicy(activationPolicy),
   },

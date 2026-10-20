@@ -55,7 +55,7 @@ export class WindowSidebarView {
     this.element = createElement("nav", { class: "window-sidebar", "aria-label": "Tatolab" }, [
       createElement("div", {
         class: "window-sidebar-band-strip",
-        "data-tauri-drag-region": windowDragRegionAttribute(platform, "self"),
+        "data-window-drag-region": windowDragRegionAttribute(platform, "self"),
       }),
       this.machineBlock,
       createElement("div", { class: "window-sidebar-sections" }, [streamList.element]),

@@ -40,7 +40,7 @@ async function aTatolabStatus(): Promise<TatolabStatus> {
 }
 
 describe("createElectronTatolabBackend", () => {
-  it("sends each command under its Tauri name with the arguments Tauri took", async () => {
+  it("sends each command under its name with its arguments", async () => {
     const fakeBridge = fakeTatolabElectronBridge({
       set_run_tatolab: { ok: true, value: null },
       open_login_items_settings: { ok: true, value: null },

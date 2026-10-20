@@ -4,13 +4,13 @@
 // A stand-in for tatolabd's local API, for proof in a Linux container where no runtime runs: it
 // answers on `<socket>` what the app reads — `GET /health`, the MCP tools `list_streams` and
 // `logs`, and `GET /api/graph` — from the responses recorded from a real runtime under
-// src-tauri/test-fixtures/. Usage: node tatolabd-local-api-stand-in.mjs <socket>
+// src-electron/test-fixtures/. Usage: node tatolabd-local-api-stand-in.mjs <socket>
 import { readFileSync, rmSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const RECORDED_RESPONSES = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../src-tauri/test-fixtures");
+const RECORDED_RESPONSES = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../src-electron/test-fixtures");
 const STAND_IN_MACHINE_NAME = "linux-container-stand-in";
 const recorded = (fileName) => JSON.parse(readFileSync(path.join(RECORDED_RESPONSES, fileName), "utf8"));
 
