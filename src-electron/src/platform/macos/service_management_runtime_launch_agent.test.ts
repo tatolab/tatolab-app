@@ -8,9 +8,8 @@ import {
   runtimeAgentRegistrationStatusFrom,
   ServiceManagementRuntimeLaunchAgent,
   type LaunchctlRunner,
-  type ServiceManagementAgentServices,
-  type ServiceManagementAgentServiceStatus,
 } from "./service_management_runtime_launch_agent.js";
+import type { ServiceManagementAgentServices, ServiceManagementAgentServiceStatus } from "./service_management_agent_services.js";
 
 /** Service Management as a fake: it holds the status of the agent plists it knows, moves them as a request asks unless told to leave them, and records every call. */
 function fakeServiceManagementAgentServices(

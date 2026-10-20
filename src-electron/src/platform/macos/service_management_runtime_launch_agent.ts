@@ -8,6 +8,7 @@ import { failedWith, succeeded, type Result } from "../../result.js";
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../../../src/backend/tatolab_backend_contract.js";
 import type { RuntimeAgentRegistration, RuntimeAgentStartFailure } from "../runtime_agent_registration.js";
 import { describeHowTheProgramEnded, programSucceeded, runProgramToCompletion, type ProgramCompletion } from "./run_program_to_completion.js";
+import type { ServiceManagementAgentServices, ServiceManagementAgentServiceStatus } from "./service_management_agent_services.js";
 
 /** The agent plist's file name inside the bundle's `Contents/Library/LaunchAgents/`. */
 export const RUNTIME_LAUNCH_AGENT_PLIST_NAME = "com.tatolab.tatolabd.plist";
@@ -19,19 +20,6 @@ export const RUNTIME_LAUNCH_AGENT_LABEL = "com.tatolab.tatolabd";
 const LAUNCHCTL_NO_SUCH_SERVICE_EXIT_STATUS = 113;
 
 const LAUNCHCTL_PATH = "/bin/launchctl";
-
-/** An `SMAppService` status as Electron's `app.getLoginItemSettings` spells it. */
-export type ServiceManagementAgentServiceStatus = "enabled" | "requires-approval" | "not-registered" | "not-found";
-
-/** Service Management's agent services, as Electron's login item API reaches them; a test's fake stands in for it. */
-export interface ServiceManagementAgentServices {
-  /** The agent service's status; `null` when Service Management answers none. */
-  agentServiceStatus(agentPlistName: string): ServiceManagementAgentServiceStatus | null;
-  /** Ask Service Management to register (`true`) or unregister (`false`) the agent service; refused only when the request could not be made, since Electron answers nothing of whether Service Management did it. */
-  requestAgentServiceRegistered(agentPlistName: string, agentServiceRegistered: boolean): Result<void, string>;
-  /** Open System Settings at Login Items. */
-  openSystemSettingsLoginItems(): Promise<Result<void, string>>;
-}
 
 /** Runs `launchctl` with its arguments to completion; a test's fake stands in for it. */
 export type LaunchctlRunner = (launchctlArguments: readonly string[]) => Promise<Result<ProgramCompletion, string>>;

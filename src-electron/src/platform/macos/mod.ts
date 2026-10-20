@@ -7,14 +7,10 @@
 // image.
 
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import { currentProcessUid, type TatolabPlatformForThisBuild, type TrayIconImage } from "../mod.js";
+import { currentProcessUid, type TatolabPlatformForThisBuild, type TatolabPlatformHostServices, type TrayIconImage } from "../mod.js";
 import { OSASCRIPT_AT_ITS_SYSTEM_PATH, OsascriptAdministratorPrompt } from "./administrator_prompt.js";
 import { MachineSetupBehindAnAdministratorPrompt } from "./machine_setup.js";
-import {
-  LAUNCHCTL_AT_ITS_SYSTEM_PATH,
-  ServiceManagementRuntimeLaunchAgent,
-  type ServiceManagementAgentServices,
-} from "./service_management_runtime_launch_agent.js";
+import { LAUNCHCTL_AT_ITS_SYSTEM_PATH, ServiceManagementRuntimeLaunchAgent } from "./service_management_runtime_launch_agent.js";
 import { bundledCommandLineToolPath, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
 
 export { MACOS_MAIN_WINDOW_CHROME, setMacosDockIconVisible } from "./main_window_chrome.js";
@@ -22,11 +18,10 @@ export { MACOS_MAIN_WINDOW_CHROME, setMacosDockIconVisible } from "./main_window
 /** The tray's mark, shown at 18pt in the menu bar from its @2x file and tinted to it as a template image. */
 export const MACOS_TRAY_ICON_IMAGE: TrayIconImage = { pngFileName: "tray-template.png", isATemplate: true };
 
-/** The bundle's launch agent through `serviceManagementAgentServices`, and the machine setup this build's paths need for the app binary at `appExecutable`. */
+/** The bundle's launch agent through Electron's Service Management agent services, and the machine setup this build's paths need for the bundle the app binary runs from. */
 export async function macosTatolabPlatformForThisBuild(
   tatolabAppLog: TatolabAppLog,
-  serviceManagementAgentServices: ServiceManagementAgentServices,
-  appExecutable: string,
+  { serviceManagementAgentServices, appExecutable }: TatolabPlatformHostServices,
 ): Promise<TatolabPlatformForThisBuild> {
   const uid = currentProcessUid();
   const machinePaths = tatolabMachinePathsOnMacosForThisBuild(uid);

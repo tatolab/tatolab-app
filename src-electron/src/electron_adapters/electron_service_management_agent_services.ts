@@ -6,7 +6,7 @@
 
 import { app, shell } from "electron";
 import { describeCaughtFailure, failedWith, succeeded } from "../result.js";
-import type { ServiceManagementAgentServices } from "../platform/macos/service_management_runtime_launch_agent.js";
+import type { ServiceManagementAgentServices } from "../platform/macos/service_management_agent_services.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
 
 /** System Settings' Login Items pane, which `SMAppService openSystemSettingsLoginItems` opens and Electron has no call for. */
