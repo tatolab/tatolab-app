@@ -4,9 +4,10 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
 import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import { succeeded } from "./result.js";
 import { MachineNameAskedOncePerRuntimeUpEpisode, TatolabAppController } from "./tatolab_app_controller.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
@@ -91,10 +92,47 @@ test("opening the app registers nothing until the administrator prompt sets the 
   expect(runtimeAgent.calls).toEqual(["register", "start_if_not_running"]);
 });
 
-test("a tray toggle and a window request run in turn, never interleaved", async () => {
-  const { controller, runtimeAgent } = await controllerOverFakes([], "enabled", "complete");
+/** A service manager whose unregistering waits until the test opens its gate. */
+class RuntimeAgentRegistrationUnregisteringBehindAGate extends FakeRuntimeAgentRegistration {
+  private openTheGate: () => void = () => {};
+  private readonly gate = new Promise<void>((open) => {
+    this.openTheGate = open;
+  });
 
-  await Promise.all([controller.toggleRunTatolab(), controller.setRunTatolab(true)]);
+  letUnregisteringFinish(): void {
+    this.openTheGate();
+  }
+
+  override async unregisterRuntimeAgent() {
+    this.calls.push("unregister");
+    await this.gate;
+    this.status = "not_registered";
+    return succeeded(undefined);
+  }
+}
+
+test("a tray toggle and a window request run in turn, never interleaved", async () => {
+  const appConfigDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-config-"));
+  cleanUps.push(() => rm(appConfigDirectory, { recursive: true, force: true }));
+  const runtimeAgent = new RuntimeAgentRegistrationUnregisteringBehindAGate("enabled");
+  const controller = await TatolabAppController.create({
+    platform: "macos",
+    platformForThisBuild: fakeTatolabPlatformForThisBuild(runtimeAgent, new FakeTatolabMachineSetup("complete", null), "/tmp/tl-app-no-runtime.sock"),
+    appConfigDirectory,
+    appLaunchedAtMs: 0,
+    appVersion: "0.45.0",
+    readMonotonicClockMs: () => 0,
+    tatolabAppLog: createTatolabAppLog("error", () => {}),
+  });
+
+  const trayToggle = controller.toggleRunTatolab();
+  const windowRequest = controller.setRunTatolab(true);
+  await vi.waitFor(() => expect(runtimeAgent.calls).toEqual(["unregister"]));
+  await new Promise((settle) => setTimeout(settle, 50));
+  expect(runtimeAgent.calls, "the window's request waits while the toggle is unregistering").toEqual(["unregister"]);
+
+  runtimeAgent.letUnregisteringFinish();
+  await Promise.all([trayToggle, windowRequest]);
 
   expect(runtimeAgent.calls).toEqual(["unregister", "register", "start_if_not_running"]);
   expect(controller.runTatolab()).toBe(true);

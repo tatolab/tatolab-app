@@ -1,9 +1,9 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-// Reading the runtime's JSON as serde reads it in the Tauri app: a required key that is absent or
-// of another type is refused, an optional one reads `null`, a defaulted one reads its default, and
-// keys the app does not know are ignored.
+// Reading the runtime's JSON: a required key that is absent or of another type is refused, an
+// optional one reads `null`, a defaulted one reads its default, and keys the app does not know are
+// ignored, so a newer runtime's additions never break the app.
 
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 
@@ -24,7 +24,7 @@ export function isAJsonObject(value: unknown): value is JsonObjectOnTheWire {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Whether `value` is a whole number from 0 up, as serde reads a `u64`. */
+/** Whether `value` is a whole number from 0 up. */
 export function isAnUnsignedInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
@@ -85,7 +85,7 @@ export function everyOneRead<T>(values: readonly unknown[], readOne: (value: unk
   return succeeded(read);
 }
 
-/** `value`'s JSON text as serde_json writes a `Value`: compact, with every object's keys in sorted order. */
+/** `value`'s JSON text, compact, with every object's keys in sorted order so the same value always reads the same. */
 export function jsonTextWithSortedKeys(value: unknown): string {
   return JSON.stringify(value, (_key, nestedValue: unknown) =>
     isAJsonObject(nestedValue)

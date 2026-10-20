@@ -93,8 +93,8 @@ function listedStreamOnTheWire(listedStreamOnTheWire: unknown): Result<ListedStr
   });
 }
 
-/** `durationMs` as Rust's `Duration` debug-prints it, so a timeout reads as it did in the Tauri app. */
-function durationAsRustPrintsIt(durationMs: number): string {
+/** `durationMs` as a timeout refusal spells it: whole seconds as `3s`, anything else as `200ms`. */
+function durationAsTheTimeoutRefusalSpellsIt(durationMs: number): string {
   return durationMs % 1000 === 0 ? `${durationMs / 1000}s` : `${durationMs}ms`;
 }
 
@@ -198,6 +198,7 @@ export class LocalApiClient {
       const responseChunks: Buffer[] = [];
       let responseByteCount = 0;
       let connected = false;
+      let requestSent = false;
       let settled = false;
       const settleOnce = (outcome: Result<LocalApiHttpResponse, LocalApiRequestFailure>) => {
         if (settled) return;
@@ -209,7 +210,9 @@ export class LocalApiClient {
       connection.setTimeout(this.requestTimeoutMs);
       connection.on("connect", () => {
         connected = true;
-        connection.write(httpRequestBytes(method, requestTarget, extraHeaders, requestBody));
+        connection.write(httpRequestBytes(method, requestTarget, extraHeaders, requestBody), () => {
+          requestSent = true;
+        });
       });
       connection.on("data", (responseChunk: Buffer) => {
         responseChunks.push(responseChunk);
@@ -222,18 +225,17 @@ export class LocalApiClient {
       });
       connection.on("timeout", () => {
         settleOnce(
-          localApiRequestFailure(`${method} ${requestTarget} to ${socketText} did not answer within ${durationAsRustPrintsIt(this.requestTimeoutMs)}`),
+          localApiRequestFailure(`${method} ${requestTarget} to ${socketText} did not answer within ${durationAsTheTimeoutRefusalSpellsIt(this.requestTimeoutMs)}`),
         );
       });
       connection.on("error", (connectionFailure) => {
         const failureText = describeCaughtFailure(connectionFailure);
-        settleOnce(
-          localApiRequestFailure(
-            connected
-              ? `the request ${method} ${requestTarget} to ${socketText} could not be sent: ${failureText}`
-              : `no runtime answers at ${socketText}: ${failureText}`,
-          ),
-        );
+        const failureDescription = !connected
+          ? `no runtime answers at ${socketText}: ${failureText}`
+          : requestSent
+            ? `${method} ${requestTarget} to ${socketText} did not answer within ${durationAsTheTimeoutRefusalSpellsIt(this.requestTimeoutMs)}: ${failureText}`
+            : `the request ${method} ${requestTarget} to ${socketText} could not be sent: ${failureText}`;
+        settleOnce(localApiRequestFailure(failureDescription));
       });
       connection.on("end", () => {
         const response = parseHttpResponse(Buffer.concat(responseChunks));

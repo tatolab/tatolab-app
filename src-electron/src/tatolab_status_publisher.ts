@@ -6,6 +6,7 @@
 
 import { isDeepStrictEqual } from "node:util";
 import type { TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
+import { describeCaughtFailure } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 
@@ -141,7 +142,9 @@ export class TatolabStatusPublisher {
   startPolling(): void {
     if (this.polling) return;
     this.polling = true;
-    void this.pollUntilStopped();
+    this.pollUntilStopped().catch((unexpectedFailure: unknown) => {
+      this.tatolabAppLog.error("the status poller stopped on a failure nothing expected", { failure: describeCaughtFailure(unexpectedFailure) });
+    });
   }
 
   private async pollUntilStopped(): Promise<void> {

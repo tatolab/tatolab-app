@@ -3,8 +3,8 @@
 
 // The app's one controller: it owns the "Run Tatolab" switch, the machine setup, and the local
 // API client, and composes the status the tray and the window show. Every step that reads or
-// changes the switch runs in turn on one queue, as Rust's controller runs it under one lock, so a
-// tray toggle and a window request never interleave between the service manager's answers.
+// changes the switch runs in turn on one queue, so a tray toggle and a window request never
+// interleave between the service manager's answers.
 
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
 import type {
@@ -265,7 +265,7 @@ export class TatolabAppController {
   }
 }
 
-/** A reconciliation as one log field, as Rust's `?reconciliation` prints it. */
+/** A reconciliation as one log field: its kind, then what it carries. */
 function describeReconciliation(reconciliation: RunTatolabReconciliation): string {
   switch (reconciliation.kind) {
     case "needs_approval_in_login_items":

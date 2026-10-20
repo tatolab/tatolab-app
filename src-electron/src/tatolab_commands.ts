@@ -14,7 +14,7 @@ import { runInTheBackgroundWithTheController, setUpTatolabOnRequest, type Tatola
 /** How long `get_tatolab_status` waits for the poller's first round when the window asks first. */
 const FIRST_STATUS_ROUND_WAIT_LIMIT_MS = 15_000;
 
-/** `work`'s answer to the command `commandName`; a failure nothing expected becomes a refusal naming the command, as Tauri answers a command whose work panicked. */
+/** `work`'s answer to the command `commandName`; a failure nothing expected becomes a refusal naming the command. */
 export async function answerTheWindow<Answer>(commandName: string, work: () => Promise<Result<Answer, string>>): Promise<Result<Answer, string>> {
   try {
     return await work();
