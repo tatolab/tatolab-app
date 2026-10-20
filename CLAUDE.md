@@ -86,8 +86,6 @@ attention spent on settled things is unavailable for real forks.
   proceeding either way is unsafe or would waste the work.
 - **Batch** what genuinely must be asked into one round — never a drip of one-question stops.
 - A finding is not a question. Non-blocking findings go in the PR description, then move on.
-- For a multi-option design call, give a plain-language brief with one firm recommendation, not a
-  menu.
 
 ## The app consumes the runtime (Docker Desktop model)
 
@@ -113,9 +111,6 @@ attention spent on settled things is unavailable for real forks.
 - **Platform code lives in `src-tauri/src/platform/`** (enforced); both platforms are checked on
   every change, and the `ubuntu-22.04` PR check is the Linux gate — a Mac cannot lint the Linux
   arms.
-- **Never merge on a pending or red check**: wait for every run on the PR's head commit (filter
-  `gh run list --json headSha,status,conclusion` on `headSha` — `--commit` silently matches
-  nothing) and check `main`'s recent CI health first. Auto-merge is off and nothing else stops it.
 - A decision the plan, the spec or the issue doesn't state stops the work and goes to the owner;
   it is never inferred from existing code or git history.
 - Logging is `tracing` only in Rust — no `println!` / `eprintln!` / `dbg!`; the window logs
@@ -128,9 +123,9 @@ attention spent on settled things is unavailable for real forks.
 - Time is monotonic (`Instant`, `performance.now()`); wall-clock only for display.
 - Names pass the zero-context test: `TatolabStatusPublisher`, `stream_log_follower`, never
   `Publisher`, `follower`, `state`, `ctx`. Explicit beats short.
-- **Tests are hermetic.** PR tests use the fake local API server, injected clocks and injected
-  prompts — never a real runtime, a real administrator prompt, a real `launchctl` or `systemctl`,
-  a sleep, or a latency assertion. A live run is evidence for `/verify-app`, never a PR gate.
+- **Tests run on the seams the tree already has** — the fake local API server, injected clocks
+  and injected prompts — never a real runtime, a real administrator prompt, or a real `launchctl`
+  or `systemctl`.
 - Tests are always in scope and never need approval. Code drives tests, never the reverse.
 - **Secrets come from Infisical, never the tree.** `.infisical.json` stays untracked; signing
   certificates, API keys and tokens never appear in a commit, a log, a PR body or a proof image.
@@ -140,9 +135,6 @@ attention spent on settled things is unavailable for real forks.
   done when `/verify-app` has shown it at the lowest rung that proves the claim — Mock for pure
   presentation, Live (local proof) for anything that talks to a runtime — labelled; never when
   its tests pass.
-- Build into the main checkout's `src-tauri/target/`: in a worktree, set
-  `CARGO_TARGET_DIR=<main checkout>/src-tauri/target`; never a per-session, per-agent or `/tmp`
-  target. Remove temporary worktrees, builds and logs when the task ends and say what you removed.
-- Stale or contradictory notes (tracked or not) are recommended for deletion, never annotated:
-  name each file, and delete once the owner agrees. `docs/research/` memos and the owner's
-  business and licence docs are exempt.
+- **Claude memory is off for this project.** Never read, write or cite memory files
+  (`~/.claude/projects/*/memory/`), and never carry their content into work here. Durable guidance
+  lives in this file and `.claude/rules/`, changed through `/propose-rule`.

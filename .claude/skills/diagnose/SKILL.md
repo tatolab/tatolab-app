@@ -31,7 +31,7 @@ Phases in order. The feedback loop is the skill; everything else is mechanical.
 4. **Instrument** one variable at a time, each probe mapped to a prediction. Tag every debug line
    `[DEBUG-xxxx]` so cleanup is one grep.
 5. **Regression test before the fix**, at a real seam. If no correct seam exists, that itself is a
-   finding for the PR's Notes for owner — and the fix still lands with the best available test. Never a test that sleeps.
+   finding for the PR's Notes for owner — and the fix still lands with the best available test.
 6. **Cleanup**: repro gone, every `[DEBUG-` gone, the confirmed hypothesis stated in the commit
    message.
 

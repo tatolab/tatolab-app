@@ -19,5 +19,4 @@ The deliverable is shared understanding, not just an answer. No edits from this 
 3. **Surface disagreements found on the way.** If the code contradicts the plan, the spec or the
    README, say so in the answer.
 4. **Close the say-back loop.** End with one paragraph: "So my understanding is … — does that match
-   yours?" A correction goes through `/reconcile-understanding`; a confirmed answer worth keeping
-   may become a memory.
+   yours?" A correction goes through `/reconcile-understanding`.

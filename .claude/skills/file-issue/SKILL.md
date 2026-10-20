@@ -34,17 +34,10 @@ owner's call.
 ## 3. Never file an umbrella issue
 An issue that says "do all of X" and lists sub-tasks is the failure mode. Decompose into
 **self-contained issues**, each with its own Done means and validation shape, connected by
-**native GitHub dependency edges** — not text like "depends on #N." Set them with the REST
-dependencies API, which takes the blocker's *database* id:
-
-```sh
-blocker_id="$(gh api repos/tatolab/tatolab-app/issues/<blocker> -q .id)"
-gh api -X POST repos/tatolab/tatolab-app/issues/<blocked>/dependencies/blocked_by -F issue_id="$blocker_id"
-```
-
-Read edges back with `.../issues/<n>/dependencies/blocked_by`. A cross-repository edge onto a
-streamlib issue uses that issue's database id the same way; if the API refuses it, keep the
-"Waits on" line as the record.
+**native GitHub dependency edges** — not text like "depends on #N." Set the edges through whichever
+`gh` surface the repository actually exposes — **verify which exists before using it** (the
+issue-relationship API or sub-issues) with a probe, and use the one that works. When a streamlib
+issue is the blocker and no cross-repository edge is accepted, the "Waits on" line is the record.
 
 ## 4. Phrase claims honestly
 Any specific claim about code or behaviour in the body is phrased "to the best of our current

@@ -15,8 +15,7 @@ disable-model-invocation: true
    keyword (`/implement <N> ultracode`) or the session has it on. Without it, **stop** before any
    other step: one line saying the issue runs with ultracode and the exact command to re-run it.
    Build without it only when the owner says so in this run, in their own words. Under ultracode,
-   every agent that edits files runs in its own worktree (building into the main checkout's
-   `src-tauri/target/`); the steps below hold.
+   every agent that edits files runs in its own worktree; the steps below hold.
 3. **Plan gate**: list the decisions this work needs. Any that touch what the app *is* — a new
    runtime contract, a capability the streamlib plan does not state — and are not DECIDED there →
    post a `[NEEDS DECISION]` comment on the issue with the options and your recommendation, and
@@ -30,9 +29,8 @@ disable-model-invocation: true
 5. **Staleness check**: verify the issue's load-bearing claims against the current tree; if
    drifted, correct the body via `gh issue edit`, rewritten to current intent.
 6. **Announce** the refined plan — goal, files, the seams tests will exercise, the `/verify-app`
-   evidence it will carry, scope, and every assumption. With no open question, proceed; stop only
-   for a real `[NEEDS DECISION]` or a live fork.
-7. Branch `<type>/<N>-<slug>` off fresh `origin/main`.
+   evidence it will carry, and scope — and **wait for the owner's confirmation**. Hard stop.
+7. On yes: branch `<type>/<N>-<slug>` off fresh `origin/main`.
 8. **Build test-first at the seams the issue names** — the fake local API server, the injected
    platform seams, presentation functions, the mock backend. Commit at logical checkpoints with
    conventional-commit prefixes; every commit builds. A UI change adds a mock preset for any new
@@ -49,5 +47,5 @@ disable-model-invocation: true
     `type(scope): summary`; body `## Summary`, `## Closes` (one `Closes #N` per line), `## Exit
     criteria`, `## Test plan`, `## Evidence` (the `/verify-app` images and what each shows,
     labelled Live / Linux / Mock), `## Notes for owner` (the batched findings).
-14. Report: PR URL, tests run, evidence, notes awaiting the owner. Merge is the owner's call, and
-    waits for every check on the head commit to finish green.
+14. Report: PR URL, tests run, evidence, notes awaiting the owner. Merge is always the owner's
+    call.

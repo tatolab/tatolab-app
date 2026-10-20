@@ -1,6 +1,6 @@
 ---
 name: hygiene
-description: Sniff out everything in the app repo that runs counter to the operating model — README claims false against the tree, proof captions describing a window that changed, references to deleted files or retired features, dead rule globs, stale memories, issues pointing at closed streamlib work. Detects and reports only; it never fixes anything.
+description: Sniff out everything in the app repo that runs counter to the operating model — README claims false against the tree, proof captions describing a window that changed, references to deleted files or retired features, dead rule globs, issues pointing at closed streamlib work. Detects and reports only; it never fixes anything.
 disable-model-invocation: true
 ---
 
@@ -23,8 +23,7 @@ Sweep these surfaces:
    issue forms and the workflows.
 5. **Dead rule scopes.** `.claude/rules/*.md` `paths:` globs that match nothing; prose a gate now
    enforces (propose its deletion via `/propose-rule`).
-6. **Memory staleness.** Memory files naming files, flags, skills or states that no longer exist.
-7. **Tracker misalignment.** Open issues whose "Waits on" streamlib work has shipped (ready to
+6. **Tracker misalignment.** Open issues whose "Waits on" streamlib work has shipped (ready to
    build) or been retired (needs a rewrite), and issues with no plan entry behind them.
 
 Output: ONE table — surface / finding / evidence (`file:line` or quote) / who owns the fix (a
