@@ -2,18 +2,20 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // The tray item, in macOS's menu bar or a Linux panel: the Tatolab mark in this platform's tray
-// image, and a native menu — a disabled status line, "Open Tatolab" and "Quit Tatolab" — on either
-// click — and the rule for when "Set Up Tatolab…" shows.
+// image, and a native menu on either click — a disabled status line, "Open Tatolab", the
+// "Run Tatolab" check, "Set Up Tatolab…" while machine setup is missing, and "Quit Tatolab".
 
-import type { MachineSetupState } from "../../src/backend/tatolab_backend_contract.js";
+import type { MachineSetupState, TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
 import type { TrayIconImage } from "./platform/mod.js";
+import { trayStatusLine } from "./tatolab_status.js";
 
 /** A tray menu item's id, which a click reports. */
-export type TrayMenuItemId = "tray_status_line" | "open_tatolab" | "quit_tatolab";
+export type TrayMenuItemId = "tray_status_line" | "open_tatolab" | "run_tatolab" | "set_up_tatolab" | "quit_tatolab";
 
 /** One row of the tray menu as the tray icon host shows it. */
 export type TrayMenuItemDescription =
   | { kind: "item"; id: TrayMenuItemId; label: string; enabled: boolean }
+  | { kind: "check_item"; id: TrayMenuItemId; label: string; enabled: boolean; checked: boolean }
   | { kind: "separator" };
 
 /** The tray icon as the platform shows it: its menu is replaced whole, since a Linux panel does not reliably update an item in place. */
@@ -27,7 +29,7 @@ export interface TrayIconHostFactory {
 }
 
 /** What the user chose from the tray menu. */
-export type TrayMenuChoice = "open_tatolab" | "quit_the_app";
+export type TrayMenuChoice = "open_tatolab" | "toggle_run_tatolab_switch" | "set_up_tatolab" | "quit_the_app";
 
 /** How "Set Up Tatolab…" shows in the menu. */
 export type SetUpTatolabMenuItemPresentation = "hidden" | "shown_enabled" | "shown_disabled";
@@ -47,36 +49,55 @@ export function setUpTatolabMenuItemPresentation(machineSetup: MachineSetupState
 const TRAY_MENU_CHOICES_BY_ITEM_ID: Readonly<Record<TrayMenuItemId, TrayMenuChoice | null>> = {
   tray_status_line: null,
   open_tatolab: "open_tatolab",
+  run_tatolab: "toggle_run_tatolab_switch",
+  set_up_tatolab: "set_up_tatolab",
   quit_tatolab: "quit_the_app",
 };
 
 /** The tray icon and its menu. */
 export class TatolabTrayMenu {
-  private readonly trayStatusLine = "Starting…";
+  private trayStatusLine = "Starting…";
+  private setUpTatolabPresentation: SetUpTatolabMenuItemPresentation = "hidden";
 
-  private constructor(private readonly trayIconHost: TrayIconHost) {}
+  private constructor(
+    private readonly trayIconHost: TrayIconHost,
+    private runTatolab: boolean,
+  ) {}
 
-  /** Put the tray icon in the menu bar or panel, calling `onChoice` with each menu choice. */
+  /** Put the tray icon in the menu bar or panel, its "Run Tatolab" checked as `runTatolab`, calling `onChoice` with each menu choice. */
   static build(
     trayIconHostFactory: TrayIconHostFactory,
     trayIconImage: TrayIconImage,
+    runTatolab: boolean,
     onChoice: (trayMenuChoice: TrayMenuChoice) => void,
   ): TatolabTrayMenu {
     const trayIconHost = trayIconHostFactory.createTrayIcon(trayIconImage, "Tatolab", (trayMenuItemId) => {
       const trayMenuChoice = TRAY_MENU_CHOICES_BY_ITEM_ID[trayMenuItemId];
       if (trayMenuChoice !== null) onChoice(trayMenuChoice);
     });
-    const tatolabTrayMenu = new TatolabTrayMenu(trayIconHost);
+    const tatolabTrayMenu = new TatolabTrayMenu(trayIconHost, runTatolab);
     tatolabTrayMenu.showTheMenu();
     return tatolabTrayMenu;
   }
 
+  /** Show `status` in the status line, the switch's check mark, and "Set Up Tatolab…". */
+  showStatus(status: TatolabStatus): void {
+    this.trayStatusLine = trayStatusLine(status);
+    this.runTatolab = status.run_tatolab;
+    this.setUpTatolabPresentation = setUpTatolabMenuItemPresentation(status.machine_setup_state);
+    this.showTheMenu();
+  }
+
   private showTheMenu(): void {
-    this.trayIconHost.showMenu([
+    const trayMenuItems: TrayMenuItemDescription[] = [
       { kind: "item", id: "tray_status_line", label: this.trayStatusLine, enabled: false },
       { kind: "item", id: "open_tatolab", label: "Open Tatolab", enabled: true },
-      { kind: "separator" },
-      { kind: "item", id: "quit_tatolab", label: "Quit Tatolab", enabled: true },
-    ]);
+      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: this.runTatolab },
+    ];
+    if (this.setUpTatolabPresentation !== "hidden") {
+      trayMenuItems.push({ kind: "item", id: "set_up_tatolab", label: "Set Up Tatolab…", enabled: this.setUpTatolabPresentation === "shown_enabled" });
+    }
+    trayMenuItems.push({ kind: "separator" }, { kind: "item", id: "quit_tatolab", label: "Quit Tatolab", enabled: true });
+    this.trayIconHost.showMenu(trayMenuItems);
   }
 }

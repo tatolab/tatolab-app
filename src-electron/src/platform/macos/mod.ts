@@ -11,6 +11,7 @@ import type { TatolabAppLog } from "../../tatolab_app_log.js";
 import { currentProcessUid, TATOLAB_APP_IDENTIFIER, type TatolabPlatformForThisBuild, type TatolabPlatformHostServices, type TrayIconImage } from "../mod.js";
 import { OSASCRIPT_AT_ITS_SYSTEM_PATH, OsascriptAdministratorPrompt } from "./administrator_prompt.js";
 import { MachineSetupBehindAnAdministratorPrompt } from "./machine_setup.js";
+import { loadServiceManagementAddon, serviceManagementAddonBuiltUnder } from "./service_management_addon.js";
 import { LAUNCHCTL_AT_ITS_SYSTEM_PATH, ServiceManagementRuntimeLaunchAgent } from "./service_management_runtime_launch_agent.js";
 import { bundledCommandLineToolPath, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
 import { TatolabUninstallOnThisMac } from "./tatolab_uninstall.js";
@@ -23,7 +24,7 @@ export const MACOS_TRAY_ICON_IMAGE: TrayIconImage = { pngFileName: "tray-templat
 /** The bundle's launch agent through the Service Management addon, the machine setup this build's paths need for the bundle the app binary runs from, and uninstalling them behind the administrator prompt. */
 export async function macosTatolabPlatformForThisBuild(
   tatolabAppLog: TatolabAppLog,
-  { serviceManagementAgentServices, appExecutable, appIsPackaged, appConfigDirectory, tatolabUninstallAppSurface }: TatolabPlatformHostServices,
+  { appPath, appExecutable, appIsPackaged, appConfigDirectory, tatolabUninstallAppSurface }: TatolabPlatformHostServices,
 ): Promise<TatolabPlatformForThisBuild> {
   const uid = currentProcessUid();
   const machinePaths = tatolabMachinePathsOnMacosForThisBuild(uid);
@@ -36,7 +37,11 @@ export async function macosTatolabPlatformForThisBuild(
   });
   const administratorPrompt = new OsascriptAdministratorPrompt(OSASCRIPT_AT_ITS_SYSTEM_PATH);
   return {
-    runtimeAgent: ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(uid, serviceManagementAgentServices, LAUNCHCTL_AT_ITS_SYSTEM_PATH),
+    runtimeAgent: ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(
+      uid,
+      loadServiceManagementAddon(serviceManagementAddonBuiltUnder(appPath), tatolabAppLog),
+      LAUNCHCTL_AT_ITS_SYSTEM_PATH,
+    ),
     machineSetup: MachineSetupBehindAnAdministratorPrompt.create(
       machinePaths,
       bundledCommandLineTool,
