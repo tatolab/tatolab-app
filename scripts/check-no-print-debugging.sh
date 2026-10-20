@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 #
 # The app logs through `tracing` in Rust and logs nothing to the console in the window's shipped
-# code: no println!/eprintln!/print!/eprint!/dbg! in src-tauri/src, and no console.* call in src/
-# outside its tests.
+# code: no println!/eprintln!/print!/eprint!/dbg! in src-tauri/src, and no console.* call or
+# `debugger` statement in src/ outside its tests.
 #
 # Usage: scripts/check-no-print-debugging.sh   (from anywhere inside the repository)
 
@@ -18,11 +18,11 @@ cd "$repository_root" || exit 2
 
 rust_print_calls="$(
   git ls-files -z --cached --others --exclude-standard -- 'src-tauri/src/*.rs' |
-    xargs -0 grep -nHE '\b(e?println|e?print|dbg)!\(' 2>/dev/null || true
+    xargs -0 grep -nHE '\b(e?println|e?print|dbg)![[:space:]]*[(\[{]' 2>/dev/null || true
 )"
 window_console_calls="$(
   git ls-files -z --cached --others --exclude-standard -- 'src/*.ts' ':!:*.test.ts' |
-    xargs -0 grep -nHE '\bconsole\.(log|debug|info|warn|error|trace)\(' 2>/dev/null || true
+    xargs -0 grep -nHE '\bconsole[[:space:]]*\.[[:space:]]*[a-zA-Z]+[[:space:]]*\(|(^|[^[:alnum:]_.])debugger[[:space:]]*(;|$)' 2>/dev/null || true
 )"
 
 found_print_debugging=0

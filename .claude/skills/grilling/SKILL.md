@@ -21,8 +21,10 @@ while grilling.
   on before their dependents.
 - **Facts are yours; decisions are the owner's.** Anything discoverable in the repo, the
   plan, or the tracker gets looked up, never asked. Only judgment calls go to the owner.
-- Challenge vague terms against streamlib's `docs/plan/GLOSSARY.md` — the app shows the runtime's
-  words (stream, kept, attached, node, port, relay) and never coins its own for the same thing.
+- Challenge vague terms against streamlib's `docs/plan/GLOSSARY.md` (read from `main`, as
+  `CLAUDE.md` gives) — the app shows the runtime's words (stream, kept, attached, node, port,
+  relay) and never coins its own for the same thing. When the vocabulary itself is changing, that
+  is `/glossary` in a streamlib session.
 
 Done when the owner confirms shared understanding: restate the decisions taken in your
 own words and get an explicit yes before anything else happens.

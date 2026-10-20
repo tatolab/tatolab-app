@@ -23,12 +23,9 @@ paths:
 - **A new agent definition PR must state three things:** the non-derivable knowledge the agent
   captures, why the existing agents don't already cover it, and its model tier.
 - **Model tiers:** implementation and reasoning agents run `opus`; mechanical / prescribed-steps
-  agents run `sonnet`.
-- Labels are display output only — nothing reads a label as control flow.
+  agents run `sonnet`; nothing pins `fable`.
+- Labels are display output only — nothing reads a label as control flow. Every work item is
+  classified fresh from its content and from current code, never from its labels.
 - PR titles are conventional-commit typed (`type(scope): summary`, scopes as the history uses them:
   `app`, `window`, `logs`, `platform`, `packaging`, `proof`, …). Run
   `scripts/check-conventional-pr-title.sh "<title>"` before opening the PR; PR CI runs it too.
-- Never hand-edit the version: a release builds the app at the streamlib version it bundles.
-- **Merge waits for green.** Auto-merge is off on this repository and there is no branch
-  protection, so nothing stops a merge on a pending check — wait for every check on the PR's head
-  commit to finish green (filter `gh run list` JSON on `headSha`), then merge.

@@ -76,29 +76,69 @@ fi
 # ── the command ──────────────────────────────────────────────────────
 input="$(cat)"
 cmd="$(printf '%s' "$input" | jq -r '.tool_input.command // ""' 2>/dev/null)"
+session_cwd="$(printf '%s' "$input" | jq -r '.cwd // ""' 2>/dev/null)"
 [ -n "$cmd" ] || exit 0
 
-# A heredoc body is data, not a command line: a README, a PR body, a script being written.
+# A heredoc body is data — a README, a PR body, a file being written — unless the heredoc feeds a
+# shell (`bash <<EOF`, `ssh host <<EOF`), whose body is commands.
 read -r -d '' STRIP_HEREDOC_BODIES <<'AWK' || true
 in_body {
   line = $0
   sub(/^[[:space:]]+/, "", line); sub(/[[:space:]]+$/, "", line)
-  if (line == tag) in_body = 0
+  if (line == tag) { in_body = 0; next }
+  if (keep_body) print
   next
 }
 { print }
 match($0, /(^|[^<])<<-?[[:space:]]*["'\\]?[A-Za-z_][A-Za-z0-9_]*/) {
   tag = substr($0, RSTART, RLENGTH)
   sub(/^.?<<-?[[:space:]]*["'\\]?/, "", tag)
+  keep_body = ($0 ~ /(^|[;&|(][[:space:]]*|^[[:space:]]*)((ba|z|da)?sh|ssh)([[:space:]][^<]*)?<</)
   in_body = 1
 }
 AWK
-# Backslash continuations are joined in awk: BSD sed (macOS) has no GNU `N`-loop join.
-stripped="$(printf '%s\n' "$cmd" | awk "$STRIP_HEREDOC_BODIES" \
-  | awk '{ if (sub(/\\$/, "")) { pending = pending $0 " " } else { print pending $0; pending = "" } } END { if (pending != "") print pending }')"
 
-# Segments: one simple command each. `curl … | sh` is judged on its whole line first, below.
-segments="$(printf '%s\n' "$stripped" | awk '{ gsub(/;|&&|\|\||\|/, "\n"); print }')"
+# Backslash continuations are joined in awk: BSD sed (macOS) has no GNU `N`-loop join.
+read -r -d '' JOIN_CONTINUATIONS <<'AWK' || true
+{ if (sub(/\\$/, "")) { pending = pending $0 " " } else { print pending $0; pending = "" } }
+END { if (pending != "") print pending }
+AWK
+
+# Simple commands, one per \036-terminated record: the whole command line is read at once and split
+# on ; & | and newlines only outside quotes, so a quoted PR body or grep pattern — even one that
+# spans lines — stays one argument of one command.
+read -r -d '' SPLIT_OUTSIDE_QUOTES <<'AWK' || true
+BEGIN { RS = "\001"; ORS = "\036" }
+{
+  segment = ""; quote = ""
+  for (i = 1; i <= length($0); i++) {
+    c = substr($0, i, 1)
+    if (quote == "") {
+      if (c == "\\") { segment = segment c substr($0, i + 1, 1); i++; continue }
+      if (c == "'" || c == "\"") quote = c
+      else if (c == ";" || c == "&" || c == "|" || c == "\n") { print segment; segment = ""; continue }
+    } else if (c == quote) quote = ""
+    else if (quote == "\"" && c == "\\") { segment = segment c substr($0, i + 1, 1); i++; continue }
+    segment = segment c
+  }
+  print segment
+}
+AWK
+
+# The segment with every quoted span blanked, to find shell operators (`>`) that are really
+# operators.
+read -r -d '' BLANK_QUOTED_SPANS <<'AWK' || true
+{
+  out = ""; quote = ""
+  for (i = 1; i <= length($0); i++) {
+    c = substr($0, i, 1)
+    if (quote == "") { if (c == "'" || c == "\"") quote = c; out = out c }
+    else if (c == quote) { quote = ""; out = out c }
+    else out = out "_"
+  }
+  print out
+}
+AWK
 
 matched_rules=""
 matched_example=""
@@ -107,109 +147,190 @@ note_rule() {
   [ -n "$matched_example" ] || matched_example="$2"
 }
 
-# The installer is piped into a shell, so its two halves sit in two segments.
-while IFS= read -r command_line; do
+ENV_ASSIGNMENT='^[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]*)[[:space:]]+'
+MACHINE_PATH_PATTERN='/usr/local/bin/?([[:space:]"'"'"']|$)|/usr/local/bin/tatolab|/Applications/Tatolab\.app|/Library/Application\\? Support/Tatolab|Library/Application\\? Support/com\.tatolab\.tatolab|\.local/(state|share|bin)/tatolab|systemd/user/tatolabd|LaunchAgents/com\.tatolab'
+
+# The single-quoted or double-quoted argument at the start of $1, without its quotes.
+unquote_leading_argument() {
+  case "$1" in
+    \'*) printf '%s' "${1#\'}" | sed -E "s/'.*$//" ;;
+    \"*) printf '%s' "${1#\"}" | sed -E 's/"[[:space:]]*$//' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+classify_command_line() {
+  local command_line="$1" nesting_depth="$2" segment original_segment command_word command_name
+  local arguments blanked_segment next_word inner_command_line changed_into_src_tauri=0
+  [ "$nesting_depth" -le 3 ] || return 0
+
+  # The installer is piped or substituted into a shell, so its halves are judged on the line.
   if printf '%s' "$command_line" | grep -Eq 'get\.tatolab\.com/install\.sh' \
-     && printf '%s' "$command_line" | grep -Eq '\|[[:space:]]*(sudo[[:space:]]+)?(ba|z|da)?sh([[:space:]]|$)'; then
+     && printf '%s' "$command_line" | grep -Eq '\|[[:space:]]*(sudo[[:space:]]+)?(ba|z|da)?sh([[:space:]]|$)|(ba|z|da)?sh[[:space:]]+<\('; then
     note_rule runtime_installer "$command_line"
   fi
-done <<<"$stripped"
 
-ENV_ASSIGNMENT='^[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]*)[[:space:]]+'
-MACHINE_PATH_PATTERN='/usr/local/bin/tatolab|/Library/Application\\? Support/Tatolab|Library/Application\\? Support/com\.tatolab\.tatolab|\.local/(state|share|bin)/tatolab|systemd/user/tatolabd|LaunchAgents/com\.tatolab'
+  while IFS= read -r -d $'\036' segment; do
+    segment="${segment//$'\n'/ }"
+    segment="$(printf '%s' "$segment" | sed -E 's/^[[:space:]]*[({]*[[:space:]]*//; s/[[:space:]]*[)}]*[[:space:]]*$//')"
+    [ -n "$segment" ] || continue
+    original_segment="$segment"
 
-while IFS= read -r segment; do
-  segment="$(printf '%s' "$segment" | sed -E 's/^[[:space:]]*\(*[[:space:]]*//; s/[[:space:]]+$//')"
-  [ -n "$segment" ] || continue
-  original_segment="$segment"
-  sets_a_test_root=0
-  # Peel env assignments and exec wrappers to reach the command word.
-  for _ in 1 2 3 4 5 6; do
-    if printf '%s' "$segment" | grep -Eq "$ENV_ASSIGNMENT"; then
-      printf '%s' "$segment" | grep -Eq '^TATOLAB_TEST_MACHINE_ROOT=' && sets_a_test_root=1
-      segment="$(printf '%s' "$segment" | sed -E "s/$ENV_ASSIGNMENT//")"
-      continue
-    fi
-    case "$segment" in
-      sudo\ *|env\ *|nohup\ *|command\ *|exec\ *|time\ *) segment="${segment#* }" ;;
-      timeout\ *) segment="$(printf '%s' "$segment" | sed -E 's/^timeout[[:space:]]+[^[:space:]]+[[:space:]]+//')" ;;
-      bash\ *|sh\ *|zsh\ *)
-        next_word="$(printf '%s' "${segment#* }" | awk '{print $1}')"
-        case "$next_word" in -*) break ;; *) segment="${segment#* }" ;; esac
-        ;;
-      *) break ;;
-    esac
-  done
-  command_word="$(printf '%s' "$segment" | awk '{print $1}')"
-  command_name="${command_word##*/}"
-  arguments=" ${segment#"$command_word"} "
-
-  case "$command_name" in
-    # Text tools carry a command as an argument, never as a launch.
-    git|sed|grep|rg|awk|perl|echo|printf|cat|jq|diff|tee|head|tail|less|man|which|type|ls|find|wc) continue ;;
-    gh)
-      if printf '%s' "$arguments" | grep -Eq '^[[:space:]]+release[[:space:]]+(create|upload|edit|delete)\b' \
-         || { printf '%s' "$arguments" | grep -Eq '^[[:space:]]+workflow[[:space:]]+run\b' \
-              && printf '%s' "$arguments" | grep -Eq 'publish=true'; }; then
-        note_rule publish "$original_segment"
+    # Peel env assignments and exec wrappers to reach the command word.
+    for _ in 1 2 3 4 5 6 7 8; do
+      if printf '%s' "$segment" | grep -Eq "$ENV_ASSIGNMENT"; then
+        segment="$(printf '%s' "$segment" | sed -E "s/$ENV_ASSIGNMENT//")"
+        continue
       fi
-      continue
-      ;;
-    launchctl)
-      printf '%s' "$arguments" | grep -Eq '^[[:space:]]+(bootstrap|bootout|kickstart|load|unload|enable|disable|remove|kill|submit)\b' \
-        && note_rule launchctl_job "$original_segment"
-      ;;
-    systemctl)
-      printf '%s' "$arguments" | grep -Eq '[[:space:]](start|stop|restart|reload|try-restart|enable|disable|reenable|mask|unmask|kill|reset-failed|daemon-reload|edit|revert|link|preset)\b' \
-        && note_rule systemd_service "$original_segment"
-      ;;
-    tatolab|tatolab-cli)
-      [ "$sets_a_test_root" -eq 1 ] && continue
-      printf '%s' "$arguments" | grep -Eq '^[[:space:]]+(run|dev|stop|rm|start|restart|kill)\b' \
-        && note_rule machine_runtime "$original_segment"
-      ;;
-    tatolabd)
-      [ "$sets_a_test_root" -eq 1 ] && continue
-      printf '%s' "$arguments" | grep -Eq '[[:space:]](--help|-h|--version|-V)\b' || note_rule machine_runtime "$original_segment"
-      ;;
-    open)
-      printf '%s' "$arguments" | grep -Eq 'Tatolab(\.app|[[:space:]]|$)|com\.tatolab' && note_rule app_launch "$original_segment"
-      ;;
-    Tatolab|Tatolab-*.AppImage|*.AppImage)
-      note_rule app_launch "$original_segment"
-      ;;
-    npx|npm)
-      printf '%s' "$arguments" | grep -Eq '(^|[[:space:]])tauri[[:space:]]+dev\b' && note_rule app_launch "$original_segment"
-      ;;
-    apt|apt-get|dpkg)
-      printf '%s' "$arguments" | grep -Eiq '[[:space:]](install|remove|purge|-i|-r|-P)\b' \
-        && printf '%s' "$arguments" | grep -Eq '[Tt]atolab' && note_rule app_launch "$original_segment"
-      ;;
-    brew)
-      printf '%s' "$arguments" | grep -Eq '^[[:space:]]+(install|uninstall|reinstall|upgrade|remove|rm)\b' \
-        && printf '%s' "$arguments" | grep -Eq 'tatolab' && note_rule brew_cask "$original_segment"
-      ;;
-    rm|ln|mv|cp|install|touch|mkdir|rmdir|chmod|chown|trash|ditto|rsync)
-      printf '%s' "$original_segment" | grep -Eq "$MACHINE_PATH_PATTERN" && note_rule machine_paths "$original_segment"
-      ;;
-    tccutil|sfltool)
-      note_rule machine_paths "$original_segment"
-      ;;
-    osascript)
-      printf '%s' "$arguments" | grep -Eiq 'administrator privileges' && note_rule administrator_prompt "$original_segment"
-      ;;
-    xcrun)
-      printf '%s' "$arguments" | grep -Eq '^[[:space:]]+(notarytool[[:space:]]+(submit|store-credentials)|stapler[[:space:]]+staple)\b' \
-        && note_rule publish "$original_segment"
-      ;;
-    notarize-and-staple.sh|bump-homebrew-cask.sh)
-      note_rule publish "$original_segment"
-      ;;
-    build-tatolab-app.sh)
-      printf '%s' "$arguments" | grep -Eq '[[:space:]]--notarize\b' && note_rule publish "$original_segment"
-      ;;
-  esac
-done <<<"$segments"
+      case "$segment" in
+        sudo\ *|env\ *|nohup\ *|command\ *|exec\ *|time\ *|nice\ *) segment="${segment#* }" ;;
+        timeout\ *) segment="$(printf '%s' "$segment" | sed -E 's/^timeout[[:space:]]+[^[:space:]]+[[:space:]]+//')" ;;
+        xargs\ *) segment="$(printf '%s' "$segment" | sed -E 's/^xargs([[:space:]]+-[^[:space:]]+)*[[:space:]]+//')" ;;
+        *) break ;;
+      esac
+      segment="$(printf '%s' "$segment" | sed -E 's/^[[:space:]]+//')"
+    done
+
+    command_word="$(printf '%s' "$segment" | awk '{print $1}')"
+    command_name="${command_word##*/}"
+    arguments=" ${segment#"$command_word"} "
+    blanked_segment="$(printf '%s\n' "$segment" | awk "$BLANK_QUOTED_SPANS")"
+
+    # A shell's -c string, an eval string, and a script path are command lines of their own.
+    case "$command_name" in
+      bash|sh|zsh|dash|eval)
+        if [ "$command_name" = eval ]; then
+          inner_command_line="$(unquote_leading_argument "$(printf '%s' "$arguments" | sed -E 's/^[[:space:]]+//')")"
+          classify_command_line "$inner_command_line" $((nesting_depth + 1))
+          continue
+        fi
+        if printf '%s' "$arguments" | grep -Eq '^[[:space:]]+(-[a-z]*c)[[:space:]]'; then
+          inner_command_line="$(unquote_leading_argument "$(printf '%s' "$arguments" | sed -E 's/^[[:space:]]+-[a-z]*c[[:space:]]+//')")"
+          classify_command_line "$inner_command_line" $((nesting_depth + 1))
+          continue
+        fi
+        next_word="$(printf '%s' "$arguments" | awk '{print $1}')"
+        case "$next_word" in
+          ""|-*) continue ;;
+          *) segment="${segment#* }"; command_word="$next_word"; command_name="${next_word##*/}"; arguments=" ${segment#"$command_word"} " ;;
+        esac
+        ;;
+      cd)
+        case "$arguments" in *src-tauri*) changed_into_src_tauri=1 ;; esac
+        continue
+        ;;
+    esac
+
+    # Writing a machine path: a write verb, an output redirect, tee, sed -i or find -delete onto
+    # one — whatever the command word.
+    if printf '%s' "$original_segment" | grep -Eq "$MACHINE_PATH_PATTERN"; then
+      case "$command_name" in
+        rm|ln|mv|cp|install|touch|mkdir|rmdir|chmod|chown|trash|ditto|rsync|tee|unlink|truncate)
+          note_rule machine_paths "$original_segment" ;;
+        *)
+          if printf '%s' "$blanked_segment" | grep -Eq '>' \
+             || { [ "$command_name" = sed ] && printf '%s' "$arguments" | grep -Eq '[[:space:]]-i'; } \
+             || { [ "$command_name" = find ] && printf '%s' "$arguments" | grep -Eq '[[:space:]](-delete|-exec[[:space:]]+rm)'; }; then
+            note_rule machine_paths "$original_segment"
+          fi
+          ;;
+      esac
+    fi
+
+    case "$command_name" in
+      # Text tools carry a command as an argument, never as a launch.
+      sed|grep|rg|awk|perl|echo|printf|cat|jq|diff|tee|head|tail|less|man|which|type|ls|find|wc) continue ;;
+      git)
+        printf '%s' "$arguments" | grep -Eq '[[:space:]]push([[:space:]]|$)' \
+          && printf '%s' "$original_segment $session_cwd" | grep -Eq 'homebrew-tap' \
+          && note_rule publish "$original_segment"
+        continue
+        ;;
+      gh)
+        local gh_arguments
+        gh_arguments="$(printf '%s' "$arguments" | sed -E 's/^[[:space:]]*((-R|--repo|--hostname)([[:space:]]+|=)[^[:space:]]+[[:space:]]+)*//')"
+        if printf '%s' " $gh_arguments" | grep -Eq '^[[:space:]]+release[[:space:]]+(create|upload|edit|delete)([[:space:]]|$)' \
+           || { printf '%s' " $gh_arguments" | grep -Eq '^[[:space:]]+workflow[[:space:]]+run([[:space:]]|$)' \
+                && printf '%s' "$gh_arguments" | grep -Eq "publish=[\"']?true"; } \
+           || { printf '%s' " $gh_arguments" | grep -Eq '^[[:space:]]+api([[:space:]]|$)' \
+                && { printf '%s' "$gh_arguments" | grep -Eq '/dispatches([[:space:]/?"'"'"']|$)' \
+                     || { printf '%s' "$gh_arguments" | grep -Eq '/releases' \
+                          && printf '%s' "$gh_arguments" | grep -Eq '(-X|--method)[[:space:]=]*(POST|PATCH|PUT|DELETE)|[[:space:]]-[fF][[:space:]]|--(raw-)?field|--input'; }; }; }; then
+          note_rule publish "$original_segment"
+        fi
+        continue
+        ;;
+      launchctl)
+        printf '%s' "$arguments" | grep -Eq '^[[:space:]]+(bootstrap|bootout|kickstart|load|unload|enable|disable|remove|kill|submit|start|stop|setenv|unsetenv)([[:space:]]|$)' \
+          && note_rule launchctl_job "$original_segment"
+        ;;
+      systemctl)
+        printf '%s' "$arguments" | grep -Eq '[[:space:]](start|stop|restart|reload|try-restart|enable|disable|reenable|mask|unmask|kill|reset-failed|daemon-reload|edit|revert|link|preset|isolate|set-environment|unset-environment)([[:space:]]|$)' \
+          && note_rule systemd_service "$original_segment"
+        ;;
+      tatolab|tatolab-cli)
+        case "$command_word" in */target/tatolab-runtime/bin/tatolab|*/target/tatolab-runtime/bin/tatolabd) continue ;; esac
+        printf '%s' "$arguments" | awk '{ for (i = 1; i <= NF; i++) if ($i !~ /^-/) { print $i; exit } }' \
+          | grep -Eqx 'run|dev|stop|start|rm|expose|enable-virtual-camera' \
+          && note_rule machine_runtime "$original_segment"
+        ;;
+      tatolabd)
+        case "$command_word" in */target/tatolab-runtime/bin/tatolab|*/target/tatolab-runtime/bin/tatolabd) continue ;; esac
+        printf '%s' "$arguments" | grep -Eq '[[:space:]](--help|-h|--version|-V)([[:space:]]|$)' || note_rule machine_runtime "$original_segment"
+        ;;
+      open)
+        printf '%s' "$arguments" | grep -Eq "Tatolab\\.app|[[:space:]]-a[[:space:]]+[\"']?Tatolab([\"'[:space:]]|\$)|[[:space:]]-b[[:space:]]+[\"']?com\\.tatolab" \
+          && note_rule app_launch "$original_segment"
+        ;;
+      Tatolab|Tatolab-*.AppImage|*.AppImage)
+        note_rule app_launch "$original_segment"
+        ;;
+      npx|npm)
+        printf '%s' "$arguments" | grep -Eq '(^|[[:space:]])tauri[[:space:]]+(--[[:space:]]+)?dev([[:space:]]|$)' && note_rule app_launch "$original_segment"
+        ;;
+      cargo)
+        if printf '%s' "$arguments" | grep -Eq '^[[:space:]]+tauri[[:space:]]+dev([[:space:]]|$)'; then
+          note_rule app_launch "$original_segment"
+        elif printf '%s' "$arguments" | grep -Eq '^[[:space:]]+run([[:space:]]|$)' \
+             && { [ "$changed_into_src_tauri" -eq 1 ] \
+                  || printf '%s' "$arguments" | grep -Eq 'src-tauri' \
+                  || printf '%s' "$session_cwd" | grep -Eq '/src-tauri(/|$)'; }; then
+          note_rule app_launch "$original_segment"
+        fi
+        ;;
+      apt|apt-get|dpkg)
+        printf '%s' "$arguments" | grep -Eiq '[[:space:]](install|remove|purge|-i|-r|-P)([[:space:]]|$)' \
+          && printf '%s' "$arguments" | grep -Eq '[Tt]atolab' && note_rule app_launch "$original_segment"
+        ;;
+      brew)
+        printf '%s' "$arguments" | grep -Eq '^[[:space:]]+(install|uninstall|reinstall|upgrade|remove|rm)([[:space:]]|$)' \
+          && printf '%s' "$arguments" | grep -Eq '([[:space:]]|/)tatolab([[:space:]]|$)' && note_rule brew_cask "$original_segment"
+        ;;
+      defaults)
+        printf '%s' "$arguments" | grep -Eq '^[[:space:]]+(write|delete|rename|import)[[:space:]]+com\.tatolab' \
+          && note_rule machine_paths "$original_segment"
+        ;;
+      tccutil|sfltool)
+        note_rule machine_paths "$original_segment"
+        ;;
+      osascript)
+        printf '%s' "$arguments" | grep -Eiq 'administrator privileges' && note_rule administrator_prompt "$original_segment"
+        ;;
+      xcrun)
+        printf '%s' "$arguments" | grep -Eq '^[[:space:]]+(notarytool[[:space:]]+(submit|store-credentials)|stapler[[:space:]]+staple)([[:space:]]|$)' \
+          && note_rule publish "$original_segment"
+        ;;
+      notarize-and-staple.sh|bump-homebrew-cask.sh)
+        note_rule publish "$original_segment"
+        ;;
+      build-tatolab-app.sh)
+        printf '%s' "$arguments" | grep -Eq '[[:space:]]--notarize([[:space:]]|$)' && note_rule publish "$original_segment"
+        ;;
+    esac
+  done < <(printf '%s\n' "$command_line" | awk "$SPLIT_OUTSIDE_QUOTES")
+}
+
+classify_command_line "$(printf '%s\n' "$cmd" | awk "$STRIP_HEREDOC_BODIES" | awk "$JOIN_CONTINUATIONS")" 0
 
 # ── the outcome ──────────────────────────────────────────────────────
 glob_hit() {
@@ -261,7 +382,7 @@ describe_rule() {
   case "$1" in
     launchctl_job) printf 'changing a launchd job, which can stop, start or unregister the runtime agent' ;;
     systemd_service) printf 'changing a systemd unit, which can stop, start or disable tatolabd.service' ;;
-    machine_runtime) printf "driving the machine's runtime (tatolab run/stop/rm, or a second tatolabd) instead of a test-root one" ;;
+    machine_runtime) printf "driving the machine's runtime (tatolab run/stop/rm/expose, or a second tatolabd) instead of the test-root unit's CLI" ;;
     app_launch) printf 'launching or installing the real app, which registers or switches the runtime agent' ;;
     brew_cask) printf "installing or removing the Tatolab cask on this machine" ;;
     machine_paths) printf "writing or removing the machine's Tatolab paths, state or permissions" ;;
@@ -288,7 +409,7 @@ if [ "$outcome" = ask ]; then
 fi
 
 system_message="${config_problems}machine-brake: ${first_rule} noted, not a prompt. Silence it: ${HELPER} rule ${first_rule} off  or  ${HELPER} allow '${suggested_glob}'"
-context="machine-brake note, advisory only, nothing was blocked: this command matched ${rules_text}. It acts on the owner's real machine or sends something outside the repository. That is fine when the owner asked for it. Otherwise prefer the hermetic path — tests with the fake local API server, the mock window (npm run dev), or a local-proof build under TATOLAB_TEST_MACHINE_ROOT — and say what you ran. Read-only verbs (launchctl print, systemctl --user status, tatolab streams/graph/logs) never trigger this note. Owner preferences: ${preferences:-none recorded}. The owner can silence this with \`${HELPER} rule ${first_rule} off\` or \`${HELPER} allow '${suggested_glob}'\`; offer that if they say the command is fine, and never add an exception yourself."
+context="machine-brake note, advisory only, nothing was blocked: this command matched ${rules_text}. It acts on the owner's real machine or sends something outside the repository. That is fine when the owner asked for it. Otherwise prefer the hermetic path — tests with the fake local API server, the mock window (npm run dev), or a local-proof build under TATOLAB_TEST_MACHINE_ROOT — and say what you ran. Read-only verbs (launchctl print, systemctl --user status, tatolab streams/graph/logs/tap/exchange) and the test-root unit's own CLI (target/tatolab-runtime/bin/tatolab) never trigger this note. Owner preferences: ${preferences:-none recorded}. The owner can silence this with \`${HELPER} rule ${first_rule} off\` or \`${HELPER} allow '${suggested_glob}'\`; offer that if they say the command is fine, and never add an exception yourself."
 jq -n --arg message "$system_message" --arg context "$context" \
   '{systemMessage: $message, hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $context}}'
 exit 0

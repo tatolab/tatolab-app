@@ -13,7 +13,7 @@ body:
     id: design
     attributes:
       label: Design
-      description: "what the app reads from the runtime's local API, what it shows, and on which platform; the app's architecture is decided in tatolab/streamlib's docs/plan/, never in the ticket — link the plan entry or change it implements"
+      description: "what the app reads from the local API, what it shows, on which platform, and any new module, trait or Tauri command (settled with /module-design); link the streamlib plan entry for anything about what the app is — never restate or extend the plan here"
     validations:
       required: false
   - type: textarea

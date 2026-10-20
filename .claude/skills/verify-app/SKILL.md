@@ -13,42 +13,62 @@ already uses.
 ## Pick the lowest rung that proves the claim
 
 1. **Mock (browser).** Pure window changes — layout, copy, a new state's presentation, light/dark.
-   `npm run dev`, then drive the page with Playwright at `http://localhost:1420/` with the presets
+   Start `npm run dev` in the background (stop it at the end), then drive the page with Playwright
+   at `http://localhost:1420/` with the presets `index.html`, `src/feature_flags.ts`,
    `src/backend/mock_tatolab_backend.ts` and `src/mock_window_preset.ts` read:
-   `?state=` (running, empty, loading, node-error, not-listed, starting, stopped, unreachable,
-   setup; macOS-only approval, missing, not-registered), `?platform=linux`, and the screen keys
-   `?stream=`, `?tab=`, `?page=settings`, `?sheet=uninstall|uninstalling|uninstalled`,
-   `?setup=waiting`, `?watch=<node>.<port>`, `?levels=errors`, `?search=<query>`. Emulate both
-   colour schemes. Label every image **Mock**. A screen the presets cannot reach gets a preset in
-   the same change.
+   `?theme=light|dark`, `?platform=linux`, `?state=` (running, empty, loading, node-error,
+   not-listed, starting, stopped, unreachable, setup; macOS-only approval, missing,
+   not-registered), `?uninstall=cancel`, and the screen keys `?stream=`, `?tab=`,
+   `?page=settings`, `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`,
+   `?levels=errors`, `?search=<query>`, and `?watch=<node>.<port>` (only with
+   `?feature=watch-exposed-output`). Shoot both themes. Label every image **Mock**. A screen the
+   presets cannot reach gets a preset in the same change.
 2. **Local-proof live (macOS).** Anything that talks to a runtime — streams appearing and going,
    graph, logs, the switch, setup. `scripts/build-tatolab-app.sh --local-proof-test-root` builds a
    runtime unit and an app whose machine lock, state and socket live under
    `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`: no administrator prompt, nothing written to
    `/Library` or `/usr/local/bin`. Drive streams with that unit's own CLI
    (`<streamlib>/target/tatolab-runtime/bin/tatolab`, with `TATOLAB_TEST_MACHINE_ROOT` set) —
-   test-pattern streams only. Opening the proof build still registers its login item with
-   Service Management, as the installed app would — note what was registered before, and when
-   done turn "Run Tatolab" off or use the proof build's "Uninstall Tatolab…" (it removes
-   `/tmp/tatolab-proof` instead of prompting), then put the owner's own setup back. Label
-   **Live (local proof)**.
+   test-pattern streams only. Reuse an already-built unit with `--runtime-unit` rather than
+   rebuilding streamlib. **The proof build shares the installed app's bundle id and agent label,
+   so while it runs it replaces the owner's runtime.** Before: record
+   `launchctl print gui/$(id -u)/com.tatolab.tatolabd | head -5` and quit the installed Tatolab.
+   After: turn "Run Tatolab" off in the proof build and quit it. Never use its "Uninstall
+   Tatolab…" unless uninstall is what you are proving — it also deletes
+   `~/Library/Application Support/com.tatolab.tatolab`, the installed app's own settings. Then
+   `rm -rf /tmp/tatolab-proof`, reopen `/Applications/Tatolab.app` so it registers its own agent,
+   and show `launchctl print` matches the record. Label **Live (local proof)**.
+
+   A change to what the app reads from the local API also runs the live contract test against
+   that runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=/tmp/tatolab-proof/run/local-api.sock cargo
+   test --manifest-path src-tauri/Cargo.toml -- --ignored`.
 3. **Live on the machine.** Only for what the test root cannot reach: the real administrator
    prompt, `SMAppService` registration after a `brew` reinstall, Gatekeeper, TCC prompts. This
    acts on the owner's real runtime — the `machine-brake` hook notes it — so say what you will
    run, run it only when the owner asked for this proof, and restore what you changed. Label
    **Live**.
-4. **Linux.** Build with `scripts/build-tatolab-linux-app.sh` (add `--local-proof-test-root` to
-   read a test-root runtime) and run the AppImage or `.deb` on Linux or in an Ubuntu container with
-   a systemd user session. A runtime stand-in (a fake local API answering on the socket) is
-   allowed and **named as a stand-in** in the caption. Label **Linux**.
+4. **Linux.** On x86_64 Linux: `scripts/build-tatolab-linux-app.sh [--local-proof-test-root]`,
+   then run the AppImage or `.deb`. On the Mac (arm64, which that script refuses): in an
+   `ubuntu:22.04` container, build the unbundled app (`npm ci && npm run build && cargo build
+   --manifest-path src-tauri/Cargo.toml [--features machine-directories-under-a-test-root]`) with
+   container volumes over `node_modules/` and `src-tauri/target/`, so Linux binaries never land in
+   the host's; run it under Xvfb with a StatusNotifier host and capture with
+   `import -window root`. Packaging itself (`.deb` Depends, desktop entry, AppImage) is proven only
+   by an x86_64 build (CI). A runtime stand-in (a fake local API answering on the socket) is
+   allowed and **named as a stand-in**. Label **Linux** or **Linux (container, unbundled)**.
+   Commit the container recipe the first time you use one.
 
 ## Capture
 
 - Screenshots go under `proof/<topic>/` with descriptive names (`03-four-streams-attached.png`),
   both themes for a visual change, and the window at its real size — not cropped to the change.
 - The window inside Tauri cannot be driven by Playwright; capture it with the platform's screenshot
-  tool (`screencapture -l <window id>` / `-R` on macOS, `gnome-screenshot -w` or `import` on
-  Linux).
+  tool — on macOS `screencapture -l <CGWindowID>` (find the id with
+  `osascript -e 'tell application "System Events" to id of first window of process "Tatolab"'`
+  or a small `CGWindowListCopyWindowInfo` script; the terminal needs Screen Recording), on Linux
+  `gnome-screenshot -w` or `import`.
+- In the PR body, images in this private repository render only as
+  `https://github.com/tatolab/tatolab-app/blob/<sha>/proof/<path>?raw=true` links.
 - Never capture a secret, a signing identity, a token, or a home-directory path that names a real
   person other than the owner.
 

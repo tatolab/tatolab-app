@@ -9,7 +9,8 @@
   // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
   ```
 
-  with `#` for shell. `scripts/check-license-headers.sh` enforces it.
+  with `#` for shell (an extensionless script counts by its `#!` line); `*.d.ts` declarations are
+  exempt. `scripts/check-license-headers.sh` enforces it.
 - The runtime the app bundles is streamlib's and stays BUSL-1.1; third-party components keep
   their own licences. A new dependency that ships inside the app (a cargo crate, an npm package
   bundled into `dist/`, a font) is named in the PR body with its licence, so the owner sees what

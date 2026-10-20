@@ -7,20 +7,23 @@ disable-model-invocation: true
 # Implement
 
 1. **Load**: the issue — body plus every comment oldest→newest (a comment IS specification and is
-   newer than the body; conflicts resolve toward the comment) — and the streamlib plan entries it
-   cites (`../streamlib/docs/plan/ARCHITECTURE.md`, or
-   `gh api repos/tatolab/streamlib/contents/docs/plan/ARCHITECTURE.md -q .content | base64 -d`).
+   newer than the body; conflicts resolve toward the comment) — and the streamlib plan sections it
+   cites, read from streamlib's `main` as `CLAUDE.md` gives (never a local checkout's branch).
    Read `proof/design-final/FINAL-SPEC.md` when the issue touches the window.
 2. **Ultracode gate**: an issue whose body opens with **Run with ultracode** is built only in a run
-   that has ultracode on — a system-reminder confirms it. Without it, **stop** before any other
-   step: one line saying the issue runs with ultracode and the exact command to re-run it. Under
-   ultracode, every agent that edits files runs in its own worktree; the steps below hold.
+   that has ultracode on — a system-reminder confirms it when the owner's message carries the
+   keyword (`/implement <N> ultracode`) or the session has it on. Without it, **stop** before any
+   other step: one line saying the issue runs with ultracode and the exact command to re-run it.
+   Build without it only when the owner says so in this run, in their own words. Under ultracode,
+   every agent that edits files runs in its own worktree (building into the main checkout's
+   `src-tauri/target/`); the steps below hold.
 3. **Plan gate**: list the decisions this work needs. Any that touch what the app *is* — a new
    runtime contract, a capability the streamlib plan does not state — and are not DECIDED there →
    post a `[NEEDS DECISION]` comment on the issue with the options and your recommendation, and
    **stop**; the decision is made in a streamlib session. A design departure from the calm-native
-   spec is the owner's call — ask it as one batched question. Never infer a decision from existing
-   code.
+   spec is the owner's call — ask it as one batched question. A new module, trait or Tauri command
+   the issue's Design section does not settle goes through `/module-design` first. Never infer a
+   decision from existing code.
 4. **Waits-on check**: every streamlib issue under "Waits on" is closed and released in the
    runtime the app is built against. One that is not → stop and say which; the app never works
    around a missing runtime capability.
@@ -29,9 +32,7 @@ disable-model-invocation: true
 6. **Announce** the refined plan — goal, files, the seams tests will exercise, the `/verify-app`
    evidence it will carry, scope, and every assumption. With no open question, proceed; stop only
    for a real `[NEEDS DECISION]` or a live fork.
-7. `mkdir -p .claude/state` and write `.claude/state/active-ticket.json`
-   (`{"issue": <N>, "branch": "<type>/<N>-<slug>"}`). Branch `<type>/<N>-<slug>` off fresh
-   `origin/main`.
+7. Branch `<type>/<N>-<slug>` off fresh `origin/main`.
 8. **Build test-first at the seams the issue names** — the fake local API server, the injected
    platform seams, presentation functions, the mock backend. Commit at logical checkpoints with
    conventional-commit prefixes; every commit builds. A UI change adds a mock preset for any new
@@ -48,6 +49,5 @@ disable-model-invocation: true
     `type(scope): summary`; body `## Summary`, `## Closes` (one `Closes #N` per line), `## Exit
     criteria`, `## Test plan`, `## Evidence` (the `/verify-app` images and what each shows,
     labelled Live / Linux / Mock), `## Notes for owner` (the batched findings).
-14. `rm -f .claude/state/active-ticket.json`. Report: PR URL, tests run, evidence, notes awaiting
-    the owner. Merge is the owner's call, and waits for every check on the head commit to finish
-    green.
+14. Report: PR URL, tests run, evidence, notes awaiting the owner. Merge is the owner's call, and
+    waits for every check on the head commit to finish green.

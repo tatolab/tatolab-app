@@ -20,7 +20,7 @@ machine-brake — the machine-brake hook's config (.claude/machine-brake.json an
   machine-brake rule   [--project|--user] <rule> <outcome>  set one rule's outcome: warn | ask | off
   machine-brake mode   [--project|--user] <outcome>         set the default outcome for every rule
   machine-brake show                                        the effective merged config and its sources
-  machine-brake test   '<command>'                          dry-run the hook on a command
+  machine-brake test   [--cwd <dir>] '<command>'            dry-run the hook on a command run from <dir>
 
 Globs match the whole command text with bash pattern syntax (* and ?). Rules:
 launchctl_job, systemd_service, machine_runtime, app_launch, brew_cask, machine_paths,
@@ -31,7 +31,6 @@ USAGE
 }
 
 scope=local
-cwd_override=""
 cwd_override=""
 args=()
 while [ $# -gt 0 ]; do

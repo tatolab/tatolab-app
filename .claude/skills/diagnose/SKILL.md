@@ -24,10 +24,14 @@ Phases in order. The feedback loop is the skill; everything else is mechanical.
    streams`?), the service manager (what does launchd / systemd say?), the backend (what does the
    Tauri command return?), the window (what does presentation make of it?). A runtime defect is
    filed in streamlib, never patched around here.
+   To read the app's own `tracing` (a Finder launch discards stderr): quit the app, then start the
+   binary from a terminal — `RUST_LOG=debug /Applications/Tatolab.app/Contents/MacOS/Tatolab`, or
+   `/usr/bin/Tatolab` / the AppImage on Linux. A direct start skips the single-instance check, so
+   quit the running app first.
 4. **Instrument** one variable at a time, each probe mapped to a prediction. Tag every debug line
    `[DEBUG-xxxx]` so cleanup is one grep.
 5. **Regression test before the fix**, at a real seam. If no correct seam exists, that itself is a
-   finding — and the fix still lands with the best available test. Never a test that sleeps.
+   finding for the PR's Notes for owner — and the fix still lands with the best available test. Never a test that sleeps.
 6. **Cleanup**: repro gone, every `[DEBUG-` gone, the confirmed hypothesis stated in the commit
    message.
 

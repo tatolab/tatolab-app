@@ -2,9 +2,12 @@ name: Pull request checks
 
 # The merge gate: the source gates, the window's tests and the app's Rust tests and lints on macOS
 # and Linux, on every pull request. Hermetic only — no runtime, no signing, no streamlib checkout;
-# building, signing and publishing stay in macos-app.yml, which runs on main.
+# building, signing and publishing stay in macos-app.yml. The push to main runs it once more so the
+# Rust caches pull requests read are saved from main.
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -21,7 +24,7 @@ env:
 jobs:
   source-gates:
     name: Source gates and the pull request title
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -60,7 +63,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
           shared-key: tatolab-app-pull-request-macos
-          save-if: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - uses: actions/setup-node@v4
         with:
@@ -106,7 +109,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
           shared-key: tatolab-app-pull-request-linux
-          save-if: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - uses: actions/setup-node@v4
         with:

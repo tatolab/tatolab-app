@@ -10,7 +10,8 @@ The pressure-release valve before work: ideas too fuzzy or too broad for an issu
 here first. Nothing in this skill commits anything: **no issues, no plan edits, no code.**
 
 This skill is proactive, not just inquisitive — the owner brings a fuzzy want; Claude's job is to
-give it a shape they can react to.
+give it a shape they can react to. Digging and questioning are means; the deliverable is a formed
+picture plus the smallest sensible way to start.
 
 1. **Situate.** Read streamlib's plan entry for the app and the local API it would read, the
    calm-native spec, the relevant code, and the open issues circling the idea. When the input is a
@@ -31,12 +32,18 @@ give it a shape they can react to.
    - **Full change** — only when the idea is already well-understood and small.
 
    State the smallest version worth building, the explicit **deferred list**, and the iteration
-   path. Bias one rung smaller than feels natural.
+   path. When the idea is iterable, bias one rung smaller than feels natural — iteration is cheap,
+   unbuilding is not.
 5. **Drive to identical understanding.** Say the idea AND the recommended start back in your own
-   words until the owner confirms it.
+   words until the owner confirms it matches what is in their head. Unconfirmed = unexplored.
 6. **Exit explicitly**, one of three ways:
-   - **Graduate** → `/file-issue` when the streamlib plan already covers it; a streamlib `/align`
-     or `/propose-change` when it changes what the app is or needs a runtime contract.
+   - **Graduate** → `/file-issue` when the streamlib plan already covers it; a calm-native spec
+     change → a stated question to the owner, then `/file-issue`; a streamlib `/align` or
+     `/propose-change` when it changes what the app is or needs a runtime contract.
    - **Park** → memo at `docs/research/explorations/<slug>.md`: the idea, the shapes considered,
      the recommended start, and what unknown must resolve before it revives.
-   - **Kill** → same memo, with the reason.
+   - **Kill** → same memo, with the reason — so the idea is not innocently re-explored in three
+     months.
+
+If exploration reveals the idea is really N ideas, or more than one set of issues' worth of work,
+say so and split before graduating.
