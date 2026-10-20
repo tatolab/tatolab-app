@@ -2,6 +2,22 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## The window on the Electron backend (macOS, unpackaged; Live (local proof))
+
+PR #32 at 7433d46 on the owner's Mac (macOS 26.7.1), with Electron 44.9.1 unpackaged and
+`machineDirectoriesUnderATestRoot` switched on in a throwaway worktree. tatolabd 0.45.6, the
+test-root unit, was started by hand under `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, and a
+test-pattern stream was loaded with that unit's CLI. Electron's appData was moved under /tmp with
+`CFFIXED_USER_HOME`. The installed Tatolab and its agent were left alone: `launchctl print` was the
+same before and after.
+
+| image | label | shows |
+|---|---|---|
+| ![](electron-window/live-macos-local-proof-01-streams-graph-logs.png) | Live (local proof) | The Electron window with hidden-inset traffic lights. `jonathanf-macbook` is running, `main` is Kept from the test-root runtime, and the graph shows its four nodes and three links ("4 nodes running, 3 links wired"). The logs follow live `brightness` records. |
+| ![](electron-window/live-macos-local-proof-02-settings.png) | Live (local proof) | Settings: Run Tatolab on, the command Not linked (a local-proof build links none), the version and the machine. |
+| ![](electron-window/live-macos-local-proof-03-menu-bar-menu.png) | Live (local proof) | The menu bar menu under the Electron app's template icon (the installed app's icon sits beside it): "Runtime running · 1 stream" greyed, Open Tatolab, ✓ Run Tatolab, Quit Tatolab. |
+| ![](electron-window/live-macos-local-proof-04-run-tatolab-refusal-not-shown.png) | Live (local proof) | Run Tatolab clicked off and then on. Unpackaged Electron has no agent plist, so registration was refused, but the window shows nothing. The refusal is only in the log: `registration_failed: The operation couldn't be completed. Unable to read plist: com.tatolab.tatolabd.plist`. The Tauri app has the same behaviour, because `set_run_tatolab` answers nothing and only the status follows. |
+
 ## The window on the Electron backend (Linux container, unbundled; tatolabd stand-in)
 
 Issue #23 together with #18's wiring (01–06 on PR B at 445bcfe merged locally; 07–09 on main after #31): the window
