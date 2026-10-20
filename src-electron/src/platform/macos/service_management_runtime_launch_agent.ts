@@ -68,7 +68,7 @@ export class ServiceManagementRuntimeLaunchAgent implements RuntimeAgentRegistra
   }
 
   async registerRuntimeAgent(): Promise<Result<void, string>> {
-    return this.requestRegisteredAndConfirm(true, ["enabled"]);
+    return this.serviceManagementAgentServices.registerAgentService(this.agentPlistName);
   }
 
   async startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {
@@ -86,24 +86,10 @@ export class ServiceManagementRuntimeLaunchAgent implements RuntimeAgentRegistra
   }
 
   async unregisterRuntimeAgent(): Promise<Result<void, string>> {
-    return this.requestRegisteredAndConfirm(false, ["not_registered", "not_found"]);
+    return this.serviceManagementAgentServices.unregisterAgentService(this.agentPlistName);
   }
 
   async openLoginItemsSettings(): Promise<Result<void, string>> {
     return this.serviceManagementAgentServices.openSystemSettingsLoginItems();
-  }
-
-  /** Ask Service Management to register or unregister the agent, then read its status back, since Electron keeps Service Management's own refusal to its log: a status other than `expectedStatuses` is the refusal. */
-  private async requestRegisteredAndConfirm(
-    agentServiceRegistered: boolean,
-    expectedStatuses: readonly RuntimeAgentRegistrationStatus[],
-  ): Promise<Result<void, string>> {
-    const request = this.serviceManagementAgentServices.requestAgentServiceRegistered(this.agentPlistName, agentServiceRegistered);
-    if (!request.ok) return request;
-    const statusAfterTheRequest = await this.registrationStatus();
-    if (expectedStatuses.includes(statusAfterTheRequest)) return succeeded(undefined);
-    return failedWith(
-      `Service Management did not ${agentServiceRegistered ? "register" : "unregister"} ${this.agentPlistName}: it reads ${statusAfterTheRequest}`,
-    );
   }
 }

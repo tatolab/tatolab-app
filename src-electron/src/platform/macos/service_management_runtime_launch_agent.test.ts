@@ -11,21 +11,29 @@ import {
 } from "./service_management_runtime_launch_agent.js";
 import type { ServiceManagementAgentServices, ServiceManagementAgentServiceStatus } from "./service_management_agent_services.js";
 
-/** Service Management as a fake: it holds the status of the agent plists it knows, moves them as a request asks unless told to leave them, and records every call. */
+/** Service Management as a fake: it holds the status of the agent plists it knows, moves them as a request asks unless it refuses, and records every call. */
 function fakeServiceManagementAgentServices(
   statusByAgentPlistName: Map<string, ServiceManagementAgentServiceStatus>,
-  statusAfterARegisterRequest: ServiceManagementAgentServiceStatus = "enabled",
+  registrationRefusal: string | null = null,
 ) {
   const serviceManagementCalls: string[] = [];
+  const answerTheRequest = (agentPlistName: string, statusAfterTheRequest: ServiceManagementAgentServiceStatus) => {
+    if (registrationRefusal !== null) return failedWith(registrationRefusal);
+    statusByAgentPlistName.set(agentPlistName, statusAfterTheRequest);
+    return succeeded(undefined);
+  };
   const serviceManagementAgentServices: ServiceManagementAgentServices = {
     agentServiceStatus(agentPlistName) {
       serviceManagementCalls.push(`status ${agentPlistName}`);
       return statusByAgentPlistName.get(agentPlistName) ?? null;
     },
-    requestAgentServiceRegistered(agentPlistName, agentServiceRegistered) {
-      serviceManagementCalls.push(`${agentServiceRegistered ? "register" : "unregister"} ${agentPlistName}`);
-      statusByAgentPlistName.set(agentPlistName, agentServiceRegistered ? statusAfterARegisterRequest : "not-registered");
-      return succeeded(undefined);
+    registerAgentService(agentPlistName) {
+      serviceManagementCalls.push(`register ${agentPlistName}`);
+      return answerTheRequest(agentPlistName, "enabled");
+    },
+    unregisterAgentService(agentPlistName) {
+      serviceManagementCalls.push(`unregister ${agentPlistName}`);
+      return answerTheRequest(agentPlistName, "not-registered");
     },
     async openSystemSettingsLoginItems() {
       serviceManagementCalls.push("open Login Items");
@@ -68,51 +76,26 @@ test("an agent plist Service Management does not know reads as not found", async
   expect(serviceManagementCalls).toEqual(["status com.tatolab.tatolabd.plist"]);
 });
 
-test("registering reads the agent back and names the status Service Management left it in", async () => {
-  const enabling = fakeServiceManagementAgentServices(new Map([["com.tatolab.tatolabd.plist", "not-registered"]]));
+test("registering and unregistering go to Service Management, and a refusal is answered in its own words", async () => {
   const launchctl = launchctlAnswering(launchctlExiting(0)).launchctlRunner;
-  expect(await ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(501, enabling.serviceManagementAgentServices, launchctl).registerRuntimeAgent()).toEqual(
-    succeeded(undefined),
-  );
-  expect(enabling.serviceManagementCalls).toEqual(["register com.tatolab.tatolabd.plist", "status com.tatolab.tatolabd.plist"]);
+  const accepting = fakeServiceManagementAgentServices(new Map([["com.tatolab.tatolabd.plist", "not-registered"]]));
+  const runtimeLaunchAgent = ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(501, accepting.serviceManagementAgentServices, launchctl);
 
-  const awaitingApproval = fakeServiceManagementAgentServices(new Map(), "requires-approval");
-  expect(
-    await ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(501, awaitingApproval.serviceManagementAgentServices, launchctl).registerRuntimeAgent(),
-  ).toEqual(failedWith("Service Management did not register com.tatolab.tatolabd.plist: it reads requires_approval"));
-
-  const unregistering = fakeServiceManagementAgentServices(new Map([["com.tatolab.tatolabd.plist", "enabled"]]));
-  const runtimeLaunchAgent = ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(501, unregistering.serviceManagementAgentServices, launchctl);
+  expect(await runtimeLaunchAgent.registerRuntimeAgent()).toEqual(succeeded(undefined));
+  expect(await runtimeLaunchAgent.registrationStatus()).toBe("enabled");
   expect(await runtimeLaunchAgent.unregisterRuntimeAgent()).toEqual(succeeded(undefined));
   expect(await runtimeLaunchAgent.registrationStatus()).toBe("not_registered");
+  expect(accepting.serviceManagementCalls).toEqual([
+    "register com.tatolab.tatolabd.plist",
+    "status com.tatolab.tatolabd.plist",
+    "unregister com.tatolab.tatolabd.plist",
+    "status com.tatolab.tatolabd.plist",
+  ]);
 
-  const ignoringTheUnregister: ServiceManagementAgentServices = {
-    ...unregistering.serviceManagementAgentServices,
-    agentServiceStatus: () => "enabled",
-  };
-  expect(await ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(501, ignoringTheUnregister, launchctl).unregisterRuntimeAgent()).toEqual(
-    failedWith("Service Management did not unregister com.tatolab.tatolabd.plist: it reads enabled"),
-  );
-});
-
-test("a refused registration request is answered in its own words without reading the status", async () => {
-  const serviceManagementCalls: string[] = [];
-  const refusingServiceManagement: ServiceManagementAgentServices = {
-    agentServiceStatus: () => {
-      serviceManagementCalls.push("status");
-      return "not-registered";
-    },
-    requestAgentServiceRegistered: () => failedWith("Electron refused the login item settings"),
-    openSystemSettingsLoginItems: async () => succeeded(undefined),
-  };
-  const runtimeLaunchAgent = ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(
-    501,
-    refusingServiceManagement,
-    launchctlAnswering(launchctlExiting(0)).launchctlRunner,
-  );
-
-  expect(await runtimeLaunchAgent.registerRuntimeAgent()).toEqual(failedWith("Electron refused the login item settings"));
-  expect(serviceManagementCalls).toEqual([]);
+  const refusing = fakeServiceManagementAgentServices(new Map(), "Operation not permitted");
+  const refusedLaunchAgent = ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(501, refusing.serviceManagementAgentServices, launchctl);
+  expect(await refusedLaunchAgent.registerRuntimeAgent()).toEqual(failedWith("Operation not permitted"));
+  expect(await refusedLaunchAgent.unregisterRuntimeAgent()).toEqual(failedWith("Operation not permitted"));
 });
 
 test("the kickstart leaves a running job alone and maps launchctl's no-such-service exit to its own case", async () => {

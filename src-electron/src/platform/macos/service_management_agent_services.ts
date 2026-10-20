@@ -3,15 +3,17 @@
 
 import type { Result } from "../../result.js";
 
-/** An `SMAppService` status as Electron's `app.getLoginItemSettings` spells it. */
+/** An `SMAppService` status, spelled as the Service Management addon answers it. */
 export type ServiceManagementAgentServiceStatus = "enabled" | "requires-approval" | "not-registered" | "not-found";
 
-/** Service Management's agent services, as Electron's login item API reaches them; a test's fake stands in for it. */
+/** Service Management's `SMAppService` agent services, as the app's native addon reaches them; a test's fake stands in for it. */
 export interface ServiceManagementAgentServices {
-  /** The agent service's status; `null` when Service Management answers none. */
+  /** The agent service's status; `null` when Service Management could not be asked. */
   agentServiceStatus(agentPlistName: string): ServiceManagementAgentServiceStatus | null;
-  /** Ask Service Management to register (`true`) or unregister (`false`) the agent service; refused only when the request could not be made, since Electron answers nothing of whether Service Management did it. */
-  requestAgentServiceRegistered(agentPlistName: string, agentServiceRegistered: boolean): Result<void, string>;
+  /** Register the agent service; refused in Service Management's own words. */
+  registerAgentService(agentPlistName: string): Result<void, string>;
+  /** Unregister the agent service; refused in Service Management's own words. */
+  unregisterAgentService(agentPlistName: string): Result<void, string>;
   /** Open System Settings at Login Items. */
   openSystemSettingsLoginItems(): Promise<Result<void, string>>;
 }
