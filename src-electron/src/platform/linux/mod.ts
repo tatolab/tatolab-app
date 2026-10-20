@@ -46,5 +46,6 @@ export async function linuxTatolabPlatformForThisBuild(
     runtimeAgent: new SystemdUserRuntimeService(new SystemctlOnThePath(), tatolabAppLog),
     machineSetup: new MachineSetUpByTheInstaller(machinePaths.commandLineToolLink),
     localApiSocket: machinePaths.localApiSocket,
+    tatolabUninstall: LINUX_TATOLAB_UNINSTALL,
   };
 }

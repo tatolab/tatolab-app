@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // Service Management's agent services through the app's Node-API addon
-// (`src-electron/native/service_management_agent_services/`), which calls `SMAppService` and
-// answers its `NSError` text; Electron's own login item API keeps that text to its log.
+// (`src-electron/native/service_management_agent_services/`), which calls `SMAppService` off the
+// main thread and answers its `NSError` text; Electron's own login item API keeps that text to its
+// log.
 
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -52,17 +53,17 @@ function serviceManagementAddonFunctionsIn(addonExports: unknown): ServiceManage
 /** Service Management as unreachable: every status reads as none and every request is refused with `whyUnreachable`. */
 function unreachableServiceManagement(whyUnreachable: string): ServiceManagementAgentServices {
   return {
-    agentServiceStatus: () => null,
-    registerAgentService: () => failedWith(whyUnreachable),
-    unregisterAgentService: () => failedWith(whyUnreachable),
+    agentServiceStatus: async () => null,
+    registerAgentService: async () => failedWith(whyUnreachable),
+    unregisterAgentService: async () => failedWith(whyUnreachable),
     openSystemSettingsLoginItems: async () => failedWith(whyUnreachable),
   };
 }
 
-/** A registration call's answer: the addon answers `null` when Service Management did it, or the `NSError`'s own description. */
-function registrationAnswered(addonAnswer: () => unknown): Result<void, string> {
+/** A registration call's answer: the addon's promise settles `null` when Service Management did it, or with the `NSError`'s own description. */
+async function registrationAnswered(addonAnswer: () => unknown): Promise<Result<void, string>> {
   try {
-    const refusal = addonAnswer();
+    const refusal = await addonAnswer();
     if (refusal === null) return succeeded(undefined);
     return failedWith(typeof refusal === "string" ? refusal : `the Service Management addon answered ${String(refusal)}`);
   } catch (addonFailure) {
@@ -78,9 +79,9 @@ export function serviceManagementAgentServicesFromTheAddonExports(addonExports: 
     return unreachableServiceManagement("the Service Management addon does not export its functions");
   }
   return {
-    agentServiceStatus(agentPlistName) {
+    async agentServiceStatus(agentPlistName) {
       try {
-        const status = addonFunctions.agentServiceStatus(agentPlistName);
+        const status = await addonFunctions.agentServiceStatus(agentPlistName);
         return SERVICE_MANAGEMENT_AGENT_SERVICE_STATUSES.find((knownStatus) => knownStatus === status) ?? null;
       } catch (statusFailure) {
         tatolabAppLog.warn("Service Management's status could not be read", { agent_plist: agentPlistName, failure: describeCaughtFailure(statusFailure) });

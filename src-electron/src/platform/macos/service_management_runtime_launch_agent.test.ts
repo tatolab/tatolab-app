@@ -1,7 +1,10 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
+import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
+import { createTatolabAppLog } from "../../tatolab_app_log.js";
+import { loadServiceManagementAddon, serviceManagementAddonBuiltUnder } from "./service_management_addon.js";
 import { failedWith, succeeded, type Result } from "../../result.js";
 import type { ProgramCompletion } from "./run_program_to_completion.js";
 import {
@@ -17,21 +20,21 @@ function fakeServiceManagementAgentServices(
   registrationRefusal: string | null = null,
 ) {
   const serviceManagementCalls: string[] = [];
-  const answerTheRequest = (agentPlistName: string, statusAfterTheRequest: ServiceManagementAgentServiceStatus) => {
+  const answerTheRequest = (agentPlistName: string, statusAfterTheRequest: ServiceManagementAgentServiceStatus): Result<void, string> => {
     if (registrationRefusal !== null) return failedWith(registrationRefusal);
     statusByAgentPlistName.set(agentPlistName, statusAfterTheRequest);
     return succeeded(undefined);
   };
   const serviceManagementAgentServices: ServiceManagementAgentServices = {
-    agentServiceStatus(agentPlistName) {
+    async agentServiceStatus(agentPlistName) {
       serviceManagementCalls.push(`status ${agentPlistName}`);
       return statusByAgentPlistName.get(agentPlistName) ?? null;
     },
-    registerAgentService(agentPlistName) {
+    async registerAgentService(agentPlistName) {
       serviceManagementCalls.push(`register ${agentPlistName}`);
       return answerTheRequest(agentPlistName, "enabled");
     },
-    unregisterAgentService(agentPlistName) {
+    async unregisterAgentService(agentPlistName) {
       serviceManagementCalls.push(`unregister ${agentPlistName}`);
       return answerTheRequest(agentPlistName, "not-registered");
     },
@@ -62,6 +65,27 @@ test("every_service_management_status_maps_to_the_contract_spelling", () => {
   expect(runtimeAgentRegistrationStatusFrom("not-registered")).toBe("not_registered");
   expect(runtimeAgentRegistrationStatusFrom("not-found")).toBe("not_found");
   expect(runtimeAgentRegistrationStatusFrom(null)).toBe("not_found");
+});
+
+const SERVICE_MANAGEMENT_RUNS_HERE = process.platform === "darwin";
+
+/** The repository's root, above `src-electron/src/platform/macos/`. */
+const REPOSITORY_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
+
+test.skipIf(!SERVICE_MANAGEMENT_RUNS_HERE)("an_unbundled_test_binary_finds_no_agent_plist", async () => {
+  const addonLogLines: string[] = [];
+  const serviceManagementAgentServices = loadServiceManagementAddon(
+    serviceManagementAddonBuiltUnder(REPOSITORY_ROOT),
+    createTatolabAppLog("debug", (logLine) => addonLogLines.push(logLine)),
+  );
+  const runtimeLaunchAgent = ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(
+    501,
+    serviceManagementAgentServices,
+    launchctlAnswering(launchctlExiting(0)).launchctlRunner,
+  );
+
+  expect(await runtimeLaunchAgent.registrationStatus()).toBe("not_found");
+  expect(addonLogLines).toEqual([]);
 });
 
 test("an agent plist Service Management does not know reads as not found", async () => {

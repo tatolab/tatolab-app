@@ -13,9 +13,9 @@ import path from "node:path";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../../result.js";
 import type { RunTatolabReconciliation } from "../../run_tatolab_switch.js";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import { currentProcessUid, type RunTatolabSwitchToTurnOff, type TatolabUninstall } from "../mod.js";
+import type { RunTatolabSwitchToTurnOff, TatolabUninstall } from "../mod.js";
 import { shellWordForPath, type AdministratorPrompt, type AdministratorPromptFailure } from "./administrator_prompt.js";
-import { appBundleOfTheExecutable, tatolabMachinePathsOnMacosForThisBuild, type TatolabMachinePathsOnMacos } from "./tatolab_machine_paths.js";
+import { appBundleOfTheExecutable, type TatolabMachinePathsOnMacos } from "./tatolab_machine_paths.js";
 
 /** The words the uninstall's administrator prompt shows under "Tatolab wants to make changes." */
 export const UNINSTALL_ADMINISTRATOR_PROMPT_TEXT = "Tatolab needs to remove the machine runtime lock and the tatolab command to uninstall.";
@@ -137,11 +137,13 @@ export class TatolabUninstallOnThisMac implements TatolabUninstall {
   private uninstallInProgress = false;
 
   /**
-   * The uninstall of the app binary at `packagedAppExecutable` — `null` for an unpackaged app, whose
-   * bundle is Electron's own and never uninstalled — and of `appConfigDirectory`, named for
-   * `appIdentifier`, its machine files removed behind `administratorPrompt`.
+   * The uninstall of `machinePaths`, of the app binary at `packagedAppExecutable` — `null` for an
+   * unpackaged app, whose bundle is Electron's own and never uninstalled — and of
+   * `appConfigDirectory`, named for `appIdentifier`, its machine files removed behind
+   * `administratorPrompt`.
    */
   constructor(
+    private readonly machinePaths: TatolabMachinePathsOnMacos,
     private readonly packagedAppExecutable: string | null,
     private readonly appConfigDirectory: string,
     private readonly appIdentifier: string,
@@ -165,7 +167,7 @@ export class TatolabUninstallOnThisMac implements TatolabUninstall {
   private async uninstallTatolabFromThisMac(runTatolabSwitch: RunTatolabSwitchToTurnOff): Promise<Result<void, string>> {
     const appBundle = this.packagedAppExecutable === null ? null : await appBundleOfTheExecutable(this.packagedAppExecutable);
     if (appBundle === null) return failedWith("this Tatolab is not running from Tatolab.app, so there is no app to uninstall");
-    const machineFiles = machineFilesToRemove(tatolabMachinePathsOnMacosForThisBuild(currentProcessUid()), appBundle);
+    const machineFiles = machineFilesToRemove(this.machinePaths, appBundle);
     this.tatolabAppLog.info("uninstalling Tatolab", { app_bundle: appBundle, machine_files: machineFiles.kind });
     const { administratorPrompt, tatolabUninstallAppSurface, appConfigDirectory, appIdentifier, tatolabAppLog } = this;
     return uninstallTatolabInOrder(

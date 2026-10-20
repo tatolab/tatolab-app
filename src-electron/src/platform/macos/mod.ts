@@ -2,26 +2,28 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // macOS: Service Management registers the runtime's launch agent, first-launch setup creates the
-// machine runtime lock and the CLI's PATH link behind one administrator prompt, the window draws
+// machine runtime lock and the CLI's PATH link behind one administrator prompt, "Uninstall
+// Tatolab…" removes them behind another, the window draws
 // under a hidden title bar with the Dock icon following it, and the tray's mark is a template
 // image.
 
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import { currentProcessUid, type TatolabPlatformForThisBuild, type TatolabPlatformHostServices, type TrayIconImage } from "../mod.js";
+import { currentProcessUid, TATOLAB_APP_IDENTIFIER, type TatolabPlatformForThisBuild, type TatolabPlatformHostServices, type TrayIconImage } from "../mod.js";
 import { OSASCRIPT_AT_ITS_SYSTEM_PATH, OsascriptAdministratorPrompt } from "./administrator_prompt.js";
 import { MachineSetupBehindAnAdministratorPrompt } from "./machine_setup.js";
 import { LAUNCHCTL_AT_ITS_SYSTEM_PATH, ServiceManagementRuntimeLaunchAgent } from "./service_management_runtime_launch_agent.js";
 import { bundledCommandLineToolPath, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
+import { TatolabUninstallOnThisMac } from "./tatolab_uninstall.js";
 
 export { MACOS_MAIN_WINDOW_CHROME, setMacosDockIconVisible } from "./main_window_chrome.js";
 
 /** The tray's mark, shown at 18pt in the menu bar from its @2x file and tinted to it as a template image. */
 export const MACOS_TRAY_ICON_IMAGE: TrayIconImage = { pngFileName: "tray-template.png", isATemplate: true };
 
-/** The bundle's launch agent through Electron's Service Management agent services, and the machine setup this build's paths need for the bundle the app binary runs from. */
+/** The bundle's launch agent through the Service Management addon, the machine setup this build's paths need for the bundle the app binary runs from, and uninstalling them behind the administrator prompt. */
 export async function macosTatolabPlatformForThisBuild(
   tatolabAppLog: TatolabAppLog,
-  { serviceManagementAgentServices, appExecutable }: TatolabPlatformHostServices,
+  { serviceManagementAgentServices, appExecutable, appIsPackaged, appConfigDirectory, tatolabUninstallAppSurface }: TatolabPlatformHostServices,
 ): Promise<TatolabPlatformForThisBuild> {
   const uid = currentProcessUid();
   const machinePaths = tatolabMachinePathsOnMacosForThisBuild(uid);
@@ -32,14 +34,24 @@ export async function macosTatolabPlatformForThisBuild(
     bundled_command_line_tool: bundledCommandLineTool,
     local_proof_test_machine_root: machinePaths.localProofTestMachineRoot,
   });
+  const administratorPrompt = new OsascriptAdministratorPrompt(OSASCRIPT_AT_ITS_SYSTEM_PATH);
   return {
     runtimeAgent: ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(uid, serviceManagementAgentServices, LAUNCHCTL_AT_ITS_SYSTEM_PATH),
     machineSetup: MachineSetupBehindAnAdministratorPrompt.create(
       machinePaths,
       bundledCommandLineTool,
-      new OsascriptAdministratorPrompt(OSASCRIPT_AT_ITS_SYSTEM_PATH),
+      administratorPrompt,
       tatolabAppLog,
     ),
     localApiSocket: machinePaths.localApiSocket,
+    tatolabUninstall: new TatolabUninstallOnThisMac(
+      machinePaths,
+      appIsPackaged ? appExecutable : null,
+      appConfigDirectory,
+      TATOLAB_APP_IDENTIFIER,
+      administratorPrompt,
+      tatolabUninstallAppSurface,
+      tatolabAppLog,
+    ),
   };
 }

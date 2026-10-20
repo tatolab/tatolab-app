@@ -21,7 +21,7 @@ function fakeAddonExports(answers: { status?: unknown; register?: unknown; unreg
   const answer = (call: string, addonAnswer: unknown) => {
     addonCalls.push(call);
     if (answers.throwing) throw new TypeError("the agent plist name is missing");
-    return addonAnswer;
+    return Promise.resolve(addonAnswer);
   };
   return {
     addonCalls,
@@ -29,7 +29,10 @@ function fakeAddonExports(answers: { status?: unknown; register?: unknown; unreg
       agentServiceStatus: (agentPlistName: string) => answer(`status ${agentPlistName}`, answers.status),
       registerAgentService: (agentPlistName: string) => answer(`register ${agentPlistName}`, answers.register),
       unregisterAgentService: (agentPlistName: string) => answer(`unregister ${agentPlistName}`, answers.unregister),
-      openSystemSettingsLoginItems: () => answer("open Login Items", undefined),
+      openSystemSettingsLoginItems: () => {
+        addonCalls.push("open Login Items");
+        if (answers.throwing) throw new TypeError("the agent plist name is missing");
+      },
     },
   };
 }
@@ -39,9 +42,9 @@ test("the addon's answers become statuses and registrations, its refusals kept i
   const { addonExports, addonCalls } = fakeAddonExports({ status: "requires-approval", register: null, unregister: "Operation not permitted" });
   const serviceManagementAgentServices = serviceManagementAgentServicesFromTheAddonExports(addonExports, tatolabAppLog);
 
-  expect(serviceManagementAgentServices.agentServiceStatus("com.tatolab.tatolabd.plist")).toBe("requires-approval");
-  expect(serviceManagementAgentServices.registerAgentService("com.tatolab.tatolabd.plist")).toEqual(succeeded(undefined));
-  expect(serviceManagementAgentServices.unregisterAgentService("com.tatolab.tatolabd.plist")).toEqual(failedWith("Operation not permitted"));
+  expect(await serviceManagementAgentServices.agentServiceStatus("com.tatolab.tatolabd.plist")).toBe("requires-approval");
+  expect(await serviceManagementAgentServices.registerAgentService("com.tatolab.tatolabd.plist")).toEqual(succeeded(undefined));
+  expect(await serviceManagementAgentServices.unregisterAgentService("com.tatolab.tatolabd.plist")).toEqual(failedWith("Operation not permitted"));
   expect(await serviceManagementAgentServices.openSystemSettingsLoginItems()).toEqual(succeeded(undefined));
   expect(addonCalls).toEqual([
     "status com.tatolab.tatolabd.plist",
@@ -54,14 +57,14 @@ test("the addon's answers become statuses and registrations, its refusals kept i
 test("an answer the addon should never give reads as no status or a refusal, and a throw is caught and logged", async () => {
   const unexpected = capturedTatolabAppLog();
   const unexpectedAnswers = serviceManagementAgentServicesFromTheAddonExports(fakeAddonExports({ status: "bogus", register: 7 }).addonExports, unexpected.tatolabAppLog);
-  expect(unexpectedAnswers.agentServiceStatus("com.tatolab.tatolabd.plist")).toBeNull();
-  expect(unexpectedAnswers.registerAgentService("com.tatolab.tatolabd.plist")).toEqual(failedWith("the Service Management addon answered 7"));
+  expect(await unexpectedAnswers.agentServiceStatus("com.tatolab.tatolabd.plist")).toBeNull();
+  expect(await unexpectedAnswers.registerAgentService("com.tatolab.tatolabd.plist")).toEqual(failedWith("the Service Management addon answered 7"));
 
   const throwing = capturedTatolabAppLog();
   const throwingAddon = serviceManagementAgentServicesFromTheAddonExports(fakeAddonExports({ throwing: true }).addonExports, throwing.tatolabAppLog);
-  expect(throwingAddon.agentServiceStatus("com.tatolab.tatolabd.plist")).toBeNull();
+  expect(await throwingAddon.agentServiceStatus("com.tatolab.tatolabd.plist")).toBeNull();
   expect(throwing.logLines.join("\n")).toContain("Service Management's status could not be read");
-  expect(throwingAddon.registerAgentService("com.tatolab.tatolabd.plist")).toEqual(
+  expect(await throwingAddon.registerAgentService("com.tatolab.tatolabd.plist")).toEqual(
     failedWith("the Service Management addon failed: the agent plist name is missing"),
   );
   expect(await throwingAddon.openSystemSettingsLoginItems()).toEqual(failedWith("Login Items could not be opened: the agent plist name is missing"));
@@ -70,8 +73,8 @@ test("an answer the addon should never give reads as no status or a refusal, and
 test("an addon that cannot be loaded, or exports the wrong functions, leaves Service Management unreachable and says why", async () => {
   const missing = capturedTatolabAppLog();
   const unloadable = loadServiceManagementAddon("/nonexistent/service_management_agent_services.node", missing.tatolabAppLog);
-  expect(unloadable.agentServiceStatus("com.tatolab.tatolabd.plist")).toBeNull();
-  const refusal = unloadable.registerAgentService("com.tatolab.tatolabd.plist");
+  expect(await unloadable.agentServiceStatus("com.tatolab.tatolabd.plist")).toBeNull();
+  const refusal = await unloadable.registerAgentService("com.tatolab.tatolabd.plist");
   expect(refusal.ok ? "" : refusal.failure).toMatch(
     /^the Service Management addon could not be loaded from \/nonexistent\/service_management_agent_services\.node: /,
   );
@@ -79,7 +82,7 @@ test("an addon that cannot be loaded, or exports the wrong functions, leaves Ser
 
   const misshapen = capturedTatolabAppLog();
   const withoutItsFunctions = serviceManagementAgentServicesFromTheAddonExports({ agentServiceStatus: () => "enabled" }, misshapen.tatolabAppLog);
-  expect(withoutItsFunctions.agentServiceStatus("com.tatolab.tatolabd.plist")).toBeNull();
+  expect(await withoutItsFunctions.agentServiceStatus("com.tatolab.tatolabd.plist")).toBeNull();
   expect(await withoutItsFunctions.openSystemSettingsLoginItems()).toEqual(failedWith("the Service Management addon does not export its functions"));
 });
 

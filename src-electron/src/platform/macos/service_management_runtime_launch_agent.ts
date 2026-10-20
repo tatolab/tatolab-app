@@ -64,7 +64,7 @@ export class ServiceManagementRuntimeLaunchAgent implements RuntimeAgentRegistra
   }
 
   async registrationStatus(): Promise<RuntimeAgentRegistrationStatus> {
-    return runtimeAgentRegistrationStatusFrom(this.serviceManagementAgentServices.agentServiceStatus(this.agentPlistName));
+    return runtimeAgentRegistrationStatusFrom(await this.serviceManagementAgentServices.agentServiceStatus(this.agentPlistName));
   }
 
   async registerRuntimeAgent(): Promise<Result<void, string>> {

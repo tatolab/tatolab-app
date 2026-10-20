@@ -240,6 +240,7 @@ const quietTatolabAppLog = createTatolabAppLog("error", () => {});
 test("an unpackaged app has no bundle to uninstall and changes nothing", async () => {
   const appSurfaceCalls: string[] = [];
   const tatolabUninstall = new TatolabUninstallOnThisMac(
+    tatolabMachinePathsOnMacosForTheRealMachine(501),
     null,
     "/nowhere/com.tatolab.tatolab",
     "com.tatolab.tatolab",
@@ -281,6 +282,7 @@ test("a second uninstall while one is under way is refused, and a refused one ca
   const promptsShowing: ((answer: Result<void, AdministratorPromptFailure>) => void)[] = [];
   const appSurfaceCalls: string[] = [];
   const tatolabUninstall = new TatolabUninstallOnThisMac(
+    tatolabMachinePathsOnMacosForTheRealMachine(501),
     appExecutable,
     appConfigDirectory,
     "com.tatolab.tatolab",
