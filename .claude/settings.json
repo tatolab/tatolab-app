@@ -15,11 +15,11 @@
       "Bash(cargo fmt *)",
       "Bash(scripts/check-*)",
       "Bash(scripts/tests/*)",
-      "Bash(.claude/scripts/tests/*)"
+      "Bash(.claude/scripts/tests/*)",
+      "Bash(gh pr merge *)",
+      "Bash(gh api *dispatches*)"
     ],
     "ask": [
-      "Bash(gh pr merge *)",
-      "Bash(gh api *dispatches*)",
       "Edit(LICENSE)",
       "Edit(packaging/entitlements/**)",
       "Edit(packaging/launch-agent/**)",
