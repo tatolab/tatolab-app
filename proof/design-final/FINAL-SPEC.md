@@ -1,6 +1,6 @@
 # Tatolab desktop app: the final design spec
 
-A frontend engineer ports this into `tatolab/tatolab-app` (vanilla TypeScript and CSS in a Tauri v2 window). The existing logic modules stay: status, the log follower, graph layout, the presentation rules, the uninstall sheet's state machine and the platform rules. The structure and styling change. Where this spec changes a logic module, it says exactly what changes and why (§13).
+A frontend engineer ports this into `tatolab/tatolab-app` (vanilla TypeScript and CSS in an Electron window). The existing logic modules stay: status, the log follower, graph layout, the presentation rules, the uninstall sheet's state machine and the platform rules. The structure and styling change. Where this spec changes a logic module, it says exactly what changes and why (§13).
 
 ---
 
@@ -109,9 +109,9 @@ The macOS window controls are drawn by the system, never by the app.
 - The default window is 1040×700, and the minimum is 860×580. Verify every screen at 860×580, 1040×700 and 1440×900, in both themes, on both platforms.
 
 ### macOS overlay title bar
-- Keep the existing chrome in `src-tauri/src/platform/macos/main_window_chrome.rs` unchanged: `TitleBarStyle::Overlay`, `hidden_title(true)`, `traffic_light_position(LogicalPosition { x: 18.0, y: 26.0 })`.
+- Keep the existing chrome in `src-electron/src/platform/macos/main_window_chrome.ts` unchanged: `titleBarStyle: "hidden"`, `trafficLightPosition: { x: 18, y: 19 }`.
   - This centres the 12px buttons vertically in the 52px band, at x ≈ 18–70.
-  - If a device screenshot shows the visible centre off y 26, change that Rust constant and nothing in the CSS.
+  - If a device screenshot shows the visible centre off y 26, change that constant and nothing in the CSS.
 - **Band:** 52px tall across the full window width.
   - Over the sidebar it holds only the traffic lights.
   - Over the content it is the content band (§7.3).
@@ -469,7 +469,7 @@ The `‹ › ↑ ↓ ↵` glyphs in text are characters, not icons. The spinner 
 
 ### 7.3 Content band
 
-- **Grid.** `grid-template-columns: auto auto minmax(0, 1fr) auto auto` holds title, tabs, spacer, the actions slot and Search. Column gap 16; padding `0 14px 0 20px`; height 52; a 1px `line` bottom border; `data-tauri-drag-region` as in §3.
+- **Grid.** `grid-template-columns: auto auto minmax(0, 1fr) auto auto` holds title, tabs, spacer, the actions slot and Search. Column gap 16; padding `0 14px 0 20px`; height 52; a 1px `line` bottom border; `data-window-drag-region` as in §3.
 - **Title cluster.** Flex, baseline-aligned, gap 10.
   - For a stream: the name in mono 14/20 600 (ellipsis, `max-width: 32vw`, `title` = the full project path) and the state word at 12. The word is text-2; text-3 when quiet; red with a 14px alert icon when it is a failure.
   - For Settings: "Settings" in UI 14/20 600.
@@ -949,9 +949,9 @@ Also set `<meta name="color-scheme" content="light dark">` in `index.html`. `mai
   }
 
   /** The flags this build runs with: off unless the build sets them, or the browser mock asks. */
-  export function readTatolabFrontendFeatureFlags(isRunningInsideTauri: boolean, pageQuery: URLSearchParams): TatolabFrontendFeatureFlags {
+  export function readTatolabFrontendFeatureFlags(isRunningInsideTatolabApp: boolean, pageQuery: URLSearchParams): TatolabFrontendFeatureFlags {
     const builtOn = import.meta.env.VITE_TATOLAB_FEATURE_WATCH_EXPOSED_OUTPUT === "1";
-    const mockAsked = !isRunningInsideTauri && pageQuery.getAll("feature").includes("watch-exposed-output");
+    const mockAsked = !isRunningInsideTatolabApp && pageQuery.getAll("feature").includes("watch-exposed-output");
     return { watchExposedOutput: builtOn || mockAsked };
   }
   ```
@@ -1078,11 +1078,11 @@ Under `prefers-reduced-motion: reduce`, every transition is ≤1ms and spinners 
 |---|---|
 | `index.html` | The theme script (§8.11), `color-scheme` meta. Remove the platform guess, which `mountTatolabWindow` sets. |
 | `src/main.ts` | Import `@fontsource/jetbrains-mono/400.css`, `500.css` and `600.css`; delete the three Instrument Sans imports and drop `@fontsource/instrument-sans` from `package.json`. Update the CSS import list to match the styles below. Stop setting `data-theme`. Read `readTatolabFrontendFeatureFlags` and pass it to `mountTatolabWindow`. |
-| `src/feature_flags.ts` (new) | §9. Test: off by default; the query parameter is ignored inside Tauri. |
+| `src/feature_flags.ts` (new) | §9. Test: off by default; the query parameter is ignored inside the app. |
 | `src/vite-env.d.ts` (new or extend) | Type `VITE_TATOLAB_FEATURE_WATCH_EXPOSED_OUTPUT`. |
 | `src/icons.ts` | Replace it with the set in §6 and delete the listed exports. |
 | `src/dom.ts`, `clipboard.ts`, `repeating_backend_poll.ts`, `window_visibility.ts` | Unchanged. |
-| `src/backend/*` | **Unchanged.** No new commands or methods. The window never calls `tap_output_port` or `preview_output_frame`, which `TatolabBackend` doesn't expose; their removal from `src-tauri` belongs to the `chore/remove-tap-and-exchange` work, not this spec. |
+| `src/backend/*` | **Unchanged.** No new commands or methods. The window never calls `tap_output_port` or `preview_output_frame`, which `TatolabBackend` doesn't expose; their removal belongs to the `chore/remove-tap-and-exchange` work, not this spec. |
 | `presentation/stream_presentation.ts` | Replace `chipTone` and `dotTone` (and their types) with `emphasis: "plain" \| "quiet" \| "failure"`: attached and kept → plain, stopped → quiet, failed → failure, unknown → plain. Labels unchanged. Update its test. |
 | `presentation/runtime_presentation.ts` | Unchanged. Views map `tone === "error"` to red plus the alert icon, and every other tone to text-2. |
 | `presentation/platform_presentation.ts` | Add `streamRecordsDirectory` (`~/Library/Application Support/Tatolab` or `~/.local/state/tatolab`) and `shortcutHint(platform, key): string` (`⌘K` or `Ctrl K`). Tests. |
@@ -1167,7 +1167,7 @@ Do not port `tapPanelHTML`, `startTap`, `flowRows`/`flowHTML`, `NODE_TYPES` docs
 ## 15. Acceptance
 
 - **Dot audit:** the built CSS and DOM contain no filled circle and no element used as a status marker. A grep of `src/` for `status-dot`, `state-chip`, `stream-graph-port`, `dotTone` and `chipTone` returns nothing.
-- **Screens:** every screen in §8, at 860×580, 1040×700 and 1440×900, in both themes, on both platforms (Linux on the real WebKitGTK build or the browser mock with `?platform=linux`). Show it with the mock's existing `?state=` scenarios.
+- **Screens:** every screen in §8, at 860×580, 1040×700 and 1440×900, in both themes, on both platforms (Linux on the real Electron build or the browser mock with `?platform=linux`). Show it with the mock's existing `?state=` scenarios.
 - **Flag:** with the flag off, there is no `[data-watch]` element and port rows are not focusable. With `?feature=watch-exposed-output` in the mock, §9's surface opens from a port, the exposed strip, Overview and Search, and the network panel shows no request beyond the existing status, graph and log reads.
 - **Backend:** the interface is unchanged (`git diff src/backend/` is empty).
 - **Tests:** existing tests still pass, with the updated expectations named in §13, plus the new tests for the layout, overview presentation, graph states, platform helpers, log segments and flags.

@@ -44,7 +44,7 @@ reads everything through the preload's bridge and the main process's IPC handler
 runtime ran.** [`linux-stand-ins/`](electron-window/linux-stand-ins/) puts a `systemctl` stand-in
 first on the PATH. Its `tatolabd.service` starts a **stand-in local API**, which answers
 `/health`, `list_streams`, `logs` and `/api/graph` from the responses recorded from a real runtime
-in `src-tauri/test-fixtures/`, on `$XDG_RUNTIME_DIR/streamlib/local-api.sock`.
+in `src-electron/test-fixtures/`, on `$XDG_RUNTIME_DIR/streamlib/local-api.sock`.
 
 | image | label | shows |
 |---|---|---|

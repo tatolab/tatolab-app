@@ -97,15 +97,12 @@ jobs:
       - name: Install glslc and the C++ build tools
         run: brew install shaderc cmake ninja
 
+      # Rust builds the streamlib runtime the app bundles.
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            streamlib -> target
-            src-tauri -> target
+          workspaces: streamlib -> target
           shared-key: tatolab-app-macos
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
@@ -114,20 +111,13 @@ jobs:
           node-version: 24
           cache: npm
 
-      # The app's Rust embeds the built frontend, so it is built first; the local-proof feature
-      # set is the build --local-proof-test-root bundles.
-      - name: Test and lint the app (default and local-proof feature sets)
+      - name: Type-check and test the app
         run: |
           npm ci
           npm run build:service-management-addon
           npm run build
+          npm run build:electron
           npm test
-          cargo test --manifest-path src-tauri/Cargo.toml --locked
-          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
-          cargo test --manifest-path src-tauri/Cargo.toml --locked \
-            --features machine-directories-under-a-test-root
-          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked \
-            --features machine-directories-under-a-test-root -- -D warnings
 
       - uses: actions/setup-python@v5
         with:
@@ -221,36 +211,22 @@ jobs:
         with:
           persist-credentials: false
 
-      # Tauri v2's Linux prerequisites (https://v2.tauri.app/start/prerequisites/#linux) for the
-      # Rust tests; dpkg-dev and desktop-file-utils for the Electron app's .deb and AppImage.
-      - name: Install WebKitGTK, the appindicator and the build tools
+      - name: Install the .deb and AppImage build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev \
-            libssl-dev libayatana-appindicator3-dev librsvg2-dev dpkg-dev desktop-file-utils
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-          shared-key: tatolab-app-linux
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          sudo apt-get install -y dpkg-dev desktop-file-utils
 
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
 
-      - name: Test and lint the app
+      - name: Type-check and test the app
         run: |
           npm ci
           npm run build
+          npm run build:electron
           npm test
-          cargo test --manifest-path src-tauri/Cargo.toml --locked
-          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
 
       - name: Build the .deb and the AppImage
         env:

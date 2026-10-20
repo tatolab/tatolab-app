@@ -58,7 +58,7 @@ export function presentPlatform(platform: TatolabPlatform): PlatformPresentation
   return PLATFORM_PRESENTATIONS[platform];
 }
 
-/** The `data-tauri-drag-region` a top band takes: a band drags the window only under macOS's overlay title bar. */
+/** The `data-window-drag-region` a top band takes: a band drags the window only under macOS's overlay title bar. */
 export function windowDragRegionAttribute(platform: TatolabPlatform, reach: "self" | "deep"): string | null {
   if (!presentPlatform(platform).hasOverlayTitleBar) return null;
   return reach === "deep" ? "deep" : "";

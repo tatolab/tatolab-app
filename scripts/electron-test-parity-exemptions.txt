@@ -1,6 +1,0 @@
-# Rust tests with no TypeScript twin, one per line: `src-tauri/src/<path>.rs::<test_fn_name>  # why`.
-# Each tests a Rust threading primitive the single-threaded Electron main process does not have.
-src-tauri/src/poison_tolerant_mutex.rs::a_poisoned_mutex_still_locks_with_its_value  # Node has no mutex to poison
-src-tauri/src/poison_tolerant_mutex.rs::a_wait_answers_the_value_another_thread_set_and_notified  # Node has no condition variable across threads
-src-tauri/src/poison_tolerant_mutex.rs::a_wait_whose_limit_passes_answers_the_value_as_it_is  # Node has no condition variable across threads
-src-tauri/src/named_app_thread.rs::the_work_runs_on_a_thread_with_the_given_name  # the main process runs work on its one thread

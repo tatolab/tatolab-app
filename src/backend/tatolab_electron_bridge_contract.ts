@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // The wire between the window and the Electron main process: the commands the window invokes,
-// under the names the Tauri app gave them, the event each status change arrives on, and how a
+// under their snake_case names, the event each status change arrives on, and how a
 // command answers.
 
 import type { StreamGraphSummary, StreamLogRecordsPage, TatolabStatus } from "./tatolab_backend_contract.js";

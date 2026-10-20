@@ -6,7 +6,7 @@ import { expect, test } from "vitest";
 import type { StreamLogRecord } from "../../src/backend/tatolab_backend_contract.js";
 import { streamLogRecordFromItsJsonlLine, streamLogRecordsPageFromTheLogsToolResult } from "./stream_log_records_page.js";
 
-const recordedFixture = (fixtureFileName: string) => readFile(new URL(`../../src-tauri/test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
+const recordedFixture = (fixtureFileName: string) => readFile(new URL(`../test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
 
 /** The page a real runtime answered `logs {stream: "main", after: 0, count: 3}` with. */
 const aRealFirstPage = () => recordedFixture("local-api-logs-tool-result-of-the-stream-main-after-0.json");

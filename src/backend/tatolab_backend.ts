@@ -6,7 +6,7 @@ import { TATOLAB_WINDOW_PAGE_SCHEME, type TatolabElectronBridge } from "./tatola
 
 declare global {
   interface Window {
-    /** Set by the Electron app's preload; absent in Tauri and in a browser. */
+    /** Set by the app's preload; absent in a browser. */
     tatolabElectronBridge?: TatolabElectronBridge;
   }
 }
@@ -25,22 +25,20 @@ export interface TatolabBackend {
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
 }
 
-/** Where the page runs: Tatolab.app's Tauri webview, its Electron window with the preload's bridge, the Electron app's own page without it, or a browser showing the mock. */
+/** Where the page runs: Tatolab.app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */
 export type TatolabWindowHost =
-  | { kind: "tauri" }
   | { kind: "electron"; tatolabElectronBridge: TatolabElectronBridge }
   | { kind: "electron_without_its_bridge" }
   | { kind: "browser" };
 
 /** The host this page runs in, told by what each one puts on `window` and the scheme it is served under. */
 export function tatolabWindowHost(): TatolabWindowHost {
-  if ("__TAURI_INTERNALS__" in window) return { kind: "tauri" };
   if (window.tatolabElectronBridge !== undefined) return { kind: "electron", tatolabElectronBridge: window.tatolabElectronBridge };
   if (window.location.protocol === `${TATOLAB_WINDOW_PAGE_SCHEME}:`) return { kind: "electron_without_its_bridge" };
   return { kind: "browser" };
 }
 
-/** The text of a rejected command: Tauri and the Electron backend reject with the backend's refusal string. */
+/** The text of a rejected command: the Electron backend rejects with the app's refusal string. */
 export function describeBackendRejection(rejection: unknown): string {
   if (typeof rejection === "string") return rejection;
   if (rejection instanceof Error) return rejection.message;

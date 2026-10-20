@@ -42,7 +42,7 @@ await writeFile(
 await cp(path.join(repositoryRoot, "dist"), path.join(stagedAppDirectory, "dist"), { recursive: true });
 await cp(path.join(repositoryRoot, "src-electron", "build"), path.join(stagedAppDirectory, "src-electron", "build"), { recursive: true });
 for (const trayIconFileName of ["tray-template.png", "tray-template@2x.png", "tray-coloured.png"]) {
-  await cp(path.join(repositoryRoot, "src-tauri", "icons", trayIconFileName), path.join(stagedAppDirectory, "src-tauri", "icons", trayIconFileName));
+  await cp(path.join(repositoryRoot, "src-electron", "icons", trayIconFileName), path.join(stagedAppDirectory, "src-electron", "icons", trayIconFileName));
 }
 
 const stagedFeaturesModule = path.join(stagedAppDirectory, builtFeaturesModule);
@@ -66,8 +66,8 @@ const [packagedDirectory] = await packager({
   appBundleId: "com.tatolab.tatolab",
   appCategoryType: "public.app-category.developer-tools",
   appCopyright: "Copyright (c) 2025 Jonathan Fontanez",
-  extendInfo: path.join(repositoryRoot, "src-tauri", "macos", "Info.plist"),
-  icon: path.join(repositoryRoot, "src-tauri", "icons", "icon.icns"),
+  extendInfo: path.join(repositoryRoot, "packaging", "macos", "Info.plist"),
+  icon: path.join(repositoryRoot, "src-electron", "icons", "icon.icns"),
   asar: true,
   prune: false,
 });

@@ -12,17 +12,11 @@ const UNANSWERING_TATOLAB_ELECTRON_BRIDGE: TatolabElectronBridge = {
 };
 
 afterEach(() => {
-  Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
   window.tatolabElectronBridge = undefined;
   vi.unstubAllGlobals();
 });
 
 describe("tatolabWindowHost", () => {
-  it("is Tauri where Tauri injected its internals", () => {
-    Reflect.set(window, "__TAURI_INTERNALS__", {});
-    expect(tatolabWindowHost()).toEqual({ kind: "tauri" });
-  });
-
   it("is Electron, with its bridge, where the preload exposed one", () => {
     window.tatolabElectronBridge = UNANSWERING_TATOLAB_ELECTRON_BRIDGE;
     expect(tatolabWindowHost()).toEqual({ kind: "electron", tatolabElectronBridge: UNANSWERING_TATOLAB_ELECTRON_BRIDGE });

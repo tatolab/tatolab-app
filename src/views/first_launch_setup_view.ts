@@ -30,7 +30,7 @@ export class FirstLaunchSetupView {
     );
 
     this.element = createElement("main", { class: "setup-screen" }, [
-      createElement("div", { class: "setup-screen-drag-band", "data-tauri-drag-region": "" }),
+      createElement("div", { class: "setup-screen-drag-band", "data-window-drag-region": "" }),
       createElement("div", { class: "centred-page" }, [
         createElement("div", { class: "centred-page-column" }, [
           createElement("span", { class: "setup-screen-mark" }, [createSvgFromMarkup(TATOLAB_MARK_SVG)]),

@@ -14,11 +14,11 @@ body {
 
 #app { height: 100%; }
 
-/* Chromium under Electron drags the window only where app-region says, while Tauri reads
-   data-tauri-drag-region itself: "deep" drags through its children, "" only on the band itself. */
-[data-tauri-drag-region] { -webkit-app-region: drag; }
-[data-tauri-drag-region=""] *,
-[data-tauri-drag-region] :is(button, a, input, select, textarea, label, summary, [contenteditable], [role], [tabindex], [title]) { -webkit-app-region: no-drag; }
+/* Chromium drags the window only where app-region says: "deep" drags through a band's children,
+   "" only on the band itself. */
+[data-window-drag-region] { -webkit-app-region: drag; }
+[data-window-drag-region=""] *,
+[data-window-drag-region] :is(button, a, input, select, textarea, label, summary, [contenteditable], [role], [tabindex], [title]) { -webkit-app-region: no-drag; }
 
 h1, h2, h3, p, ol, ul, dl, dd, figure { margin: 0; }
 h1, h2, h3 { font-size: inherit; font-weight: 600; }

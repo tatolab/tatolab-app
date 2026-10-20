@@ -80,7 +80,7 @@ export class StreamsPageView implements TatolabWindowPage {
     this.streamDetail = new StreamDetailView(backend, platform, featureFlags, { onTabRequested: (tab) => this.showTab(tab) });
     this.pageBody = createElement("div", { class: "streams-page-body" });
     this.element = createElement("section", { class: "window-page streams-page", "aria-label": "Streams" }, [
-      createElement("header", { class: "content-band", "data-tauri-drag-region": windowDragRegionAttribute(platform, "deep") }, [
+      createElement("header", { class: "content-band", "data-window-drag-region": windowDragRegionAttribute(platform, "deep") }, [
         this.bandTitle,
         createElement("div", { class: "content-band-tabs" }, [this.bandTabs.element]),
         createElement("div", { class: "content-band-spacer" }),

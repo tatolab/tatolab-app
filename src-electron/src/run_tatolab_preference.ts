@@ -12,7 +12,7 @@ import type { TatolabAppLog } from "./tatolab_app_log.js";
 /** The file the switch is remembered in, inside the app's config directory. */
 export const RUN_TATOLAB_PREFERENCE_FILE_NAME = "run-tatolab.json";
 
-/** The file's one key, as the Tauri app wrote it, so the switch survives the move to Electron. */
+/** The file's one key, as earlier builds of the app wrote it, so the switch survives an upgrade. */
 interface RunTatolabPreferenceFileContents {
   run_tatolab: boolean;
 }

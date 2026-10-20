@@ -23,7 +23,7 @@
       "Edit(LICENSE)",
       "Edit(packaging/entitlements/**)",
       "Edit(packaging/launch-agent/**)",
-      "Edit(src-tauri/macos/**)"
+      "Edit(packaging/macos/**)"
     ]
   },
   "hooks": {
