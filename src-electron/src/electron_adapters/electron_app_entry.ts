@@ -27,6 +27,7 @@ process.on("unhandledRejection", (unhandledRejection) => {
 const windowDevServerUrl = app.isPackaged ? null : windowDevServerUrlNamedIn(process.env["TATOLAB_APP_WINDOW_DEV_SERVER_URL"]);
 const windowPageUrl = windowDevServerUrl ?? TATOLAB_WINDOW_PAGE_URL;
 const builtWindowDirectory = path.join(app.getAppPath(), "dist");
+const builtWindowPreloadScript = path.join(app.getAppPath(), "src-electron", "build", "preload", "tatolab_window_preload.cjs");
 const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   appPath: app.getAppPath(),
   appExecutable: process.execPath,
@@ -65,7 +66,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   appConfigDirectory: tatolabPlatformHostServices.appConfigDirectory,
   appVersion: app.getVersion(),
   readMonotonicClockMs: () => performance.now(),
-  mainWindowHostFactory: createElectronMainWindowHostFactory(windowPageUrl, !app.isPackaged, tatolabAppLog),
+  mainWindowHostFactory: createElectronMainWindowHostFactory(windowPageUrl, builtWindowPreloadScript, !app.isPackaged, tatolabAppLog),
   trayIconHostFactory: createElectronTrayIconHostFactory(path.join(app.getAppPath(), "src-tauri", "icons")),
   dockIconHost: {
     setActivationPolicy: (activationPolicy) => app.setActivationPolicy(activationPolicy),

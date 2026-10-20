@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && tsc -p src-electron && vite build",
-    "build:electron": "tsc -p src-electron/tsconfig.build.json",
+    "build:electron": "tsc -p src-electron/tsconfig.build.json && vite build --config vite.window_preload.config.ts",
     "build:service-management-addon": "node-gyp rebuild --directory src-electron/native/service_management_agent_services",
     "preview": "vite preview",
     "test": "vitest run",

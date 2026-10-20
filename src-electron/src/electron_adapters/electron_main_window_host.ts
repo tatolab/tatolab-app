@@ -7,9 +7,10 @@ import type { TatolabAppLog } from "../tatolab_app_log.js";
 import { isOnTheWindowPagesOwnLocation } from "../tatolab_window_page_source.js";
 import type { MainWindowCloseRequestAnswer, MainWindowHost, MainWindowHostFactory, MainWindowSpecification } from "../tatolab_main_window.js";
 
-/** Creates the window as a sandboxed, context-isolated page with no Node, loading `windowPageUrl`; developer tools open only where `developerToolsAllowed`. */
+/** Creates the window as a sandboxed, context-isolated page with no Node, loading `windowPageUrl` with the preload at `windowPreloadScriptPath`; developer tools open only where `developerToolsAllowed`. */
 export function createElectronMainWindowHostFactory(
   windowPageUrl: string,
+  windowPreloadScriptPath: string,
   developerToolsAllowed: boolean,
   tatolabAppLog: TatolabAppLog,
 ): MainWindowHostFactory {
@@ -30,6 +31,7 @@ export function createElectronMainWindowHostFactory(
           show: false,
           ...mainWindowSpecification.chrome,
           webPreferences: {
+            preload: windowPreloadScriptPath,
             contextIsolation: true,
             sandbox: true,
             nodeIntegration: false,
