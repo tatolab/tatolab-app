@@ -1,7 +1,7 @@
 ---
 name: implement
 description: Build one tatolab-app issue end-to-end — the only path by which the app's source changes.
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # Implement
@@ -16,7 +16,7 @@ disable-model-invocation: true
    other step: one line saying the issue runs with ultracode and the exact command to re-run it.
    Build without it only when the owner says so in this run, in their own words. Under ultracode,
    every agent that edits files runs in its own worktree; the steps below hold.
-3. **Plan gate**: list the decisions this work needs. Any that touch what the app *is* — a new
+3. **Plan gate**: list the decisions this work needs. Any that touch what the app _is_ — a new
    runtime contract, a capability the streamlib plan does not state — and are not DECIDED there →
    post a `[NEEDS DECISION]` comment on the issue with the options and your recommendation, and
    **stop**; the decision is made in a streamlib session. A design departure from the calm-native
@@ -45,7 +45,7 @@ disable-model-invocation: true
     a 4th disagreement escalates to the owner as DISCUSS.
 13. **PR**: run `scripts/check-conventional-pr-title.sh "<title>"`, push, `gh pr create` — title
     `type(scope): summary`; body `## Summary`, `## Closes` (one `Closes #N` per line), `## Exit
-    criteria`, `## Test plan`, `## Evidence` (the `/verify-app` images and what each shows,
+criteria`, `## Test plan`, `## Evidence` (the `/verify-app` images and what each shows,
     labelled Live / Linux / Mock), `## Notes for owner` (the batched findings).
 14. Report: PR URL, tests run, evidence, notes awaiting the owner. Merge is always the owner's
     call.
