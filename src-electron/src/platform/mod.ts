@@ -6,6 +6,7 @@
 // module exposes the same items, picked here, so the rest of the app never asks which platform it
 // runs on; where a platform has nothing to do for one — Linux has no Dock icon — that item says so.
 
+import os from "node:os";
 import path from "node:path";
 import type { TatolabPlatform } from "../../../src/backend/tatolab_backend_contract.js";
 import { MACOS_MAIN_WINDOW_CHROME, MACOS_TRAY_ICON_IMAGE, setMacosDockIconVisible } from "./macos/mod.js";
@@ -25,6 +26,12 @@ const SHARED_TEMPORARY_DIRECTORY = "/tmp";
 /** `/tmp/streamlib-<uid>`: the runtime directory on macOS, and on Linux when `$XDG_RUNTIME_DIR` is unset or empty, as StreamLib resolves it. */
 export function perUserStreamlibRuntimeDirectoryUnderTmp(uid: number): string {
   return path.join(SHARED_TEMPORARY_DIRECTORY, `streamlib-${uid}`);
+}
+
+/** The real uid of this process. */
+export function currentProcessUid(): number {
+  // Node defines `getuid` on every POSIX platform, the only ones the app runs on.
+  return process.getuid?.() ?? os.userInfo().uid;
 }
 
 /** `<test_machine_root>/run/local-api.sock`: where a local-proof build's runtime serves its local API, as StreamLib's `machine_directories_test_root.rs` lays it out. */
