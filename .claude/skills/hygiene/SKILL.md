@@ -13,8 +13,8 @@ Sweep these surfaces:
 
 1. **README and entry-doc rot.** Claims in `README.md` that are false against the tree: a path that does not exist, a script option a script no longer takes, a CI behaviour the
    workflows no longer have, a platform statement the platform modules contradict.
-2. **Plan drift.** Anything here that contradicts streamlib's DECIDED `Tatolab.app` entry or the
-   local API it reads (read from streamlib's `main`) — and any app behaviour that needs a runtime
+2. **Runtime-contract drift.** Anything here that contradicts the local API contract in
+   streamlib's plan (read from streamlib's `main`) — and any app behaviour that needs a runtime
    contract the plan does not state.
 3. **Proof drift.** `proof/` captions and `FINAL-SPEC.md` describing a window, a state or a flow the
    code no longer has; screenshots of retired features presented as current.
@@ -24,7 +24,7 @@ Sweep these surfaces:
 5. **Dead rule scopes.** `.claude/rules/*.md` `paths:` globs that match nothing; prose a gate now
    enforces (propose its deletion via `/propose-rule`).
 6. **Tracker misalignment.** Open issues whose "Waits on" streamlib work has shipped (ready to
-   build) or been retired (needs a rewrite), and issues with no plan entry behind them.
+   build) or been retired (needs a rewrite).
 
 Output: ONE table — surface / finding / evidence (`file:line` or quote) / who owns the fix (a
 docs PR, `/reconcile-understanding`, `/propose-rule`, `/file-issue`, or a streamlib session).
