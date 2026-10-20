@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2025 Jonathan Fontanez
+# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+#
 # Builds streamlib's runtime unit (bin/tatolabd, bin/tatolab, lib/tatolab/lend) in a streamlib
 # checkout and prints the unit's directory. The checkout's own target directory is used.
 #

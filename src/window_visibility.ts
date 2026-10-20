@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 /** Whether the window is on screen: WebKit reports a hidden, minimized or fully covered window as hidden. */
 export function isTatolabWindowVisible(): boolean {
   return document.visibilityState === "visible";

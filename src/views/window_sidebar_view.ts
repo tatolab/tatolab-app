@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 import type { TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
 import { createElement, setTextIfChanged } from "../dom";
 import { GEAR_ICON_SVG, MACHINE_ICON_SVG } from "../icons";

@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type { StreamLogRecord } from "../backend/tatolab_backend_contract";
 import { formatLogRecordTime } from "../presentation/log_record_presentation";

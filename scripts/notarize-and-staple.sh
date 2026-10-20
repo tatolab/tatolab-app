@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2025 Jonathan Fontanez
+# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+#
 # Notarizes a Developer ID-signed Tatolab.app or .dmg with an App Store Connect API key, staples
 # the ticket, and asks Gatekeeper to accept the result.
 #

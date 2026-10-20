@@ -1,0 +1,39 @@
+name: Bug
+description: The app behaves wrong — a crash, a wrong state shown, a broken switch, setup or uninstall.
+title: "bug: "
+body:
+  - type: textarea
+    id: symptom
+    attributes:
+      label: Symptom
+      description: "exact text on screen, log lines, exit codes, or observable behaviour; a screenshot if it is visual"
+    validations:
+      required: true
+  - type: textarea
+    id: where-it-bit
+    attributes:
+      label: Where it bit
+      description: "the platform and how the app was installed (brew cask, .dmg, .deb, AppImage, local-proof build), and the app and runtime versions"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: "what should have happened instead"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Repro
+      description: "the smallest sequence that reproduces it — tatolab CLI commands included"
+    validations:
+      required: true
+  - type: checkboxes
+    id: platforms
+    attributes:
+      label: Platforms
+      options:
+        - label: macOS
+        - label: Linux

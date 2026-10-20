@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2025 Jonathan Fontanez
+# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+#
 # Renders the installer window's background at 1x and 2x from its SVG, in Instrument Sans from the
 # @fontsource/instrument-sans package, fetched with npm pack. The PNGs are committed; rerun this after
 # editing the SVG.

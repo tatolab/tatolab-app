@@ -1,0 +1,53 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh api *)",
+      "Bash(gh pr *)",
+      "Bash(gh issue *)",
+      "Bash(gh run *)",
+      "Bash(git fetch *)",
+      "Bash(git worktree add *)",
+      "Bash(git worktree list)",
+      "Bash(npm test)",
+      "Bash(npm run build)",
+      "Bash(cargo test *)",
+      "Bash(cargo clippy *)",
+      "Bash(cargo fmt *)",
+      "Bash(scripts/check-*)",
+      "Bash(scripts/tests/*)",
+      "Bash(.claude/scripts/tests/*)"
+    ],
+    "ask": [
+      "Bash(gh pr merge *)",
+      "Bash(gh api *dispatches*)",
+      "Edit(LICENSE)",
+      "Edit(packaging/entitlements/**)",
+      "Edit(packaging/launch-agent/**)",
+      "Edit(src-tauri/macos/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/machine-brake.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/worktree-gc.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

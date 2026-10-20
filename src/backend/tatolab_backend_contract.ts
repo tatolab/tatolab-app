@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 /** The platform the app runs on, which decides the window's chrome and how Tatolab is installed and removed. */
 export type TatolabPlatform = "macos" | "linux";
 

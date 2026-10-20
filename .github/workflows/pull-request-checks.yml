@@ -1,0 +1,129 @@
+name: Pull request checks
+
+# The merge gate: the source gates, the window's tests and the app's Rust tests and lints on macOS
+# and Linux, on every pull request. Hermetic only — no runtime, no signing, no streamlib checkout;
+# building, signing and publishing stay in macos-app.yml. The push to main runs it once more so the
+# Rust caches pull requests read are saved from main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: pull-request-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  source-gates:
+    name: Source gates and the pull request title
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check the pull request title is conventional
+        if: github.event_name == 'pull_request'
+        env:
+          PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
+        run: scripts/check-conventional-pr-title.sh "$PULL_REQUEST_TITLE"
+
+      - name: Run every source gate
+        run: scripts/check-all-source-gates.sh
+
+      - name: Prove each source gate fails on a planted violation
+        run: scripts/tests/source_gates_fail_on_a_violation.test.sh
+
+      - name: Prove the machine-brake hook notes, stays silent and prompts where it should
+        run: .claude/scripts/tests/machine-brake.test.sh
+
+  macos:
+    name: Test and lint (macOS)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: tatolab-app-pull-request-macos
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # The app's Rust embeds the built frontend, so it is built first; the local-proof feature set
+      # is the one build --local-proof-test-root bundles.
+      - name: Test and lint the window and the app (default and local-proof feature sets)
+        run: |
+          npm ci
+          npm run build
+          npm test
+          cargo fmt --manifest-path src-tauri/Cargo.toml --check
+          cargo test --manifest-path src-tauri/Cargo.toml --locked
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml --locked \
+            --features machine-directories-under-a-test-root
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked \
+            --features machine-directories-under-a-test-root -- -D warnings
+
+  linux:
+    name: Test and lint (Linux)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Tauri v2's Linux prerequisites, as macos-app.yml installs them.
+      - name: Install WebKitGTK, the appindicator and the build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev \
+            libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: tatolab-app-pull-request-linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Test and lint the window and the app (default and local-proof feature sets)
+        run: |
+          npm ci
+          npm run build
+          npm test
+          cargo test --manifest-path src-tauri/Cargo.toml --locked
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml --locked \
+            --features machine-directories-under-a-test-root
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked \
+            --features machine-directories-under-a-test-root -- -D warnings

@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 type ElementAttributeValue = string | number | boolean | null | undefined | ((event: Event) => void);
 
 /** A child `createElement` appends; nullish and `false` children are skipped. */

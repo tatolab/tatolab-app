@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import type { StreamLogRecord } from "../backend/tatolab_backend_contract";
