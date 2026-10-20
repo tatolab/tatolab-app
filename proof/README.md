@@ -36,6 +36,13 @@ the system appearance was not permitted in that session.
 
 These were shot with `trafficLightPosition` `y: 26`; the measurement above led to `y: 19` (27d0cb0), and the lights were not re-shot.
 
+## Electron on Linux: Run Tatolab drives tatolabd.service (Linux container, unbundled; systemctl stand-in)
+
+No window yet: the Electron main process's runtime service and Run Tatolab switch, driven through
+the container's real `systemctl --user` (readback only, since no user manager runs there) and a
+`systemctl` stand-in whose unit runs a stand-in runtime. Transcript and scripts:
+[electron-linux-systemd/](electron-linux-systemd/README.md).
+
 ## Live: the real app in the new design, on a real runtime (installed with `brew install --cask`)
 
 Test-pattern streams only. Driven from the CLI while the window follows: a second kept stream, an attached stream and a fourth stream at once, `tatolab stop`, then `tatolab rm` and the attached CLI ending.
