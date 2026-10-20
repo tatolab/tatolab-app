@@ -6,14 +6,20 @@
 // nothing up; "Run Tatolab" enables and disables the service. The window keeps the desktop's own
 // title bar with no menu bar, there is no Dock, and the tray's mark keeps its colours.
 
+import { failedWith } from "../../result.js";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import { currentProcessUid, type DockIconHost, type MainWindowChrome, type TatolabPlatformForThisBuild, type TatolabPlatformHostServices, type TrayIconImage } from "../mod.js";
+import { currentProcessUid, type DockIconHost, type MainWindowChrome, type TatolabPlatformForThisBuild, type TatolabPlatformHostServices, type TatolabUninstall, type TrayIconImage } from "../mod.js";
 import { MachineSetUpByTheInstaller } from "./machine_set_up_by_the_installer.js";
 import { RUNTIME_SYSTEMD_USER_UNIT_NAME, SystemctlOnThePath, SystemdUserRuntimeService } from "./systemd_user_runtime_service.js";
 import { tatolabMachinePathsOnLinuxForThisBuild } from "./tatolab_machine_paths.js";
 
 /** Why Linux refuses "Uninstall Tatolab…": its installer uninstalls, and the window's sheet shows how. */
 export const LINUX_UNINSTALL_TATOLAB_REFUSAL = "On Linux the installer uninstalls Tatolab: Settings › Uninstall Tatolab… shows how.";
+
+/** "Uninstall Tatolab…", refused with `LINUX_UNINSTALL_TATOLAB_REFUSAL`: the installer uninstalls what it installed. */
+export const LINUX_TATOLAB_UNINSTALL: TatolabUninstall = {
+  uninstallTatolab: async () => failedWith(LINUX_UNINSTALL_TATOLAB_REFUSAL),
+};
 
 /** The Tatolab mark at 64×64 in its own colours, which a panel shows as they are. */
 export const LINUX_TRAY_ICON_IMAGE: TrayIconImage = { pngFileName: "tray-coloured.png", isATemplate: false };
@@ -40,5 +46,6 @@ export async function linuxTatolabPlatformForThisBuild(
     runtimeAgent: new SystemdUserRuntimeService(new SystemctlOnThePath(), tatolabAppLog),
     machineSetup: new MachineSetUpByTheInstaller(machinePaths.commandLineToolLink),
     localApiSocket: machinePaths.localApiSocket,
+    tatolabUninstall: LINUX_TATOLAB_UNINSTALL,
   };
 }

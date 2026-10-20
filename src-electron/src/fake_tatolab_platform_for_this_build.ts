@@ -6,7 +6,7 @@
 // shipped code.
 
 import type { MachineSetupState, RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
-import type { TatolabPlatformForThisBuild } from "./platform/mod.js";
+import type { TatolabPlatformForThisBuild, TatolabUninstall } from "./platform/mod.js";
 import type { RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import type {
   MachineSetupAdministratorPromptOutcome,
@@ -14,7 +14,7 @@ import type {
   MachineSetupTrigger,
   TatolabMachineSetup,
 } from "./platform/tatolab_machine_setup.js";
-import { succeeded, type Result } from "./result.js";
+import { failedWith, succeeded, type Result } from "./result.js";
 
 /** What the fake service manager was asked, in order. */
 export type FakeRuntimeAgentCall = "register" | "start_if_not_running" | "unregister" | "open_login_items_settings";
@@ -80,11 +80,17 @@ export class FakeTatolabMachineSetup implements TatolabMachineSetup {
   }
 }
 
+/** An uninstall that refuses, for a fake platform no test uninstalls. */
+const FAKE_TATOLAB_UNINSTALL_REFUSING: TatolabUninstall = {
+  uninstallTatolab: async () => failedWith("this fake platform uninstalls nothing"),
+};
+
 /** A platform of these fakes, serving its local API at `localApiSocket`. */
 export function fakeTatolabPlatformForThisBuild(
   runtimeAgent: FakeRuntimeAgentRegistration,
   machineSetup: FakeTatolabMachineSetup,
   localApiSocket: string,
+  tatolabUninstall: TatolabUninstall = FAKE_TATOLAB_UNINSTALL_REFUSING,
 ): TatolabPlatformForThisBuild {
-  return { runtimeAgent, machineSetup, localApiSocket };
+  return { runtimeAgent, machineSetup, localApiSocket, tatolabUninstall };
 }

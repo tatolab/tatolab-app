@@ -14,6 +14,9 @@ import { LINUX_MAIN_WINDOW_CHROME, LINUX_TRAY_ICON_IMAGE, setLinuxDockIconVisibl
 import type { RuntimeAgentRegistration } from "./runtime_agent_registration.js";
 import type { TatolabMachineSetup } from "./tatolab_machine_setup.js";
 import type { ServiceManagementAgentServices } from "./macos/service_management_agent_services.js";
+import type { TatolabUninstallAppSurface } from "./macos/tatolab_uninstall.js";
+import type { Result } from "../result.js";
+import type { RunTatolabReconciliation } from "../run_tatolab_switch.js";
 
 /** The root a local-proof build keeps every machine directory under, which its runtime reads as `TATOLAB_TEST_MACHINE_ROOT`. */
 export const LOCAL_PROOF_TEST_MACHINE_ROOT = "/tmp/tatolab-proof";
@@ -40,17 +43,29 @@ export function localApiSocketUnderALocalProofTestRoot(testMachineRoot: string):
   return path.join(testMachineRoot, "run", LOCAL_API_SOCKET_FILE_NAME);
 }
 
+/** The app's identifier, which names its own config directory, `<appData>/com.tatolab.tatolab`, as the Tauri app named it. */
+export const TATOLAB_APP_IDENTIFIER = "com.tatolab.tatolab";
+
 /** What this build's platform hands the app's controller. */
 export interface TatolabPlatformForThisBuild {
   runtimeAgent: RuntimeAgentRegistration;
   machineSetup: TatolabMachineSetup;
   localApiSocket: string;
+  tatolabUninstall: TatolabUninstall;
 }
 
-/** What a platform takes from Electron to build its items: Service Management's agent services, which only macOS uses, and the app binary's path, by which macOS finds its bundle. */
+/** What a platform takes from the app around it to build its items; only macOS uses them, Linux taking none. */
 export interface TatolabPlatformHostServices {
+  /** Service Management's agent services, through the app's Service Management addon. */
   serviceManagementAgentServices: ServiceManagementAgentServices;
+  /** The app binary's path, by which macOS finds its bundle and the CLI in it. */
   appExecutable: string;
+  /** Whether the app runs from its own bundle; an unpackaged app runs from Electron's, which is never uninstalled. */
+  appIsPackaged: boolean;
+  /** The app's own config directory, named for `TATOLAB_APP_IDENTIFIER`. */
+  appConfigDirectory: string;
+  /** The Trash and quitting, which uninstalling ends with. */
+  tatolabUninstallAppSurface: TatolabUninstallAppSurface;
 }
 
 /** The tray's icon as a platform shows it, by its file name in the app's icons directory. */
@@ -112,4 +127,15 @@ export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatfo
     default:
       return null;
   }
+}
+
+/** The switch uninstalling turns off, which unregisters the runtime's agent and answers how that went. */
+export interface RunTatolabSwitchToTurnOff {
+  setRunTatolab(runTatolab: boolean): Promise<RunTatolabReconciliation>;
+}
+
+/** "Uninstall Tatolab…": on macOS the service and the files go and the app quits; on Linux it is refused, since the installer uninstalls. */
+export interface TatolabUninstall {
+  /** Uninstall Tatolab, ending with the app quitting; refused with the reason in its own words, leaving the app usable. */
+  uninstallTatolab(runTatolabSwitch: RunTatolabSwitchToTurnOff): Promise<Result<void, string>>;
 }

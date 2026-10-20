@@ -75,6 +75,7 @@ jobs:
       - name: Test and lint the window and the app (default and local-proof feature sets)
         run: |
           npm ci
+          npm run build:service-management-addon
           npm run build
           npm test
           cargo fmt --manifest-path src-tauri/Cargo.toml --check

@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && tsc -p src-electron && vite build",
     "build:electron": "tsc -p src-electron/tsconfig.build.json",
+    "build:service-management-addon": "node-gyp rebuild --directory src-electron/native/service_management_agent_services",
     "preview": "vite preview",
     "test": "vitest run",
     "tauri": "tauri",
@@ -23,6 +24,7 @@
     "@types/node": "^24.19.2",
     "electron": "^44.9.1",
     "happy-dom": "^21.0.1",
+    "node-gyp": "^12.4.0",
     "typescript": "^5.9.3",
     "vite": "^8.3.4",
     "vitest": "^5.0.3"
