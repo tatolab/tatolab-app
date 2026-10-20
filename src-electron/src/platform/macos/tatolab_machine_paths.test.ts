@@ -7,6 +7,7 @@ import {
   bundledCommandLineToolIn,
   machineRuntimeLockOwnerUid,
   tatolabMachinePathsOnMacosForTheRealMachine,
+  tatolabMachinePathsOnMacosForThisBuild,
   tatolabMachinePathsOnMacosUnderALocalProofTestRoot,
 } from "./tatolab_machine_paths.js";
 
@@ -32,4 +33,8 @@ test("the_bundle_and_its_cli_are_found_only_around_an_app_binary_in_contents_mac
   expect(appBundleContaining("/Applications/Tatolab.app/Contents/MacOS/Tatolab")).toBe("/Applications/Tatolab.app");
   expect(bundledCommandLineToolIn("/Applications/Tatolab.app")).toBe("/Applications/Tatolab.app/Contents/MacOS/tatolab-cli");
   expect(appBundleContaining("/repo/node_modules/electron/dist/electron")).toBeNull();
+});
+
+test("a build without the local-proof feature uses the real machine's paths", () => {
+  expect(tatolabMachinePathsOnMacosForThisBuild(501)).toEqual(tatolabMachinePathsOnMacosForTheRealMachine(501));
 });

@@ -104,8 +104,7 @@ export function appBundleContaining(appExecutable: string): string | null {
   const macosDirectory = path.dirname(appExecutable);
   const contentsDirectory = path.dirname(macosDirectory);
   if (path.basename(macosDirectory) !== "MacOS" || path.basename(contentsDirectory) !== "Contents") return null;
-  const appBundle = path.dirname(contentsDirectory);
-  return appBundle === contentsDirectory ? null : appBundle;
+  return path.dirname(contentsDirectory);
 }
 
 /** `<bundle>/Contents/MacOS/tatolab-cli`. */

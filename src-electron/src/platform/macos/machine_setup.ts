@@ -315,11 +315,12 @@ export class MachineSetupBehindAnAdministratorPrompt implements TatolabMachineSe
     const missing = await this.missingMachineSetupPieces();
     if (missing.length === 0 || !this.administratorPromptThisLaunch.beginPrompt(trigger)) return "no_administrator_prompt_shown";
     this.tatolabAppLog.info("showing the administrator prompt for machine setup", {
-      missing: missing.map((missingPiece) => missingPiece.kind).join(","),
+      missing: JSON.stringify(missing),
       trigger,
     });
-    const machineSetup = await this.machineSetupAdministratorPromptRunner(missing);
-    this.administratorPromptThisLaunch.finishPrompt();
+    const machineSetup = await this.machineSetupAdministratorPromptRunner(missing).finally(() =>
+      this.administratorPromptThisLaunch.finishPrompt(),
+    );
     if (machineSetup.ok) this.tatolabAppLog.info("machine setup is complete");
     else this.tatolabAppLog.warn("machine setup is unfinished", { failure: machineSetup.failure });
     return "administrator_prompt_shown";

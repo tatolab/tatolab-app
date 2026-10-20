@@ -57,7 +57,7 @@ test("every_service_management_status_maps_to_the_contract_spelling", () => {
   expect(runtimeAgentRegistrationStatusFrom(null)).toBe("not_found");
 });
 
-test("an_unbundled_test_binary_finds_no_agent_plist", async () => {
+test("an agent plist Service Management does not know reads as not found", async () => {
   const { serviceManagementAgentServices, serviceManagementCalls } = fakeServiceManagementAgentServices(new Map());
   const runtimeLaunchAgent = ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(
     501,
@@ -86,6 +86,14 @@ test("registering reads the agent back and names the status Service Management l
   const runtimeLaunchAgent = ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(501, unregistering.serviceManagementAgentServices, launchctl);
   expect(await runtimeLaunchAgent.unregisterRuntimeAgent()).toEqual(succeeded(undefined));
   expect(await runtimeLaunchAgent.registrationStatus()).toBe("not_registered");
+
+  const ignoringTheUnregister: ServiceManagementAgentServices = {
+    ...unregistering.serviceManagementAgentServices,
+    agentServiceStatus: () => "enabled",
+  };
+  expect(await ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(501, ignoringTheUnregister, launchctl).unregisterRuntimeAgent()).toEqual(
+    failedWith("Service Management did not unregister com.tatolab.tatolabd.plist: it reads enabled"),
+  );
 });
 
 test("a refused registration request is answered in its own words without reading the status", async () => {
@@ -95,7 +103,7 @@ test("a refused registration request is answered in its own words without readin
       serviceManagementCalls.push("status");
       return "not-registered";
     },
-    requestAgentServiceRegistered: () => failedWith("Service Management is unavailable before macOS 13"),
+    requestAgentServiceRegistered: () => failedWith("Electron refused the login item settings"),
     openSystemSettingsLoginItems: async () => succeeded(undefined),
   };
   const runtimeLaunchAgent = ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(
@@ -104,7 +112,7 @@ test("a refused registration request is answered in its own words without readin
     launchctlAnswering(launchctlExiting(0)).launchctlRunner,
   );
 
-  expect(await runtimeLaunchAgent.registerRuntimeAgent()).toEqual(failedWith("Service Management is unavailable before macOS 13"));
+  expect(await runtimeLaunchAgent.registerRuntimeAgent()).toEqual(failedWith("Electron refused the login item settings"));
   expect(serviceManagementCalls).toEqual([]);
 });
 

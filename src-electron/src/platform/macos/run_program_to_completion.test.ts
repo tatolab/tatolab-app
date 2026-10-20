@@ -11,8 +11,11 @@ test("a program's exit status, signal and standard error come back, and one that
   });
 
   const signalled = await runProgramToCompletion("/bin/sh", ["-c", "kill -TERM $$"]);
-  expect(signalled.ok && describeHowTheProgramEnded(signalled.value)).toBe("signal: SIGTERM");
+  expect(signalled.ok && describeHowTheProgramEnded(signalled.value)).toBe("signal: 15 (SIGTERM)");
 
   const unstartable = await runProgramToCompletion("/nonexistent/launchctl", ["kickstart"]);
-  expect(unstartable.ok ? "" : unstartable.failure).toMatch(/^\/nonexistent\/launchctl could not be started: .*ENOENT/);
+  expect(unstartable.ok ? "" : unstartable.failure).toMatch(/^\/nonexistent\/launchctl could not be run: .*ENOENT/);
+
+  const refusedArgument = await runProgramToCompletion("/bin/sh", ["-c", "true\u0000"]);
+  expect(refusedArgument.ok ? "" : refusedArgument.failure).toMatch(/^\/bin\/sh could not be run: /);
 });

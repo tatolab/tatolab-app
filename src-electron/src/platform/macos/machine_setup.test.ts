@@ -8,7 +8,7 @@ import { afterEach, expect, test } from "vitest";
 import { failedWith, type Result } from "../../result.js";
 import { createTatolabAppLog } from "../../tatolab_app_log.js";
 import { currentProcessUid } from "../mod.js";
-import type { MachineSetupTrigger } from "../tatolab_machine_setup.js";
+import type { MachineSetupAdministratorPromptOutcome, MachineSetupObservation, MachineSetupTrigger } from "../tatolab_machine_setup.js";
 import { administratorPromptApplescript, type AdministratorPromptFailure } from "./administrator_prompt.js";
 import {
   AdministratorPromptThisLaunch,
@@ -273,7 +273,7 @@ test("a_real_build_prompts_once_on_opening_and_again_on_request_but_never_while_
     { kind: "machine_runtime_lock_file", path: path.join(root, "lock", "runtime.lock") },
   ];
 
-  const triggersAndOutcomes: [MachineSetupTrigger, string][] = [
+  const triggersAndOutcomes: [MachineSetupTrigger, MachineSetupAdministratorPromptOutcome][] = [
     ["reconciling_the_switch", "no_administrator_prompt_shown"],
     ["app_opened", "administrator_prompt_shown"],
     ["app_opened", "no_administrator_prompt_shown"],
@@ -342,7 +342,7 @@ test("a_set_up_machine_shows_no_prompt_and_reads_the_cli_linked", async () => {
     },
     quietTatolabAppLog,
   );
-  const setUpMachine = { machineSetupState: "complete", commandLineToolLinkedAt: linkPath };
+  const setUpMachine: MachineSetupObservation = { machineSetupState: "complete", commandLineToolLinkedAt: linkPath };
   expect(await machineSetup.observeMachineSetup()).toEqual(setUpMachine);
 
   for (const trigger of ["reconciling_the_switch", "app_opened", "user_asked"] as const) {
@@ -353,7 +353,7 @@ test("a_set_up_machine_shows_no_prompt_and_reads_the_cli_linked", async () => {
   expect(administratorPromptRequests).toEqual([]);
 });
 
-test("the administrator prompt's refusal reaches the log in its own words", async () => {
+test("the administrator prompt's refusal is described in its own words", async () => {
   const runBehindThePrompt = (answer: Result<void, AdministratorPromptFailure>) =>
     machineSetupBehindOneAdministratorPrompt({ runBehindOneAdministratorPrompt: async () => answer })([
       { kind: "machine_runtime_lock_file", path: "/Library/Application Support/Tatolab/runtime.lock" },
@@ -363,4 +363,37 @@ test("the administrator prompt's refusal reaches the log in its own words", asyn
   expect(await runBehindThePrompt(failedWith({ kind: "failed", failureDescription: "chown: Operation not permitted (exit status: 1)" }))).toEqual(
     failedWith("machine setup failed: chown: Operation not permitted (exit status: 1)"),
   );
+});
+
+test("while the prompt shows, setup waits for the administrator and no second prompt shows, and a prompt that fails to settle still ends", async () => {
+  const root = await temporaryRoot();
+  const machinePaths: TatolabMachinePathsOnMacos = { ...realShapedPathsUnder(root), localProofTestMachineRoot: null };
+  const promptsShowing: ((answer: Result<void, string>) => void)[] = [];
+  let theNextPromptRejects = false;
+  const machineSetup = MachineSetupBehindAnAdministratorPrompt.withTheAdministratorPromptRunBy(
+    machinePaths,
+    null,
+    (_missing) =>
+      theNextPromptRejects
+        ? Promise.reject(new Error("the prompt's runner broke"))
+        : new Promise((answerThePrompt) => promptsShowing.push(answerThePrompt)),
+    quietTatolabAppLog,
+  );
+
+  const promptOnOpening = machineSetup.setUpTheMachine("app_opened");
+  await expect.poll(() => promptsShowing.length).toBe(1);
+  expect((await machineSetup.observeMachineSetup()).machineSetupState).toBe("waiting_for_administrator");
+  expect(await machineSetup.setUpTheMachine("user_asked")).toBe("no_administrator_prompt_shown");
+  promptsShowing[0]?.(failedWith("the administrator prompt was cancelled"));
+  expect(await promptOnOpening).toBe("administrator_prompt_shown");
+  expect((await machineSetup.observeMachineSetup()).machineSetupState).toBe("needs_administrator");
+
+  theNextPromptRejects = true;
+  await expect(machineSetup.setUpTheMachine("user_asked")).rejects.toThrow("the prompt's runner broke");
+  expect((await machineSetup.observeMachineSetup()).machineSetupState).toBe("needs_administrator");
+  theNextPromptRejects = false;
+  const promptOnRequest = machineSetup.setUpTheMachine("user_asked");
+  await expect.poll(() => promptsShowing.length).toBe(2);
+  promptsShowing[1]?.(failedWith("the administrator prompt was cancelled"));
+  expect(await promptOnRequest).toBe("administrator_prompt_shown");
 });
