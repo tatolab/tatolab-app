@@ -7,5 +7,5 @@ export default defineConfig({
   clearScreen: false,
   server: { port: 1420, strictPort: true },
   // Every font ships as its own file: a CSP whose font-src names only 'self' refuses data: URLs.
-  build: { target: "safari16", outDir: "dist", emptyOutDir: true, assetsInlineLimit: 0 },
+  build: { target: "safari26", outDir: "dist", emptyOutDir: true, assetsInlineLimit: 0 },
 });

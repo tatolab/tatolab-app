@@ -66,6 +66,11 @@ for required_dependency in libwebkit2gtk-4.1-0 libgtk-3-0; do
     *) echo "the .deb does not depend on $required_dependency (Depends: $deb_depends)" >&2; exit 1 ;;
   esac
 done
+# The window's build targets current WebKit (vite.config.ts), so the .deb refuses an older WebKitGTK.
+case ", $deb_depends," in
+  *", libwebkit2gtk-4.1-0 (>= 2.50),"*) ;;
+  *) echo "the .deb does not require libwebkit2gtk-4.1-0 (>= 2.50) (Depends: $deb_depends)" >&2; exit 1 ;;
+esac
 case ", $deb_depends," in
   *", libayatana-appindicator3-1,"*|*", libappindicator3-1,"*) ;;
   *) echo "the .deb depends on no appindicator library for the tray (Depends: $deb_depends)" >&2; exit 1 ;;
