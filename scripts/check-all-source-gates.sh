@@ -10,7 +10,8 @@ set -uo pipefail
 
 scripts_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 failed_gates=()
-for source_gate in check-license-headers.sh check-platform-cfg-confinement.sh check-no-print-debugging.sh; do
+for source_gate in check-license-headers.sh check-platform-cfg-confinement.sh check-no-print-debugging.sh \
+  check-electron-typescript-forms.sh check-electron-test-parity.sh; do
   echo "── $source_gate"
   "$scripts_directory/$source_gate" || failed_gates+=("$source_gate")
 done

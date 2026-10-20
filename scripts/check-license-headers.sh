@@ -28,7 +28,7 @@ files_missing_the_header=()
 while IFS= read -r -d '' source_file; do
   [ -f "$source_file" ] || continue
   case "${source_file##*/}" in
-    *.rs|*.ts) comment_prefix="// " ;;
+    *.rs|*.ts|*.cts) comment_prefix="// " ;;
     *.sh) comment_prefix="# " ;;
     *.*) continue ;;
     *)

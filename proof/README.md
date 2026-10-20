@@ -2,6 +2,40 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## Electron skeleton: lifecycle and tray (Linux container, unbundled; mock backend)
+
+The Electron app (`npm run electron:dev`, window from Vite at `?platform=linux` on its mock
+backend, since it has no Electron backend yet), run unbundled under Xvfb in a cloud x86_64 Linux
+container with openbox as the window manager and stalonetray as the tray host. No runtime is
+involved.
+
+| image | label | shows |
+|---|---|---|
+| ![](electron-skeleton/01-linux-window-and-tray-icon.png) | Linux (container, unbundled) · Mock | The window, titled Tatolab in openbox's own title bar with no menu bar, at 1040×700 and centred, showing `jonathanf-workstation`, "Tatolab is running", five streams with `lobby-recorder` Failed, and Ctrl K / Ctrl F key caps; the coloured Tatolab mark in the tray at the top right. |
+| ![](electron-skeleton/02-linux-tray-menu.png) | Linux (container, unbundled) · Mock | The tray menu open under the mark: "Starting…" greyed out, "Open Tatolab", a separator, "Quit Tatolab". |
+| ![](electron-skeleton/03-linux-closed-window-hides-and-the-tray-stays.png) | Linux (container, unbundled) · Mock | After Alt+F4 on the window: no window, the mark still in the tray, and the app process still running. |
+| ![](electron-skeleton/04-linux-second-launch-shows-the-same-window.png) | Linux (container, unbundled) · Mock | After a second `electron .`, which logged "Tatolab is already running; it shows its window" and exited 0: the same window back, its logs still following. |
+
+### macOS, unpackaged Electron (`npm ci && npm run electron`, Electron's own bundle id, mock backend)
+
+Captured on an arm64 Mac in the light system appearance; the installed Tatolab ran beside it untouched,
+so a second "T" mark and a "Tatolab" Dock icon belong to it, not to the skeleton. No dark set: switching
+the system appearance was not permitted in that session.
+
+| what | label | image | shows |
+|---|---|---|---|
+| the window under the hidden title bar | Mock (macOS, unpackaged Electron) | ![](electron-skeleton/05-macos-window-hidden-title-bar-light.png) | The 1040×700 window with no title bar: the traffic lights sit in the sidebar's top-left, above the `jonathanf-macbook` / "Tatolab is running" header, and the 52 pt top band holds `main Kept`, the Graph/Logs/Overview tabs and the Search ⌘K field, with the `main` graph and live logs below. The lights are **not centred on the band**: the red button spans 52–79 px (26–39.5 pt), centre 32.75 pt, against the band's centre at 26 pt (its bottom border is at 51–52 pt), so they sit ≈6.75 pt low. With `trafficLightPosition` `y: 26` the buttons' centre lands 6.75 pt below `y`, so **`y: 19`** centres them. |
+| the tray mark and its menu | Mock (macOS, unpackaged Electron) | ![](electron-skeleton/06-macos-tray-mark-and-menu-light.png) | The skeleton's "T" in the menu bar, highlighted as its menu's anchor and drawn white like the system's own items (a template image), the installed Tatolab's "T" beside it; the menu below reads Starting… (dimmed, not clickable), Open Tatolab, a separator, Quit Tatolab. |
+| the menu on its own | Mock (macOS, unpackaged Electron) | ![](electron-skeleton/07-macos-tray-menu-open-light.png) | The same three items captured as the menu's own window: Starting…, Open Tatolab, Quit Tatolab. |
+| the band's search field still takes clicks | Mock (macOS, unpackaged Electron) | ![](electron-skeleton/08-macos-band-search-takes-clicks-light.png) | A click on Search in the draggable band opened the search palette, and typing `cam` lists the `camera` stream and its two exposed outputs (`camera/camerasource/video` Private, `camera/microphonesource/audio` Public). Dragging an empty part of the same band moved the window by exactly the drag (bounds 500,34 → 400,174 for a −100, +140 drag). |
+| Cmd-W: the tray stays | Mock (macOS, unpackaged Electron) | ![](electron-skeleton/09-macos-after-cmd-w-tray-stays-light.png) | After Cmd-W the window is off screen (CGWindowList: `onscreen=false`) and the process keeps running; both "T" marks are still in the menu bar. |
+| Cmd-W: the Dock icon goes | Mock (macOS, unpackaged Electron) | ![](electron-skeleton/10-macos-after-cmd-w-dock-has-no-electron-icon-light.png) | The Dock's running apps end with OrbStack and the installed Tatolab; there is no Electron icon. |
+| Open Tatolab: the window is back | Mock (macOS, unpackaged Electron) | ![](electron-skeleton/11-macos-open-tatolab-window-back-light.png) | After Open Tatolab in the tray menu, the same window (same CGWindowID and bounds) is back in front, on the `main` graph with logs still following. |
+| Open Tatolab: the Dock icon is back | Mock (macOS, unpackaged Electron) | ![](electron-skeleton/12-macos-open-tatolab-dock-icon-back-light.png) | The Electron icon, with its running dot, is back in the Dock after OrbStack and the installed Tatolab. |
+| Cmd-Q quits | Mock (macOS, unpackaged Electron) | ![](electron-skeleton/13-macos-after-cmd-q-tray-gone-light.png) | After Cmd-Q the skeleton's "T" has left the menu bar (only the installed Tatolab's remains), and no process from the run is left. |
+
+These were shot with `trafficLightPosition` `y: 26`; the measurement above led to `y: 19` (27d0cb0), and the lights were not re-shot.
+
 ## Live: the real app in the new design, on a real runtime (installed with `brew install --cask`)
 
 Test-pattern streams only. Driven from the CLI while the window follows: a second kept stream, an attached stream and a fourth stream at once, `tatolab stop`, then `tatolab rm` and the attached CLI ending.

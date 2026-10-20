@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "build"
+  },
+  "exclude": ["src/**/*.test.ts", "src/fake_*.ts"]
+}
