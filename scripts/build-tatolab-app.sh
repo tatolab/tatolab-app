@@ -2,7 +2,7 @@
 # Copyright (c) 2025 Jonathan Fontanez
 # SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 #
-# Builds Tatolab.app and its installer end to end: streamlib's runtime unit, the Tauri app, the
+# Builds Tatolab.app and its installer end to end: streamlib's runtime unit, the Electron app, the
 # assembled bundle, signatures, the branded .dmg, optional notarization, and the bundle checks.
 # Outputs build/Tatolab.app and build/Tatolab-<version>-arm64.dmg.
 #
@@ -54,11 +54,7 @@ if $notarize; then
 fi
 
 local_proof_arguments=()
-tauri_feature_arguments=()
-if $local_proof_test_root; then
-  local_proof_arguments=(--local-proof-test-root)
-  tauri_feature_arguments=(--features machine-directories-under-a-test-root)
-fi
+$local_proof_test_root && local_proof_arguments=(--local-proof-test-root)
 
 if [ -z "$app_version" ]; then
   app_version="$(plutil -extract version raw -o - "$repository_root/src-tauri/tauri.conf.json")"
@@ -77,16 +73,32 @@ else
 fi
 echo "    $runtime_unit_directory"
 
-echo "==> Tauri app"
+echo "==> Electron app"
 cd "$repository_root"
 npm ci
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$repository_root/src-tauri/target}"
-# Signing and notarization happen after assembly; keep tauri from doing either on its own.
-env -u APPLE_SIGNING_IDENTITY -u APPLE_CERTIFICATE -u APPLE_CERTIFICATE_PASSWORD \
-  -u APPLE_API_KEY -u APPLE_API_ISSUER -u APPLE_API_KEY_PATH -u APPLE_ID -u APPLE_PASSWORD -u APPLE_TEAM_ID \
-  npx tauri build --bundles app --config "{\"version\":\"$app_version\"}" ${tauri_feature_arguments[@]+"${tauri_feature_arguments[@]}"}
+npm run build
+npm run build:electron
+npm run build:service-management-addon -- --arch=arm64
+built_service_management_addon="$repository_root/src-electron/native/service_management_agent_services/build/Release/service_management_agent_services.node"
+[ "$(lipo -archs "$built_service_management_addon")" = arm64 ] || { echo "$built_service_management_addon is not arm64-only" >&2; exit 1; }
+packaged_app="$(node scripts/package_tatolab_electron_app.mjs darwin "$app_version" "$build_directory/electron-packaging" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} | tail -1)"
 rm -rf "$assembled_app"
-ditto "$CARGO_TARGET_DIR/release/bundle/macos/Tatolab.app" "$assembled_app"
+ditto "$packaged_app" "$assembled_app"
+mkdir -p "$assembled_app/Contents/Frameworks/tatolab-app-native"
+install -m 0755 "$built_service_management_addon" "$assembled_app/Contents/Frameworks/tatolab-app-native/service_management_agent_services.node"
+info_plist="$assembled_app/Contents/Info.plist"
+plutil -replace LSMinimumSystemVersion -string 15.0 "$info_plist"
+# Electron's own Info.plist lets the main process load any http:// URL; the app loads none.
+plutil -remove NSAppTransportSecurity "$info_plist"
+# Electron's own Info.plist asks for Bluetooth and system audio capture in words that do not name
+# Tatolab; the app uses neither, so those strings go.
+while IFS= read -r usage_description_key; do
+  [ -n "$usage_description_key" ] || continue
+  case "$(plutil -extract "$usage_description_key" raw -o - "$info_plist")" in
+    *Tatolab*) ;;
+    *) plutil -remove "$usage_description_key" "$info_plist"; echo "    removed Electron's $usage_description_key" ;;
+  esac
+done < <(plutil -convert json -o - "$info_plist" | node -e 'process.stdout.write(Object.keys(JSON.parse(require("node:fs").readFileSync(0, "utf8"))).filter((key) => key.endsWith("UsageDescription")).join("\n") + "\n")')
 
 echo "==> assemble"
 "$scripts_directory/assemble-tatolab-app-bundle.sh" "$assembled_app" "$runtime_unit_directory" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"}

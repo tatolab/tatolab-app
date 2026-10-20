@@ -1,6 +1,7 @@
 # dmgbuild settings for the Tatolab installer window. make-tatolab-dmg.sh passes
 # -D app=<Tatolab.app> -D background=<tatolab-dmg-background.png>; dmgbuild pairs the @2x sibling.
 import os.path
+import plistlib
 
 application = defines["app"]  # noqa: F821
 application_name = os.path.basename(application)
@@ -10,7 +11,11 @@ size = None
 files = [application]
 symlinks = {"Applications": "/Applications"}
 hide_extension = [application_name]
-icon = os.path.join(application, "Contents", "Resources", "icon.icns")
+with open(os.path.join(application, "Contents", "Info.plist"), "rb") as info_plist_file:
+    bundle_icon_file = plistlib.load(info_plist_file)["CFBundleIconFile"]
+if not bundle_icon_file.endswith(".icns"):
+    bundle_icon_file += ".icns"
+icon = os.path.join(application, "Contents", "Resources", bundle_icon_file)
 
 background = defines["background"]  # noqa: F821
 # The window rect includes the 28 pt title bar; the content area matches the 660x420 background.

@@ -20,6 +20,11 @@ export function serviceManagementAddonBuiltUnder(appPath: string): string {
   return path.join(appPath, "src-electron", "native", "service_management_agent_services", "build", "Release", SERVICE_MANAGEMENT_ADDON_FILE_NAME);
 }
 
+/** Where a packaged `appBundle` carries the addon: code signing seals a Mach-O only under `Contents/MacOS` or `Contents/Frameworks`, never inside the asar. */
+export function serviceManagementAddonInTheAppBundle(appBundle: string): string {
+  return path.join(appBundle, "Contents", "Frameworks", "tatolab-app-native", SERVICE_MANAGEMENT_ADDON_FILE_NAME);
+}
+
 const SERVICE_MANAGEMENT_AGENT_SERVICE_STATUSES: readonly ServiceManagementAgentServiceStatus[] = [
   "enabled",
   "requires-approval",
