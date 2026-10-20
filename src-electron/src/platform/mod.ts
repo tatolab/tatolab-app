@@ -10,6 +10,8 @@ import path from "node:path";
 import type { TatolabPlatform } from "../../../src/backend/tatolab_backend_contract.js";
 import { MACOS_MAIN_WINDOW_CHROME, MACOS_TRAY_ICON_IMAGE, setMacosDockIconVisible } from "./macos/mod.js";
 import { LINUX_MAIN_WINDOW_CHROME, LINUX_TRAY_ICON_IMAGE, setLinuxDockIconVisible } from "./linux/mod.js";
+import type { RuntimeAgentRegistration } from "./runtime_agent_registration.js";
+import type { TatolabMachineSetup } from "./tatolab_machine_setup.js";
 
 /** The root a local-proof build keeps every machine directory under, which its runtime reads as `TATOLAB_TEST_MACHINE_ROOT`. */
 export const LOCAL_PROOF_TEST_MACHINE_ROOT = "/tmp/tatolab-proof";
@@ -28,6 +30,13 @@ export function perUserStreamlibRuntimeDirectoryUnderTmp(uid: number): string {
 /** `<test_machine_root>/run/local-api.sock`: where a local-proof build's runtime serves its local API, as StreamLib's `machine_directories_test_root.rs` lays it out. */
 export function localApiSocketUnderALocalProofTestRoot(testMachineRoot: string): string {
   return path.join(testMachineRoot, "run", LOCAL_API_SOCKET_FILE_NAME);
+}
+
+/** What this build's platform hands the app's controller. */
+export interface TatolabPlatformForThisBuild {
+  runtimeAgent: RuntimeAgentRegistration;
+  machineSetup: TatolabMachineSetup;
+  localApiSocket: string;
 }
 
 /** The tray's icon as a platform shows it, by its file name in the app's icons directory. */

@@ -1,0 +1,195 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, expect, test } from "vitest";
+import type { TatolabPlatform } from "../../src/backend/tatolab_backend_contract.js";
+import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
+import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import { failedWith, succeeded } from "./result.js";
+import { streamGraphSummaryFromTheGraphJson } from "./stream_graph_summary.js";
+import { streamLogRecordsPageFromTheLogsToolResult } from "./stream_log_records_page.js";
+import { TatolabAppController } from "./tatolab_app_controller.js";
+import { createTatolabAppLog } from "./tatolab_app_log.js";
+import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
+import {
+  answerTheWindow,
+  describeStreamGraph,
+  describeStreamGraphArgumentsFrom,
+  getTatolabStatus,
+  readStreamLogRecords,
+  readStreamLogRecordsArgumentsFrom,
+  setRunTatolabArgumentsFrom,
+  setUpTatolab,
+} from "./tatolab_commands.js";
+import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
+
+const cleanUps: (() => Promise<void>)[] = [];
+
+afterEach(async () => {
+  await Promise.all(cleanUps.splice(0).map((cleanUp) => cleanUp()));
+});
+
+const quietTatolabAppLog = createTatolabAppLog("error", () => {});
+
+async function sharedStateOverFakes(
+  scriptedLocalApiResponses: readonly Buffer[],
+  platform: TatolabPlatform,
+  setUpTatolabRefusal: string | null,
+): Promise<TatolabAppSharedState & { machineSetup: FakeTatolabMachineSetup }> {
+  const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
+  const appConfigDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-config-"));
+  cleanUps.push(() => localApiServer.close(), () => rm(appConfigDirectory, { recursive: true, force: true }));
+  const machineSetup = new FakeTatolabMachineSetup("complete", setUpTatolabRefusal);
+  const controller = await TatolabAppController.create({
+    platform,
+    platformForThisBuild: fakeTatolabPlatformForThisBuild(new FakeRuntimeAgentRegistration("enabled"), machineSetup, localApiServer.localApiSocketPath),
+    appConfigDirectory,
+    appLaunchedAtMs: 0,
+    appVersion: "0.45.0",
+    readMonotonicClockMs: () => 0,
+    tatolabAppLog: quietTatolabAppLog,
+  });
+  const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);
+  return { controller, statusPublisher, tatolabAppLog: quietTatolabAppLog, machineSetup };
+}
+
+test("an_awaited_command_answers_with_its_works_answer_or_why_it_has_none", async () => {
+  expect(await answerTheWindow("read_stream_log_records", async () => succeeded(7))).toEqual(succeeded(7));
+  const refusal = await answerTheWindow<number>("describe_stream_graph", () => Promise.reject(new Error("the work failed unexpectedly")));
+  expect(!refusal.ok && refusal.failure.startsWith("describe_stream_graph ended without an answer"), JSON.stringify(refusal)).toBe(true);
+});
+
+/** The window's TypeScript types read exactly this JSON, key for key and in this order. */
+test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_them", async () => {
+  const runningRuntime = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "text/plain", "ok"),
+      toolResultResponse({
+        streams: [{ name: "main", state: "kept", project_directory: "/private/tmp/x/pattern", node_count: 4, failed_because: null, from_later: 1 }],
+      }),
+      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+    ],
+    "macos",
+    null,
+  );
+  expect(JSON.stringify(await runningRuntime.controller.composeStatus(0))).toBe(
+    '{"app_version":"0.45.0","platform":"macos","run_tatolab":true,' +
+      '"runtime_agent":"enabled","runtime_state":"running",' +
+      '"machine_name":"jonathanf-macbook","streams":[' +
+      '{"name":"main","state":"kept","project_directory":"/private/tmp/x/pattern",' +
+      '"node_count":4,"failed_because":null}],"machine_setup_state":"complete",' +
+      '"command_line_tool_linked_at":"/usr/local/bin/tatolab"}',
+  );
+  const runtimeThatIsDown = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux", null);
+  runtimeThatIsDown.machineSetup.machineSetupState = "needs_administrator";
+  expect(JSON.stringify(await runtimeThatIsDown.controller.composeStatus(0))).toBe(
+    '{"app_version":"0.45.0","platform":"linux","run_tatolab":true,' +
+      '"runtime_agent":"enabled","runtime_state":"starting","machine_name":null,' +
+      '"streams":null,"machine_setup_state":"needs_administrator",' +
+      '"command_line_tool_linked_at":null}',
+  );
+
+  const page = streamLogRecordsPageFromTheLogsToolResult(
+    JSON.stringify({
+      stream: "main",
+      stream_instance: "4",
+      records: [
+        {
+          sequence: 7,
+          record: {
+            message: "Loading the stream `main`",
+            host_ts: 1791757115431254000,
+            target: "streamlib_engine::core::runtime::loaded_stream",
+            source: "rust",
+            attrs: { processor_class_import_path: "nodes.x:X" },
+            level: "info",
+          },
+        },
+        { sequence: 8, record: {} },
+      ],
+      next_after: 8,
+    }),
+  );
+  expect(page.ok && JSON.stringify(page.value)).toBe(
+    '{"stream":"main","stream_instance":"4","records":[' +
+      '{"sequence":7,"host_ts_ns":1791757115431254000,"level":"info","source":"rust",' +
+      '"target":"streamlib_engine::core::runtime::loaded_stream",' +
+      '"message":"Loading the stream `main`",' +
+      '"attrs":{"processor_class_import_path":"nodes.x:X"}},' +
+      '{"sequence":8,"host_ts_ns":null,"level":null,"source":null,"target":null,' +
+      '"message":"","attrs":{}}],"next_after":8,"records_no_longer_held":0}',
+  );
+
+  const graph = streamGraphSummaryFromTheGraphJson(
+    "main",
+    JSON.stringify({
+      machine: "jonathanf-macbook",
+      exposed: [{ level: "private", port: "video_to_downstream", node: "invertingeffect" }],
+      links: [{ state: "wired", target: { port: "video_from_upstream", node: "invertingeffect" }, source: { port: "video", node: "testpatternsource" } }],
+      nodes: [
+        { components: { state: "Running" }, type: "tatolab.stream:TestPatternSource", name: "testpatternsource" },
+        { type: "nodes.inverting_effect:InvertingEffect", name: "invertingeffect" },
+      ],
+      stream: "main",
+    }),
+  );
+  expect(graph.ok && JSON.stringify(graph.value)).toBe(
+    '{"stream":"main","nodes":[' +
+      '{"name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running"},' +
+      '{"name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null}],' +
+      '"links":[{"source_node":"testpatternsource","source_port":"video",' +
+      '"target_node":"invertingeffect","target_port":"video_from_upstream","state":"wired"}],' +
+      '"exposed":[{"node":"invertingeffect","port":"video_to_downstream","level":"private"}]}',
+  );
+});
+
+test("a refusal from the runtime reaches the window in the runtime's own words", async () => {
+  const graphRefusal = "Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
+  const logsRefusal = "logs failed: Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("404 Not Found", "application/json", JSON.stringify({ error: graphRefusal })),
+      httpResponse(
+        "200 OK",
+        "application/json",
+        JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: logsRefusal }], isError: true } }),
+      ),
+    ],
+    "macos",
+    null,
+  );
+
+  expect(await describeStreamGraph(sharedState, "nope")).toEqual(failedWith(graphRefusal));
+  expect(await readStreamLogRecords(sharedState, "nope", 0)).toEqual(failedWith(logsRefusal));
+});
+
+test("the window asking for the status before the first round waits for it", async () => {
+  const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux", null);
+
+  const status = getTatolabStatus(sharedState);
+  await sharedState.statusPublisher.refreshAndPublish();
+
+  expect((await status).ok).toBe(true);
+});
+
+test("Set Up Tatolab is refused at once where the platform has no machine setup", async () => {
+  const refusal = "Tatolab on Linux is set up by its installer";
+  const sharedState = await sharedStateOverFakes([], "linux", refusal);
+
+  expect(setUpTatolab(sharedState)).toEqual(failedWith(refusal));
+  expect(sharedState.machineSetup.setUpTriggers).toEqual([]);
+});
+
+test("a command's arguments are read as the window sends them, and anything else is refused", () => {
+  expect(setRunTatolabArgumentsFrom({ enabled: false })).toEqual(succeeded({ enabled: false }));
+  expect(setRunTatolabArgumentsFrom({ enabled: "yes" }).ok).toBe(false);
+  expect(setRunTatolabArgumentsFrom(null).ok).toBe(false);
+  expect(readStreamLogRecordsArgumentsFrom({ stream: "main", after: 79 })).toEqual(succeeded({ stream: "main", after: 79 }));
+  expect(readStreamLogRecordsArgumentsFrom({ stream: "main", after: -1 }).ok).toBe(false);
+  expect(readStreamLogRecordsArgumentsFrom({ stream: 7, after: 0 }).ok).toBe(false);
+  expect(describeStreamGraphArgumentsFrom({ stream: "main" })).toEqual(succeeded({ stream: "main" }));
+  expect(describeStreamGraphArgumentsFrom({}).ok).toBe(false);
+});
