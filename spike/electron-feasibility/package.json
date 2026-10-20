@@ -1,0 +1,16 @@
+{
+  "name": "tatolab-electron-feasibility-spike",
+  "private": true,
+  "version": "0.0.0",
+  "main": "main.js",
+  "scripts": {
+    "build-stock-player": "bun build stock_player.ts --outdir stock-player-dist --target browser"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "44.9.1"
+  },
+  "dependencies": {
+    "@moq/watch": "0.6.3"
+  }
+}

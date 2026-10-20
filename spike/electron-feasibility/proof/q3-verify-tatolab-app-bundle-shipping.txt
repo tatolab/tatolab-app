@@ -1,0 +1,35 @@
+verifying <scratch>/shipping-build/Tatolab.app
+  ok    codesign --verify --deep --strict
+  ok    CFBundleIdentifier is com.tatolab.tatolab
+  ok    LSUIElement is true
+  ok    the app executable Contents/MacOS/Tatolab is present
+  ok    Contents/MacOS/tatolabd is present
+  ok    Contents/MacOS/tatolab-cli is present
+  ok    NSCameraUsageDescription names Tatolab
+  ok    NSMicrophoneUsageDescription names Tatolab
+  ok    NSLocalNetworkUsageDescription names Tatolab
+  ok    NSDocumentsFolderUsageDescription names Tatolab
+  ok    NSDesktopFolderUsageDescription names Tatolab
+  ok    NSDownloadsFolderUsageDescription names Tatolab
+  ok    every Mach-O sits in Contents/MacOS or Contents/Frameworks
+  ok    every Mach-O is signed (hardened runtime unless ad-hoc)
+  ok    every Mach-O is signed by one team (QV2N7EDV53)
+  ok    every symlink resolves inside the bundle
+  ok    Resources/lend carries the runtime package
+  ok    Resources/lend links 3 Mach-O into Frameworks/tatolab-runtime
+  ok    every .py under Resources/lend/tatolab/runtime has cpython-310 cpython-311 cpython-312 cpython-313 cpython-314 bytecode
+  ok    launch agent plist is valid
+  ok    launch agent Label is com.tatolab.tatolabd
+  ok    launch agent BundleProgram is the bundled tatolabd
+  ok    launch agent is associated with com.tatolab.tatolab
+  ok    launch agent may open 65536 files
+  ok    real machine directories (no test machine root)
+  ok    com.apple.security.device.camera on tatolabd
+  ok    com.apple.security.device.audio-input on tatolabd
+  ok    com.apple.security.device.camera on Tatolab.app
+  ok    com.apple.security.device.audio-input on Tatolab.app
+<scratch>/shipping-build/Tatolab.app: accepted
+source=Notarized Developer ID
+  ok    Gatekeeper accepts the stapled Tatolab.app
+all checks passed for <scratch>/shipping-build/Tatolab.app
+exit=0
