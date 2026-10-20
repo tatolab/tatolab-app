@@ -7,7 +7,7 @@
 // title bar with no menu bar, there is no Dock, and the tray's mark keeps its colours.
 
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import { currentProcessUid, type DockIconHost, type MainWindowChrome, type TatolabPlatformForThisBuild, type TrayIconImage } from "../mod.js";
+import { currentProcessUid, type DockIconHost, type MainWindowChrome, type TatolabPlatformForThisBuild, type TatolabPlatformHostServices, type TrayIconImage } from "../mod.js";
 import { MachineSetUpByTheInstaller } from "./machine_set_up_by_the_installer.js";
 import { RUNTIME_SYSTEMD_USER_UNIT_NAME, SystemctlOnThePath, SystemdUserRuntimeService } from "./systemd_user_runtime_service.js";
 import { tatolabMachinePathsOnLinuxForThisBuild } from "./tatolab_machine_paths.js";
@@ -24,8 +24,11 @@ export const LINUX_MAIN_WINDOW_CHROME: MainWindowChrome = { titleBarStyle: "defa
 /** Nothing to show or hide: Linux has no Dock, and the window's own taskbar entry comes and goes with the window. */
 export function setLinuxDockIconVisible(_dockIconHost: DockIconHost, _dockIconVisible: boolean): void {}
 
-/** The installer's systemd user unit, and the machine as the installer set it up. */
-export function linuxTatolabPlatformForThisBuild(tatolabAppLog: TatolabAppLog): TatolabPlatformForThisBuild {
+/** The installer's systemd user unit, and the machine as the installer set it up; Linux needs none of the host's services. */
+export async function linuxTatolabPlatformForThisBuild(
+  tatolabAppLog: TatolabAppLog,
+  _tatolabPlatformHostServices: TatolabPlatformHostServices,
+): Promise<TatolabPlatformForThisBuild> {
   const machinePaths = tatolabMachinePathsOnLinuxForThisBuild(currentProcessUid());
   tatolabAppLog.info("Tatolab app paths", {
     local_api_socket: machinePaths.localApiSocket,
