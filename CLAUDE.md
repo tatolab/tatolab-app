@@ -135,6 +135,3 @@ attention spent on settled things is unavailable for real forks.
   done when `/verify-app` has shown it at the lowest rung that proves the claim — Mock for pure
   presentation, Live (local proof) for anything that talks to a runtime — labelled; never when
   its tests pass.
-- **Claude memory is off for this project.** Never read, write or cite memory files
-  (`~/.claude/projects/*/memory/`), and never carry their content into work here. Durable guidance
-  lives in this file and `.claude/rules/`, changed through `/propose-rule`.
