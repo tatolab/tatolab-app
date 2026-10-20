@@ -1,0 +1,39 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
+// The seam between the "Run Tatolab" decision and the platform's service manager that runs the
+// runtime as the user's agent: Service Management's `SMAppService` launch agent on macOS, the
+// installer's systemd user unit on Linux.
+
+import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../../src/backend/tatolab_backend_contract.js";
+import type { Result } from "../result.js";
+
+/**
+ * Why the service manager did not start the registered agent's runtime: `no_job_for_the_registered_agent`
+ * is launchd holding no job for an agent Service Management still reads as registered (after `brew
+ * uninstall` or `launchctl bootout`), which registering again restores, and only macOS reports it;
+ * `refused` is any other refusal, in the service manager's words.
+ */
+export type RuntimeAgentStartFailure = { kind: "no_job_for_the_registered_agent" } | { kind: "refused"; refusal: string };
+
+/** Registers and unregisters the agent that runs the machine's `tatolabd`. */
+export interface RuntimeAgentRegistration {
+  /** What the service manager says about the agent now. */
+  registrationStatus(): Promise<RuntimeAgentRegistrationStatus>;
+
+  /** Register the agent so the service manager starts the runtime now and at every login. */
+  registerRuntimeAgent(): Promise<Result<void, string>>;
+
+  /**
+   * Start the registered agent's runtime unless it is already running. Service Management loads a newly
+   * registered agent but launchd may defer its first start, and systemd stops restarting a runtime that
+   * crashed past its start limit.
+   */
+  startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>>;
+
+  /** Unregister the agent, which stops the runtime and keeps it from starting at login. */
+  unregisterRuntimeAgent(): Promise<Result<void, string>>;
+
+  /** Open System Settings at Login Items, where a user approves the agent; refused where the platform has no approval step. */
+  openLoginItemsSettings(): Promise<Result<void, string>>;
+}
