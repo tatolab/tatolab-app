@@ -9,3 +9,9 @@ src-tauri/gen/
 # Infisical project link (per-developer)
 .infisical.json
 .infisical.yaml
+
+# Claude Code: per-developer settings, the machine-brake local config, session state, worktrees
+.claude/settings.local.json
+.claude/machine-brake.local.json
+.claude/state/
+.claude/worktrees/
