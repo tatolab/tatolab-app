@@ -2,6 +2,25 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## The window on the Electron backend (Linux container, unbundled; tatolabd stand-in)
+
+Issue #23 together with #18's wiring (PR B at 445bcfe, merged locally for this shot): the window
+reads everything through the preload's bridge and the main process's IPC handlers. Electron
+44.9.1 (`--no-sandbox`, as root in the container) under Xvfb, with openbox and stalonetray. **No
+runtime ran.** [`linux-stand-ins/`](electron-window/linux-stand-ins/) puts a `systemctl` stand-in
+first on the PATH. Its `tatolabd.service` starts a **stand-in local API**, which answers
+`/health`, `list_streams`, `logs` and `/api/graph` from the responses recorded from a real runtime
+in `src-tauri/test-fixtures/`, on `$XDG_RUNTIME_DIR/streamlib/local-api.sock`.
+
+| image | label | shows |
+|---|---|---|
+| ![](electron-window/live-linux-01-running-graph-and-logs.png) | Linux (container, unbundled) · stand-in runtime | The Electron window in openbox, titled Tatolab, on the stand-in: machine `linux-container-stand-in`, "Tatolab is running", `main` Kept and `pattern-two` Stopped (dimmed); `main`'s graph with its four recorded nodes and links, and the log dock following the recorded records with three warnings. The Tatolab mark sits in the tray at the top right. |
+| ![](electron-window/live-linux-02-settings-run-tatolab-on.png) | Linux (container, unbundled) · stand-in runtime | Settings with Run Tatolab on, naming `tatolabd.service`, the `tatolab` command Not installed (no `~/.local/bin/tatolab` in the container), and This computer `linux-container-stand-in`. |
+| ![](electron-window/live-linux-03-run-tatolab-off.png) | Linux (container, unbundled) · stand-in runtime | After clicking the switch: Run Tatolab off and "Tatolab is off" in the sidebar. The app ran `systemctl --user disable --now tatolabd.service` and the stand-in runtime stopped (logged `reconciliation=unregistered`, then `runtime_state=stopped`). |
+| ![](electron-window/live-linux-04-back-on-logs-following.png) | Linux (container, unbundled) · stand-in runtime | After switching it on again (`enable --now`, then `starting` → `running`): `main`'s Logs tab following the records the page read again over the bridge. |
+| ![](electron-window/live-linux-05-stopped-stream.png) | Linux (container, unbundled) · stand-in runtime | `pattern-two` selected: "Stopped.", its project path, and its two terminal commands with copy buttons. |
+| ![](electron-window/live-linux-06-copied-command-pasted.png) | Linux (container, unbundled) · stand-in runtime | A copy button pressed, then Ctrl+V into the log filter: "tatolab start pattern-two" arrived, so copying works with every permission check denied. |
+
 ## The window in Chromium: every mock preset (Mock)
 
 Issue #23 moves the window from Tauri's WebKit to Electron's Chromium. Each preset of the mock
