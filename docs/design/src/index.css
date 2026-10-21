@@ -1,0 +1,328 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/inter/opsz.css";
+@import "@fontsource-variable/geist-mono";
+@import "@xyflow/react/dist/style.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ==========================================================================
+   Tatolab desktop — tokens.
+   A native developer tool: neutral greys, 13px Geist, hairlines, flat panels.
+   Tatolab blue marks primary action, selection and focus. Amber and red mark
+   problems. Nothing else is coloured.
+   ========================================================================== */
+
+@theme inline {
+  /* Inter 4 with its optical-size axis: Text cut at UI sizes, Display cut for titles, the
+     spacing of each tuned by its designer (Rasmus Andersson) — the face Linear and Raycast
+     use. Bundled, so every platform renders the same. Geist Mono for code. */
+  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* One ladder. Every size has exactly one line height. */
+  --text-2xs: 11px;
+  --text-2xs--line-height: 14px;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-lg: 15px;
+  --text-lg--line-height: 20px;
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+
+  /* surfaces */
+  --color-window: var(--window);
+  --color-chrome: var(--chrome);
+  --color-raised: var(--raised);
+  --color-well: var(--well);
+  --color-hover: var(--hover);
+  --color-selected: var(--selected);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  /* text */
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-fg-4: var(--fg-4);
+  /* meaning */
+  --color-brand: var(--brand);
+  --color-brand-text: var(--brand-text);
+  --color-brand-soft: var(--brand-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  /* chart series — the only place categorical colour appears */
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
+  --color-series-6: var(--series-6);
+  --color-series-7: var(--series-7);
+  --color-series-8: var(--series-8);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+}
+
+/* ---------- light ---------- */
+:root {
+  --window: #ffffff;
+  --chrome: #f7f7f8;
+  --raised: #ffffff;
+  --well: #f4f4f5;
+  --hover: rgba(0, 0, 0, 0.04);
+  --selected: rgba(0, 0, 0, 0.065);
+  --line: #e8e8ea;
+  --line-strong: #d9d9dc;
+  --fg: #111113;
+  --fg-2: #46464e;
+  --fg-3: #6e6e77;
+  --fg-4: #a8a8b0;
+  --brand: #2a5bff;
+  --brand-text: #2a5bff;
+  --brand-soft: rgba(42, 91, 255, 0.08);
+  --warn: #c2700a;
+  --warn-soft: rgba(194, 112, 10, 0.09);
+  --danger: #dc2b2b;
+  --danger-soft: rgba(220, 43, 43, 0.08);
+  --ok: #1a7f37;
+
+  /* Chart series. Validated (dataviz validate_palette, OKLab): adjacent CVD ΔE ≥ 9.1,
+     normal-vision ΔE ≥ 19.6; slots 1–3 pass all-pairs. Assign in order, never cycle. */
+  --series-1: #2a5bff;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #7c5cf0;
+  --series-8: #e34948;
+
+  --background: var(--window);
+  --foreground: var(--fg);
+  --card: var(--raised);
+  --card-foreground: var(--fg);
+  --popover: #ffffff;
+  --popover-foreground: var(--fg);
+  --primary: var(--brand);
+  --primary-foreground: #ffffff;
+  --secondary: var(--well);
+  --secondary-foreground: var(--fg);
+  --muted: var(--well);
+  --muted-foreground: var(--fg-3);
+  --accent: var(--hover);
+  --accent-foreground: var(--fg);
+  --destructive: var(--danger);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: rgba(42, 91, 255, 0.5);
+  --chart-1: var(--series-1);
+  --chart-2: var(--series-2);
+  --chart-3: var(--series-3);
+  --chart-4: var(--series-4);
+  --chart-5: var(--series-5);
+  --radius: 6px;
+  --sidebar: var(--chrome);
+  --sidebar-foreground: var(--fg);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--selected);
+  --sidebar-accent-foreground: var(--fg);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--ring);
+  --shadow-pop: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-window: 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 24px 70px rgba(0, 0, 0, 0.18);
+}
+
+/* ---------- dark ---------- */
+.dark {
+  --window: #0c0c0d;
+  --chrome: #121214;
+  --raised: #161618;
+  --well: #18181b;
+  --hover: rgba(255, 255, 255, 0.045);
+  --selected: rgba(255, 255, 255, 0.08);
+  --line: #222225;
+  --line-strong: #2e2e32;
+  --fg: #f0f0f2;
+  --fg-2: #b8b8c0;
+  --fg-3: #8e8e98;
+  --fg-4: #5a5a63;
+  --brand: #2a5bff;
+  --brand-text: #7c9bff;
+  --brand-soft: rgba(42, 91, 255, 0.16);
+  --warn: #f0a63a;
+  --warn-soft: rgba(240, 166, 58, 0.1);
+  --danger: #f2554d;
+  --danger-soft: rgba(242, 85, 77, 0.1);
+  --ok: #3fb950;
+
+  --series-1: #4d7bff;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+
+  --background: var(--window);
+  --foreground: var(--fg);
+  --card: var(--raised);
+  --card-foreground: var(--fg);
+  --popover: #1a1a1d;
+  --popover-foreground: var(--fg);
+  --primary: var(--brand);
+  --primary-foreground: #ffffff;
+  --secondary: var(--well);
+  --secondary-foreground: var(--fg);
+  --muted: var(--well);
+  --muted-foreground: var(--fg-3);
+  --accent: var(--hover);
+  --accent-foreground: var(--fg);
+  --destructive: var(--danger);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: rgba(124, 155, 255, 0.55);
+  --chart-1: var(--series-1);
+  --chart-2: var(--series-2);
+  --chart-3: var(--series-3);
+  --chart-4: var(--series-4);
+  --chart-5: var(--series-5);
+  --sidebar: var(--chrome);
+  --sidebar-foreground: var(--fg);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--selected);
+  --sidebar-accent-foreground: var(--fg);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--ring);
+  --shadow-pop: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-window: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 18px;
+    font-optical-sizing: auto;
+    font-feature-settings: "calt", "cv05";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 13px;
+    line-height: 18px;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  code, kbd, pre, .font-mono {
+    font-variant-ligatures: none;
+    letter-spacing: 0;
+  }
+  ::selection {
+    background: var(--brand-soft);
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  /* group label, as in shadcn's sidebar and Finder: sentence case, quiet, medium */
+  .label-caps {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    color: var(--fg-3);
+  }
+  .title-lg {
+    font-size: 20px;
+    line-height: 26px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .title-xl {
+    font-size: 26px;
+    line-height: 32px;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+  }
+  .no-drag {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* React Flow in the theme */
+.react-flow {
+  --xy-background-color: var(--window);
+  --xy-background-pattern-color: var(--line-strong);
+  --xy-edge-stroke: var(--fg-4);
+  --xy-handle-background-color: var(--raised);
+  --xy-handle-border-color: var(--line-strong);
+  --xy-minimap-background-color: var(--chrome);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--window) 70%, transparent);
+  --xy-controls-button-background-color: var(--raised);
+  --xy-controls-button-background-color-hover: var(--well);
+  --xy-controls-button-color: var(--fg-2);
+  --xy-controls-button-border-color: var(--line);
+  --xy-selection-background-color: var(--brand-soft);
+  --xy-selection-border: 1px solid var(--brand);
+}
+.react-flow__attribution { display: none; }
+.react-flow__controls { box-shadow: var(--shadow-pop); border-radius: 6px; overflow: hidden; }
+.react-flow__minimap { border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
