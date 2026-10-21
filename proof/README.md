@@ -2,6 +2,27 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## Updating the app from a local feed (Linux container; tatolabd stand-in)
+
+Issue #25. `scripts/build-tatolab-linux-app.sh --local-proof-test-root --app-update-feed-url
+http://127.0.0.1:8765/app/` built 0.46.0, whose AppImage, `.deb` and `latest-linux.yml` were laid
+out as the feed lays them (`app/latest-linux.yml`, `releases/0.46.0/`) and served by
+`python3 -m http.server` on 127.0.0.1; then the same build at 0.45.0. The 0.45.0 AppImage ran as an
+ordinary user under Xvfb with openbox and stalonetray, with `APPIMAGE_EXTRACT_AND_RUN=1` (no FUSE in
+the container), a `systemctl` stand-in answering `enabled`, and the recorded local API from
+[`electron-window/linux-stand-ins/`](electron-window/linux-stand-ins/) on
+`/tmp/tatolab-proof/run/local-api.sock`. **No runtime ran.** The first attempt failed in
+electron-updater's words, `ENOENT … resources/app-update.yml`, shown under the Updates row while
+0.45.0 kept running; the package script now writes that file, and both versions were rebuilt.
+
+| image | label | shows |
+|---|---|---|
+| ![](app-updates/linux-01-appimage-0.45.0-finds-0.46.0.png) | Linux (container, AppImage) · stand-in runtime | 0.45.0 checked the feed at launch on its own: Settings reads "Tatolab 0.46.0 is available." with "Install and Relaunch"; nothing downloaded. |
+| ![](app-updates/linux-02-tray-install-item.png) | Linux (container, AppImage) · stand-in runtime | The tray menu offers "Install Tatolab 0.46.0…" between Run Tatolab and Quit (shot on the first attempt's build, whose menu is the same). |
+| ![](app-updates/linux-03-downloading.png) | Linux (container, AppImage) · stand-in runtime | After "Install and Relaunch": "Downloading Tatolab 0.46.0… 0%", the button disabled. The log read `downloading`, then `installing`. |
+| ![](app-updates/linux-04-reopened-as-0.46.0-up-to-date.png) | Linux (container, AppImage) · stand-in runtime | electron-updater replaced `Tatolab-0.45.0-local-proof-x86_64.AppImage` with `Tatolab-0.46.0-local-proof-x86_64.AppImage` and reopened it: Version "Tatolab 0.46.0", "Tatolab is up to date." |
+| ![](app-updates/linux-05-deb-open-download.png) | Linux (container, the .deb's app) · stand-in runtime | The same 0.45.0 build run outside an AppImage, as the `.deb` installs it: "Its download opens in your browser." with "Open Download"; choosing it opened `http://127.0.0.1:8765/releases/0.46.0/Tatolab-0.46.0-local-proof-amd64.deb` (an `xdg-open` stand-in recorded the URL). |
+
 ## The packaged Electron app: the .deb and the AppImage (Ubuntu 22.04 container; tatolabd stand-in)
 
 Issue #24. `scripts/build-tatolab-linux-app.sh` on this branch built `Tatolab-0.45.0-amd64.deb` and

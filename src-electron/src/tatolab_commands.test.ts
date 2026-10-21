@@ -26,6 +26,7 @@ import {
   tatolabWindowCommandHandlers,
 } from "./tatolab_commands.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
+import { TatolabAppUpdater } from "./tatolab_app_updater.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
 
@@ -52,10 +53,17 @@ async function sharedStateOverFakes(
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
     readMonotonicClockMs: () => 0,
+    readTheAppUpdateState: () => ({ kind: "not_checked" }),
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);
-  return { controller, statusPublisher, tatolabUninstall: platformForThisBuild.tatolabUninstall, tatolabAppLog: quietTatolabAppLog, machineSetup };
+  const tatolabAppUpdater = new TatolabAppUpdater(
+    { kind: "not_offered", reason: "this fake platform updates nothing" },
+    { notifyANewerVersionIsAvailable: () => {}, notifyTheAppIsUpToDate: () => {}, notifyTheUpdateFailed: () => {} },
+    () => {},
+    quietTatolabAppLog,
+  );
+  return { controller, statusPublisher, tatolabAppUpdater, tatolabUninstall: platformForThisBuild.tatolabUninstall, tatolabAppLog: quietTatolabAppLog, machineSetup };
 }
 
 test("an_awaited_command_answers_with_its_works_answer_or_why_it_has_none", async () => {
@@ -83,7 +91,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"machine_name":"jonathanf-macbook","streams":[' +
       '{"name":"main","state":"kept","project_directory":"/private/tmp/x/pattern",' +
       '"node_count":4,"failed_because":null}],"machine_setup_state":"complete",' +
-      '"command_line_tool_linked_at":"/usr/local/bin/tatolab"}',
+      '"command_line_tool_linked_at":"/usr/local/bin/tatolab","app_update":{"kind":"not_checked"}}',
   );
   const runtimeThatIsDown = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux", null);
   runtimeThatIsDown.machineSetup.machineSetupState = "needs_administrator";
@@ -91,7 +99,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
     '{"app_version":"0.45.0","platform":"linux","run_tatolab":true,' +
       '"runtime_agent":"enabled","runtime_state":"starting","machine_name":null,' +
       '"streams":null,"machine_setup_state":"needs_administrator",' +
-      '"command_line_tool_linked_at":null}',
+      '"command_line_tool_linked_at":null,"app_update":{"kind":"not_checked"}}',
   );
 
   const page = streamLogRecordsPageFromTheLogsToolResult(

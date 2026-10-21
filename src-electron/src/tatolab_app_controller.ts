@@ -12,16 +12,19 @@ import type {
   RuntimeState,
   StreamGraphSummary,
   StreamLogRecordsPage,
+  TatolabAppUpdateState,
   TatolabPlatform,
   TatolabStatus,
 } from "../../src/backend/tatolab_backend_contract.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import { LocalApiClient, type LocalApiRequestFailure } from "./local_api_client.js";
 import type { TatolabPlatformForThisBuild } from "./platform/mod.js";
+import type { BundledRuntimeRestart } from "./platform/runtime_agent_registration.js";
 import type { TatolabMachineSetup } from "./platform/tatolab_machine_setup.js";
 import type { Result } from "./result.js";
 import { RunTatolabPreferenceFile } from "./run_tatolab_preference.js";
 import { RunTatolabSwitch, type RunTatolabReconciliation } from "./run_tatolab_switch.js";
+import { RuntimeRestartedForAppVersionFile } from "./runtime_restarted_for_app_version.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import { deriveRuntimeState, theRuntimeJustBecameUnreachable, type RuntimeHealthObservation } from "./tatolab_status.js";
 
@@ -48,7 +51,7 @@ export class MachineNameAskedOncePerRuntimeUpEpisode {
   }
 }
 
-/** What the controller is built from: this build's platform, where the switch is remembered, and the app's clock, version and log. */
+/** What the controller is built from: this build's platform, where the switch is remembered, where updates stand, and the app's clock, version and log. */
 export interface TatolabAppControllerSources {
   platform: TatolabPlatform;
   platformForThisBuild: TatolabPlatformForThisBuild;
@@ -57,6 +60,8 @@ export interface TatolabAppControllerSources {
   appVersion: string;
   /** The monotonic clock every `nowMs` is read from: `performance.now()` in the app. */
   readMonotonicClockMs: () => number;
+  /** Where checking for a newer Tatolab stands, which each status carries. */
+  readTheAppUpdateState: () => TatolabAppUpdateState;
   tatolabAppLog: TatolabAppLog;
 }
 
@@ -73,7 +78,10 @@ export class TatolabAppController {
     private readonly runTatolabSwitch: RunTatolabSwitch,
     private readonly machineSetup: TatolabMachineSetup,
     private readonly localApiClient: LocalApiClient,
+    private readonly bundledRuntimeRestart: BundledRuntimeRestart | null,
+    private readonly runtimeRestartedForAppVersionFile: RuntimeRestartedForAppVersionFile,
     private readonly readMonotonicClockMs: () => number,
+    private readonly readTheAppUpdateState: () => TatolabAppUpdateState,
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
 
@@ -91,7 +99,10 @@ export class TatolabAppController {
       runTatolabSwitch,
       sources.platformForThisBuild.machineSetup,
       new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS, sources.appVersion),
+      sources.platformForThisBuild.bundledRuntimeRestart,
+      RuntimeRestartedForAppVersionFile.inAppConfigDirectory(sources.appConfigDirectory),
       sources.readMonotonicClockMs,
+      sources.readTheAppUpdateState,
       sources.tatolabAppLog,
     );
   }
@@ -159,6 +170,35 @@ export class TatolabAppController {
     );
     this.tatolabAppLog.info("Run Tatolab set", { run_tatolab: runTatolab, reconciliation: describeReconciliation(reconciliation) });
     return reconciliation;
+  }
+
+  /**
+   * Restart the runtime the app's bundle carries when this app's version is not the one it was last
+   * restarted under: an update, or a bundle replaced by hand, leaves a running runtime on the bundle as it
+   * was. Nothing where the app carries no runtime. A failed restart is logged and tried again next launch.
+   */
+  async restartTheBundledRuntimeIfTheAppChanged(): Promise<void> {
+    if (this.bundledRuntimeRestart === null) return;
+    const bundledRuntimeRestart = this.bundledRuntimeRestart;
+    const restartedForAppVersion = await this.runtimeRestartedForAppVersionFile.loadAppVersion();
+    if (restartedForAppVersion === this.appVersion) return;
+    const restarted = await this.withTheRunTatolabSwitch((runTatolabSwitch) =>
+      runTatolabSwitch.restartTheBundledRuntime(bundledRuntimeRestart, this.readMonotonicClockMs()),
+    );
+    if (!restarted.ok) {
+      this.tatolabAppLog.warn("the runtime could not be restarted under this app's version; it is tried again next launch", {
+        app_version: this.appVersion,
+        failure: restarted.failure,
+      });
+      return;
+    }
+    this.tatolabAppLog.info("the runtime runs under this app's version", {
+      app_version: this.appVersion,
+      restarted_for_app_version: restartedForAppVersion,
+      outcome: restarted.value,
+    });
+    const saved = await this.runtimeRestartedForAppVersionFile.saveAppVersion(this.appVersion);
+    if (!saved.ok) this.tatolabAppLog.warn("the app version the runtime was restarted under could not be remembered", { failure: saved.failure });
   }
 
   /** Whether the switch is on. */
@@ -233,6 +273,7 @@ export class TatolabAppController {
       streams,
       machine_setup_state: machineSetup.machineSetupState,
       command_line_tool_linked_at: machineSetup.commandLineToolLinkedAt,
+      app_update: this.readTheAppUpdateState(),
     };
   }
 

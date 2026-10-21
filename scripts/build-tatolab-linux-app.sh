@@ -5,23 +5,29 @@
 # Builds Tatolab for Linux: the .deb and the AppImage of the Electron window and tray over the
 # runtime's systemd user service. Neither carries a runtime; the installer
 # (curl -fsSL https://get.tatolab.com/install.sh | sh) installs the runtime and its service.
-# Outputs build/linux/Tatolab-<version>-amd64.deb and build/linux/Tatolab-<version>-x86_64.AppImage.
+# Outputs build/linux/Tatolab-<version>-amd64.deb, build/linux/Tatolab-<version>-x86_64.AppImage,
+# and the update feed's manifest listing both, build/linux/latest-linux.yml.
 #
 # Usage: build-tatolab-linux-app.sh [--app-version X.Y.Z] [--local-proof-test-root]
+#                                   [--app-update-feed-url URL]
 #   --app-version X.Y.Z      the packages' version (default: package.json's); a release passes
 #                            the streamlib release they go beside
 #   --local-proof-test-root  read the runtime under TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof;
 #                            for proving on a development machine, never shipped
+#   --app-update-feed-url URL  the feed the app checks for updates (default: get.tatolab.com's);
+#                            only with --local-proof-test-root, for proving an update locally
 set -euo pipefail
 
 usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$0" >&2; exit 2; }
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 app_version=""
 local_proof_test_root=false
+app_update_feed_url=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --app-version) [ $# -ge 2 ] || usage; app_version="${2#v}"; shift ;;
     --local-proof-test-root) local_proof_test_root=true ;;
+    --app-update-feed-url) [ $# -ge 2 ] || usage; app_update_feed_url="$2"; shift ;;
     -h|--help) usage ;;
     *) usage ;;
   esac
@@ -62,6 +68,8 @@ if $local_proof_test_root; then
   local_proof_arguments=(--local-proof-test-root)
   local_proof_name_part="-local-proof"
 fi
+app_update_feed_arguments=()
+[ -n "$app_update_feed_url" ] && app_update_feed_arguments=(--app-update-feed-url "$app_update_feed_url")
 
 cd "$repository_root"
 if [ -z "$app_version" ]; then
@@ -72,6 +80,7 @@ linux_build_directory="$repository_root/build/linux-packaging"
 output_directory="$repository_root/build/linux"
 output_deb="$output_directory/Tatolab-$app_version$local_proof_name_part-amd64.deb"
 output_appimage="$output_directory/Tatolab-$app_version$local_proof_name_part-x86_64.AppImage"
+output_update_manifest="$output_directory/latest-linux.yml"
 rm -rf "$linux_build_directory"
 mkdir -p "$linux_build_directory" "$output_directory"
 
@@ -79,7 +88,7 @@ echo "==> Electron app"
 npm ci
 npm run build
 npm run build:electron
-packaged_app_directory="$(node scripts/package_tatolab_electron_app.mjs linux "$app_version" "$linux_build_directory/packaged" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} | tail -1)"
+packaged_app_directory="$(node scripts/package_tatolab_electron_app.mjs linux "$app_version" "$linux_build_directory/packaged" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} | tail -1)"
 [ -x "$packaged_app_directory/Tatolab" ] || { echo "packaging left no $packaged_app_directory/Tatolab" >&2; exit 1; }
 [ -f "$packaged_app_directory/chrome-sandbox" ] || { echo "packaging left no $packaged_app_directory/chrome-sandbox" >&2; exit 1; }
 # A process could otherwise run the app as plain Node.
@@ -93,6 +102,14 @@ done
 expected_build_features_literal="machineDirectoriesUnderATestRoot: $($local_proof_test_root && echo true || echo false)"
 grep -aqF "$expected_build_features_literal" "$packaged_app_directory/resources/app.asar" \
   || { echo "the packaged app was not built with $expected_build_features_literal" >&2; exit 1; }
+expected_app_update_feed_literal="appUpdateFeedUrl: \"${app_update_feed_url:-https://get.tatolab.com/app/}\""
+grep -aqF "$expected_app_update_feed_literal" "$packaged_app_directory/resources/app.asar" \
+  || { echo "the packaged app was not built with $expected_app_update_feed_literal" >&2; exit 1; }
+# The asar's header is JSON naming every directory it holds.
+grep -aqF '"electron-updater":{"files"' "$packaged_app_directory/resources/app.asar" \
+  || { echo "the packaged app carries no electron-updater" >&2; exit 1; }
+grep -qx 'updaterCacheDirName: tatolab-app-updater' "$packaged_app_directory/resources/app-update.yml" \
+  || { echo "the packaged app has no resources/app-update.yml naming the updater's cache" >&2; exit 1; }
 
 # Lays the app, its desktop entry and its icons under <root>/usr.
 lay_out_the_app_under() {
@@ -203,5 +220,9 @@ APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$appimage_tools_directory/appimagetool" 
   --runtime-file "$appimage_tools_directory/runtime-x86_64" "$app_directory" "$output_appimage"
 chmod 0755 "$output_appimage"
 
+echo "==> update"
+node scripts/write_tatolab_app_update_manifest.mjs "$output_update_manifest" "$app_version" "$output_appimage" "$output_deb"
+
 echo "built $output_deb"
 echo "built $output_appimage"
+echo "built $output_update_manifest"

@@ -74,6 +74,7 @@ test("the published status walks starting, running, starting, unreachable and st
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
     readMonotonicClockMs,
+    readTheAppUpdateState: () => ({ kind: "not_checked" }),
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusesSentToTheWindow: TatolabStatus[] = [];
@@ -118,6 +119,7 @@ test("the window asking before the first round waits for it, and hears nothing w
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
     readMonotonicClockMs: () => 0,
+    readTheAppUpdateState: () => ({ kind: "not_checked" }),
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);

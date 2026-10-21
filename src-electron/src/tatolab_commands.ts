@@ -10,7 +10,12 @@ import type { StreamGraphSummary, StreamLogRecordsPage, TatolabStatus } from "..
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../../src/backend/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAnUnsignedInteger } from "./json_on_the_wire.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
-import { runInTheBackgroundWithTheController, setUpTatolabOnRequest, type TatolabAppSharedState } from "./tatolab_app_shared_state.js";
+import {
+  checkForTatolabAppUpdatesOnRequest,
+  runInTheBackgroundWithTheController,
+  setUpTatolabOnRequest,
+  type TatolabAppSharedState,
+} from "./tatolab_app_shared_state.js";
 
 /** How long `get_tatolab_status` waits for the poller's first round when the window asks first. */
 const FIRST_STATUS_ROUND_WAIT_LIMIT_MS = 15_000;
@@ -130,6 +135,10 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!readStreamLogRecordsArguments.ok) return { ok: false, refusal: readStreamLogRecordsArguments.failure };
       const { stream, after } = readStreamLogRecordsArguments.value;
       return commandAnswerFrom(await readStreamLogRecords(sharedState, stream, after));
+    },
+    check_for_tatolab_app_updates: async () => {
+      checkForTatolabAppUpdatesOnRequest(sharedState, "window");
+      return { ok: true, value: null };
     },
     describe_stream_graph: async (commandArguments) => {
       const describeStreamGraphArguments = describeStreamGraphArgumentsFrom(commandArguments);

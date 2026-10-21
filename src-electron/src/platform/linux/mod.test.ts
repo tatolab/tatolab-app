@@ -3,7 +3,7 @@
 
 import { expect, test } from "vitest";
 import { failedWith } from "../../result.js";
-import { LINUX_TATOLAB_UNINSTALL } from "./mod.js";
+import { LINUX_TATOLAB_UNINSTALL, tatolabAppUpdatePackagingOnLinux } from "./mod.js";
 
 test("Linux refuses Uninstall Tatolab… and says the installer does it, turning nothing off", async () => {
   const runTatolabSwitchCalls: boolean[] = [];
@@ -16,4 +16,14 @@ test("Linux refuses Uninstall Tatolab… and says the installer does it, turning
     }),
   ).toEqual(failedWith("On Linux the installer uninstalls Tatolab: Settings › Uninstall Tatolab… shows how."));
   expect(runTatolabSwitchCalls).toEqual([]);
+});
+
+test("an AppImage replaces its own file, the .deb opens its download, and an unpackaged app updates nothing", () => {
+  expect(tatolabAppUpdatePackagingOnLinux(true, "/home/ada/Applications/Tatolab-0.46.3-x86_64.AppImage")).toEqual({
+    kind: "appimage",
+    appImagePath: "/home/ada/Applications/Tatolab-0.46.3-x86_64.AppImage",
+  });
+  expect(tatolabAppUpdatePackagingOnLinux(true, undefined)).toEqual({ kind: "deb" });
+  expect(tatolabAppUpdatePackagingOnLinux(true, "")).toEqual({ kind: "deb" });
+  expect(tatolabAppUpdatePackagingOnLinux(false, "/tmp/.mount_Tatola/AppRun")).toEqual({ kind: "not_offered", reason: "Only a packaged Tatolab updates itself." });
 });

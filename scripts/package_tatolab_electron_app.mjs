@@ -1,26 +1,46 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-// Packages the built Electron app (`npm run build` and `npm run build:electron` first) for one
-// platform with @electron/packager: it stages exactly what the main process, the preload and the
-// window load, packs it into the asar, and flips Electron's fuses. Prints the packaged app's path
-// (Tatolab.app on macOS, the app's directory on Linux) as its last line.
+// Packages the built Electron app (`npm ci`, `npm run build` and `npm run build:electron` first)
+// for one platform with @electron/packager: it stages exactly what the main process, the preload
+// and the window load, with the production dependencies the lockfile installed, packs it into the
+// asar, and flips Electron's fuses. Prints the packaged app's path (Tatolab.app on macOS, the
+// app's directory on Linux) as its last line.
 //
-// Usage: node scripts/package_tatolab_electron_app.mjs <darwin|linux> <app version> <output dir> [--local-proof-test-root]
-//   --local-proof-test-root  the app keeps every machine directory under the local-proof test root;
-//                            never shipped
+// Usage: node scripts/package_tatolab_electron_app.mjs <darwin|linux> <app version> <output dir> [--local-proof-test-root] [--app-update-feed-url URL]
+//   --local-proof-test-root     the app keeps every machine directory under the local-proof test root;
+//                               never shipped
+//   --app-update-feed-url URL   the app reads its updates from URL instead of get.tatolab.com; only
+//                               with --local-proof-test-root
 import { FuseV1Options, FuseVersion, flipFuses } from "@electron/fuses";
 import { packager } from "@electron/packager";
+import { execFileSync } from "node:child_process";
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const [targetPlatform, appVersion, outputDirectoryArgument, ...remainingArguments] = process.argv.slice(2);
-const localProofTestRoot = remainingArguments.includes("--local-proof-test-root");
-const unknownArguments = remainingArguments.filter((argument) => argument !== "--local-proof-test-root");
-if (!["darwin", "linux"].includes(targetPlatform) || !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(appVersion ?? "") || outputDirectoryArgument === undefined || unknownArguments.length > 0) {
-  process.stderr.write("usage: package_tatolab_electron_app.mjs <darwin|linux> <X.Y.Z> <output dir> [--local-proof-test-root]\n");
+let localProofTestRoot = false;
+let localAppUpdateFeedUrl = null;
+let argumentsAreValid = ["darwin", "linux"].includes(targetPlatform) && /^[0-9]+\.[0-9]+\.[0-9]+$/.test(appVersion ?? "") && outputDirectoryArgument !== undefined;
+for (let argumentIndex = 0; argumentIndex < remainingArguments.length; argumentIndex += 1) {
+  const argument = remainingArguments[argumentIndex];
+  if (argument === "--local-proof-test-root") {
+    localProofTestRoot = true;
+  } else if (argument === "--app-update-feed-url" && URL.canParse(remainingArguments[argumentIndex + 1] ?? "")) {
+    localAppUpdateFeedUrl = remainingArguments[argumentIndex + 1];
+    argumentIndex += 1;
+  } else {
+    argumentsAreValid = false;
+  }
+}
+if (!argumentsAreValid) {
+  process.stderr.write("usage: package_tatolab_electron_app.mjs <darwin|linux> <X.Y.Z> <output dir> [--local-proof-test-root] [--app-update-feed-url URL]\n");
+  process.exit(2);
+}
+if (localAppUpdateFeedUrl !== null && !localProofTestRoot) {
+  process.stderr.write("--app-update-feed-url needs --local-proof-test-root: a shipped app reads its updates only from get.tatolab.com\n");
   process.exit(2);
 }
 const outputDirectory = path.resolve(outputDirectoryArgument);
@@ -28,6 +48,7 @@ const stagedAppDirectory = path.join(outputDirectory, "staged-app");
 const builtFeaturesModule = path.join("src-electron", "build", "src-electron", "src", "tatolab_app_build_features.js");
 const shippingFeaturesLiteral = "machineDirectoriesUnderATestRoot: false";
 const localProofFeaturesLiteral = "machineDirectoriesUnderATestRoot: true";
+const shippingAppUpdateFeedLiteral = 'appUpdateFeedUrl: "https://get.tatolab.com/app/"';
 
 const repositoryPackageJson = JSON.parse(await readFile(path.join(repositoryRoot, "package.json"), "utf8"));
 const electronVersion = JSON.parse(await readFile(path.join(repositoryRoot, "node_modules", "electron", "package.json"), "utf8")).version;
@@ -44,13 +65,34 @@ await cp(path.join(repositoryRoot, "src-electron", "build"), path.join(stagedApp
 for (const trayIconFileName of ["tray-template.png", "tray-template@2x.png", "tray-coloured.png"]) {
   await cp(path.join(repositoryRoot, "src-electron", "icons", trayIconFileName), path.join(stagedAppDirectory, "src-electron", "icons", trayIconFileName));
 }
+// The main process's runtime dependencies, as `npm ci` installed them from the lockfile: every
+// package `npm ls --omit=dev` names, at the path it holds under node_modules.
+const productionPackageDirectories = execFileSync("npm", ["ls", "--omit=dev", "--all", "--parseable"], { cwd: repositoryRoot, encoding: "utf8" })
+  .split("\n")
+  .filter((packageDirectory) => packageDirectory.startsWith(path.join(repositoryRoot, "node_modules") + path.sep));
+for (const productionPackageDirectory of productionPackageDirectories) {
+  await cp(productionPackageDirectory, path.join(stagedAppDirectory, path.relative(repositoryRoot, productionPackageDirectory)), {
+    recursive: true,
+    filter: (sourcePath) => !sourcePath.slice(productionPackageDirectory.length).includes(`${path.sep}node_modules${path.sep}`),
+  });
+}
 
 const stagedFeaturesModule = path.join(stagedAppDirectory, builtFeaturesModule);
 const builtFeaturesSource = await readFile(stagedFeaturesModule, "utf8");
 if (builtFeaturesSource.split(shippingFeaturesLiteral).length !== 2) {
   throw new Error(`${builtFeaturesModule} does not carry "${shippingFeaturesLiteral}" exactly once: run npm run build:electron`);
 }
-if (localProofTestRoot) await writeFile(stagedFeaturesModule, builtFeaturesSource.replace(shippingFeaturesLiteral, localProofFeaturesLiteral));
+if (builtFeaturesSource.split(shippingAppUpdateFeedLiteral).length !== 2) {
+  throw new Error(`${builtFeaturesModule} does not carry '${shippingAppUpdateFeedLiteral}' exactly once: run npm run build:electron`);
+}
+let stagedFeaturesSource = builtFeaturesSource;
+if (localProofTestRoot) stagedFeaturesSource = stagedFeaturesSource.replace(shippingFeaturesLiteral, localProofFeaturesLiteral);
+if (localAppUpdateFeedUrl !== null) stagedFeaturesSource = stagedFeaturesSource.replace(shippingAppUpdateFeedLiteral, `appUpdateFeedUrl: ${JSON.stringify(localAppUpdateFeedUrl)}`);
+await writeFile(stagedFeaturesModule, stagedFeaturesSource);
+// electron-updater names its download cache from resources/app-update.yml, and refuses to download
+// without the file. The feed itself is set from the build features, so the file holds only the name.
+const appUpdateConfigFile = path.join(outputDirectory, "app-update.yml");
+await writeFile(appUpdateConfigFile, "updaterCacheDirName: tatolab-app-updater\n");
 
 const [packagedDirectory] = await packager({
   dir: stagedAppDirectory,
@@ -70,6 +112,7 @@ const [packagedDirectory] = await packager({
   icon: path.join(repositoryRoot, "src-electron", "icons", "icon.icns"),
   asar: true,
   prune: false,
+  extraResource: [appUpdateConfigFile],
 });
 const packagedApp = targetPlatform === "darwin" ? path.join(packagedDirectory, "Tatolab.app") : packagedDirectory;
 

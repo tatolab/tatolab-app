@@ -5,15 +5,18 @@
 // lifecycle in main.ts drives.
 
 import path from "node:path";
-import { app, Menu } from "electron";
+import { app, autoUpdater as electronNativeAutoUpdater, Menu } from "electron";
 import { startTatolabApp, type TatolabElectronAppShell, type TatolabRunningApp } from "../main.js";
 import { describeCaughtFailure } from "../result.js";
 import { createTatolabAppLogToStandardError } from "../tatolab_app_log.js";
+import { TATOLAB_APP_BUILD_FEATURES } from "../tatolab_app_build_features.js";
 import { TATOLAB_APP_IDENTIFIER, tatolabPlatformItemsForThisBuild, type TatolabPlatformHostServices } from "../platform/mod.js";
 import { TATOLAB_WINDOW_PAGE_URL } from "../tatolab_window_page_source.js";
 import { electronApplicationMenu } from "./electron_application_menu.js";
 import { createElectronMainWindowHostFactory } from "./electron_main_window_host.js";
 import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_handlers.js";
+import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
+import { createElectronTatolabAppUpdateNotifier } from "./electron_tatolab_app_update_notifier.js";
 import { ELECTRON_TATOLAB_UNINSTALL_APP_SURFACE } from "./electron_tatolab_uninstall_app_surface.js";
 import { createElectronTrayIconHostFactory } from "./electron_tray_icon.js";
 import { registerTheWindowPageSchemeBeforeReady, serveTheBuiltWindow } from "./electron_window_page_protocol.js";
@@ -61,11 +64,18 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   },
   onTheAppQuitting: (listener) => {
     app.on("before-quit", listener);
+    // An update's quitAndInstall closes the windows before `before-quit`, so the window learns here that it may close.
+    electronNativeAutoUpdater.on("before-quit-for-update", listener);
   },
   exitTheApp: (exitCode) => app.exit(exitCode),
   setTheApplicationMenu: (applicationMenu) => Menu.setApplicationMenu(electronApplicationMenu(applicationMenu)),
   buildTheTatolabPlatformForThisBuild: (platformItems) => platformItems.tatolabPlatformForThisBuild(tatolabAppLog, tatolabPlatformHostServices),
   answerTheWindowsCommands: (tatolabWindowCommandHandlers) => answerTheWindowsCommandsOverIpc(windowPageUrl, tatolabWindowCommandHandlers, tatolabAppLog),
+  createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
+  createTheAppUpdateNotifier: createElectronTatolabAppUpdateNotifier,
+  repeatingTimer: (intervalMs, work) => {
+    setInterval(work, intervalMs);
+  },
   appConfigDirectory: tatolabPlatformHostServices.appConfigDirectory,
   appVersion: app.getVersion(),
   readMonotonicClockMs: () => performance.now(),

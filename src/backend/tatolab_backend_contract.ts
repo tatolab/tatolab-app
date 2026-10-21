@@ -26,6 +26,24 @@ export interface ListedStream {
   failed_because: string | null;
 }
 
+/** How a newer Tatolab found by a check reaches the person: installed in place, then the app reopens; or its download opened, for a `.deb`, which only apt replaces. */
+export type TatolabAppUpdateDelivery = "install_and_relaunch" | "open_the_download";
+
+/**
+ * Where checking for a newer Tatolab stands. `not_offered` is an app that cannot update itself (an
+ * unpackaged one), with why; `available` is a newer version a check found and nobody has taken yet;
+ * `failed` carries the updater's own words, and the installed app keeps working.
+ */
+export type TatolabAppUpdateState =
+  | { kind: "not_offered"; reason: string }
+  | { kind: "not_checked" }
+  | { kind: "checking" }
+  | { kind: "up_to_date" }
+  | { kind: "available"; version: string; delivery: TatolabAppUpdateDelivery }
+  | { kind: "downloading"; version: string; percent: number }
+  | { kind: "installing"; version: string }
+  | { kind: "failed"; refusal: string };
+
 /** What `get_tatolab_status` answers and `tatolab-status-changed` carries. */
 export interface TatolabStatus {
   app_version: string;
@@ -39,6 +57,7 @@ export interface TatolabStatus {
   machine_setup_state: MachineSetupState;
   /** `/usr/local/bin/tatolab` on macOS once linked; on Linux the absolute path of `~/.local/bin/tatolab` while it exists. */
   command_line_tool_linked_at: string | null;
+  app_update: TatolabAppUpdateState;
 }
 
 /** One record of a stream's log, flattened by the backend from the runtime's JSONL record. */

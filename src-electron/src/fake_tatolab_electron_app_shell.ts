@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // A test's stand-in for Electron: it records what the app asked of the window, the tray and the
-// Dock, builds a platform of fakes, and lets the test open the app again, quit it, click a tray
-// item, or invoke a command as the window does.
+// Dock, builds a platform of fakes over the update feed the test sets, and lets the test open the
+// app again, quit it, click a tray item or a notification, or invoke a command as the window does.
 
 import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
@@ -18,6 +18,8 @@ import type { ApplicationMenu, MacosActivationPolicy, TatolabUninstall } from ".
 import type { TatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import type { MainWindowCloseRequestAnswer, MainWindowSpecification } from "./tatolab_main_window.js";
 import type { TrayMenuItemDescription, TrayMenuItemId } from "./tatolab_tray_menu.js";
+import type { TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
+import type { TatolabAppUpdatePackaging } from "./platform/mod.js";
 
 /** One thing the app asked of the fake shell, in order. */
 export type FakeShellRecord =
@@ -27,6 +29,8 @@ export type FakeShellRecord =
   | { asked: "set_activation_policy"; activationPolicy: MacosActivationPolicy }
   | { asked: "show_tray_menu"; trayMenuItems: readonly TrayMenuItemDescription[] }
   | { asked: "exit"; exitCode: number }
+  | { asked: "notify"; notification: string }
+  | { asked: "repeat_every"; intervalMs: number }
   | { asked: "set_application_menu"; applicationMenu: ApplicationMenu };
 
 /** A fake Electron app shell for the lifecycle's tests. */
@@ -39,6 +43,9 @@ export class FakeTatolabElectronAppShell {
   readonly runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
   machineSetup = new FakeTatolabMachineSetup("complete", null);
   tatolabUninstall: TatolabUninstall | undefined = undefined;
+  appUpdatePackaging: TatolabAppUpdatePackaging = { kind: "not_offered", reason: "this fake platform updates nothing" };
+  appUpdateFeedForThisBuild: TatolabAppUpdateFeedForThisBuild = { kind: "not_offered", reason: "this fake platform updates nothing" };
+  private clickANotification: (() => void) | null = null;
   readonly appConfigDirectory = path.join(os.tmpdir(), `tl-app-config-${randomUUID()}`);
   private tatolabWindowCommandHandlers: TatolabWindowCommandHandlers | null = null;
   private readonly appOpenedAgainListeners: (() => void)[] = [];
@@ -55,10 +62,26 @@ export class FakeTatolabElectronAppShell {
     exitTheApp: (exitCode) => this.records.push({ asked: "exit", exitCode }),
     setTheApplicationMenu: (applicationMenu) => this.records.push({ asked: "set_application_menu", applicationMenu }),
     buildTheTatolabPlatformForThisBuild: async () =>
-      fakeTatolabPlatformForThisBuild(this.runtimeAgent, this.machineSetup, path.join(this.appConfigDirectory, "no-runtime.sock"), this.tatolabUninstall),
+      fakeTatolabPlatformForThisBuild(
+        this.runtimeAgent,
+        this.machineSetup,
+        path.join(this.appConfigDirectory, "no-runtime.sock"),
+        this.tatolabUninstall,
+        this.appUpdatePackaging,
+      ),
     answerTheWindowsCommands: (tatolabWindowCommandHandlers) => {
       this.tatolabWindowCommandHandlers = tatolabWindowCommandHandlers;
     },
+    createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,
+    createTheAppUpdateNotifier: (onNotificationClicked) => {
+      this.clickANotification = onNotificationClicked;
+      return {
+        notifyANewerVersionIsAvailable: (version) => this.records.push({ asked: "notify", notification: `Tatolab ${version} is available` }),
+        notifyTheAppIsUpToDate: () => this.records.push({ asked: "notify", notification: "Tatolab is up to date" }),
+        notifyTheUpdateFailed: (refusal) => this.records.push({ asked: "notify", notification: `Tatolab couldn't update: ${refusal}` }),
+      };
+    },
+    repeatingTimer: (intervalMs) => this.records.push({ asked: "repeat_every", intervalMs }),
     appConfigDirectory: this.appConfigDirectory,
     appVersion: "0.45.0",
     readMonotonicClockMs: () => 0,
@@ -109,6 +132,10 @@ export class FakeTatolabElectronAppShell {
     return this.answerCloseRequest?.() ?? null;
   }
 
+  clickTheNotification(): void {
+    this.clickANotification?.();
+  }
+
   clickTheTrayMenuItem(trayMenuItemId: TrayMenuItemId): void {
     this.clickTrayMenuItem?.(trayMenuItemId);
   }
@@ -120,6 +147,7 @@ export class FakeTatolabElectronAppShell {
   }
 
   removeTheAppConfigDirectory(): Promise<void> {
-    return rm(this.appConfigDirectory, { recursive: true, force: true });
+    // The launch's background work may still be writing into it, which `maxRetries` waits out.
+    return rm(this.appConfigDirectory, { recursive: true, force: true, maxRetries: 5 });
   }
 }

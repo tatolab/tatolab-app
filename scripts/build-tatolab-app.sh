@@ -4,10 +4,12 @@
 #
 # Builds Tatolab.app and its installer end to end: streamlib's runtime unit, the Electron app, the
 # assembled bundle, signatures, the branded .dmg, optional notarization, and the bundle checks.
-# Outputs build/Tatolab.app and build/Tatolab-<version>-arm64.dmg.
+# Outputs build/Tatolab.app, build/Tatolab-<version>-arm64.dmg, and the update Squirrel.Mac takes:
+# build/Tatolab-<version>-arm64-mac.zip and its feed manifest build/latest-mac.yml.
 #
 # Usage: build-tatolab-app.sh [--streamlib PATH] [--runtime-unit DIR] [--local-proof-test-root]
 #                             [--sign-identity ID] [--notarize] [--app-version X.Y.Z]
+#                             [--app-update-feed-url URL]
 #   --streamlib PATH         streamlib checkout to build the runtime unit in (default: ../streamlib)
 #   --runtime-unit DIR       use an already-built runtime unit instead of building one
 #   --local-proof-test-root  every machine directory under TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof
@@ -17,6 +19,8 @@
 #                            identity and APPLE_API_KEY_PATH, APPLE_API_KEY_ID, APPLE_API_ISSUER)
 #   --app-version X.Y.Z      the bundle's version (default: package.json's); a release passes
 #                            the streamlib release it bundles
+#   --app-update-feed-url URL  the feed the app checks for updates (default: get.tatolab.com's);
+#                            only with --local-proof-test-root, for proving an update locally
 set -euo pipefail
 
 usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$0" >&2; exit 2; }
@@ -28,6 +32,7 @@ local_proof_test_root=false
 signing_identity="-"
 notarize=false
 app_version=""
+app_update_feed_url=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --streamlib) [ $# -ge 2 ] || usage; streamlib_checkout="$2"; shift ;;
@@ -36,6 +41,7 @@ while [ $# -gt 0 ]; do
     --sign-identity) [ $# -ge 2 ] || usage; signing_identity="$2"; shift ;;
     --notarize) notarize=true ;;
     --app-version) [ $# -ge 2 ] || usage; app_version="${2#v}"; shift ;;
+    --app-update-feed-url) [ $# -ge 2 ] || usage; app_update_feed_url="$2"; shift ;;
     -h|--help) usage ;;
     *) usage ;;
   esac
@@ -55,6 +61,8 @@ fi
 
 local_proof_arguments=()
 $local_proof_test_root && local_proof_arguments=(--local-proof-test-root)
+app_update_feed_arguments=()
+[ -n "$app_update_feed_url" ] && app_update_feed_arguments=(--app-update-feed-url "$app_update_feed_url")
 
 if [ -z "$app_version" ]; then
   app_version="$(plutil -extract version raw -o - "$repository_root/package.json")"
@@ -63,6 +71,8 @@ fi
 build_directory="$repository_root/build"
 assembled_app="$build_directory/Tatolab.app"
 output_dmg="$build_directory/Tatolab-$app_version-arm64.dmg"
+output_update_zip="$build_directory/Tatolab-$app_version-arm64-mac.zip"
+output_update_manifest="$build_directory/latest-mac.yml"
 mkdir -p "$build_directory"
 
 echo "==> runtime unit"
@@ -81,7 +91,7 @@ npm run build:electron
 npm run build:service-management-addon -- --arch=arm64
 built_service_management_addon="$repository_root/src-electron/native/service_management_agent_services/build/Release/service_management_agent_services.node"
 [ "$(lipo -archs "$built_service_management_addon")" = arm64 ] || { echo "$built_service_management_addon is not arm64-only" >&2; exit 1; }
-packaged_app="$(node scripts/package_tatolab_electron_app.mjs darwin "$app_version" "$build_directory/electron-packaging" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} | tail -1)"
+packaged_app="$(node scripts/package_tatolab_electron_app.mjs darwin "$app_version" "$build_directory/electron-packaging" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} | tail -1)"
 rm -rf "$assembled_app"
 ditto "$packaged_app" "$assembled_app"
 mkdir -p "$assembled_app/Contents/Frameworks/tatolab-app-native"
@@ -122,5 +132,14 @@ verify_arguments=()
 $local_proof_test_root || verify_arguments=(--shipping)
 "$scripts_directory/verify-tatolab-app-bundle.sh" "$output_dmg" ${verify_arguments[@]+"${verify_arguments[@]}"}
 
+echo "==> update"
+# Squirrel.Mac checks the update's signature against the running app's, so the .zip holds the
+# signed (and, for a release, stapled) bundle exactly as the .dmg does.
+rm -f "$output_update_zip"
+ditto -c -k --sequesterRsrc --keepParent "$assembled_app" "$output_update_zip"
+node "$scripts_directory/write_tatolab_app_update_manifest.mjs" "$output_update_manifest" "$app_version" "$output_update_zip"
+
 echo "built $assembled_app"
 echo "built $output_dmg"
+echo "built $output_update_zip"
+echo "built $output_update_manifest"

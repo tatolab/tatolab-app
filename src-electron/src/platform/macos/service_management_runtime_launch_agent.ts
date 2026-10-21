@@ -6,7 +6,7 @@
 
 import { failedWith, succeeded, type Result } from "../../result.js";
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../../../src/backend/tatolab_backend_contract.js";
-import type { RuntimeAgentRegistration, RuntimeAgentStartFailure } from "../runtime_agent_registration.js";
+import type { BundledRuntimeRestart, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "../runtime_agent_registration.js";
 import { describeHowTheProgramEnded, programSucceeded, runProgramToCompletion, type ProgramCompletion } from "./run_program_to_completion.js";
 import type { ServiceManagementAgentServices, ServiceManagementAgentServiceStatus } from "./service_management_agent_services.js";
 
@@ -45,8 +45,8 @@ export function runtimeAgentRegistrationStatusFrom(
   }
 }
 
-/** The runtime's launch agent as `SMAppService` sees it. */
-export class ServiceManagementRuntimeLaunchAgent implements RuntimeAgentRegistration {
+/** The runtime's launch agent as `SMAppService` sees it, whose runtime runs from the app's bundle. */
+export class ServiceManagementRuntimeLaunchAgent implements RuntimeAgentRegistration, BundledRuntimeRestart {
   private constructor(
     private readonly agentPlistName: string,
     private readonly uid: number,
@@ -83,6 +83,16 @@ export class ServiceManagementRuntimeLaunchAgent implements RuntimeAgentRegistra
       kind: "refused",
       refusal: `launchctl kickstart ${launchdJob} failed (${describeHowTheProgramEnded(kickstart)}): ${kickstart.standardError.trim()}`,
     });
+  }
+
+  async restartTheBundledRuntime(): Promise<Result<void, string>> {
+    // `-k` kills a running job first; launchd then starts it from the bundle as it is now.
+    const launchdJob = `gui/${this.uid}/${RUNTIME_LAUNCH_AGENT_LABEL}`;
+    const kickstartRun = await this.launchctlRunner(["kickstart", "-k", launchdJob]);
+    if (!kickstartRun.ok) return failedWith(`launchctl could not be run: ${kickstartRun.failure}`);
+    const kickstart = kickstartRun.value;
+    if (programSucceeded(kickstart)) return succeeded(undefined);
+    return failedWith(`launchctl kickstart -k ${launchdJob} failed (${describeHowTheProgramEnded(kickstart)}): ${kickstart.standardError.trim()}`);
   }
 
   async unregisterRuntimeAgent(): Promise<Result<void, string>> {

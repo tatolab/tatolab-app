@@ -8,7 +8,8 @@ Tatolab" brings the window back. Quitting the app closes the window and the tray
 keeps running.
 
 The tray menu shows a one-line status, "Open Tatolab", the "Run Tatolab" switch, "Set Up
-Tatolab…" while macOS's first-launch setup is unfinished, and "Quit Tatolab". The window reads
+Tatolab…" while macOS's first-launch setup is unfinished, "Check for Updates…" in a packaged app,
+and "Quit Tatolab". The window reads
 everything from the runtime's local API: `list_streams` and `logs` over MCP, `GET /api/graph` for
 the machine's name and each stream's graph. It shows the streams and does not start or stop them;
 the `tatolab` CLI does.
@@ -20,6 +21,18 @@ the `tatolab` CLI does.
 | First launch | links `/usr/local/bin/tatolab` and creates the machine runtime lock behind one administrator prompt | nothing: the installer set the machine up |
 | Local API socket | `/tmp/streamlib-<uid>/local-api.sock` | `$XDG_RUNTIME_DIR/streamlib/local-api.sock`, else `/tmp/streamlib-<uid>/local-api.sock` |
 | Uninstall | the app's "Uninstall Tatolab…", or `brew uninstall --cask tatolab` | the installer's `--uninstall`, then remove the app's package |
+
+## Updates
+
+A packaged app checks the feed at `https://get.tatolab.com/app/` at launch and once a day, through
+[electron-updater](https://github.com/electron-userland/electron-builder/tree/master/packages/electron-updater)'s
+generic provider. A check on its own only notifies that a newer version is available; nothing
+downloads or installs until the person chooses "Check for Updates…" in the tray, or its button in
+Settings. On macOS Squirrel.Mac replaces the bundle from the signed `.zip` and reopens it, and the
+app then restarts the bundled runtime once, so the runtime runs the version it shipped with and
+reloads its kept streams; the AppImage replaces its own file and reopens; a `.deb` opens the newer
+package's download in the browser, since apt alone replaces it. The feed's manifests are
+`app/latest-mac.yml` and `app/latest-linux.yml`, which point at `releases/<version>/`.
 
 The runtime and the `tatolab` CLI come from [tatolab/streamlib](https://github.com/tatolab/streamlib)
 (BUSL-1.1). This repository is proprietary (see `LICENSE`). It holds the app itself, the packaging
@@ -179,8 +192,9 @@ target directory), then the Electron app: `npm run build` (the window into `dist
 `npm run build:electron` (the main process and the preload), the arm64 Service Management addon,
 and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
 `@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
-branded `.dmg` and checks the result. The output is `build/Tatolab.app` and
-`build/Tatolab-<version>-arm64.dmg`.
+branded `.dmg` and checks the result. The output is `build/Tatolab.app`,
+`build/Tatolab-<version>-arm64.dmg`, and the update: `build/Tatolab-<version>-arm64-mac.zip` and its
+manifest `build/latest-mac.yml`.
 
 | Option | |
 |---|---|
@@ -190,6 +204,7 @@ branded `.dmg` and checks the result. The output is `build/Tatolab.app` and
 | `--notarize` | notarize and staple; needs a `Developer ID Application` identity and `APPLE_API_KEY_PATH`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` |
 | `--app-version X.Y.Z` | bundle version; a release passes the streamlib version it bundles |
 | `--local-proof-test-root` | local proof build, below |
+| `--app-update-feed-url URL` | the update feed the app checks, in place of get.tatolab.com's; only with `--local-proof-test-root` |
 
 **Local proof build** (`--local-proof-test-root`). The runtime unit is built with the
 `machine-directories-under-a-test-root` feature, and the packaged app with
@@ -200,19 +215,21 @@ nothing is written to `/Library` or `/usr/local/bin`. Uninstalling a local-proof
 `/tmp/tatolab-proof` instead of prompting. Use it to prove the app on a development Mac. It is
 never shipped: `assemble-tatolab-app-bundle.sh` refuses a test-root unit without the flag, and
 `verify-tatolab-app-bundle.sh --shipping` fails such a bundle, whether the marker, the agent's
-environment or the asar's build features give it away.
+environment or the asar's build features give it away, and fails one that checks any update feed
+but get.tatolab.com's.
 
 The individual steps are separate scripts in `scripts/`:
 
 | Script | |
 |---|---|
 | `build-tatolab-runtime-unit.sh <streamlib> [--local-proof-test-root]` | builds the runtime unit |
-| `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out> [--local-proof-test-root]` | packs the built app with `@electron/packager` and flips its fuses |
+| `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out> [--local-proof-test-root] [--app-update-feed-url URL]` | packs the built app and its production `node_modules` with `@electron/packager` and flips its fuses |
 | `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> [--local-proof-test-root]` | lays the unit into the packaged app |
 | `sign-tatolab-app-bundle.sh <Tatolab.app> <identity>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, the app) |
 | `make-tatolab-dmg.sh <Tatolab.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless) and its signature |
 | `notarize-and-staple.sh <Tatolab.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
 | `verify-tatolab-app-bundle.sh <Tatolab.app\|.dmg> [--shipping]` | checks the signature, layout, plists, entitlements, fuses, and Gatekeeper once stapled |
+| `write_tatolab_app_update_manifest.mjs <manifest.yml> <version> <file>...` | writes the update feed's manifest for those files: sizes, SHA-512s, and URLs under `../releases/<version>/` |
 | `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tatolab.rb` from `packaging/homebrew/tatolab.rb.template` |
 
 The installer background is `packaging/dmg/tatolab-dmg-background.svg`, rendered to the
@@ -233,11 +250,13 @@ scripts/build-tatolab-linux-app.sh
 
 It builds and packages the Electron app as on macOS, lays out the `.deb` and builds it with
 `dpkg-deb`, builds the AppImage with a pinned `appimagetool` and AppImage runtime (checksums in
-the script), checks the fuses, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Tatolab-<version>-amd64.deb` and
-`build/linux/Tatolab-<version>-x86_64.AppImage`. No streamlib checkout is needed. `--app-version
+the script), checks the fuses, the update feed, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Tatolab-<version>-amd64.deb`,
+`build/linux/Tatolab-<version>-x86_64.AppImage` and the update manifest listing both,
+`build/linux/latest-linux.yml`. No streamlib checkout is needed. `--app-version
 X.Y.Z` sets the packages' version; `--local-proof-test-root` builds with
 `machineDirectoriesUnderATestRoot` on, so the app reads the runtime under
-`TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, and names both packages `-local-proof`.
+`TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, and names both packages `-local-proof`;
+`--app-update-feed-url URL`, only with it, points the app at a local update feed.
 
 ## Working on the window
 

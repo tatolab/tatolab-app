@@ -149,6 +149,28 @@ test("the kickstart leaves a running job alone and maps launchctl's no-such-serv
   );
 });
 
+test("restarting the bundled runtime kills the running job first, and a refusal is in launchctl's words", async () => {
+  const { serviceManagementAgentServices } = fakeServiceManagementAgentServices(new Map());
+  const restartWith = async (launchctlAnswer: Result<ProgramCompletion, string>) => {
+    const launchctl = launchctlAnswering(launchctlAnswer);
+    const restarted = await ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(
+      501,
+      serviceManagementAgentServices,
+      launchctl.launchctlRunner,
+    ).restartTheBundledRuntime();
+    return { restarted, launchctlCalls: launchctl.launchctlCalls };
+  };
+
+  expect(await restartWith(launchctlExiting(0))).toEqual({
+    restarted: succeeded(undefined),
+    launchctlCalls: [["kickstart", "-k", "gui/501/com.tatolab.tatolabd"]],
+  });
+  expect((await restartWith(launchctlExiting(113, "Could not find service\n"))).restarted).toEqual(
+    failedWith("launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 113): Could not find service"),
+  );
+  expect((await restartWith(failedWith("spawn /bin/launchctl ENOENT"))).restarted).toEqual(failedWith("launchctl could not be run: spawn /bin/launchctl ENOENT"));
+});
+
 test("opening Login Items goes to Service Management's settings", async () => {
   const { serviceManagementAgentServices, serviceManagementCalls } = fakeServiceManagementAgentServices(new Map());
   const runtimeLaunchAgent = ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(

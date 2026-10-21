@@ -4,6 +4,7 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type { TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
 import { createElement, setTextIfChanged, type ElementChild } from "../dom";
+import { presentTatolabAppUpdate } from "../presentation/app_update_presentation";
 import {
   presentCommandLineTool,
   presentPlatform,
@@ -30,7 +31,7 @@ function createSettingsGroup(groupTitle: string, rows: ElementChild[]): HTMLElem
   ]);
 }
 
-/** Run Tatolab, Login Items on macOS, the `tatolab` command, the version and machine, quitting, and uninstalling. */
+/** Run Tatolab, Login Items on macOS, the `tatolab` command, the version, updates and machine, quitting, and uninstalling. */
 export class SettingsPageView implements TatolabWindowPage {
   readonly element: HTMLElement;
   private readonly platformPresentation: PlatformPresentation;
@@ -43,6 +44,9 @@ export class SettingsPageView implements TatolabWindowPage {
   private readonly machineNameRow: HTMLElement;
   private readonly machineNameValue: HTMLElement;
   private readonly appVersionValue: HTMLElement;
+  private readonly appUpdateDescription: HTMLElement;
+  private readonly appUpdateButton: HTMLButtonElement;
+  private readonly appUpdateFailure = createFailureLine();
   private readonly uninstallTatolabRefusal = createFailureLine();
   private latestStatus: TatolabStatus | null = null;
   private statusesShownCount = 0;
@@ -73,6 +77,12 @@ export class SettingsPageView implements TatolabWindowPage {
     this.commandLineToolCopyButton = createCopyButton("the tatolab command's path", () => this.latestStatus?.command_line_tool_linked_at ?? "");
     this.machineNameValue = createElement("code", { class: "settings-row-value selectable-text" });
     this.appVersionValue = createElement("span", { class: "settings-row-value selectable-text" });
+    this.appUpdateDescription = createElement("p", { class: "settings-row-description", id: "app-update-description" });
+    this.appUpdateButton = createElement(
+      "button",
+      { type: "button", class: "button", "aria-describedby": "app-update-description", onClick: () => this.onCheckForAppUpdatesRequested() },
+      ["Check for Updates…"],
+    );
     this.machineNameRow = createSettingsRow(
       [createElement("p", { class: "settings-row-title" }, [this.platformPresentation.thisMachineAtSentenceStart])],
       [this.machineNameValue],
@@ -123,6 +133,11 @@ export class SettingsPageView implements TatolabWindowPage {
           ]),
           createSettingsGroup("About", [
             createSettingsRow([createElement("p", { class: "settings-row-title" }, ["Version"])], [this.appVersionValue]),
+            createSettingsRow(
+              [createElement("p", { class: "settings-row-title" }, ["Updates"]), this.appUpdateDescription],
+              [this.appUpdateButton],
+              this.appUpdateFailure.element,
+            ),
             this.machineNameRow,
             createSettingsRow(
               [createElement("p", { class: "settings-row-title" }, ["Stream records"])],
@@ -186,6 +201,25 @@ export class SettingsPageView implements TatolabWindowPage {
     this.machineNameRow.hidden = status.machine_name === null;
     setTextIfChanged(this.machineNameValue, status.machine_name ?? "");
     setTextIfChanged(this.appVersionValue, `Tatolab ${status.app_version}`);
+    this.showAppUpdate(status);
+  }
+
+  private showAppUpdate(status: TatolabStatus): void {
+    const appUpdate = presentTatolabAppUpdate(status.app_update);
+    setTextIfChanged(this.appUpdateDescription, appUpdate.description);
+    this.appUpdateButton.hidden = appUpdate.actionLabel === null;
+    setTextIfChanged(this.appUpdateButton, appUpdate.actionLabel ?? "");
+    this.appUpdateButton.disabled = !appUpdate.isActionEnabled;
+    this.appUpdateFailure.show(appUpdate.failure);
+  }
+
+  private onCheckForAppUpdatesRequested(): void {
+    this.appUpdateButton.disabled = true;
+    this.appUpdateFailure.show(null);
+    void this.backend.checkForTatolabAppUpdates().catch((rejection: unknown) => {
+      this.appUpdateFailure.show(`Couldn't update Tatolab: ${describeBackendRejection(rejection)}`);
+      this.appUpdateButton.disabled = false;
+    });
   }
 
   /** Shows why the last uninstall was refused under its row; `null` clears it. */

@@ -93,6 +93,7 @@ export class TatolabStatusPublisher {
       listed_stream_count: status.streams?.length ?? null,
       machine_name: status.machine_name,
       machine_setup_state: status.machine_setup_state,
+      app_update: status.app_update.kind,
     });
     this.sendTheLastPublishedStatusToTheWindow();
     this.tatolabTrayMenu?.showStatus(status);

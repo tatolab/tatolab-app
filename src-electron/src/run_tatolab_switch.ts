@@ -7,8 +7,8 @@
 // app runs, the switch on also starts an enabled agent whose runtime the poller finds down.
 
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
-import type { RuntimeAgentRegistration } from "./platform/runtime_agent_registration.js";
-import type { Result } from "./result.js";
+import type { BundledRuntimeRestart, RuntimeAgentRegistration } from "./platform/runtime_agent_registration.js";
+import { succeeded, type Result } from "./result.js";
 import type { RunTatolabPreferenceFile } from "./run_tatolab_preference.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { RuntimeHealthObservation } from "./tatolab_status.js";
@@ -101,6 +101,19 @@ export class RunTatolabSwitch {
   /** How long the runtime has had to come up since the app launched, the agent was registered, or the runtime last answered. */
   timeSinceTheRuntimeWasExpectedUpMs(nowMs: number): number {
     return Math.max(0, nowMs - this.runtimeExpectedUpSinceMs);
+  }
+
+  /**
+   * With the switch on, restart the runtime the app's bundle carries through `bundledRuntimeRestart`, giving
+   * it the starting grace again from `nowMs`; with it off nothing runs, and the runtime starts from the
+   * bundle as it is whenever the switch next turns on.
+   */
+  async restartTheBundledRuntime(bundledRuntimeRestart: BundledRuntimeRestart, nowMs: number): Promise<Result<"restarted" | "switch_off", string>> {
+    if (!this.runTatolabSwitchedOn) return succeeded("switch_off");
+    this.runtimeAgentLastStartAttemptAtMs = nowMs;
+    this.runtimeExpectedUpSinceMs = nowMs;
+    const restarted = await bundledRuntimeRestart.restartTheBundledRuntime();
+    return restarted.ok ? succeeded("restarted") : restarted;
   }
 
   /**
