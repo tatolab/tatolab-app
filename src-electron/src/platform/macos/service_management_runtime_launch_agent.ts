@@ -86,13 +86,21 @@ export class ServiceManagementRuntimeLaunchAgent implements RuntimeAgentRegistra
   }
 
   async restartTheBundledRuntime(): Promise<Result<void, string>> {
-    // `-k` kills a running job first; launchd then starts it from the bundle as it is now.
-    const launchdJob = `gui/${this.uid}/${RUNTIME_LAUNCH_AGENT_LABEL}`;
-    const kickstartRun = await this.launchctlRunner(["kickstart", "-k", launchdJob]);
-    if (!kickstartRun.ok) return failedWith(`launchctl could not be run: ${kickstartRun.failure}`);
-    const kickstart = kickstartRun.value;
-    if (programSucceeded(kickstart)) return succeeded(undefined);
-    return failedWith(`launchctl kickstart -k ${launchdJob} failed (${describeHowTheProgramEnded(kickstart)}): ${kickstart.standardError.trim()}`);
+    // launchd keeps the job as Service Management recorded it at registration, the bundle's version
+    // included, until the agent is registered again; registering stops the old runtime and loads the
+    // plist the bundle carries now.
+    const unregistered = await this.serviceManagementAgentServices.unregisterAgentService(this.agentPlistName);
+    if (!unregistered.ok) return failedWith(`Service Management could not unregister the runtime's agent: ${unregistered.failure}`);
+    const registered = await this.serviceManagementAgentServices.registerAgentService(this.agentPlistName);
+    if (!registered.ok) return failedWith(`Service Management could not register the runtime's agent again: ${registered.failure}`);
+    const started = await this.startRuntimeAgentIfNotRunning();
+    if (started.ok) return succeeded(undefined);
+    switch (started.failure.kind) {
+      case "no_job_for_the_registered_agent":
+        return failedWith(`launchd holds no job for ${RUNTIME_LAUNCH_AGENT_LABEL} after registering it again`);
+      case "refused":
+        return failedWith(started.failure.refusal);
+    }
   }
 
   async unregisterRuntimeAgent(): Promise<Result<void, string>> {

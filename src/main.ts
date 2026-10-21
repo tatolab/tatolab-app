@@ -37,7 +37,10 @@ async function createBrowserMockBackend(pageQuery: URLSearchParams): Promise<Tat
 /** What the Electron app's window says when its preload did not load: it has no way to the app, and never shows the mock in its place. */
 const WINDOW_WITHOUT_ITS_BRIDGE_TEXT = "Tatolab's window could not reach the app: its preload did not load. Reinstall Tatolab.";
 
-/** The backend of the host this page runs in: the preload's bridge, or the browser mock; `null` for the app's window without its bridge. */
+/** What a built window says when opened in a browser: the mock is served only by the dev server. */
+const BUILT_WINDOW_IN_A_BROWSER_TEXT = "Tatolab's window runs inside Tatolab.app. The mock window is served by npm run dev.";
+
+/** The backend of the host this page runs in: the preload's bridge, or the browser mock under the dev server; `null` where the page has none. */
 async function createTatolabBackendFor(windowHost: TatolabWindowHost, pageQuery: URLSearchParams): Promise<TatolabBackend | null> {
   switch (windowHost.kind) {
     case "electron":
@@ -45,7 +48,8 @@ async function createTatolabBackendFor(windowHost: TatolabWindowHost, pageQuery:
     case "electron_without_its_bridge":
       return null;
     case "browser":
-      return createBrowserMockBackend(pageQuery);
+      // A build leaves the mock out: `import.meta.env.DEV` is false there, so the bundler drops its import.
+      return import.meta.env.DEV ? createBrowserMockBackend(pageQuery) : null;
   }
 }
 
@@ -68,7 +72,7 @@ async function startTatolabWindow(): Promise<void> {
   const windowHost = tatolabWindowHost();
   const backend = await createTatolabBackendFor(windowHost, pageQuery);
   if (backend === null) {
-    rootElement.textContent = WINDOW_WITHOUT_ITS_BRIDGE_TEXT;
+    rootElement.textContent = windowHost.kind === "browser" ? BUILT_WINDOW_IN_A_BROWSER_TEXT : WINDOW_WITHOUT_ITS_BRIDGE_TEXT;
     return;
   }
   const insideTheApp = windowHost.kind !== "browser";
@@ -78,7 +82,7 @@ async function startTatolabWindow(): Promise<void> {
   const firstStatus = await readFirstTatolabStatus(backend);
   showTatolabStatus = mountTatolabWindow(rootElement, backend, platformOf(firstStatus), featureFlags);
   showTatolabStatus(firstStatus);
-  if (!insideTheApp) {
+  if (!insideTheApp && import.meta.env.DEV) {
     const { driveMockWindowToPreset } = await import("./mock_window_preset");
     driveMockWindowToPreset(pageQuery, platformOf(firstStatus));
   }

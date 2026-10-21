@@ -29,8 +29,8 @@ A packaged app checks the feed at `https://get.tatolab.com/app/` at launch and o
 generic provider. A check on its own only notifies that a newer version is available; nothing
 downloads or installs until the person chooses "Check for Updates…" in the tray, or its button in
 Settings. On macOS Squirrel.Mac replaces the bundle from the signed `.zip` and reopens it, and the
-app then restarts the bundled runtime once, so the runtime runs the version it shipped with and
-reloads its kept streams; the AppImage replaces its own file and reopens; a `.deb` opens the newer
+app then, once the machine is set up, registers the runtime's agent again, so launchd runs the
+version the bundle ships with and the runtime reloads its kept streams; the AppImage replaces its own file and reopens; a `.deb` opens the newer
 package's download in the browser, since apt alone replaces it. The feed's manifests are
 `app/latest-mac.yml` and `app/latest-linux.yml`, which point at `releases/<version>/`.
 
@@ -265,7 +265,8 @@ terminal, builds the main process and runs the app against it, unpackaged. It sh
 runtime is already running on the machine's local API socket; only a `--local-proof-test-root`
 build reads a local-proof runtime's `/tmp/tatolab-proof/run/local-api.sock`. On macOS an
 unpackaged app finds no launch agent, so "Run Tatolab" registers nothing there; on Linux it drives the installer's `tatolabd.service` as the
-packaged app does. `npm run dev` alone serves the window in a browser against a mock backend.
+packaged app does. `npm run dev` alone serves the window in a browser against a mock backend; a build leaves the mock
+out, and packaging refuses a `dist/` that carries it.
 
 ## CI
 

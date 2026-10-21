@@ -15,7 +15,7 @@
 import { FuseV1Options, FuseVersion, flipFuses } from "@electron/fuses";
 import { packager } from "@electron/packager";
 import { execFileSync } from "node:child_process";
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -61,6 +61,14 @@ await writeFile(
   `${JSON.stringify({ name: "tatolab", productName: "Tatolab", version: appVersion, private: true, type: "module", main: repositoryPackageJson.main }, null, 2)}\n`,
 );
 await cp(path.join(repositoryRoot, "dist"), path.join(stagedAppDirectory, "dist"), { recursive: true });
+// The mock backend and its presets are the dev server's alone; a window built with them could show made-up streams.
+const mockWindowModuleNames = ["mock_tatolab_backend", "mock_window_preset"];
+for (const builtWindowFileName of await readdir(path.join(stagedAppDirectory, "dist", "assets"))) {
+  const mockWindowModuleName = mockWindowModuleNames.find((moduleName) => builtWindowFileName.startsWith(`${moduleName}-`));
+  if (mockWindowModuleName !== undefined) {
+    throw new Error(`dist/assets/${builtWindowFileName} is the mock window's ${mockWindowModuleName}, which the app never ships: run npm run build`);
+  }
+}
 await cp(path.join(repositoryRoot, "src-electron", "build"), path.join(stagedAppDirectory, "src-electron", "build"), { recursive: true });
 for (const trayIconFileName of ["tray-template.png", "tray-template@2x.png", "tray-coloured.png"]) {
   await cp(path.join(repositoryRoot, "src-electron", "icons", trayIconFileName), path.join(stagedAppDirectory, "src-electron", "icons", trayIconFileName));

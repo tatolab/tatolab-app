@@ -175,10 +175,10 @@ export async function startTatolabApp(
   showTheWindowWithTheLastStatus();
   runInTheBackgroundWithTheController(sharedState, "tatolab-app-opened", async (controller, statusPublisher) => {
     await controller.reconcileTheAgentWithTheRunTatolabSwitch();
-    await controller.restartTheBundledRuntimeIfTheAppChanged();
     statusPublisher.startPolling();
     tatolabAppUpdater.startCheckingOnItsOwn(tatolabElectronAppShell.repeatingTimer);
     await controller.setUpTheMachineOnAppOpened();
+    await controller.restartTheBundledRuntimeIfTheAppChanged();
     statusPublisher.requestRefresh();
   });
   return { tatolabMainWindow, tatolabTrayMenu, statusPublisher };

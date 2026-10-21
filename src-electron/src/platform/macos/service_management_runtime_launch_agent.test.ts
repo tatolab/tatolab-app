@@ -149,26 +149,34 @@ test("the kickstart leaves a running job alone and maps launchctl's no-such-serv
   );
 });
 
-test("restarting the bundled runtime kills the running job first, and a refusal is in launchctl's words", async () => {
-  const { serviceManagementAgentServices } = fakeServiceManagementAgentServices(new Map());
-  const restartWith = async (launchctlAnswer: Result<ProgramCompletion, string>) => {
+test("restarting the bundled runtime registers the agent again, so launchd loads the plist the bundle carries now", async () => {
+  const restartWith = async (launchctlAnswer: Result<ProgramCompletion, string>, registrationRefusal: string | null = null) => {
+    const serviceManagement = fakeServiceManagementAgentServices(new Map([["com.tatolab.tatolabd.plist", "enabled"]]), registrationRefusal);
     const launchctl = launchctlAnswering(launchctlAnswer);
     const restarted = await ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(
       501,
-      serviceManagementAgentServices,
+      serviceManagement.serviceManagementAgentServices,
       launchctl.launchctlRunner,
     ).restartTheBundledRuntime();
-    return { restarted, launchctlCalls: launchctl.launchctlCalls };
+    return { restarted, serviceManagementCalls: serviceManagement.serviceManagementCalls, launchctlCalls: launchctl.launchctlCalls };
   };
 
   expect(await restartWith(launchctlExiting(0))).toEqual({
     restarted: succeeded(undefined),
-    launchctlCalls: [["kickstart", "-k", "gui/501/com.tatolab.tatolabd"]],
+    serviceManagementCalls: ["unregister com.tatolab.tatolabd.plist", "register com.tatolab.tatolabd.plist"],
+    launchctlCalls: [["kickstart", "gui/501/com.tatolab.tatolabd"]],
   });
   expect((await restartWith(launchctlExiting(113, "Could not find service\n"))).restarted).toEqual(
-    failedWith("launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 113): Could not find service"),
+    failedWith("launchd holds no job for com.tatolab.tatolabd after registering it again"),
   );
-  expect((await restartWith(failedWith("spawn /bin/launchctl ENOENT"))).restarted).toEqual(failedWith("launchctl could not be run: spawn /bin/launchctl ENOENT"));
+  expect((await restartWith(launchctlExiting(5, "Input/output error\n"))).restarted).toEqual(
+    failedWith("launchctl kickstart gui/501/com.tatolab.tatolabd failed (exit status: 5): Input/output error"),
+  );
+  expect(await restartWith(launchctlExiting(0), "Operation not permitted")).toEqual({
+    restarted: failedWith("Service Management could not unregister the runtime's agent: Operation not permitted"),
+    serviceManagementCalls: ["unregister com.tatolab.tatolabd.plist"],
+    launchctlCalls: [],
+  });
 });
 
 test("opening Login Items goes to Service Management's settings", async () => {
