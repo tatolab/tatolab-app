@@ -24,7 +24,7 @@ picture plus the smallest sensible way to start.
    (one issue / a few / a milestone), and what existing screens or code it would displace.
 4. **Shape the smallest start** on the build ladder, and recommend the lowest rung that teaches
    something real:
-   - **Spike** — hours, throwaway, answers exactly ONE named question (can WebKitGTK render X? does
+   - **Spike** — hours, throwaway, answers exactly ONE named question (can Electron's tray do X on GNOME? does
      `SMAppService` report Y after Z?).
    - **Prototype** — a mock-backend screen in the browser; ugly, no tests, clearly throwaway.
      Exists to be reacted to.

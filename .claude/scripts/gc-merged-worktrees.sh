@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 #
 # gc-merged-worktrees — remove any worktree under .claude/worktrees/ whose branch
-# has a MERGED pull request, reclaiming its build output (node_modules, dist, and src-tauri/target if one was built there).
+# has a MERGED pull request, reclaiming its build output (node_modules, dist, and build).
 # Keyed on a merged PR, not on git ancestry, so it holds whether the PR was squashed or
 # merged (a squashed branch's commits never become ancestors of main). A worktree
 # with no PR, or an open PR, is left untouched — so in-flight / unpushed work is safe.

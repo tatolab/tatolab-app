@@ -49,7 +49,7 @@ expect warn:machine_runtime 'tatolab stop pattern-two'
 expect warn:machine_runtime '/usr/local/bin/tatolab rm main'
 expect warn:machine_runtime 'nohup tatolabd > /tmp/x.log 2>&1'
 expect warn:app_launch 'open build/Tatolab.app'
-expect warn:app_launch 'npx tauri dev'
+expect warn:app_launch 'npm run electron'
 expect warn:app_launch './build/linux/Tatolab-0.45.0-x86_64.AppImage'
 expect warn:app_launch 'sudo apt install ./Tatolab-0.45.0-amd64.deb'
 expect warn:brew_cask 'brew uninstall --cask tatolab'
@@ -78,10 +78,10 @@ expect warn:launchctl_job "bash <<'SCRIPT'
 launchctl bootout gui/501/com.tatolab.tatolabd
 SCRIPT"
 expect warn:runtime_installer 'bash <(curl -fsSL https://get.tatolab.com/install.sh)'
-expect warn:app_launch 'cargo run --manifest-path src-tauri/Cargo.toml'
-expect warn:app_launch 'cd src-tauri && cargo run'
-expect warn:app_launch 'cargo tauri dev'
-expect warn:app_launch 'npm run tauri -- dev'
+expect warn:app_launch 'npm run electron:dev'
+expect warn:app_launch 'npx electron .'
+expect warn:app_launch 'TATOLAB_APP_WINDOW_DEV_SERVER_URL=http://localhost:1420/ electron .'
+expect warn:app_launch './node_modules/.bin/electron .'
 expect warn:app_launch "open -a 'Tatolab'"
 expect warn:machine_paths 'echo x > /usr/local/bin/tatolab'
 expect warn:machine_paths 'echo x | sudo tee /usr/local/bin/tatolab'
@@ -107,7 +107,9 @@ expect silent 'TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof ../streamlib/target/
 expect silent '../streamlib/target/tatolab-runtime/bin/tatolabd'
 expect silent 'tatolab exchange --channel main/camera/video --out /tmp/x --count 3'
 expect silent 'tatolabd --version'
-expect silent 'cargo test --manifest-path src-tauri/Cargo.toml --locked'
+expect silent 'npm run build:electron'
+expect silent 'npm test'
+expect silent 'npx vitest run src-electron/src/main.test.ts'
 expect silent 'npm run dev'
 expect silent 'scripts/build-tatolab-app.sh --local-proof-test-root'
 expect silent 'gh pr create --title "fix: x" --body "ran launchctl kickstart and gh release upload"'
@@ -117,7 +119,7 @@ expect silent 'gh workflow run macos-app.yml'
 expect silent "gh pr create --title 'ci: x' --body 'drops the manual step; gh release upload now runs in CI'"
 expect silent 'gh pr create --title "x" --body "Steps:
 xcrun notarytool submit build/x.dmg"'
-expect silent "grep -rn 'tatolab stop; launchctl bootout' src-tauri"
+expect silent "grep -rn 'tatolab stop; launchctl bootout' src-electron"
 expect silent "echo 'a; tatolab stop main'"
 expect silent 'gh api repos/tatolab/streamlib/releases/latest'
 expect silent 'open docs/Tatolab'

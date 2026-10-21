@@ -7,8 +7,8 @@ shorter name; suggest a more explicit one.** Explicit beats short, always.
 - Encode role + subject + direction: what it reads, what it shows, where it sends.
 - No bare generic words: never just `Manager`, `Handler`, `Service`, `State`, `Data`, `ctx`,
   `buf`, `el`, `cb`, `res`.
-- Files are named for the one thing they hold, in `snake_case`, in both Rust and TypeScript
-  (`stream_log_follower.ts`, `run_tatolab_switch.rs`).
+- Files are named for the one thing they hold, in `snake_case`, in TypeScript and scripts
+  (`stream_log_follower.ts`, `run_tatolab_switch.ts`).
 - A platform item names the mechanism it drives (`ServiceManagementRuntimeLaunchAgent`,
   `SystemdUserRuntimeService`), never `MacImpl` / `LinuxBackend`.
 - CSS classes name what the element is in the window, not how it looks.
