@@ -1,0 +1,579 @@
+{
+  "flows": [
+    {
+      "id": "today-first-run",
+      "edition": "today",
+      "title": "First run",
+      "summary": "Install the runtime as a login service, check the machine, get the CLI and the MCP bridge, and run the sample stream.",
+      "frames": [
+        {
+          "id": "today/setup-1",
+          "title": "Welcome",
+          "route": "/setup?step=1",
+          "caption": "One screen, one sentence."
+        },
+        {
+          "id": "today/setup-2",
+          "title": "Start the runtime",
+          "route": "/setup?step=2",
+          "caption": "tatolabd starts as a login service; the local relay's two listeners join."
+        },
+        {
+          "id": "today/setup-3",
+          "title": "Command line and agents",
+          "route": "/setup?step=3",
+          "caption": "tatolab comes with the app; tatolab mcp connects a coding agent."
+        },
+        {
+          "id": "today/setup-4",
+          "title": "First stream",
+          "route": "/setup?step=4",
+          "caption": "Create the sample stream with tatolab new and keep it running."
+        }
+      ]
+    },
+    {
+      "id": "today-streams",
+      "edition": "today",
+      "title": "Streams",
+      "summary": "Everything list_streams reports on this machine: running, stopped and failed streams, how each runs, and what each is made of.",
+      "frames": [
+        {
+          "id": "today/streams",
+          "title": "Streams",
+          "route": "/",
+          "caption": "Every stream the runtime holds, with its state, run mode and steps."
+        },
+        {
+          "id": "today/streams-dark",
+          "title": "Streams, dark",
+          "route": "/",
+          "caption": "The same list in the dark theme.",
+          "dark": true
+        },
+        {
+          "id": "today/streams-empty",
+          "title": "No streams yet",
+          "route": "/?empty=1",
+          "caption": "The two ways to add the first one."
+        },
+        {
+          "id": "today/overview",
+          "title": "Overview",
+          "route": "/streams/front-door",
+          "caption": "Its exposed output, its steps and their state, and where it lives."
+        },
+        {
+          "id": "today/overview-audio",
+          "title": "Overview — audio",
+          "route": "/streams/studio-voice",
+          "caption": "An audio stream's exposed output."
+        },
+        {
+          "id": "today/overview-drops",
+          "title": "Drops on a link",
+          "route": "/streams/dock-4",
+          "caption": "A link's dropped-message counter, read straight from the graph."
+        },
+        {
+          "id": "today/overview-stopped",
+          "title": "Stopped",
+          "route": "/streams/test-pattern",
+          "caption": "Kept but stopped, with Start."
+        },
+        {
+          "id": "today/overview-failed",
+          "title": "Failed",
+          "route": "/streams/lobby-recorder",
+          "caption": "Why it failed, Retry, and the log file."
+        }
+      ]
+    },
+    {
+      "id": "today-add",
+      "edition": "today",
+      "title": "Add a stream",
+      "summary": "Run a project folder the runtime compiles and keeps, or create one with tatolab new.",
+      "frames": [
+        {
+          "id": "today/new",
+          "title": "Run a project",
+          "route": "/new",
+          "caption": "Pick the folder; the app checks for stream.py and its venv."
+        },
+        {
+          "id": "today/new-conflict",
+          "title": "Name in use",
+          "route": "/new?conflict=1",
+          "caption": "The runtime refuses a name another project holds; load under another."
+        },
+        {
+          "id": "today/new-compiling",
+          "title": "Compiling",
+          "route": "/new?step=compiling",
+          "caption": "The compile in the project's own Python, then the load."
+        },
+        {
+          "id": "today/new-done",
+          "title": "Running",
+          "route": "/new?step=done",
+          "caption": "Running, with the compile warnings the runtime returned."
+        },
+        {
+          "id": "today/new-create",
+          "title": "Create a project",
+          "route": "/new?source=new",
+          "caption": "tatolab new writes the sample; the app keeps it running."
+        }
+      ]
+    },
+    {
+      "id": "today-graph",
+      "edition": "today",
+      "title": "Graph, logs and inspect",
+      "summary": "The live graph — edit it while it runs — its logs, and its JSON.",
+      "frames": [
+        {
+          "id": "today/graph",
+          "title": "Graph",
+          "route": "/streams/front-door/graph",
+          "caption": "Steps, ports and links with their live state and drop counters."
+        },
+        {
+          "id": "today/graph-selected",
+          "title": "Inspect a step",
+          "route": "/streams/front-door/graph?node=persondetector",
+          "caption": "Its config, its outputs' exposure, and a preview of exposed outputs."
+        },
+        {
+          "id": "today/graph-dark",
+          "title": "Graph, dark",
+          "route": "/streams/dock-4/graph?node=peoplecounter",
+          "caption": "A link dropping messages, in the dark theme.",
+          "dark": true
+        },
+        {
+          "id": "today/logs",
+          "title": "Logs",
+          "route": "/streams/front-door/logs",
+          "caption": "Records from the runtime, and the older ones in the project's .streamlib log."
+        },
+        {
+          "id": "today/logs-dark",
+          "title": "Logs, dark",
+          "route": "/streams/halftone-booth/logs",
+          "caption": "A dev session's logs across reloads.",
+          "dark": true
+        },
+        {
+          "id": "today/inspect",
+          "title": "Inspect",
+          "route": "/streams/front-door/inspect",
+          "caption": "The graph as tatolab graph returns it."
+        }
+      ]
+    },
+    {
+      "id": "today-share",
+      "edition": "today",
+      "title": "Outputs and relays",
+      "summary": "Each output is internal, this machine, or public. Public outputs go to every relay this machine joins; add and configure those relays here.",
+      "frames": [
+        {
+          "id": "today/outputs",
+          "title": "Outputs",
+          "route": "/streams/front-door/outputs",
+          "caption": "Exposure per output, live, and the relays it reaches."
+        },
+        {
+          "id": "today/relays",
+          "title": "Relays",
+          "route": "/relays",
+          "caption": "The local relay's two listeners and the hosted relays, with their state."
+        },
+        {
+          "id": "today/relays-dark",
+          "title": "Relays, dark",
+          "route": "/relays",
+          "caption": "The same in the dark theme.",
+          "dark": true
+        },
+        {
+          "id": "today/relay-add-cloudflare",
+          "title": "Add Cloudflare",
+          "route": "/relays?add=cloudflare",
+          "caption": "The relay URL, kept as a secret."
+        },
+        {
+          "id": "today/relay-add-moqpro",
+          "title": "Add moq.pro",
+          "route": "/relays?add=moqpro",
+          "caption": "Project ID, signing key, and an optional relay URL."
+        },
+        {
+          "id": "today/relay-add-refused",
+          "title": "Refused",
+          "route": "/relays?add=cloudflare&state=refused",
+          "caption": "A relay that cannot be joined is refused; nothing is recorded."
+        },
+        {
+          "id": "today/relay-configure",
+          "title": "Configure",
+          "route": "/relays?relay=moqpro-1",
+          "caption": "Change settings, replace a secret, rejoin."
+        },
+        {
+          "id": "today/relay-configure-local",
+          "title": "Local listener",
+          "route": "/relays?relay=local-every-interface",
+          "caption": "A built-in listener's port."
+        }
+      ]
+    },
+    {
+      "id": "today-settings",
+      "edition": "today",
+      "title": "Settings",
+      "summary": "The app and the runtime it manages.",
+      "frames": [
+        {
+          "id": "today/settings-runtime",
+          "title": "Runtime",
+          "route": "/settings?section=runtime",
+          "caption": "Version, uptime, socket, restart."
+        },
+        {
+          "id": "today/settings-appearance",
+          "title": "Appearance",
+          "route": "/settings?section=appearance",
+          "caption": "Light, dark, or the system's."
+        },
+        {
+          "id": "today/settings-cli",
+          "title": "Command line",
+          "route": "/settings?section=cli",
+          "caption": "tatolab and the MCP bridge."
+        }
+      ]
+    },
+    {
+      "id": "direction-first-run",
+      "title": "First run",
+      "summary": "Install, let the runtime check the machine, name it, get the CLI, and create a first stream.",
+      "frames": [
+        {
+          "id": "direction/setup-1",
+          "title": "Welcome",
+          "route": "/direction/setup?step=1",
+          "caption": "One screen, one sentence, Continue."
+        },
+        {
+          "id": "direction/setup-2",
+          "title": "Runtime check",
+          "route": "/direction/setup?step=2",
+          "caption": "The runtime starts and checks GPU, camera, microphone and the local relay."
+        },
+        {
+          "id": "direction/setup-3",
+          "title": "This machine",
+          "route": "/direction/setup?step=3",
+          "caption": "The machine name is the first part of every address."
+        },
+        {
+          "id": "direction/setup-4",
+          "title": "CLI and agents",
+          "route": "/direction/setup?step=4",
+          "caption": "Install the CLI; let a coding agent use the runtime over MCP."
+        },
+        {
+          "id": "direction/setup-5",
+          "title": "First stream",
+          "route": "/direction/setup?step=5",
+          "caption": "Template, folder, or a relay to read from."
+        }
+      ],
+      "edition": "direction"
+    },
+    {
+      "id": "direction-streams",
+      "title": "Streams",
+      "summary": "What is running, where, and what it costs — Docker's containers view for streams.",
+      "frames": [
+        {
+          "id": "direction/streams",
+          "title": "Streams",
+          "route": "/direction/",
+          "caption": "Every stream on every machine: status, run mode, steps, CPU, GPU, memory."
+        },
+        {
+          "id": "direction/streams-dark",
+          "title": "Streams, dark",
+          "route": "/direction/",
+          "caption": "The same list in the dark theme.",
+          "dark": true
+        },
+        {
+          "id": "direction/streams-grid",
+          "title": "Grid",
+          "route": "/direction/?view=grid",
+          "caption": "The same streams as their outputs."
+        },
+        {
+          "id": "direction/overview",
+          "title": "Overview",
+          "route": "/direction/streams/front-door",
+          "caption": "The primary output, the steps in order, details, outputs and resources."
+        },
+        {
+          "id": "direction/overview-dark",
+          "title": "Overview, dark",
+          "route": "/direction/streams/front-door",
+          "dark": true,
+          "caption": "The same overview in the dark theme."
+        },
+        {
+          "id": "direction/overview-audio",
+          "title": "Overview — audio",
+          "route": "/direction/streams/studio-voice",
+          "caption": "Audio streams show their signal instead of a frame."
+        },
+        {
+          "id": "direction/overview-degraded",
+          "title": "Degraded",
+          "route": "/direction/streams/dock-4",
+          "caption": "One sentence says what is wrong and links to the numbers."
+        },
+        {
+          "id": "direction/overview-exited",
+          "title": "Exited",
+          "route": "/direction/streams/lobby-recorder",
+          "caption": "Exit code, cause, Restart and the log."
+        }
+      ],
+      "edition": "direction"
+    },
+    {
+      "id": "direction-build",
+      "title": "Build",
+      "summary": "Create a stream, then wire it in a graph where every output can be previewed in place.",
+      "frames": [
+        {
+          "id": "direction/new",
+          "title": "New stream",
+          "route": "/direction/new?mode=template",
+          "caption": "Pick a source, name it, choose where it runs."
+        },
+        {
+          "id": "direction/graph",
+          "title": "Graph",
+          "route": "/direction/streams/front-door/graph",
+          "caption": "Steps, ports and links, with previews inside the steps."
+        },
+        {
+          "id": "direction/graph-selected",
+          "title": "Inspect a step",
+          "route": "/direction/streams/front-door/graph?node=persondetector",
+          "caption": "Config, outputs and their exposure, metrics, process."
+        },
+        {
+          "id": "direction/graph-pinned",
+          "title": "Pinned previews",
+          "route": "/direction/streams/front-door/graph?pin=camera.video,boxoverlay.video_to_downstream",
+          "caption": "Pin any output as a floating preview to compare before and after."
+        },
+        {
+          "id": "direction/graph-bottleneck",
+          "title": "Bottleneck",
+          "route": "/direction/streams/dock-4/graph?node=peoplecounter",
+          "caption": "The stalled step and its dropping link stand out on the canvas."
+        },
+        {
+          "id": "direction/graph-dark",
+          "title": "Graph, dark",
+          "route": "/direction/streams/studio-voice/graph",
+          "caption": "An audio stream in the dark theme.",
+          "dark": true
+        },
+        {
+          "id": "direction/library",
+          "title": "Library",
+          "route": "/direction/library",
+          "caption": "Every step you can add, like an extensions view."
+        }
+      ],
+      "edition": "direction"
+    },
+    {
+      "id": "direction-debug",
+      "title": "Debug",
+      "summary": "Logs, stats and the raw graph — without leaving the app.",
+      "frames": [
+        {
+          "id": "direction/logs",
+          "title": "Logs",
+          "route": "/direction/streams/front-door/logs",
+          "caption": "Structured logs per step, filterable, with the full record on the side."
+        },
+        {
+          "id": "direction/logs-dark",
+          "title": "Logs, dark",
+          "route": "/direction/streams/front-door/logs",
+          "dark": true,
+          "caption": "Logs in the dark theme."
+        },
+        {
+          "id": "direction/logs-exited",
+          "title": "Logs — exited",
+          "route": "/direction/streams/lobby-recorder/logs",
+          "caption": "The traceback and exit code where the stream stopped."
+        },
+        {
+          "id": "direction/stats",
+          "title": "Stats",
+          "route": "/direction/streams/dock-4/stats",
+          "caption": "Frames per second, latency share and drops per step; the bottleneck named."
+        },
+        {
+          "id": "direction/stats-dark",
+          "title": "Stats, dark",
+          "route": "/direction/streams/front-door/stats",
+          "dark": true,
+          "caption": "The chart palette in the dark theme."
+        },
+        {
+          "id": "direction/inspect",
+          "title": "Inspect",
+          "route": "/direction/streams/front-door/inspect",
+          "caption": "The live graph as JSON, like docker inspect."
+        },
+        {
+          "id": "direction/runtime-logs",
+          "title": "Runtime logs",
+          "route": "/direction/logs",
+          "caption": "Every stream's logs on this machine."
+        }
+      ],
+      "edition": "direction"
+    },
+    {
+      "id": "direction-share",
+      "title": "Share",
+      "summary": "Each output is internal, readable on this machine, or public through the relays this machine joins. Relay setups bundle relays and credentials.",
+      "frames": [
+        {
+          "id": "direction/stream-sharing",
+          "title": "Stream outputs",
+          "route": "/direction/streams/front-door/sharing",
+          "caption": "Exposure per output, and which relays carry it."
+        },
+        {
+          "id": "direction/relays",
+          "title": "Relays",
+          "route": "/direction/sharing",
+          "caption": "Every relay, its health, and the relay setups."
+        },
+        {
+          "id": "direction/relay-setup",
+          "title": "Relay setup",
+          "route": "/direction/sharing?setup=studio",
+          "caption": "A named set of relays and credentials, assigned to machines."
+        },
+        {
+          "id": "direction/relay-add",
+          "title": "Add relay",
+          "route": "/direction/sharing?add=1",
+          "caption": "Provider, URL, credential, machines, test."
+        }
+      ],
+      "edition": "direction"
+    },
+    {
+      "id": "direction-fleet",
+      "title": "Machines and screens",
+      "summary": "Every machine running the runtime — a Mac, a box beside a camera, a set-top box behind a TV.",
+      "frames": [
+        {
+          "id": "direction/machines",
+          "title": "Machines",
+          "route": "/direction/machines",
+          "caption": "Hardware, runtime version, load and streams per machine."
+        },
+        {
+          "id": "direction/machine-detail",
+          "title": "A machine",
+          "route": "/direction/machines?machine=dock-box",
+          "caption": "Resources, streams, relays, update."
+        },
+        {
+          "id": "direction/machine-add",
+          "title": "Add machine",
+          "route": "/direction/machines?add=1",
+          "caption": "One install command and a pairing code."
+        },
+        {
+          "id": "direction/tv",
+          "title": "TV",
+          "route": "/direction/tv",
+          "viewport": [
+            1920,
+            1080
+          ],
+          "caption": "Ten-foot UI for a set-top box."
+        },
+        {
+          "id": "direction/tv-pair",
+          "title": "TV — pair",
+          "route": "/direction/tv?pair=1",
+          "viewport": [
+            1920,
+            1080
+          ],
+          "caption": "A fresh box shows a code to pair from the Mac."
+        },
+        {
+          "id": "direction/tv-idle",
+          "title": "TV — idle",
+          "route": "/direction/tv?idle=1",
+          "viewport": [
+            1920,
+            1080
+          ],
+          "caption": "Clock and Tato when nothing is on screen."
+        }
+      ],
+      "edition": "direction"
+    },
+    {
+      "id": "direction-settings",
+      "title": "Settings",
+      "summary": "The app and the runtime it manages.",
+      "frames": [
+        {
+          "id": "direction/settings-appearance",
+          "title": "Appearance",
+          "route": "/direction/settings?section=appearance",
+          "caption": "Light, dark, or the system's."
+        },
+        {
+          "id": "direction/settings-runtime",
+          "title": "Runtime",
+          "route": "/direction/settings?section=runtime",
+          "caption": "Version, socket, GPU, restart."
+        },
+        {
+          "id": "direction/settings-developer",
+          "title": "Developer",
+          "route": "/direction/settings?section=developer",
+          "caption": "CLI, MCP for coding agents, feature flags."
+        },
+        {
+          "id": "direction/design",
+          "title": "Design language",
+          "route": "/direction/design",
+          "caption": "The rules and tokens every screen follows."
+        }
+      ],
+      "edition": "direction"
+    }
+  ]
+}
