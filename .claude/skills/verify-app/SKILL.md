@@ -40,8 +40,8 @@ already uses.
    and show `launchctl print` matches the record. Label **Live (local proof)**.
 
    A change to what the app reads from the local API also runs the live contract test against
-   that runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=/tmp/tatolab-proof/run/local-api.sock cargo
-   test --manifest-path src-tauri/Cargo.toml -- --ignored`.
+   that runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=/tmp/tatolab-proof/run/local-api.sock npx vitest
+   run src-electron/src/local_api_client.test.ts`.
 3. **Live on the machine.** Only for what the test root cannot reach: the real administrator
    prompt, `SMAppService` registration after a `brew` reinstall, Gatekeeper, TCC prompts. This
    acts on the owner's real runtime — the `machine-brake` hook notes it — so say what you will
@@ -49,10 +49,9 @@ already uses.
    **Live**.
 4. **Linux.** On x86_64 Linux: `scripts/build-tatolab-linux-app.sh [--local-proof-test-root]`,
    then run the AppImage or `.deb`. On the Mac (arm64, which that script refuses): in an
-   `ubuntu:22.04` container, build the unbundled app (`npm ci && npm run build && cargo build
-   --manifest-path src-tauri/Cargo.toml [--features machine-directories-under-a-test-root]`) with
-   container volumes over `node_modules/` and `src-tauri/target/`, so Linux binaries never land in
-   the host's; run it under Xvfb with a StatusNotifier host and capture with
+   `ubuntu:22.04` container, build and run the unpackaged app (`npm ci && npm run build && npm run build:electron`,
+   then `npx electron .`) with a container volume over `node_modules/`, so Linux's Electron never
+   lands in the host's; run it under Xvfb with a StatusNotifier host and capture with
    `import -window root`. Packaging itself (`.deb` Depends, desktop entry, AppImage) is proven only
    by an x86_64 build (CI). A runtime stand-in (a fake local API answering on the socket) is
    allowed and **named as a stand-in**. Label **Linux** or **Linux (container, unbundled)**.
@@ -62,8 +61,8 @@ already uses.
 
 - Screenshots go under `proof/<topic>/` with descriptive names (`03-four-streams-attached.png`),
   both themes for a visual change, and the window at its real size — not cropped to the change.
-- The window inside Tauri cannot be driven by Playwright; capture it with the platform's screenshot
-  tool — on macOS `screencapture -l <CGWindowID>` (find the id with
+- The packaged window cannot be driven by Playwright (its fuses turn off the inspector); capture it
+  with the platform's screenshot tool — on macOS `screencapture -l <CGWindowID>` (find the id with
   `osascript -e 'tell application "System Events" to id of first window of process "Tatolab"'`
   or a small `CGWindowListCopyWindowInfo` script; the terminal needs Screen Recording), on Linux
   `gnome-screenshot -w` or `import`.

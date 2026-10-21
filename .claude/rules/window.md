@@ -17,11 +17,11 @@ paths:
   is a defect.
 - **Text stays WCAG AA** (4.5:1 body, 3:1 large and UI) in light and dark, including on hover,
   selected and dimmed rows. Check it when you touch a colour or a state.
-- **Both platforms' chrome.** The window renders in WKWebView on macOS and WebKitGTK on Linux
-  (`platform_presentation.ts`). A layout change is looked at for both.
+- **Both platforms' chrome.** The window renders in Electron's Chromium on both platforms, under
+  different chrome (`platform_presentation.ts`). A layout change is looked at for both.
 - **No framework, no runtime dependencies beyond what `package.json` has.** Views are plain DOM
   modules (`src/views/`), presentation is pure functions (`src/presentation/`) with vitest tests,
-  and the backend is the `TatolabBackend` contract with a Tauri and a mock implementation
+  and the backend is the `TatolabBackend` contract with an Electron and a mock implementation
   (`src/backend/`). Extend those layers; never add a parallel one.
 - **Runtime-supplied text** (stream names, node names, log records, refusals) reaches the DOM only
   through `textContent`, never `innerHTML`.

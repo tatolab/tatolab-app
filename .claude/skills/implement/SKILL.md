@@ -20,7 +20,7 @@ disable-model-invocation: false
 3. **Plan gate**: list every open item this work needs: a decision, a question you would ask the
    owner, an assumption you would rather not make. Give each one its options, your pick and why.
    Resolve whatever the issue, its comments, the spec, the tree or the runtime's contract answers; that is
-   discovery, not a question. A new module, trait or Tauri command the issue's Design section
+   discovery, not a question. A new module, interface or window IPC command the issue's Design section
    does not settle goes through `/module-design`, and its recommendation is written into the
    Design. Never infer a decision from existing code or git history. When items remain, spawn
    `owner-attention-grader` with the issue and the items. On **PAUSE**, post one
@@ -48,7 +48,7 @@ disable-model-invocation: false
 11. **Prove it**: run `/verify-app` for anything a person sees or the machine feels; its evidence
     goes in the PR. Evidence that needs the owner present, such as a real administrator or privacy
     prompt, is listed in the PR as pending the owner, and the build goes on.
-12. **Review**: spawn `review-pr`, plus `rust-craftsmanship-reviewer` when `src-tauri/` changed and
+12. **Review**: spawn `review-pr`, plus `main-process-craftsmanship-reviewer` when `src-electron/` changed and
     `window-craftsmanship-reviewer` when `src/` changed, in parallel. Fix-loop capped at 3 rounds;
     a 4th disagreement is posted on the issue as `[NEEDS OWNER]` DISCUSS, and the build stops.
 13. **PR**: run `scripts/check-conventional-pr-title.sh "<title>"`, push, `gh pr create` — title

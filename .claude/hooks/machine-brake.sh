@@ -161,7 +161,7 @@ unquote_leading_argument() {
 
 classify_command_line() {
   local command_line="$1" nesting_depth="$2" segment original_segment command_word command_name
-  local arguments blanked_segment next_word inner_command_line changed_into_src_tauri=0
+  local arguments blanked_segment next_word inner_command_line
   [ "$nesting_depth" -le 3 ] || return 0
 
   # The installer is piped or substituted into a shell, so its halves are judged on the line.
@@ -216,7 +216,6 @@ classify_command_line() {
         esac
         ;;
       cd)
-        case "$arguments" in *src-tauri*) changed_into_src_tauri=1 ;; esac
         continue
         ;;
     esac
@@ -285,18 +284,14 @@ classify_command_line() {
       Tatolab|Tatolab-*.AppImage|*.AppImage)
         note_rule app_launch "$original_segment"
         ;;
-      npx|npm)
-        printf '%s' "$arguments" | grep -Eq '(^|[[:space:]])tauri[[:space:]]+(--[[:space:]]+)?dev([[:space:]]|$)' && note_rule app_launch "$original_segment"
+      npm)
+        printf '%s' "$arguments" | grep -Eq '^[[:space:]]+run[[:space:]]+electron(:dev)?([[:space:]]|$)' && note_rule app_launch "$original_segment"
         ;;
-      cargo)
-        if printf '%s' "$arguments" | grep -Eq '^[[:space:]]+tauri[[:space:]]+dev([[:space:]]|$)'; then
-          note_rule app_launch "$original_segment"
-        elif printf '%s' "$arguments" | grep -Eq '^[[:space:]]+run([[:space:]]|$)' \
-             && { [ "$changed_into_src_tauri" -eq 1 ] \
-                  || printf '%s' "$arguments" | grep -Eq 'src-tauri' \
-                  || printf '%s' "$session_cwd" | grep -Eq '/src-tauri(/|$)'; }; then
-          note_rule app_launch "$original_segment"
-        fi
+      npx)
+        printf '%s' "$arguments" | grep -Eq '^([[:space:]]+-[^[:space:]]+)*[[:space:]]+electron([[:space:]]|$)' && note_rule app_launch "$original_segment"
+        ;;
+      electron)
+        note_rule app_launch "$original_segment"
         ;;
       apt|apt-get|dpkg)
         printf '%s' "$arguments" | grep -Eiq '[[:space:]](install|remove|purge|-i|-r|-P)([[:space:]]|$)' \

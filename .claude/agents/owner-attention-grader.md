@@ -46,7 +46,7 @@ specification and newer than the body). Never trust the implementer's summary of
 - Choices the issue's Design already settles, and re-confirming scope the issue states.
 - Naming, private helpers, test structure, file layout inside a settled design, and any choice a
   review comment could cheaply reverse.
-- A new module, trait or command the Design leaves open, when `/module-design` gives one clear
+- A new module, interface or command the Design leaves open, when `/module-design` gives one clear
   recommendation and no reason above applies. The implementer records it in the issue's Design.
 - Non-blocking findings. They go in the PR's notes for the owner.
 - Evidence that needs the owner present, such as a real administrator or privacy prompt. It is

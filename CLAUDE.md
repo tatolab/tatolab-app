@@ -28,8 +28,8 @@ a parallel one. Search first.
      on it. This repository has no `docs/plan/`; never start one.
   2. How the window looks, reads and flows is `proof/design-final/FINAL-SPEC.md` +
      `src/styles/tokens.css`, changed with the owner's say-so in the same PR.
-  3. How the app's own code is shaped — modules, traits, platform items, Tauri commands, the
-     backend contract — goes in the issue's Design section, settled by `/module-design` before
+  3. How the app's own code is shaped — modules, interfaces, platform items, the window's IPC
+     commands, the backend contract — goes in the issue's Design section, settled by `/module-design` before
      `/implement`.
 
   A shape that would need tier 1 is tier 1.
@@ -37,11 +37,11 @@ a parallel one. Search first.
   never a local checkout's branch**:
   `gh api repos/tatolab/streamlib/contents/docs/plan/ARCHITECTURE.md -q .content | base64 -d`
   (the same for `GLOSSARY.md`), and read only the sections you need — the file is large.
-- Source edits (`src/`, `src-tauri/`, `scripts/`, `packaging/`) belong inside `/implement`
+- Source edits (`src/`, `src-electron/`, `scripts/`, `packaging/`) belong inside `/implement`
   against a tatolab-app issue. Nothing prompts on one — the distinction is the session's to apply.
 - Lifecycle here: `/file-issue` → `/implement` → `/verify-app` for anything a person sees or the
   machine feels. `/diagnose` for bugs, `/research` for questions, `/explore-idea` for what-ifs,
-  `/module-design` before a new module, trait or command, `/hygiene` for rot,
+  `/module-design` before a new module, interface or command, `/hygiene` for rot,
   `/propose-rule` is the only way rules change. Shared understanding: `/architecture-question`
   (how does X work, with evidence), `/reconcile-understanding` (corrections that stick).
 - **Guardrails prompt; they never wall off.** The `ask` entries in `.claude/settings.json` cover
@@ -96,11 +96,10 @@ attention spent on settled things is unavailable for real forks.
   manager. It never reads the runtime's state directory or other sockets. The only machine state
   it touches is what it owns: on macOS the machine runtime lock and the `/usr/local/bin/tatolab`
   link, created and removed behind one administrator prompt, and its own settings.
-- **The contract is streamlib's.** Recorded responses under `src-tauri/test-fixtures/` pin it;
+- **The contract is streamlib's.** Recorded responses under `src-electron/test-fixtures/` pin it;
   refresh one by recording it from a real runtime — never hand-edit one to make a test pass. A
-  change to what the app reads also runs the ignored live contract test against a running runtime
-  (`TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> cargo test --manifest-path src-tauri/Cargo.toml --
-  --ignored`).
+  change to what the app reads also runs the skipped live contract test against a running runtime
+  (`TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src-electron/src/local_api_client.test.ts`).
 - **A missing runtime capability is filed in streamlib and the app waits on it.** Never work
   around it in the app (no scraping logs for state the API does not give, no second channel). An
   app issue that needs one names the streamlib issue under "Waits on".
@@ -110,19 +109,20 @@ attention spent on settled things is unavailable for real forks.
 
 ## Non-negotiables
 
-- **Platform code lives in `src-tauri/src/platform/`** (enforced); both platforms are checked on
-  every change, and the `ubuntu-22.04` PR check is the Linux gate — a Mac cannot lint the Linux
-  arms.
+- **Platform code lives in `src-electron/src/platform/`** (enforced); both platforms are checked
+  on every change, and the `ubuntu-22.04` PR check is the Linux gate — a Mac cannot exercise the
+  Linux module against a real systemd or desktop.
 - A decision the issue or the spec doesn't state stops the work and goes to the owner;
   it is never inferred from existing code or git history.
-- Logging is `tracing` only in Rust — no `println!` / `eprintln!` / `dbg!`; the window logs
-  nothing to the console in shipped code (enforced).
-- No `todo!()` / `unimplemented!()` / `.unwrap()` / `.expect()` / `panic!` in non-test Rust;
-  errors are typed and propagated with `?`. No back-compat shims — rename cleanly.
-- No no-op methods, no `any` / `as` casts / `unsafe` to make it compile, never reshape code to
-  satisfy a test. Unrelated issues surfaced by tsc, clippy or tests are reported, not fixed in
-  passing.
-- Time is monotonic (`Instant`, `performance.now()`); wall-clock only for display.
+- The main process logs only through `tatolab_app_log.ts`; no `console.*` or `debugger` in
+  shipped code, the window included (enforced).
+- Shipped main-process code has no `throw` and no non-null `!`: a failure is a typed `Result`
+  returned and propagated by the caller. Only `electron_adapters/` and `preload/` import
+  `electron`; nothing blocks on a `*Sync(` call (enforced). No back-compat shims — rename cleanly.
+- No no-op methods, no `any` / `as` casts (but `as const`) / `@ts-ignore` to make it compile,
+  never reshape code to satisfy a test. Unrelated issues surfaced by tsc or tests are reported,
+  not fixed in passing.
+- Time is monotonic (`performance.now()`); wall-clock only for display.
 - Names pass the zero-context test: `TatolabStatusPublisher`, `stream_log_follower`, never
   `Publisher`, `follower`, `state`, `ctx`. Explicit beats short.
 - **Tests run on the seams the tree already has** — the fake local API server, injected clocks

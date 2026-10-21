@@ -9,7 +9,7 @@ Phases in order. The feedback loop is the skill; everything else is mechanical.
 
 1. **Build a red-capable feedback loop first**: one command — already run at least once (paste the
    invocation and its output) — deterministic, fast, that shows the failure. Failing test (a
-   `cargo test` against the fake local API server or an injected platform seam; a vitest case
+   vitest case in `src-electron/` against the fake local API server or an injected platform seam; a vitest case
    against a presentation function or the mock backend) > script > throwaway harness > bisection.
    Catching yourself reading code to build a theory before this command exists is the exact failure
    this skill prevents: **no red-capable command, no phase 2.** Genuinely can't build one → stop and
@@ -22,10 +22,10 @@ Phases in order. The feedback loop is the skill; everything else is mechanical.
    on the first plausible idea. Show the list; proceed on your ranking if the owner is away. For
    app symptoms, separate the layers first: the runtime (does the local API answer — `tatolab
    streams`?), the service manager (what does launchd / systemd say?), the backend (what does the
-   Tauri command return?), the window (what does presentation make of it?). A runtime defect is
+   window's IPC command answer?), the window (what does presentation make of it?). A runtime defect is
    filed in streamlib, never patched around here.
-   To read the app's own `tracing` (a Finder launch discards stderr): quit the app, then start the
-   binary from a terminal — `RUST_LOG=debug /Applications/Tatolab.app/Contents/MacOS/Tatolab`, or
+   To read the app's own log (a Finder launch discards stderr): quit the app, then start the
+   binary from a terminal — `TATOLAB_APP_LOG=debug /Applications/Tatolab.app/Contents/MacOS/Tatolab`, or
    `/usr/bin/Tatolab` / the AppImage on Linux. A direct start skips the single-instance check, so
    quit the running app first.
 4. **Instrument** one variable at a time, each probe mapped to a prediction. Tag every debug line

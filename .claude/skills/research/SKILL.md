@@ -1,12 +1,12 @@
 ---
 name: research
-description: Answer a question from primary sources and file a memo. Use when a decision needs facts the repo cannot provide — Service Management / launchd / systemd behaviour, Tauri, WKWebView or WebKitGTK quirks, code signing and notarization rules, packaging formats. Produces no issues and no code.
+description: Answer a question from primary sources and file a memo. Use when a decision needs facts the repo cannot provide — Service Management / launchd / systemd behaviour, Electron and Chromium quirks, electron-updater and Squirrel.Mac, code signing and notarization rules, packaging formats. Produces no issues and no code.
 ---
 
 # Research
 
 1. Spawn a background agent against **primary sources** — Apple's developer documentation and
-   `man` pages, freedesktop/systemd docs, Tauri's docs and source, WebKit's source, the spec —
+   `man` pages, freedesktop/systemd docs, Electron's docs and source, electron-updater's source, the spec —
    never a secondary write-up of them. Follow every claim back to the source that owns it. A claim
    about this machine's behaviour is settled by running the read-only query (`launchctl print`,
    `systemctl --user show`, `codesign -dv`, `spctl -a`), not by reading.
