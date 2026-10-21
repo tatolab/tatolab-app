@@ -10,6 +10,7 @@ pnpm install
 pnpm dev                 # http://localhost:5199
 pnpm check               # types + the no-dot rule
 pnpm storyboard          # re-render public/storyboard/** from the running prototype
+pnpm storyboard --scale=2 today/streams …   # sharp 2x frames, written as <id>@2x.jpg
 ```
 
 ## Two editions
@@ -26,7 +27,8 @@ pnpm storyboard          # re-render public/storyboard/** from the running proto
 ## Citing it in a ticket
 
 - **A frame**: `docs/design/public/storyboard/<edition>/<id>.jpg`, for example
-  `docs/design/public/storyboard/today/relays.jpg`. Every frame, its route and a one-line
+  `docs/design/public/storyboard/today/relays.jpg`. The Today screens the milestones build also
+  have a sharp 2880×1800 copy beside them, `<id>@2x.jpg`, to build against. Every frame, its route and a one-line
   caption is listed in `src/storyboard/frames.json` and on the prototype's `/storyboard` page.
 - **A rule, token or word**: `docs/design/DESIGN.md` (also the prototype's `/design` page).
 - **A live state**: the frame's route in the running prototype, e.g. `/relays?add=moqpro`.

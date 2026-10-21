@@ -3,7 +3,7 @@
 
 // Renders every storyboard frame (src/storyboard/frames.json) to public/storyboard/<id>.jpg
 // from the running prototype. Usage: node scripts/storyboard.mjs [--scale=2] [--out=dir] [frame-id …]
-// --scale renders at that device pixel ratio as PNG (for review at full sharpness).
+// --scale=2 renders at that device pixel ratio to <id>@2x.jpg beside the 1x frame.
 import { mkdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { chromium } from "playwright"
@@ -32,8 +32,8 @@ for (const flow of flows) {
     await page.goto(url, { waitUntil: "networkidle" })
     await page.waitForTimeout(1600)
     mkdirSync(path.dirname(path.join(outDir, frame.id)), { recursive: true })
-    if (scale > 1) await page.screenshot({ path: path.join(outDir, `${frame.id}@${scale}x.png`), type: "png" })
-    else await page.screenshot({ path: path.join(outDir, `${frame.id}.jpg`), type: "jpeg", quality: 84 })
+    const file = scale > 1 ? `${frame.id}@${scale}x.jpg` : `${frame.id}.jpg`
+    await page.screenshot({ path: path.join(outDir, file), type: "jpeg", quality: scale > 1 ? 88 : 84 })
     await page.close()
     if (errors.length) {
       failures++
