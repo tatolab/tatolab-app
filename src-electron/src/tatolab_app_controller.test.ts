@@ -219,13 +219,35 @@ test("with Run Tatolab off nothing restarts, and the version is remembered", asy
 test("a refused restart is tried again at the next launch", async () => {
   const appConfigDirectory = await aFreshAppConfigDirectory();
   const runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
-  runtimeAgent.restartingTheBundledRuntime = failedWith("launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit 113): Could not find service");
+  runtimeAgent.restartingTheBundledRuntime = failedWith("launchd holds no job for com.tatolab.tatolabd after registering it again");
   await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent)).restartTheBundledRuntimeIfTheAppChanged();
   expect(await RuntimeRestartedForAppVersionFile.inAppConfigDirectory(appConfigDirectory).loadAppVersion()).toBeNull();
   runtimeAgent.restartingTheBundledRuntime = succeeded(undefined);
   await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent)).restartTheBundledRuntimeIfTheAppChanged();
   expect(runtimeAgent.calls).toEqual(["restart_the_bundled_runtime", "restart_the_bundled_runtime"]);
   expect(await RuntimeRestartedForAppVersionFile.inAppConfigDirectory(appConfigDirectory).loadAppVersion()).toBe("0.47.0");
+});
+
+test("before the machine is set up nothing restarts, and the restart waits for a launch after setup", async () => {
+  const appConfigDirectory = await aFreshAppConfigDirectory();
+  await RuntimeRestartedForAppVersionFile.inAppConfigDirectory(appConfigDirectory).saveAppVersion("0.46.3");
+  const runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
+  const controllerBeforeSetup = await TatolabAppController.create({
+    platform: "macos",
+    platformForThisBuild: fakeTatolabPlatformForThisBuild(runtimeAgent, new FakeTatolabMachineSetup("needs_administrator", null), "/tmp/tl-app-no-runtime.sock"),
+    appConfigDirectory,
+    appLaunchedAtMs: 0,
+    appVersion: "0.47.0",
+    readMonotonicClockMs: () => 0,
+    readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    tatolabAppLog: createTatolabAppLog("error", () => {}),
+  });
+  await controllerBeforeSetup.restartTheBundledRuntimeIfTheAppChanged();
+  expect(runtimeAgent.calls).toEqual([]);
+  expect(await RuntimeRestartedForAppVersionFile.inAppConfigDirectory(appConfigDirectory).loadAppVersion()).toBe("0.46.3");
+
+  await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent)).restartTheBundledRuntimeIfTheAppChanged();
+  expect(runtimeAgent.calls).toEqual(["restart_the_bundled_runtime"]);
 });
 
 test("an app that carries no runtime restarts none", async () => {

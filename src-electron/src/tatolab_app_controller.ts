@@ -175,13 +175,18 @@ export class TatolabAppController {
   /**
    * Restart the runtime the app's bundle carries when this app's version is not the one it was last
    * restarted under: an update, or a bundle replaced by hand, leaves a running runtime on the bundle as it
-   * was. Nothing where the app carries no runtime. A failed restart is logged and tried again next launch.
+   * was. Nothing where the app carries no runtime, and nothing until the machine is set up, since the
+   * runtime cannot start without its machine lock. A restart not made is tried again next launch.
    */
   async restartTheBundledRuntimeIfTheAppChanged(): Promise<void> {
     if (this.bundledRuntimeRestart === null) return;
     const bundledRuntimeRestart = this.bundledRuntimeRestart;
     const restartedForAppVersion = await this.runtimeRestartedForAppVersionFile.loadAppVersion();
     if (restartedForAppVersion === this.appVersion) return;
+    if (!(await this.machineSetupIsComplete())) {
+      this.tatolabAppLog.info("the runtime is restarted under this app's version once the machine is set up", { app_version: this.appVersion });
+      return;
+    }
     const restarted = await this.withTheRunTatolabSwitch((runTatolabSwitch) =>
       runTatolabSwitch.restartTheBundledRuntime(bundledRuntimeRestart, this.readMonotonicClockMs()),
     );
