@@ -16,6 +16,7 @@ function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
     streams: [],
     machine_setup_state: "complete",
     command_line_tool_linked_at: "/usr/local/bin/tatolab",
+    app_update: { kind: "not_checked" },
     ...statusChanges,
   };
 }

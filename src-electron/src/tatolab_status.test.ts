@@ -31,6 +31,7 @@ function statusWith(runtimeState: RuntimeState, runtimeAgent: RuntimeAgentRegist
     streams: streamCount === null ? null : listedStreams(streamCount),
     machine_setup_state: "complete",
     command_line_tool_linked_at: null,
+    app_update: { kind: "not_checked" },
   };
 }
 

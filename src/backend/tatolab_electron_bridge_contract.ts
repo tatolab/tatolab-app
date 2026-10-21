@@ -20,9 +20,10 @@ export const TATOLAB_COMMAND_NAMES = [
   "quit_tatolab_app",
   "read_stream_log_records",
   "describe_stream_graph",
+  "check_for_tatolab_app_updates",
 ] as const;
 
-/** One command the window invokes. Arguments: `set_run_tatolab` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph` `{ stream }`, the rest none. */
+/** One command the window invokes. Arguments: `set_run_tatolab` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph` `{ stream }`, the rest none. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab, takes it: the person choosing it is the confirmation. */
 export type TatolabCommandName = (typeof TATOLAB_COMMAND_NAMES)[number];
 
 /** The event each status change, and the status again each time the window is shown, arrives on; it carries a `TatolabStatus`. */
@@ -43,6 +44,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   quit_tatolab_app: { commandArguments: undefined; answer: null };
   read_stream_log_records: { commandArguments: { stream: string; after: number }; answer: StreamLogRecordsPage };
   describe_stream_graph: { commandArguments: { stream: string }; answer: StreamGraphSummary };
+  check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */

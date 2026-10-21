@@ -22,6 +22,8 @@ export interface TatolabBackend {
   uninstallTatolab(): Promise<void>;
   readStreamLogRecords(streamName: string, afterSequence: number): Promise<StreamLogRecordsPage>;
   describeStreamGraph(streamName: string): Promise<StreamGraphSummary>;
+  /** Check for a newer Tatolab and take it if there is one; how that goes arrives as the status's `app_update`. */
+  checkForTatolabAppUpdates(): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
 }
 

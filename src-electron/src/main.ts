@@ -4,12 +4,14 @@
 // Tatolab.app: opening it shows its window and puts it in the tray, opening it again shows the
 // window of the one app already running, closing the window leaves the app in the tray, and
 // quitting quits only the app — the runtime stays on. Each opening reconciles the runtime's agent
-// with "Run Tatolab"; the first also offers the machine setup still missing.
+// with "Run Tatolab"; the first also offers the machine setup still missing, restarts a runtime
+// left running from the bundle before an update, and starts checking for updates on its own.
 
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import type { ApplicationMenu, DockIconHost, TatolabPlatformForThisBuild, TatolabPlatformItems } from "./platform/mod.js";
+import type { ApplicationMenu, DockIconHost, TatolabAppUpdatePackaging, TatolabPlatformForThisBuild, TatolabPlatformItems } from "./platform/mod.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
 import {
+  checkForTatolabAppUpdatesOnRequest,
   quitTheTatolabApp,
   runInTheBackgroundWithTheController,
   setUpTatolabOnRequest,
@@ -17,6 +19,7 @@ import {
 } from "./tatolab_app_shared_state.js";
 import { tatolabWindowCommandHandlers, type TatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import { TatolabMainWindow, type MainWindowHostFactory } from "./tatolab_main_window.js";
+import { TatolabAppUpdater, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild, type TatolabAppUpdateNotifier } from "./tatolab_app_updater.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "./tatolab_tray_menu.js";
 
@@ -35,6 +38,12 @@ export interface TatolabElectronAppShell {
   buildTheTatolabPlatformForThisBuild(platformItems: TatolabPlatformItems): Promise<TatolabPlatformForThisBuild>;
   /** Answer each command the window invokes with its handler. */
   answerTheWindowsCommands(tatolabWindowCommandHandlers: TatolabWindowCommandHandlers): void;
+  /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
+  createTheAppUpdateFeed(appUpdatePackaging: TatolabAppUpdatePackaging): TatolabAppUpdateFeedForThisBuild;
+  /** The system notifications about updates; clicking one calls `onNotificationClicked`. */
+  createTheAppUpdateNotifier(onNotificationClicked: () => void): TatolabAppUpdateNotifier;
+  /** The timer the daily update check repeats on. */
+  repeatingTimer: RepeatingTimer;
   /** The app's own config directory, where "Run Tatolab" is remembered. */
   appConfigDirectory: string;
   appVersion: string;
@@ -90,6 +99,16 @@ export async function startTatolabApp(
     });
   });
   const platformForThisBuild = await tatolabElectronAppShell.buildTheTatolabPlatformForThisBuild(platformItems);
+  let statusPublisherOnceBuilt: TatolabStatusPublisher | null = null;
+  const tatolabAppUpdater = new TatolabAppUpdater(
+    tatolabElectronAppShell.createTheAppUpdateFeed(platformForThisBuild.appUpdatePackaging),
+    tatolabElectronAppShell.createTheAppUpdateNotifier(() => {
+      tatolabMainWindow.show();
+      statusPublisherOnceBuilt?.sendTheLastPublishedStatusToTheWindow();
+    }),
+    () => statusPublisherOnceBuilt?.requestRefresh(),
+    tatolabAppLog,
+  );
   const controller = await TatolabAppController.create({
     platform: platformItems.platform,
     platformForThisBuild,
@@ -97,6 +116,7 @@ export async function startTatolabApp(
     appLaunchedAtMs,
     appVersion: tatolabElectronAppShell.appVersion,
     readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
+    readTheAppUpdateState: () => tatolabAppUpdater.state(),
     tatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(
@@ -105,8 +125,15 @@ export async function startTatolabApp(
     () => tatolabElectronAppShell.readMonotonicClockMs(),
     tatolabAppLog,
   );
+  statusPublisherOnceBuilt = statusPublisher;
   tatolabElectronAppShell.onTheAppQuitting(() => statusPublisher.stopPolling());
-  const sharedState: TatolabAppSharedState = { controller, statusPublisher, tatolabUninstall: platformForThisBuild.tatolabUninstall, tatolabAppLog };
+  const sharedState: TatolabAppSharedState = {
+    controller,
+    statusPublisher,
+    tatolabAppUpdater,
+    tatolabUninstall: platformForThisBuild.tatolabUninstall,
+    tatolabAppLog,
+  };
   const quitTheApp = () => quitTheTatolabApp(tatolabMainWindow, (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode), tatolabAppLog);
   const showTheWindowWithTheLastStatus = () => {
     tatolabMainWindow.show();
@@ -130,6 +157,9 @@ export async function startTatolabApp(
         if (!setUpTatolab.ok) tatolabAppLog.warn("Set Up Tatolab… was refused", { refusal: setUpTatolab.failure });
         return;
       }
+      case "check_for_app_updates":
+        checkForTatolabAppUpdatesOnRequest(sharedState, "tray");
+        return;
       case "quit_the_app":
         quitTheApp();
         return;
@@ -145,7 +175,9 @@ export async function startTatolabApp(
   showTheWindowWithTheLastStatus();
   runInTheBackgroundWithTheController(sharedState, "tatolab-app-opened", async (controller, statusPublisher) => {
     await controller.reconcileTheAgentWithTheRunTatolabSwitch();
+    await controller.restartTheBundledRuntimeIfTheAppChanged();
     statusPublisher.startPolling();
+    tatolabAppUpdater.startCheckingOnItsOwn(tatolabElectronAppShell.repeatingTimer);
     await controller.setUpTheMachineOnAppOpened();
     statusPublisher.requestRefresh();
   });

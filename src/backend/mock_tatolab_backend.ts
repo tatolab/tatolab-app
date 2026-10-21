@@ -15,6 +15,7 @@ import type {
   StreamGraphSummary,
   StreamLogRecord,
   StreamLogRecordsPage,
+  TatolabAppUpdateState,
   TatolabPlatform,
   TatolabStatus,
 } from "./tatolab_backend_contract";
@@ -68,17 +69,32 @@ const MOCK_ATTACHED_DEMO_DETACHED_MILLISECONDS = 12_000;
 const MOCK_RECORDS_PAGE_SIZE = 500;
 const MOST_MOCK_RECORDS_HELD = 4000;
 
+/**
+ * What a check for updates finds in the mock, picked with `?update=`: nothing newer (the default), a newer
+ * version installed in place (`available`), one whose download opens (`download`), or a check that fails.
+ */
+export type MockTatolabAppUpdateScenario = "up-to-date" | "available" | "download" | "failed";
+
+const MOCK_TATOLAB_APP_UPDATE_SCENARIOS: readonly MockTatolabAppUpdateScenario[] = ["up-to-date", "available", "download", "failed"];
+
+/** The newer version the mock's feed offers. */
+const MOCK_NEWER_TATOLAB_VERSION = "0.46.0";
+const MOCK_UPDATE_CHECK_MILLISECONDS = 900;
+const MOCK_UPDATE_DOWNLOAD_STEP_MILLISECONDS = 250;
+const MOCK_UPDATE_DOWNLOAD_STEP_PERCENT = 7;
+
 /** What the page's query asks of the mock. */
 export interface MockTatolabOptions {
   scenario: MockTatolabScenario;
   platform: TatolabPlatform;
   /** `?uninstall=cancel`: the administrator cancels the prompt an uninstall shows, so the uninstall is refused. */
   isUninstallPromptCancelled: boolean;
+  appUpdateScenario: MockTatolabAppUpdateScenario;
 }
 
 /**
  * `?platform=` (`macos` unless it names `linux`), the scenario `?state=` names (`running` when it names none this
- * mock knows on that platform), and `?uninstall=`.
+ * mock knows on that platform), `?uninstall=`, and `?update=` (`up-to-date` when it names none this mock knows).
  */
 export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabOptions {
   const platform: TatolabPlatform = pageQuery.get("platform") === "linux" ? "linux" : "macos";
@@ -87,7 +103,14 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     (knownScenario) =>
       knownScenario === requestedScenario && !(platform === "linux" && MACOS_ONLY_SCENARIOS.includes(knownScenario)),
   );
-  return { scenario: scenario ?? "running", platform, isUninstallPromptCancelled: pageQuery.get("uninstall") === "cancel" };
+  const requestedAppUpdateScenario = pageQuery.get("update");
+  const appUpdateScenario = MOCK_TATOLAB_APP_UPDATE_SCENARIOS.find((knownScenario) => knownScenario === requestedAppUpdateScenario);
+  return {
+    scenario: scenario ?? "running",
+    platform,
+    isUninstallPromptCancelled: pageQuery.get("uninstall") === "cancel",
+    appUpdateScenario: appUpdateScenario ?? "up-to-date",
+  };
 }
 
 const LINUX_INSTALL_COMMAND = "curl -fsSL https://get.tatolab.com/install.sh | sh";
@@ -103,7 +126,25 @@ interface MockLoadedStream {
   nextSequence: number;
 }
 
-function initialMockStatus(scenario: MockTatolabScenario, platform: TatolabPlatform, machine: MockMachine): TatolabStatus {
+/** Where the mock's updates stand as the page opens: a newer version already found by the launch check in `available` and `download`. */
+function initialMockAppUpdateState(appUpdateScenario: MockTatolabAppUpdateScenario): TatolabAppUpdateState {
+  switch (appUpdateScenario) {
+    case "available":
+      return { kind: "available", version: MOCK_NEWER_TATOLAB_VERSION, delivery: "install_and_relaunch" };
+    case "download":
+      return { kind: "available", version: MOCK_NEWER_TATOLAB_VERSION, delivery: "open_the_download" };
+    case "up-to-date":
+    case "failed":
+      return { kind: "not_checked" };
+  }
+}
+
+function initialMockStatus(
+  scenario: MockTatolabScenario,
+  platform: TatolabPlatform,
+  machine: MockMachine,
+  appUpdateScenario: MockTatolabAppUpdateScenario,
+): TatolabStatus {
   const runningStatus: TatolabStatus = {
     app_version: "0.45.0",
     platform,
@@ -114,6 +155,7 @@ function initialMockStatus(scenario: MockTatolabScenario, platform: TatolabPlatf
     streams: [],
     machine_setup_state: "complete",
     command_line_tool_linked_at: machine.commandLineToolLinkedAt,
+    app_update: initialMockAppUpdateState(appUpdateScenario),
   };
   switch (scenario) {
     case "running":
@@ -170,7 +212,7 @@ function sleep(milliseconds: number): Promise<void> {
 }
 
 /** A backend whose commands change its own state and whose streams log on their own, so the window works in a browser. */
-export function createMockTatolabBackend({ scenario, platform, isUninstallPromptCancelled }: MockTatolabOptions): TatolabBackend {
+export function createMockTatolabBackend({ scenario, platform, isUninstallPromptCancelled, appUpdateScenario }: MockTatolabOptions): TatolabBackend {
   const fixtures = createMockStreamFixtures(platform);
   const mainStream = scenario === "node-error" ? fixtures.mainStreamWithDisplayWindowInError : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
@@ -179,7 +221,7 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
     [fixtures.stoppedPatternTwo.name, fixtures.stoppedPatternTwo],
     [fixtures.failedLobbyRecorder.name, fixtures.failedLobbyRecorder],
   ]);
-  let mockStatus = initialMockStatus(scenario, platform, fixtures.machine);
+  let mockStatus = initialMockStatus(scenario, platform, fixtures.machine, appUpdateScenario);
   let isLoginItemsApproved = scenario !== "approval";
   let runtimeUpSinceMilliseconds: number | null = null;
   let loadedStreamInstanceCount = 3;
@@ -320,6 +362,32 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
     };
   };
 
+  const downloadTheNewerVersion = (percent: number): void => {
+    if (percent >= 100) {
+      publishStatus({ app_update: { kind: "installing", version: MOCK_NEWER_TATOLAB_VERSION } });
+      return;
+    }
+    publishStatus({ app_update: { kind: "downloading", version: MOCK_NEWER_TATOLAB_VERSION, percent } });
+    window.setTimeout(() => downloadTheNewerVersion(Math.min(100, percent + MOCK_UPDATE_DOWNLOAD_STEP_PERCENT)), MOCK_UPDATE_DOWNLOAD_STEP_MILLISECONDS);
+  };
+
+  const finishTheUpdateCheck = (): void => {
+    switch (appUpdateScenario) {
+      case "up-to-date":
+        publishStatus({ app_update: { kind: "up_to_date" } });
+        return;
+      case "failed":
+        publishStatus({ app_update: { kind: "failed", refusal: "net::ERR_NAME_NOT_RESOLVED" } });
+        return;
+      case "download":
+        publishStatus({ app_update: { kind: "available", version: MOCK_NEWER_TATOLAB_VERSION, delivery: "open_the_download" } });
+        return;
+      case "available":
+        downloadTheNewerVersion(0);
+        return;
+    }
+  };
+
   if (mockStatus.runtime_state === "running") bringRuntimeUp();
 
   return {
@@ -387,6 +455,13 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
     describeStreamGraph: async (streamName) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return graphOfLoadedStream(loadedStreamNamed(streamName));
+    },
+    checkForTatolabAppUpdates: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const updateUnderWay = mockStatus.app_update.kind;
+      if (updateUnderWay === "checking" || updateUnderWay === "downloading" || updateUnderWay === "installing") return;
+      publishStatus({ app_update: { kind: "checking" } });
+      window.setTimeout(finishTheUpdateCheck, MOCK_UPDATE_CHECK_MILLISECONDS);
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);

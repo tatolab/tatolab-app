@@ -8,7 +8,17 @@
 
 import { failedWith } from "../../result.js";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import { currentProcessUid, type DockIconHost, type MainWindowChrome, type TatolabPlatformForThisBuild, type TatolabPlatformHostServices, type TatolabUninstall, type TrayIconImage } from "../mod.js";
+import {
+  currentProcessUid,
+  UNPACKAGED_APP_UPDATE_REFUSAL,
+  type DockIconHost,
+  type MainWindowChrome,
+  type TatolabAppUpdatePackaging,
+  type TatolabPlatformForThisBuild,
+  type TatolabPlatformHostServices,
+  type TatolabUninstall,
+  type TrayIconImage,
+} from "../mod.js";
 import { MachineSetUpByTheInstaller } from "./machine_set_up_by_the_installer.js";
 import { RUNTIME_SYSTEMD_USER_UNIT_NAME, SystemctlOnThePath, SystemdUserRuntimeService } from "./systemd_user_runtime_service.js";
 import { tatolabMachinePathsOnLinuxForThisBuild } from "./tatolab_machine_paths.js";
@@ -30,10 +40,21 @@ export const LINUX_MAIN_WINDOW_CHROME: MainWindowChrome = { titleBarStyle: "defa
 /** Nothing to show or hide: Linux has no Dock, and the window's own taskbar entry comes and goes with the window. */
 export function setLinuxDockIconVisible(_dockIconHost: DockIconHost, _dockIconVisible: boolean): void {}
 
-/** The installer's systemd user unit, and the machine as the installer set it up; Linux needs none of the host's services. */
+/**
+ * How a Linux build updates itself: an AppImage, which its runtime names in `APPIMAGE` (`appImagePath`),
+ * replaces its own file; a packaged app that is not one came from the `.deb`, which only apt replaces, so
+ * it opens the newer version's download.
+ */
+export function tatolabAppUpdatePackagingOnLinux(appIsPackaged: boolean, appImagePath: string | undefined): TatolabAppUpdatePackaging {
+  if (!appIsPackaged) return { kind: "not_offered", reason: UNPACKAGED_APP_UPDATE_REFUSAL };
+  if (appImagePath !== undefined && appImagePath !== "") return { kind: "appimage", appImagePath };
+  return { kind: "deb" };
+}
+
+/** The installer's systemd user unit, the machine as the installer set it up, and how this package updates; the installer installs the runtime, so the app restarts none. */
 export async function linuxTatolabPlatformForThisBuild(
   tatolabAppLog: TatolabAppLog,
-  _tatolabPlatformHostServices: TatolabPlatformHostServices,
+  { appIsPackaged }: TatolabPlatformHostServices,
 ): Promise<TatolabPlatformForThisBuild> {
   const machinePaths = tatolabMachinePathsOnLinuxForThisBuild(currentProcessUid());
   tatolabAppLog.info("Tatolab app paths", {
@@ -47,5 +68,7 @@ export async function linuxTatolabPlatformForThisBuild(
     machineSetup: new MachineSetUpByTheInstaller(machinePaths.commandLineToolLink),
     localApiSocket: machinePaths.localApiSocket,
     tatolabUninstall: LINUX_TATOLAB_UNINSTALL,
+    appUpdatePackaging: tatolabAppUpdatePackagingOnLinux(appIsPackaged, process.env["APPIMAGE"]),
+    bundledRuntimeRestart: null,
   };
 }

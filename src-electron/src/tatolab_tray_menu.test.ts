@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { expect, test } from "vitest";
-import type { MachineSetupState, TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
+import type { MachineSetupState, TatolabAppUpdateState, TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
 import {
+  appUpdateTrayMenuItemPresentation,
   setUpTatolabMenuItemPresentation,
   TatolabTrayMenu,
   type TrayMenuChoice,
@@ -37,7 +38,11 @@ function buildTrayMenuOnAFakeTrayIconHost() {
   return { tatolabTrayMenu, shownMenus, trayMenuChoices, clickTrayMenuItem, trayIconTooltip };
 }
 
-function statusWith(runTatolab: boolean, machineSetupState: MachineSetupState): TatolabStatus {
+function statusWith(
+  runTatolab: boolean,
+  machineSetupState: MachineSetupState,
+  appUpdate: TatolabAppUpdateState = { kind: "not_offered", reason: "Only a packaged Tatolab updates itself." },
+): TatolabStatus {
   return {
     app_version: "0.45.0",
     platform: "macos",
@@ -48,6 +53,7 @@ function statusWith(runTatolab: boolean, machineSetupState: MachineSetupState): 
     streams: [],
     machine_setup_state: machineSetupState,
     command_line_tool_linked_at: null,
+    app_update: appUpdate,
   };
 }
 
@@ -103,6 +109,34 @@ test("a click on an item is that item's choice, and the status line chooses noth
   trayMenu.clickTrayMenuItem("open_tatolab");
   trayMenu.clickTrayMenuItem("run_tatolab");
   trayMenu.clickTrayMenuItem("set_up_tatolab");
+  trayMenu.clickTrayMenuItem("check_for_app_updates");
   trayMenu.clickTrayMenuItem("quit_tatolab");
-  expect(trayMenu.trayMenuChoices).toEqual(["open_tatolab", "toggle_run_tatolab_switch", "set_up_tatolab", "quit_the_app"]);
+  expect(trayMenu.trayMenuChoices).toEqual(["open_tatolab", "toggle_run_tatolab_switch", "set_up_tatolab", "check_for_app_updates", "quit_the_app"]);
+});
+
+test("a packaged app shows Check for Updates… just above Quit Tatolab", () => {
+  const { tatolabTrayMenu, shownMenus } = buildTrayMenuOnAFakeTrayIconHost();
+  tatolabTrayMenu.showStatus(statusWith(true, "complete", { kind: "not_checked" }));
+  expect(shownMenus.at(-1)?.slice(-3)).toEqual([
+    { kind: "separator" },
+    { kind: "item", id: "check_for_app_updates", label: "Check for Updates…", enabled: true },
+    { kind: "item", id: "quit_tatolab", label: "Quit Tatolab", enabled: true },
+  ]);
+});
+
+test("the updates item names a newer version once one is found, and waits while an update is under way", () => {
+  expect(appUpdateTrayMenuItemPresentation({ kind: "not_offered", reason: "Only a packaged Tatolab updates itself." })).toBeNull();
+  expect(appUpdateTrayMenuItemPresentation({ kind: "up_to_date" })).toEqual({ label: "Check for Updates…", enabled: true });
+  expect(appUpdateTrayMenuItemPresentation({ kind: "failed", refusal: "HttpError: 404" })).toEqual({ label: "Check for Updates…", enabled: true });
+  expect(appUpdateTrayMenuItemPresentation({ kind: "checking" })).toEqual({ label: "Checking for Updates…", enabled: false });
+  expect(appUpdateTrayMenuItemPresentation({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" })).toEqual({
+    label: "Install Tatolab 0.47.0…",
+    enabled: true,
+  });
+  expect(appUpdateTrayMenuItemPresentation({ kind: "available", version: "0.47.0", delivery: "open_the_download" })).toEqual({
+    label: "Download Tatolab 0.47.0…",
+    enabled: true,
+  });
+  expect(appUpdateTrayMenuItemPresentation({ kind: "downloading", version: "0.47.0", percent: 42 })).toEqual({ label: "Downloading Tatolab 0.47.0…", enabled: false });
+  expect(appUpdateTrayMenuItemPresentation({ kind: "installing", version: "0.47.0" })).toEqual({ label: "Installing Tatolab 0.47.0…", enabled: false });
 });

@@ -796,6 +796,7 @@ This is the brief's screen (3). The band reads "Settings" and the Settings row i
    - Value: `shownValue` in mono text-2 (`/usr/local/bin/tatolab`), with a copy button when linked. When not linked: the value in text-3 ("Not linked" or "Not installed").
 3. **About**
    - Version: `Tatolab 0.45.0`
+   - Updates; description and button = `presentTatolabAppUpdate(status.app_update)`. While nothing is under way it reads "Tatolab checks for a newer version at launch and once a day." with a "Check for Updates…" secondary button; a newer version found reads "Tatolab 0.46.0 is available." with "Install and Relaunch" (macOS, the AppImage) or "… Its download opens in your browser." with "Open Download" (the .deb); while it downloads and installs, the description carries the percent and the button is disabled. An app that cannot update itself (unpackaged) shows only why. A failure shows as a failure line under the row: "Couldn't update Tatolab: " and the updater's own words.
    - This Mac (or This computer): `jonathanf-macbook` in mono
    - Stream records: the records directory in mono, with copy
 4. **Quit or uninstall**

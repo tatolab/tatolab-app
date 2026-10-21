@@ -258,6 +258,18 @@ verify_app_bundle() {
     && is_mach_o "$contents/Frameworks/tatolab-app-native/service_management_agent_services.node" \
     && pass "the Service Management addon is in Frameworks/tatolab-app-native" \
     || fail "no Service Management addon at Contents/Frameworks/tatolab-app-native/service_management_agent_services.node"
+  # The asar's header is JSON naming every directory it holds.
+  grep -aqF '"electron-updater":{"files"' "$contents/Resources/app.asar" \
+    && pass "electron-updater is in app.asar" || fail "app.asar carries no electron-updater"
+  grep -qx 'updaterCacheDirName: tatolab-app-updater' "$contents/Resources/app-update.yml" 2>/dev/null \
+    && pass "Resources/app-update.yml names the updater's cache" || fail "no Resources/app-update.yml naming the updater's cache: electron-updater cannot download"
+  if grep -aqF 'appUpdateFeedUrl: "https://get.tatolab.com/app/"' "$contents/Resources/app.asar"; then
+    pass "the app checks get.tatolab.com/app/ for updates"
+  elif $shipping; then
+    fail "the app checks a feed other than get.tatolab.com/app/ for updates: never ship it"
+  else
+    echo "  note  LOCAL PROOF build: the app checks a local feed for updates"
+  fi
 
   stapled_and_accepted_by_gatekeeper "$app_bundle" execute
 }

@@ -38,6 +38,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     readStreamLogRecords: (streamName, afterSequence) =>
       invokeTatolabCommand("read_stream_log_records", { stream: streamName, after: afterSequence }),
     describeStreamGraph: (streamName) => invokeTatolabCommand("describe_stream_graph", { stream: streamName }),
+    checkForTatolabAppUpdates: async () => {
+      await invokeTatolabCommand("check_for_tatolab_app_updates", undefined);
+    },
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
   };
 }

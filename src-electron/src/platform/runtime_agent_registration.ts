@@ -16,6 +16,12 @@ import type { Result } from "../result.js";
  */
 export type RuntimeAgentStartFailure = { kind: "no_job_for_the_registered_agent" } | { kind: "refused"; refusal: string };
 
+/** Restarts the runtime the app's own bundle carries, so a runtime still running from the bundle before an update runs from the bundle as it is now. */
+export interface BundledRuntimeRestart {
+  /** Restart the agent's runtime, starting it if it was not running; refused in the service manager's words. */
+  restartTheBundledRuntime(): Promise<Result<void, string>>;
+}
+
 /** Registers and unregisters the agent that runs the machine's `tatolabd`. */
 export interface RuntimeAgentRegistration {
   /** What the service manager says about the agent now. */

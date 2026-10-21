@@ -11,7 +11,7 @@ import path from "node:path";
 import type { TatolabPlatform } from "../../../src/backend/tatolab_backend_contract.js";
 import { MACOS_MAIN_WINDOW_CHROME, MACOS_TRAY_ICON_IMAGE, macosTatolabPlatformForThisBuild, setMacosDockIconVisible } from "./macos/mod.js";
 import { LINUX_MAIN_WINDOW_CHROME, LINUX_TRAY_ICON_IMAGE, linuxTatolabPlatformForThisBuild, setLinuxDockIconVisible } from "./linux/mod.js";
-import type { RuntimeAgentRegistration } from "./runtime_agent_registration.js";
+import type { BundledRuntimeRestart, RuntimeAgentRegistration } from "./runtime_agent_registration.js";
 import type { TatolabMachineSetup } from "./tatolab_machine_setup.js";
 import type { TatolabUninstallAppSurface } from "./macos/tatolab_uninstall.js";
 import type { Result } from "../result.js";
@@ -46,15 +46,31 @@ export function localApiSocketUnderALocalProofTestRoot(testMachineRoot: string):
 /** The app's identifier, which names its own config directory, `<appData>/com.tatolab.tatolab`. */
 export const TATOLAB_APP_IDENTIFIER = "com.tatolab.tatolab";
 
+/**
+ * How this build updates itself: Squirrel.Mac from a signed `.zip` on macOS; an AppImage replacing the file
+ * at `appImagePath`; a `.deb`, which only finds the newer version and opens its download; or why it cannot.
+ */
+export type TatolabAppUpdatePackaging =
+  | { kind: "squirrel_mac_zip" }
+  | { kind: "appimage"; appImagePath: string }
+  | { kind: "deb" }
+  | { kind: "not_offered"; reason: string };
+
+/** Why an unpackaged app offers no updates. */
+export const UNPACKAGED_APP_UPDATE_REFUSAL = "Only a packaged Tatolab updates itself.";
+
 /** What this build's platform hands the app's controller. */
 export interface TatolabPlatformForThisBuild {
   runtimeAgent: RuntimeAgentRegistration;
   machineSetup: TatolabMachineSetup;
   localApiSocket: string;
   tatolabUninstall: TatolabUninstall;
+  appUpdatePackaging: TatolabAppUpdatePackaging;
+  /** The restart of the runtime the app's bundle carries; `null` where the app carries no runtime (Linux, whose installer installs it). */
+  bundledRuntimeRestart: BundledRuntimeRestart | null;
 }
 
-/** What a platform takes from the app around it to build its items; only macOS uses them, Linux taking none. */
+/** What a platform takes from the app around it to build its items; Linux takes only whether the app is packaged. */
 export interface TatolabPlatformHostServices {
   /** The app's root, under which an unpackaged app finds its Service Management addon. */
   appPath: string;
