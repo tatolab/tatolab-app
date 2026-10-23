@@ -14,27 +14,7 @@
   background: var(--window);
 }
 .content-band-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.content-band-name {
-  max-width: 32vw;
-  overflow: hidden;
-  font: 600 14px/20px var(--font-mono);
-  font-variant-ligatures: none;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.content-band-name[data-font="ui"], .content-band-page-name { font: 600 14px/20px var(--font-sans); }
-.content-band-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-  align-self: center;
-  color: var(--fg-2);
-  font-size: 12px;
-  line-height: 16px;
-}
-.content-band-state[data-emphasis="quiet"], .content-band-state[data-emphasis="version"] { color: var(--fg-3); }
-.content-band-state[data-emphasis="failure"] { color: var(--danger-text); }
+.content-band-page-name { font: 600 14px/20px var(--font-sans); }
 
 /* ---------- segmented control ---------- */
 .segmented-control {

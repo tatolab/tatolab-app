@@ -19,7 +19,7 @@ import {
 import { holdsWindowShortcutModifier } from "../presentation/platform_presentation";
 import { exposedOutputAddress, readableExposedPorts } from "../presentation/stream_overview_presentation";
 import { abbreviateHomeDirectory, presentStreamState, streamNotLoadedReason } from "../presentation/stream_presentation";
-import type { StreamViewTab } from "./stream_detail_view";
+import type { StreamPageTab } from "./stream_page_path";
 import type { GraphOutputPortAddress } from "./stream_graph_view";
 import { createExposedAddressLabel, createFailureIcon, createIcon, createShortcutCap, createWindowShortcutCap } from "./window_controls";
 
@@ -36,7 +36,7 @@ export interface TatolabSearchActions {
   selectStream(streamName: string): void;
   showExposedOutputInOverview(streamName: string, outputPort: GraphOutputPortAddress): void;
   watchOutput(streamName: string, outputPort: GraphOutputPortAddress, exposureLevel: string): void;
-  goToStreamTab(tab: StreamViewTab): void;
+  goToStreamTab(tab: StreamPageTab): void;
   goToSettings(): void;
 }
 
@@ -223,7 +223,7 @@ export class TatolabSearchView {
     }
     const isSelectedLoaded = selectedStream !== null && streamNotLoadedReason(selectedStream) === null;
     if (selectedStream !== null && isSelectedLoaded) {
-      const tabRows: [StreamViewTab, string, string, string][] = [
+      const tabRows: [StreamPageTab, string, string, string][] = [
         ["graph", "Graph", GRAPH_ICON_SVG, "1"],
         ["logs", "Logs", LOGS_ICON_SVG, "2"],
         ["overview", "Overview", OVERVIEW_ICON_SVG, "3"],

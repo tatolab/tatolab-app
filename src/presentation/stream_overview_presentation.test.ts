@@ -2,18 +2,21 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { describe, expect, it } from "vitest";
-import type { ListedStream, StreamGraphLink, StreamGraphSummary } from "../backend/tatolab_backend_contract";
+import type { ListedStream, StreamGraphExposedPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "../backend/tatolab_backend_contract";
 import {
-  explainExposureLevel,
+  choosePreviewedOutput,
+  droppingLinksOf,
   exposedOutputAddress,
   nodeClassName,
-  outputToSuggestExposing,
   portsOfGraphNodes,
+  presentExposureLevel,
   presentNodeKind,
-  presentStreamStory,
+  presentStreamSteps,
+  previewableOutputsOf,
   readableExposedPorts,
+  streamObservationCommands,
+  streamStepsCountLabel,
   summarizeGraphHealth,
-  terminalCommandsForStream,
 } from "./stream_overview_presentation";
 
 function listedStream(name: string, state: string, nodeCount: number | null, projectDirectory = "/Users/ada/streams/pattern"): ListedStream {
@@ -41,96 +44,15 @@ const TEST_PATTERN_GRAPH: StreamGraphSummary = {
   graph_document_text: "",
 };
 
-function storyText(stream: ListedStream): string {
-  const story = presentStreamStory(stream);
-  return story.leadPhrase + story.rest.map((part) => (typeof part === "string" ? part : part.code)).join("");
-}
-
-describe("presentStreamStory", () => {
-  it("tells each state's story in the spec's words", () => {
-    expect(storyText(listedStream("main", "kept", 4))).toBe(
-      "Running, and kept. Tatolab loads it again every time the runtime starts, until you stop it.",
-    );
-    expect(storyText(listedStream("demo", "attached", 4))).toBe(
-      "Running, attached to the terminal that started it. It stops when that tatolab run or tatolab dev ends.",
-    );
-    expect(storyText(listedStream("p", "stopped", null))).toBe(
-      "Stopped. Tatolab remembers it but won't load it until you start it again. Its graph and logs come back when it runs.",
-    );
-    expect(storyText(listedStream("l", "failed", null))).toBe(
-      "Failed at its last start. Tatolab skips it each time the runtime starts, until you retry it.",
-    );
-    expect(storyText(listedStream("x", "awaiting_restart", 2))).toBe(
-      "Awaiting restart. This version of Tatolab doesn't know this state yet.",
-    );
-  });
-
-  it("shows a kept or attached stream with no graph yet as loading, with a spinner", () => {
-    for (const state of ["kept", "attached"]) {
-      const story = presentStreamStory(listedStream("main", state, null));
-      expect(story.leadPhrase).toBe("Loading.");
-      expect(story.isInProgress).toBe(true);
-    }
-    expect(presentStreamStory(listedStream("main", "kept", 4)).isInProgress).toBe(false);
-  });
-
-  it("sets the attached story's commands in mono", () => {
-    const codeParts = presentStreamStory(listedStream("demo", "attached", 4)).rest.filter((part) => typeof part !== "string");
-    expect(codeParts).toEqual([{ code: "tatolab run" }, { code: "tatolab dev" }]);
-  });
-});
-
-describe("terminalCommandsForStream", () => {
-  const commandsOf = (stream: ListedStream) => terminalCommandsForStream(stream).map(({ command }) => command);
-
-  it("offers a kept stream's logs, stop and reload from its project", () => {
-    expect(terminalCommandsForStream(listedStream("main", "kept", 4))).toEqual([
-      { command: "tatolab logs --stream main -f", description: "Follow its logs" },
-      { command: "tatolab stop main", description: "Stop it, and keep it stopped" },
-      { command: "cd ~/streams/pattern && tatolab run -d", description: "Load your edits" },
+describe("presentExposureLevel", () => {
+  it("words a private output This machine and a public one Public, and keeps a newer level's own word", () => {
+    expect(["internal", "private", "public", "on_the_mesh"].map((level) => presentExposureLevel(level).label)).toEqual([
+      "Internal",
+      "This machine",
+      "Public",
+      "On the mesh",
     ]);
-  });
-
-  it("offers an attached stream's logs and stop, a loading stream's logs, and start and rm when not loaded", () => {
-    expect(commandsOf(listedStream("attached-demo", "attached", 4))).toEqual([
-      "tatolab logs --stream attached-demo -f",
-      "tatolab stop attached-demo",
-    ]);
-    expect(commandsOf(listedStream("main", "kept", null))).toEqual(["tatolab logs --stream main -f"]);
-    expect(terminalCommandsForStream(listedStream("pattern-two", "stopped", null))).toEqual([
-      { command: "tatolab start pattern-two", description: "Load it again" },
-      { command: "tatolab rm pattern-two", description: "Forget it for good" },
-    ]);
-    expect(terminalCommandsForStream(listedStream("lobby-recorder", "failed", null))).toEqual([
-      { command: "tatolab start lobby-recorder", description: "Retry it" },
-      { command: "tatolab rm lobby-recorder", description: "Forget it for good" },
-    ]);
-  });
-
-  it("quotes a project path the shell would split", () => {
-    expect(commandsOf(listedStream("main", "kept", 4, "/Users/ada/My Streams/pattern"))[2]).toBe(
-      'cd ~/"My Streams/pattern" && tatolab run -d',
-    );
-  });
-});
-
-describe("explainExposureLevel", () => {
-  it("says who reads each level, in the platform's words", () => {
-    expect(explainExposureLevel("private", "macos", "main")).toEqual({
-      levelWord: "Private",
-      explanation: "Readable by other streams and tools on this Mac.",
-    });
-    expect(explainExposureLevel("private", "linux", "main").explanation).toBe(
-      "Readable by other streams and tools on this computer.",
-    );
-    expect(explainExposureLevel("public", "macos", "main").explanation).toBe(
-      "Readable on this Mac now; other machines read it once sharing arrives.",
-    );
-    expect(explainExposureLevel("internal", "macos", "main").explanation).toBe("Only main's own nodes read it.");
-  });
-
-  it("shows a level newer than this app as its word alone", () => {
-    expect(explainExposureLevel("tailnet", "macos", "main")).toEqual({ levelWord: "Tailnet", explanation: null });
+    expect(presentExposureLevel("on_the_mesh")).toEqual({ label: "On the mesh", meaning: null, icon: null });
   });
 });
 
@@ -224,24 +146,109 @@ describe("portsOfGraphNodes", () => {
   });
 });
 
-describe("outputToSuggestExposing", () => {
-  it("picks the output that feeds the most links", () => {
-    expect(outputToSuggestExposing(TEST_PATTERN_GRAPH)).toEqual({ node: "invertingeffect", port: "video_to_downstream" });
+function stepNode(name: string, nodeType: string, state: string | null, counters: Partial<Pick<StreamGraphNode, "dropped_bags_by_link" | "refused_bags_by_output_port">> = {}): StreamGraphNode {
+  return { name, type: nodeType, state, dropped_bags_by_link: counters.dropped_bags_by_link ?? {}, refused_bags_by_output_port: counters.refused_bags_by_output_port ?? {} };
+}
+
+function exposedPort(node: string, port: string, level: string): StreamGraphExposedPort {
+  return { node, port, level, watch_page_url: level === "internal" ? null : `http://127.0.0.1:4446/watch/desk/main/${node}/${port}` };
+}
+
+/** A sample stream whose meter is falling behind: the meter's link dropped 1,840 messages and the effect refused 212. */
+const DROPPING_GRAPH: StreamGraphSummary = {
+  stream: "main",
+  nodes: [
+    stepNode("testpatternsource", "tatolab.stream:TestPatternSource", "Running", { refused_bags_by_output_port: { video: 0 } }),
+    stepNode("halftonelenseffect", "nodes.halftone_lens_effect:HalftoneLensEffect", "Running", {
+      dropped_bags_by_link: { L1: 0 },
+      refused_bags_by_output_port: { video_to_downstream: 212 },
+    }),
+    stepNode("brightnessmeter", "nodes.brightness_meter:BrightnessMeter", "Running", { dropped_bags_by_link: { L2: 1840 } }),
+    stepNode("h264encoder", "tatolab.stream:H264Encoder", "Pending", { dropped_bags_by_link: { L3: 12 } }),
+  ],
+  links: [
+    { id: "L1", source_node: "testpatternsource", source_port: "video", target_node: "halftonelenseffect", target_port: "video_from_upstream", state: "wired" },
+    { id: "L2", source_node: "halftonelenseffect", source_port: "video_to_downstream", target_node: "brightnessmeter", target_port: "video_from_upstream", state: "wired" },
+    { id: "L3", source_node: "halftonelenseffect", source_port: "video_to_downstream", target_node: "h264encoder", target_port: "video", state: "wired" },
+  ],
+  exposed: [exposedPort("halftonelenseffect", "video_to_downstream", "internal"), exposedPort("h264encoder", "encoded_video", "public"), exposedPort("brightnessmeter", "levels", "private")],
+  graph_document_text: "",
+};
+
+const PIPELINE_ORDER = ["testpatternsource", "halftonelenseffect", "brightnessmeter", "h264encoder"];
+
+describe("presentStreamSteps", () => {
+  it("lists each step in pipeline order with its origin, state, process and the counters above zero", () => {
+    expect(presentStreamSteps(DROPPING_GRAPH, PIPELINE_ORDER, "loaded")).toEqual([
+      { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", origin: "Built-in", process: "in runtime", stateWord: "Running", stateEmphasis: "plain", counters: [] },
+      {
+        name: "halftonelenseffect",
+        type: "nodes.halftone_lens_effect:HalftoneLensEffect",
+        origin: "Python",
+        process: "own process",
+        stateWord: "Running",
+        stateEmphasis: "plain",
+        counters: [{ countText: "212", word: "refused" }],
+      },
+      {
+        name: "brightnessmeter",
+        type: "nodes.brightness_meter:BrightnessMeter",
+        origin: "Python",
+        process: "own process",
+        stateWord: "Running",
+        stateEmphasis: "plain",
+        counters: [{ countText: "1,840", word: "dropped" }],
+      },
+      { name: "h264encoder", type: "tatolab.stream:H264Encoder", origin: "Built-in", process: "in runtime", stateWord: "Starting", stateEmphasis: "starting", counters: [{ countText: "12", word: "dropped" }] },
+    ]);
   });
 
-  it("takes the first in link order on a tie, skips sources in another stream, and is null with no links", () => {
-    expect(
-      outputToSuggestExposing({
-        stream: "s",
-        nodes: [
-          { name: "a", type: "t", state: null, dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
-          { name: "b", type: "t", state: null, dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
-        ],
-        links: [wiredLink("elsewhere", "out", "a", "in"), wiredLink("a", "out", "b", "in")],
-        exposed: [],
-        graph_document_text: "",
-      }),
-    ).toEqual({ node: "a", port: "out" });
-    expect(outputToSuggestExposing({ ...TEST_PATTERN_GRAPH, links: [] })).toBeNull();
+  it("reads every step of a graph from the last load as not loaded, without its counters", () => {
+    const steps = presentStreamSteps(DROPPING_GRAPH, PIPELINE_ORDER, "as_of_the_last_load");
+    expect(steps.map((step) => [step.stateWord, step.stateEmphasis, step.counters])).toEqual(Array(4).fill(["Not loaded", "quiet", []]));
+  });
+
+  it("words an errored step as in error, a newer state as the runtime spells it, and a step the order misses last", () => {
+    const graph = { ...DROPPING_GRAPH, nodes: [stepNode("a", "nodes.a:A", "Error"), stepNode("b", "weird", "Rewiring"), stepNode("c", "tatolab.stream:C", null)] };
+    expect(presentStreamSteps(graph, ["b", "a"], "loaded").map((step) => [step.name, step.stateWord, step.stateEmphasis, step.origin, step.process])).toEqual([
+      ["b", "Rewiring", "plain", null, null],
+      ["a", "In error", "failure", "Python", "own process"],
+      ["c", "Running", "plain", "Built-in", "in runtime"],
+    ]);
+  });
+});
+
+describe("droppingLinksOf", () => {
+  it("names each link whose target dropped messages, most first, and none when nothing dropped", () => {
+    expect(droppingLinksOf(DROPPING_GRAPH)).toEqual([
+      { sourceNode: "halftonelenseffect", targetNode: "brightnessmeter", droppedCountText: "1,840", isOne: false },
+      { sourceNode: "halftonelenseffect", targetNode: "h264encoder", droppedCountText: "12", isOne: false },
+    ]);
+    expect(droppingLinksOf(TEST_PATTERN_GRAPH)).toEqual([]);
+  });
+});
+
+describe("previewable outputs", () => {
+  it("lists the private and public outputs, never an internal one, and previews the first unless another is chosen", () => {
+    expect(previewableOutputsOf(DROPPING_GRAPH).map((output) => output.port)).toEqual(["encoded_video", "levels"]);
+    expect(choosePreviewedOutput(DROPPING_GRAPH, null)?.port).toBe("encoded_video");
+    expect(choosePreviewedOutput(DROPPING_GRAPH, { node: "brightnessmeter", port: "levels" })?.port).toBe("levels");
+    expect(choosePreviewedOutput(DROPPING_GRAPH, { node: "halftonelenseffect", port: "video_to_downstream" })?.port).toBe("encoded_video");
+    expect(choosePreviewedOutput(TEST_PATTERN_GRAPH, null)).toBeNull();
+  });
+});
+
+describe("streamStepsCountLabel", () => {
+  it("counts the graph's steps with its Python ones, or the listing's count without a graph", () => {
+    expect(streamStepsCountLabel(DROPPING_GRAPH, listedStream("main", "kept", 4))).toBe("4 · 2 Python");
+    expect(streamStepsCountLabel({ ...DROPPING_GRAPH, nodes: [stepNode("a", "tatolab.stream:A", null)] }, listedStream("main", "kept", 1))).toBe("1");
+    expect(streamStepsCountLabel(null, listedStream("main", "kept", 4))).toBe("4");
+    expect(streamStepsCountLabel(null, listedStream("main", "stopped", null))).toBe("—");
+  });
+});
+
+describe("terminal commands of the details panel", () => {
+  it("follows the stream's logs and prints its graph, as tatolab-cli's verbs spell them", () => {
+    expect(streamObservationCommands("front-door")).toEqual(["tatolab logs --stream front-door -f", "tatolab graph --stream front-door"]);
   });
 });
