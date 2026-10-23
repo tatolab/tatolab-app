@@ -50,5 +50,10 @@ docker run --rm \
     openbox >/dev/null 2>&1 &
     stalonetray --geometry 1x1-0+0 --icon-size 22 >/dev/null 2>&1 &
     sleep 1
-    NODE_PATH=/opt/playwright-driver/node_modules node /work/proof/react-window/linux-container/drive-the-window.mjs /work /proof-output
+    NODE_PATH=/opt/playwright-driver/node_modules node /work/proof/react-window/linux-container/drive-the-window.mjs /work /proof-output || {
+      echo "--- systemctl stand-in: commands, then the local API stand-in log ---"
+      cat "$SYSTEMCTL_STAND_IN_STATE/commands" "$SYSTEMCTL_STAND_IN_STATE/local-api-stand-in.log" 2>&1
+      ls -la "$XDG_RUNTIME_DIR/streamlib" 2>&1
+      exit 1
+    }
   '
