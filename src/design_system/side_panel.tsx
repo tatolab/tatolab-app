@@ -8,7 +8,7 @@ import type { ControlDataAttributes } from "./control_data_attributes";
 import { IconButton } from "./icon_button";
 
 /** The side panel's width as it opens, and the narrowest and widest it is dragged to, in CSS pixels. */
-const SIDE_PANEL_OPENING_WIDTH = 340;
+const SIDE_PANEL_OPENING_WIDTH = 320;
 const SIDE_PANEL_NARROWEST_WIDTH = 280;
 const SIDE_PANEL_WIDEST_WIDTH = 560;
 /** The narrowest the work area beside it is left, so a dragged panel never crowds it out. */

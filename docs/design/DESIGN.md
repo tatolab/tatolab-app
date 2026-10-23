@@ -55,6 +55,8 @@ on it), linear.app, cloudflare.com and Docker Desktop, measuring their computed 
    below. No gradients, no glows, no tinted cards.
 4. **Native density, readable text.** 13/18 base in Inter. Rows 28px in sidebars
    and lists, 32px in tables, 44–52px with thumbnails. Controls 28px tall. Page padding 20px.
+   Text is set in px; the root stays at the browser's 16px, so Tailwind's spacing steps are
+   these sizes (`h-7` is a 28px control).
    Group labels are sentence case, never tracked caps.
 5. **Flat surfaces.** Regions are separated by 1px hairlines. Sidebars, inspectors and panels
    sit on `chrome`; content on `window`. Cards only where content is a discrete object, with

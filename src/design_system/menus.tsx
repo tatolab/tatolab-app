@@ -22,7 +22,7 @@ import { ICON_BUTTON_CLASS_NAMES } from "./icon_button";
 /** How wide an open menu is: as wide as its words, or a fixed width for choices that read better aligned. */
 export type MenuWidth = "fit" | "wide";
 
-const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-56", wide: "w-72 max-h-96" };
+const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-56", wide: "w-[288px] max-h-96" };
 
 /** The ⋯ button that opens a row's or a page's other actions. */
 export function MoreActionsMenu({ label, children, ...controlDataAttributes }: { label: string; children: ReactNode } & ControlDataAttributes) {

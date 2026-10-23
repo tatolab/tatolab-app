@@ -247,10 +247,10 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* The root keeps the browser's 16 px, so the rem steps Tailwind and shadcn size boxes with land on the sizes
+     above (h-7 is a 28 px control); text is set in px, 13/18 from the body. */
   html {
     font-family: var(--font-sans);
-    font-size: 13px;
-    line-height: 18px;
     font-optical-sizing: auto;
     font-feature-settings: "calt", "cv05";
     -webkit-font-smoothing: antialiased;
