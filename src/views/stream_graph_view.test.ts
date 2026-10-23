@@ -9,10 +9,10 @@ import { StreamGraphView, type StreamGraphViewActions } from "./stream_graph_vie
 const TEST_PATTERN_GRAPH: StreamGraphSummary = {
   stream: "main",
   nodes: [
-    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
-    { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
-    { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Error", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
-    { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Error", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
   ],
   links: [
     { id: "L1", source_node: "testpatternsource", source_port: "video", target_node: "invertingeffect", target_port: "video_from_upstream", state: "wired" },

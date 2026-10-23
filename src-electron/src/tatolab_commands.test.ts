@@ -176,7 +176,12 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
         { state: "wired", target: { port: "video_from_upstream", node: "invertingeffect" }, source: { port: "video", node: "testpatternsource" }, id: "L1" },
       ],
       nodes: [
-        { components: { state: "Running" }, type: "tatolab.stream:TestPatternSource", name: "testpatternsource" },
+        {
+          ports: { outputs: [{ catalog_entry: { entry: {}, section: "binary" }, name: "video" }], inputs: [] },
+          components: { state: "Running" },
+          type: "tatolab.stream:TestPatternSource",
+          name: "testpatternsource",
+        },
         { type: "nodes.inverting_effect:InvertingEffect", name: "invertingeffect", components: { metrics: { dropped_bags_by_link: { L1: 12 } } } },
       ],
       stream: "main",
@@ -185,8 +190,10 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
   expect(graph.ok && JSON.stringify(graph.value)).toBe(
     '{"stream":"main","nodes":[' +
       '{"name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running",' +
+      '"input_ports":[],"output_ports":[{"name":"video","catalog_section":"binary"}],' +
       '"dropped_bags_by_link":{},"refused_bags_by_output_port":{}},' +
       '{"name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,' +
+      '"input_ports":[],"output_ports":[],' +
       '"dropped_bags_by_link":{"L1":12},"refused_bags_by_output_port":{}}],' +
       '"links":[{"id":"L1","source_node":"testpatternsource","source_port":"video",' +
       '"target_node":"invertingeffect","target_port":"video_from_upstream","state":"wired"}],' +

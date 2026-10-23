@@ -56,6 +56,8 @@ export function mockStreamGraphSummary(streamName: string, machineName: string, 
     name: node.name,
     type: node.type,
     state: nodeState(node.state),
+    input_ports: node.input_ports,
+    output_ports: node.output_ports,
     dropped_bags_by_link: Object.fromEntries(
       graph.links.filter((link) => link.target_node === node.name).map((link) => [link.id, climbed(graph.counterRates.droppedPerSecondByLinkId[link.id] ?? 0)]),
     ),
@@ -74,13 +76,14 @@ export function mockStreamGraphSummary(streamName: string, machineName: string, 
       name: node.name,
       config: node.config,
       ports: {
-        inputs: [...new Set(graph.links.filter((link) => link.target_node === node.name).map((link) => link.target_port))].map((port) => ({ name: port })),
-        outputs: [
-          ...new Set([
-            ...graph.links.filter((link) => link.source_node === node.name).map((link) => link.source_port),
-            ...graph.exposed.filter((exposedPort) => exposedPort.node === node.name).map((exposedPort) => exposedPort.port),
-          ]),
-        ].map((port) => ({ name: port })),
+        inputs: node.input_ports.map((port) => ({ name: port.name, description: "", port_kind: "data", delivery_profile: "newest" })),
+        outputs: node.output_ports.map((port) => ({
+          name: port.name,
+          description: "",
+          port_kind: "data",
+          delivery_profile: null,
+          ...(port.catalog_section === null ? {} : { catalog_entry: { section: port.catalog_section, entry: {} } }),
+        })),
       },
       components: {
         state: nodes[nodeIndex]?.state ?? null,

@@ -12,7 +12,7 @@ function wiredLink(sourceNode: string, targetNode: string, sourcePort = "video",
 function graphOf(nodeNames: string[], links: StreamGraphLink[]): StreamGraphSummary {
   return {
     stream: "main",
-    nodes: nodeNames.map((name) => ({ name, type: `nodes:${name}`, state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} })),
+    nodes: nodeNames.map((name) => ({ name, type: `nodes:${name}`, state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} })),
     links,
     exposed: [],
     graph_document_text: "",

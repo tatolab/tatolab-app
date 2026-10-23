@@ -3,7 +3,7 @@
 
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
-import type { StreamGraphLink, StreamGraphNode } from "../../src/backend/tatolab_backend_contract.js";
+import type { StreamGraphDeclaredPort, StreamGraphLink, StreamGraphNode } from "../../src/backend/tatolab_backend_contract.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 
 const RELEASE_ORIGIN = "http://127.0.0.1:4446";
@@ -14,13 +14,22 @@ const summaryOfTheGraphToolResultAtTheReleaseOrigin = (requestedStream: string, 
 /** What a real runtime answered `GET /api/graph?stream=main` with, the same document its `graph {stream: "main"}` tool renders, for a stream of a test pattern, an inverting effect, a brightness meter and a display window. */
 const aRealGraphOfOneStream = () => readFile(new URL("../test-fixtures/local-api-graph-of-the-stream-main.json", import.meta.url), "utf8");
 
+/** What a real runtime's `graph {stream: "front-door"}` tool answered for the stream `tatolab new` writes, with an H.264 encoder whose output is catalogued as video. */
+const aRealGraphToolResultOfTheStreamFrontDoor = async () => {
+  const toolResult = JSON.parse(await readFile(new URL("../test-fixtures/local-api-graph-tool-result-of-the-stream-front-door.json", import.meta.url), "utf8"));
+  return String(toolResult.result.content[0].text);
+};
+
+const declared = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, catalog_section: null }));
+
 function node(
   name: string,
   nodeType: string,
   state: string | null,
   counters: Pick<StreamGraphNode, "dropped_bags_by_link" | "refused_bags_by_output_port"> = { dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+  ports: Pick<StreamGraphNode, "input_ports" | "output_ports"> = { input_ports: [], output_ports: [] },
 ): StreamGraphNode {
-  return { name, type: nodeType, state, ...counters };
+  return { name, type: nodeType, state, ...ports, ...counters };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -35,16 +44,34 @@ test("a_real_graph_reads_as_its_nodes_links_counters_and_exposed_ports_beside_it
     value: {
       stream: "main",
       nodes: [
-        node("testpatternsource", "tatolab.stream:TestPatternSource", "Running", { dropped_bags_by_link: {}, refused_bags_by_output_port: { video: 0 } }),
-        node("invertingeffect", "nodes.inverting_effect:InvertingEffect", "Running", {
-          dropped_bags_by_link: { Lj17fu4mdczivji99oua37i06: 0 },
-          refused_bags_by_output_port: { video_to_downstream: 0 },
-        }),
-        node("brightnessmeter", "nodes.brightness_meter:BrightnessMeter", "Running", {
-          dropped_bags_by_link: { Lizkqmkmmu5ldam8dbymcc4bc: 0 },
-          refused_bags_by_output_port: {},
-        }),
-        node("displaywindow", "tatolab.stream:DisplayWindow", "Running", { dropped_bags_by_link: { Lv5ujotcx5rnh9f4s6xewjot9: 0 }, refused_bags_by_output_port: {} }),
+        node(
+          "testpatternsource",
+          "tatolab.stream:TestPatternSource",
+          "Running",
+          { dropped_bags_by_link: {}, refused_bags_by_output_port: { video: 0 } },
+          { input_ports: [], output_ports: declared("video") },
+        ),
+        node(
+          "invertingeffect",
+          "nodes.inverting_effect:InvertingEffect",
+          "Running",
+          { dropped_bags_by_link: { Lj17fu4mdczivji99oua37i06: 0 }, refused_bags_by_output_port: { video_to_downstream: 0 } },
+          { input_ports: declared("video_from_upstream"), output_ports: declared("video_to_downstream") },
+        ),
+        node(
+          "brightnessmeter",
+          "nodes.brightness_meter:BrightnessMeter",
+          "Running",
+          { dropped_bags_by_link: { Lizkqmkmmu5ldam8dbymcc4bc: 0 }, refused_bags_by_output_port: {} },
+          { input_ports: declared("video_from_upstream"), output_ports: [] },
+        ),
+        node(
+          "displaywindow",
+          "tatolab.stream:DisplayWindow",
+          "Running",
+          { dropped_bags_by_link: { Lv5ujotcx5rnh9f4s6xewjot9: 0 }, refused_bags_by_output_port: {} },
+          { input_ports: declared("video"), output_ports: [] },
+        ),
       ],
       links: [
         link("Lj17fu4mdczivji99oua37i06", ["testpatternsource", "video"], ["invertingeffect", "video_from_upstream"], "wired"),
@@ -62,6 +89,26 @@ test("a_real_graph_reads_as_its_nodes_links_counters_and_exposed_ports_beside_it
       graph_document_text: graphText,
     },
   });
+});
+
+test("each_node_declares_its_ports_in_the_graphs_order_with_the_catalog_section_its_output_names", async () => {
+  const summary = summaryOfTheGraphToolResultAtTheReleaseOrigin("front-door", await aRealGraphToolResultOfTheStreamFrontDoor());
+
+  expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.input_ports, graphNode.output_ports])).toEqual([
+    ["testpatternsource", [], [{ name: "video", catalog_section: "binary" }]],
+    ["halftonelenseffect", declared("video_from_upstream"), declared("video_to_downstream")],
+    ["brightnessmeter", declared("video_from_upstream"), []],
+    ["h264encoder", declared("video"), [{ name: "encoded_video", catalog_section: "video" }]],
+  ]);
+});
+
+test("a_port_the_runtime_lists_without_a_name_refuses_the_graph_and_a_catalog_entry_without_a_section_names_none", () => {
+  const graphWith = (outputs: unknown[]) =>
+    summaryOfTheGraphToolResultAtTheReleaseOrigin("main", JSON.stringify({ nodes: [{ name: "a", ports: { inputs: [], outputs } }] }));
+
+  const withoutASection = graphWith([{ name: "out", catalog_entry: { entry: {} } }]);
+  expect(withoutASection.ok && withoutASection.value.nodes[0]?.output_ports).toEqual(declared("out"));
+  expect(graphWith([{ description: "no name" }]).ok).toBe(false);
 });
 
 test("an_internal_port_has_no_preview_page_and_a_graph_naming_no_machine_has_none", () => {

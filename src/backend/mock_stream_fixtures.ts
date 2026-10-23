@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import type { ListedStream, StreamGraphLink, StreamLogRecord, TatolabPlatform } from "./tatolab_backend_contract";
+import type { ListedStream, StreamGraphDeclaredPort, StreamGraphLink, StreamLogRecord, TatolabPlatform } from "./tatolab_backend_contract";
 
 /** A log record before the mock runtime numbers and stamps it. */
 export interface MockLogRecordDraft {
@@ -16,13 +16,18 @@ export interface MockLogRecordDraft {
 /** What a mock stream writes on one tick of the live log, given how long it has been loaded. */
 export type MockLiveLogWriter = (millisecondsSinceLoad: number) => MockLogRecordDraft[];
 
-/** A node of a mock stream's graph, as the runtime's `graph` names it, with the config it renders. */
+/** A node of a mock stream's graph, as the runtime's `graph` names it, with the config and ports it renders. */
 export interface MockGraphNode {
   name: string;
   type: string;
   state: string;
   config: Record<string, string | number | boolean>;
+  input_ports: StreamGraphDeclaredPort[];
+  output_ports: StreamGraphDeclaredPort[];
 }
+
+/** Ports declaring no catalog entry, as every input and a raw output do. */
+const uncataloguedPorts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, catalog_section: null }));
 
 /** An output port a mock stream exposes, at `internal`, `private` or `public`. */
 export interface MockExposedPort {
@@ -143,10 +148,38 @@ function loadingLines(machine: MockMachine, streamName: string, projectDirectory
 }
 
 const TEST_PATTERN_NODES: MockGraphNode[] = [
-  { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running", config: { width: 1280, height: 720, fps: 30 } },
-  { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {} },
-  { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running", config: { title: "Tatolab", scaling: "fit" } },
-  { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running", config: {} },
+  {
+    name: "testpatternsource",
+    type: "tatolab.stream:TestPatternSource",
+    state: "Running",
+    config: { width: 1280, height: 720, fps: 30 },
+    input_ports: [],
+    output_ports: [{ name: "video", catalog_section: "binary" }],
+  },
+  {
+    name: "invertingeffect",
+    type: "nodes.inverting_effect:InvertingEffect",
+    state: "Running",
+    config: {},
+    input_ports: uncataloguedPorts("video_from_upstream"),
+    output_ports: uncataloguedPorts("video_to_downstream"),
+  },
+  {
+    name: "displaywindow",
+    type: "tatolab.stream:DisplayWindow",
+    state: "Running",
+    config: { title: "Tatolab", scaling: "fit" },
+    input_ports: uncataloguedPorts("video"),
+    output_ports: [],
+  },
+  {
+    name: "brightnessmeter",
+    type: "nodes.brightness_meter:BrightnessMeter",
+    state: "Running",
+    config: {},
+    input_ports: uncataloguedPorts("video_from_upstream"),
+    output_ports: [],
+  },
 ];
 
 const TEST_PATTERN_LINKS: StreamGraphLink[] = [
@@ -262,10 +295,38 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
     listing: { name: "camera", state: "kept", project_directory: projectDirectory, node_count: 4, failed_because: null },
     graph: {
       nodes: [
-        { name: "camerasource", type: "tatolab.stream:CameraSource", state: "Running", config: { device_id: "0", width: 1920, height: 1080 } },
-        { name: "microphonesource", type: "tatolab.stream:MicrophoneSource", state: "Running", config: { sample_rate: 48000 } },
-        { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running", config: { title: "Camera", scaling: "fit" } },
-        { name: "levelmeter", type: "nodes.level_meter:LevelMeter", state: "Running", config: {} },
+        {
+          name: "camerasource",
+          type: "tatolab.stream:CameraSource",
+          state: "Running",
+          config: { device_id: "0", width: 1920, height: 1080 },
+          input_ports: [],
+          output_ports: [{ name: "video", catalog_section: "binary" }],
+        },
+        {
+          name: "microphonesource",
+          type: "tatolab.stream:MicrophoneSource",
+          state: "Running",
+          config: { sample_rate: 48000 },
+          input_ports: [],
+          output_ports: [{ name: "audio", catalog_section: "audio" }],
+        },
+        {
+          name: "displaywindow",
+          type: "tatolab.stream:DisplayWindow",
+          state: "Running",
+          config: { title: "Camera", scaling: "fit" },
+          input_ports: uncataloguedPorts("video"),
+          output_ports: [],
+        },
+        {
+          name: "levelmeter",
+          type: "nodes.level_meter:LevelMeter",
+          state: "Running",
+          config: {},
+          input_ports: uncataloguedPorts("audio_from_upstream"),
+          output_ports: [],
+        },
       ],
       links: [
         { id: "Lc8m2w0d1k4q9s7f3x5v6b2nr", source_node: "camerasource", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired" },
