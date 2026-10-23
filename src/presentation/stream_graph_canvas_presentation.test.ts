@@ -12,7 +12,7 @@ import {
 } from "./stream_graph_canvas_presentation";
 
 function graphNode(name: string, nodeType: string, overrides: Partial<StreamGraphNode> = {}): StreamGraphNode {
-  return { name, type: nodeType, state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, ...overrides };
+  return { id: "", name, type: nodeType, state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {}, ...overrides };
 }
 
 function wiredLink(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string]): StreamGraphLink {

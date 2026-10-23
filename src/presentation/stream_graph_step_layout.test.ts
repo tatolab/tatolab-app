@@ -23,6 +23,7 @@ function graphOf(stepNames: string[], links: StreamGraphLink[], exposed: StreamG
   return {
     stream: "main",
     nodes: stepNames.map((name) => ({
+      id: "",
       name,
       type: `nodes:${name}`,
       state: "Running",

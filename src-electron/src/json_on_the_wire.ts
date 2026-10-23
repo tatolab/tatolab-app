@@ -19,6 +19,41 @@ export function parseJsonOnTheWire(jsonText: string): Result<unknown, string> {
   }
 }
 
+/** A number as the runtime wrote it, kept by its source text, which a float would round past 2^53. */
+class JsonNumberAsWritten {
+  constructor(readonly writtenDigits: string) {}
+}
+
+/** The source text `JSON.parse` hands a reviver beside a primitive, in engines that pass it (Node 22, Chromium). */
+interface JsonParseSourceContext {
+  source?: string;
+}
+
+/** `jsonText` parsed with every number kept in the digits it was written in, for `jsonTextKeepingTheWrittenNumbers`; or why it is not JSON. */
+export function parseJsonKeepingTheWrittenNumbers(jsonText: string): Result<unknown, string> {
+  try {
+    return succeeded(
+      JSON.parse(jsonText, (_key: string, value: unknown, context?: JsonParseSourceContext) =>
+        typeof value === "number" ? new JsonNumberAsWritten(context?.source ?? String(value)) : value,
+      ),
+    );
+  } catch (parseFailure) {
+    return failedWith(describeCaughtFailure(parseFailure));
+  }
+}
+
+/** Compact JSON text of a value `parseJsonKeepingTheWrittenNumbers` read, each number in the digits it was written in. */
+export function jsonTextKeepingTheWrittenNumbers(value: unknown): string {
+  if (value instanceof JsonNumberAsWritten) return value.writtenDigits;
+  if (Array.isArray(value)) return `[${value.map(jsonTextKeepingTheWrittenNumbers).join(",")}]`;
+  if (isAJsonObject(value)) {
+    return `{${Object.entries(value)
+      .map(([key, nestedValue]) => `${JSON.stringify(key)}:${jsonTextKeepingTheWrittenNumbers(nestedValue)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
 /** Whether `value` is a JSON object rather than an array, a scalar or `null`. */
 export function isAJsonObject(value: unknown): value is JsonObjectOnTheWire {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -82,7 +117,7 @@ export function objectOrEmpty(jsonObject: JsonObjectOnTheWire, key: string): Res
 }
 
 /** Each of `values` read by `readOne`, or the first one's failure. */
-export function everyOneRead<T>(values: readonly unknown[], readOne: (value: unknown) => Result<T, string>): Result<T[], string> {
+export function everyOneRead<Value, T>(values: readonly Value[], readOne: (value: Value) => Result<T, string>): Result<T[], string> {
   const read: T[] = [];
   for (const value of values) {
     const readValue = readOne(value);

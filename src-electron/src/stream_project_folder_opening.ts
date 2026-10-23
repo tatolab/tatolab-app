@@ -1,17 +1,19 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-// Opening a stream's project folder from the window, in the file manager or in a terminal. The
+// Opening a stream's project folder from the window, in the file manager or in a terminal, or its
+// log folder in the file manager. The
 // window names only the stream; the folder is the `project_directory` the runtime listed for it in
 // the status the app last published, so a page can never have the app open a path of its choosing.
 
 import { stat } from "node:fs/promises";
-import type { ListedStream } from "../../src/backend/tatolab_backend_contract.js";
+import path from "node:path";
+import { STREAM_LOG_FOLDER_IN_THE_PROJECT, type ListedStream } from "../../src/backend/tatolab_backend_contract.js";
 import type { TerminalOpenedInAFolder } from "./platform/mod.js";
 import { failedWith, type Result } from "./result.js";
 
-/** Where a stream's project folder opens: the desktop's file manager, or a terminal whose shell starts in it. */
-export type StreamProjectFolderOpening = "file_manager" | "terminal";
+/** Where a stream's project folder opens: the desktop's file manager, a terminal whose shell starts in it, or its log folder in the file manager. */
+export type StreamProjectFolderOpening = "file_manager" | "terminal" | "log_folder";
 
 /** What opens a folder, and how the app tells a folder still exists. */
 export interface StreamProjectFolderOpeners {
@@ -41,8 +43,18 @@ export async function openStreamProjectFolder(
   if (listedStream === null) return failedWith(`The runtime does not list ${streamName}, so Tatolab has no project folder to open.`);
   const projectFolder = listedStream.project_directory;
   if (projectFolder === "") return failedWith(`The runtime lists no project folder for ${streamName}.`);
-  if (!(await streamProjectFolderOpeners.isAnExistingFolder(projectFolder))) return failedWith(`${projectFolder} is no longer a folder on this machine.`);
-  return opening === "file_manager"
-    ? streamProjectFolderOpeners.openAFolderInTheFileManager(projectFolder)
-    : streamProjectFolderOpeners.terminalOpenedInAFolder.openTerminalIn(projectFolder);
+  switch (opening) {
+    case "file_manager":
+    case "terminal":
+      if (!(await streamProjectFolderOpeners.isAnExistingFolder(projectFolder))) return failedWith(`${projectFolder} is no longer a folder on this machine.`);
+      return opening === "file_manager"
+        ? streamProjectFolderOpeners.openAFolderInTheFileManager(projectFolder)
+        : streamProjectFolderOpeners.terminalOpenedInAFolder.openTerminalIn(projectFolder);
+    case "log_folder": {
+      // Stat only: the runtime's log segments in it are never listed or read.
+      const logFolder = path.join(projectFolder, STREAM_LOG_FOLDER_IN_THE_PROJECT);
+      if (!(await streamProjectFolderOpeners.isAnExistingFolder(logFolder))) return failedWith(`${streamName} has no log folder yet: ${logFolder} is not on this machine.`);
+      return streamProjectFolderOpeners.openAFolderInTheFileManager(logFolder);
+    }
+  }
 }

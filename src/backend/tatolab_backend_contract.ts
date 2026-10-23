@@ -79,7 +79,16 @@ export interface StreamLogRecord {
   target: string | null;
   message: string;
   attrs: Record<string, string>;
+  /** The graph `id` of the step that wrote it, which a record names a step by; `null` for a record written outside a step. */
+  processor_id: string | null;
+  /** Whether a step's own helper process wrote it (it carries `source_seq`, or its `source` is `python`) rather than the runtime's process. */
+  sent_by_its_own_process: boolean;
+  /** The record as JSON text, every number in the digits the runtime wrote, so `host_ts` is exact. */
+  jsonl_line: string;
 }
+
+/** The folder under a stream's project directory that the runtime writes the stream's log segments into. */
+export const STREAM_LOG_FOLDER_IN_THE_PROJECT = ".streamlib/logs";
 
 /** What `read_stream_log_records` answers: one loaded stream's records after the sequence asked for. */
 export interface StreamLogRecordsPage {
@@ -101,6 +110,8 @@ export interface StreamGraphDeclaredPort {
 
 /** One node of a stream's graph, by the name a link end and a port address name it by. */
 export interface StreamGraphNode {
+  /** The runtime's id of the node, which a log record's `processor_id` names it by. */
+  id: string;
   name: string;
   type: string;
   /** The processor's state as the runtime names it, such as `Running`. */

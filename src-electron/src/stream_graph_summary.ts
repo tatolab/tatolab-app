@@ -99,6 +99,8 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   if (!node.ok) return node;
   const name = requiredText(node.value, "name");
   if (!name.ok) return name;
+  const nodeId = textOrDefault(node.value, "id", "");
+  if (!nodeId.ok) return nodeId;
   const nodeType = textOrDefault(node.value, "type", "");
   if (!nodeType.ok) return nodeType;
   const components = objectOrEmpty(node.value, "components");
@@ -112,6 +114,7 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   const outputPorts = declaredPortsUnder(ports.value, "outputs");
   if (!outputPorts.ok) return outputPorts;
   return succeeded({
+    id: nodeId.value,
     name: name.value,
     type: nodeType.value,
     state: typeof state === "string" ? state : null,

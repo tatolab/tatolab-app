@@ -6,7 +6,7 @@ import type { StreamLogRecord, StreamLogRecordsPage } from "../backend/tatolab_b
 import { StreamLogFollower, type StreamLogRecordsDestination } from "./stream_log_follower";
 
 function logRecord(sequence: number, message: string): StreamLogRecord {
-  return { sequence, host_ts_ns: null, level: "info", source: "python", target: null, message, attrs: {} };
+  return { sequence, host_ts_ns: null, level: "info", source: "python", target: null, message, attrs: {}, processor_id: null, sent_by_its_own_process: true, jsonl_line: "{}" };
 }
 
 function recordsPage(streamInstance: string, records: StreamLogRecord[], recordsNoLongerHeld = 0): StreamLogRecordsPage {

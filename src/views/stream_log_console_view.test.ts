@@ -7,7 +7,7 @@ import type { StreamLogRecord } from "../backend/tatolab_backend_contract";
 import { logTextFilterPlaceholderThatFits, StreamLogConsoleView } from "./stream_log_console_view";
 
 function logRecord(sequence: number, level: string, message: string): StreamLogRecord {
-  return { sequence, host_ts_ns: null, level, source: "python", target: null, message, attrs: {} };
+  return { sequence, host_ts_ns: null, level, source: "python", target: null, message, attrs: {}, processor_id: null, sent_by_its_own_process: true, jsonl_line: "{}" };
 }
 
 function shownMessages(logConsole: StreamLogConsoleView): string[] {

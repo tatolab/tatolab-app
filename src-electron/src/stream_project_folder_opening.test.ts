@@ -59,6 +59,26 @@ test("a_stream_the_runtime_does_not_list_or_names_no_folder_for_or_whose_folder_
   expect(terminal.openedInFolders).toEqual([]);
 });
 
+test("the_log_folder_under_the_listed_project_folder_opens_in_the_file_manager", async () => {
+  const { openers, foldersShownInTheFileManager } = openersOverFakes(["/Users/jonathanf/streams/front-door", "/Users/jonathanf/streams/front-door/.streamlib/logs"]);
+
+  expect(await openStreamProjectFolder(LISTED_STREAMS, "front-door", "log_folder", openers)).toEqual(succeeded(undefined));
+
+  expect(foldersShownInTheFileManager).toEqual(["/Users/jonathanf/streams/front-door/.streamlib/logs"]);
+});
+
+test("a_log_folder_not_written_yet_opens_nothing_and_says_so", async () => {
+  const { openers, foldersShownInTheFileManager } = openersOverFakes(["/Users/jonathanf/streams/front-door"]);
+
+  expect(await openStreamProjectFolder(LISTED_STREAMS, "front-door", "log_folder", openers)).toEqual(
+    failedWith("front-door has no log folder yet: /Users/jonathanf/streams/front-door/.streamlib/logs is not on this machine."),
+  );
+  expect(await openStreamProjectFolder(LISTED_STREAMS, "nowhere", "log_folder", openers)).toEqual(
+    failedWith("The runtime lists no project folder for nowhere."),
+  );
+  expect(foldersShownInTheFileManager).toEqual([]);
+});
+
 test("the_terminals_refusal_reaches_the_window_in_its_own_words", async () => {
   const { openers, terminal } = openersOverFakes(["/Users/jonathanf/streams/front-door"]);
   terminal.answer = failedWith("Terminal did not open on /Users/jonathanf/streams/front-door (exit status: 1)");

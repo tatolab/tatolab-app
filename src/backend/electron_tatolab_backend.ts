@@ -57,6 +57,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     openTerminalAtStreamProject: async (streamName) => {
       await invokeTatolabCommand("open_terminal_at_stream_project", { stream: streamName });
     },
+    openStreamLogFolder: async (streamName) => {
+      await invokeTatolabCommand("open_stream_log_folder", { stream: streamName });
+    },
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
   };
 }

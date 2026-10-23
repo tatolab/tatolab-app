@@ -8,7 +8,7 @@ import { StreamGraphReadings } from "./stream_graph_readings";
 function graphNamed(streamName: string, nodeName: string): StreamGraphSummary {
   return {
     stream: streamName,
-    nodes: [{ name: nodeName, type: "tatolab.stream:TestPatternSource", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} }],
+    nodes: [{ id: "", name: nodeName, type: "tatolab.stream:TestPatternSource", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} }],
     links: [],
     exposed: [],
     graph_document_text: `{"stream":"${streamName}"}`,

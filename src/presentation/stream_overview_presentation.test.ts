@@ -27,10 +27,10 @@ function wiredLink(source: string, sourcePort: string, target: string, targetPor
 const TEST_PATTERN_GRAPH: StreamGraphSummary = {
   stream: "main",
   nodes: [
-    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
-    { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
-    { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
-    { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { id: "", name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { id: "", name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { id: "", name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { id: "", name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
   ],
   links: [
     wiredLink("testpatternsource", "video", "invertingeffect", "video_from_upstream"),
@@ -87,7 +87,7 @@ describe("node types", () => {
 });
 
 function stepNode(name: string, nodeType: string, state: string | null, counters: Partial<Pick<StreamGraphNode, "dropped_bags_by_link" | "refused_bags_by_output_port">> = {}): StreamGraphNode {
-  return { name, type: nodeType, state, input_ports: [], output_ports: [], dropped_bags_by_link: counters.dropped_bags_by_link ?? {}, refused_bags_by_output_port: counters.refused_bags_by_output_port ?? {} };
+  return { id: "", name, type: nodeType, state, input_ports: [], output_ports: [], dropped_bags_by_link: counters.dropped_bags_by_link ?? {}, refused_bags_by_output_port: counters.refused_bags_by_output_port ?? {} };
 }
 
 function exposedPort(node: string, port: string, level: string): StreamGraphExposedPort {

@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // One page of a stream's log records as the window shows them, read from the runtime's `logs`
-// tool result. Each record keeps the JSONL fields the window shows and drops the rest.
+// tool result. Each record keeps the JSONL fields the window shows, and the whole record as JSON
+// text with the digits the runtime wrote.
 
 import type { StreamLogRecord, StreamLogRecordsPage } from "../../src/backend/tatolab_backend_contract.js";
 import {
@@ -11,7 +12,9 @@ import {
   isAJsonObject,
   isAnUnsignedInteger,
   jsonObject,
+  jsonTextKeepingTheWrittenNumbers,
   jsonTextWithSortedKeys,
+  parseJsonKeepingTheWrittenNumbers,
   parseJsonOnTheWire,
   requiredText,
   requiredUnsignedInteger,
@@ -21,11 +24,24 @@ import { failedWith, succeeded, type Result } from "./result.js";
 
 /** The page a `logs` tool result's text holds. */
 export function streamLogRecordsPageFromTheLogsToolResult(toolResultText: string): Result<StreamLogRecordsPage, string> {
-  const page = streamLogRecordsPageFromTheParsedToolResult(parseJsonOnTheWire(toolResultText));
+  const page = streamLogRecordsPageFromTheParsedToolResult(parseJsonOnTheWire(toolResultText), parseJsonKeepingTheWrittenNumbers(toolResultText));
   return page.ok ? page : failedWith(`the runtime's logs result could not be read: ${page.failure}`);
 }
 
-function streamLogRecordsPageFromTheParsedToolResult(parsedToolResult: Result<unknown, string>): Result<StreamLogRecordsPage, string> {
+/** Each `records[].record` of the tool result read keeping its numbers' digits, by its place in `records`. */
+function recordsAsWrittenOfTheToolResult(toolResultAsWritten: Result<unknown, string>): readonly unknown[] {
+  if (!toolResultAsWritten.ok || !isAJsonObject(toolResultAsWritten.value)) return [];
+  const numberedRecordsAsWritten = toolResultAsWritten.value["records"];
+  if (!Array.isArray(numberedRecordsAsWritten)) return [];
+  return numberedRecordsAsWritten.map((numberedRecordAsWritten: unknown) =>
+    isAJsonObject(numberedRecordAsWritten) ? numberedRecordAsWritten["record"] : undefined,
+  );
+}
+
+function streamLogRecordsPageFromTheParsedToolResult(
+  parsedToolResult: Result<unknown, string>,
+  toolResultAsWritten: Result<unknown, string>,
+): Result<StreamLogRecordsPage, string> {
   if (!parsedToolResult.ok) return parsedToolResult;
   const toolResult = jsonObject(parsedToolResult.value, "the logs result");
   if (!toolResult.ok) return toolResult;
@@ -35,7 +51,11 @@ function streamLogRecordsPageFromTheParsedToolResult(parsedToolResult: Result<un
   if (!streamInstance.ok) return streamInstance;
   const numberedRecordsOnTheWire = arrayOrEmpty(toolResult.value, "records");
   if (!numberedRecordsOnTheWire.ok) return numberedRecordsOnTheWire;
-  const records = everyOneRead(numberedRecordsOnTheWire.value, numberedRecordOnTheWire);
+  const recordsAsWritten = recordsAsWrittenOfTheToolResult(toolResultAsWritten);
+  const records = everyOneRead(
+    numberedRecordsOnTheWire.value.map((numberedRecord, recordIndex) => ({ numberedRecord, recordAsWritten: recordsAsWritten[recordIndex] })),
+    numberedRecordOnTheWire,
+  );
   if (!records.ok) return records;
   const nextAfter = requiredUnsignedInteger(toolResult.value, "next_after");
   if (!nextAfter.ok) return nextAfter;
@@ -51,20 +71,20 @@ function streamLogRecordsPageFromTheParsedToolResult(parsedToolResult: Result<un
   });
 }
 
-/** One record of the `logs` tool's result: its sequence number beside its JSONL line. */
-function numberedRecordOnTheWire(numberedRecordOnTheWire: unknown): Result<StreamLogRecord, string> {
+/** One record of the `logs` tool's result: its sequence number beside its JSONL line, and that line as the runtime wrote it. */
+function numberedRecordOnTheWire({ numberedRecord: numberedRecordOnTheWire, recordAsWritten }: { numberedRecord: unknown; recordAsWritten: unknown }): Result<StreamLogRecord, string> {
   const numberedRecord = jsonObject(numberedRecordOnTheWire, "a record");
   if (!numberedRecord.ok) return numberedRecord;
   const sequence = requiredUnsignedInteger(numberedRecord.value, "sequence");
   if (!sequence.ok) return sequence;
-  return succeeded(streamLogRecordFromItsJsonlLine(sequence.value, numberedRecord.value["record"]));
+  return succeeded(streamLogRecordFromItsJsonlLine(sequence.value, numberedRecord.value["record"], jsonTextKeepingTheWrittenNumbers(recordAsWritten ?? null)));
 }
 
 /**
- * The record numbered `sequence`, from its JSONL line: a field that is absent or of another type reads
- * `null`, an absent message reads empty, and an attribute that is not a string reads as its JSON text.
+ * The record numbered `sequence`, from its JSONL line and that line's text: a field that is absent or of another
+ * type reads `null`, an absent message reads empty, and an attribute that is not a string reads as its JSON text.
  */
-export function streamLogRecordFromItsJsonlLine(sequence: number, jsonlLine: unknown): StreamLogRecord {
+export function streamLogRecordFromItsJsonlLine(sequence: number, jsonlLine: unknown, jsonlLineText: string): StreamLogRecord {
   const jsonlFields: JsonObjectOnTheWire = isAJsonObject(jsonlLine) ? jsonlLine : {};
   const textField = (fieldName: string) => {
     const fieldValue = jsonlFields[fieldName];
@@ -72,6 +92,7 @@ export function streamLogRecordFromItsJsonlLine(sequence: number, jsonlLine: unk
   };
   const attrsOnTheWire = jsonlFields["attrs"];
   const hostTimestamp = jsonlFields["host_ts"];
+  const helperSequence = jsonlFields["source_seq"];
   return {
     sequence,
     host_ts_ns: isAnUnsignedInteger(hostTimestamp) ? hostTimestamp : null,
@@ -89,5 +110,9 @@ export function streamLogRecordFromItsJsonlLine(sequence: number, jsonlLine: unk
             }),
         )
       : {},
+    processor_id: textField("processor_id"),
+    // `source_seq` marks a record a helper sent over its log IPC; a helper's captured stdout and stderr carry none, but only a helper writes `python`.
+    sent_by_its_own_process: (helperSequence !== undefined && helperSequence !== null) || textField("source") === "python",
+    jsonl_line: jsonlLineText,
   };
 }

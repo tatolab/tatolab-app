@@ -90,12 +90,13 @@ export function runStreamAction(sharedState: TatolabAppSharedState, streamAction
 const STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND = {
   open_stream_project_folder: "file_manager",
   open_terminal_at_stream_project: "terminal",
+  open_stream_log_folder: "log_folder",
 } as const satisfies Record<string, StreamProjectFolderOpening>;
 
 /** A command that opens a stream's project folder. */
 type StreamProjectFolderCommandName = keyof typeof STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND;
 
-/** `open_stream_project_folder` or `open_terminal_at_stream_project { stream }`: the project folder the runtime last listed for `stream`, opened where `commandName` opens it; refused naming why. */
+/** `open_stream_project_folder`, `open_terminal_at_stream_project` or `open_stream_log_folder { stream }`: the project folder the runtime last listed for `stream`, or its log folder, opened where `commandName` opens it; refused naming why. */
 export function openStreamProjectFolderOnRequest(
   sharedState: TatolabAppSharedState,
   commandName: StreamProjectFolderCommandName,
@@ -190,6 +191,8 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_project_folder", commandArguments)),
     open_terminal_at_stream_project: async (commandArguments) =>
       commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_terminal_at_stream_project", commandArguments)),
+    open_stream_log_folder: async (commandArguments) =>
+      commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_log_folder", commandArguments)),
   };
 }
 
