@@ -33,7 +33,7 @@
   right: 0;
   top: 3px;
   height: 1px;
-  background: var(--accent-line);
+  background: var(--brand);
 }
 
 .log-dock {

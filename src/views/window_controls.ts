@@ -3,7 +3,7 @@
 
 import type { TatolabPlatform } from "../backend/tatolab_backend_contract";
 import { createElement, createSvgFromMarkup, type ElementChild } from "../dom";
-import { ALERT_ICON_SVG, SEARCH_ICON_SVG } from "../icons";
+import { FAILURE_ICON_SVG } from "../icons";
 import { shortcutHint } from "../presentation/platform_presentation";
 import type { ExposedOutputAddress } from "../presentation/stream_overview_presentation";
 
@@ -18,7 +18,7 @@ export function createIcon(iconSvg: string, sizePixels: 13 | 14 | 16 | 20 = 16, 
 
 /** The red alert icon every failure wears. */
 export function createFailureIcon(sizePixels: 14 | 16 | 20): SVGElement {
-  return createIcon(ALERT_ICON_SVG, sizePixels, "failure-icon");
+  return createIcon(FAILURE_ICON_SVG, sizePixels, "failure-icon");
 }
 
 /** A key cap such as `⌘K` or `Ctrl K`. */
@@ -47,25 +47,6 @@ export function createFailureLine(): { element: HTMLElement; show(failureText: s
       failureText.textContent = text ?? "";
     },
   };
-}
-
-/** The band's Search button, which opens Search: the magnifier, the word and the platform's key cap. */
-export function createSearchButton(platform: TatolabPlatform, onOpenSearch: () => void): HTMLButtonElement {
-  return createElement(
-    "button",
-    {
-      type: "button",
-      class: "band-search-button",
-      "aria-label": "Search streams, outputs and views",
-      "aria-keyshortcuts": platform === "macos" ? "Meta+K" : "Control+K",
-      onClick: onOpenSearch,
-    },
-    [
-      createIcon(SEARCH_ICON_SVG, 16),
-      createElement("span", { class: "band-search-button-label" }, ["Search"]),
-      createWindowShortcutCap(platform, "K"),
-    ],
-  );
 }
 
 /** One segment of a segmented control. */

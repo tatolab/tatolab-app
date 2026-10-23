@@ -33,10 +33,10 @@ const CLASS_TO_KIND_GAP = 8;
 const EXPOSURE_WORD_TO_PORT_GAP = 6;
 /** The eye a readable output's row shows before its exposure word with the Watch flag on: 13 px and a 6 px gap. */
 const WATCH_ICON_WITH_GAP_WIDTH = 19;
-/** JetBrains Mono advances every glyph 600 units of its 1000-unit em. */
+/** Geist Mono advances every glyph 600 units of its 1000-unit em. */
 const MONOSPACE_ADVANCE_PER_FONT_SIZE = 0.6;
-/** A generous average advance of the system font's lowercase letters. */
-const SYSTEM_FONT_ADVANCE_PER_FONT_SIZE = 0.56;
+/** A generous average advance of Inter's lowercase letters. */
+const INTER_ADVANCE_PER_FONT_SIZE = 0.56;
 const NARROWEST_GRAPH_COLUMN_GAP = 32;
 const USUAL_GRAPH_COLUMN_GAP = 44;
 const WIDEST_GRAPH_COLUMN_GAP = 72;
@@ -93,7 +93,7 @@ function monospaceWidth(text: string, fontSize: number): number {
 }
 
 function systemFontWidth(text: string, fontSize: number): number {
-  return text.length * fontSize * SYSTEM_FONT_ADVANCE_PER_FONT_SIZE;
+  return text.length * fontSize * INTER_ADVANCE_PER_FONT_SIZE;
 }
 
 /** Whether an output port shows its exposure word: private, public or newer, never internal, the default. */

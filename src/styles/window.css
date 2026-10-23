@@ -1,0 +1,56 @@
+/* The window's one stylesheet. Tailwind's utilities sit in the last layer, so the hosted DOM views' sheets go in
+   `base` and `components` below them and never outweigh a utility on a React element. */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/inter/opsz.css";
+@import "@fontsource-variable/geist-mono";
+@import "./tokens.css";
+
+@import "./base.css" layer(base);
+@import "./streams_page.css" layer(components);
+@import "./stream_overview.css" layer(components);
+@import "./stream_graph.css" layer(components);
+@import "./stream_log_console.css" layer(components);
+@import "./watch_placeholder.css" layer(components);
+@import "./first_stream_guide.css" layer(components);
+@import "./settings_page.css" layer(components);
+@import "./first_launch_setup.css" layer(components);
+@import "./runtime_state_page.css" layer(components);
+@import "./uninstall_sheet.css" layer(components);
+@import "./search.css" layer(components);
+@import "./window_shell.css" layer(components);
+
+/* The theme is the `dark` class on <html>, set before first paint. */
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 18px;
+    font-optical-sizing: auto;
+    font-feature-settings: "calt", "cv05";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  code, kbd, pre, .font-mono {
+    font-variant-ligatures: none;
+    letter-spacing: 0;
+  }
+  ::selection {
+    background: var(--brand-soft);
+  }
+}
+
+@layer utilities {
+  .tabular { font-variant-numeric: tabular-nums; }
+  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .label-caps { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--fg-3); }
+  .title-lg { font-size: 20px; line-height: 26px; font-weight: 600; letter-spacing: -0.012em; }
+}

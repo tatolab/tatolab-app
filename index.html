@@ -8,14 +8,13 @@
     <title>Tatolab</title>
     <script>
       (function () {
-        var pinned = new URLSearchParams(location.search).get("theme");
-        var media = matchMedia("(prefers-color-scheme: dark)");
-        function apply() {
-          document.documentElement.dataset.theme =
-            pinned === "light" || pinned === "dark" ? pinned : media.matches ? "dark" : "light";
-        }
-        apply();
-        if (pinned !== "light" && pinned !== "dark") media.addEventListener("change", apply);
+        var queriedTheme = new URLSearchParams(location.search).get("theme");
+        var chosenTheme = null;
+        try {
+          chosenTheme = localStorage.getItem("tatolab-window-theme");
+        } catch (unreadableStorage) {}
+        var theme = queriedTheme === "light" || queriedTheme === "dark" ? queriedTheme : chosenTheme === "dark" ? "dark" : "light";
+        document.documentElement.classList.toggle("dark", theme === "dark");
       })();
     </script>
   </head>

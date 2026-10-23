@@ -11,7 +11,7 @@ export function platformOf(status: TatolabStatus): TatolabPlatform {
 
 /** What the window draws and says differently on each platform. */
 export interface PlatformPresentation {
-  /** macOS draws the traffic lights over the window: the sidebar keeps a 52 px band clear for them and the top bands drag it. */
+  /** macOS draws the traffic lights over the window: the sidebar keeps a strip clear for them, and it and the title bar drag the window. */
   hasOverlayTitleBar: boolean;
   /** Login Items is where macOS approves the runtime's agent; Linux has no such list. */
   showsLoginItems: boolean;

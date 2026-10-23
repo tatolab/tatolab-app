@@ -160,3 +160,17 @@ export function chooseTatolabWindowScreen(status: TatolabStatus): TatolabWindowS
       : status.machine_setup_state !== "complete";
   return needsSetup ? "setup" : "pages";
 }
+
+/** What the window's status bar says: the runtime's state, its tone, and the app's version. */
+export interface WindowStatusBarPresentation {
+  runtimeWords: string;
+  tone: StatusTone;
+  appVersionWords: string;
+}
+
+/** `Runtime running`, `Runtime not responding`, …, beside `Tatolab <version>`. */
+export function presentWindowStatusBar(status: TatolabStatus): WindowStatusBarPresentation {
+  const { shortLabel, tone } = presentRuntimeStatus(status);
+  const runtimeWords = shortLabel.startsWith("Runtime") ? shortLabel : `Runtime ${shortLabel[0].toLowerCase()}${shortLabel.slice(1)}`;
+  return { runtimeWords, tone, appVersionWords: `Tatolab ${status.app_version}` };
+}
