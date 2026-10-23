@@ -114,6 +114,7 @@ export function presentStreamGraphCanvas(graph: StreamGraphSummary): StreamGraph
   for (const link of graph.links) {
     if (nodeByName.has(link.source_node) || stepsInAnotherStream.some((step) => step.name === link.source_node)) continue;
     stepsInAnotherStream.push({
+      id: "",
       name: link.source_node,
       type: "",
       state: null,

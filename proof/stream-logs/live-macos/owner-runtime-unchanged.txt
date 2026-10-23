@@ -1,0 +1,1 @@
+Before and after the live run: launchctl print gui/501/com.tatolab.tatolabd read the same first 12 lines (state = running, parent bundle version = 0.54.12), and the owner's runtime kept pid 44718. The unpackaged app's two Service Management calls at launch both failed, as in #38: registration ('Unable to read plist') and the restart under its version ('Invalid argument').

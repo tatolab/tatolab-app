@@ -22,8 +22,9 @@ function node(
   state: string | null,
   counters: Pick<StreamGraphNode, "dropped_bags_by_link" | "refused_bags_by_output_port"> = { dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
   ports: Pick<StreamGraphNode, "input_ports" | "output_ports"> = { input_ports: [], output_ports: [] },
+  nodeId = "",
 ): StreamGraphNode {
-  return { name, type: nodeType, state, ...ports, ...counters };
+  return { id: nodeId, name, type: nodeType, state, ...ports, ...counters };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -44,6 +45,7 @@ test("a_real_graph_reads_as_its_nodes_links_counters_and_exposed_ports_beside_it
           "Running",
           { dropped_bags_by_link: {}, refused_bags_by_output_port: { video: 0 } },
           { input_ports: [], output_ports: uncataloguedPorts("video") },
+          "Pe9fffgi3l6sg3m4molzy4pov",
         ),
         node(
           "invertingeffect",
@@ -51,6 +53,7 @@ test("a_real_graph_reads_as_its_nodes_links_counters_and_exposed_ports_beside_it
           "Running",
           { dropped_bags_by_link: { Lj17fu4mdczivji99oua37i06: 0 }, refused_bags_by_output_port: { video_to_downstream: 0 } },
           { input_ports: uncataloguedPorts("video_from_upstream"), output_ports: uncataloguedPorts("video_to_downstream") },
+          "Pgwl3rys4jaz8k9g6pqxxv8kd",
         ),
         node(
           "brightnessmeter",
@@ -58,6 +61,7 @@ test("a_real_graph_reads_as_its_nodes_links_counters_and_exposed_ports_beside_it
           "Running",
           { dropped_bags_by_link: { Lizkqmkmmu5ldam8dbymcc4bc: 0 }, refused_bags_by_output_port: {} },
           { input_ports: uncataloguedPorts("video_from_upstream"), output_ports: [] },
+          "Pak2of8mm6v631e1f30cw7zjo",
         ),
         node(
           "displaywindow",
@@ -65,6 +69,7 @@ test("a_real_graph_reads_as_its_nodes_links_counters_and_exposed_ports_beside_it
           "Running",
           { dropped_bags_by_link: { Lv5ujotcx5rnh9f4s6xewjot9: 0 }, refused_bags_by_output_port: {} },
           { input_ports: uncataloguedPorts("video"), output_ports: [] },
+          "Pk79b96s4d8fumlitkntmn5dg",
         ),
       ],
       links: [

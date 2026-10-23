@@ -7,13 +7,13 @@ import { writeTextToClipboard } from "../clipboard";
 /** How long a copy button says Copied. */
 const COPIED_WORD_MILLISECONDS = 1400;
 
-/** Copies `textToCopy` on `copy`, and says so in `wasCopied` for a moment. */
-export function useCopiedConfirmation(textToCopy: string): { wasCopied: boolean; copy: () => void } {
+/** Copies what `readTextToCopy` reads on `copy`, and says so in `wasCopied` for a moment once the copy is made. */
+export function useCopiedConfirmation(readTextToCopy: () => string): { wasCopied: boolean; copy: () => void } {
   const [wasCopied, setWasCopied] = useState(false);
   useEffect(() => {
     if (!wasCopied) return;
     const resetTimer = window.setTimeout(() => setWasCopied(false), COPIED_WORD_MILLISECONDS);
     return () => window.clearTimeout(resetTimer);
   }, [wasCopied]);
-  return { wasCopied, copy: () => void writeTextToClipboard(textToCopy).then(() => setWasCopied(true)) };
+  return { wasCopied, copy: () => void writeTextToClipboard(readTextToCopy()).then(() => setWasCopied(true)) };
 }

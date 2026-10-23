@@ -30,6 +30,8 @@ export interface TatolabBackend {
   openStreamProjectFolder(streamName: string): Promise<void>;
   /** Open a terminal in the project folder the runtime lists for `streamName`, rejecting with why it could not. */
   openTerminalAtStreamProject(streamName: string): Promise<void>;
+  /** Show the log folder under the project folder the runtime lists for `streamName` in the file manager, rejecting with why it could not. */
+  openStreamLogFolder(streamName: string): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
 }
 

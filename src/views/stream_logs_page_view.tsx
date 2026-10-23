@@ -1,0 +1,577 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
+import { ArrowDownToLine, Ban, ChevronDown, Clock, FileText, FolderOpen, PanelRight, RotateCw, ScrollText, Search, SquareX, TriangleAlert, WrapText, X } from "lucide-react";
+import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router";
+import { describeBackendRejection } from "../backend/tatolab_backend";
+import type { ListedStream } from "../backend/tatolab_backend_contract";
+import {
+  earlierRecordsNotHeldWords,
+  isEarlierRecordsPointerShown,
+  jsonlOfStreamLogRows,
+  logFolderPathOfStream,
+  presentStreamLog,
+  presentStreamLogRecordDetails,
+  presentStreamLogsOfAStreamNotLoaded,
+  searchMatchRangesOf,
+  streamLoadWords,
+  type StreamLogLevelFilter,
+  type StreamLogLevelFilterChoice,
+  type StreamLogMessageLinePartKind,
+  type StreamLogPresentation,
+  type StreamLogRow,
+} from "../presentation/log_record_presentation";
+import { shortcutHint } from "../presentation/platform_presentation";
+import { isStreamLoaded, presentStreamPrimaryAction } from "../presentation/stream_presentation";
+import { Button } from "./shadcn/button";
+import { joinClassNames } from "./shadcn/class_names";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuGroupLabel,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./shadcn/dropdown_menu";
+import { Kbd } from "./shadcn/kbd";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./shadcn/tooltip";
+import { CopyTextButton } from "./copy_text_button";
+import { SegmentedRadioControl } from "./segmented_radio_control";
+import { LOG_LEVEL_WORD_TONE_CLASS_NAMES, StreamLogRecordDetailsView } from "./stream_log_record_details_view";
+import type { StreamPageActions } from "./stream_page_header_view";
+import { logViewAskedBy, streamPagePath } from "./stream_page_path";
+import { useStreamGraphReading, useStreamLogReading, useTatolabWindowEnvironment } from "./tatolab_window_context";
+import { ToolbarDivider, ToolbarIconButton } from "./toolbar_icon_button";
+
+/** Scrolled within this many pixels of the end, the list keeps following new records. */
+const FOLLOW_TAIL_DISTANCE_PIXELS = 8;
+
+/** The id of a record's row, which the list names as its active descendant. */
+function streamLogRowElementId(sequence: number): string {
+  return `stream-log-record-${sequence}`;
+}
+
+/** A run of a row's text in its colour. */
+interface StyledTextRun {
+  text: string;
+  className: string;
+}
+
+/** `styledRuns` in their colours, each match of `searchText` marked, a match that spans runs included. */
+function TextWithSearchMatches({ styledRuns, searchText }: { styledRuns: readonly StyledTextRun[]; searchText: string }) {
+  const matchRanges = searchMatchRangesOf(styledRuns.map((styledRun) => styledRun.text).join(""), searchText);
+  const parts: ReactNode[] = [];
+  let runStart = 0;
+  for (const [runIndex, styledRun] of styledRuns.entries()) {
+    const runEnd = runStart + styledRun.text.length;
+    // Cut the run at every match edge inside it, marking the pieces a match covers.
+    const cutPoints = [runStart, ...matchRanges.flat().filter((edge) => edge > runStart && edge < runEnd), runEnd];
+    for (let cutIndex = 0; cutIndex < cutPoints.length - 1; cutIndex++) {
+      const pieceStart = cutPoints[cutIndex] ?? runStart;
+      const pieceEnd = cutPoints[cutIndex + 1] ?? runEnd;
+      if (pieceEnd === pieceStart) continue;
+      const pieceText = styledRun.text.slice(pieceStart - runStart, pieceEnd - runStart);
+      const isMatched = matchRanges.some(([matchStart, matchEnd]) => pieceStart >= matchStart && pieceEnd <= matchEnd);
+      parts.push(
+        isMatched ? (
+          <mark key={`${runIndex}:${pieceStart}`} className="rounded-[2px] bg-brand-soft text-fg ring-1 ring-brand/40">
+            {pieceText}
+          </mark>
+        ) : (
+          <span key={`${runIndex}:${pieceStart}`} className={styledRun.className}>
+            {pieceText}
+          </span>
+        ),
+      );
+    }
+    runStart = runEnd;
+  }
+  return <>{parts}</>;
+}
+
+const MESSAGE_LINE_PART_CLASS_NAMES: Record<StreamLogMessageLinePartKind, string> = {
+  message: "text-fg",
+  separator: "",
+  field_key: "text-fg-3",
+  field_value: "text-fg-2",
+};
+
+interface StreamLogRowViewProps {
+  row: StreamLogRow;
+  isSelected: boolean;
+  areTimestampsShown: boolean;
+  areLinesWrapped: boolean;
+  searchText: string;
+  onSelected: (sequence: number) => void;
+}
+
+/** One record's row: its time, level word, step, message and fields. Each poll makes new row objects, so a row redraws only when what it shows changed. */
+const StreamLogRowView = memo(
+  function StreamLogRowView({ row, isSelected, areTimestampsShown, areLinesWrapped, searchText, onSelected }: StreamLogRowViewProps) {
+    return (
+      <>
+        {row.dayDividerWords !== null && (
+          <div className="flex items-center gap-3 px-3 pt-2 pb-1 font-sans" aria-hidden>
+            <span className="label-caps">{row.dayDividerWords}</span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        )}
+        <div
+          id={streamLogRowElementId(row.record.sequence)}
+          role="option"
+          aria-selected={isSelected}
+          onMouseDown={() => onSelected(row.record.sequence)}
+          data-stream-log-record={row.record.sequence}
+          data-stream-log-level-tone={row.levelTone}
+          className={joinClassNames(
+            "grid cursor-default gap-x-3 px-3 hover:bg-hover",
+            areTimestampsShown ? "grid-cols-[92px_44px_120px_minmax(0,1fr)]" : "grid-cols-[44px_120px_minmax(0,1fr)]",
+            !areLinesWrapped && "whitespace-nowrap",
+            // The quietest text falls under AA on the selected background in light, so it reads one step stronger there.
+            isSelected && "bg-selected shadow-[inset_2px_0_0_var(--brand)] hover:bg-selected [&_.text-fg-3]:text-fg-2",
+          )}
+        >
+          {areTimestampsShown && (
+            <span className="text-fg-3 tabular" title={row.dateAndTimeText}>
+              {row.timeText}
+            </span>
+          )}
+          <span className={LOG_LEVEL_WORD_TONE_CLASS_NAMES[row.levelTone]}>{row.levelWord}</span>
+          <span className="truncate" title={row.step.stepName}>
+            <TextWithSearchMatches styledRuns={[{ text: row.step.stepName, className: row.step.isAStepOfTheGraph ? "text-fg-2" : "text-fg-3" }]} searchText={searchText} />
+          </span>
+          <div className={joinClassNames("min-w-0", areLinesWrapped ? "break-words whitespace-pre-wrap" : "truncate")}>
+            <TextWithSearchMatches
+              styledRuns={row.messageLineParts.map((part) => ({ text: part.text, className: MESSAGE_LINE_PART_CLASS_NAMES[part.kind] }))}
+              searchText={searchText}
+            />
+          </div>
+        </div>
+      </>
+    );
+  },
+  // Every field of a row but its step and day divider is drawn from its record alone (`rowOfLogRecord`), so those three decide whether it redraws.
+  (previousProps, nextProps) =>
+    previousProps.row.record === nextProps.row.record &&
+    previousProps.row.step.stepName === nextProps.row.step.stepName &&
+    previousProps.row.step.isAStepOfTheGraph === nextProps.row.step.isAStepOfTheGraph &&
+    previousProps.row.dayDividerWords === nextProps.row.dayDividerWords &&
+    previousProps.isSelected === nextProps.isSelected &&
+    previousProps.areTimestampsShown === nextProps.areTimestampsShown &&
+    previousProps.areLinesWrapped === nextProps.areLinesWrapped &&
+    previousProps.searchText === nextProps.searchText &&
+    previousProps.onSelected === nextProps.onSelected,
+);
+
+const LEVEL_FILTER_LABEL_TONE_CLASS_NAMES: Record<StreamLogLevelFilterChoice["labelTone"], string | undefined> = {
+  plain: undefined,
+  warn: "text-warn-text",
+  error: "text-danger-text",
+};
+
+function StreamLogStepFilterControl({
+  streamLog,
+  shownStepKeys,
+  onShownStepKeysChosen,
+}: {
+  streamLog: StreamLogPresentation;
+  shownStepKeys: ReadonlySet<string>;
+  onShownStepKeysChosen: (shownStepKeys: ReadonlySet<string>) => void;
+}) {
+  const { stepChoices, stepFilterWords } = streamLog;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={`Steps shown: ${stepFilterWords.words}`}
+        data-stream-log-step-filter=""
+        className={joinClassNames(
+          "flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 text-fg-2 transition-colors hover:border-line-strong hover:text-fg data-popup-open:border-line-strong",
+          shownStepKeys.size > 0 && "border-line-strong text-fg",
+        )}
+      >
+        <span className="text-fg-3">Step</span>
+        <span className={joinClassNames("max-w-36 truncate", stepFilterWords.isOneStepChosen && "font-mono text-xs")}>{stepFilterWords.words}</span>
+        <ChevronDown className="size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="max-h-96 w-[288px]">
+        <DropdownMenuGroup>
+          <DropdownMenuGroupLabel className="font-medium">Steps</DropdownMenuGroupLabel>
+          <DropdownMenuItem
+            closeOnClick={false}
+            disabled={shownStepKeys.size === 0}
+            onClick={() => onShownStepKeysChosen(new Set())}
+            data-stream-log-step-choice-all=""
+          >
+            Show all steps
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {stepChoices.map((stepChoice) => (
+            <DropdownMenuCheckboxItem
+              key={stepChoice.stepKey}
+              checked={shownStepKeys.has(stepChoice.stepKey)}
+              onCheckedChange={(isChecked) => {
+                const chosenStepKeys = new Set(shownStepKeys);
+                if (isChecked) chosenStepKeys.add(stepChoice.stepKey);
+                else chosenStepKeys.delete(stepChoice.stepKey);
+                onShownStepKeysChosen(chosenStepKeys);
+              }}
+              data-stream-log-step-choice={stepChoice.stepName}
+            >
+              <span className="min-w-0 truncate font-mono text-xs">{stepChoice.stepName}</span>
+              <span className="ml-auto min-w-0 shrink-[3] truncate pl-3 text-xs text-fg-3">{stepChoice.stepHint}</span>
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Opens `streamName`'s log folder, keeping why the last try was refused, in the refusal's own words, until the next. */
+function useStreamLogFolderOpening(streamName: string): { openStreamLogFolder: () => void; folderOpeningRefusal: string | null } {
+  const { backend } = useTatolabWindowEnvironment();
+  const [folderOpeningRefusal, setFolderOpeningRefusal] = useState<string | null>(null);
+  return {
+    openStreamLogFolder: () => {
+      setFolderOpeningRefusal(null);
+      backend.openStreamLogFolder(streamName).catch((rejection: unknown) => setFolderOpeningRefusal(describeBackendRejection(rejection)));
+    },
+    folderOpeningRefusal,
+  };
+}
+
+/** A refusal to open the log folder, in its own words. */
+function FolderOpeningRefusalLine({ refusal, className }: { refusal: string; className?: string }) {
+  return (
+    <p role="alert" className={joinClassNames("flex gap-1.5 text-xs text-fg-2", className)}>
+      <SquareX className="mt-px size-3.5 shrink-0 text-danger" strokeWidth={1.75} aria-hidden />
+      <span className="select-text">{refusal}</span>
+    </p>
+  );
+}
+
+/** The quiet first row saying how many of this load's earlier records the window does not hold, and where they are on disk. */
+function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stream: ListedStream; earlierRecordsNotHeldCount: number }) {
+  const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.name);
+  return (
+    <div className="border-b px-3 font-sans text-xs" data-stream-log-earlier-records="">
+      <div className="flex h-8 items-center gap-2 text-fg-3">
+        <FileText className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+        <span className="min-w-0 truncate">
+          {earlierRecordsNotHeldWords(earlierRecordsNotHeldCount)} <span className="font-mono text-fg-2 select-text" title={logFolderPathOfStream(stream.project_directory)}>
+            {logFolderPathOfStream(stream.project_directory)}
+          </span>
+        </span>
+        <button
+          type="button"
+          className="shrink-0 rounded text-brand-text hover:underline focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
+          onClick={openStreamLogFolder}
+          data-stream-action="open_stream_log_folder"
+        >
+          Open
+        </button>
+      </div>
+      {folderOpeningRefusal !== null && <FolderOpeningRefusalLine refusal={folderOpeningRefusal} className="pb-2" />}
+    </div>
+  );
+}
+
+/** A loaded stream's records as the runtime holds them, followed live, with the toolbar, the rows and the selected record's details. */
+function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
+  const { platform } = useTatolabWindowEnvironment();
+  const reading = useStreamLogReading(stream.name);
+  const { graph } = useStreamGraphReading(stream.name);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const searchInput = useRef<HTMLInputElement>(null);
+  const recordsScroller = useRef<HTMLDivElement>(null);
+
+  const [searchText, setSearchText] = useState("");
+  const [levelFilter, setLevelFilter] = useState<StreamLogLevelFilter>("all");
+  const [shownStepKeys, setShownStepKeys] = useState<ReadonlySet<string>>(new Set());
+  const [isFollowing, setIsFollowing] = useState(true);
+  const [areLinesWrapped, setAreLinesWrapped] = useState(false);
+  const [areTimestampsShown, setAreTimestampsShown] = useState(true);
+  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(true);
+  const [clearedThroughSequence, setClearedThroughSequence] = useState(0);
+  const [selectedSequence, setSelectedSequence] = useState<number | null>(null);
+  const [streamInstanceShown, setStreamInstanceShown] = useState(reading.streamInstance);
+  // A new load numbers its records from 1 again, so what was cleared or selected of the last one no longer applies.
+  if (reading.streamInstance !== streamInstanceShown) {
+    setStreamInstanceShown(reading.streamInstance);
+    setClearedThroughSequence(0);
+    setSelectedSequence(null);
+  }
+
+  // The rows follow the search a beat behind the field, so typing stays quick over thousands of rows.
+  const searchTextShown = useDeferredValue(searchText);
+  const streamLogFilters = useMemo(
+    () => ({ searchText: searchTextShown, levelFilter, shownStepKeys, clearedThroughSequence }),
+    [searchTextShown, levelFilter, shownStepKeys, clearedThroughSequence],
+  );
+  const streamLog = useMemo(() => presentStreamLog(reading.records, graph, streamLogFilters), [reading.records, graph, streamLogFilters]);
+  const selectedRecord = selectedSequence === null ? null : (reading.records.find((record) => record.sequence === selectedSequence) ?? null);
+  const selectedRecordDetails = useMemo(() => (selectedRecord === null ? null : presentStreamLogRecordDetails(selectedRecord, graph)), [selectedRecord, graph]);
+  const lastRowSequence = streamLog.rows.at(-1)?.record.sequence ?? null;
+
+  const askedLogView = logViewAskedBy(location.state);
+  useEffect(() => {
+    if (askedLogView === null) return;
+    if (askedLogView === "errors_only") setLevelFilter("error");
+    else {
+      searchInput.current?.focus();
+      searchInput.current?.select();
+    }
+    void navigate(location.pathname, { replace: true, state: null });
+  }, [askedLogView, navigate, location.pathname]);
+
+  useLayoutEffect(() => {
+    const scroller = recordsScroller.current;
+    if (isFollowing && scroller !== null) scroller.scrollTop = scroller.scrollHeight;
+  }, [isFollowing, lastRowSequence, streamLog.rows.length, areLinesWrapped, areTimestampsShown, isDetailsPanelOpen]);
+
+  useEffect(() => {
+    if (selectedSequence !== null) document.getElementById(streamLogRowElementId(selectedSequence))?.scrollIntoView?.({ block: "nearest" });
+  }, [selectedSequence]);
+
+  const onRecordsScrolled = () => {
+    const scroller = recordsScroller.current;
+    if (scroller === null) return;
+    const isAtTheEnd = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= FOLLOW_TAIL_DISTANCE_PIXELS;
+    if (isAtTheEnd !== isFollowing) setIsFollowing(isAtTheEnd);
+  };
+
+  const onRecordsKeyDown = (keyboardEvent: ReactKeyboardEvent<HTMLDivElement>) => {
+    const { rows } = streamLog;
+    if (rows.length === 0) return;
+    const selectedIndex = rows.findIndex((row) => row.record.sequence === selectedSequence);
+    let nextIndex: number | null = null;
+    if (keyboardEvent.key === "ArrowDown") nextIndex = selectedIndex === -1 ? rows.length - 1 : Math.min(rows.length - 1, selectedIndex + 1);
+    else if (keyboardEvent.key === "ArrowUp") nextIndex = selectedIndex === -1 ? rows.length - 1 : Math.max(0, selectedIndex - 1);
+    else if (keyboardEvent.key === "Home") nextIndex = 0;
+    else if (keyboardEvent.key === "End") {
+      nextIndex = rows.length - 1;
+      setIsFollowing(true);
+    }
+    if (nextIndex === null) return;
+    keyboardEvent.preventDefault();
+    setSelectedSequence(rows[nextIndex]?.record.sequence ?? null);
+  };
+
+  const isShowingEarlierRecordsRow = isEarlierRecordsPointerShown(reading.earlierRecordsNotHeldCount, streamLogFilters);
+  return (
+    <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-page={stream.name}>
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* A narrow window wraps the toolbar onto a second line rather than cutting its controls short. */}
+        <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-1.5" role="toolbar" aria-label="Logs">
+          <label className="flex h-7 w-56 shrink-0 items-center gap-2 rounded-md border bg-window px-2 focus-within:border-line-strong">
+            <Search className="size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
+            <input
+              ref={searchInput}
+              value={searchText}
+              onChange={(changeEvent) => setSearchText(changeEvent.target.value)}
+              onKeyDown={(keyboardEvent) => {
+                if (keyboardEvent.key !== "Escape") return;
+                keyboardEvent.preventDefault();
+                if (searchText !== "") setSearchText("");
+                else keyboardEvent.currentTarget.blur();
+              }}
+              placeholder="Search logs"
+              aria-label={`Search ${stream.name} logs`}
+              spellCheck={false}
+              autoComplete="off"
+              className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-fg-3"
+              data-stream-log-search=""
+            />
+            {searchText !== "" ? (
+              <button type="button" onClick={() => setSearchText("")} className="text-fg-3 hover:text-fg" aria-label="Clear search">
+                <X className="size-3.5" aria-hidden />
+              </button>
+            ) : (
+              <Kbd>{shortcutHint(platform, "F")}</Kbd>
+            )}
+          </label>
+          <SegmentedRadioControl
+            ariaLabel="Levels shown"
+            choices={streamLog.levelFilterChoices.map((levelFilterChoice) => ({
+              choice: levelFilterChoice.levelFilter,
+              label: <span className={LEVEL_FILTER_LABEL_TONE_CLASS_NAMES[levelFilterChoice.labelTone]}>{levelFilterChoice.label}</span>,
+              count: levelFilterChoice.count,
+              controlAttribute: { "data-stream-log-level-filter": levelFilterChoice.levelFilter },
+            }))}
+            chosen={levelFilter}
+            onChosen={setLevelFilter}
+          />
+          <StreamLogStepFilterControl streamLog={streamLog} shownStepKeys={shownStepKeys} onShownStepKeysChosen={setShownStepKeys} />
+          <div className="ml-auto flex shrink-0 items-center gap-0.5">
+            {reading.streamInstance !== null && (
+              <Tooltip>
+                <TooltipTrigger render={<span className="mr-3 cursor-default text-xs whitespace-nowrap text-fg-3" data-stream-log-load="" />}>
+                  {streamLoadWords(reading.streamInstance)}
+                </TooltipTrigger>
+                <TooltipContent>
+                  Records since this load are held in memory.
+                  <span className="mt-1 block font-mono text-[10px] opacity-80">stream_instance: {reading.streamInstance}</span>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            <span className="mr-2 text-xs whitespace-nowrap text-fg-3 tabular" data-stream-log-line-count="">
+              {streamLog.lineCountWords}
+            </span>
+            <ToolbarIconButton
+              icon={ArrowDownToLine}
+              label="Follow new lines"
+              tooltip={isFollowing ? "Following new lines" : "Follow new lines"}
+              isPressed={isFollowing}
+              onClick={() => setIsFollowing((wasFollowing) => !wasFollowing)}
+              controlAttribute={{ "data-stream-log-toolbar": "follow" }}
+            />
+            <ToolbarIconButton
+              icon={WrapText}
+              label="Wrap lines"
+              tooltip={areLinesWrapped ? "Don't wrap lines" : "Wrap lines"}
+              isPressed={areLinesWrapped}
+              onClick={() => setAreLinesWrapped((wereWrapped) => !wereWrapped)}
+              controlAttribute={{ "data-stream-log-toolbar": "wrap" }}
+            />
+            <ToolbarIconButton
+              icon={Clock}
+              label="Timestamps"
+              tooltip={areTimestampsShown ? "Hide timestamps" : "Show timestamps"}
+              isPressed={areTimestampsShown}
+              onClick={() => setAreTimestampsShown((wereShown) => !wereShown)}
+              controlAttribute={{ "data-stream-log-toolbar": "timestamps" }}
+            />
+            <CopyTextButton readTextToCopy={() => jsonlOfStreamLogRows(streamLog.rows)} label="Copy shown lines as JSONL" controlAttribute={{ "data-stream-log-toolbar": "copy" }} />
+            <ToolbarIconButton
+              icon={Ban}
+              label="Clear"
+              tooltip="Clear the lines shown; new ones still arrive"
+              onClick={() => {
+                setClearedThroughSequence(reading.records.at(-1)?.sequence ?? 0);
+                setSelectedSequence(null);
+              }}
+              controlAttribute={{ "data-stream-log-toolbar": "clear" }}
+            />
+            <ToolbarDivider />
+            <ToolbarIconButton
+              icon={PanelRight}
+              label="Details"
+              tooltip={isDetailsPanelOpen ? "Hide details" : "Show details"}
+              isPressed={isDetailsPanelOpen}
+              onClick={() => setIsDetailsPanelOpen((wasOpen) => !wasOpen)}
+              controlAttribute={{ "data-stream-log-toolbar": "details" }}
+            />
+          </div>
+        </div>
+        {reading.readRefusal !== null && (
+          <div role="status" className="flex min-h-8 items-start gap-2 border-b px-3 py-1.5 text-xs" data-stream-log-read-refusal="">
+            <TriangleAlert className="size-3.5 shrink-0 text-warn" strokeWidth={1.75} aria-hidden />
+            <span className="shrink-0 text-fg-2">Couldn't read new records, trying again:</span>
+            <span className="min-w-0 break-words text-fg select-text">{reading.readRefusal}</span>
+          </div>
+        )}
+        <div ref={recordsScroller} onScroll={onRecordsScrolled} className="scrollbar-thin min-h-0 flex-1 overflow-auto">
+          {isShowingEarlierRecordsRow && <EarlierRecordsNotHeldRow stream={stream} earlierRecordsNotHeldCount={reading.earlierRecordsNotHeldCount} />}
+          {!reading.hasReadAPage ? (
+            <div className="grid h-full place-items-center font-sans text-fg-3">Reading logs…</div>
+          ) : streamLog.emptyWords !== null ? (
+            <div className="grid h-full place-items-center px-6 text-center font-sans text-fg-3" data-stream-log-empty="">
+              {streamLog.emptyWords}
+            </div>
+          ) : (
+            <div
+              role="listbox"
+              tabIndex={0}
+              aria-label="Log records, oldest first"
+              aria-activedescendant={selectedRecord === null ? undefined : streamLogRowElementId(selectedRecord.sequence)}
+              onKeyDown={onRecordsKeyDown}
+              className="py-1 font-mono text-[12px] leading-5 outline-none select-text focus-visible:shadow-[inset_0_0_0_2px_var(--ring)]"
+              data-stream-log-records=""
+            >
+              {streamLog.rows.map((row) => (
+                <StreamLogRowView
+                  key={row.record.sequence}
+                  row={row}
+                  isSelected={row.record.sequence === selectedSequence}
+                  areTimestampsShown={areTimestampsShown}
+                  areLinesWrapped={areLinesWrapped}
+                  searchText={searchTextShown}
+                  onSelected={setSelectedSequence}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      {isDetailsPanelOpen && (
+        <StreamLogRecordDetailsView
+          details={selectedRecordDetails}
+          streamName={stream.name}
+          actions={{
+            onClosed: () => setIsDetailsPanelOpen(false),
+            onOnlyStepShown: (stepKey) => {
+              setShownStepKeys(new Set([stepKey]));
+              setLevelFilter("all");
+            },
+            onStepShownInGraph: (stepName) => void navigate(streamPagePath(stream.name, "graph"), { state: { selectedStep: stepName } }),
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** A stream's Logs tab while it is not loaded: why, the folder its log is in, and Retry for a failed one. */
+function StreamLogsOfAStreamNotLoadedView({ stream, streamPageActions }: { stream: ListedStream; streamPageActions: StreamPageActions }) {
+  const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.name);
+  const notLoadedWords = presentStreamLogsOfAStreamNotLoaded(stream);
+  const retryAction = notLoadedWords.hasFailed ? presentStreamPrimaryAction(stream) : null;
+  return (
+    <div className="grid min-h-0 flex-1 place-items-center bg-window px-8" data-stream-logs-not-loaded={stream.name}>
+      <div className="flex max-w-lg flex-col items-center text-center">
+        {notLoadedWords.hasFailed ? (
+          <SquareX className="size-5 text-danger" strokeWidth={1.5} aria-hidden />
+        ) : (
+          <ScrollText className="size-5 text-fg-3" strokeWidth={1.5} aria-hidden />
+        )}
+        <div className="mt-2.5 text-fg">{notLoadedWords.title}</div>
+        <p className="mt-1 text-fg-3 select-text">{notLoadedWords.explanation}</p>
+        <div className="mt-4 flex h-7 max-w-full items-center rounded-md border bg-well px-2.5 font-mono text-xs text-fg-2">
+          <span className="truncate select-text" title={logFolderPathOfStream(stream.project_directory)}>
+            {logFolderPathOfStream(stream.project_directory)}
+          </span>
+        </div>
+        <div className="mt-3 flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            onClick={openStreamLogFolder}
+            data-stream-action="open_stream_log_folder"
+          >
+            <FolderOpen aria-hidden /> Open log folder
+          </Button>
+          {retryAction !== null && (
+            <Button
+              variant="outline"
+              disabled={streamPageActions.actionUnderWay !== undefined}
+              onClick={() => streamPageActions.runPrimaryAction(retryAction)}
+              data-stream-action={`${retryAction.streamAction}_from_logs`}
+            >
+              <RotateCw aria-hidden /> {retryAction.label}
+            </Button>
+          )}
+        </div>
+        {folderOpeningRefusal !== null && <FolderOpeningRefusalLine refusal={folderOpeningRefusal} className="mt-2 text-left" />}
+      </div>
+    </div>
+  );
+}
+
+/** A stream's Logs tab: its records while it is loaded, or why it has none and where its log is on disk. */
+export function StreamLogsPageView({ stream, streamPageActions }: { stream: ListedStream; streamPageActions: StreamPageActions }) {
+  if (!isStreamLoaded(stream)) return <StreamLogsOfAStreamNotLoadedView stream={stream} streamPageActions={streamPageActions} />;
+  return <LoadedStreamLogsView stream={stream} />;
+}

@@ -3,6 +3,7 @@
 // Adapted from shadcn/ui (MIT): public/licenses/shadcn-ui-MIT.txt.
 
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
+import { Check } from "lucide-react";
 import { joinClassNames } from "./class_names";
 
 /** shadcn's dropdown menu (base-ui). */
@@ -61,4 +62,35 @@ export function DropdownMenuItem({
 /** A hairline between groups of choices. */
 export function DropdownMenuSeparator({ className, ...props }: MenuPrimitive.Separator.Props) {
   return <MenuPrimitive.Separator data-slot="dropdown-menu-separator" className={joinClassNames("-mx-1 my-1 h-px bg-line", className)} {...props} />;
+}
+
+/** A choice that is on or off, ticked while on; choosing it leaves the menu open. */
+export function DropdownMenuCheckboxItem({ className, children, ...props }: MenuPrimitive.CheckboxItem.Props) {
+  return (
+    <MenuPrimitive.CheckboxItem
+      data-slot="dropdown-menu-checkbox-item"
+      className={joinClassNames(
+        "relative flex cursor-default items-center gap-2 rounded-md py-1 pr-2 pl-7 text-sm outline-hidden select-none focus:bg-hover data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        className,
+      )}
+      {...props}
+    >
+      <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
+        <MenuPrimitive.CheckboxItemIndicator>
+          <Check className="size-3.5 text-fg" strokeWidth={2} aria-hidden />
+        </MenuPrimitive.CheckboxItemIndicator>
+      </span>
+      {children}
+    </MenuPrimitive.CheckboxItem>
+  );
+}
+
+/** Choices that belong together, under an optional label. */
+export function DropdownMenuGroup(props: MenuPrimitive.Group.Props) {
+  return <MenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />;
+}
+
+/** The label of a group of choices. */
+export function DropdownMenuGroupLabel({ className, ...props }: MenuPrimitive.GroupLabel.Props) {
+  return <MenuPrimitive.GroupLabel data-slot="dropdown-menu-group-label" className={joinClassNames("px-2 py-1 text-xs text-fg-3", className)} {...props} />;
 }

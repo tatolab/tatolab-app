@@ -3,6 +3,14 @@
 
 import type { ListedStream, StreamGraphDeclaredPort, StreamGraphLink, StreamLogRecord, TatolabPlatform } from "./tatolab_backend_contract";
 
+/** A stable runtime-looking id for `streamName`'s node `nodeName`, such as `P0kq3…`, which its graph and its log records both name it by. */
+export function mockNodeIdOf(streamName: string, nodeName: string): string {
+  const name = `${streamName}/${nodeName}`;
+  let hash = 2166136261;
+  for (const character of name) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
+  return `P${hash.toString(36).padStart(7, "0")}${name.length.toString(36)}mockgraph`.slice(0, 26);
+}
+
 /** A log record before the mock runtime numbers and stamps it. */
 export interface MockLogRecordDraft {
   millisecondsAfterLoad: number;
@@ -11,6 +19,8 @@ export interface MockLogRecordDraft {
   target: string;
   message: string;
   attrs?: Record<string, string>;
+  /** The step that wrote it, by name; absent for a record the runtime wrote for the stream outside any step. */
+  node?: string;
 }
 
 /** What a mock stream writes on one tick of the live log, given how long it has been loaded. */
@@ -249,6 +259,7 @@ function createTestPatternStream(
     target: PYTHON_HELPER_TARGET,
     message: "brightness",
     attrs: { height: "720", mean: "127.5", width: "1280" },
+    node: "brightnessmeter",
   });
   return {
     listing: { name: streamName, state: options.state, project_directory: projectDirectory, node_count: options.withARecorderOfMain ? 5 : 4, failed_because: null },
@@ -281,6 +292,7 @@ function createTestPatternStream(
               level: "error",
               target: "streamlib_media_builtins::display_window",
               message: "DisplayWindow: no window — running degraded (frames drained, nothing shown)",
+              node: "displaywindow",
             } satisfies MockLogRecordDraft,
           ]
         : []),
@@ -309,6 +321,7 @@ function createTestPatternStream(
             target: PYTHON_HELPER_TARGET,
             message: "brightness read skipped",
             attrs: { reason: "frame.cpu() timed out after 50 ms; the frame was recycled upstream" },
+            node: "brightnessmeter",
           }),
         ),
       ];
@@ -376,7 +389,7 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
     },
     startupLog: [
       { millisecondsAfterLoad: 0, source: "rust", level: "info", target: LOADED_STREAM_TARGET, message: `Loading the stream \`camera\` from ${projectDirectory}` },
-      { millisecondsAfterLoad: 382, source: "rust", level: "info", target: "streamlib_media_builtins::camera_source", message: "Camera opened", attrs: machine.cameraOpenedAttrs },
+      { millisecondsAfterLoad: 382, source: "rust", level: "info", target: "streamlib_media_builtins::camera_source", message: "Camera opened", attrs: machine.cameraOpenedAttrs, node: "camerasource" },
       {
         millisecondsAfterLoad: 396,
         source: "rust",
@@ -384,6 +397,7 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
         target: "streamlib_media_builtins::microphone_source",
         message: "Microphone opened",
         attrs: { channels: "1", device: machine.microphoneDevice, sample_rate: "48000" },
+        node: "microphonesource",
       },
       { millisecondsAfterLoad: 944, source: "rust", level: "info", target: SPAWN_HOST_TARGET, message: "[levelmeter] helper process started: pid=64410, entrypoint=nodes.level_meter:LevelMeter" },
     ],
@@ -400,6 +414,7 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
             target: PYTHON_HELPER_TARGET,
             message: "level",
             attrs: { rms_dbfs: (-38 - ((reportCount * 7) % 5) * 0.7).toFixed(1) },
+            node: "levelmeter",
           };
         });
     },
@@ -492,15 +507,37 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
   };
 }
 
-/** The record a draft becomes once numbered and stamped against the stream's load time. */
-export function stampMockLogRecord(draft: MockLogRecordDraft, sequence: number, loadedAtMilliseconds: number): StreamLogRecord {
+/** The id the mock runtime runs under, which every record it writes carries. */
+const MOCK_RUNTIME_ID = "Rmockruntime7f3k2q9x4w1b8n";
+
+/** The record a draft of `streamName`'s log becomes once numbered and stamped against the stream's load time, with its JSONL line as the runtime writes it. */
+export function stampMockLogRecord(draft: MockLogRecordDraft, sequence: number, loadedAtMilliseconds: number, streamName: string): StreamLogRecord {
+  const hostTimestampNanoseconds = Math.round((loadedAtMilliseconds + draft.millisecondsAfterLoad) * 1_000_000);
+  const processorId = draft.node === undefined ? null : mockNodeIdOf(streamName, draft.node);
+  const attrs = draft.attrs ?? {};
+  const jsonlRecord = {
+    schema_version: 1,
+    host_ts: hostTimestampNanoseconds,
+    runtime_id: MOCK_RUNTIME_ID,
+    stream: streamName,
+    source: draft.source,
+    level: draft.level,
+    message: draft.message,
+    target: draft.target,
+    ...(processorId === null ? {} : { processor_id: processorId }),
+    intercepted: false,
+    ...(Object.keys(attrs).length === 0 ? {} : { attrs }),
+  };
   return {
     sequence,
-    host_ts_ns: Math.round((loadedAtMilliseconds + draft.millisecondsAfterLoad) * 1_000_000),
+    host_ts_ns: hostTimestampNanoseconds,
     level: draft.level,
     source: draft.source,
     target: draft.target,
     message: draft.message,
-    attrs: draft.attrs ?? {},
+    attrs,
+    processor_id: processorId,
+    sent_by_its_own_process: draft.source === "python",
+    jsonl_line: JSON.stringify(jsonlRecord),
   };
 }

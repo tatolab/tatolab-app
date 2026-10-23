@@ -39,9 +39,9 @@ function StreamPageTabs({ stream, shownTab }: { stream: ListedStream; shownTab: 
     <nav aria-label={`${stream.name} views`} className="mt-2 -mb-px flex gap-4">
       {STREAM_PAGE_TAB_WORDS.map(({ tab, label, shortcutKey }) => {
         const tabClassName = "flex h-9 items-center border-b-2 border-transparent";
-        if (!isLoaded && (tab === "graph" || tab === "logs")) {
+        if (!isLoaded && tab === "graph") {
           return (
-            <span key={tab} aria-disabled title={`${label}: not loaded, so it has no ${tab === "graph" ? "graph" : "logs"}`} className={joinClassNames(tabClassName, "cursor-default text-fg-4")}>
+            <span key={tab} aria-disabled title={`${label}: not loaded, so it has no graph`} className={joinClassNames(tabClassName, "cursor-default text-fg-4")}>
               {label}
             </span>
           );

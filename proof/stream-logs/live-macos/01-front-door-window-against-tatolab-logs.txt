@@ -1,0 +1,2 @@
+tatolab logs --stream front-door: 508 records; the window's Logs tab: 508 rows
+rows whose time (UTC in the CLI, local EDT in the window), level and message agree: 508 of 508

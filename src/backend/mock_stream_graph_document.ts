@@ -6,7 +6,7 @@
 // `exposed`, `machine` — and the summary the main process would read from it. The preview page
 // is a stand-in drawn in the frame itself, since no runtime serves `/watch/` to a browser mock.
 
-import type { MockStreamGraph } from "./mock_stream_fixtures";
+import { mockNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
 import type { StreamGraphNode, StreamGraphSummary } from "./tatolab_backend_contract";
 
 /** Where a mock stream's run stands when its graph is read. */
@@ -15,13 +15,6 @@ export interface MockStreamGraphMoment {
   hasSettled: boolean;
   /** How long its counters have been climbing. */
   secondsSinceSettled: number;
-}
-
-/** A stable runtime-looking id for `name`, such as `P0kq3…`. */
-function mockRuntimeId(prefix: string, name: string): string {
-  let hash = 2166136261;
-  for (const character of name) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
-  return `${prefix}${hash.toString(36).padStart(7, "0")}${name.length.toString(36)}mockgraph`.slice(0, 26);
 }
 
 /** The runtime's capitalised link state in `components`: `awaiting_remote` reads `AwaitingRemote`. */
@@ -60,6 +53,7 @@ export function mockStreamGraphSummary(streamName: string, machineName: string, 
   const linkState = (state: string) => (moment.hasSettled ? state : "pending");
   const climbed = (perSecond: number) => (moment.hasSettled ? Math.floor(perSecond * moment.secondsSinceSettled) : 0);
   const nodes: StreamGraphNode[] = graph.nodes.map((node) => ({
+    id: mockNodeIdOf(streamName, node.name),
     name: node.name,
     type: node.type,
     state: nodeState(node.state),
@@ -78,7 +72,7 @@ export function mockStreamGraphSummary(streamName: string, machineName: string, 
   const graphDocument = {
     stream: streamName,
     nodes: graph.nodes.map((node, nodeIndex) => ({
-      id: mockRuntimeId("P", `${streamName}/${node.name}`),
+      id: mockNodeIdOf(streamName, node.name),
       type: node.type,
       name: node.name,
       config: node.config,

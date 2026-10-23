@@ -19,6 +19,7 @@ const GRAPH: StreamGraphSummary = {
   stream: "front-door",
   nodes: [
     {
+      id: "",
       name: "camera",
       type: "tatolab.stream:CameraSource",
       state: "Running",
@@ -28,6 +29,7 @@ const GRAPH: StreamGraphSummary = {
       refused_bags_by_output_port: { video: 212 },
     },
     {
+      id: "",
       name: "persondetector",
       type: "nodes.person_detector:PersonDetector",
       state: "Running",

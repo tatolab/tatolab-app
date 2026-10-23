@@ -19,6 +19,43 @@ export function parseJsonOnTheWire(jsonText: string): Result<unknown, string> {
   }
 }
 
+/** A number as the runtime wrote it, kept by its source text, which a float would round past 2^53. */
+class JsonNumberAsWritten {
+  constructor(readonly writtenDigits: string) {}
+}
+
+/** The source text `JSON.parse` hands a reviver beside a primitive, in engines that pass it (Node 22, Chromium). */
+interface JsonParseSourceContext {
+  source?: string;
+}
+
+function jsonTextKeepingTheWrittenNumbers(value: unknown): string {
+  if (value instanceof JsonNumberAsWritten) return value.writtenDigits;
+  if (Array.isArray(value)) return `[${value.map(jsonTextKeepingTheWrittenNumbers).join(",")}]`;
+  if (typeof value === "object" && value !== null) {
+    return `{${Object.entries(value)
+      .map(([key, nestedValue]) => `${JSON.stringify(key)}:${jsonTextKeepingTheWrittenNumbers(nestedValue)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/**
+ * The values `pickValues` picks out of `jsonText`, each as compact JSON text whose numbers keep the digits they were
+ * written in; or why `jsonText` is not JSON. `pickValues` sees the parsed text with every number held as its digits,
+ * so it walks objects and arrays but reads no number.
+ */
+export function jsonTextsKeepingTheWrittenNumbers(jsonText: string, pickValues: (parsedValue: unknown) => readonly unknown[]): Result<string[], string> {
+  try {
+    const parsedValue: unknown = JSON.parse(jsonText, (_key: string, value: unknown, context?: JsonParseSourceContext) =>
+      typeof value === "number" ? new JsonNumberAsWritten(context?.source ?? String(value)) : value,
+    );
+    return succeeded(pickValues(parsedValue).map(jsonTextKeepingTheWrittenNumbers));
+  } catch (parseFailure) {
+    return failedWith(describeCaughtFailure(parseFailure));
+  }
+}
+
 /** Whether `value` is a JSON object rather than an array, a scalar or `null`. */
 export function isAJsonObject(value: unknown): value is JsonObjectOnTheWire {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -82,8 +119,8 @@ export function objectOrEmpty(jsonObject: JsonObjectOnTheWire, key: string): Res
 }
 
 /** Each of `values` read by `readOne`, or the first one's failure. */
-export function everyOneRead<T>(values: readonly unknown[], readOne: (value: unknown) => Result<T, string>): Result<T[], string> {
-  const read: T[] = [];
+export function everyOneRead<ValueToRead, ReadValue>(values: readonly ValueToRead[], readOne: (value: ValueToRead) => Result<ReadValue, string>): Result<ReadValue[], string> {
+  const read: ReadValue[] = [];
   for (const value of values) {
     const readValue = readOne(value);
     if (!readValue.ok) return readValue;

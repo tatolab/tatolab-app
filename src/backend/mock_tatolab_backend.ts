@@ -11,14 +11,15 @@ import {
 } from "./mock_stream_fixtures";
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import type { TatolabBackend } from "./tatolab_backend";
-import type {
-  ListedStream,
-  StreamGraphSummary,
-  StreamLogRecord,
-  StreamLogRecordsPage,
-  TatolabAppUpdateState,
-  TatolabPlatform,
-  TatolabStatus,
+import {
+  STREAM_LOG_FOLDER_IN_THE_PROJECT,
+  type ListedStream,
+  type StreamGraphSummary,
+  type StreamLogRecord,
+  type StreamLogRecordsPage,
+  type TatolabAppUpdateState,
+  type TatolabPlatform,
+  type TatolabStatus,
 } from "./tatolab_backend_contract";
 
 /**
@@ -70,7 +71,8 @@ const MOCK_MAIN_LOADING_MILLISECONDS = 9000;
 const MOCK_ATTACHED_DEMO_ATTACHED_MILLISECONDS = 66_000;
 const MOCK_ATTACHED_DEMO_DETACHED_MILLISECONDS = 12_000;
 const MOCK_RECORDS_PAGE_SIZE = 500;
-const MOST_MOCK_RECORDS_HELD = 4000;
+/** How many of a stream's newest records the runtime holds in memory. */
+const MOST_RECORDS_THE_RUNTIME_HOLDS = 4096;
 
 /**
  * What a check for updates finds in the mock, picked with `?update=`: nothing newer (the default), a newer
@@ -97,6 +99,10 @@ export interface MockTatolabOptions {
   streamWhoseStopIsNotRecorded: string | null;
   /** `?terminal=missing`: the desktop has no terminal to open, as a Linux desktop without `x-terminal-emulator`. */
   isTheTerminalMissing: boolean;
+  /** `?log_folder=missing`: no stream has a log folder on disk yet, so opening one is refused as the app refuses it. */
+  isTheLogFolderMissing: boolean;
+  /** `?held_records=<n>`: the runtime holds only each stream's newest `n` records, as it holds its newest 4096, so a stream's earlier records are no longer held. */
+  mostRecordsHeldPerStream: number;
 }
 
 /**
@@ -119,7 +125,14 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     appUpdateScenario: appUpdateScenario ?? "up-to-date",
     streamWhoseStopIsNotRecorded: pageQuery.get("stop_not_recorded"),
     isTheTerminalMissing: pageQuery.get("terminal") === "missing",
+    isTheLogFolderMissing: pageQuery.get("log_folder") === "missing",
+    mostRecordsHeldPerStream: positiveWholeNumberOrNull(pageQuery.get("held_records")) ?? MOST_RECORDS_THE_RUNTIME_HOLDS,
   };
+}
+
+function positiveWholeNumberOrNull(text: string | null): number | null {
+  const number = Number(text);
+  return text !== null && Number.isInteger(number) && number > 0 ? number : null;
 }
 
 const LINUX_INSTALL_COMMAND = "curl -fsSL https://get.tatolab.com/install.sh | sh";
@@ -229,6 +242,8 @@ export function createMockTatolabBackend({
   appUpdateScenario,
   streamWhoseStopIsNotRecorded,
   isTheTerminalMissing,
+  isTheLogFolderMissing,
+  mostRecordsHeldPerStream,
 }: MockTatolabOptions): TatolabBackend {
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -271,11 +286,11 @@ export function createMockTatolabBackend({
 
   const holdRecords = (loadedStream: MockLoadedStream, drafts: MockLogRecordDraft[]): void => {
     for (const draft of drafts) {
-      loadedStream.heldRecords.push(stampMockLogRecord(draft, loadedStream.nextSequence, loadedStream.loadedAtMilliseconds));
+      loadedStream.heldRecords.push(stampMockLogRecord(draft, loadedStream.nextSequence, loadedStream.loadedAtMilliseconds, loadedStream.fixture.listing.name));
       loadedStream.nextSequence += 1;
     }
-    if (loadedStream.heldRecords.length > MOST_MOCK_RECORDS_HELD) {
-      loadedStream.heldRecords.splice(0, loadedStream.heldRecords.length - MOST_MOCK_RECORDS_HELD);
+    if (loadedStream.heldRecords.length > mostRecordsHeldPerStream) {
+      loadedStream.heldRecords.splice(0, loadedStream.heldRecords.length - mostRecordsHeldPerStream);
     }
   };
 
@@ -598,6 +613,11 @@ export function createMockTatolabBackend({
       if (isTheTerminalMissing) {
         throw "No terminal opened: x-terminal-emulator is not on the PATH. Install a terminal, or choose one with sudo update-alternatives --config x-terminal-emulator.";
       }
+    },
+    openStreamLogFolder: async (streamName) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const projectFolder = listedProjectFolderOf(streamName);
+      if (isTheLogFolderMissing) throw `${streamName} has no log folder yet: ${projectFolder}/${STREAM_LOG_FOLDER_IN_THE_PROJECT} is not on this machine.`;
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);

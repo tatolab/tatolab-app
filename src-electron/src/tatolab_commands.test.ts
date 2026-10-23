@@ -164,9 +164,13 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '{"sequence":7,"host_ts_ns":1791757115431254000,"level":"info","source":"rust",' +
       '"target":"streamlib_engine::core::runtime::loaded_stream",' +
       '"message":"Loading the stream `main`",' +
-      '"attrs":{"processor_class_import_path":"nodes.x:X"}},' +
+      '"attrs":{"processor_class_import_path":"nodes.x:X"},"processor_id":null,"sent_by_its_own_process":false,' +
+      '"jsonl_line":"{\\"message\\":\\"Loading the stream `main`\\",\\"host_ts\\":1791757115431254000,' +
+      '\\"target\\":\\"streamlib_engine::core::runtime::loaded_stream\\",\\"source\\":\\"rust\\",' +
+      '\\"attrs\\":{\\"processor_class_import_path\\":\\"nodes.x:X\\"},\\"level\\":\\"info\\"}"},' +
       '{"sequence":8,"host_ts_ns":null,"level":null,"source":null,"target":null,' +
-      '"message":"","attrs":{}}],"next_after":8,"records_no_longer_held":0}',
+      '"message":"","attrs":{},"processor_id":null,"sent_by_its_own_process":false,"jsonl_line":"{}"}],' +
+      '"next_after":8,"records_no_longer_held":0}',
   );
 
   const graphToolResultText = JSON.stringify({
@@ -181,6 +185,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
           components: { state: "Running" },
           type: "tatolab.stream:TestPatternSource",
           name: "testpatternsource",
+          id: "P1",
         },
         { type: "nodes.inverting_effect:InvertingEffect", name: "invertingeffect", components: { metrics: { dropped_bags_by_link: { L1: 12 } } } },
       ],
@@ -189,10 +194,10 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
   const graph = streamGraphSummaryFromTheGraphToolResult("main", graphToolResultText, "http://127.0.0.1:4446");
   expect(graph.ok && JSON.stringify(graph.value)).toBe(
     '{"stream":"main","nodes":[' +
-      '{"name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running",' +
+      '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running",' +
       '"input_ports":[],"output_ports":[{"name":"video","catalog_section":"binary"}],' +
       '"dropped_bags_by_link":{},"refused_bags_by_output_port":{}},' +
-      '{"name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,' +
+      '{"id":"","name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,' +
       '"input_ports":[],"output_ports":[],' +
       '"dropped_bags_by_link":{"L1":12},"refused_bags_by_output_port":{}}],' +
       '"links":[{"id":"L1","source_node":"testpatternsource","source_port":"video",' +
@@ -325,7 +330,7 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
     ],
     "macos",
     null,
-    ["/Users/jonathanf/streams/main"],
+    ["/Users/jonathanf/streams/main", "/Users/jonathanf/streams/main/.streamlib/logs"],
   );
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
   expect(await commandHandlers.open_stream_project_folder({ stream: "main" })).toEqual({
@@ -345,6 +350,12 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
     refusal: "open_terminal_at_stream_project needs `stream`, a stream's name",
   });
 
-  expect(sharedState.foldersShownInTheFileManager).toEqual(["/Users/jonathanf/streams/main"]);
+  expect(await commandHandlers.open_stream_log_folder({ stream: "main" })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.open_stream_log_folder({})).toEqual({
+    ok: false,
+    refusal: "open_stream_log_folder needs `stream`, a stream's name",
+  });
+
+  expect(sharedState.foldersShownInTheFileManager).toEqual(["/Users/jonathanf/streams/main", "/Users/jonathanf/streams/main/.streamlib/logs"]);
   expect(sharedState.terminal.openedInFolders).toEqual(["/Users/jonathanf/streams/main"]);
 });
