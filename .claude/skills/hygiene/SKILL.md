@@ -1,7 +1,7 @@
 ---
 name: hygiene
 description: Sniff out everything in the app repo that runs counter to the operating model — README claims false against the tree, proof captions describing a window that changed, references to deleted files or retired features, dead rule globs, issues pointing at closed streamlib work. Detects and reports only; it never fixes anything.
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # Hygiene
