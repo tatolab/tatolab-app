@@ -56,6 +56,8 @@ try {
   const xtermFolders = xtermProcessIds.map((processId) => `xterm ${processId} cwd ${readlinkSync(`/proc/${processId}/cwd`)}`);
   writeFileSync(`${outputDirectory}/linux-07-terminal-opened-with-xterm.txt`, `${xtermFolders.join("\n")}\n`);
   captureTheScreen("linux-07-terminal-opened-with-xterm");
+  // The terminal the app started outlives it, and would hold the container open.
+  execFileSync("pkill", ["-x", "xterm"]);
 } catch (failure) {
   captureTheScreen("linux-failed-step");
   process.stderr.write(`${failure}\n--- the window's text ---\n${await page.locator("body").innerText()}\n`);

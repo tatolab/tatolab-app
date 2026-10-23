@@ -30,7 +30,7 @@ Issue #37, in three labelled sets.
 | ![](stream-overview-inspect/live-macos/10-front-door-overview-dark.png) | Live (local proof) | `front-door`'s Overview in dark, still playing. |
 | ![](stream-overview-inspect/live-macos/11-front-door-terminal-opened.png) | Live (local proof) | Terminal pressed: no refusal in the header. Terminal.app opened a window whose `zsh` runs in `/private/tmp/proof37/projects/front-door` (read with `lsof -d cwd`). Open project showed no refusal either. |
 
-**Linux (container, unbundled)** — [`stream-overview-inspect/linux-container/`](stream-overview-inspect/linux-container/). `run-the-stream-page-in-ubuntu-22.04.sh` runs the committed tree in `ubuntu:22.04` on the Mac (arm64): Electron 44.9.1 unpackaged, under Xvfb with openbox. **No runtime ran.** The stand-in local API replays the recorded responses, now including the `graph` tool. No preview page is served there, so the preview frame is black.
+**Linux (container, unbundled)** — [`stream-overview-inspect/linux-container/`](stream-overview-inspect/linux-container/). `run-the-stream-page-in-ubuntu-22.04.sh` runs the committed tree in `ubuntu:22.04` on the Mac (arm64): Electron 44.9.1 unpackaged, under Xvfb with openbox. The images are from the tree at e769ac0. **No runtime ran.** The stand-in local API replays the recorded responses, now including the `graph` tool. No preview page is served there, so the preview frame is black.
 
 | image | label | shows |
 |---|---|---|
@@ -39,6 +39,8 @@ Issue #37, in three labelled sets.
 | ![](stream-overview-inspect/linux-container/linux-03-main-inspect-dark.png) | Linux (container, unbundled) · stand-in runtime | Inspect, dark: `tatolab graph --stream main`, with the recorded document's `config_checksum` 6086514543335466803 intact. |
 | ![](stream-overview-inspect/linux-container/linux-04-main-stopped-steps-as-of-the-last-load.png) | Linux (container, unbundled) · stand-in runtime | Stop from the header: Stopped, Start stream, steps "4 as of the last load", each Not loaded. |
 | ![](stream-overview-inspect/linux-container/linux-05-lobby-recorder-failed.png) | Linux (container, unbundled) · stand-in runtime | The failed `lobby-recorder` with its recorded reason in the banner. |
+| ![](stream-overview-inspect/linux-container/linux-06-terminal-refused-without-x-terminal-emulator.png) | Linux (container, unbundled) · stand-in runtime | Terminal pressed on a desktop with no `x-terminal-emulator`: under the header, "No terminal opened: x-terminal-emulator is not on the PATH. Install a terminal, or choose one with sudo update-alternatives --config x-terminal-emulator." |
+| ![](stream-overview-inspect/linux-container/linux-07-terminal-opened-with-xterm.png) | Linux (container, unbundled) · stand-in runtime | After `apt-get install xterm`, which registers it as `x-terminal-emulator`, Terminal opens an xterm whose prompt is `~/streams/lobby-recorder`, the folder the stand-in lists for the stream. `/proc/<pid>/cwd` agrees (`linux-07-terminal-opened-with-xterm.txt`). |
 
 **Mock** — [`stream-overview-inspect/mock/`](stream-overview-inspect/mock/). Each frame from `npm run dev` presets in Chromium at 1440×900, light and dark. The preview is the mock's stand-in drawn in the frame, not a runtime's.
 

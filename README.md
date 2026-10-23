@@ -215,7 +215,8 @@ manifest `build/latest-mac.yml`.
 `TATOLAB_APP_BUILD_FEATURES.machineDirectoriesUnderATestRoot` set to `true`. The agent plist sets
 `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, so the machine lock, the state directory and the
 socket all live under that root, and gives the runtime its test ports: its local relay on 14443 and
-14445 and its loopback HTTP on 14446, where the app reads the preview page. The app prepares the root itself: no administrator prompt, and
+14445 and its loopback HTTP on 14446, where the app reads the preview page. That page reads the
+relay only at 4443 until tatolab/streamlib#2917, so a local-proof bundle's preview stays dark. The app prepares the root itself: no administrator prompt, and
 nothing is written to `/Library` or `/usr/local/bin`. Uninstalling a local-proof build removes
 `/tmp/tatolab-proof` instead of prompting. Use it to prove the app on a development Mac. It is
 never shipped: `assemble-tatolab-app-bundle.sh` refuses a test-root unit without the flag, and
