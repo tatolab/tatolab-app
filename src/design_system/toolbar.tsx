@@ -46,7 +46,7 @@ export function ToolbarWords({
       tooltip={explanation}
       control={
         <span
-          className={cn("mr-2 cursor-default text-xs whitespace-nowrap text-fg-3 tabular", isDroppedWhenNarrow && "sr-only @[960px]:not-sr-only")}
+          className={cn("mr-2 cursor-default text-xs whitespace-nowrap text-fg-3 tabular", isDroppedWhenNarrow && "@max-[960px]:sr-only")}
           {...controlDataAttributes}
         >
           {children}

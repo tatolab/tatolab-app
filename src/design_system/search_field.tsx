@@ -32,7 +32,7 @@ export function SearchField({
   inputRef?: Ref<HTMLInputElement>;
 } & ControlDataAttributes) {
   return (
-    <InputGroup className="h-7 w-auto max-w-56 min-w-40 flex-1 basis-40 rounded-md border-line bg-window dark:bg-window has-[[data-slot=input-group-control]:focus-visible]:border-line-strong has-[[data-slot=input-group-control]:focus-visible]:ring-ring">
+    <InputGroup className="h-7 w-auto max-w-56 min-w-32 flex-1 basis-32 rounded-md border-line bg-window dark:bg-window has-[[data-slot=input-group-control]:focus-visible]:border-line-strong has-[[data-slot=input-group-control]:focus-visible]:ring-ring">
       <InputGroupAddon className="py-0 pl-2 text-fg-3">
         <Search className="size-3.5" strokeWidth={1.75} aria-hidden />
       </InputGroupAddon>
@@ -54,17 +54,17 @@ export function SearchField({
         className="h-full px-0 text-sm placeholder:text-fg-3"
         {...controlDataAttributes}
       />
-      {(text !== "" || shortcut !== undefined) && (
+      {text !== "" ? (
         <InputGroupAddon align="inline-end" className="py-0 pr-1">
-          {text !== "" ? (
-            <InputGroupButton size="icon-xs" aria-label="Clear search" onClick={() => onTextChanged("")} className={`text-fg-3 hover:bg-hover hover:text-fg ${FULL_STRENGTH_FOCUS_RING_CLASS_NAMES}`}>
-              <X className="size-3.5" aria-hidden />
-            </InputGroupButton>
-          ) : (
-            <KeyboardKey isAlreadyAnnounced>{shortcut?.hint}</KeyboardKey>
-          )}
+          <InputGroupButton size="icon-xs" aria-label="Clear search" onClick={() => onTextChanged("")} className={`text-fg-3 hover:bg-hover hover:text-fg ${FULL_STRENGTH_FOCUS_RING_CLASS_NAMES}`}>
+            <X className="size-3.5" aria-hidden />
+          </InputGroupButton>
         </InputGroupAddon>
-      )}
+      ) : shortcut !== undefined ? (
+        <InputGroupAddon align="inline-end" className="py-0 pr-1">
+          <KeyboardKey isAlreadyAnnounced>{shortcut.hint}</KeyboardKey>
+        </InputGroupAddon>
+      ) : null}
     </InputGroup>
   );
 }

@@ -12,7 +12,7 @@ export function ControlTooltipProvider({ children }: { children: ReactNode }) {
   return <TooltipProvider delay={TOOLTIP_OPEN_DELAY_MILLISECONDS}>{children}</TooltipProvider>;
 }
 
-/** `control` with `tooltip` beside it while the pointer rests on it or it holds keyboard focus; `control` alone without one. */
+/** `control` with `tooltip` beside it while the pointer rests on it, or while it holds keyboard focus when it can take it; `control` alone without one. */
 export function WithControlTooltip({ tooltip, control, isWide = false }: { tooltip: ReactNode | undefined; control: ReactElement; isWide?: boolean }) {
   if (tooltip === undefined) return control;
   return (

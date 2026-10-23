@@ -45,6 +45,8 @@ describe("the side panel", () => {
 
     expect(screen.getByRole("complementary", { name: "Selected record" }).textContent).toContain("The record");
     expect(resizer.getAttribute("aria-valuenow")).not.toBe(widthBefore);
+    const focusRingColours = resizer.className.split(/\s+/).filter((className) => /(^|:)focus-visible:ring-(?!\d|\[)/.test(className));
+    expect(focusRingColours.sort()).toEqual(["dark:focus-visible:ring-ring", "focus-visible:ring-ring"]);
   });
 
   it("is hidden by its Hide button, and gone with the separator once hidden", () => {
