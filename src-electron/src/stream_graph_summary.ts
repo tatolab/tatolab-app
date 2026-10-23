@@ -18,6 +18,7 @@ import {
   everyOneRead,
   isAJsonObject,
   jsonObject,
+  objectOrEmpty,
   type JsonObjectOnTheWire,
   optionalText,
   parseJsonOnTheWire,
@@ -100,15 +101,15 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   if (!name.ok) return name;
   const nodeType = textOrDefault(node.value, "type", "");
   if (!nodeType.ok) return nodeType;
-  const components = node.value["components"] === undefined ? {} : node.value["components"];
-  if (!isAJsonObject(components)) return failedWith("`components` is not an object");
-  const state = components["state"];
-  const metrics = components["metrics"];
-  const ports = node.value["ports"] === undefined ? {} : node.value["ports"];
-  if (!isAJsonObject(ports)) return failedWith("`ports` is not an object");
-  const inputPorts = declaredPortsUnder(ports, "inputs");
+  const components = objectOrEmpty(node.value, "components");
+  if (!components.ok) return components;
+  const state = components.value["state"];
+  const metrics = components.value["metrics"];
+  const ports = objectOrEmpty(node.value, "ports");
+  if (!ports.ok) return ports;
+  const inputPorts = declaredPortsUnder(ports.value, "inputs");
   if (!inputPorts.ok) return inputPorts;
-  const outputPorts = declaredPortsUnder(ports, "outputs");
+  const outputPorts = declaredPortsUnder(ports.value, "outputs");
   if (!outputPorts.ok) return outputPorts;
   return succeeded({
     name: name.value,
@@ -131,6 +132,7 @@ function declaredPortsUnder(ports: JsonObjectOnTheWire, direction: "inputs" | "o
     const name = requiredText(port.value, "name");
     if (!name.ok) return name;
     const catalogEntry = port.value["catalog_entry"];
+    // A section only picks the port's icon, so one of another shape draws as data rather than refusing the graph.
     const catalogSection = isAJsonObject(catalogEntry) ? catalogEntry["section"] : undefined;
     return succeeded({ name: name.value, catalog_section: typeof catalogSection === "string" ? catalogSection : null });
   });
