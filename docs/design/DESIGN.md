@@ -53,7 +53,7 @@ on it), linear.app, cloudflare.com and Docker Desktop, measuring their computed 
    (`#2a5bff`) marks the primary button, selection, focus, links and active toggles. Amber
    and red mark problems. Charts are where colour lives — the validated series palette
    below. No gradients, no glows, no tinted cards.
-4. **Native density, readable text.** 13/18 base in Inter. Rows 28px in sidebars
+4. **Native density, readable text.** 13/18 base in Geist. Rows 28px in sidebars
    and lists, 32px in tables, 44–52px with thumbnails. Controls 28px tall. Page padding 20px.
    Text is set in px; the root stays at the browser's 16px, so Tailwind's spacing steps are
    these sizes (`h-7` is a 28px control).
@@ -92,11 +92,10 @@ on it), linear.app, cloudflare.com and Docker Desktop, measuring their computed 
 | `warn-text` / `danger-text` | `#8a5300` / `#b42323` | `#f0a63a` / `#ff6b62` | problem words: `warn` and `danger` as text miss 4.5:1 on hover, selected, well and chrome |
 | `ring` | `brand` at 85% | `brand-text` at 85% | the 3px focus ring, 3:1 or better against window and well |
 
-Type: **Inter 4** (variable, with its optical-size axis — the Text cut at UI sizes and the
-Display cut for titles, each spaced by its designer, Rasmus Andersson; the face Linear and
-Raycast use) with the tailed-l alternate (`cv05`) so I, l and 1 never collide in a developer
-tool. Bundled, so every platform renders identically. **Geist Mono** for code and machine
-words. One ladder, one line height per size, no manual tracking below 20px:
+Type: **Geist** (variable; Vercel's face for developer tools, crisp and compact at UI sizes)
+for the interface, and **Geist Mono**, from the same family, for code and machine words, where
+I, l and 1 are always told apart. Both bundled, so every platform renders identically. One
+ladder, one line height per size, no manual tracking below 20px:
 
 | Role | Size / line | Weight | Class |
 |---|---|---|---|

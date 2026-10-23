@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/inter/opsz.css";
+@import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
 @import "@xyflow/react/dist/style.css";
 
@@ -15,10 +15,9 @@
    ========================================================================== */
 
 @theme inline {
-  /* Inter 4 with its optical-size axis: Text cut at UI sizes, Display cut for titles, the
-     spacing of each tuned by its designer (Rasmus Andersson) — the face Linear and Raycast
-     use. Bundled, so every platform renders the same. Geist Mono for code. */
-  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", system-ui, sans-serif;
+  /* Geist, Vercel's face for developer tools, with Geist Mono from the same family for code. Bundled, so every
+     platform renders the same. */
+  --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", system-ui, sans-serif;
   --font-heading: var(--font-sans);
   --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
 
@@ -251,8 +250,7 @@
      above (h-7 is a 28 px control); text is set in px, 13/18 from the body. */
   html {
     font-family: var(--font-sans);
-    font-optical-sizing: auto;
-    font-feature-settings: "calt", "cv05";
+    font-feature-settings: "calt";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;

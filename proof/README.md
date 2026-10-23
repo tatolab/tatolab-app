@@ -9,7 +9,8 @@ Issue #51. **Mock** — [`design-system/mock/`](design-system/mock/).
 - **What changes between them:**
   - The `-after` frames are composed from the design system on stock shadcn, and keep their screens' layout.
   - The window's root keeps the browser's 16 px, where `main`'s was 13 px. Every control, row and gap now takes `DESIGN.md`'s size: controls and sidebar rows 28 px where they drew 22.75, segments 24 px, table rows 32 px, icons 16 px. Text stays 13/18.
-  - The side panel opens at 320 px and can be dragged wider.
+  - The window's text is set in Geist, where `main` uses Inter. Code and machine words stay in Geist Mono, from the same family.
+  - The side panel opens at 320 px and can be dragged wider. Its header is the tab toolbar's 40 px, so their hairlines meet.
 
 | image (`-light` / `-dark`, `-before` / `-after`) | preset | shows |
 |---|---|---|

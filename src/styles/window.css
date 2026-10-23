@@ -3,7 +3,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/inter/opsz.css";
+@import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
 @import "./tokens.css";
 
@@ -30,8 +30,7 @@
      (h-7 is its 28 px control); text is set in px, 13/18 from the body. */
   html {
     font-family: var(--font-sans);
-    font-optical-sizing: auto;
-    font-feature-settings: "calt", "cv05";
+    font-feature-settings: "calt";
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
