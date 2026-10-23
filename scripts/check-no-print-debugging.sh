@@ -17,7 +17,7 @@ repository_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 cd "$repository_root" || exit 2
 
 window_console_calls="$(
-  git ls-files -z --cached --others --exclude-standard -- 'src/*.ts' 'src-electron/*.ts' 'src-electron/*.cts' ':!:*.test.ts' |
+  git ls-files -z --cached --others --exclude-standard -- 'src/*.ts' 'src/*.tsx' 'src-electron/*.ts' 'src-electron/*.cts' ':!:*.test.ts' ':!:*.test.tsx' |
     xargs -0 grep -nHE '\bconsole[[:space:]]*\.[[:space:]]*[a-zA-Z]+[[:space:]]*\(|(^|[^[:alnum:]_.])debugger[[:space:]]*(;|$)' 2>/dev/null || true
 )"
 main_process_standard_stream_writes="$(
