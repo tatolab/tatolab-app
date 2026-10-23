@@ -95,6 +95,8 @@ describe("the Streams list", () => {
         "Stopped, but not recorded, so it loads again when the runtime restarts: Runtime error: the kept record of `camera` could not be written: Permission denied (os error 13)",
       ),
     );
+    expect(within(rowOf("camera")).getByText("Stopped")).toBeTruthy();
+    expect(within(rowOf("camera")).queryByText("Starting")).toBeNull();
   });
 
   it("asks before removing a stream, and removes it only when told to", async () => {

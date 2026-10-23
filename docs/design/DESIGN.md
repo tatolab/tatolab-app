@@ -88,6 +88,7 @@ on it), linear.app, cloudflare.com and Docker Desktop, measuring their computed 
 | `brand` / `brand-text` | `#2a5bff` | `#2a5bff` / `#7c9bff` | primary, selection, links |
 | `warn` / `danger` | `#c2700a` / `#dc2b2b` | `#f0a63a` / `#f2554d` | problems only |
 | `warn-text` / `danger-text` | `#8a5300` / `#b42323` | `#f0a63a` / `#ff6b62` | problem words: `warn` and `danger` as text miss 4.5:1 on hover, selected, well and chrome |
+| `ring` | `brand` at 85% | `brand-text` at 85% | the 3px focus ring, 3:1 or better against window and well |
 
 Type: **Inter 4** (variable, with its optical-size axis — the Text cut at UI sizes and the
 Display cut for titles, each spaced by its designer, Rasmus Andersson; the face Linear and

@@ -47,6 +47,15 @@ export function presentStreamState(stream: ListedStream): StreamStatePresentatio
   }
 }
 
+/**
+ * A row's state word once the runtime has answered a stop it could not record: it unloaded the stream, which
+ * `list_streams` still lists as kept with no graph, so the row reads Stopped rather than Starting.
+ */
+export function presentStreamStateAfterAStopNotRecorded(stream: ListedStream): StreamStatePresentation {
+  if (stream.state !== "kept" || isStreamLoaded(stream)) return presentStreamState(stream);
+  return { label: "Stopped", emphasis: "quiet", meaning: "Stopped: unloaded, but not recorded stopped, so the runtime loads it again when it restarts." };
+}
+
 /** How a stream runs, in the person's words, with the runtime's own term beside them. */
 export interface StreamRunModePresentation {
   runMode: "always_on" | "dev_session";

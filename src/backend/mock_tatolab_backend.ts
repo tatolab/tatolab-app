@@ -233,6 +233,8 @@ export function createMockTatolabBackend({
   /** Kept streams not loaded that `start_stream` can load: `pattern-two`, and each one stopped from the window. */
   const keptFixturesNotLoaded = new Map<string, MockStreamFixture>([[fixtures.patternTwoStream.listing.name, fixtures.patternTwoStream]]);
   const forgottenStreamNames = new Set<string>();
+  /** Kept streams unloaded by a stop the mock could not record: not loaded now, loaded again when the mock runtime restarts. */
+  const streamNamesUnloadedButNotRecordedStopped = new Set<string>();
   /** Whether the attached demo was stopped or removed, which ends its `tatolab dev` session for good. */
   let hasTheAttachedDemoSessionEnded = false;
   let mockStatus = initialMockStatus(scenario, platform, fixtures.machine, appUpdateScenario);
@@ -281,6 +283,7 @@ export function createMockTatolabBackend({
 
   const loadStream = (fixture: MockStreamFixture, loadedAtMilliseconds: number): void => {
     loadedStreamInstanceCount += 1;
+    streamNamesUnloadedButNotRecordedStopped.delete(fixture.listing.name);
     const loadedStream: MockLoadedStream = {
       fixture,
       streamInstance: String(loadedStreamInstanceCount),
@@ -330,7 +333,8 @@ export function createMockTatolabBackend({
     loadedStreams.clear();
     if (scenario !== "empty" && scenario !== "not-listed") {
       const loadsAtTheRuntimesStart = (fixture: MockStreamFixture): boolean =>
-        !forgottenStreamNames.has(fixture.listing.name) && !keptFixturesNotLoaded.has(fixture.listing.name);
+        !forgottenStreamNames.has(fixture.listing.name) &&
+        (!keptFixturesNotLoaded.has(fixture.listing.name) || streamNamesUnloadedButNotRecordedStopped.has(fixture.listing.name));
       if (scenario === "loading") {
         listedStreamsNotLoaded.set(mainStream.listing.name, { ...mainStream.listing, node_count: null });
       } else if (loadsAtTheRuntimesStart(mainStream)) {
@@ -381,6 +385,7 @@ export function createMockTatolabBackend({
     if (loadedStream && loadedStream.fixture.listing.state === "kept" && streamName === streamWhoseStopIsNotRecorded) {
       loadedStreams.delete(streamName);
       keptFixturesNotLoaded.set(streamName, loadedStream.fixture);
+      streamNamesUnloadedButNotRecordedStopped.add(streamName);
       listedStreamsNotLoaded.set(streamName, { ...loadedStream.fixture.listing, node_count: null });
       publishStatus({ streams: listStreams() });
       return `Runtime error: the kept record of \`${streamName}\` could not be written: Permission denied (os error 13)`;

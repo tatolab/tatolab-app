@@ -10,6 +10,7 @@ import {
   presentStreamPrimaryAction,
   presentStreamRunMode,
   presentStreamState,
+  presentStreamStateAfterAStopNotRecorded,
   streamActionPendingWords,
   streamActionRefusalLead,
   streamNotLoadedReason,
@@ -42,6 +43,14 @@ describe("presentStreamState", () => {
       emphasis: "plain",
     });
     expect(presentStreamState(listedStream("main", "", null)).label).toBe("Unknown");
+  });
+});
+
+describe("presentStreamStateAfterAStopNotRecorded", () => {
+  it("reads Stopped for the kept stream the runtime unloaded but could not record stopped, and leaves any other state as it is", () => {
+    expect(presentStreamStateAfterAStopNotRecorded(listedStream("camera", "kept", null))).toMatchObject({ label: "Stopped", emphasis: "quiet" });
+    expect(presentStreamStateAfterAStopNotRecorded(listedStream("camera", "kept", 4))).toMatchObject({ label: "Running" });
+    expect(presentStreamStateAfterAStopNotRecorded(listedStream("camera", "stopped", null))).toMatchObject({ label: "Stopped" });
   });
 });
 

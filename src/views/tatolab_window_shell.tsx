@@ -7,6 +7,7 @@ import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } f
 import type { ListedStream } from "../backend/tatolab_backend_contract";
 import { presentPlatform, shortcutHint, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { presentRuntimeStatus, presentWindowStatusBar } from "../presentation/runtime_presentation";
+import { isStreamLoaded } from "../presentation/stream_presentation";
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { Button } from "./shadcn/button";
 import { joinClassNames } from "./shadcn/class_names";
@@ -137,7 +138,7 @@ function WindowSidebar() {
                 to={streamPagePath(stream.name)}
                 icon={<Workflow className={sidebarIconClassName} strokeWidth={1.75} aria-hidden />}
                 label={stream.name}
-                isQuiet={stream.node_count === null}
+                isQuiet={!isStreamLoaded(stream)}
                 trailing={
                   stream.state === "failed" && (
                     <SquareX className="size-3.5 shrink-0 text-danger" strokeWidth={1.75} role="img" aria-label="Failed" />

@@ -33,6 +33,7 @@ import {
   presentStreamPrimaryAction,
   presentStreamRunMode,
   presentStreamState,
+  presentStreamStateAfterAStopNotRecorded,
   STOP_NOT_RECORDED_LEAD,
   streamActionPendingWords,
   streamActionRefusalLead,
@@ -129,8 +130,8 @@ function useStreamActionsOfTheRows(listedStreams: readonly ListedStream[]) {
   return { actionsUnderWay, outcomeWords, runStreamActionOnRow };
 }
 
-function StreamStateWord({ stream }: { stream: ListedStream }) {
-  const statePresentation = presentStreamState(stream);
+function StreamStateWord({ stream, isAfterAStopNotRecorded }: { stream: ListedStream; isAfterAStopNotRecorded: boolean }) {
+  const statePresentation = isAfterAStopNotRecorded ? presentStreamStateAfterAStopNotRecorded(stream) : presentStreamState(stream);
   return (
     <span
       title={statePresentation.meaning}
@@ -154,8 +155,8 @@ function StreamRunModeWord({ stream }: { stream: ListedStream }) {
     <Tooltip>
       <TooltipTrigger
         render={
-          <span
-            tabIndex={0}
+          <button
+            type="button"
             aria-label={`${runMode.label}: ${runMode.meaning} The runtime calls it ${runMode.runtimeTerm}.`}
             className={joinClassNames("inline-flex cursor-default items-center gap-1.5 rounded-sm", isStreamLoaded(stream) ? "text-fg-2" : "text-fg-3")}
           />
@@ -345,7 +346,7 @@ function StreamsListRow({
       </td>
       <td className="px-3 py-2 align-top">
         <div className="flex h-[18px] items-center">
-          <StreamStateWord stream={stream} />
+          <StreamStateWord stream={stream} isAfterAStopNotRecorded={outcome?.kind === "notice"} />
         </div>
         {stream.state === "failed" && stream.failed_because !== null && (
           <p className="line-clamp-2 max-w-[440px] pl-5 text-xs text-fg-2 select-text" title={stream.failed_because}>
