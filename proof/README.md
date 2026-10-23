@@ -182,9 +182,9 @@ Found and fixed while shooting these:
 
 ![05-after-rm.png](live-v2/05-after-rm.png)
 
-## Chosen design: calm-native (being built into the real app now)
+## The calm-native design, chosen 2026-10-12 (Mock)
 
-Both judges — one speaking for the owner — picked **calm-native** (OrbStack-spirited): state written as words, no status dots, stopped streams dimmed, only a failure in red with its reason. Grafts from the other directions: a loaded stream lands on its graph with live logs docked below; a reserved slot for future stream actions; the failure reason on a second sidebar line; Built-in / Python on nodes. Per the owner's ruling the app reads only the stream list, graph, logs and health; watching an exposed output is a placeholder behind a feature flag, off by default. Full spec: [FINAL-SPEC.md](design-final/FINAL-SPEC.md). (Mock renders — the runner-ups' main screens are included for comparison.)
+Both judges — one speaking for the owner — picked **calm-native** (OrbStack-spirited): state written as words, no status dots, stopped streams dimmed, only a failure in red with its reason. Grafts from the other directions: a loaded stream lands on its graph with live logs docked below; a reserved slot for future stream actions; the failure reason on a second sidebar line; Built-in / Python on nodes. Per the owner's ruling the app reads only the stream list, graph, logs and health; watching an exposed output is a placeholder behind a feature flag, off by default. (Mock renders — the runner-ups' main screens are included for comparison.)
 
 **calm-native-empty-dark**
 

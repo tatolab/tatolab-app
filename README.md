@@ -11,8 +11,9 @@ The tray menu shows a one-line status, "Open Tatolab", the "Run Tatolab" switch,
 Tatolab…" while macOS's first-launch setup is unfinished, "Check for Updates…" in a packaged app,
 and "Quit Tatolab". The window reads
 everything from the runtime's local API: `list_streams` and `logs` over MCP, `GET /api/graph` for
-the machine's name and each stream's graph. It shows the streams and does not start or stop them;
-the `tatolab` CLI does.
+the machine's name and each stream's graph. It stops, starts (or retries) and removes a stream
+with the MCP tools `stop_stream`, `start_stream` and `remove_stream`; loading a new stream is the
+`tatolab` CLI's.
 
 |  | macOS | Linux |
 |---|---|---|
@@ -260,7 +261,8 @@ X.Y.Z` sets the packages' version; `--local-proof-test-root` builds with
 
 ## Working on the window
 
-`npm run dev` serves the window on `http://localhost:1420`; `npm run electron:dev`, in a second
+The window is React with Tailwind and shadcn (base-ui), in the design language of
+[`docs/design`](docs/design/DESIGN.md); its tokens are `src/styles/tokens.css`. `npm run dev` serves the window on `http://localhost:1420`; `npm run electron:dev`, in a second
 terminal, builds the main process and runs the app against it, unpackaged. It shows whatever
 runtime is already running on the machine's local API socket; only a `--local-proof-test-root`
 build reads a local-proof runtime's `/tmp/tatolab-proof/run/local-api.sock`. On macOS an
