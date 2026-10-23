@@ -37,7 +37,7 @@ unplant() { rm -f "$planted_path"; git checkout -q -- . 2>/dev/null; planted_pat
 readonly SOURCE_HEADER='// Copyright (c) 2025 Jonathan Fontanez\n// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary\n'
 
 for source_gate in check-license-headers.sh check-platform-cfg-confinement.sh check-no-print-debugging.sh \
-  check-electron-typescript-forms.sh check-no-dot-indicators.sh; do
+  check-electron-typescript-forms.sh check-no-dot-indicators.sh check-window-design-system.sh; do
   expect_gate_outcome pass "$source_gate" "the tree as it stands"
 done
 
@@ -52,6 +52,11 @@ expect_gate_outcome fail check-license-headers.sh "a TypeScript file with the co
 plant src/zz_planted.ts '\xEF\xBB\xBF// Copyright (c) 2025 Jonathan Fontanez\r\n// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary\r\nexport const plantedValue = 1;\r\n'
 expect_gate_outcome pass check-license-headers.sh "a TypeScript file with the header, a BOM and CRLF endings"; unplant
 
+
+plant src/components/ui/zz-planted.tsx 'export const plantedValue = 1;\n'
+expect_gate_outcome pass check-license-headers.sh "a shadcn component in src/components/ui/ with no header"; unplant
+plant src/design_system/zz_planted.tsx 'export const plantedValue = 1;\n'
+expect_gate_outcome fail check-license-headers.sh "a design-system file with no header"; unplant
 
 plant src-electron/src/zz_planted.cts 'export const plantedValue = 1;\n'
 expect_gate_outcome fail check-license-headers.sh "a CommonJS TypeScript file with no header"; unplant
@@ -77,6 +82,31 @@ plant src/views/zz_planted.tsx "${SOURCE_HEADER}import { CircleAlert } from \"lu
 expect_gate_outcome fail check-no-dot-indicators.sh "a round status icon"; unplant
 plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedSpinner = () => <span className=\"size-3.5 animate-spin\" />;\n"
 expect_gate_outcome pass check-no-dot-indicators.sh "a spinner, which is not a dot"; unplant
+
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}import { Button } from \"@/components/ui/button\";\nexport const PlantedScreen = () => <Button>Planted</Button>;\n"
+expect_gate_outcome fail check-window-design-system.sh "a screen importing a shadcn component"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}import { Toggle } from \"../components/ui/toggle\";\nexport const PlantedScreen = Toggle;\n"
+expect_gate_outcome fail check-window-design-system.sh "a screen importing a shadcn component by a relative path"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}import { Menu } from \"@base-ui/react/menu\";\nexport const PlantedScreen = Menu.Root;\n"
+expect_gate_outcome fail check-window-design-system.sh "a screen importing base-ui directly"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => <button type=\"button\">Planted</button>;\n"
+expect_gate_outcome fail check-window-design-system.sh "a raw button in a screen"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => (\n  <input\n    value=\"planted\"\n  />\n);\n"
+expect_gate_outcome fail check-window-design-system.sh "a raw input in a screen, its attributes on the lines below"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => <select><option>Planted</option></select>;\n"
+expect_gate_outcome fail check-window-design-system.sh "a raw select in a screen"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => <textarea />;\n"
+expect_gate_outcome fail check-window-design-system.sh "a raw textarea in a screen"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => <div role=\"radiogroup\"><span role=\"radio\" aria-checked /></div>;\n"
+expect_gate_outcome fail check-window-design-system.sh "a hand-built radio role in a screen"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}import { ActionButton } from \"../design_system/action_button\";\nexport const PlantedScreen = () => <ActionButton onPressed={() => {}}>Planted</ActionButton>;\n"
+expect_gate_outcome pass check-window-design-system.sh "a screen composed from the design system"; unplant
+plant src/views/zz_planted.test.tsx "${SOURCE_HEADER}export const plantedTestMarkup = () => <button type=\"button\">Planted</button>;\n"
+expect_gate_outcome pass check-window-design-system.sh "a raw button in a window test"; unplant
+plant src/design_system/zz_planted.tsx "${SOURCE_HEADER}import { Button } from \"@/components/ui/button\";\nexport const PlantedControl = () => <Button>Planted</Button>;\n"
+expect_gate_outcome pass check-window-design-system.sh "the design system built on a shadcn component"; unplant
+plant src/components/ui/zz-planted.tsx "export const PlantedDot = () => <span className=\"size-2 rounded-full bg-border\" />;\n"
+expect_gate_outcome pass check-no-dot-indicators.sh "a round shape inside a shadcn component, a control's part"; unplant
 
 plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}export const plantedPlatform = process.platform;\n"
 expect_gate_outcome fail check-platform-cfg-confinement.sh "a process.platform read in the main process outside platform/"; unplant

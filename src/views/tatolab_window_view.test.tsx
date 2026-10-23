@@ -36,6 +36,11 @@ async function mountedWindowOverTheMock(
   return { backend, windowContent: within(rootElement), showStatusAsTheBackendWould };
 }
 
+/** The Logs toolbar's level segment named `levelName`. */
+function levelSegmentNamed(levelName: RegExp): HTMLElement {
+  return within(screen.getByRole("group", { name: "Levels shown" })).getByRole("button", { name: levelName });
+}
+
 function rowOf(streamName: string): HTMLElement {
   const row = document.querySelector<HTMLElement>(`[data-stream-row="${streamName}"]`);
   if (row === null) return expect.unreachable(`no row for ${streamName}`);
@@ -375,9 +380,9 @@ describe("a stream's Logs tab", () => {
     await openTheLogsOf("main");
     await waitFor(() => expect(Number(document.querySelector("[data-stream-log-level-filter='warn'] .tabular")?.textContent)).toBeGreaterThan(0), { timeout: 4000 });
 
-    fireEvent.click(screen.getByRole("radio", { name: /Warnings/ }));
+    fireEvent.click(levelSegmentNamed(/Warnings/));
     expect(shownLogMessages().every((row) => row.includes("WARN"))).toBe(true);
-    fireEvent.click(screen.getByRole("radio", { name: /All/ }));
+    fireEvent.click(levelSegmentNamed(/All/));
 
     fireEvent.mouseDown(await waitFor(() => logRowOf("mean=127.5")));
     fireEvent.click(screen.getByRole("button", { name: "Only lines from brightnessmeter" }));
@@ -399,7 +404,7 @@ describe("a stream's Logs tab", () => {
 
     fireEvent.click(await waitFor(() => screen.getByRole("button", { name: "Show errors" })));
 
-    await waitFor(() => expect(screen.getByRole("radio", { name: /Errors/ }).getAttribute("aria-checked")).toBe("true"));
+    await waitFor(() => expect(levelSegmentNamed(/Errors/).getAttribute("aria-pressed")).toBe("true"));
     await waitFor(() => expect(shownLogMessages().some((row) => row.includes("DisplayWindow: no window"))).toBe(true));
     expect(shownLogMessages().every((row) => row.includes("ERROR"))).toBe(true);
   });
@@ -430,18 +435,23 @@ describe("a stream's Logs tab", () => {
     );
   });
 
-  it("moves between levels with the arrow keys, the level chosen the only Tab stop", async () => {
+  it("moves between levels with the arrow keys, the levels one Tab stop", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheLogsOf("main");
-    const allLevels = screen.getByRole("radio", { name: /All/ });
+    const allLevels = levelSegmentNamed(/All/);
 
     expect([...document.querySelectorAll("[data-stream-log-level-filter]")].map((segment) => segment.getAttribute("tabindex"))).toEqual(["0", "-1", "-1", "-1"]);
-    fireEvent.keyDown(allLevels, { key: "ArrowRight" });
+    act(() => allLevels.focus());
+    await act(async () => {
+      fireEvent.keyDown(allLevels, { key: "ArrowRight" });
+    });
 
-    expect(screen.getByRole("radio", { name: /Info/ }).getAttribute("aria-checked")).toBe("true");
+    expect(levelSegmentNamed(/Info/).getAttribute("aria-pressed")).toBe("true");
     expect(document.activeElement?.getAttribute("data-stream-log-level-filter")).toBe("info");
-    fireEvent.keyDown(screen.getByRole("radio", { name: /Info/ }), { key: "End" });
-    expect(screen.getByRole("radio", { name: /Errors/ }).getAttribute("aria-checked")).toBe("true");
+    await act(async () => {
+      fireEvent.keyDown(levelSegmentNamed(/Info/), { key: "End" });
+    });
+    expect(levelSegmentNamed(/Errors/).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("shows every step again from a choice of the step menu, which the keyboard reaches like the steps", async () => {
@@ -473,7 +483,7 @@ describe("a stream's Logs tab", () => {
     await waitFor(() => expect(shownLogMessages().length).toBeGreaterThan(0));
     isRefusingReads = true;
 
-    await waitFor(() => expect(textOf("[data-stream-log-read-refusal]")).toBe(`Couldn't read new records, trying again:${refusal}`), { timeout: 3000 });
+    await waitFor(() => expect(textOf("[data-stream-log-read-refusal]")).toBe(`Couldn't read new records, trying again: ${refusal}`), { timeout: 3000 });
     expect(logRowOf("Loading the stream `main`")).toBeTruthy();
   });
 

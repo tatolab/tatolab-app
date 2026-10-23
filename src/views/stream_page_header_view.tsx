@@ -1,12 +1,19 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { ChevronRight, CodeXml, Copy, Ellipsis, LoaderCircle, Play, Square, SquareTerminal, SquareX, Trash2 } from "lucide-react";
+import { CodeXml, Copy, Play, Square, SquareTerminal, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { ListedStream } from "../backend/tatolab_backend_contract";
 import { writeTextToClipboard } from "../clipboard";
+import { ActionButton } from "../design_system/action_button";
+import { MenuItem, MoreActionsMenu } from "../design_system/menus";
+import { PageHeader } from "../design_system/page_header";
+import { PageTabs } from "../design_system/page_tabs";
+import { PendingActionWords } from "../design_system/pending_action_words";
+import { RefusalLine } from "../design_system/refusal_line";
+import { StreamRunModeWords } from "../design_system/stream_run_mode_words";
+import { StreamStateWords } from "../design_system/stream_state_words";
 import { shortcutHint } from "../presentation/platform_presentation";
 import {
   abbreviateHomeDirectory,
@@ -16,11 +23,7 @@ import {
   type StreamPrimaryActionPresentation,
 } from "../presentation/stream_presentation";
 import type { StreamActionUnderWay } from "../presentation/streams_list_presentation";
-import { Button } from "./shadcn/button";
-import { joinClassNames } from "./shadcn/class_names";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./shadcn/dropdown_menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./shadcn/tooltip";
-import { StreamActionOutcomeLine, StreamRunModeWord, StreamStateWord, type StreamActionOutcomeWords } from "./stream_action_controls";
+import { StreamActionOutcomeLine, type StreamActionOutcomeWords } from "./stream_action_controls";
 import { streamPagePath, type StreamPageTab } from "./stream_page_path";
 import { useTatolabWindowEnvironment } from "./tatolab_window_context";
 
@@ -36,30 +39,18 @@ function StreamPageTabs({ stream, shownTab }: { stream: ListedStream; shownTab: 
   const { platform } = useTatolabWindowEnvironment();
   const isLoaded = isStreamLoaded(stream);
   return (
-    <nav aria-label={`${stream.name} views`} className="mt-2 -mb-px flex gap-4">
-      {STREAM_PAGE_TAB_WORDS.map(({ tab, label, shortcutKey }) => {
-        const tabClassName = "flex h-9 items-center border-b-2 border-transparent";
-        if (!isLoaded && tab === "graph") {
-          return (
-            <span key={tab} aria-disabled title={`${label}: not loaded, so it has no graph`} className={joinClassNames(tabClassName, "cursor-default text-fg-4")}>
-              {label}
-            </span>
-          );
-        }
-        return (
-          <Link
-            key={tab}
-            to={streamPagePath(stream.name, tab)}
-            data-stream-tab={tab}
-            aria-current={tab === shownTab ? "page" : undefined}
-            title={shortcutKey === null ? label : `${label} (${shortcutHint(platform, shortcutKey)})`}
-            className={joinClassNames(tabClassName, "cursor-default transition-colors", tab === shownTab ? "border-fg text-fg" : "text-fg-3 hover:text-fg")}
-          >
-            {label}
-          </Link>
-        );
-      })}
-    </nav>
+    <PageTabs
+      label={`${stream.name} views`}
+      shownTab={shownTab}
+      dataAttributeOfEachTab="data-stream-tab"
+      tabs={STREAM_PAGE_TAB_WORDS.map(({ tab, label, shortcutKey }) => ({
+        tab,
+        label,
+        path: streamPagePath(stream.name, tab),
+        tooltip: shortcutKey === null ? label : `${label} (${shortcutHint(platform, shortcutKey)})`,
+        disabledReason: !isLoaded && tab === "graph" ? "not loaded, so it has no graph" : null,
+      }))}
+    />
   );
 }
 
@@ -83,80 +74,59 @@ export function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { 
     opening.catch((rejection: unknown) => setProjectOpeningRefusal(describeBackendRejection(rejection)));
   };
   return (
-    <header className="shrink-0 border-b px-5 pt-3" data-stream-page-header="">
-      <div className="flex items-center gap-1 text-xs text-fg-3">
-        <Link to="/" className="cursor-default hover:text-fg">
-          Streams
-        </Link>
-        <ChevronRight className="size-3" strokeWidth={1.75} aria-hidden />
-        <span className="truncate text-fg-2">{stream.name}</span>
-      </div>
-      {/* The actions wrap under the name when a narrow window has no room for both on one line. */}
-      <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-        <h1 className="title-lg max-w-full min-w-0 truncate select-text">{stream.name}</h1>
-        <div className="flex min-w-0 items-center gap-4 whitespace-nowrap">
-          <StreamStateWord stream={stream} isAfterAStopNotRecorded={outcome?.kind === "notice"} />
-          <StreamRunModeWord stream={stream} />
+    <PageHeader
+      breadcrumb={{ parentLabel: "Streams", parentPath: "/", currentLabel: stream.name }}
+      title={stream.name}
+      facts={
+        <>
+          <StreamStateWords stream={stream} isAfterAStopNotRecorded={outcome?.kind === "notice"} />
+          <StreamRunModeWords stream={stream} />
           <span className="max-w-[280px] truncate font-mono text-xs text-fg-3 select-text" title={stream.project_directory}>
             {abbreviateHomeDirectory(stream.project_directory)}
           </span>
-        </div>
-        <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          <Button variant="outline" data-stream-action="open_stream_project_folder" onClick={() => openTheProject(backend.openStreamProjectFolder(stream.name))}>
-            <CodeXml aria-hidden /> Open project
-          </Button>
-          <Button variant="outline" data-stream-action="open_terminal_at_stream_project" onClick={() => openTheProject(backend.openTerminalAtStreamProject(stream.name))}>
-            <SquareTerminal aria-hidden /> Terminal
-          </Button>
+        </>
+      }
+      actions={
+        <>
+          <ActionButton icon={CodeXml} onPressed={() => openTheProject(backend.openStreamProjectFolder(stream.name))} data-stream-action="open_stream_project_folder">
+            Open project
+          </ActionButton>
+          <ActionButton icon={SquareTerminal} onPressed={() => openTheProject(backend.openTerminalAtStreamProject(stream.name))} data-stream-action="open_terminal_at_stream_project">
+            Terminal
+          </ActionButton>
           {actionUnderWay !== undefined ? (
-            <span className="inline-flex h-7 items-center gap-1.5 px-1 text-fg-3" role="status">
-              <LoaderCircle className="size-3.5 animate-spin" strokeWidth={1.75} aria-hidden />
-              {streamActionPendingWords(actionUnderWay.streamAction)}
-            </span>
+            <PendingActionWords words={streamActionPendingWords(actionUnderWay.streamAction)} />
           ) : (
             primaryAction !== null && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant={primaryAction.streamAction === "stop_stream" ? "outline" : "default"}
-                      data-stream-action={primaryAction.streamAction}
-                      onClick={() => runPrimaryAction(primaryAction)}
-                    />
-                  }
-                >
-                  {primaryAction.streamAction === "stop_stream" ? <Square aria-hidden /> : <Play aria-hidden />} {primaryAction.label}
-                </TooltipTrigger>
-                <TooltipContent className="max-w-60">{primaryAction.meaning}</TooltipContent>
-              </Tooltip>
+              <ActionButton
+                appearance={primaryAction.streamAction === "stop_stream" ? "secondary" : "primary"}
+                icon={primaryAction.streamAction === "stop_stream" ? Square : Play}
+                tooltip={primaryAction.meaning}
+                onPressed={() => runPrimaryAction(primaryAction)}
+                data-stream-action={primaryAction.streamAction}
+              >
+                {primaryAction.label}
+              </ActionButton>
             )
           )}
-          <Button variant="ghost" data-stream-action="remove_stream" onClick={askToRemove} disabled={actionUnderWay !== undefined}>
-            <Trash2 aria-hidden /> Remove
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              aria-label={`More for ${stream.name}`}
-              className="grid size-7 place-items-center rounded-md text-fg-3 transition-colors hover:bg-hover hover:text-fg data-popup-open:bg-selected data-popup-open:text-fg"
-            >
-              <Ellipsis className="size-4" strokeWidth={1.75} aria-hidden />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={() => void writeTextToClipboard(stream.project_directory)}>
-                <Copy /> Copy project folder path
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-      {outcome !== undefined && <StreamActionOutcomeLine outcome={outcome} />}
-      {projectOpeningRefusal !== null && (
-        <p role="alert" className="mt-1 flex max-w-[640px] gap-1.5 text-xs text-fg-2">
-          <SquareX className="mt-px size-3.5 shrink-0 text-danger" strokeWidth={1.75} aria-hidden />
-          <span className="select-text">{projectOpeningRefusal}</span>
-        </p>
-      )}
-      <StreamPageTabs stream={stream} shownTab={shownTab} />
-    </header>
+          <ActionButton appearance="quiet" icon={Trash2} isDisabled={actionUnderWay !== undefined} onPressed={askToRemove} data-stream-action="remove_stream">
+            Remove
+          </ActionButton>
+          <MoreActionsMenu label={`More for ${stream.name}`}>
+            <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(stream.project_directory)}>
+              Copy project folder path
+            </MenuItem>
+          </MoreActionsMenu>
+        </>
+      }
+      notices={
+        <>
+          {outcome !== undefined && <StreamActionOutcomeLine outcome={outcome} />}
+          {projectOpeningRefusal !== null && <RefusalLine words={projectOpeningRefusal} />}
+        </>
+      }
+      tabs={<StreamPageTabs stream={stream} shownTab={shownTab} />}
+      data-stream-page-header=""
+    />
   );
 }

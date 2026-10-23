@@ -15,7 +15,7 @@ import { createFirstStreamGuide } from "./first_stream_guide_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { LinuxRuntimeInstallView } from "./linux_runtime_install_view";
 import { SettingsPageView } from "./settings_page_view";
-import { TooltipProvider } from "./shadcn/tooltip";
+import { ControlTooltipProvider } from "../design_system/control_tooltip";
 import { readableExposedPorts } from "../presentation/stream_overview_presentation";
 import { StreamGraphReadings } from "../stream_graph_readings";
 import { StreamLogReadings } from "../stream_log_readings";
@@ -175,9 +175,9 @@ export function mountTatolabWindow(
     createRoot(rootElement).render(
       <StrictMode>
         <TatolabWindowEnvironmentContext value={environment}>
-          <TooltipProvider>
+          <ControlTooltipProvider>
             <TatolabWindowRoot router={router} isUninstallUnderway={() => uninstallSheet.isUninstallUnderway()} />
-          </TooltipProvider>
+          </ControlTooltipProvider>
         </TatolabWindowEnvironmentContext>
       </StrictMode>,
     );

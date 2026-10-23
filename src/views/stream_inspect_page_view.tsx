@@ -1,7 +1,8 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { Check, ChevronRight, Copy, FileBraces, SquareTerminal } from "lucide-react";
+import { cn } from "cn";
+import { ChevronRight, FileBraces, SquareTerminal } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import type { ListedStream } from "../backend/tatolab_backend_contract";
 import {
@@ -13,9 +14,10 @@ import {
 } from "../presentation/stream_graph_document_presentation";
 import { streamGraphDocumentCommand } from "../presentation/stream_overview_presentation";
 import { isStreamLoaded } from "../presentation/stream_presentation";
-import { Button } from "./shadcn/button";
-import { joinClassNames } from "./shadcn/class_names";
-import { useCopiedConfirmation } from "./copied_confirmation";
+import { CopyWordsButton } from "../design_system/copy_words_button";
+import { EmptyState } from "../design_system/empty_state";
+import { ListRowButton } from "../design_system/list_row_button";
+import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
 import { useStreamGraphReading } from "./tatolab_window_context";
 
 /** A top-level key's line in the raw document, as the runtime's two-space indentation writes it. */
@@ -50,7 +52,7 @@ function RawGraphDocument({ graphDocumentText, highlightedKey }: { graphDocument
           <div
             key={lineIndex}
             id={topLevelKey === null ? undefined : anchorIdOfTopLevelKey(topLevelKey)}
-            className={joinClassNames("flex scroll-mt-2 pr-6 hover:bg-hover", topLevelKey !== null && topLevelKey === highlightedKey && "bg-brand-soft hover:bg-brand-soft")}
+            className={cn("flex scroll-mt-2 pr-6 hover:bg-hover", topLevelKey !== null && topLevelKey === highlightedKey && "bg-brand-soft hover:bg-brand-soft")}
           >
             <span className="shrink-0 pr-4 pl-4 text-right text-fg-3 tabular select-none" style={{ width: gutterWidth }}>
               {lineIndex + 1}
@@ -106,26 +108,28 @@ function GraphDocumentTreeNode({
   const canOpen = value.kind === "object" || value.kind === "array";
   const isOpen = openPaths.has(path);
   const words = scalarWords(value);
-  const rowClassName = joinClassNames(
-    "flex h-[22px] w-full cursor-default items-center gap-1 pr-4 text-left",
-    depth === 0 && name === highlightedKey && "bg-brand-soft",
-  );
+  const isHighlighted = depth === 0 && name === highlightedKey;
   const rowWords = (
     <>
       <span className="text-fg">{name}</span>
       <span className="text-fg-3">:</span>
-      <span className={joinClassNames("truncate select-text", SYNTAX_COLOUR[words.kind])}>{words.text}</span>
+      <span className={cn("truncate select-text", SYNTAX_COLOUR[words.kind])}>{words.text}</span>
     </>
   );
   return (
     <div id={depth === 0 ? anchorIdOfTopLevelKey(name) : undefined} className="scroll-mt-2">
       {canOpen ? (
-        <button type="button" aria-expanded={isOpen} onClick={() => togglePath(path)} className={joinClassNames(rowClassName, "hover:bg-hover")} style={{ paddingLeft: 12 + depth * 16 }}>
-          <ChevronRight className={joinClassNames("size-3.5 shrink-0 text-fg-3 transition-transform", isOpen && "rotate-90")} strokeWidth={1.75} aria-hidden />
+        <ListRowButton
+          aria-expanded={isOpen}
+          onPressed={() => togglePath(path)}
+          className={cn("h-[22px] gap-1 rounded-none pr-4 font-mono text-xs", isHighlighted && "bg-brand-soft hover:bg-brand-soft dark:hover:bg-brand-soft")}
+          style={{ paddingLeft: 12 + depth * 16 }}
+        >
+          <ChevronRight className={cn("size-3.5 shrink-0 text-fg-3 transition-transform", isOpen && "rotate-90")} strokeWidth={1.75} aria-hidden />
           {rowWords}
-        </button>
+        </ListRowButton>
       ) : (
-        <div className={rowClassName} style={{ paddingLeft: 12 + depth * 16 }}>
+        <div className={cn("flex h-[22px] w-full items-center gap-1 pr-4", isHighlighted && "bg-brand-soft")} style={{ paddingLeft: 12 + depth * 16 }}>
           <span className="w-3.5 shrink-0" />
           {rowWords}
         </div>
@@ -171,23 +175,16 @@ function GraphDocumentTree({ graphDocument, highlightedKey }: { graphDocument: G
 
 function GraphDocumentViewSwitch({ shownView, onViewChosen }: { shownView: GraphDocumentView; onViewChosen: (view: GraphDocumentView) => void }) {
   return (
-    <div className="flex h-7 shrink-0 items-center rounded-md bg-well p-0.5" role="group" aria-label="Show the graph document">
-      {(["raw", "tree"] as const).map((view) => (
-        <button
-          key={view}
-          type="button"
-          aria-pressed={shownView === view}
-          data-graph-document-view-choice={view}
-          onClick={() => onViewChosen(view)}
-          className={joinClassNames(
-            "flex h-6 items-center rounded-[5px] px-2.5 text-fg-2 transition-colors hover:text-fg",
-            shownView === view && "bg-raised text-fg shadow-(--shadow-segment)",
-          )}
-        >
-          {view === "raw" ? "Raw" : "Tree"}
-        </button>
-      ))}
-    </div>
+    <SegmentedChoiceControl
+      label="Show the graph document"
+      choices={[
+        { choice: "raw", label: "Raw" },
+        { choice: "tree", label: "Tree" },
+      ]}
+      chosen={shownView}
+      onChosen={onViewChosen}
+      dataAttributeOfEachSegment="data-graph-document-view-choice"
+    />
   );
 }
 
@@ -210,24 +207,21 @@ export function StreamInspectPageView({ stream }: { stream: ListedStream }) {
   const command = streamGraphDocumentCommand(stream.name);
   const graphDocumentText = reading.graphSource === "loaded" ? (reading.graph?.graph_document_text ?? null) : null;
   const graphDocument = useMemo(() => (graphDocumentText === null ? null : readTheGraphDocument(graphDocumentText)), [graphDocumentText]);
-  const { wasCopied, copy } = useCopiedConfirmation(() => graphDocumentText ?? "");
 
   if (!isStreamLoaded(stream) || graphDocumentText === null) {
     const isNotLoaded = !isStreamLoaded(stream);
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-stream-inspect="">
         <GraphDocumentCommandBar command={command} />
-        <div className="grid flex-1 place-items-center px-8">
-          <div className="max-w-md text-center">
-            <FileBraces className="mx-auto size-5 text-fg-3" strokeWidth={1.5} aria-hidden />
-            <div className="mt-2.5 text-fg">{isNotLoaded ? "No graph while the stream is not loaded" : reading.readRefusal === null ? "Reading its graph…" : "Its graph could not be read"}</div>
-            <p className="mt-1 text-fg-3 select-text">
-              {isNotLoaded
-                ? `The runtime serves a stream's graph only while it is loaded. ${stream.state === "failed" ? "Retry it" : "Start it"} and the graph shows here, as the command prints it.`
-                : (reading.readRefusal ?? "The graph shows here as the command prints it.")}
-            </p>
-          </div>
-        </div>
+        <EmptyState
+          icon={FileBraces}
+          title={isNotLoaded ? "No graph while the stream is not loaded" : reading.readRefusal === null ? "Reading its graph…" : "Its graph could not be read"}
+          explanation={
+            isNotLoaded
+              ? `The runtime serves a stream's graph only while it is loaded. ${stream.state === "failed" ? "Retry it" : "Start it"} and the graph shows here, as the command prints it.`
+              : (reading.readRefusal ?? "The graph shows here as the command prints it.")
+          }
+        />
       </div>
     );
   }
@@ -243,34 +237,30 @@ export function StreamInspectPageView({ stream }: { stream: ListedStream }) {
           Graph <FileBraces className="ml-auto size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden />
         </h2>
         {(graphDocument === null ? [] : outlineOfTheGraphDocument(graphDocument)).map((outlineEntry) => (
-          <button
+          <ListRowButton
             key={outlineEntry.key}
-            type="button"
-            onClick={() => jumpToTopLevelKey(outlineEntry.key)}
-            className={joinClassNames(
-              "group flex h-7 w-full cursor-default items-center gap-2 rounded-md px-2 text-left text-fg-2 transition-colors hover:bg-hover hover:text-fg",
-              highlightedKey === outlineEntry.key && "bg-selected text-fg",
-            )}
+            isSelected={highlightedKey === outlineEntry.key}
+            onPressed={() => jumpToTopLevelKey(outlineEntry.key)}
+            trailing={
+              // fg-3 drops under 4.5:1 on a hovered or selected row over chrome, so the summary reads fg-2 there.
+              <span
+                className={cn(
+                  "ml-auto max-w-[50%] shrink-0 truncate text-xs tabular group-hover/list-row:text-fg-2",
+                  highlightedKey === outlineEntry.key ? "text-fg-2" : "text-fg-3",
+                )}
+              >
+                {outlineEntry.summary}
+              </span>
+            }
           >
             <span className="truncate font-mono text-xs">{outlineEntry.key}</span>
-            {/* fg-3 drops under 4.5:1 on a hovered or selected row over chrome, so the summary reads fg-2 there. */}
-            <span
-              className={joinClassNames(
-                "ml-auto max-w-[50%] shrink-0 truncate text-xs tabular group-hover:text-fg-2",
-                highlightedKey === outlineEntry.key ? "text-fg-2" : "text-fg-3",
-              )}
-            >
-              {outlineEntry.summary}
-            </span>
-          </button>
+          </ListRowButton>
         ))}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <GraphDocumentCommandBar command={command}>
           <GraphDocumentViewSwitch shownView={shownView} onViewChosen={setShownView} />
-          <Button variant="outline" className="w-[84px]" onClick={copy}>
-            {wasCopied ? <Check aria-hidden /> : <Copy aria-hidden />} {wasCopied ? "Copied" : "Copy"}
-          </Button>
+          <CopyWordsButton readTextToCopy={() => graphDocumentText} />
         </GraphDocumentCommandBar>
         <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
           {shownView === "tree" && graphDocument !== null ? (

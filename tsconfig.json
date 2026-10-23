@@ -12,7 +12,8 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "skipLibCheck": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "vite.config.ts", "vite.window_preload.config.ts"]
 }

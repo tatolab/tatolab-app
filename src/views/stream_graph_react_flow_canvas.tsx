@@ -33,7 +33,7 @@ import {
   type StreamGraphStepCard,
 } from "../presentation/stream_graph_canvas_presentation";
 import type { StreamGraphStepPosition } from "../presentation/stream_graph_step_layout";
-import { joinClassNames } from "./shadcn/class_names";
+import { cn } from "cn";
 import { StreamGraphStepCardView, type StreamGraphStepCardSurroundings } from "./stream_graph_step_card_view";
 
 type StreamGraphStepFlowNode = Node<{ step: StreamGraphStepCard }, "stream_graph_step">;
@@ -74,7 +74,7 @@ function StepFlowNodeView({ data }: NodeProps<StreamGraphStepFlowNode>) {
             position={portSide === "input" ? Position.Left : Position.Right}
             id={portHandleId(portSide, portName)}
             isConnectable={false}
-            className={joinClassNames(
+            className={cn(
               "h-[10px]! min-h-0! w-[3px]! min-w-0! rounded-[1px]! border-0!",
               portSide === "input" ? "-left-px!" : "-right-px!",
               isSelected ? "bg-brand!" : "bg-fg-4!",
@@ -119,7 +119,7 @@ function LinkFlowEdgeView({ id, data, sourceX, sourceY, targetX, targetY, source
         <EdgeLabelRenderer>
           <div
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            className={joinClassNames(
+            className={cn(
               "nodrag nopan pointer-events-none absolute flex h-5 items-center gap-1.5 rounded-md border bg-popover px-1.5 font-mono text-[11px] whitespace-nowrap tabular-nums",
               isHovered ? "border-line-strong shadow-[var(--shadow-pop)]" : "border-line",
             )}

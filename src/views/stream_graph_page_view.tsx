@@ -1,7 +1,6 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import type { ListedStream } from "../backend/tatolab_backend_contract";
@@ -10,6 +9,9 @@ import { readTheGraphDocument } from "../presentation/stream_graph_document_pres
 import { presentStreamGraphInspection } from "../presentation/stream_graph_inspector_presentation";
 import { layOutStreamGraphSteps, streamGraphLayoutKey, type StreamGraphStepPosition } from "../presentation/stream_graph_step_layout";
 import { streamGraphDocumentCommand } from "../presentation/stream_overview_presentation";
+import { EmptyState } from "../design_system/empty_state";
+import { RefusalLine } from "../design_system/refusal_line";
+import { WorkAreaWithSidePanel } from "../design_system/side_panel";
 import { StreamGraphInspectorView } from "./stream_graph_inspector_view";
 import {
   PINNED_OUTPUT_PREVIEW_WIDTH,
@@ -55,11 +57,8 @@ function findOutput(canvas: StreamGraphCanvas, stepName: string, portName: strin
 
 function GraphTabMessage({ title, detail }: { title: string; detail?: string }) {
   return (
-    <div className="grid flex-1 place-items-center bg-window px-6" data-stream-graph-message="">
-      <div className="flex max-w-md flex-col items-center gap-1 text-center">
-        <div className="text-fg-2">{title}</div>
-        {detail !== undefined && <div className="text-xs text-fg-3 select-text">{detail}</div>}
-      </div>
+    <div className="flex flex-1 bg-window">
+      <EmptyState title={title} explanation={detail} data-stream-graph-message="" />
     </div>
   );
 }
@@ -164,11 +163,25 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [closeHoverPreview, viewport]);
 
+  const inspectorPanel = isInspectorOpen ? (
+    <StreamGraphInspectorView
+      inspection={inspection}
+      outputPlace={outputPlace}
+      streamInstance={reading.streamInstance}
+      pinnedOutputKeys={pinnedOutputKeys}
+      actions={{
+        onClosed: () => setIsInspectorOpen(false),
+        onStepSelected: setSelectedStepName,
+        onOutputPinToggled: togglePinnedPreview,
+        onErrorsInLogsShown: () => void navigate(streamPagePath(stream.name, "logs"), { state: { askedLogView: "errors_only" } }),
+      }}
+    />
+  ) : null;
   // The hovered output as this reading of the graph has it; undefined when no preview is open or its output is gone.
   const openHoverPreviewOutput = hoveredOutput === null ? undefined : findOutput(canvas, hoveredOutput.output.stepName, hoveredOutput.output.name);
   return (
     <div className="flex min-h-0 flex-1 bg-window" data-stream-graph-page={stream.name}>
-      <div className="flex min-w-0 flex-1 flex-col">
+      <WorkAreaWithSidePanel sidePanel={inspectorPanel}>
         <StreamGraphToolbarView
           streamName={stream.name}
           selectedStepName={inspection.kind === "step" ? inspection.step.name : null}
@@ -185,12 +198,8 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
           onInspectorOpened={() => setIsInspectorOpen(true)}
         />
         {reading.readRefusal !== null && (
-          <div role="alert" className="flex min-h-8 items-center gap-2 border-b px-3 py-1 text-xs" data-stream-graph-read-refusal="">
-            <TriangleAlert className="size-3.5 shrink-0 text-warn" strokeWidth={1.75} aria-hidden />
-            <span className="text-fg-2">Showing the graph last read. The runtime refused the latest read:</span>
-            <span className="min-w-0 truncate text-fg select-text" title={reading.readRefusal}>
-              {reading.readRefusal}
-            </span>
+          <div data-stream-graph-read-refusal="">
+            <RefusalLine tone="warning" layout="bar" lead="Showing the graph last read. The runtime refused the latest read:" words={reading.readRefusal} />
           </div>
         )}
         <div ref={canvasArea} className="relative min-h-0 flex-1">
@@ -235,21 +244,7 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
             );
           })}
         </div>
-      </div>
-      {isInspectorOpen && (
-        <StreamGraphInspectorView
-          inspection={inspection}
-          outputPlace={outputPlace}
-          streamInstance={reading.streamInstance}
-          pinnedOutputKeys={pinnedOutputKeys}
-          actions={{
-            onClosed: () => setIsInspectorOpen(false),
-            onStepSelected: setSelectedStepName,
-            onOutputPinToggled: togglePinnedPreview,
-            onErrorsInLogsShown: () => void navigate(streamPagePath(stream.name, "logs"), { state: { askedLogView: "errors_only" } }),
-          }}
-        />
-      )}
+      </WorkAreaWithSidePanel>
       {hoveredOutput !== null && openHoverPreviewOutput !== undefined && (
         <StreamGraphOutputHoverPreview
           hoveredOutput={{ output: openHoverPreviewOutput, anchorRectangle: hoveredOutput.anchorRectangle }}

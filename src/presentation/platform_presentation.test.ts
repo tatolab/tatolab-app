@@ -8,6 +8,7 @@ import {
   platformOf,
   presentCommandLineTool,
   presentPlatform,
+  presentWindowShortcut,
   shortcutHint,
   windowDragRegionAttribute,
 } from "./platform_presentation";
@@ -75,6 +76,13 @@ describe("presentPlatform", () => {
     expect(presentPlatform("linux").thisMachineAtSentenceStart).toBe("This computer");
     expect(presentPlatform("macos").quitTatolabExplanation).toContain("menu bar icon");
     expect(presentPlatform("linux").quitTatolabExplanation).toContain("tray icon");
+  });
+});
+
+describe("presentWindowShortcut", () => {
+  it("gives the key cap and the aria-keyshortcuts value of the platform's modifier with the key", () => {
+    expect(presentWindowShortcut("macos", "K")).toEqual({ hint: "⌘K", ariaKeyShortcuts: "Meta+K" });
+    expect(presentWindowShortcut("linux", "F")).toEqual({ hint: "Ctrl F", ariaKeyShortcuts: "Control+F" });
   });
 });
 

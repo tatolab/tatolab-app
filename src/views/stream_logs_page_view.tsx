@@ -1,7 +1,8 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { ArrowDownToLine, Ban, ChevronDown, Clock, FileText, FolderOpen, PanelRight, RotateCw, ScrollText, Search, SquareX, TriangleAlert, WrapText, X } from "lucide-react";
+import { cn } from "cn";
+import { ArrowDownToLine, Ban, Clock, FileText, FolderOpen, ListFilter, PanelRight, RotateCw, ScrollText, SquareX, WrapText } from "lucide-react";
 import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { describeBackendRejection } from "../backend/tatolab_backend";
@@ -22,29 +23,24 @@ import {
   type StreamLogPresentation,
   type StreamLogRow,
 } from "../presentation/log_record_presentation";
-import { shortcutHint } from "../presentation/platform_presentation";
+import { presentWindowShortcut } from "../presentation/platform_presentation";
 import { isStreamLoaded, presentStreamPrimaryAction } from "../presentation/stream_presentation";
-import { Button } from "./shadcn/button";
-import { joinClassNames } from "./shadcn/class_names";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuGroupLabel,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "./shadcn/dropdown_menu";
-import { Kbd } from "./shadcn/kbd";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./shadcn/tooltip";
-import { CopyTextButton } from "./copy_text_button";
-import { SegmentedRadioControl } from "./segmented_radio_control";
+import { ActionButton } from "../design_system/action_button";
+import { CopyIconButton } from "../design_system/copy_icon_button";
+import { EmptyState } from "../design_system/empty_state";
+import { InlineLink } from "../design_system/inline_link";
+import { FieldMenu, MenuCheckboxItem, MenuGroup, MenuItem, MenuSeparator } from "../design_system/menus";
+import { RefusalLine } from "../design_system/refusal_line";
+import { SearchField } from "../design_system/search_field";
+import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
+import { WorkAreaWithSidePanel } from "../design_system/side_panel";
+import { IconButton } from "../design_system/icon_button";
+import { ToggleIconButton } from "../design_system/toggle_icon_button";
+import { Toolbar, ToolbarDivider, ToolbarGroup, ToolbarWords } from "../design_system/toolbar";
 import { LOG_LEVEL_WORD_TONE_CLASS_NAMES, StreamLogRecordDetailsView } from "./stream_log_record_details_view";
 import type { StreamPageActions } from "./stream_page_header_view";
 import { logViewAskedBy, streamPagePath } from "./stream_page_path";
 import { useStreamGraphReading, useStreamLogReading, useTatolabWindowEnvironment } from "./tatolab_window_context";
-import { ToolbarDivider, ToolbarIconButton } from "./toolbar_icon_button";
 
 /** Scrolled within this many pixels of the end, the list keeps following new records. */
 const FOLLOW_TAIL_DISTANCE_PIXELS = 8;
@@ -126,7 +122,7 @@ const StreamLogRowView = memo(
           onMouseDown={() => onSelected(row.record.sequence)}
           data-stream-log-record={row.record.sequence}
           data-stream-log-level-tone={row.levelTone}
-          className={joinClassNames(
+          className={cn(
             "grid cursor-default gap-x-3 px-3 hover:bg-hover",
             areTimestampsShown ? "grid-cols-[92px_44px_120px_minmax(0,1fr)]" : "grid-cols-[44px_120px_minmax(0,1fr)]",
             !areLinesWrapped && "whitespace-nowrap",
@@ -143,7 +139,7 @@ const StreamLogRowView = memo(
           <span className="truncate" title={row.step.stepName}>
             <TextWithSearchMatches styledRuns={[{ text: row.step.stepName, className: row.step.isAStepOfTheGraph ? "text-fg-2" : "text-fg-3" }]} searchText={searchText} />
           </span>
-          <div className={joinClassNames("min-w-0", areLinesWrapped ? "break-words whitespace-pre-wrap" : "truncate")}>
+          <div className={cn("min-w-0", areLinesWrapped ? "break-words whitespace-pre-wrap" : "truncate")}>
             <TextWithSearchMatches
               styledRuns={row.messageLineParts.map((part) => ({ text: part.text, className: MESSAGE_LINE_PART_CLASS_NAMES[part.kind] }))}
               searchText={searchText}
@@ -183,50 +179,37 @@ function StreamLogStepFilterControl({
 }) {
   const { stepChoices, stepFilterWords } = streamLog;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label={`Steps shown: ${stepFilterWords.words}`}
-        data-stream-log-step-filter=""
-        className={joinClassNames(
-          "flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 text-fg-2 transition-colors hover:border-line-strong hover:text-fg data-popup-open:border-line-strong",
-          shownStepKeys.size > 0 && "border-line-strong text-fg",
-        )}
-      >
-        <span className="text-fg-3">Step</span>
-        <span className={joinClassNames("max-w-36 truncate", stepFilterWords.isOneStepChosen && "font-mono text-xs")}>{stepFilterWords.words}</span>
-        <ChevronDown className="size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="max-h-96 w-[288px]">
-        <DropdownMenuGroup>
-          <DropdownMenuGroupLabel className="font-medium">Steps</DropdownMenuGroupLabel>
-          <DropdownMenuItem
-            closeOnClick={false}
-            disabled={shownStepKeys.size === 0}
-            onClick={() => onShownStepKeysChosen(new Set())}
-            data-stream-log-step-choice-all=""
+    <FieldMenu
+      label={`Steps shown: ${stepFilterWords.words}`}
+      leading={<ListFilter className="size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />}
+      words={<span className={cn("max-w-36 truncate", stepFilterWords.isOneStepChosen && "font-mono text-xs")}>{stepFilterWords.words}</span>}
+      isNarrowing={shownStepKeys.size > 0}
+      menuWidth="wide"
+      data-stream-log-step-filter=""
+    >
+      <MenuGroup label="Steps">
+        <MenuItem keepsTheMenuOpen isDisabled={shownStepKeys.size === 0} onChosen={() => onShownStepKeysChosen(new Set())} data-stream-log-step-choice-all="">
+          Show all steps
+        </MenuItem>
+        <MenuSeparator />
+        {stepChoices.map((stepChoice) => (
+          <MenuCheckboxItem
+            key={stepChoice.stepKey}
+            isChecked={shownStepKeys.has(stepChoice.stepKey)}
+            onCheckedChange={(isChecked) => {
+              const chosenStepKeys = new Set(shownStepKeys);
+              if (isChecked) chosenStepKeys.add(stepChoice.stepKey);
+              else chosenStepKeys.delete(stepChoice.stepKey);
+              onShownStepKeysChosen(chosenStepKeys);
+            }}
+            data-stream-log-step-choice={stepChoice.stepName}
           >
-            Show all steps
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {stepChoices.map((stepChoice) => (
-            <DropdownMenuCheckboxItem
-              key={stepChoice.stepKey}
-              checked={shownStepKeys.has(stepChoice.stepKey)}
-              onCheckedChange={(isChecked) => {
-                const chosenStepKeys = new Set(shownStepKeys);
-                if (isChecked) chosenStepKeys.add(stepChoice.stepKey);
-                else chosenStepKeys.delete(stepChoice.stepKey);
-                onShownStepKeysChosen(chosenStepKeys);
-              }}
-              data-stream-log-step-choice={stepChoice.stepName}
-            >
-              <span className="min-w-0 truncate font-mono text-xs">{stepChoice.stepName}</span>
-              <span className="ml-auto min-w-0 shrink-[3] truncate pl-3 text-xs text-fg-3">{stepChoice.stepHint}</span>
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+            <span className="min-w-0 truncate font-mono text-xs">{stepChoice.stepName}</span>
+            <span className="ml-auto min-w-0 shrink-[3] truncate pl-3 text-xs text-fg-3">{stepChoice.stepHint}</span>
+          </MenuCheckboxItem>
+        ))}
+      </MenuGroup>
+    </FieldMenu>
   );
 }
 
@@ -243,16 +226,6 @@ function useStreamLogFolderOpening(streamName: string): { openStreamLogFolder: (
   };
 }
 
-/** A refusal to open the log folder, in its own words. */
-function FolderOpeningRefusalLine({ refusal, className }: { refusal: string; className?: string }) {
-  return (
-    <p role="alert" className={joinClassNames("flex gap-1.5 text-xs text-fg-2", className)}>
-      <SquareX className="mt-px size-3.5 shrink-0 text-danger" strokeWidth={1.75} aria-hidden />
-      <span className="select-text">{refusal}</span>
-    </p>
-  );
-}
-
 /** The quiet first row saying how many of this load's earlier records the window does not hold, and where they are on disk. */
 function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stream: ListedStream; earlierRecordsNotHeldCount: number }) {
   const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.name);
@@ -265,17 +238,26 @@ function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stre
             {logFolderPathOfStream(stream.project_directory)}
           </span>
         </span>
-        <button
-          type="button"
-          className="shrink-0 rounded text-brand-text hover:underline focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
-          onClick={openStreamLogFolder}
-          data-stream-action="open_stream_log_folder"
-        >
+        <InlineLink destination={{ onPressed: openStreamLogFolder }} data-stream-action="open_stream_log_folder">
           Open
-        </button>
+        </InlineLink>
       </div>
-      {folderOpeningRefusal !== null && <FolderOpeningRefusalLine refusal={folderOpeningRefusal} className="pb-2" />}
+      {folderOpeningRefusal !== null && (
+        <div className="pb-2">
+          <RefusalLine words={folderOpeningRefusal} />
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Which load of the stream the rows are from, and that the window holds its records since that load. */
+function StreamLoadExplanation({ streamInstance }: { streamInstance: string }) {
+  return (
+    <span className="block">
+      {streamLoadWords(streamInstance)}: records since this load are held in memory.
+      <span className="mt-1 block font-mono text-2xs opacity-80">stream_instance: {streamInstance}</span>
+    </span>
   );
 }
 
@@ -362,125 +344,119 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   };
 
   const isShowingEarlierRecordsRow = isEarlierRecordsPointerShown(reading.earlierRecordsNotHeldCount, streamLogFilters);
+  const recordDetailsPanel = isDetailsPanelOpen ? (
+    <StreamLogRecordDetailsView
+      details={selectedRecordDetails}
+      streamName={stream.name}
+      actions={{
+        onClosed: () => setIsDetailsPanelOpen(false),
+        onOnlyStepShown: (stepKey) => {
+          setShownStepKeys(new Set([stepKey]));
+          setLevelFilter("all");
+        },
+        onStepShownInGraph: (stepName) => void navigate(streamPagePath(stream.name, "graph"), { state: { selectedStep: stepName } }),
+      }}
+    />
+  ) : null;
   return (
     <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-page={stream.name}>
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* A narrow window wraps the toolbar onto a second line rather than cutting its controls short. */}
-        <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-1.5" role="toolbar" aria-label="Logs">
-          <label className="flex h-7 w-56 shrink-0 items-center gap-2 rounded-md border bg-window px-2 focus-within:border-line-strong">
-            <Search className="size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
-            <input
-              ref={searchInput}
-              value={searchText}
-              onChange={(changeEvent) => setSearchText(changeEvent.target.value)}
-              onKeyDown={(keyboardEvent) => {
-                if (keyboardEvent.key !== "Escape") return;
-                keyboardEvent.preventDefault();
-                if (searchText !== "") setSearchText("");
-                else keyboardEvent.currentTarget.blur();
-              }}
-              placeholder="Search logs"
-              aria-label={`Search ${stream.name} logs`}
-              spellCheck={false}
-              autoComplete="off"
-              className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-fg-3"
-              data-stream-log-search=""
-            />
-            {searchText !== "" ? (
-              <button type="button" onClick={() => setSearchText("")} className="text-fg-3 hover:text-fg" aria-label="Clear search">
-                <X className="size-3.5" aria-hidden />
-              </button>
-            ) : (
-              <Kbd>{shortcutHint(platform, "F")}</Kbd>
-            )}
-          </label>
-          <SegmentedRadioControl
-            ariaLabel="Levels shown"
+      <WorkAreaWithSidePanel sidePanel={recordDetailsPanel}>
+        <Toolbar label="Logs">
+          <SearchField
+            inputRef={searchInput}
+            label={`Search ${stream.name} logs`}
+            placeholder="Search logs"
+            text={searchText}
+            onTextChanged={setSearchText}
+            shortcut={presentWindowShortcut(platform, "F")}
+            data-stream-log-search=""
+          />
+          <SegmentedChoiceControl
+            label="Levels shown"
             choices={streamLog.levelFilterChoices.map((levelFilterChoice) => ({
               choice: levelFilterChoice.levelFilter,
               label: <span className={LEVEL_FILTER_LABEL_TONE_CLASS_NAMES[levelFilterChoice.labelTone]}>{levelFilterChoice.label}</span>,
               count: levelFilterChoice.count,
-              controlAttribute: { "data-stream-log-level-filter": levelFilterChoice.levelFilter },
             }))}
             chosen={levelFilter}
             onChosen={setLevelFilter}
+            dataAttributeOfEachSegment="data-stream-log-level-filter"
           />
           <StreamLogStepFilterControl streamLog={streamLog} shownStepKeys={shownStepKeys} onShownStepKeysChosen={setShownStepKeys} />
-          <div className="ml-auto flex shrink-0 items-center gap-0.5">
+          <ToolbarGroup isAtTheEnd>
             {reading.streamInstance !== null && (
-              <Tooltip>
-                <TooltipTrigger render={<span className="mr-3 cursor-default text-xs whitespace-nowrap text-fg-3" data-stream-log-load="" />}>
-                  {streamLoadWords(reading.streamInstance)}
-                </TooltipTrigger>
-                <TooltipContent>
-                  Records since this load are held in memory.
-                  <span className="mt-1 block font-mono text-[10px] opacity-80">stream_instance: {reading.streamInstance}</span>
-                </TooltipContent>
-              </Tooltip>
+              <ToolbarWords explanation={<StreamLoadExplanation streamInstance={reading.streamInstance} />} isDroppedWhenNarrow data-stream-log-load="">
+                {streamLoadWords(reading.streamInstance)}
+              </ToolbarWords>
             )}
-            <span className="mr-2 text-xs whitespace-nowrap text-fg-3 tabular" data-stream-log-line-count="">
+            <ToolbarWords
+              explanation={reading.streamInstance === null ? undefined : <StreamLoadExplanation streamInstance={reading.streamInstance} />}
+              data-stream-log-line-count=""
+            >
               {streamLog.lineCountWords}
-            </span>
-            <ToolbarIconButton
+            </ToolbarWords>
+            <ToggleIconButton
               icon={ArrowDownToLine}
               label="Follow new lines"
-              tooltip={isFollowing ? "Following new lines" : "Follow new lines"}
-              isPressed={isFollowing}
-              onClick={() => setIsFollowing((wasFollowing) => !wasFollowing)}
-              controlAttribute={{ "data-stream-log-toolbar": "follow" }}
+              tooltipWhileOn="Following new lines"
+              isOn={isFollowing}
+              onToggled={setIsFollowing}
+              data-stream-log-toolbar="follow"
             />
-            <ToolbarIconButton
+            <ToggleIconButton
               icon={WrapText}
               label="Wrap lines"
-              tooltip={areLinesWrapped ? "Don't wrap lines" : "Wrap lines"}
-              isPressed={areLinesWrapped}
-              onClick={() => setAreLinesWrapped((wereWrapped) => !wereWrapped)}
-              controlAttribute={{ "data-stream-log-toolbar": "wrap" }}
+              tooltipWhileOn="Don't wrap lines"
+              isOn={areLinesWrapped}
+              onToggled={setAreLinesWrapped}
+              data-stream-log-toolbar="wrap"
             />
-            <ToolbarIconButton
+            <ToggleIconButton
               icon={Clock}
               label="Timestamps"
-              tooltip={areTimestampsShown ? "Hide timestamps" : "Show timestamps"}
-              isPressed={areTimestampsShown}
-              onClick={() => setAreTimestampsShown((wereShown) => !wereShown)}
-              controlAttribute={{ "data-stream-log-toolbar": "timestamps" }}
+              tooltipWhileOn="Hide timestamps"
+              tooltipWhileOff="Show timestamps"
+              isOn={areTimestampsShown}
+              onToggled={setAreTimestampsShown}
+              data-stream-log-toolbar="timestamps"
             />
-            <CopyTextButton readTextToCopy={() => jsonlOfStreamLogRows(streamLog.rows)} label="Copy shown lines as JSONL" controlAttribute={{ "data-stream-log-toolbar": "copy" }} />
-            <ToolbarIconButton
+            <CopyIconButton readTextToCopy={() => jsonlOfStreamLogRows(streamLog.rows)} label="Copy shown lines as JSONL" data-stream-log-toolbar="copy" />
+            <IconButton
               icon={Ban}
               label="Clear"
               tooltip="Clear the lines shown; new ones still arrive"
-              onClick={() => {
+              onPressed={() => {
                 setClearedThroughSequence(reading.records.at(-1)?.sequence ?? 0);
                 setSelectedSequence(null);
               }}
-              controlAttribute={{ "data-stream-log-toolbar": "clear" }}
+              data-stream-log-toolbar="clear"
             />
             <ToolbarDivider />
-            <ToolbarIconButton
+            <ToggleIconButton
               icon={PanelRight}
               label="Details"
-              tooltip={isDetailsPanelOpen ? "Hide details" : "Show details"}
-              isPressed={isDetailsPanelOpen}
-              onClick={() => setIsDetailsPanelOpen((wasOpen) => !wasOpen)}
-              controlAttribute={{ "data-stream-log-toolbar": "details" }}
+              tooltipWhileOn="Hide details"
+              tooltipWhileOff="Show details"
+              isOn={isDetailsPanelOpen}
+              onToggled={setIsDetailsPanelOpen}
+              data-stream-log-toolbar="details"
             />
-          </div>
-        </div>
+          </ToolbarGroup>
+        </Toolbar>
         {reading.readRefusal !== null && (
-          <div role="status" className="flex min-h-8 items-start gap-2 border-b px-3 py-1.5 text-xs" data-stream-log-read-refusal="">
-            <TriangleAlert className="size-3.5 shrink-0 text-warn" strokeWidth={1.75} aria-hidden />
-            <span className="shrink-0 text-fg-2">Couldn't read new records, trying again:</span>
-            <span className="min-w-0 break-words text-fg select-text">{reading.readRefusal}</span>
+          <div data-stream-log-read-refusal="">
+            <RefusalLine tone="warning" layout="bar" lead="Couldn't read new records, trying again:" words={reading.readRefusal} />
           </div>
         )}
         <div ref={recordsScroller} onScroll={onRecordsScrolled} className="scrollbar-thin min-h-0 flex-1 overflow-auto">
           {isShowingEarlierRecordsRow && <EarlierRecordsNotHeldRow stream={stream} earlierRecordsNotHeldCount={reading.earlierRecordsNotHeldCount} />}
           {!reading.hasReadAPage ? (
-            <div className="grid h-full place-items-center font-sans text-fg-3">Reading logs…</div>
+            <div className="flex h-full">
+              <EmptyState title="Reading logs…" />
+            </div>
           ) : streamLog.emptyWords !== null ? (
-            <div className="grid h-full place-items-center px-6 text-center font-sans text-fg-3" data-stream-log-empty="">
-              {streamLog.emptyWords}
+            <div className="flex h-full">
+              <EmptyState title={streamLog.emptyWords} data-stream-log-empty="" />
             </div>
           ) : (
             <div
@@ -506,21 +482,7 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
             </div>
           )}
         </div>
-      </div>
-      {isDetailsPanelOpen && (
-        <StreamLogRecordDetailsView
-          details={selectedRecordDetails}
-          streamName={stream.name}
-          actions={{
-            onClosed: () => setIsDetailsPanelOpen(false),
-            onOnlyStepShown: (stepKey) => {
-              setShownStepKeys(new Set([stepKey]));
-              setLevelFilter("all");
-            },
-            onStepShownInGraph: (stepName) => void navigate(streamPagePath(stream.name, "graph"), { state: { selectedStep: stepName } }),
-          }}
-        />
-      )}
+      </WorkAreaWithSidePanel>
     </div>
   );
 }
@@ -531,41 +493,34 @@ function StreamLogsOfAStreamNotLoadedView({ stream, streamPageActions }: { strea
   const notLoadedWords = presentStreamLogsOfAStreamNotLoaded(stream);
   const retryAction = notLoadedWords.hasFailed ? presentStreamPrimaryAction(stream) : null;
   return (
-    <div className="grid min-h-0 flex-1 place-items-center bg-window px-8" data-stream-logs-not-loaded={stream.name}>
-      <div className="flex max-w-lg flex-col items-center text-center">
-        {notLoadedWords.hasFailed ? (
-          <SquareX className="size-5 text-danger" strokeWidth={1.5} aria-hidden />
-        ) : (
-          <ScrollText className="size-5 text-fg-3" strokeWidth={1.5} aria-hidden />
-        )}
-        <div className="mt-2.5 text-fg">{notLoadedWords.title}</div>
-        <p className="mt-1 text-fg-3 select-text">{notLoadedWords.explanation}</p>
-        <div className="mt-4 flex h-7 max-w-full items-center rounded-md border bg-well px-2.5 font-mono text-xs text-fg-2">
+    <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-not-loaded={stream.name}>
+      <EmptyState icon={notLoadedWords.hasFailed ? SquareX : ScrollText} isFailure={notLoadedWords.hasFailed} title={notLoadedWords.title} explanation={notLoadedWords.explanation}>
+        <div className="flex h-7 max-w-full items-center rounded-md border bg-well px-2.5 font-mono text-xs text-fg-2">
           <span className="truncate select-text" title={logFolderPathOfStream(stream.project_directory)}>
             {logFolderPathOfStream(stream.project_directory)}
           </span>
         </div>
-        <div className="mt-3 flex items-center gap-1.5">
-          <Button
-            variant="outline"
-            onClick={openStreamLogFolder}
-            data-stream-action="open_stream_log_folder"
-          >
-            <FolderOpen aria-hidden /> Open log folder
-          </Button>
+        <div className="flex items-center gap-1.5">
+          <ActionButton icon={FolderOpen} onPressed={openStreamLogFolder} data-stream-action="open_stream_log_folder">
+            Open log folder
+          </ActionButton>
           {retryAction !== null && (
-            <Button
-              variant="outline"
-              disabled={streamPageActions.actionUnderWay !== undefined}
-              onClick={() => streamPageActions.runPrimaryAction(retryAction)}
+            <ActionButton
+              icon={RotateCw}
+              isDisabled={streamPageActions.actionUnderWay !== undefined}
+              onPressed={() => streamPageActions.runPrimaryAction(retryAction)}
               data-stream-action={`${retryAction.streamAction}_from_logs`}
             >
-              <RotateCw aria-hidden /> {retryAction.label}
-            </Button>
+              {retryAction.label}
+            </ActionButton>
           )}
         </div>
-        {folderOpeningRefusal !== null && <FolderOpeningRefusalLine refusal={folderOpeningRefusal} className="mt-2 text-left" />}
-      </div>
+        {folderOpeningRefusal !== null && (
+          <div className="text-left">
+            <RefusalLine words={folderOpeningRefusal} />
+          </div>
+        )}
+      </EmptyState>
     </div>
   );
 }
