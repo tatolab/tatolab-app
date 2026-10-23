@@ -2,6 +2,39 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## A stream's Logs on the new design, with the pointer to older records on disk (#39)
+
+Issue #39, in two labelled sets.
+
+**Live (local proof)** — [`stream-logs/live-macos/`](stream-logs/live-macos/). Captured on the owner's Mac (macOS 26.7.1).
+- **The app:** Electron 44.9.1 ran unpackaged from this branch, with `machineDirectoriesUnderATestRoot` switched on in its built copy only, and its home under a scratch `CFFIXED_USER_HOME`. The page's viewport was set to 1440×900 through the DevTools protocol (Electron's window cannot be resized over it), shot at 2×.
+- **The runtime:** the test-root `tatolabd` of streamlib main (0.55.1), built in a scratch worktree, ran by hand under `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, with its loopback HTTP on 14446 and its relays on the machine's free 4443 and 4445. No launch agent was registered; `owner-runtime-unchanged.txt` records the installed app's runtime before and after.
+- **The streams**, each a `tatolab new` sample, kept:
+  - `front-door`, the sample as written, its meter logging once a second;
+  - `chatty-meter`, the same with the meter logging every frame, so the runtime soon holds only its newest 4096 records.
+- Playwright drove the window over the DevTools protocol. `live-local-api-contract-test.txt` is the live contract test against this runtime's socket (25 passed).
+
+| image | label | shows |
+|---|---|---|
+| ![](stream-logs/live-macos/01-front-door-logs-record-selected.png) | Live (local proof) | `front-door`'s Logs, `Load #1`, its records oldest first, a `brightness` record selected. Rows from the meter name the step `brightnessmeter` (its `processor_id` matched to the graph's node `id`); the H.264 encoder's and the engine's records carry no `processor_id` and read `runtime`. Warnings 360 are the encoder's own. The details give Process `own process`, Show in graph, the fields, and the record with `"host_ts": 1792781509645596000`. That is the same line the stream's JSONL segment holds (`01-front-door-selected-record-as-on-disk.jsonl`, beside `…-as-the-window-shows-it.txt`). `01-front-door-window-against-tatolab-logs.txt`: `tatolab logs --stream front-door` printed 508 records, and the window held the same 508, each agreeing in time, level and message. Read again 6 s later, the window had followed from 612 to 618 rows. |
+| ![](stream-logs/live-macos/02-front-door-logs-record-selected-dark.png) | Live (local proof) | The same in dark, 632 lines by then. |
+| ![](stream-logs/live-macos/03-front-door-show-in-graph.png) | Live (local proof) | Show in graph from that record: Graph opens with `brightnessmeter` selected, its card outlined, its link in blue, and the inspector on it. |
+| ![](stream-logs/live-macos/04-chatty-meter-earlier-records-pointer.png) | Live (local proof) | `chatty-meter` scrolled to its top: "2,104 earlier records are in /private/tmp/proof39/projects/chatty-meter/.streamlib/logs/ Open" above the oldest record held, following off. `tatolab logs --stream chatty-meter` printed the runtime's 4096 at that moment. Open opened the folder with no refusal. `04-chatty-meter-earlier-records-on-disk.txt`, read a minute later: the window held its 5000 newest (sequences 5817 to 10816), and the pointer counted 5,816. The segment on disk held 10836 lines, every record of the load. |
+| ![](stream-logs/live-macos/05-chatty-meter-stopped-logs.png) | Live (local proof) | `tatolab stop chatty-meter`: the Logs tab turns to Not loaded, with the stream's log folder and Open log folder; Graph is dimmed and the header offers Start. |
+
+**Mock** — [`stream-logs/mock/`](stream-logs/mock/). Each frame from `npm run dev` presets in Chromium at 1440×900 (mock-08 at the default 1040×700), light and dark.
+
+| image (light / dark) | preset | shows |
+|---|---|---|
+| `mock-01-macos-logs-record-selected` | `stream=main&tab=logs&record=problem` | The error record selected: the toolbar's levels with counts (Warnings amber, Errors red), Step, Load #4 and the line count; the details with its JSON record. |
+| `mock-02-macos-logs-earlier-records-pointer` | `stream=camera&tab=logs&held_records=40`, scrolled to the top | "229 earlier records are in ~/streams/camera/.streamlib/logs/ Open". |
+| `mock-03-macos-logs-errors-only` | `state=node-error&…&levels=errors&record=problem` | Errors chosen: the one `displaywindow` error of all the lines held ("1 of 18"), Process `runtime`. |
+| `mock-04-macos-logs-failed-stream` | `stream=lobby-recorder&tab=logs` | A failed stream: Failed to load, the runtime's reason, its log folder, Open log folder and Retry. |
+| `mock-05-macos-logs-stopped-stream` | `stream=pattern-two&tab=logs` | A stopped stream: Not loaded, its log folder, Open log folder. |
+| `mock-06-linux-logs-record-selected` | `platform=linux&…&record=problem` | Linux chrome, Ctrl F on the search. |
+| `mock-07-macos-logs-details-closed-wrapped` | `…&details=closed`, Wrap pressed | Details hidden, long lines wrapped under their message column. |
+| `mock-08-macos-logs-at-the-default-window-size` | `…&record=problem`, 1040×700 | The toolbar wraps onto three lines beside the details; every control whole. |
+
 ## A stream's Graph on the new design (#38)
 
 Issue #38, in two labelled sets.
