@@ -13,6 +13,7 @@ import {
   Position,
   ReactFlow,
   ReactFlowProvider,
+  useNodesInitialized,
   useReactFlow,
   useStore,
   type Edge,
@@ -36,6 +37,9 @@ type StreamGraphStepFlowNode = Node<{ step: StreamGraphStepCard }, "stream_graph
 type StreamGraphLinkFlowEdge = Edge<{ link: StreamGraphLinkLine }, "stream_graph_link">;
 
 const FIT_TO_VIEW_OPTIONS = { padding: 0.14, maxZoom: 1, duration: 250 };
+/** Below this the cards' words get too small to read, so the canvas opens at it, from the left, and pans instead. */
+const SMALLEST_OPENING_ZOOM = 0.85;
+const OPENING_VIEW_MARGIN = 48;
 
 const portHandleId = (portSide: "input" | "output", portName: string) => `${portSide}:${portName}`;
 
@@ -161,6 +165,41 @@ export function useStreamGraphZoomPercent(): number {
   return useStore((flowState) => Math.round(flowState.transform[2] * 100));
 }
 
+/**
+ * Frames the canvas once its cards are measured: the whole graph when it fits at a readable zoom, otherwise the
+ * smallest readable zoom from its left edge, centred top to bottom while it fits.
+ */
+function useOpeningViewOnceMeasured(): void {
+  const reactFlow = useReactFlow();
+  const areCardsMeasured = useNodesInitialized();
+  const canvasWidth = useStore((flowState) => flowState.width);
+  const canvasHeight = useStore((flowState) => flowState.height);
+  const [hasOpened, setHasOpened] = useState(false);
+  useEffect(() => {
+    if (hasOpened || !areCardsMeasured || canvasWidth === 0 || canvasHeight === 0) return;
+    setHasOpened(true);
+    const graphBounds = reactFlow.getNodesBounds(reactFlow.getNodes());
+    const fittingZoom = Math.min(
+      (canvasWidth - OPENING_VIEW_MARGIN * 2) / Math.max(1, graphBounds.width),
+      (canvasHeight - OPENING_VIEW_MARGIN * 2) / Math.max(1, graphBounds.height),
+      1,
+    );
+    if (fittingZoom >= SMALLEST_OPENING_ZOOM) {
+      void reactFlow.fitView({ ...FIT_TO_VIEW_OPTIONS, duration: 0 });
+      return;
+    }
+    const scaledHeight = graphBounds.height * SMALLEST_OPENING_ZOOM;
+    void reactFlow.setViewport({
+      x: OPENING_VIEW_MARGIN - graphBounds.x * SMALLEST_OPENING_ZOOM,
+      y:
+        scaledHeight > canvasHeight - OPENING_VIEW_MARGIN * 2
+          ? OPENING_VIEW_MARGIN - graphBounds.y * SMALLEST_OPENING_ZOOM
+          : canvasHeight / 2 - (graphBounds.y + graphBounds.height / 2) * SMALLEST_OPENING_ZOOM,
+      zoom: SMALLEST_OPENING_ZOOM,
+    });
+  }, [hasOpened, areCardsMeasured, canvasWidth, canvasHeight, reactFlow]);
+}
+
 /** What the canvas draws and how a person's hand on it reaches the tab around it. */
 export interface StreamGraphReactFlowCanvasProps extends Omit<StreamGraphCanvasSurroundings, "hoveredLinkId"> {
   canvas: StreamGraphCanvas;
@@ -210,6 +249,7 @@ export function StreamGraphReactFlowCanvas({ canvas, stepPositions, onStepSelect
   }, []);
 
   const canvasSurroundings: StreamGraphCanvasSurroundings = { ...surroundings, hoveredLinkId };
+  useOpeningViewOnceMeasured();
 
   return (
     <StreamGraphCanvasSurroundingsContext.Provider value={canvasSurroundings}>
@@ -234,8 +274,6 @@ export function StreamGraphReactFlowCanvas({ canvas, stepPositions, onStepSelect
         deleteKeyCode={null}
         selectionKeyCode={null}
         multiSelectionKeyCode={null}
-        fitView
-        fitViewOptions={FIT_TO_VIEW_OPTIONS}
         minZoom={0.2}
         maxZoom={2}
         panOnScroll

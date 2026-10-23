@@ -5,6 +5,7 @@ import type { TatolabPlatform } from "./backend/tatolab_backend_contract";
 
 const PRESET_STEP_TIMEOUT_MILLISECONDS = 3000;
 const PRESET_POLL_MILLISECONDS = 40;
+const GRAPH_FIT_SETTLE_MILLISECONDS = 600;
 
 /** Resolves with the first element `selector` matches once it is in the page, or `null` after a few seconds. */
 function waitForElement<ElementType extends Element>(selector: string): Promise<ElementType | null> {
@@ -71,8 +72,11 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   if (pinnedOutput !== null) await clickWhenShown(graphOutputPortSelector(pinnedOutput));
   const hoveredOutput = pageQuery.get("hover");
   if (hoveredOutput !== null) {
+    const outputPort = await waitForElement<HTMLElement>(graphOutputPortSelector(hoveredOutput));
+    // The canvas fits itself to view as it opens; the hover preview opens beside the port once it has stopped.
+    await new Promise((settled) => window.setTimeout(settled, GRAPH_FIT_SETTLE_MILLISECONDS));
     // React's onMouseEnter listens for the mouseover a pointer arriving on the port fires.
-    (await waitForElement<HTMLElement>(graphOutputPortSelector(hoveredOutput)))?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    outputPort?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
   }
   if (pageQuery.get("levels") === "errors") await clickWhenShown(`.log-dock-console [data-segment="Errors"]`);
   const page = pageQuery.get("page");
