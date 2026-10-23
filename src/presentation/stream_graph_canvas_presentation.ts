@@ -1,0 +1,206 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
+import type { StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../backend/tatolab_backend_contract";
+import { presentGraphLinkState, type GraphLinkLook } from "./stream_graph_presentation";
+import { presentNodeKind, presentStepState, type StreamStepStateEmphasis } from "./stream_overview_presentation";
+
+/** What a port carries as its icon shows it: video or audio when the runtime's catalog section says so, otherwise data. */
+export type StreamGraphPortDataKind = "video" | "audio" | "data";
+
+/** The level a port the stream lists in no `exposed` entry is at. */
+const AN_OUTPUT_NOT_LISTED_AS_EXPOSED_IS_INTERNAL = "internal";
+
+/** One input port a step card draws, on its left. */
+export interface StreamGraphStepInputPort {
+  name: string;
+  dataKind: StreamGraphPortDataKind;
+}
+
+/** Why an output has no preview, in the words its hover shows; `null` for an output that previews. */
+export type StreamGraphOutputPreviewAbsence = "internal" | "no_preview_page" | "in_another_stream" | null;
+
+/** One output port a step card draws, on its right, with what reading it from outside the stream takes. */
+export interface StreamGraphStepOutputPort {
+  stepName: string;
+  name: string;
+  dataKind: StreamGraphPortDataKind;
+  /** `internal`, `private`, `public` or a newer level; `null` for a port of a step in another stream, whose level this graph does not give. */
+  exposureLevel: string | null;
+  /** The runtime's preview page playing it; `null` when it has none. */
+  watchPageUrl: string | null;
+  previewAbsence: StreamGraphOutputPreviewAbsence;
+  /** Messages it refused, as the step's `refused_bags_by_output_port` counts them. */
+  refusedCount: number;
+}
+
+/** One step as its card on the canvas shows it. */
+export interface StreamGraphStepCard {
+  name: string;
+  type: string;
+  origin: "Built-in" | "Python" | null;
+  /** A link's source in another stream on this machine, named `<stream>/<node>`, which this graph gives no state or counters for. */
+  isInAnotherStream: boolean;
+  stateWord: string;
+  stateEmphasis: StreamStepStateEmphasis;
+  inputPorts: StreamGraphStepInputPort[];
+  outputPorts: StreamGraphStepOutputPort[];
+  /** Messages it dropped on every link into it since each was wired. */
+  droppedInCount: number;
+  /** Messages all its outputs refused. */
+  refusedCount: number;
+  /** The output the card plays inside it: its first one with a preview page; `null` when none has one. */
+  cardPreviewOutput: StreamGraphStepOutputPort | null;
+}
+
+/** One link as a line on the canvas: its ends, its state's look, and what its target dropped on it. */
+export interface StreamGraphLinkLine {
+  linkId: string;
+  sourceStepName: string;
+  sourcePortName: string;
+  targetStepName: string;
+  targetPortName: string;
+  look: GraphLinkLook;
+  stateSentence: string;
+  droppedCount: number;
+}
+
+/** A stream's graph as its canvas draws it. */
+export interface StreamGraphCanvas {
+  /** The stream's own steps in the graph's order, then each link source in another stream. */
+  steps: StreamGraphStepCard[];
+  links: StreamGraphLinkLine[];
+}
+
+/** `video` and `audio` catalog sections draw as themselves; every other section, and none, as data. */
+export function dataKindOfCatalogSection(catalogSection: string | null): StreamGraphPortDataKind {
+  return catalogSection === "video" || catalogSection === "audio" ? catalogSection : "data";
+}
+
+function sumOfCounts(countsByName: Record<string, number>): number {
+  return Object.values(countsByName).reduce((total, count) => total + count, 0);
+}
+
+/** `ports` with any of `extraPortNames` it does not already declare, after them in order. */
+function withUndeclaredPorts(ports: readonly StreamGraphDeclaredPort[], extraPortNames: readonly string[]): StreamGraphDeclaredPort[] {
+  const declared = [...ports];
+  for (const portName of extraPortNames) {
+    if (!declared.some((port) => port.name === portName)) declared.push({ name: portName, catalog_section: null });
+  }
+  return declared;
+}
+
+/**
+ * The cards and lines of `graph`'s canvas. A step draws the ports it declares, then any port only a link or an exposure
+ * names; an input takes the data kind of the output linked into it. Counters are kept at every value; the view shows
+ * them above zero.
+ */
+export function presentStreamGraphCanvas(graph: StreamGraphSummary): StreamGraphCanvas {
+  const nodeByName = new Map(graph.nodes.map((node) => [node.name, node]));
+  const stepsInAnotherStream: StreamGraphNode[] = [];
+  for (const link of graph.links) {
+    if (nodeByName.has(link.source_node) || stepsInAnotherStream.some((step) => step.name === link.source_node)) continue;
+    stepsInAnotherStream.push({
+      name: link.source_node,
+      type: "",
+      state: null,
+      input_ports: [],
+      output_ports: [],
+      dropped_bags_by_link: {},
+      refused_bags_by_output_port: {},
+    });
+  }
+  const linkedOrExposedOutputNames = (stepName: string) => [
+    ...graph.links.filter((link) => link.source_node === stepName).map((link) => link.source_port),
+    ...graph.exposed.filter((exposedPort) => exposedPort.node === stepName).map((exposedPort) => exposedPort.port),
+  ];
+  const outputPortsByStep = new Map(
+    [...graph.nodes, ...stepsInAnotherStream].map((node) => [node.name, withUndeclaredPorts(node.output_ports, linkedOrExposedOutputNames(node.name))]),
+  );
+  const dataKindOfOutput = (stepName: string, portName: string): StreamGraphPortDataKind =>
+    dataKindOfCatalogSection(outputPortsByStep.get(stepName)?.find((port) => port.name === portName)?.catalog_section ?? null);
+
+  const stepCardOf = (node: StreamGraphNode, isInAnotherStream: boolean): StreamGraphStepCard => {
+    const linksIn = graph.links.filter((link) => link.target_node === node.name);
+    const inputPorts = withUndeclaredPorts(node.input_ports, linksIn.map((link) => link.target_port)).map((port) => {
+      const linkIn = linksIn.find((link) => link.target_port === port.name);
+      return {
+        name: port.name,
+        dataKind: linkIn === undefined ? dataKindOfCatalogSection(port.catalog_section) : dataKindOfOutput(linkIn.source_node, linkIn.source_port),
+      };
+    });
+    const outputPorts = (outputPortsByStep.get(node.name) ?? []).map((port): StreamGraphStepOutputPort => {
+      const exposedPort = graph.exposed.find((exposed) => exposed.node === node.name && exposed.port === port.name);
+      const exposureLevel = isInAnotherStream ? null : (exposedPort?.level ?? AN_OUTPUT_NOT_LISTED_AS_EXPOSED_IS_INTERNAL);
+      const watchPageUrl = exposedPort?.watch_page_url ?? null;
+      return {
+        stepName: node.name,
+        name: port.name,
+        dataKind: dataKindOfCatalogSection(port.catalog_section),
+        exposureLevel,
+        watchPageUrl,
+        previewAbsence:
+          watchPageUrl !== null ? null : exposureLevel === null ? "in_another_stream" : exposureLevel === "internal" ? "internal" : "no_preview_page",
+        refusedCount: node.refused_bags_by_output_port[port.name] ?? 0,
+      };
+    });
+    return {
+      name: node.name,
+      type: node.type,
+      origin: presentNodeKind(node.type),
+      isInAnotherStream,
+      ...(isInAnotherStream ? { stateWord: "In another stream", stateEmphasis: "quiet" as const } : presentStepState(node.state)),
+      inputPorts,
+      outputPorts,
+      droppedInCount: sumOfCounts(node.dropped_bags_by_link),
+      refusedCount: sumOfCounts(node.refused_bags_by_output_port),
+      cardPreviewOutput: outputPorts.find((port) => port.watchPageUrl !== null) ?? null,
+    };
+  };
+
+  return {
+    steps: [...graph.nodes.map((node) => stepCardOf(node, false)), ...stepsInAnotherStream.map((node) => stepCardOf(node, true))],
+    links: graph.links.map((link) => {
+      const linkState = presentGraphLinkState(link);
+      return {
+        linkId: link.id,
+        sourceStepName: link.source_node,
+        sourcePortName: link.source_port,
+        targetStepName: link.target_node,
+        targetPortName: link.target_port,
+        look: linkState.look,
+        stateSentence: linkState.sentence,
+        droppedCount: nodeByName.get(link.target_node)?.dropped_bags_by_link[link.id] ?? 0,
+      };
+    }),
+  };
+}
+
+/** How a link's line reads: amber with its count when it dropped messages and counters show, blue when it touches the selected step, otherwise neutral. */
+export type StreamGraphLinkTone = "dropping" | "selected" | "neutral";
+
+export function streamGraphLinkTone(link: StreamGraphLinkLine, selectedStepName: string | null, areCountersShown: boolean): StreamGraphLinkTone {
+  if (areCountersShown && link.droppedCount > 0) return "dropping";
+  if (selectedStepName !== null && (link.sourceStepName === selectedStepName || link.targetStepName === selectedStepName)) return "selected";
+  return "neutral";
+}
+
+/** A step card's counters as its foot shows them, only those above zero: `12 dropped in`, `212 refused`. */
+export function stepCardCounterWords(step: Pick<StreamGraphStepCard, "droppedInCount" | "refusedCount">): string[] {
+  return [
+    step.droppedInCount > 0 ? `${step.droppedInCount.toLocaleString("en-US")} dropped in` : null,
+    step.refusedCount > 0 ? `${step.refusedCount.toLocaleString("en-US")} refused` : null,
+  ].filter((words): words is string => words !== null);
+}
+
+/** What hovering an output without a preview says. */
+export function outputPreviewAbsenceWords(previewAbsence: Exclude<StreamGraphOutputPreviewAbsence, null>): string {
+  switch (previewAbsence) {
+    case "internal":
+      return "Internal. Expose it to this machine or publicly to preview it.";
+    case "no_preview_page":
+      return "The runtime's graph names no machine, so this output has no preview page.";
+    case "in_another_stream":
+      return "In another stream. Open that stream to preview it.";
+  }
+}

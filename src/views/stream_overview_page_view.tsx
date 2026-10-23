@@ -17,13 +17,14 @@ import {
   streamStepsCountLabel,
   type StreamStepRow,
 } from "../presentation/stream_overview_presentation";
+import { presentStreamGraphCanvas } from "../presentation/stream_graph_canvas_presentation";
+import { stepNamesInFlowOrder } from "../presentation/stream_graph_step_layout";
 import { abbreviateHomeDirectory, isStreamLoaded, presentStreamPrimaryAction, presentStreamRunMode, streamNotLoadedReason } from "../presentation/stream_presentation";
 import type { StreamGraphReading } from "../stream_graph_readings";
 import { Button } from "./shadcn/button";
 import { joinClassNames } from "./shadcn/class_names";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./shadcn/dropdown_menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./shadcn/tooltip";
-import { graphNodesInFlowOrder, layOutStreamGraph } from "./stream_graph_layout";
 import type { GraphOutputPortAddress } from "./stream_graph_view";
 import { useCopiedConfirmation } from "./copied_confirmation";
 import { previewedOutputAskedBy, streamPagePath } from "./stream_page_path";
@@ -234,15 +235,7 @@ function StepStateWords({ step }: { step: StreamStepRow }) {
 
 function StreamStepsSection({ stream, reading }: { stream: ListedStream; reading: StreamGraphReading }) {
   const graph = reading.graph;
-  const nodeNamesInPipelineOrder = useMemo(
-    () =>
-      graph === null
-        ? []
-        : graphNodesInFlowOrder(layOutStreamGraph(graph, null))
-            .filter((layoutNode) => layoutNode.isInThisStream)
-            .map((layoutNode) => layoutNode.name),
-    [graph],
-  );
+  const nodeNamesInPipelineOrder = useMemo(() => (graph === null ? [] : stepNamesInFlowOrder(presentStreamGraphCanvas(graph))), [graph]);
   const isLoaded = isStreamLoaded(stream);
   const steps = graph === null ? [] : presentStreamSteps(graph, nodeNamesInPipelineOrder, reading.graphSource, isLoaded);
   return (

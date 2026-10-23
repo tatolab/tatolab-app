@@ -180,7 +180,8 @@ function sumOfCounts(countsByName: Record<string, number>): number {
   return Object.values(countsByName).reduce((total, count) => total + count, 0);
 }
 
-function stepState(processorState: string | null): Pick<StreamStepRow, "stateWord" | "stateEmphasis"> {
+/** A step's state word as the runtime's processor state reads in the window: Running, Starting, In error, or a newer state's own word. */
+export function presentStepState(processorState: string | null): Pick<StreamStepRow, "stateWord" | "stateEmphasis"> {
   switch (processorState) {
     case null:
     case "Running":
@@ -228,7 +229,7 @@ export function presentStreamSteps(
         origin,
         process: origin === "Built-in" ? "in runtime" : origin === "Python" ? "own process" : null,
         ...(stepsSource === "loaded"
-          ? stepState(node.state)
+          ? presentStepState(node.state)
           : isLoadedNow
             ? { stateWord: "Starting", stateEmphasis: "starting" as const }
             : { stateWord: "Not loaded", stateEmphasis: "quiet" as const }),
