@@ -73,9 +73,7 @@ export function mountTatolabWindow(
   const streamGraphReadings = new StreamGraphReadings(backend);
   streamGraphReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => streamGraphReadings.setPollingAllowed(isVisible));
-  const streamsPage = new StreamsPageView(backend, streamGraphReadings, platform, featureFlags, {
-    onTabRequested: (tab) => showTheShownStreamsTab(tab),
-  });
+  const streamsPage = new StreamsPageView(backend, streamGraphReadings, platform);
   const uninstallSheet = new UninstallSheetView(backend, platform, (flowState) =>
     settingsPage.showUninstallTatolabRefusal(flowState.phase === "closed" ? flowState.refusalReason : null),
   );
@@ -96,10 +94,7 @@ export function mountTatolabWindow(
     {
       selectStream: (streamName) => void navigateTo(streamPagePath(streamName)),
       showExposedOutputInOverview: (streamName, outputPort) => void navigateTo(streamPagePath(streamName), { previewedOutput: outputPort }),
-      watchOutput: (streamName, outputPort, exposureLevel) => {
-        streamsPage.chooseStream(streamName);
-        void navigateTo(streamPagePath(streamName, "graph")).then(() => streamsPage.watchOutput(outputPort, exposureLevel));
-      },
+      watchOutput: (streamName, outputPort) => void navigateTo(streamPagePath(streamName, "graph"), { pinnedOutput: outputPort }),
       goToStreamTab: (tab) => {
         showTheShownStreamsTab(tab);
       },
@@ -135,11 +130,11 @@ export function mountTatolabWindow(
         return showTheShownStreamsTab("overview");
       case "f": {
         const shownTab = streamPageTabShownAt(router.state.location.pathname);
-        if (shownTab === "graph" || shownTab === "logs") return streamsPage.focusLogFilter();
+        if (shownTab === "logs") return streamsPage.focusLogFilter();
         const selectedStream = shownTab === null ? null : streamsPage.selectedStream();
         if (selectedStream === null || !isStreamLoaded(selectedStream)) return false;
-        // The log filter sits in the workspace Overview and Inspect hide, so it takes focus once Graph shows.
-        void navigateTo(streamPagePath(selectedStream.name, "graph")).then(() => window.requestAnimationFrame(() => streamsPage.focusLogFilter()));
+        // The log filter sits in the hosted workspace the other tabs hide, so it takes focus once Logs shows.
+        void navigateTo(streamPagePath(selectedStream.name, "logs")).then(() => window.requestAnimationFrame(() => streamsPage.focusLogFilter()));
         return true;
       }
       case "ArrowUp":
@@ -158,10 +153,6 @@ export function mountTatolabWindow(
   document.addEventListener("keydown", (keyboardEvent) => {
     const latestStatus = statusStore?.readLatestStatus() ?? null;
     if (latestStatus === null || chooseTatolabWindowScreen(latestStatus) === "setup" || uninstallSheet.isOpen() || search.isOpen()) return;
-    if (keyboardEvent.key === "Escape") {
-      if (isOnAStreamPage() && streamsPage.closeWatch()) keyboardEvent.preventDefault();
-      return;
-    }
     if (!holdsWindowShortcutModifier(platform, keyboardEvent)) return;
     const key = keyboardEvent.key.length === 1 ? keyboardEvent.key.toLowerCase() : keyboardEvent.key;
     if (runWindowShortcut(key)) keyboardEvent.preventDefault();

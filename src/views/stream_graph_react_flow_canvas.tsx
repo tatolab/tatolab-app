@@ -1,0 +1,260 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
+import {
+  applyNodeChanges,
+  Background,
+  BackgroundVariant,
+  BaseEdge,
+  EdgeLabelRenderer,
+  getBezierPath,
+  Handle,
+  MiniMap,
+  Position,
+  ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
+  useStore,
+  type Edge,
+  type EdgeProps,
+  type Node,
+  type NodeChange,
+  type NodeProps,
+} from "@xyflow/react";
+import { createContext, memo, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  streamGraphLinkTone,
+  type StreamGraphCanvas,
+  type StreamGraphLinkLine,
+  type StreamGraphStepCard,
+} from "../presentation/stream_graph_canvas_presentation";
+import type { StreamGraphStepPosition } from "../presentation/stream_graph_step_layout";
+import { joinClassNames } from "./shadcn/class_names";
+import { StreamGraphStepCardView, type StreamGraphStepCardSurroundings } from "./stream_graph_step_card_view";
+
+type StreamGraphStepFlowNode = Node<{ step: StreamGraphStepCard }, "stream_graph_step">;
+type StreamGraphLinkFlowEdge = Edge<{ link: StreamGraphLinkLine }, "stream_graph_link">;
+
+const FIT_TO_VIEW_OPTIONS = { padding: 0.14, maxZoom: 1, duration: 250 };
+
+const portHandleId = (portSide: "input" | "output", portName: string) => `${portSide}:${portName}`;
+
+/** What every card and line on the canvas reads, so a hover or a toggle redraws them without rebuilding the graph. */
+interface StreamGraphCanvasSurroundings extends Omit<StreamGraphStepCardSurroundings, "isSelected" | "renderPortHandle"> {
+  selectedStepName: string | null;
+  hoveredLinkId: string | null;
+}
+
+const StreamGraphCanvasSurroundingsContext = createContext<StreamGraphCanvasSurroundings | null>(null);
+
+function useStreamGraphCanvasSurroundings(): StreamGraphCanvasSurroundings | null {
+  return useContext(StreamGraphCanvasSurroundingsContext);
+}
+
+function StepFlowNodeView({ data }: NodeProps<StreamGraphStepFlowNode>) {
+  const surroundings = useStreamGraphCanvasSurroundings();
+  if (surroundings === null) return null;
+  const isSelected = surroundings.selectedStepName === data.step.name;
+  return (
+    <StreamGraphStepCardView
+      step={data.step}
+      surroundings={{
+        ...surroundings,
+        isSelected,
+        renderPortHandle: (portSide, portName) => (
+          <Handle
+            type={portSide === "input" ? "target" : "source"}
+            position={portSide === "input" ? Position.Left : Position.Right}
+            id={portHandleId(portSide, portName)}
+            isConnectable={false}
+            className={joinClassNames(
+              "h-[10px]! min-h-0! w-[3px]! min-w-0! rounded-[1px]! border-0!",
+              portSide === "input" ? "-left-px!" : "-right-px!",
+              isSelected ? "bg-brand!" : "bg-fg-4!",
+            )}
+          />
+        ),
+      }}
+    />
+  );
+}
+
+/** The stroke of a link's line by its tone, or red for a link the runtime reports failed. */
+function linkStrokeColour(link: StreamGraphLinkLine, tone: ReturnType<typeof streamGraphLinkTone>): string {
+  if (tone === "dropping") return "var(--warn)";
+  if (link.look === "error") return "var(--danger)";
+  return tone === "selected" ? "var(--brand)" : "var(--fg-4)";
+}
+
+function LinkFlowEdgeView({ id, data, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }: EdgeProps<StreamGraphLinkFlowEdge>) {
+  const surroundings = useStreamGraphCanvasSurroundings();
+  const [linePath, labelX, labelY] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, curvature: 0.32 });
+  if (surroundings === null || data === undefined) return null;
+  const { link } = data;
+  const tone = streamGraphLinkTone(link, surroundings.selectedStepName, surroundings.areCountersShown);
+  const isHovered = surroundings.hoveredLinkId === id;
+  const isEmphasised = isHovered || tone !== "neutral";
+  const showsDrops = tone === "dropping";
+  return (
+    <>
+      <BaseEdge
+        id={id}
+        path={linePath}
+        interactionWidth={18}
+        style={{
+          stroke: linkStrokeColour(link, tone),
+          strokeWidth: isEmphasised ? 1.75 : 1.25,
+          strokeDasharray: link.look === "wired" || link.look === "error" ? undefined : "4 4",
+          opacity: link.look === "ending" ? 0.6 : 1,
+        }}
+      />
+      {(isHovered || showsDrops) && (
+        <EdgeLabelRenderer>
+          <div
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+            className={joinClassNames(
+              "nodrag nopan pointer-events-none absolute flex h-5 items-center gap-1.5 rounded-md border bg-popover px-1.5 font-mono text-[11px] whitespace-nowrap tabular-nums",
+              isHovered ? "border-line-strong shadow-[var(--shadow-pop)]" : "border-line",
+            )}
+            data-stream-graph-link-label={link.linkId}
+          >
+            {isHovered && <span className="text-fg-2">{link.stateSentence}</span>}
+            {showsDrops && <span className="text-warn-text">{link.droppedCount.toLocaleString("en-US")} dropped</span>}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+}
+
+const STREAM_GRAPH_NODE_TYPES = { stream_graph_step: memo(StepFlowNodeView) };
+const STREAM_GRAPH_EDGE_TYPES = { stream_graph_link: memo(LinkFlowEdgeView) };
+
+/** Holds the canvas's viewport for the toolbar beside it; the graph tab is drawn inside it. */
+export function StreamGraphCanvasProvider({ children }: { children: ReactNode }) {
+  return <ReactFlowProvider>{children}</ReactFlowProvider>;
+}
+
+/** The commands that move the canvas's viewport, the same object for as long as the canvas lives. */
+export interface StreamGraphViewportCommands {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  zoomToActualSize: () => void;
+  fitToView: () => void;
+}
+
+export function useStreamGraphViewportCommands(): StreamGraphViewportCommands {
+  const reactFlow = useReactFlow();
+  return useMemo(
+    () => ({
+      zoomIn: () => void reactFlow.zoomIn({ duration: 150 }),
+      zoomOut: () => void reactFlow.zoomOut({ duration: 150 }),
+      zoomToActualSize: () => void reactFlow.zoomTo(1, { duration: 200 }),
+      fitToView: () => void reactFlow.fitView(FIT_TO_VIEW_OPTIONS),
+    }),
+    [reactFlow],
+  );
+}
+
+/** The canvas's zoom as a whole percentage, re-rendering the caller as it changes. */
+export function useStreamGraphZoomPercent(): number {
+  return useStore((flowState) => Math.round(flowState.transform[2] * 100));
+}
+
+/** What the canvas draws and how a person's hand on it reaches the tab around it. */
+export interface StreamGraphReactFlowCanvasProps extends Omit<StreamGraphCanvasSurroundings, "hoveredLinkId"> {
+  canvas: StreamGraphCanvas;
+  stepPositions: ReadonlyMap<string, StreamGraphStepPosition>;
+  onStepSelected: (stepName: string | null) => void;
+  onStepMoved: (stepName: string, position: StreamGraphStepPosition) => void;
+  /** A person began to pan or zoom, which closes a hover preview left behind. */
+  onViewportMoveStarted: () => void;
+}
+
+/** A stream's steps as cards and its links as lines on a pannable, zoomable canvas with a minimap. */
+export function StreamGraphReactFlowCanvas({ canvas, stepPositions, onStepSelected, onStepMoved, onViewportMoveStarted, ...surroundings }: StreamGraphReactFlowCanvasProps) {
+  const [hoveredLinkId, setHoveredLinkId] = useState<string | null>(null);
+  const [flowNodes, setFlowNodes] = useState<StreamGraphStepFlowNode[]>([]);
+
+  useEffect(() => {
+    setFlowNodes((shownNodes) =>
+      canvas.steps.map((step) => ({
+        id: step.name,
+        type: "stream_graph_step",
+        position: stepPositions.get(step.name) ?? { x: 0, y: 0 },
+        data: { step },
+        draggable: true,
+        selectable: !step.isInAnotherStream,
+        measured: shownNodes.find((shownNode) => shownNode.id === step.name)?.measured,
+      })),
+    );
+  }, [canvas, stepPositions]);
+
+  const flowEdges = useMemo<StreamGraphLinkFlowEdge[]>(
+    () =>
+      canvas.links.map((link) => ({
+        id: link.linkId === "" ? `${link.sourceStepName}.${link.sourcePortName}>${link.targetStepName}.${link.targetPortName}` : link.linkId,
+        type: "stream_graph_link",
+        source: link.sourceStepName,
+        sourceHandle: portHandleId("output", link.sourcePortName),
+        target: link.targetStepName,
+        targetHandle: portHandleId("input", link.targetPortName),
+        data: { link },
+      })),
+    [canvas],
+  );
+
+  // Selection is the tab's, so only measuring and dragging change the nodes here.
+  const onNodesChange = useCallback((nodeChanges: NodeChange<StreamGraphStepFlowNode>[]) => {
+    setFlowNodes((shownNodes) => applyNodeChanges(nodeChanges.filter((nodeChange) => nodeChange.type === "dimensions" || nodeChange.type === "position"), shownNodes));
+  }, []);
+
+  const canvasSurroundings: StreamGraphCanvasSurroundings = { ...surroundings, hoveredLinkId };
+
+  return (
+    <StreamGraphCanvasSurroundingsContext.Provider value={canvasSurroundings}>
+      <ReactFlow<StreamGraphStepFlowNode, StreamGraphLinkFlowEdge>
+        className="stream-graph-canvas"
+        nodes={flowNodes}
+        edges={flowEdges}
+        nodeTypes={STREAM_GRAPH_NODE_TYPES}
+        edgeTypes={STREAM_GRAPH_EDGE_TYPES}
+        onNodesChange={onNodesChange}
+        onNodeClick={(_, clickedNode) => onStepSelected(clickedNode.data.step.isInAnotherStream ? null : clickedNode.id)}
+        onNodeDragStop={(_, draggedNode) => onStepMoved(draggedNode.id, draggedNode.position)}
+        onPaneClick={() => onStepSelected(null)}
+        onEdgeMouseEnter={(_, hoveredEdge) => setHoveredLinkId(hoveredEdge.id)}
+        onEdgeMouseLeave={() => setHoveredLinkId(null)}
+        onMoveStart={(moveEvent) => {
+          // A fit or zoom the window itself runs arrives with no event, and leaves a hover preview open.
+          if (moveEvent !== null) onViewportMoveStarted();
+        }}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        deleteKeyCode={null}
+        selectionKeyCode={null}
+        multiSelectionKeyCode={null}
+        fitView
+        fitViewOptions={FIT_TO_VIEW_OPTIONS}
+        minZoom={0.2}
+        maxZoom={2}
+        panOnScroll
+        proOptions={{ hideAttribution: true }}
+      >
+        <Background id="minor" variant={BackgroundVariant.Lines} gap={24} lineWidth={1} color="color-mix(in srgb, var(--line) 38%, transparent)" />
+        <Background id="major" variant={BackgroundVariant.Lines} gap={120} lineWidth={1} color="color-mix(in srgb, var(--line) 65%, transparent)" />
+        <MiniMap
+          position="bottom-right"
+          pannable
+          zoomable
+          ariaLabel="Minimap of the graph"
+          nodeColor={(minimapNode) => (minimapNode.id === surroundings.selectedStepName ? "var(--brand)" : "var(--line-strong)")}
+          nodeStrokeWidth={0}
+          nodeBorderRadius={3}
+          maskColor="color-mix(in srgb, var(--window) 62%, transparent)"
+          style={{ width: 144, height: 90 }}
+        />
+      </ReactFlow>
+    </StreamGraphCanvasSurroundingsContext.Provider>
+  );
+}

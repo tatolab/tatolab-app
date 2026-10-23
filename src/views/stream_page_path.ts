@@ -1,7 +1,11 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import type { GraphOutputPortAddress } from "./stream_graph_view";
+/** An output port, by its node and name, such as the one a navigation asks a stream's page to preview or pin. */
+export interface GraphOutputPortAddress {
+  node: string;
+  port: string;
+}
 
 /** The tabs of a stream's page, in the order its header shows them. */
 export const STREAM_PAGE_TABS = ["overview", "graph", "logs", "inspect"] as const;
@@ -32,16 +36,23 @@ export function streamPageTabShownAt(pathname: string): StreamPageTab | null {
   return streamPageTabNamed(pathname.split("/")[3]);
 }
 
-/** What a navigation to a stream's Overview carries when Search opened it on one exposed output. */
-export interface StreamPageNavigationState {
-  previewedOutput: GraphOutputPortAddress;
+/** What a navigation to a stream's page carries when Search opened it on one exposed output: previewed in the Overview, or pinned on Graph. */
+export type StreamPageNavigationState = { previewedOutput: GraphOutputPortAddress } | { pinnedOutput: GraphOutputPortAddress };
+
+function outputAddressUnder(navigationState: unknown, stateKey: "previewedOutput" | "pinnedOutput"): GraphOutputPortAddress | null {
+  if (typeof navigationState !== "object" || navigationState === null) return null;
+  const askedOutput: unknown = Reflect.get(navigationState, stateKey);
+  if (typeof askedOutput !== "object" || askedOutput === null || !("node" in askedOutput) || !("port" in askedOutput)) return null;
+  const { node, port } = askedOutput;
+  return typeof node === "string" && typeof port === "string" ? { node, port } : null;
 }
 
 /** The output a navigation's state asks the Overview to preview, or `null` when it asks none. */
 export function previewedOutputAskedBy(navigationState: unknown): GraphOutputPortAddress | null {
-  if (typeof navigationState !== "object" || navigationState === null || !("previewedOutput" in navigationState)) return null;
-  const previewedOutput: unknown = navigationState.previewedOutput;
-  if (typeof previewedOutput !== "object" || previewedOutput === null || !("node" in previewedOutput) || !("port" in previewedOutput)) return null;
-  const { node, port } = previewedOutput;
-  return typeof node === "string" && typeof port === "string" ? { node, port } : null;
+  return outputAddressUnder(navigationState, "previewedOutput");
+}
+
+/** The output a navigation's state asks Graph to pin, or `null` when it asks none. */
+export function pinnedOutputAskedBy(navigationState: unknown): GraphOutputPortAddress | null {
+  return outputAddressUnder(navigationState, "pinnedOutput");
 }
