@@ -5,7 +5,6 @@ import { Copy, Infinity as InfinityIcon, LoaderCircle, RefreshCw, SquareX, Trian
 import { useEffect, useRef, useState } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { ListedStream, TatolabStreamActionName } from "../backend/tatolab_backend_contract";
-import { writeTextToClipboard } from "../clipboard";
 import {
   isStreamLoaded,
   presentStreamRunMode,
@@ -20,6 +19,7 @@ import { Button } from "./shadcn/button";
 import { joinClassNames } from "./shadcn/class_names";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "./shadcn/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./shadcn/tooltip";
+import { useCopiedConfirmation } from "./copied_confirmation";
 import { useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 /** The action a person chose on a row, by its word: Stop, Start, Retry or Remove. */
@@ -200,20 +200,6 @@ export function useStreamRemovalDialog(onRemove: (stream: ListedStream) => void)
     </Dialog>
   );
   return { askToRemove, removalDialog };
-}
-
-/** How long a copy button says Copied. */
-const COPIED_WORD_MILLISECONDS = 1400;
-
-/** Copies `textToCopy` on `copy`, and says so in `wasCopied` for a moment. */
-export function useCopiedConfirmation(textToCopy: string): { wasCopied: boolean; copy: () => void } {
-  const [wasCopied, setWasCopied] = useState(false);
-  useEffect(() => {
-    if (!wasCopied) return;
-    const resetTimer = window.setTimeout(() => setWasCopied(false), COPIED_WORD_MILLISECONDS);
-    return () => window.clearTimeout(resetTimer);
-  }, [wasCopied]);
-  return { wasCopied, copy: () => void writeTextToClipboard(textToCopy).then(() => setWasCopied(true)) };
 }
 
 /** A terminal command in a well, with a button that copies it. */

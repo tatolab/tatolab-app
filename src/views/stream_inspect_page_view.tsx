@@ -15,7 +15,7 @@ import { streamGraphDocumentCommand } from "../presentation/stream_overview_pres
 import { isStreamLoaded } from "../presentation/stream_presentation";
 import { Button } from "./shadcn/button";
 import { joinClassNames } from "./shadcn/class_names";
-import { useCopiedConfirmation } from "./stream_action_controls";
+import { useCopiedConfirmation } from "./copied_confirmation";
 import { useStreamGraphReading } from "./tatolab_window_context";
 
 /** A top-level key's line in the raw document, as the runtime's two-space indentation writes it. */
@@ -37,7 +37,7 @@ function anchorIdOfTopLevelKey(key: string): string {
 }
 
 function RawGraphDocument({ graphDocumentText, highlightedKey }: { graphDocumentText: string; highlightedKey: string | null }) {
-  // Re-read on each poll, the text changes only where a counter moved; the rest of the lines keep their parts.
+  // A poll that brings the same text renders nothing new; one that moves a counter replaces only the text that changed.
   const lines = useMemo(
     () => graphDocumentText.split("\n").map((line) => ({ topLevelKey: TOP_LEVEL_KEY_LINE.exec(line)?.[1] ?? null, syntaxParts: syntaxPartsOfAJsonLine(line) })),
     [graphDocumentText],

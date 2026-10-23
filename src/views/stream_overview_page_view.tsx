@@ -25,7 +25,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from "./shadcn/tooltip";
 import { graphNodesInFlowOrder, layOutStreamGraph } from "./stream_graph_layout";
 import type { GraphOutputPortAddress } from "./stream_graph_view";
-import { useCopiedConfirmation } from "./stream_action_controls";
+import { useCopiedConfirmation } from "./copied_confirmation";
 import { previewedOutputAskedBy, streamPagePath } from "./stream_page_path";
 import type { StreamPageActions } from "./stream_page_header_view";
 import { useStreamGraphReading, useTatolabStatus } from "./tatolab_window_context";
