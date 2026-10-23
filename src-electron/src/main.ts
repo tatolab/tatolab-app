@@ -51,6 +51,8 @@ export interface TatolabElectronAppShell {
   /** The app's own config directory, where "Run Tatolab" is remembered. */
   appConfigDirectory: string;
   appVersion: string;
+  /** Where the runtime this build reads serves its loopback HTTP: the window's content security policy frames it, and the graph's preview pages sit under it. */
+  runtimeLoopbackHttpOrigin: string;
   readMonotonicClockMs(): number;
   mainWindowHostFactory: MainWindowHostFactory;
   trayIconHostFactory: TrayIconHostFactory;
@@ -119,6 +121,7 @@ export async function startTatolabApp(
     appConfigDirectory: tatolabElectronAppShell.appConfigDirectory,
     appLaunchedAtMs,
     appVersion: tatolabElectronAppShell.appVersion,
+    runtimeLoopbackHttpOrigin: tatolabElectronAppShell.runtimeLoopbackHttpOrigin,
     readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     readTheAppUpdateState: () => tatolabAppUpdater.state(),
     tatolabAppLog,

@@ -121,7 +121,7 @@ export interface StreamGraphExposedPort {
   node: string;
   port: string;
   level: string;
-  /** The runtime's loopback preview page playing this output, `<origin>/watch/<machine>/<stream>/<node>/<port>`; `null` for an `internal` port, which is never served. */
+  /** The runtime's loopback preview page playing this output, `<origin>/watch/<machine>/<stream>/<node>/<port>`; `null` for an `internal` port, which is never served, and for every port of a graph that names no machine. */
   watch_page_url: string | null;
 }
 

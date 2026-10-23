@@ -4,8 +4,8 @@
 // Linux: the window and tray over the systemd user service the installer registers. The runtime,
 // its service and the CLI come only from the installer, so this app installs nothing and sets
 // nothing up; "Run Tatolab" enables and disables the service, and `x-terminal-emulator` opens a
-// stream's project. The window keeps the desktop's own
-// title bar with no menu bar, there is no Dock, and the tray's mark keeps its colours.
+// stream's project. The window keeps the desktop's own title bar with no menu bar, there is no
+// Dock, and the tray's mark keeps its colours.
 
 import { failedWith } from "../../result.js";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
@@ -24,7 +24,6 @@ import { MachineSetUpByTheInstaller } from "./machine_set_up_by_the_installer.js
 import { RUNTIME_SYSTEMD_USER_UNIT_NAME, SystemctlOnThePath, SystemdUserRuntimeService } from "./systemd_user_runtime_service.js";
 import { tatolabMachinePathsOnLinuxForThisBuild } from "./tatolab_machine_paths.js";
 import { XTerminalEmulatorOnThePath } from "./x_terminal_emulator_on_the_path.js";
-import { runtimeLoopbackHttpOriginForThisBuild } from "../../runtime_loopback_watch_page.js";
 
 /** Why Linux refuses "Uninstall Tatolab…": its installer uninstalls, and the window's sheet shows how. */
 export const LINUX_UNINSTALL_TATOLAB_REFUSAL = "On Linux the installer uninstalls Tatolab: Settings › Uninstall Tatolab… shows how.";
@@ -74,6 +73,5 @@ export async function linuxTatolabPlatformForThisBuild(
     appUpdatePackaging: tatolabAppUpdatePackagingOnLinux(appIsPackaged, process.env["APPIMAGE"]),
     bundledRuntimeRestart: null,
     terminalOpenedInAFolder: new XTerminalEmulatorOnThePath(),
-    runtimeLoopbackHttpOrigin: runtimeLoopbackHttpOriginForThisBuild(),
   };
 }

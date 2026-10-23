@@ -56,13 +56,6 @@ export function inlineScriptHashSources(windowPageHtml: string): string[] {
   );
 }
 
-/** Whether `navigationUrl` is a page of the runtime's preview at `runtimeLoopbackHttpOrigin`, under `/watch/`: the one place a frame the window embeds may go. */
-export function isOnTheRuntimesWatchPage(runtimeLoopbackHttpOrigin: string, navigationUrl: string): boolean {
-  if (!URL.canParse(runtimeLoopbackHttpOrigin) || !URL.canParse(navigationUrl)) return false;
-  const navigationLocation = new URL(navigationUrl);
-  return navigationLocation.origin === new URL(runtimeLoopbackHttpOrigin).origin && navigationLocation.pathname.startsWith("/watch/");
-}
-
 /**
  * The window page's content security policy: only its own origin, its inline theme script, inline styles, data: fonts
  * and images, and frames of the runtime's preview page at `runtimeLoopbackHttpOrigin`, which plays an exposed output.

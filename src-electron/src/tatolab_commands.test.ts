@@ -4,6 +4,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { afterEach, expect, test, vi } from "vitest";
 import type { TatolabPlatform } from "../../src/backend/tatolab_backend_contract.js";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
@@ -69,6 +70,7 @@ async function sharedStateOverFakes(
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
     readMonotonicClockMs: () => 0,
+    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     tatolabAppLog: quietTatolabAppLog,
   });

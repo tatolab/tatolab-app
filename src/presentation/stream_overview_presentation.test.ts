@@ -179,7 +179,7 @@ const PIPELINE_ORDER = ["testpatternsource", "halftonelenseffect", "brightnessme
 
 describe("presentStreamSteps", () => {
   it("lists each step in pipeline order with its origin, state, process and the counters above zero", () => {
-    expect(presentStreamSteps(DROPPING_GRAPH, PIPELINE_ORDER, "loaded")).toEqual([
+    expect(presentStreamSteps(DROPPING_GRAPH, PIPELINE_ORDER, "loaded", true)).toEqual([
       { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", origin: "Built-in", process: "in runtime", stateWord: "Running", stateEmphasis: "plain", counters: [] },
       {
         name: "halftonelenseffect",
@@ -203,14 +203,16 @@ describe("presentStreamSteps", () => {
     ]);
   });
 
-  it("reads every step of a graph from the last load as not loaded, without its counters", () => {
-    const steps = presentStreamSteps(DROPPING_GRAPH, PIPELINE_ORDER, "as_of_the_last_load");
+  it("reads every step of a graph from the last load as not loaded, without its counters, or starting once it is loaded again", () => {
+    const steps = presentStreamSteps(DROPPING_GRAPH, PIPELINE_ORDER, "as_of_the_last_load", false);
     expect(steps.map((step) => [step.stateWord, step.stateEmphasis, step.counters])).toEqual(Array(4).fill(["Not loaded", "quiet", []]));
+    const reloadingSteps = presentStreamSteps(DROPPING_GRAPH, PIPELINE_ORDER, "as_of_the_last_load", true);
+    expect(reloadingSteps.map((step) => [step.stateWord, step.stateEmphasis])).toEqual(Array(4).fill(["Starting", "starting"]));
   });
 
   it("words an errored step as in error, a newer state as the runtime spells it, and a step the order misses last", () => {
     const graph = { ...DROPPING_GRAPH, nodes: [stepNode("a", "nodes.a:A", "Error"), stepNode("b", "weird", "Rewiring"), stepNode("c", "tatolab.stream:C", null)] };
-    expect(presentStreamSteps(graph, ["b", "a"], "loaded").map((step) => [step.name, step.stateWord, step.stateEmphasis, step.origin, step.process])).toEqual([
+    expect(presentStreamSteps(graph, ["b", "a"], "loaded", true).map((step) => [step.name, step.stateWord, step.stateEmphasis, step.origin, step.process])).toEqual([
       ["b", "Rewiring", "plain", null, null],
       ["a", "In error", "failure", "Python", "own process"],
       ["c", "Running", "plain", "Built-in", "in runtime"],
@@ -221,10 +223,25 @@ describe("presentStreamSteps", () => {
 describe("droppingLinksOf", () => {
   it("names each link whose target dropped messages, most first, and none when nothing dropped", () => {
     expect(droppingLinksOf(DROPPING_GRAPH)).toEqual([
-      { sourceNode: "halftonelenseffect", targetNode: "brightnessmeter", droppedCountText: "1,840", isOne: false },
-      { sourceNode: "halftonelenseffect", targetNode: "h264encoder", droppedCountText: "12", isOne: false },
+      { linkId: "L2", sourceWords: "halftonelenseffect", targetWords: "brightnessmeter", droppedCountText: "1,840", isOne: false },
+      { linkId: "L3", sourceWords: "halftonelenseffect", targetWords: "h264encoder", droppedCountText: "12", isOne: false },
     ]);
     expect(droppingLinksOf(TEST_PATTERN_GRAPH)).toEqual([]);
+  });
+
+  it("names the ports of two dropping links between the same two nodes, and words one message", () => {
+    const graph: StreamGraphSummary = {
+      ...DROPPING_GRAPH,
+      nodes: [stepNode("mixer", "nodes.mixer:Mixer", "Running", { dropped_bags_by_link: { La: 3, Lb: 1 } })],
+      links: [
+        { id: "La", source_node: "camera", source_port: "video", target_node: "mixer", target_port: "left", state: "wired" },
+        { id: "Lb", source_node: "camera", source_port: "preview", target_node: "mixer", target_port: "right", state: "wired" },
+      ],
+    };
+    expect(droppingLinksOf(graph)).toEqual([
+      { linkId: "La", sourceWords: "camera.video", targetWords: "mixer.left", droppedCountText: "3", isOne: false },
+      { linkId: "Lb", sourceWords: "camera.preview", targetWords: "mixer.right", droppedCountText: "1", isOne: true },
+    ]);
   });
 });
 

@@ -59,6 +59,8 @@ export interface TatolabAppControllerSources {
   appConfigDirectory: string;
   appLaunchedAtMs: number;
   appVersion: string;
+  /** Where the runtime this build reads serves its loopback HTTP, under which each readable output has its preview page. */
+  runtimeLoopbackHttpOrigin: string;
   /** The monotonic clock every `nowMs` is read from: `performance.now()` in the app. */
   readMonotonicClockMs: () => number;
   /** Where checking for a newer Tatolab stands, which each status carries. */
@@ -101,7 +103,7 @@ export class TatolabAppController {
       runTatolabSwitch,
       sources.platformForThisBuild.machineSetup,
       new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS, sources.appVersion),
-      sources.platformForThisBuild.runtimeLoopbackHttpOrigin,
+      sources.runtimeLoopbackHttpOrigin,
       sources.platformForThisBuild.bundledRuntimeRestart,
       RuntimeRestartedForAppVersionFile.inAppConfigDirectory(sources.appConfigDirectory),
       sources.readMonotonicClockMs,

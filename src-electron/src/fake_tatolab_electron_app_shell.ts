@@ -12,6 +12,7 @@ import path from "node:path";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../../src/backend/tatolab_electron_bridge_contract.js";
 import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { failedWith, succeeded } from "./result.js";
+import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabElectronAppShell } from "./main.js";
 import type { ApplicationMenu, MacosActivationPolicy, TatolabUninstall } from "./platform/mod.js";
@@ -89,6 +90,7 @@ export class FakeTatolabElectronAppShell {
     repeatingTimer: (intervalMs) => this.records.push({ asked: "repeat_every", intervalMs }),
     appConfigDirectory: this.appConfigDirectory,
     appVersion: "0.45.0",
+    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readMonotonicClockMs: () => 0,
     mainWindowHostFactory: {
       createMainWindowHost: (mainWindowSpecification, answerCloseRequest) => {

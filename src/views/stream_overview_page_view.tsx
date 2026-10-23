@@ -5,7 +5,6 @@ import { Check, ChevronDown, Copy, Globe, Laptop, LoaderCircle, Lock, Play, Rota
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import type { ListedStream, StreamGraphExposedPort } from "../backend/tatolab_backend_contract";
-import { writeTextToClipboard } from "../clipboard";
 import {
   choosePreviewedOutput,
   droppingLinksOf,
@@ -13,11 +12,12 @@ import {
   presentExposureLevel,
   presentStreamSteps,
   previewableOutputsOf,
+  readableExposedPorts,
   streamObservationCommands,
   streamStepsCountLabel,
   type StreamStepRow,
 } from "../presentation/stream_overview_presentation";
-import { abbreviateHomeDirectory, presentStreamPrimaryAction, presentStreamRunMode, streamNotLoadedReason } from "../presentation/stream_presentation";
+import { abbreviateHomeDirectory, isStreamLoaded, presentStreamPrimaryAction, presentStreamRunMode, streamNotLoadedReason } from "../presentation/stream_presentation";
 import type { StreamGraphReading } from "../stream_graph_readings";
 import { Button } from "./shadcn/button";
 import { joinClassNames } from "./shadcn/class_names";
@@ -25,12 +25,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from "./shadcn/tooltip";
 import { graphNodesInFlowOrder, layOutStreamGraph } from "./stream_graph_layout";
 import type { GraphOutputPortAddress } from "./stream_graph_view";
+import { useCopiedConfirmation } from "./stream_action_controls";
 import { previewedOutputAskedBy, streamPagePath } from "./stream_page_path";
-import type { StreamPageActions } from "./stream_page_view";
+import type { StreamPageActions } from "./stream_page_header_view";
 import { useStreamGraphReading, useTatolabStatus } from "./tatolab_window_context";
-
-/** How long the copy button says Copied. */
-const COPIED_WORD_MILLISECONDS = 1400;
 
 /** The output's level beside its lock, laptop or globe, its meaning in a tooltip. */
 function ExposureLevelWords({ level, className }: { level: string; className?: string }) {
@@ -69,10 +67,10 @@ function DroppingLinkLines({ stream, reading }: { stream: ListedStream; reading:
   return (
     <div className="-mt-1.5 mb-2.5 max-w-[920px]" data-dropping-links="">
       {droppingLinks.map((droppingLink) => (
-        <div key={`${droppingLink.sourceNode}→${droppingLink.targetNode}`} className="flex h-8 items-center gap-2">
+        <div key={droppingLink.linkId} className="flex h-8 items-center gap-2">
           <TriangleAlert className="size-3.5 shrink-0 text-warn" strokeWidth={1.75} aria-hidden />
           <span className="min-w-0 truncate text-fg-2">
-            <code className="text-xs text-fg">{droppingLink.sourceNode}</code> → <code className="text-xs text-fg">{droppingLink.targetNode}</code> has
+            <code className="text-xs text-fg">{droppingLink.sourceWords}</code> → <code className="text-xs text-fg">{droppingLink.targetWords}</code> has
             dropped <span className="text-warn-text tabular">{droppingLink.droppedCountText}</span> {droppingLink.isOne ? "message" : "messages"} since it was wired
           </span>
           <Link to={streamPagePath(stream.name, "graph")} className="ml-auto shrink-0 cursor-default text-xs text-brand-text hover:underline">
@@ -146,7 +144,7 @@ function StreamOutputPreview({
     const askedOutput = previewedOutputAskedBy(location.state);
     if (askedOutput !== null) setChosenOutput(askedOutput);
   }, [location.state]);
-  const notLoadedReason = streamNotLoadedReason(stream);
+  const notLoadedReason = isStreamLoaded(stream) ? null : streamNotLoadedReason(stream);
 
   if (notLoadedReason === "stopped") {
     const start = presentStreamPrimaryAction(stream);
@@ -185,7 +183,11 @@ function StreamOutputPreview({
     return (
       <NothingToPreview
         title="No exposed output to preview"
-        explanation={`Every output of ${stream.name} is internal. Previews play an output exposed to this machine or publicly.`}
+        explanation={
+          readableExposedPorts(reading.graph).length === 0
+            ? `Every output of ${stream.name} is internal. Previews play an output exposed to this machine or publicly.`
+            : "The runtime's graph names no machine, so its outputs have no preview page."
+        }
       />
     );
   }
@@ -241,8 +243,8 @@ function StreamStepsSection({ stream, reading }: { stream: ListedStream; reading
             .map((layoutNode) => layoutNode.name),
     [graph],
   );
-  const isLoaded = streamNotLoadedReason(stream) === null;
-  const steps = graph === null ? [] : presentStreamSteps(graph, nodeNamesInPipelineOrder, reading.graphSource);
+  const isLoaded = isStreamLoaded(stream);
+  const steps = graph === null ? [] : presentStreamSteps(graph, nodeNamesInPipelineOrder, reading.graphSource, isLoaded);
   return (
     <section className="mt-7 max-w-[920px]" data-stream-steps="">
       <div className="mb-1 flex items-center gap-2">
@@ -314,12 +316,7 @@ function DetailsPanelGroup({ label, children }: { label: string; children: React
 }
 
 function CopyableTerminalCommand({ command }: { command: string }) {
-  const [wasCopied, setWasCopied] = useState(false);
-  useEffect(() => {
-    if (!wasCopied) return;
-    const resetTimer = window.setTimeout(() => setWasCopied(false), COPIED_WORD_MILLISECONDS);
-    return () => window.clearTimeout(resetTimer);
-  }, [wasCopied]);
+  const { wasCopied, copy } = useCopiedConfirmation(command);
   return (
     <div className="group flex items-start gap-1.5 py-0.5 font-mono text-xs">
       <span className="text-fg-3 select-none" aria-hidden>
@@ -332,7 +329,7 @@ function CopyableTerminalCommand({ command }: { command: string }) {
             <button
               type="button"
               aria-label={`Copy ${command}`}
-              onClick={() => void writeTextToClipboard(command).then(() => setWasCopied(true))}
+              onClick={copy}
               className="grid size-5 shrink-0 place-items-center rounded-sm text-fg-3 hover:bg-hover hover:text-fg"
             />
           }
@@ -366,9 +363,16 @@ function StreamDetailsPanel({ stream, reading }: { stream: ListedStream; reading
       ),
     ],
     ["Instance", reading.streamInstance === null ? <span className="text-fg-3">Not loaded</span> : <span className="font-mono text-xs select-text">{reading.streamInstance}</span>],
-    ["Steps", <span className="tabular">{streamStepsCountLabel(graph, stream)}</span>],
   ];
-  const previewableOutputs = graph === null ? [] : previewableOutputsOf(graph);
+  const readableOutputs = graph === null ? [] : readableExposedPorts(graph);
+  const isFromTheLastLoad = graph !== null && reading.graphSource !== "loaded";
+  detailRows.push([
+    "Steps",
+    <span className="tabular">
+      {streamStepsCountLabel(graph, stream)}
+      {isFromTheLastLoad && <span className="text-fg-3"> · last load</span>}
+    </span>,
+  ]);
   return (
     <aside
       aria-label={`${stream.name} details`}
@@ -385,14 +389,14 @@ function StreamDetailsPanel({ stream, reading }: { stream: ListedStream; reading
           ))}
         </dl>
       </DetailsPanelGroup>
-      <DetailsPanelGroup label="Outputs">
+      <DetailsPanelGroup label={isFromTheLastLoad ? "Outputs as of the last load" : "Outputs"}>
         {graph === null ? (
-          <p className="px-2 text-fg-3">{streamNotLoadedReason(stream) === null ? "Its outputs show once its graph is read." : "Its outputs show once it is loaded."}</p>
-        ) : previewableOutputs.length === 0 ? (
+          <p className="px-2 text-fg-3">{isStreamLoaded(stream) ? "Its outputs show once its graph is read." : "Its outputs show once it is loaded."}</p>
+        ) : readableOutputs.length === 0 ? (
           <p className="px-2 text-fg-3">Every output is internal.</p>
         ) : (
           <ul className="flex flex-col gap-1">
-            {previewableOutputs.map((output) => (
+            {readableOutputs.map((output) => (
               <li key={`${output.node}/${output.port}`} className="px-2 py-1">
                 <div className="truncate font-mono text-xs text-fg select-text">
                   {output.node}/{output.port}

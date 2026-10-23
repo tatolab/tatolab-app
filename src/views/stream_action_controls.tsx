@@ -135,7 +135,6 @@ export function StreamRunModeWord({ stream }: { stream: ListedStream }) {
   );
 }
 
-
 /** The runtime's refusal of a stream action, or its notice beside a stop it could not record, in its own words. */
 export function StreamActionOutcomeLine({ outcome }: { outcome: StreamActionOutcomeWords }) {
   if (outcome.kind === "notice") {
@@ -159,7 +158,6 @@ export function StreamActionOutcomeLine({ outcome }: { outcome: StreamActionOutc
     </p>
   );
 }
-
 
 /** The question before `remove_stream`; the stream it asks about stays until the dialog has finished closing. */
 export function useStreamRemovalDialog(onRemove: (stream: ListedStream) => void) {
@@ -204,15 +202,23 @@ export function useStreamRemovalDialog(onRemove: (stream: ListedStream) => void)
   return { askToRemove, removalDialog };
 }
 
+/** How long a copy button says Copied. */
+const COPIED_WORD_MILLISECONDS = 1400;
 
-/** A terminal command in a well, with a button that copies it. */
-export function CommandWithCopyButton({ command }: { command: string }) {
+/** Copies `textToCopy` on `copy`, and says so in `wasCopied` for a moment. */
+export function useCopiedConfirmation(textToCopy: string): { wasCopied: boolean; copy: () => void } {
   const [wasCopied, setWasCopied] = useState(false);
   useEffect(() => {
     if (!wasCopied) return;
-    const resetTimer = window.setTimeout(() => setWasCopied(false), 1400);
+    const resetTimer = window.setTimeout(() => setWasCopied(false), COPIED_WORD_MILLISECONDS);
     return () => window.clearTimeout(resetTimer);
   }, [wasCopied]);
+  return { wasCopied, copy: () => void writeTextToClipboard(textToCopy).then(() => setWasCopied(true)) };
+}
+
+/** A terminal command in a well, with a button that copies it. */
+export function CommandWithCopyButton({ command }: { command: string }) {
+  const { wasCopied, copy } = useCopiedConfirmation(command);
   return (
     <div className="flex h-9 items-center gap-2 rounded-md border bg-well pr-1 pl-3 font-mono">
       <span className="text-fg-3 select-none" aria-hidden>
@@ -222,9 +228,7 @@ export function CommandWithCopyButton({ command }: { command: string }) {
       <Button
         variant="ghost"
         className="font-sans"
-        onClick={() => {
-          void writeTextToClipboard(command).then(() => setWasCopied(true));
-        }}
+        onClick={copy}
       >
         <Copy aria-hidden /> {wasCopied ? "Copied" : "Copy"}
       </Button>

@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { Check, ChevronRight, Copy, FileBraces, SquareTerminal } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { ListedStream } from "../backend/tatolab_backend_contract";
-import { writeTextToClipboard } from "../clipboard";
 import {
   outlineOfTheGraphDocument,
   readTheGraphDocument,
@@ -13,13 +12,11 @@ import {
   type JsonSyntaxKind,
 } from "../presentation/stream_graph_document_presentation";
 import { streamGraphDocumentCommand } from "../presentation/stream_overview_presentation";
-import { isStreamLoaded, streamNotLoadedReason } from "../presentation/stream_presentation";
+import { isStreamLoaded } from "../presentation/stream_presentation";
 import { Button } from "./shadcn/button";
 import { joinClassNames } from "./shadcn/class_names";
+import { useCopiedConfirmation } from "./stream_action_controls";
 import { useStreamGraphReading } from "./tatolab_window_context";
-
-/** How long the copy button says Copied. */
-const COPIED_WORD_MILLISECONDS = 1400;
 
 /** A top-level key's line in the raw document, as the runtime's two-space indentation writes it. */
 const TOP_LEVEL_KEY_LINE = /^ {2}"((?:[^"\\]|\\.)*)":/;
@@ -40,12 +37,15 @@ function anchorIdOfTopLevelKey(key: string): string {
 }
 
 function RawGraphDocument({ graphDocumentText, highlightedKey }: { graphDocumentText: string; highlightedKey: string | null }) {
-  const lines = graphDocumentText.split("\n");
+  // Re-read on each poll, the text changes only where a counter moved; the rest of the lines keep their parts.
+  const lines = useMemo(
+    () => graphDocumentText.split("\n").map((line) => ({ topLevelKey: TOP_LEVEL_KEY_LINE.exec(line)?.[1] ?? null, syntaxParts: syntaxPartsOfAJsonLine(line) })),
+    [graphDocumentText],
+  );
   const gutterWidth = `calc(${String(lines.length).length}ch + 2rem)`;
   return (
     <div className="min-w-max py-2 font-mono text-xs leading-5 select-text" data-graph-document-view="raw">
-      {lines.map((line, lineIndex) => {
-        const topLevelKey = TOP_LEVEL_KEY_LINE.exec(line)?.[1] ?? null;
+      {lines.map(({ topLevelKey, syntaxParts }, lineIndex) => {
         return (
           <div
             key={lineIndex}
@@ -56,7 +56,7 @@ function RawGraphDocument({ graphDocumentText, highlightedKey }: { graphDocument
               {lineIndex + 1}
             </span>
             <span className="whitespace-pre">
-              {syntaxPartsOfAJsonLine(line).map((part, partIndex) => (
+              {syntaxParts.map((part, partIndex) => (
                 <span key={partIndex} className={SYNTAX_COLOUR[part.kind]}>
                   {part.text}
                 </span>
@@ -106,28 +106,30 @@ function GraphDocumentTreeNode({
   const canOpen = value.kind === "object" || value.kind === "array";
   const isOpen = openPaths.has(path);
   const words = scalarWords(value);
+  const rowClassName = joinClassNames(
+    "flex h-[22px] w-full cursor-default items-center gap-1 pr-4 text-left",
+    depth === 0 && name === highlightedKey && "bg-brand-soft",
+  );
+  const rowWords = (
+    <>
+      <span className="text-fg">{name}</span>
+      <span className="text-fg-3">:</span>
+      <span className={joinClassNames("truncate select-text", SYNTAX_COLOUR[words.kind])}>{words.text}</span>
+    </>
+  );
   return (
     <div id={depth === 0 ? anchorIdOfTopLevelKey(name) : undefined} className="scroll-mt-2">
-      <button
-        type="button"
-        aria-expanded={canOpen ? isOpen : undefined}
-        disabled={!canOpen}
-        onClick={() => togglePath(path)}
-        className={joinClassNames(
-          "flex h-[22px] w-full cursor-default items-center gap-1 pr-4 text-left hover:bg-hover disabled:hover:bg-transparent",
-          depth === 0 && name === highlightedKey && "bg-brand-soft",
-        )}
-        style={{ paddingLeft: 12 + depth * 16 }}
-      >
-        {canOpen ? (
+      {canOpen ? (
+        <button type="button" aria-expanded={isOpen} onClick={() => togglePath(path)} className={joinClassNames(rowClassName, "hover:bg-hover")} style={{ paddingLeft: 12 + depth * 16 }}>
           <ChevronRight className={joinClassNames("size-3.5 shrink-0 text-fg-3 transition-transform", isOpen && "rotate-90")} strokeWidth={1.75} aria-hidden />
-        ) : (
+          {rowWords}
+        </button>
+      ) : (
+        <div className={rowClassName} style={{ paddingLeft: 12 + depth * 16 }}>
           <span className="w-3.5 shrink-0" />
-        )}
-        <span className="text-fg">{name}</span>
-        <span className="text-fg-3">:</span>
-        <span className={joinClassNames("truncate select-text", SYNTAX_COLOUR[words.kind])}>{words.text}</span>
-      </button>
+          {rowWords}
+        </div>
+      )}
       {canOpen && isOpen && (
         <div>
           {children.map(([childName, childValue]) => (
@@ -169,13 +171,12 @@ function GraphDocumentTree({ graphDocument, highlightedKey }: { graphDocument: G
 
 function GraphDocumentViewSwitch({ shownView, onViewChosen }: { shownView: GraphDocumentView; onViewChosen: (view: GraphDocumentView) => void }) {
   return (
-    <div className="flex h-7 shrink-0 items-center rounded-md bg-well p-0.5" role="radiogroup" aria-label="Show the graph document">
+    <div className="flex h-7 shrink-0 items-center rounded-md bg-well p-0.5" role="group" aria-label="Show the graph document">
       {(["raw", "tree"] as const).map((view) => (
         <button
           key={view}
           type="button"
-          role="radio"
-          aria-checked={shownView === view}
+          aria-pressed={shownView === view}
           data-graph-document-view-choice={view}
           onClick={() => onViewChosen(view)}
           className={joinClassNames(
@@ -206,18 +207,13 @@ export function StreamInspectPageView({ stream }: { stream: ListedStream }) {
   const reading = useStreamGraphReading(stream.name);
   const [shownView, setShownView] = useState<GraphDocumentView>("raw");
   const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
-  const [wasCopied, setWasCopied] = useState(false);
   const command = streamGraphDocumentCommand(stream.name);
   const graphDocumentText = reading.graphSource === "loaded" ? (reading.graph?.graph_document_text ?? null) : null;
   const graphDocument = useMemo(() => (graphDocumentText === null ? null : readTheGraphDocument(graphDocumentText)), [graphDocumentText]);
-  useEffect(() => {
-    if (!wasCopied) return;
-    const resetTimer = window.setTimeout(() => setWasCopied(false), COPIED_WORD_MILLISECONDS);
-    return () => window.clearTimeout(resetTimer);
-  }, [wasCopied]);
+  const { wasCopied, copy } = useCopiedConfirmation(graphDocumentText ?? "");
 
   if (!isStreamLoaded(stream) || graphDocumentText === null) {
-    const isNotLoaded = streamNotLoadedReason(stream) !== null;
+    const isNotLoaded = !isStreamLoaded(stream);
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-stream-inspect="">
         <GraphDocumentCommandBar command={command} />
@@ -252,19 +248,27 @@ export function StreamInspectPageView({ stream }: { stream: ListedStream }) {
             type="button"
             onClick={() => jumpToTopLevelKey(outlineEntry.key)}
             className={joinClassNames(
-              "flex h-7 w-full cursor-default items-center gap-2 rounded-md px-2 text-left text-fg-2 transition-colors hover:bg-hover hover:text-fg",
+              "group flex h-7 w-full cursor-default items-center gap-2 rounded-md px-2 text-left text-fg-2 transition-colors hover:bg-hover hover:text-fg",
               highlightedKey === outlineEntry.key && "bg-selected text-fg",
             )}
           >
             <span className="truncate font-mono text-xs">{outlineEntry.key}</span>
-            <span className="ml-auto max-w-[50%] shrink-0 truncate text-xs text-fg-3 tabular">{outlineEntry.summary}</span>
+            {/* fg-3 drops under 4.5:1 on a hovered or selected row over chrome, so the summary reads fg-2 there. */}
+            <span
+              className={joinClassNames(
+                "ml-auto max-w-[50%] shrink-0 truncate text-xs tabular group-hover:text-fg-2",
+                highlightedKey === outlineEntry.key ? "text-fg-2" : "text-fg-3",
+              )}
+            >
+              {outlineEntry.summary}
+            </span>
           </button>
         ))}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <GraphDocumentCommandBar command={command}>
           <GraphDocumentViewSwitch shownView={shownView} onViewChosen={setShownView} />
-          <Button variant="outline" className="w-[84px]" onClick={() => void writeTextToClipboard(graphDocumentText).then(() => setWasCopied(true))}>
+          <Button variant="outline" className="w-[84px]" onClick={copy}>
             {wasCopied ? <Check aria-hidden /> : <Copy aria-hidden />} {wasCopied ? "Copied" : "Copy"}
           </Button>
         </GraphDocumentCommandBar>

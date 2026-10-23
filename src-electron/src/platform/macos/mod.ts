@@ -24,7 +24,6 @@ import { LAUNCHCTL_AT_ITS_SYSTEM_PATH, ServiceManagementRuntimeLaunchAgent } fro
 import { appBundleContaining, bundledCommandLineToolPath, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
 import { TerminalAppOpenedByOpen } from "./terminal_app_opened_by_open.js";
 import { TatolabUninstallOnThisMac } from "./tatolab_uninstall.js";
-import { runtimeLoopbackHttpOriginForThisBuild } from "../../runtime_loopback_watch_page.js";
 
 export { MACOS_MAIN_WINDOW_CHROME, setMacosDockIconVisible } from "./main_window_chrome.js";
 
@@ -79,6 +78,5 @@ export async function macosTatolabPlatformForThisBuild(
     appUpdatePackaging: tatolabAppUpdatePackagingOnMacos(appIsPackaged),
     bundledRuntimeRestart: runtimeLaunchAgent,
     terminalOpenedInAFolder: new TerminalAppOpenedByOpen(),
-    runtimeLoopbackHttpOrigin: runtimeLoopbackHttpOriginForThisBuild(),
   };
 }

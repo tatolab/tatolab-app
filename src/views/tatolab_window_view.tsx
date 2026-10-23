@@ -58,14 +58,15 @@ export function mountTatolabWindow(
   document.documentElement.dataset.platform = platform;
   const router = createMemoryRouter(TATOLAB_WINDOW_ROUTES);
   const isOnAStreamPage = () => isShowingAStreamPage(router.state.location.pathname);
-  const navigateTo = (path: string, navigationState?: StreamPageNavigationState) => {
-    if (router.state.location.pathname !== path || navigationState !== undefined) void router.navigate(path, { state: navigationState });
+  /** Navigates to `path` unless the router already shows it; settles once the router shows it. */
+  const navigateTo = async (path: string, navigationState?: StreamPageNavigationState): Promise<void> => {
+    if (router.state.location.pathname !== path || navigationState !== undefined) await router.navigate(path, { state: navigationState });
   };
   /** Shows `tab` of the stream whose page shows; false off a stream page, or on Graph or Logs of a stream not loaded. */
   const showTheShownStreamsTab = (tab: StreamPageTab): boolean => {
     const selectedStream = isOnAStreamPage() ? streamsPage.selectedStream() : null;
     if (selectedStream === null || ((tab === "graph" || tab === "logs") && !isStreamLoaded(selectedStream))) return false;
-    navigateTo(streamPagePath(selectedStream.name, tab));
+    void navigateTo(streamPagePath(selectedStream.name, tab));
     return true;
   };
 
@@ -93,17 +94,16 @@ export function mountTatolabWindow(
       },
     },
     {
-      selectStream: (streamName) => navigateTo(streamPagePath(streamName)),
-      showExposedOutputInOverview: (streamName, outputPort) => navigateTo(streamPagePath(streamName), { previewedOutput: outputPort }),
+      selectStream: (streamName) => void navigateTo(streamPagePath(streamName)),
+      showExposedOutputInOverview: (streamName, outputPort) => void navigateTo(streamPagePath(streamName), { previewedOutput: outputPort }),
       watchOutput: (streamName, outputPort, exposureLevel) => {
         streamsPage.chooseStream(streamName);
-        navigateTo(streamPagePath(streamName, "graph"));
-        streamsPage.watchOutput(outputPort, exposureLevel);
+        void navigateTo(streamPagePath(streamName, "graph")).then(() => streamsPage.watchOutput(outputPort, exposureLevel));
       },
       goToStreamTab: (tab) => {
         showTheShownStreamsTab(tab);
       },
-      goToSettings: () => navigateTo("/settings"),
+      goToSettings: () => void navigateTo("/settings"),
     },
   );
   const hostedPages: TatolabWindowHostedPages = {
@@ -125,7 +125,7 @@ export function mountTatolabWindow(
         search.toggle();
         return true;
       case ",":
-        navigateTo("/settings");
+        void navigateTo("/settings");
         return true;
       case "1":
         return showTheShownStreamsTab("graph");
@@ -133,15 +133,21 @@ export function mountTatolabWindow(
         return showTheShownStreamsTab("logs");
       case "3":
         return showTheShownStreamsTab("overview");
-      case "f":
-        if (!isOnAStreamPage() || !streamsPage.focusLogFilter()) return false;
-        return showTheShownStreamsTab("graph");
+      case "f": {
+        const shownTab = streamPageTabShownAt(router.state.location.pathname);
+        if (shownTab === "graph" || shownTab === "logs") return streamsPage.focusLogFilter();
+        const selectedStream = shownTab === null ? null : streamsPage.selectedStream();
+        if (selectedStream === null || !isStreamLoaded(selectedStream)) return false;
+        // The log filter sits in the workspace Overview and Inspect hide, so it takes focus once Graph shows.
+        void navigateTo(streamPagePath(selectedStream.name, "graph")).then(() => window.requestAnimationFrame(() => streamsPage.focusLogFilter()));
+        return true;
+      }
       case "ArrowUp":
       case "ArrowDown": {
         if (!isOnAStreamPage()) return false;
         const adjacentStreamName = streamsPage.adjacentStreamName(key === "ArrowUp" ? -1 : 1);
         if (adjacentStreamName === null) return false;
-        navigateTo(streamPagePath(adjacentStreamName, streamPageTabShownAt(router.state.location.pathname) ?? "overview"));
+        void navigateTo(streamPagePath(adjacentStreamName, streamPageTabShownAt(router.state.location.pathname) ?? "overview"));
         return true;
       }
       default:

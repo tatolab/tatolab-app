@@ -267,7 +267,7 @@ describe("a stream's page", () => {
     expect(outline.getByText("nodes")).toBeTruthy();
     expect(outline.getByText("jonathanf-macbook")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("radio", { name: "Tree" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tree" }));
 
     expect(document.querySelector("[data-graph-document-view='tree']")?.textContent).toContain("machine:");
   });
@@ -290,5 +290,26 @@ describe("a stream's page", () => {
       ),
     );
     expect(openedProjects).toEqual(["camera"]);
+  });
+
+  it("focuses the log filter with ⌘F, from Overview by way of Graph, and on Logs where it is", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheStreamPageOf("main");
+    await waitFor(() => expect(document.querySelector("[data-stream-step]")).not.toBeNull());
+    const pressCommandF = () => fireEvent.keyDown(document, { key: "f", metaKey: true });
+    const focusedLogFilter = () => document.activeElement?.closest("[data-hosted-dom-page]") !== null && document.activeElement?.tagName === "INPUT";
+
+    pressCommandF();
+
+    await waitFor(() => expect(document.querySelector("[data-stream-page-header] [data-stream-tab='graph']")?.getAttribute("aria-current")).toBe("page"));
+    await waitFor(() => expect(focusedLogFilter()).toBe(true));
+
+    fireEvent.click(screen.getByRole("link", { name: "Logs" }));
+    await waitFor(() => expect(document.querySelector("[data-stream-page-header] [data-stream-tab='logs']")?.getAttribute("aria-current")).toBe("page"));
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    pressCommandF();
+
+    await waitFor(() => expect(focusedLogFilter()).toBe(true));
+    expect(document.querySelector("[data-stream-page-header] [data-stream-tab='logs']")?.getAttribute("aria-current")).toBe("page");
   });
 });

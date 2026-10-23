@@ -4,7 +4,8 @@
 import { BrowserWindow } from "electron";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
-import { isOnTheRuntimesWatchPage, isOnTheWindowPagesOwnLocation } from "../tatolab_window_page_source.js";
+import { isOnTheRuntimesWatchPage } from "../runtime_loopback_watch_page.js";
+import { isOnTheWindowPagesOwnLocation } from "../tatolab_window_page_source.js";
 import type { MainWindowCloseRequestAnswer, MainWindowHost, MainWindowHostFactory, MainWindowSpecification } from "../tatolab_main_window.js";
 
 /**

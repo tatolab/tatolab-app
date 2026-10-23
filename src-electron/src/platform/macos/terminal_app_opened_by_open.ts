@@ -8,18 +8,15 @@ import { describeHowTheProgramEnded, programSucceeded, runProgramToCompletion, t
 /** `open` at its system path, which Launch Services answers. */
 export const OPEN_AT_ITS_SYSTEM_PATH = "/usr/bin/open";
 
-/** Runs a program to its end; `runProgramToCompletion` in the app, a test's fake in its tests. */
-export type ProgramRunToCompletion = (programPath: string, programArguments: readonly string[]) => Promise<Result<ProgramCompletion, string>>;
+/** Runs `open` with `openArguments` to its end; the system's `open` in the app, a test's fake in its tests. */
+export type OpenRunner = (openArguments: readonly string[]) => Promise<Result<ProgramCompletion, string>>;
 
 /** Terminal.app opened on a folder by `open -a Terminal <folder>`, which opens a new window whose shell starts there. */
 export class TerminalAppOpenedByOpen implements TerminalOpenedInAFolder {
-  constructor(
-    private readonly openProgramPath: string = OPEN_AT_ITS_SYSTEM_PATH,
-    private readonly runProgram: ProgramRunToCompletion = runProgramToCompletion,
-  ) {}
+  constructor(private readonly runOpen: OpenRunner = (openArguments) => runProgramToCompletion(OPEN_AT_ITS_SYSTEM_PATH, openArguments)) {}
 
   async openTerminalIn(folder: string): Promise<Result<void, string>> {
-    const opened = await this.runProgram(this.openProgramPath, ["-a", "Terminal", folder]);
+    const opened = await this.runOpen(["-a", "Terminal", folder]);
     if (!opened.ok) return opened;
     if (programSucceeded(opened.value)) return succeeded(undefined);
     const openSaid = opened.value.standardError.trim();

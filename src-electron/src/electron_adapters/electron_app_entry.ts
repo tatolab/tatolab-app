@@ -31,6 +31,7 @@ process.on("unhandledRejection", (unhandledRejection) => {
 /** Vite's dev server, which an unpackaged app loads the window from when `TATOLAB_APP_WINDOW_DEV_SERVER_URL` names it; a packaged app always serves its built window. */
 const windowDevServerUrl = app.isPackaged ? null : windowDevServerUrlNamedIn(process.env["TATOLAB_APP_WINDOW_DEV_SERVER_URL"]);
 const windowPageUrl = windowDevServerUrl ?? TATOLAB_WINDOW_PAGE_URL;
+const runtimeLoopbackHttpOrigin = runtimeLoopbackHttpOriginForThisBuild();
 const builtWindowDirectory = path.join(app.getAppPath(), "dist");
 const builtWindowPreloadScript = path.join(app.getAppPath(), "src-electron", "build", "preload", "tatolab_window_preload.cjs");
 const tatolabPlatformHostServices: TatolabPlatformHostServices = {
@@ -58,7 +59,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   requestTheSingleInstanceLock: () => app.requestSingleInstanceLock(),
   whenReady: async () => {
     await app.whenReady();
-    if (windowDevServerUrl === null) await serveTheBuiltWindow(builtWindowDirectory, runtimeLoopbackHttpOriginForThisBuild(), tatolabAppLog);
+    if (windowDevServerUrl === null) await serveTheBuiltWindow(builtWindowDirectory, runtimeLoopbackHttpOrigin, tatolabAppLog);
   },
   onTheAppOpenedAgain: (listener) => {
     app.on("second-instance", listener);
@@ -81,11 +82,12 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   },
   appConfigDirectory: tatolabPlatformHostServices.appConfigDirectory,
   appVersion: app.getVersion(),
+  runtimeLoopbackHttpOrigin,
   readMonotonicClockMs: () => performance.now(),
   mainWindowHostFactory: createElectronMainWindowHostFactory(
     windowPageUrl,
     builtWindowPreloadScript,
-    runtimeLoopbackHttpOriginForThisBuild(),
+    runtimeLoopbackHttpOrigin,
     !app.isPackaged,
     tatolabAppLog,
   ),

@@ -102,9 +102,6 @@ export class FakeTerminalOpenedInAFolder implements TerminalOpenedInAFolder {
   }
 }
 
-/** The loopback HTTP origin of the fakes' runtime: a release runtime's. */
-export const FAKE_RUNTIME_LOOPBACK_HTTP_ORIGIN = "http://127.0.0.1:4446";
-
 /** How the fakes' app updates unless a test says otherwise: as an unpackaged app, which offers none. */
 const FAKE_APP_UPDATE_PACKAGING_NOT_OFFERED: TatolabAppUpdatePackaging = { kind: "not_offered", reason: "this fake platform updates nothing" };
 
@@ -126,6 +123,5 @@ export function fakeTatolabPlatformForThisBuild(
     appUpdatePackaging,
     bundledRuntimeRestart,
     terminalOpenedInAFolder,
-    runtimeLoopbackHttpOrigin: FAKE_RUNTIME_LOOPBACK_HTTP_ORIGIN,
   };
 }

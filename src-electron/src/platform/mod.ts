@@ -70,8 +70,6 @@ export interface TatolabPlatformForThisBuild {
   bundledRuntimeRestart: BundledRuntimeRestart | null;
   /** The desktop's terminal, which the window's Terminal opens on a stream's project folder. */
   terminalOpenedInAFolder: TerminalOpenedInAFolder;
-  /** Where the runtime this build reads serves its loopback HTTP and the preview page under `/watch/`. */
-  runtimeLoopbackHttpOrigin: string;
 }
 
 /** The desktop's terminal: Terminal.app on macOS, `x-terminal-emulator` on Linux. */

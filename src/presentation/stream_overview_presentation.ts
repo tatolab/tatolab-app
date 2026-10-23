@@ -194,8 +194,17 @@ function stepState(processorState: string | null): Pick<StreamStepRow, "stateWor
   }
 }
 
-/** The steps of `graph` in `nodeNamesInPipelineOrder` (any step it misses after them), each with its origin, process, state and the counters above zero. */
-export function presentStreamSteps(graph: StreamGraphSummary, nodeNamesInPipelineOrder: readonly string[], stepsSource: StreamStepsSource): StreamStepRow[] {
+/**
+ * The steps of `graph` in `nodeNamesInPipelineOrder` (any step it misses after them), each with its origin, process, state
+ * and the counters above zero. Steps from the last load read Not loaded, or Starting while `isLoadedNow` says the stream is
+ * loaded again and its new graph is not read yet.
+ */
+export function presentStreamSteps(
+  graph: StreamGraphSummary,
+  nodeNamesInPipelineOrder: readonly string[],
+  stepsSource: StreamStepsSource,
+  isLoadedNow: boolean,
+): StreamStepRow[] {
   const pipelinePlace = (nodeName: string) => {
     const place = nodeNamesInPipelineOrder.indexOf(nodeName);
     return place === -1 ? nodeNamesInPipelineOrder.length : place;
@@ -218,7 +227,11 @@ export function presentStreamSteps(graph: StreamGraphSummary, nodeNamesInPipelin
         type: node.type,
         origin,
         process: origin === "Built-in" ? "in runtime" : origin === "Python" ? "own process" : null,
-        ...(stepsSource === "loaded" ? stepState(node.state) : { stateWord: "Not loaded", stateEmphasis: "quiet" as const }),
+        ...(stepsSource === "loaded"
+          ? stepState(node.state)
+          : isLoadedNow
+            ? { stateWord: "Starting", stateEmphasis: "starting" as const }
+            : { stateWord: "Not loaded", stateEmphasis: "quiet" as const }),
         counters,
       };
     });
@@ -226,26 +239,35 @@ export function presentStreamSteps(graph: StreamGraphSummary, nodeNamesInPipelin
 
 /** A link whose target dropped messages arriving on it, which the Overview names in one amber line. */
 export interface DroppingLinkPresentation {
-  sourceNode: string;
-  targetNode: string;
+  linkId: string;
+  /** `halftonelenseffect`, or `halftonelenseffect.video_to_downstream` when another dropping link joins the same two nodes. */
+  sourceWords: string;
+  targetWords: string;
   droppedCountText: string;
   /** Whether it dropped exactly one message, which reads "message" rather than "messages". */
   isOne: boolean;
 }
 
-/** Every link of `graph` whose target counts messages dropped on it since it was wired, most first. */
+/** Every link of `graph` whose target counts messages dropped on it since it was wired, most first, naming its ports when its nodes alone would not tell it apart. */
 export function droppingLinksOf(graph: StreamGraphSummary): DroppingLinkPresentation[] {
   const nodeByName = new Map(graph.nodes.map((node) => [node.name, node]));
-  return graph.links
+  const droppingLinks = graph.links
     .map((link) => ({ link, droppedCount: nodeByName.get(link.target_node)?.dropped_bags_by_link[link.id] ?? 0 }))
     .filter(({ droppedCount }) => droppedCount > 0)
-    .sort((first, second) => second.droppedCount - first.droppedCount)
-    .map(({ link, droppedCount }) => ({
-      sourceNode: link.source_node,
-      targetNode: link.target_node,
+    .sort((first, second) => second.droppedCount - first.droppedCount);
+  const nodePairKey = (link: { source_node: string; target_node: string }) => `${link.source_node}\u0000${link.target_node}`;
+  const droppingLinkCountByNodePair = new Map<string, number>();
+  for (const { link } of droppingLinks) droppingLinkCountByNodePair.set(nodePairKey(link), (droppingLinkCountByNodePair.get(nodePairKey(link)) ?? 0) + 1);
+  return droppingLinks.map(({ link, droppedCount }) => {
+    const isAmbiguous = (droppingLinkCountByNodePair.get(nodePairKey(link)) ?? 0) > 1;
+    return {
+      linkId: link.id,
+      sourceWords: isAmbiguous ? `${link.source_node}.${link.source_port}` : link.source_node,
+      targetWords: isAmbiguous ? `${link.target_node}.${link.target_port}` : link.target_node,
       droppedCountText: droppedCount.toLocaleString("en-US"),
       isOne: droppedCount === 1,
-    }));
+    };
+  });
 }
 
 /** The exposed outputs the runtime's preview page plays: every one it gives a preview page, so never an internal one. */

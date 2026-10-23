@@ -83,8 +83,8 @@ function streamGraphSummaryFromTheParsedGraph(
 }
 
 /** A `{ name: count }` object of the node's `components.metrics`, keeping each count the runtime wrote as a number; `{}` when it wrote none. */
-function countsByName(metrics: unknown, key: string): Record<string, number> {
-  const countsOnTheWire = isAJsonObject(metrics) ? metrics[key] : undefined;
+function nonNegativeCountsUnderTheNodesMetricsKey(metrics: unknown, metricsKey: string): Record<string, number> {
+  const countsOnTheWire = isAJsonObject(metrics) ? metrics[metricsKey] : undefined;
   if (!isAJsonObject(countsOnTheWire)) return {};
   return Object.fromEntries(
     Object.entries(countsOnTheWire).filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]) && entry[1] >= 0),
@@ -106,8 +106,8 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
     name: name.value,
     type: nodeType.value,
     state: typeof state === "string" ? state : null,
-    dropped_bags_by_link: countsByName(metrics, "dropped_bags_by_link"),
-    refused_bags_by_output_port: countsByName(metrics, "refused_bags_by_output_port"),
+    dropped_bags_by_link: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "dropped_bags_by_link"),
+    refused_bags_by_output_port: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "refused_bags_by_output_port"),
   });
 }
 
