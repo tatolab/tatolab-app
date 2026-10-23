@@ -14,3 +14,5 @@
   border-radius: var(--radius-md);
   background: var(--chrome);
 }
+/* React Flow draws link labels in a layer under the cards; a link's failure and drops must read over them. */
+.stream-graph-canvas .react-flow__edgelabel-renderer { z-index: 1001; }
