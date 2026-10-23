@@ -460,7 +460,7 @@ function NoStreamsYet({ machineWords }: { machineWords: string }) {
         <h2 className="mt-4 text-lg font-semibold">No streams on {machineWords} yet</h2>
         <p className="mt-1 max-w-md text-fg-3">A stream is a Python project with a stream.py. The runtime compiles it, loads its graph and keeps it running.</p>
         <div className="mt-6 w-full overflow-hidden rounded-lg border text-left">
-          <FirstStreamChoice icon={Sparkles} title="Create the sample stream" explanation="A test pattern you can edit, made with tatolab new." />
+          <FirstStreamChoice icon={Sparkles} title="Create the sample stream" explanation="A sample stream you can edit, made with tatolab new." />
           <FirstStreamChoice icon={FolderOpen} title="Run a project folder" explanation="Any folder with a stream.py and a .venv." />
         </div>
         <div className="mt-6 w-full text-left">
