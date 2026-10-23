@@ -22,8 +22,7 @@ const showWhatTheWindowShowsAndQuit = async (failure) => {
   await app.close();
   process.exit(1);
 };
-process.on("unhandledRejection", showWhatTheWindowShowsAndQuit);
-
+try {
 await page.waitForSelector('[data-stream-row="main"]', { timeout: 60000 });
 await page.waitForTimeout(2000);
 captureTheScreen("linux-01-streams-light");
@@ -42,4 +41,7 @@ await row("lobby-recorder").locator('[data-stream-action="start_stream"]').click
 await row("lobby-recorder").getByRole("alert").waitFor({ timeout: 30000 });
 await page.waitForTimeout(400);
 captureTheScreen("linux-04-pattern-two-started-lobby-recorder-retry-refused");
+} catch (failure) {
+  await showWhatTheWindowShowsAndQuit(failure);
+}
 await app.close();
