@@ -10,8 +10,13 @@ paths:
 - **The design source is `docs/design`** — `DESIGN.md` for the rules, tokens, words and layout,
   the prototype for every screen, its storyboard frames for citing one — **and
   `src/styles/tokens.css`.** State is written as words, not dots; stopped streams are dimmed; only
-  a failure is red, with its reason. A visual change that departs from the spec is the owner's
-  call — bring it, don't drift into it.
+  a failure is red, with its reason.
+- **The design source sets the look; it is not a pixel spec** (owner, #51). Within its language,
+  visual details — spacing rhythm, aligned shared edges, proportion, sizes on the scale — are
+  chosen by design principles and consistency, and need no question. An old proof frame is a
+  reference, not a target to match. What stays the owner's call, brought and never drifted into:
+  the design language itself (a token or colour, the type face, the window's root size, a rule in
+  `DESIGN.md`) and anything an issue or `DESIGN.md` states outright.
 - **Colours, radii, fonts and the window's structural sizes (band, sidebar, page padding) come
   from `tokens.css`**, with a light and a dark value for every colour. Spacing and type sizes come
   from Tailwind's scale as the design source uses it, with literal px only where the scale has no
