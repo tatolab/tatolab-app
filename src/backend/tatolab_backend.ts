@@ -1,7 +1,15 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import type { StreamGraphSummary, StreamLogRecordsPage, TatolabStatus, TatolabStreamActionName } from "./tatolab_backend_contract";
+import type {
+  StreamGraphSummary,
+  StreamLogRecordsPage,
+  StreamProjectFolderChosenFor,
+  StreamProjectFolderReport,
+  StreamProjectRunOutcome,
+  TatolabStatus,
+  TatolabStreamActionName,
+} from "./tatolab_backend_contract";
 import { TATOLAB_WINDOW_PAGE_SCHEME, type TatolabElectronBridge } from "./tatolab_electron_bridge_contract";
 
 declare global {
@@ -32,6 +40,18 @@ export interface TatolabBackend {
   openTerminalAtStreamProject(streamName: string): Promise<void>;
   /** Show the log folder under the project folder the runtime lists for `streamName` in the file manager, rejecting with why it could not. */
   openStreamLogFolder(streamName: string): Promise<void>;
+  /** Ask the person for a folder in the app's dialog and resolve with what it holds, or `null` when they cancel. A folder it answers is one the window may name. */
+  chooseStreamProjectFolder(chosenFor: StreamProjectFolderChosenFor): Promise<StreamProjectFolderReport | null>;
+  /** The first free `~/streams/hello[-N]` for a new project, which the window may name. */
+  proposeNewStreamProjectFolder(): Promise<StreamProjectFolderReport>;
+  /** What `folder` holds now, rejecting for a folder the app never handed the window. */
+  checkStreamProjectFolder(folder: string): Promise<StreamProjectFolderReport>;
+  /** Run `tatolab new` in `folder`, then resolve with what it holds; rejects in the CLI's own words. */
+  createStreamProject(folder: string): Promise<StreamProjectFolderReport>;
+  /** Compile `folder` and load it kept, resolving once the runtime answers; rejects with its refusal in its own words, except a refused name a listed stream holds, which resolves `name_taken`. */
+  runStreamProject(folder: string, streamFunction: string | null, streamName: string | null): Promise<StreamProjectRunOutcome>;
+  /** Open a terminal in `folder`, a folder the app handed the window, rejecting with why it could not. */
+  openTerminalAtChosenProjectFolder(folder: string): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
 }
 

@@ -60,6 +60,15 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     openStreamLogFolder: async (streamName) => {
       await invokeTatolabCommand("open_stream_log_folder", { stream: streamName });
     },
+    chooseStreamProjectFolder: (chosenFor) => invokeTatolabCommand("choose_stream_project_folder", { chosen_for: chosenFor }),
+    proposeNewStreamProjectFolder: () => invokeTatolabCommand("propose_new_stream_project_folder", undefined),
+    checkStreamProjectFolder: (folder) => invokeTatolabCommand("check_stream_project_folder", { folder }),
+    createStreamProject: (folder) => invokeTatolabCommand("create_stream_project", { folder }),
+    runStreamProject: (folder, streamFunction, streamName) =>
+      invokeTatolabCommand("run_stream_project", { folder, stream_function: streamFunction, name: streamName }),
+    openTerminalAtChosenProjectFolder: async (folder) => {
+      await invokeTatolabCommand("open_terminal_at_stream_project", { folder });
+    },
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
   };
 }

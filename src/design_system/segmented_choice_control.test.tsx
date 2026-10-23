@@ -87,4 +87,26 @@ describe("the segmented choice control", () => {
     act(() => screen.getByRole("button", { name: "Info" }).focus());
     expect(pressedSegmentNames()).toEqual(["warn"]);
   });
+
+  it("never chooses a segment that can't be chosen here, which says why", () => {
+    let chosenRunMode = "kept";
+    render(
+      <SegmentedChoiceControl
+        label="Run mode"
+        choices={[
+          { choice: "kept", label: "Always on" },
+          { choice: "attached", label: "Dev session", unavailableBecause: "Start one with tatolab dev." },
+        ]}
+        chosen="kept"
+        onChosen={(choice) => {
+          chosenRunMode = choice;
+        }}
+      />,
+    );
+
+    const devSession = screen.getByRole("button", { name: "Dev session" });
+    expect(devSession.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(devSession);
+    expect(chosenRunMode).toBe("kept");
+  });
 });

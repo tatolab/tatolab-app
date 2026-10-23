@@ -34,7 +34,6 @@ export class TatolabWindowStatusStore {
 export interface TatolabWindowHostedPages {
   streamsPage: StreamsPageView;
   settingsPage: SettingsPageView;
-  firstStreamGuidePage: TatolabWindowPage;
   /** What fills the window until Tatolab can run here: macOS's administrator setup, or Linux's installer. */
   setupScreen: TatolabWindowPage;
 }

@@ -11,7 +11,6 @@ import { holdsWindowShortcutModifier } from "../presentation/platform_presentati
 import { chooseTatolabWindowScreen } from "../presentation/runtime_presentation";
 import { isStreamLoaded } from "../presentation/stream_presentation";
 import { FirstLaunchSetupView } from "./first_launch_setup_view";
-import { createFirstStreamGuide } from "./first_stream_guide_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { LinuxRuntimeInstallView } from "./linux_runtime_install_view";
 import { SettingsPageView } from "./settings_page_view";
@@ -110,7 +109,6 @@ export function mountTatolabWindow(
   const hostedPages: TatolabWindowHostedPages = {
     streamsPage,
     settingsPage,
-    firstStreamGuidePage: { element: createFirstStreamGuide() },
     setupScreen: platform === "linux" ? new LinuxRuntimeInstallView() : new FirstLaunchSetupView(backend),
   };
   const openSearch = () => {

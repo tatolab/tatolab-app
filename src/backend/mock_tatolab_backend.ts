@@ -3,6 +3,7 @@
 
 import {
   createMockStreamFixtures,
+  createMockStreamRunFromAProjectFolder,
   type MockLiveLogWriter,
   type MockLogRecordDraft,
   type MockMachine,
@@ -17,6 +18,9 @@ import {
   type StreamGraphSummary,
   type StreamLogRecord,
   type StreamLogRecordsPage,
+  type StreamProjectFolderReport,
+  type StreamProjectRunOutcome,
+  type StreamRunAnswer,
   type TatolabAppUpdateState,
   type TatolabPlatform,
   type TatolabStatus,
@@ -88,6 +92,24 @@ const MOCK_UPDATE_CHECK_MILLISECONDS = 900;
 const MOCK_UPDATE_DOWNLOAD_STEP_MILLISECONDS = 250;
 const MOCK_UPDATE_DOWNLOAD_STEP_PERCENT = 7;
 
+/**
+ * The project folder the mock's folder dialog chooses, picked with `?add_folder=`: one ready to run (the default), one whose
+ * `.venv` is not synced yet, one with several `@stream` functions, one whose function's name a listed stream holds, one with
+ * no `stream.py`, or none, the person cancelling.
+ */
+export type MockChosenProjectFolder = "ready" | "no-venv" | "several" | "taken" | "no-stream-file" | "cancel";
+
+const MOCK_CHOSEN_PROJECT_FOLDERS: readonly MockChosenProjectFolder[] = ["ready", "no-venv", "several", "taken", "no-stream-file", "cancel"];
+
+/** How long the mock runtime takes to compile, load and start a project. */
+const MOCK_RUN_STREAM_MILLISECONDS = 2600;
+/** How long the mock `tatolab new` takes. */
+const MOCK_TATOLAB_NEW_MILLISECONDS = 400;
+
+/** The cross-floor warning the mock compile writes with `?add_run=warning`. */
+const MOCK_COMPILE_WARNING =
+  "cross-floor check: nodes/heat_render.py imports cupy, which has no linux-aarch64 wheel — this stream will not run on a Jetson";
+
 /** What the page's query asks of the mock. */
 export interface MockTatolabOptions {
   scenario: MockTatolabScenario;
@@ -103,6 +125,12 @@ export interface MockTatolabOptions {
   isTheLogFolderMissing: boolean;
   /** `?held_records=<n>`: the runtime holds only each stream's newest `n` records, as it holds its newest 4096, so a stream's earlier records are no longer held. */
   mostRecordsHeldPerStream: number;
+  /** `?add_folder=`: the project folder the folder dialog chooses. */
+  chosenProjectFolder: MockChosenProjectFolder;
+  /** `?add_run=warning`: a project's compile writes a cross-floor warning. */
+  doesTheCompileWriteAWarning: boolean;
+  /** `?add_cli=missing`: this build has no `tatolab` CLI, so creating a project is refused. */
+  isTheTatolabCommandMissing: boolean;
 }
 
 /**
@@ -127,6 +155,9 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isTheTerminalMissing: pageQuery.get("terminal") === "missing",
     isTheLogFolderMissing: pageQuery.get("log_folder") === "missing",
     mostRecordsHeldPerStream: positiveWholeNumberOrNull(pageQuery.get("held_records")) ?? MOST_RECORDS_THE_RUNTIME_HOLDS,
+    chosenProjectFolder: MOCK_CHOSEN_PROJECT_FOLDERS.find((knownFolder) => knownFolder === pageQuery.get("add_folder")) ?? "ready",
+    doesTheCompileWriteAWarning: pageQuery.get("add_run") === "warning",
+    isTheTatolabCommandMissing: pageQuery.get("add_cli") === "missing",
   };
 }
 
@@ -244,6 +275,9 @@ export function createMockTatolabBackend({
   isTheTerminalMissing,
   isTheLogFolderMissing,
   mostRecordsHeldPerStream,
+  chosenProjectFolder,
+  doesTheCompileWriteAWarning,
+  isTheTatolabCommandMissing,
 }: MockTatolabOptions): TatolabBackend {
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -276,12 +310,100 @@ export function createMockTatolabBackend({
     for (const statusListener of statusListeners) statusListener(structuredClone(mockStatus));
   };
 
+  /** The streams run from the window's Add stream, listed after the fixtures', in the order they were run. */
+  const streamNamesRunFromTheWindow: string[] = [];
   const listStreams = (): ListedStream[] | null => {
     if (scenario === "not-listed") return null;
-    if (scenario === "empty") return [];
-    return fixtures.listingOrder
+    return [...(scenario === "empty" ? [] : fixtures.listingOrder), ...streamNamesRunFromTheWindow]
       .map((streamName) => loadedStreams.get(streamName)?.fixture.listing ?? listedStreamsNotLoaded.get(streamName) ?? null)
       .filter((listing): listing is ListedStream => listing !== null);
+  };
+
+  /** Each project folder the mock knows, by path, as the window would be told it holds it; a folder not here does not exist. */
+  const projectFolders = new Map<string, StreamProjectFolderReport>();
+  /** The folders whose `.venv` a Check again finds synced, as if the person ran `uv sync` in a terminal meanwhile. */
+  const foldersSyncedOnTheNextCheck = new Set<string>();
+  const foldersHandedToTheWindow = new Set<string>();
+  const projectsFolder = `${fixtures.machine.homeDirectory}/code`;
+  const syncedPythonEnvironment = { kind: "present", python_version: "3.12.10", tatolab_stream_version: "0.55.0" } as const;
+  const projectFolderReport = (folder: string, streamFunctions: string[], isSynced: boolean): StreamProjectFolderReport => ({
+    folder,
+    folder_exists: true,
+    stream_file_present: streamFunctions.length > 0,
+    stream_functions: streamFunctions,
+    python_environment: isSynced ? syncedPythonEnvironment : { kind: "missing" },
+  });
+  const projectFolderTheDialogChooses = (): StreamProjectFolderReport | null => {
+    switch (chosenProjectFolder) {
+      case "ready":
+        return projectFolderReport(`${projectsFolder}/heat-map`, ["heat_map"], true);
+      case "no-venv":
+        return projectFolderReport(`${projectsFolder}/heat-map`, ["heat_map"], false);
+      case "several":
+        return projectFolderReport(`${projectsFolder}/doorways`, ["front_door", "back_door"], true);
+      case "taken":
+        return projectFolderReport(`${projectsFolder}/main-v2`, [fixtures.mainStream.listing.name], true);
+      case "no-stream-file":
+        return projectFolderReport(`${projectsFolder}/notes`, [], true);
+      case "cancel":
+        return null;
+    }
+  };
+  const handToTheWindow = (report: StreamProjectFolderReport): StreamProjectFolderReport => {
+    foldersHandedToTheWindow.add(report.folder);
+    if (report.folder_exists && report.python_environment.kind === "missing") foldersSyncedOnTheNextCheck.add(report.folder);
+    if (report.folder_exists) projectFolders.set(report.folder, report);
+    return structuredClone(report);
+  };
+  const refuseAFolderNotHandedToTheWindow = (folder: string): void => {
+    if (!foldersHandedToTheWindow.has(folder)) throw `Tatolab acts only on a folder chosen in its window. Choose ${folder} again.`;
+  };
+  const firstFreeNewStreamProjectFolder = (): string => {
+    const newProjectsFolder = `${fixtures.machine.homeDirectory}/streams`;
+    let candidate = `${newProjectsFolder}/hello`;
+    for (let suffix = 2; projectFolders.has(candidate); suffix += 1) candidate = `${newProjectsFolder}/hello-${suffix}`;
+    return candidate;
+  };
+  const newProjectFolderReport = (folder: string): StreamProjectFolderReport => ({
+    folder,
+    folder_exists: false,
+    stream_file_present: false,
+    stream_functions: [],
+    python_environment: { kind: "missing" },
+  });
+  /** `run_stream` as the runtime does it: refused for a project with no `.venv` and for a name a listed stream holds, else loaded kept. */
+  const runMockStreamProject = (folder: string, streamFunction: string | null, streamName: string | null): StreamProjectRunOutcome => {
+    const project = projectFolders.get(folder);
+    if (project === undefined || project.python_environment.kind === "missing") {
+      throw `Invalid configuration: ${folder} has no .venv/bin/python; run \`uv sync\` in ${folder}`;
+    }
+    const functionName = streamFunction?.split(":").at(-1) ?? project.stream_functions[0] ?? "main";
+    const loadedName = streamName ?? functionName;
+    const listedNames = (listStreams() ?? []).map((listing) => listing.name);
+    const holder = (listStreams() ?? []).find((listing) => listing.name === loadedName);
+    if (holder !== undefined) {
+      let suffix = 2;
+      while (listedNames.includes(`${loadedName}-${suffix}`)) suffix += 1;
+      return {
+        kind: "name_taken",
+        refusal: `Stream graph error: the stream name \`${loadedName}\` is held by a kept stream from ${holder.project_directory}; load this one under another name with \`--name\``,
+        free_name: `${loadedName}-${suffix}`,
+      };
+    }
+    const fixture = createMockStreamRunFromAProjectFolder(fixtures.machine, loadedName, folder);
+    streamNamesRunFromTheWindow.push(loadedName);
+    loadStream(fixture, Date.now());
+    publishStatus({ streams: listStreams() });
+    const answer: StreamRunAnswer = {
+      stream: loadedName,
+      stream_instance: loadedStreams.get(loadedName)?.streamInstance ?? "",
+      kept: true,
+      project_directory: folder,
+      node_count: fixture.listing.node_count ?? 0,
+      replaced_the_kept_record: false,
+      compile_warnings: doesTheCompileWriteAWarning ? [MOCK_COMPILE_WARNING] : [],
+    };
+    return { kind: "running", answer };
   };
 
   const holdRecords = (loadedStream: MockLoadedStream, drafts: MockLogRecordDraft[]): void => {
@@ -618,6 +740,44 @@ export function createMockTatolabBackend({
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       const projectFolder = listedProjectFolderOf(streamName);
       if (isTheLogFolderMissing) throw `${streamName} has no log folder yet: ${projectFolder}/${STREAM_LOG_FOLDER_IN_THE_PROJECT} is not on this machine.`;
+    },
+    chooseStreamProjectFolder: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const chosen = projectFolderTheDialogChooses();
+      return chosen === null ? null : handToTheWindow(chosen);
+    },
+    proposeNewStreamProjectFolder: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      return handToTheWindow(newProjectFolderReport(firstFreeNewStreamProjectFolder()));
+    },
+    checkStreamProjectFolder: async (folder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      refuseAFolderNotHandedToTheWindow(folder);
+      const project = projectFolders.get(folder);
+      if (project === undefined) return newProjectFolderReport(folder);
+      if (foldersSyncedOnTheNextCheck.delete(folder)) projectFolders.set(folder, { ...project, python_environment: syncedPythonEnvironment });
+      return structuredClone(projectFolders.get(folder) ?? project);
+    },
+    createStreamProject: async (folder) => {
+      await sleep(MOCK_TATOLAB_NEW_MILLISECONDS);
+      refuseAFolderNotHandedToTheWindow(folder);
+      if (isTheTatolabCommandMissing) throw "This build of Tatolab has no tatolab command to run. Run tatolab new in a terminal instead.";
+      if (projectFolders.has(folder)) throw `\`${folder}\` already has stream.py, pyproject.toml — scaffolding would overwrite it. Pick an empty directory.`;
+      return handToTheWindow(projectFolderReport(folder, ["main"], false));
+    },
+    runStreamProject: async (folder, streamFunction, streamName) => {
+      await sleep(MOCK_RUN_STREAM_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer run_stream`;
+      refuseAFolderNotHandedToTheWindow(folder);
+      return runMockStreamProject(folder, streamFunction, streamName);
+    },
+    openTerminalAtChosenProjectFolder: async (folder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      refuseAFolderNotHandedToTheWindow(folder);
+      if (!projectFolders.has(folder)) throw `${folder} is not a folder on this machine.`;
+      if (isTheTerminalMissing) {
+        throw "No terminal opened: x-terminal-emulator is not on the PATH. Install a terminal, or choose one with sudo update-alternatives --config x-terminal-emulator.";
+      }
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);

@@ -43,6 +43,7 @@ import {
   type StreamActionOutcomeWords,
 } from "./stream_action_controls";
 import { streamPagePath } from "./stream_page_path";
+import { addStreamPagePath } from "./add_stream_page_view";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 function StreamRowActions({
@@ -158,9 +159,9 @@ function StreamsListRow({
   );
 }
 
-function FirstStreamChoice({ icon: ChoiceIcon, title, explanation }: { icon: LucideIcon; title: string; explanation: string }) {
+function FirstStreamChoice({ icon: ChoiceIcon, title, explanation, to }: { icon: LucideIcon; title: string; explanation: string; to: string }) {
   return (
-    <Link to="/add-stream" className="flex h-16 w-full cursor-default items-center gap-3.5 border-b px-4 text-left transition-colors last:border-b-0 hover:bg-hover">
+    <Link to={to} className="flex h-16 w-full cursor-default items-center gap-3.5 border-b px-4 text-left transition-colors last:border-b-0 hover:bg-hover">
       <span className="grid size-9 shrink-0 place-items-center rounded-md border bg-raised">
         <ChoiceIcon className="size-4 text-fg-2" strokeWidth={1.75} aria-hidden />
       </span>
@@ -181,8 +182,8 @@ function NoStreamsYet({ machineWords }: { machineWords: string }) {
         <h2 className="mt-4 text-lg font-semibold">No streams on {machineWords} yet</h2>
         <p className="mt-1 max-w-md text-fg-3">A stream is a Python project with a stream.py. The runtime compiles it, loads its graph and keeps it running.</p>
         <div className="mt-6 w-full overflow-hidden rounded-lg border text-left">
-          <FirstStreamChoice icon={Sparkles} title="Create the sample stream" explanation="A sample stream you can edit, made with tatolab new." />
-          <FirstStreamChoice icon={FolderOpen} title="Run a project folder" explanation="Any folder with a stream.py and a .venv." />
+          <FirstStreamChoice icon={Sparkles} title="Create the sample stream" explanation="A sample stream you can edit, made with tatolab new." to={addStreamPagePath("new_project")} />
+          <FirstStreamChoice icon={FolderOpen} title="Run a project folder" explanation="Any folder with a stream.py and a .venv." to={addStreamPagePath("project_folder")} />
         </div>
         <div className="mt-6 w-full text-left">
           <div className="mb-1.5 text-xs text-fg-3">Or in a terminal, from a project folder, to reload on every save:</div>
@@ -216,7 +217,7 @@ function StreamsListFilterControl({
   );
 }
 
-/** The Streams page: every stream `list_streams` reports, each with its state, run mode, steps and actions; or the first-stream guide when there are none. */
+/** The Streams page: every stream `list_streams` reports, each with its state, run mode, steps and actions; or the ways to add a first one when there are none. */
 export function StreamsListPageView({ listedStreams }: { listedStreams: readonly ListedStream[] }) {
   const { platform } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();

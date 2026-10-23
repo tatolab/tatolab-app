@@ -3,7 +3,7 @@
 
 import { cn } from "cn";
 import { Activity, Boxes, ChevronLeft, ChevronRight, Moon, Plus, Settings, SquareX, Sun, TriangleAlert, Workflow } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } from "react-router";
 import type { ListedStream } from "../backend/tatolab_backend_contract";
 import { presentPlatform, presentWindowShortcut, windowDragRegionAttribute } from "../presentation/platform_presentation";
@@ -12,6 +12,7 @@ import { isStreamLoaded } from "../presentation/stream_presentation";
 import { ActionButton } from "../design_system/action_button";
 import { IconButton } from "../design_system/icon_button";
 import { SearchOpeningButton } from "../design_system/search_opening_button";
+import { AddStreamPageView } from "./add_stream_page_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { StreamPageView } from "./stream_page_view";
 import { streamPagePath, streamPageTabNamed } from "./stream_page_path";
@@ -248,26 +249,7 @@ function SettingsRoute() {
   return <HostedDomPageView hostedPage={hostedPages.settingsPage} />;
 }
 
-/** The first-stream guide, which keeps its promise to show the stream as soon as the runtime loads it: a stream listed after the guide opened is shown. */
-function AddStreamRoute() {
-  const { hostedPages } = useTatolabWindowEnvironment();
-  const listedStreams = useListedStreamsWhileTheRuntimeRuns();
-  const navigate = useNavigate();
-  const streamNamesWhenTheGuideOpened = useRef<ReadonlySet<string> | null>(null);
-  useEffect(() => {
-    if (listedStreams === null) return;
-    if (streamNamesWhenTheGuideOpened.current === null) {
-      streamNamesWhenTheGuideOpened.current = new Set(listedStreams.map((stream) => stream.name));
-      return;
-    }
-    const knownStreamNames = streamNamesWhenTheGuideOpened.current;
-    const newlyListedStream = listedStreams.find((stream) => !knownStreamNames.has(stream.name));
-    if (newlyListedStream !== undefined) navigate(streamPagePath(newlyListedStream.name), { replace: true });
-  }, [listedStreams, navigate]);
-  return <HostedDomPageView hostedPage={hostedPages.firstStreamGuidePage} />;
-}
-
-/** The window's routes, in its memory router: the Streams list, a stream, Settings, and adding a stream. */
+/** The window's routes, in its memory router: the Streams list, a stream, Settings, and adding a stream from a project folder or a new project. */
 export const TATOLAB_WINDOW_ROUTES: RouteObject[] = [
   {
     element: <TatolabWindowShell />,
@@ -275,7 +257,8 @@ export const TATOLAB_WINDOW_ROUTES: RouteObject[] = [
       { index: true, element: <StreamsRoute /> },
       { path: "streams/:streamName/:streamTab?", element: <StreamRoute /> },
       { path: "settings", element: <SettingsRoute /> },
-      { path: "add-stream", element: <AddStreamRoute /> },
+      { path: "add-stream", element: <AddStreamPageView source="project_folder" /> },
+      { path: "add-stream/new-project", element: <AddStreamPageView source="new_project" /> },
     ],
   },
 ];

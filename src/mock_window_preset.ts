@@ -27,6 +27,24 @@ function graphOutputPortSelector(stepDotPort: string): string {
   return `[data-stream-graph-step="${CSS.escape(stepName)}"] [data-step-output-port="${CSS.escape(portName)}"]`;
 }
 
+/** How long the mock runtime takes to answer a run, and a little more. */
+const MOCK_RUN_STREAM_SETTLE_MILLISECONDS = 3200;
+
+/** The Add stream page driven to the step `addStep` names, as a person would get there. */
+async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
+  if (addStep === "new" || addStep === "created") {
+    await clickWhenShown(`[data-add-stream-source="new_project"]`);
+    if (addStep === "created") await clickWhenShown(`[data-add-stream-action="create"]:not([disabled])`);
+    return;
+  }
+  if (addStep !== "folder" && addStep !== "compiling" && addStep !== "done") return;
+  await clickWhenShown(`[data-add-stream-action="choose_folder"]`);
+  if (addStep === "folder") return;
+  await waitForElement(`[data-add-stream-checks]`);
+  await clickWhenShown(`[data-add-stream-action="compile_and_run"]:not([disabled])`);
+  if (addStep === "done") await new Promise((settled) => window.setTimeout(settled, MOCK_RUN_STREAM_SETTLE_MILLISECONDS));
+}
+
 async function clickWhenShown(selector: string): Promise<boolean> {
   const element = await waitForElement<HTMLElement>(selector);
   element?.click();
@@ -37,7 +55,9 @@ async function clickWhenShown(selector: string): Promise<boolean> {
  * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=overview|graph|logs|inspect`,
  * `?stream_page_action=<action>` (a header button of the stream's page, once its steps show: `stop_stream` there gives
  * the steps as of the last load), `?inspect=tree`,
- * `?page=settings|add-stream`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
+ * `?page=settings|add-stream`, on Add stream `?add=folder|compiling|done` (a folder chosen, compiling, the stream running) or
+ * `?add=new|created` (a new project proposed, then written by `tatolab new`), with the backend's `?add_folder=`, `?add_run=warning` and
+ * `?add_cli=missing`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
  * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),
  * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`, on Graph `?step=<step>` (selected), `?focus=<step>` (its card
  * holding keyboard focus), `?pin=<step>.<port>`
@@ -106,6 +126,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   if (pageQuery.get("step_menu") === "open" && document.querySelector('[data-slot="dropdown-menu-content"]') === null) await clickWhenShown("[data-stream-log-step-filter]");
   const page = pageQuery.get("page");
   if (page === "settings" || page === "add-stream") await clickWhenShown(`[data-window-navigation="${page}"]`);
+  if (page === "add-stream") await driveAddStreamToPreset(pageQuery.get("add"));
   const sheet = pageQuery.get("sheet");
   if (sheet === "uninstall" || sheet === "uninstalling" || sheet === "uninstalled") {
     if (page !== "settings") await clickWhenShown(`[data-window-navigation="settings"]`);

@@ -81,3 +81,80 @@ describe("the mock backend's stream actions", () => {
     expect(listingNamed(removed.streams, "pattern-two")).toBeUndefined();
   });
 });
+
+describe("the mock backend's Add stream", () => {
+  async function settled<Answer>(act: () => Promise<Answer>, waitMilliseconds = 3000): Promise<{ answer: Answer } | { refusal: unknown }> {
+    const settledAnswer = act().then(
+      (answer) => ({ answer }),
+      (refusal: unknown) => ({ refusal }),
+    );
+    await vi.advanceTimersByTimeAsync(waitMilliseconds);
+    return settledAnswer;
+  }
+
+  it("runs the chosen folder kept, lists it, and refuses a folder it never handed the window", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_run=warning")));
+    const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
+    const folder = "answer" in chosen && chosen.answer !== null ? chosen.answer.folder : "";
+    expect(folder).toBe("/Users/jonathanf/code/heat-map");
+
+    const run = await settled(() => backend.runStreamProject(folder, null, "heat_map"));
+    expect(run).toEqual({
+      answer: {
+        kind: "running",
+        answer: expect.objectContaining({ stream: "heat_map", kept: true, project_directory: folder, node_count: 4, compile_warnings: [expect.stringMatching(/^cross-floor check:/)] }),
+      },
+    });
+    const status = await settled(() => backend.getTatolabStatus());
+    expect("answer" in status && listingNamed(status.answer.streams, "heat_map")).toMatchObject({ state: "kept", project_directory: folder });
+
+    expect(await settled(() => backend.runStreamProject("/etc", null, "etc"))).toEqual({
+      refusal: "Tatolab acts only on a folder chosen in its window. Choose /etc again.",
+    });
+  });
+
+  it("answers a name a listed stream holds with the runtime's refusal and the first free name", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_folder=taken")));
+    const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
+    const folder = "answer" in chosen && chosen.answer !== null ? chosen.answer.folder : "";
+
+    expect(await settled(() => backend.runStreamProject(folder, null, "main"))).toEqual({
+      answer: {
+        kind: "name_taken",
+        refusal: expect.stringMatching(/^Stream graph error: the stream name `main` is held by a kept stream from /),
+        free_name: "main-2",
+      },
+    });
+  });
+
+  it("creates a project whose .venv a later Check again finds synced, and refuses running it before", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
+    const proposal = await settled(() => backend.proposeNewStreamProjectFolder());
+    const folder = "answer" in proposal ? proposal.answer.folder : "";
+    expect(folder).toBe("/Users/jonathanf/streams/hello");
+
+    const created = await settled(() => backend.createStreamProject(folder));
+    expect(created).toEqual({ answer: expect.objectContaining({ stream_functions: ["main"], python_environment: { kind: "missing" } }) });
+    expect(await settled(() => backend.runStreamProject(folder, null, "hello"))).toEqual({
+      refusal: `Invalid configuration: ${folder} has no .venv/bin/python; run \`uv sync\` in ${folder}`,
+    });
+    expect(await settled(() => backend.checkStreamProjectFolder(folder))).toEqual({
+      answer: expect.objectContaining({ python_environment: { kind: "present", python_version: "3.12.10", tatolab_stream_version: "0.55.0" } }),
+    });
+    expect(await settled(() => backend.runStreamProject(folder, null, "hello"))).toEqual({ answer: expect.objectContaining({ kind: "running" }) });
+  });
+
+  it("refuses creating a project in a build with no tatolab command, and answers a cancelled dialog with null", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_cli=missing&add_folder=cancel")));
+    const proposal = await settled(() => backend.proposeNewStreamProjectFolder());
+    const folder = "answer" in proposal ? proposal.answer.folder : "";
+    expect(await settled(() => backend.createStreamProject(folder))).toEqual({
+      refusal: "This build of Tatolab has no tatolab command to run. Run tatolab new in a terminal instead.",
+    });
+    expect(await settled(() => backend.chooseStreamProjectFolder("project_to_run"))).toEqual({ answer: null });
+  });
+});

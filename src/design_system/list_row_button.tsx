@@ -14,10 +14,11 @@ type ListRowButtonElementProps = Pick<
   "aria-label" | "aria-describedby" | "aria-expanded" | "aria-pressed" | "onMouseEnter" | "onMouseLeave" | "onFocus" | "onBlur" | "style"
 >;
 
-/** A row of a list or panel that acts when pressed: its icon, its words, and what trails them; filled while selected. */
+/** A row of a list or panel that acts when pressed: its icon, its words, and what trails them; filled while selected, dim while it cannot act. */
 export function ListRowButton({
   icon: RowIcon,
   isSelected = false,
+  isDisabled = false,
   trailing,
   onPressed,
   className,
@@ -26,6 +27,7 @@ export function ListRowButton({
 }: {
   icon?: LucideIcon;
   isSelected?: boolean;
+  isDisabled?: boolean;
   trailing?: ReactNode;
   onPressed: () => void;
   /** A one-off adjustment where the row is used. */
@@ -36,6 +38,7 @@ export function ListRowButton({
   return (
     <Button
       variant="ghost"
+      disabled={isDisabled}
       onClick={onPressed}
       className={cn(
         "group/list-row h-7 w-full min-w-0 justify-start gap-2 rounded-md px-2 text-left font-normal text-fg-2 hover:bg-hover hover:text-fg active:not-aria-[haspopup]:translate-y-0 dark:hover:bg-hover",

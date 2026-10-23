@@ -99,6 +99,42 @@ describe("createElectronTatolabBackend", () => {
     ]);
   });
 
+  it("sends each command that adds a stream under its name, answering the main process's report and outcome", async () => {
+    const report = {
+      folder: "/Users/someone/code/heat-map",
+      folder_exists: true,
+      stream_file_present: true,
+      stream_functions: ["heat_map"],
+      python_environment: { kind: "missing" as const },
+    };
+    const outcome = { kind: "name_taken" as const, refusal: "the stream name `heat_map` is held", free_name: "heat_map-2" };
+    const fakeBridge = fakeTatolabElectronBridge({
+      choose_stream_project_folder: { ok: true, value: null },
+      propose_new_stream_project_folder: { ok: true, value: report },
+      check_stream_project_folder: { ok: true, value: report },
+      create_stream_project: { ok: true, value: report },
+      run_stream_project: { ok: true, value: outcome },
+      open_terminal_at_stream_project: { ok: true, value: null },
+    });
+    const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
+
+    expect(await backend.chooseStreamProjectFolder("project_to_run")).toBeNull();
+    expect(await backend.proposeNewStreamProjectFolder()).toEqual(report);
+    expect(await backend.checkStreamProjectFolder(report.folder)).toEqual(report);
+    expect(await backend.createStreamProject(report.folder)).toEqual(report);
+    expect(await backend.runStreamProject(report.folder, null, "heat_map")).toEqual(outcome);
+    await backend.openTerminalAtChosenProjectFolder(report.folder);
+
+    expect(fakeBridge.invokedCommands).toEqual([
+      ["choose_stream_project_folder", { chosen_for: "project_to_run" }],
+      ["propose_new_stream_project_folder", undefined],
+      ["check_stream_project_folder", { folder: report.folder }],
+      ["create_stream_project", { folder: report.folder }],
+      ["run_stream_project", { folder: report.folder, stream_function: null, name: "heat_map" }],
+      ["open_terminal_at_stream_project", { folder: report.folder }],
+    ]);
+  });
+
   it("answers with what the main process answered", async () => {
     const tatolabStatus = await aTatolabStatus();
     const backend = createElectronTatolabBackend(

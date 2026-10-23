@@ -6,15 +6,14 @@ import type { ListedStream, TatolabStatus } from "../backend/tatolab_backend_con
 import { createElement } from "../dom";
 import { presentRuntimeStatus, type RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
 import { chooseSelectedStreamName } from "../presentation/stream_selection";
-import { createFirstStreamGuide } from "./first_stream_guide_view";
 import { createRuntimeStatePage, createStreamsNotListedPage } from "./runtime_state_page_view";
 import type { TatolabWindowPage } from "./tatolab_window_page";
 
-type StreamsPageBodyKind = "stream" | "first_stream_guide" | "runtime_state" | "streams_not_listed";
+type StreamsPageBodyKind = "stream" | "runtime_state" | "streams_not_listed";
 
 /**
  * The streams the runtime lists and which one is selected, which the window's shortcuts and Search read; and, while
- * the runtime lists none, the first-stream guide or the page saying why the runtime isn't running.
+ * the runtime lists none, the page saying why the runtime isn't running or why its streams weren't listed.
  */
 export class StreamsPageView implements TatolabWindowPage {
   readonly element: HTMLElement;
@@ -45,9 +44,7 @@ export class StreamsPageView implements TatolabWindowPage {
       ? "runtime_state"
       : status.streams === null
         ? "streams_not_listed"
-        : status.streams.length === 0
-          ? "first_stream_guide"
-          : "stream";
+        : "stream";
     this.showBody(bodyKind, presentation);
 
     if (status.streams !== null && isRunning) {
@@ -99,9 +96,6 @@ export class StreamsPageView implements TatolabWindowPage {
       case "stream":
         // The React stream pages show a listed stream; this page shows only while the runtime lists none.
         this.pageBody.replaceChildren();
-        break;
-      case "first_stream_guide":
-        this.pageBody.replaceChildren(createFirstStreamGuide());
         break;
       case "runtime_state":
         this.pageBody.replaceChildren(createRuntimeStatePage(this.backend, presentation, this.runtimeLastAnsweredAt));

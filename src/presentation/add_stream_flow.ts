@@ -1,0 +1,219 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
+import type { StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../backend/tatolab_backend_contract";
+
+/** Where a new stream starts from: a project folder the person has, or a new project `tatolab new` writes. */
+export type AddStreamSource = "project_folder" | "new_project";
+
+/** The run the window asks `run_stream` for: a folder, the stream function as `tatolab run` takes it, and the name to load it under. */
+export interface AddStreamRunRequest {
+  folder: string;
+  streamFunction: string | null;
+  streamName: string | null;
+}
+
+/** What the backend is doing for the form while it waits. */
+export type AddStreamWorkUnderWay = "choosing_a_folder" | "checking_the_folder" | "creating_the_project" | "opening_a_terminal";
+
+/** Everything the form holds, kept while a run compiles so a refusal returns to it. */
+export interface AddStreamForm {
+  source: AddStreamSource;
+  /** The folder the person chose to run, with what it holds; `null` until one is chosen. */
+  projectFolder: StreamProjectFolderReport | null;
+  /** The new project's directory, proposed or chosen, then what `tatolab new` wrote there; `null` until proposed. */
+  newProjectFolder: StreamProjectFolderReport | null;
+  hasCreatedTheNewProject: boolean;
+  /** The `@stream` function chosen when the folder's `stream.py` has several. */
+  chosenStreamFunction: string | null;
+  streamName: string;
+  /** The runtime's refusal of a name a listed stream holds, with the first name none holds. */
+  nameTaken: { refusal: string; freeName: string } | null;
+  /** The last refusal the backend gave, in its own words, after the window's lead naming what was refused. */
+  refusal: { lead: string; words: string } | null;
+  workUnderWay: AddStreamWorkUnderWay | null;
+}
+
+/** The Add stream page: the form, a run compiling since `startedAtMs`, or the stream running. */
+export type AddStreamFlowState =
+  | { step: "form"; form: AddStreamForm }
+  | { step: "compiling"; form: AddStreamForm; request: AddStreamRunRequest; startedAtMs: number }
+  | { step: "running"; form: AddStreamForm; request: AddStreamRunRequest; answer: StreamRunAnswer };
+
+/** What happened on the page, from the person or from the backend's answer. */
+export type AddStreamFlowEvent =
+  | { kind: "source_chosen"; source: AddStreamSource }
+  | { kind: "work_started"; work: AddStreamWorkUnderWay }
+  | { kind: "folder_dialog_cancelled" }
+  | { kind: "project_folder_answered"; report: StreamProjectFolderReport }
+  | { kind: "new_project_folder_answered"; report: StreamProjectFolderReport }
+  | { kind: "new_project_created"; report: StreamProjectFolderReport }
+  | { kind: "stream_function_chosen"; streamFunction: string }
+  | { kind: "stream_name_edited"; streamName: string }
+  | { kind: "work_refused"; lead: string; words: string }
+  | { kind: "terminal_opened" }
+  | { kind: "run_started"; request: AddStreamRunRequest; nowMs: number }
+  | { kind: "run_answered"; outcome: StreamProjectRunOutcome }
+  | { kind: "run_refused"; words: string }
+  | { kind: "add_another" };
+
+/** The form as it first shows for `source`, nothing chosen yet. */
+export function emptyAddStreamForm(source: AddStreamSource): AddStreamForm {
+  return {
+    source,
+    projectFolder: null,
+    newProjectFolder: null,
+    hasCreatedTheNewProject: false,
+    chosenStreamFunction: null,
+    streamName: "",
+    nameTaken: null,
+    refusal: null,
+    workUnderWay: null,
+  };
+}
+
+/** The page as it first shows for `source`. */
+export function initialAddStreamFlowState(source: AddStreamSource): AddStreamFlowState {
+  return { step: "form", form: emptyAddStreamForm(source) };
+}
+
+/** The last part of `folder`, which names a new project's stream. */
+export function folderBaseName(folder: string): string {
+  return folder.replace(/\/+$/, "").split("/").at(-1) ?? "";
+}
+
+/** The folder a run would compile now: the chosen project folder, or the new project once `tatolab new` wrote it. */
+export function folderToRun(form: AddStreamForm): StreamProjectFolderReport | null {
+  if (form.source === "project_folder") return form.projectFolder;
+  return form.hasCreatedTheNewProject ? form.newProjectFolder : null;
+}
+
+/** The stream function to ask `run_stream` for: none for a `stream.py` with one or no `@stream`, which the runtime finds itself, else the chosen one as `tatolab run` takes it. */
+export function streamFunctionArgumentFor(report: StreamProjectFolderReport, chosenStreamFunction: string | null): string | null {
+  if (report.stream_functions.length <= 1 || chosenStreamFunction === null) return null;
+  return `stream.py:${chosenStreamFunction}`;
+}
+
+/** The run the form asks for now; `null` until there is a folder to run. A blank name lets the runtime name the stream after its function. */
+export function runRequestOf(form: AddStreamForm): AddStreamRunRequest | null {
+  const folder = folderToRun(form);
+  if (folder === null) return null;
+  const streamName = form.streamName.trim();
+  return { folder: folder.folder, streamFunction: streamFunctionArgumentFor(folder, form.chosenStreamFunction), streamName: streamName === "" ? null : streamName };
+}
+
+function withForm(state: AddStreamFlowState, changes: Partial<AddStreamForm>): AddStreamFlowState {
+  return { step: "form", form: { ...state.form, ...changes } };
+}
+
+function streamFunctionsChoiceAfter(previous: StreamProjectFolderReport | null, report: StreamProjectFolderReport, form: AddStreamForm): Pick<AddStreamForm, "chosenStreamFunction" | "streamName"> {
+  const isTheSameFolder = previous?.folder === report.folder;
+  if (isTheSameFolder && form.chosenStreamFunction !== null && report.stream_functions.includes(form.chosenStreamFunction)) {
+    return { chosenStreamFunction: form.chosenStreamFunction, streamName: form.streamName };
+  }
+  const firstStreamFunction = report.stream_functions[0] ?? null;
+  return { chosenStreamFunction: firstStreamFunction, streamName: isTheSameFolder && form.streamName !== "" ? form.streamName : (firstStreamFunction ?? "") };
+}
+
+/** The page after `event`. */
+export function advanceAddStreamFlow(state: AddStreamFlowState, event: AddStreamFlowEvent): AddStreamFlowState {
+  const form = state.form;
+  switch (event.kind) {
+    case "source_chosen":
+      return state.step === "compiling" ? state : withForm(state, { source: event.source, nameTaken: null, refusal: null, workUnderWay: null });
+    case "work_started":
+      return withForm(state, { workUnderWay: event.work, refusal: null });
+    case "folder_dialog_cancelled":
+    case "terminal_opened":
+      return withForm(state, { workUnderWay: null });
+    case "project_folder_answered":
+      return withForm(state, {
+        projectFolder: event.report,
+        ...streamFunctionsChoiceAfter(form.projectFolder, event.report, form),
+        nameTaken: form.projectFolder?.folder === event.report.folder ? form.nameTaken : null,
+        workUnderWay: null,
+      });
+    case "new_project_folder_answered":
+      return withForm(state, {
+        newProjectFolder: event.report,
+        hasCreatedTheNewProject: form.hasCreatedTheNewProject && form.newProjectFolder?.folder === event.report.folder,
+        streamName: form.newProjectFolder?.folder === event.report.folder ? form.streamName : folderBaseName(event.report.folder),
+        workUnderWay: null,
+      });
+    case "new_project_created":
+      return withForm(state, {
+        newProjectFolder: event.report,
+        hasCreatedTheNewProject: true,
+        chosenStreamFunction: event.report.stream_functions[0] ?? null,
+        workUnderWay: null,
+      });
+    case "stream_function_chosen":
+      return withForm(state, { chosenStreamFunction: event.streamFunction, streamName: event.streamFunction, nameTaken: null });
+    case "stream_name_edited":
+      return withForm(state, { streamName: event.streamName, nameTaken: null });
+    case "work_refused":
+      return withForm(state, { refusal: { lead: event.lead, words: event.words }, workUnderWay: null });
+    case "run_started":
+      return { step: "compiling", form: { ...form, nameTaken: null, refusal: null, streamName: event.request.streamName ?? form.streamName }, request: event.request, startedAtMs: event.nowMs };
+    case "run_answered":
+      if (state.step !== "compiling") return state;
+      if (event.outcome.kind === "running") return { step: "running", form, request: state.request, answer: event.outcome.answer };
+      return withForm(state, { nameTaken: { refusal: event.outcome.refusal, freeName: event.outcome.free_name } });
+    case "run_refused":
+      return state.step === "compiling" ? withForm(state, { refusal: { lead: "Compile and run was refused:", words: event.words } }) : state;
+    case "add_another":
+      return initialAddStreamFlowState(form.source);
+  }
+}
+
+/** `word` as a POSIX shell reads it back unchanged: as it is when it holds only characters a shell leaves alone, else in single quotes. */
+export function shellWord(word: string): string {
+  return /^[A-Za-z0-9_./~@%+=:,-]+$/.test(word) ? word : `'${word.replaceAll("'", `'"'"'`)}'`;
+}
+
+/** The terminal command that does what Compile and run does: `tatolab run -d` in the folder, with the function and name the form gives. */
+export function terminalCommandForTheRun(request: AddStreamRunRequest, functionsOwnName: string | null): string {
+  const commandWords = ["cd", shellWord(request.folder), "&&", "tatolab", "run", "-d"];
+  if (request.streamFunction !== null) commandWords.push(shellWord(request.streamFunction));
+  if (request.streamName !== null && request.streamName !== functionsOwnName) commandWords.push("--name", shellWord(request.streamName));
+  return commandWords.join(" ");
+}
+
+/** `uv sync` in `folder`, which creates the `.venv` the runtime compiles the project in. */
+export function pythonEnvironmentSyncCommand(folder: string): string {
+  return `cd ${shellWord(folder)} && uv sync`;
+}
+
+/** `tatolab new` for `folder`, the command Create runs. */
+export function newProjectCommand(folder: string): string {
+  return `tatolab new ${shellWord(folder)}`;
+}
+
+/** Why Compile and run cannot be pressed now, or `null` when it can. */
+export function compileAndRunUnavailableBecause(form: AddStreamForm, isTheRuntimeRunning: boolean): string | null {
+  if (!isTheRuntimeRunning) return "The runtime isn't running, so it can't compile a stream.";
+  if (form.workUnderWay !== null) return "Wait for the folder to be checked.";
+  if (form.source === "new_project" && !form.hasCreatedTheNewProject) return "Create the project first.";
+  if (folderToRun(form) === null) return "Choose a project folder first.";
+  if (form.nameTaken !== null) return "Choose another name, or use the one offered.";
+  return null;
+}
+
+/** Whole seconds a run has been compiling, as the compile view counts them. */
+export function compilingForWords(startedAtMs: number, nowMs: number): string {
+  return `${Math.max(0, Math.floor((nowMs - startedAtMs) / 1000))}s`;
+}
+
+/** What a running stream's done view says about its load: whether it replaced the project's kept stream, and its warnings to read or that it compiled cleanly. */
+export function streamRunningSummary(answer: StreamRunAnswer): string {
+  const replaced = answer.replaced_the_kept_record ? "It replaced the stream this project kept before. " : "";
+  const warningCount = answer.compile_warnings.length;
+  if (warningCount === 1) return `${replaced}It compiled with a warning. Read it before you rely on this stream.`;
+  if (warningCount > 1) return `${replaced}It compiled with ${warningCount} warnings. Read them before you rely on this stream.`;
+  return `${replaced}It compiled cleanly.`;
+}
+
+/** How many steps a stream has, in words. */
+export function stepCountWords(stepCount: number): string {
+  return `${stepCount} ${stepCount === 1 ? "step" : "steps"}`;
+}

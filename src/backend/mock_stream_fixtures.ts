@@ -507,6 +507,19 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
   };
 }
 
+/** The stream a project folder run from the window loads as `streamName`, kept: the sample's four nodes, its effect exposed. */
+export function createMockStreamRunFromAProjectFolder(machine: MockMachine, streamName: string, projectDirectory: string): MockStreamFixture {
+  const fixture = createTestPatternStream(machine, {
+    streamName,
+    state: "kept",
+    exposesItsEffect: true,
+    withDisplayWindowInError: false,
+    withTheMeterFallingBehind: false,
+    withARecorderOfMain: false,
+  });
+  return { ...fixture, listing: { ...fixture.listing, project_directory: projectDirectory }, loadedForMillisecondsAtOpen: 0 };
+}
+
 /** The id the mock runtime runs under, which every record it writes carries. */
 const MOCK_RUNTIME_ID = "Rmockruntime7f3k2q9x4w1b8n";
 
