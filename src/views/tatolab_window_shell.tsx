@@ -1,17 +1,18 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { Activity, Boxes, ChevronLeft, ChevronRight, Moon, Plus, Search, Settings, SquareX, Sun, TriangleAlert, Workflow } from "lucide-react";
+import { cn } from "cn";
+import { Activity, Boxes, ChevronLeft, ChevronRight, Moon, Plus, Settings, SquareX, Sun, TriangleAlert, Workflow } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } from "react-router";
 import type { ListedStream } from "../backend/tatolab_backend_contract";
 import { presentPlatform, shortcutHint, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { presentRuntimeStatus, presentWindowStatusBar } from "../presentation/runtime_presentation";
 import { isStreamLoaded } from "../presentation/stream_presentation";
+import { ActionButton } from "../design_system/action_button";
+import { IconButton } from "../design_system/icon_button";
+import { SearchOpeningButton } from "../design_system/search_opening_button";
 import { HostedDomPageView } from "./hosted_dom_page_view";
-import { Button } from "./shadcn/button";
-import { joinClassNames } from "./shadcn/class_names";
-import { Kbd } from "./shadcn/kbd";
 import { StreamPageView } from "./stream_page_view";
 import { streamPagePath, streamPageTabNamed } from "./stream_page_path";
 import { StreamsListPageView } from "./streams_list_page_view";
@@ -66,7 +67,7 @@ function SidebarNavigationRow({
       data-window-navigation={windowNavigationName}
       title={label}
       className={({ isActive }) =>
-        joinClassNames(
+        cn(
           "group flex h-7 items-center gap-2 rounded-md px-2 text-fg transition-colors hover:bg-hover",
           isActive && "bg-selected font-medium",
         )
@@ -74,7 +75,7 @@ function SidebarNavigationRow({
     >
       {icon}
       {/* fg-3 drops under 4.5:1 on a hovered or selected row over chrome, so a quiet name reads fg-2 there. */}
-      <span className={joinClassNames("min-w-0 flex-1 truncate", isQuiet && "text-fg-3 group-hover:text-fg-2 group-aria-[current=page]:text-fg-2")}>
+      <span className={cn("min-w-0 flex-1 truncate", isQuiet && "text-fg-3 group-hover:text-fg-2 group-aria-[current=page]:text-fg-2")}>
         {label}
       </span>
       {trailing}
@@ -100,7 +101,7 @@ function WindowSidebar() {
         </span>
         <span className="grid min-w-0 leading-tight">
           <span className="truncate font-semibold">Tatolab</span>
-          <span className={joinClassNames("truncate text-xs text-fg-3", status.machine_name !== null && "font-mono")}>
+          <span className={cn("truncate text-xs text-fg-3", status.machine_name !== null && "font-mono")}>
             {status.machine_name ?? presentPlatform(platform).thisMachineAtSentenceStart}
           </span>
         </span>
@@ -120,16 +121,7 @@ function WindowSidebar() {
         <section>
           <div className="flex items-center justify-between px-2 pb-1">
             <h2 className="label-caps">Streams</h2>
-            <button
-              type="button"
-              title="Add stream"
-              aria-label="Add stream"
-              data-window-navigation="add-stream"
-              onClick={() => navigate("/add-stream")}
-              className="grid size-5 place-items-center rounded-sm text-fg-3 hover:bg-hover hover:text-fg"
-            >
-              <Plus className="size-4" strokeWidth={1.75} aria-hidden />
-            </button>
+            <IconButton icon={Plus} label="Add stream" size="compact" onPressed={() => navigate("/add-stream")} data-window-navigation="add-stream" />
           </div>
           {listedStreams === null ? (
             <p className="px-2 text-xs text-fg-3">Streams show here while the runtime runs.</p>
@@ -167,44 +159,29 @@ function WindowTitleBar() {
   const { platform, openSearch } = useTatolabWindowEnvironment();
   const navigate = useNavigate();
   const { isDark, toggleTheme } = useWindowThemeToggle();
-  const iconButtonClassName = "grid size-7 place-items-center rounded-md text-fg-3 hover:bg-hover hover:text-fg";
   return (
     <header
       className="flex h-(--title-bar-height) shrink-0 items-center gap-1 border-b px-2"
       data-window-drag-region={windowDragRegionAttribute(platform, "deep") ?? undefined}
     >
-      <button type="button" onClick={() => navigate(-1)} className={iconButtonClassName} aria-label="Back">
-        <ChevronLeft className="size-4" strokeWidth={1.75} aria-hidden />
-      </button>
-      <button type="button" onClick={() => navigate(1)} className={iconButtonClassName} aria-label="Forward">
-        <ChevronRight className="size-4" strokeWidth={1.75} aria-hidden />
-      </button>
-      <button
-        type="button"
-        onClick={openSearch}
+      <IconButton icon={ChevronLeft} label="Back" onPressed={() => navigate(-1)} />
+      <IconButton icon={ChevronRight} label="Forward" onPressed={() => navigate(1)} />
+      <SearchOpeningButton
+        label="Search streams, outputs and views"
+        shortcutHint={shortcutHint(platform, "K")}
+        ariaKeyShortcuts={platform === "macos" ? "Meta+K" : "Control+K"}
+        onPressed={openSearch}
         data-window-search=""
-        aria-label="Search streams, outputs and views"
-        aria-keyshortcuts={platform === "macos" ? "Meta+K" : "Control+K"}
-        className="mx-auto flex h-7 w-[min(420px,40%)] items-center gap-2 rounded-md border bg-well px-2.5 text-fg-3 transition-colors hover:border-line-strong"
-      >
-        <Search className="size-3.5" strokeWidth={1.75} aria-hidden />
-        Search
-        <Kbd className="ml-auto" aria-hidden>
-          {shortcutHint(platform, "K")}
-        </Kbd>
-      </button>
-      <button
-        type="button"
-        onClick={toggleTheme}
-        className={iconButtonClassName}
-        aria-label={isDark ? "Use the light theme" : "Use the dark theme"}
+      />
+      <IconButton
+        icon={isDark ? Sun : Moon}
+        label={isDark ? "Use the light theme" : "Use the dark theme"}
+        onPressed={toggleTheme}
         data-window-theme-toggle=""
-      >
-        {isDark ? <Sun className="size-4" strokeWidth={1.75} aria-hidden /> : <Moon className="size-4" strokeWidth={1.75} aria-hidden />}
-      </button>
-      <Button className="ml-1" onClick={() => navigate("/add-stream")}>
-        <Plus aria-hidden /> Add stream
-      </Button>
+      />
+      <ActionButton appearance="primary" icon={Plus} onPressed={() => navigate("/add-stream")} className="ml-1">
+        Add stream
+      </ActionButton>
     </header>
   );
 }
@@ -216,7 +193,7 @@ function WindowStatusBar() {
   return (
     <footer className="flex h-(--status-bar-height) shrink-0 items-center gap-4 border-t px-3 text-xs text-fg-3">
       <span
-        className={joinClassNames(
+        className={cn(
           "flex items-center gap-1.5",
           statusBar.tone === "error" && "text-danger-text",
           statusBar.tone === "warning" && "text-warn-text",

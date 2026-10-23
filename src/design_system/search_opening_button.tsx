@@ -1,0 +1,42 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
+import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { ControlDataAttributes } from "./control_data_attributes";
+import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
+import { KeyboardKey } from "./keyboard_key";
+
+/** The title bar's search: reads as a field, and opens the window's search when pressed. */
+export function SearchOpeningButton({
+  label,
+  shortcutHint,
+  ariaKeyShortcuts,
+  onPressed,
+  ...controlDataAttributes
+}: {
+  label: string;
+  /** The shortcut's key cap, as ⌘ K. */
+  shortcutHint: string;
+  /** The shortcut as `aria-keyshortcuts` writes it, as Meta+K. */
+  ariaKeyShortcuts: string;
+  onPressed: () => void;
+} & ControlDataAttributes) {
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      aria-label={label}
+      aria-keyshortcuts={ariaKeyShortcuts}
+      onClick={onPressed}
+      className={`mx-auto w-[min(420px,40%)] justify-start gap-2 rounded-md border-line bg-well px-2.5 text-sm font-normal text-fg-3 hover:border-line-strong hover:bg-well hover:text-fg-3 dark:border-line dark:bg-well dark:hover:bg-well ${FULL_STRENGTH_FOCUS_RING_CLASS_NAMES}`}
+      {...controlDataAttributes}
+    >
+      <Search className="size-3.5" strokeWidth={1.75} aria-hidden />
+      Search
+      <span className="ml-auto">
+        <KeyboardKey>{shortcutHint}</KeyboardKey>
+      </span>
+    </Button>
+  );
+}

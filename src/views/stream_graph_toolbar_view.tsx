@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { Activity, Image, Minus, Network, PanelRight, Plus, Scan } from "lucide-react";
-import { Button } from "./shadcn/button";
+import { ActionButton } from "../design_system/action_button";
+import { IconButton } from "../design_system/icon_button";
+import { ToggleIconButton } from "../design_system/toggle_icon_button";
+import { Toolbar, ToolbarDivider, ToolbarGroup } from "../design_system/toolbar";
 import { useStreamGraphViewportCommands, useStreamGraphZoomPercent } from "./stream_graph_react_flow_canvas";
-import { ToolbarDivider, ToolbarIconButton } from "./toolbar_icon_button";
 
 /** The Graph tab's toolbar: zoom, fit, auto-layout, the previews and counters toggles, and the inspector once it is closed. */
 export function StreamGraphToolbarView({
@@ -31,37 +33,41 @@ export function StreamGraphToolbarView({
   const viewport = useStreamGraphViewportCommands();
   const zoomPercent = useStreamGraphZoomPercent();
   return (
-    <div className="@container relative flex h-9 shrink-0 items-center gap-0.5 border-b bg-window px-1.5" role="toolbar" aria-label="Graph">
-      <ToolbarIconButton icon={Minus} label="Zoom out" onClick={viewport.zoomOut} controlAttribute={{ "data-stream-graph-toolbar": "zoom_out" }} />
-      <Button
-        variant="ghost"
-        className="w-12 px-0 font-mono text-xs tabular-nums"
-        aria-label={`Zoom ${zoomPercent}%, reset to 100%`}
-        onClick={viewport.zoomToActualSize}
-        data-stream-graph-toolbar="zoom_to_actual_size"
-      >
-        {zoomPercent}%
-      </Button>
-      <ToolbarIconButton icon={Plus} label="Zoom in" onClick={viewport.zoomIn} controlAttribute={{ "data-stream-graph-toolbar": "zoom_in" }} />
-      <ToolbarIconButton icon={Scan} label="Fit to view (F)" onClick={viewport.fitToView} controlAttribute={{ "data-stream-graph-toolbar": "fit_to_view" }} />
-      <ToolbarIconButton icon={Network} label="Auto-layout" onClick={onAutoLayout} controlAttribute={{ "data-stream-graph-toolbar": "auto_layout" }} />
-      <ToolbarDivider />
-      <ToolbarIconButton
-        icon={Image}
-        label="Previews"
-        tooltip={arePreviewsShown ? "Hide previews" : "Show previews"}
-        isPressed={arePreviewsShown}
-        onClick={onPreviewsToggled}
-        controlAttribute={{ "data-stream-graph-toolbar": "previews" }}
-      />
-      <ToolbarIconButton
-        icon={Activity}
-        label="Counters"
-        tooltip={areCountersShown ? "Hide counters" : "Show counters"}
-        isPressed={areCountersShown}
-        onClick={onCountersToggled}
-        controlAttribute={{ "data-stream-graph-toolbar": "counters" }}
-      />
+    <Toolbar label="Graph">
+      <ToolbarGroup>
+        <IconButton icon={Minus} label="Zoom out" onPressed={viewport.zoomOut} data-stream-graph-toolbar="zoom_out" />
+        <ActionButton
+          appearance="quiet"
+          onPressed={viewport.zoomToActualSize}
+          className="w-12 px-0 font-mono text-xs tabular-nums"
+          label={`Zoom ${zoomPercent}%, reset to 100%`}
+          data-stream-graph-toolbar="zoom_to_actual_size"
+        >
+          {zoomPercent}%
+        </ActionButton>
+        <IconButton icon={Plus} label="Zoom in" onPressed={viewport.zoomIn} data-stream-graph-toolbar="zoom_in" />
+        <IconButton icon={Scan} label="Fit to view (F)" onPressed={viewport.fitToView} data-stream-graph-toolbar="fit_to_view" />
+        <IconButton icon={Network} label="Auto-layout" onPressed={onAutoLayout} data-stream-graph-toolbar="auto_layout" />
+        <ToolbarDivider />
+        <ToggleIconButton
+          icon={Image}
+          label="Previews"
+          tooltipWhileOn="Hide previews"
+          tooltipWhileOff="Show previews"
+          isOn={arePreviewsShown}
+          onToggled={onPreviewsToggled}
+          data-stream-graph-toolbar="previews"
+        />
+        <ToggleIconButton
+          icon={Activity}
+          label="Counters"
+          tooltipWhileOn="Hide counters"
+          tooltipWhileOff="Show counters"
+          isOn={areCountersShown}
+          onToggled={onCountersToggled}
+          data-stream-graph-toolbar="counters"
+        />
+      </ToolbarGroup>
       <div className="pointer-events-none absolute inset-x-0 hidden justify-center @[720px]:flex">
         <div className="flex items-center gap-1 font-mono text-xs text-fg-3">
           <span>{streamName}</span>
@@ -74,10 +80,10 @@ export function StreamGraphToolbarView({
         </div>
       </div>
       {!isInspectorOpen && (
-        <div className="ml-auto flex items-center">
-          <ToolbarIconButton icon={PanelRight} label="Show inspector" onClick={onInspectorOpened} controlAttribute={{ "data-stream-graph-toolbar": "show_inspector" }} />
-        </div>
+        <ToolbarGroup isAtTheEnd>
+          <IconButton icon={PanelRight} label="Show inspector" onPressed={onInspectorOpened} data-stream-graph-toolbar="show_inspector" />
+        </ToolbarGroup>
       )}
-    </div>
+    </Toolbar>
   );
 }

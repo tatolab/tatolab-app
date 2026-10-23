@@ -1,15 +1,16 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
+import { cn } from "cn";
 import { GripVertical, Pin, PinOff, X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { outputPreviewAbsenceWords, type StreamGraphPreviewedOutput, type StreamGraphStepOutputPort } from "../presentation/stream_graph_canvas_presentation";
 import { exposedOutputAddress } from "../presentation/stream_overview_presentation";
+import { ExposureLevelWords } from "../design_system/exposure_level_words";
+import { IconButton } from "../design_system/icon_button";
+import { ToggleIconButton } from "../design_system/toggle_icon_button";
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
-import { ExposureLevelWords } from "./exposure_level_words";
-import { Button } from "./shadcn/button";
-import { joinClassNames } from "./shadcn/class_names";
 import { PortDataKindIcon, STREAM_GRAPH_HOVER_PREVIEW_DESCRIPTION_ELEMENT_ID } from "./stream_graph_step_card_view";
 
 const HOVER_PREVIEW_WIDTH = 360;
@@ -79,17 +80,9 @@ export function StreamGraphOutputHoverPreview({
         <span className="min-w-0 truncate font-mono text-xs text-fg-3">{output.stepName}</span>
         {output.preview.kind === "watch_page" && (
           // The port pins from the keyboard; this button is the pointer's way, so it takes no Tab stop.
-          <Button
-            variant="ghost"
-            size="icon"
-            className="ml-auto"
-            tabIndex={-1}
-            aria-label={isPinned ? "Unpin preview" : "Pin preview"}
-            aria-pressed={isPinned}
-            onClick={onPinToggled}
-          >
-            {isPinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
-          </Button>
+          <span className="ml-auto">
+            <ToggleIconButton icon={Pin} iconWhileOn={PinOff} label="Pin preview" tooltipWhileOn="Unpin preview" isOn={isPinned} onToggled={onPinToggled} isOutOfTheTabOrder />
+          </span>
         )}
       </div>
       {output.preview.kind === "absent" ? (
@@ -106,10 +99,14 @@ export function StreamGraphOutputHoverPreview({
               <div className="truncate font-mono text-xs text-fg-2 select-text" title={address.fullAddress}>
                 {address.fullAddress}
               </div>
-              {output.exposureLevel !== null && <ExposureLevelWords level={output.exposureLevel} className="sr-only" />}
+              {output.exposureLevel !== null && (
+                <span className="sr-only">
+                  <ExposureLevelWords level={output.exposureLevel} />
+                </span>
+              )}
             </div>
             <div className="mt-1 flex items-center gap-3 text-xs text-fg-3" aria-hidden>
-              {output.exposureLevel !== null && <ExposureLevelWords level={output.exposureLevel} className="text-xs text-fg-3" />}
+              {output.exposureLevel !== null && <ExposureLevelWords level={output.exposureLevel} />}
               <span className="ml-auto">{isPinned ? "Pinned" : "Click the port to pin"}</span>
             </div>
           </div>
@@ -150,7 +147,7 @@ export function PinnedStreamGraphOutputPreview({
     <div
       onPointerDown={onBroughtToFront}
       style={{ left: position.x, top: position.y, width: PINNED_OUTPUT_PREVIEW_WIDTH }}
-      className={joinClassNames("absolute z-10 overflow-hidden rounded-lg border border-line-strong bg-popover shadow-[var(--shadow-pop)]", isDragging && "select-none")}
+      className={cn("absolute z-10 overflow-hidden rounded-lg border border-line-strong bg-popover shadow-[var(--shadow-pop)]", isDragging && "select-none")}
       data-pinned-output-preview={address.fullAddress}
     >
       <div
@@ -186,9 +183,7 @@ export function PinnedStreamGraphOutputPreview({
           <span className="text-fg-3">{output.stepName}/</span>
           {output.name}
         </span>
-        <Button variant="ghost" size="icon" className="size-5" aria-label={`Close the preview of ${address.fullAddress}`} onClick={onClosed}>
-          <X className="size-3.5" aria-hidden />
-        </Button>
+        <IconButton icon={X} label={`Close the preview of ${address.fullAddress}`} tooltip="Close" size="compact" onPressed={onClosed} />
       </div>
       <ExposedOutputWatchPageFrame watchPageUrl={watchPageUrl} fullAddress={address.fullAddress} className="aspect-video w-full ring-0" />
     </div>
