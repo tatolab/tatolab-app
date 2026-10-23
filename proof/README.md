@@ -29,6 +29,12 @@ Playwright drove the window. Beside each image, `<image>.tatolab-streams.txt` is
 | ![](react-window/live-macos/12-macos-native-window-light.png) | Live (local proof) | The real window captured with `screencapture -l`. The traffic lights sit level with the 44 px title bar, inset 8 px. |
 | ![](react-window/live-macos/12-macos-native-window-dark.png) | Live (local proof) | The same, dark. |
 
+**Live** — [`react-window/live-macos-installed/`](react-window/live-macos-installed/). This branch built with `scripts/build-tatolab-app.sh` at 0.54.12, the version of the runtime unit it bundles, built from streamlib main (v0.54.12 plus one docs commit). It was signed with the Developer ID identity the release uses, not notarized, and installed by hand over the owner's `/Applications/Tatolab.app` 0.54.11, after a zip backup. On first launch the app restarted the bundled runtime under 0.54.12, and the launch agent stayed registered with Service Management.
+
+| image | label | shows |
+|---|---|---|
+| ![](react-window/live-macos-installed/01-installed-0.54.12-streams.png) | Live | The installed, signed app on the owner's real runtime, which holds no streams. The empty state reads "No streams on jonathanf-macbook yet", the status bar reads "Runtime running" and "Tatolab 0.54.12", and the traffic lights sit level with the title bar. This matches `tatolab streams` ("No streams in this runtime."). |
+
 **Linux (container, unbundled)** — [`react-window/linux-container/`](react-window/linux-container/). The recipe there runs the committed tree in `ubuntu:22.04` on the Mac (arm64): Electron 44.9.1 unpackaged, under Xvfb with openbox and stalonetray. **No runtime ran.** The `systemctl` stand-in from `electron-window/linux-stand-ins/` started the **stand-in local API**, which replays responses recorded from tatolabd 0.45.6 (`src-electron/test-fixtures/`), including stop, start and remove.
 
 | image | label | shows |
