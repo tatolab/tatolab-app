@@ -52,8 +52,9 @@ function streamLogRecordsPageFromTheParsedToolResult(
   const numberedRecordsOnTheWire = arrayOrEmpty(toolResult.value, "records");
   if (!numberedRecordsOnTheWire.ok) return numberedRecordsOnTheWire;
   if (!jsonlLineTexts.ok) return jsonlLineTexts;
+  if (jsonlLineTexts.value.length !== numberedRecordsOnTheWire.value.length) return failedWith("the records' JSONL texts do not line up with the records");
   const records = everyOneRead(
-    numberedRecordsOnTheWire.value.map((numberedRecord, recordIndex) => ({ numberedRecord, jsonlLineText: jsonlLineTexts.value[recordIndex] ?? "null" })),
+    numberedRecordsOnTheWire.value.map((numberedRecord, recordIndex) => ({ numberedRecord, jsonlLineText: jsonlLineTexts.value[recordIndex] })),
     numberedRecordWithItsJsonlLine,
   );
   if (!records.ok) return records;
@@ -72,7 +73,14 @@ function streamLogRecordsPageFromTheParsedToolResult(
 }
 
 /** One record of the `logs` tool's result: its sequence number beside its JSONL line, with that line's text as the runtime wrote it. */
-function numberedRecordWithItsJsonlLine({ numberedRecord: numberedRecordOnTheWire, jsonlLineText }: { numberedRecord: unknown; jsonlLineText: string }): Result<StreamLogRecord, string> {
+function numberedRecordWithItsJsonlLine({
+  numberedRecord: numberedRecordOnTheWire,
+  jsonlLineText,
+}: {
+  numberedRecord: unknown;
+  jsonlLineText: string | undefined;
+}): Result<StreamLogRecord, string> {
+  if (jsonlLineText === undefined) return failedWith("a record has no JSONL text");
   const numberedRecord = jsonObject(numberedRecordOnTheWire, "a record");
   if (!numberedRecord.ok) return numberedRecord;
   const sequence = requiredUnsignedInteger(numberedRecord.value, "sequence");

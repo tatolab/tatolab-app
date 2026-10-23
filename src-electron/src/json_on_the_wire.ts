@@ -119,8 +119,8 @@ export function objectOrEmpty(jsonObject: JsonObjectOnTheWire, key: string): Res
 }
 
 /** Each of `values` read by `readOne`, or the first one's failure. */
-export function everyOneRead<Value, T>(values: readonly Value[], readOne: (value: Value) => Result<T, string>): Result<T[], string> {
-  const read: T[] = [];
+export function everyOneRead<ValueToRead, ReadValue>(values: readonly ValueToRead[], readOne: (value: ValueToRead) => Result<ReadValue, string>): Result<ReadValue[], string> {
+  const read: ReadValue[] = [];
   for (const value of values) {
     const readValue = readOne(value);
     if (!readValue.ok) return readValue;

@@ -53,21 +53,19 @@ export async function openStreamProjectFolder(
   if (listedStream === null) return failedWith(`The runtime does not list ${streamName}, so Tatolab has no project folder to open.`);
   const projectFolder = listedStream.project_directory;
   if (projectFolder === "") return failedWith(`The runtime lists no project folder for ${streamName}.`);
+  const projectFolderGoneRefusal = `${projectFolder} is no longer a folder on this machine.`;
+  const openInTheFileManager = (folder: string) => streamProjectFolderOpeners.openAFolderInTheFileManager(folder);
   switch (opening) {
     case "file_manager":
-      return openedWhenAnExistingFolder(streamProjectFolderOpeners, projectFolder, `${projectFolder} is no longer a folder on this machine.`, (folder) =>
-        streamProjectFolderOpeners.openAFolderInTheFileManager(folder),
-      );
+      return openedWhenAnExistingFolder(streamProjectFolderOpeners, projectFolder, projectFolderGoneRefusal, openInTheFileManager);
     case "terminal":
-      return openedWhenAnExistingFolder(streamProjectFolderOpeners, projectFolder, `${projectFolder} is no longer a folder on this machine.`, (folder) =>
+      return openedWhenAnExistingFolder(streamProjectFolderOpeners, projectFolder, projectFolderGoneRefusal, (folder) =>
         streamProjectFolderOpeners.terminalOpenedInAFolder.openTerminalIn(folder),
       );
     case "log_folder_in_the_file_manager": {
       // Stat only: the runtime's log segments in it are never listed or read.
       const logFolder = path.join(projectFolder, STREAM_LOG_FOLDER_IN_THE_PROJECT);
-      return openedWhenAnExistingFolder(streamProjectFolderOpeners, logFolder, `${streamName} has no log folder yet: ${logFolder} is not on this machine.`, (folder) =>
-        streamProjectFolderOpeners.openAFolderInTheFileManager(folder),
-      );
+      return openedWhenAnExistingFolder(streamProjectFolderOpeners, logFolder, `${streamName} has no log folder yet: ${logFolder} is not on this machine.`, openInTheFileManager);
     }
   }
 }
