@@ -1,0 +1,278 @@
+{
+  "stream": "dock-counter",
+  "nodes": [
+    {
+      "id": "Pjcz1snrl6zgvza6oiqw17xdl",
+      "type": "tatolab.stream:TestPatternSource",
+      "name": "testpatternsource",
+      "config": {},
+      "config_checksum": 6086514543335466803,
+      "ports": {
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "video",
+            "description": "Test-pattern video frames",
+            "port_kind": "data",
+            "delivery_profile": null,
+            "catalog_entry": {
+              "section": "binary",
+              "entry": {
+                "mode": "snapshot",
+                "mime": "application/msgpack"
+              }
+            }
+          }
+        ]
+      },
+      "components": {
+        "state": "Running",
+        "shutdown_channel": {
+          "attached": true,
+          "receiver_taken": true
+        },
+        "paused": false,
+        "thread_handle": {
+          "attached": true,
+          "thread_id": "ThreadId(32)",
+          "thread_name": "<unnamed>"
+        },
+        "processor_instance": {
+          "attached": true,
+          "arc_strong_count": 2,
+          "arc_weak_count": 0
+        },
+        "metrics": {
+          "frames_dropped": 0,
+          "dropped_bags_by_link": {},
+          "refused_bags_by_output_port": {
+            "video": 0
+          },
+          "written_bags_by_output_port": {
+            "video": 600
+          }
+        }
+      }
+    },
+    {
+      "id": "Paxzzacjykyu3nfar0xzimpcm",
+      "type": "nodes.halftone_lens_effect:HalftoneLensEffect",
+      "name": "halftonelenseffect",
+      "config": {},
+      "config_checksum": 6086514543335466803,
+      "ports": {
+        "inputs": [
+          {
+            "name": "video_from_upstream",
+            "description": "",
+            "port_kind": "data",
+            "delivery_profile": "newest"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "video_to_downstream",
+            "description": "",
+            "port_kind": "data",
+            "delivery_profile": null
+          }
+        ]
+      },
+      "components": {
+        "state": "Running",
+        "shutdown_channel": {
+          "attached": true,
+          "receiver_taken": true
+        },
+        "paused": false,
+        "thread_handle": {
+          "attached": true,
+          "thread_id": "ThreadId(33)",
+          "thread_name": "<unnamed>"
+        },
+        "processor_instance": {
+          "attached": true,
+          "arc_strong_count": 2,
+          "arc_weak_count": 0
+        },
+        "metrics": {
+          "frames_dropped": 0,
+          "dropped_bags_by_link": {
+            "Lz3yh7gqcsxe2uq5526c853qg": 0
+          },
+          "refused_bags_by_output_port": {
+            "video_to_downstream": 0
+          },
+          "written_bags_by_output_port": {
+            "video_to_downstream": 596
+          }
+        }
+      }
+    },
+    {
+      "id": "Patjz17s2v3zkgk1eq1pht0oo",
+      "type": "nodes.brightness_meter:BrightnessMeter",
+      "name": "brightnessmeter",
+      "config": {},
+      "config_checksum": 6086514543335466803,
+      "ports": {
+        "inputs": [
+          {
+            "name": "video_from_upstream",
+            "description": "",
+            "port_kind": "data",
+            "delivery_profile": "ordered"
+          }
+        ],
+        "outputs": []
+      },
+      "components": {
+        "state": "Running",
+        "shutdown_channel": {
+          "attached": true,
+          "receiver_taken": true
+        },
+        "paused": false,
+        "thread_handle": {
+          "attached": true,
+          "thread_id": "ThreadId(34)",
+          "thread_name": "<unnamed>"
+        },
+        "processor_instance": {
+          "attached": true,
+          "arc_strong_count": 2,
+          "arc_weak_count": 0
+        },
+        "metrics": {
+          "frames_dropped": 490,
+          "dropped_bags_by_link": {
+            "Lzs66ux5jwwe6isf2eovqry3m": 490
+          },
+          "refused_bags_by_output_port": {},
+          "written_bags_by_output_port": {}
+        }
+      }
+    },
+    {
+      "id": "Pyxwrq5ds2y6vtqah9bs5x01o",
+      "type": "tatolab.stream:H264Encoder",
+      "name": "h264encoder",
+      "config": {},
+      "config_checksum": 6086514543335466803,
+      "ports": {
+        "inputs": [
+          {
+            "name": "video",
+            "description": "Video frames to encode",
+            "port_kind": "data",
+            "delivery_profile": "ordered"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "encoded_video",
+            "description": "H.264 media frames, one access unit each",
+            "port_kind": "data",
+            "delivery_profile": null,
+            "catalog_entry": {
+              "section": "video",
+              "entry": {
+                "codec": "avc1.640020",
+                "codedWidth": 1280,
+                "codedHeight": 720
+              }
+            }
+          }
+        ]
+      },
+      "components": {
+        "state": "Running",
+        "shutdown_channel": {
+          "attached": true,
+          "receiver_taken": true
+        },
+        "paused": false,
+        "thread_handle": {
+          "attached": true,
+          "thread_id": "ThreadId(35)",
+          "thread_name": "<unnamed>"
+        },
+        "processor_instance": {
+          "attached": true,
+          "arc_strong_count": 2,
+          "arc_weak_count": 0
+        },
+        "metrics": {
+          "frames_dropped": 0,
+          "dropped_bags_by_link": {
+            "Lu4unmbyyyt2ga68527tmm9id": 0
+          },
+          "refused_bags_by_output_port": {
+            "encoded_video": 0
+          },
+          "written_bags_by_output_port": {
+            "encoded_video": 596
+          }
+        }
+      }
+    }
+  ],
+  "links": [
+    {
+      "id": "Lz3yh7gqcsxe2uq5526c853qg",
+      "source": {
+        "node": "testpatternsource",
+        "port": "video"
+      },
+      "target": {
+        "node": "halftonelenseffect",
+        "port": "video_from_upstream"
+      },
+      "capacity": 4,
+      "state": "wired",
+      "components": {
+        "state": "Wired"
+      }
+    },
+    {
+      "id": "Lzs66ux5jwwe6isf2eovqry3m",
+      "source": {
+        "node": "halftonelenseffect",
+        "port": "video_to_downstream"
+      },
+      "target": {
+        "node": "brightnessmeter",
+        "port": "video_from_upstream"
+      },
+      "capacity": 4,
+      "state": "wired",
+      "components": {
+        "state": "Wired"
+      }
+    },
+    {
+      "id": "Lu4unmbyyyt2ga68527tmm9id",
+      "source": {
+        "node": "halftonelenseffect",
+        "port": "video_to_downstream"
+      },
+      "target": {
+        "node": "h264encoder",
+        "port": "video"
+      },
+      "capacity": 4,
+      "state": "wired",
+      "components": {
+        "state": "Wired"
+      }
+    }
+  ],
+  "exposed": [
+    {
+      "node": "h264encoder",
+      "port": "encoded_video",
+      "level": "public"
+    }
+  ],
+  "machine": "jonathanf-macbook"
+}
