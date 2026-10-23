@@ -158,7 +158,8 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [closeHoverPreview, viewport]);
 
-  const hoveredOutputNow = hoveredOutput === null ? undefined : findOutput(canvas, hoveredOutput.output.stepName, hoveredOutput.output.name);
+  // The hovered output as this reading of the graph has it; undefined when no preview is open or its output is gone.
+  const openHoverPreviewOutput = hoveredOutput === null ? undefined : findOutput(canvas, hoveredOutput.output.stepName, hoveredOutput.output.name);
   return (
     <div className="flex min-h-0 flex-1 bg-window" data-stream-graph-page={stream.name}>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -196,7 +197,7 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
             arePreviewsShown={arePreviewsShown}
             areCountersShown={areCountersShown}
             pinnedOutputKeys={pinnedOutputKeys}
-            hoverPreviewedOutputKey={hoveredOutputNow === undefined ? null : outputPinKey(hoveredOutputNow)}
+            hoverPreviewedOutputKey={openHoverPreviewOutput === undefined ? null : outputPinKey(openHoverPreviewOutput)}
             onStepSelected={setSelectedStepName}
             onStepMoved={(stepName, position) => setMovedStepPositions((movedPositions) => new Map([...movedPositions, [stepName, position]]))}
             onViewportMoveStarted={closeHoverPreview}
@@ -245,12 +246,12 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
           }}
         />
       )}
-      {hoveredOutput !== null && hoveredOutputNow !== undefined && (
+      {hoveredOutput !== null && openHoverPreviewOutput !== undefined && (
         <StreamGraphOutputHoverPreview
-          hoveredOutput={{ output: hoveredOutputNow, anchorRectangle: hoveredOutput.anchorRectangle }}
+          hoveredOutput={{ output: openHoverPreviewOutput, anchorRectangle: hoveredOutput.anchorRectangle }}
           outputPlace={outputPlace}
-          isPinned={pinnedOutputKeys.has(outputPinKey(hoveredOutputNow))}
-          onPinToggled={() => togglePinnedPreview(hoveredOutputNow)}
+          isPinned={pinnedOutputKeys.has(outputPinKey(openHoverPreviewOutput))}
+          onPinToggled={() => togglePinnedPreview(openHoverPreviewOutput)}
           onPointerEntered={() => window.clearTimeout(hoverCloseTimer.current)}
           onPointerLeft={endHoverPreviewSoon}
         />

@@ -14,8 +14,8 @@ import { exposedOutputAddress } from "../presentation/stream_overview_presentati
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
 import { joinClassNames } from "./shadcn/class_names";
 
-/** The hover preview's element id, which the hovered port's `aria-describedby` names while it is open. */
-export const STREAM_GRAPH_HOVER_PREVIEW_ELEMENT_ID = "stream-graph-hover-preview";
+/** The id of the hover preview's words — the output's address and level, or why it has no preview — which the hovered port names as its description. */
+export const STREAM_GRAPH_HOVER_PREVIEW_DESCRIPTION_ELEMENT_ID = "stream-graph-hover-preview-description";
 
 /** The key a pinned preview of `output` goes by. */
 export function outputPinKey(output: Pick<StreamGraphStepOutputPort, "stepName" | "name">): string {
@@ -65,7 +65,7 @@ function OutputPortRow({ output, surroundings }: { output: StreamGraphStepOutput
         )}
         aria-pressed={isPreviewable ? isPinned : undefined}
         aria-label={`${output.name}${isPreviewable ? (isPinned ? ", unpin preview" : ", pin preview") : ""}`}
-        aria-describedby={surroundings.hoverPreviewedOutputKey === outputPinKey(output) ? STREAM_GRAPH_HOVER_PREVIEW_ELEMENT_ID : undefined}
+        aria-describedby={surroundings.hoverPreviewedOutputKey === outputPinKey(output) ? STREAM_GRAPH_HOVER_PREVIEW_DESCRIPTION_ELEMENT_ID : undefined}
         data-step-output-port={output.name}
         onMouseEnter={(mouseEvent) => surroundings.onOutputHoverStarted(output, mouseEvent.currentTarget.getBoundingClientRect())}
         onFocus={(focusEvent) => surroundings.onOutputHoverStarted(output, focusEvent.currentTarget.getBoundingClientRect())}
@@ -124,6 +124,7 @@ export function StreamGraphStepCardView({ step, surroundings }: { step: StreamGr
               watchPageUrl={cardPreview.watchPageUrl}
               fullAddress={exposedOutputAddress(surroundings.machineName, surroundings.streamName, { node: step.name, port: cardPreview.output.name }).fullAddress}
               className="pointer-events-none h-full w-full rounded-md"
+              isOutOfTheKeyboardsWay
             />
           </div>
         </div>

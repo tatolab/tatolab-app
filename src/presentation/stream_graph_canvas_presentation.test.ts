@@ -127,6 +127,7 @@ describe("presentStreamGraphCanvas", () => {
     };
     const canvas = presentStreamGraphCanvas(graph);
 
+    expect(canvas.steps[1]?.accessibleName).toBe("camera/camerasource, in another stream");
     expect(canvas.steps.map((step) => [step.name, step.isInAnotherStream, step.stateWord])).toEqual([
       ["mp4writer", false, "Running"],
       ["camera/camerasource", true, "In another stream"],

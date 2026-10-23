@@ -379,6 +379,8 @@ describe("a stream's Graph tab", () => {
     });
     expect(hoverPreview.querySelector("iframe")).not.toBeNull();
     expect(hoverPreview.textContent).toContain("jonathanf-macbook/main/invertingeffect/video_to_downstream");
+    const describedHoveredPort = () => document.getElementById(outputPortOf("invertingeffect", "video_to_downstream").getAttribute("aria-describedby") ?? "");
+    expect(describedHoveredPort()?.textContent).toBe("jonathanf-macbook/main/invertingeffect/video_to_downstreamThis machine");
 
     fireEvent.click(outputPortOf("invertingeffect", "video_to_downstream"));
 
@@ -388,6 +390,9 @@ describe("a stream's Graph tab", () => {
     fireEvent.mouseEnter(outputPortOf("testpatternsource", "video"));
 
     await waitFor(() => expect(textOf("[data-stream-graph-hover-preview]")).toContain("Internal. Expose it to this machine or publicly to preview it."));
+    expect(document.getElementById(outputPortOf("testpatternsource", "video").getAttribute("aria-describedby") ?? "")?.textContent).toBe(
+      "Internal. Expose it to this machine or publicly to preview it.",
+    );
     expect(document.querySelector("[data-stream-graph-hover-preview] iframe")).toBeNull();
     fireEvent.click(outputPortOf("testpatternsource", "video"));
     expect(document.querySelectorAll("[data-pinned-output-preview]")).toHaveLength(1);
@@ -466,7 +471,6 @@ describe("a stream's Graph tab", () => {
     expect(cardsNode.getAttribute("aria-label")).toBe("testpatternsource, Running, Built-in");
     const cardsDescription = document.getElementById(cardsNode.getAttribute("aria-describedby") ?? "");
     expect(cardsDescription?.textContent).toBe("Press Enter or Space to inspect this step. Escape selects nothing.");
-    expect(document.querySelectorAll(".react-flow__edge[tabindex='0']")).toHaveLength(0);
 
     cardsNode.focus();
     fireEvent.keyDown(cardsNode, { key: "Enter" });

@@ -10,7 +10,7 @@ import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
 import { ExposureLevelWords } from "./exposure_level_words";
 import { Button } from "./shadcn/button";
 import { joinClassNames } from "./shadcn/class_names";
-import { PortDataKindIcon, STREAM_GRAPH_HOVER_PREVIEW_ELEMENT_ID } from "./stream_graph_step_card_view";
+import { PortDataKindIcon, STREAM_GRAPH_HOVER_PREVIEW_DESCRIPTION_ELEMENT_ID } from "./stream_graph_step_card_view";
 
 const HOVER_PREVIEW_WIDTH = 360;
 const HOVER_PREVIEW_GAP = 14;
@@ -67,8 +67,6 @@ export function StreamGraphOutputHoverPreview({
   return createPortal(
     <div
       ref={popoverElement}
-      id={STREAM_GRAPH_HOVER_PREVIEW_ELEMENT_ID}
-      role="tooltip"
       onMouseEnter={onPointerEntered}
       onMouseLeave={onPointerLeft}
       style={{ width: output.preview.kind === "absent" ? 280 : HOVER_PREVIEW_WIDTH, ...(popoverPosition ?? { left: -9999, top: -9999 }) }}
@@ -80,10 +78,12 @@ export function StreamGraphOutputHoverPreview({
         <span className="min-w-0 truncate font-mono text-xs text-fg">{output.name}</span>
         <span className="min-w-0 truncate font-mono text-xs text-fg-3">{output.stepName}</span>
         {output.preview.kind === "watch_page" && (
+          // The port pins from the keyboard; this button is the pointer's way, so it takes no Tab stop.
           <Button
             variant="ghost"
             size="icon"
             className="ml-auto"
+            tabIndex={-1}
             aria-label={isPinned ? "Unpin preview" : "Pin preview"}
             aria-pressed={isPinned}
             onClick={onPinToggled}
@@ -93,17 +93,22 @@ export function StreamGraphOutputHoverPreview({
         )}
       </div>
       {output.preview.kind === "absent" ? (
-        <p className="px-3 pb-3 text-xs text-fg-3">{outputPreviewAbsenceWords(output.preview.absence)}</p>
+        <p id={STREAM_GRAPH_HOVER_PREVIEW_DESCRIPTION_ELEMENT_ID} className="px-3 pb-3 text-xs text-fg-3">
+          {outputPreviewAbsenceWords(output.preview.absence)}
+        </p>
       ) : (
         <>
           <div className="px-3">
             <ExposedOutputWatchPageFrame watchPageUrl={output.preview.watchPageUrl} fullAddress={address.fullAddress} className="aspect-video w-full rounded-md" />
           </div>
           <div className="px-3 pt-2.5 pb-3">
-            <div className="truncate font-mono text-xs text-fg-2 select-text" title={address.fullAddress}>
-              {address.fullAddress}
+            <div id={STREAM_GRAPH_HOVER_PREVIEW_DESCRIPTION_ELEMENT_ID}>
+              <div className="truncate font-mono text-xs text-fg-2 select-text" title={address.fullAddress}>
+                {address.fullAddress}
+              </div>
+              {output.exposureLevel !== null && <ExposureLevelWords level={output.exposureLevel} className="sr-only" />}
             </div>
-            <div className="mt-1 flex items-center gap-3 text-xs text-fg-3">
+            <div className="mt-1 flex items-center gap-3 text-xs text-fg-3" aria-hidden>
               {output.exposureLevel !== null && <ExposureLevelWords level={output.exposureLevel} className="text-xs text-fg-3" />}
               <span className="ml-auto">{isPinned ? "Pinned" : "Click the port to pin"}</span>
             </div>
