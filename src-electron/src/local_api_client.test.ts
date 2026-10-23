@@ -248,11 +248,41 @@ test("describing_a_stream_graph_calls_the_graph_tool_and_keeps_its_text_as_the_r
   expect(JSON.parse(body).params.arguments).toEqual({ stream: "main" });
 });
 
-test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", async () => {
-  const refusal = "graph failed: no stream named `nope` is loaded in this runtime";
-  const server = await fakeLocalApiServerAnswering([toolResultResponseOfText(refusal, true)]);
+test("a_real_graph_tool_result_reads_with_its_counters_preview_page_and_verbatim_text", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-graph-tool-result-of-the-stream-front-door.json")),
+  ]);
 
-  expect(failureOf(await server.client().describeStreamGraph("nope", "http://127.0.0.1:4446")).failureDescription).toBe(refusal);
+  const summary = answerOf(await server.client().describeStreamGraph("front-door", "http://127.0.0.1:4446"));
+
+  expect(summary.nodes.map((node) => [node.name, node.type, node.state])).toEqual([
+    ["testpatternsource", "tatolab.stream:TestPatternSource", "Running"],
+    ["halftonelenseffect", "nodes.halftone_lens_effect:HalftoneLensEffect", "Running"],
+    ["brightnessmeter", "nodes.brightness_meter:BrightnessMeter", "Running"],
+    ["h264encoder", "tatolab.stream:H264Encoder", "Running"],
+  ]);
+  expect(summary.nodes[1]?.dropped_bags_by_link).toEqual({ Lt12wev5nhhd2ankv0rrz1w3v: 0 });
+  expect(summary.nodes[3]?.refused_bags_by_output_port).toEqual({ encoded_video: 0 });
+  expect(summary.links.map((link) => link.id)).toContain("Lt12wev5nhhd2ankv0rrz1w3v");
+  expect(summary.exposed).toEqual([
+    {
+      node: "h264encoder",
+      port: "encoded_video",
+      level: "public",
+      watch_page_url: "http://127.0.0.1:4446/watch/jonathanf-macbook/front-door/h264encoder/encoded_video",
+    },
+  ]);
+  expect(JSON.parse(summary.graph_document_text).stream).toBe("front-door");
+});
+
+test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-graph-tool-refusal-for-the-stopped-stream-front-door.json")),
+  ]);
+
+  expect(failureOf(await server.client().describeStreamGraph("front-door", "http://127.0.0.1:4446")).failureDescription).toBe(
+    "graph failed: Resource not found: no stream named `front-door` is loaded in this runtime. Loaded: none",
+  );
 });
 
 test("a_stream_action_calls_the_runtimes_tool_of_the_same_name_with_the_stream", async () => {
