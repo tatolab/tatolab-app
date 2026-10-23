@@ -472,7 +472,7 @@ function StreamsListFilterControl({
   listedStreams: readonly ListedStream[];
 }) {
   return (
-    <div className="flex h-7 items-center rounded-md bg-well p-0.5" role="radiogroup" aria-label="Show streams">
+    <div className="flex h-7 shrink-0 items-center rounded-md bg-well p-0.5" role="radiogroup" aria-label="Show streams">
       {STREAMS_LIST_FILTERS.map(({ filter, label }) => (
         <button
           key={filter}
@@ -508,14 +508,14 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
   return (
     <div className="flex min-h-full flex-col" data-streams-list-page="">
       <div className="flex items-center gap-3 px-5 pt-5 pb-4">
-        <div className="min-w-0">
+        <div className="shrink-0">
           <h1 className="title-lg">Streams</h1>
-          <p className="truncate text-fg-3">{streamsListHeadline(listedStreams, status.machine_name, platform)}</p>
+          <p className="text-fg-3">{streamsListHeadline(listedStreams, status.machine_name, platform)}</p>
         </div>
         {listedStreams.length > 0 && (
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex min-w-0 items-center gap-2">
             <StreamsListFilterControl chosenFilter={chosenFilter} onFilterChosen={setChosenFilter} listedStreams={listedStreams} />
-            <label className="flex h-7 w-52 items-center gap-2 rounded-md border bg-window px-2 focus-within:border-line-strong">
+            <label className="flex h-7 w-52 min-w-24 shrink items-center gap-2 rounded-md border bg-window px-2 focus-within:border-line-strong">
               <Search className="size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden />
               <input
                 value={filterText}

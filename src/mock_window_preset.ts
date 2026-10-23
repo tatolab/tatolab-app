@@ -28,12 +28,18 @@ async function clickWhenShown(selector: string): Promise<boolean> {
 
 /**
  * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=`,
- * `?page=settings|add-stream`, `?remove=<stream>`, `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`,
+ * `?page=settings|add-stream`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>`,
+ * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`,
  * `?watch=<node>.<port>`, `?levels=errors` and `?search=<query>` name, so each screen can be shown and pictured from
  * its URL. `?theme=light|dark` is read by the page's first script, before first paint.
  */
 export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platform: TatolabPlatform): Promise<void> {
   const streamName = pageQuery.get("stream");
+  const rowStreamAction = pageQuery.get("stream_action");
+  if (rowStreamAction !== null) {
+    const [streamAction, actedOnStreamName] = rowStreamAction.split(":");
+    await clickWhenShown(`[data-stream-row="${CSS.escape(actedOnStreamName ?? "")}"] [data-stream-action="${CSS.escape(streamAction)}"]`);
+  }
   const streamToRemove = pageQuery.get("remove");
   if (streamToRemove !== null) {
     await clickWhenShown(`[data-stream-row="${CSS.escape(streamToRemove)}"] [data-stream-action="more"]`);

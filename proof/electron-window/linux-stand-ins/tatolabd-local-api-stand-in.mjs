@@ -3,8 +3,9 @@
 
 // A stand-in for tatolabd's local API, for proof in a Linux container where no runtime runs: it
 // answers on `<socket>` what the app reads — `GET /health`, the MCP tools `list_streams` and
-// `logs`, and `GET /api/graph` — from the responses recorded from a real runtime under
-// src-electron/test-fixtures/. Usage: node tatolabd-local-api-stand-in.mjs <socket>
+// `logs`, and `GET /api/graph` — and the stream actions `stop_stream`, `start_stream` and
+// `remove_stream`, changing its listing as the runtime does, from the responses recorded from a
+// real runtime under src-electron/test-fixtures/. Usage: node tatolabd-local-api-stand-in.mjs <socket>
 import { readFileSync, rmSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -22,9 +23,45 @@ const recordedLogRecordsOfMain = [
 const listedStreams = {
   streams: [
     { name: "main", state: "kept", project_directory: "/root/streams/pattern", node_count: 4, failed_because: null },
-    { name: "pattern-two", state: "stopped", project_directory: "/root/streams/pattern-two", node_count: 4, failed_because: null },
+    { name: "pattern-two", state: "stopped", project_directory: "/root/streams/pattern-two", node_count: null, failed_because: null },
+    {
+      name: "lobby-recorder",
+      state: "failed",
+      project_directory: "/root/streams/lobby-recorder",
+      node_count: null,
+      failed_because:
+        "it did not re-load at the runtime's start: Invalid configuration: the kept stream `lobby-recorder` was not loaded: its interpreter /root/streams/lobby-recorder/.venv/bin/python is gone; run `uv sync` in /root/streams/lobby-recorder",
+    },
   ],
 };
+/** The first text block of a recorded tool-call response, with the recorded stream's name and project put in place of `streamName`'s. */
+const recordedToolText = (fileName, recordedStreamName, streamName) =>
+  recorded(fileName)
+    .result.content[0].text.replaceAll(recordedStreamName, streamName)
+    .replaceAll("/private/tmp/tatolab-proof/projects", "/root/streams");
+const listingOf = (streamName) => listedStreams.streams.find((listedStream) => listedStream.name === streamName);
+
+/** A stream action as the runtime takes it, answered with the response recorded for its case. */
+function streamActionToolResult(requestId, toolName, streamName) {
+  const listing = listingOf(streamName);
+  if (listing === undefined) return toolResult(requestId, `Resource not found: no stream named \`${streamName}\` is loaded or kept in this runtime`, true);
+  if (toolName === "stop_stream") {
+    if (listing.state === "stopped") {
+      return toolResult(requestId, recordedToolText("local-api-stop-stream-refusal-for-the-stopped-stream-test-pattern.json", "test-pattern", streamName), true);
+    }
+    Object.assign(listing, { state: "stopped", node_count: null });
+    return toolResult(requestId, recordedToolText("local-api-stop-stream-answer-for-the-kept-stream-test-pattern.json", "test-pattern", streamName));
+  }
+  if (toolName === "start_stream") {
+    if (listing.state === "failed") {
+      return toolResult(requestId, recordedToolText("local-api-start-stream-refusal-for-the-failed-stream-lobby-recorder.json", "lobby-recorder", streamName), true);
+    }
+    Object.assign(listing, { state: "kept", node_count: 4 });
+    return toolResult(requestId, recordedToolText("local-api-start-stream-answer-for-the-stopped-stream-test-pattern.json", "test-pattern", streamName));
+  }
+  listedStreams.streams = listedStreams.streams.filter((listedStream) => listedStream !== listing);
+  return toolResult(requestId, recordedToolText("local-api-remove-stream-answer-for-the-kept-stream-lobby-recorder.json", "lobby-recorder", streamName));
+}
 
 function httpResponse(statusCode, contentType, bodyText) {
   const body = Buffer.from(bodyText, "utf8");
@@ -51,6 +88,7 @@ function answer(method, requestTarget, requestBody) {
     const toolCall = JSON.parse(requestBody);
     const { name, arguments: toolArguments } = toolCall.params;
     if (name === "list_streams") return toolResult(toolCall.id, JSON.stringify(listedStreams));
+    if (name === "stop_stream" || name === "start_stream" || name === "remove_stream") return streamActionToolResult(toolCall.id, name, toolArguments.stream);
     if (name === "logs" && toolArguments.stream === "main") {
       const records = recordedLogRecordsOfMain.filter((logRecord) => logRecord.sequence > toolArguments.after).slice(0, toolArguments.count);
       const nextAfter = records.at(-1)?.sequence ?? toolArguments.after;

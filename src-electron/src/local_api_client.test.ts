@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
@@ -11,6 +11,9 @@ import { httpRequestBytes, listedStreamsFromTheListStreamsToolResult, LocalApiCl
 import type { Result } from "./result.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
+
+/** A JSON-RPC response body recorded from a real runtime's local API. */
+const recordedResponseBody = (fixtureFileName: string) => readFile(new URL(`../test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
 
 afterEach(async () => {
   await Promise.all(cleanUps.splice(0).map((cleanUp) => cleanUp()));
@@ -253,22 +256,26 @@ test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", 
 
 test("a_stream_action_calls_the_runtimes_tool_of_the_same_name_with_the_stream", async () => {
   const server = await fakeLocalApiServerAnswering([
-    toolResultResponse({ stream: "camera", stopped: true, kept: true }),
-    toolResultResponse({ stream: "camera", node_count: 3 }),
-    toolResultResponse({ stream: "camera", unloaded: false, forgotten: true }),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-answer-for-the-kept-stream-test-pattern.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-answer-for-the-stopped-stream-test-pattern.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-stream-answer-for-the-kept-stream-lobby-recorder.json")),
   ]);
 
-  expect(answerOf(await server.client().runStreamAction("stop_stream", "camera"))).toBeNull();
-  expect(answerOf(await server.client().runStreamAction("start_stream", "camera"))).toBeNull();
-  expect(answerOf(await server.client().runStreamAction("remove_stream", "camera"))).toBeNull();
+  expect(answerOf(await server.client().runStreamAction("stop_stream", "test-pattern"))).toBeNull();
+  expect(answerOf(await server.client().runStreamAction("start_stream", "test-pattern"))).toBeNull();
+  expect(answerOf(await server.client().runStreamAction("remove_stream", "lobby-recorder"))).toBeNull();
 
-  const toolNames = server.receivedRequests().map((request) => {
+  const toolCalls = server.receivedRequests().map((request) => {
     const [head, body] = headAndBodyOf(request);
     const toolName = /Mcp-Name: (\S+)/.exec(head)?.[1];
-    expect(JSON.parse(body)).toMatchObject({ params: { name: toolName, arguments: { stream: "camera" } } });
-    return toolName;
+    expect(JSON.parse(body)).toMatchObject({ params: { name: toolName } });
+    return [toolName, JSON.parse(body).params.arguments];
   });
-  expect(toolNames).toEqual(["stop_stream", "start_stream", "remove_stream"]);
+  expect(toolCalls).toEqual([
+    ["stop_stream", { stream: "test-pattern" }],
+    ["start_stream", { stream: "test-pattern" }],
+    ["remove_stream", { stream: "lobby-recorder" }],
+  ]);
 });
 
 test("a_stop_the_runtime_could_not_record_answers_its_reason", async () => {
@@ -281,11 +288,17 @@ test("a_stop_the_runtime_could_not_record_answers_its_reason", async () => {
 });
 
 test("a_stream_action_the_runtime_refuses_carries_its_own_words", async () => {
-  const refusal = "Runtime error: the kept stream `camera` is already stopped; `start` loads it again";
-  const body = { jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: refusal }], isError: true } };
-  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", JSON.stringify(body))]);
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-refusal-for-the-stopped-stream-test-pattern.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-refusal-for-the-failed-stream-lobby-recorder.json")),
+  ]);
 
-  expect(failureOf(await server.client().runStreamAction("stop_stream", "camera")).failureDescription).toBe(refusal);
+  expect(failureOf(await server.client().runStreamAction("stop_stream", "test-pattern")).failureDescription).toBe(
+    "Runtime error: the kept stream `test-pattern` is already stopped; `start` loads it again",
+  );
+  expect(failureOf(await server.client().runStreamAction("start_stream", "lobby-recorder")).failureDescription).toMatch(
+    /^Invalid configuration: the kept stream `lobby-recorder` was not loaded: its interpreter .* is gone; run `uv sync` in /,
+  );
 });
 
 test("a_chunked_response_is_dechunked", async () => {
