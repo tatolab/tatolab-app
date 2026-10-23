@@ -32,6 +32,7 @@ docker run --rm \
     export PATH="/opt/node-v$node_version-linux-arm64/bin:$PATH"
     cd /work && tar -xf /tree-archive/tree.tar
     npm ci --no-audit --no-fund >/dev/null
+    node node_modules/electron/install.js
     npm run build >/dev/null && npm run build:electron >/dev/null
     (cd /opt/playwright-driver && { [ -d node_modules/playwright ] || npm i --silent playwright@1.59 >/dev/null; })
 
