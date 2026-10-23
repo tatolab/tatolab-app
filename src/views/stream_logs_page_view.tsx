@@ -252,7 +252,9 @@ function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stre
       <div className="flex h-8 items-center gap-2 text-fg-3">
         <FileText className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
         <span className="min-w-0 truncate">
-          {earlierRecordsNotHeldWords(earlierRecordsNotHeldCount)} <span className="font-mono text-fg-2 select-text">{logFolderPathOfStream(stream.project_directory)}</span>
+          {earlierRecordsNotHeldWords(earlierRecordsNotHeldCount)} <span className="font-mono text-fg-2 select-text" title={logFolderPathOfStream(stream.project_directory)}>
+            {logFolderPathOfStream(stream.project_directory)}
+          </span>
         </span>
         <button
           type="button"
@@ -354,8 +356,9 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   return (
     <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-page={stream.name}>
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex h-10 shrink-0 items-center gap-2 border-b px-3" role="toolbar" aria-label="Logs">
-          <label className="flex h-7 w-60 min-w-36 shrink items-center gap-2 rounded-md border bg-window px-2 focus-within:border-line-strong">
+        {/* A narrow window wraps the toolbar onto a second line rather than cutting its controls short. */}
+        <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-1.5" role="toolbar" aria-label="Logs">
+          <label className="flex h-7 w-56 shrink-0 items-center gap-2 rounded-md border bg-window px-2 focus-within:border-line-strong">
             <Search className="size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
             <input
               ref={searchInput}
@@ -529,7 +532,9 @@ function StreamLogsOfAStreamNotLoadedView({ stream, streamPageActions }: { strea
         <div className="mt-2.5 text-fg">{notLoadedWords.title}</div>
         <p className="mt-1 text-fg-3 select-text">{notLoadedWords.explanation}</p>
         <div className="mt-4 flex h-7 max-w-full items-center rounded-md border bg-well px-2.5 font-mono text-xs text-fg-2">
-          <span className="truncate select-text">{logFolderPathOfStream(stream.project_directory)}</span>
+          <span className="truncate select-text" title={logFolderPathOfStream(stream.project_directory)}>
+            {logFolderPathOfStream(stream.project_directory)}
+          </span>
         </div>
         <div className="mt-3 flex items-center gap-1.5">
           <Button
