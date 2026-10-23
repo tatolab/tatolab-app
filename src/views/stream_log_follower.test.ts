@@ -57,6 +57,7 @@ describe("StreamLogFollower", () => {
       { readStreamLogRecords: async (_streamName, afterSequence) => (askedAfter.push(afterSequence), pages.shift()!) },
       "main",
       destination,
+      () => {},
     );
     await readOneRound(follower);
     await readOneRound(follower);
@@ -72,14 +73,17 @@ describe("StreamLogFollower", () => {
       recordsPage("5", [logRecord(1, "new load")]),
     ];
     const destination = new RecordingLogDestination();
+    const streamInstancesRead: string[] = [];
     const follower = new StreamLogFollower(
       { readStreamLogRecords: async (_streamName, afterSequence) => (askedAfter.push(afterSequence), pages.shift()!) },
       "main",
       destination,
+      (streamInstance) => streamInstancesRead.push(streamInstance),
     );
     await readOneRound(follower);
     await readOneRound(follower);
     expect(askedAfter).toEqual([0, 1, 0]);
+    expect(streamInstancesRead).toEqual(["4", "5", "5"]);
     expect(destination.shownLines).toHaveLength(2);
     expect(destination.shownLines[0]).toMatch(/^-- Loaded again at /);
     expect(destination.shownLines[1]).toBe("new load");
@@ -91,6 +95,7 @@ describe("StreamLogFollower", () => {
       { readStreamLogRecords: async () => recordsPage("4", [logRecord(313, "kept")], 312) },
       "main",
       destination,
+      () => {},
     );
     await readOneRound(follower);
     expect(destination.shownLines).toEqual(["-- 312 earlier records are no longer held by the runtime", "kept"]);
@@ -108,6 +113,7 @@ describe("StreamLogFollower", () => {
       },
       "main",
       destination,
+      () => {},
     );
     await readOneRound(follower);
     expect(destination.lastReadFailure).toBe("no stream named `main` is loaded in this runtime. Loaded: none");

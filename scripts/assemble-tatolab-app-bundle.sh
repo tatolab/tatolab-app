@@ -15,7 +15,9 @@
 #
 # Usage: assemble-tatolab-app-bundle.sh <Tatolab.app> <runtime unit dir> [--local-proof-test-root]
 #   --local-proof-test-root  the unit must carry the machine-directories-under-a-test-root marker;
-#                            the agent gets TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof
+#                            the agent gets TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof and the
+#                            test ports its local relay and loopback HTTP bind (14443, 14445,
+#                            14446), without which a test build runs neither
 set -euo pipefail
 
 usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$0" >&2; exit 2; }
@@ -35,6 +37,12 @@ done
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 launch_agent_template="$repository_root/packaging/launch-agent/com.tatolab.tatolabd.plist"
 local_proof_test_machine_root="/tmp/tatolab-proof"
+# The app's local-proof build reads the preview page at LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT
+# (src-electron/src/runtime_loopback_watch_page.ts); the relay ports sit beside the runtime's own
+# 4443 and 4445 so a proof runtime never binds the machine's.
+local_proof_test_local_relay_loopback_port=14443
+local_proof_test_local_relay_every_interface_port=14445
+local_proof_test_loopback_http_port=14446
 marker_file_name="machine-directories-under-a-test-root"
 lend_source="$runtime_unit_directory/lib/tatolab/lend"
 lent_runtime_package_relative_to_the_lend="tatolab/runtime"
@@ -117,7 +125,7 @@ launch_agent_plist="$contents/Library/LaunchAgents/com.tatolab.tatolabd.plist"
 cp "$launch_agent_template" "$launch_agent_plist"
 if $local_proof_test_root; then
   plutil -insert EnvironmentVariables -json \
-    "{\"TATOLAB_TEST_MACHINE_ROOT\":\"$local_proof_test_machine_root\"}" "$launch_agent_plist"
+    "{\"TATOLAB_TEST_MACHINE_ROOT\":\"$local_proof_test_machine_root\",\"TATOLAB_TEST_LOCAL_RELAY_LOOPBACK_PORT\":\"$local_proof_test_local_relay_loopback_port\",\"TATOLAB_TEST_LOCAL_RELAY_EVERY_INTERFACE_PORT\":\"$local_proof_test_local_relay_every_interface_port\",\"TATOLAB_TEST_LOOPBACK_HTTP_PORT\":\"$local_proof_test_loopback_http_port\"}" "$launch_agent_plist"
   cp "$runtime_unit_directory/$marker_file_name" "$contents/Resources/$marker_file_name"
 fi
 plutil -lint -s "$launch_agent_plist"

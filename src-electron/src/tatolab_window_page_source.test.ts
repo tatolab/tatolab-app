@@ -45,10 +45,11 @@ test("the policy allows the window page's own inline theme script by its hash, a
   const inlineThemeScript = /<script>([\s\S]*?)<\/script>/.exec(windowPageHtml)?.[1] ?? "";
   expect(inlineThemeScript).toContain("tatolab-window-theme");
   expect(inlineScriptHashSources(windowPageHtml)).toEqual([`'sha256-${createHash("sha256").update(inlineThemeScript).digest("base64")}'`]);
-  expect(windowPageContentSecurityPolicy(windowPageHtml)).toBe(
-    `default-src 'self'; script-src 'self' ${inlineScriptHashSources(windowPageHtml).join(" ")}; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'`,
+  expect(windowPageContentSecurityPolicy(windowPageHtml, "http://127.0.0.1:4446")).toBe(
+    `default-src 'self'; script-src 'self' ${inlineScriptHashSources(windowPageHtml).join(" ")}; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; frame-src http://127.0.0.1:4446; object-src 'none'; base-uri 'self'`,
   );
 });
+
 
 test("a command is answered only from the window page's own top frame, never a frame it embeds, a frame already gone or another page", () => {
   const windowPageUrl = "tatolab-app://app/index.html";

@@ -20,7 +20,7 @@ const STREAM_LOG_RECORDS_PAGE_SIZE = 500;
 const MOST_PAGES_READ_PER_POLL = 8;
 const STREAM_LOG_POLL_MILLISECONDS = 1000;
 
-/** Reads one loaded stream's new log records about once a second into its console. */
+/** Reads one loaded stream's new log records about once a second into its console, telling `onStreamInstanceRead` which load each page is from. */
 export class StreamLogFollower {
   private readonly logPoll: RepeatingBackendPoll;
   private afterSequence = 0;
@@ -31,6 +31,7 @@ export class StreamLogFollower {
     private readonly backend: Pick<TatolabBackend, "readStreamLogRecords">,
     private readonly streamName: string,
     private readonly logConsole: StreamLogRecordsDestination,
+    private readonly onStreamInstanceRead: (streamInstance: string) => void,
   ) {
     this.logPoll = new RepeatingBackendPoll(() => this.readNewRecords(), STREAM_LOG_POLL_MILLISECONDS);
   }
@@ -54,6 +55,7 @@ export class StreamLogFollower {
       for (let pageIndex = 0; pageIndex < MOST_PAGES_READ_PER_POLL; pageIndex++) {
         const recordsPage = await this.backend.readStreamLogRecords(this.streamName, this.afterSequence);
         if (this.isDisposed) return;
+        this.onStreamInstanceRead(recordsPage.stream_instance);
         if (this.lastStreamInstance !== null && recordsPage.stream_instance !== this.lastStreamInstance) {
           this.lastStreamInstance = recordsPage.stream_instance;
           this.afterSequence = 0;

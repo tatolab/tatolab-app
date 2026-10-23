@@ -4,12 +4,18 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { afterEach, expect, test, vi } from "vitest";
 import type { TatolabPlatform } from "../../src/backend/tatolab_backend_contract.js";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
-import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import {
+  FakeRuntimeAgentRegistration,
+  FakeTatolabMachineSetup,
+  FakeTerminalOpenedInAFolder,
+  fakeTatolabPlatformForThisBuild,
+} from "./fake_tatolab_platform_for_this_build.js";
 import { failedWith, succeeded } from "./result.js";
-import { streamGraphSummaryFromTheGraphJson } from "./stream_graph_summary.js";
+import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { streamLogRecordsPageFromTheLogsToolResult } from "./stream_log_records_page.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
@@ -41,12 +47,22 @@ async function sharedStateOverFakes(
   scriptedLocalApiResponses: readonly Buffer[],
   platform: TatolabPlatform,
   setUpTatolabRefusal: string | null,
-): Promise<TatolabAppSharedState & { machineSetup: FakeTatolabMachineSetup }> {
+  existingFolders: readonly string[] = [],
+): Promise<TatolabAppSharedState & { machineSetup: FakeTatolabMachineSetup; terminal: FakeTerminalOpenedInAFolder; foldersShownInTheFileManager: string[] }> {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
   const appConfigDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-config-"));
   cleanUps.push(() => localApiServer.close(), () => rm(appConfigDirectory, { recursive: true, force: true }));
   const machineSetup = new FakeTatolabMachineSetup("complete", setUpTatolabRefusal);
-  const platformForThisBuild = fakeTatolabPlatformForThisBuild(new FakeRuntimeAgentRegistration("enabled"), machineSetup, localApiServer.localApiSocketPath);
+  const terminal = new FakeTerminalOpenedInAFolder();
+  const platformForThisBuild = fakeTatolabPlatformForThisBuild(
+    new FakeRuntimeAgentRegistration("enabled"),
+    machineSetup,
+    localApiServer.localApiSocketPath,
+    undefined,
+    undefined,
+    undefined,
+    terminal,
+  );
   const controller = await TatolabAppController.create({
     platform,
     platformForThisBuild,
@@ -54,6 +70,7 @@ async function sharedStateOverFakes(
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
     readMonotonicClockMs: () => 0,
+    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     tatolabAppLog: quietTatolabAppLog,
   });
@@ -64,7 +81,25 @@ async function sharedStateOverFakes(
     () => {},
     quietTatolabAppLog,
   );
-  return { controller, statusPublisher, tatolabAppUpdater, tatolabUninstall: platformForThisBuild.tatolabUninstall, tatolabAppLog: quietTatolabAppLog, machineSetup };
+  const foldersShownInTheFileManager: string[] = [];
+  return {
+    controller,
+    statusPublisher,
+    tatolabAppUpdater,
+    tatolabUninstall: platformForThisBuild.tatolabUninstall,
+    streamProjectFolderOpeners: {
+      openAFolderInTheFileManager: async (folder) => {
+        foldersShownInTheFileManager.push(folder);
+        return succeeded(undefined);
+      },
+      terminalOpenedInAFolder: terminal,
+      isAnExistingFolder: async (folderPath) => existingFolders.includes(folderPath),
+    },
+    tatolabAppLog: quietTatolabAppLog,
+    machineSetup,
+    terminal,
+    foldersShownInTheFileManager,
+  };
 }
 
 test("an_awaited_command_answers_with_its_works_answer_or_why_it_has_none", async () => {
@@ -134,35 +169,39 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"message":"","attrs":{}}],"next_after":8,"records_no_longer_held":0}',
   );
 
-  const graph = streamGraphSummaryFromTheGraphJson(
-    "main",
-    JSON.stringify({
+  const graphToolResultText = JSON.stringify({
       machine: "jonathanf-macbook",
       exposed: [{ level: "private", port: "video_to_downstream", node: "invertingeffect" }],
-      links: [{ state: "wired", target: { port: "video_from_upstream", node: "invertingeffect" }, source: { port: "video", node: "testpatternsource" } }],
+      links: [
+        { state: "wired", target: { port: "video_from_upstream", node: "invertingeffect" }, source: { port: "video", node: "testpatternsource" }, id: "L1" },
+      ],
       nodes: [
         { components: { state: "Running" }, type: "tatolab.stream:TestPatternSource", name: "testpatternsource" },
-        { type: "nodes.inverting_effect:InvertingEffect", name: "invertingeffect" },
+        { type: "nodes.inverting_effect:InvertingEffect", name: "invertingeffect", components: { metrics: { dropped_bags_by_link: { L1: 12 } } } },
       ],
       stream: "main",
-    }),
-  );
+  });
+  const graph = streamGraphSummaryFromTheGraphToolResult("main", graphToolResultText, "http://127.0.0.1:4446");
   expect(graph.ok && JSON.stringify(graph.value)).toBe(
     '{"stream":"main","nodes":[' +
-      '{"name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running"},' +
-      '{"name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null}],' +
-      '"links":[{"source_node":"testpatternsource","source_port":"video",' +
+      '{"name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running",' +
+      '"dropped_bags_by_link":{},"refused_bags_by_output_port":{}},' +
+      '{"name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,' +
+      '"dropped_bags_by_link":{"L1":12},"refused_bags_by_output_port":{}}],' +
+      '"links":[{"id":"L1","source_node":"testpatternsource","source_port":"video",' +
       '"target_node":"invertingeffect","target_port":"video_from_upstream","state":"wired"}],' +
-      '"exposed":[{"node":"invertingeffect","port":"video_to_downstream","level":"private"}]}',
+      '"exposed":[{"node":"invertingeffect","port":"video_to_downstream","level":"private",' +
+      '"watch_page_url":"http://127.0.0.1:4446/watch/jonathanf-macbook/main/invertingeffect/video_to_downstream"}],' +
+      `"graph_document_text":${JSON.stringify(graphToolResultText)}}`,
   );
 });
 
 test("a refusal from the runtime reaches the window in the runtime's own words", async () => {
-  const graphRefusal = "Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
+  const graphRefusal = "graph failed: Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
   const logsRefusal = "logs failed: Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("404 Not Found", "application/json", JSON.stringify({ error: graphRefusal })),
+      httpResponse("200 OK", "application/json", JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: graphRefusal }], isError: true } })),
       httpResponse(
         "200 OK",
         "application/json",
@@ -207,9 +246,9 @@ test("a command's arguments are read as the window sends them, and anything else
 });
 
 test("each command answers the window in the contract's shape, a refusal in its own words and nothing as null", async () => {
-  const graphRefusal = "Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
+  const graphRefusal = "graph failed: Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
   const sharedState = await sharedStateOverFakes(
-    [httpResponse("404 Not Found", "application/json", JSON.stringify({ error: graphRefusal }))],
+    [httpResponse("200 OK", "application/json", JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: graphRefusal }], isError: true } }))],
     "linux",
     "the installer sets up Tatolab",
   );
@@ -268,4 +307,37 @@ test("each stream action answers the window in the contract's shape", async () =
   expect(await commandHandlers.start_stream({ stream: "camera" })).toEqual({ ok: true, value: null });
   expect(await commandHandlers.remove_stream({ stream: "camera" })).toEqual({ ok: true, value: null });
   expect(await commandHandlers.remove_stream({})).toEqual({ ok: false, refusal: "remove_stream needs `stream`, a stream's name" });
+});
+
+test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_and_never_a_path_from_the_window", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "text/plain", "ok"),
+      toolResultResponse({ streams: [{ name: "main", state: "kept", project_directory: "/Users/jonathanf/streams/main", node_count: 4, failed_because: null }] }),
+      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+    ],
+    "macos",
+    null,
+    ["/Users/jonathanf/streams/main"],
+  );
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  expect(await commandHandlers.open_stream_project_folder({ stream: "main" })).toEqual({
+    ok: false,
+    refusal: "The runtime does not list main, so Tatolab has no project folder to open.",
+  });
+  await sharedState.statusPublisher.refreshAndPublish();
+
+  expect(await commandHandlers.open_stream_project_folder({ stream: "main", project_directory: "/etc" })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.open_terminal_at_stream_project({ stream: "main" })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.open_terminal_at_stream_project({ stream: "other" })).toEqual({
+    ok: false,
+    refusal: "The runtime does not list other, so Tatolab has no project folder to open.",
+  });
+  expect(await commandHandlers.open_terminal_at_stream_project({})).toEqual({
+    ok: false,
+    refusal: "open_terminal_at_stream_project needs `stream`, a stream's name",
+  });
+
+  expect(sharedState.foldersShownInTheFileManager).toEqual(["/Users/jonathanf/streams/main"]);
+  expect(sharedState.terminal.openedInFolders).toEqual(["/Users/jonathanf/streams/main"]);
 });

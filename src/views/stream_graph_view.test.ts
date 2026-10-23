@@ -9,17 +9,18 @@ import { StreamGraphView, type StreamGraphViewActions } from "./stream_graph_vie
 const TEST_PATTERN_GRAPH: StreamGraphSummary = {
   stream: "main",
   nodes: [
-    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running" },
-    { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running" },
-    { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Error" },
-    { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running" },
+    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Error", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
   ],
   links: [
-    { source_node: "testpatternsource", source_port: "video", target_node: "invertingeffect", target_port: "video_from_upstream", state: "wired" },
-    { source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "displaywindow", target_port: "video", state: "error" },
-    { source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "brightnessmeter", target_port: "video_from_upstream", state: "wired" },
+    { id: "L1", source_node: "testpatternsource", source_port: "video", target_node: "invertingeffect", target_port: "video_from_upstream", state: "wired" },
+    { id: "L2", source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "displaywindow", target_port: "video", state: "error" },
+    { id: "L3", source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "brightnessmeter", target_port: "video_from_upstream", state: "wired" },
   ],
-  exposed: [{ node: "invertingeffect", port: "video_to_downstream", level: "private" }],
+  exposed: [{ node: "invertingeffect", port: "video_to_downstream", level: "private", watch_page_url: null }],
+  graph_document_text: "",
 };
 
 function graphViewWith(watchExposedOutput: boolean): { view: StreamGraphView; actions: StreamGraphViewActions } {

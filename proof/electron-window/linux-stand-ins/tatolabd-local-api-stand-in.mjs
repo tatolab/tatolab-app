@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // A stand-in for tatolabd's local API, for proof in a Linux container where no runtime runs: it
-// answers on `<socket>` what the app reads — `GET /health`, the MCP tools `list_streams` and
-// `logs`, and `GET /api/graph` — and the stream actions `stop_stream`, `start_stream` and
+// answers on `<socket>` what the app reads — `GET /health`, the MCP tools `list_streams`, `logs`
+// and `graph`, and `GET /api/graph`'s machine name — and the stream actions `stop_stream`, `start_stream` and
 // `remove_stream`, changing its listing as the runtime does, from the responses recorded from a
 // real runtime under src-electron/test-fixtures/. Usage: node tatolabd-local-api-stand-in.mjs <socket>
 import { readFileSync, rmSync } from "node:fs";
@@ -15,7 +15,11 @@ const RECORDED_RESPONSES = path.join(path.dirname(fileURLToPath(import.meta.url)
 const STAND_IN_MACHINE_NAME = "linux-container-stand-in";
 const recorded = (fileName) => JSON.parse(readFileSync(path.join(RECORDED_RESPONSES, fileName), "utf8"));
 
-const recordedGraphOfMain = { ...recorded("local-api-graph-of-the-stream-main.json"), machine: STAND_IN_MACHINE_NAME };
+/** The recorded graph of `main` as the `graph` tool's text, every number as the runtime wrote it. */
+const recordedGraphTextOfMain = readFileSync(path.join(RECORDED_RESPONSES, "local-api-graph-of-the-stream-main.json"), "utf8").replace(
+  '"machine": "jonathanf-macbook"',
+  `"machine": "${STAND_IN_MACHINE_NAME}"`,
+);
 const recordedLogRecordsOfMain = [
   ...recorded("local-api-logs-tool-result-of-the-stream-main-after-0.json").records,
   ...recorded("local-api-logs-tool-result-of-the-stream-main-after-79.json").records,
@@ -79,16 +83,22 @@ function answer(method, requestTarget, requestBody) {
   const url = new URL(requestTarget, "http://local-api");
   if (method === "GET" && url.pathname === "/health") return httpResponse(200, "text/plain", "ok");
   if (method === "GET" && url.pathname === "/api/graph") {
-    const stream = url.searchParams.get("stream");
-    if (stream === null) return httpResponse(200, "application/json", JSON.stringify({ machine: STAND_IN_MACHINE_NAME, streams: [] }));
-    if (stream === "main") return httpResponse(200, "application/json", JSON.stringify(recordedGraphOfMain));
-    return httpResponse(404, "application/json", JSON.stringify({ error: `stream \`${stream}\` is not loaded` }));
+    return httpResponse(200, "application/json", JSON.stringify({ machine: STAND_IN_MACHINE_NAME, streams: [] }));
   }
   if (method === "POST" && url.pathname === "/mcp") {
     const toolCall = JSON.parse(requestBody);
     const { name, arguments: toolArguments } = toolCall.params;
     if (name === "list_streams") return toolResult(toolCall.id, JSON.stringify(listedStreams));
     if (name === "stop_stream" || name === "start_stream" || name === "remove_stream") return streamActionToolResult(toolCall.id, name, toolArguments.stream);
+    if (name === "graph") {
+      const isMainLoaded = listedStreams.streams.some((stream) => stream.name === "main" && stream.node_count !== null);
+      if (toolArguments.stream === "main" && isMainLoaded) return toolResult(toolCall.id, recordedGraphTextOfMain);
+      return toolResult(
+        toolCall.id,
+        recordedToolText("local-api-graph-tool-refusal-for-the-stopped-stream-front-door.json", "front-door", toolArguments.stream),
+        true,
+      );
+    }
     if (name === "logs" && toolArguments.stream === "main") {
       const records = recordedLogRecordsOfMain.filter((logRecord) => logRecord.sequence > toolArguments.after).slice(0, toolArguments.count);
       const nextAfter = records.at(-1)?.sequence ?? toolArguments.after;

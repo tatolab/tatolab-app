@@ -48,7 +48,9 @@ describe("createElectronTatolabBackend", () => {
       quit_tatolab_app: { ok: true, value: null },
       uninstall_tatolab: { ok: true, value: null },
       read_stream_log_records: { ok: true, value: { stream: "camera", stream_instance: "camera-0", records: [], next_after: 7, records_no_longer_held: 0 } },
-      describe_stream_graph: { ok: true, value: { stream: "camera", nodes: [], links: [], exposed: [] } },
+      describe_stream_graph: { ok: true, value: { stream: "camera", nodes: [], links: [], exposed: [], graph_document_text: "{}" } },
+      open_stream_project_folder: { ok: true, value: null },
+      open_terminal_at_stream_project: { ok: true, value: null },
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
 
@@ -59,6 +61,8 @@ describe("createElectronTatolabBackend", () => {
     await backend.uninstallTatolab();
     await backend.readStreamLogRecords("camera", 7);
     await backend.describeStreamGraph("camera");
+    await backend.openStreamProjectFolder("camera");
+    await backend.openTerminalAtStreamProject("camera");
 
     expect(fakeBridge.invokedCommands).toEqual([
       ["set_run_tatolab", { enabled: false }],
@@ -68,6 +72,8 @@ describe("createElectronTatolabBackend", () => {
       ["uninstall_tatolab", undefined],
       ["read_stream_log_records", { stream: "camera", after: 7 }],
       ["describe_stream_graph", { stream: "camera" }],
+      ["open_stream_project_folder", { stream: "camera" }],
+      ["open_terminal_at_stream_project", { stream: "camera" }],
     ]);
   });
 

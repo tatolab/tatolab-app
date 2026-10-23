@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"graph failed: Resource not found: no stream named `front-door` is loaded in this runtime. Loaded: none"}],"isError":true}}

@@ -112,6 +112,11 @@ export class TatolabStatusPublisher {
     if (this.lastPublishedStatus !== null) this.sendTheWindowTheStatus(this.lastPublishedStatus);
   }
 
+  /** The last status published, or `null` before the first. */
+  lastPublishedStatusNow(): TatolabStatus | null {
+    return this.lastPublishedStatus;
+  }
+
   /** The last status published, waiting up to `waitLimitMs` for the poller's first round; `null` when it has published nothing by then. */
   async lastPublishedStatusWaitingUpTo(waitLimitMs: number): Promise<TatolabStatus | null> {
     if (this.lastPublishedStatus === null) {

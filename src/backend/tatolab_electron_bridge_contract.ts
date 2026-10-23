@@ -24,9 +24,11 @@ export const TATOLAB_COMMAND_NAMES = [
   "stop_stream",
   "start_stream",
   "remove_stream",
+  "open_stream_project_folder",
+  "open_terminal_at_stream_project",
 ] as const;
 
-/** One command the window invokes. Arguments: `set_run_tatolab` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`, `start_stream` and `remove_stream` `{ stream }`, the rest none. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab, takes it: the person choosing it is the confirmation. */
+/** One command the window invokes. Arguments: `set_run_tatolab` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`, `start_stream`, `remove_stream`, `open_stream_project_folder` and `open_terminal_at_stream_project` `{ stream }`, the rest none. The two that open a stream's project name only the stream: the app opens the folder the runtime listed for it. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab, takes it: the person choosing it is the confirmation. */
 export type TatolabCommandName = (typeof TATOLAB_COMMAND_NAMES)[number];
 
 /** The event each status change, and the status again each time the window is shown, arrives on; it carries a `TatolabStatus`. */
@@ -51,6 +53,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   stop_stream: { commandArguments: { stream: string }; answer: StreamStopAnswer };
   start_stream: { commandArguments: { stream: string }; answer: null };
   remove_stream: { commandArguments: { stream: string }; answer: null };
+  open_stream_project_folder: { commandArguments: { stream: string }; answer: null };
+  open_terminal_at_stream_project: { commandArguments: { stream: string }; answer: null };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */

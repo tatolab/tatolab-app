@@ -133,7 +133,8 @@ describe("the window's shell", () => {
 
     fireEvent.click(rowOf("main"));
 
-    await waitFor(() => expect(document.querySelector("[data-hosted-dom-page] .streams-page .content-band-name")?.textContent).toBe("main"));
+    await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("main"));
+    expect(document.querySelector("[data-stream-page] [data-hosted-dom-page] .streams-page")).not.toBeNull();
   });
 
   it("shows a stream the runtime lists while the first-stream guide is open", async () => {
@@ -150,7 +151,7 @@ describe("the window's shell", () => {
       ],
     });
 
-    await waitFor(() => expect(document.querySelector("[data-hosted-dom-page] .streams-page .content-band-name")?.textContent).toBe("my-stream"));
+    await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("my-stream"));
   });
 
   it("keeps the person's theme choice", async () => {
@@ -167,5 +168,148 @@ describe("the window's shell", () => {
 
     expect(screen.getByText("Runtime running")).toBeTruthy();
     expect(screen.getByText("Tatolab 0.45.0")).toBeTruthy();
+  });
+});
+
+/** The stream page of `streamName`, opened from its row, once its Overview shows. */
+async function openTheStreamPageOf(streamName: string): Promise<HTMLElement> {
+  fireEvent.click(rowOf(streamName));
+  return waitFor(() => {
+    const streamPage = document.querySelector<HTMLElement>(`[data-stream-page="${streamName}"]`);
+    if (streamPage === null) throw new Error(`no page for ${streamName}`);
+    return streamPage;
+  });
+}
+
+function textOf(selector: string): string {
+  return document.querySelector(selector)?.textContent ?? "";
+}
+
+describe("a stream's page", () => {
+  it("opens on Overview, playing the first exposed output and listing its steps in pipeline order with their state", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheStreamPageOf("main");
+
+    const preview = await waitFor(() => {
+      const previewFrame = document.querySelector<HTMLIFrameElement>("[data-stream-output-preview] iframe");
+      if (previewFrame === null) throw new Error("no preview yet");
+      return previewFrame;
+    });
+    expect(preview.getAttribute("src")?.startsWith("data:text/html")).toBe(true);
+    expect(textOf("[data-stream-output-preview]")).toContain("jonathanf-macbook/main/invertingeffect/video_to_downstream");
+    expect(textOf("[data-stream-output-preview]")).toContain("This machine");
+    const stepRows = [...document.querySelectorAll<HTMLElement>("[data-stream-step]")];
+    expect(stepRows.map((stepRow) => stepRow.dataset.streamStep)).toEqual(["testpatternsource", "invertingeffect", "displaywindow", "brightnessmeter"]);
+    expect(within(stepRows[1]).getByText("Python")).toBeTruthy();
+    expect(within(stepRows[1]).getByText("own process")).toBeTruthy();
+    expect(within(stepRows[0]).getByText("in runtime")).toBeTruthy();
+    expect(within(stepRows[0]).getByText("Running")).toBeTruthy();
+    expect(textOf("[data-stream-steps]")).toContain("in pipeline order");
+    expect(document.querySelector("[data-dropping-links]")).toBeNull();
+    const details = within(document.querySelector<HTMLElement>("[data-stream-details]") ?? document.body);
+    expect(details.getByText("4 · 2 Python")).toBeTruthy();
+    await waitFor(() => expect(details.getByText("4")).toBeTruthy());
+    expect(details.getByText("tatolab graph --stream main")).toBeTruthy();
+  });
+
+  it("names each link that dropped messages, with the counts the graph reports beside its steps", async () => {
+    await mountedWindowOverTheMock("state=dropping");
+    await openTheStreamPageOf("main");
+
+    const droppingLine = await waitFor(() => {
+      const droppingLinks = document.querySelector("[data-dropping-links]");
+      if (droppingLinks === null) throw new Error("no dropping link yet");
+      return droppingLinks.textContent ?? "";
+    });
+    expect(droppingLine).toMatch(/^invertingeffect → brightnessmeter has dropped [\d,]+ messages since it was wired/);
+    expect(document.querySelector("[data-stream-step='brightnessmeter']")?.textContent).toMatch(/[\d,]+ dropped/);
+    expect(document.querySelector("[data-stream-step='invertingeffect']")?.textContent).toMatch(/[\d,]+ refused/);
+    expect(document.querySelector("[data-stream-step='testpatternsource']")?.textContent).not.toMatch(/dropped|refused/);
+  });
+
+  it("keeps the steps of a stream it stopped as of the last load, muted, with Start in place of the preview", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheStreamPageOf("main");
+    await waitFor(() => expect(document.querySelector("[data-stream-step]")).not.toBeNull());
+
+    fireEvent.click(within(document.querySelector<HTMLElement>("[data-stream-page-header]") ?? document.body).getByRole("button", { name: /Stop/ }));
+
+    await waitFor(() => expect(textOf("[data-nothing-to-preview]")).toContain("Stopped, so nothing to preview"));
+    expect(screen.getByRole("button", { name: "Start stream" })).toBeTruthy();
+    expect(textOf("[data-stream-steps]")).toContain("as of the last load");
+    expect([...document.querySelectorAll("[data-stream-step]")].every((stepRow) => stepRow.textContent?.includes("Not loaded"))).toBe(true);
+    expect(within(document.querySelector<HTMLElement>("[data-stream-details]") ?? document.body).getByText("Not loaded")).toBeTruthy();
+  });
+
+  it("shows a failed stream's reason in the runtime's words and retries it from the banner", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheStreamPageOf("lobby-recorder");
+
+    const banner = document.querySelector<HTMLElement>("[data-failed-stream-banner]");
+    expect(banner?.textContent).toContain("Failed — the stream's CameraSource could not open camera 0x1420000");
+    expect(textOf("[data-nothing-to-preview]")).toContain("Not loaded, so nothing to preview");
+    expect(textOf("[data-stream-steps]")).toContain("Its steps show here once it is loaded.");
+
+    fireEvent.click(within(banner ?? document.body).getByRole("button", { name: /Retry/ }));
+
+    await waitFor(() => expect(textOf("[data-stream-page-header] [role=alert]")).toMatch(/^Retry was refused: the stream's CameraSource could not open camera/));
+  });
+
+  it("shows the graph document as the runtime wrote it in Inspect, outlined by its top-level keys", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheStreamPageOf("main");
+    fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Inspect" })));
+
+    await waitFor(() => expect(document.querySelector("[data-graph-document-view='raw']")).not.toBeNull());
+    expect(textOf("[data-stream-inspect]")).toContain("tatolab graph --stream main");
+    expect(textOf("[data-graph-document-view='raw']")).toContain('"stream": "main"');
+    const outline = within(screen.getByRole("complementary", { name: "Graph document outline" }));
+    expect(outline.getByText("nodes")).toBeTruthy();
+    expect(outline.getByText("jonathanf-macbook")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tree" }));
+
+    expect(document.querySelector("[data-graph-document-view='tree']")?.textContent).toContain("machine:");
+  });
+
+  it("opens the stream's project and a terminal in it, showing what refused either in its own words", async () => {
+    const openedProjects: string[] = [];
+    await mountedWindowOverTheMock("state=running&platform=linux&terminal=missing", {
+      openStreamProjectFolder: async (streamName) => {
+        openedProjects.push(streamName);
+      },
+    });
+    await openTheStreamPageOf("camera");
+
+    fireEvent.click(screen.getByRole("button", { name: /Open project/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Terminal/ }));
+
+    await waitFor(() =>
+      expect(textOf("[data-stream-page-header] [role=alert]")).toBe(
+        "No terminal opened: x-terminal-emulator is not on the PATH. Install a terminal, or choose one with sudo update-alternatives --config x-terminal-emulator.",
+      ),
+    );
+    expect(openedProjects).toEqual(["camera"]);
+  });
+
+  it("focuses the log filter with ⌘F, from Overview by way of Graph, and on Logs where it is", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheStreamPageOf("main");
+    await waitFor(() => expect(document.querySelector("[data-stream-step]")).not.toBeNull());
+    const pressCommandF = () => fireEvent.keyDown(document, { key: "f", metaKey: true });
+    const focusedLogFilter = () => document.activeElement?.closest("[data-hosted-dom-page]") !== null && document.activeElement?.tagName === "INPUT";
+
+    pressCommandF();
+
+    await waitFor(() => expect(document.querySelector("[data-stream-page-header] [data-stream-tab='graph']")?.getAttribute("aria-current")).toBe("page"));
+    await waitFor(() => expect(focusedLogFilter()).toBe(true));
+
+    fireEvent.click(screen.getByRole("link", { name: "Logs" }));
+    await waitFor(() => expect(document.querySelector("[data-stream-page-header] [data-stream-tab='logs']")?.getAttribute("aria-current")).toBe("page"));
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    pressCommandF();
+
+    await waitFor(() => expect(focusedLogFilter()).toBe(true));
+    expect(document.querySelector("[data-stream-page-header] [data-stream-tab='logs']")?.getAttribute("aria-current")).toBe("page");
   });
 });

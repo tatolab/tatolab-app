@@ -9,6 +9,7 @@ import {
   type MockStreamFixture,
   stampMockLogRecord,
 } from "./mock_stream_fixtures";
+import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import type { TatolabBackend } from "./tatolab_backend";
 import type {
   ListedStream,
@@ -29,6 +30,7 @@ export type MockTatolabScenario =
   | "empty"
   | "loading"
   | "node-error"
+  | "dropping"
   | "not-listed"
   | "starting"
   | "stopped"
@@ -43,6 +45,7 @@ const MOCK_TATOLAB_SCENARIOS: readonly MockTatolabScenario[] = [
   "empty",
   "loading",
   "node-error",
+  "dropping",
   "not-listed",
   "starting",
   "stopped",
@@ -92,6 +95,8 @@ export interface MockTatolabOptions {
   appUpdateScenario: MockTatolabAppUpdateScenario;
   /** `?stop_not_recorded=<stream>`: stopping that kept stream unloads it but cannot write its record, as when the runtime's state directory refuses the write. */
   streamWhoseStopIsNotRecorded: string | null;
+  /** `?terminal=missing`: the desktop has no terminal to open, as a Linux desktop without `x-terminal-emulator`. */
+  isTheTerminalMissing: boolean;
 }
 
 /**
@@ -113,6 +118,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isUninstallPromptCancelled: pageQuery.get("uninstall") === "cancel",
     appUpdateScenario: appUpdateScenario ?? "up-to-date",
     streamWhoseStopIsNotRecorded: pageQuery.get("stop_not_recorded"),
+    isTheTerminalMissing: pageQuery.get("terminal") === "missing",
   };
 }
 
@@ -165,6 +171,7 @@ function initialMockStatus(
     case "empty":
     case "loading":
     case "node-error":
+    case "dropping":
     case "not-listed":
       return runningStatus;
     case "starting":
@@ -221,9 +228,15 @@ export function createMockTatolabBackend({
   isUninstallPromptCancelled,
   appUpdateScenario,
   streamWhoseStopIsNotRecorded,
+  isTheTerminalMissing,
 }: MockTatolabOptions): TatolabBackend {
   const fixtures = createMockStreamFixtures(platform);
-  const mainStream = scenario === "node-error" ? fixtures.mainStreamWithDisplayWindowInError : fixtures.mainStream;
+  const mainStream =
+    scenario === "node-error"
+      ? fixtures.mainStreamWithDisplayWindowInError
+      : scenario === "dropping"
+        ? fixtures.mainStreamWithItsMeterFallingBehind
+        : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const loadedStreams = new Map<string, MockLoadedStream>();
   const listedStreamsNotLoaded = new Map<string, ListedStream>([
@@ -312,7 +325,7 @@ export function createMockTatolabBackend({
     if (runtimeUpSinceMilliseconds === null) return;
     const now = Date.now();
     let listingChanged = false;
-    if ((scenario === "running" || scenario === "node-error" || scenario === "loading") && !hasTheAttachedDemoSessionEnded) {
+    if ((scenario === "running" || scenario === "node-error" || scenario === "dropping" || scenario === "loading") && !hasTheAttachedDemoSessionEnded) {
       const attachedDemoName = fixtures.attachedDemoStream.listing.name;
       const shouldBeAttached = isAttachedDemoAttachedAt(now - runtimeUpSinceMilliseconds);
       const isAttached = loadedStreams.has(attachedDemoName);
@@ -448,14 +461,18 @@ export function createMockTatolabBackend({
   };
 
   const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraphSummary => {
-    const fixtureGraph = loadedStream.fixture.graph;
-    const hasSettled = Date.now() - loadedStream.loadedAtMilliseconds >= MOCK_STREAM_SETTLE_MILLISECONDS;
-    if (hasSettled) return structuredClone(fixtureGraph);
-    return {
-      ...structuredClone(fixtureGraph),
-      nodes: fixtureGraph.nodes.map((node) => ({ ...node, state: "Pending" })),
-      links: fixtureGraph.links.map((link) => ({ ...link, state: "pending" })),
-    };
+    const millisecondsSinceSettled = Date.now() - loadedStream.loadedAtMilliseconds - MOCK_STREAM_SETTLE_MILLISECONDS;
+    return mockStreamGraphSummary(loadedStream.fixture.listing.name, fixtures.machine.name, loadedStream.fixture.graph, {
+      hasSettled: millisecondsSinceSettled >= 0,
+      secondsSinceSettled: Math.max(0, millisecondsSinceSettled) / 1000,
+    });
+  };
+
+  /** The project folder the mock runtime lists for `streamName`, as the main process looks it up before opening it. */
+  const listedProjectFolderOf = (streamName: string): string => {
+    const listedStream = listStreams()?.find((stream) => stream.name === streamName) ?? null;
+    if (listedStream === null) throw `The runtime does not list ${streamName}, so Tatolab has no project folder to open.`;
+    return listedStream.project_directory;
   };
 
   const downloadTheNewerVersion = (percent: number): void => {
@@ -569,6 +586,17 @@ export function createMockTatolabBackend({
           return startMockStream(streamName);
         case "remove_stream":
           return removeMockStream(streamName);
+      }
+    },
+    openStreamProjectFolder: async (streamName) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      listedProjectFolderOf(streamName);
+    },
+    openTerminalAtStreamProject: async (streamName) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      listedProjectFolderOf(streamName);
+      if (isTheTerminalMissing) {
+        throw "No terminal opened: x-terminal-emulator is not on the PATH. Install a terminal, or choose one with sudo update-alternatives --config x-terminal-emulator.";
       }
     },
     onTatolabStatusChanged: async (statusListener) => {

@@ -17,11 +17,14 @@ export function registerTheWindowPageSchemeBeforeReady(): void {
   ]);
 }
 
-/** Serves the built window in `builtWindowDirectory` under the window page's scheme, each response carrying the page's content security policy. */
-export async function serveTheBuiltWindow(builtWindowDirectory: string, tatolabAppLog: TatolabAppLog): Promise<void> {
+/** Serves the built window in `builtWindowDirectory` under the window page's scheme, each response carrying the page's content security policy, which frames only the preview page at `runtimeLoopbackHttpOrigin`. */
+export async function serveTheBuiltWindow(builtWindowDirectory: string, runtimeLoopbackHttpOrigin: string, tatolabAppLog: TatolabAppLog): Promise<void> {
   let windowPageContentSecurityPolicyHeader = "default-src 'self'";
   try {
-    windowPageContentSecurityPolicyHeader = windowPageContentSecurityPolicy(await readFile(path.join(builtWindowDirectory, "index.html"), "utf8"));
+    windowPageContentSecurityPolicyHeader = windowPageContentSecurityPolicy(
+      await readFile(path.join(builtWindowDirectory, "index.html"), "utf8"),
+      runtimeLoopbackHttpOrigin,
+    );
   } catch (caughtFailure) {
     tatolabAppLog.error("the built window could not be read", { built_window_directory: builtWindowDirectory, failure: describeCaughtFailure(caughtFailure) });
   }

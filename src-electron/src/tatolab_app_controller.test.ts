@@ -4,6 +4,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { afterEach, expect, test, vi } from "vitest";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
 import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
@@ -60,6 +61,7 @@ async function controllerOverFakes(
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
     readMonotonicClockMs: () => 0,
+    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
@@ -125,6 +127,7 @@ test("a tray toggle and a window request run in turn, never interleaved", async 
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
     readMonotonicClockMs: () => 0,
+    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
@@ -158,6 +161,7 @@ async function controllerAtAppVersion(appVersion: string, appConfigDirectory: st
     appLaunchedAtMs: 0,
     appVersion,
     readMonotonicClockMs: () => 0,
+    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
@@ -198,6 +202,7 @@ test("the restarted runtime gets the starting grace again", async () => {
     appLaunchedAtMs: 0,
     appVersion: "0.47.0",
     readMonotonicClockMs: () => nowMs,
+    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
@@ -239,6 +244,7 @@ test("before the machine is set up nothing restarts, and the restart waits for a
     appLaunchedAtMs: 0,
     appVersion: "0.47.0",
     readMonotonicClockMs: () => 0,
+    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
@@ -266,6 +272,7 @@ test("each status carries where updates stand", async () => {
     appLaunchedAtMs: 0,
     appVersion: "0.46.3",
     readMonotonicClockMs: () => 0,
+    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });

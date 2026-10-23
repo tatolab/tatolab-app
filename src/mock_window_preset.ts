@@ -27,7 +27,9 @@ async function clickWhenShown(selector: string): Promise<boolean> {
 }
 
 /**
- * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=`,
+ * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=overview|graph|logs|inspect`,
+ * `?stream_page_action=<action>` (a header button of the stream's page, once its steps show: `stop_stream` there gives
+ * the steps as of the last load), `?inspect=tree`,
  * `?page=settings|add-stream`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
  * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),
  * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`,
@@ -48,7 +50,13 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   }
   if (streamName !== null) await clickWhenShown(`[data-stream-row="${CSS.escape(streamName)}"]`);
   const tab = pageQuery.get("tab");
-  if (tab !== null) await clickWhenShown(`.streams-page .content-band [data-segment="${CSS.escape(tab)}"]`);
+  if (tab !== null) await clickWhenShown(`[data-stream-page-header] [data-stream-tab="${CSS.escape(tab)}"]`);
+  const streamPageAction = pageQuery.get("stream_page_action");
+  if (streamPageAction !== null) {
+    await waitForElement("[data-stream-step]");
+    await clickWhenShown(`[data-stream-page-header] [data-stream-action="${CSS.escape(streamPageAction)}"]`);
+  }
+  if (pageQuery.get("inspect") === "tree") await clickWhenShown(`[data-graph-document-view-choice="tree"]`);
   const watchedPort = pageQuery.get("watch");
   if (watchedPort !== null) {
     const [nodeName, portName] = watchedPort.split(".");

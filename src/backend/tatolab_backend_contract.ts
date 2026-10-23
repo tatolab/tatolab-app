@@ -98,10 +98,16 @@ export interface StreamGraphNode {
   type: string;
   /** The processor's state as the runtime names it, such as `Running`. */
   state: string | null;
+  /** Messages it dropped on each link into it, by the link's `id`, as `components.metrics` counts them since the link was wired. */
+  dropped_bags_by_link: Record<string, number>;
+  /** Messages each of its output ports refused, by port name, as `components.metrics` counts them. */
+  refused_bags_by_output_port: Record<string, number>;
 }
 
 /** One link of a stream's graph, from an output port to an input port; the source may be in another stream. */
 export interface StreamGraphLink {
+  /** The runtime's id of the link, which a node's `dropped_bags_by_link` is keyed by. */
+  id: string;
   source_node: string;
   source_port: string;
   target_node: string;
@@ -115,12 +121,16 @@ export interface StreamGraphExposedPort {
   node: string;
   port: string;
   level: string;
+  /** The runtime's loopback preview page playing this output, `<origin>/watch/<machine>/<stream>/<node>/<port>`; `null` for an `internal` port, which is never served, and for every port of a graph that names no machine. */
+  watch_page_url: string | null;
 }
 
-/** What `describe_stream_graph` answers: one loaded stream's nodes, links and exposed ports. */
+/** What `describe_stream_graph` answers: one loaded stream's nodes, links and exposed ports, and the document they were read from. */
 export interface StreamGraphSummary {
   stream: string;
   nodes: StreamGraphNode[];
   links: StreamGraphLink[];
   exposed: StreamGraphExposedPort[];
+  /** The `graph` tool's text exactly as the runtime wrote it, which `tatolab graph --stream` prints. */
+  graph_document_text: string;
 }

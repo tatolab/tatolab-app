@@ -12,6 +12,7 @@ import path from "node:path";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../../src/backend/tatolab_electron_bridge_contract.js";
 import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { failedWith, succeeded } from "./result.js";
+import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabElectronAppShell } from "./main.js";
 import type { ApplicationMenu, MacosActivationPolicy, TatolabUninstall } from "./platform/mod.js";
@@ -31,7 +32,8 @@ export type FakeShellRecord =
   | { asked: "exit"; exitCode: number }
   | { asked: "notify"; notification: string }
   | { asked: "repeat_every"; intervalMs: number }
-  | { asked: "set_application_menu"; applicationMenu: ApplicationMenu };
+  | { asked: "set_application_menu"; applicationMenu: ApplicationMenu }
+  | { asked: "open_folder_in_the_file_manager"; folder: string };
 
 /** A fake Electron app shell for the lifecycle's tests. */
 export class FakeTatolabElectronAppShell {
@@ -72,6 +74,10 @@ export class FakeTatolabElectronAppShell {
     answerTheWindowsCommands: (tatolabWindowCommandHandlers) => {
       this.tatolabWindowCommandHandlers = tatolabWindowCommandHandlers;
     },
+    openAFolderInTheFileManager: async (folder) => {
+      this.records.push({ asked: "open_folder_in_the_file_manager", folder });
+      return succeeded(undefined);
+    },
     createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,
     createTheAppUpdateNotifier: (onNotificationClicked) => {
       this.clickANotification = onNotificationClicked;
@@ -84,6 +90,7 @@ export class FakeTatolabElectronAppShell {
     repeatingTimer: (intervalMs) => this.records.push({ asked: "repeat_every", intervalMs }),
     appConfigDirectory: this.appConfigDirectory,
     appVersion: "0.45.0",
+    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readMonotonicClockMs: () => 0,
     mainWindowHostFactory: {
       createMainWindowHost: (mainWindowSpecification, answerCloseRequest) => {

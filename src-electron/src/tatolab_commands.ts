@@ -16,6 +16,7 @@ import {
   setUpTatolabOnRequest,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
+import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 
 /** How long `get_tatolab_status` waits for the poller's first round when the window asks first. */
 const FIRST_STATUS_ROUND_WAIT_LIMIT_MS = 15_000;
@@ -83,6 +84,31 @@ export function runStreamAction(sharedState: TatolabAppSharedState, streamAction
     sharedState.statusPublisher.requestRefresh();
     return notice.ok ? notice : failedWith(notice.failure.failureDescription);
   });
+}
+
+/** Where each command that opens a stream's project folder opens it. */
+const STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND = {
+  open_stream_project_folder: "file_manager",
+  open_terminal_at_stream_project: "terminal",
+} as const satisfies Record<string, StreamProjectFolderOpening>;
+
+/** A command that opens a stream's project folder. */
+type StreamProjectFolderCommandName = keyof typeof STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND;
+
+/** `open_stream_project_folder` or `open_terminal_at_stream_project { stream }`: the project folder the runtime last listed for `stream`, opened where `commandName` opens it; refused naming why. */
+export function openStreamProjectFolderOnRequest(
+  sharedState: TatolabAppSharedState,
+  commandName: StreamProjectFolderCommandName,
+  stream: string,
+): Promise<Result<void, string>> {
+  return answerTheWindow(commandName, () =>
+    openStreamProjectFolder(
+      sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? null,
+      stream,
+      STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND[commandName],
+      sharedState.streamProjectFolderOpeners,
+    ),
+  );
 }
 
 /** `set_run_tatolab`'s arguments as the window sends them, or why they are not. */
@@ -160,7 +186,20 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     },
     start_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "start_stream", commandArguments)),
     remove_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "remove_stream", commandArguments)),
+    open_stream_project_folder: async (commandArguments) =>
+      commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_project_folder", commandArguments)),
+    open_terminal_at_stream_project: async (commandArguments) =>
+      commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_terminal_at_stream_project", commandArguments)),
   };
+}
+
+async function streamProjectFolderOpeningOnTheStreamNamedIn(
+  sharedState: TatolabAppSharedState,
+  commandName: StreamProjectFolderCommandName,
+  commandArguments: unknown,
+): Promise<Result<void, string>> {
+  const streamArguments = streamArgumentsFrom(commandName, commandArguments);
+  return streamArguments.ok ? openStreamProjectFolderOnRequest(sharedState, commandName, streamArguments.value.stream) : streamArguments;
 }
 
 async function streamActionOnTheStreamNamedIn(

@@ -2,6 +2,59 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## A stream's Overview and Inspect on the new design (#37)
+
+Issue #37, in three labelled sets.
+
+**Live (local proof)** — [`stream-overview-inspect/live-macos/`](stream-overview-inspect/live-macos/). Captured on the owner's Mac (macOS 26.7.1).
+- **The app:** Electron 44.9.1 ran unpackaged, with `machineDirectoriesUnderATestRoot` switched on in its built copy only, and its appData under `/tmp/proof37/home` (`CFFIXED_USER_HOME`).
+- **The runtime:** the test-root `tatolabd` of streamlib main (0.55.1) ran by hand under `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, with its loopback HTTP on 14446. No launch agent was registered, and the installed app's runtime kept running.
+- **The relay ports:** for this one run the test runtime's relay took the machine's free 4443 and 4445. The preview page reads the relay only at `http://127.0.0.1:4443`, so a test runtime's preview cannot play on its own test ports.
+- **The streams**, each a `tatolab new` sample (test pattern → halftone effect → H.264 exposed public, with a meter on a fan-out), kept:
+  - `front-door`, the sample as written;
+  - `dock-counter`, whose meter takes every frame and sleeps 250 ms on each, so its link drops;
+  - `test-pattern`, stopped and started from the window;
+  - `lobby-recorder`, failed after its `.venv` was moved aside and the runtime restarted.
+- Playwright drove the window. Each image is the window at its default 1040×700, shot at 2×, with `<image>.tatolab-streams.txt` beside it holding what the unit's `tatolab streams` or `tatolab graph --stream` printed at that moment.
+
+| image | label | shows |
+|---|---|---|
+| ![](stream-overview-inspect/live-macos/02-front-door-overview-playing.png) | Live (local proof) | `front-door` opens on Overview. The runtime's preview page plays `h264encoder/encoded_video` in the window: "playing h264encoder/encoded_video" over the sample's colour bars, halftone lens and mascot. The picker shows the one public output, the address beneath is `jonathanf-macbook/front-door/h264encoder/encoded_video`, and the header reads Running · Always on. The frame's URL is `02-front-door-preview-src.txt`. |
+| ![](stream-overview-inspect/live-macos/03-front-door-inspect.png) | Live (local proof) | Inspect shows `tatolab graph --stream front-door`, with an outline of stream / nodes 4 / links 3 / exposed 1 / machine. `config_checksum` keeps all its digits (6086514543335466803). `03-inspect-shown.json` (what the window shows) and `03-inspect-tatolab-graph.json` (what the CLI printed a moment later) are the same 278 lines. They differ only in the three `written_bags_by_output_port` counters, which climbed between the two reads. |
+| ![](stream-overview-inspect/live-macos/04-front-door-inspect-tree.png) | Live (local proof) | The same document as a tree. |
+| ![](stream-overview-inspect/live-macos/05-dock-counter-dropping.png) | Live (local proof) | `dock-counter`: "halftonelenseffect → brightnessmeter has dropped 467 messages since it was wired" in amber with Show in graph, while its preview plays. Beside it, `tatolab graph --stream dock-counter` shows the meter's `dropped_bags_by_link` climbing. |
+| ![](stream-overview-inspect/live-macos/06-test-pattern-stopped-from-the-header.png) | Live (local proof) | Stop pressed in `test-pattern`'s header. The header reads Stopped, with Start; Graph and Logs are dimmed. The preview reads "Stopped, so nothing to preview" with Start stream, and the steps stay "4 as of the last load", each Not loaded. `tatolab streams` reads `stopped`. |
+| ![](stream-overview-inspect/live-macos/07-test-pattern-started-from-the-preview.png) | Live (local proof) | Start stream pressed in the preview: Running again, its output playing (`kept 4`). |
+| ![](stream-overview-inspect/live-macos/08-lobby-recorder-failed.png) | Live (local proof) | `lobby-recorder`: Failed in red, and the banner holds the runtime's whole reason ("`start` retried it, and it did not load: … its interpreter …/.venv/bin/python is gone; run `uv sync` in …"), with Retry. "Not loaded, so nothing to preview". The reason begins "`start` retried it" because the first proof run had already retried it. |
+| ![](stream-overview-inspect/live-macos/09-lobby-recorder-retry-refused.png) | Live (local proof) | Retry from the banner: under the header, "Retry was refused:" and then the runtime's own words. |
+| ![](stream-overview-inspect/live-macos/10-front-door-overview-dark.png) | Live (local proof) | `front-door`'s Overview in dark, still playing. |
+| ![](stream-overview-inspect/live-macos/11-front-door-terminal-opened.png) | Live (local proof) | Terminal pressed: no refusal in the header. Terminal.app opened a window whose `zsh` runs in `/private/tmp/proof37/projects/front-door` (read with `lsof -d cwd`). Open project showed no refusal either. |
+
+**Linux (container, unbundled)** — [`stream-overview-inspect/linux-container/`](stream-overview-inspect/linux-container/). `run-the-stream-page-in-ubuntu-22.04.sh` runs the committed tree in `ubuntu:22.04` on the Mac (arm64): Electron 44.9.1 unpackaged, under Xvfb with openbox. The images are from the tree at e769ac0. **No runtime ran.** The stand-in local API replays the recorded responses, now including the `graph` tool. No preview page is served there, so the preview frame is black.
+
+| image | label | shows |
+|---|---|---|
+| ![](stream-overview-inspect/linux-container/linux-01-main-overview-light.png) | Linux (container, unbundled) · stand-in runtime | openbox's title bar, Ctrl K. `main`'s header (Running · Always on · `/root/streams/pattern`) wraps its actions under the name. The picker shows `invertingeffect video_to_downstream`, This machine, and the address `linux-container-stand-in/main/invertingeffect/video_to_downstream`. Steps 4 in pipeline order. |
+| ![](stream-overview-inspect/linux-container/linux-02-main-overview-dark.png) | Linux (container, unbundled) · stand-in runtime | The same in dark. |
+| ![](stream-overview-inspect/linux-container/linux-03-main-inspect-dark.png) | Linux (container, unbundled) · stand-in runtime | Inspect, dark: `tatolab graph --stream main`, with the recorded document's `config_checksum` 6086514543335466803 intact. |
+| ![](stream-overview-inspect/linux-container/linux-04-main-stopped-steps-as-of-the-last-load.png) | Linux (container, unbundled) · stand-in runtime | Stop from the header: Stopped, Start stream, steps "4 as of the last load", each Not loaded. |
+| ![](stream-overview-inspect/linux-container/linux-05-lobby-recorder-failed.png) | Linux (container, unbundled) · stand-in runtime | The failed `lobby-recorder` with its recorded reason in the banner. |
+| ![](stream-overview-inspect/linux-container/linux-06-terminal-refused-without-x-terminal-emulator.png) | Linux (container, unbundled) · stand-in runtime | Terminal pressed on a desktop with no `x-terminal-emulator`: under the header, "No terminal opened: x-terminal-emulator is not on the PATH. Install a terminal, or choose one with sudo update-alternatives --config x-terminal-emulator." |
+| ![](stream-overview-inspect/linux-container/linux-07-terminal-opened-with-xterm.png) | Linux (container, unbundled) · stand-in runtime | After `apt-get install xterm`, which registers it as `x-terminal-emulator`, Terminal opens an xterm whose prompt is `~/streams/lobby-recorder`, the folder the stand-in lists for the stream. `/proc/<pid>/cwd` agrees (`linux-07-terminal-opened-with-xterm.txt`). |
+
+**Mock** — [`stream-overview-inspect/mock/`](stream-overview-inspect/mock/). Each frame from `npm run dev` presets in Chromium at 1440×900, light and dark. The preview is the mock's stand-in drawn in the frame, not a runtime's.
+
+| image (light / dark) | preset | shows |
+|---|---|---|
+| `mock-01-macos-overview` | `stream=main` | The Overview: picker, preview, address, steps in pipeline order with origin, state and process, and the details panel (Instance 4, Steps 4 · 2 Python, Outputs, From the terminal). |
+| `mock-02-macos-overview-dropping` | `state=dropping&stream=main` | The amber line naming `invertingeffect → brightnessmeter`, with "dropped" and "refused" counters on its steps. |
+| `mock-03-macos-overview-stopped-as-of-the-last-load` | `stream=main&stream_page_action=stop_stream` | Stopped from the header: muted preview with Start stream, and the steps as of the last load. |
+| `mock-04-macos-overview-failed` | `stream=lobby-recorder` | The failed banner with the reason and Retry; "Its steps show here once it is loaded." |
+| `mock-05-macos-inspect-raw` | `stream=main&tab=inspect` | Inspect: outline, Raw, Copy, the command. |
+| `mock-06-macos-inspect-tree` | `stream=main&tab=inspect&inspect=tree` | Inspect's tree. |
+| `mock-07-linux-overview-two-outputs` | `stream=camera&platform=linux` | Linux chrome; two previewable outputs (This machine and Public) in the details. |
+| `mock-08-linux-terminal-refused-light` | `stream=camera&platform=linux&terminal=missing`, then Terminal | The refusal of a desktop with no `x-terminal-emulator`, in its own words under the header. |
+
 ## The window on React, Tailwind and shadcn: the shell and the Streams list (#36)
 
 Issue #36, at the branch's final commit, in three labelled sets. Each image is the window at its default 1040×700.

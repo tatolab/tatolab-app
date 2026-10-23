@@ -12,7 +12,9 @@ import { HostedDomPageView } from "./hosted_dom_page_view";
 import { Button } from "./shadcn/button";
 import { joinClassNames } from "./shadcn/class_names";
 import { Kbd } from "./shadcn/kbd";
-import { streamPagePath, StreamsListPageView } from "./streams_list_page_view";
+import { StreamPageView } from "./stream_page_view";
+import { streamPagePath, streamPageTabNamed } from "./stream_page_path";
+import { StreamsListPageView } from "./streams_list_page_view";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 /** Where the person's light or dark choice is kept; the page's first script reads it before first paint. */
@@ -252,17 +254,17 @@ function StreamsRoute() {
   return <StreamsListPageView listedStreams={listedStreams} />;
 }
 
-/** One stream's band, graph, logs and Overview, as the hosted streams page draws them; back to the list once it is not listed. */
+/** One stream's page on the tab its path names; the hosted page saying why while the runtime lists none; back to the list once it is not listed. */
 function StreamRoute() {
   const { hostedPages } = useTatolabWindowEnvironment();
   const listedStreams = useListedStreamsWhileTheRuntimeRuns();
-  const { streamName } = useParams();
-  const isListed = listedStreams?.some((stream) => stream.name === streamName) ?? false;
-  useEffect(() => {
-    if (streamName !== undefined && isListed) hostedPages.streamsPage.chooseStream(streamName);
-  }, [hostedPages, streamName, isListed]);
-  if (listedStreams !== null && !isListed) return <Navigate to="/" replace />;
-  return <HostedDomPageView hostedPage={hostedPages.streamsPage} />;
+  const { streamName, streamTab } = useParams();
+  if (listedStreams === null) return <HostedDomPageView hostedPage={hostedPages.streamsPage} />;
+  const stream = listedStreams.find((listedStream) => listedStream.name === streamName);
+  if (stream === undefined) return <Navigate to="/" replace />;
+  const shownTab = streamPageTabNamed(streamTab);
+  if (shownTab === null) return <Navigate to={streamPagePath(stream.name)} replace />;
+  return <StreamPageView key={stream.name} stream={stream} shownTab={shownTab} />;
 }
 
 function SettingsRoute() {
@@ -295,15 +297,9 @@ export const TATOLAB_WINDOW_ROUTES: RouteObject[] = [
     element: <TatolabWindowShell />,
     children: [
       { index: true, element: <StreamsRoute /> },
-      { path: "streams/:streamName", element: <StreamRoute /> },
+      { path: "streams/:streamName/:streamTab?", element: <StreamRoute /> },
       { path: "settings", element: <SettingsRoute /> },
       { path: "add-stream", element: <AddStreamRoute /> },
     ],
   },
 ];
-
-/** Whether the router shows a stream's page. */
-export function isShowingAStreamPage(pathname: string): boolean {
-  return pathname.startsWith("/streams/");
-}
-

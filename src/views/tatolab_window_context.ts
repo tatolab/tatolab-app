@@ -4,6 +4,7 @@
 import { createContext, useContext, useSyncExternalStore } from "react";
 import type { TatolabBackend } from "../backend/tatolab_backend";
 import type { TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
+import type { StreamGraphReading, StreamGraphReadings } from "../stream_graph_readings";
 import type { SettingsPageView } from "./settings_page_view";
 import type { StreamsPageView } from "./streams_page_view";
 import type { TatolabWindowPage } from "./tatolab_window_page";
@@ -37,11 +38,12 @@ export interface TatolabWindowHostedPages {
   setupScreen: TatolabWindowPage;
 }
 
-/** What every part of the React window reads: the backend, the platform, the status, and the hosted DOM pages. */
+/** What every part of the React window reads: the backend, the platform, the status, the shown stream's graph, and the hosted DOM pages. */
 export interface TatolabWindowEnvironment {
   backend: TatolabBackend;
   platform: TatolabPlatform;
   statusStore: TatolabWindowStatusStore;
+  streamGraphReadings: StreamGraphReadings;
   hostedPages: TatolabWindowHostedPages;
   openSearch(): void;
 }
@@ -60,4 +62,10 @@ export function useTatolabWindowEnvironment(): TatolabWindowEnvironment {
 export function useTatolabStatus(): TatolabStatus {
   const { statusStore } = useTatolabWindowEnvironment();
   return useSyncExternalStore(statusStore.subscribeToStatus, statusStore.readLatestStatus);
+}
+
+/** What the window knows of `streamName`'s graph, re-rendering the caller on each change. */
+export function useStreamGraphReading(streamName: string): StreamGraphReading {
+  const { streamGraphReadings } = useTatolabWindowEnvironment();
+  return useSyncExternalStore(streamGraphReadings.subscribeToReadings, () => streamGraphReadings.readingOf(streamName));
 }

@@ -8,7 +8,6 @@
 
 @import "./base.css" layer(base);
 @import "./streams_page.css" layer(components);
-@import "./stream_overview.css" layer(components);
 @import "./stream_graph.css" layer(components);
 @import "./stream_log_console.css" layer(components);
 @import "./watch_placeholder.css" layer(components);

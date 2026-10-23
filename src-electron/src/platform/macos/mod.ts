@@ -3,7 +3,7 @@
 
 // macOS: Service Management registers the runtime's launch agent, first-launch setup creates the
 // machine runtime lock and the CLI's PATH link behind one administrator prompt, "Uninstall
-// Tatolab…" removes them behind another, the window draws
+// Tatolab…" removes them behind another, Terminal.app opens a stream's project, the window draws
 // under a hidden title bar with the Dock icon following it, and the tray's mark is a template
 // image.
 
@@ -22,6 +22,7 @@ import { MachineSetupBehindAnAdministratorPrompt } from "./machine_setup.js";
 import { loadServiceManagementAddon, serviceManagementAddonBuiltUnder, serviceManagementAddonInTheAppBundle } from "./service_management_addon.js";
 import { LAUNCHCTL_AT_ITS_SYSTEM_PATH, ServiceManagementRuntimeLaunchAgent } from "./service_management_runtime_launch_agent.js";
 import { appBundleContaining, bundledCommandLineToolPath, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
+import { TerminalAppOpenedByOpen } from "./terminal_app_opened_by_open.js";
 import { TatolabUninstallOnThisMac } from "./tatolab_uninstall.js";
 
 export { MACOS_MAIN_WINDOW_CHROME, setMacosDockIconVisible } from "./main_window_chrome.js";
@@ -76,5 +77,6 @@ export async function macosTatolabPlatformForThisBuild(
     ),
     appUpdatePackaging: tatolabAppUpdatePackagingOnMacos(appIsPackaged),
     bundledRuntimeRestart: runtimeLaunchAgent,
+    terminalOpenedInAFolder: new TerminalAppOpenedByOpen(),
   };
 }

@@ -22,6 +22,8 @@ import { TatolabMainWindow, type MainWindowHostFactory } from "./tatolab_main_wi
 import { TatolabAppUpdater, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild, type TatolabAppUpdateNotifier } from "./tatolab_app_updater.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "./tatolab_tray_menu.js";
+import type { Result } from "./result.js";
+import { isAnExistingFolderOnThisMachine } from "./stream_project_folder_opening.js";
 
 /** The Electron app as the lifecycle drives it. */
 export interface TatolabElectronAppShell {
@@ -38,6 +40,8 @@ export interface TatolabElectronAppShell {
   buildTheTatolabPlatformForThisBuild(platformItems: TatolabPlatformItems): Promise<TatolabPlatformForThisBuild>;
   /** Answer each command the window invokes with its handler. */
   answerTheWindowsCommands(tatolabWindowCommandHandlers: TatolabWindowCommandHandlers): void;
+  /** Show `folder` in the desktop's file manager, refused in its own words. */
+  openAFolderInTheFileManager(folder: string): Promise<Result<void, string>>;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
   createTheAppUpdateFeed(appUpdatePackaging: TatolabAppUpdatePackaging): TatolabAppUpdateFeedForThisBuild;
   /** The system notifications about updates; clicking one calls `onNotificationClicked`. */
@@ -47,6 +51,8 @@ export interface TatolabElectronAppShell {
   /** The app's own config directory, where "Run Tatolab" is remembered. */
   appConfigDirectory: string;
   appVersion: string;
+  /** Where the runtime this build reads serves its loopback HTTP: the window's content security policy frames it, and the graph's preview pages sit under it. */
+  runtimeLoopbackHttpOrigin: string;
   readMonotonicClockMs(): number;
   mainWindowHostFactory: MainWindowHostFactory;
   trayIconHostFactory: TrayIconHostFactory;
@@ -115,6 +121,7 @@ export async function startTatolabApp(
     appConfigDirectory: tatolabElectronAppShell.appConfigDirectory,
     appLaunchedAtMs,
     appVersion: tatolabElectronAppShell.appVersion,
+    runtimeLoopbackHttpOrigin: tatolabElectronAppShell.runtimeLoopbackHttpOrigin,
     readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     readTheAppUpdateState: () => tatolabAppUpdater.state(),
     tatolabAppLog,
@@ -132,6 +139,11 @@ export async function startTatolabApp(
     statusPublisher,
     tatolabAppUpdater,
     tatolabUninstall: platformForThisBuild.tatolabUninstall,
+    streamProjectFolderOpeners: {
+      openAFolderInTheFileManager: (folder) => tatolabElectronAppShell.openAFolderInTheFileManager(folder),
+      terminalOpenedInAFolder: platformForThisBuild.terminalOpenedInAFolder,
+      isAnExistingFolder: isAnExistingFolderOnThisMachine,
+    },
     tatolabAppLog,
   };
   const quitTheApp = () => quitTheTatolabApp(tatolabMainWindow, (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode), tatolabAppLog);

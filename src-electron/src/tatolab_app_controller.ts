@@ -59,6 +59,8 @@ export interface TatolabAppControllerSources {
   appConfigDirectory: string;
   appLaunchedAtMs: number;
   appVersion: string;
+  /** Where the runtime this build reads serves its loopback HTTP, under which each readable output has its preview page. */
+  runtimeLoopbackHttpOrigin: string;
   /** The monotonic clock every `nowMs` is read from: `performance.now()` in the app. */
   readMonotonicClockMs: () => number;
   /** Where checking for a newer Tatolab stands, which each status carries. */
@@ -79,6 +81,7 @@ export class TatolabAppController {
     private readonly runTatolabSwitch: RunTatolabSwitch,
     private readonly machineSetup: TatolabMachineSetup,
     private readonly localApiClient: LocalApiClient,
+    private readonly runtimeLoopbackHttpOrigin: string,
     private readonly bundledRuntimeRestart: BundledRuntimeRestart | null,
     private readonly runtimeRestartedForAppVersionFile: RuntimeRestartedForAppVersionFile,
     private readonly readMonotonicClockMs: () => number,
@@ -100,6 +103,7 @@ export class TatolabAppController {
       runTatolabSwitch,
       sources.platformForThisBuild.machineSetup,
       new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS, sources.appVersion),
+      sources.runtimeLoopbackHttpOrigin,
       sources.platformForThisBuild.bundledRuntimeRestart,
       RuntimeRestartedForAppVersionFile.inAppConfigDirectory(sources.appConfigDirectory),
       sources.readMonotonicClockMs,
@@ -293,9 +297,9 @@ export class TatolabAppController {
     return this.localApiClient.runStreamAction(streamAction, stream);
   }
 
-  /** The graph of the loaded stream `stream`. */
+  /** The graph of the loaded stream `stream`, its readable outputs' preview pages at the runtime's loopback HTTP. */
   describeStreamGraph(stream: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
-    return this.localApiClient.describeStreamGraph(stream);
+    return this.localApiClient.describeStreamGraph(stream, this.runtimeLoopbackHttpOrigin);
   }
 
   /** The runtime's streams, or `null` when listing failed, which is logged on the round it starts failing. */
