@@ -9,7 +9,7 @@ Interview until understanding is genuinely shared — then stop. Never act on th
 while grilling.
 
 - **Situate before the first question.** Read how the subject slots into what is agreed (the
-  app's issues for what the app is, `proof/design-final/FINAL-SPEC.md` for how it looks,
+  app's issues for what the app is, `docs/design` for how it looks,
   streamlib's plan for the local API it reads) AND the code: is it net-new, a refactor of an existing system, or a lesson learned from
   using one (developer-experience pain)? A minute of searching beats a wasted opening
   question. State what you found as premises the owner can shoot down before the

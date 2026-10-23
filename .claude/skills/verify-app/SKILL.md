@@ -20,8 +20,10 @@ already uses.
    not-listed, starting, stopped, unreachable, setup; macOS-only approval, missing,
    not-registered), `?uninstall=cancel`, and the screen keys `?stream=`, `?tab=`,
    `?page=settings`, `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`,
-   `?levels=errors`, `?search=<query>`, and `?watch=<node>.<port>` (only with
-   `?feature=watch-exposed-output`). Shoot both themes. Label every image **Mock**. A screen the
+   `?levels=errors`, `?search=<query>`, and on Graph `?step=<step>`, `?focus=<step>`,
+   `?pin=<step>.<port>`, `?hover=<step>.<port>`, `?previews=off` and `?counters=off`; the
+   doc comment of `driveMockWindowToPreset` is the full list. A key it does not name is
+   ignored without a word, so check each frame shows the state its URL asks for. Shoot both themes. Label every image **Mock**. A screen the
    presets cannot reach gets a preset in the same change.
 2. **Local-proof live (macOS).** Anything that talks to a runtime — streams appearing and going,
    graph, logs, the switch, setup. `scripts/build-tatolab-app.sh --local-proof-test-root` builds a
@@ -38,6 +40,30 @@ already uses.
    `~/Library/Application Support/com.tatolab.tatolab`, the installed app's own settings. Then
    `rm -rf /tmp/tatolab-proof`, reopen `/Applications/Tatolab.app` so it registers its own agent,
    and show `launchctl print` matches the record. Label **Live (local proof)**.
+
+   Without the packaged build — the unpackaged app over a runtime run by hand, as #37 and #38
+   did:
+   - Build streamlib `main`'s test-root unit in a scratch worktree with
+     `scripts/build-tatolab-runtime-unit.sh <worktree> --local-proof-test-root`, so the owner's
+     checkout keeps its own unit. The build pins the `bun` it makes the preview page with: fetch
+     that version into a scratch directory and put it first on `PATH`, never over the owner's.
+   - Create the lock `tatolabd` asks for (its refusal gives the commands), then run the unit's
+     `tatolabd` with `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`,
+     `TATOLAB_TEST_LOOPBACK_HTTP_PORT=14446` and the two `TATOLAB_TEST_LOCAL_RELAY_*_PORT`s. The
+     preview page reads the relay only at 4443, so a preview plays only when the test relay takes
+     4443 and 4445; check they are free first.
+   - `npm run build && npm run build:electron`, switch `machineDirectoriesUnderATestRoot` on in
+     the built `tatolab_app_build_features.js` only, and run `npx electron .
+     --remote-debugging-port=<port>` with `TATOLAB_TEST_MACHINE_ROOT` and `CFFIXED_USER_HOME` (a
+     scratch home) set. Drive it with Playwright over the DevTools protocol; Electron answers no
+     window-bounds command there, so a larger page is an emulated viewport, said in the caption.
+   - **The unpackaged app still calls Service Management at launch**: it tries to register the
+     runtime's agent and to restart the runtime under its own version, against the owner's real
+     `com.tatolab.tatolabd`. In #38 both calls failed, but nothing stops them. Record
+     `launchctl print gui/$(id -u)/com.tatolab.tatolabd` and the runtime's pid before, and show
+     both unchanged after.
+   - After: quit the app, stop the unit's `tatolabd`, `rm -rf /tmp/tatolab-proof`, remove the
+     scratch worktree, and build again so the built copy is back to `false`.
 
    A change to what the app reads from the local API also runs the live contract test against
    that runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=/tmp/tatolab-proof/run/local-api.sock npx vitest

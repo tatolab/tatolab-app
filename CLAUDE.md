@@ -26,8 +26,8 @@ a parallel one. Search first.
      owner's call, recorded in the tatolab-app issue that builds it. What it needs from the
      runtime — a capability, a local API contract — is streamlib's: filed there, and the app waits
      on it. This repository has no `docs/plan/`; never start one.
-  2. How the window looks, reads and flows is `proof/design-final/FINAL-SPEC.md` +
-     `src/styles/tokens.css`, changed with the owner's say-so in the same PR.
+  2. How the window looks, reads and flows is `docs/design` (`DESIGN.md` and the prototype it
+     describes) + `src/styles/tokens.css`, changed with the owner's say-so in the same PR.
   3. How the app's own code is shaped — modules, interfaces, platform items, the window's IPC
      commands, the backend contract — goes in the issue's Design section, settled by `/module-design` before
      `/implement`.

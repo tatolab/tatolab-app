@@ -23,7 +23,7 @@ specification and newer than the body). Never trust the implementer's summary of
 
 1. **What the app is.** It changes the app's features, its framework, or how it is packaged or
    updated, and neither the issue nor an owner comment on it decides that.
-2. **How the window looks.** It departs visibly from `proof/design-final/FINAL-SPEC.md` or
+2. **How the window looks.** It departs visibly from `docs/design` (`DESIGN.md` and its prototype) or
    `src/styles/tokens.css`, and the issue does not name the departure.
 3. **A live fork.** There are two defensible paths with materially different outcomes, a wrong
    guess wastes real work (not a review comment's worth of rework), and the issue's Design, its
