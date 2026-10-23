@@ -37,11 +37,10 @@ docker run --rm \
     (cd /opt/playwright-driver && { [ -d node_modules/playwright ] || npm i --silent playwright@1.59 >/dev/null; })
 
     export XDG_RUNTIME_DIR=/run/user/0 SYSTEMCTL_STAND_IN_STATE=/tmp/systemctl-stand-in
-    mkdir -p "$XDG_RUNTIME_DIR" "$SYSTEMCTL_STAND_IN_STATE" /tmp/stand-in-bin
+    mkdir -p "$XDG_RUNTIME_DIR" "$SYSTEMCTL_STAND_IN_STATE"
     chmod 0700 "$XDG_RUNTIME_DIR"
     touch "$SYSTEMCTL_STAND_IN_STATE/tatolabd.service" "$SYSTEMCTL_STAND_IN_STATE/enabled"
-    ln -s /work/proof/electron-window/linux-stand-ins/systemctl /tmp/stand-in-bin/systemctl
-    export PATH="/tmp/stand-in-bin:$PATH"
+    export PATH="/work/proof/electron-window/linux-stand-ins:$PATH"
     systemctl --user start tatolabd.service
 
     Xvfb :99 -screen 0 1280x800x24 >/dev/null 2>&1 &
