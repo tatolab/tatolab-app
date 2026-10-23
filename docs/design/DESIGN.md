@@ -87,6 +87,7 @@ on it), linear.app, cloudflare.com and Docker Desktop, measuring their computed 
 | `fg` `fg-2` `fg-3` `fg-4` | `#111113` `#46464e` `#6e6e77` `#a8a8b0` | `#f0f0f2` `#b8b8c0` `#8e8e98` `#5a5a63` | text tiers |
 | `brand` / `brand-text` | `#2a5bff` | `#2a5bff` / `#7c9bff` | primary, selection, links |
 | `warn` / `danger` | `#c2700a` / `#dc2b2b` | `#f0a63a` / `#f2554d` | problems only |
+| `warn-text` / `danger-text` | `#8a5300` / `#b42323` | `#f0a63a` / `#ff6b62` | problem words: `warn` and `danger` as text miss 4.5:1 on hover, selected, well and chrome |
 
 Type: **Inter 4** (variable, with its optical-size axis — the Text cut at UI sizes and the
 Display cut for titles, each spaced by its designer, Rasmus Andersson; the face Linear and
@@ -104,7 +105,8 @@ words. One ladder, one line height per size, no manual tracking below 20px:
 | First run, TV | 26 / 32 | 700, -0.016em | `.title-xl` |
 
 Text contrast: `fg-2` and `fg-3` clear 4.5:1 on their surfaces in both themes; `fg-4` is for
-disabled text only.
+disabled text only. A problem word is set in `warn-text` or `danger-text`, which clear 4.5:1 on every
+surface, hovered and selected rows included; `warn` and `danger` colour icons, borders and fills.
 
 ## Chart palette
 

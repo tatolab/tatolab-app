@@ -34,7 +34,7 @@
   line-height: 16px;
 }
 .content-band-state[data-emphasis="quiet"], .content-band-state[data-emphasis="version"] { color: var(--fg-3); }
-.content-band-state[data-emphasis="failure"] { color: var(--danger); }
+.content-band-state[data-emphasis="failure"] { color: var(--danger-text); }
 
 /* ---------- segmented control ---------- */
 .segmented-control {
@@ -60,9 +60,9 @@
 .segmented-control-segment[aria-selected="true"] { background: var(--raised); color: var(--fg); box-shadow: var(--shadow-segment); }
 .segmented-control-small .segmented-control-segment { height: 22px; padding: 0 10px; font-size: 12px; }
 .segmented-control-count { color: var(--fg-3); font-weight: 400; font-variant-numeric: tabular-nums; }
-.segmented-control-segment[data-segment="Warnings"] .segmented-control-count { color: var(--warn); }
-.segmented-control-segment[data-segment="Errors"] .segmented-control-count { color: var(--danger); }
-.segmented-control-segment[data-segment="Errors"][aria-selected="true"] .segmented-control-count { color: var(--danger); }
+.segmented-control-segment[data-segment="Warnings"] .segmented-control-count { color: var(--warn-text); }
+.segmented-control-segment[data-segment="Errors"] .segmented-control-count { color: var(--danger-text); }
+.segmented-control-segment[data-segment="Errors"][aria-selected="true"] .segmented-control-count { color: var(--danger-text); }
 
 @media (max-width: 960px) {
   .band-search-button { min-width: 64px; }

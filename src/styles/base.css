@@ -49,7 +49,7 @@ code, kbd, .mono { font-family: var(--font-mono); font-variant-ligatures: none; 
 
 .line-icon { flex: none; display: block; }
 .failure-icon { color: var(--danger); }
-.failure-text { color: var(--danger); }
+.failure-text { color: var(--danger-text); }
 
 /* ---------- scrollbars ---------- */
 ::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
@@ -96,7 +96,7 @@ code, kbd, .mono { font-family: var(--font-mono); font-variant-ligatures: none; 
 .button-primary:hover { background: var(--brand); filter: brightness(1.08); }
 .button-primary:disabled:hover { background: var(--brand); filter: none; }
 
-.button-destructive { color: var(--danger); }
+.button-destructive { color: var(--danger-text); }
 
 .button-plain { background: transparent; border-color: transparent; box-shadow: none; color: var(--fg-2); }
 .button-plain:hover { background: var(--hover); color: var(--fg); }

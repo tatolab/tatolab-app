@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { ListedStream } from "../backend/tatolab_backend_contract";
 import {
+  isStreamActionStillUnderWay,
   presentStreamRemovalConfirmation,
   streamMatchesFilterText,
   streamMatchesListFilter,
@@ -54,5 +55,20 @@ describe("presentStreamRemovalConfirmation", () => {
       explanation:
         "The runtime unloads it and forgets it, so it no longer loads when the runtime starts. Its project folder, ~/streams/main, stays as it is.",
     });
+  });
+});
+
+describe("isStreamActionStillUnderWay", () => {
+  const stopped = listedStream("main", "stopped", null);
+  const running = listedStream("main", "kept", 4);
+
+  it("stays under way until the runtime answers, whatever the listing shows", () => {
+    expect(isStreamActionStillUnderWay({ streamAction: "stop_stream", listingWhenAsked: running, isAnswered: false }, stopped)).toBe(true);
+  });
+
+  it("ends once the runtime has answered and the listing shows something else, or nothing", () => {
+    expect(isStreamActionStillUnderWay({ streamAction: "stop_stream", listingWhenAsked: running, isAnswered: true }, running)).toBe(true);
+    expect(isStreamActionStillUnderWay({ streamAction: "stop_stream", listingWhenAsked: running, isAnswered: true }, stopped)).toBe(false);
+    expect(isStreamActionStillUnderWay({ streamAction: "remove_stream", listingWhenAsked: running, isAnswered: true }, null)).toBe(false);
   });
 });

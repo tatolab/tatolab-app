@@ -21,7 +21,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import mascotImageUrl from "../assets/tato_mascot_3d.png";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { ListedStream, TatolabStreamActionName } from "../backend/tatolab_backend_contract";
@@ -29,18 +29,24 @@ import { writeTextToClipboard } from "../clipboard";
 import { presentPlatform } from "../presentation/platform_presentation";
 import {
   abbreviateHomeDirectory,
+  isStreamLoaded,
   presentStreamPrimaryAction,
   presentStreamRunMode,
   presentStreamState,
-  streamNotLoadedReason,
+  STOP_NOT_RECORDED_LEAD,
+  streamActionPendingWords,
+  streamActionRefusalLead,
   streamStepCountLabel,
+  type StreamPrimaryActionPresentation,
 } from "../presentation/stream_presentation";
 import {
+  isStreamActionStillUnderWay,
   presentStreamRemovalConfirmation,
   STREAMS_LIST_FILTERS,
   streamMatchesFilterText,
   streamMatchesListFilter,
   streamsListHeadline,
+  type StreamActionUnderWay,
   type StreamsListFilter,
 } from "../presentation/streams_list_presentation";
 import { Button } from "./shadcn/button";
@@ -55,34 +61,23 @@ export function streamPagePath(streamName: string): string {
   return `/streams/${encodeURIComponent(streamName)}`;
 }
 
-/** A stream action the window asked for, and the listing it saw when asking, so its row stays pending until the listing moves. */
-interface StreamActionUnderWay {
-  streamAction: TatolabStreamActionName;
-  listingWhenAsked: string;
-  isAnswered: boolean;
+/** The action a person chose on a row, by its word: Stop, Start, Retry or Remove. */
+type ChosenStreamActionLabel = StreamPrimaryActionPresentation["label"] | "Remove";
+
+/** What the runtime said about a row's last action: its refusal after the action the person chose, or the notice beside a stop it could not record. */
+type StreamActionOutcomeWords =
+  | { kind: "refusal"; chosenActionLabel: ChosenStreamActionLabel; runtimeWords: string }
+  | { kind: "notice"; runtimeWords: string };
+
+function withoutKey<Value>(entries: ReadonlyMap<string, Value>, key: string): ReadonlyMap<string, Value> {
+  if (!entries.has(key)) return entries;
+  const remainingEntries = new Map(entries);
+  remainingEntries.delete(key);
+  return remainingEntries;
 }
 
-/** What the runtime said about a row's last action: its refusal, or the notice beside a stop it could not record. */
-interface StreamActionOutcomeWords {
-  kind: "refusal" | "notice";
-  streamAction: TatolabStreamActionName;
-  runtimeWords: string;
-}
-
-const PENDING_WORDS: Record<TatolabStreamActionName, string> = {
-  stop_stream: "Stopping…",
-  start_stream: "Starting…",
-  remove_stream: "Removing…",
-};
-
-const REFUSED_ACTION_WORDS: Record<TatolabStreamActionName, string> = {
-  stop_stream: "Stop was refused:",
-  start_stream: "Start was refused:",
-  remove_stream: "Remove was refused:",
-};
-
-function listingKey(stream: ListedStream | undefined): string {
-  return JSON.stringify(stream ?? null);
+function listingNamed(listedStreams: readonly ListedStream[], streamName: string): ListedStream | null {
+  return listedStreams.find((stream) => stream.name === streamName) ?? null;
 }
 
 /** The stream actions each row has under way and what the runtime last said, kept until the listing shows the outcome. */
@@ -96,49 +91,37 @@ function useStreamActionsOfTheRows(listedStreams: readonly ListedStream[]) {
   useEffect(() => {
     latestListedStreams.current = listedStreams;
     setActionsUnderWay((underWay) => {
-      const stillUnderWay = new Map(underWay);
-      for (const [streamName, actionUnderWay] of underWay) {
-        const listing = listedStreams.find((stream) => stream.name === streamName);
-        if (actionUnderWay.isAnswered && listingKey(listing) !== actionUnderWay.listingWhenAsked) stillUnderWay.delete(streamName);
-      }
+      const stillUnderWay = new Map(
+        [...underWay].filter(([streamName, actionUnderWay]) => isStreamActionStillUnderWay(actionUnderWay, listingNamed(listedStreams, streamName))),
+      );
       return stillUnderWay.size === underWay.size ? underWay : stillUnderWay;
     });
     setOutcomeWords((words) => {
-      const stillListed = new Map([...words].filter(([streamName]) => listedStreams.some((stream) => stream.name === streamName)));
+      const stillListed = new Map([...words].filter(([streamName]) => listingNamed(listedStreams, streamName) !== null));
       return stillListed.size === words.size ? words : stillListed;
     });
   }, [listedStreams]);
 
-  const runStreamActionOnRow = (streamAction: TatolabStreamActionName, stream: ListedStream): void => {
-    const listingWhenAsked = listingKey(stream);
-    setActionsUnderWay((underWay) => new Map(underWay).set(stream.name, { streamAction, listingWhenAsked, isAnswered: false }));
-    setOutcomeWords((words) => {
-      const remainingWords = new Map(words);
-      remainingWords.delete(stream.name);
-      return remainingWords;
-    });
+  const runStreamActionOnRow = (streamAction: TatolabStreamActionName, chosenActionLabel: ChosenStreamActionLabel, stream: ListedStream): void => {
+    setActionsUnderWay((underWay) => new Map(underWay).set(stream.name, { streamAction, listingWhenAsked: stream, isAnswered: false }));
+    setOutcomeWords((words) => withoutKey(words, stream.name));
     backend.runStreamAction(streamAction, stream.name).then(
       (notice) => {
-        if (notice !== null) setOutcomeWords((words) => new Map(words).set(stream.name, { kind: "notice", streamAction, runtimeWords: notice }));
+        if (notice !== null) setOutcomeWords((words) => new Map(words).set(stream.name, { kind: "notice", runtimeWords: notice }));
         setActionsUnderWay((underWay) => {
           const actionUnderWay = underWay.get(stream.name);
           if (actionUnderWay === undefined) return underWay;
-          const listingNow = latestListedStreams.current.find((listedStream) => listedStream.name === stream.name);
-          const stillUnderWay = new Map(underWay);
-          if (listingKey(listingNow) === actionUnderWay.listingWhenAsked) stillUnderWay.set(stream.name, { ...actionUnderWay, isAnswered: true });
-          else stillUnderWay.delete(stream.name);
-          return stillUnderWay;
+          const answeredAction = { ...actionUnderWay, isAnswered: true };
+          return isStreamActionStillUnderWay(answeredAction, listingNamed(latestListedStreams.current, stream.name))
+            ? new Map(underWay).set(stream.name, answeredAction)
+            : withoutKey(underWay, stream.name);
         });
       },
       (rejection: unknown) => {
         setOutcomeWords((words) =>
-          new Map(words).set(stream.name, { kind: "refusal", streamAction, runtimeWords: describeBackendRejection(rejection) }),
+          new Map(words).set(stream.name, { kind: "refusal", chosenActionLabel, runtimeWords: describeBackendRejection(rejection) }),
         );
-        setActionsUnderWay((underWay) => {
-          const remaining = new Map(underWay);
-          remaining.delete(stream.name);
-          return remaining;
-        });
+        setActionsUnderWay((underWay) => withoutKey(underWay, stream.name));
       },
     );
   };
@@ -153,7 +136,7 @@ function StreamStateWord({ stream }: { stream: ListedStream }) {
       title={statePresentation.meaning}
       className={joinClassNames(
         "inline-flex min-w-0 items-center gap-1.5",
-        statePresentation.emphasis === "failure" ? "text-danger" : statePresentation.emphasis === "quiet" ? "text-fg-3" : "text-fg-2",
+        statePresentation.emphasis === "failure" ? "text-danger-text" : statePresentation.emphasis === "quiet" ? "text-fg-3" : "text-fg-2",
       )}
     >
       {statePresentation.emphasis === "failure" && <SquareX className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />}
@@ -166,11 +149,17 @@ function StreamStateWord({ stream }: { stream: ListedStream }) {
 function StreamRunModeWord({ stream }: { stream: ListedStream }) {
   const runMode = presentStreamRunMode(stream);
   if (runMode === null) return <span className="text-fg-3">—</span>;
-  const RunModeIcon = runMode.label === "Dev session" ? RefreshCw : InfinityIcon;
+  const RunModeIcon = runMode.runMode === "dev_session" ? RefreshCw : InfinityIcon;
   return (
     <Tooltip>
       <TooltipTrigger
-        render={<span className={joinClassNames("inline-flex cursor-default items-center gap-1.5", stream.node_count === null ? "text-fg-3" : "text-fg-2")} />}
+        render={
+          <span
+            tabIndex={0}
+            aria-label={`${runMode.label}: ${runMode.meaning} The runtime calls it ${runMode.runtimeTerm}.`}
+            className={joinClassNames("inline-flex cursor-default items-center gap-1.5 rounded-sm", isStreamLoaded(stream) ? "text-fg-2" : "text-fg-3")}
+          />
+        }
       >
         <RunModeIcon className="size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden />
         {runMode.label}
@@ -196,7 +185,7 @@ function StreamRowIconButton({
   onPress: () => void;
   disabledReason: string | null;
   isFilled?: boolean;
-  streamActionName: string;
+  streamActionName: TatolabStreamActionName | "open_graph";
 }) {
   const isDisabled = disabledReason !== null;
   return (
@@ -205,7 +194,7 @@ function StreamRowIconButton({
         render={
           <button
             type="button"
-            aria-label={label}
+            aria-label={isDisabled ? `${label}: ${disabledReason}` : label}
             aria-disabled={isDisabled}
             data-stream-action={streamActionName}
             onClick={() => {
@@ -228,22 +217,21 @@ function StreamRowIconButton({
 function StreamRowActions({
   stream,
   actionUnderWay,
-  onStreamAction,
+  onPrimaryAction,
   onRemoveAsked,
 }: {
   stream: ListedStream;
   actionUnderWay: StreamActionUnderWay | undefined;
-  onStreamAction: (streamAction: TatolabStreamActionName) => void;
+  onPrimaryAction: (primaryAction: StreamPrimaryActionPresentation) => void;
   onRemoveAsked: () => void;
 }) {
   const navigate = useNavigate();
   const primaryAction = presentStreamPrimaryAction(stream);
-  const isLoaded = streamNotLoadedReason(stream) === null;
   if (actionUnderWay !== undefined) {
     return (
       <span className="inline-flex h-7 items-center justify-end gap-1.5 pr-1 text-fg-3" role="status">
         <LoaderCircle className="size-3.5 animate-spin" strokeWidth={1.75} aria-hidden />
-        {PENDING_WORDS[actionUnderWay.streamAction]}
+        {streamActionPendingWords(actionUnderWay.streamAction)}
       </span>
     );
   }
@@ -256,13 +244,13 @@ function StreamRowActions({
           label={primaryAction.meaning}
           disabledReason={null}
           streamActionName={primaryAction.streamAction}
-          onPress={() => onStreamAction(primaryAction.streamAction)}
+          onPress={() => onPrimaryAction(primaryAction)}
         />
       )}
       <StreamRowIconButton
         icon={Workflow}
         label="Open graph"
-        disabledReason={isLoaded ? null : "No graph: the stream is not loaded"}
+        disabledReason={isStreamLoaded(stream) ? null : "No graph: the stream is not loaded"}
         streamActionName="open_graph"
         onPress={() => navigate(streamPagePath(stream.name))}
       />
@@ -294,7 +282,7 @@ function StreamActionOutcomeLine({ outcome }: { outcome: StreamActionOutcomeWord
       <p role="status" className="mt-1 flex max-w-[480px] gap-1.5 text-xs text-fg-2">
         <TriangleAlert className="mt-px size-3.5 shrink-0 text-warn" strokeWidth={1.75} aria-hidden />
         <span className="select-text">
-          <span className="text-warn">Stopped, not recorded: </span>
+          <span className="text-warn-text">{STOP_NOT_RECORDED_LEAD} </span>
           {outcome.runtimeWords}
         </span>
       </p>
@@ -304,10 +292,19 @@ function StreamActionOutcomeLine({ outcome }: { outcome: StreamActionOutcomeWord
     <p role="alert" className="mt-1 flex max-w-[480px] gap-1.5 text-xs text-fg-2">
       <SquareX className="mt-px size-3.5 shrink-0 text-danger" strokeWidth={1.75} aria-hidden />
       <span className="select-text">
-        <span className="text-danger">{REFUSED_ACTION_WORDS[outcome.streamAction]} </span>
+        <span className="text-danger-text">{streamActionRefusalLead(outcome.chosenActionLabel)} </span>
         {outcome.runtimeWords}
       </span>
     </p>
+  );
+}
+
+/** A project path cut at its start, so the folder that tells streams apart stays in view. */
+function ProjectPathCutAtItsStart({ projectDirectory }: { projectDirectory: string }) {
+  return (
+    <div className="truncate text-left font-mono text-xs text-fg-3 [direction:rtl]" title={projectDirectory}>
+      <bdi>{abbreviateHomeDirectory(projectDirectory)}</bdi>
+    </div>
   );
 }
 
@@ -315,28 +312,36 @@ function StreamsListRow({
   stream,
   actionUnderWay,
   outcome,
-  onStreamAction,
+  onPrimaryAction,
   onRemoveAsked,
 }: {
   stream: ListedStream;
   actionUnderWay: StreamActionUnderWay | undefined;
   outcome: StreamActionOutcomeWords | undefined;
-  onStreamAction: (streamAction: TatolabStreamActionName) => void;
+  onPrimaryAction: (primaryAction: StreamPrimaryActionPresentation) => void;
   onRemoveAsked: () => void;
 }) {
   const navigate = useNavigate();
-  const isLoaded = stream.node_count !== null;
+  const isLoaded = isStreamLoaded(stream);
   return (
     <tr
       data-stream-row={stream.name}
-      onClick={() => navigate(streamPagePath(stream.name))}
+      onClick={() => {
+        // A drag that selects the runtime's words to copy them ends in a click too; it stays on the list.
+        if (window.getSelection()?.isCollapsed === false) return;
+        navigate(streamPagePath(stream.name));
+      }}
       className="group cursor-default border-b transition-colors last:border-b-0 hover:bg-hover"
     >
       <td className="py-2 pr-3 pl-5 align-top">
-        <div className={joinClassNames("truncate font-medium", isLoaded ? "text-fg" : "text-fg-2")}>{stream.name}</div>
-        <div className="truncate font-mono text-xs text-fg-3" title={stream.project_directory}>
-          {abbreviateHomeDirectory(stream.project_directory)}
-        </div>
+        <Link
+          to={streamPagePath(stream.name)}
+          onClick={(clickEvent) => clickEvent.stopPropagation()}
+          className={joinClassNames("block cursor-default truncate rounded-sm font-medium", isLoaded ? "text-fg" : "text-fg-2")}
+        >
+          {stream.name}
+        </Link>
+        <ProjectPathCutAtItsStart projectDirectory={stream.project_directory} />
       </td>
       <td className="px-3 py-2 align-top">
         <div className="flex h-[18px] items-center">
@@ -355,23 +360,31 @@ function StreamsListRow({
       <td className={joinClassNames("px-3 py-2 text-right align-top tabular", isLoaded ? "text-fg-2" : "text-fg-3")}>{streamStepCountLabel(stream)}</td>
       {/* The row navigates on click, and React carries a click in the actions' portalled menu up to it. */}
       <td className="py-1 pr-4 pl-3 align-top" onClick={(clickEvent) => clickEvent.stopPropagation()}>
-        <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} onStreamAction={onStreamAction} onRemoveAsked={onRemoveAsked} />
+        <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} onPrimaryAction={onPrimaryAction} onRemoveAsked={onRemoveAsked} />
       </td>
     </tr>
   );
 }
 
-function StreamRemovalDialog({ stream, onRemove, onClosed }: { stream: ListedStream | null; onRemove: (stream: ListedStream) => void; onClosed: () => void }) {
-  const confirmation = stream === null ? null : presentStreamRemovalConfirmation(stream);
-  return (
+/** The question before `remove_stream`; the stream it asks about stays until the dialog has finished closing. */
+function useStreamRemovalDialog(onRemove: (stream: ListedStream) => void) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [streamAskedAbout, setStreamAskedAbout] = useState<ListedStream | null>(null);
+  const confirmation = streamAskedAbout === null ? null : presentStreamRemovalConfirmation(streamAskedAbout);
+  const askToRemove = (stream: ListedStream) => {
+    setStreamAskedAbout(stream);
+    setIsOpen(true);
+  };
+  const removalDialog = (
     <Dialog
-      open={stream !== null}
-      onOpenChange={(isOpen) => {
-        if (!isOpen) onClosed();
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      onOpenChangeComplete={(hasOpened) => {
+        if (!hasOpened) setStreamAskedAbout(null);
       }}
     >
       <DialogContent data-stream-removal-dialog="">
-        {stream !== null && confirmation !== null && (
+        {streamAskedAbout !== null && confirmation !== null && (
           <>
             <DialogTitle>{confirmation.title}</DialogTitle>
             <DialogDescription>{confirmation.explanation}</DialogDescription>
@@ -381,8 +394,8 @@ function StreamRemovalDialog({ stream, onRemove, onClosed }: { stream: ListedStr
                 variant="destructive"
                 data-stream-action="confirm_remove_stream"
                 onClick={() => {
-                  onRemove(stream);
-                  onClosed();
+                  onRemove(streamAskedAbout);
+                  setIsOpen(false);
                 }}
               >
                 Remove
@@ -393,6 +406,7 @@ function StreamRemovalDialog({ stream, onRemove, onClosed }: { stream: ListedStr
       </DialogContent>
     </Dialog>
   );
+  return { askToRemove, removalDialog };
 }
 
 function CommandWithCopyButton({ command }: { command: string }) {
@@ -410,7 +424,6 @@ function CommandWithCopyButton({ command }: { command: string }) {
       <span className="min-w-0 flex-1 truncate text-fg select-text">{command}</span>
       <Button
         variant="ghost"
-        size="default"
         className="font-sans"
         onClick={() => {
           void writeTextToClipboard(command).then(() => setWasCopied(true));
@@ -423,13 +436,8 @@ function CommandWithCopyButton({ command }: { command: string }) {
 }
 
 function FirstStreamChoice({ icon: ChoiceIcon, title, explanation }: { icon: LucideIcon; title: string; explanation: string }) {
-  const navigate = useNavigate();
   return (
-    <button
-      type="button"
-      onClick={() => navigate("/add-stream")}
-      className="flex h-16 w-full items-center gap-3.5 border-b px-4 text-left transition-colors last:border-b-0 hover:bg-hover"
-    >
+    <Link to="/add-stream" className="flex h-16 w-full cursor-default items-center gap-3.5 border-b px-4 text-left transition-colors last:border-b-0 hover:bg-hover">
       <span className="grid size-9 shrink-0 place-items-center rounded-md border bg-raised">
         <ChoiceIcon className="size-4 text-fg-2" strokeWidth={1.75} aria-hidden />
       </span>
@@ -438,7 +446,7 @@ function FirstStreamChoice({ icon: ChoiceIcon, title, explanation }: { icon: Luc
         <span className="block truncate text-xs text-fg-3">{explanation}</span>
       </span>
       <ChevronRight className="size-4 text-fg-4" strokeWidth={1.75} aria-hidden />
-    </button>
+    </Link>
   );
 }
 
@@ -486,7 +494,7 @@ function StreamsListFilterControl({
           )}
         >
           {label}
-          <span className="text-fg-3 tabular">{listedStreams.filter((stream) => streamMatchesListFilter(stream, filter)).length}</span>
+          <span className="text-fg-2 tabular">{listedStreams.filter((stream) => streamMatchesListFilter(stream, filter)).length}</span>
         </button>
       ))}
     </div>
@@ -500,8 +508,8 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
   const navigate = useNavigate();
   const [chosenFilter, setChosenFilter] = useState<StreamsListFilter>("all");
   const [filterText, setFilterText] = useState("");
-  const [streamAskedToRemove, setStreamAskedToRemove] = useState<ListedStream | null>(null);
   const { actionsUnderWay, outcomeWords, runStreamActionOnRow } = useStreamActionsOfTheRows(listedStreams);
+  const { askToRemove, removalDialog } = useStreamRemovalDialog((stream) => runStreamActionOnRow("remove_stream", "Remove", stream));
   const shownStreams = listedStreams.filter((stream) => streamMatchesListFilter(stream, chosenFilter) && streamMatchesFilterText(stream, filterText));
   const machineWords = status.machine_name ?? presentPlatform(platform).thisMachineMidSentence;
 
@@ -555,8 +563,8 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
                   stream={stream}
                   actionUnderWay={actionsUnderWay.get(stream.name)}
                   outcome={outcomeWords.get(stream.name)}
-                  onStreamAction={(streamAction) => runStreamActionOnRow(streamAction, stream)}
-                  onRemoveAsked={() => setStreamAskedToRemove(stream)}
+                  onPrimaryAction={(primaryAction) => runStreamActionOnRow(primaryAction.streamAction, primaryAction.label, stream)}
+                  onRemoveAsked={() => askToRemove(stream)}
                 />
               ))}
             </tbody>
@@ -564,11 +572,7 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
           {shownStreams.length === 0 && <div className="border-t px-5 py-10 text-center text-fg-3">No streams match.</div>}
         </div>
       )}
-      <StreamRemovalDialog
-        stream={streamAskedToRemove}
-        onRemove={(stream) => runStreamActionOnRow("remove_stream", stream)}
-        onClosed={() => setStreamAskedToRemove(null)}
-      />
+      {removalDialog}
     </div>
   );
 }

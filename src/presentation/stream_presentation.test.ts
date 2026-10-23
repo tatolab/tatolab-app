@@ -10,6 +10,8 @@ import {
   presentStreamPrimaryAction,
   presentStreamRunMode,
   presentStreamState,
+  streamActionPendingWords,
+  streamActionRefusalLead,
   streamNotLoadedReason,
   streamStepCountLabel,
 } from "./stream_presentation";
@@ -80,6 +82,15 @@ describe("presentStreamPrimaryAction", () => {
 
   it("offers nothing for a state newer than this app", () => {
     expect(presentStreamPrimaryAction(listedStream("main", "awaiting_restart", 2))).toBeNull();
+  });
+});
+
+describe("a row's action words", () => {
+  it("says what is under way, and leads a refusal with the action the person chose", () => {
+    expect(streamActionPendingWords("stop_stream")).toBe("Stopping…");
+    expect(streamActionPendingWords("start_stream")).toBe("Starting…");
+    expect(streamActionPendingWords("remove_stream")).toBe("Removing…");
+    expect(streamActionRefusalLead("Retry")).toBe("Retry was refused:");
   });
 });
 

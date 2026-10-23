@@ -24,7 +24,7 @@
   background: var(--chrome);
 }
 .failure-block > .failure-icon { margin-top: 1px; }
-.failure-block-title { color: var(--danger); font-size: 13px; line-height: 18px; font-weight: 600; }
+.failure-block-title { color: var(--danger-text); font-size: 13px; line-height: 18px; font-weight: 600; }
 .failure-block-reason { margin-top: 3px; color: var(--fg); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
 .failure-block-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
 .failure-block-retry-label { color: var(--fg-2); font-size: 12px; }

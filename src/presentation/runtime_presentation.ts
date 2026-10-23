@@ -168,9 +168,19 @@ export interface WindowStatusBarPresentation {
   appVersionWords: string;
 }
 
+const STATUS_BAR_RUNTIME_WORDS: Record<RuntimeDisplayState, string> = {
+  running: "Runtime running",
+  starting: "Runtime starting",
+  unreachable: "Runtime not responding",
+  switched_off: "Runtime stopped",
+  needs_login_items_approval: "Runtime needs approval",
+  runtime_missing_from_app: "Runtime missing",
+  not_registered: "Runtime not running",
+  runtime_not_installed: "Runtime not installed",
+};
+
 /** `Runtime running`, `Runtime not responding`, …, beside `Tatolab <version>`. */
 export function presentWindowStatusBar(status: TatolabStatus): WindowStatusBarPresentation {
-  const { shortLabel, tone } = presentRuntimeStatus(status);
-  const runtimeWords = shortLabel.startsWith("Runtime") ? shortLabel : `Runtime ${shortLabel[0].toLowerCase()}${shortLabel.slice(1)}`;
-  return { runtimeWords, tone, appVersionWords: `Tatolab ${status.app_version}` };
+  const { displayState, tone } = presentRuntimeStatus(status);
+  return { runtimeWords: STATUS_BAR_RUNTIME_WORDS[displayState], tone, appVersionWords: `Tatolab ${status.app_version}` };
 }

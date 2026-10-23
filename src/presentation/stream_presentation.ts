@@ -18,7 +18,7 @@ export interface StreamStatePresentation {
 export type StreamNotLoadedReason = "stopped" | "failed" | "loading" | "not_loaded";
 
 /** A stream is loaded while the runtime counts its graph's nodes. */
-function isStreamLoaded(stream: ListedStream): boolean {
+export function isStreamLoaded(stream: ListedStream): boolean {
   return stream.node_count !== null;
 }
 
@@ -49,6 +49,7 @@ export function presentStreamState(stream: ListedStream): StreamStatePresentatio
 
 /** How a stream runs, in the person's words, with the runtime's own term beside them. */
 export interface StreamRunModePresentation {
+  runMode: "always_on" | "dev_session";
   label: "Always on" | "Dev session";
   /** The `list_streams` state the words stand for. */
   runtimeTerm: string;
@@ -62,12 +63,14 @@ export function presentStreamRunMode(stream: ListedStream): StreamRunModePresent
     case "stopped":
     case "failed":
       return {
+        runMode: "always_on",
         label: "Always on",
         runtimeTerm: stream.state,
         meaning: "Loaded every time the runtime starts, until it is stopped. Keeps running when the app and the terminal close.",
       };
     case "attached":
       return {
+        runMode: "dev_session",
         label: "Dev session",
         runtimeTerm: stream.state,
         meaning: "Run by tatolab dev or tatolab run in a terminal, and ends with that session.",
@@ -113,6 +116,26 @@ export function streamNotLoadedReason(stream: ListedStream): StreamNotLoadedReas
   if (stream.state === "kept" || stream.state === "attached") return "loading";
   return "not_loaded";
 }
+
+/** What a row says while its stream action is under way. */
+export function streamActionPendingWords(streamAction: TatolabStreamActionName): string {
+  switch (streamAction) {
+    case "stop_stream":
+      return "Stopping…";
+    case "start_stream":
+      return "Starting…";
+    case "remove_stream":
+      return "Removing…";
+  }
+}
+
+/** The lead before a refusal in the runtime's words: `Retry was refused:` for the action the person chose. */
+export function streamActionRefusalLead(chosenActionLabel: StreamPrimaryActionPresentation["label"] | "Remove"): string {
+  return `${chosenActionLabel} was refused:`;
+}
+
+/** The lead before the runtime's reason when it stopped a kept stream but could not record it stopped. */
+export const STOP_NOT_RECORDED_LEAD = "Stopped, but not recorded, so it loads again when the runtime restarts:";
 
 /** `1 stream`, `2,000 lines`. */
 export function countLabel(count: number, singular: string, plural: string): string {

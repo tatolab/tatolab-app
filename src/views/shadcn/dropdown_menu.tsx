@@ -50,7 +50,7 @@ export function DropdownMenuItem({
       data-slot="dropdown-menu-item"
       data-variant={variant}
       className={joinClassNames(
-        "relative flex cursor-default items-center gap-2 rounded-md px-2 py-1 text-sm outline-hidden select-none focus:bg-hover data-[variant=destructive]:text-danger data-[variant=destructive]:focus:bg-danger-soft data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-fg-3 data-[variant=destructive]:[&_svg]:text-danger",
+        "relative flex cursor-default items-center gap-2 rounded-md px-2 py-1 text-sm outline-hidden select-none focus:bg-hover data-[variant=destructive]:text-danger-text data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-fg-3 data-[variant=destructive]:[&_svg]:text-danger",
         className,
       )}
       {...props}

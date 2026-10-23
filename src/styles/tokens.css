@@ -32,7 +32,9 @@
   --color-brand-text: var(--brand-text);
   --color-brand-soft: var(--brand-soft);
   --color-warn: var(--warn);
+  --color-warn-text: var(--warn-text);
   --color-danger: var(--danger);
+  --color-danger-text: var(--danger-text);
   --color-danger-soft: var(--danger-soft);
 
   --color-background: var(--window);
@@ -87,8 +89,11 @@
   --on-brand: #ffffff;
   --warn: #c2700a;
   --danger: #dc2b2b;
+  /* Problem colours as text: warn and danger clear 4.5:1 as icons' 3:1, not as text on hover, well and chrome. */
+  --warn-text: #8a5300;
+  --danger-text: #b42323;
   --danger-soft: rgba(220, 43, 43, 0.08);
-  --ring: rgba(42, 91, 255, 0.5);
+  --ring: rgba(42, 91, 255, 0.85);
   --scrim: rgba(0, 0, 0, 0.1);
   --shadow-pop: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
   --shadow-segment: 0 0 0 0.5px var(--line-strong), 0 1px 2px rgba(0, 0, 0, 0.15);
@@ -119,8 +124,10 @@
   --brand-soft: rgba(42, 91, 255, 0.16);
   --warn: #f0a63a;
   --danger: #f2554d;
+  --warn-text: #f0a63a;
+  --danger-text: #ff6b62;
   --danger-soft: rgba(242, 85, 77, 0.1);
-  --ring: rgba(124, 155, 255, 0.55);
+  --ring: rgba(124, 155, 255, 0.85);
   --scrim: rgba(0, 0, 0, 0.4);
   --shadow-pop: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
   --shadow-segment: 0 0 0 0.5px var(--line-strong), 0 1px 2px rgba(0, 0, 0, 0.4);

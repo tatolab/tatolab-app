@@ -24,9 +24,11 @@ async function mountedWindowOverTheMock(pageQuery: string, backendChanges: Parti
   await backend.onTatolabStatusChanged((status) => showTatolabStatus?.(status));
   const firstStatus = await backend.getTatolabStatus();
   await act(async () => {
-    showTatolabStatus = mountTatolabWindow(rootElement, backend, firstStatus.platform, { watchExposedOutput: false }, firstStatus);
+    showTatolabStatus = mountTatolabWindow(rootElement, backend, firstStatus.platform, { watchExposedOutput: false });
+    showTatolabStatus(firstStatus);
   });
-  return { backend, windowContent: within(rootElement) };
+  const showStatusAsTheBackendWould = (status: TatolabStatus) => act(() => showTatolabStatus?.(status));
+  return { backend, windowContent: within(rootElement), showStatusAsTheBackendWould };
 }
 
 function rowOf(streamName: string): HTMLElement {
@@ -79,8 +81,20 @@ describe("the Streams list", () => {
 
     fireEvent.click(within(rowOf("lobby-recorder")).getByRole("button", { name: "Retry: loads it again from its record" }));
 
-    await waitFor(() => expect(within(rowOf("lobby-recorder")).getByRole("alert").textContent).toMatch(/^Start was refused: /));
+    await waitFor(() => expect(within(rowOf("lobby-recorder")).getByRole("alert").textContent).toMatch(/^Retry was refused: /));
     expect(within(rowOf("lobby-recorder")).getByText(/^`start` retried it, and it did not load: /)).toBeTruthy();
+  });
+
+  it("says in the runtime's words when it stopped a stream but could not record it stopped", async () => {
+    await mountedWindowOverTheMock("state=running&stop_not_recorded=camera");
+
+    fireEvent.click(within(rowOf("camera")).getByRole("button", { name: "Stop: unloads it and remembers it stopped" }));
+
+    await waitFor(() =>
+      expect(within(rowOf("camera")).getByRole("status").textContent).toBe(
+        "Stopped, but not recorded, so it loads again when the runtime restarts: Runtime error: the kept record of `camera` could not be written: Permission denied (os error 13)",
+      ),
+    );
   });
 
   it("asks before removing a stream, and removes it only when told to", async () => {
@@ -118,6 +132,23 @@ describe("the window's shell", () => {
     fireEvent.click(rowOf("main"));
 
     await waitFor(() => expect(document.querySelector("[data-hosted-dom-page] .streams-page .content-band-name")?.textContent).toBe("main"));
+  });
+
+  it("shows a stream the runtime lists while the first-stream guide is open", async () => {
+    const { backend, showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=running");
+    fireEvent.click(screen.getAllByRole("button", { name: "Add stream" })[0]);
+    await waitFor(() => expect(document.querySelector("[data-hosted-dom-page] .first-stream-guide")).not.toBeNull());
+    const statusBefore = await backend.getTatolabStatus();
+
+    showStatusAsTheBackendWould({
+      ...statusBefore,
+      streams: [
+        ...(statusBefore.streams ?? []),
+        { name: "my-stream", state: "kept", project_directory: "/Users/ada/my-stream", node_count: 4, failed_because: null },
+      ],
+    });
+
+    await waitFor(() => expect(document.querySelector("[data-hosted-dom-page] .streams-page .content-band-name")?.textContent).toBe("my-stream"));
   });
 
   it("keeps the person's theme choice", async () => {

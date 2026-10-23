@@ -90,6 +90,8 @@ export interface MockTatolabOptions {
   /** `?uninstall=cancel`: the administrator cancels the prompt an uninstall shows, so the uninstall is refused. */
   isUninstallPromptCancelled: boolean;
   appUpdateScenario: MockTatolabAppUpdateScenario;
+  /** `?stop_not_recorded=<stream>`: stopping that kept stream unloads it but cannot write its record, as when the runtime's state directory refuses the write. */
+  streamWhoseStopIsNotRecorded: string | null;
 }
 
 /**
@@ -110,6 +112,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     platform,
     isUninstallPromptCancelled: pageQuery.get("uninstall") === "cancel",
     appUpdateScenario: appUpdateScenario ?? "up-to-date",
+    streamWhoseStopIsNotRecorded: pageQuery.get("stop_not_recorded"),
   };
 }
 
@@ -212,7 +215,13 @@ function sleep(milliseconds: number): Promise<void> {
 }
 
 /** A backend whose commands change its own state and whose streams log on their own, so the window works in a browser. */
-export function createMockTatolabBackend({ scenario, platform, isUninstallPromptCancelled, appUpdateScenario }: MockTatolabOptions): TatolabBackend {
+export function createMockTatolabBackend({
+  scenario,
+  platform,
+  isUninstallPromptCancelled,
+  appUpdateScenario,
+  streamWhoseStopIsNotRecorded,
+}: MockTatolabOptions): TatolabBackend {
   const fixtures = createMockStreamFixtures(platform);
   const mainStream = scenario === "node-error" ? fixtures.mainStreamWithDisplayWindowInError : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
@@ -366,9 +375,16 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
     `Resource not found: no stream named \`${streamName}\` is loaded or kept in this runtime. Loaded: ${streamNamesListedForARefusal(loadedStreams.keys())}. Kept: ${streamNamesListedForARefusal(listedStreamsNotLoaded.keys())}`;
 
   /** `stop_stream` as the runtime does it: a loaded stream unloads, a kept one is recorded stopped, an attached one's session ends. */
-  const stopMockStream = (streamName: string): null => {
+  const stopMockStream = (streamName: string): string | null => {
     const loadedStream = loadedStreams.get(streamName);
     const listingNotLoaded = listedStreamsNotLoaded.get(streamName);
+    if (loadedStream && loadedStream.fixture.listing.state === "kept" && streamName === streamWhoseStopIsNotRecorded) {
+      loadedStreams.delete(streamName);
+      keptFixturesNotLoaded.set(streamName, loadedStream.fixture);
+      listedStreamsNotLoaded.set(streamName, { ...loadedStream.fixture.listing, node_count: null });
+      publishStatus({ streams: listStreams() });
+      return `Runtime error: the kept record of \`${streamName}\` could not be written: Permission denied (os error 13)`;
+    }
     if (loadedStream) {
       loadedStreams.delete(streamName);
       if (loadedStream.fixture.listing.state === "attached") {

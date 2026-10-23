@@ -63,7 +63,8 @@ async function startTatolabWindow(): Promise<void> {
   let showTatolabStatus: ((status: TatolabStatus) => void) | null = null;
   await backend.onTatolabStatusChanged((status) => showTatolabStatus?.(status));
   const firstStatus = await readFirstTatolabStatus(backend);
-  showTatolabStatus = mountTatolabWindow(rootElement, backend, platformOf(firstStatus), featureFlags, firstStatus);
+  showTatolabStatus = mountTatolabWindow(rootElement, backend, platformOf(firstStatus), featureFlags);
+  showTatolabStatus(firstStatus);
   if (!insideTheApp && import.meta.env.DEV) {
     const { driveMockWindowToPreset } = await import("./mock_window_preset");
     driveMockWindowToPreset(pageQuery, platformOf(firstStatus));

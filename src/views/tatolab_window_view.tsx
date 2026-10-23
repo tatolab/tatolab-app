@@ -25,6 +25,7 @@ import {
   useTatolabStatus,
   useTatolabWindowEnvironment,
   type TatolabWindowEnvironment,
+  type TatolabWindowHostedPages,
 } from "./tatolab_window_context";
 import { isShowingAStreamPage, TATOLAB_WINDOW_ROUTES } from "./tatolab_window_shell";
 import { UninstallSheetView } from "./uninstall_sheet_view";
@@ -43,14 +44,13 @@ function TatolabWindowRoot({ router, isUninstallUnderway }: { router: TatolabWin
 
 /**
  * Mounts the main window, built for `platform` with `featureFlags`, into `rootElement`; the answer shows each status
- * the backend reports, first to every hosted DOM page, then to the React window.
+ * the backend reports, first to every hosted DOM page, then to the React window, which renders on the first.
  */
 export function mountTatolabWindow(
   rootElement: HTMLElement,
   backend: TatolabBackend,
   platform: TatolabPlatform,
   featureFlags: TatolabFrontendFeatureFlags,
-  firstStatus: TatolabStatus,
 ): (status: TatolabStatus) => void {
   document.documentElement.dataset.platform = platform;
   const router = createMemoryRouter(TATOLAB_WINDOW_ROUTES);
@@ -97,20 +97,16 @@ export function mountTatolabWindow(
       goToSettings: () => navigateTo("/settings"),
     },
   );
-  const environment: TatolabWindowEnvironment = {
-    backend,
-    platform,
-    statusStore: new TatolabWindowStatusStore(firstStatus),
-    hostedPages: {
-      streamsPage,
-      settingsPage,
-      firstStreamGuidePage: { element: createFirstStreamGuide() },
-      setupScreen: platform === "linux" ? new LinuxRuntimeInstallView() : new FirstLaunchSetupView(backend),
-    },
-    openSearch: () => {
-      if (!uninstallSheet.isOpen()) search.open();
-    },
+  const hostedPages: TatolabWindowHostedPages = {
+    streamsPage,
+    settingsPage,
+    firstStreamGuidePage: { element: createFirstStreamGuide() },
+    setupScreen: platform === "linux" ? new LinuxRuntimeInstallView() : new FirstLaunchSetupView(backend),
   };
+  const openSearch = () => {
+    if (!uninstallSheet.isOpen()) search.open();
+  };
+  let statusStore: TatolabWindowStatusStore | null = null;
   let runtimeLastAnsweredAt: Date | null = null;
 
   /** Runs the window shortcut for `key`, held with ⌘ on macOS and Ctrl on Linux; false when `key` has none here. */
@@ -147,7 +143,8 @@ export function mountTatolabWindow(
   }
 
   document.addEventListener("keydown", (keyboardEvent) => {
-    if (chooseTatolabWindowScreen(environment.statusStore.readLatestStatus()) === "setup" || uninstallSheet.isOpen() || search.isOpen()) return;
+    const latestStatus = statusStore?.readLatestStatus() ?? null;
+    if (latestStatus === null || chooseTatolabWindowScreen(latestStatus) === "setup" || uninstallSheet.isOpen() || search.isOpen()) return;
     if (keyboardEvent.key === "Escape") {
       if (isOnAStreamPage() && streamsPage.closeWatch()) keyboardEvent.preventDefault();
       return;
@@ -162,25 +159,31 @@ export function mountTatolabWindow(
   const showStatusOnTheHostedPages = (status: TatolabStatus) => {
     if (status.runtime_state === "running") runtimeLastAnsweredAt = new Date();
     if (!uninstallSheet.isUninstallUnderway() && chooseTatolabWindowScreen(status) === "setup") search.close();
-    environment.hostedPages.setupScreen.showStatus?.(status);
+    hostedPages.setupScreen.showStatus?.(status);
     streamsPage.setRuntimeLastAnsweredAt(runtimeLastAnsweredAt);
     streamsPage.showStatus(status);
     settingsPage.showStatus(status);
   };
-  showStatusOnTheHostedPages(firstStatus);
-
-  createRoot(rootElement).render(
-    <StrictMode>
-      <TatolabWindowEnvironmentContext value={environment}>
-        <TooltipProvider>
-          <TatolabWindowRoot router={router} isUninstallUnderway={() => uninstallSheet.isUninstallUnderway()} />
-        </TooltipProvider>
-      </TatolabWindowEnvironmentContext>
-    </StrictMode>,
-  );
+  const renderTheWindowOn = (firstStatusStore: TatolabWindowStatusStore) => {
+    const environment: TatolabWindowEnvironment = { backend, platform, statusStore: firstStatusStore, hostedPages, openSearch };
+    createRoot(rootElement).render(
+      <StrictMode>
+        <TatolabWindowEnvironmentContext value={environment}>
+          <TooltipProvider>
+            <TatolabWindowRoot router={router} isUninstallUnderway={() => uninstallSheet.isUninstallUnderway()} />
+          </TooltipProvider>
+        </TatolabWindowEnvironmentContext>
+      </StrictMode>,
+    );
+  };
 
   return (status) => {
     showStatusOnTheHostedPages(status);
-    environment.statusStore.publishStatus(status);
+    if (statusStore === null) {
+      statusStore = new TatolabWindowStatusStore(status);
+      renderTheWindowOn(statusStore);
+    } else {
+      statusStore.publishStatus(status);
+    }
   };
 }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { Activity, Boxes, ChevronLeft, ChevronRight, Moon, Plus, Search, Settings, SquareX, Sun, TriangleAlert, Workflow } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } from "react-router";
 import type { ListedStream } from "../backend/tatolab_backend_contract";
 import { presentPlatform, shortcutHint, windowDragRegionAttribute } from "../presentation/platform_presentation";
@@ -64,13 +64,16 @@ function SidebarNavigationRow({
       title={label}
       className={({ isActive }) =>
         joinClassNames(
-          "flex h-7 items-center gap-2 rounded-md px-2 text-fg transition-colors hover:bg-hover",
+          "group flex h-7 items-center gap-2 rounded-md px-2 text-fg transition-colors hover:bg-hover",
           isActive && "bg-selected font-medium",
         )
       }
     >
       {icon}
-      <span className={joinClassNames("min-w-0 flex-1 truncate", isQuiet && "text-fg-3")}>{label}</span>
+      {/* fg-3 drops under 4.5:1 on a hovered or selected row over chrome, so a quiet name reads fg-2 there. */}
+      <span className={joinClassNames("min-w-0 flex-1 truncate", isQuiet && "text-fg-3 group-hover:text-fg-2 group-aria-[current=page]:text-fg-2")}>
+        {label}
+      </span>
       {trailing}
     </NavLink>
   );
@@ -108,7 +111,7 @@ function WindowSidebar() {
             windowNavigationName="streams"
             icon={<Boxes className={sidebarIconClassName} strokeWidth={1.75} aria-hidden />}
             label="Streams"
-            trailing={listedStreams !== null && <span className="text-fg-3 tabular">{listedStreams.length}</span>}
+            trailing={listedStreams !== null && <span className="text-fg-2 tabular">{listedStreams.length}</span>}
           />
         </section>
         <section>
@@ -136,7 +139,9 @@ function WindowSidebar() {
                 label={stream.name}
                 isQuiet={stream.node_count === null}
                 trailing={
-                  stream.state === "failed" && <SquareX className="size-3.5 shrink-0 text-danger" strokeWidth={1.75} aria-label="Failed" />
+                  stream.state === "failed" && (
+                    <SquareX className="size-3.5 shrink-0 text-danger" strokeWidth={1.75} role="img" aria-label="Failed" />
+                  )
                 }
               />
             ))
@@ -175,11 +180,15 @@ function WindowTitleBar() {
         type="button"
         onClick={openSearch}
         data-window-search=""
+        aria-label="Search streams, outputs and views"
+        aria-keyshortcuts={platform === "macos" ? "Meta+K" : "Control+K"}
         className="mx-auto flex h-7 w-[min(420px,40%)] items-center gap-2 rounded-md border bg-well px-2.5 text-fg-3 transition-colors hover:border-line-strong"
       >
         <Search className="size-3.5" strokeWidth={1.75} aria-hidden />
         Search
-        <Kbd className="ml-auto">{shortcutHint(platform, "K")}</Kbd>
+        <Kbd className="ml-auto" aria-hidden>
+          {shortcutHint(platform, "K")}
+        </Kbd>
       </button>
       <button
         type="button"
@@ -206,8 +215,8 @@ function WindowStatusBar() {
       <span
         className={joinClassNames(
           "flex items-center gap-1.5",
-          statusBar.tone === "error" && "text-danger",
-          statusBar.tone === "warning" && "text-warn",
+          statusBar.tone === "error" && "text-danger-text",
+          statusBar.tone === "warning" && "text-warn-text",
         )}
       >
         <RuntimeIcon className="size-3" strokeWidth={2} aria-hidden />
@@ -260,8 +269,22 @@ function SettingsRoute() {
   return <HostedDomPageView hostedPage={hostedPages.settingsPage} />;
 }
 
+/** The first-stream guide, which keeps its promise to show the stream as soon as the runtime loads it: a stream listed after the guide opened is shown. */
 function AddStreamRoute() {
   const { hostedPages } = useTatolabWindowEnvironment();
+  const listedStreams = useListedStreamsWhileTheRuntimeRuns();
+  const navigate = useNavigate();
+  const streamNamesWhenTheGuideOpened = useRef<ReadonlySet<string> | null>(null);
+  useEffect(() => {
+    if (listedStreams === null) return;
+    if (streamNamesWhenTheGuideOpened.current === null) {
+      streamNamesWhenTheGuideOpened.current = new Set(listedStreams.map((stream) => stream.name));
+      return;
+    }
+    const knownStreamNames = streamNamesWhenTheGuideOpened.current;
+    const newlyListedStream = listedStreams.find((stream) => !knownStreamNames.has(stream.name));
+    if (newlyListedStream !== undefined) navigate(streamPagePath(newlyListedStream.name), { replace: true });
+  }, [listedStreams, navigate]);
   return <HostedDomPageView hostedPage={hostedPages.firstStreamGuidePage} />;
 }
 

@@ -159,14 +159,14 @@
   text-align: left;
 }
 .graph-node-head + .graph-node-foot { padding-top: 6px; }
-.graph-node-foot-failure { color: var(--danger); }
+.graph-node-foot-failure { color: var(--danger-text); }
 .graph-node-foot-failure:hover { text-decoration: underline; text-underline-offset: 2px; }
 
 .graph-node[data-look="starting"] { border-style: dashed; border-color: var(--fg-4); }
 .graph-node[data-look="idle"] { border-style: dashed; border-color: var(--fg-4); background: transparent; box-shadow: none; }
 .graph-node[data-look="paused"] > :not(.graph-node-foot) { opacity: .62; }
 .graph-node[data-look="error"] { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
-.graph-node[data-look="error"] .graph-node-name { color: var(--danger); }
+.graph-node[data-look="error"] .graph-node-name { color: var(--danger-text); }
 .graph-node[data-look="outside_this_stream"] { border-color: var(--line); background: transparent; box-shadow: none; }
 .graph-node[data-look="outside_this_stream"] .graph-node-name { color: var(--fg-2); }
 .graph-node[data-holds-watched-port="true"] { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }

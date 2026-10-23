@@ -55,8 +55,8 @@
 .log-line-time { color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .log-line-level { color: var(--fg-2); }
 .log-line-level[data-tone="quiet"] { color: var(--fg-3); }
-.log-line-level[data-tone="warn"] { color: var(--warn); font-weight: 500; }
-.log-line-level[data-tone="error"] { color: var(--danger); font-weight: 500; }
+.log-line-level[data-tone="warn"] { color: var(--warn-text); font-weight: 500; }
+.log-line-level[data-tone="error"] { color: var(--danger-text); font-weight: 500; }
 .log-line-source { overflow: hidden; color: var(--fg-3); text-overflow: clip; white-space: nowrap; }
 .log-line-message { min-width: 0; color: var(--fg); overflow-wrap: anywhere; }
 .log-line-attr-key { color: var(--fg-3); }

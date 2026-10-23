@@ -28,7 +28,8 @@ async function clickWhenShown(selector: string): Promise<boolean> {
 
 /**
  * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=`,
- * `?page=settings|add-stream`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>`,
+ * `?page=settings|add-stream`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
+ * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),
  * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`,
  * `?watch=<node>.<port>`, `?levels=errors` and `?search=<query>` name, so each screen can be shown and pictured from
  * its URL. `?theme=light|dark` is read by the page's first script, before first paint.

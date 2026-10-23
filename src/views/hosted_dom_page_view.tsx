@@ -3,13 +3,13 @@
 
 import { useLayoutEffect, useRef } from "react";
 import { joinClassNames } from "./shadcn/class_names";
-import type { HostedDomPage } from "./tatolab_window_context";
+import type { TatolabWindowPage } from "./tatolab_window_page";
 
 /**
  * Shows a DOM page inside React: the page's element is moved in while this is mounted, and the page is told it is
  * shown, then hidden when this unmounts. The page outlives it, keeping its state for the next time it is shown.
  */
-export function HostedDomPageView({ hostedPage, className }: { hostedPage: HostedDomPage; className?: string }) {
+export function HostedDomPageView({ hostedPage, className }: { hostedPage: TatolabWindowPage; className?: string }) {
   const hostElementRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const hostElement = hostElementRef.current;

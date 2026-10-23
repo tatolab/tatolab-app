@@ -63,7 +63,7 @@
 .search-row-address { font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 .search-row-detail { min-width: 0; overflow: hidden; color: var(--fg-3); font-size: 11.5px; text-overflow: ellipsis; }
 .search-row-meta { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--fg-3); font-size: 12px; }
-.search-row-meta.failure-text { color: var(--danger); }
+.search-row-meta.failure-text { color: var(--danger-text); }
 .search-row[aria-selected="true"] { background: var(--brand-soft); }
 .search-row[aria-selected="true"] .search-row-icon { color: var(--brand-text); }
 .search-row[aria-selected="true"] .search-row-detail,
