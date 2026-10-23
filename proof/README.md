@@ -10,7 +10,7 @@ Issue #51. **Mock** — [`design-system/mock/`](design-system/mock/).
   - The `-after` frames are composed from the design system on stock shadcn, and keep their screens' layout.
   - The window's root keeps the browser's 16 px, where `main`'s was 13 px. Every control, row and gap now takes `DESIGN.md`'s size: controls and sidebar rows 28 px where they drew 22.75, segments 24 px, table rows 32 px, icons 16 px. Text stays 13/18.
   - The window's text is set in Geist, where `main` uses Inter. Code and machine words stay in Geist Mono, from the same family.
-  - The side panel opens at 320 px and can be dragged wider. Its header is the tab toolbar's 40 px, so their hairlines meet.
+  - The side panel opens at 320 px and can be dragged wider. Its header is the tab toolbar's 40 px, so their hairlines meet wherever the toolbar fits on one line. At 1440 px it does on both Graph and Logs.
 
 | image (`-light` / `-dark`, `-before` / `-after`) | preset | shows |
 |---|---|---|
@@ -19,7 +19,7 @@ Issue #51. **Mock** — [`design-system/mock/`](design-system/mock/).
 | `03-macos-overview-failed-stream` | `stream=lobby-recorder` | The red failure banner with Retry; the preview's empty state. |
 | `04-macos-graph-step-selected` | `tab=graph&step=brightnessmeter` | The Graph toolbar's icon buttons and pressed toggles; the inspector as a resizable side panel. In `-after`, the cards' 32 px heads and 24 px port rows are the heights their layout reserves for them. |
 | `05-macos-graph-step-in-error` | `state=node-error&…&step=displaywindow` | The inspector's failure banner with Show errors, and the step's config as mono fields. |
-| `06-macos-logs-record-selected` | `tab=logs&record=problem` | The Logs toolbar (search field with ⌘F, level control, Step menu, toggles, copy, clear), and the record's details panel. |
+| `06-macos-logs-record-selected` | `tab=logs&record=problem` | The Logs toolbar: search field with ⌘F, level control, step filter, toggles, copy and clear. Beside the details panel, `-after` fits it on one line. The step filter leads with a filter icon, and Load #4 is out of view below 960 px, still read by a screen reader and kept in the line count's tooltip. |
 | `07-macos-logs-step-menu-open` | `…&only_step=brightnessmeter&step_menu=open` | The step menu: Show all steps, and `brightnessmeter` ticked. |
 | `08-macos-logs-not-loaded` | `stream=lobby-recorder&tab=logs` | A failed stream's Logs: the empty state with the log folder, Open log folder and Retry. |
 | `09-macos-inspect-raw` / `10-macos-inspect-tree` | `tab=inspect`, `&inspect=tree` | Inspect: the outline as list rows, the Raw/Tree segmented control, Copy, and the tree's disclosure rows. |
@@ -28,6 +28,8 @@ Issue #51. **Mock** — [`design-system/mock/`](design-system/mock/).
 | `13-linux-logs-record-selected` | `platform=linux&…&record=problem` | Linux chrome: no traffic-light strip, and Ctrl F on the search field. |
 | `14-macos-logs-levels-keyboard-focus` (`-after` only) | `tab=logs`, then Tab and → from the search field | The arrow key moved to Info and chose it ("11 of 13"); the focus ring is drawn at the `ring` token's full strength. |
 | `15-macos-logs-details-dragged-wider` (`-after` only) | `…&record=problem`, then the separator dragged 180 px left | The details panel resized by its separator; the Logs toolbar wraps to fit the narrower work area. |
+| `16-macos-logs-at-the-opening-window-size` (`-after` only) | `…&record=problem` at 1040×700, the size the window opens at | Beside the 320 px details panel the work area has about 450 px, so the Logs toolbar wraps onto three rows and its hairline sits below the panel header's. |
+| `17-macos-logs-at-the-smallest-window` (`-after` only) | `…&record=problem` at 860×580, the window's smallest | The work area keeps its 300 px minimum and the details panel narrows to fit beside it. The toolbar wraps, and nothing is cut off. |
 
 ## A stream's Logs on the new design, with the pointer to older records on disk (#39)
 

@@ -12,8 +12,11 @@ import { IconButton } from "./icon_button";
 const SIDE_PANEL_OPENING_WIDTH = 320;
 const SIDE_PANEL_NARROWEST_WIDTH = 280;
 const SIDE_PANEL_WIDEST_WIDTH = 560;
-/** The narrowest the work area beside it is left, so a dragged panel never crowds it out. */
-const WORK_AREA_NARROWEST_WIDTH = 420;
+/**
+ * The narrowest the work area beside it is left, so a dragged panel never crowds it out. With the narrowest panel it
+ * fits the stream page of the app's smallest window (860 px, which leaves the page 596 px beside the sidebar).
+ */
+const WORK_AREA_NARROWEST_WIDTH = 300;
 
 /** A tab's work area with its side panel to the right, the hairline between them dragged (or moved with the arrow keys) to resize the panel; the work area alone while `sidePanel` is `null`. */
 export function WorkAreaWithSidePanel({ sidePanel, children }: { sidePanel: ReactNode | null; children: ReactNode }) {

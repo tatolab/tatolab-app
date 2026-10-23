@@ -77,5 +77,19 @@ for (const [imageName, presetQuery, driveThePage] of AFTER_ONLY_FRAMES) {
     await page.screenshot({ path: path.join(PROOF_DIRECTORY, `${imageName}-${theme}-after.png`) });
   }
 }
+/** This branch's frames at the window's own sizes: the size it opens at, and the smallest it is made. */
+const WINDOW_SIZE_FRAMES = [
+  ["16-macos-logs-at-the-opening-window-size", "state=running&stream=main&tab=logs&record=problem", { width: 1040, height: 700 }],
+  ["17-macos-logs-at-the-smallest-window", "state=running&stream=main&tab=logs&record=problem", { width: 860, height: 580 }],
+];
+for (const [imageName, presetQuery, windowSize] of WINDOW_SIZE_FRAMES) {
+  const sizedPage = await browser.newPage({ viewport: windowSize });
+  for (const theme of ["light", "dark"]) {
+    await sizedPage.goto(`${WINDOW_SERVERS[1][1]}?theme=${theme}&${presetQuery}`);
+    await sizedPage.waitForTimeout(SETTLE_MILLISECONDS);
+    await sizedPage.screenshot({ path: path.join(PROOF_DIRECTORY, `${imageName}-${theme}-after.png`) });
+  }
+  await sizedPage.close();
+}
 console.log(`Chromium ${browser.version()}`);
 await browser.close();

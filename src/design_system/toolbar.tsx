@@ -32,7 +32,8 @@ export function ToolbarDivider() {
 
 /**
  * Quiet words in a toolbar, as a count of the lines shown, with what they mean in a tooltip when there is more to say;
- * words that only add to what the toolbar shows elsewhere step aside while it is narrower than 960 px.
+ * words that only add to what the toolbar shows elsewhere leave the view while it is narrower than 960 px, and stay
+ * read by a screen reader.
  */
 export function ToolbarWords({
   explanation,
@@ -45,7 +46,7 @@ export function ToolbarWords({
       tooltip={explanation}
       control={
         <span
-          className={cn("mr-2 cursor-default text-xs whitespace-nowrap text-fg-3 tabular", isDroppedWhenNarrow && "hidden @[960px]:inline")}
+          className={cn("mr-2 cursor-default text-xs whitespace-nowrap text-fg-3 tabular", isDroppedWhenNarrow && "sr-only @[960px]:not-sr-only")}
           {...controlDataAttributes}
         >
           {children}
