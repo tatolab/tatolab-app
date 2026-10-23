@@ -12,9 +12,8 @@ import {
   isAJsonObject,
   isAnUnsignedInteger,
   jsonObject,
-  jsonTextKeepingTheWrittenNumbers,
+  jsonTextsKeepingTheWrittenNumbers,
   jsonTextWithSortedKeys,
-  parseJsonKeepingTheWrittenNumbers,
   parseJsonOnTheWire,
   requiredText,
   requiredUnsignedInteger,
@@ -24,23 +23,24 @@ import { failedWith, succeeded, type Result } from "./result.js";
 
 /** The page a `logs` tool result's text holds. */
 export function streamLogRecordsPageFromTheLogsToolResult(toolResultText: string): Result<StreamLogRecordsPage, string> {
-  const page = streamLogRecordsPageFromTheParsedToolResult(parseJsonOnTheWire(toolResultText), parseJsonKeepingTheWrittenNumbers(toolResultText));
+  const page = streamLogRecordsPageFromTheParsedToolResult(
+    parseJsonOnTheWire(toolResultText),
+    jsonTextsKeepingTheWrittenNumbers(toolResultText, recordsOfTheToolResult),
+  );
   return page.ok ? page : failedWith(`the runtime's logs result could not be read: ${page.failure}`);
 }
 
-/** Each `records[].record` of the tool result read keeping its numbers' digits, by its place in `records`. */
-function recordsAsWrittenOfTheToolResult(toolResultAsWritten: Result<unknown, string>): readonly unknown[] {
-  if (!toolResultAsWritten.ok || !isAJsonObject(toolResultAsWritten.value)) return [];
-  const numberedRecordsAsWritten = toolResultAsWritten.value["records"];
-  if (!Array.isArray(numberedRecordsAsWritten)) return [];
-  return numberedRecordsAsWritten.map((numberedRecordAsWritten: unknown) =>
-    isAJsonObject(numberedRecordAsWritten) ? numberedRecordAsWritten["record"] : undefined,
-  );
+/** Each `records[].record` of a parsed tool result, by its place in `records`; `null` for one that holds none. */
+function recordsOfTheToolResult(parsedToolResult: unknown): readonly unknown[] {
+  if (!isAJsonObject(parsedToolResult)) return [];
+  const numberedRecords = parsedToolResult["records"];
+  if (!Array.isArray(numberedRecords)) return [];
+  return numberedRecords.map((numberedRecord: unknown) => (isAJsonObject(numberedRecord) ? (numberedRecord["record"] ?? null) : null));
 }
 
 function streamLogRecordsPageFromTheParsedToolResult(
   parsedToolResult: Result<unknown, string>,
-  toolResultAsWritten: Result<unknown, string>,
+  jsonlLineTexts: Result<string[], string>,
 ): Result<StreamLogRecordsPage, string> {
   if (!parsedToolResult.ok) return parsedToolResult;
   const toolResult = jsonObject(parsedToolResult.value, "the logs result");
@@ -51,10 +51,10 @@ function streamLogRecordsPageFromTheParsedToolResult(
   if (!streamInstance.ok) return streamInstance;
   const numberedRecordsOnTheWire = arrayOrEmpty(toolResult.value, "records");
   if (!numberedRecordsOnTheWire.ok) return numberedRecordsOnTheWire;
-  const recordsAsWritten = recordsAsWrittenOfTheToolResult(toolResultAsWritten);
+  if (!jsonlLineTexts.ok) return jsonlLineTexts;
   const records = everyOneRead(
-    numberedRecordsOnTheWire.value.map((numberedRecord, recordIndex) => ({ numberedRecord, recordAsWritten: recordsAsWritten[recordIndex] })),
-    numberedRecordOnTheWire,
+    numberedRecordsOnTheWire.value.map((numberedRecord, recordIndex) => ({ numberedRecord, jsonlLineText: jsonlLineTexts.value[recordIndex] ?? "null" })),
+    numberedRecordWithItsJsonlLine,
   );
   if (!records.ok) return records;
   const nextAfter = requiredUnsignedInteger(toolResult.value, "next_after");
@@ -71,13 +71,13 @@ function streamLogRecordsPageFromTheParsedToolResult(
   });
 }
 
-/** One record of the `logs` tool's result: its sequence number beside its JSONL line, and that line as the runtime wrote it. */
-function numberedRecordOnTheWire({ numberedRecord: numberedRecordOnTheWire, recordAsWritten }: { numberedRecord: unknown; recordAsWritten: unknown }): Result<StreamLogRecord, string> {
+/** One record of the `logs` tool's result: its sequence number beside its JSONL line, with that line's text as the runtime wrote it. */
+function numberedRecordWithItsJsonlLine({ numberedRecord: numberedRecordOnTheWire, jsonlLineText }: { numberedRecord: unknown; jsonlLineText: string }): Result<StreamLogRecord, string> {
   const numberedRecord = jsonObject(numberedRecordOnTheWire, "a record");
   if (!numberedRecord.ok) return numberedRecord;
   const sequence = requiredUnsignedInteger(numberedRecord.value, "sequence");
   if (!sequence.ok) return sequence;
-  return succeeded(streamLogRecordFromItsJsonlLine(sequence.value, numberedRecord.value["record"], jsonTextKeepingTheWrittenNumbers(recordAsWritten ?? null)));
+  return succeeded(streamLogRecordFromItsJsonlLine(sequence.value, numberedRecord.value["record"], jsonlLineText));
 }
 
 /**

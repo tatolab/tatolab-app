@@ -90,7 +90,7 @@ export function runStreamAction(sharedState: TatolabAppSharedState, streamAction
 const STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND = {
   open_stream_project_folder: "file_manager",
   open_terminal_at_stream_project: "terminal",
-  open_stream_log_folder: "log_folder",
+  open_stream_log_folder: "log_folder_in_the_file_manager",
 } as const satisfies Record<string, StreamProjectFolderOpening>;
 
 /** A command that opens a stream's project folder. */
