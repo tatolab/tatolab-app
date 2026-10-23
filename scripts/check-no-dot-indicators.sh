@@ -11,7 +11,7 @@
 #   (a magnifier's lens, a gear's hub, an eye's pupil);
 # - a bullet glyph;
 # - a round status icon, which reads as a dot (TriangleAlert and SquareX are the problem icons).
-# shadcn's primitives (src/views/shadcn/) are controls, not indicators, and are not checked.
+# shadcn's components (src/components/ui/) are controls, not indicators, and are not checked.
 #
 # Usage: scripts/check-no-dot-indicators.sh   (from anywhere inside the repository)
 
@@ -27,7 +27,7 @@ readonly SMALL_SIZE='(0\.5|1|1\.5|2|2\.5|3)'
 
 window_files() {
   git ls-files -z --cached --others --exclude-standard -- 'src/*.ts' 'src/*.tsx' 'src/*.css' 'index.html' \
-    ':!:*.test.ts' ':!:*.test.tsx' ':!:src/views/shadcn/*' "$@"
+    ':!:*.test.ts' ':!:*.test.tsx' ':!:src/components/ui/*' "$@"
 }
 
 # Lines of the window's files that match the extended regular expression $1, as `file:line:code`.
