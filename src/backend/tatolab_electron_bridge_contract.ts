@@ -5,7 +5,15 @@
 // under their snake_case names, the event each status change arrives on, and how a
 // command answers.
 
-import type { StreamGraphSummary, StreamLogRecordsPage, StreamStopAnswer, TatolabStatus } from "./tatolab_backend_contract.js";
+import type {
+  StreamGraphSummary,
+  StreamLogRecordsPage,
+  StreamProjectFolderChosenFor,
+  StreamProjectFolderReport,
+  StreamProjectRunOutcome,
+  StreamStopAnswer,
+  TatolabStatus,
+} from "./tatolab_backend_contract.js";
 
 /** The scheme the Electron app serves its window's page under: a page on it with no bridge is the app's window whose preload did not load. */
 export const TATOLAB_WINDOW_PAGE_SCHEME = "tatolab-app";
@@ -27,9 +35,21 @@ export const TATOLAB_COMMAND_NAMES = [
   "open_stream_project_folder",
   "open_terminal_at_stream_project",
   "open_stream_log_folder",
+  "choose_stream_project_folder",
+  "propose_new_stream_project_folder",
+  "check_stream_project_folder",
+  "create_stream_project",
+  "run_stream_project",
 ] as const;
 
-/** One command the window invokes. Arguments: `set_run_tatolab` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`, `start_stream`, `remove_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, the rest none. The three that open a stream's project name only the stream: the app opens the folder the runtime listed for it, or its log folder. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab, takes it: the person choosing it is the confirmation. */
+/**
+ * One command the window invokes. Arguments: `set_run_tatolab` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`,
+ * `start_stream`, `remove_stream`, `open_stream_project_folder` and `open_stream_log_folder` `{ stream }`, `open_terminal_at_stream_project` `{ stream }` or
+ * `{ folder }`, `choose_stream_project_folder` `{ chosen_for }`, `check_stream_project_folder` and `create_stream_project` `{ folder }`, `run_stream_project`
+ * `{ folder, stream_function, name }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * acts only on a folder the app handed the window, from its folder dialog or its proposal. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
+ * takes it: the person choosing it is the confirmation.
+ */
 export type TatolabCommandName = (typeof TATOLAB_COMMAND_NAMES)[number];
 
 /** The event each status change, and the status again each time the window is shown, arrives on; it carries a `TatolabStatus`. */
@@ -55,8 +75,15 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   start_stream: { commandArguments: { stream: string }; answer: null };
   remove_stream: { commandArguments: { stream: string }; answer: null };
   open_stream_project_folder: { commandArguments: { stream: string }; answer: null };
-  open_terminal_at_stream_project: { commandArguments: { stream: string }; answer: null };
+  open_terminal_at_stream_project: { commandArguments: { stream: string } | { folder: string }; answer: null };
   open_stream_log_folder: { commandArguments: { stream: string }; answer: null };
+  /** `null` when the person cancels the dialog. */
+  choose_stream_project_folder: { commandArguments: { chosen_for: StreamProjectFolderChosenFor }; answer: StreamProjectFolderReport | null };
+  propose_new_stream_project_folder: { commandArguments: undefined; answer: StreamProjectFolderReport };
+  check_stream_project_folder: { commandArguments: { folder: string }; answer: StreamProjectFolderReport };
+  create_stream_project: { commandArguments: { folder: string }; answer: StreamProjectFolderReport };
+  /** `stream_function` as `tatolab run` takes it, `null` for the project's sole `@stream`; `name` in place of the function's own, or `null`. */
+  run_stream_project: { commandArguments: { folder: string; stream_function: string | null; name: string | null }; answer: StreamProjectRunOutcome };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */

@@ -10,6 +10,7 @@
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
 import {
   currentProcessUid,
+  tatolabCommandLineToolAt,
   TATOLAB_APP_IDENTIFIER,
   UNPACKAGED_APP_UPDATE_REFUSAL,
   type TatolabAppUpdatePackaging,
@@ -78,5 +79,6 @@ export async function macosTatolabPlatformForThisBuild(
     appUpdatePackaging: tatolabAppUpdatePackagingOnMacos(appIsPackaged),
     bundledRuntimeRestart: runtimeLaunchAgent,
     terminalOpenedInAFolder: new TerminalAppOpenedByOpen(),
+    tatolabCommandLineTool: tatolabCommandLineToolAt(bundledCommandLineTool),
   };
 }

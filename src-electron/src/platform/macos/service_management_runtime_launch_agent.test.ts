@@ -6,7 +6,7 @@ import { expect, test } from "vitest";
 import { createTatolabAppLog } from "../../tatolab_app_log.js";
 import { loadServiceManagementAddon, serviceManagementAddonBuiltUnder } from "./service_management_addon.js";
 import { failedWith, succeeded, type Result } from "../../result.js";
-import type { ProgramCompletion } from "./run_program_to_completion.js";
+import type { ProgramCompletion } from "../run_program_to_completion.js";
 import {
   runtimeAgentRegistrationStatusFrom,
   ServiceManagementRuntimeLaunchAgent,

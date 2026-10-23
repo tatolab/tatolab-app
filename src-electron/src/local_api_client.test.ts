@@ -7,7 +7,13 @@ import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import type { ListedStream } from "../../src/backend/tatolab_backend_contract.js";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
-import { httpRequestBytes, listedStreamsFromTheListStreamsToolResult, LocalApiClient, parseHttpResponse } from "./local_api_client.js";
+import {
+  httpRequestBytes,
+  listedStreamsFromTheListStreamsToolResult,
+  LocalApiClient,
+  parseHttpResponse,
+  streamRunAnswerFromTheRunStreamToolResult,
+} from "./local_api_client.js";
 import type { Result } from "./result.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
@@ -351,6 +357,62 @@ test("a_stream_action_waits_past_the_polling_limit_for_the_runtime_to_finish_it"
 
   expect(failureOf(await clientWithAShortPollingLimit.checkHealth()).failureDescription).toMatch(/did not answer within 100ms$/);
   expect(answerOf(await clientWithAShortPollingLimit.runStreamAction("start_stream", "test-pattern"))).toBeNull();
+});
+
+test("running_a_project_calls_run_stream_kept_and_reads_its_answer_and_compile_warnings", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-answer-for-the-new-project-hello.json")),
+    httpResponse(
+      "200 OK",
+      "application/json",
+      await recordedResponseBody("local-api-run-stream-answer-for-the-project-warned-whose-compile-writes-a-warning.json"),
+    ),
+  ]);
+
+  expect(answerOf(await server.client().runStream({ projectDirectory: "/tmp/tatolab-proof/projects/hello", streamFunction: null, streamName: "hello" }))).toEqual({
+    stream: "hello",
+    stream_instance: "1",
+    kept: true,
+    project_directory: "/private/tmp/tatolab-proof/projects/hello",
+    node_count: 4,
+    replaced_the_kept_record: false,
+    compile_warnings: [],
+  });
+  expect(
+    answerOf(await server.client().runStream({ projectDirectory: "/tmp/tatolab-proof/projects/warned", streamFunction: "stream.py:main", streamName: null }))
+      .compile_warnings,
+  ).toEqual(["warning: nodes/heat_render.py imports cupy, which has no linux-aarch64 wheel; this stream will not run on a Jetson"]);
+
+  const toolArguments = server.receivedRequests().map((request) => JSON.parse(headAndBodyOf(request)[1]).params.arguments);
+  expect(toolArguments).toEqual([
+    { project_directory: "/tmp/tatolab-proof/projects/hello", name: "hello", keep: true },
+    { project_directory: "/tmp/tatolab-proof/projects/warned", stream_function: "stream.py:main", keep: true },
+  ]);
+});
+
+test("a_run_the_runtime_refuses_is_its_own_refusal_and_one_that_never_answers_is_not", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-refusal-for-the-name-hello-a-kept-stream-holds.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-refusal-for-the-project-no-venv-without-its-venv.json")),
+  ]);
+  const runOfHelloAgain = { projectDirectory: "/tmp/tatolab-proof/projects/hello-again", streamFunction: null, streamName: "hello" };
+
+  expect(failureOf(await server.client().runStream(runOfHelloAgain))).toEqual({
+    failureDescription:
+      "Stream graph error: the stream name `hello` is held by a kept stream from /private/tmp/tatolab-proof/projects/hello; load this one under another name with `--name`",
+    isTheRuntimesRefusal: true,
+  });
+  expect(failureOf(await server.client().runStream({ projectDirectory: "/tmp/tatolab-proof/projects/no-venv", streamFunction: null, streamName: "no-venv" }))).toEqual({
+    failureDescription: "Invalid configuration: /tmp/tatolab-proof/projects/no-venv has no .venv/bin/python; run `uv sync` in /tmp/tatolab-proof/projects/no-venv",
+    isTheRuntimesRefusal: true,
+  });
+  expect(failureOf(await server.client().runStream(runOfHelloAgain)).isTheRuntimesRefusal).toBe(false);
+});
+
+test("a_run_stream_answer_missing_a_field_is_refused_naming_it", () => {
+  expect(failureOf(streamRunAnswerFromTheRunStreamToolResult('{"stream":"hello","stream_instance":"1","kept":"yes"}'))).toBe(
+    "the runtime's run_stream result could not be read: `kept` is not true or false",
+  );
 });
 
 test("a_chunked_response_is_dechunked", async () => {

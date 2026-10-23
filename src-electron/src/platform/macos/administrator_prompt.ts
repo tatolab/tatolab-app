@@ -6,7 +6,7 @@
 // quoting that keeps every path one shell word inside one AppleScript string.
 
 import { failedWith, succeeded, type Result } from "../../result.js";
-import { describeHowTheProgramEnded, programSucceeded, runProgramToCompletion, type ProgramCompletion } from "./run_program_to_completion.js";
+import { describeHowTheProgramEnded, programSucceeded, runProgramToCompletion, type ProgramCompletion } from "../run_program_to_completion.js";
 
 /** The interpreter that shows macOS's administrator prompt. */
 export const OSASCRIPT_PATH = "/usr/bin/osascript";

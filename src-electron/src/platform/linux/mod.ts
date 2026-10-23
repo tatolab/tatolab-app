@@ -11,6 +11,7 @@ import { failedWith } from "../../result.js";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
 import {
   currentProcessUid,
+  tatolabCommandLineToolAt,
   UNPACKAGED_APP_UPDATE_REFUSAL,
   type DockIconHost,
   type MainWindowChrome,
@@ -73,5 +74,6 @@ export async function linuxTatolabPlatformForThisBuild(
     appUpdatePackaging: tatolabAppUpdatePackagingOnLinux(appIsPackaged, process.env["APPIMAGE"]),
     bundledRuntimeRestart: null,
     terminalOpenedInAFolder: new XTerminalEmulatorOnThePath(),
+    tatolabCommandLineTool: tatolabCommandLineToolAt(machinePaths.commandLineToolLink),
   };
 }

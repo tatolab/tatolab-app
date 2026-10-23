@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"stream\": \"hello\",\n  \"stream_instance\": \"1\",\n  \"kept\": true,\n  \"project_directory\": \"/private/tmp/tatolab-proof/projects/hello\",\n  \"node_count\": 4,\n  \"replaced_the_kept_record\": false,\n  \"compile_warnings\": []\n}"}],"isError":false}}

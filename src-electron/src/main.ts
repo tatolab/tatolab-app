@@ -24,6 +24,8 @@ import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "./tatolab_tray_menu.js";
 import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./stream_project_folder_opening.js";
+import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
+import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
 
 /** The Electron app as the lifecycle drives it. */
 export interface TatolabElectronAppShell {
@@ -42,6 +44,10 @@ export interface TatolabElectronAppShell {
   answerTheWindowsCommands(tatolabWindowCommandHandlers: TatolabWindowCommandHandlers): void;
   /** Show `folder` in the desktop's file manager, refused in its own words. */
   openAFolderInTheFileManager(folder: string): Promise<Result<void, string>>;
+  /** The desktop's folder dialog over the window, which the window's Add stream asks through. */
+  askThePersonForAStreamProjectFolder: StreamProjectFolderDialog;
+  /** The person's home directory, under which new projects are proposed. */
+  homeDirectory: string;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
   createTheAppUpdateFeed(appUpdatePackaging: TatolabAppUpdatePackaging): TatolabAppUpdateFeedForThisBuild;
   /** The system notifications about updates; clicking one calls `onNotificationClicked`. */
@@ -144,6 +150,13 @@ export async function startTatolabApp(
       terminalOpenedInAFolder: platformForThisBuild.terminalOpenedInAFolder,
       isAnExistingFolder: isAnExistingFolderOnThisMachine,
     },
+    streamProjectAdding: new StreamProjectAdding({
+      homeDirectory: tatolabElectronAppShell.homeDirectory,
+      streamProjectFolderDialog: tatolabElectronAppShell.askThePersonForAStreamProjectFolder,
+      tatolabCommandLineTool: platformForThisBuild.tatolabCommandLineTool,
+      runProgramToCompletion,
+      streamRunsOnTheRuntime: controller,
+    }),
     tatolabAppLog,
   };
   const quitTheApp = () => quitTheTatolabApp(tatolabMainWindow, (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode), tatolabAppLog);

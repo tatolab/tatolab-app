@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
@@ -33,6 +33,7 @@ import {
   tatolabWindowCommandHandlers,
 } from "./tatolab_commands.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
+import { StreamProjectAdding } from "./stream_project_adding.js";
 import { TatolabAppUpdater } from "./tatolab_app_updater.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
@@ -43,11 +44,14 @@ afterEach(async () => {
 
 const quietTatolabAppLog = createTatolabAppLog("error", () => {});
 
+const recordedResponseBody = (fixtureFileName: string) => readFile(new URL(`../test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
+
 async function sharedStateOverFakes(
   scriptedLocalApiResponses: readonly Buffer[],
   platform: TatolabPlatform,
   setUpTatolabRefusal: string | null,
   existingFolders: readonly string[] = [],
+  folderTheDialogAnswers: string | null = null,
 ): Promise<TatolabAppSharedState & { machineSetup: FakeTatolabMachineSetup; terminal: FakeTerminalOpenedInAFolder; foldersShownInTheFileManager: string[] }> {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
   const appConfigDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-config-"));
@@ -95,6 +99,13 @@ async function sharedStateOverFakes(
       terminalOpenedInAFolder: terminal,
       isAnExistingFolder: async (folderPath) => existingFolders.includes(folderPath),
     },
+    streamProjectAdding: new StreamProjectAdding({
+      homeDirectory: appConfigDirectory,
+      streamProjectFolderDialog: async () => succeeded(folderTheDialogAnswers),
+      tatolabCommandLineTool: platformForThisBuild.tatolabCommandLineTool,
+      runProgramToCompletion: async () => failedWith("this fake runs no program"),
+      streamRunsOnTheRuntime: controller,
+    }),
     tatolabAppLog: quietTatolabAppLog,
     machineSetup,
     terminal,
@@ -347,7 +358,7 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
   });
   expect(await commandHandlers.open_terminal_at_stream_project({})).toEqual({
     ok: false,
-    refusal: "open_terminal_at_stream_project needs `stream`, a stream's name",
+    refusal: "open_terminal_at_stream_project needs `stream`, a stream's name, or `folder`, a folder chosen in the window",
   });
 
   expect(await commandHandlers.open_stream_log_folder({ stream: "main" })).toEqual({ ok: true, value: null });
@@ -358,4 +369,68 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
 
   expect(sharedState.foldersShownInTheFileManager).toEqual(["/Users/jonathanf/streams/main", "/Users/jonathanf/streams/main/.streamlib/logs"]);
   expect(sharedState.terminal.openedInFolders).toEqual(["/Users/jonathanf/streams/main"]);
+});
+
+/** The window's `StreamProjectFolderReport` and `StreamProjectRunOutcome` read exactly this JSON. */
+test("adding a stream answers the window in the contract's shape, from the chosen folder to the runtime's answer or its refusal of a taken name", async () => {
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "tl-app-project-"));
+  cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-answer-for-the-new-project-hello.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-refusal-for-the-name-hello-a-kept-stream-holds.json")),
+      toolResultResponse({ streams: [{ name: "hello", state: "kept", project_directory: "/private/tmp/tatolab-proof/projects/hello", node_count: 4, failed_because: null }] }),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-refusal-for-the-project-no-venv-without-its-venv.json")),
+    ],
+    "macos",
+    null,
+    [projectFolder],
+    projectFolder,
+  );
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(JSON.stringify(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" }))).toBe(
+    `{"ok":true,"value":{"folder":${JSON.stringify(projectFolder)},"folder_exists":true,"stream_file_present":false,"stream_functions":[],"python_environment":{"kind":"missing"}}}`,
+  );
+  expect(JSON.stringify(await commandHandlers.run_stream_project({ folder: projectFolder, stream_function: null, name: "hello" }))).toBe(
+    '{"ok":true,"value":{"kind":"running","answer":{"stream":"hello","stream_instance":"1","kept":true,' +
+      '"project_directory":"/private/tmp/tatolab-proof/projects/hello","node_count":4,"replaced_the_kept_record":false,"compile_warnings":[]}}}',
+  );
+  expect(JSON.stringify(await commandHandlers.run_stream_project({ folder: projectFolder, stream_function: null, name: "hello" }))).toBe(
+    '{"ok":true,"value":{"kind":"name_taken","refusal":' +
+      JSON.stringify("Stream graph error: the stream name `hello` is held by a kept stream from /private/tmp/tatolab-proof/projects/hello; load this one under another name with `--name`") +
+      ',"free_name":"hello-2"}}',
+  );
+  expect(await commandHandlers.run_stream_project({ folder: projectFolder, stream_function: null, name: "no-venv" })).toEqual({
+    ok: false,
+    refusal: "Invalid configuration: /tmp/tatolab-proof/projects/no-venv has no .venv/bin/python; run `uv sync` in /tmp/tatolab-proof/projects/no-venv",
+  });
+  expect(refreshRequests).toHaveBeenCalledTimes(3);
+
+  expect(await commandHandlers.open_terminal_at_stream_project({ folder: projectFolder })).toEqual({ ok: true, value: null });
+  expect(sharedState.terminal.openedInFolders).toEqual([projectFolder]);
+  expect(await commandHandlers.open_terminal_at_stream_project({ folder: "/etc" })).toEqual({
+    ok: false,
+    refusal: "Tatolab acts only on a folder chosen in its window. Choose /etc again.",
+  });
+  expect(await commandHandlers.create_stream_project({ folder: projectFolder })).toEqual({ ok: false, refusal: "this fake platform has no tatolab command" });
+  expect((await commandHandlers.check_stream_project_folder({ folder: projectFolder })).ok).toBe(true);
+  const proposal = await commandHandlers.propose_new_stream_project_folder(undefined);
+  expect(proposal.ok && proposal.value.folder.endsWith(path.join("streams", "hello"))).toBe(true);
+});
+
+test("the commands that add a stream read their arguments as the window sends them, and refuse anything else", async () => {
+  const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux", null), () => {});
+  expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "anything" })).toEqual({
+    ok: false,
+    refusal: "choose_stream_project_folder needs `chosen_for`, project_to_run or new_project_directory",
+  });
+  expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.check_stream_project_folder({})).toEqual({ ok: false, refusal: "check_stream_project_folder needs `folder`, a folder chosen in the window" });
+  expect(await commandHandlers.create_stream_project({ folder: 7 })).toEqual({ ok: false, refusal: "create_stream_project needs `folder`, a folder chosen in the window" });
+  expect(await commandHandlers.run_stream_project({ folder: "/tmp/a", stream_function: 3, name: null })).toEqual({
+    ok: false,
+    refusal: "run_stream_project needs `folder`, a folder chosen in the window, and `stream_function` and `name`, each text or null",
+  });
 });

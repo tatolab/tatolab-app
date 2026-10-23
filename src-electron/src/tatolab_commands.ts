@@ -6,7 +6,15 @@
 // the window as the next `tatolab-status-changed`. A question the window awaits is answered with
 // its answer or a refusal in words, never a thrown error.
 
-import type { StreamGraphSummary, StreamLogRecordsPage, TatolabStatus, TatolabStreamActionName } from "../../src/backend/tatolab_backend_contract.js";
+import type {
+  StreamGraphSummary,
+  StreamLogRecordsPage,
+  StreamProjectFolderChosenFor,
+  StreamProjectFolderReport,
+  StreamProjectRunOutcome,
+  TatolabStatus,
+  TatolabStreamActionName,
+} from "../../src/backend/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../../src/backend/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAnUnsignedInteger } from "./json_on_the_wire.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
@@ -112,6 +120,52 @@ export function openStreamProjectFolderOnRequest(
   );
 }
 
+/** `open_terminal_at_stream_project { folder }`: a terminal in `folder`, a folder the app handed the window; refused naming why. */
+export function openTerminalAtChosenProjectFolder(sharedState: TatolabAppSharedState, folder: string): Promise<Result<void, string>> {
+  return answerTheWindow("open_terminal_at_stream_project", async () => {
+    if (!sharedState.streamProjectAdding.isAFolderHandedToTheWindow(folder)) {
+      return failedWith(`Tatolab acts only on a folder chosen in its window. Choose ${folder} again.`);
+    }
+    const streamProjectFolderOpeners = sharedState.streamProjectFolderOpeners;
+    if (!(await streamProjectFolderOpeners.isAnExistingFolder(folder))) return failedWith(`${folder} is not a folder on this machine.`);
+    return streamProjectFolderOpeners.terminalOpenedInAFolder.openTerminalIn(folder);
+  });
+}
+
+/** `choose_stream_project_folder { chosen_for }`: the app's folder dialog, then what the chosen folder holds; `null` when the person cancels. */
+export function chooseStreamProjectFolder(sharedState: TatolabAppSharedState, chosenFor: StreamProjectFolderChosenFor): Promise<Result<StreamProjectFolderReport | null, string>> {
+  return answerTheWindow("choose_stream_project_folder", () => sharedState.streamProjectAdding.chooseStreamProjectFolder(chosenFor));
+}
+
+/** `propose_new_stream_project_folder`: the first free `~/streams/hello[-N]` for a new project. */
+export function proposeNewStreamProjectFolder(sharedState: TatolabAppSharedState): Promise<Result<StreamProjectFolderReport, string>> {
+  return answerTheWindow("propose_new_stream_project_folder", async () => succeeded(await sharedState.streamProjectAdding.proposeNewStreamProjectFolder()));
+}
+
+/** `check_stream_project_folder { folder }`: what `folder` holds now. */
+export function checkStreamProjectFolder(sharedState: TatolabAppSharedState, folder: string): Promise<Result<StreamProjectFolderReport, string>> {
+  return answerTheWindow("check_stream_project_folder", () => sharedState.streamProjectAdding.checkStreamProjectFolder(folder));
+}
+
+/** `create_stream_project { folder }`: `tatolab new <folder>`, then what the folder holds; refused in the CLI's own words. */
+export function createStreamProject(sharedState: TatolabAppSharedState, folder: string): Promise<Result<StreamProjectFolderReport, string>> {
+  return answerTheWindow("create_stream_project", () => sharedState.streamProjectAdding.createStreamProject(folder));
+}
+
+/** `run_stream_project { folder, stream_function, name }`: `run_stream` on `folder`, kept, then a status round whether it loaded or was refused. */
+export function runStreamProject(
+  sharedState: TatolabAppSharedState,
+  folder: string,
+  streamFunction: string | null,
+  streamName: string | null,
+): Promise<Result<StreamProjectRunOutcome, string>> {
+  return answerTheWindow("run_stream_project", async () => {
+    const outcome = await sharedState.streamProjectAdding.runStreamProject(folder, streamFunction, streamName);
+    sharedState.statusPublisher.requestRefresh();
+    return outcome;
+  });
+}
+
 /** `set_run_tatolab`'s arguments as the window sends them, or why they are not. */
 export function setRunTatolabArgumentsFrom(commandArguments: unknown): Result<{ enabled: boolean }, string> {
   if (!isAJsonObject(commandArguments) || typeof commandArguments["enabled"] !== "boolean") {
@@ -134,6 +188,46 @@ export function streamArgumentsFrom(commandName: TatolabCommandName, commandArgu
     return failedWith(`${commandName} needs \`stream\`, a stream's name`);
   }
   return succeeded({ stream: commandArguments["stream"] });
+}
+
+/** `open_terminal_at_stream_project`'s arguments as the window sends them: a listed stream or a folder, or why they are neither. */
+export function streamOrFolderArgumentsFrom(commandArguments: unknown): Result<{ stream: string } | { folder: string }, string> {
+  if (isAJsonObject(commandArguments) && typeof commandArguments["stream"] === "string") return succeeded({ stream: commandArguments["stream"] });
+  if (isAJsonObject(commandArguments) && typeof commandArguments["folder"] === "string") return succeeded({ folder: commandArguments["folder"] });
+  return failedWith("open_terminal_at_stream_project needs `stream`, a stream's name, or `folder`, a folder chosen in the window");
+}
+
+/** The `{ folder }` arguments of the command `commandName` as the window sends them, or why they are not. */
+export function folderArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ folder: string }, string> {
+  if (!isAJsonObject(commandArguments) || typeof commandArguments["folder"] !== "string") {
+    return failedWith(`${commandName} needs \`folder\`, a folder chosen in the window`);
+  }
+  return succeeded({ folder: commandArguments["folder"] });
+}
+
+/** `choose_stream_project_folder`'s arguments as the window sends them, or why they are not. */
+export function chooseStreamProjectFolderArgumentsFrom(commandArguments: unknown): Result<{ chosen_for: StreamProjectFolderChosenFor }, string> {
+  const chosenFor = isAJsonObject(commandArguments) ? commandArguments["chosen_for"] : undefined;
+  if (chosenFor !== "project_to_run" && chosenFor !== "new_project_directory") {
+    return failedWith("choose_stream_project_folder needs `chosen_for`, project_to_run or new_project_directory");
+  }
+  return succeeded({ chosen_for: chosenFor });
+}
+
+/** `run_stream_project`'s arguments as the window sends them, or why they are not. */
+export function runStreamProjectArgumentsFrom(
+  commandArguments: unknown,
+): Result<{ folder: string; stream_function: string | null; name: string | null }, string> {
+  const isTextOrNull = (value: unknown): value is string | null => value === null || typeof value === "string";
+  if (
+    !isAJsonObject(commandArguments) ||
+    typeof commandArguments["folder"] !== "string" ||
+    !isTextOrNull(commandArguments["stream_function"]) ||
+    !isTextOrNull(commandArguments["name"])
+  ) {
+    return failedWith("run_stream_project needs `folder`, a folder chosen in the window, and `stream_function` and `name`, each text or null");
+  }
+  return succeeded({ folder: commandArguments["folder"], stream_function: commandArguments["stream_function"], name: commandArguments["name"] });
 }
 
 /** Each command's handler, taking the arguments as the window sent them and answering in the contract's shape. */
@@ -189,10 +283,40 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     remove_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "remove_stream", commandArguments)),
     open_stream_project_folder: async (commandArguments) =>
       commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_project_folder", commandArguments)),
-    open_terminal_at_stream_project: async (commandArguments) =>
-      commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_terminal_at_stream_project", commandArguments)),
+    open_terminal_at_stream_project: async (commandArguments) => {
+      const streamOrFolderArguments = streamOrFolderArgumentsFrom(commandArguments);
+      if (!streamOrFolderArguments.ok) return { ok: false, refusal: streamOrFolderArguments.failure };
+      const streamOrFolder = streamOrFolderArguments.value;
+      return commandAnswerOfNothingFrom(
+        "stream" in streamOrFolder
+          ? await openStreamProjectFolderOnRequest(sharedState, "open_terminal_at_stream_project", streamOrFolder.stream)
+          : await openTerminalAtChosenProjectFolder(sharedState, streamOrFolder.folder),
+      );
+    },
     open_stream_log_folder: async (commandArguments) =>
       commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_log_folder", commandArguments)),
+    choose_stream_project_folder: async (commandArguments) => {
+      const chooseArguments = chooseStreamProjectFolderArgumentsFrom(commandArguments);
+      if (!chooseArguments.ok) return { ok: false, refusal: chooseArguments.failure };
+      return commandAnswerFrom(await chooseStreamProjectFolder(sharedState, chooseArguments.value.chosen_for));
+    },
+    propose_new_stream_project_folder: async () => commandAnswerFrom(await proposeNewStreamProjectFolder(sharedState)),
+    check_stream_project_folder: async (commandArguments) => {
+      const folderArguments = folderArgumentsFrom("check_stream_project_folder", commandArguments);
+      if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
+      return commandAnswerFrom(await checkStreamProjectFolder(sharedState, folderArguments.value.folder));
+    },
+    create_stream_project: async (commandArguments) => {
+      const folderArguments = folderArgumentsFrom("create_stream_project", commandArguments);
+      if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
+      return commandAnswerFrom(await createStreamProject(sharedState, folderArguments.value.folder));
+    },
+    run_stream_project: async (commandArguments) => {
+      const runArguments = runStreamProjectArgumentsFrom(commandArguments);
+      if (!runArguments.ok) return { ok: false, refusal: runArguments.failure };
+      const { folder, stream_function, name } = runArguments.value;
+      return commandAnswerFrom(await runStreamProject(sharedState, folder, stream_function, name));
+    },
   };
 }
 

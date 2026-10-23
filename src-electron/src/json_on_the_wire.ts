@@ -90,6 +90,13 @@ export function optionalText(jsonObject: JsonObjectOnTheWire, key: string): Resu
   return typeof value === "string" ? succeeded(value) : failedWith(`\`${key}\` is not a string`);
 }
 
+/** `jsonObject[key]`, which must be `true` or `false`. */
+export function requiredTrueOrFalse(jsonObject: JsonObjectOnTheWire, key: string): Result<boolean, string> {
+  const value = jsonObject[key];
+  if (value === undefined) return failedWith(`missing field \`${key}\``);
+  return typeof value === "boolean" ? succeeded(value) : failedWith(`\`${key}\` is not true or false`);
+}
+
 /** The required unsigned integer at `key`. */
 export function requiredUnsignedInteger(jsonObject: JsonObjectOnTheWire, key: string): Result<number, string> {
   const value = jsonObject[key];

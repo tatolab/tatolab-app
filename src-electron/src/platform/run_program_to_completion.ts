@@ -3,7 +3,7 @@
 
 import { execFile } from "node:child_process";
 import os from "node:os";
-import { describeCaughtFailure, failedWith, succeeded, type Result } from "../../result.js";
+import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
 
 /** How a program that ran ended, and what it wrote. */
 export interface ProgramCompletion {
