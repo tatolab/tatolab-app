@@ -1,13 +1,2 @@
-/* The streams page's body: the selected stream's log under its page's header. */
+/* The streams page's body: what shows while the runtime lists no streams. */
 .streams-page-body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.stream-detail { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.stream-live { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-
-.log-dock {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--window);
-}
-.log-dock > * { flex: 1; min-height: 0; }

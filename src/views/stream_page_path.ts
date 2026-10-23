@@ -36,8 +36,18 @@ export function streamPageTabShownAt(pathname: string): StreamPageTab | null {
   return streamPageTabNamed(pathname.split("/")[3]);
 }
 
-/** What a navigation to a stream's page carries when Search opened it on one exposed output: previewed in the Overview, or pinned on Graph. */
-export type StreamPageNavigationState = { previewedOutput: GraphOutputPortAddress } | { pinnedOutput: GraphOutputPortAddress };
+/** How a navigation asks Logs to open: narrowed to its errors, or with its search focused. */
+export type AskedStreamLogView = "errors_only" | "search_focused";
+
+/**
+ * What a navigation to a stream's page carries: an exposed output Search opened it on, previewed in the Overview or
+ * pinned on Graph; how Logs should open; or the step Graph should select.
+ */
+export type StreamPageNavigationState =
+  | { previewedOutput: GraphOutputPortAddress }
+  | { pinnedOutput: GraphOutputPortAddress }
+  | { askedLogView: AskedStreamLogView }
+  | { selectedStep: string };
 
 function outputAddressUnder(navigationState: unknown, stateKey: "previewedOutput" | "pinnedOutput"): GraphOutputPortAddress | null {
   if (typeof navigationState !== "object" || navigationState === null) return null;
@@ -55,4 +65,18 @@ export function previewedOutputAskedBy(navigationState: unknown): GraphOutputPor
 /** The output a navigation's state asks Graph to pin, or `null` when it asks none. */
 export function pinnedOutputAskedBy(navigationState: unknown): GraphOutputPortAddress | null {
   return outputAddressUnder(navigationState, "pinnedOutput");
+}
+
+/** How a navigation's state asks Logs to open, or `null` when it asks nothing of it. */
+export function logViewAskedBy(navigationState: unknown): AskedStreamLogView | null {
+  if (typeof navigationState !== "object" || navigationState === null) return null;
+  const askedLogView: unknown = Reflect.get(navigationState, "askedLogView");
+  return askedLogView === "errors_only" || askedLogView === "search_focused" ? askedLogView : null;
+}
+
+/** The step a navigation's state asks Graph to select, or `null` when it asks none. */
+export function selectedStepAskedBy(navigationState: unknown): string | null {
+  if (typeof navigationState !== "object" || navigationState === null) return null;
+  const selectedStep: unknown = Reflect.get(navigationState, "selectedStep");
+  return typeof selectedStep === "string" ? selectedStep : null;
 }

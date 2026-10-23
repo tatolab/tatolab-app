@@ -21,8 +21,8 @@ import {
 import { StreamGraphCanvasProvider, StreamGraphReactFlowCanvas, useStreamGraphViewportCommands } from "./stream_graph_react_flow_canvas";
 import { outputPinKey } from "./stream_graph_step_card_view";
 import { StreamGraphToolbarView } from "./stream_graph_toolbar_view";
-import { pinnedOutputAskedBy, streamPagePath } from "./stream_page_path";
-import { useStreamGraphReading, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
+import { pinnedOutputAskedBy, selectedStepAskedBy, streamPagePath } from "./stream_page_path";
+import { useStreamGraphReading, useTatolabStatus } from "./tatolab_window_context";
 
 /** How long a hover preview stays after the pointer leaves its port, so the pointer can reach it. */
 const HOVER_PREVIEW_CLOSE_DELAY_MILLISECONDS = 160;
@@ -65,7 +65,6 @@ function GraphTabMessage({ title, detail }: { title: string; detail?: string }) 
 }
 
 function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: StreamGraphCanvas }) {
-  const { hostedPages } = useTatolabWindowEnvironment();
   const machineName = useTatolabStatus().machine_name;
   const reading = useStreamGraphReading(stream.name);
   const viewport = useStreamGraphViewportCommands();
@@ -74,7 +73,7 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
   const canvasArea = useRef<HTMLDivElement>(null);
   const hoverCloseTimer = useRef<number | undefined>(undefined);
 
-  const [selectedStepName, setSelectedStepName] = useState<string | null>(null);
+  const [selectedStepName, setSelectedStepName] = useState<string | null>(() => selectedStepAskedBy(location.state));
   const [arePreviewsShown, setArePreviewsShown] = useState(true);
   const [areCountersShown, setAreCountersShown] = useState(true);
   const [isInspectorOpen, setIsInspectorOpen] = useState(true);
@@ -136,6 +135,13 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
     if (!pinnedOutputKeys.has(outputPinKey(askedOutput))) togglePinnedPreview(askedOutput);
     void navigate(location.pathname, { replace: true, state: null });
   }, [askedPinnedOutput, canvas, pinnedOutputKeys, togglePinnedPreview, navigate, location.pathname]);
+
+  const askedSelectedStep = selectedStepAskedBy(location.state);
+  useEffect(() => {
+    if (askedSelectedStep === null) return;
+    if (canvas.steps.some((step) => step.name === askedSelectedStep)) setSelectedStepName(askedSelectedStep);
+    void navigate(location.pathname, { replace: true, state: null });
+  }, [askedSelectedStep, canvas, navigate, location.pathname]);
 
   useEffect(() => {
     if (fitRequestCount === 0) return;
@@ -240,9 +246,7 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
             onClosed: () => setIsInspectorOpen(false),
             onStepSelected: setSelectedStepName,
             onOutputPinToggled: togglePinnedPreview,
-            onErrorsInLogsShown: () => {
-              void Promise.resolve(navigate(streamPagePath(stream.name, "logs"))).then(() => hostedPages.streamsPage.showLogErrorLinesOnly());
-            },
+            onErrorsInLogsShown: () => void navigate(streamPagePath(stream.name, "logs"), { state: { askedLogView: "errors_only" } }),
           }}
         />
       )}

@@ -2,25 +2,23 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import type { TatolabBackend } from "../backend/tatolab_backend";
-import type { ListedStream, TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
+import type { ListedStream, TatolabStatus } from "../backend/tatolab_backend_contract";
 import { createElement } from "../dom";
 import { presentRuntimeStatus, type RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
-import { isStreamLoaded } from "../presentation/stream_presentation";
 import { chooseSelectedStreamName } from "../presentation/stream_selection";
-import type { StreamGraphReadings } from "../stream_graph_readings";
-import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "../window_visibility";
 import { createFirstStreamGuide } from "./first_stream_guide_view";
 import { createRuntimeStatePage, createStreamsNotListedPage } from "./runtime_state_page_view";
-import { StreamDetailView } from "./stream_detail_view";
 import type { TatolabWindowPage } from "./tatolab_window_page";
 
 type StreamsPageBodyKind = "stream" | "first_stream_guide" | "runtime_state" | "streams_not_listed";
 
-/** The selected stream's log, under the stream page's header; or the first-stream guide, or the page saying why the runtime isn't running. */
+/**
+ * The streams the runtime lists and which one is selected, which the window's shortcuts and Search read; and, while
+ * the runtime lists none, the first-stream guide or the page saying why the runtime isn't running.
+ */
 export class StreamsPageView implements TatolabWindowPage {
   readonly element: HTMLElement;
   private readonly pageBody: HTMLElement;
-  private readonly streamDetail: StreamDetailView;
   private shownBodyKind: StreamsPageBodyKind | null = null;
   /** The body kind, and for a runtime that isn't running which state it is in, so a new state redraws it. */
   private shownBodyKey: string | null = null;
@@ -28,17 +26,10 @@ export class StreamsPageView implements TatolabWindowPage {
   private listedStreams: ListedStream[] = [];
   private latestStatus: TatolabStatus | null = null;
   private runtimeLastAnsweredAt: Date | null = null;
-  private isPageShown = false;
 
-  constructor(
-    private readonly backend: TatolabBackend,
-    streamGraphReadings: StreamGraphReadings,
-    platform: TatolabPlatform,
-  ) {
-    this.streamDetail = new StreamDetailView(backend, streamGraphReadings, platform);
+  constructor(private readonly backend: TatolabBackend) {
     this.pageBody = createElement("div", { class: "streams-page-body" });
     this.element = createElement("section", { class: "window-page streams-page", "aria-label": "Streams" }, [this.pageBody]);
-    onTatolabWindowVisibilityChanged(() => this.updatePolling());
   }
 
   /** The local time of the last status that found the runtime running, for the not-responding page. */
@@ -66,8 +57,6 @@ export class StreamsPageView implements TatolabWindowPage {
         this.listedStreams.map((stream) => stream.name),
       );
       this.listedStreams = status.streams;
-      this.showSelectedStream();
-      this.streamDetail.readNow();
     } else if (status.streams !== null) {
       this.listedStreams = status.streams;
     } else if (!isRunning) {
@@ -75,16 +64,10 @@ export class StreamsPageView implements TatolabWindowPage {
     }
   }
 
-  setPageShown(isShown: boolean): void {
-    this.isPageShown = isShown;
-    this.updatePolling();
-  }
-
   /** Selects `streamName`, as the window's route or Search does. */
   chooseStream(streamName: string): void {
     if (!this.listedStreams.some((stream) => stream.name === streamName)) return;
     this.selectedStreamName = streamName;
-    this.showSelectedStream();
   }
 
   /** The stream listed before (`-1`) or after (`1`) the selected one; `null` when there is none to go to. */
@@ -93,16 +76,6 @@ export class StreamsPageView implements TatolabWindowPage {
     const selectedIndex = this.listedStreams.findIndex((stream) => stream.name === this.selectedStreamName);
     const nextIndex = Math.min(this.listedStreams.length - 1, Math.max(0, selectedIndex + step));
     return this.listedStreams[nextIndex]?.name ?? null;
-  }
-
-  /** Focuses the selected stream's log filter; false when it has no log. */
-  focusLogFilter(): boolean {
-    return this.isShowingALoadedStream() && this.streamDetail.focusLogFilter();
-  }
-
-  /** Narrows the selected stream's log to its errors; false when it has no log. */
-  showLogErrorLinesOnly(): boolean {
-    return this.isShowingALoadedStream() && this.streamDetail.showErrorLinesOnly();
   }
 
   listedStreamsForSearch(): ListedStream[] {
@@ -117,26 +90,15 @@ export class StreamsPageView implements TatolabWindowPage {
     return this.latestStatus?.machine_name ?? null;
   }
 
-  private isShowingALoadedStream(): boolean {
-    const selectedStream = this.selectedStream();
-    return this.shownBodyKind === "stream" && selectedStream !== null && isStreamLoaded(selectedStream);
-  }
-
-  private showSelectedStream(): void {
-    const selectedStream = this.selectedStream();
-    if (!selectedStream || this.shownBodyKind !== "stream") return;
-    this.streamDetail.showStream(selectedStream);
-  }
-
   private showBody(bodyKind: StreamsPageBodyKind, presentation: RuntimeDisplayPresentation): void {
     const bodyKey = bodyKind === "runtime_state" ? `${bodyKind}:${presentation.displayState}` : bodyKind;
     if (bodyKey === this.shownBodyKey) return;
-    if (this.shownBodyKind === "stream") this.streamDetail.dispose();
     this.shownBodyKind = bodyKind;
     this.shownBodyKey = bodyKey;
     switch (bodyKind) {
       case "stream":
-        this.pageBody.replaceChildren(this.streamDetail.element);
+        // The React stream pages show a listed stream; this page shows only while the runtime lists none.
+        this.pageBody.replaceChildren();
         break;
       case "first_stream_guide":
         this.pageBody.replaceChildren(createFirstStreamGuide());
@@ -148,10 +110,5 @@ export class StreamsPageView implements TatolabWindowPage {
         this.pageBody.replaceChildren(createStreamsNotListedPage());
         break;
     }
-    this.updatePolling();
-  }
-
-  private updatePolling(): void {
-    this.streamDetail.setLogFollowingAllowed(this.isPageShown && isTatolabWindowVisible() && this.shownBodyKind === "stream");
   }
 }

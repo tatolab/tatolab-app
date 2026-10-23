@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { expect, test } from "vitest";
-import { previewedOutputAskedBy, streamPagePath, streamPageTabNamed, streamPageTabShownAt } from "./stream_page_path";
+import { logViewAskedBy, previewedOutputAskedBy, selectedStepAskedBy, streamPagePath, streamPageTabNamed, streamPageTabShownAt } from "./stream_page_path";
 
 test("a stream's page is its Overview, and each other tab a path below it", () => {
   expect(streamPagePath("front door")).toBe("/streams/front%20door");
@@ -21,4 +21,14 @@ test("only a navigation state naming a node and a port asks for a previewed outp
   expect(previewedOutputAskedBy({ previewedOutput: { node: "h264encoder" } })).toBeNull();
   expect(previewedOutputAskedBy(null)).toBeNull();
   expect(previewedOutputAskedBy("main")).toBeNull();
+});
+
+test("only a navigation state naming a known log view or a step's name asks Logs or Graph for it", () => {
+  expect(logViewAskedBy({ askedLogView: "errors_only" })).toBe("errors_only");
+  expect(logViewAskedBy({ askedLogView: "search_focused" })).toBe("search_focused");
+  expect(logViewAskedBy({ askedLogView: "warnings_only" })).toBeNull();
+  expect(logViewAskedBy(null)).toBeNull();
+  expect(selectedStepAskedBy({ selectedStep: "persondetector" })).toBe("persondetector");
+  expect(selectedStepAskedBy({ selectedStep: 7 })).toBeNull();
+  expect(selectedStepAskedBy(undefined)).toBeNull();
 });

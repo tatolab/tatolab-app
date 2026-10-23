@@ -18,6 +18,7 @@ import { SettingsPageView } from "./settings_page_view";
 import { TooltipProvider } from "./shadcn/tooltip";
 import { readableExposedPorts } from "../presentation/stream_overview_presentation";
 import { StreamGraphReadings } from "../stream_graph_readings";
+import { StreamLogReadings } from "../stream_log_readings";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "../window_visibility";
 import { isShowingAStreamPage, streamPagePath, streamPageTabShownAt, type StreamPageNavigationState, type StreamPageTab } from "./stream_page_path";
 import { StreamsPageView } from "./streams_page_view";
@@ -62,18 +63,23 @@ export function mountTatolabWindow(
   const navigateTo = async (path: string, navigationState?: StreamPageNavigationState): Promise<void> => {
     if (router.state.location.pathname !== path || navigationState !== undefined) await router.navigate(path, { state: navigationState });
   };
-  /** Shows `tab` of the stream whose page shows; false off a stream page, or on Graph or Logs of a stream not loaded. */
-  const showTheShownStreamsTab = (tab: StreamPageTab): boolean => {
+  /** Shows `tab` of the stream whose page shows; false off a stream page, or on Graph of a stream not loaded. */
+  const showTheShownStreamsTab = (tab: StreamPageTab, navigationState?: StreamPageNavigationState): boolean => {
     const selectedStream = isOnAStreamPage() ? streamsPage.selectedStream() : null;
-    if (selectedStream === null || ((tab === "graph" || tab === "logs") && !isStreamLoaded(selectedStream))) return false;
-    void navigateTo(streamPagePath(selectedStream.name, tab));
+    if (selectedStream === null || (tab === "graph" && !isStreamLoaded(selectedStream))) return false;
+    void navigateTo(streamPagePath(selectedStream.name, tab), navigationState);
     return true;
   };
 
   const streamGraphReadings = new StreamGraphReadings(backend);
+  const streamLogReadings = new StreamLogReadings(backend, (streamName, streamInstance) => streamGraphReadings.rememberStreamInstance(streamName, streamInstance));
   streamGraphReadings.setPollingAllowed(isTatolabWindowVisible());
-  onTatolabWindowVisibilityChanged((isVisible) => streamGraphReadings.setPollingAllowed(isVisible));
-  const streamsPage = new StreamsPageView(backend, streamGraphReadings, platform);
+  streamLogReadings.setPollingAllowed(isTatolabWindowVisible());
+  onTatolabWindowVisibilityChanged((isVisible) => {
+    streamGraphReadings.setPollingAllowed(isVisible);
+    streamLogReadings.setPollingAllowed(isVisible);
+  });
+  const streamsPage = new StreamsPageView(backend);
   const uninstallSheet = new UninstallSheetView(backend, platform, (flowState) =>
     settingsPage.showUninstallTatolabRefusal(flowState.phase === "closed" ? flowState.refusalReason : null),
   );
@@ -129,13 +135,9 @@ export function mountTatolabWindow(
       case "3":
         return showTheShownStreamsTab("overview");
       case "f": {
-        const shownTab = streamPageTabShownAt(router.state.location.pathname);
-        if (shownTab === "logs") return streamsPage.focusLogFilter();
-        const selectedStream = shownTab === null ? null : streamsPage.selectedStream();
+        const selectedStream = isOnAStreamPage() ? streamsPage.selectedStream() : null;
         if (selectedStream === null || !isStreamLoaded(selectedStream)) return false;
-        // The log filter sits in the hosted workspace the other tabs hide, so it takes focus once Logs shows.
-        void navigateTo(streamPagePath(selectedStream.name, "logs")).then(() => window.requestAnimationFrame(() => streamsPage.focusLogFilter()));
-        return true;
+        return showTheShownStreamsTab("logs", { askedLogView: "search_focused" });
       }
       case "ArrowUp":
       case "ArrowDown": {
@@ -169,7 +171,7 @@ export function mountTatolabWindow(
     settingsPage.showStatus(status);
   };
   const renderTheWindowOn = (firstStatusStore: TatolabWindowStatusStore) => {
-    const environment: TatolabWindowEnvironment = { backend, platform, statusStore: firstStatusStore, streamGraphReadings, hostedPages, openSearch };
+    const environment: TatolabWindowEnvironment = { backend, platform, statusStore: firstStatusStore, streamGraphReadings, streamLogReadings, hostedPages, openSearch };
     createRoot(rootElement).render(
       <StrictMode>
         <TatolabWindowEnvironmentContext value={environment}>

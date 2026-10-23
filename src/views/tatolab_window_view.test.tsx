@@ -133,13 +133,14 @@ describe("the Streams list", () => {
 });
 
 describe("the window's shell", () => {
-  it("opens a stream's page from its row and hosts the stream's view there", async () => {
+  it("opens a stream's page from its row on its Overview, hosting no DOM page in it", async () => {
     await mountedWindowOverTheMock("state=running");
 
     fireEvent.click(rowOf("main"));
 
     await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("main"));
-    expect(document.querySelector("[data-stream-page] [data-hosted-dom-page] .streams-page")).not.toBeNull();
+    expect(document.querySelector("[data-stream-page] [data-stream-details]")).not.toBeNull();
+    expect(document.querySelector("[data-stream-page] [data-hosted-dom-page]")).toBeNull();
   });
 
   it("shows a stream the runtime lists while the first-stream guide is open", async () => {
@@ -297,12 +298,12 @@ describe("a stream's page", () => {
     expect(openedProjects).toEqual(["camera"]);
   });
 
-  it("focuses the log filter with ⌘F, from Overview by way of Logs, and on Logs where it is", async () => {
+  it("focuses the log search with ⌘F, from Overview by way of Logs, and on Logs where it is", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("main");
     await waitFor(() => expect(document.querySelector("[data-stream-step]")).not.toBeNull());
     const pressCommandF = () => fireEvent.keyDown(document, { key: "f", metaKey: true });
-    const focusedLogFilter = () => document.activeElement?.closest("[data-hosted-dom-page]") !== null && document.activeElement?.tagName === "INPUT";
+    const focusedLogFilter = () => document.activeElement?.hasAttribute("data-stream-log-search") === true;
 
     pressCommandF();
 
@@ -314,6 +315,152 @@ describe("a stream's page", () => {
 
     await waitFor(() => expect(focusedLogFilter()).toBe(true));
     expect(document.querySelector("[data-stream-page-header] [data-stream-tab='logs']")?.getAttribute("aria-current")).toBe("page");
+  });
+});
+
+/** `streamName`'s Logs tab, opened from its page's header. */
+async function openTheLogsOf(streamName: string): Promise<void> {
+  await openTheStreamPageOf(streamName);
+  fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Logs" })));
+  await waitFor(() => expect(document.querySelector(`[data-stream-logs-page="${streamName}"], [data-stream-logs-not-loaded="${streamName}"]`)).not.toBeNull());
+}
+
+function logRowOf(message: string): HTMLElement {
+  const logRow = [...document.querySelectorAll<HTMLElement>("[data-stream-log-record]")].find((row) => row.textContent?.includes(message));
+  if (logRow === undefined) return expect.unreachable(`no row reading ${message}`);
+  return logRow;
+}
+
+const shownLogMessages = () => [...document.querySelectorAll<HTMLElement>("[data-stream-log-record]")].map((row) => row.textContent ?? "");
+
+describe("a stream's Logs tab", () => {
+  it("shows the records the backend serves, oldest first, each with its time, level, step, message and fields, and follows new ones", async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running");
+    await openTheLogsOf("main");
+
+    await waitFor(() => expect(shownLogMessages().length).toBeGreaterThan(3));
+    const servedPage = await backend.readStreamLogRecords("main", 0);
+    expect(document.querySelector("[data-stream-log-records]")?.querySelector("[data-stream-log-record]")?.getAttribute("data-stream-log-record")).toBe(String(servedPage.records[0]?.sequence));
+    const loadingRow = logRowOf("Loading the stream `main`");
+    expect(loadingRow.textContent).toMatch(/^\d{2}:\d{2}:\d{2}\.\d{3}INFOruntimeLoading the stream `main`/);
+    expect(logRowOf("mean=127.5").textContent).toMatch(/INFObrightnessmeterbrightness {2}height=720 {2}mean=127.5 {2}width=1280$/);
+    expect(textOf("[data-stream-log-load]")).toMatch(/^Load #\d+$/);
+    const rowCountBefore = shownLogMessages().length;
+
+    await waitFor(() => expect(shownLogMessages().length).toBeGreaterThan(rowCountBefore), { timeout: 4000 });
+  });
+
+  it("shows a selected record in full, with its JSON record as the runtime wrote it, and goes to its step on Graph", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheLogsOf("main");
+    await waitFor(() => expect(textOf("[data-stream-log-record-details]")).toContain("No line selected"));
+    const brightnessRow = await waitFor(() => logRowOf("mean=127.5"));
+
+    fireEvent.mouseDown(brightnessRow);
+
+    const details = within(screen.getByRole("complementary", { name: "Selected record" }));
+    expect(details.getByText("own process")).toBeTruthy();
+    expect(textOf("[data-stream-log-details-record]")).toContain('"processor_id": "P');
+    expect(textOf("[data-stream-log-details-record]")).toContain('"message": "brightness"');
+    expect(brightnessRow.getAttribute("aria-selected")).toBe("true");
+
+    fireEvent.click(details.getByRole("button", { name: "Show in graph" }));
+
+    await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector='step']")).not.toBeNull());
+    expect(stepCardOf("brightnessmeter").dataset.selected).toBe("true");
+  });
+
+  it("counts each level and shows one, narrows to one step, and searches messages and fields", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheLogsOf("main");
+    await waitFor(() => expect(Number(document.querySelector("[data-stream-log-level-filter='warn'] .tabular")?.textContent)).toBeGreaterThan(0), { timeout: 4000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /Warnings/ }));
+    expect(shownLogMessages().every((row) => row.includes("WARN"))).toBe(true);
+    fireEvent.click(screen.getByRole("radio", { name: /All/ }));
+
+    fireEvent.mouseDown(await waitFor(() => logRowOf("mean=127.5")));
+    fireEvent.click(screen.getByRole("button", { name: "Only lines from brightnessmeter" }));
+    expect(shownLogMessages().every((row) => row.includes("brightnessmeter"))).toBe(true);
+    expect(screen.getByRole("button", { name: "Steps shown: brightnessmeter" })).toBeTruthy();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search main logs" }), { target: { value: "MEAN=127" } });
+    expect(shownLogMessages().length).toBeGreaterThan(0);
+    const firstRowFound = document.querySelector<HTMLElement>("[data-stream-log-record]");
+    expect([...(firstRowFound?.querySelectorAll("mark") ?? [])].map((mark) => mark.textContent).join("")).toBe("mean=127");
+    fireEvent.change(screen.getByRole("textbox", { name: "Search main logs" }), { target: { value: "nothing logs this" } });
+    expect(textOf("[data-stream-log-empty]")).toBe("No lines match.");
+  });
+
+  it("opens on its errors from a step in error on Graph", async () => {
+    await mountedWindowOverTheMock("state=node-error");
+    await openTheGraphOf("main");
+    fireEvent.click(stepCardOf("displaywindow"));
+
+    fireEvent.click(await waitFor(() => screen.getByRole("button", { name: "Show errors" })));
+
+    await waitFor(() => expect(screen.getByRole("radio", { name: /Errors/ }).getAttribute("aria-checked")).toBe("true"));
+    await waitFor(() => expect(shownLogMessages().some((row) => row.includes("DisplayWindow: no window"))).toBe(true));
+    expect(shownLogMessages().every((row) => row.includes("ERROR"))).toBe(true);
+  });
+
+  it("points to the stream's log folder for the earlier records the runtime no longer holds, and opens it", async () => {
+    const openedLogFolders: string[] = [];
+    await mountedWindowOverTheMock("state=running&held_records=5", {
+      openStreamLogFolder: async (streamName) => {
+        openedLogFolders.push(streamName);
+      },
+    });
+    await openTheLogsOf("main");
+
+    await waitFor(() => expect(textOf("[data-stream-log-earlier-records]")).toMatch(/^[\d,]+ earlier records? (is|are) in ~\/streams\/pattern\/\.streamlib\/logs\/Open$/));
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    expect(openedLogFolders).toEqual(["main"]);
+  });
+
+  it("shows a refused open of the log folder in its own words", async () => {
+    const refusal = "main has no log folder yet: /Users/jonathanf/streams/pattern/.streamlib/logs is not on this machine.";
+    await mountedWindowOverTheMock("state=running&held_records=5", {
+      openStreamLogFolder: async () => {
+        throw refusal;
+      },
+    });
+    await openTheLogsOf("main");
+
+    fireEvent.click(await waitFor(() => screen.getByRole("button", { name: "Open" })));
+
+    await waitFor(() => expect(textOf("[data-stream-log-earlier-records] [role=alert]")).toBe(refusal));
+  });
+
+  it("says why it cannot read new records in the runtime's words, keeping the rows it has", async () => {
+    const refusal = "no stream named `main` is loaded in this runtime. Loaded: none";
+    await mountedWindowOverTheMock("state=running", {
+      readStreamLogRecords: async () => {
+        throw refusal;
+      },
+    });
+    await openTheLogsOf("main");
+
+    await waitFor(() => expect(textOf("[data-stream-log-read-refusal]")).toBe(`Couldn't read new records, trying again:${refusal}`));
+  });
+
+  it("gives a failed stream its reason and log folder with Retry, and a stopped one its log folder", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheLogsOf("lobby-recorder");
+
+    const failedLogs = within(document.querySelector<HTMLElement>("[data-stream-logs-not-loaded]") ?? document.body);
+    expect(failedLogs.getByText("Failed to load")).toBeTruthy();
+    expect(failedLogs.getByText(/the stream's CameraSource could not open camera/)).toBeTruthy();
+    expect(failedLogs.getByText("~/streams/lobby-recorder/.streamlib/logs/")).toBeTruthy();
+    expect(failedLogs.getByRole("button", { name: "Open log folder" })).toBeTruthy();
+    fireEvent.click(failedLogs.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(textOf("[data-stream-page-header] [role=alert]")).toMatch(/^Retry was refused: /));
+
+    fireEvent.keyDown(document, { key: "ArrowUp", metaKey: true });
+    await waitFor(() => expect(document.querySelector("[data-stream-logs-not-loaded='pattern-two']")).not.toBeNull());
+    expect(textOf("[data-stream-logs-not-loaded='pattern-two']")).toContain("Not loaded");
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 });
 
