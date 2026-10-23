@@ -74,6 +74,13 @@ export function arrayOrEmpty(jsonObject: JsonObjectOnTheWire, key: string): Resu
   return Array.isArray(value) ? succeeded(value) : failedWith(`\`${key}\` is not an array`);
 }
 
+/** The object at `key`, or an empty one when it is absent. */
+export function objectOrEmpty(jsonObject: JsonObjectOnTheWire, key: string): Result<JsonObjectOnTheWire, string> {
+  const value = jsonObject[key];
+  if (value === undefined) return succeeded({});
+  return isAJsonObject(value) ? succeeded(value) : failedWith(`\`${key}\` is not an object`);
+}
+
 /** Each of `values` read by `readOne`, or the first one's failure. */
 export function everyOneRead<T>(values: readonly unknown[], readOne: (value: unknown) => Result<T, string>): Result<T[], string> {
   const read: T[] = [];

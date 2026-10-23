@@ -92,12 +92,23 @@ export interface StreamLogRecordsPage {
   records_no_longer_held: number;
 }
 
+/** A port a node declares under the graph's `ports.inputs` or `ports.outputs`. */
+export interface StreamGraphDeclaredPort {
+  name: string;
+  /** What an output carries, as its `catalog_entry.section` names it (`video`, `audio`, `binary`, …); `null` when it declares none, as every input does. */
+  catalog_section: string | null;
+}
+
 /** One node of a stream's graph, by the name a link end and a port address name it by. */
 export interface StreamGraphNode {
   name: string;
   type: string;
   /** The processor's state as the runtime names it, such as `Running`. */
   state: string | null;
+  /** The input ports it declares, in the graph's order; `[]` when the runtime lists none. */
+  input_ports: StreamGraphDeclaredPort[];
+  /** The output ports it declares, in the graph's order; `[]` when the runtime lists none. */
+  output_ports: StreamGraphDeclaredPort[];
   /** Messages it dropped on each link into it, by the link's `id`, as `components.metrics` counts them since the link was wired. */
   dropped_bags_by_link: Record<string, number>;
   /** Messages each of its output ports refused, by port name, as `components.metrics` counts them. */

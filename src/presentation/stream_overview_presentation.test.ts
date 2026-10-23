@@ -7,8 +7,6 @@ import {
   choosePreviewedOutput,
   droppingLinksOf,
   exposedOutputAddress,
-  nodeClassName,
-  portsOfGraphNodes,
   presentExposureLevel,
   presentNodeKind,
   presentStreamSteps,
@@ -16,7 +14,6 @@ import {
   readableExposedPorts,
   streamObservationCommands,
   streamStepsCountLabel,
-  summarizeGraphHealth,
 } from "./stream_overview_presentation";
 
 function listedStream(name: string, state: string, nodeCount: number | null, projectDirectory = "/Users/ada/streams/pattern"): ListedStream {
@@ -30,10 +27,10 @@ function wiredLink(source: string, sourcePort: string, target: string, targetPor
 const TEST_PATTERN_GRAPH: StreamGraphSummary = {
   stream: "main",
   nodes: [
-    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
-    { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
-    { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
-    { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
   ],
   links: [
     wiredLink("testpatternsource", "video", "invertingeffect", "video_from_upstream"),
@@ -87,67 +84,10 @@ describe("node types", () => {
     expect(presentNodeKind("SomethingNew")).toBeNull();
   });
 
-  it("reads the class after the colon, or the whole type", () => {
-    expect(nodeClassName("nodes.inverting_effect:InvertingEffect")).toBe("InvertingEffect");
-    expect(nodeClassName("SomethingNew")).toBe("SomethingNew");
-  });
-});
-
-describe("summarizeGraphHealth", () => {
-  it("counts all running and wired plainly", () => {
-    expect(summarizeGraphHealth(TEST_PATTERN_GRAPH)).toEqual({
-      nodesClause: "4 nodes running",
-      linksClause: "3 links wired",
-      errorClause: null,
-    });
-  });
-
-  it("counts a part of the whole when anything is not running or wired, and names nodes in error", () => {
-    const graph: StreamGraphSummary = {
-      ...TEST_PATTERN_GRAPH,
-      nodes: TEST_PATTERN_GRAPH.nodes.map((node, index) => (index === 1 ? { ...node, state: "Error" } : node)),
-      links: TEST_PATTERN_GRAPH.links.map((link, index) => (index === 0 ? { ...link, state: "error" } : link)),
-    };
-    expect(summarizeGraphHealth(graph)).toEqual({
-      nodesClause: "3 of 4 nodes running",
-      linksClause: "2 of 3 links wired",
-      errorClause: "1 node in error",
-    });
-  });
-
-  it("drops the links clause when there are no links, and reads a node with no state as running", () => {
-    expect(
-      summarizeGraphHealth({ stream: "s", nodes: [{ name: "a", type: "t", state: null, dropped_bags_by_link: {}, refused_bags_by_output_port: {} }], links: [], exposed: [], graph_document_text: "" }),
-    ).toEqual({ nodesClause: "1 node running", linksClause: null, errorClause: null });
-  });
-});
-
-describe("portsOfGraphNodes", () => {
-  it("reads inputs from links in and outputs from links out, each once in order of first appearance", () => {
-    const ports = portsOfGraphNodes(TEST_PATTERN_GRAPH);
-    expect(ports.get("testpatternsource")).toEqual({ inputs: [], outputs: [{ port: "video", exposureLevel: null }] });
-    expect(ports.get("invertingeffect")).toEqual({
-      inputs: ["video_from_upstream"],
-      outputs: [{ port: "video_to_downstream", exposureLevel: "private" }],
-    });
-    expect(ports.get("displaywindow")).toEqual({ inputs: ["video"], outputs: [] });
-  });
-
-  it("adds an exposed port no link uses, and gives a link end in another stream its ports", () => {
-    const ports = portsOfGraphNodes({
-      stream: "viewer",
-      nodes: [{ name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} }],
-      links: [wiredLink("camerasource", "video", "displaywindow", "video")],
-      exposed: [{ node: "displaywindow", port: "presented", level: "public", watch_page_url: null }],
-      graph_document_text: "",
-    });
-    expect(ports.get("displaywindow")?.outputs).toEqual([{ port: "presented", exposureLevel: "public" }]);
-    expect(ports.get("camerasource")).toEqual({ inputs: [], outputs: [{ port: "video", exposureLevel: null }] });
-  });
 });
 
 function stepNode(name: string, nodeType: string, state: string | null, counters: Partial<Pick<StreamGraphNode, "dropped_bags_by_link" | "refused_bags_by_output_port">> = {}): StreamGraphNode {
-  return { name, type: nodeType, state, dropped_bags_by_link: counters.dropped_bags_by_link ?? {}, refused_bags_by_output_port: counters.refused_bags_by_output_port ?? {} };
+  return { name, type: nodeType, state, input_ports: [], output_ports: [], dropped_bags_by_link: counters.dropped_bags_by_link ?? {}, refused_bags_by_output_port: counters.refused_bags_by_output_port ?? {} };
 }
 
 function exposedPort(node: string, port: string, level: string): StreamGraphExposedPort {

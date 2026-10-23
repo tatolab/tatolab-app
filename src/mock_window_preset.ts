@@ -5,6 +5,7 @@ import type { TatolabPlatform } from "./backend/tatolab_backend_contract";
 
 const PRESET_STEP_TIMEOUT_MILLISECONDS = 3000;
 const PRESET_POLL_MILLISECONDS = 40;
+const GRAPH_FIT_SETTLE_MILLISECONDS = 600;
 
 /** Resolves with the first element `selector` matches once it is in the page, or `null` after a few seconds. */
 function waitForElement<ElementType extends Element>(selector: string): Promise<ElementType | null> {
@@ -20,6 +21,12 @@ function waitForElement<ElementType extends Element>(selector: string): Promise<
   });
 }
 
+/** The output port row `<step>.<port>` names on a Graph tab's card. */
+function graphOutputPortSelector(stepDotPort: string): string {
+  const [stepName = "", portName = ""] = stepDotPort.split(".");
+  return `[data-stream-graph-step="${CSS.escape(stepName)}"] [data-step-output-port="${CSS.escape(portName)}"]`;
+}
+
 async function clickWhenShown(selector: string): Promise<boolean> {
   const element = await waitForElement<HTMLElement>(selector);
   element?.click();
@@ -32,9 +39,10 @@ async function clickWhenShown(selector: string): Promise<boolean> {
  * the steps as of the last load), `?inspect=tree`,
  * `?page=settings|add-stream`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
  * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),
- * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`,
- * `?watch=<node>.<port>`, `?levels=errors` and `?search=<query>` name, so each screen can be shown and pictured from
- * its URL. `?theme=light|dark` is read by the page's first script, before first paint.
+ * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`, on Graph `?step=<step>` (selected), `?focus=<step>` (its card
+ * holding keyboard focus), `?pin=<step>.<port>`
+ * (its preview pinned), `?hover=<step>.<port>` (its hover preview open), `?previews=off` and `?counters=off`,
+ * `?levels=errors` and `?search=<query>` name, so each screen can be shown and pictured from its URL. `?theme=light|dark` is read by the page's first script, before first paint.
  */
 export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platform: TatolabPlatform): Promise<void> {
   const streamName = pageQuery.get("stream");
@@ -57,16 +65,21 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     await clickWhenShown(`[data-stream-page-header] [data-stream-action="${CSS.escape(streamPageAction)}"]`);
   }
   if (pageQuery.get("inspect") === "tree") await clickWhenShown(`[data-graph-document-view-choice="tree"]`);
-  const watchedPort = pageQuery.get("watch");
-  if (watchedPort !== null) {
-    const [nodeName, portName] = watchedPort.split(".");
-    const portButtons = await waitForElement(`.graph-node[data-node="${CSS.escape(nodeName)}"] [data-watch="port"]`);
-    if (portButtons) {
-      const portButton = [...document.querySelectorAll<HTMLElement>(`.graph-node[data-node="${CSS.escape(nodeName)}"] [data-watch="port"]`)].find(
-        (button) => button.querySelector(".graph-node-port-name")?.textContent === portName,
-      );
-      portButton?.click();
-    }
+  if (pageQuery.get("previews") === "off") await clickWhenShown(`[data-stream-graph-toolbar="previews"]`);
+  if (pageQuery.get("counters") === "off") await clickWhenShown(`[data-stream-graph-toolbar="counters"]`);
+  const selectedStep = pageQuery.get("step");
+  if (selectedStep !== null) await clickWhenShown(`[data-stream-graph-step="${CSS.escape(selectedStep)}"]`);
+  const focusedStep = pageQuery.get("focus");
+  if (focusedStep !== null) (await waitForElement<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(focusedStep)}"]`))?.focus();
+  const pinnedOutput = pageQuery.get("pin");
+  if (pinnedOutput !== null) await clickWhenShown(graphOutputPortSelector(pinnedOutput));
+  const hoveredOutput = pageQuery.get("hover");
+  if (hoveredOutput !== null) {
+    const outputPort = await waitForElement<HTMLElement>(graphOutputPortSelector(hoveredOutput));
+    // The canvas fits itself to view as it opens; the hover preview opens beside the port once it has stopped.
+    await new Promise((settled) => window.setTimeout(settled, GRAPH_FIT_SETTLE_MILLISECONDS));
+    // React's onMouseEnter listens for the mouseover a pointer arriving on the port fires.
+    outputPort?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
   }
   if (pageQuery.get("levels") === "errors") await clickWhenShown(`.log-dock-console [data-segment="Errors"]`);
   const page = pageQuery.get("page");

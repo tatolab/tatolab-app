@@ -7,10 +7,10 @@
 @import "./tokens.css";
 
 @import "./base.css" layer(base);
+@import "@xyflow/react/dist/base.css" layer(components);
+@import "./stream_graph_canvas.css" layer(components);
 @import "./streams_page.css" layer(components);
-@import "./stream_graph.css" layer(components);
 @import "./stream_log_console.css" layer(components);
-@import "./watch_placeholder.css" layer(components);
 @import "./first_stream_guide.css" layer(components);
 @import "./settings_page.css" layer(components);
 @import "./first_launch_setup.css" layer(components);

@@ -32,6 +32,13 @@ function linkComponentState(linkState: string): string {
     .join("");
 }
 
+/** A link's source, a node in another stream rendered with that stream beside it, as `<stream>/<node>` names it in the summary. */
+function linkSourceAsTheRuntimeRendersIt(sourceNode: string, sourcePort: string): { stream?: string; node: string; port: string } {
+  const streamSeparator = sourceNode.indexOf("/");
+  if (streamSeparator === -1) return { node: sourceNode, port: sourcePort };
+  return { stream: sourceNode.slice(0, streamSeparator), node: sourceNode.slice(streamSeparator + 1), port: sourcePort };
+}
+
 /** A stand-in for the runtime's preview page of `address`: moving colour bars and the address, drawn in the frame. */
 function mockWatchPageUrl(address: string): string {
   const standInPage = `<!doctype html><html><body style="margin:0;background:#000;overflow:hidden">
@@ -56,6 +63,8 @@ export function mockStreamGraphSummary(streamName: string, machineName: string, 
     name: node.name,
     type: node.type,
     state: nodeState(node.state),
+    input_ports: node.input_ports,
+    output_ports: node.output_ports,
     dropped_bags_by_link: Object.fromEntries(
       graph.links.filter((link) => link.target_node === node.name).map((link) => [link.id, climbed(graph.counterRates.droppedPerSecondByLinkId[link.id] ?? 0)]),
     ),
@@ -74,13 +83,14 @@ export function mockStreamGraphSummary(streamName: string, machineName: string, 
       name: node.name,
       config: node.config,
       ports: {
-        inputs: [...new Set(graph.links.filter((link) => link.target_node === node.name).map((link) => link.target_port))].map((port) => ({ name: port })),
-        outputs: [
-          ...new Set([
-            ...graph.links.filter((link) => link.source_node === node.name).map((link) => link.source_port),
-            ...graph.exposed.filter((exposedPort) => exposedPort.node === node.name).map((exposedPort) => exposedPort.port),
-          ]),
-        ].map((port) => ({ name: port })),
+        inputs: node.input_ports.map((port) => ({ name: port.name, description: "", port_kind: "data", delivery_profile: "newest" })),
+        outputs: node.output_ports.map((port) => ({
+          name: port.name,
+          description: "",
+          port_kind: "data",
+          delivery_profile: null,
+          ...(port.catalog_section === null ? {} : { catalog_entry: { section: port.catalog_section, entry: {} } }),
+        })),
       },
       components: {
         state: nodes[nodeIndex]?.state ?? null,
@@ -94,7 +104,7 @@ export function mockStreamGraphSummary(streamName: string, machineName: string, 
     })),
     links: graph.links.map((link) => ({
       id: link.id,
-      source: { node: link.source_node, port: link.source_port },
+      source: linkSourceAsTheRuntimeRendersIt(link.source_node, link.source_port),
       target: { node: link.target_node, port: link.target_port },
       capacity: 4,
       state: linkState(link.state),

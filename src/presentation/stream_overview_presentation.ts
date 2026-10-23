@@ -58,99 +58,6 @@ export function presentNodeKind(nodeType: string): "Built-in" | "Python" | null 
   return nodeType.includes(":") ? "Python" : null;
 }
 
-/** The class part of a `module:Class` node type, or the whole type when it has no colon. */
-export function nodeClassName(nodeType: string): string {
-  const colonIndex = nodeType.lastIndexOf(":");
-  return colonIndex === -1 ? nodeType : nodeType.slice(colonIndex + 1);
-}
-
-/** The graph health line's clauses: nodes running, links wired, and nodes in error. */
-export interface GraphHealthSummary {
-  nodesClause: string;
-  /** `null` for a graph with no links. */
-  linksClause: string | null;
-  /** `1 node in error`, or `null` when no node is. */
-  errorClause: string | null;
-}
-
-function countWord(count: number, singular: string, plural: string): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? singular : plural}`;
-}
-
-/** A node runs while the runtime says `Running`, or says nothing. */
-function isGraphNodeRunning(state: string | null): boolean {
-  return state === null || state === "Running";
-}
-
-/** `4 nodes running, 3 links wired` when all is well; `3 of 4 nodes running, 2 of 3 links wired` when it isn't. */
-export function summarizeGraphHealth(graph: StreamGraphSummary): GraphHealthSummary {
-  const nodeCount = graph.nodes.length;
-  const runningNodeCount = graph.nodes.filter((node) => isGraphNodeRunning(node.state)).length;
-  const linkCount = graph.links.length;
-  const wiredLinkCount = graph.links.filter((link) => link.state === "wired").length;
-  const erroredNodeCount = graph.nodes.filter((node) => node.state === "Error").length;
-  const isAllWell = runningNodeCount === nodeCount && wiredLinkCount === linkCount;
-  const nodesClause = isAllWell
-    ? `${countWord(nodeCount, "node", "nodes")} running`
-    : `${runningNodeCount.toLocaleString("en-US")} of ${countWord(nodeCount, "node", "nodes")} running`;
-  const linksClause =
-    linkCount === 0
-      ? null
-      : isAllWell
-        ? `${countWord(linkCount, "link", "links")} wired`
-        : `${wiredLinkCount.toLocaleString("en-US")} of ${countWord(linkCount, "link", "links")} wired`;
-  const errorClause = erroredNodeCount === 0 ? null : `${countWord(erroredNodeCount, "node", "nodes")} in error`;
-  return { nodesClause, linksClause, errorClause };
-}
-
-/** An output port a node draws: its name and, when the stream exposes it, its level. */
-export interface GraphNodeOutputPort {
-  port: string;
-  /** `private`, `public`, `internal`, a level newer than this app, or `null` when it is not exposed. */
-  exposureLevel: string | null;
-}
-
-/** The ports a node draws, derived from the links into and out of it and its exposed outputs. */
-export interface GraphNodePorts {
-  inputs: string[];
-  outputs: GraphNodeOutputPort[];
-}
-
-/**
- * Each node's ports, the graph listing no port inventory: inputs are the target ports of its incoming links, outputs
- * the source ports of its outgoing links then its exposed ports, each in order of first appearance. A link end in
- * another stream gets ports too.
- */
-export function portsOfGraphNodes(graph: StreamGraphSummary): Map<string, GraphNodePorts> {
-  const portsByNode = new Map<string, GraphNodePorts>();
-  const portsOf = (nodeName: string): GraphNodePorts => {
-    let ports = portsByNode.get(nodeName);
-    if (!ports) {
-      ports = { inputs: [], outputs: [] };
-      portsByNode.set(nodeName, ports);
-    }
-    return ports;
-  };
-  for (const node of graph.nodes) portsOf(node.name);
-  const levelOf = (nodeName: string, port: string): string | null =>
-    graph.exposed.find((exposedPort) => exposedPort.node === nodeName && exposedPort.port === port)?.level ?? null;
-  const addOutput = (nodeName: string, port: string) => {
-    const ports = portsOf(nodeName);
-    if (!ports.outputs.some((output) => output.port === port)) {
-      ports.outputs.push({ port, exposureLevel: levelOf(nodeName, port) });
-    }
-  };
-  for (const link of graph.links) {
-    const targetPorts = portsOf(link.target_node);
-    if (!targetPorts.inputs.includes(link.target_port)) targetPorts.inputs.push(link.target_port);
-    addOutput(link.source_node, link.source_port);
-  }
-  for (const exposedPort of graph.exposed) {
-    if (portsByNode.has(exposedPort.node)) addOutput(exposedPort.node, exposedPort.port);
-  }
-  return portsByNode;
-}
-
 /** Whether the Overview's steps are the loaded graph's, or the last graph this window read of a stream no longer loaded. */
 export type StreamStepsSource = "loaded" | "as_of_the_last_load";
 
@@ -168,7 +75,6 @@ export interface StreamStepRow {
   name: string;
   type: string;
   origin: "Built-in" | "Python" | null;
-  /** Where the step runs: a built-in in the runtime, a Python node in its own processor interpreter. */
   process: "in runtime" | "own process" | null;
   stateWord: string;
   stateEmphasis: StreamStepStateEmphasis;
@@ -176,11 +82,23 @@ export interface StreamStepRow {
   counters: StreamStepCounter[];
 }
 
-function sumOfCounts(countsByName: Record<string, number>): number {
+/** Where a step runs: a built-in in the runtime, a Python node in its own processor interpreter. */
+export type StreamStepProcess = "in_the_runtime" | "own_process";
+
+/** Where a step of `origin` runs; `null` for an origin this app cannot place. */
+export function stepProcessOf(origin: "Built-in" | "Python" | null): StreamStepProcess | null {
+  return origin === "Built-in" ? "in_the_runtime" : origin === "Python" ? "own_process" : null;
+}
+
+const STEPS_TABLE_PROCESS_WORDS = { in_the_runtime: "in runtime", own_process: "own process" } as const;
+
+/** The total of a `{ name: count }` counter object, such as a node's `dropped_bags_by_link`. */
+export function totalOfCounts(countsByName: Record<string, number>): number {
   return Object.values(countsByName).reduce((total, count) => total + count, 0);
 }
 
-function stepState(processorState: string | null): Pick<StreamStepRow, "stateWord" | "stateEmphasis"> {
+/** A step's state word as the runtime's processor state reads in the window: Running, Starting, In error, or a newer state's own word. */
+export function presentStepState(processorState: string | null): Pick<StreamStepRow, "stateWord" | "stateEmphasis"> {
   switch (processorState) {
     case null:
     case "Running":
@@ -213,11 +131,12 @@ export function presentStreamSteps(
     .sort((first, second) => pipelinePlace(first.name) - pipelinePlace(second.name))
     .map((node) => {
       const origin = presentNodeKind(node.type);
+      const stepProcess = stepProcessOf(origin);
       const counters: StreamStepCounter[] =
         stepsSource === "loaded"
           ? [
-              { count: sumOfCounts(node.dropped_bags_by_link), word: "dropped" as const },
-              { count: sumOfCounts(node.refused_bags_by_output_port), word: "refused" as const },
+              { count: totalOfCounts(node.dropped_bags_by_link), word: "dropped" as const },
+              { count: totalOfCounts(node.refused_bags_by_output_port), word: "refused" as const },
             ]
               .filter((counter) => counter.count > 0)
               .map((counter) => ({ countText: counter.count.toLocaleString("en-US"), word: counter.word }))
@@ -226,9 +145,9 @@ export function presentStreamSteps(
         name: node.name,
         type: node.type,
         origin,
-        process: origin === "Built-in" ? "in runtime" : origin === "Python" ? "own process" : null,
+        process: stepProcess === null ? null : STEPS_TABLE_PROCESS_WORDS[stepProcess],
         ...(stepsSource === "loaded"
-          ? stepState(node.state)
+          ? presentStepState(node.state)
           : isLoadedNow
             ? { stateWord: "Starting", stateEmphasis: "starting" as const }
             : { stateWord: "Not loaded", stateEmphasis: "quiet" as const }),

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createMockTatolabBackend, readMockTatolabOptions } from "../backend/mock_tatolab_backend";
 import type { TatolabBackend } from "../backend/tatolab_backend";
 import type { TatolabStatus, TatolabStreamActionName } from "../backend/tatolab_backend_contract";
+import type { TatolabFrontendFeatureFlags } from "../feature_flags";
 import { mountTatolabWindow } from "./tatolab_window_view";
 
 afterEach(() => {
@@ -16,7 +17,11 @@ afterEach(() => {
 });
 
 /** The real window over the mock backend opened with `pageQuery`, mounted the way `main.ts` mounts it. */
-async function mountedWindowOverTheMock(pageQuery: string, backendChanges: Partial<TatolabBackend> = {}) {
+async function mountedWindowOverTheMock(
+  pageQuery: string,
+  backendChanges: Partial<TatolabBackend> = {},
+  featureFlags: TatolabFrontendFeatureFlags = { watchExposedOutput: false },
+) {
   const backend: TatolabBackend = { ...createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams(pageQuery))), ...backendChanges };
   const rootElement = document.createElement("div");
   document.body.append(rootElement);
@@ -24,7 +29,7 @@ async function mountedWindowOverTheMock(pageQuery: string, backendChanges: Parti
   await backend.onTatolabStatusChanged((status) => showTatolabStatus?.(status));
   const firstStatus = await backend.getTatolabStatus();
   await act(async () => {
-    showTatolabStatus = mountTatolabWindow(rootElement, backend, firstStatus.platform, { watchExposedOutput: false });
+    showTatolabStatus = mountTatolabWindow(rootElement, backend, firstStatus.platform, featureFlags);
     showTatolabStatus(firstStatus);
   });
   const showStatusAsTheBackendWould = (status: TatolabStatus) => act(() => showTatolabStatus?.(status));
@@ -292,7 +297,7 @@ describe("a stream's page", () => {
     expect(openedProjects).toEqual(["camera"]);
   });
 
-  it("focuses the log filter with ⌘F, from Overview by way of Graph, and on Logs where it is", async () => {
+  it("focuses the log filter with ⌘F, from Overview by way of Logs, and on Logs where it is", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("main");
     await waitFor(() => expect(document.querySelector("[data-stream-step]")).not.toBeNull());
@@ -301,11 +306,9 @@ describe("a stream's page", () => {
 
     pressCommandF();
 
-    await waitFor(() => expect(document.querySelector("[data-stream-page-header] [data-stream-tab='graph']")?.getAttribute("aria-current")).toBe("page"));
+    await waitFor(() => expect(document.querySelector("[data-stream-page-header] [data-stream-tab='logs']")?.getAttribute("aria-current")).toBe("page"));
     await waitFor(() => expect(focusedLogFilter()).toBe(true));
 
-    fireEvent.click(screen.getByRole("link", { name: "Logs" }));
-    await waitFor(() => expect(document.querySelector("[data-stream-page-header] [data-stream-tab='logs']")?.getAttribute("aria-current")).toBe("page"));
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     pressCommandF();
 
@@ -313,3 +316,181 @@ describe("a stream's page", () => {
     expect(document.querySelector("[data-stream-page-header] [data-stream-tab='logs']")?.getAttribute("aria-current")).toBe("page");
   });
 });
+
+/** `streamName`'s Graph tab, opened from its page's header, once its step cards show. */
+async function openTheGraphOf(streamName: string): Promise<void> {
+  await openTheStreamPageOf(streamName);
+  fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Graph" })));
+  await waitFor(() => expect(document.querySelectorAll("[data-stream-graph-step]").length).toBeGreaterThan(0));
+}
+
+function stepCardOf(stepName: string): HTMLElement {
+  const stepCard = document.querySelector<HTMLElement>(`[data-stream-graph-step="${stepName}"]`);
+  if (stepCard === null) return expect.unreachable(`no card for ${stepName}`);
+  return stepCard;
+}
+
+function outputPortOf(stepName: string, portName: string): HTMLElement {
+  const outputPort = stepCardOf(stepName).querySelector<HTMLElement>(`[data-step-output-port="${portName}"]`);
+  if (outputPort === null) return expect.unreachable(`no output ${portName} on ${stepName}`);
+  return outputPort;
+}
+
+describe("a stream's Graph tab", () => {
+  it("draws every step the graph reports with its ports and state, and no counters while nothing dropped", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheGraphOf("main");
+
+    await waitFor(() => expect(stepCardOf("testpatternsource").textContent).toContain("Running"));
+    const stepNames = [...document.querySelectorAll<HTMLElement>("[data-stream-graph-step]")].map((stepCard) => stepCard.dataset.streamGraphStep);
+    expect(stepNames).toEqual(["testpatternsource", "invertingeffect", "displaywindow", "brightnessmeter"]);
+    expect(stepCardOf("invertingeffect").querySelector("[data-step-input-port='video_from_upstream']")).not.toBeNull();
+    expect(outputPortOf("invertingeffect", "video_to_downstream")).toBeTruthy();
+    expect(within(stepCardOf("invertingeffect")).getByText("Python")).toBeTruthy();
+    expect(within(stepCardOf("testpatternsource")).getByText("Built-in")).toBeTruthy();
+    expect(document.querySelector("[data-stream-graph-page]")?.textContent).not.toMatch(/dropped|refused/);
+  });
+
+  it("shows what a step dropped in and refused in amber, and hides it with the counters toggle", async () => {
+    await mountedWindowOverTheMock("state=dropping");
+    await openTheGraphOf("main");
+
+    await waitFor(() => expect(stepCardOf("brightnessmeter").textContent).toMatch(/[\d,]+ dropped in/));
+    expect(stepCardOf("invertingeffect").textContent).toMatch(/[\d,]+ refused/);
+    expect(stepCardOf("testpatternsource").textContent).not.toMatch(/dropped|refused/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Counters" }));
+
+    expect(stepCardOf("brightnessmeter").textContent).not.toMatch(/dropped/);
+  });
+
+  it("previews an exposed output in its card, on hover and pinned, and says an internal one must be exposed", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheGraphOf("main");
+
+    await waitFor(() => expect(stepCardOf("invertingeffect").querySelector("iframe")).not.toBeNull());
+    expect(stepCardOf("testpatternsource").querySelector("iframe")).toBeNull();
+
+    fireEvent.mouseEnter(outputPortOf("invertingeffect", "video_to_downstream"));
+    const hoverPreview = await waitFor(() => {
+      const preview = document.querySelector<HTMLElement>("[data-stream-graph-hover-preview]");
+      if (preview === null) throw new Error("no hover preview yet");
+      return preview;
+    });
+    expect(hoverPreview.querySelector("iframe")).not.toBeNull();
+    expect(hoverPreview.textContent).toContain("jonathanf-macbook/main/invertingeffect/video_to_downstream");
+    const describedHoveredPort = () => document.getElementById(outputPortOf("invertingeffect", "video_to_downstream").getAttribute("aria-describedby") ?? "");
+    expect(describedHoveredPort()?.textContent).toBe("jonathanf-macbook/main/invertingeffect/video_to_downstreamThis machine");
+
+    fireEvent.click(outputPortOf("invertingeffect", "video_to_downstream"));
+
+    await waitFor(() => expect(document.querySelector("[data-pinned-output-preview='jonathanf-macbook/main/invertingeffect/video_to_downstream'] iframe")).not.toBeNull());
+    expect(outputPortOf("invertingeffect", "video_to_downstream").getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.mouseEnter(outputPortOf("testpatternsource", "video"));
+
+    await waitFor(() => expect(textOf("[data-stream-graph-hover-preview]")).toContain("Internal. Expose it to this machine or publicly to preview it."));
+    expect(document.getElementById(outputPortOf("testpatternsource", "video").getAttribute("aria-describedby") ?? "")?.textContent).toBe(
+      "Internal. Expose it to this machine or publicly to preview it.",
+    );
+    expect(document.querySelector("[data-stream-graph-hover-preview] iframe")).toBeNull();
+    fireEvent.click(outputPortOf("testpatternsource", "video"));
+    expect(document.querySelectorAll("[data-pinned-output-preview]")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Previews" }));
+
+    expect(stepCardOf("invertingeffect").querySelector("iframe")).toBeNull();
+  });
+
+  it("shows the selected step's type, origin, process, config and outputs, and the whole stream with nothing selected", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheGraphOf("main");
+    await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector='stream']")).not.toBeNull());
+    expect(textOf("[data-stream-graph-inspector]")).toContain("Nothing selected");
+
+    fireEvent.click(stepCardOf("testpatternsource"));
+
+    await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector='step']")).not.toBeNull());
+    const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+    expect(inspector.getByText("tatolab.stream:TestPatternSource")).toBeTruthy();
+    expect(inspector.getByText("Built-in")).toBeTruthy();
+    expect(inspector.getByText("In the runtime")).toBeTruthy();
+    expect(textOf("[data-stream-graph-step-config]")).toBe("width1280height720fps30");
+    expect(textOf("[data-stream-graph-output-exposure='video']")).toContain("Internal");
+    expect(stepCardOf("testpatternsource").dataset.selected).toBe("true");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector='stream']")).not.toBeNull());
+  });
+
+  it("opens with the output Search's Watch asked for pinned, with the Watch flag on", async () => {
+    await mountedWindowOverTheMock("state=running", {}, { watchExposedOutput: true });
+    await openTheStreamPageOf("main");
+    await waitFor(() => expect(document.querySelector("[data-stream-step]")).not.toBeNull());
+
+    fireEvent.keyDown(document, { key: "k", metaKey: true });
+    const searchInput = await waitFor(() => {
+      const input = document.querySelector<HTMLInputElement>(".search-overlay[open] .search-input");
+      if (input === null) throw new Error("no search yet");
+      return input;
+    });
+    fireEvent.input(searchInput, { target: { value: "watch jonathanf-macbook/main/invertingeffect" } });
+    fireEvent.keyDown(searchInput, { key: "Enter" });
+
+    await waitFor(() => expect(document.querySelector("[data-pinned-output-preview='jonathanf-macbook/main/invertingeffect/video_to_downstream']")).not.toBeNull());
+  });
+
+  it("waits for a restarted stream's new graph instead of drawing the last load's", async () => {
+    let areGraphReadsHeld = false;
+    const answeringBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running")));
+    await mountedWindowOverTheMock("state=running", {
+      describeStreamGraph: (streamName) => (areGraphReadsHeld ? new Promise(() => {}) : answeringBackend.describeStreamGraph(streamName)),
+    });
+    await openTheGraphOf("main");
+    // Stopping redirects Graph to Overview, which draws the page, its header included, anew.
+    const streamPageHeader = () => within(document.querySelector<HTMLElement>("[data-stream-page-header]") ?? document.body);
+    areGraphReadsHeld = true;
+
+    fireEvent.click(streamPageHeader().getByRole("button", { name: /Stop/ }));
+    fireEvent.click(await waitFor(() => streamPageHeader().getByRole("button", { name: /Start/ })));
+    fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Graph" })));
+
+    await waitFor(() => expect(textOf("[data-stream-graph-message]")).toBe("Reading its graph…"));
+    expect(document.querySelector("[data-stream-graph-step]")).toBeNull();
+  });
+
+  it("selects a step whose card has keyboard focus with Enter", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheGraphOf("main");
+    const cardsNode = await waitFor(() => {
+      const flowNode = document.querySelector<HTMLElement>(".react-flow__node[data-id='testpatternsource']");
+      if (flowNode === null) throw new Error("no flow node yet");
+      return flowNode;
+    });
+    expect(cardsNode.getAttribute("aria-label")).toBe("testpatternsource, Running, Built-in");
+    const cardsDescription = document.getElementById(cardsNode.getAttribute("aria-describedby") ?? "");
+    expect(cardsDescription?.textContent).toBe("Press Enter or Space to inspect this step. Escape selects nothing.");
+
+    cardsNode.focus();
+    fireEvent.keyDown(cardsNode, { key: "Enter" });
+
+    await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector='step']")).not.toBeNull());
+    expect(stepCardOf("testpatternsource").dataset.selected).toBe("true");
+  });
+
+  it("draws a link's source in another stream as a dimmed card that does not select", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheGraphOf("attached-demo");
+
+    const sourceInMain = await waitFor(() => stepCardOf("main/invertingeffect"));
+    expect(sourceInMain.dataset.inAnotherStream).toBe("true");
+    expect(sourceInMain.textContent).toContain("Another stream");
+    expect(stepCardOf("mp4writer").querySelector("[data-step-input-port='video']")).not.toBeNull();
+
+    fireEvent.click(sourceInMain);
+
+    expect(document.querySelector("[data-stream-graph-inspector='stream']")).not.toBeNull();
+  });
+});
+

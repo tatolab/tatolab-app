@@ -1,0 +1,19 @@
+/* React Flow under a stream's Graph tab, in the window's tokens. */
+.stream-graph-canvas {
+  --xy-background-color: var(--window);
+  --xy-edge-stroke: var(--fg-4);
+  --xy-minimap-background-color: var(--chrome);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--window) 62%, transparent);
+}
+.stream-graph-canvas .react-flow__node { cursor: default; }
+.stream-graph-canvas .react-flow__node:focus-visible { outline: none; }
+/* An outline, not a ring: a selected card's ring utility would cover a box-shadow drawn from this layer. */
+.stream-graph-canvas .react-flow__node:focus-visible .stream-graph-step-card { outline: 3px solid var(--ring); outline-offset: 1px; }
+.stream-graph-canvas .react-flow__minimap {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--chrome);
+}
+/* React Flow draws link labels in a layer under the cards; a link's failure and drops must read over them. */
+.stream-graph-canvas .react-flow__edgelabel-renderer { z-index: 1001; }

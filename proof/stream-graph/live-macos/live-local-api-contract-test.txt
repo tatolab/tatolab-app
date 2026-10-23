@@ -1,0 +1,9 @@
+
+ RUN  v5.0.3 ~/Repositories/tatolab/tatolab-app
+
+
+ Test Files  1 passed (1)
+      Tests  25 passed (25)
+   Start at  12:26:41
+   Duration  846ms (tests 91%, transform 7%, import 2%)
+

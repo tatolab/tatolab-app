@@ -4,7 +4,6 @@
 import type { TatolabBackend } from "../backend/tatolab_backend";
 import type { ListedStream, TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
 import { createElement } from "../dom";
-import type { TatolabFrontendFeatureFlags } from "../feature_flags";
 import { presentRuntimeStatus, type RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
 import { isStreamLoaded } from "../presentation/stream_presentation";
 import { chooseSelectedStreamName } from "../presentation/stream_selection";
@@ -12,16 +11,12 @@ import type { StreamGraphReadings } from "../stream_graph_readings";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "../window_visibility";
 import { createFirstStreamGuide } from "./first_stream_guide_view";
 import { createRuntimeStatePage, createStreamsNotListedPage } from "./runtime_state_page_view";
-import { StreamDetailView, type StreamDetailActions, type StreamWorkspaceTab } from "./stream_detail_view";
-import type { GraphOutputPortAddress } from "./stream_graph_view";
+import { StreamDetailView } from "./stream_detail_view";
 import type { TatolabWindowPage } from "./tatolab_window_page";
 
 type StreamsPageBodyKind = "stream" | "first_stream_guide" | "runtime_state" | "streams_not_listed";
 
-/**
- * The selected stream's graph canvas and log, under the stream page's header; or the first-stream guide, or the page
- * saying why the runtime isn't running.
- */
+/** The selected stream's log, under the stream page's header; or the first-stream guide, or the page saying why the runtime isn't running. */
 export class StreamsPageView implements TatolabWindowPage {
   readonly element: HTMLElement;
   private readonly pageBody: HTMLElement;
@@ -32,7 +27,6 @@ export class StreamsPageView implements TatolabWindowPage {
   private selectedStreamName: string | null = null;
   private listedStreams: ListedStream[] = [];
   private latestStatus: TatolabStatus | null = null;
-  private chosenTab: StreamWorkspaceTab = "graph";
   private runtimeLastAnsweredAt: Date | null = null;
   private isPageShown = false;
 
@@ -40,10 +34,8 @@ export class StreamsPageView implements TatolabWindowPage {
     private readonly backend: TatolabBackend,
     streamGraphReadings: StreamGraphReadings,
     platform: TatolabPlatform,
-    featureFlags: TatolabFrontendFeatureFlags,
-    streamDetailActions: StreamDetailActions,
   ) {
-    this.streamDetail = new StreamDetailView(backend, streamGraphReadings, platform, featureFlags, streamDetailActions);
+    this.streamDetail = new StreamDetailView(backend, streamGraphReadings, platform);
     this.pageBody = createElement("div", { class: "streams-page-body" });
     this.element = createElement("section", { class: "window-page streams-page", "aria-label": "Streams" }, [this.pageBody]);
     onTatolabWindowVisibilityChanged(() => this.updatePolling());
@@ -103,32 +95,14 @@ export class StreamsPageView implements TatolabWindowPage {
     return this.listedStreams[nextIndex]?.name ?? null;
   }
 
-  /** Shows `tab` of the selected stream's workspace; false when it is not loaded, so it has none. */
-  showTab(tab: StreamWorkspaceTab): boolean {
-    const selectedStream = this.selectedStream();
-    if (this.shownBodyKind !== "stream" || selectedStream === null || !isStreamLoaded(selectedStream)) return false;
-    this.chosenTab = tab;
-    this.streamDetail.showTab(tab);
-    return true;
-  }
-
-  /** Focuses the selected stream's log filter; false when no log dock applies. */
+  /** Focuses the selected stream's log filter; false when it has no log. */
   focusLogFilter(): boolean {
-    const selectedStream = this.selectedStream();
-    if (this.shownBodyKind !== "stream" || selectedStream === null || !isStreamLoaded(selectedStream)) return false;
-    return this.streamDetail.focusLogFilter();
+    return this.isShowingALoadedStream() && this.streamDetail.focusLogFilter();
   }
 
-  /** Closes Watch; false when it wasn't open. */
-  closeWatch(): boolean {
-    return this.shownBodyKind === "stream" && this.streamDetail.closeWatch();
-  }
-
-  /** Opens Watch on `outputPort` of the selected stream, on its Graph tab; false when it has no Graph tab. */
-  watchOutput(outputPort: GraphOutputPortAddress, exposureLevel: string | null): boolean {
-    if (!this.showTab("graph")) return false;
-    this.streamDetail.showWatch(outputPort, exposureLevel);
-    return true;
+  /** Narrows the selected stream's log to its errors; false when it has no log. */
+  showLogErrorLinesOnly(): boolean {
+    return this.isShowingALoadedStream() && this.streamDetail.showErrorLinesOnly();
   }
 
   listedStreamsForSearch(): ListedStream[] {
@@ -143,10 +117,15 @@ export class StreamsPageView implements TatolabWindowPage {
     return this.latestStatus?.machine_name ?? null;
   }
 
+  private isShowingALoadedStream(): boolean {
+    const selectedStream = this.selectedStream();
+    return this.shownBodyKind === "stream" && selectedStream !== null && isStreamLoaded(selectedStream);
+  }
+
   private showSelectedStream(): void {
     const selectedStream = this.selectedStream();
     if (!selectedStream || this.shownBodyKind !== "stream") return;
-    this.streamDetail.showStream(selectedStream, this.latestStatus?.machine_name ?? null, this.chosenTab);
+    this.streamDetail.showStream(selectedStream);
   }
 
   private showBody(bodyKind: StreamsPageBodyKind, presentation: RuntimeDisplayPresentation): void {

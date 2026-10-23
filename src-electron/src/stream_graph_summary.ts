@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // A stream's graph as the window draws it, read from the runtime's `graph {stream}` tool: its
-// nodes by name with their type, state and drop counters, its links by id, node and port, the
+// nodes by name with their type, state, declared ports and drop counters, its links by id, node and port, the
 // ports it exposes with the preview page of each one readable outside it, and the tool's text
 // itself. Every other key the runtime renders stays only in that text.
 
 import type {
+  StreamGraphDeclaredPort,
   StreamGraphExposedPort,
   StreamGraphLink,
   StreamGraphNode,
@@ -17,6 +18,8 @@ import {
   everyOneRead,
   isAJsonObject,
   jsonObject,
+  objectOrEmpty,
+  type JsonObjectOnTheWire,
   optionalText,
   parseJsonOnTheWire,
   requiredText,
@@ -98,16 +101,40 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   if (!name.ok) return name;
   const nodeType = textOrDefault(node.value, "type", "");
   if (!nodeType.ok) return nodeType;
-  const components = node.value["components"] === undefined ? {} : node.value["components"];
-  if (!isAJsonObject(components)) return failedWith("`components` is not an object");
-  const state = components["state"];
-  const metrics = components["metrics"];
+  const components = objectOrEmpty(node.value, "components");
+  if (!components.ok) return components;
+  const state = components.value["state"];
+  const metrics = components.value["metrics"];
+  const ports = objectOrEmpty(node.value, "ports");
+  if (!ports.ok) return ports;
+  const inputPorts = declaredPortsUnder(ports.value, "inputs");
+  if (!inputPorts.ok) return inputPorts;
+  const outputPorts = declaredPortsUnder(ports.value, "outputs");
+  if (!outputPorts.ok) return outputPorts;
   return succeeded({
     name: name.value,
     type: nodeType.value,
     state: typeof state === "string" ? state : null,
+    input_ports: inputPorts.value,
+    output_ports: outputPorts.value,
     dropped_bags_by_link: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "dropped_bags_by_link"),
     refused_bags_by_output_port: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "refused_bags_by_output_port"),
+  });
+}
+
+/** The ports a node's `ports.<direction>` lists, each by name with its `catalog_entry.section` when it carries one. */
+function declaredPortsUnder(ports: JsonObjectOnTheWire, direction: "inputs" | "outputs"): Result<StreamGraphDeclaredPort[], string> {
+  const portsOnTheWire = arrayOrEmpty(ports, direction);
+  if (!portsOnTheWire.ok) return portsOnTheWire;
+  return everyOneRead(portsOnTheWire.value, (portOnTheWire) => {
+    const port = jsonObject(portOnTheWire, "a port");
+    if (!port.ok) return port;
+    const name = requiredText(port.value, "name");
+    if (!name.ok) return name;
+    const catalogEntry = port.value["catalog_entry"];
+    // A section only picks the port's icon, so one of another shape draws as data rather than refusing the graph.
+    const catalogSection = isAJsonObject(catalogEntry) ? catalogEntry["section"] : undefined;
+    return succeeded({ name: name.value, catalog_section: typeof catalogSection === "string" ? catalogSection : null });
   });
 }
 

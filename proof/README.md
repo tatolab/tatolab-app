@@ -2,6 +2,46 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## A stream's Graph on the new design (#38)
+
+Issue #38, in two labelled sets.
+
+**Live (local proof)** — [`stream-graph/live-macos/`](stream-graph/live-macos/). Captured on the owner's Mac (macOS 26.7.1).
+- **The app:** Electron 44.9.1 ran unpackaged from this branch, with `machineDirectoriesUnderATestRoot` switched on in its built copy only, and its home under `/tmp/proof38/home` (`CFFIXED_USER_HOME`). Its window opened at its default 1040×700; from image 02 on, the page's viewport was set to 1440×900 through the DevTools protocol (Electron's window cannot be resized over it), shot at 2×.
+- **The runtime:** the test-root `tatolabd` of streamlib main (0.55.1), built in a scratch worktree, ran by hand under `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof` with its loopback HTTP on 14446 and its relay on the machine's free 4443 and 4445. No launch agent was registered, and the installed app's runtime kept running (pid and agent unchanged before and after).
+- **The streams**, each a `tatolab new` sample (test pattern → halftone effect → H.264 exposed public, with a meter on a fan-out), kept:
+  - `front-door`, the sample as written;
+  - `dock-counter`, whose meter reads every frame `ordered` and sleeps 250 ms on each, so its link drops.
+- Playwright drove the window over the DevTools protocol. Beside the images, `*.tatolab-graph.json` is what the unit's `tatolab graph --stream` printed a moment later, and `live-local-api-contract-test.txt` is the live contract test run against this runtime's socket (25 passed, none skipped).
+
+| image | label | shows |
+|---|---|---|
+| ![](stream-graph/live-macos/01-front-door-graph.png) | Live (local proof) | `front-door`'s Graph at the default 1040×700: the canvas opens at 85% from the graph's left edge, `testpatternsource` and `halftonelenseffect` readable, the rest a pan away; the inspector sums up the stream (4 · 2 in their own process, 3 links, 1 exposed, `h264encoder/encoded_video` Public). |
+| ![](stream-graph/live-macos/02-front-door-graph-wide.png) | Live (local proof) | At 1440×900 the whole graph fits: the four steps of `02-front-door-graph.tatolab-graph.json` with their declared ports and Running, `encoded_video` with the video icon its `catalog_entry.section` names and a globe for Public, and the runtime's preview page playing inside `h264encoder`'s card. |
+| ![](stream-graph/live-macos/03-front-door-h264encoder-selected.png) | Live (local proof) | `h264encoder` selected: its links in blue; the inspector plays its output with the address beneath, and gives Type `tatolab.stream:H264Encoder`, Built-in, In the runtime, Config None, Exposure Public, and its counters at 0. |
+| ![](stream-graph/live-macos/04-front-door-hover-exposed-output.png) | Live (local proof) | Hovering `encoded_video`: the preview opens beside the port playing the sample's bars and mascot, with `jonathanf-macbook/front-door/h264encoder/encod…`, Public and "Click the port to pin". The blue ring on `h264encoder`'s card is keyboard focus, left by the Escape that deselected it after image 03. |
+| ![](stream-graph/live-macos/05-front-door-pinned-and-internal-hover.png) | Live (local proof) | `encoded_video` pinned as a floating preview over the canvas, its port name in blue; hovering the internal `halftonelenseffect/video_to_downstream` says "Internal. Expose it to this machine or publicly to preview it." with no frame. |
+| ![](stream-graph/live-macos/06-dock-counter-dropping.png) | Live (local proof) | `dock-counter` with `brightnessmeter` selected: the link into it amber with "638 dropped", its card's foot "638 dropped in", and the inspector's counter `halftonelenseffect/video… dropped 638`. `06-dock-counter-dropping.tatolab-graph.json`, read a moment later, has its `dropped_bags_by_link` at 688. |
+| ![](stream-graph/live-macos/07-dock-counter-dropping-dark.png) | Live (local proof) | The same in dark, the count climbed to 905. |
+
+**Mock** — [`stream-graph/mock/`](stream-graph/mock/). Each frame from `npm run dev` presets in Chromium at 1440×900 (mock-10 at 1040×700), light and dark. Previews are the mock's stand-in drawn in the frame, not a runtime's.
+
+| image (light / dark) | preset | shows |
+|---|---|---|
+| `mock-01-macos-graph` | `stream=main&tab=graph` | The four steps of `main` with their ports, the effect's exposed output playing in its card, the stream summary in the inspector. |
+| `mock-02-macos-graph-step-selected` | `…&step=invertingeffect` | The selected step's links in blue; its inspector with preview, type, origin, process, config, exposure This machine and counters. |
+| `mock-03-macos-graph-dropping` | `state=dropping&…&step=brightnessmeter` | The meter's link amber with its count over the cards, "dropped in" and "refused" in amber in the card feet. |
+| `mock-04-macos-graph-hover-exposed-output` | `…&hover=invertingeffect.video_to_downstream` | The hover preview beside an exposed output. |
+| `mock-05-macos-graph-hover-internal-output` | `…&hover=testpatternsource.video` | An internal output's hover: expose it to preview it. |
+| `mock-06-macos-graph-pinned-preview` | `…&pin=invertingeffect.video_to_downstream` | A pinned floating preview. |
+| `mock-07-macos-graph-previews-and-counters-off` | `state=dropping&…&previews=off&counters=off` | Both toggles off: no card previews, no counters, the dropping link neutral. |
+| `mock-08-macos-graph-step-in-error` | `state=node-error&…&step=displaywindow` | A step in error: red card, the failed link red and wider with "This link failed" over the cards, and Show errors in the inspector. |
+| `mock-09-linux-graph-video-and-audio` | `platform=linux&stream=camera&tab=graph&step=microphonesource` | Linux chrome; a video and an audio output, each with its kind's icon and level. |
+| `mock-10-macos-graph-at-the-default-window-size` | `state=dropping&…&step=invertingeffect`, 1040×700 | The opening view at the readable 85% floor. |
+| `mock-11-macos-graph-source-in-another-stream` | `stream=attached-demo&tab=graph` | `mp4writer` reading `main/invertingeffect`, a dashed, dimmed card marked Another stream. |
+| `mock-12-macos-graph-keyboard-focus` | `…&focus=invertingeffect` | A card holding keyboard focus: a 3 px ring outline around it, nothing selected. |
+| `mock-13-macos-graph-keyboard-focus-selected` | `…&step=invertingeffect&focus=invertingeffect` | The same card selected too: the focus outline stays over the selection's border and its links in blue. |
+
 ## A stream's Overview and Inspect on the new design (#37)
 
 Issue #37, in three labelled sets.

@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { Check, ChevronDown, Copy, Globe, Laptop, LoaderCircle, Lock, Play, RotateCw, SquareX, TriangleAlert, Video, Workflow } from "lucide-react";
+import { Check, ChevronDown, Copy, LoaderCircle, Play, RotateCw, SquareX, TriangleAlert, Video, Workflow } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import type { ListedStream, StreamGraphExposedPort } from "../backend/tatolab_backend_contract";
@@ -9,7 +9,6 @@ import {
   choosePreviewedOutput,
   droppingLinksOf,
   exposedOutputAddress,
-  presentExposureLevel,
   presentStreamSteps,
   previewableOutputsOf,
   readableExposedPorts,
@@ -17,30 +16,20 @@ import {
   streamStepsCountLabel,
   type StreamStepRow,
 } from "../presentation/stream_overview_presentation";
+import { presentStreamGraphCanvas } from "../presentation/stream_graph_canvas_presentation";
+import { stepNamesInFlowOrder } from "../presentation/stream_graph_step_layout";
 import { abbreviateHomeDirectory, isStreamLoaded, presentStreamPrimaryAction, presentStreamRunMode, streamNotLoadedReason } from "../presentation/stream_presentation";
 import type { StreamGraphReading } from "../stream_graph_readings";
 import { Button } from "./shadcn/button";
 import { joinClassNames } from "./shadcn/class_names";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./shadcn/dropdown_menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./shadcn/tooltip";
-import { graphNodesInFlowOrder, layOutStreamGraph } from "./stream_graph_layout";
-import type { GraphOutputPortAddress } from "./stream_graph_view";
 import { useCopiedConfirmation } from "./copied_confirmation";
-import { previewedOutputAskedBy, streamPagePath } from "./stream_page_path";
+import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
+import { ExposureLevelWords } from "./exposure_level_words";
+import { previewedOutputAskedBy, streamPagePath, type GraphOutputPortAddress } from "./stream_page_path";
 import type { StreamPageActions } from "./stream_page_header_view";
 import { useStreamGraphReading, useTatolabStatus } from "./tatolab_window_context";
-
-/** The output's level beside its lock, laptop or globe, its meaning in a tooltip. */
-function ExposureLevelWords({ level, className }: { level: string; className?: string }) {
-  const exposureLevel = presentExposureLevel(level);
-  const LevelIcon = exposureLevel.icon === "public" ? Globe : exposureLevel.icon === "this_machine" ? Laptop : exposureLevel.icon === "internal" ? Lock : null;
-  return (
-    <span className={joinClassNames("inline-flex items-center gap-1 text-fg-2", className)} title={exposureLevel.meaning ?? undefined}>
-      {LevelIcon !== null && <LevelIcon className="size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden />}
-      {exposureLevel.label}
-    </span>
-  );
-}
 
 /** The red row a failed stream carries: the runtime's reason in its own words, and Retry. */
 function FailedStreamBanner({ stream, streamPageActions }: { stream: ListedStream; streamPageActions: StreamPageActions }) {
@@ -198,15 +187,10 @@ function StreamOutputPreview({
         <PreviewedOutputPicker previewableOutputs={previewableOutputs} previewedOutput={previewedOutput} onOutputChosen={setChosenOutput} />
         <ExposureLevelWords level={previewedOutput.level} className="text-xs" />
       </div>
-      {/* The runtime's preview page, on its loopback origin: the window's content security policy frames that one origin. */}
-      <iframe
-        key={previewedOutput.watch_page_url}
-        src={previewedOutput.watch_page_url}
-        title={`Preview of ${address.fullAddress}`}
-        sandbox="allow-scripts allow-same-origin"
-        allow="autoplay; fullscreen"
-        referrerPolicy="no-referrer"
-        className="block aspect-video max-h-[52vh] w-full rounded-md bg-black ring-1 ring-line"
+      <ExposedOutputWatchPageFrame
+        watchPageUrl={previewedOutput.watch_page_url}
+        fullAddress={address.fullAddress}
+        className="aspect-video max-h-[52vh] w-full rounded-md"
       />
       <div className="mt-1.5 flex h-5 items-center text-xs">
         <span className="min-w-0 truncate font-mono text-fg-3 select-text" title={address.fullAddress}>
@@ -234,15 +218,7 @@ function StepStateWords({ step }: { step: StreamStepRow }) {
 
 function StreamStepsSection({ stream, reading }: { stream: ListedStream; reading: StreamGraphReading }) {
   const graph = reading.graph;
-  const nodeNamesInPipelineOrder = useMemo(
-    () =>
-      graph === null
-        ? []
-        : graphNodesInFlowOrder(layOutStreamGraph(graph, null))
-            .filter((layoutNode) => layoutNode.isInThisStream)
-            .map((layoutNode) => layoutNode.name),
-    [graph],
-  );
+  const nodeNamesInPipelineOrder = useMemo(() => (graph === null ? [] : stepNamesInFlowOrder(presentStreamGraphCanvas(graph))), [graph]);
   const isLoaded = isStreamLoaded(stream);
   const steps = graph === null ? [] : presentStreamSteps(graph, nodeNamesInPipelineOrder, reading.graphSource, isLoaded);
   return (
