@@ -75,7 +75,7 @@ export interface StreamStepRow {
   name: string;
   type: string;
   origin: "Built-in" | "Python" | null;
-  process: StreamStepProcessWords | null;
+  process: "in runtime" | "own process" | null;
   stateWord: string;
   stateEmphasis: StreamStepStateEmphasis;
   /** Only counters above zero, and none for a graph from the last load. */
@@ -83,12 +83,14 @@ export interface StreamStepRow {
 }
 
 /** Where a step runs: a built-in in the runtime, a Python node in its own processor interpreter. */
-export type StreamStepProcessWords = "In the runtime" | "Own process";
+export type StreamStepProcess = "in_the_runtime" | "own_process";
 
-/** Where a step of `origin` runs, in the words the steps table and the graph's inspector use; `null` for an origin this app cannot place. */
-export function presentStepProcess(origin: "Built-in" | "Python" | null): StreamStepProcessWords | null {
-  return origin === "Built-in" ? "In the runtime" : origin === "Python" ? "Own process" : null;
+/** Where a step of `origin` runs; `null` for an origin this app cannot place. */
+export function stepProcessOf(origin: "Built-in" | "Python" | null): StreamStepProcess | null {
+  return origin === "Built-in" ? "in_the_runtime" : origin === "Python" ? "own_process" : null;
 }
+
+const STEPS_TABLE_PROCESS_WORDS = { in_the_runtime: "in runtime", own_process: "own process" } as const;
 
 /** The total of a `{ name: count }` counter object, such as a node's `dropped_bags_by_link`. */
 export function totalOfCounts(countsByName: Record<string, number>): number {
@@ -129,6 +131,7 @@ export function presentStreamSteps(
     .sort((first, second) => pipelinePlace(first.name) - pipelinePlace(second.name))
     .map((node) => {
       const origin = presentNodeKind(node.type);
+      const stepProcess = stepProcessOf(origin);
       const counters: StreamStepCounter[] =
         stepsSource === "loaded"
           ? [
@@ -142,7 +145,7 @@ export function presentStreamSteps(
         name: node.name,
         type: node.type,
         origin,
-        process: presentStepProcess(origin),
+        process: stepProcess === null ? null : STEPS_TABLE_PROCESS_WORDS[stepProcess],
         ...(stepsSource === "loaded"
           ? presentStepState(node.state)
           : isLoadedNow

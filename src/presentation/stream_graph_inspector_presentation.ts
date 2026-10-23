@@ -3,7 +3,9 @@
 
 import { previewedOutputOf, type StreamGraphCanvas, type StreamGraphPreviewedOutput, type StreamGraphStepCard, type StreamGraphStepOutputPort } from "./stream_graph_canvas_presentation";
 import type { GraphDocumentValue } from "./stream_graph_document_presentation";
-import { presentStepProcess, type StreamStepProcessWords } from "./stream_overview_presentation";
+import { stepProcessOf } from "./stream_overview_presentation";
+
+const INSPECTOR_PROCESS_WORDS = { in_the_runtime: "In the runtime", own_process: "Own process" } as const;
 
 /** One key of a step's config and its value as the graph document wrote it, a number keeping every digit. */
 export interface StreamGraphConfigRow {
@@ -26,7 +28,7 @@ export interface StreamGraphStepInspection {
   linksInCount: number;
   linksOutCount: number;
   /** Where it runs, as the Overview's steps table words it: a built-in in the runtime, a Python node in its own processor interpreter. */
-  processWords: StreamStepProcessWords | null;
+  processWords: (typeof INSPECTOR_PROCESS_WORDS)[keyof typeof INSPECTOR_PROCESS_WORDS] | null;
   /** Its outputs with a preview page, the first previewed unless another is chosen. */
   previewableOutputs: StreamGraphPreviewedOutput[];
   /** Why the inspector previews nothing; `null` when it has an output to preview. */
@@ -106,6 +108,7 @@ export function presentStreamGraphInspection(
     };
   }
   const linksIn = canvas.links.filter((link) => link.targetStepName === selectedStep.name);
+  const selectedStepProcess = stepProcessOf(selectedStep.origin);
   const linksOutCount = canvas.links.filter((link) => link.sourceStepName === selectedStep.name).length;
   const previewableOutputs = selectedStep.outputPorts.flatMap((output) => previewedOutputOf(output) ?? []);
   return {
@@ -113,7 +116,7 @@ export function presentStreamGraphInspection(
     step: selectedStep,
     linksInCount: linksIn.length,
     linksOutCount,
-    processWords: presentStepProcess(selectedStep.origin),
+    processWords: selectedStepProcess === null ? null : INSPECTOR_PROCESS_WORDS[selectedStepProcess],
     previewableOutputs,
     previewAbsenceWords:
       previewableOutputs.length > 0

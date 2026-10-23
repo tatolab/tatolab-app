@@ -206,8 +206,8 @@ describe("a stream's page", () => {
     const stepRows = [...document.querySelectorAll<HTMLElement>("[data-stream-step]")];
     expect(stepRows.map((stepRow) => stepRow.dataset.streamStep)).toEqual(["testpatternsource", "invertingeffect", "displaywindow", "brightnessmeter"]);
     expect(within(stepRows[1]).getByText("Python")).toBeTruthy();
-    expect(within(stepRows[1]).getByText("Own process")).toBeTruthy();
-    expect(within(stepRows[0]).getByText("In the runtime")).toBeTruthy();
+    expect(within(stepRows[1]).getByText("own process")).toBeTruthy();
+    expect(within(stepRows[0]).getByText("in runtime")).toBeTruthy();
     expect(within(stepRows[0]).getByText("Running")).toBeTruthy();
     expect(textOf("[data-stream-steps]")).toContain("in pipeline order");
     expect(document.querySelector("[data-dropping-links]")).toBeNull();
