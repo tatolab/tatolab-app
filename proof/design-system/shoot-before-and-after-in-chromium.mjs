@@ -31,7 +31,7 @@ const MOCK_PRESETS = [
   ["12-macos-streams-empty", "state=empty"],
   ["13-linux-logs-record-selected", "platform=linux&state=running&stream=main&tab=logs&record=problem"],
 ];
-/** This branch's frames of what only it has: keyboard focus at the ring token's strength, and the side panel dragged wider. */
+/** This branch's frames of what only it has: keyboard focus at the ring token's strength, a Logs toolbar wider than 960 px, and the side panel dragged wider. */
 const AFTER_ONLY_FRAMES = [
   [
     "14-macos-logs-levels-keyboard-focus",
