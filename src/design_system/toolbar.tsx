@@ -13,7 +13,7 @@ export function Toolbar({ label, children }: { label: string; children: ReactNod
     <div
       role="toolbar"
       aria-label={label}
-      className="@container relative flex min-h-10 shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b bg-window px-3 py-1.5"
+      className="@container relative flex min-h-10 shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b bg-window px-3 py-1"
     >
       {children}
     </div>

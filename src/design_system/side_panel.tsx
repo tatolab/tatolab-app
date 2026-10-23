@@ -62,10 +62,11 @@ export function SidePanel({
 } & ControlDataAttributes) {
   return (
     <aside aria-label={label} className="flex min-h-0 min-w-0 flex-1 flex-col" {...controlDataAttributes}>
-      <div className="flex min-h-10 shrink-0 items-center gap-2 border-b py-1.5 pr-1.5 pl-4">
+      {/* The tab toolbar's height, so the two hairlines meet across the separator. */}
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b pr-1.5 pl-4">
         <div className="min-w-0 flex-1">
           <h2 className="truncate font-medium text-fg">{title}</h2>
-          {subtitle !== undefined && <div className="truncate text-xs text-fg-3">{subtitle}</div>}
+          {subtitle !== undefined && <div className="truncate text-xs leading-4 text-fg-3">{subtitle}</div>}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {actions}

@@ -31,7 +31,7 @@ export function SearchField({
   inputRef?: Ref<HTMLInputElement>;
 } & ControlDataAttributes) {
   return (
-    <InputGroup className="h-7 w-56 min-w-24 shrink rounded-md border-line bg-window dark:bg-window has-[[data-slot=input-group-control]:focus-visible]:border-line-strong has-[[data-slot=input-group-control]:focus-visible]:ring-ring">
+    <InputGroup className="h-7 w-auto max-w-56 min-w-40 flex-1 basis-40 rounded-md border-line bg-window dark:bg-window has-[[data-slot=input-group-control]:focus-visible]:border-line-strong has-[[data-slot=input-group-control]:focus-visible]:ring-ring">
       <InputGroupAddon className="py-0 pl-2 text-fg-3">
         <Search className="size-3.5" strokeWidth={1.75} aria-hidden />
       </InputGroupAddon>
