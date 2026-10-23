@@ -2,6 +2,63 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## The window on React, Tailwind and shadcn: the shell and the Streams list (#36)
+
+Issue #36, at the branch's final commit, in three labelled sets. Each image is the window at its default 1040×700.
+
+**Live (local proof)** — [`react-window/live-macos/`](react-window/live-macos/). The owner's Mac (macOS 26.7.1). Electron 44.9.1 ran unpackaged, with `machineDirectoriesUnderATestRoot` switched on in its built copy only. tatolabd 0.45.6, the test-root unit, ran by hand under `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, so no launch agent was registered and the installed app's runtime kept running. Four test-pattern streams:
+- `main` and `test-pattern`, kept;
+- `lobby-recorder`, failed after its `.venv` was removed and the runtime restarted;
+- `dev-session`, attached to a `tatolab run` in the background.
+
+Playwright drove the window. Beside each image, `<image>.tatolab-streams.txt` is what the unit's `tatolab streams` printed at that moment.
+
+| image | label | shows |
+|---|---|---|
+| ![](react-window/live-macos/01-streams-light.png) | Live (local proof) | The shell and the Streams list, light. "3 of 4 loaded on jonathanf-macbook". `dev-session` Running / Dev session; `lobby-recorder` Failed in red with "it did not re-load at the runtime's start:…" beneath; `main` and `test-pattern` Running / Always on, 4 steps. These match `tatolab streams`. |
+| ![](react-window/live-macos/02-streams-dark.png) | Live (local proof) | The same list after the title bar's theme toggle: dark. |
+| ![](react-window/live-macos/03-stopping-test-pattern.png) | Live (local proof) | Stop clicked on `test-pattern`: its row reads "Stopping…" with a spinner while the runtime answers. |
+| ![](react-window/live-macos/04-test-pattern-stopped.png) | Live (local proof) | `test-pattern` Stopped (dimmed), steps "—", Start offered. `tatolab streams` reads `stopped -`. |
+| ![](react-window/live-macos/05-test-pattern-started-again.png) | Live (local proof) | Start clicked: Running again with 4 steps (`kept 4`). |
+| ![](react-window/live-macos/06-lobby-recorder-retry-refused.png) | Live (local proof) | Retry on `lobby-recorder`. Under its row, "Retry was refused:" then the runtime's own words: "Invalid configuration: the kept stream `lobby-recorder` was not loaded: its interpreter …/.venv/bin/python is gone; run `uv sync` in …". Its `failed_because` now begins "`start` retried it". |
+| ![](react-window/live-macos/07-lobby-recorder-retried-after-uv-sync.png) | Live (local proof) | After `uv sync` in its project, Retry loads it: Running, 4 steps (`kept 4`). |
+| ![](react-window/live-macos/08-dev-session-stopped-and-gone.png) | Live (local proof) | Stop on the Dev session: the runtime unloads it, its `tatolab run` exits, and its row is gone (`tatolab streams` lists three). |
+| ![](react-window/live-macos/09-remove-main-asks-first.png) | Live (local proof) | Remove… on `main` asks first: "Remove main?", that the runtime unloads and forgets it, and that its project folder stays. |
+| ![](react-window/live-macos/10-main-removed.png) | Live (local proof) | After Remove, `main` is gone from the list and from `tatolab streams`. |
+| ![](react-window/live-macos/11-test-pattern-stream-page.png) | Live (local proof) | `test-pattern`'s row opens its page: the hosted stream view's band, graph and log dock, restyled onto the new tokens. |
+| ![](react-window/live-macos/12-macos-native-window-light.png) | Live (local proof) | The real window captured with `screencapture -l`. The traffic lights sit level with the 44 px title bar, inset 8 px. |
+| ![](react-window/live-macos/12-macos-native-window-dark.png) | Live (local proof) | The same, dark. |
+
+**Linux (container, unbundled)** — [`react-window/linux-container/`](react-window/linux-container/). The recipe there runs the committed tree in `ubuntu:22.04` on the Mac (arm64): Electron 44.9.1 unpackaged, under Xvfb with openbox and stalonetray. **No runtime ran.** The `systemctl` stand-in from `electron-window/linux-stand-ins/` started the **stand-in local API**, which replays responses recorded from tatolabd 0.45.6 (`src-electron/test-fixtures/`), including stop, start and remove.
+
+| image | label | shows |
+|---|---|---|
+| ![](react-window/linux-container/linux-01-streams-light.png) | Linux (container, unbundled) · stand-in runtime | openbox's title bar, the stand-in machine `linux-container-stand-in`, Ctrl K in Search, the tray mark top right. `main` Running, `pattern-two` Stopped, `lobby-recorder` Failed with its reason. |
+| ![](react-window/linux-container/linux-02-streams-dark.png) | Linux (container, unbundled) · stand-in runtime | The same in dark. |
+| ![](react-window/linux-container/linux-03-main-stopped.png) | Linux (container, unbundled) · stand-in runtime | Stop on `main`: Stopped, "None of 3 loaded". |
+| ![](react-window/linux-container/linux-04-pattern-two-started-lobby-recorder-retry-refused.png) | Linux (container, unbundled) · stand-in runtime | Start on `pattern-two` (Running, 4 steps), and Retry on `lobby-recorder`, refused in the recorded words under "Retry was refused:". |
+
+**Mock** — [`react-window/mock/`](react-window/mock/). Every screen, each in light and dark, from `npm run dev` presets in Chromium.
+
+| image (light / dark) | preset | shows |
+|---|---|---|
+| `mock-01-macos-streams` | `state=running` | The list with each state: Running, Dev session, Stopped, Failed. |
+| `mock-02-macos-no-streams-yet` | `state=empty` | The empty state: Tato, "No streams on jonathanf-macbook yet", the two Add stream choices, `tatolab dev` with Copy. |
+| `mock-03-macos-a-stream-starting` | `state=loading` | `main` Starting with a spinner, steps "—". |
+| `mock-04-macos-retry-refused` | `stream_action=start_stream:lobby-recorder` | A refused Retry, in the runtime's words under its row. |
+| `mock-05-macos-stop-not-recorded` | `stop_not_recorded=camera&stream_action=stop_stream:camera` | A stop the runtime could not record: `camera` Stopped, with "Stopped, but not recorded, so it loads again when the runtime restarts:" in warn-text, then the runtime's reason. |
+| `mock-06-macos-remove-asks-first` | `remove=pattern-two` | The Remove confirmation. |
+| `mock-07-macos-stream-graph-and-logs` | `stream=main` | A stream's page, hosted: graph and logs. |
+| `mock-08-macos-settings` | `page=settings` | Settings, hosted. |
+| `mock-09-macos-add-stream-guide` | `page=add-stream` | What every Add stream control opens until #40: the first-stream guide. |
+| `mock-10-macos-runtime-off` | `state=stopped` | Tatolab is off; the status bar reads "Runtime stopped". |
+| `mock-11-macos-first-launch-setup` | `state=setup` | First-launch setup fills the window. |
+| `mock-12-macos-search` | `search=main` | ⌘K Search over the list. |
+| `mock-13-macos-uninstall-sheet` | `sheet=uninstall` | The uninstall sheet over Settings. |
+| `mock-14-macos-runtime-not-responding` | `state=unreachable` | The runtime not responding; the status bar reads "Runtime not responding" in danger-text. |
+| `mock-15-linux-streams` | `platform=linux` | Linux chrome: no traffic-light strip, Ctrl K. |
+| `mock-16-linux-install-the-runtime` | `platform=linux&state=setup` | The Linux installer page. |
+
 ## Updating the app from a local feed (Linux container; tatolabd stand-in)
 
 Issue #25. `scripts/build-tatolab-linux-app.sh --local-proof-test-root --app-update-feed-url
