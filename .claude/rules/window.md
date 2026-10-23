@@ -7,7 +7,8 @@ paths:
 
 # The window (frontend)
 
-- **The design source is `proof/design-final/FINAL-SPEC.md` (calm-native) and
+- **The design source is `docs/design`** — `DESIGN.md` for the rules, tokens, words and layout,
+  the prototype for every screen, its storyboard frames for citing one — **and
   `src/styles/tokens.css`.** State is written as words, not dots; stopped streams are dimmed; only
   a failure is red, with its reason. A visual change that departs from the spec is the owner's
   call — bring it, don't drift into it.
@@ -19,10 +20,11 @@ paths:
   selected and dimmed rows. Check it when you touch a colour or a state.
 - **Both platforms' chrome.** The window renders in Electron's Chromium on both platforms, under
   different chrome (`platform_presentation.ts`). A layout change is looked at for both.
-- **No framework, no runtime dependencies beyond what `package.json` has.** Views are plain DOM
-  modules (`src/views/`), presentation is pure functions (`src/presentation/`) with vitest tests,
-  and the backend is the `TatolabBackend` contract with an Electron and a mock implementation
-  (`src/backend/`). Extend those layers; never add a parallel one.
+- **The window is React, Tailwind v4 and shadcn (base-ui)** (owner, #36). Views are React
+  components in `src/views/`, beside the DOM pages it still hosts until their tickets rebuild them;
+  presentation is pure functions (`src/presentation/`) with vitest tests; and the backend is the
+  `TatolabBackend` contract with an Electron and a mock implementation (`src/backend/`). Extend
+  those layers; never add a parallel one. A package the window bundles follows `dependencies.md`.
 - **Runtime-supplied text** (stream names, node names, log records, refusals) reaches the DOM only
   through `textContent`, never `innerHTML`.
 - **The mock backend is how hard states are shown, never how behaviour is decided.** The mock

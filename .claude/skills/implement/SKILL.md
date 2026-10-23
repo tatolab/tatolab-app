@@ -10,7 +10,7 @@ disable-model-invocation: false
    newer than the body; conflicts resolve toward the comment) — and, when it depends on what the
    runtime serves, that contract from streamlib's plan at `main` as `CLAUDE.md` gives (never a
    local checkout's branch).
-   Read `proof/design-final/FINAL-SPEC.md` when the issue touches the window.
+   Read `docs/design/DESIGN.md` and the frames the issue cites when it touches the window.
 2. **Ultracode gate**: an issue whose body opens with **Run with ultracode** is built only in a run
    that has ultracode on — a system-reminder confirms it when the owner's message carries the
    keyword (`/implement <N> ultracode`) or the session has it on. Without it, **stop** before any

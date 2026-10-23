@@ -16,7 +16,7 @@ Sweep these surfaces:
 2. **Runtime-contract drift.** Anything here that contradicts the local API contract in
    streamlib's plan (read from streamlib's `main`) — and any app behaviour that needs a runtime
    contract the plan does not state.
-3. **Proof drift.** `proof/` captions and `FINAL-SPEC.md` describing a window, a state or a flow the
+3. **Proof drift.** `proof/` captions and `docs/design` describing a window, a state or a flow the
    code no longer has; screenshots of retired features presented as current.
 4. **References to deleted machinery.** Mentions of removed features (the retired output-port tap and frame
    exchange), deleted files, or dead vocabulary in code comments, rules, skills, agents, hooks, the
