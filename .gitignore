@@ -4,6 +4,9 @@ build/
 *.dmg
 .DS_Store
 
+# A streamlib runtime's per-project cache, written when a stream runs with this folder as its project
+.streamlib/
+
 # Infisical project link (per-developer)
 .infisical.json
 .infisical.yaml
