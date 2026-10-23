@@ -100,12 +100,13 @@ function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { stream:
         <ChevronRight className="size-3" strokeWidth={1.75} aria-hidden />
         <span className="truncate text-fg-2">{stream.name}</span>
       </div>
-      <div className="mt-1.5 flex min-w-0 items-center gap-4">
-        <h1 className="title-lg min-w-0 shrink truncate select-text">{stream.name}</h1>
-        <div className="flex min-w-0 items-center gap-4">
+      {/* The actions wrap under the name when a narrow window has no room for both on one line. */}
+      <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+        <h1 className="title-lg max-w-full min-w-0 truncate select-text">{stream.name}</h1>
+        <div className="flex min-w-0 items-center gap-4 whitespace-nowrap">
           <StreamStateWord stream={stream} isAfterAStopNotRecorded={outcome?.kind === "notice"} />
           <StreamRunModeWord stream={stream} />
-          <span className="truncate font-mono text-xs text-fg-3 select-text" title={stream.project_directory}>
+          <span className="max-w-[280px] truncate font-mono text-xs text-fg-3 select-text" title={stream.project_directory}>
             {abbreviateHomeDirectory(stream.project_directory)}
           </span>
         </div>

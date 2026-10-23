@@ -119,7 +119,7 @@ function PreviewedOutputPicker({
 /** A well in place of the preview, saying why there is none. */
 function NothingToPreview({ title, explanation, action }: { title: string; explanation: ReactNode; action?: ReactNode }) {
   return (
-    <div className="grid aspect-video max-h-[360px] w-full place-items-center rounded-md bg-well ring-1 ring-line" data-nothing-to-preview="">
+    <div className="grid aspect-video max-h-[min(360px,52vh)] w-full place-items-center rounded-md bg-well ring-1 ring-line" data-nothing-to-preview="">
       <div className="flex max-w-sm flex-col items-center gap-1 px-6 text-center">
         <div className="text-fg-2">{title}</div>
         <div className="text-xs text-fg-3">{explanation}</div>
@@ -204,7 +204,7 @@ function StreamOutputPreview({
         sandbox="allow-scripts allow-same-origin"
         allow="autoplay; fullscreen"
         referrerPolicy="no-referrer"
-        className="block aspect-video w-full rounded-md bg-black ring-1 ring-line"
+        className="block aspect-video max-h-[52vh] w-full rounded-md bg-black ring-1 ring-line"
       />
       <div className="mt-1.5 flex h-5 items-center text-xs">
         <span className="min-w-0 truncate font-mono text-fg-3 select-text" title={address.fullAddress}>
@@ -370,7 +370,11 @@ function StreamDetailsPanel({ stream, reading }: { stream: ListedStream; reading
   ];
   const previewableOutputs = graph === null ? [] : previewableOutputsOf(graph);
   return (
-    <aside aria-label={`${stream.name} details`} className="w-80 shrink-0 border-l bg-chrome py-1" data-stream-details="">
+    <aside
+      aria-label={`${stream.name} details`}
+      className="grid shrink-0 grid-cols-1 border-t bg-chrome py-1 sm:grid-cols-3 xl:block xl:w-80 xl:border-t-0 xl:border-l"
+      data-stream-details=""
+    >
       <DetailsPanelGroup label="Details">
         <dl className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-1.5 px-2 pt-0.5 pb-1">
           {detailRows.map(([term, description]) => (
@@ -417,7 +421,8 @@ export function StreamOverviewPageView({ stream, streamPageActions }: { stream: 
   return (
     <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto" data-stream-overview="">
       {stream.state === "failed" && <FailedStreamBanner stream={stream} streamPageActions={streamPageActions} />}
-      <div className="flex min-h-0 flex-1">
+      {/* Below 1280 px the details sit under the Overview, so the steps table keeps room for its columns. */}
+      <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
         <div className="min-w-0 flex-1 px-5 pt-5 pb-8">
           <DroppingLinkLines stream={stream} reading={reading} />
           <StreamOutputPreview stream={stream} reading={reading} machineName={status.machine_name} streamPageActions={streamPageActions} />
