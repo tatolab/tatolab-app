@@ -8,8 +8,9 @@ Rust, TypeScript and shell source file carries, on its first two lines (after a 
     // Copyright (c) 2025 Jonathan Fontanez
     // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-(`#` in place of `//` for shell). The runtime the app bundles is streamlib's, BUSL-1.1, and keeps
-its own licence. Do not modify `LICENSE` without explicit approval.
+(`#` in place of `//` for shell). shadcn's generated components (`src/components/ui/`) keep their
+MIT form and carry no Tatolab header. The runtime the app bundles is streamlib's, BUSL-1.1, and
+keeps its own licence. Do not modify `LICENSE` without explicit approval.
 `scripts/check-license-headers.sh` enforces the header in PR CI.
 
 ---
@@ -123,7 +124,7 @@ attention spent on settled things is unavailable for real forks.
   never reshape code to satisfy a test. Unrelated issues surfaced by tsc or tests are reported,
   not fixed in passing.
 - Time is monotonic (`performance.now()`); wall-clock only for display.
-- Names pass the zero-context test: `TatolabStatusPublisher`, `stream_log_follower`, never
+- Names pass the zero-context test: `TatolabStatusPublisher`, `stream_log_readings`, never
   `Publisher`, `follower`, `state`, `ctx`. Explicit beats short.
 - **Tests run on the seams the tree already has** — the fake local API server, injected clocks
   and injected prompts — never a real runtime, a real administrator prompt, or a real `launchctl`

@@ -1,5 +1,8 @@
 # Comments
 
+shadcn's generated components in `src/components/ui/` keep shadcn's own comments. These rules
+govern the code that uses them, the design system included.
+
 Write a comment only when it carries information you can't get by reading the code. Default to none.
 
 ## Don't
