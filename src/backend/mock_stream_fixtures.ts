@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import type { ListedStream, StreamGraphSummary, StreamLogRecord, TatolabPlatform } from "./tatolab_backend_contract";
+import type { ListedStream, StreamGraphLink, StreamLogRecord, TatolabPlatform } from "./tatolab_backend_contract";
 
 /** A log record before the mock runtime numbers and stamps it. */
 export interface MockLogRecordDraft {
@@ -16,11 +16,42 @@ export interface MockLogRecordDraft {
 /** What a mock stream writes on one tick of the live log, given how long it has been loaded. */
 export type MockLiveLogWriter = (millisecondsSinceLoad: number) => MockLogRecordDraft[];
 
+/** A node of a mock stream's graph, as the runtime's `graph` names it, with the config it renders. */
+export interface MockGraphNode {
+  name: string;
+  type: string;
+  state: string;
+  config: Record<string, string | number | boolean>;
+}
+
+/** An output port a mock stream exposes, at `internal`, `private` or `public`. */
+export interface MockExposedPort {
+  node: string;
+  port: string;
+  level: string;
+}
+
+/** How fast a mock stream's counters climb while it runs: messages a link's target drops, and messages an output refuses, each second. */
+export interface MockCounterRates {
+  droppedPerSecondByLinkId: Record<string, number>;
+  refusedPerSecondByOutput: { node: string; port: string; perSecond: number }[];
+}
+
+/** A mock stream's graph as the runtime holds it; the mock renders the `graph` document and its summary from it. */
+export interface MockStreamGraph {
+  nodes: MockGraphNode[];
+  links: StreamGraphLink[];
+  exposed: MockExposedPort[];
+  counterRates: MockCounterRates;
+}
+
+const NO_COUNTERS_CLIMB: MockCounterRates = { droppedPerSecondByLinkId: {}, refusedPerSecondByOutput: [] };
+
 /** A stream the mock runtime loads, with its graph and the log it writes. */
 export interface MockStreamFixture {
   listing: ListedStream;
   /** The graph while loaded; its nodes start `Pending` and their links `pending` until the stream settles. */
-  graph: StreamGraphSummary;
+  graph: MockStreamGraph;
   startupLog: MockLogRecordDraft[];
   createLiveLogWriter: () => MockLiveLogWriter;
   /** How long it has been loaded when the window opens. */
@@ -111,23 +142,43 @@ function loadingLines(machine: MockMachine, streamName: string, projectDirectory
   ];
 }
 
-const TEST_PATTERN_NODES = [
-  { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running" },
-  { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running" },
-  { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running" },
-  { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running" },
+const TEST_PATTERN_NODES: MockGraphNode[] = [
+  { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running", config: { width: 1280, height: 720, fps: 30 } },
+  { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", config: {} },
+  { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running", config: { title: "Tatolab", scaling: "fit" } },
+  { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running", config: {} },
 ];
 
-const TEST_PATTERN_LINKS = [
-  { source_node: "testpatternsource", source_port: "video", target_node: "invertingeffect", target_port: "video_from_upstream", state: "wired" },
-  { source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "displaywindow", target_port: "video", state: "wired" },
-  { source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "brightnessmeter", target_port: "video_from_upstream", state: "wired" },
+const TEST_PATTERN_LINKS: StreamGraphLink[] = [
+  {
+    id: "Lj17fu4mdczivji99oua37i06",
+    source_node: "testpatternsource",
+    source_port: "video",
+    target_node: "invertingeffect",
+    target_port: "video_from_upstream",
+    state: "wired",
+  },
+  { id: "Lv5ujotcx5rnh9f4s6xewjot9", source_node: "invertingeffect", source_port: "video_to_downstream", target_node: "displaywindow", target_port: "video", state: "wired" },
+  {
+    id: "Lizkqmkmmu5ldam8dbymcc4bc",
+    source_node: "invertingeffect",
+    source_port: "video_to_downstream",
+    target_node: "brightnessmeter",
+    target_port: "video_from_upstream",
+    state: "wired",
+  },
 ];
+
+/** The test pattern's meter falling behind: its link drops frames and the effect's output refuses a few. */
+const TEST_PATTERN_METER_FALLING_BEHIND: MockCounterRates = {
+  droppedPerSecondByLinkId: { Lizkqmkmmu5ldam8dbymcc4bc: 9 },
+  refusedPerSecondByOutput: [{ node: "invertingeffect", port: "video_to_downstream", perSecond: 2 }],
+};
 
 /** `tatolab new --test-pattern`, run as `streamName`: the scaffold's four nodes, two of them Python. */
 function createTestPatternStream(
   machine: MockMachine,
-  options: { streamName: string; state: "kept" | "attached"; exposesItsEffect: boolean; withDisplayWindowInError: boolean },
+  options: { streamName: string; state: "kept" | "attached"; exposesItsEffect: boolean; withDisplayWindowInError: boolean; withTheMeterFallingBehind: boolean },
 ): MockStreamFixture {
   const projectDirectory = `${machine.homeDirectory}/streams/pattern`;
   const { streamName } = options;
@@ -142,7 +193,6 @@ function createTestPatternStream(
   return {
     listing: { name: streamName, state: options.state, project_directory: projectDirectory, node_count: 4, failed_because: null },
     graph: {
-      stream: streamName,
       nodes: TEST_PATTERN_NODES.map((node) =>
         options.withDisplayWindowInError && node.name === "displaywindow" ? { ...node, state: "Error" } : node,
       ),
@@ -150,6 +200,7 @@ function createTestPatternStream(
         options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link,
       ),
       exposed: options.exposesItsEffect ? [{ node: "invertingeffect", port: "video_to_downstream", level: "private" }] : [],
+      counterRates: options.withTheMeterFallingBehind ? TEST_PATTERN_METER_FALLING_BEHIND : NO_COUNTERS_CLIMB,
     },
     startupLog: [
       ...loadingLines(machine, streamName, projectDirectory),
@@ -210,21 +261,28 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
   return {
     listing: { name: "camera", state: "kept", project_directory: projectDirectory, node_count: 4, failed_because: null },
     graph: {
-      stream: "camera",
       nodes: [
-        { name: "camerasource", type: "tatolab.stream:CameraSource", state: "Running" },
-        { name: "microphonesource", type: "tatolab.stream:MicrophoneSource", state: "Running" },
-        { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running" },
-        { name: "levelmeter", type: "nodes.level_meter:LevelMeter", state: "Running" },
+        { name: "camerasource", type: "tatolab.stream:CameraSource", state: "Running", config: { device_id: "0", width: 1920, height: 1080 } },
+        { name: "microphonesource", type: "tatolab.stream:MicrophoneSource", state: "Running", config: { sample_rate: 48000 } },
+        { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running", config: { title: "Camera", scaling: "fit" } },
+        { name: "levelmeter", type: "nodes.level_meter:LevelMeter", state: "Running", config: {} },
       ],
       links: [
-        { source_node: "camerasource", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired" },
-        { source_node: "microphonesource", source_port: "audio", target_node: "levelmeter", target_port: "audio_from_upstream", state: "wired" },
+        { id: "Lc8m2w0d1k4q9s7f3x5v6b2nr", source_node: "camerasource", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired" },
+        {
+          id: "Lm4t7y1u3i9o0p2a5s8d6f1gh",
+          source_node: "microphonesource",
+          source_port: "audio",
+          target_node: "levelmeter",
+          target_port: "audio_from_upstream",
+          state: "wired",
+        },
       ],
       exposed: [
         { node: "camerasource", port: "video", level: "private" },
         { node: "microphonesource", port: "audio", level: "public" },
       ],
+      counterRates: NO_COUNTERS_CLIMB,
     },
     startupLog: [
       { millisecondsAfterLoad: 0, source: "rust", level: "info", target: LOADED_STREAM_TARGET, message: `Loading the stream \`camera\` from ${projectDirectory}` },
@@ -280,6 +338,8 @@ export interface MockStreamFixtures {
   machine: MockMachine;
   mainStream: MockStreamFixture;
   mainStreamWithDisplayWindowInError: MockStreamFixture;
+  /** `main` with its meter falling behind, so a link drops frames. */
+  mainStreamWithItsMeterFallingBehind: MockStreamFixture;
   cameraStream: MockStreamFixture;
   attachedDemoStream: MockStreamFixture;
   stoppedPatternTwo: ListedStream;
@@ -295,12 +355,26 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
   const machine = MOCK_MACHINES[platform];
   return {
     machine,
-    mainStream: createTestPatternStream(machine, { streamName: "main", state: "kept", exposesItsEffect: true, withDisplayWindowInError: false }),
+    mainStream: createTestPatternStream(machine, {
+      streamName: "main",
+      state: "kept",
+      exposesItsEffect: true,
+      withDisplayWindowInError: false,
+      withTheMeterFallingBehind: false,
+    }),
     mainStreamWithDisplayWindowInError: createTestPatternStream(machine, {
       streamName: "main",
       state: "kept",
       exposesItsEffect: true,
       withDisplayWindowInError: true,
+      withTheMeterFallingBehind: false,
+    }),
+    mainStreamWithItsMeterFallingBehind: createTestPatternStream(machine, {
+      streamName: "main",
+      state: "kept",
+      exposesItsEffect: true,
+      withDisplayWindowInError: false,
+      withTheMeterFallingBehind: true,
     }),
     cameraStream: createCameraStream(machine),
     attachedDemoStream: createTestPatternStream(machine, {
@@ -308,9 +382,16 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       state: "attached",
       exposesItsEffect: false,
       withDisplayWindowInError: false,
+      withTheMeterFallingBehind: false,
     }),
     stoppedPatternTwo: stoppedPatternTwoListing(machine),
-    patternTwoStream: createTestPatternStream(machine, { streamName: "pattern-two", state: "kept", exposesItsEffect: false, withDisplayWindowInError: false }),
+    patternTwoStream: createTestPatternStream(machine, {
+      streamName: "pattern-two",
+      state: "kept",
+      exposesItsEffect: false,
+      withDisplayWindowInError: false,
+      withTheMeterFallingBehind: false,
+    }),
     failedLobbyRecorder: failedLobbyRecorderListing(machine),
     listingOrder: ["main", "camera", "attached-demo", "pattern-two", "lobby-recorder"],
   };

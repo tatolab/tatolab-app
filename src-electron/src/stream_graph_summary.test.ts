@@ -4,38 +4,88 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
 import type { StreamGraphLink, StreamGraphNode } from "../../src/backend/tatolab_backend_contract.js";
-import { streamGraphSummaryFromTheGraphJson } from "./stream_graph_summary.js";
+import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 
-/** What a real runtime answered `GET /api/graph?stream=main` with, for a stream of a test pattern, an inverting effect, a brightness meter and a display window. */
+const RELEASE_ORIGIN = "http://127.0.0.1:4446";
+
+const summaryOfTheGraphToolResultAtTheReleaseOrigin = (requestedStream: string, graphText: string) =>
+  streamGraphSummaryFromTheGraphToolResult(requestedStream, graphText, RELEASE_ORIGIN);
+
+/** What a real runtime answered `GET /api/graph?stream=main` with, the same document its `graph {stream: "main"}` tool renders, for a stream of a test pattern, an inverting effect, a brightness meter and a display window. */
 const aRealGraphOfOneStream = () => readFile(new URL("../test-fixtures/local-api-graph-of-the-stream-main.json", import.meta.url), "utf8");
 
-function node(name: string, nodeType: string, state: string | null): StreamGraphNode {
-  return { name, type: nodeType, state };
+function node(
+  name: string,
+  nodeType: string,
+  state: string | null,
+  counters: Pick<StreamGraphNode, "dropped_bags_by_link" | "refused_bags_by_output_port"> = { dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+): StreamGraphNode {
+  return { name, type: nodeType, state, ...counters };
 }
 
-function link([sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
-  return { source_node: sourceNode, source_port: sourcePort, target_node: targetNode, target_port: targetPort, state };
+function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
+  return { id, source_node: sourceNode, source_port: sourcePort, target_node: targetNode, target_port: targetPort, state };
 }
 
-test("a_real_graph_reads_as_its_nodes_links_and_exposed_ports", async () => {
-  expect(streamGraphSummaryFromTheGraphJson("main", await aRealGraphOfOneStream())).toEqual({
+test("a_real_graph_reads_as_its_nodes_links_counters_and_exposed_ports_beside_its_own_text", async () => {
+  const graphText = await aRealGraphOfOneStream();
+
+  expect(summaryOfTheGraphToolResultAtTheReleaseOrigin("main", graphText)).toEqual({
     ok: true,
     value: {
       stream: "main",
       nodes: [
-        node("testpatternsource", "tatolab.stream:TestPatternSource", "Running"),
-        node("invertingeffect", "nodes.inverting_effect:InvertingEffect", "Running"),
-        node("brightnessmeter", "nodes.brightness_meter:BrightnessMeter", "Running"),
-        node("displaywindow", "tatolab.stream:DisplayWindow", "Running"),
+        node("testpatternsource", "tatolab.stream:TestPatternSource", "Running", { dropped_bags_by_link: {}, refused_bags_by_output_port: { video: 0 } }),
+        node("invertingeffect", "nodes.inverting_effect:InvertingEffect", "Running", {
+          dropped_bags_by_link: { Lj17fu4mdczivji99oua37i06: 0 },
+          refused_bags_by_output_port: { video_to_downstream: 0 },
+        }),
+        node("brightnessmeter", "nodes.brightness_meter:BrightnessMeter", "Running", {
+          dropped_bags_by_link: { Lizkqmkmmu5ldam8dbymcc4bc: 0 },
+          refused_bags_by_output_port: {},
+        }),
+        node("displaywindow", "tatolab.stream:DisplayWindow", "Running", { dropped_bags_by_link: { Lv5ujotcx5rnh9f4s6xewjot9: 0 }, refused_bags_by_output_port: {} }),
       ],
       links: [
-        link(["testpatternsource", "video"], ["invertingeffect", "video_from_upstream"], "wired"),
-        link(["invertingeffect", "video_to_downstream"], ["displaywindow", "video"], "wired"),
-        link(["invertingeffect", "video_to_downstream"], ["brightnessmeter", "video_from_upstream"], "wired"),
+        link("Lj17fu4mdczivji99oua37i06", ["testpatternsource", "video"], ["invertingeffect", "video_from_upstream"], "wired"),
+        link("Lv5ujotcx5rnh9f4s6xewjot9", ["invertingeffect", "video_to_downstream"], ["displaywindow", "video"], "wired"),
+        link("Lizkqmkmmu5ldam8dbymcc4bc", ["invertingeffect", "video_to_downstream"], ["brightnessmeter", "video_from_upstream"], "wired"),
       ],
-      exposed: [{ node: "invertingeffect", port: "video_to_downstream", level: "private" }],
+      exposed: [
+        {
+          node: "invertingeffect",
+          port: "video_to_downstream",
+          level: "private",
+          watch_page_url: "http://127.0.0.1:4446/watch/jonathanf-macbook/main/invertingeffect/video_to_downstream",
+        },
+      ],
+      graph_document_text: graphText,
     },
   });
+});
+
+test("an_internal_port_has_no_preview_page_and_a_graph_naming_no_machine_has_none", () => {
+  const exposedPorts = (graph: object) => {
+    const summary = summaryOfTheGraphToolResultAtTheReleaseOrigin("two words", JSON.stringify(graph));
+    return summary.ok ? summary.value.exposed.map((exposedPort) => exposedPort.watch_page_url) : expect.unreachable(summary.failure);
+  };
+  const exposed = [
+    { node: "encoder", port: "encoded_video", level: "public" },
+    { node: "effect", port: "video_to_downstream", level: "internal" },
+  ];
+
+  expect(exposedPorts({ machine: "desk", exposed })).toEqual(["http://127.0.0.1:4446/watch/desk/two%20words/encoder/encoded_video", null]);
+  expect(exposedPorts({ exposed })).toEqual([null, null]);
+});
+
+test("a_count_the_runtime_did_not_write_as_a_number_is_left_out", () => {
+  const graph = {
+    nodes: [{ name: "a", components: { metrics: { dropped_bags_by_link: { L1: 12, L2: "many", L3: -1 }, refused_bags_by_output_port: [] } } }],
+  };
+
+  const summary = summaryOfTheGraphToolResultAtTheReleaseOrigin("main", JSON.stringify(graph));
+
+  expect(summary.ok && summary.value.nodes[0]).toEqual(node("a", "", null, { dropped_bags_by_link: { L1: 12 }, refused_bags_by_output_port: {} }));
 });
 
 test("a_link_from_another_stream_names_its_source_by_that_stream", () => {
@@ -59,9 +109,9 @@ test("a_link_from_another_stream_names_its_source_by_that_stream", () => {
     machine: "jonathanf-macbook",
   };
 
-  const summary = streamGraphSummaryFromTheGraphJson("recorder", JSON.stringify(graph));
+  const summary = summaryOfTheGraphToolResultAtTheReleaseOrigin("recorder", JSON.stringify(graph));
 
-  expect(summary.ok && summary.value.links).toEqual([link(["camera/camerasource", "video"], ["mp4writer", "video"], "awaiting_remote")]);
+  expect(summary.ok && summary.value.links).toEqual([link("L1", ["camera/camerasource", "video"], ["mp4writer", "video"], "awaiting_remote")]);
 });
 
 test("a_graph_missing_its_optional_keys_or_carrying_unknown_ones_still_reads", () => {
@@ -75,26 +125,29 @@ test("a_graph_missing_its_optional_keys_or_carrying_unknown_ones_still_reads", (
     a_top_level_key_from_later: {},
   };
 
-  expect(streamGraphSummaryFromTheGraphJson("main", JSON.stringify(graph))).toEqual({
+  const graphText = JSON.stringify(graph);
+
+  expect(summaryOfTheGraphToolResultAtTheReleaseOrigin("main", graphText)).toEqual({
     ok: true,
     value: {
       stream: "main",
       nodes: [node("from-a-newer-runtime", "", null), node("a-state-of-another-type", "nodes.x:X", null)],
-      links: [link(["a", "out"], ["b", "in"], "pending")],
-      exposed: [{ node: "a", port: "out", level: "private" }],
+      links: [link("", ["a", "out"], ["b", "in"], "pending")],
+      exposed: [{ node: "a", port: "out", level: "private", watch_page_url: null }],
+      graph_document_text: graphText,
     },
   });
 });
 
 test("a_graph_that_is_not_json_is_refused_naming_the_stream", () => {
-  const summary = streamGraphSummaryFromTheGraphJson("main", "not json");
+  const summary = summaryOfTheGraphToolResultAtTheReleaseOrigin("main", "not json");
 
   expect(summary.ok).toBe(false);
   expect(!summary.ok && summary.failure).toContain("`main`");
 });
 
 test("a graph whose node names no name is refused naming the stream", () => {
-  const summary = streamGraphSummaryFromTheGraphJson("main", JSON.stringify({ nodes: [{ type: "nodes.x:X" }] }));
+  const summary = summaryOfTheGraphToolResultAtTheReleaseOrigin("main", JSON.stringify({ nodes: [{ type: "nodes.x:X" }] }));
 
   expect(!summary.ok && summary.failure).toBe("the runtime's graph of `main` could not be read: missing field `name`");
 });

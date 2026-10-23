@@ -21,23 +21,24 @@ function listedStream(name: string, state: string, nodeCount: number | null, pro
 }
 
 function wiredLink(source: string, sourcePort: string, target: string, targetPort: string, state = "wired"): StreamGraphLink {
-  return { source_node: source, source_port: sourcePort, target_node: target, target_port: targetPort, state };
+  return { id: "L1", source_node: source, source_port: sourcePort, target_node: target, target_port: targetPort, state };
 }
 
 const TEST_PATTERN_GRAPH: StreamGraphSummary = {
   stream: "main",
   nodes: [
-    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running" },
-    { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running" },
-    { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running" },
-    { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running" },
+    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
   ],
   links: [
     wiredLink("testpatternsource", "video", "invertingeffect", "video_from_upstream"),
     wiredLink("invertingeffect", "video_to_downstream", "displaywindow", "video"),
     wiredLink("invertingeffect", "video_to_downstream", "brightnessmeter", "video_from_upstream"),
   ],
-  exposed: [{ node: "invertingeffect", port: "video_to_downstream", level: "private" }],
+  exposed: [{ node: "invertingeffect", port: "video_to_downstream", level: "private", watch_page_url: null }],
+  graph_document_text: "",
 };
 
 function storyText(stream: ListedStream): string {
@@ -151,7 +152,7 @@ describe("readableExposedPorts", () => {
   it("leaves out ports exposed at internal", () => {
     const graph = {
       ...TEST_PATTERN_GRAPH,
-      exposed: [...TEST_PATTERN_GRAPH.exposed, { node: "testpatternsource", port: "video", level: "internal" }],
+      exposed: [...TEST_PATTERN_GRAPH.exposed, { node: "testpatternsource", port: "video", level: "internal", watch_page_url: null }],
     };
     expect(readableExposedPorts(graph).map((exposedPort) => exposedPort.port)).toEqual(["video_to_downstream"]);
   });
@@ -194,7 +195,7 @@ describe("summarizeGraphHealth", () => {
 
   it("drops the links clause when there are no links, and reads a node with no state as running", () => {
     expect(
-      summarizeGraphHealth({ stream: "s", nodes: [{ name: "a", type: "t", state: null }], links: [], exposed: [] }),
+      summarizeGraphHealth({ stream: "s", nodes: [{ name: "a", type: "t", state: null, dropped_bags_by_link: {}, refused_bags_by_output_port: {} }], links: [], exposed: [], graph_document_text: "" }),
     ).toEqual({ nodesClause: "1 node running", linksClause: null, errorClause: null });
   });
 });
@@ -213,9 +214,10 @@ describe("portsOfGraphNodes", () => {
   it("adds an exposed port no link uses, and gives a link end in another stream its ports", () => {
     const ports = portsOfGraphNodes({
       stream: "viewer",
-      nodes: [{ name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running" }],
+      nodes: [{ name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} }],
       links: [wiredLink("camerasource", "video", "displaywindow", "video")],
-      exposed: [{ node: "displaywindow", port: "presented", level: "public" }],
+      exposed: [{ node: "displaywindow", port: "presented", level: "public", watch_page_url: null }],
+      graph_document_text: "",
     });
     expect(ports.get("displaywindow")?.outputs).toEqual([{ port: "presented", exposureLevel: "public" }]);
     expect(ports.get("camerasource")).toEqual({ inputs: [], outputs: [{ port: "video", exposureLevel: null }] });
@@ -232,11 +234,12 @@ describe("outputToSuggestExposing", () => {
       outputToSuggestExposing({
         stream: "s",
         nodes: [
-          { name: "a", type: "t", state: null },
-          { name: "b", type: "t", state: null },
+          { name: "a", type: "t", state: null, dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+          { name: "b", type: "t", state: null, dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
         ],
         links: [wiredLink("elsewhere", "out", "a", "in"), wiredLink("a", "out", "b", "in")],
         exposed: [],
+        graph_document_text: "",
       }),
     ).toEqual({ node: "a", port: "out" });
     expect(outputToSuggestExposing({ ...TEST_PATTERN_GRAPH, links: [] })).toBeNull();

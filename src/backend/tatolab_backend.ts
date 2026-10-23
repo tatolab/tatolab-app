@@ -26,6 +26,10 @@ export interface TatolabBackend {
   checkForTatolabAppUpdates(): Promise<void>;
   /** Stop, start (or retry) or remove `streamName`, resolving with the runtime's notice beside an action it carried out (a stop it could not record) or `null`, and rejecting with its refusal; the new listing arrives as the next status. */
   runStreamAction(streamAction: TatolabStreamActionName, streamName: string): Promise<string | null>;
+  /** Show the project folder the runtime lists for `streamName` in the file manager, rejecting with why it could not. */
+  openStreamProjectFolder(streamName: string): Promise<void>;
+  /** Open a terminal in the project folder the runtime lists for `streamName`, rejecting with why it could not. */
+  openTerminalAtStreamProject(streamName: string): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
 }
 

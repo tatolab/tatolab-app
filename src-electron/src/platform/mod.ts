@@ -68,6 +68,16 @@ export interface TatolabPlatformForThisBuild {
   appUpdatePackaging: TatolabAppUpdatePackaging;
   /** The restart of the runtime the app's bundle carries; `null` where the app carries no runtime (Linux, whose installer installs it). */
   bundledRuntimeRestart: BundledRuntimeRestart | null;
+  /** The desktop's terminal, which the window's Terminal opens on a stream's project folder. */
+  terminalOpenedInAFolder: TerminalOpenedInAFolder;
+  /** Where the runtime this build reads serves its loopback HTTP and the preview page under `/watch/`. */
+  runtimeLoopbackHttpOrigin: string;
+}
+
+/** The desktop's terminal: Terminal.app on macOS, `x-terminal-emulator` on Linux. */
+export interface TerminalOpenedInAFolder {
+  /** Open a terminal window whose shell starts in `folder`, an existing folder; refused in words when none opened. */
+  openTerminalIn(folder: string): Promise<Result<void, string>>;
 }
 
 /** What a platform takes from the app around it to build its items; Linux takes only whether the app is packaged. */

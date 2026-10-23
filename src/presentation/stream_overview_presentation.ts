@@ -150,7 +150,7 @@ export function exposedOutputAddress(
 }
 
 /** The exposed outputs other streams and tools may read: every one not exposed at `internal`. */
-export function readableExposedPorts(graph: StreamGraphSummary): StreamGraphExposedPort[] {
+export function readableExposedPorts(graph: Pick<StreamGraphSummary, "exposed">): StreamGraphExposedPort[] {
   return graph.exposed.filter((exposedPort) => exposedPort.level !== "internal");
 }
 

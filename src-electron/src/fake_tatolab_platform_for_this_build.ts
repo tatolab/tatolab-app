@@ -6,7 +6,7 @@
 // shipped code.
 
 import type { MachineSetupState, RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
-import type { TatolabAppUpdatePackaging, TatolabPlatformForThisBuild, TatolabUninstall } from "./platform/mod.js";
+import type { TatolabAppUpdatePackaging, TatolabPlatformForThisBuild, TatolabUninstall, TerminalOpenedInAFolder } from "./platform/mod.js";
 import type { BundledRuntimeRestart, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import type {
   MachineSetupAdministratorPromptOutcome,
@@ -91,6 +91,20 @@ const FAKE_TATOLAB_UNINSTALL_REFUSING: TatolabUninstall = {
   uninstallTatolab: async () => failedWith("this fake platform uninstalls nothing"),
 };
 
+/** A terminal that records each folder it was opened in. */
+export class FakeTerminalOpenedInAFolder implements TerminalOpenedInAFolder {
+  readonly openedInFolders: string[] = [];
+  answer: Result<void, string> = succeeded(undefined);
+
+  async openTerminalIn(folder: string): Promise<Result<void, string>> {
+    this.openedInFolders.push(folder);
+    return this.answer;
+  }
+}
+
+/** The loopback HTTP origin of the fakes' runtime: a release runtime's. */
+export const FAKE_RUNTIME_LOOPBACK_HTTP_ORIGIN = "http://127.0.0.1:4446";
+
 /** How the fakes' app updates unless a test says otherwise: as an unpackaged app, which offers none. */
 const FAKE_APP_UPDATE_PACKAGING_NOT_OFFERED: TatolabAppUpdatePackaging = { kind: "not_offered", reason: "this fake platform updates nothing" };
 
@@ -102,6 +116,16 @@ export function fakeTatolabPlatformForThisBuild(
   tatolabUninstall: TatolabUninstall = FAKE_TATOLAB_UNINSTALL_REFUSING,
   appUpdatePackaging: TatolabAppUpdatePackaging = FAKE_APP_UPDATE_PACKAGING_NOT_OFFERED,
   bundledRuntimeRestart: BundledRuntimeRestart | null = runtimeAgent,
+  terminalOpenedInAFolder: TerminalOpenedInAFolder = new FakeTerminalOpenedInAFolder(),
 ): TatolabPlatformForThisBuild {
-  return { runtimeAgent, machineSetup, localApiSocket, tatolabUninstall, appUpdatePackaging, bundledRuntimeRestart };
+  return {
+    runtimeAgent,
+    machineSetup,
+    localApiSocket,
+    tatolabUninstall,
+    appUpdatePackaging,
+    bundledRuntimeRestart,
+    terminalOpenedInAFolder,
+    runtimeLoopbackHttpOrigin: FAKE_RUNTIME_LOOPBACK_HTTP_ORIGIN,
+  };
 }

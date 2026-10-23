@@ -16,6 +16,7 @@ import {
   setUpTatolabOnRequest,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
+import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 
 /** How long `get_tatolab_status` waits for the poller's first round when the window asks first. */
 const FIRST_STATUS_ROUND_WAIT_LIMIT_MS = 15_000;
@@ -83,6 +84,14 @@ export function runStreamAction(sharedState: TatolabAppSharedState, streamAction
     sharedState.statusPublisher.requestRefresh();
     return notice.ok ? notice : failedWith(notice.failure.failureDescription);
   });
+}
+
+/** `open_stream_project_folder` or `open_terminal_at_stream_project { stream }`: the project folder the runtime last listed for `stream`, opened as `opening` asks; refused naming why. */
+export function openStreamProjectFolderOnRequest(sharedState: TatolabAppSharedState, stream: string, opening: StreamProjectFolderOpening): Promise<Result<void, string>> {
+  const commandName = opening === "file_manager" ? "open_stream_project_folder" : "open_terminal_at_stream_project";
+  return answerTheWindow(commandName, () =>
+    openStreamProjectFolder(sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? null, stream, opening, sharedState.streamProjectFolderOpeners),
+  );
 }
 
 /** `set_run_tatolab`'s arguments as the window sends them, or why they are not. */
@@ -160,6 +169,16 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     },
     start_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "start_stream", commandArguments)),
     remove_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "remove_stream", commandArguments)),
+    open_stream_project_folder: async (commandArguments) => {
+      const streamArguments = streamArgumentsFrom("open_stream_project_folder", commandArguments);
+      if (!streamArguments.ok) return { ok: false, refusal: streamArguments.failure };
+      return commandAnswerOfNothingFrom(await openStreamProjectFolderOnRequest(sharedState, streamArguments.value.stream, "file_manager"));
+    },
+    open_terminal_at_stream_project: async (commandArguments) => {
+      const streamArguments = streamArgumentsFrom("open_terminal_at_stream_project", commandArguments);
+      if (!streamArguments.ok) return { ok: false, refusal: streamArguments.failure };
+      return commandAnswerOfNothingFrom(await openStreamProjectFolderOnRequest(sharedState, streamArguments.value.stream, "terminal"));
+    },
   };
 }
 

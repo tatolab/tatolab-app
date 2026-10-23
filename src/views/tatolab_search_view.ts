@@ -193,7 +193,7 @@ export class TatolabSearchView {
     }
     const readableOutputs: { streamName: string; exposedPort: StreamGraphExposedPort }[] = [];
     for (const stream of listedStreams) {
-      for (const exposedPort of readableExposedPorts({ stream: stream.name, nodes: [], links: [], exposed: this.exposedPortsByStream.get(stream.name) ?? [] })) {
+      for (const exposedPort of readableExposedPorts({ exposed: this.exposedPortsByStream.get(stream.name) ?? [] })) {
         readableOutputs.push({ streamName: stream.name, exposedPort });
       }
     }

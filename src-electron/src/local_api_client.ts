@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
-// local API's Unix socket. `GET /health` says the runtime is up, the MCP tools `list_streams` and
-// `logs` over `POST /mcp` list its streams and read one's log records, `stop_stream`,
-// `start_stream` and `remove_stream` act on one, and `GET /api/graph` names the machine and draws
-// one stream's graph.
+// local API's Unix socket. `GET /health` says the runtime is up, the MCP tools `list_streams`,
+// `logs` and `graph` over `POST /mcp` list its streams, read one's log records and draw one's
+// graph, `stop_stream`, `start_stream` and `remove_stream` act on one, and `GET /api/graph` names
+// the machine.
 //
 // The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
 // `mcp.rs` serves rmcp's stateless Streamable HTTP with per-request protocol metadata
@@ -26,7 +26,7 @@ import {
   textOrDefault,
 } from "./json_on_the_wire.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
-import { streamGraphSummaryFromTheGraphJson } from "./stream_graph_summary.js";
+import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { streamLogRecordsPageFromTheLogsToolResult } from "./stream_log_records_page.js";
 
 /** The MCP protocol revision the runtime serves, and the only one. */
@@ -117,11 +117,6 @@ function durationAsTheTimeoutRefusalSpellsIt(durationMs: number): string {
   return durationMs % 1000 === 0 ? `${durationMs / 1000}s` : `${durationMs}ms`;
 }
 
-/** Every byte outside RFC 3986's unreserved set, percent-encoded into a query value. */
-export function percentEncodedQueryValue(queryValue: string): string {
-  return encodeURIComponent(queryValue).replace(/[!'()*]/g, (reservedCharacter) => `%${reservedCharacter.charCodeAt(0).toString(16).toUpperCase()}`);
-}
-
 /** A client of the local API served at one socket path. */
 export class LocalApiClient {
   /** A client of the local API at `localApiSocketPath`, giving up on a request that goes `requestTimeoutMs` without a byte, and naming itself in MCP requests as `appVersion`. */
@@ -173,11 +168,11 @@ export class LocalApiClient {
     return notice.ok ? notice : localApiRequestFailure(notice.failure);
   }
 
-  /** The graph of the loaded stream `stream`, from `GET /api/graph?stream=`. */
-  async describeStreamGraph(stream: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
-    const graphBody = await this.getBodyOfAnOkAnswer(`/api/graph?stream=${percentEncodedQueryValue(stream)}`);
-    if (!graphBody.ok) return graphBody;
-    const summary = streamGraphSummaryFromTheGraphJson(stream, graphBody.value.toString("utf8"));
+  /** The graph of the loaded stream `stream` from the runtime's `graph` tool, the text `tatolab graph --stream` prints, its readable outputs' preview pages at `runtimeLoopbackHttpOrigin`. */
+  async describeStreamGraph(stream: string, runtimeLoopbackHttpOrigin: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("graph", { stream });
+    if (!toolResultText.ok) return toolResultText;
+    const summary = streamGraphSummaryFromTheGraphToolResult(stream, toolResultText.value, runtimeLoopbackHttpOrigin);
     return summary.ok ? summary : localApiRequestFailure(summary.failure);
   }
 

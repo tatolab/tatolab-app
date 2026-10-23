@@ -17,11 +17,12 @@ const MAIN_STREAM: ListedStream = {
 const GRAPH: StreamGraphSummary = {
   stream: "main",
   nodes: [
-    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running" },
-    { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running" },
+    { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
+    { name: "displaywindow", type: "tatolab.stream:DisplayWindow", state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
   ],
-  links: [{ source_node: "testpatternsource", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired" }],
-  exposed: [{ node: "testpatternsource", port: "video", level: "private" }],
+  links: [{ id: "L1", source_node: "testpatternsource", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired" }],
+  exposed: [{ node: "testpatternsource", port: "video", level: "private", watch_page_url: null }],
+  graph_document_text: "",
 };
 
 function overviewOf(stream: ListedStream, graph: StreamGraphSummary | null, watchExposedOutput: boolean) {

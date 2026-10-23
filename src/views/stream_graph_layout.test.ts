@@ -6,15 +6,16 @@ import type { StreamGraphLink, StreamGraphSummary } from "../backend/tatolab_bac
 import { graphNodesInFlowOrder, layOutStreamGraph, measureNodeHeight } from "./stream_graph_layout";
 
 function wiredLink(sourceNode: string, targetNode: string, sourcePort = "video", targetPort = "video"): StreamGraphLink {
-  return { source_node: sourceNode, source_port: sourcePort, target_node: targetNode, target_port: targetPort, state: "wired" };
+  return { id: "L1", source_node: sourceNode, source_port: sourcePort, target_node: targetNode, target_port: targetPort, state: "wired" };
 }
 
 function graphOf(nodeNames: string[], links: StreamGraphLink[]): StreamGraphSummary {
   return {
     stream: "main",
-    nodes: nodeNames.map((name) => ({ name, type: `nodes:${name}`, state: "Running" })),
+    nodes: nodeNames.map((name) => ({ name, type: `nodes:${name}`, state: "Running", dropped_bags_by_link: {}, refused_bags_by_output_port: {} })),
     links,
     exposed: [],
+    graph_document_text: "",
   };
 }
 
@@ -116,7 +117,7 @@ describe("layOutStreamGraph", () => {
 
   it("gives an exposed output its level", () => {
     const layout = layOutStreamGraph(
-      { ...TEST_PATTERN_GRAPH, exposed: [{ node: "invertingeffect", port: "video_to_downstream", level: "private" }] },
+      { ...TEST_PATTERN_GRAPH, exposed: [{ node: "invertingeffect", port: "video_to_downstream", level: "private", watch_page_url: null }] },
       null,
     );
     const exposingNode = layout.nodes.find((node) => node.name === "invertingeffect");
@@ -126,7 +127,7 @@ describe("layOutStreamGraph", () => {
   it("makes room for the Watch eye on a readable output row only when asked", () => {
     const graph: StreamGraphSummary = {
       ...TEST_PATTERN_GRAPH,
-      exposed: [{ node: "invertingeffect", port: "video_to_downstream", level: "private" }],
+      exposed: [{ node: "invertingeffect", port: "video_to_downstream", level: "private", watch_page_url: null }],
     };
     const widthOf = (layoutOptions: { reservesWatchIconOnReadableOutputs?: boolean }) =>
       layOutStreamGraph(graph, null, layoutOptions).nodes.find((node) => node.name === "invertingeffect")!.width;

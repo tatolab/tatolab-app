@@ -227,31 +227,32 @@ test("a_log_read_the_runtime_refuses_carries_its_own_words", async () => {
   expect(failureOf(await server.client().readStreamLogRecords("nope", 0, 500)).failureDescription).toBe(refusal);
 });
 
-test("describing_a_stream_graph_names_the_stream_percent_encoded", async () => {
-  const graph = {
-    stream: "two words&more",
-    nodes: [{ id: "P1", type: "tatolab.stream:TestPatternSource", name: "testpatternsource", components: { state: "Running" } }],
-    links: [],
-    exposed: [],
-    machine: "jonathanf-macbook",
-  };
-  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", JSON.stringify(graph))]);
+/** The JSON-RPC response carrying `toolResultText` as the tool's one text block, exactly as written. */
+function toolResultResponseOfText(toolResultText: string, isError = false): Buffer {
+  const body = { jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: toolResultText }], isError } };
+  return httpResponse("200 OK", "application/json", JSON.stringify(body));
+}
 
-  const summary = answerOf(await server.client().describeStreamGraph("two words&more"));
+test("describing_a_stream_graph_calls_the_graph_tool_and_keeps_its_text_as_the_runtime_wrote_it", async () => {
+  const graphText = await recordedResponseBody("local-api-graph-of-the-stream-main.json");
+  const server = await fakeLocalApiServerAnswering([toolResultResponseOfText(graphText)]);
 
-  expect(summary.stream).toBe("two words&more");
-  expect(summary.nodes[0]?.state).toBe("Running");
-  expect(server.receivedRequests()[0]?.startsWith("GET /api/graph?stream=two%20words%26more HTTP/1.1\r\n"), server.receivedRequests()[0]).toBe(true);
+  const summary = answerOf(await server.client().describeStreamGraph("main", "http://127.0.0.1:4446"));
+
+  expect(summary.stream).toBe("main");
+  expect(summary.graph_document_text).toBe(graphText);
+  expect(summary.graph_document_text).toContain('"config_checksum": 15071898633716066277');
+  expect(summary.exposed[0]?.watch_page_url).toBe("http://127.0.0.1:4446/watch/jonathanf-macbook/main/invertingeffect/video_to_downstream");
+  const [head, body] = headAndBodyOf(server.receivedRequests()[0]);
+  expect(head).toContain("Mcp-Name: graph\r\n");
+  expect(JSON.parse(body).params.arguments).toEqual({ stream: "main" });
 });
 
 test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    httpResponse("404 Not Found", "application/json", '{"error":"Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main"}'),
-  ]);
+  const refusal = "graph failed: no stream named `nope` is loaded in this runtime";
+  const server = await fakeLocalApiServerAnswering([toolResultResponseOfText(refusal, true)]);
 
-  expect(failureOf(await server.client().describeStreamGraph("nope")).failureDescription).toBe(
-    "Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main",
-  );
+  expect(failureOf(await server.client().describeStreamGraph("nope", "http://127.0.0.1:4446")).failureDescription).toBe(refusal);
 });
 
 test("a_stream_action_calls_the_runtimes_tool_of_the_same_name_with_the_stream", async () => {
@@ -331,7 +332,9 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_strea
   const streams = answerOf(await client.listStreams());
   expect(answerOf(await client.machineName())).not.toBe("");
   for (const loadedStream of streams.filter((listedStream) => listedStream.node_count !== null)) {
-    expect(answerOf(await client.describeStreamGraph(loadedStream.name)).stream).toBe(loadedStream.name);
+    const graph = answerOf(await client.describeStreamGraph(loadedStream.name, "http://127.0.0.1:4446"));
+    expect(graph.stream).toBe(loadedStream.name);
+    expect(graph.graph_document_text.startsWith("{\n")).toBe(true);
     expect(answerOf(await client.readStreamLogRecords(loadedStream.name, 0, 500)).stream).toBe(loadedStream.name);
   }
 

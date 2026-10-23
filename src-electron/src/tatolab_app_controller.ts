@@ -79,6 +79,7 @@ export class TatolabAppController {
     private readonly runTatolabSwitch: RunTatolabSwitch,
     private readonly machineSetup: TatolabMachineSetup,
     private readonly localApiClient: LocalApiClient,
+    private readonly runtimeLoopbackHttpOrigin: string,
     private readonly bundledRuntimeRestart: BundledRuntimeRestart | null,
     private readonly runtimeRestartedForAppVersionFile: RuntimeRestartedForAppVersionFile,
     private readonly readMonotonicClockMs: () => number,
@@ -100,6 +101,7 @@ export class TatolabAppController {
       runTatolabSwitch,
       sources.platformForThisBuild.machineSetup,
       new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS, sources.appVersion),
+      sources.platformForThisBuild.runtimeLoopbackHttpOrigin,
       sources.platformForThisBuild.bundledRuntimeRestart,
       RuntimeRestartedForAppVersionFile.inAppConfigDirectory(sources.appConfigDirectory),
       sources.readMonotonicClockMs,
@@ -293,9 +295,9 @@ export class TatolabAppController {
     return this.localApiClient.runStreamAction(streamAction, stream);
   }
 
-  /** The graph of the loaded stream `stream`. */
+  /** The graph of the loaded stream `stream`, its readable outputs' preview pages at the runtime's loopback HTTP. */
   describeStreamGraph(stream: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
-    return this.localApiClient.describeStreamGraph(stream);
+    return this.localApiClient.describeStreamGraph(stream, this.runtimeLoopbackHttpOrigin);
   }
 
   /** The runtime's streams, or `null` when listing failed, which is logged on the round it starts failing. */

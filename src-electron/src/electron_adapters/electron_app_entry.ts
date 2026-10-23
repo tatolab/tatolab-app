@@ -12,7 +12,9 @@ import { createTatolabAppLogToStandardError } from "../tatolab_app_log.js";
 import { TATOLAB_APP_BUILD_FEATURES } from "../tatolab_app_build_features.js";
 import { TATOLAB_APP_IDENTIFIER, tatolabPlatformItemsForThisBuild, type TatolabPlatformHostServices } from "../platform/mod.js";
 import { TATOLAB_WINDOW_PAGE_URL } from "../tatolab_window_page_source.js";
+import { runtimeLoopbackHttpOriginForThisBuild } from "../runtime_loopback_watch_page.js";
 import { electronApplicationMenu } from "./electron_application_menu.js";
+import { openAFolderInTheFileManagerThroughElectron } from "./electron_folder_in_the_file_manager.js";
 import { createElectronMainWindowHostFactory } from "./electron_main_window_host.js";
 import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_handlers.js";
 import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
@@ -56,7 +58,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   requestTheSingleInstanceLock: () => app.requestSingleInstanceLock(),
   whenReady: async () => {
     await app.whenReady();
-    if (windowDevServerUrl === null) await serveTheBuiltWindow(builtWindowDirectory, tatolabAppLog);
+    if (windowDevServerUrl === null) await serveTheBuiltWindow(builtWindowDirectory, runtimeLoopbackHttpOriginForThisBuild(), tatolabAppLog);
   },
   onTheAppOpenedAgain: (listener) => {
     app.on("second-instance", listener);
@@ -71,6 +73,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   setTheApplicationMenu: (applicationMenu) => Menu.setApplicationMenu(electronApplicationMenu(applicationMenu)),
   buildTheTatolabPlatformForThisBuild: (platformItems) => platformItems.tatolabPlatformForThisBuild(tatolabAppLog, tatolabPlatformHostServices),
   answerTheWindowsCommands: (tatolabWindowCommandHandlers) => answerTheWindowsCommandsOverIpc(windowPageUrl, tatolabWindowCommandHandlers, tatolabAppLog),
+  openAFolderInTheFileManager: openAFolderInTheFileManagerThroughElectron,
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
   createTheAppUpdateNotifier: createElectronTatolabAppUpdateNotifier,
   repeatingTimer: (intervalMs, work) => {
@@ -79,7 +82,13 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   appConfigDirectory: tatolabPlatformHostServices.appConfigDirectory,
   appVersion: app.getVersion(),
   readMonotonicClockMs: () => performance.now(),
-  mainWindowHostFactory: createElectronMainWindowHostFactory(windowPageUrl, builtWindowPreloadScript, !app.isPackaged, tatolabAppLog),
+  mainWindowHostFactory: createElectronMainWindowHostFactory(
+    windowPageUrl,
+    builtWindowPreloadScript,
+    runtimeLoopbackHttpOriginForThisBuild(),
+    !app.isPackaged,
+    tatolabAppLog,
+  ),
   trayIconHostFactory: createElectronTrayIconHostFactory(path.join(app.getAppPath(), "src-electron", "icons")),
   dockIconHost: {
     setActivationPolicy: (activationPolicy) => app.setActivationPolicy(activationPolicy),

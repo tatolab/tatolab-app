@@ -211,6 +211,11 @@ verify_app_bundle() {
         fail "LOCAL PROOF build (test machine root): never ship it"
       else
         echo "  note  LOCAL PROOF build: every machine directory lives under TATOLAB_TEST_MACHINE_ROOT"
+        # The app reads the proof runtime's preview page at its test loopback HTTP port, which plays through its test relay.
+        for local_proof_port in TATOLAB_TEST_LOCAL_RELAY_LOOPBACK_PORT=14443 TATOLAB_TEST_LOCAL_RELAY_EVERY_INTERFACE_PORT=14445 TATOLAB_TEST_LOOPBACK_HTTP_PORT=14446; do
+          [ "$(plutil -extract "EnvironmentVariables.${local_proof_port%%=*}" raw -o - "$launch_agent_plist" 2>/dev/null)" = "${local_proof_port#*=}" ] \
+            && pass "local-proof launch agent sets $local_proof_port" || fail "local-proof launch agent does not set $local_proof_port"
+        done
       fi
     else
       pass "real machine directories (no test machine root)"

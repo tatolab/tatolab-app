@@ -31,7 +31,8 @@ export type FakeShellRecord =
   | { asked: "exit"; exitCode: number }
   | { asked: "notify"; notification: string }
   | { asked: "repeat_every"; intervalMs: number }
-  | { asked: "set_application_menu"; applicationMenu: ApplicationMenu };
+  | { asked: "set_application_menu"; applicationMenu: ApplicationMenu }
+  | { asked: "open_folder_in_the_file_manager"; folder: string };
 
 /** A fake Electron app shell for the lifecycle's tests. */
 export class FakeTatolabElectronAppShell {
@@ -71,6 +72,10 @@ export class FakeTatolabElectronAppShell {
       ),
     answerTheWindowsCommands: (tatolabWindowCommandHandlers) => {
       this.tatolabWindowCommandHandlers = tatolabWindowCommandHandlers;
+    },
+    openAFolderInTheFileManager: async (folder) => {
+      this.records.push({ asked: "open_folder_in_the_file_manager", folder });
+      return succeeded(undefined);
     },
     createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,
     createTheAppUpdateNotifier: (onNotificationClicked) => {
