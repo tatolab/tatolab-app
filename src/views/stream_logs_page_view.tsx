@@ -196,7 +196,7 @@ function StreamLogStepFilterControl({
         <span className={joinClassNames("max-w-36 truncate", stepFilterWords.isOneStepChosen && "font-mono text-xs")}>{stepFilterWords.words}</span>
         <ChevronDown className="size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="max-h-96 w-72">
+      <DropdownMenuContent className="max-h-96 w-[288px]">
         <DropdownMenuGroup>
           <DropdownMenuGroupLabel className="font-medium">Steps</DropdownMenuGroupLabel>
           <DropdownMenuItem
@@ -221,7 +221,7 @@ function StreamLogStepFilterControl({
               data-stream-log-step-choice={stepChoice.stepName}
             >
               <span className="min-w-0 truncate font-mono text-xs">{stepChoice.stepName}</span>
-              <span className="ml-auto truncate pl-3 text-xs text-fg-3">{stepChoice.stepHint}</span>
+              <span className="ml-auto min-w-0 shrink-[3] truncate pl-3 text-xs text-fg-3">{stepChoice.stepHint}</span>
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuGroup>

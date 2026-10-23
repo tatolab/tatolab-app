@@ -43,7 +43,7 @@ async function clickWhenShown(selector: string): Promise<boolean> {
  * holding keyboard focus), `?pin=<step>.<port>`
  * (its preview pinned), `?hover=<step>.<port>` (its hover preview open), `?previews=off` and `?counters=off`,
  * on Logs `?levels=info|warnings|errors`, `?held_records=<n>` and `?log_folder=missing` (the backend's options for the pointer row and a refused open), `?record=<sequence>` or `?record=problem` (the newest warning or error selected) and
- * `?details=closed`, and `?search=<query>` name, so each screen can be shown and pictured from its URL. `?theme=light|dark` is read by the page's first script, before first paint.
+ * `?details=closed`, `?only_step=<step>` (that step alone chosen in the step menu) and `?step_menu=open`, and `?search=<query>` name, so each screen can be shown and pictured from its URL. `?theme=light|dark` is read by the page's first script, before first paint.
  */
 export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platform: TatolabPlatform): Promise<void> {
   const streamName = pageQuery.get("stream");
@@ -98,6 +98,12 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     rowToSelect?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
   }
   if (pageQuery.get("details") === "closed") await clickWhenShown(`[data-stream-log-toolbar="details"]`);
+  const onlyStep = pageQuery.get("only_step");
+  if (onlyStep !== null) {
+    await clickWhenShown("[data-stream-log-step-filter]");
+    await clickWhenShown(`[data-stream-log-step-choice="${CSS.escape(onlyStep)}"]`);
+  }
+  if (pageQuery.get("step_menu") === "open" && document.querySelector('[data-slot="dropdown-menu-content"]') === null) await clickWhenShown("[data-stream-log-step-filter]");
   const page = pageQuery.get("page");
   if (page === "settings" || page === "add-stream") await clickWhenShown(`[data-window-navigation="${page}"]`);
   const sheet = pageQuery.get("sheet");

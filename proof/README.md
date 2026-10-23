@@ -34,6 +34,7 @@ Issue #39, in two labelled sets.
 | `mock-06-linux-logs-record-selected` | `platform=linux&…&record=problem` | Linux chrome, Ctrl F on the search. |
 | `mock-07-macos-logs-details-closed-wrapped` | `…&details=closed`, Wrap pressed | Details hidden, long lines wrapped under their message column. |
 | `mock-08-macos-logs-at-the-default-window-size` | `…&record=problem`, 1040×700 | The toolbar wraps onto three lines beside the details; every control whole. |
+| `mock-09-macos-logs-step-menu-one-step-chosen` | `…&only_step=brightnessmeter&step_menu=open` | The step menu open: Show all steps, `brightnessmeter` ticked with its class, `runtime` with `tatolabd`; the rows narrowed to that step. |
 
 ## A stream's Graph on the new design (#38)
 

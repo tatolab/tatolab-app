@@ -20,7 +20,10 @@ function segmentIndexAfterKey(key: string, chosenIndex: number, segmentCount: nu
   if (key === "Home") return 0;
   if (key === "End") return segmentCount - 1;
   const step = ARROW_KEY_STEPS[key];
-  return step === undefined ? null : (chosenIndex + step + segmentCount) % segmentCount;
+  if (step === undefined) return null;
+  // With nothing chosen, the arrows start from the ends: forward to the first, back to the last.
+  if (chosenIndex === -1) return step === 1 ? 0 : segmentCount - 1;
+  return (chosenIndex + step + segmentCount) % segmentCount;
 }
 
 /**

@@ -321,6 +321,7 @@ export interface StreamLogRecordDetails {
 /** The selected record's details, its step named from `graph`. */
 export function presentStreamLogRecordDetails(record: StreamLogRecord, graph: StreamGraphSummary | null): StreamLogRecordDetails {
   const stepNamesByProcessorId = stepNamesByProcessorIdOf(graph);
+  const fieldsOfTheRecord = fieldsOfLogRecord(record);
   return {
     levelWord: logLevelWordOf(record.level),
     levelTone: presentLogLevelWord(record.level),
@@ -328,10 +329,8 @@ export function presentStreamLogRecordDetails(record: StreamLogRecord, graph: St
     dateAndTimeText: formatLogRecordDateAndTime(record.host_ts_ns),
     step: stepOfLogRecord(record, stepNamesByProcessorId),
     processWords: record.sent_by_its_own_process ? "own process" : "runtime",
-    fields: fieldsOfLogRecord(record),
-    fieldsTextToCopy: fieldsOfLogRecord(record)
-      .map((field) => `${field.key}=${field.valueText}`)
-      .join("  "),
+    fields: fieldsOfTheRecord,
+    fieldsTextToCopy: fieldsOfTheRecord.map((field) => `${field.key}=${field.valueText}`).join("  "),
     recordJsonLines: prettyJsonLinesOf(record.jsonl_line),
     jsonlLine: record.jsonl_line,
   };
