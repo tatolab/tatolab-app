@@ -5,7 +5,7 @@
 // under their snake_case names, the event each status change arrives on, and how a
 // command answers.
 
-import type { StreamGraphSummary, StreamLogRecordsPage, TatolabStatus } from "./tatolab_backend_contract.js";
+import type { StreamGraphSummary, StreamLogRecordsPage, StreamStopAnswer, TatolabStatus } from "./tatolab_backend_contract.js";
 
 /** The scheme the Electron app serves its window's page under: a page on it with no bridge is the app's window whose preload did not load. */
 export const TATOLAB_WINDOW_PAGE_SCHEME = "tatolab-app";
@@ -21,9 +21,12 @@ export const TATOLAB_COMMAND_NAMES = [
   "read_stream_log_records",
   "describe_stream_graph",
   "check_for_tatolab_app_updates",
+  "stop_stream",
+  "start_stream",
+  "remove_stream",
 ] as const;
 
-/** One command the window invokes. Arguments: `set_run_tatolab` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph` `{ stream }`, the rest none. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab, takes it: the person choosing it is the confirmation. */
+/** One command the window invokes. Arguments: `set_run_tatolab` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`, `start_stream` and `remove_stream` `{ stream }`, the rest none. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab, takes it: the person choosing it is the confirmation. */
 export type TatolabCommandName = (typeof TATOLAB_COMMAND_NAMES)[number];
 
 /** The event each status change, and the status again each time the window is shown, arrives on; it carries a `TatolabStatus`. */
@@ -45,6 +48,9 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   read_stream_log_records: { commandArguments: { stream: string; after: number }; answer: StreamLogRecordsPage };
   describe_stream_graph: { commandArguments: { stream: string }; answer: StreamGraphSummary };
   check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };
+  stop_stream: { commandArguments: { stream: string }; answer: StreamStopAnswer };
+  start_stream: { commandArguments: { stream: string }; answer: null };
+  remove_stream: { commandArguments: { stream: string }; answer: null };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */

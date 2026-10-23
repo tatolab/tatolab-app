@@ -41,6 +41,16 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     checkForTatolabAppUpdates: async () => {
       await invokeTatolabCommand("check_for_tatolab_app_updates", undefined);
     },
+    runStreamAction: async (streamAction, streamName) => {
+      switch (streamAction) {
+        case "stop_stream":
+          return (await invokeTatolabCommand("stop_stream", { stream: streamName })).not_recorded_because;
+        case "start_stream":
+        case "remove_stream":
+          await invokeTatolabCommand(streamAction, { stream: streamName });
+          return null;
+      }
+    },
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
   };
 }

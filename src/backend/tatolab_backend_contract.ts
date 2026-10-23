@@ -26,6 +26,15 @@ export interface ListedStream {
   failed_because: string | null;
 }
 
+/** A stream action the window asks the runtime for, named as the runtime's tool and the window's command are. */
+export type TatolabStreamActionName = "stop_stream" | "start_stream" | "remove_stream";
+
+/** What `stop_stream` answers. */
+export interface StreamStopAnswer {
+  /** The runtime's words when it unloaded a kept stream but could not record it stopped, so a runtime restart loads it again; `null` otherwise. */
+  not_recorded_because: string | null;
+}
+
 /** How a newer Tatolab found by a check reaches the person: installed in place, then the app reopens; or its download opened, for a `.deb`, which only apt replaces. */
 export type TatolabAppUpdateDelivery = "install_and_relaunch" | "open_the_download";
 

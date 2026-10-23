@@ -3,8 +3,9 @@
 
 // The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
 // local API's Unix socket. `GET /health` says the runtime is up, the MCP tools `list_streams` and
-// `logs` over `POST /mcp` list its streams and read one's log records, and `GET /api/graph` names
-// the machine and draws one stream's graph.
+// `logs` over `POST /mcp` list its streams and read one's log records, `stop_stream`,
+// `start_stream` and `remove_stream` act on one, and `GET /api/graph` names the machine and draws
+// one stream's graph.
 //
 // The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
 // `mcp.rs` serves rmcp's stateless Streamable HTTP with per-request protocol metadata
@@ -13,7 +14,7 @@
 
 import { isUtf8 } from "node:buffer";
 import net from "node:net";
-import type { ListedStream, StreamGraphSummary, StreamLogRecordsPage } from "../../src/backend/tatolab_backend_contract.js";
+import type { ListedStream, StreamGraphSummary, StreamLogRecordsPage, TatolabStreamActionName } from "../../src/backend/tatolab_backend_contract.js";
 import {
   everyOneRead,
   isAJsonObject,
@@ -93,6 +94,15 @@ function listedStreamOnTheWire(listedStreamOnTheWire: unknown): Result<ListedStr
   });
 }
 
+/** What the runtime said beside a stream action it carried out: a `stop_stream` result's `not_recorded_because`, and `null` for every other action. */
+export function streamActionNoticeFromTheToolResult(streamAction: TatolabStreamActionName, toolResultText: string): Result<string | null, string> {
+  if (streamAction !== "stop_stream") return succeeded(null);
+  const parsedToolResult = parseJsonOnTheWire(toolResultText);
+  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the stop_stream result") : parsedToolResult;
+  const notRecordedBecause = toolResult.ok ? optionalText(toolResult.value, "not_recorded_because") : toolResult;
+  return notRecordedBecause.ok ? notRecordedBecause : failedWith(`the runtime's stop_stream result could not be read: ${notRecordedBecause.failure}`);
+}
+
 /** `durationMs` as a timeout refusal spells it: whole seconds as `3s`, anything else as `200ms`. */
 function durationAsTheTimeoutRefusalSpellsIt(durationMs: number): string {
   return durationMs % 1000 === 0 ? `${durationMs / 1000}s` : `${durationMs}ms`;
@@ -144,6 +154,14 @@ export class LocalApiClient {
     if (!toolResultText.ok) return toolResultText;
     const page = streamLogRecordsPageFromTheLogsToolResult(toolResultText.value);
     return page.ok ? page : localApiRequestFailure(page.failure);
+  }
+
+  /** Run the runtime's tool `streamAction` on `stream`, answering the notice it gives beside an action it carried out, or `null`. */
+  async runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string | null, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool(streamAction, { stream });
+    if (!toolResultText.ok) return toolResultText;
+    const notice = streamActionNoticeFromTheToolResult(streamAction, toolResultText.value);
+    return notice.ok ? notice : localApiRequestFailure(notice.failure);
   }
 
   /** The graph of the loaded stream `stream`, from `GET /api/graph?stream=`. */

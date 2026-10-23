@@ -4,7 +4,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import type { TatolabPlatform } from "../../src/backend/tatolab_backend_contract.js";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
 import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
@@ -17,11 +17,12 @@ import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
 import {
   answerTheWindow,
   describeStreamGraph,
-  describeStreamGraphArgumentsFrom,
   getTatolabStatus,
   readStreamLogRecords,
   readStreamLogRecordsArgumentsFrom,
+  runStreamAction,
   setRunTatolabArgumentsFrom,
+  streamArgumentsFrom,
   setUpTatolab,
   tatolabWindowCommandHandlers,
 } from "./tatolab_commands.js";
@@ -200,8 +201,9 @@ test("a command's arguments are read as the window sends them, and anything else
   expect(readStreamLogRecordsArgumentsFrom({ stream: "main", after: 79 })).toEqual(succeeded({ stream: "main", after: 79 }));
   expect(readStreamLogRecordsArgumentsFrom({ stream: "main", after: -1 }).ok).toBe(false);
   expect(readStreamLogRecordsArgumentsFrom({ stream: 7, after: 0 }).ok).toBe(false);
-  expect(describeStreamGraphArgumentsFrom({ stream: "main" })).toEqual(succeeded({ stream: "main" }));
-  expect(describeStreamGraphArgumentsFrom({}).ok).toBe(false);
+  expect(streamArgumentsFrom("describe_stream_graph", { stream: "main" })).toEqual(succeeded({ stream: "main" }));
+  expect(streamArgumentsFrom("describe_stream_graph", {}).ok).toBe(false);
+  expect(streamArgumentsFrom("remove_stream", { stream: "main" })).toEqual(succeeded({ stream: "main" }));
 });
 
 test("each command answers the window in the contract's shape, a refusal in its own words and nothing as null", async () => {
@@ -226,4 +228,44 @@ test("each command answers the window in the contract's shape, a refusal in its 
     refusal: "read_stream_log_records needs `stream`, a stream's name, and `after`, a sequence number from 0",
   });
   expect(await commandHandlers.describe_stream_graph(null)).toEqual({ ok: false, refusal: "describe_stream_graph needs `stream`, a stream's name" });
+});
+
+test("a stream action asks the runtime, then observes again whether it was carried out or refused", async () => {
+  const refusal = "Runtime error: the kept stream `camera` is already stopped; `start` loads it again";
+  const sharedState = await sharedStateOverFakes(
+    [
+      toolResultResponse({ stream: "camera", stopped: true, kept: true }),
+      httpResponse("200 OK", "application/json", JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: refusal }], isError: true } })),
+    ],
+    "macos",
+    null,
+  );
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+
+  expect(await runStreamAction(sharedState, "stop_stream", "camera")).toEqual(succeeded(null));
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
+  expect(await runStreamAction(sharedState, "stop_stream", "camera")).toEqual(failedWith(refusal));
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
+});
+
+/** The window's `StreamStopAnswer` reads exactly this JSON. */
+test("each stream action answers the window in the contract's shape", async () => {
+  const notRecordedBecause = "the kept record of `camera` could not be written: Permission denied (os error 13)";
+  const sharedState = await sharedStateOverFakes(
+    [
+      toolResultResponse({ stream: "camera", stopped: true, kept: true, not_recorded_because: notRecordedBecause }),
+      toolResultResponse({ stream: "camera", node_count: 3 }),
+      toolResultResponse({ stream: "camera", unloaded: true, forgotten: true }),
+    ],
+    "linux",
+    null,
+  );
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(JSON.stringify(await commandHandlers.stop_stream({ stream: "camera" }))).toBe(
+    `{"ok":true,"value":{"not_recorded_because":${JSON.stringify(notRecordedBecause)}}}`,
+  );
+  expect(await commandHandlers.start_stream({ stream: "camera" })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.remove_stream({ stream: "camera" })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.remove_stream({})).toEqual({ ok: false, refusal: "remove_stream needs `stream`, a stream's name" });
 });

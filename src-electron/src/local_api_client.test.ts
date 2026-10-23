@@ -251,6 +251,43 @@ test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", 
   );
 });
 
+test("a_stream_action_calls_the_runtimes_tool_of_the_same_name_with_the_stream", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    toolResultResponse({ stream: "camera", stopped: true, kept: true }),
+    toolResultResponse({ stream: "camera", node_count: 3 }),
+    toolResultResponse({ stream: "camera", unloaded: false, forgotten: true }),
+  ]);
+
+  expect(answerOf(await server.client().runStreamAction("stop_stream", "camera"))).toBeNull();
+  expect(answerOf(await server.client().runStreamAction("start_stream", "camera"))).toBeNull();
+  expect(answerOf(await server.client().runStreamAction("remove_stream", "camera"))).toBeNull();
+
+  const toolNames = server.receivedRequests().map((request) => {
+    const [head, body] = headAndBodyOf(request);
+    const toolName = /Mcp-Name: (\S+)/.exec(head)?.[1];
+    expect(JSON.parse(body)).toMatchObject({ params: { name: toolName, arguments: { stream: "camera" } } });
+    return toolName;
+  });
+  expect(toolNames).toEqual(["stop_stream", "start_stream", "remove_stream"]);
+});
+
+test("a_stop_the_runtime_could_not_record_answers_its_reason", async () => {
+  const notRecordedBecause = "the kept record of `camera` could not be written: Permission denied (os error 13)";
+  const server = await fakeLocalApiServerAnswering([
+    toolResultResponse({ stream: "camera", stopped: true, kept: true, not_recorded_because: notRecordedBecause }),
+  ]);
+
+  expect(answerOf(await server.client().runStreamAction("stop_stream", "camera"))).toBe(notRecordedBecause);
+});
+
+test("a_stream_action_the_runtime_refuses_carries_its_own_words", async () => {
+  const refusal = "Runtime error: the kept stream `camera` is already stopped; `start` loads it again";
+  const body = { jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: refusal }], isError: true } };
+  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", JSON.stringify(body))]);
+
+  expect(failureOf(await server.client().runStreamAction("stop_stream", "camera")).failureDescription).toBe(refusal);
+});
+
 test("a_chunked_response_is_dechunked", async () => {
   const server = await fakeLocalApiServerAnswering([Buffer.from("HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n1\r\no\r\n1;ext=1\r\nk\r\n0\r\n\r\n")]);
 

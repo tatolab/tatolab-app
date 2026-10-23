@@ -71,6 +71,25 @@ describe("createElectronTatolabBackend", () => {
     ]);
   });
 
+  it("sends each stream action under its command, answering a stop's notice and null for the rest", async () => {
+    const notRecordedBecause = "the kept record of `camera` could not be written: Permission denied (os error 13)";
+    const fakeBridge = fakeTatolabElectronBridge({
+      stop_stream: { ok: true, value: { not_recorded_because: notRecordedBecause } },
+      start_stream: { ok: true, value: null },
+      remove_stream: { ok: true, value: null },
+    });
+    const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
+
+    expect(await backend.runStreamAction("stop_stream", "camera")).toBe(notRecordedBecause);
+    expect(await backend.runStreamAction("start_stream", "camera")).toBeNull();
+    expect(await backend.runStreamAction("remove_stream", "camera")).toBeNull();
+    expect(fakeBridge.invokedCommands).toEqual([
+      ["stop_stream", { stream: "camera" }],
+      ["start_stream", { stream: "camera" }],
+      ["remove_stream", { stream: "camera" }],
+    ]);
+  });
+
   it("answers with what the main process answered", async () => {
     const tatolabStatus = await aTatolabStatus();
     const backend = createElectronTatolabBackend(
