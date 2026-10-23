@@ -30,7 +30,8 @@ Issue #51. **Mock** — [`design-system/mock/`](design-system/mock/).
 | `14-macos-logs-levels-keyboard-focus` (`-after` only) | `tab=logs`, then Tab and → from the search field | The arrow key moved to Info and chose it ("11 of 13"); the focus ring is drawn at the `ring` token's full strength. |
 | `15-macos-logs-details-dragged-wider` (`-after` only) | `…&record=problem`, then the separator dragged 180 px left | The details panel resized by its separator; the Logs toolbar wraps to fit the narrower work area. |
 | `16-macos-logs-at-the-opening-window-size` (`-after` only) | `…&record=problem` at 1040×700, the size the window opens at | Beside the 320 px details panel the work area has about 450 px, so the Logs toolbar wraps onto three rows and its hairline sits below the panel header's. |
-| `17-macos-logs-at-the-smallest-window` (`-after` only) | `…&record=problem` at 860×580, the window's smallest | The work area keeps its 300 px minimum and the details panel narrows to fit beside it. The toolbar wraps. The log rows keep their time, level and step, and the message starts beyond the work area's edge until the panel is hidden or dragged narrower. |
+| `17-macos-logs-at-the-smallest-window` (`-after` only) | `…&record=problem` at 860×580, the window's smallest | The work area keeps its 300 px minimum and the details panel narrows to fit beside it. The toolbar wraps. The log rows keep their time, level and step, and the message starts beyond the work area's edge until the panel is hidden. |
+| `18-macos-logs-details-hidden` (`-after` only) | `tab=logs&details=closed` at 1440×900 | With the details panel hidden the toolbar is wider than 960 px, so Load #4 shows beside the line count with its own spacing. |
 
 ## A stream's Logs on the new design, with the pointer to older records on disk (#39)
 

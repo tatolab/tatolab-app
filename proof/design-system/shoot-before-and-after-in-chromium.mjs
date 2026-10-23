@@ -42,6 +42,7 @@ const AFTER_ONLY_FRAMES = [
       await page.keyboard.press("ArrowRight");
     },
   ],
+  ["18-macos-logs-details-hidden", "state=running&stream=main&tab=logs&details=closed", async () => {}],
   [
     "15-macos-logs-details-dragged-wider",
     "state=running&stream=main&tab=logs&record=problem",
