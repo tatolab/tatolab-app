@@ -16,6 +16,14 @@ const page = await app.firstWindow();
 const captureTheScreen = (imageName) => execFileSync("import", ["-window", "root", `${outputDirectory}/${imageName}.png`]);
 const row = (streamName) => page.locator(`[data-stream-row="${streamName}"]`);
 
+const showWhatTheWindowShowsAndQuit = async (failure) => {
+  captureTheScreen("linux-failed-step");
+  process.stderr.write(`${failure}\n--- the window's text ---\n${await page.locator("body").innerText()}\n`);
+  await app.close();
+  process.exit(1);
+};
+process.on("unhandledRejection", showWhatTheWindowShowsAndQuit);
+
 await page.waitForSelector('[data-stream-row="main"]', { timeout: 60000 });
 await page.waitForTimeout(2000);
 captureTheScreen("linux-01-streams-light");
