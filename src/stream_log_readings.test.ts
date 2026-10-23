@@ -170,6 +170,32 @@ describe("StreamLogReadings", () => {
     expect(heardChanges).toHaveBeenCalled();
   });
 
+  it("drops a page asked before its stream was shown again, and reads that stream from 0", async () => {
+    const answersInFlight: ((page: StreamLogRecordsPage) => void)[] = [];
+    const askedAfter: string[] = [];
+    const backend = {
+      readStreamLogRecords: (streamName: string, afterSequence: number): Promise<StreamLogRecordsPage> => {
+        askedAfter.push(`${streamName}:${afterSequence}`);
+        if (streamName === "camera") return Promise.resolve({ ...recordsPage("9", []), stream: "camera" });
+        return new Promise((resolve) => answersInFlight.push(resolve));
+      },
+    };
+    const readings = new StreamLogReadings(backend, () => {}, 1000);
+    readings.showStream("main", true);
+    readings.setPollingAllowed(true);
+    await vi.advanceTimersByTimeAsync(0);
+    readings.showStream("camera", true);
+    readings.showStream("main", true);
+    answersInFlight.shift()?.(recordsPage("4", [logRecord(121, "asked before main was shown again")], 120));
+    await vi.advanceTimersByTimeAsync(0);
+    answersInFlight.shift()?.(recordsPage("4", [logRecord(1, "first"), logRecord(2, "second")]));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(messagesOf(readings)).toEqual(["first", "second"]);
+    expect(readings.readingOf("main").earlierRecordsNotHeldCount).toBe(0);
+    expect(askedAfter).toEqual(["main:0", "main:0"]);
+  });
+
   it("answers the same reading object until it changes", async () => {
     const { backend } = backendAnswering([recordsPage("4", [logRecord(1, "only")]), recordsPage("4", [])]);
     const readings = new StreamLogReadings(backend, () => {}, 1000);

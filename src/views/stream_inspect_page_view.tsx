@@ -210,7 +210,7 @@ export function StreamInspectPageView({ stream }: { stream: ListedStream }) {
   const command = streamGraphDocumentCommand(stream.name);
   const graphDocumentText = reading.graphSource === "loaded" ? (reading.graph?.graph_document_text ?? null) : null;
   const graphDocument = useMemo(() => (graphDocumentText === null ? null : readTheGraphDocument(graphDocumentText)), [graphDocumentText]);
-  const { wasCopied, copy } = useCopiedConfirmation(graphDocumentText ?? "");
+  const { wasCopied, copy } = useCopiedConfirmation(() => graphDocumentText ?? "");
 
   if (!isStreamLoaded(stream) || graphDocumentText === null) {
     const isNotLoaded = !isStreamLoaded(stream);

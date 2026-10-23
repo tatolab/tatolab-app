@@ -2,22 +2,25 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { ArrowDownToLine, Ban, ChevronDown, Clock, FileText, FolderOpen, PanelRight, RotateCw, ScrollText, Search, SquareX, TriangleAlert, WrapText, X } from "lucide-react";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { ListedStream } from "../backend/tatolab_backend_contract";
 import {
   earlierRecordsNotHeldWords,
+  isEarlierRecordsPointerShown,
   jsonlOfStreamLogRows,
   logFolderPathOfStream,
   presentStreamLog,
   presentStreamLogRecordDetails,
   presentStreamLogsOfAStreamNotLoaded,
-  STREAM_LOG_LEVEL_FILTERS,
+  searchMatchRangesOf,
   streamLoadWords,
   type StreamLogLevelFilter,
+  type StreamLogLevelFilterChoice,
+  type StreamLogMessageLinePartKind,
+  type StreamLogPresentation,
   type StreamLogRow,
-  type StreamLogStepChoice,
 } from "../presentation/log_record_presentation";
 import { shortcutHint } from "../presentation/platform_presentation";
 import { isStreamLoaded, presentStreamPrimaryAction } from "../presentation/stream_presentation";
@@ -26,7 +29,9 @@ import { joinClassNames } from "./shadcn/class_names";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuGroupLabel, DropdownMenuTrigger } from "./shadcn/dropdown_menu";
 import { Kbd } from "./shadcn/kbd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./shadcn/tooltip";
-import { CopyTextButton, LOG_LEVEL_WORD_TONE_CLASS_NAMES, StreamLogRecordDetailsView } from "./stream_log_record_details_view";
+import { CopyTextButton } from "./copy_text_button";
+import { SegmentedRadioControl } from "./segmented_radio_control";
+import { LOG_LEVEL_WORD_TONE_CLASS_NAMES, StreamLogRecordDetailsView } from "./stream_log_record_details_view";
 import type { StreamPageActions } from "./stream_page_header_view";
 import { logViewAskedBy, streamPagePath } from "./stream_page_path";
 import { useStreamGraphReading, useStreamLogReading, useTatolabWindowEnvironment } from "./tatolab_window_context";
@@ -46,16 +51,9 @@ interface StyledTextRun {
   className: string;
 }
 
-/** `styledRuns` in their colours, each case-insensitive match of `searchText` marked, a match that spans runs included. */
+/** `styledRuns` in their colours, each match of `searchText` marked, a match that spans runs included. */
 function TextWithSearchMatches({ styledRuns, searchText }: { styledRuns: readonly StyledTextRun[]; searchText: string }) {
-  const lowercaseSearchText = searchText.trim().toLowerCase();
-  const lowercaseText = styledRuns.map((styledRun) => styledRun.text).join("").toLowerCase();
-  const matchRanges: [number, number][] = [];
-  if (lowercaseSearchText !== "") {
-    for (let matchAt = lowercaseText.indexOf(lowercaseSearchText); matchAt !== -1; matchAt = lowercaseText.indexOf(lowercaseSearchText, matchAt + lowercaseSearchText.length)) {
-      matchRanges.push([matchAt, matchAt + lowercaseSearchText.length]);
-    }
-  }
+  const matchRanges = searchMatchRangesOf(styledRuns.map((styledRun) => styledRun.text).join(""), searchText);
   const parts: ReactNode[] = [];
   let runStart = 0;
   for (const [runIndex, styledRun] of styledRuns.entries()) {
@@ -84,6 +82,13 @@ function TextWithSearchMatches({ styledRuns, searchText }: { styledRuns: readonl
   }
   return <>{parts}</>;
 }
+
+const MESSAGE_LINE_PART_CLASS_NAMES: Record<StreamLogMessageLinePartKind, string> = {
+  message: "text-fg",
+  separator: "",
+  field_key: "text-fg-3",
+  field_value: "text-fg-2",
+};
 
 interface StreamLogRowViewProps {
   row: StreamLogRow;
@@ -116,7 +121,8 @@ const StreamLogRowView = memo(
             "grid cursor-default gap-x-3 px-3 hover:bg-hover",
             areTimestampsShown ? "grid-cols-[92px_44px_120px_minmax(0,1fr)]" : "grid-cols-[44px_120px_minmax(0,1fr)]",
             !areLinesWrapped && "whitespace-nowrap",
-            isSelected && "bg-selected shadow-[inset_2px_0_0_var(--brand)] hover:bg-selected",
+            // The quietest text falls under AA on the selected background in light, so it reads one step stronger there.
+            isSelected && "bg-selected shadow-[inset_2px_0_0_var(--brand)] hover:bg-selected [&_.text-fg-3]:text-fg-2",
           )}
         >
           {areTimestampsShown && (
@@ -129,19 +135,10 @@ const StreamLogRowView = memo(
             <TextWithSearchMatches styledRuns={[{ text: row.step.stepName, className: row.step.isAStepOfTheGraph ? "text-fg-2" : "text-fg-3" }]} searchText={searchText} />
           </span>
           <div className={joinClassNames("min-w-0", areLinesWrapped ? "break-words whitespace-pre-wrap" : "truncate")}>
-            <TextWithSearchMatches styledRuns={[{ text: row.record.message, className: "text-fg" }]} searchText={searchText} />
-            {row.fields.map((field) => (
-              <span key={field.key}>
-                {"  "}
-                <TextWithSearchMatches
-                  styledRuns={[
-                    { text: `${field.key}=`, className: "text-fg-3" },
-                    { text: field.valueText, className: "text-fg-2" },
-                  ]}
-                  searchText={searchText}
-                />
-              </span>
-            ))}
+            <TextWithSearchMatches
+              styledRuns={row.messageLineParts.map((part) => ({ text: part.text, className: MESSAGE_LINE_PART_CLASS_NAMES[part.kind] }))}
+              searchText={searchText}
+            />
           </div>
         </div>
       </>
@@ -159,56 +156,26 @@ const StreamLogRowView = memo(
     previousProps.onSelected === nextProps.onSelected,
 );
 
-function StreamLogLevelFilterControl({
-  chosenLevelFilter,
-  countsByLevelFilter,
-  onLevelFilterChosen,
-}: {
-  chosenLevelFilter: StreamLogLevelFilter;
-  countsByLevelFilter: Record<StreamLogLevelFilter, number>;
-  onLevelFilterChosen: (levelFilter: StreamLogLevelFilter) => void;
-}) {
-  return (
-    <div className="flex h-7 shrink-0 items-center rounded-md bg-well p-0.5" role="radiogroup" aria-label="Levels shown">
-      {STREAM_LOG_LEVEL_FILTERS.map(({ levelFilter, label }) => {
-        const count = countsByLevelFilter[levelFilter];
-        return (
-          <button
-            key={levelFilter}
-            type="button"
-            role="radio"
-            aria-checked={chosenLevelFilter === levelFilter}
-            onClick={() => onLevelFilterChosen(levelFilter)}
-            data-stream-log-level-filter={levelFilter}
-            className={joinClassNames(
-              "flex h-6 items-center gap-1.5 rounded-[5px] px-2 whitespace-nowrap text-fg-2 transition-colors hover:text-fg",
-              chosenLevelFilter === levelFilter && "bg-raised text-fg shadow-(--shadow-segment)",
-            )}
-          >
-            <span className={joinClassNames(count > 0 && levelFilter === "warn" && "text-warn-text", count > 0 && levelFilter === "error" && "text-danger-text")}>{label}</span>
-            <span className="text-fg-2 tabular">{count.toLocaleString("en-US")}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+const LEVEL_FILTER_LABEL_TONE_CLASS_NAMES: Record<StreamLogLevelFilterChoice["labelTone"], string | undefined> = {
+  plain: undefined,
+  warn: "text-warn-text",
+  error: "text-danger-text",
+};
 
 function StreamLogStepFilterControl({
-  stepChoices,
+  streamLog,
   shownStepKeys,
   onShownStepKeysChosen,
 }: {
-  stepChoices: readonly StreamLogStepChoice[];
+  streamLog: StreamLogPresentation;
   shownStepKeys: ReadonlySet<string>;
   onShownStepKeysChosen: (shownStepKeys: ReadonlySet<string>) => void;
 }) {
-  const onlyStepChosen = shownStepKeys.size === 1 ? stepChoices.find((stepChoice) => shownStepKeys.has(stepChoice.stepKey)) : undefined;
-  const stepsChosenWords = shownStepKeys.size === 0 ? "All steps" : onlyStepChosen !== undefined ? onlyStepChosen.stepName : `${shownStepKeys.size} of ${stepChoices.length}`;
+  const { stepChoices, stepFilterWords } = streamLog;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label={`Steps shown: ${stepsChosenWords}`}
+        aria-label={`Steps shown: ${stepFilterWords.words}`}
         data-stream-log-step-filter=""
         className={joinClassNames(
           "flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 text-fg-2 transition-colors hover:border-line-strong hover:text-fg data-popup-open:border-line-strong",
@@ -216,7 +183,7 @@ function StreamLogStepFilterControl({
         )}
       >
         <span className="text-fg-3">Step</span>
-        <span className={joinClassNames("max-w-36 truncate", onlyStepChosen !== undefined && "font-mono text-xs")}>{stepsChosenWords}</span>
+        <span className={joinClassNames("max-w-36 truncate", stepFilterWords.isOneStepChosen && "font-mono text-xs")}>{stepFilterWords.words}</span>
         <ChevronDown className="size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="max-h-96 w-72">
@@ -254,10 +221,32 @@ function StreamLogStepFilterControl({
   );
 }
 
-/** The quiet first row saying how many of this load's earlier records the window does not hold, and where they are on disk. */
-function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stream: ListedStream; earlierRecordsNotHeldCount: number }) {
+/** Opens `streamName`'s log folder, keeping why the last try was refused, in the refusal's own words, until the next. */
+function useStreamLogFolderOpening(streamName: string): { openStreamLogFolder: () => void; folderOpeningRefusal: string | null } {
   const { backend } = useTatolabWindowEnvironment();
   const [folderOpeningRefusal, setFolderOpeningRefusal] = useState<string | null>(null);
+  return {
+    openStreamLogFolder: () => {
+      setFolderOpeningRefusal(null);
+      backend.openStreamLogFolder(streamName).catch((rejection: unknown) => setFolderOpeningRefusal(describeBackendRejection(rejection)));
+    },
+    folderOpeningRefusal,
+  };
+}
+
+/** A refusal to open the log folder, in its own words. */
+function FolderOpeningRefusalLine({ refusal, className }: { refusal: string; className?: string }) {
+  return (
+    <p role="alert" className={joinClassNames("flex gap-1.5 text-xs text-fg-2", className)}>
+      <SquareX className="mt-px size-3.5 shrink-0 text-danger" strokeWidth={1.75} aria-hidden />
+      <span className="select-text">{refusal}</span>
+    </p>
+  );
+}
+
+/** The quiet first row saying how many of this load's earlier records the window does not hold, and where they are on disk. */
+function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stream: ListedStream; earlierRecordsNotHeldCount: number }) {
+  const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.name);
   return (
     <div className="border-b px-3 font-sans text-xs" data-stream-log-earlier-records="">
       <div className="flex h-8 items-center gap-2 text-fg-3">
@@ -268,21 +257,13 @@ function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stre
         <button
           type="button"
           className="shrink-0 rounded text-brand-text hover:underline focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none"
-          onClick={() => {
-            setFolderOpeningRefusal(null);
-            backend.openStreamLogFolder(stream.name).catch((rejection: unknown) => setFolderOpeningRefusal(describeBackendRejection(rejection)));
-          }}
+          onClick={openStreamLogFolder}
           data-stream-action="open_stream_log_folder"
         >
           Open
         </button>
       </div>
-      {folderOpeningRefusal !== null && (
-        <p role="alert" className="flex gap-1.5 pb-2 text-fg-2">
-          <SquareX className="mt-px size-3.5 shrink-0 text-danger" strokeWidth={1.75} aria-hidden />
-          <span className="select-text">{folderOpeningRefusal}</span>
-        </p>
-      )}
+      {folderOpeningRefusal !== null && <FolderOpeningRefusalLine refusal={folderOpeningRefusal} className="pb-2" />}
     </div>
   );
 }
@@ -314,10 +295,13 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
     setSelectedSequence(null);
   }
 
-  const streamLog = useMemo(
-    () => presentStreamLog(reading.records, graph, { searchText, levelFilter, shownStepKeys, clearedThroughSequence }),
-    [reading.records, graph, searchText, levelFilter, shownStepKeys, clearedThroughSequence],
+  // The rows follow the search a beat behind the field, so typing stays quick over thousands of rows.
+  const searchTextShown = useDeferredValue(searchText);
+  const streamLogFilters = useMemo(
+    () => ({ searchText: searchTextShown, levelFilter, shownStepKeys, clearedThroughSequence }),
+    [searchTextShown, levelFilter, shownStepKeys, clearedThroughSequence],
   );
+  const streamLog = useMemo(() => presentStreamLog(reading.records, graph, streamLogFilters), [reading.records, graph, streamLogFilters]);
   const selectedRecord = selectedSequence === null ? null : (reading.records.find((record) => record.sequence === selectedSequence) ?? null);
   const selectedRecordDetails = useMemo(() => (selectedRecord === null ? null : presentStreamLogRecordDetails(selectedRecord, graph)), [selectedRecord, graph]);
   const lastRowSequence = streamLog.rows.at(-1)?.record.sequence ?? null;
@@ -366,7 +350,7 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
     setSelectedSequence(rows[nextIndex]?.record.sequence ?? null);
   };
 
-  const isShowingEarlierRecordsRow = reading.earlierRecordsNotHeldCount > 0 && clearedThroughSequence === 0 && searchText.trim() === "";
+  const isShowingEarlierRecordsRow = isEarlierRecordsPointerShown(reading.earlierRecordsNotHeldCount, streamLogFilters);
   return (
     <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-page={stream.name}>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -398,8 +382,18 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
               <Kbd>{shortcutHint(platform, "F")}</Kbd>
             )}
           </label>
-          <StreamLogLevelFilterControl chosenLevelFilter={levelFilter} countsByLevelFilter={streamLog.countsByLevelFilter} onLevelFilterChosen={setLevelFilter} />
-          <StreamLogStepFilterControl stepChoices={streamLog.stepChoices} shownStepKeys={shownStepKeys} onShownStepKeysChosen={setShownStepKeys} />
+          <SegmentedRadioControl
+            ariaLabel="Levels shown"
+            choices={streamLog.levelFilterChoices.map((levelFilterChoice) => ({
+              choice: levelFilterChoice.levelFilter,
+              label: <span className={LEVEL_FILTER_LABEL_TONE_CLASS_NAMES[levelFilterChoice.labelTone]}>{levelFilterChoice.label}</span>,
+              count: levelFilterChoice.count,
+              controlAttribute: { "data-stream-log-level-filter": levelFilterChoice.levelFilter },
+            }))}
+            chosen={levelFilter}
+            onChosen={setLevelFilter}
+          />
+          <StreamLogStepFilterControl streamLog={streamLog} shownStepKeys={shownStepKeys} onShownStepKeysChosen={setShownStepKeys} />
           <div className="ml-auto flex shrink-0 items-center gap-0.5">
             {reading.streamInstance !== null && (
               <Tooltip>
@@ -439,7 +433,7 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
               onClick={() => setAreTimestampsShown((wereShown) => !wereShown)}
               controlAttribute={{ "data-stream-log-toolbar": "timestamps" }}
             />
-            <CopyTextButton textToCopy={jsonlOfStreamLogRows(streamLog.rows)} label="Copy shown lines as JSONL" controlAttribute={{ "data-stream-log-toolbar": "copy" }} />
+            <CopyTextButton readTextToCopy={() => jsonlOfStreamLogRows(streamLog.rows)} label="Copy shown lines as JSONL" controlAttribute={{ "data-stream-log-toolbar": "copy" }} />
             <ToolbarIconButton
               icon={Ban}
               label="Clear"
@@ -462,12 +456,10 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
           </div>
         </div>
         {reading.readRefusal !== null && (
-          <div role="status" className="flex min-h-8 items-center gap-2 border-b px-3 py-1 text-xs" data-stream-log-read-refusal="">
+          <div role="status" className="flex min-h-8 items-start gap-2 border-b px-3 py-1.5 text-xs" data-stream-log-read-refusal="">
             <TriangleAlert className="size-3.5 shrink-0 text-warn" strokeWidth={1.75} aria-hidden />
             <span className="shrink-0 text-fg-2">Couldn't read new records, trying again:</span>
-            <span className="min-w-0 truncate text-fg select-text" title={reading.readRefusal}>
-              {reading.readRefusal}
-            </span>
+            <span className="min-w-0 break-words text-fg select-text">{reading.readRefusal}</span>
           </div>
         )}
         <div ref={recordsScroller} onScroll={onRecordsScrolled} className="scrollbar-thin min-h-0 flex-1 overflow-auto">
@@ -495,7 +487,7 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
                   isSelected={row.record.sequence === selectedSequence}
                   areTimestampsShown={areTimestampsShown}
                   areLinesWrapped={areLinesWrapped}
-                  searchText={searchText}
+                  searchText={searchTextShown}
                   onSelected={setSelectedSequence}
                 />
               ))}
@@ -523,8 +515,7 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
 
 /** A stream's Logs tab while it is not loaded: why, the folder its log is in, and Retry for a failed one. */
 function StreamLogsOfAStreamNotLoadedView({ stream, streamPageActions }: { stream: ListedStream; streamPageActions: StreamPageActions }) {
-  const { backend } = useTatolabWindowEnvironment();
-  const [folderOpeningRefusal, setFolderOpeningRefusal] = useState<string | null>(null);
+  const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.name);
   const notLoadedWords = presentStreamLogsOfAStreamNotLoaded(stream);
   const retryAction = notLoadedWords.hasFailed ? presentStreamPrimaryAction(stream) : null;
   return (
@@ -543,10 +534,7 @@ function StreamLogsOfAStreamNotLoadedView({ stream, streamPageActions }: { strea
         <div className="mt-3 flex items-center gap-1.5">
           <Button
             variant="outline"
-            onClick={() => {
-              setFolderOpeningRefusal(null);
-              backend.openStreamLogFolder(stream.name).catch((rejection: unknown) => setFolderOpeningRefusal(describeBackendRejection(rejection)));
-            }}
+            onClick={openStreamLogFolder}
             data-stream-action="open_stream_log_folder"
           >
             <FolderOpen aria-hidden /> Open log folder
@@ -562,12 +550,7 @@ function StreamLogsOfAStreamNotLoadedView({ stream, streamPageActions }: { strea
             </Button>
           )}
         </div>
-        {folderOpeningRefusal !== null && (
-          <p role="alert" className="mt-2 flex gap-1.5 text-left text-xs text-fg-2">
-            <SquareX className="mt-px size-3.5 shrink-0 text-danger" strokeWidth={1.75} aria-hidden />
-            <span className="select-text">{folderOpeningRefusal}</span>
-          </p>
-        )}
+        {folderOpeningRefusal !== null && <FolderOpeningRefusalLine refusal={folderOpeningRefusal} className="mt-2 text-left" />}
       </div>
     </div>
   );

@@ -420,29 +420,44 @@ describe("a stream's Logs tab", () => {
   });
 
   it("shows a refused open of the log folder in its own words", async () => {
-    const refusal = "main has no log folder yet: /Users/jonathanf/streams/pattern/.streamlib/logs is not on this machine.";
-    await mountedWindowOverTheMock("state=running&held_records=5", {
-      openStreamLogFolder: async () => {
-        throw refusal;
-      },
-    });
+    await mountedWindowOverTheMock("state=running&held_records=5&log_folder=missing");
     await openTheLogsOf("main");
 
     fireEvent.click(await waitFor(() => screen.getByRole("button", { name: "Open" })));
 
-    await waitFor(() => expect(textOf("[data-stream-log-earlier-records] [role=alert]")).toBe(refusal));
+    await waitFor(() =>
+      expect(textOf("[data-stream-log-earlier-records] [role=alert]")).toBe("main has no log folder yet: /Users/jonathanf/streams/pattern/.streamlib/logs is not on this machine."),
+    );
+  });
+
+  it("moves between levels with the arrow keys, the level chosen the only Tab stop", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheLogsOf("main");
+    const allLevels = screen.getByRole("radio", { name: /All/ });
+
+    expect([...document.querySelectorAll("[data-stream-log-level-filter]")].map((segment) => segment.getAttribute("tabindex"))).toEqual(["0", "-1", "-1", "-1"]);
+    fireEvent.keyDown(allLevels, { key: "ArrowRight" });
+
+    expect(screen.getByRole("radio", { name: /Info/ }).getAttribute("aria-checked")).toBe("true");
+    expect(document.activeElement?.getAttribute("data-stream-log-level-filter")).toBe("info");
   });
 
   it("says why it cannot read new records in the runtime's words, keeping the rows it has", async () => {
     const refusal = "no stream named `main` is loaded in this runtime. Loaded: none";
+    const answeringBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running")));
+    let isRefusingReads = false;
     await mountedWindowOverTheMock("state=running", {
-      readStreamLogRecords: async () => {
-        throw refusal;
+      readStreamLogRecords: async (streamName, afterSequence) => {
+        if (isRefusingReads) throw refusal;
+        return answeringBackend.readStreamLogRecords(streamName, afterSequence);
       },
     });
     await openTheLogsOf("main");
+    await waitFor(() => expect(shownLogMessages().length).toBeGreaterThan(0));
+    isRefusingReads = true;
 
-    await waitFor(() => expect(textOf("[data-stream-log-read-refusal]")).toBe(`Couldn't read new records, trying again:${refusal}`));
+    await waitFor(() => expect(textOf("[data-stream-log-read-refusal]")).toBe(`Couldn't read new records, trying again:${refusal}`), { timeout: 3000 });
+    expect(logRowOf("Loading the stream `main`")).toBeTruthy();
   });
 
   it("gives a failed stream its reason and log folder with Retry, and a stopped one its log folder", async () => {

@@ -7,6 +7,7 @@ import {
   formatLogAttrValue,
   formatLogRecordDateAndTime,
   formatLogRecordTime,
+  isEarlierRecordsPointerShown,
   jsonlOfStreamLogRows,
   levelFilterOfLogRecord,
   logFolderPathOfStream,
@@ -15,6 +16,7 @@ import {
   presentStreamLogRecordDetails,
   presentStreamLogsOfAStreamNotLoaded,
   prettyJsonLinesOf,
+  searchMatchRangesOf,
   STREAM_LOG_LEVEL_FILTERS,
   earlierRecordsNotHeldWords,
   streamLoadWords,
@@ -109,7 +111,12 @@ describe("presentStreamLog", () => {
 
     expect(streamLog.rows.map((row) => row.step.stepName)).toEqual(["runtime", "camera", "persondetector", "persondetector", "Pgone"]);
     expect(streamLog.rows.map((row) => row.step.isAStepOfTheGraph)).toEqual([false, true, true, true, false]);
-    expect(streamLog.rows[1]?.fields).toEqual([{ key: "device", valueText: '"FaceTime HD Camera"' }]);
+    expect(streamLog.rows[1]?.messageLineParts).toEqual([
+      { text: "Camera opened", kind: "message" },
+      { text: "  ", kind: "separator" },
+      { text: "device=", kind: "field_key" },
+      { text: '"FaceTime HD Camera"', kind: "field_value" },
+    ]);
     expect(streamLog.rows.map((row) => row.levelWord)).toEqual(["INFO", "INFO", "WARN", "ERROR", "DEBUG"]);
     expect(streamLog.lineCountWords).toBe("5 lines");
   });
@@ -128,9 +135,30 @@ describe("presentStreamLog", () => {
   it("counts each level among the records the search and steps let through, and shows the level chosen", () => {
     const streamLog = presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, levelFilter: "warn", shownStepKeys: new Set(["Pdet"]) });
 
-    expect(streamLog.countsByLevelFilter).toEqual({ all: 2, info: 0, warn: 1, error: 1 });
+    expect(streamLog.levelFilterChoices).toEqual([
+      { levelFilter: "all", label: "All", count: 2, labelTone: "plain" },
+      { levelFilter: "info", label: "Info", count: 0, labelTone: "plain" },
+      { levelFilter: "warn", label: "Warnings", count: 1, labelTone: "warn" },
+      { levelFilter: "error", label: "Errors", count: 1, labelTone: "error" },
+    ]);
+    expect(streamLog.stepFilterWords).toEqual({ words: "persondetector", isOneStepChosen: true });
     expect(streamLog.rows.map((row) => row.record.sequence)).toEqual([3]);
     expect(streamLog.lineCountWords).toBe("1 of 5");
+  });
+
+  it("words the step filter as every step, the one chosen, or how many of how many", () => {
+    const stepFilterWordsFor = (shownStepKeys: string[]) => presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, shownStepKeys: new Set(shownStepKeys) }).stepFilterWords;
+
+    expect(stepFilterWordsFor([])).toEqual({ words: "All steps", isOneStepChosen: false });
+    expect(stepFilterWordsFor(["Pcam", ""])).toEqual({ words: "2 of 4", isOneStepChosen: false });
+  });
+
+  it("searches step names and the message line as the row shows it, quoted values and spacing included", () => {
+    const sequencesFound = (searchText: string) => presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, searchText }).rows.map((row) => row.record.sequence);
+
+    expect(sequencesFound('device="FaceTime')).toEqual([2]);
+    expect(sequencesFound("opened  device")).toEqual([2]);
+    expect(sequencesFound("opened device")).toEqual([]);
   });
 
   it("searches messages, step names and key=value fields, ignoring case", () => {
@@ -208,7 +236,28 @@ describe("prettyJsonLinesOf", () => {
   });
 });
 
+describe("searchMatchRangesOf", () => {
+  it("finds every match ignoring case and the search's own outer spaces, and none for an empty search", () => {
+    expect(searchMatchRangesOf("Mean=127 mean=128", " MEAN= ")).toEqual([
+      [0, 5],
+      [9, 14],
+    ]);
+    expect(searchMatchRangesOf("aaaa", "aa")).toEqual([
+      [0, 2],
+      [2, 4],
+    ]);
+    expect(searchMatchRangesOf("anything", "  ")).toEqual([]);
+  });
+});
+
 describe("the pointer to records not held", () => {
+  it("shows while some are not held and nothing is cleared or searched for", () => {
+    expect(isEarlierRecordsPointerShown(3, EVERY_RECORD)).toBe(true);
+    expect(isEarlierRecordsPointerShown(0, EVERY_RECORD)).toBe(false);
+    expect(isEarlierRecordsPointerShown(3, { ...EVERY_RECORD, clearedThroughSequence: 9 })).toBe(false);
+    expect(isEarlierRecordsPointerShown(3, { ...EVERY_RECORD, searchText: "x" })).toBe(false);
+  });
+
   it("counts the earlier records and names the stream's log folder under its project, home shortened", () => {
     expect(earlierRecordsNotHeldWords(1)).toBe("1 earlier record is in");
     expect(earlierRecordsNotHeldWords(2312)).toBe("2,312 earlier records are in");

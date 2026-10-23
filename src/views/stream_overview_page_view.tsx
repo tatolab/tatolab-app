@@ -292,7 +292,7 @@ function DetailsPanelGroup({ label, children }: { label: string; children: React
 }
 
 function CopyableTerminalCommand({ command }: { command: string }) {
-  const { wasCopied, copy } = useCopiedConfirmation(command);
+  const { wasCopied, copy } = useCopiedConfirmation(() => command);
   return (
     <div className="group flex items-start gap-1.5 py-0.5 font-mono text-xs">
       <span className="text-fg-3 select-none" aria-hidden>

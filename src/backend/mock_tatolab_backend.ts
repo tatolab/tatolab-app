@@ -11,14 +11,15 @@ import {
 } from "./mock_stream_fixtures";
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import type { TatolabBackend } from "./tatolab_backend";
-import type {
-  ListedStream,
-  StreamGraphSummary,
-  StreamLogRecord,
-  StreamLogRecordsPage,
-  TatolabAppUpdateState,
-  TatolabPlatform,
-  TatolabStatus,
+import {
+  STREAM_LOG_FOLDER_IN_THE_PROJECT,
+  type ListedStream,
+  type StreamGraphSummary,
+  type StreamLogRecord,
+  type StreamLogRecordsPage,
+  type TatolabAppUpdateState,
+  type TatolabPlatform,
+  type TatolabStatus,
 } from "./tatolab_backend_contract";
 
 /**
@@ -98,6 +99,8 @@ export interface MockTatolabOptions {
   streamWhoseStopIsNotRecorded: string | null;
   /** `?terminal=missing`: the desktop has no terminal to open, as a Linux desktop without `x-terminal-emulator`. */
   isTheTerminalMissing: boolean;
+  /** `?log_folder=missing`: no stream has a log folder on disk yet, so opening one is refused as the app refuses it. */
+  isTheLogFolderMissing: boolean;
   /** `?held_records=<n>`: the runtime holds only each stream's newest `n` records, as it holds its newest 4096, so a stream's earlier records are no longer held. */
   mostRecordsHeldPerStream: number;
 }
@@ -122,6 +125,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     appUpdateScenario: appUpdateScenario ?? "up-to-date",
     streamWhoseStopIsNotRecorded: pageQuery.get("stop_not_recorded"),
     isTheTerminalMissing: pageQuery.get("terminal") === "missing",
+    isTheLogFolderMissing: pageQuery.get("log_folder") === "missing",
     mostRecordsHeldPerStream: positiveWholeNumberOrNull(pageQuery.get("held_records")) ?? MOST_RECORDS_THE_RUNTIME_HOLDS,
   };
 }
@@ -238,6 +242,7 @@ export function createMockTatolabBackend({
   appUpdateScenario,
   streamWhoseStopIsNotRecorded,
   isTheTerminalMissing,
+  isTheLogFolderMissing,
   mostRecordsHeldPerStream,
 }: MockTatolabOptions): TatolabBackend {
   const fixtures = createMockStreamFixtures(platform);
@@ -611,7 +616,8 @@ export function createMockTatolabBackend({
     },
     openStreamLogFolder: async (streamName) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      listedProjectFolderOf(streamName);
+      const projectFolder = listedProjectFolderOf(streamName);
+      if (isTheLogFolderMissing) throw `${streamName} has no log folder yet: ${projectFolder}/${STREAM_LOG_FOLDER_IN_THE_PROJECT} is not on this machine.`;
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);

@@ -204,7 +204,7 @@ export function useStreamRemovalDialog(onRemove: (stream: ListedStream) => void)
 
 /** A terminal command in a well, with a button that copies it. */
 export function CommandWithCopyButton({ command }: { command: string }) {
-  const { wasCopied, copy } = useCopiedConfirmation(command);
+  const { wasCopied, copy } = useCopiedConfirmation(() => command);
   return (
     <div className="flex h-9 items-center gap-2 rounded-md border bg-well pr-1 pl-3 font-mono">
       <span className="text-fg-3 select-none" aria-hidden>

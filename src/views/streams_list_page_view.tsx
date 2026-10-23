@@ -26,6 +26,7 @@ import {
 } from "../presentation/streams_list_presentation";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./shadcn/dropdown_menu";
 import { joinClassNames } from "./shadcn/class_names";
+import { SegmentedRadioControl } from "./segmented_radio_control";
 import { Button } from "./shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./shadcn/tooltip";
 import {
@@ -257,24 +258,16 @@ function StreamsListFilterControl({
   listedStreams: readonly ListedStream[];
 }) {
   return (
-    <div className="flex h-7 shrink-0 items-center rounded-md bg-well p-0.5" role="radiogroup" aria-label="Show streams">
-      {STREAMS_LIST_FILTERS.map(({ filter, label }) => (
-        <button
-          key={filter}
-          type="button"
-          role="radio"
-          aria-checked={chosenFilter === filter}
-          onClick={() => onFilterChosen(filter)}
-          className={joinClassNames(
-            "flex h-6 items-center gap-1.5 rounded-[5px] px-2.5 whitespace-nowrap text-fg-2 transition-colors hover:text-fg",
-            chosenFilter === filter && "bg-raised text-fg shadow-(--shadow-segment)",
-          )}
-        >
-          {label}
-          <span className="text-fg-2 tabular">{listedStreams.filter((stream) => streamMatchesListFilter(stream, filter)).length}</span>
-        </button>
-      ))}
-    </div>
+    <SegmentedRadioControl
+      ariaLabel="Show streams"
+      choices={STREAMS_LIST_FILTERS.map(({ filter, label }) => ({
+        choice: filter,
+        label,
+        count: listedStreams.filter((stream) => streamMatchesListFilter(stream, filter)).length,
+      }))}
+      chosen={chosenFilter}
+      onChosen={onFilterChosen}
+    />
   );
 }
 

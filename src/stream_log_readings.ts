@@ -39,6 +39,8 @@ export class StreamLogReadings {
   private shownStream: { streamName: string; isLoaded: boolean } | null = null;
   private isPollingAllowed = false;
   private afterSequence = 0;
+  /** Counts each time the stream shown changes or loads again, so a read begun before it is dropped when it settles. */
+  private shownStreamGeneration = 0;
 
   constructor(
     private readonly backend: Pick<TatolabBackend, "readStreamLogRecords">,
@@ -64,6 +66,7 @@ export class StreamLogReadings {
     const isTheSameLoadedStream = isLoaded && this.shownStream?.streamName === streamName && this.shownStream.isLoaded;
     this.shownStream = streamName === null ? null : { streamName, isLoaded };
     if (!isTheSameLoadedStream) {
+      this.shownStreamGeneration += 1;
       this.logPoll.stop();
       this.afterSequence = 0;
       this.replaceTheShownReading(streamName === null ? null : { streamName, reading: NOTHING_READ_YET });
@@ -81,18 +84,19 @@ export class StreamLogReadings {
     else this.logPoll.stop();
   }
 
-  private isStillShownLoaded(streamName: string): boolean {
-    return this.shownStream?.streamName === streamName && this.shownStream.isLoaded;
+  private isStillShownAsReadFrom(streamName: string, readGeneration: number): boolean {
+    return readGeneration === this.shownStreamGeneration && this.shownStream?.streamName === streamName && this.shownStream.isLoaded;
   }
 
   private async readTheShownStreamsNewRecords(): Promise<void> {
     const shownStream = this.shownStream;
     if (shownStream === null || !shownStream.isLoaded) return;
     const { streamName } = shownStream;
+    const readGeneration = this.shownStreamGeneration;
     try {
       for (let pageIndex = 0; pageIndex < MOST_PAGES_READ_PER_POLL; pageIndex++) {
         const recordsPage = await this.backend.readStreamLogRecords(streamName, this.afterSequence);
-        if (!this.isStillShownLoaded(streamName)) return;
+        if (!this.isStillShownAsReadFrom(streamName, readGeneration)) return;
         this.onStreamInstanceRead(streamName, recordsPage.stream_instance);
         const heldReading = this.readingOf(streamName);
         if (heldReading.streamInstance !== null && recordsPage.stream_instance !== heldReading.streamInstance) {
@@ -117,7 +121,7 @@ export class StreamLogReadings {
         if (recordsPage.records.length < STREAM_LOG_RECORDS_PAGE_SIZE) break;
       }
     } catch (rejection) {
-      if (this.isStillShownLoaded(streamName)) {
+      if (this.isStillShownAsReadFrom(streamName, readGeneration)) {
         this.replaceTheShownReading({ streamName, reading: { ...this.readingOf(streamName), readRefusal: describeBackendRejection(rejection) } });
       }
     }

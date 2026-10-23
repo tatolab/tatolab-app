@@ -122,6 +122,15 @@ export interface StreamLogFilters {
   clearedThroughSequence: number;
 }
 
+/** What a run of a row's message line is, which decides its colour. */
+export type StreamLogMessageLinePartKind = "message" | "separator" | "field_key" | "field_value";
+
+/** A run of a row's message line: its message, then each field as `key=value`, two spaces before each. */
+export interface StreamLogMessageLinePart {
+  text: string;
+  kind: StreamLogMessageLinePartKind;
+}
+
 /** One row of the Logs tab. */
 export interface StreamLogRow {
   record: StreamLogRecord;
@@ -130,7 +139,7 @@ export interface StreamLogRow {
   levelWord: string;
   levelTone: LogLevelWordTone;
   step: StreamLogRecordStep;
-  fields: StreamLogRecordField[];
+  messageLineParts: StreamLogMessageLinePart[];
   /** `Tuesday, October 20` above the first row of each day while the rows span more than one; `null` otherwise. */
   dayDividerWords: string | null;
 }
@@ -143,12 +152,22 @@ export interface StreamLogStepChoice {
   stepHint: string;
 }
 
+/** One segment of the level control: its level, its word, how many of the records the search and the steps let through it counts, and the colour of its word. */
+export interface StreamLogLevelFilterChoice {
+  levelFilter: StreamLogLevelFilter;
+  label: string;
+  count: number;
+  /** Warnings amber and Errors red while they count any; plain otherwise. */
+  labelTone: "plain" | "warn" | "error";
+}
+
 /** What the Logs tab shows of the records held. */
 export interface StreamLogPresentation {
   rows: StreamLogRow[];
-  /** Each level's count among the records the search and the steps let through. */
-  countsByLevelFilter: Record<StreamLogLevelFilter, number>;
+  levelFilterChoices: StreamLogLevelFilterChoice[];
   stepChoices: StreamLogStepChoice[];
+  /** The step filter's words: `All steps`, the one step chosen, or `2 of 5`. */
+  stepFilterWords: { words: string; isOneStepChosen: boolean };
   /** `113 lines`, or `12 of 113` while a filter hides some. */
   lineCountWords: string;
   /** Why no row shows; `null` while some do. */
@@ -163,7 +182,14 @@ function rowOfLogRecord(record: StreamLogRecord, stepNamesByProcessorId: Readonl
     levelWord: logLevelWordOf(record.level),
     levelTone: presentLogLevelWord(record.level),
     step: stepOfLogRecord(record, stepNamesByProcessorId),
-    fields: fieldsOfLogRecord(record),
+    messageLineParts: [
+      { text: record.message, kind: "message" },
+      ...fieldsOfLogRecord(record).flatMap((field): StreamLogMessageLinePart[] => [
+        { text: "  ", kind: "separator" },
+        { text: `${field.key}=`, kind: "field_key" },
+        { text: field.valueText, kind: "field_value" },
+      ]),
+    ],
     dayDividerWords: null,
   };
 }
@@ -188,10 +214,27 @@ function rowsWithDayDividers(rows: StreamLogRow[]): StreamLogRow[] {
   });
 }
 
-function rowMatchesSearch(row: StreamLogRow, lowercaseSearchText: string): boolean {
-  if (lowercaseSearchText === "") return true;
-  const searchableText = [row.record.message, row.step.stepName, ...Object.entries(row.record.attrs).map(([key, value]) => `${key}=${value}`)].join(" ");
-  return searchableText.toLowerCase().includes(lowercaseSearchText);
+/** Where `searchText` matches `text`, ignoring case and the search's own leading and trailing spaces, as `[start, end)` pairs that do not overlap. */
+export function searchMatchRangesOf(text: string, searchText: string): [number, number][] {
+  const lowercaseSearchText = searchText.trim().toLowerCase();
+  if (lowercaseSearchText === "") return [];
+  const lowercaseText = text.toLowerCase();
+  const matchRanges: [number, number][] = [];
+  for (let matchAt = lowercaseText.indexOf(lowercaseSearchText); matchAt !== -1; matchAt = lowercaseText.indexOf(lowercaseSearchText, matchAt + lowercaseSearchText.length)) {
+    matchRanges.push([matchAt, matchAt + lowercaseSearchText.length]);
+  }
+  return matchRanges;
+}
+
+/** A row's message line as it reads: its message and fields, as the row shows them. */
+function messageLineTextOf(row: StreamLogRow): string {
+  return row.messageLineParts.map((part) => part.text).join("");
+}
+
+/** Whether `searchText` matches a row's step or its message line, each as the row shows it, so whatever matches is what the row marks. */
+function rowMatchesSearch(row: StreamLogRow, searchText: string): boolean {
+  if (searchText.trim() === "") return true;
+  return searchMatchRangesOf(row.step.stepName, searchText).length > 0 || searchMatchRangesOf(messageLineTextOf(row), searchText).length > 0;
 }
 
 /** The class a step's type names, such as `PersonDetector` of `nodes.person_detector:PersonDetector`. */
@@ -215,9 +258,8 @@ function stepChoicesOfRows(rows: readonly StreamLogRow[], graph: StreamGraphSumm
 export function presentStreamLog(records: readonly StreamLogRecord[], graph: StreamGraphSummary | null, filters: StreamLogFilters): StreamLogPresentation {
   const stepNamesByProcessorId = stepNamesByProcessorIdOf(graph);
   const rowsNotCleared = records.filter((record) => record.sequence > filters.clearedThroughSequence).map((record) => rowOfLogRecord(record, stepNamesByProcessorId));
-  const lowercaseSearchText = filters.searchText.trim().toLowerCase();
   const rowsOfTheStepsSearched = rowsNotCleared.filter(
-    (row) => (filters.shownStepKeys.size === 0 || filters.shownStepKeys.has(row.step.stepKey)) && rowMatchesSearch(row, lowercaseSearchText),
+    (row) => (filters.shownStepKeys.size === 0 || filters.shownStepKeys.has(row.step.stepKey)) && rowMatchesSearch(row, filters.searchText),
   );
   const countsByLevelFilter: Record<StreamLogLevelFilter, number> = { all: rowsOfTheStepsSearched.length, info: 0, warn: 0, error: 0 };
   for (const row of rowsOfTheStepsSearched) countsByLevelFilter[levelFilterOfLogRecord(row.record.level)] += 1;
@@ -230,10 +272,24 @@ export function presentStreamLog(records: readonly StreamLogRecord[], graph: Str
     else if (rowsNotCleared.length === 0) emptyWords = "Cleared. New lines appear here.";
     else emptyWords = "No lines match.";
   }
+  const stepChoices = stepChoicesOfRows(rowsNotCleared, graph);
+  const onlyStepChosen = filters.shownStepKeys.size === 1 ? stepChoices.find((stepChoice) => filters.shownStepKeys.has(stepChoice.stepKey)) : undefined;
   return {
     rows,
-    countsByLevelFilter,
-    stepChoices: stepChoicesOfRows(rowsNotCleared, graph),
+    levelFilterChoices: STREAM_LOG_LEVEL_FILTERS.map(({ levelFilter, label }) => {
+      const count = countsByLevelFilter[levelFilter];
+      return { levelFilter, label, count, labelTone: count > 0 && (levelFilter === "warn" || levelFilter === "error") ? levelFilter : "plain" };
+    }),
+    stepChoices,
+    stepFilterWords: {
+      words:
+        filters.shownStepKeys.size === 0
+          ? "All steps"
+          : onlyStepChosen !== undefined
+            ? onlyStepChosen.stepName
+            : `${filters.shownStepKeys.size} of ${stepChoices.length}`,
+      isOneStepChosen: onlyStepChosen !== undefined,
+    },
     lineCountWords: rows.length === rowsNotCleared.length ? countLabel(rows.length, "line", "lines") : `${rows.length.toLocaleString("en-US")} of ${rowsNotCleared.length.toLocaleString("en-US")}`,
     emptyWords,
   };
@@ -319,6 +375,11 @@ export function prettyJsonLinesOf(jsonText: string): string[] {
   });
   if (currentLine.trim() !== "") lines.push(currentLine);
   return lines;
+}
+
+/** Whether the pointer row to the records not held shows: while some are not held, nothing is cleared and nothing is searched for. */
+export function isEarlierRecordsPointerShown(earlierRecordsNotHeldCount: number, filters: StreamLogFilters): boolean {
+  return earlierRecordsNotHeldCount > 0 && filters.clearedThroughSequence === 0 && filters.searchText.trim() === "";
 }
 
 /** The pointer row's words before the log folder: `2,312 earlier records are in`. */

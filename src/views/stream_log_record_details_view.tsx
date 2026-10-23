@@ -1,17 +1,13 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { Check, Copy, Filter, PanelRightClose, ScrollText, Workflow, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { writeTextToClipboard } from "../clipboard";
+import { Filter, PanelRightClose, ScrollText, Workflow, type LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import type { LogLevelWordTone, StreamLogRecordDetails } from "../presentation/log_record_presentation";
 import { syntaxPartsOfAJsonLine, type JsonSyntaxKind } from "../presentation/stream_graph_document_presentation";
+import { CopyTextButton } from "./copy_text_button";
 import { Button } from "./shadcn/button";
 import { joinClassNames } from "./shadcn/class_names";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./shadcn/tooltip";
-
-/** How long a copy button says Copied. */
-const COPIED_CONFIRMATION_MILLISECONDS = 1200;
 
 /** The colour of a level word, by its tone: only warn and error are coloured. */
 export const LOG_LEVEL_WORD_TONE_CLASS_NAMES: Record<LogLevelWordTone, string> = {
@@ -28,37 +24,6 @@ const JSON_SYNTAX_CLASS_NAMES: Record<JsonSyntaxKind, string> = {
   literal: "text-fg",
   punctuation: "text-fg-3",
 };
-
-/** A small icon button that copies `textToCopy`, saying Copied for a moment after. */
-export function CopyTextButton({ textToCopy, label, controlAttribute }: { textToCopy: string; label: string; controlAttribute: Record<`data-${string}`, string> }) {
-  const [hasJustCopied, setHasJustCopied] = useState(false);
-  const copiedTimer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
-  const ButtonIcon = hasJustCopied ? Check : Copy;
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={hasJustCopied ? "Copied" : label}
-            onClick={() => {
-              void writeTextToClipboard(textToCopy);
-              setHasJustCopied(true);
-              window.clearTimeout(copiedTimer.current);
-              copiedTimer.current = window.setTimeout(() => setHasJustCopied(false), COPIED_CONFIRMATION_MILLISECONDS);
-            }}
-            {...controlAttribute}
-          />
-        }
-      >
-        <ButtonIcon className="size-4" strokeWidth={1.75} aria-hidden />
-      </TooltipTrigger>
-      <TooltipContent>{hasJustCopied ? "Copied" : label}</TooltipContent>
-    </Tooltip>
-  );
-}
 
 function DetailsSection({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
   return (
@@ -119,7 +84,7 @@ export function StreamLogRecordDetailsView({
       <div className="flex h-9 shrink-0 items-center gap-1 border-b pr-1.5 pl-3">
         <h2 className="font-medium text-fg">Line</h2>
         <div className="ml-auto flex items-center">
-          {details !== null && <CopyTextButton textToCopy={details.jsonlLine} label="Copy as JSON" controlAttribute={{ "data-stream-log-details-copy": "record" }} />}
+          {details !== null && <CopyTextButton readTextToCopy={() => details.jsonlLine} label="Copy as JSON" controlAttribute={{ "data-stream-log-details-copy": "record" }} />}
           <Button variant="ghost" size="icon" aria-label="Hide details" onClick={actions.onClosed} data-stream-log-details-close="">
             <PanelRightClose className="size-4" strokeWidth={1.75} aria-hidden />
           </Button>
@@ -168,7 +133,7 @@ export function StreamLogRecordDetailsView({
               title="Fields"
               aside={
                 <CopyTextButton
-                  textToCopy={details.fields.map((field) => `${field.key}=${field.valueText}`).join(" ")}
+                  readTextToCopy={() => details.fields.map((field) => `${field.key}=${field.valueText}`).join(" ")}
                   label="Copy fields"
                   controlAttribute={{ "data-stream-log-details-copy": "fields" }}
                 />
@@ -184,7 +149,7 @@ export function StreamLogRecordDetailsView({
               </dl>
             </DetailsSection>
           )}
-          <DetailsSection title="Record">
+          <DetailsSection title="Record" aside={<CopyTextButton readTextToCopy={() => details.jsonlLine} label="Copy as JSONL" controlAttribute={{ "data-stream-log-details-copy": "jsonl_line" }} />}>
             <pre
               className="scrollbar-thin overflow-x-auto rounded-md border bg-window p-2.5 font-mono text-[11px] leading-4 whitespace-pre select-text"
               data-stream-log-details-record=""
