@@ -15,9 +15,17 @@ export interface SegmentedRadioChoice<Choice extends string> {
 
 const ARROW_KEY_STEPS: Record<string, -1 | 1> = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 };
 
+/** The segment a key moves the choice to from `chosenIndex`: the one before or after it with the arrows, wrapping, or the first or last; `null` for any other key. */
+function segmentIndexAfterKey(key: string, chosenIndex: number, segmentCount: number): number | null {
+  if (key === "Home") return 0;
+  if (key === "End") return segmentCount - 1;
+  const step = ARROW_KEY_STEPS[key];
+  return step === undefined ? null : (chosenIndex + step + segmentCount) % segmentCount;
+}
+
 /**
- * A segmented control that chooses one of `choices`, as a radio group: only the chosen segment is a Tab stop, and the
- * arrow keys choose the segment before or after it.
+ * A segmented control that chooses one of `choices`, as a radio group: only the chosen segment is a Tab stop, the
+ * arrow keys choose the segment before or after it, and Home and End the first and last.
  */
 export function SegmentedRadioControl<Choice extends string>({
   ariaLabel,
@@ -32,19 +40,23 @@ export function SegmentedRadioControl<Choice extends string>({
 }) {
   const segmentButtons = useRef(new Map<Choice, HTMLButtonElement>());
   const onKeyDown = (keyboardEvent: ReactKeyboardEvent<HTMLDivElement>) => {
-    const step = ARROW_KEY_STEPS[keyboardEvent.key];
-    if (step === undefined) return;
-    keyboardEvent.preventDefault();
-    const chosenIndex = choices.findIndex((segment) => segment.choice === chosen);
-    const nextSegment = choices[(chosenIndex + step + choices.length) % choices.length];
+    const nextIndex = segmentIndexAfterKey(
+      keyboardEvent.key,
+      choices.findIndex((segment) => segment.choice === chosen),
+      choices.length,
+    );
+    const nextSegment = nextIndex === null ? undefined : choices[nextIndex];
     if (nextSegment === undefined) return;
+    keyboardEvent.preventDefault();
     onChosen(nextSegment.choice);
     segmentButtons.current.get(nextSegment.choice)?.focus();
   };
   return (
     <div className="flex h-7 shrink-0 items-center rounded-md bg-well p-0.5" role="radiogroup" aria-label={ariaLabel} onKeyDown={onKeyDown}>
-      {choices.map((segment) => {
+      {choices.map((segment, segmentIndex) => {
         const isChosen = segment.choice === chosen;
+        // With nothing chosen, the first segment keeps the group's one Tab stop.
+        const isTheTabStop = isChosen || (segmentIndex === 0 && !choices.some((otherSegment) => otherSegment.choice === chosen));
         return (
           <button
             key={segment.choice}
@@ -55,7 +67,7 @@ export function SegmentedRadioControl<Choice extends string>({
             type="button"
             role="radio"
             aria-checked={isChosen}
-            tabIndex={isChosen ? 0 : -1}
+            tabIndex={isTheTabStop ? 0 : -1}
             onClick={() => onChosen(segment.choice)}
             className={joinClassNames(
               "flex h-6 items-center gap-1.5 rounded-[5px] px-2.5 whitespace-nowrap text-fg-2 transition-colors hover:text-fg focus-visible:ring-3 focus-visible:ring-ring",

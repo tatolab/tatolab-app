@@ -440,6 +440,23 @@ describe("a stream's Logs tab", () => {
 
     expect(screen.getByRole("radio", { name: /Info/ }).getAttribute("aria-checked")).toBe("true");
     expect(document.activeElement?.getAttribute("data-stream-log-level-filter")).toBe("info");
+    fireEvent.keyDown(screen.getByRole("radio", { name: /Info/ }), { key: "End" });
+    expect(screen.getByRole("radio", { name: /Errors/ }).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("shows every step again from a choice of the step menu, which the keyboard reaches like the steps", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheLogsOf("main");
+    fireEvent.mouseDown(await waitFor(() => logRowOf("mean=127.5")));
+    fireEvent.click(screen.getByRole("button", { name: "Only lines from brightnessmeter" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Steps shown: brightnessmeter" }));
+    const showAllSteps = await waitFor(() => screen.getByRole("menuitem", { name: "Show all steps" }));
+    expect(showAllSteps.hasAttribute("data-disabled")).toBe(false);
+    fireEvent.click(showAllSteps);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Steps shown: All steps" })).toBeTruthy());
+    expect(shownLogMessages().some((row) => row.includes("runtime"))).toBe(true);
   });
 
   it("says why it cannot read new records in the runtime's words, keeping the rows it has", async () => {

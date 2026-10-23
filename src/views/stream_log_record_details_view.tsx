@@ -133,7 +133,7 @@ export function StreamLogRecordDetailsView({
               title="Fields"
               aside={
                 <CopyTextButton
-                  readTextToCopy={() => details.fields.map((field) => `${field.key}=${field.valueText}`).join(" ")}
+                  readTextToCopy={() => details.fieldsTextToCopy}
                   label="Copy fields"
                   controlAttribute={{ "data-stream-log-details-copy": "fields" }}
                 />

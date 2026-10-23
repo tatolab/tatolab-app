@@ -215,6 +215,7 @@ describe("presentStreamLogRecordDetails", () => {
     expect(details.step).toEqual({ stepKey: "Pdet", stepName: "persondetector", isAStepOfTheGraph: true });
     expect(details.processWords).toBe("own process");
     expect(details.fields).toEqual([{ key: "freed_gb", valueText: "12.4" }]);
+    expect(presentStreamLogRecordDetails(logRecord(2, { attrs: { device: "FaceTime HD Camera", fps: "30" } }), null).fieldsTextToCopy).toBe('device="FaceTime HD Camera"  fps=30');
     expect(details.recordJsonLines).toEqual([
       "{",
       '  "host_ts": 1791759307069355001,',

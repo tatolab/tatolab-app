@@ -26,7 +26,16 @@ import { shortcutHint } from "../presentation/platform_presentation";
 import { isStreamLoaded, presentStreamPrimaryAction } from "../presentation/stream_presentation";
 import { Button } from "./shadcn/button";
 import { joinClassNames } from "./shadcn/class_names";
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuGroupLabel, DropdownMenuTrigger } from "./shadcn/dropdown_menu";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuGroupLabel,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./shadcn/dropdown_menu";
 import { Kbd } from "./shadcn/kbd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./shadcn/tooltip";
 import { CopyTextButton } from "./copy_text_button";
@@ -144,6 +153,7 @@ const StreamLogRowView = memo(
       </>
     );
   },
+  // Every field of a row but its step and day divider is drawn from its record alone (`rowOfLogRecord`), so those three decide whether it redraws.
   (previousProps, nextProps) =>
     previousProps.row.record === nextProps.row.record &&
     previousProps.row.step.stepName === nextProps.row.step.stepName &&
@@ -188,17 +198,16 @@ function StreamLogStepFilterControl({
       </DropdownMenuTrigger>
       <DropdownMenuContent className="max-h-96 w-72">
         <DropdownMenuGroup>
-          <div className="flex h-7 items-center px-2">
-            <DropdownMenuGroupLabel className="px-0 py-0 font-medium">Steps</DropdownMenuGroupLabel>
-            <button
-              type="button"
-              disabled={shownStepKeys.size === 0}
-              onClick={() => onShownStepKeysChosen(new Set())}
-              className="ml-auto rounded px-1 text-xs text-fg-3 hover:text-fg disabled:opacity-40 disabled:hover:text-fg-3"
-            >
-              Show all
-            </button>
-          </div>
+          <DropdownMenuGroupLabel className="font-medium">Steps</DropdownMenuGroupLabel>
+          <DropdownMenuItem
+            closeOnClick={false}
+            disabled={shownStepKeys.size === 0}
+            onClick={() => onShownStepKeysChosen(new Set())}
+            data-stream-log-step-choice-all=""
+          >
+            Show all steps
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           {stepChoices.map((stepChoice) => (
             <DropdownMenuCheckboxItem
               key={stepChoice.stepKey}

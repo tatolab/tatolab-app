@@ -310,6 +310,8 @@ export interface StreamLogRecordDetails {
   /** Which process wrote it: the runtime's own, or the step's own helper process. */
   processWords: "runtime" | "own process";
   fields: StreamLogRecordField[];
+  /** The fields as the row writes them, `key=value` two spaces apart, for Copy fields. */
+  fieldsTextToCopy: string;
   /** The record as the runtime wrote it, pretty-printed with every digit kept. */
   recordJsonLines: string[];
   /** The record as one JSONL line, for Copy. */
@@ -327,6 +329,9 @@ export function presentStreamLogRecordDetails(record: StreamLogRecord, graph: St
     step: stepOfLogRecord(record, stepNamesByProcessorId),
     processWords: record.sent_by_its_own_process ? "own process" : "runtime",
     fields: fieldsOfLogRecord(record),
+    fieldsTextToCopy: fieldsOfLogRecord(record)
+      .map((field) => `${field.key}=${field.valueText}`)
+      .join("  "),
     recordJsonLines: prettyJsonLinesOf(record.jsonl_line),
     jsonlLine: record.jsonl_line,
   };
