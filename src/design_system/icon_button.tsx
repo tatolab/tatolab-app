@@ -28,7 +28,6 @@ export function IconButton({
   disabledReason = null,
   isIconFilled = false,
   size = "regular",
-  isOutOfTheTabOrder = false,
   onPressed,
   ...controlDataAttributes
 }: {
@@ -42,8 +41,6 @@ export function IconButton({
   /** A play or stop square drawn filled and smaller, as media controls are. */
   isIconFilled?: boolean;
   size?: IconButtonSize;
-  /** For a button that repeats a way the keyboard already has. */
-  isOutOfTheTabOrder?: boolean;
   onPressed: () => void;
 } & ControlDataAttributes) {
   const isDisabled = disabledReason !== null;
@@ -57,7 +54,6 @@ export function IconButton({
           size={STOCK_ICON_BUTTON_SIZE[size]}
           aria-label={isDisabled ? `${label}: ${disabledReason}` : label}
           aria-disabled={isDisabled || undefined}
-          tabIndex={isOutOfTheTabOrder ? -1 : undefined}
           onClick={() => {
             if (!isDisabled) onPressed();
           }}

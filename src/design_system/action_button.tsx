@@ -22,7 +22,7 @@ const APPEARANCE_CLASS_NAMES: Record<ActionButtonAppearance, string> = {
     "bg-danger text-primary-foreground hover:bg-danger-text focus-visible:border-transparent dark:bg-danger-soft dark:text-danger-text dark:hover:bg-danger/20",
 };
 
-/** The stock sizes are in rem, so they render at 13/16 under the window's 13 px root; these are the heights the window's controls take there. */
+/** The text and icon sizes the window's controls take over stock's: stock's small size sets its words at 0.8rem, under the window's 13 px body text. */
 const SIZE_CLASS_NAMES = {
   regular: "gap-1.5 rounded-md text-sm [&_svg:not([class*='size-'])]:size-3.5",
   small: "gap-1 rounded-md text-xs [&_svg:not([class*='size-'])]:size-3.5",

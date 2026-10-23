@@ -106,7 +106,7 @@ export function StreamGraphOutputHoverPreview({
               )}
             </div>
             <div className="mt-1 flex items-center gap-3 text-xs text-fg-3" aria-hidden>
-              {output.exposureLevel !== null && <ExposureLevelWords level={output.exposureLevel} />}
+              {output.exposureLevel !== null && <ExposureLevelWords level={output.exposureLevel} isQuiet />}
               <span className="ml-auto">{isPinned ? "Pinned" : "Click the port to pin"}</span>
             </div>
           </div>

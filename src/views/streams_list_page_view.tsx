@@ -234,7 +234,7 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
         title="Streams"
         subtitle={streamsListHeadline(listedStreams, status.machine_name, platform)}
         actions={
-          listedStreams.length > 0 && (
+          listedStreams.length > 0 ? (
             <>
               <StreamsListFilterControl chosenFilter={chosenFilter} onFilterChosen={setChosenFilter} listedStreams={listedStreams} />
               <SearchField label="Filter streams" placeholder="Filter" text={filterText} onTextChanged={setFilterText} />
@@ -242,7 +242,7 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
                 Add stream
               </ActionButton>
             </>
-          )
+          ) : undefined
         }
       />
 

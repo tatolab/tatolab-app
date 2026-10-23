@@ -5,12 +5,12 @@ import { cn } from "cn";
 import { Globe, Laptop, Lock } from "lucide-react";
 import { presentExposureLevel } from "../presentation/stream_overview_presentation";
 
-/** An output's level beside its lock, laptop or globe, its meaning in a tooltip; small beside an address, regular in running text. */
-export function ExposureLevelWords({ level, size = "small" }: { level: string; size?: "regular" | "small" }) {
+/** An output's level beside its lock, laptop or globe, its meaning in a tooltip; quiet on a line of quiet meta words. */
+export function ExposureLevelWords({ level, isQuiet = false }: { level: string; isQuiet?: boolean }) {
   const exposureLevel = presentExposureLevel(level);
   const LevelIcon = exposureLevel.icon === "public" ? Globe : exposureLevel.icon === "this_machine" ? Laptop : exposureLevel.icon === "internal" ? Lock : null;
   return (
-    <span className={cn("inline-flex shrink-0 items-center gap-1 text-fg-2", size === "small" && "text-xs")} title={exposureLevel.meaning ?? undefined}>
+    <span className={cn("inline-flex shrink-0 items-center gap-1 text-xs", isQuiet ? "text-fg-3" : "text-fg-2")} title={exposureLevel.meaning ?? undefined}>
       {LevelIcon !== null && <LevelIcon className="size-3.5 text-fg-3" strokeWidth={1.75} aria-hidden />}
       {exposureLevel.label}
     </span>

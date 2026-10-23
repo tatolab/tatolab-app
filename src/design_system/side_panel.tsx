@@ -5,6 +5,7 @@ import { PanelRightClose } from "lucide-react";
 import type { ReactNode } from "react";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import type { ControlDataAttributes } from "./control_data_attributes";
+import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
 import { IconButton } from "./icon_button";
 
 /** The side panel's width as it opens, and the narrowest and widest it is dragged to, in CSS pixels. */
@@ -23,7 +24,7 @@ export function WorkAreaWithSidePanel({ sidePanel, children }: { sidePanel: Reac
       </ResizablePanel>
       {sidePanel !== null && (
         <>
-          <ResizableHandle aria-label="Resize the side panel" />
+          <ResizableHandle aria-label="Resize the side panel" className={FULL_STRENGTH_FOCUS_RING_CLASS_NAMES} />
           <ResizablePanel
             id="side-panel"
             defaultSize={SIDE_PANEL_OPENING_WIDTH}

@@ -30,13 +30,24 @@ export function ToolbarDivider() {
   return <Separator orientation="vertical" className="mx-1 data-vertical:h-4 data-vertical:self-center" />;
 }
 
-/** Quiet words in a toolbar, as a count of the lines shown, with what they mean in a tooltip when there is more to say. */
-export function ToolbarWords({ explanation, children, ...controlDataAttributes }: { explanation?: ReactNode; children: ReactNode } & ControlDataAttributes) {
+/**
+ * Quiet words in a toolbar, as a count of the lines shown, with what they mean in a tooltip when there is more to say;
+ * words that only add to what the toolbar shows elsewhere step aside while it is narrower than 960 px.
+ */
+export function ToolbarWords({
+  explanation,
+  isDroppedWhenNarrow = false,
+  children,
+  ...controlDataAttributes
+}: { explanation?: ReactNode; isDroppedWhenNarrow?: boolean; children: ReactNode } & ControlDataAttributes) {
   return (
     <WithControlTooltip
       tooltip={explanation}
       control={
-        <span className="mr-2 cursor-default text-xs whitespace-nowrap text-fg-3 tabular" {...controlDataAttributes}>
+        <span
+          className={cn("mr-2 cursor-default text-xs whitespace-nowrap text-fg-3 tabular", isDroppedWhenNarrow && "hidden @[960px]:inline")}
+          {...controlDataAttributes}
+        >
           {children}
         </span>
       }

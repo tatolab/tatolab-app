@@ -6,7 +6,7 @@ import { Activity, Boxes, ChevronLeft, ChevronRight, Moon, Plus, Settings, Squar
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } from "react-router";
 import type { ListedStream } from "../backend/tatolab_backend_contract";
-import { presentPlatform, shortcutHint, windowDragRegionAttribute } from "../presentation/platform_presentation";
+import { presentPlatform, presentWindowShortcut, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { presentRuntimeStatus, presentWindowStatusBar } from "../presentation/runtime_presentation";
 import { isStreamLoaded } from "../presentation/stream_presentation";
 import { ActionButton } from "../design_system/action_button";
@@ -168,8 +168,7 @@ function WindowTitleBar() {
       <IconButton icon={ChevronRight} label="Forward" onPressed={() => navigate(1)} />
       <SearchOpeningButton
         label="Search streams, outputs and views"
-        shortcutHint={shortcutHint(platform, "K")}
-        ariaKeyShortcuts={platform === "macos" ? "Meta+K" : "Control+K"}
+        shortcut={presentWindowShortcut(platform, "K")}
         onPressed={openSearch}
         data-window-search=""
       />

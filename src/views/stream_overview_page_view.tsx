@@ -319,10 +319,10 @@ function StreamDetailsPanel({ stream, reading }: { stream: ListedStream; reading
       className="grid shrink-0 grid-cols-1 border-t bg-chrome py-1 sm:grid-cols-3 xl:block xl:w-80 xl:border-t-0 xl:border-l"
       data-stream-details=""
     >
-      <PanelSection title="Details">
+      <PanelSection title="Details" isTheTopHeading>
         <KeyValueRows rows={detailRows} />
       </PanelSection>
-      <PanelSection title={isFromTheLastLoad ? "Outputs as of the last load" : "Outputs"}>
+      <PanelSection title={isFromTheLastLoad ? "Outputs as of the last load" : "Outputs"} isTheTopHeading>
         {graph === null ? (
           <p className="text-fg-3">{isStreamLoaded(stream) ? "Its outputs show once its graph is read." : "Its outputs show once it is loaded."}</p>
         ) : readableOutputs.length === 0 ? (
@@ -342,7 +342,7 @@ function StreamDetailsPanel({ stream, reading }: { stream: ListedStream; reading
           </ul>
         )}
       </PanelSection>
-      <PanelSection title="From the terminal">
+      <PanelSection title="From the terminal" isTheTopHeading>
         <div className="rounded-md border bg-raised px-2 py-1.5">
           {streamObservationCommands(stream.name).map((command) => (
             <CopyableTerminalCommand key={command} command={command} />

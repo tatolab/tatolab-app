@@ -1,11 +1,9 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ActionButton } from "./action_button";
 import type { ControlDataAttributes } from "./control_data_attributes";
-import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
 
 /** The words of a question asked before an action: the question, what answering it does, and the word of the button that answers yes. */
 export interface ConfirmationQuestion {
@@ -55,18 +53,9 @@ export function ConfirmationDialog({
               <DialogDescription className="text-sm text-fg-2">{question.explanation}</DialogDescription>
             </DialogHeader>
             <DialogFooter className="mx-0 mb-0 rounded-none border-t-0 bg-transparent p-0">
-              <DialogClose
-                render={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    autoFocus
-                    className={`rounded-md border-line-strong bg-raised text-sm text-fg hover:bg-hover dark:border-line-strong dark:bg-raised dark:hover:bg-hover ${FULL_STRENGTH_FOCUS_RING_CLASS_NAMES}`}
-                  />
-                }
-              >
+              <ActionButton hasFocusOnOpen onPressed={() => onOpenChange(false)}>
                 Cancel
-              </DialogClose>
+              </ActionButton>
               <ActionButton appearance={isDestructive ? "destructive" : "primary"} onPressed={onConfirmed} {...confirmDataAttributes}>
                 {question.confirmWords}
               </ActionButton>

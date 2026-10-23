@@ -5,6 +5,7 @@ import { Search, X } from "lucide-react";
 import type { Ref } from "react";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import type { ControlDataAttributes } from "./control_data_attributes";
+import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
 import { KeyboardKey } from "./keyboard_key";
 
 /**
@@ -16,7 +17,7 @@ export function SearchField({
   placeholder,
   text,
   onTextChanged,
-  shortcutHint,
+  shortcut,
   inputRef,
   ...controlDataAttributes
 }: {
@@ -25,8 +26,8 @@ export function SearchField({
   placeholder: string;
   text: string;
   onTextChanged: (text: string) => void;
-  /** The shortcut that reaches the field, as ⌘ F, shown while it is empty. */
-  shortcutHint?: string;
+  /** The shortcut that reaches the field: its key cap, as ⌘F, shown while the field is empty, and as `aria-keyshortcuts` writes it, as Meta+F. */
+  shortcut?: { hint: string; ariaKeyShortcuts: string };
   /** For a page that moves focus into the field. */
   inputRef?: Ref<HTMLInputElement>;
 } & ControlDataAttributes) {
@@ -47,19 +48,20 @@ export function SearchField({
         }}
         placeholder={placeholder}
         aria-label={label}
+        aria-keyshortcuts={shortcut?.ariaKeyShortcuts}
         spellCheck={false}
         autoComplete="off"
         className="h-full px-0 text-sm placeholder:text-fg-3"
         {...controlDataAttributes}
       />
-      {(text !== "" || shortcutHint !== undefined) && (
+      {(text !== "" || shortcut !== undefined) && (
         <InputGroupAddon align="inline-end" className="py-0 pr-1">
           {text !== "" ? (
-            <InputGroupButton size="icon-xs" aria-label="Clear search" onClick={() => onTextChanged("")} className="text-fg-3 hover:bg-hover hover:text-fg">
+            <InputGroupButton size="icon-xs" aria-label="Clear search" onClick={() => onTextChanged("")} className={`text-fg-3 hover:bg-hover hover:text-fg ${FULL_STRENGTH_FOCUS_RING_CLASS_NAMES}`}>
               <X className="size-3.5" aria-hidden />
             </InputGroupButton>
           ) : (
-            <KeyboardKey>{shortcutHint}</KeyboardKey>
+            <KeyboardKey isAlreadyAnnounced>{shortcut?.hint}</KeyboardKey>
           )}
         </InputGroupAddon>
       )}

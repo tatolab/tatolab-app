@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { cn } from "cn";
-import { ArrowDownToLine, Ban, Clock, FileText, FolderOpen, PanelRight, RotateCw, ScrollText, SquareX, WrapText } from "lucide-react";
+import { ArrowDownToLine, Ban, Clock, FileText, FolderOpen, ListFilter, PanelRight, RotateCw, ScrollText, SquareX, WrapText } from "lucide-react";
 import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { describeBackendRejection } from "../backend/tatolab_backend";
@@ -23,7 +23,7 @@ import {
   type StreamLogPresentation,
   type StreamLogRow,
 } from "../presentation/log_record_presentation";
-import { shortcutHint } from "../presentation/platform_presentation";
+import { presentWindowShortcut } from "../presentation/platform_presentation";
 import { isStreamLoaded, presentStreamPrimaryAction } from "../presentation/stream_presentation";
 import { ActionButton } from "../design_system/action_button";
 import { CopyIconButton } from "../design_system/copy_icon_button";
@@ -181,7 +181,7 @@ function StreamLogStepFilterControl({
   return (
     <FieldMenu
       label={`Steps shown: ${stepFilterWords.words}`}
-      leading={<span className="text-fg-3">Step</span>}
+      leading={<ListFilter className="size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />}
       words={<span className={cn("max-w-36 truncate", stepFilterWords.isOneStepChosen && "font-mono text-xs")}>{stepFilterWords.words}</span>}
       isNarrowing={shownStepKeys.size > 0}
       menuWidth="wide"
@@ -248,6 +248,16 @@ function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stre
         </div>
       )}
     </div>
+  );
+}
+
+/** Which load of the stream the rows are from, and that the window holds its records since that load. */
+function StreamLoadExplanation({ streamInstance }: { streamInstance: string }) {
+  return (
+    <span className="block">
+      {streamLoadWords(streamInstance)}: records since this load are held in memory.
+      <span className="mt-1 block font-mono text-2xs opacity-80">stream_instance: {streamInstance}</span>
+    </span>
   );
 }
 
@@ -358,7 +368,7 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
             placeholder="Search logs"
             text={searchText}
             onTextChanged={setSearchText}
-            shortcutHint={shortcutHint(platform, "F")}
+            shortcut={presentWindowShortcut(platform, "F")}
             data-stream-log-search=""
           />
           <SegmentedChoiceControl
@@ -375,19 +385,16 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
           <StreamLogStepFilterControl streamLog={streamLog} shownStepKeys={shownStepKeys} onShownStepKeysChosen={setShownStepKeys} />
           <ToolbarGroup isAtTheEnd>
             {reading.streamInstance !== null && (
-              <ToolbarWords
-                explanation={
-                  <span className="block">
-                    Records since this load are held in memory.
-                    <span className="mt-1 block font-mono text-2xs opacity-80">stream_instance: {reading.streamInstance}</span>
-                  </span>
-                }
-                data-stream-log-load=""
-              >
+              <ToolbarWords explanation={<StreamLoadExplanation streamInstance={reading.streamInstance} />} isDroppedWhenNarrow data-stream-log-load="">
                 {streamLoadWords(reading.streamInstance)}
               </ToolbarWords>
             )}
-            <ToolbarWords data-stream-log-line-count="">{streamLog.lineCountWords}</ToolbarWords>
+            <ToolbarWords
+              explanation={reading.streamInstance === null ? undefined : <StreamLoadExplanation streamInstance={reading.streamInstance} />}
+              data-stream-log-line-count=""
+            >
+              {streamLog.lineCountWords}
+            </ToolbarWords>
             <ToggleIconButton
               icon={ArrowDownToLine}
               label="Follow new lines"

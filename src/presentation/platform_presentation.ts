@@ -69,6 +69,18 @@ export function shortcutHint(platform: TatolabPlatform, key: string): string {
   return presentPlatform(platform).windowShortcutModifier === "meta" ? `⌘${key}` : `Ctrl ${key}`;
 }
 
+/** A window shortcut as the window shows and announces it: its key cap, and its `aria-keyshortcuts` value. */
+export interface WindowShortcutPresentation {
+  hint: string;
+  ariaKeyShortcuts: string;
+}
+
+/** `key` held with the platform's shortcut modifier: `⌘K` and `Meta+K` on macOS, `Ctrl K` and `Control+K` on Linux. */
+export function presentWindowShortcut(platform: TatolabPlatform, key: string): WindowShortcutPresentation {
+  const ariaModifier = presentPlatform(platform).windowShortcutModifier === "meta" ? "Meta" : "Control";
+  return { hint: shortcutHint(platform, key), ariaKeyShortcuts: `${ariaModifier}+${key}` };
+}
+
 /** Whether exactly the platform's shortcut modifier is held: ⌘ on macOS, Ctrl on Linux, and never with Option or Alt. */
 export function holdsWindowShortcutModifier(
   platform: TatolabPlatform,
