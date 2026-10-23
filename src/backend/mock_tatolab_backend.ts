@@ -284,6 +284,7 @@ export function createMockTatolabBackend({
   const loadStream = (fixture: MockStreamFixture, loadedAtMilliseconds: number): void => {
     loadedStreamInstanceCount += 1;
     streamNamesUnloadedButNotRecordedStopped.delete(fixture.listing.name);
+    keptFixturesNotLoaded.delete(fixture.listing.name);
     const loadedStream: MockLoadedStream = {
       fixture,
       streamInstance: String(loadedStreamInstanceCount),

@@ -355,7 +355,8 @@ function StreamsListRow({
         )}
         {outcome !== undefined && <StreamActionOutcomeLine outcome={outcome} />}
       </td>
-      <td className="px-3 py-2 align-top">
+      {/* The run mode's tooltip button takes Enter and Space, which click it; the click stays out of the row's. */}
+      <td className="px-3 py-2 align-top" onClick={(clickEvent) => clickEvent.stopPropagation()}>
         <StreamRunModeWord stream={stream} />
       </td>
       <td className={joinClassNames("px-3 py-2 text-right align-top tabular", isLoaded ? "text-fg-2" : "text-fg-3")}>{streamStepCountLabel(stream)}</td>
