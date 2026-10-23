@@ -10,7 +10,7 @@ import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
 import { ExposureLevelWords } from "./exposure_level_words";
 import { Button } from "./shadcn/button";
 import { joinClassNames } from "./shadcn/class_names";
-import { PortDataKindIcon } from "./stream_graph_step_card_view";
+import { PortDataKindIcon, STREAM_GRAPH_HOVER_PREVIEW_ELEMENT_ID } from "./stream_graph_step_card_view";
 
 const HOVER_PREVIEW_WIDTH = 360;
 const HOVER_PREVIEW_GAP = 14;
@@ -67,6 +67,8 @@ export function StreamGraphOutputHoverPreview({
   return createPortal(
     <div
       ref={popoverElement}
+      id={STREAM_GRAPH_HOVER_PREVIEW_ELEMENT_ID}
+      role="tooltip"
       onMouseEnter={onPointerEntered}
       onMouseLeave={onPointerLeft}
       style={{ width: output.preview.kind === "absent" ? 280 : HOVER_PREVIEW_WIDTH, ...(popoverPosition ?? { left: -9999, top: -9999 }) }}

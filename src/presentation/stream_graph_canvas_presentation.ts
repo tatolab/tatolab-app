@@ -46,9 +46,14 @@ export function previewedOutputOf(output: StreamGraphStepOutputPort): StreamGrap
   return output.preview.kind === "watch_page" ? { output, watchPageUrl: output.preview.watchPageUrl } : null;
 }
 
+/** What a screen reader hears on a step card with keyboard focus, after its name: the keys the canvas answers there. */
+export const STREAM_GRAPH_STEP_CARD_KEYBOARD_DESCRIPTION = "Press Enter or Space to inspect this step. Escape selects nothing.";
+
 /** One step as its card on the canvas shows it. */
 export interface StreamGraphStepCard {
   name: string;
+  /** `testpatternsource, Running, Built-in`, or `main/invertingeffect, in another stream`: the card's name for a screen reader. */
+  accessibleName: string;
   type: string;
   origin: "Built-in" | "Python" | null;
   /** A link's source in another stream on this machine, named `<stream>/<node>`, which this graph gives no state or counters for. */
@@ -154,12 +159,15 @@ export function presentStreamGraphCanvas(graph: StreamGraphSummary): StreamGraph
       };
     });
 
+    const origin = presentNodeKind(node.type);
+    const stepState = isInAnotherStream ? { stateWord: "In another stream", stateEmphasis: "quiet" as const } : presentStepState(node.state);
     return {
       name: node.name,
+      accessibleName: isInAnotherStream ? `${node.name}, in another stream` : [node.name, stepState.stateWord, origin].filter((part) => part !== null).join(", "),
       type: node.type,
-      origin: presentNodeKind(node.type),
+      origin,
       isInAnotherStream,
-      ...(isInAnotherStream ? { stateWord: "In another stream", stateEmphasis: "quiet" as const } : presentStepState(node.state)),
+      ...stepState,
       inputPorts,
       outputPorts,
       droppedInCount: totalOfCounts(node.dropped_bags_by_link),

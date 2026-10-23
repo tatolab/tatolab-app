@@ -464,6 +464,9 @@ describe("a stream's Graph tab", () => {
       return flowNode;
     });
     expect(cardsNode.getAttribute("aria-label")).toBe("testpatternsource, Running, Built-in");
+    const cardsDescription = document.getElementById(cardsNode.getAttribute("aria-describedby") ?? "");
+    expect(cardsDescription?.textContent).toBe("Press Enter or Space to inspect this step. Escape selects nothing.");
+    expect(document.querySelectorAll(".react-flow__edge[tabindex='0']")).toHaveLength(0);
 
     cardsNode.focus();
     fireEvent.keyDown(cardsNode, { key: "Enter" });

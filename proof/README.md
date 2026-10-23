@@ -39,6 +39,8 @@ Issue #38, in two labelled sets.
 | `mock-09-linux-graph-video-and-audio` | `platform=linux&stream=camera&tab=graph&step=microphonesource` | Linux chrome; a video and an audio output, each with its kind's icon and level. |
 | `mock-10-macos-graph-at-the-default-window-size` | `state=dropping&…&step=invertingeffect`, 1040×700 | The opening view at the readable 85% floor. |
 | `mock-11-macos-graph-source-in-another-stream` | `stream=attached-demo&tab=graph` | `mp4writer` reading `main/invertingeffect`, a dashed, dimmed card marked Another stream. |
+| `mock-12-macos-graph-keyboard-focus` | `…&focus=invertingeffect` | A card holding keyboard focus: a 3 px ring outline around it, nothing selected. |
+| `mock-13-macos-graph-keyboard-focus-selected` | `…&step=invertingeffect&focus=invertingeffect` | The same card selected too: the focus outline stays over the selection's border and its links in blue. |
 
 ## A stream's Overview and Inspect on the new design (#37)
 

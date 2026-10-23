@@ -196,6 +196,7 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
             arePreviewsShown={arePreviewsShown}
             areCountersShown={areCountersShown}
             pinnedOutputKeys={pinnedOutputKeys}
+            hoverPreviewedOutputKey={hoveredOutputNow === undefined ? null : outputPinKey(hoveredOutputNow)}
             onStepSelected={setSelectedStepName}
             onStepMoved={(stepName, position) => setMovedStepPositions((movedPositions) => new Map([...movedPositions, [stepName, position]]))}
             onViewportMoveStarted={closeHoverPreview}

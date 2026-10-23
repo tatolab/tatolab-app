@@ -14,6 +14,9 @@ import { exposedOutputAddress } from "../presentation/stream_overview_presentati
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
 import { joinClassNames } from "./shadcn/class_names";
 
+/** The hover preview's element id, which the hovered port's `aria-describedby` names while it is open. */
+export const STREAM_GRAPH_HOVER_PREVIEW_ELEMENT_ID = "stream-graph-hover-preview";
+
 /** The key a pinned preview of `output` goes by. */
 export function outputPinKey(output: Pick<StreamGraphStepOutputPort, "stepName" | "name">): string {
   return JSON.stringify([output.stepName, output.name]);
@@ -33,6 +36,8 @@ export interface StreamGraphStepCardSurroundings {
   arePreviewsShown: boolean;
   areCountersShown: boolean;
   pinnedOutputKeys: ReadonlySet<string>;
+  /** The pin key of the output whose hover preview is open, which its port names as its description; `null` while none is. */
+  hoverPreviewedOutputKey: string | null;
   /** The canvas's handle at a port row's edge, where a link line meets it. */
   renderPortHandle: (portSide: "input" | "output", portName: string) => ReactNode;
   onOutputHoverStarted: (output: StreamGraphStepOutputPort, anchorRectangle: DOMRect) => void;
@@ -59,7 +64,8 @@ function OutputPortRow({ output, surroundings }: { output: StreamGraphStepOutput
           isPreviewable && "hover:bg-hover",
         )}
         aria-pressed={isPreviewable ? isPinned : undefined}
-        aria-label={`${output.name}${isPreviewable ? (isPinned ? ", preview pinned" : ", hover to preview, click to pin") : ""}`}
+        aria-label={`${output.name}${isPreviewable ? (isPinned ? ", unpin preview" : ", pin preview") : ""}`}
+        aria-describedby={surroundings.hoverPreviewedOutputKey === outputPinKey(output) ? STREAM_GRAPH_HOVER_PREVIEW_ELEMENT_ID : undefined}
         data-step-output-port={output.name}
         onMouseEnter={(mouseEvent) => surroundings.onOutputHoverStarted(output, mouseEvent.currentTarget.getBoundingClientRect())}
         onFocus={(focusEvent) => surroundings.onOutputHoverStarted(output, focusEvent.currentTarget.getBoundingClientRect())}

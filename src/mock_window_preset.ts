@@ -39,7 +39,8 @@ async function clickWhenShown(selector: string): Promise<boolean> {
  * the steps as of the last load), `?inspect=tree`,
  * `?page=settings|add-stream`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
  * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),
- * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`, on Graph `?step=<step>` (selected), `?pin=<step>.<port>`
+ * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`, on Graph `?step=<step>` (selected), `?focus=<step>` (its card
+ * holding keyboard focus), `?pin=<step>.<port>`
  * (its preview pinned), `?hover=<step>.<port>` (its hover preview open), `?previews=off` and `?counters=off`,
  * `?levels=errors` and `?search=<query>` name, so each screen can be shown and pictured from its URL. `?theme=light|dark` is read by the page's first script, before first paint.
  */
@@ -68,6 +69,8 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   if (pageQuery.get("counters") === "off") await clickWhenShown(`[data-stream-graph-toolbar="counters"]`);
   const selectedStep = pageQuery.get("step");
   if (selectedStep !== null) await clickWhenShown(`[data-stream-graph-step="${CSS.escape(selectedStep)}"]`);
+  const focusedStep = pageQuery.get("focus");
+  if (focusedStep !== null) (await waitForElement<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(focusedStep)}"]`))?.focus();
   const pinnedOutput = pageQuery.get("pin");
   if (pinnedOutput !== null) await clickWhenShown(graphOutputPortSelector(pinnedOutput));
   const hoveredOutput = pageQuery.get("hover");

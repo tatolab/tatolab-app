@@ -24,6 +24,7 @@ import {
 } from "@xyflow/react";
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  STREAM_GRAPH_STEP_CARD_KEYBOARD_DESCRIPTION,
   streamGraphLinkLabelClauses,
   streamGraphLinkTone,
   type StreamGraphLinkTone,
@@ -137,6 +138,12 @@ function LinkFlowEdgeView({ id, data, sourceX, sourceY, targetX, targetY, source
   );
 }
 
+/** React Flow's words for a screen reader, saying only what this canvas answers: no arrow-key moves and no delete. */
+const STREAM_GRAPH_ARIA_LABELS = {
+  "node.a11yDescription.default": STREAM_GRAPH_STEP_CARD_KEYBOARD_DESCRIPTION,
+  "node.a11yDescription.keyboardDisabled": STREAM_GRAPH_STEP_CARD_KEYBOARD_DESCRIPTION,
+};
+
 const STREAM_GRAPH_NODE_TYPES = { stream_graph_step: memo(StepFlowNodeView) };
 const STREAM_GRAPH_EDGE_TYPES = { stream_graph_link: memo(LinkFlowEdgeView) };
 
@@ -235,7 +242,7 @@ export function StreamGraphReactFlowCanvas({ canvas, stepPositions, onStepSelect
           data: { step },
           draggable: true,
           focusable: !step.isInAnotherStream,
-          ariaLabel: step.isInAnotherStream ? `${step.name}, in another stream` : `${step.name}, ${step.stateWord}${step.origin === null ? "" : `, ${step.origin}`}`,
+          ariaLabel: step.accessibleName,
           measured: shownNode?.measured,
           dragging: shownNode?.dragging,
         };
@@ -294,6 +301,9 @@ export function StreamGraphReactFlowCanvas({ canvas, stepPositions, onStepSelect
         }}
         nodesConnectable={false}
         elementsSelectable={false}
+        // A link's failure and drops are labelled on the canvas without focus, so a link is no Tab stop of its own.
+        edgesFocusable={false}
+        ariaLabelConfig={STREAM_GRAPH_ARIA_LABELS}
         deleteKeyCode={null}
         selectionKeyCode={null}
         multiSelectionKeyCode={null}

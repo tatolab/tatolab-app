@@ -7,7 +7,8 @@
 }
 .stream-graph-canvas .react-flow__node { cursor: default; }
 .stream-graph-canvas .react-flow__node:focus-visible { outline: none; }
-.stream-graph-canvas .react-flow__node:focus-visible .stream-graph-step-card { box-shadow: 0 0 0 3px var(--ring); }
+/* An outline, not a ring: a selected card's ring utility would cover a box-shadow drawn from this layer. */
+.stream-graph-canvas .react-flow__node:focus-visible .stream-graph-step-card { outline: 3px solid var(--ring); outline-offset: 1px; }
 .stream-graph-canvas .react-flow__minimap {
   overflow: hidden;
   border: 1px solid var(--line);

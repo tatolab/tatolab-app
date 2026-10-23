@@ -135,6 +135,15 @@ describe("presentStreamGraphCanvas", () => {
     expect(canvas.links[0]).toMatchObject({ look: "pending", stateSentence: "Waiting for camera/camerasource to be exposed" });
   });
 
+  it("names each card for a screen reader by its name, state and origin", () => {
+    expect(presentStreamGraphCanvas(FRONT_DOOR_GRAPH).steps.map((step) => step.accessibleName)).toEqual([
+      "testpatternsource, Running, Built-in",
+      "halftonelenseffect, Running, Python",
+      "brightnessmeter, Running, Python",
+      "h264encoder, Running, Built-in",
+    ]);
+  });
+
   it("a step in error reads In error", () => {
     const graph = { ...FRONT_DOOR_GRAPH, nodes: FRONT_DOOR_GRAPH.nodes.map((node) => (node.name === "h264encoder" ? { ...node, state: "Error" } : node)) };
 
@@ -158,9 +167,15 @@ describe("streamGraphLinkTone", () => {
 });
 
 describe("a failed link", () => {
-  const failedDroppingLink = { ...presentStreamGraphCanvas(FRONT_DOOR_GRAPH).links[1]!, look: "error" as const, stateSentence: "This link failed" };
+  const graphWithTheMetersLinkFailed: StreamGraphSummary = {
+    ...FRONT_DOOR_GRAPH,
+    links: FRONT_DOOR_GRAPH.links.map((link) => (link.id === "L2" ? { ...link, state: "error" } : link)),
+  };
 
   it("reads failed before dropping or selected, and says so beside its drops without a hover", () => {
+    const failedDroppingLink = presentStreamGraphCanvas(graphWithTheMetersLinkFailed).links.find((link) => link.linkId === "L2");
+    if (failedDroppingLink === undefined) return expect.unreachable("no link L2");
+
     expect(streamGraphLinkTone(failedDroppingLink, "brightnessmeter", true)).toBe("failed");
     expect(streamGraphLinkLabelClauses(failedDroppingLink, true)).toEqual([
       { words: "This link failed", emphasis: "failure" },
