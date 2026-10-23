@@ -27,13 +27,26 @@ async function clickWhenShown(selector: string): Promise<boolean> {
 }
 
 /**
- * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=`, `?page=settings`,
- * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`, `?watch=<node>.<port>`, `?levels=errors` and
- * `?search=<query>` name, so each screen can be shown and pictured from its URL.
+ * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=`,
+ * `?page=settings|add-stream`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
+ * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),
+ * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`,
+ * `?watch=<node>.<port>`, `?levels=errors` and `?search=<query>` name, so each screen can be shown and pictured from
+ * its URL. `?theme=light|dark` is read by the page's first script, before first paint.
  */
 export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platform: TatolabPlatform): Promise<void> {
   const streamName = pageQuery.get("stream");
-  if (streamName !== null) await clickWhenShown(`.stream-list-row[data-stream-name="${CSS.escape(streamName)}"]`);
+  const rowStreamAction = pageQuery.get("stream_action");
+  if (rowStreamAction !== null) {
+    const [streamAction, actedOnStreamName] = rowStreamAction.split(":");
+    await clickWhenShown(`[data-stream-row="${CSS.escape(actedOnStreamName ?? "")}"] [data-stream-action="${CSS.escape(streamAction)}"]`);
+  }
+  const streamToRemove = pageQuery.get("remove");
+  if (streamToRemove !== null) {
+    await clickWhenShown(`[data-stream-row="${CSS.escape(streamToRemove)}"] [data-stream-action="more"]`);
+    await clickWhenShown(`[data-slot="dropdown-menu-item"][data-stream-action="remove_stream"]`);
+  }
+  if (streamName !== null) await clickWhenShown(`[data-stream-row="${CSS.escape(streamName)}"]`);
   const tab = pageQuery.get("tab");
   if (tab !== null) await clickWhenShown(`.streams-page .content-band [data-segment="${CSS.escape(tab)}"]`);
   const watchedPort = pageQuery.get("watch");
@@ -48,10 +61,11 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     }
   }
   if (pageQuery.get("levels") === "errors") await clickWhenShown(`.log-dock-console [data-segment="Errors"]`);
-  if (pageQuery.get("page") === "settings") await clickWhenShown(".sidebar-settings-row");
+  const page = pageQuery.get("page");
+  if (page === "settings" || page === "add-stream") await clickWhenShown(`[data-window-navigation="${page}"]`);
   const sheet = pageQuery.get("sheet");
   if (sheet === "uninstall" || sheet === "uninstalling" || sheet === "uninstalled") {
-    if (pageQuery.get("page") !== "settings") await clickWhenShown(".sidebar-settings-row");
+    if (page !== "settings") await clickWhenShown(`[data-window-navigation="settings"]`);
     await clickWhenShown(`[data-action="uninstall"]`);
   }
   if (sheet === "uninstalling" || sheet === "uninstalled") await clickWhenShown(".uninstall-sheet[open] .button-destructive");

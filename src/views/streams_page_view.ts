@@ -5,7 +5,7 @@ import type { TatolabBackend } from "../backend/tatolab_backend";
 import type { ListedStream, StreamGraphExposedPort, TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
 import { createElement, setTextIfChanged } from "../dom";
 import type { TatolabFrontendFeatureFlags } from "../feature_flags";
-import { presentPlatform, shortcutHint, windowDragRegionAttribute } from "../presentation/platform_presentation";
+import { presentPlatform, shortcutHint } from "../presentation/platform_presentation";
 import { presentRuntimeStatus, type RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
 import { readableExposedPorts } from "../presentation/stream_overview_presentation";
 import { presentStreamState, streamNotLoadedReason } from "../presentation/stream_presentation";
@@ -15,26 +15,17 @@ import { createFirstStreamGuide } from "./first_stream_guide_view";
 import { createRuntimeStatePage, createStreamsNotListedPage } from "./runtime_state_page_view";
 import { StreamDetailView, type StreamViewTab } from "./stream_detail_view";
 import type { GraphOutputPortAddress } from "./stream_graph_view";
-import { StreamListView } from "./stream_list_view";
 import type { TatolabWindowPage } from "./tatolab_window_page";
-import { createFailureIcon, createSearchButton, SegmentedControlView } from "./window_controls";
+import { createFailureIcon, SegmentedControlView } from "./window_controls";
 
 type StreamsPageBodyKind = "stream" | "first_stream_guide" | "runtime_state" | "streams_not_listed";
 
-/** What the streams page asks of the window around it. */
-export interface StreamsPageActions {
-  /** A stream was chosen in the sidebar or Search, so the window leaves Settings. */
-  onStreamChosen(): void;
-  onOpenSearch(): void;
-}
-
 /**
- * The content beside the sidebar while no other page shows: the band with the selected stream's name, state and
- * tabs, then its graph, logs or Overview; or the first-stream guide, or the page saying why the runtime isn't running.
+ * One stream's page: the band with the selected stream's name, state and tabs, then its graph, logs or Overview; or
+ * the first-stream guide, or the page saying why the runtime isn't running.
  */
 export class StreamsPageView implements TatolabWindowPage {
   readonly element: HTMLElement;
-  readonly streamList: StreamListView;
   private readonly bandTitle: HTMLElement;
   private readonly bandTitleName: HTMLElement;
   private readonly bandTitleState: HTMLElement;
@@ -57,12 +48,7 @@ export class StreamsPageView implements TatolabWindowPage {
     private readonly backend: TatolabBackend,
     private readonly platform: TatolabPlatform,
     featureFlags: TatolabFrontendFeatureFlags,
-    private readonly actions: StreamsPageActions,
   ) {
-    this.streamList = new StreamListView((streamName) => {
-      this.chooseStream(streamName);
-      this.actions.onStreamChosen();
-    });
     this.bandTitleName = createElement("h1", { class: "content-band-name selectable-text" });
     this.bandTitleStateIcon = createFailureIcon(14);
     this.bandTitleStateText = createElement("span", {});
@@ -80,12 +66,9 @@ export class StreamsPageView implements TatolabWindowPage {
     this.streamDetail = new StreamDetailView(backend, platform, featureFlags, { onTabRequested: (tab) => this.showTab(tab) });
     this.pageBody = createElement("div", { class: "streams-page-body" });
     this.element = createElement("section", { class: "window-page streams-page", "aria-label": "Streams" }, [
-      createElement("header", { class: "content-band", "data-window-drag-region": windowDragRegionAttribute(platform, "deep") }, [
+      createElement("header", { class: "content-band" }, [
         this.bandTitle,
         createElement("div", { class: "content-band-tabs" }, [this.bandTabs.element]),
-        createElement("div", { class: "content-band-spacer" }),
-        createElement("div", { class: "band-actions", "data-slot": "stream-actions" }),
-        createSearchButton(platform, () => this.actions.onOpenSearch()),
       ]),
       this.pageBody,
     ]);
@@ -110,9 +93,6 @@ export class StreamsPageView implements TatolabWindowPage {
           : "stream";
     this.showBody(bodyKind, presentation);
 
-    if (!isRunning) this.streamList.showPlaceholder("runtime_not_running");
-    else if (status.streams === null) this.streamList.showPlaceholder("streams_not_listed");
-
     if (status.streams !== null && isRunning) {
       this.selectedStreamName = chooseSelectedStreamName(
         status.streams,
@@ -120,7 +100,6 @@ export class StreamsPageView implements TatolabWindowPage {
         this.listedStreams.map((stream) => stream.name),
       );
       this.listedStreams = status.streams;
-      this.showStreamListSelection();
       this.showSelectedStream();
       this.streamDetail.pollNow();
     } else if (status.streams !== null) {
@@ -133,15 +112,13 @@ export class StreamsPageView implements TatolabWindowPage {
 
   setPageShown(isShown: boolean): void {
     this.isPageShown = isShown;
-    this.showStreamListSelection();
     this.updatePolling();
   }
 
-  /** Selects `streamName`, as a sidebar row or Search does. */
+  /** Selects `streamName`, as the window's route or Search does. */
   chooseStream(streamName: string): void {
     if (!this.listedStreams.some((stream) => stream.name === streamName)) return;
     this.selectedStreamName = streamName;
-    this.showStreamListSelection();
     this.showSelectedStream();
     this.showBand();
   }
@@ -215,11 +192,6 @@ export class StreamsPageView implements TatolabWindowPage {
     return graph === null ? null : readableExposedPorts(graph);
   }
 
-  private showStreamListSelection(): void {
-    if (this.shownBodyKind !== "stream") return;
-    this.streamList.showStreams(this.listedStreams, this.isPageShown ? this.selectedStreamName : null);
-  }
-
   private showSelectedStream(): void {
     const selectedStream = this.selectedStream();
     if (!selectedStream || this.shownBodyKind !== "stream") return;
@@ -265,7 +237,6 @@ export class StreamsPageView implements TatolabWindowPage {
         break;
       case "first_stream_guide":
         this.pageBody.replaceChildren(createFirstStreamGuide());
-        this.streamList.showStreams([], null);
         break;
       case "runtime_state":
         this.pageBody.replaceChildren(createRuntimeStatePage(this.backend, presentation, this.runtimeLastAnsweredAt));

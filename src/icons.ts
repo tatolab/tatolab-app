@@ -6,8 +6,6 @@ function lineIcon(paths: string): string {
   return `<svg class="line-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 }
 
-export const MACHINE_ICON_SVG = lineIcon(`<path d="M5 5.5h14a1 1 0 0 1 1 1V16H4V6.5a1 1 0 0 1 1-1Z"/><path d="M2 19h20"/>`);
-
 export const GEAR_ICON_SVG = lineIcon(
   `<path d="M18.69 9.95 21.03 10.24 21.03 13.76 18.69 14.05 18.18 15.29 19.63 17.14 17.14 19.63 15.29 18.18 14.05 18.69 13.76 21.03 10.24 21.03 9.95 18.69 8.71 18.18 6.86 19.63 4.37 17.14 5.82 15.29 5.31 14.05 2.97 13.76 2.97 10.24 5.31 9.95 5.82 8.71 4.37 6.86 6.86 4.37 8.71 5.82 9.95 5.31 10.24 2.97 13.76 2.97 14.05 5.31 15.29 5.82 17.14 4.37 19.63 6.86 18.18 8.71Z"/><circle cx="12" cy="12" r="3"/>`,
 );
@@ -20,8 +18,8 @@ export const COPY_ICON_SVG = lineIcon(
 
 export const CHECK_ICON_SVG = lineIcon(`<path d="M19.5 6.5 9.5 17 4.5 12"/>`);
 
-/** Every failure: 14 px inline, 16 px in blocks, 20 px beside headings. */
-export const ALERT_ICON_SVG = lineIcon(`<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.25"/><path d="M12 16.4v.1"/>`);
+/** Every failure, as Lucide's square-x: 14 px inline, 16 px in blocks, 20 px beside headings. */
+export const FAILURE_ICON_SVG = lineIcon(`<rect width="18" height="18" x="3" y="3" rx="2"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>`);
 
 export const EYE_ICON_SVG = lineIcon(
   `<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>`,

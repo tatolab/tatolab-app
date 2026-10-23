@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
@@ -11,6 +11,9 @@ import { httpRequestBytes, listedStreamsFromTheListStreamsToolResult, LocalApiCl
 import type { Result } from "./result.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
+
+/** A JSON-RPC response body recorded from a real runtime's local API. */
+const recordedResponseBody = (fixtureFileName: string) => readFile(new URL(`../test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
 
 afterEach(async () => {
   await Promise.all(cleanUps.splice(0).map((cleanUp) => cleanUp()));
@@ -249,6 +252,68 @@ test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", 
   expect(failureOf(await server.client().describeStreamGraph("nope")).failureDescription).toBe(
     "Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main",
   );
+});
+
+test("a_stream_action_calls_the_runtimes_tool_of_the_same_name_with_the_stream", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-answer-for-the-kept-stream-test-pattern.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-answer-for-the-stopped-stream-test-pattern.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-stream-answer-for-the-kept-stream-lobby-recorder.json")),
+  ]);
+
+  expect(answerOf(await server.client().runStreamAction("stop_stream", "test-pattern"))).toBeNull();
+  expect(answerOf(await server.client().runStreamAction("start_stream", "test-pattern"))).toBeNull();
+  expect(answerOf(await server.client().runStreamAction("remove_stream", "lobby-recorder"))).toBeNull();
+
+  const toolCalls = server.receivedRequests().map((request) => {
+    const [head, body] = headAndBodyOf(request);
+    const toolName = /Mcp-Name: (\S+)/.exec(head)?.[1];
+    expect(JSON.parse(body)).toMatchObject({ params: { name: toolName } });
+    return [toolName, JSON.parse(body).params.arguments];
+  });
+  expect(toolCalls).toEqual([
+    ["stop_stream", { stream: "test-pattern" }],
+    ["start_stream", { stream: "test-pattern" }],
+    ["remove_stream", { stream: "lobby-recorder" }],
+  ]);
+});
+
+test("a_stop_the_runtime_could_not_record_answers_its_reason", async () => {
+  const notRecordedBecause = "the kept record of `camera` could not be written: Permission denied (os error 13)";
+  const server = await fakeLocalApiServerAnswering([
+    toolResultResponse({ stream: "camera", stopped: true, kept: true, not_recorded_because: notRecordedBecause }),
+  ]);
+
+  expect(answerOf(await server.client().runStreamAction("stop_stream", "camera"))).toBe(notRecordedBecause);
+});
+
+test("a_stream_action_the_runtime_refuses_carries_its_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-refusal-for-the-stopped-stream-test-pattern.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-refusal-for-the-failed-stream-lobby-recorder.json")),
+  ]);
+
+  expect(failureOf(await server.client().runStreamAction("stop_stream", "test-pattern")).failureDescription).toBe(
+    "Runtime error: the kept stream `test-pattern` is already stopped; `start` loads it again",
+  );
+  expect(failureOf(await server.client().runStreamAction("start_stream", "lobby-recorder")).failureDescription).toMatch(
+    /^Invalid configuration: the kept stream `lobby-recorder` was not loaded: its interpreter .* is gone; run `uv sync` in /,
+  );
+});
+
+test("a_stream_action_waits_past_the_polling_limit_for_the_runtime_to_finish_it", async () => {
+  const server = await FakeLocalApiServer.answering(
+    [
+      httpResponse("200 OK", "text/plain", "ok"),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-answer-for-the-stopped-stream-test-pattern.json")),
+    ],
+    300,
+  );
+  cleanUps.push(() => server.close());
+  const clientWithAShortPollingLimit = new LocalApiClient(server.localApiSocketPath, 100, "0.45.0");
+
+  expect(failureOf(await clientWithAShortPollingLimit.checkHealth()).failureDescription).toMatch(/did not answer within 100ms$/);
+  expect(answerOf(await clientWithAShortPollingLimit.runStreamAction("start_stream", "test-pattern"))).toBeNull();
 });
 
 test("a_chunked_response_is_dechunked", async () => {

@@ -90,6 +90,8 @@ export interface MockTatolabOptions {
   /** `?uninstall=cancel`: the administrator cancels the prompt an uninstall shows, so the uninstall is refused. */
   isUninstallPromptCancelled: boolean;
   appUpdateScenario: MockTatolabAppUpdateScenario;
+  /** `?stop_not_recorded=<stream>`: stopping that kept stream unloads it but cannot write its record, as when the runtime's state directory refuses the write. */
+  streamWhoseStopIsNotRecorded: string | null;
 }
 
 /**
@@ -110,6 +112,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     platform,
     isUninstallPromptCancelled: pageQuery.get("uninstall") === "cancel",
     appUpdateScenario: appUpdateScenario ?? "up-to-date",
+    streamWhoseStopIsNotRecorded: pageQuery.get("stop_not_recorded"),
   };
 }
 
@@ -212,7 +215,13 @@ function sleep(milliseconds: number): Promise<void> {
 }
 
 /** A backend whose commands change its own state and whose streams log on their own, so the window works in a browser. */
-export function createMockTatolabBackend({ scenario, platform, isUninstallPromptCancelled, appUpdateScenario }: MockTatolabOptions): TatolabBackend {
+export function createMockTatolabBackend({
+  scenario,
+  platform,
+  isUninstallPromptCancelled,
+  appUpdateScenario,
+  streamWhoseStopIsNotRecorded,
+}: MockTatolabOptions): TatolabBackend {
   const fixtures = createMockStreamFixtures(platform);
   const mainStream = scenario === "node-error" ? fixtures.mainStreamWithDisplayWindowInError : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
@@ -221,6 +230,13 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
     [fixtures.stoppedPatternTwo.name, fixtures.stoppedPatternTwo],
     [fixtures.failedLobbyRecorder.name, fixtures.failedLobbyRecorder],
   ]);
+  /** Kept streams not loaded that `start_stream` can load: `pattern-two`, and each one stopped from the window. */
+  const keptFixturesNotLoaded = new Map<string, MockStreamFixture>([[fixtures.patternTwoStream.listing.name, fixtures.patternTwoStream]]);
+  const forgottenStreamNames = new Set<string>();
+  /** Kept streams unloaded by a stop the mock could not record: not loaded now, loaded again when the mock runtime restarts. */
+  const streamNamesUnloadedButNotRecordedStopped = new Set<string>();
+  /** Whether the attached demo was stopped or removed, which ends its `tatolab dev` session for good. */
+  let hasTheAttachedDemoSessionEnded = false;
   let mockStatus = initialMockStatus(scenario, platform, fixtures.machine, appUpdateScenario);
   let isLoginItemsApproved = scenario !== "approval";
   let runtimeUpSinceMilliseconds: number | null = null;
@@ -267,6 +283,8 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
 
   const loadStream = (fixture: MockStreamFixture, loadedAtMilliseconds: number): void => {
     loadedStreamInstanceCount += 1;
+    streamNamesUnloadedButNotRecordedStopped.delete(fixture.listing.name);
+    keptFixturesNotLoaded.delete(fixture.listing.name);
     const loadedStream: MockLoadedStream = {
       fixture,
       streamInstance: String(loadedStreamInstanceCount),
@@ -294,7 +312,7 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
     if (runtimeUpSinceMilliseconds === null) return;
     const now = Date.now();
     let listingChanged = false;
-    if (scenario === "running" || scenario === "node-error" || scenario === "loading") {
+    if ((scenario === "running" || scenario === "node-error" || scenario === "loading") && !hasTheAttachedDemoSessionEnded) {
       const attachedDemoName = fixtures.attachedDemoStream.listing.name;
       const shouldBeAttached = isAttachedDemoAttachedAt(now - runtimeUpSinceMilliseconds);
       const isAttached = loadedStreams.has(attachedDemoName);
@@ -315,13 +333,18 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
     runtimeUpSinceMilliseconds = now;
     loadedStreams.clear();
     if (scenario !== "empty" && scenario !== "not-listed") {
+      const loadsAtTheRuntimesStart = (fixture: MockStreamFixture): boolean =>
+        !forgottenStreamNames.has(fixture.listing.name) &&
+        (!keptFixturesNotLoaded.has(fixture.listing.name) || streamNamesUnloadedButNotRecordedStopped.has(fixture.listing.name));
       if (scenario === "loading") {
         listedStreamsNotLoaded.set(mainStream.listing.name, { ...mainStream.listing, node_count: null });
-      } else {
+      } else if (loadsAtTheRuntimesStart(mainStream)) {
         loadStream(mainStream, now - mainStream.loadedForMillisecondsAtOpen);
       }
-      loadStream(fixtures.cameraStream, now - fixtures.cameraStream.loadedForMillisecondsAtOpen);
-      loadStream(fixtures.attachedDemoStream, now - fixtures.attachedDemoStream.loadedForMillisecondsAtOpen);
+      if (loadsAtTheRuntimesStart(fixtures.cameraStream)) loadStream(fixtures.cameraStream, now - fixtures.cameraStream.loadedForMillisecondsAtOpen);
+      if (!hasTheAttachedDemoSessionEnded) {
+        loadStream(fixtures.attachedDemoStream, now - fixtures.attachedDemoStream.loadedForMillisecondsAtOpen);
+      }
     }
     window.clearInterval(liveTickTimer);
     liveTickTimer = window.setInterval(runLiveTick, MOCK_LIVE_TICK_MILLISECONDS);
@@ -349,6 +372,79 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
       throw `no stream named \`${streamName}\` is loaded in this runtime. Loaded: ${loadedNames}`;
     }
     return loadedStream;
+  };
+
+  const streamNamesListedForARefusal = (streamNames: Iterable<string>): string => [...streamNames].sort().join(", ") || "none";
+
+  const aStreamThisRuntimeDoesNotHoldRefusal = (streamName: string): string =>
+    `Resource not found: no stream named \`${streamName}\` is loaded or kept in this runtime. Loaded: ${streamNamesListedForARefusal(loadedStreams.keys())}. Kept: ${streamNamesListedForARefusal(listedStreamsNotLoaded.keys())}`;
+
+  /** `stop_stream` as the runtime does it: a loaded stream unloads, a kept one is recorded stopped, an attached one's session ends. */
+  const stopMockStream = (streamName: string): string | null => {
+    const loadedStream = loadedStreams.get(streamName);
+    const listingNotLoaded = listedStreamsNotLoaded.get(streamName);
+    if (loadedStream && loadedStream.fixture.listing.state === "kept" && streamName === streamWhoseStopIsNotRecorded) {
+      loadedStreams.delete(streamName);
+      keptFixturesNotLoaded.set(streamName, loadedStream.fixture);
+      streamNamesUnloadedButNotRecordedStopped.add(streamName);
+      listedStreamsNotLoaded.set(streamName, { ...loadedStream.fixture.listing, node_count: null });
+      publishStatus({ streams: listStreams() });
+      return `Runtime error: the kept record of \`${streamName}\` could not be written: Permission denied (os error 13)`;
+    }
+    if (loadedStream) {
+      loadedStreams.delete(streamName);
+      if (loadedStream.fixture.listing.state === "attached") {
+        hasTheAttachedDemoSessionEnded = true;
+      } else {
+        keptFixturesNotLoaded.set(streamName, loadedStream.fixture);
+        listedStreamsNotLoaded.set(streamName, { ...loadedStream.fixture.listing, state: "stopped", node_count: null, failed_because: null });
+      }
+    } else if (listingNotLoaded?.state === "failed") {
+      throw `Runtime error: the kept stream \`${streamName}\` is failed, so it is not loaded to stop: ${listingNotLoaded.failed_because ?? ""}. \`start\` retries it, \`rm\` forgets it`;
+    } else if (listingNotLoaded?.state === "stopped") {
+      throw `Runtime error: the kept stream \`${streamName}\` is already stopped; \`start\` loads it again`;
+    } else if (listingNotLoaded) {
+      listedStreamsNotLoaded.set(streamName, { ...listingNotLoaded, state: "stopped", node_count: null });
+    } else {
+      throw aStreamThisRuntimeDoesNotHoldRefusal(streamName);
+    }
+    publishStatus({ streams: listStreams() });
+    return null;
+  };
+
+  /** `start_stream` as the runtime does it: a stopped kept stream loads; a failed one is retried, and the lobby recorder's camera is still missing. */
+  const startMockStream = (streamName: string): null => {
+    const loadedStream = loadedStreams.get(streamName);
+    if (loadedStream) {
+      throw `Runtime error: the stream \`${streamName}\` is already loaded in this runtime, ${loadedStream.fixture.listing.state}; only a kept stream that is not loaded starts`;
+    }
+    const listingNotLoaded = listedStreamsNotLoaded.get(streamName);
+    if (!listingNotLoaded) {
+      throw `Resource not found: no kept stream named \`${streamName}\` is in this runtime, so there is none to start; an attached stream is loaded again with \`run\`. Kept: ${streamNamesListedForARefusal(listedStreamsNotLoaded.keys())}`;
+    }
+    const fixture = keptFixturesNotLoaded.get(streamName);
+    if (!fixture) {
+      const retryRefusal = fixtures.machine.cameraFailure;
+      listedStreamsNotLoaded.set(streamName, { ...listingNotLoaded, state: "failed", failed_because: `\`start\` retried it, and it did not load: ${retryRefusal}` });
+      publishStatus({ streams: listStreams() });
+      throw retryRefusal;
+    }
+    keptFixturesNotLoaded.delete(streamName);
+    loadStream(fixture, Date.now());
+    publishStatus({ streams: listStreams() });
+    return null;
+  };
+
+  /** `remove_stream` as the runtime does it: unloaded if loaded, and forgotten. */
+  const removeMockStream = (streamName: string): null => {
+    const wasLoaded = loadedStreams.delete(streamName);
+    const wasListedNotLoaded = listedStreamsNotLoaded.delete(streamName);
+    if (!wasLoaded && !wasListedNotLoaded) throw aStreamThisRuntimeDoesNotHoldRefusal(streamName);
+    keptFixturesNotLoaded.delete(streamName);
+    forgottenStreamNames.add(streamName);
+    if (streamName === fixtures.attachedDemoStream.listing.name) hasTheAttachedDemoSessionEnded = true;
+    publishStatus({ streams: listStreams() });
+    return null;
   };
 
   const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraphSummary => {
@@ -462,6 +558,18 @@ export function createMockTatolabBackend({ scenario, platform, isUninstallPrompt
       if (updateUnderWay === "checking" || updateUnderWay === "downloading" || updateUnderWay === "installing") return;
       publishStatus({ app_update: { kind: "checking" } });
       window.setTimeout(finishTheUpdateCheck, MOCK_UPDATE_CHECK_MILLISECONDS);
+    },
+    runStreamAction: async (streamAction, streamName) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer ${streamAction}`;
+      switch (streamAction) {
+        case "stop_stream":
+          return stopMockStream(streamName);
+        case "start_stream":
+          return startMockStream(streamName);
+        case "remove_stream":
+          return removeMockStream(streamName);
+      }
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);

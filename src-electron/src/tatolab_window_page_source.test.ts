@@ -43,10 +43,10 @@ test("the window navigates only on its own page's scheme and host, never to a fi
 test("the policy allows the window page's own inline theme script by its hash, and nothing else inline", () => {
   const windowPageHtml = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
   const inlineThemeScript = /<script>([\s\S]*?)<\/script>/.exec(windowPageHtml)?.[1] ?? "";
-  expect(inlineThemeScript).toContain("prefers-color-scheme");
+  expect(inlineThemeScript).toContain("tatolab-window-theme");
   expect(inlineScriptHashSources(windowPageHtml)).toEqual([`'sha256-${createHash("sha256").update(inlineThemeScript).digest("base64")}'`]);
   expect(windowPageContentSecurityPolicy(windowPageHtml)).toBe(
-    `default-src 'self'; script-src 'self' ${inlineScriptHashSources(windowPageHtml).join(" ")}; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; object-src 'none'; base-uri 'self'`,
+    `default-src 'self'; script-src 'self' ${inlineScriptHashSources(windowPageHtml).join(" ")}; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'`,
   );
 });
 

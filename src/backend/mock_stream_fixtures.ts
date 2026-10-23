@@ -283,6 +283,8 @@ export interface MockStreamFixtures {
   cameraStream: MockStreamFixture;
   attachedDemoStream: MockStreamFixture;
   stoppedPatternTwo: ListedStream;
+  /** `pattern-two` once started again. */
+  patternTwoStream: MockStreamFixture;
   failedLobbyRecorder: ListedStream;
   /** The order the runtime lists its streams in. */
   listingOrder: readonly string[];
@@ -308,6 +310,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       withDisplayWindowInError: false,
     }),
     stoppedPatternTwo: stoppedPatternTwoListing(machine),
+    patternTwoStream: createTestPatternStream(machine, { streamName: "pattern-two", state: "kept", exposesItsEffect: false, withDisplayWindowInError: false }),
     failedLobbyRecorder: failedLobbyRecorderListing(machine),
     listingOrder: ["main", "camera", "attached-demo", "pattern-two", "lobby-recorder"],
   };

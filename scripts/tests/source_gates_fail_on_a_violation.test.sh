@@ -37,7 +37,7 @@ unplant() { rm -f "$planted_path"; git checkout -q -- . 2>/dev/null; planted_pat
 readonly SOURCE_HEADER='// Copyright (c) 2025 Jonathan Fontanez\n// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary\n'
 
 for source_gate in check-license-headers.sh check-platform-cfg-confinement.sh check-no-print-debugging.sh \
-  check-electron-typescript-forms.sh; do
+  check-electron-typescript-forms.sh check-no-dot-indicators.sh; do
   expect_gate_outcome pass "$source_gate" "the tree as it stands"
 done
 
@@ -55,6 +55,28 @@ expect_gate_outcome pass check-license-headers.sh "a TypeScript file with the he
 
 plant src-electron/src/zz_planted.cts 'export const plantedValue = 1;\n'
 expect_gate_outcome fail check-license-headers.sh "a CommonJS TypeScript file with no header"; unplant
+
+plant src/zz_planted.tsx "${SOURCE_HEADER}export const plantedFailure = () => null;\n"
+expect_gate_outcome pass check-license-headers.sh "a TSX file with the header"; unplant
+plant src/zz_planted.tsx 'export const plantedFailure = () => null;\n'
+expect_gate_outcome fail check-license-headers.sh "a TSX file with no header"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedLog = () => console.log(\"planted\");\n"
+expect_gate_outcome fail check-no-print-debugging.sh "a console call in the window's TSX"; unplant
+
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedDot = () => <span className=\"size-2 rounded-full bg-danger\" />;\n"
+expect_gate_outcome fail check-no-dot-indicators.sh "a small rounded-full element"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedDot = () => <span className=\"h-1.5 w-1.5 rounded-full\" />;\n"
+expect_gate_outcome fail check-no-dot-indicators.sh "a rounded-full element sized by width and height"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedPulse = () => <span className=\"animate-pulse\" />;\n"
+expect_gate_outcome fail check-no-dot-indicators.sh "a pulsing indicator"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedCircle = () => <svg><circle r=\"3\" /></svg>;\n"
+expect_gate_outcome fail check-no-dot-indicators.sh "an SVG circle in the window's markup"; unplant
+plant src/styles/zz_planted.css '.planted::before { content: \"\xE2\x97\x8F\"; }\n'
+expect_gate_outcome fail check-no-dot-indicators.sh "a bullet glyph in a stylesheet"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}import { CircleAlert } from \"lucide-react\";\nexport const plantedIcon = CircleAlert;\n"
+expect_gate_outcome fail check-no-dot-indicators.sh "a round status icon"; unplant
+plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedSpinner = () => <span className=\"size-3.5 animate-spin\" />;\n"
+expect_gate_outcome pass check-no-dot-indicators.sh "a spinner, which is not a dot"; unplant
 
 plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}export const plantedPlatform = process.platform;\n"
 expect_gate_outcome fail check-platform-cfg-confinement.sh "a process.platform read in the main process outside platform/"; unplant

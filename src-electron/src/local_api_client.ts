@@ -3,8 +3,9 @@
 
 // The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
 // local API's Unix socket. `GET /health` says the runtime is up, the MCP tools `list_streams` and
-// `logs` over `POST /mcp` list its streams and read one's log records, and `GET /api/graph` names
-// the machine and draws one stream's graph.
+// `logs` over `POST /mcp` list its streams and read one's log records, `stop_stream`,
+// `start_stream` and `remove_stream` act on one, and `GET /api/graph` names the machine and draws
+// one stream's graph.
 //
 // The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
 // `mcp.rs` serves rmcp's stateless Streamable HTTP with per-request protocol metadata
@@ -13,7 +14,7 @@
 
 import { isUtf8 } from "node:buffer";
 import net from "node:net";
-import type { ListedStream, StreamGraphSummary, StreamLogRecordsPage } from "../../src/backend/tatolab_backend_contract.js";
+import type { ListedStream, StreamGraphSummary, StreamLogRecordsPage, TatolabStreamActionName } from "../../src/backend/tatolab_backend_contract.js";
 import {
   everyOneRead,
   isAJsonObject,
@@ -33,6 +34,9 @@ export const LOCAL_API_MCP_PROTOCOL_VERSION = "2026-07-28";
 
 /** The client name the app gives the runtime in every MCP request's `_meta`. */
 const LOCAL_API_MCP_CLIENT_NAME = "tatolab-app";
+
+/** How long a stream action may go without a byte: `start_stream` answers once the stream's graph has loaded, which compiles `stream.py` and starts its Python processes. */
+const STREAM_ACTION_RESPONSE_TIMEOUT_MS = 120_000;
 
 /** The most bytes one local API response may carry before the client gives up on it. */
 const LARGEST_LOCAL_API_RESPONSE_BYTES = 8 * 1024 * 1024;
@@ -93,6 +97,21 @@ function listedStreamOnTheWire(listedStreamOnTheWire: unknown): Result<ListedStr
   });
 }
 
+/** What the runtime said beside a stream action it carried out: a `stop_stream` result's `not_recorded_because`; `start_stream` and `remove_stream` say nothing beside theirs. */
+function streamActionNoticeFromTheToolResult(streamAction: TatolabStreamActionName, toolResultText: string): Result<string | null, string> {
+  switch (streamAction) {
+    case "stop_stream": {
+      const parsedToolResult = parseJsonOnTheWire(toolResultText);
+      const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the stop_stream result") : parsedToolResult;
+      const notRecordedBecause = toolResult.ok ? optionalText(toolResult.value, "not_recorded_because") : toolResult;
+      return notRecordedBecause.ok ? notRecordedBecause : failedWith(`the runtime's stop_stream result could not be read: ${notRecordedBecause.failure}`);
+    }
+    case "start_stream":
+    case "remove_stream":
+      return succeeded(null);
+  }
+}
+
 /** `durationMs` as a timeout refusal spells it: whole seconds as `3s`, anything else as `200ms`. */
 function durationAsTheTimeoutRefusalSpellsIt(durationMs: number): string {
   return durationMs % 1000 === 0 ? `${durationMs / 1000}s` : `${durationMs}ms`;
@@ -146,6 +165,14 @@ export class LocalApiClient {
     return page.ok ? page : localApiRequestFailure(page.failure);
   }
 
+  /** Run the runtime's tool `streamAction` on `stream`, answering the notice it gives beside an action it carried out, or `null`. */
+  async runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string | null, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool(streamAction, { stream }, STREAM_ACTION_RESPONSE_TIMEOUT_MS);
+    if (!toolResultText.ok) return toolResultText;
+    const notice = streamActionNoticeFromTheToolResult(streamAction, toolResultText.value);
+    return notice.ok ? notice : localApiRequestFailure(notice.failure);
+  }
+
   /** The graph of the loaded stream `stream`, from `GET /api/graph?stream=`. */
   async describeStreamGraph(stream: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
     const graphBody = await this.getBodyOfAnOkAnswer(`/api/graph?stream=${percentEncodedQueryValue(stream)}`);
@@ -167,8 +194,12 @@ export class LocalApiClient {
     );
   }
 
-  /** Call the MCP tool `toolName` with `toolArguments` in one stateless request, answering the text of its first content block; a tool that ran and failed is refused in its own words. */
-  private async callMcpTool(toolName: string, toolArguments: Readonly<Record<string, unknown>>): Promise<Result<string, LocalApiRequestFailure>> {
+  /** Call the MCP tool `toolName` with `toolArguments` in one stateless request, giving up after `responseTimeoutMs` without a byte, answering the text of its first content block; a tool that ran and failed is refused in its own words. */
+  private async callMcpTool(
+    toolName: string,
+    toolArguments: Readonly<Record<string, unknown>>,
+    responseTimeoutMs: number = this.requestTimeoutMs,
+  ): Promise<Result<string, LocalApiRequestFailure>> {
     const requestBody = mcpToolCallRequestBody(toolName, toolArguments, this.appVersion);
     const response = await this.sendOneHttpRequestAndReadItsResponse(
       "POST",
@@ -181,6 +212,7 @@ export class LocalApiClient {
         ["Mcp-Name", toolName],
       ],
       Buffer.from(requestBody, "utf8"),
+      responseTimeoutMs,
     );
     if (!response.ok) return response;
     const firstText = firstTextBlockOfToolCallResponse(toolName, response.value);
@@ -192,6 +224,7 @@ export class LocalApiClient {
     requestTarget: string,
     extraHeaders: readonly HttpRequestHeader[],
     requestBody: Buffer | null,
+    responseTimeoutMs: number = this.requestTimeoutMs,
   ): Promise<Result<LocalApiHttpResponse, LocalApiRequestFailure>> {
     const socketText = this.localApiSocketPath;
     return new Promise((settle) => {
@@ -207,7 +240,7 @@ export class LocalApiClient {
         settle(outcome);
       };
       const connection = net.createConnection(this.localApiSocketPath);
-      connection.setTimeout(this.requestTimeoutMs);
+      connection.setTimeout(responseTimeoutMs);
       connection.on("connect", () => {
         connected = true;
         connection.write(httpRequestBytes(method, requestTarget, extraHeaders, requestBody), () => {
@@ -225,7 +258,7 @@ export class LocalApiClient {
       });
       connection.on("timeout", () => {
         settleOnce(
-          localApiRequestFailure(`${method} ${requestTarget} to ${socketText} did not answer within ${durationAsTheTimeoutRefusalSpellsIt(this.requestTimeoutMs)}`),
+          localApiRequestFailure(`${method} ${requestTarget} to ${socketText} did not answer within ${durationAsTheTimeoutRefusalSpellsIt(responseTimeoutMs)}`),
         );
       });
       connection.on("error", (connectionFailure) => {
@@ -233,7 +266,7 @@ export class LocalApiClient {
         const failureDescription = !connected
           ? `no runtime answers at ${socketText}: ${failureText}`
           : requestSent
-            ? `${method} ${requestTarget} to ${socketText} did not answer within ${durationAsTheTimeoutRefusalSpellsIt(this.requestTimeoutMs)}: ${failureText}`
+            ? `${method} ${requestTarget} to ${socketText} did not answer within ${durationAsTheTimeoutRefusalSpellsIt(responseTimeoutMs)}: ${failureText}`
             : `the request ${method} ${requestTarget} to ${socketText} could not be sent: ${failureText}`;
         settleOnce(localApiRequestFailure(failureDescription));
       });

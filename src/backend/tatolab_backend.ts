@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import type { StreamGraphSummary, StreamLogRecordsPage, TatolabStatus } from "./tatolab_backend_contract";
+import type { StreamGraphSummary, StreamLogRecordsPage, TatolabStatus, TatolabStreamActionName } from "./tatolab_backend_contract";
 import { TATOLAB_WINDOW_PAGE_SCHEME, type TatolabElectronBridge } from "./tatolab_electron_bridge_contract";
 
 declare global {
@@ -24,6 +24,8 @@ export interface TatolabBackend {
   describeStreamGraph(streamName: string): Promise<StreamGraphSummary>;
   /** Check for a newer Tatolab and take it if there is one; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
+  /** Stop, start (or retry) or remove `streamName`, resolving with the runtime's notice beside an action it carried out (a stop it could not record) or `null`, and rejecting with its refusal; the new listing arrives as the next status. */
+  runStreamAction(streamAction: TatolabStreamActionName, streamName: string): Promise<string | null>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
 }
 

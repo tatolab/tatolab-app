@@ -1,24 +1,7 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import "@fontsource/jetbrains-mono/400.css";
-import "@fontsource/jetbrains-mono/500.css";
-import "@fontsource/jetbrains-mono/600.css";
-import "./styles/tokens.css";
-import "./styles/base.css";
-import "./styles/window_shell.css";
-import "./styles/stream_list.css";
-import "./styles/streams_page.css";
-import "./styles/stream_overview.css";
-import "./styles/stream_graph.css";
-import "./styles/stream_log_console.css";
-import "./styles/watch_placeholder.css";
-import "./styles/first_stream_guide.css";
-import "./styles/settings_page.css";
-import "./styles/first_launch_setup.css";
-import "./styles/runtime_state_page.css";
-import "./styles/uninstall_sheet.css";
-import "./styles/search.css";
+import "./styles/window.css";
 
 import { tatolabWindowHost, type TatolabBackend, type TatolabWindowHost } from "./backend/tatolab_backend";
 import type { TatolabStatus } from "./backend/tatolab_backend_contract";

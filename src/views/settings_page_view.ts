@@ -8,12 +8,11 @@ import { presentTatolabAppUpdate } from "../presentation/app_update_presentation
 import {
   presentCommandLineTool,
   presentPlatform,
-  windowDragRegionAttribute,
   type PlatformPresentation,
 } from "../presentation/platform_presentation";
 import { createCopyButton } from "./copy_button";
 import type { TatolabWindowPage } from "./tatolab_window_page";
-import { createFailureLine, createSearchButton } from "./window_controls";
+import { createFailureLine } from "./window_controls";
 
 function createSettingsRow(textChildren: ElementChild[], controlChildren: ElementChild[], failureLine: HTMLElement | null = null): HTMLDivElement {
   return createElement("div", { class: "settings-row" }, [
@@ -56,7 +55,6 @@ export class SettingsPageView implements TatolabWindowPage {
     private readonly backend: TatolabBackend,
     private readonly platform: TatolabPlatform,
     onUninstallTatolabRequested: () => void,
-    onOpenSearch: () => void,
   ) {
     this.platformPresentation = presentPlatform(platform);
     this.runTatolabSwitch = createElement("button", {
@@ -90,14 +88,10 @@ export class SettingsPageView implements TatolabWindowPage {
     const streamRecordsDirectory = this.platformPresentation.streamRecordsDirectory;
 
     this.element = createElement("section", { class: "window-page settings-page", "aria-labelledby": "settings-page-title" }, [
-      createElement("header", { class: "content-band", "data-window-drag-region": windowDragRegionAttribute(platform, "deep") }, [
+      createElement("header", { class: "content-band" }, [
         createElement("div", { class: "content-band-title" }, [
           createElement("h1", { class: "content-band-page-name", id: "settings-page-title" }, ["Settings"]),
         ]),
-        createElement("div", { class: "content-band-tabs" }),
-        createElement("div", { class: "content-band-spacer" }),
-        createElement("div", { class: "band-actions", "data-slot": "stream-actions" }),
-        createSearchButton(platform, onOpenSearch),
       ]),
       createElement("div", { class: "settings-scroller" }, [
         createElement("div", { class: "settings-column" }, [

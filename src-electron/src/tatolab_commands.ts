@@ -6,7 +6,7 @@
 // the window as the next `tatolab-status-changed`. A question the window awaits is answered with
 // its answer or a refusal in words, never a thrown error.
 
-import type { StreamGraphSummary, StreamLogRecordsPage, TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
+import type { StreamGraphSummary, StreamLogRecordsPage, TatolabStatus, TatolabStreamActionName } from "../../src/backend/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../../src/backend/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAnUnsignedInteger } from "./json_on_the_wire.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
@@ -76,6 +76,15 @@ export function describeStreamGraph(sharedState: TatolabAppSharedState, stream: 
   });
 }
 
+/** `stop_stream`, `start_stream` or `remove_stream { stream }`: the runtime's tool of that name run on `stream`, then a status round whether it acted or refused; its notice or its refusal in its own words. */
+export function runStreamAction(sharedState: TatolabAppSharedState, streamAction: TatolabStreamActionName, stream: string): Promise<Result<string | null, string>> {
+  return answerTheWindow(streamAction, async () => {
+    const notice = await sharedState.controller.runStreamAction(streamAction, stream);
+    sharedState.statusPublisher.requestRefresh();
+    return notice.ok ? notice : failedWith(notice.failure.failureDescription);
+  });
+}
+
 /** `set_run_tatolab`'s arguments as the window sends them, or why they are not. */
 export function setRunTatolabArgumentsFrom(commandArguments: unknown): Result<{ enabled: boolean }, string> {
   if (!isAJsonObject(commandArguments) || typeof commandArguments["enabled"] !== "boolean") {
@@ -92,10 +101,10 @@ export function readStreamLogRecordsArgumentsFrom(commandArguments: unknown): Re
   return succeeded({ stream: commandArguments["stream"], after: commandArguments["after"] });
 }
 
-/** `describe_stream_graph`'s arguments as the window sends them, or why they are not. */
-export function describeStreamGraphArgumentsFrom(commandArguments: unknown): Result<{ stream: string }, string> {
+/** The `{ stream }` arguments of the command `commandName` as the window sends them, or why they are not. */
+export function streamArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ stream: string }, string> {
   if (!isAJsonObject(commandArguments) || typeof commandArguments["stream"] !== "string") {
-    return failedWith("describe_stream_graph needs `stream`, a stream's name");
+    return failedWith(`${commandName} needs \`stream\`, a stream's name`);
   }
   return succeeded({ stream: commandArguments["stream"] });
 }
@@ -109,7 +118,7 @@ function commandAnswerFrom<Answer>(outcome: Result<Answer, string>): { ok: true;
   return outcome.ok ? { ok: true, value: outcome.value } : { ok: false, refusal: outcome.failure };
 }
 
-function commandAnswerOfNothingFrom(outcome: Result<void, string>): { ok: true; value: null } | { ok: false; refusal: string } {
+function commandAnswerOfNothingFrom(outcome: Result<unknown, string>): { ok: true; value: null } | { ok: false; refusal: string } {
   return outcome.ok ? { ok: true, value: null } : { ok: false, refusal: outcome.failure };
 }
 
@@ -141,9 +150,24 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       return { ok: true, value: null };
     },
     describe_stream_graph: async (commandArguments) => {
-      const describeStreamGraphArguments = describeStreamGraphArgumentsFrom(commandArguments);
+      const describeStreamGraphArguments = streamArgumentsFrom("describe_stream_graph", commandArguments);
       if (!describeStreamGraphArguments.ok) return { ok: false, refusal: describeStreamGraphArguments.failure };
       return commandAnswerFrom(await describeStreamGraph(sharedState, describeStreamGraphArguments.value.stream));
     },
+    stop_stream: async (commandArguments) => {
+      const notice = await streamActionOnTheStreamNamedIn(sharedState, "stop_stream", commandArguments);
+      return commandAnswerFrom(notice.ok ? succeeded({ not_recorded_because: notice.value }) : notice);
+    },
+    start_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "start_stream", commandArguments)),
+    remove_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "remove_stream", commandArguments)),
   };
+}
+
+async function streamActionOnTheStreamNamedIn(
+  sharedState: TatolabAppSharedState,
+  streamAction: TatolabStreamActionName,
+  commandArguments: unknown,
+): Promise<Result<string | null, string>> {
+  const streamArguments = streamArgumentsFrom(streamAction, commandArguments);
+  return streamArguments.ok ? runStreamAction(sharedState, streamAction, streamArguments.value.stream) : streamArguments;
 }

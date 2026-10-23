@@ -15,6 +15,7 @@ import type {
   TatolabAppUpdateState,
   TatolabPlatform,
   TatolabStatus,
+  TatolabStreamActionName,
 } from "../../src/backend/tatolab_backend_contract.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import { LocalApiClient, type LocalApiRequestFailure } from "./local_api_client.js";
@@ -285,6 +286,11 @@ export class TatolabAppController {
   /** The window's next page of `stream`'s log records: those numbered after `after`. */
   readStreamLogRecords(stream: string, after: number): Promise<Result<StreamLogRecordsPage, LocalApiRequestFailure>> {
     return this.localApiClient.readStreamLogRecords(stream, after, STREAM_LOG_RECORDS_PER_PAGE);
+  }
+
+  /** Run the stream action `streamAction` on `stream`, answering the runtime's notice beside it or `null`. */
+  runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string | null, LocalApiRequestFailure>> {
+    return this.localApiClient.runStreamAction(streamAction, stream);
   }
 
   /** The graph of the loaded stream `stream`. */

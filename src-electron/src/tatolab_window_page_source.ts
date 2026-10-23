@@ -63,7 +63,7 @@ export function windowPageContentSecurityPolicy(windowPageHtml: string): string 
     `script-src 'self' ${inlineScriptHashSources(windowPageHtml).join(" ")}`.trimEnd(),
     "connect-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "font-src 'self' data:",
+    "font-src 'self'",
     "img-src 'self' data:",
     "object-src 'none'",
     "base-uri 'self'",
