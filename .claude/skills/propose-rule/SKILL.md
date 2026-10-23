@@ -1,7 +1,7 @@
 ---
 name: propose-rule
 description: The only path by which a rule under .claude/rules/ or a rule in CLAUDE.md is added, changed, or deleted.
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # Propose rule

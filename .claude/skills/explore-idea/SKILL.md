@@ -1,7 +1,7 @@
 ---
 name: explore-idea
 description: Free-form what-if exploration of an app direction before it becomes work — a sandbox with zero commitments that ends with a concrete recommended starting shape (spike / prototype / MVP slice). Use when an idea is fuzzy, when unknowns are too many for an issue, when a set of issues has no clear shape behind it, or when the owner says "what if", "explore", or "I want to think through".
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # Explore idea
@@ -28,12 +28,13 @@ picture plus the smallest sensible way to start.
      `SMAppService` report Y after Z?).
    - **Prototype** — a mock-backend screen in the browser; ugly, no tests, clearly throwaway.
      Exists to be reacted to.
-   - **MVP slice** — the smallest *showable* version in the real app over the real local API.
+   - **MVP slice** — the smallest _showable_ version in the real app over the real local API.
    - **Full change** — only when the idea is already well-understood and small.
 
    State the smallest version worth building, the explicit **deferred list**, and the iteration
    path. When the idea is iterable, bias one rung smaller than feels natural — iteration is cheap,
    unbuilding is not.
+
 5. **Drive to identical understanding.** Say the idea AND the recommended start back in your own
    words until the owner confirms it matches what is in their head. Unconfirmed = unexplored.
 6. **Exit explicitly**, one of three ways:
