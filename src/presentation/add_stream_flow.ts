@@ -189,12 +189,17 @@ export function newProjectCommand(folder: string): string {
   return `tatolab new ${shellWord(folder)}`;
 }
 
-/** Why Compile and run cannot be pressed now, or `null` when it can. */
+/**
+ * Why Compile and run cannot be pressed now, or `null` when it can. A folder whose `.venv/bin/python` is missing waits for
+ * its sync: the runtime compiles only in that interpreter, and refuses the run before it reads the name.
+ */
 export function compileAndRunUnavailableBecause(form: AddStreamForm, isTheRuntimeRunning: boolean): string | null {
   if (!isTheRuntimeRunning) return "The runtime isn't running, so it can't compile a stream.";
   if (form.workUnderWay !== null) return "Wait for the folder to be checked.";
   if (form.source === "new_project" && !form.hasCreatedTheNewProject) return "Create the project first.";
-  if (folderToRun(form) === null) return "Choose a project folder first.";
+  const folder = folderToRun(form);
+  if (folder === null) return "Choose a project folder first.";
+  if (folder.python_environment.kind === "missing") return "Sync the project's .venv with uv sync, then check again.";
   if (form.nameTaken !== null) return "Choose another name, or use the one offered.";
   return null;
 }

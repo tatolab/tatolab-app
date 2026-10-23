@@ -19,6 +19,7 @@ import {
   everyOneRead,
   isAJsonObject,
   jsonObject,
+  type JsonObjectOnTheWire,
   optionalText,
   optionalUnsignedInteger,
   parseJsonOnTheWire,
@@ -76,7 +77,7 @@ export function streamRunAnswerFromTheRunStreamToolResult(toolResultText: string
   return streamRunAnswer.ok ? streamRunAnswer : failedWith(`the runtime's run_stream result could not be read: ${streamRunAnswer.failure}`);
 }
 
-function streamRunAnswerOnTheWire(toolResult: Readonly<Record<string, unknown>>): Result<StreamRunAnswer, string> {
+function streamRunAnswerOnTheWire(toolResult: JsonObjectOnTheWire): Result<StreamRunAnswer, string> {
   const stream = requiredText(toolResult, "stream");
   if (!stream.ok) return stream;
   const streamInstance = requiredText(toolResult, "stream_instance");
@@ -89,10 +90,13 @@ function streamRunAnswerOnTheWire(toolResult: Readonly<Record<string, unknown>>)
   if (!nodeCount.ok) return nodeCount;
   const replacedTheKeptRecord = requiredTrueOrFalse(toolResult, "replaced_the_kept_record");
   if (!replacedTheKeptRecord.ok) return replacedTheKeptRecord;
-  const compileWarnings = toolResult["compile_warnings"];
-  if (!Array.isArray(compileWarnings) || !compileWarnings.every((compileWarning) => typeof compileWarning === "string")) {
-    return failedWith("`compile_warnings` is not an array of text");
-  }
+  const compileWarningsOnTheWire = toolResult["compile_warnings"];
+  if (compileWarningsOnTheWire === undefined) return failedWith("missing field `compile_warnings`");
+  if (!Array.isArray(compileWarningsOnTheWire)) return failedWith("`compile_warnings` is not an array");
+  const compileWarnings = everyOneRead(compileWarningsOnTheWire, (compileWarning: unknown) =>
+    typeof compileWarning === "string" ? succeeded(compileWarning) : failedWith("a compile warning is not a string"),
+  );
+  if (!compileWarnings.ok) return compileWarnings;
   return succeeded({
     stream: stream.value,
     stream_instance: streamInstance.value,
@@ -100,7 +104,7 @@ function streamRunAnswerOnTheWire(toolResult: Readonly<Record<string, unknown>>)
     project_directory: projectDirectory.value,
     node_count: nodeCount.value,
     replaced_the_kept_record: replacedTheKeptRecord.value,
-    compile_warnings: compileWarnings,
+    compile_warnings: compileWarnings.value,
   });
 }
 

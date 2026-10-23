@@ -122,14 +122,7 @@ export function openStreamProjectFolderOnRequest(
 
 /** `open_terminal_at_stream_project { folder }`: a terminal in `folder`, a folder the app handed the window; refused naming why. */
 export function openTerminalAtChosenProjectFolder(sharedState: TatolabAppSharedState, folder: string): Promise<Result<void, string>> {
-  return answerTheWindow("open_terminal_at_stream_project", async () => {
-    if (!sharedState.streamProjectAdding.isAFolderHandedToTheWindow(folder)) {
-      return failedWith(`Tatolab acts only on a folder chosen in its window. Choose ${folder} again.`);
-    }
-    const streamProjectFolderOpeners = sharedState.streamProjectFolderOpeners;
-    if (!(await streamProjectFolderOpeners.isAnExistingFolder(folder))) return failedWith(`${folder} is not a folder on this machine.`);
-    return streamProjectFolderOpeners.terminalOpenedInAFolder.openTerminalIn(folder);
-  });
+  return answerTheWindow("open_terminal_at_stream_project", () => sharedState.streamProjectAdding.openTerminalInStreamProjectFolder(folder));
 }
 
 /** `choose_stream_project_folder { chosen_for }`: the app's folder dialog, then what the chosen folder holds; `null` when the person cancels. */
@@ -184,25 +177,30 @@ export function readStreamLogRecordsArgumentsFrom(commandArguments: unknown): Re
 
 /** The `{ stream }` arguments of the command `commandName` as the window sends them, or why they are not. */
 export function streamArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ stream: string }, string> {
-  if (!isAJsonObject(commandArguments) || typeof commandArguments["stream"] !== "string") {
-    return failedWith(`${commandName} needs \`stream\`, a stream's name`);
-  }
-  return succeeded({ stream: commandArguments["stream"] });
+  const stream = oneTextArgumentFrom(commandName, commandArguments, "stream", "a stream's name");
+  return stream.ok ? succeeded({ stream: stream.value }) : stream;
+}
+
+/** The text argument `argumentName` of the command `commandName`, or why the window's arguments carry none, naming what it is. */
+function oneTextArgumentFrom(commandName: TatolabCommandName, commandArguments: unknown, argumentName: string, whatItIs: string): Result<string, string> {
+  const argument = isAJsonObject(commandArguments) ? commandArguments[argumentName] : undefined;
+  return typeof argument === "string" ? succeeded(argument) : failedWith(`${commandName} needs \`${argumentName}\`, ${whatItIs}`);
 }
 
 /** `open_terminal_at_stream_project`'s arguments as the window sends them: a listed stream or a folder, or why they are neither. */
 export function streamOrFolderArgumentsFrom(commandArguments: unknown): Result<{ stream: string } | { folder: string }, string> {
-  if (isAJsonObject(commandArguments) && typeof commandArguments["stream"] === "string") return succeeded({ stream: commandArguments["stream"] });
-  if (isAJsonObject(commandArguments) && typeof commandArguments["folder"] === "string") return succeeded({ folder: commandArguments["folder"] });
-  return failedWith("open_terminal_at_stream_project needs `stream`, a stream's name, or `folder`, a folder chosen in the window");
+  const refusal = failedWith("open_terminal_at_stream_project needs `stream`, a stream's name, or `folder`, a folder chosen in the window");
+  if (!isAJsonObject(commandArguments)) return refusal;
+  const stream = commandArguments["stream"];
+  if (typeof stream === "string") return succeeded({ stream });
+  const folder = commandArguments["folder"];
+  return typeof folder === "string" ? succeeded({ folder }) : refusal;
 }
 
 /** The `{ folder }` arguments of the command `commandName` as the window sends them, or why they are not. */
 export function folderArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ folder: string }, string> {
-  if (!isAJsonObject(commandArguments) || typeof commandArguments["folder"] !== "string") {
-    return failedWith(`${commandName} needs \`folder\`, a folder chosen in the window`);
-  }
-  return succeeded({ folder: commandArguments["folder"] });
+  const folder = oneTextArgumentFrom(commandName, commandArguments, "folder", "a folder chosen in the window");
+  return folder.ok ? succeeded({ folder: folder.value }) : folder;
 }
 
 /** `choose_stream_project_folder`'s arguments as the window sends them, or why they are not. */

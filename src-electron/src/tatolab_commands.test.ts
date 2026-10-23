@@ -102,6 +102,7 @@ async function sharedStateOverFakes(
     streamProjectAdding: new StreamProjectAdding({
       homeDirectory: appConfigDirectory,
       streamProjectFolderDialog: async () => succeeded(folderTheDialogAnswers),
+      terminalOpenedInAFolder: terminal,
       tatolabCommandLineTool: platformForThisBuild.tatolabCommandLineTool,
       runProgramToCompletion: async () => failedWith("this fake runs no program"),
       streamRunsOnTheRuntime: controller,

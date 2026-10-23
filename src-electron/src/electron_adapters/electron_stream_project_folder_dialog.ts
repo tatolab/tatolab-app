@@ -15,26 +15,30 @@ export async function askThePersonForAStreamProjectFolderThroughElectron(
 ): Promise<Result<string | null, string>> {
   const parentWindow = BrowserWindow.getFocusedWindow();
   try {
-    if (chosenFor === "project_to_run") {
-      const openDialogOptions: OpenDialogOptions = {
-        title: "Choose a project folder",
-        buttonLabel: "Choose",
-        defaultPath: defaultFolder,
-        properties: ["openDirectory", "createDirectory"],
-      };
-      const openDialogAnswer =
-        parentWindow === null ? await dialog.showOpenDialog(openDialogOptions) : await dialog.showOpenDialog(parentWindow, openDialogOptions);
-      return succeeded(openDialogAnswer.canceled ? null : (openDialogAnswer.filePaths[0] ?? null));
+    switch (chosenFor) {
+      case "project_to_run": {
+        const openDialogOptions: OpenDialogOptions = {
+          title: "Choose a project folder",
+          buttonLabel: "Choose",
+          defaultPath: defaultFolder,
+          properties: ["openDirectory", "createDirectory"],
+        };
+        const openDialogAnswer =
+          parentWindow === null ? await dialog.showOpenDialog(openDialogOptions) : await dialog.showOpenDialog(parentWindow, openDialogOptions);
+        return succeeded(openDialogAnswer.canceled ? null : (openDialogAnswer.filePaths[0] ?? null));
+      }
+      case "new_project_directory": {
+        const saveDialogOptions: SaveDialogOptions = {
+          title: "Choose where to create the project",
+          buttonLabel: "Choose",
+          defaultPath: defaultFolder,
+          properties: ["createDirectory"],
+        };
+        const saveDialogAnswer =
+          parentWindow === null ? await dialog.showSaveDialog(saveDialogOptions) : await dialog.showSaveDialog(parentWindow, saveDialogOptions);
+        return succeeded(saveDialogAnswer.canceled || saveDialogAnswer.filePath === "" ? null : saveDialogAnswer.filePath);
+      }
     }
-    const saveDialogOptions: SaveDialogOptions = {
-      title: "Choose where to create the project",
-      buttonLabel: "Choose",
-      defaultPath: defaultFolder,
-      properties: ["createDirectory"],
-    };
-    const saveDialogAnswer =
-      parentWindow === null ? await dialog.showSaveDialog(saveDialogOptions) : await dialog.showSaveDialog(parentWindow, saveDialogOptions);
-    return succeeded(saveDialogAnswer.canceled || saveDialogAnswer.filePath === "" ? null : saveDialogAnswer.filePath);
   } catch (caughtFailure) {
     return failedWith(`The folder dialog did not open: ${describeCaughtFailure(caughtFailure)}`);
   }

@@ -6,9 +6,10 @@
 // and the interpreter at `.venv/bin/python`, the only one the runtime takes (StreamLib's
 // `stream_function_compile_in_the_projects_interpreter.rs`).
 
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { StreamProjectFolderReport, StreamProjectPythonEnvironment } from "../../src/backend/tatolab_backend_contract.js";
+import { isAFileOnThisMachine, isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 
 /** The file the runtime compiles a project's stream function from. */
 const STREAM_FILE_NAME = "stream.py";
@@ -57,15 +58,6 @@ export function pythonVersionNamedIn(pyvenvConfigurationText: string): string | 
   return settings.get("version_info") || settings.get("version") || null;
 }
 
-async function isA(kind: "file" | "folder", fileSystemPath: string): Promise<boolean> {
-  try {
-    const metadata = await stat(fileSystemPath);
-    return kind === "file" ? metadata.isFile() : metadata.isDirectory();
-  } catch {
-    return false;
-  }
-}
-
 async function textOfFileOrNull(filePath: string): Promise<string | null> {
   try {
     return await readFile(filePath, "utf8");
@@ -97,7 +89,7 @@ async function tatolabStreamVersionInstalledIn(pythonEnvironmentFolder: string):
 
 async function pythonEnvironmentOf(projectFolder: string): Promise<StreamProjectPythonEnvironment> {
   const pythonEnvironmentFolder = path.join(projectFolder, PYTHON_ENVIRONMENT_FOLDER_NAME);
-  if (!(await isA("file", path.join(pythonEnvironmentFolder, "bin", "python")))) return { kind: "missing" };
+  if (!(await isAFileOnThisMachine(path.join(pythonEnvironmentFolder, "bin", "python")))) return { kind: "missing" };
   const pyvenvConfigurationText = await textOfFileOrNull(path.join(pythonEnvironmentFolder, "pyvenv.cfg"));
   return {
     kind: "present",
@@ -111,19 +103,9 @@ export async function inspectStreamProjectFolder(folder: string): Promise<Stream
   const streamFileText = await textOfFileOrNull(path.join(folder, STREAM_FILE_NAME));
   return {
     folder,
-    folder_exists: await isA("folder", folder),
+    folder_exists: await isAnExistingFolderOnThisMachine(folder),
     stream_file_present: streamFileText !== null,
     stream_functions: streamFileText === null ? [] : streamFunctionsMarkedIn(streamFileText),
     python_environment: await pythonEnvironmentOf(folder),
   };
-}
-
-/** Whether anything is at `fileSystemPath`. */
-export async function somethingIsAt(fileSystemPath: string): Promise<boolean> {
-  try {
-    await stat(fileSystemPath);
-    return true;
-  } catch {
-    return false;
-  }
 }

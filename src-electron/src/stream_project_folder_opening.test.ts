@@ -1,14 +1,11 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { expect, test } from "vitest";
 import type { ListedStream } from "../../src/backend/tatolab_backend_contract.js";
 import { FakeTerminalOpenedInAFolder } from "./fake_tatolab_platform_for_this_build.js";
 import { failedWith, succeeded, type Result } from "./result.js";
-import { isAnExistingFolderOnThisMachine, openStreamProjectFolder, type StreamProjectFolderOpeners } from "./stream_project_folder_opening.js";
+import { openStreamProjectFolder, type StreamProjectFolderOpeners } from "./stream_project_folder_opening.js";
 
 function listedStream(name: string, projectDirectory: string): ListedStream {
   return { name, state: "kept", project_directory: projectDirectory, node_count: 3, failed_because: null };
@@ -86,14 +83,3 @@ test("the_terminals_refusal_reaches_the_window_in_its_own_words", async () => {
   expect(await openStreamProjectFolder(LISTED_STREAMS, "front-door", "terminal", openers)).toEqual(terminal.answer);
 });
 
-test("only_a_folder_counts_as_an_existing_folder", async () => {
-  const folder = await mkdtemp(path.join(os.tmpdir(), "tl-app-project-"));
-  try {
-    await writeFile(path.join(folder, "stream.py"), "");
-    expect(await isAnExistingFolderOnThisMachine(folder)).toBe(true);
-    expect(await isAnExistingFolderOnThisMachine(path.join(folder, "stream.py"))).toBe(false);
-    expect(await isAnExistingFolderOnThisMachine(path.join(folder, "missing"))).toBe(false);
-  } finally {
-    await rm(folder, { recursive: true, force: true });
-  }
-});

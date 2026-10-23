@@ -23,7 +23,7 @@ import { TatolabAppUpdater, type RepeatingTimer, type TatolabAppUpdateFeedForThi
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "./tatolab_tray_menu.js";
 import type { Result } from "./result.js";
-import { isAnExistingFolderOnThisMachine } from "./stream_project_folder_opening.js";
+import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
 
@@ -153,6 +153,7 @@ export async function startTatolabApp(
     streamProjectAdding: new StreamProjectAdding({
       homeDirectory: tatolabElectronAppShell.homeDirectory,
       streamProjectFolderDialog: tatolabElectronAppShell.askThePersonForAStreamProjectFolder,
+      terminalOpenedInAFolder: platformForThisBuild.terminalOpenedInAFolder,
       tatolabCommandLineTool: platformForThisBuild.tatolabCommandLineTool,
       runProgramToCompletion,
       streamRunsOnTheRuntime: controller,

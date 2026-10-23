@@ -71,13 +71,17 @@ describe("running a project folder", () => {
   });
 
   it("keeps the person's name and function across Check again of the same folder, and starts afresh for another folder", () => {
-    const renamed = afterEvents(initialAddStreamFlowState("project_folder"), [
+    const renamedBeforeTheSync = afterEvents(initialAddStreamFlowState("project_folder"), [
       { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map", { python_environment: { kind: "missing" } }) },
       { kind: "stream_name_edited", streamName: "lobby-heat" },
+    ]);
+    expect(compileAndRunUnavailableBecause(renamedBeforeTheSync.form, true)).toBe("Sync the project's .venv with uv sync, then check again.");
+    const renamed = afterEvents(renamedBeforeTheSync, [
       { kind: "work_started", work: "checking_the_folder" },
       { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map") },
     ]);
     expect(renamed.form).toMatchObject({ streamName: "lobby-heat", workUnderWay: null, projectFolder: { python_environment: { kind: "present" } } });
+    expect(compileAndRunUnavailableBecause(renamed.form, true)).toBeNull();
 
     const another = advanceAddStreamFlow(renamed, { kind: "project_folder_answered", report: folderReport("/Users/someone/code/doorways", { stream_functions: ["front_door"] }) });
     expect(another.form.streamName).toBe("front_door");
