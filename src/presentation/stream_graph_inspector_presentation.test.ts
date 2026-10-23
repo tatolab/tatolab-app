@@ -59,6 +59,7 @@ describe("presentStreamGraphInspection", () => {
       kind: "stream",
       stepCount: 2,
       ownProcessStepCount: 1,
+      stepCountWords: "2 · 1 in their own process",
       linkCount: 1,
       droppedCount: 12,
       exposedOutputs: ["persondetector/detections"],
@@ -71,7 +72,8 @@ describe("presentStreamGraphInspection", () => {
     expect(inspection.kind).toBe("step");
     if (inspection.kind !== "step") return;
     expect([inspection.linksInCount, inspection.linksOutCount, inspection.processWords]).toEqual([1, 0, "Own process"]);
-    expect(inspection.previewableOutputs.map((port) => port.name)).toEqual(["detections"]);
+    expect(inspection.previewableOutputs.map((previewable) => previewable.output.name)).toEqual(["detections"]);
+    expect([inspection.linkCountWords, inspection.previewAbsenceWords]).toEqual(["1 link in · 0 out", null]);
     expect(inspection.configRows).toEqual([
       { key: "model", valueText: "yolo11n.onnx" },
       { key: "threshold", valueText: "0.45" },
@@ -88,7 +90,11 @@ describe("presentStreamGraphInspection", () => {
   it("a built-in runs in the runtime, and a step the document gives no config has none", () => {
     const inspection = presentStreamGraphInspection(canvas, null, "camera");
 
-    expect(inspection.kind === "step" && [inspection.processWords, inspection.configRows]).toEqual(["In the runtime", null]);
+    expect(inspection.kind === "step" && [inspection.processWords, inspection.configRows, inspection.previewAbsenceWords]).toEqual([
+      "In the runtime",
+      null,
+      "No output of this step is exposed. An internal output has no preview until it is exposed to this machine or publicly.",
+    ]);
     expect(configRowsOfStep(graphDocument, "camera")).toEqual([]);
   });
 

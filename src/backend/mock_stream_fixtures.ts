@@ -202,6 +202,25 @@ const TEST_PATTERN_LINKS: StreamGraphLink[] = [
   },
 ];
 
+/** An MP4 recorder of `main`'s exposed effect output, read across streams. */
+const RECORDER_OF_MAIN_NODE: MockGraphNode = {
+  name: "mp4writer",
+  type: "tatolab.stream:Mp4Writer",
+  state: "Running",
+  config: { path: "recordings/main.mp4" },
+  input_ports: uncataloguedPorts("video"),
+  output_ports: [],
+};
+
+const RECORDER_OF_MAIN_LINK: StreamGraphLink = {
+  id: "Lr3c0rd3rm41nx7q2w9e5t1y8u",
+  source_node: "main/invertingeffect",
+  source_port: "video_to_downstream",
+  target_node: "mp4writer",
+  target_port: "video",
+  state: "wired",
+};
+
 /** The test pattern's meter falling behind: its link drops frames and the effect's output refuses a few. */
 const TEST_PATTERN_METER_FALLING_BEHIND: MockCounterRates = {
   droppedPerSecondByLinkId: { Lizkqmkmmu5ldam8dbymcc4bc: 9 },
@@ -211,7 +230,15 @@ const TEST_PATTERN_METER_FALLING_BEHIND: MockCounterRates = {
 /** `tatolab new --test-pattern`, run as `streamName`: the scaffold's four nodes, two of them Python. */
 function createTestPatternStream(
   machine: MockMachine,
-  options: { streamName: string; state: "kept" | "attached"; exposesItsEffect: boolean; withDisplayWindowInError: boolean; withTheMeterFallingBehind: boolean },
+  options: {
+    streamName: string;
+    state: "kept" | "attached";
+    exposesItsEffect: boolean;
+    withDisplayWindowInError: boolean;
+    withTheMeterFallingBehind: boolean;
+    /** A recorder that reads `main`'s exposed effect output, a link whose source is in another stream. */
+    withARecorderOfMain: boolean;
+  },
 ): MockStreamFixture {
   const projectDirectory = `${machine.homeDirectory}/streams/pattern`;
   const { streamName } = options;
@@ -224,14 +251,16 @@ function createTestPatternStream(
     attrs: { height: "720", mean: "127.5", width: "1280" },
   });
   return {
-    listing: { name: streamName, state: options.state, project_directory: projectDirectory, node_count: 4, failed_because: null },
+    listing: { name: streamName, state: options.state, project_directory: projectDirectory, node_count: options.withARecorderOfMain ? 5 : 4, failed_because: null },
     graph: {
-      nodes: TEST_PATTERN_NODES.map((node) =>
-        options.withDisplayWindowInError && node.name === "displaywindow" ? { ...node, state: "Error" } : node,
-      ),
-      links: TEST_PATTERN_LINKS.map((link) =>
-        options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link,
-      ),
+      nodes: [
+        ...TEST_PATTERN_NODES.map((node) => (options.withDisplayWindowInError && node.name === "displaywindow" ? { ...node, state: "Error" } : node)),
+        ...(options.withARecorderOfMain ? [RECORDER_OF_MAIN_NODE] : []),
+      ],
+      links: [
+        ...TEST_PATTERN_LINKS.map((link) => (options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link)),
+        ...(options.withARecorderOfMain ? [RECORDER_OF_MAIN_LINK] : []),
+      ],
       exposed: options.exposesItsEffect ? [{ node: "invertingeffect", port: "video_to_downstream", level: "private" }] : [],
       counterRates: options.withTheMeterFallingBehind ? TEST_PATTERN_METER_FALLING_BEHIND : NO_COUNTERS_CLIMB,
     },
@@ -422,6 +451,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       exposesItsEffect: true,
       withDisplayWindowInError: false,
       withTheMeterFallingBehind: false,
+      withARecorderOfMain: false,
     }),
     mainStreamWithDisplayWindowInError: createTestPatternStream(machine, {
       streamName: "main",
@@ -429,6 +459,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       exposesItsEffect: true,
       withDisplayWindowInError: true,
       withTheMeterFallingBehind: false,
+      withARecorderOfMain: false,
     }),
     mainStreamWithItsMeterFallingBehind: createTestPatternStream(machine, {
       streamName: "main",
@@ -436,6 +467,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       exposesItsEffect: true,
       withDisplayWindowInError: false,
       withTheMeterFallingBehind: true,
+      withARecorderOfMain: false,
     }),
     cameraStream: createCameraStream(machine),
     attachedDemoStream: createTestPatternStream(machine, {
@@ -444,6 +476,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       exposesItsEffect: false,
       withDisplayWindowInError: false,
       withTheMeterFallingBehind: false,
+      withARecorderOfMain: true,
     }),
     stoppedPatternTwo: stoppedPatternTwoListing(machine),
     patternTwoStream: createTestPatternStream(machine, {
@@ -452,6 +485,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       exposesItsEffect: false,
       withDisplayWindowInError: false,
       withTheMeterFallingBehind: false,
+      withARecorderOfMain: false,
     }),
     failedLobbyRecorder: failedLobbyRecorderListing(machine),
     listingOrder: ["main", "camera", "attached-demo", "pattern-two", "lobby-recorder"],

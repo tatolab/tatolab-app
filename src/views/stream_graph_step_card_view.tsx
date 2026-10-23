@@ -48,6 +48,7 @@ function StepStateMark({ step }: { step: StreamGraphStepCard }) {
 
 function OutputPortRow({ output, surroundings }: { output: StreamGraphStepOutputPort; surroundings: StreamGraphStepCardSurroundings }) {
   const isPinned = surroundings.pinnedOutputKeys.has(outputPinKey(output));
+  const isPreviewable = output.preview.kind === "watch_page";
   const ExposureIcon = output.exposureLevel === "public" ? Globe : output.exposureLevel === "private" ? Laptop : null;
   return (
     <div className="relative">
@@ -55,10 +56,10 @@ function OutputPortRow({ output, surroundings }: { output: StreamGraphStepOutput
         type="button"
         className={joinClassNames(
           "nodrag group/port flex h-6 w-full cursor-default flex-row-reverse items-center gap-1.5 rounded-sm px-2.5 text-right outline-none focus-visible:ring-3 focus-visible:ring-ring",
-          output.watchPageUrl !== null && "hover:bg-hover",
+          isPreviewable && "hover:bg-hover",
         )}
-        aria-pressed={output.watchPageUrl === null ? undefined : isPinned}
-        aria-label={`${output.name}${output.watchPageUrl === null ? "" : isPinned ? ", preview pinned" : ", hover to preview, click to pin"}`}
+        aria-pressed={isPreviewable ? isPinned : undefined}
+        aria-label={`${output.name}${isPreviewable ? (isPinned ? ", preview pinned" : ", hover to preview, click to pin") : ""}`}
         data-step-output-port={output.name}
         onMouseEnter={(mouseEvent) => surroundings.onOutputHoverStarted(output, mouseEvent.currentTarget.getBoundingClientRect())}
         onFocus={(focusEvent) => surroundings.onOutputHoverStarted(output, focusEvent.currentTarget.getBoundingClientRect())}
@@ -66,11 +67,18 @@ function OutputPortRow({ output, surroundings }: { output: StreamGraphStepOutput
         onBlur={surroundings.onOutputHoverEnded}
         onClick={(clickEvent) => {
           clickEvent.stopPropagation();
-          if (output.watchPageUrl !== null) surroundings.onOutputPinToggled(output);
+          if (isPreviewable) surroundings.onOutputPinToggled(output);
         }}
       >
         <PortDataKindIcon dataKind={output.dataKind} className="group-hover/port:text-fg-2" />
-        <span className={joinClassNames("min-w-0 truncate font-mono text-xs", isPinned ? "text-brand-text" : "text-fg-2 group-hover/port:text-fg")}>{output.name}</span>
+        <span
+          className={joinClassNames(
+            "min-w-0 truncate font-mono text-xs",
+            isPinned ? "text-brand-text" : output.exposureLevel === null ? "text-fg-3" : "text-fg-2 group-hover/port:text-fg",
+          )}
+        >
+          {output.name}
+        </span>
         {ExposureIcon !== null && <ExposureIcon className="size-3 shrink-0 text-fg-3" strokeWidth={1.75} aria-label={output.exposureLevel ?? undefined} />}
       </button>
       {surroundings.renderPortHandle("output", output.name)}
@@ -81,18 +89,19 @@ function OutputPortRow({ output, surroundings }: { output: StreamGraphStepOutput
 /** One step's card: its name and origin, the exposed output it plays, its port rows, and its state and counters in its foot. */
 export function StreamGraphStepCardView({ step, surroundings }: { step: StreamGraphStepCard; surroundings: StreamGraphStepCardSurroundings }) {
   const counterWords = surroundings.areCountersShown ? stepCardCounterWords(step) : [];
-  const cardPreviewOutput = surroundings.arePreviewsShown ? step.cardPreviewOutput : null;
+  const cardPreview = surroundings.arePreviewsShown ? step.cardPreview : null;
   return (
     <div
       style={{ width: STREAM_GRAPH_STEP_CARD_WIDTH }}
       className={joinClassNames(
-        "rounded-lg border bg-raised transition-[border-color,box-shadow] duration-100",
+        "stream-graph-step-card rounded-lg border transition-[border-color,box-shadow] duration-100",
+        step.isInAnotherStream ? "border-dashed bg-chrome" : "bg-raised",
         step.stateEmphasis === "failure" ? "border-danger" : surroundings.isSelected ? "border-brand" : "border-line-strong",
         surroundings.isSelected && "ring-3 ring-brand-soft",
-        step.isInAnotherStream && "border-dashed",
       )}
       data-stream-graph-step={step.name}
       data-selected={surroundings.isSelected}
+      data-in-another-stream={step.isInAnotherStream}
     >
       <div className="flex h-8 items-center gap-2 px-2.5">
         <span className={joinClassNames("min-w-0 truncate font-mono text-xs font-medium", step.isInAnotherStream ? "text-fg-2" : "text-fg")} title={step.type || step.name}>
@@ -101,13 +110,13 @@ export function StreamGraphStepCardView({ step, surroundings }: { step: StreamGr
         <StepStateMark step={step} />
         <span className="ml-auto shrink-0 text-xs text-fg-3">{step.isInAnotherStream ? "Another stream" : (step.origin ?? "")}</span>
       </div>
-      {cardPreviewOutput !== null && cardPreviewOutput.watchPageUrl !== null && (
+      {cardPreview !== null && (
         <div className="px-2 pb-2">
           <div style={{ height: STREAM_GRAPH_STEP_CARD_PREVIEW_HEIGHT }}>
             {/* The frame takes no pointer, so a press on it selects and drags the card like the rest of it. */}
             <ExposedOutputWatchPageFrame
-              watchPageUrl={cardPreviewOutput.watchPageUrl}
-              fullAddress={exposedOutputAddress(surroundings.machineName, surroundings.streamName, { node: step.name, port: cardPreviewOutput.name }).fullAddress}
+              watchPageUrl={cardPreview.watchPageUrl}
+              fullAddress={exposedOutputAddress(surroundings.machineName, surroundings.streamName, { node: step.name, port: cardPreview.output.name }).fullAddress}
               className="pointer-events-none h-full w-full rounded-md"
             />
           </div>

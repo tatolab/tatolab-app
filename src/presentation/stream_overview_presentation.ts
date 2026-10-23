@@ -75,15 +75,23 @@ export interface StreamStepRow {
   name: string;
   type: string;
   origin: "Built-in" | "Python" | null;
-  /** Where the step runs: a built-in in the runtime, a Python node in its own processor interpreter. */
-  process: "in runtime" | "own process" | null;
+  process: StreamStepProcessWords | null;
   stateWord: string;
   stateEmphasis: StreamStepStateEmphasis;
   /** Only counters above zero, and none for a graph from the last load. */
   counters: StreamStepCounter[];
 }
 
-function sumOfCounts(countsByName: Record<string, number>): number {
+/** Where a step runs: a built-in in the runtime, a Python node in its own processor interpreter. */
+export type StreamStepProcessWords = "In the runtime" | "Own process";
+
+/** Where a step of `origin` runs, in the words the steps table and the graph's inspector use; `null` for an origin this app cannot place. */
+export function presentStepProcess(origin: "Built-in" | "Python" | null): StreamStepProcessWords | null {
+  return origin === "Built-in" ? "In the runtime" : origin === "Python" ? "Own process" : null;
+}
+
+/** The total of a `{ name: count }` counter object, such as a node's `dropped_bags_by_link`. */
+export function totalOfCounts(countsByName: Record<string, number>): number {
   return Object.values(countsByName).reduce((total, count) => total + count, 0);
 }
 
@@ -124,8 +132,8 @@ export function presentStreamSteps(
       const counters: StreamStepCounter[] =
         stepsSource === "loaded"
           ? [
-              { count: sumOfCounts(node.dropped_bags_by_link), word: "dropped" as const },
-              { count: sumOfCounts(node.refused_bags_by_output_port), word: "refused" as const },
+              { count: totalOfCounts(node.dropped_bags_by_link), word: "dropped" as const },
+              { count: totalOfCounts(node.refused_bags_by_output_port), word: "refused" as const },
             ]
               .filter((counter) => counter.count > 0)
               .map((counter) => ({ countText: counter.count.toLocaleString("en-US"), word: counter.word }))
@@ -134,7 +142,7 @@ export function presentStreamSteps(
         name: node.name,
         type: node.type,
         origin,
-        process: origin === "Built-in" ? "in runtime" : origin === "Python" ? "own process" : null,
+        process: presentStepProcess(origin),
         ...(stepsSource === "loaded"
           ? presentStepState(node.state)
           : isLoadedNow

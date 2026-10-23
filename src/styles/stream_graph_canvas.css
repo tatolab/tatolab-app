@@ -7,9 +7,10 @@
 }
 .stream-graph-canvas .react-flow__node { cursor: default; }
 .stream-graph-canvas .react-flow__node:focus-visible { outline: none; }
+.stream-graph-canvas .react-flow__node:focus-visible .stream-graph-step-card { box-shadow: 0 0 0 3px var(--ring); }
 .stream-graph-canvas .react-flow__minimap {
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--chrome);
 }

@@ -4,7 +4,7 @@
 import { GripVertical, Pin, PinOff, X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { outputPreviewAbsenceWords, type StreamGraphStepOutputPort } from "../presentation/stream_graph_canvas_presentation";
+import { outputPreviewAbsenceWords, type StreamGraphPreviewedOutput, type StreamGraphStepOutputPort } from "../presentation/stream_graph_canvas_presentation";
 import { exposedOutputAddress } from "../presentation/stream_overview_presentation";
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
 import { ExposureLevelWords } from "./exposure_level_words";
@@ -67,11 +67,9 @@ export function StreamGraphOutputHoverPreview({
   return createPortal(
     <div
       ref={popoverElement}
-      role="dialog"
-      aria-label={`Preview of ${address.fullAddress}`}
       onMouseEnter={onPointerEntered}
       onMouseLeave={onPointerLeft}
-      style={{ width: output.watchPageUrl === null ? 280 : HOVER_PREVIEW_WIDTH, ...(popoverPosition ?? { left: -9999, top: -9999 }) }}
+      style={{ width: output.preview.kind === "absent" ? 280 : HOVER_PREVIEW_WIDTH, ...(popoverPosition ?? { left: -9999, top: -9999 }) }}
       className="fixed z-50 rounded-lg border border-line-strong bg-popover shadow-[var(--shadow-pop)]"
       data-stream-graph-hover-preview={address.fullAddress}
     >
@@ -79,7 +77,7 @@ export function StreamGraphOutputHoverPreview({
         <PortDataKindIcon dataKind={output.dataKind} />
         <span className="min-w-0 truncate font-mono text-xs text-fg">{output.name}</span>
         <span className="min-w-0 truncate font-mono text-xs text-fg-3">{output.stepName}</span>
-        {output.watchPageUrl !== null && (
+        {output.preview.kind === "watch_page" && (
           <Button
             variant="ghost"
             size="icon"
@@ -92,12 +90,12 @@ export function StreamGraphOutputHoverPreview({
           </Button>
         )}
       </div>
-      {output.watchPageUrl === null || output.previewAbsence !== null ? (
-        <p className="px-3 pb-3 text-xs text-fg-3">{outputPreviewAbsenceWords(output.previewAbsence ?? "no_preview_page")}</p>
+      {output.preview.kind === "absent" ? (
+        <p className="px-3 pb-3 text-xs text-fg-3">{outputPreviewAbsenceWords(output.preview.absence)}</p>
       ) : (
         <>
           <div className="px-3">
-            <ExposedOutputWatchPageFrame watchPageUrl={output.watchPageUrl} fullAddress={address.fullAddress} className="aspect-video w-full rounded-md" />
+            <ExposedOutputWatchPageFrame watchPageUrl={output.preview.watchPageUrl} fullAddress={address.fullAddress} className="aspect-video w-full rounded-md" />
           </div>
           <div className="px-3 pt-2.5 pb-3">
             <div className="truncate font-mono text-xs text-fg-2 select-text" title={address.fullAddress}>
@@ -117,7 +115,7 @@ export function StreamGraphOutputHoverPreview({
 
 /** A pinned preview floating over the canvas, dragged by its header within `canvasSize`, until it is closed. */
 export function PinnedStreamGraphOutputPreview({
-  output,
+  previewedOutput,
   outputPlace,
   position,
   canvasSize,
@@ -125,7 +123,7 @@ export function PinnedStreamGraphOutputPreview({
   onClosed,
   onBroughtToFront,
 }: {
-  output: StreamGraphStepOutputPort;
+  previewedOutput: StreamGraphPreviewedOutput;
   outputPlace: StreamGraphOutputPlace;
   position: { x: number; y: number };
   canvasSize: () => { width: number; height: number } | null;
@@ -135,8 +133,12 @@ export function PinnedStreamGraphOutputPreview({
 }) {
   const dragOffset = useRef<{ fromLeft: number; fromTop: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const { output, watchPageUrl } = previewedOutput;
   const address = exposedOutputAddress(outputPlace.machineName, outputPlace.streamName, { node: output.stepName, port: output.name });
-  if (output.watchPageUrl === null) return null;
+  const endDrag = () => {
+    dragOffset.current = null;
+    setIsDragging(false);
+  };
   return (
     <div
       onPointerDown={onBroughtToFront}
@@ -167,10 +169,9 @@ export function PinnedStreamGraphOutputPreview({
                 },
           );
         }}
-        onPointerUp={() => {
-          dragOffset.current = null;
-          setIsDragging(false);
-        }}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onLostPointerCapture={endDrag}
       >
         <GripVertical className="size-3.5 shrink-0 text-fg-4" strokeWidth={1.75} aria-hidden />
         <PortDataKindIcon dataKind={output.dataKind} className="size-3" />
@@ -182,7 +183,7 @@ export function PinnedStreamGraphOutputPreview({
           <X className="size-3.5" aria-hidden />
         </Button>
       </div>
-      <ExposedOutputWatchPageFrame watchPageUrl={output.watchPageUrl} fullAddress={address.fullAddress} className="aspect-video w-full ring-0" />
+      <ExposedOutputWatchPageFrame watchPageUrl={watchPageUrl} fullAddress={address.fullAddress} className="aspect-video w-full ring-0" />
     </div>
   );
 }

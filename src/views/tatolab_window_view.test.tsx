@@ -206,8 +206,8 @@ describe("a stream's page", () => {
     const stepRows = [...document.querySelectorAll<HTMLElement>("[data-stream-step]")];
     expect(stepRows.map((stepRow) => stepRow.dataset.streamStep)).toEqual(["testpatternsource", "invertingeffect", "displaywindow", "brightnessmeter"]);
     expect(within(stepRows[1]).getByText("Python")).toBeTruthy();
-    expect(within(stepRows[1]).getByText("own process")).toBeTruthy();
-    expect(within(stepRows[0]).getByText("in runtime")).toBeTruthy();
+    expect(within(stepRows[1]).getByText("Own process")).toBeTruthy();
+    expect(within(stepRows[0]).getByText("In the runtime")).toBeTruthy();
     expect(within(stepRows[0]).getByText("Running")).toBeTruthy();
     expect(textOf("[data-stream-steps]")).toContain("in pipeline order");
     expect(document.querySelector("[data-dropping-links]")).toBeNull();
@@ -359,7 +359,7 @@ describe("a stream's Graph tab", () => {
     expect(stepCardOf("invertingeffect").textContent).toMatch(/[\d,]+ refused/);
     expect(stepCardOf("testpatternsource").textContent).not.toMatch(/dropped|refused/);
 
-    fireEvent.click(screen.getByRole("button", { name: "Hide counters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Counters" }));
 
     expect(stepCardOf("brightnessmeter").textContent).not.toMatch(/dropped/);
   });
@@ -392,7 +392,7 @@ describe("a stream's Graph tab", () => {
     fireEvent.click(outputPortOf("testpatternsource", "video"));
     expect(document.querySelectorAll("[data-pinned-output-preview]")).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Hide previews" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previews" }));
 
     expect(stepCardOf("invertingeffect").querySelector("iframe")).toBeNull();
   });
@@ -435,4 +435,55 @@ describe("a stream's Graph tab", () => {
 
     await waitFor(() => expect(document.querySelector("[data-pinned-output-preview='jonathanf-macbook/main/invertingeffect/video_to_downstream']")).not.toBeNull());
   });
+
+  it("waits for a restarted stream's new graph instead of drawing the last load's", async () => {
+    let areGraphReadsHeld = false;
+    const answeringBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running")));
+    await mountedWindowOverTheMock("state=running", {
+      describeStreamGraph: (streamName) => (areGraphReadsHeld ? new Promise(() => {}) : answeringBackend.describeStreamGraph(streamName)),
+    });
+    await openTheGraphOf("main");
+    // Stopping redirects Graph to Overview, which draws the page, its header included, anew.
+    const streamPageHeader = () => within(document.querySelector<HTMLElement>("[data-stream-page-header]") ?? document.body);
+    areGraphReadsHeld = true;
+
+    fireEvent.click(streamPageHeader().getByRole("button", { name: /Stop/ }));
+    fireEvent.click(await waitFor(() => streamPageHeader().getByRole("button", { name: /Start/ })));
+    fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Graph" })));
+
+    await waitFor(() => expect(textOf("[data-stream-graph-message]")).toBe("Reading its graph…"));
+    expect(document.querySelector("[data-stream-graph-step]")).toBeNull();
+  });
+
+  it("selects a step whose card has keyboard focus with Enter", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheGraphOf("main");
+    const cardsNode = await waitFor(() => {
+      const flowNode = document.querySelector<HTMLElement>(".react-flow__node[data-id='testpatternsource']");
+      if (flowNode === null) throw new Error("no flow node yet");
+      return flowNode;
+    });
+    expect(cardsNode.getAttribute("aria-label")).toBe("testpatternsource, Running, Built-in");
+
+    cardsNode.focus();
+    fireEvent.keyDown(cardsNode, { key: "Enter" });
+
+    await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector='step']")).not.toBeNull());
+    expect(stepCardOf("testpatternsource").dataset.selected).toBe("true");
+  });
+
+  it("draws a link's source in another stream as a dimmed card that does not select", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheGraphOf("attached-demo");
+
+    const sourceInMain = await waitFor(() => stepCardOf("main/invertingeffect"));
+    expect(sourceInMain.dataset.inAnotherStream).toBe("true");
+    expect(sourceInMain.textContent).toContain("Another stream");
+    expect(stepCardOf("mp4writer").querySelector("[data-step-input-port='video']")).not.toBeNull();
+
+    fireEvent.click(sourceInMain);
+
+    expect(document.querySelector("[data-stream-graph-inspector='stream']")).not.toBeNull();
+  });
 });
+

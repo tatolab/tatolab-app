@@ -24,7 +24,9 @@ import {
 } from "@xyflow/react";
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  streamGraphLinkLabelClauses,
   streamGraphLinkTone,
+  type StreamGraphLinkTone,
   type StreamGraphCanvas,
   type StreamGraphLinkLine,
   type StreamGraphStepCard,
@@ -83,12 +85,12 @@ function StepFlowNodeView({ data }: NodeProps<StreamGraphStepFlowNode>) {
   );
 }
 
-/** The stroke of a link's line by its tone, or red for a link the runtime reports failed. */
-function linkStrokeColour(link: StreamGraphLinkLine, tone: ReturnType<typeof streamGraphLinkTone>): string {
-  if (tone === "dropping") return "var(--warn)";
-  if (link.look === "error") return "var(--danger)";
-  return tone === "selected" ? "var(--brand)" : "var(--fg-4)";
-}
+const LINK_STROKE_COLOUR_BY_TONE: Record<StreamGraphLinkTone, string> = {
+  failed: "var(--danger)",
+  dropping: "var(--warn)",
+  selected: "var(--brand)",
+  neutral: "var(--fg-4)",
+};
 
 function LinkFlowEdgeView({ id, data, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }: EdgeProps<StreamGraphLinkFlowEdge>) {
   const surroundings = useStreamGraphCanvasSurroundings();
@@ -97,8 +99,7 @@ function LinkFlowEdgeView({ id, data, sourceX, sourceY, targetX, targetY, source
   const { link } = data;
   const tone = streamGraphLinkTone(link, surroundings.selectedStepName, surroundings.areCountersShown);
   const isHovered = surroundings.hoveredLinkId === id;
-  const isEmphasised = isHovered || tone !== "neutral";
-  const showsDrops = tone === "dropping";
+  const labelClauses = streamGraphLinkLabelClauses(link, surroundings.areCountersShown);
   return (
     <>
       <BaseEdge
@@ -106,13 +107,14 @@ function LinkFlowEdgeView({ id, data, sourceX, sourceY, targetX, targetY, source
         path={linePath}
         interactionWidth={18}
         style={{
-          stroke: linkStrokeColour(link, tone),
-          strokeWidth: isEmphasised ? 1.75 : 1.25,
+          stroke: LINK_STROKE_COLOUR_BY_TONE[tone],
+          // A failed line is wider as well as red, so it does not read by its colour alone.
+          strokeWidth: tone === "failed" ? 2.5 : isHovered || tone !== "neutral" ? 1.75 : 1.25,
           strokeDasharray: link.look === "wired" || link.look === "error" ? undefined : "4 4",
           opacity: link.look === "ending" ? 0.6 : 1,
         }}
       />
-      {(isHovered || showsDrops) && (
+      {(isHovered || labelClauses.length > 0) && (
         <EdgeLabelRenderer>
           <div
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
@@ -122,8 +124,12 @@ function LinkFlowEdgeView({ id, data, sourceX, sourceY, targetX, targetY, source
             )}
             data-stream-graph-link-label={link.linkId}
           >
-            {isHovered && <span className="text-fg-2">{link.stateSentence}</span>}
-            {showsDrops && <span className="text-warn-text">{link.droppedCount.toLocaleString("en-US")} dropped</span>}
+            {isHovered && link.look !== "error" && <span className="text-fg-2">{link.stateSentence}</span>}
+            {labelClauses.map((labelClause) => (
+              <span key={labelClause.emphasis} className={labelClause.emphasis === "failure" ? "text-danger-text" : "text-warn-text"}>
+                {labelClause.words}
+              </span>
+            ))}
           </div>
         </EdgeLabelRenderer>
       )}
@@ -147,6 +153,7 @@ export interface StreamGraphViewportCommands {
   fitToView: () => void;
 }
 
+/** The canvas's viewport commands, for the toolbar and the F key. */
 export function useStreamGraphViewportCommands(): StreamGraphViewportCommands {
   const reactFlow = useReactFlow();
   return useMemo(
@@ -179,10 +186,11 @@ function useOpeningViewOnceMeasured(): void {
     if (hasOpened || !areCardsMeasured || canvasWidth === 0 || canvasHeight === 0) return;
     setHasOpened(true);
     const graphBounds = reactFlow.getNodesBounds(reactFlow.getNodes());
+    // The zoom fitView would choose: React Flow pads the graph by its padding fraction on each axis.
     const fittingZoom = Math.min(
-      (canvasWidth - OPENING_VIEW_MARGIN * 2) / Math.max(1, graphBounds.width),
-      (canvasHeight - OPENING_VIEW_MARGIN * 2) / Math.max(1, graphBounds.height),
-      1,
+      canvasWidth / Math.max(1, graphBounds.width * (1 + FIT_TO_VIEW_OPTIONS.padding)),
+      canvasHeight / Math.max(1, graphBounds.height * (1 + FIT_TO_VIEW_OPTIONS.padding)),
+      FIT_TO_VIEW_OPTIONS.maxZoom,
     );
     if (fittingZoom >= SMALLEST_OPENING_ZOOM) {
       void reactFlow.fitView({ ...FIT_TO_VIEW_OPTIONS, duration: 0 });
@@ -217,15 +225,21 @@ export function StreamGraphReactFlowCanvas({ canvas, stepPositions, onStepSelect
 
   useEffect(() => {
     setFlowNodes((shownNodes) =>
-      canvas.steps.map((step) => ({
-        id: step.name,
-        type: "stream_graph_step",
-        position: stepPositions.get(step.name) ?? { x: 0, y: 0 },
-        data: { step },
-        draggable: true,
-        selectable: !step.isInAnotherStream,
-        measured: shownNodes.find((shownNode) => shownNode.id === step.name)?.measured,
-      })),
+      canvas.steps.map((step) => {
+        const shownNode = shownNodes.find((node) => node.id === step.name);
+        return {
+          id: step.name,
+          type: "stream_graph_step",
+          // A card held mid-drag stays under the pointer when a new reading of the graph arrives.
+          position: shownNode?.dragging === true ? shownNode.position : (stepPositions.get(step.name) ?? { x: 0, y: 0 }),
+          data: { step },
+          draggable: true,
+          focusable: !step.isInAnotherStream,
+          ariaLabel: step.isInAnotherStream ? `${step.name}, in another stream` : `${step.name}, ${step.stateWord}${step.origin === null ? "" : `, ${step.origin}`}`,
+          measured: shownNode?.measured,
+          dragging: shownNode?.dragging,
+        };
+      }),
     );
   }, [canvas, stepPositions]);
 
@@ -263,6 +277,15 @@ export function StreamGraphReactFlowCanvas({ canvas, stepPositions, onStepSelect
         onNodeClick={(_, clickedNode) => onStepSelected(clickedNode.data.step.isInAnotherStream ? null : clickedNode.id)}
         onNodeDragStop={(_, draggedNode) => onStepMoved(draggedNode.id, draggedNode.position)}
         onPaneClick={() => onStepSelected(null)}
+        onKeyDown={(keyboardEvent) => {
+          // React Flow focuses a card's node wrapper; Enter or Space selects that step.
+          if (keyboardEvent.key !== "Enter" && keyboardEvent.key !== " ") return;
+          const focusedNodeId = keyboardEvent.target instanceof HTMLElement && keyboardEvent.target.classList.contains("react-flow__node") ? keyboardEvent.target.dataset.id : undefined;
+          const focusedStep = canvas.steps.find((step) => step.name === focusedNodeId);
+          if (focusedStep === undefined || focusedStep.isInAnotherStream) return;
+          keyboardEvent.preventDefault();
+          onStepSelected(focusedStep.name);
+        }}
         onEdgeMouseEnter={(_, hoveredEdge) => setHoveredLinkId(hoveredEdge.id)}
         onEdgeMouseLeave={() => setHoveredLinkId(null)}
         onMoveStart={(moveEvent) => {

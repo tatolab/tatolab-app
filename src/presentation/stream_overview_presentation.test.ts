@@ -120,12 +120,12 @@ const PIPELINE_ORDER = ["testpatternsource", "halftonelenseffect", "brightnessme
 describe("presentStreamSteps", () => {
   it("lists each step in pipeline order with its origin, state, process and the counters above zero", () => {
     expect(presentStreamSteps(DROPPING_GRAPH, PIPELINE_ORDER, "loaded", true)).toEqual([
-      { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", origin: "Built-in", process: "in runtime", stateWord: "Running", stateEmphasis: "plain", counters: [] },
+      { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", origin: "Built-in", process: "In the runtime", stateWord: "Running", stateEmphasis: "plain", counters: [] },
       {
         name: "halftonelenseffect",
         type: "nodes.halftone_lens_effect:HalftoneLensEffect",
         origin: "Python",
-        process: "own process",
+        process: "Own process",
         stateWord: "Running",
         stateEmphasis: "plain",
         counters: [{ countText: "212", word: "refused" }],
@@ -134,12 +134,12 @@ describe("presentStreamSteps", () => {
         name: "brightnessmeter",
         type: "nodes.brightness_meter:BrightnessMeter",
         origin: "Python",
-        process: "own process",
+        process: "Own process",
         stateWord: "Running",
         stateEmphasis: "plain",
         counters: [{ countText: "1,840", word: "dropped" }],
       },
-      { name: "h264encoder", type: "tatolab.stream:H264Encoder", origin: "Built-in", process: "in runtime", stateWord: "Starting", stateEmphasis: "starting", counters: [{ countText: "12", word: "dropped" }] },
+      { name: "h264encoder", type: "tatolab.stream:H264Encoder", origin: "Built-in", process: "In the runtime", stateWord: "Starting", stateEmphasis: "starting", counters: [{ countText: "12", word: "dropped" }] },
     ]);
   });
 
@@ -154,8 +154,8 @@ describe("presentStreamSteps", () => {
     const graph = { ...DROPPING_GRAPH, nodes: [stepNode("a", "nodes.a:A", "Error"), stepNode("b", "weird", "Rewiring"), stepNode("c", "tatolab.stream:C", null)] };
     expect(presentStreamSteps(graph, ["b", "a"], "loaded", true).map((step) => [step.name, step.stateWord, step.stateEmphasis, step.origin, step.process])).toEqual([
       ["b", "Rewiring", "plain", null, null],
-      ["a", "In error", "failure", "Python", "own process"],
-      ["c", "Running", "plain", "Built-in", "in runtime"],
+      ["a", "In error", "failure", "Python", "Own process"],
+      ["c", "Running", "plain", "Built-in", "In the runtime"],
     ]);
   });
 });

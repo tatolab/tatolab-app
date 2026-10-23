@@ -3,7 +3,7 @@
 
 import type { StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../backend/tatolab_backend_contract";
 import { presentGraphLinkState, type GraphLinkLook } from "./stream_graph_presentation";
-import { presentNodeKind, presentStepState, type StreamStepStateEmphasis } from "./stream_overview_presentation";
+import { presentNodeKind, presentStepState, totalOfCounts, type StreamStepStateEmphasis } from "./stream_overview_presentation";
 
 /** What a port carries as its icon shows it: video or audio when the runtime's catalog section says so, otherwise data. */
 export type StreamGraphPortDataKind = "video" | "audio" | "data";
@@ -17,8 +17,11 @@ export interface StreamGraphStepInputPort {
   dataKind: StreamGraphPortDataKind;
 }
 
-/** Why an output has no preview, in the words its hover shows; `null` for an output that previews. */
-export type StreamGraphOutputPreviewAbsence = "internal" | "no_preview_page" | "in_another_stream" | null;
+/** Why an output has no preview: internal, exposed in a graph that names no machine, or a port of another stream's step. */
+export type StreamGraphOutputPreviewAbsence = "internal" | "no_preview_page" | "in_another_stream";
+
+/** An output's preview: the runtime's preview page playing it, or why it has none. */
+export type StreamGraphOutputPreview = { kind: "watch_page"; watchPageUrl: string } | { kind: "absent"; absence: StreamGraphOutputPreviewAbsence };
 
 /** One output port a step card draws, on its right, with what reading it from outside the stream takes. */
 export interface StreamGraphStepOutputPort {
@@ -27,11 +30,20 @@ export interface StreamGraphStepOutputPort {
   dataKind: StreamGraphPortDataKind;
   /** `internal`, `private`, `public` or a newer level; `null` for a port of a step in another stream, whose level this graph does not give. */
   exposureLevel: string | null;
-  /** The runtime's preview page playing it; `null` when it has none. */
-  watchPageUrl: string | null;
-  previewAbsence: StreamGraphOutputPreviewAbsence;
+  preview: StreamGraphOutputPreview;
   /** Messages it refused, as the step's `refused_bags_by_output_port` counts them. */
   refusedCount: number;
+}
+
+/** An output with a preview page, and that page. */
+export interface StreamGraphPreviewedOutput {
+  output: StreamGraphStepOutputPort;
+  watchPageUrl: string;
+}
+
+/** `output` with its preview page; `null` when it has none. */
+export function previewedOutputOf(output: StreamGraphStepOutputPort): StreamGraphPreviewedOutput | null {
+  return output.preview.kind === "watch_page" ? { output, watchPageUrl: output.preview.watchPageUrl } : null;
 }
 
 /** One step as its card on the canvas shows it. */
@@ -49,8 +61,8 @@ export interface StreamGraphStepCard {
   droppedInCount: number;
   /** Messages all its outputs refused. */
   refusedCount: number;
-  /** The output the card plays inside it: its first one with a preview page; `null` when none has one. */
-  cardPreviewOutput: StreamGraphStepOutputPort | null;
+  /** The output the card plays inside it, at its preview page: its first one with one; `null` when none has one. */
+  cardPreview: StreamGraphPreviewedOutput | null;
 }
 
 /** One link as a line on the canvas: its ends, its state's look, and what its target dropped on it. */
@@ -75,10 +87,6 @@ export interface StreamGraphCanvas {
 /** `video` and `audio` catalog sections draw as themselves; every other section, and none, as data. */
 export function dataKindOfCatalogSection(catalogSection: string | null): StreamGraphPortDataKind {
   return catalogSection === "video" || catalogSection === "audio" ? catalogSection : "data";
-}
-
-function sumOfCounts(countsByName: Record<string, number>): number {
-  return Object.values(countsByName).reduce((total, count) => total + count, 0);
 }
 
 /** `ports` with any of `extraPortNames` it does not already declare, after them in order. */
@@ -138,12 +146,14 @@ export function presentStreamGraphCanvas(graph: StreamGraphSummary): StreamGraph
         name: port.name,
         dataKind: dataKindOfCatalogSection(port.catalog_section),
         exposureLevel,
-        watchPageUrl,
-        previewAbsence:
-          watchPageUrl !== null ? null : exposureLevel === null ? "in_another_stream" : exposureLevel === "internal" ? "internal" : "no_preview_page",
+        preview:
+          watchPageUrl !== null
+            ? { kind: "watch_page", watchPageUrl }
+            : { kind: "absent", absence: exposureLevel === null ? "in_another_stream" : exposureLevel === "internal" ? "internal" : "no_preview_page" },
         refusedCount: node.refused_bags_by_output_port[port.name] ?? 0,
       };
     });
+
     return {
       name: node.name,
       type: node.type,
@@ -152,9 +162,9 @@ export function presentStreamGraphCanvas(graph: StreamGraphSummary): StreamGraph
       ...(isInAnotherStream ? { stateWord: "In another stream", stateEmphasis: "quiet" as const } : presentStepState(node.state)),
       inputPorts,
       outputPorts,
-      droppedInCount: sumOfCounts(node.dropped_bags_by_link),
-      refusedCount: sumOfCounts(node.refused_bags_by_output_port),
-      cardPreviewOutput: outputPorts.find((port) => port.watchPageUrl !== null) ?? null,
+      droppedInCount: totalOfCounts(node.dropped_bags_by_link),
+      refusedCount: totalOfCounts(node.refused_bags_by_output_port),
+      cardPreview: outputPorts.flatMap((output) => previewedOutputOf(output) ?? [])[0] ?? null,
     };
   };
 
@@ -176,10 +186,12 @@ export function presentStreamGraphCanvas(graph: StreamGraphSummary): StreamGraph
   };
 }
 
-/** How a link's line reads: amber with its count when it dropped messages and counters show, blue when it touches the selected step, otherwise neutral. */
-export type StreamGraphLinkTone = "dropping" | "selected" | "neutral";
+/** How a link's line reads: red when the runtime reports it failed, amber with its count when it dropped messages and counters show, blue when it touches the selected step, otherwise neutral. */
+export type StreamGraphLinkTone = "failed" | "dropping" | "selected" | "neutral";
 
+/** `link`'s tone, a failure first, so a failed link that also dropped messages still reads failed. */
 export function streamGraphLinkTone(link: StreamGraphLinkLine, selectedStepName: string | null, areCountersShown: boolean): StreamGraphLinkTone {
+  if (link.look === "error") return "failed";
   if (areCountersShown && link.droppedCount > 0) return "dropping";
   if (selectedStepName !== null && (link.sourceStepName === selectedStepName || link.targetStepName === selectedStepName)) return "selected";
   return "neutral";
@@ -193,8 +205,22 @@ export function stepCardCounterWords(step: Pick<StreamGraphStepCard, "droppedInC
   ].filter((words): words is string => words !== null);
 }
 
+/** One clause of a link's label, red for a failure and amber for drops. */
+export interface StreamGraphLinkLabelClause {
+  words: string;
+  emphasis: "failure" | "warning";
+}
+
+/** What a link's line says without a hover: that it failed, and what it dropped while counters show; empty for a link with neither. */
+export function streamGraphLinkLabelClauses(link: StreamGraphLinkLine, areCountersShown: boolean): StreamGraphLinkLabelClause[] {
+  const labelClauses: StreamGraphLinkLabelClause[] = [];
+  if (link.look === "error") labelClauses.push({ words: link.stateSentence, emphasis: "failure" });
+  if (areCountersShown && link.droppedCount > 0) labelClauses.push({ words: `${link.droppedCount.toLocaleString("en-US")} dropped`, emphasis: "warning" });
+  return labelClauses;
+}
+
 /** What hovering an output without a preview says. */
-export function outputPreviewAbsenceWords(previewAbsence: Exclude<StreamGraphOutputPreviewAbsence, null>): string {
+export function outputPreviewAbsenceWords(previewAbsence: StreamGraphOutputPreviewAbsence): string {
   switch (previewAbsence) {
     case "internal":
       return "Internal. Expose it to this machine or publicly to preview it.";

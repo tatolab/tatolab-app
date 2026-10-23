@@ -5,7 +5,7 @@ import { TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import type { ListedStream } from "../backend/tatolab_backend_contract";
-import { presentStreamGraphCanvas, type StreamGraphCanvas, type StreamGraphStepOutputPort } from "../presentation/stream_graph_canvas_presentation";
+import { presentStreamGraphCanvas, previewedOutputOf, type StreamGraphCanvas, type StreamGraphStepOutputPort } from "../presentation/stream_graph_canvas_presentation";
 import { readTheGraphDocument } from "../presentation/stream_graph_document_presentation";
 import { presentStreamGraphInspection } from "../presentation/stream_graph_inspector_presentation";
 import { layOutStreamGraphSteps, streamGraphLayoutKey, type StreamGraphStepPosition } from "../presentation/stream_graph_step_layout";
@@ -94,8 +94,8 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
   const outputPlace: StreamGraphOutputPlace = { streamName: stream.name, machineName };
   const pinnedOutputKeys = useMemo(() => new Set(pinnedPreviews.map((pinnedPreview) => pinnedPreview.pinKey)), [pinnedPreviews]);
 
-  const togglePinnedPreview = useCallback((output: Pick<StreamGraphStepOutputPort, "stepName" | "name" | "watchPageUrl">) => {
-    if (output.watchPageUrl === null) return;
+  const togglePinnedPreview = useCallback((output: StreamGraphStepOutputPort) => {
+    if (output.preview.kind !== "watch_page") return;
     const pinKey = outputPinKey(output);
     setPinnedPreviews((shownPreviews) => {
       if (shownPreviews.some((pinnedPreview) => pinnedPreview.pinKey === pinKey)) return shownPreviews.filter((pinnedPreview) => pinnedPreview.pinKey !== pinKey);
@@ -116,7 +116,7 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
 
   const startHoverPreview = useCallback((output: StreamGraphStepOutputPort, anchorRectangle: DOMRect) => {
     window.clearTimeout(hoverCloseTimer.current);
-    setHoveredOutput(output.previewAbsence === "in_another_stream" ? null : { output, anchorRectangle });
+    setHoveredOutput(output.preview.kind === "absent" && output.preview.absence === "in_another_stream" ? null : { output, anchorRectangle });
   }, []);
   const endHoverPreviewSoon = useCallback(() => {
     window.clearTimeout(hoverCloseTimer.current);
@@ -132,7 +132,7 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
   useEffect(() => {
     if (askedPinnedOutput === null) return;
     const askedOutput = findOutput(canvas, askedPinnedOutput.node, askedPinnedOutput.port);
-    if (askedOutput === undefined || askedOutput.watchPageUrl === null) return;
+    if (askedOutput === undefined || askedOutput.preview.kind !== "watch_page") return;
     if (!pinnedOutputKeys.has(outputPinKey(askedOutput))) togglePinnedPreview(askedOutput);
     void navigate(location.pathname, { replace: true, state: null });
   }, [askedPinnedOutput, canvas, pinnedOutputKeys, togglePinnedPreview, navigate, location.pathname]);
@@ -145,7 +145,7 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
 
   useEffect(() => {
     const onKeyDown = (keyboardEvent: KeyboardEvent) => {
-      if (keyboardEvent.metaKey || keyboardEvent.ctrlKey || keyboardEvent.altKey || isTypingInto(keyboardEvent.target)) return;
+      if (keyboardEvent.defaultPrevented || keyboardEvent.metaKey || keyboardEvent.ctrlKey || keyboardEvent.altKey || isTypingInto(keyboardEvent.target)) return;
       if (keyboardEvent.key === "Escape") {
         closeHoverPreview();
         setSelectedStepName(null);
@@ -205,11 +205,12 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
           />
           {pinnedPreviews.map((pinnedPreview, pinnedIndex) => {
             const pinnedOutput = findOutput(canvas, pinnedPreview.stepName, pinnedPreview.portName);
-            if (pinnedOutput === undefined) return null;
+            const previewedOutput = pinnedOutput === undefined ? null : previewedOutputOf(pinnedOutput);
+            if (pinnedOutput === undefined || previewedOutput === null) return null;
             return (
               <PinnedStreamGraphOutputPreview
                 key={pinnedPreview.pinKey}
-                output={pinnedOutput}
+                previewedOutput={previewedOutput}
                 outputPlace={outputPlace}
                 position={pinnedPreview}
                 canvasSize={() => (canvasArea.current === null ? null : { width: canvasArea.current.clientWidth, height: canvasArea.current.clientHeight })}
@@ -260,7 +261,9 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
 /** A loaded stream's Graph tab: its steps and links on a canvas, previews of its exposed outputs, and an inspector. Viewing only. */
 export function StreamGraphPageView({ stream }: { stream: ListedStream }) {
   const reading = useStreamGraphReading(stream.name);
-  const canvas = useMemo(() => (reading.graph === null ? null : presentStreamGraphCanvas(reading.graph)), [reading.graph]);
+  // A graph kept from the stream's last load is not this load's, so the canvas waits for this load's first read.
+  const loadedGraph = reading.graphSource === "loaded" ? reading.graph : null;
+  const canvas = useMemo(() => (loadedGraph === null ? null : presentStreamGraphCanvas(loadedGraph)), [loadedGraph]);
   if (canvas === null) {
     return reading.readRefusal === null ? (
       <GraphTabMessage title="Reading its graph…" />

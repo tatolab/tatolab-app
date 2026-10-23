@@ -28,12 +28,12 @@ export interface StreamGraphStepPosition {
   y: number;
 }
 
-function previewBlockHeight(step: Pick<StreamGraphStepCard, "cardPreviewOutput">, arePreviewsShown: boolean): number {
-  return arePreviewsShown && step.cardPreviewOutput !== null ? STREAM_GRAPH_STEP_CARD_PREVIEW_HEIGHT + STEP_CARD_PREVIEW_BOTTOM_GAP : 0;
+function previewBlockHeight(step: Pick<StreamGraphStepCard, "cardPreview">, arePreviewsShown: boolean): number {
+  return arePreviewsShown && step.cardPreview !== null ? STREAM_GRAPH_STEP_CARD_PREVIEW_HEIGHT + STEP_CARD_PREVIEW_BOTTOM_GAP : 0;
 }
 
 /** A step card's height: its head, its preview when previews show and it has one, a row per port, and its foot. */
-export function streamGraphStepCardHeight(step: Pick<StreamGraphStepCard, "cardPreviewOutput" | "inputPorts" | "outputPorts">, arePreviewsShown: boolean): number {
+export function streamGraphStepCardHeight(step: Pick<StreamGraphStepCard, "cardPreview" | "inputPorts" | "outputPorts">, arePreviewsShown: boolean): number {
   const portCount = step.inputPorts.length + step.outputPorts.length;
   return (
     STEP_CARD_BORDER_WIDTH * 2 +
@@ -46,7 +46,7 @@ export function streamGraphStepCardHeight(step: Pick<StreamGraphStepCard, "cardP
 }
 
 /** How far below a card's top the centre of its port row at `rowIndex` sits, inputs first. */
-export function streamGraphPortRowCentreOffset(step: Pick<StreamGraphStepCard, "cardPreviewOutput">, rowIndex: number, arePreviewsShown: boolean): number {
+export function streamGraphPortRowCentreOffset(step: Pick<StreamGraphStepCard, "cardPreview">, rowIndex: number, arePreviewsShown: boolean): number {
   return (
     STEP_CARD_BORDER_WIDTH +
     STREAM_GRAPH_STEP_CARD_HEAD_HEIGHT +
@@ -231,7 +231,7 @@ export function stepNamesInFlowOrder(canvas: StreamGraphCanvas): string[] {
 export function streamGraphLayoutKey(canvas: StreamGraphCanvas, arePreviewsShown: boolean): string {
   return JSON.stringify([
     arePreviewsShown,
-    canvas.steps.map((step) => [step.name, step.inputPorts.length, step.outputPorts.length, step.cardPreviewOutput !== null]),
+    canvas.steps.map((step) => [step.name, step.inputPorts.length, step.outputPorts.length, step.cardPreview !== null]),
     canvas.links.map((link) => [link.sourceStepName, link.sourcePortName, link.targetStepName, link.targetPortName]),
   ]);
 }

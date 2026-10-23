@@ -3,7 +3,7 @@
 
 /** Frontend-only switches for surfaces the plan has decided on but whose data arrives later. */
 export interface TatolabFrontendFeatureFlags {
-  /** The Watch surface for exposed outputs, as a placeholder until the sharing step gives it data. */
+  /** Search's Watch rows, each opening Graph with that exposed output's preview pinned. */
   watchExposedOutput: boolean;
 }
 

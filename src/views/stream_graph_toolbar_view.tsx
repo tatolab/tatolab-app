@@ -10,12 +10,15 @@ import { useStreamGraphViewportCommands, useStreamGraphZoomPercent } from "./str
 function ToolbarIconButton({
   icon: ButtonIcon,
   label,
+  tooltip = label,
   isPressed,
   onClick,
   toolbarControl,
 }: {
   icon: LucideIcon;
   label: string;
+  /** What the tooltip says, when it says more than the button's name. */
+  tooltip?: string;
   isPressed?: boolean;
   onClick: () => void;
   toolbarControl: string;
@@ -37,7 +40,7 @@ function ToolbarIconButton({
       >
         <ButtonIcon className="size-4" strokeWidth={1.75} aria-hidden />
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent>{tooltip}</TooltipContent>
     </Tooltip>
   );
 }
@@ -88,14 +91,16 @@ export function StreamGraphToolbarView({
       <ToolbarDivider />
       <ToolbarIconButton
         icon={Image}
-        label={arePreviewsShown ? "Hide previews" : "Show previews"}
+        label="Previews"
+        tooltip={arePreviewsShown ? "Hide previews" : "Show previews"}
         isPressed={arePreviewsShown}
         onClick={onPreviewsToggled}
         toolbarControl="previews"
       />
       <ToolbarIconButton
         icon={Activity}
-        label={areCountersShown ? "Hide counters" : "Show counters"}
+        label="Counters"
+        tooltip={areCountersShown ? "Hide counters" : "Show counters"}
         isPressed={areCountersShown}
         onClick={onCountersToggled}
         toolbarControl="counters"

@@ -1,8 +1,9 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import type { StreamGraphCanvas, StreamGraphStepCard, StreamGraphStepOutputPort } from "./stream_graph_canvas_presentation";
+import { previewedOutputOf, type StreamGraphCanvas, type StreamGraphPreviewedOutput, type StreamGraphStepCard, type StreamGraphStepOutputPort } from "./stream_graph_canvas_presentation";
 import type { GraphDocumentValue } from "./stream_graph_document_presentation";
+import { presentStepProcess, type StreamStepProcessWords } from "./stream_overview_presentation";
 
 /** One key of a step's config and its value as the graph document wrote it, a number keeping every digit. */
 export interface StreamGraphConfigRow {
@@ -25,9 +26,13 @@ export interface StreamGraphStepInspection {
   linksInCount: number;
   linksOutCount: number;
   /** Where it runs, as the Overview's steps table words it: a built-in in the runtime, a Python node in its own processor interpreter. */
-  processWords: "In the runtime" | "Own process" | null;
+  processWords: StreamStepProcessWords | null;
   /** Its outputs with a preview page, the first previewed unless another is chosen. */
-  previewableOutputs: StreamGraphStepOutputPort[];
+  previewableOutputs: StreamGraphPreviewedOutput[];
+  /** Why the inspector previews nothing; `null` when it has an output to preview. */
+  previewAbsenceWords: string | null;
+  /** `Running · 1 link in · 2 out`, after the state word. */
+  linkCountWords: string;
   /** Its config's keys in the document's order; `null` when the document could not be read or names no config for it. */
   configRows: StreamGraphConfigRow[] | null;
   counterRows: StreamGraphStepCounterRow[];
@@ -42,6 +47,8 @@ export interface StreamGraphStreamInspection {
   droppedCount: number;
   /** Every output of its own steps exposed to this machine or publicly. */
   exposedOutputs: StreamGraphStepOutputPort[];
+  /** `4 · 2 in their own process`, or the count alone when none is. */
+  stepCountWords: string;
 }
 
 export type StreamGraphInspection = StreamGraphStepInspection | StreamGraphStreamInspection;
@@ -87,23 +94,34 @@ export function presentStreamGraphInspection(
   const selectedStep = canvas.steps.find((step) => step.name === selectedStepName && !step.isInAnotherStream);
   if (selectedStep === undefined) {
     const ownSteps = canvas.steps.filter((step) => !step.isInAnotherStream);
+    const ownProcessStepCount = ownSteps.filter((step) => step.origin === "Python").length;
     return {
       kind: "stream",
       stepCount: ownSteps.length,
-      ownProcessStepCount: ownSteps.filter((step) => step.origin === "Python").length,
+      ownProcessStepCount,
+      stepCountWords: ownProcessStepCount === 0 ? String(ownSteps.length) : `${ownSteps.length} · ${ownProcessStepCount} in their own process`,
       linkCount: canvas.links.length,
       droppedCount: canvas.links.reduce((total, link) => total + link.droppedCount, 0),
       exposedOutputs: ownSteps.flatMap((step) => step.outputPorts.filter((port) => port.exposureLevel !== null && port.exposureLevel !== "internal")),
     };
   }
   const linksIn = canvas.links.filter((link) => link.targetStepName === selectedStep.name);
+  const linksOutCount = canvas.links.filter((link) => link.sourceStepName === selectedStep.name).length;
+  const previewableOutputs = selectedStep.outputPorts.flatMap((output) => previewedOutputOf(output) ?? []);
   return {
     kind: "step",
     step: selectedStep,
     linksInCount: linksIn.length,
-    linksOutCount: canvas.links.filter((link) => link.sourceStepName === selectedStep.name).length,
-    processWords: selectedStep.origin === "Built-in" ? "In the runtime" : selectedStep.origin === "Python" ? "Own process" : null,
-    previewableOutputs: selectedStep.outputPorts.filter((port) => port.watchPageUrl !== null),
+    linksOutCount,
+    processWords: presentStepProcess(selectedStep.origin),
+    previewableOutputs,
+    previewAbsenceWords:
+      previewableOutputs.length > 0
+        ? null
+        : selectedStep.outputPorts.length === 0
+          ? "This step has no outputs."
+          : "No output of this step is exposed. An internal output has no preview until it is exposed to this machine or publicly.",
+    linkCountWords: `${linksIn.length} ${linksIn.length === 1 ? "link" : "links"} in · ${linksOutCount} out`,
     configRows: configRowsOfStep(graphDocument, selectedStep.name),
     counterRows: [
       ...linksIn.map((link) => ({ counted: `${link.sourceStepName}/${link.sourcePortName}`, word: "dropped" as const, count: link.droppedCount })),

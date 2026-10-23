@@ -32,6 +32,13 @@ function linkComponentState(linkState: string): string {
     .join("");
 }
 
+/** A link's source, a node in another stream rendered with that stream beside it, as `<stream>/<node>` names it in the summary. */
+function linkSourceAsTheRuntimeRendersIt(sourceNode: string, sourcePort: string): { stream?: string; node: string; port: string } {
+  const streamSeparator = sourceNode.indexOf("/");
+  if (streamSeparator === -1) return { node: sourceNode, port: sourcePort };
+  return { stream: sourceNode.slice(0, streamSeparator), node: sourceNode.slice(streamSeparator + 1), port: sourcePort };
+}
+
 /** A stand-in for the runtime's preview page of `address`: moving colour bars and the address, drawn in the frame. */
 function mockWatchPageUrl(address: string): string {
   const standInPage = `<!doctype html><html><body style="margin:0;background:#000;overflow:hidden">
@@ -97,7 +104,7 @@ export function mockStreamGraphSummary(streamName: string, machineName: string, 
     })),
     links: graph.links.map((link) => ({
       id: link.id,
-      source: { node: link.source_node, port: link.source_port },
+      source: linkSourceAsTheRuntimeRendersIt(link.source_node, link.source_port),
       target: { node: link.target_node, port: link.target_port },
       capacity: 4,
       state: linkState(link.state),

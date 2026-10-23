@@ -72,25 +72,22 @@ function StepOutputPreview({
 }) {
   const [chosenOutputName, setChosenOutputName] = useState<string | null>(null);
   const { previewableOutputs } = inspection;
-  const previewedOutput = previewableOutputs.find((output) => output.name === chosenOutputName) ?? previewableOutputs[0];
-  if (previewedOutput === undefined || previewedOutput.watchPageUrl === null) {
+  const previewedOutput = previewableOutputs.find((previewable) => previewable.output.name === chosenOutputName) ?? previewableOutputs[0];
+  if (previewedOutput === undefined) {
     return (
       <InspectorSection title="Output">
-        <p className="text-xs text-fg-3">
-          {inspection.step.outputPorts.length === 0
-            ? "This step has no outputs."
-            : "No output of this step is exposed. An internal output has no preview until it is exposed to this machine or publicly."}
-        </p>
+        <p className="text-xs text-fg-3">{inspection.previewAbsenceWords}</p>
       </InspectorSection>
     );
   }
-  const address = exposedOutputAddress(outputPlace.machineName, outputPlace.streamName, { node: previewedOutput.stepName, port: previewedOutput.name });
-  const isPinned = pinnedOutputKeys.has(outputPinKey(previewedOutput));
+  const { output, watchPageUrl } = previewedOutput;
+  const address = exposedOutputAddress(outputPlace.machineName, outputPlace.streamName, { node: output.stepName, port: output.name });
+  const isPinned = pinnedOutputKeys.has(outputPinKey(output));
   return (
     <InspectorSection
       title="Output"
       aside={
-        <Button variant="ghost" size="icon" className="size-6" aria-label={isPinned ? "Unpin preview" : "Pin preview"} aria-pressed={isPinned} onClick={() => onOutputPinToggled(previewedOutput)}>
+        <Button variant="ghost" size="icon" className="size-6" aria-label={isPinned ? "Unpin preview" : "Pin preview"} aria-pressed={isPinned} onClick={() => onOutputPinToggled(output)}>
           {isPinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
         </Button>
       }
@@ -101,20 +98,20 @@ function StepOutputPreview({
             aria-label="Output to preview"
             className="mb-2 flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md border bg-window pr-1.5 pl-2 hover:bg-hover data-popup-open:bg-hover"
           >
-            <PortDataKindIcon dataKind={previewedOutput.dataKind} />
-            <span className="truncate font-mono text-xs text-fg">{previewedOutput.name}</span>
+            <PortDataKindIcon dataKind={output.dataKind} />
+            <span className="truncate font-mono text-xs text-fg">{output.name}</span>
             <ChevronDown className="ml-auto size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-64">
-            {previewableOutputs.map((output) => (
-              <DropdownMenuItem key={output.name} onClick={() => setChosenOutputName(output.name)}>
-                <PortDataKindIcon dataKind={output.dataKind} /> <span className="font-mono text-xs">{output.name}</span>
+            {previewableOutputs.map((previewable) => (
+              <DropdownMenuItem key={previewable.output.name} onClick={() => setChosenOutputName(previewable.output.name)}>
+                <PortDataKindIcon dataKind={previewable.output.dataKind} /> <span className="font-mono text-xs">{previewable.output.name}</span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      <ExposedOutputWatchPageFrame watchPageUrl={previewedOutput.watchPageUrl} fullAddress={address.fullAddress} className="aspect-video w-full rounded-md" />
+      <ExposedOutputWatchPageFrame watchPageUrl={watchPageUrl} fullAddress={address.fullAddress} className="aspect-video w-full rounded-md" />
       <div className="mt-1.5 truncate font-mono text-xs text-fg-3 select-text" title={address.fullAddress}>
         {address.fullAddress}
       </div>
@@ -140,8 +137,7 @@ function StepInspectorView({
         title={<span className="font-mono text-[13px]">{step.name}</span>}
         subtitle={
           <>
-            <span className={step.stateEmphasis === "failure" ? "text-danger-text" : undefined}>{step.stateWord}</span> · {inspection.linksInCount}{" "}
-            {inspection.linksInCount === 1 ? "link" : "links"} in · {inspection.linksOutCount} out
+            <span className={step.stateEmphasis === "failure" ? "text-danger-text" : undefined}>{step.stateWord}</span> · {inspection.linkCountWords}
           </>
         }
         onClosed={actions.onClosed}
@@ -229,10 +225,7 @@ function StreamSummaryInspectorView({
     <>
       <InspectorHeader title={outputPlace.streamName} subtitle="Nothing selected · the whole stream" onClosed={actions.onClosed} />
       <InspectorSection title="Summary">
-        <KeyValueRow name="Steps">
-          {inspection.stepCount}
-          {inspection.ownProcessStepCount > 0 && <span className="text-fg-3"> · {inspection.ownProcessStepCount} in their own process</span>}
-        </KeyValueRow>
+        <KeyValueRow name="Steps">{inspection.stepCountWords}</KeyValueRow>
         <KeyValueRow name="Links">
           {inspection.linkCount}
           {inspection.droppedCount > 0 && <span className="text-warn-text"> · {inspection.droppedCount.toLocaleString("en-US")} dropped</span>}

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "../backend/tatolab_backend_contract";
 import {
   outputPreviewAbsenceWords,
+  streamGraphLinkLabelClauses,
   presentStreamGraphCanvas,
   stepCardCounterWords,
   streamGraphLinkTone,
@@ -93,15 +94,15 @@ describe("presentStreamGraphCanvas", () => {
     const effect = stepOf(FRONT_DOOR_GRAPH, "halftonelenseffect");
     const encoder = stepOf(FRONT_DOOR_GRAPH, "h264encoder");
 
-    expect(effect?.outputPorts[0]).toMatchObject({ exposureLevel: "internal", watchPageUrl: null, previewAbsence: "internal" });
-    expect(effect?.cardPreviewOutput).toBeNull();
-    expect(encoder?.cardPreviewOutput).toMatchObject({ name: "encoded_video", watchPageUrl: FRONT_DOOR_GRAPH.exposed[0]?.watch_page_url, previewAbsence: null });
+    expect(effect?.outputPorts[0]).toMatchObject({ exposureLevel: "internal", preview: { kind: "absent", absence: "internal" } });
+    expect(effect?.cardPreview).toBeNull();
+    expect(encoder?.cardPreview).toMatchObject({ output: { name: "encoded_video" }, watchPageUrl: FRONT_DOOR_GRAPH.exposed[0]?.watch_page_url });
   });
 
   it("an exposed output in a graph that names no machine has no preview page", () => {
     const graph = { ...FRONT_DOOR_GRAPH, exposed: [{ node: "h264encoder", port: "encoded_video", level: "public", watch_page_url: null }] };
 
-    expect(stepOf(graph, "h264encoder")?.outputPorts[0]?.previewAbsence).toBe("no_preview_page");
+    expect(stepOf(graph, "h264encoder")?.outputPorts[0]?.preview).toEqual({ kind: "absent", absence: "no_preview_page" });
     expect(outputPreviewAbsenceWords("no_preview_page")).toContain("names no machine");
   });
 
@@ -130,7 +131,7 @@ describe("presentStreamGraphCanvas", () => {
       ["mp4writer", false, "Running"],
       ["camera/camerasource", true, "In another stream"],
     ]);
-    expect(canvas.steps[1]?.outputPorts).toMatchObject([{ name: "video", exposureLevel: null, previewAbsence: "in_another_stream" }]);
+    expect(canvas.steps[1]?.outputPorts).toMatchObject([{ name: "video", exposureLevel: null, preview: { kind: "absent", absence: "in_another_stream" } }]);
     expect(canvas.links[0]).toMatchObject({ look: "pending", stateSentence: "Waiting for camera/camerasource to be exposed" });
   });
 
@@ -153,6 +154,19 @@ describe("streamGraphLinkTone", () => {
     expect(effectInLink && streamGraphLinkTone(effectInLink, "halftonelenseffect", true)).toBe("selected");
     expect(effectInLink && streamGraphLinkTone(effectInLink, "h264encoder", true)).toBe("neutral");
     expect(droppingLink && streamGraphLinkTone(droppingLink, "brightnessmeter", false)).toBe("selected");
+  });
+});
+
+describe("a failed link", () => {
+  const failedDroppingLink = { ...presentStreamGraphCanvas(FRONT_DOOR_GRAPH).links[1]!, look: "error" as const, stateSentence: "This link failed" };
+
+  it("reads failed before dropping or selected, and says so beside its drops without a hover", () => {
+    expect(streamGraphLinkTone(failedDroppingLink, "brightnessmeter", true)).toBe("failed");
+    expect(streamGraphLinkLabelClauses(failedDroppingLink, true)).toEqual([
+      { words: "This link failed", emphasis: "failure" },
+      { words: "1,840 dropped", emphasis: "warning" },
+    ]);
+    expect(streamGraphLinkLabelClauses(failedDroppingLink, false)).toEqual([{ words: "This link failed", emphasis: "failure" }]);
   });
 });
 
