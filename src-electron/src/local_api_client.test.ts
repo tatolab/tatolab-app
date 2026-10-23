@@ -301,6 +301,21 @@ test("a_stream_action_the_runtime_refuses_carries_its_own_words", async () => {
   );
 });
 
+test("a_stream_action_waits_past_the_polling_limit_for_the_runtime_to_finish_it", async () => {
+  const server = await FakeLocalApiServer.answering(
+    [
+      httpResponse("200 OK", "text/plain", "ok"),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-answer-for-the-stopped-stream-test-pattern.json")),
+    ],
+    300,
+  );
+  cleanUps.push(() => server.close());
+  const clientWithAShortPollingLimit = new LocalApiClient(server.localApiSocketPath, 100, "0.45.0");
+
+  expect(failureOf(await clientWithAShortPollingLimit.checkHealth()).failureDescription).toMatch(/did not answer within 100ms$/);
+  expect(answerOf(await clientWithAShortPollingLimit.runStreamAction("start_stream", "test-pattern"))).toBeNull();
+});
+
 test("a_chunked_response_is_dechunked", async () => {
   const server = await fakeLocalApiServerAnswering([Buffer.from("HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n1\r\no\r\n1;ext=1\r\nk\r\n0\r\n\r\n")]);
 

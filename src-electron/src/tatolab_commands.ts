@@ -102,7 +102,7 @@ export function readStreamLogRecordsArgumentsFrom(commandArguments: unknown): Re
 }
 
 /** The `{ stream }` arguments of the command `commandName` as the window sends them, or why they are not. */
-export function streamArgumentsFrom(commandName: string, commandArguments: unknown): Result<{ stream: string }, string> {
+export function streamArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ stream: string }, string> {
   if (!isAJsonObject(commandArguments) || typeof commandArguments["stream"] !== "string") {
     return failedWith(`${commandName} needs \`stream\`, a stream's name`);
   }
@@ -118,12 +118,7 @@ function commandAnswerFrom<Answer>(outcome: Result<Answer, string>): { ok: true;
   return outcome.ok ? { ok: true, value: outcome.value } : { ok: false, refusal: outcome.failure };
 }
 
-/** A `start_stream` or `remove_stream` answer: the runtime gives no notice beside either. */
-function commandAnswerOfNoticeFreeStreamAction(outcome: Result<string | null, string>): { ok: true; value: null } | { ok: false; refusal: string } {
-  return outcome.ok ? { ok: true, value: null } : { ok: false, refusal: outcome.failure };
-}
-
-function commandAnswerOfNothingFrom(outcome: Result<void, string>): { ok: true; value: null } | { ok: false; refusal: string } {
+function commandAnswerOfNothingFrom(outcome: Result<unknown, string>): { ok: true; value: null } | { ok: false; refusal: string } {
   return outcome.ok ? { ok: true, value: null } : { ok: false, refusal: outcome.failure };
 }
 
@@ -161,10 +156,10 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     },
     stop_stream: async (commandArguments) => {
       const notice = await streamActionOnTheStreamNamedIn(sharedState, "stop_stream", commandArguments);
-      return notice.ok ? { ok: true, value: { not_recorded_because: notice.value } } : { ok: false, refusal: notice.failure };
+      return commandAnswerFrom(notice.ok ? succeeded({ not_recorded_because: notice.value }) : notice);
     },
-    start_stream: async (commandArguments) => commandAnswerOfNoticeFreeStreamAction(await streamActionOnTheStreamNamedIn(sharedState, "start_stream", commandArguments)),
-    remove_stream: async (commandArguments) => commandAnswerOfNoticeFreeStreamAction(await streamActionOnTheStreamNamedIn(sharedState, "remove_stream", commandArguments)),
+    start_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "start_stream", commandArguments)),
+    remove_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "remove_stream", commandArguments)),
   };
 }
 

@@ -22,8 +22,8 @@ export class FakeLocalApiServer {
     private readonly requestsReceived: string[],
   ) {}
 
-  /** A server answering its connections with `scriptedResponses`, in order. */
-  static async answering(scriptedResponses: readonly Buffer[]): Promise<FakeLocalApiServer> {
+  /** A server answering its connections with `scriptedResponses`, in order, each `answerDelayMs` after its request arrives. */
+  static async answering(scriptedResponses: readonly Buffer[], answerDelayMs = 0): Promise<FakeLocalApiServer> {
     const socketDirectory = await mkdtemp(SHORT_TEMPORARY_DIRECTORY_PREFIX);
     const localApiSocketPath = path.join(socketDirectory, "local-api.sock");
     const requestsReceived: string[] = [];
@@ -36,7 +36,7 @@ export class FakeLocalApiServer {
       }
       readOneRequest(connection, (request) => {
         requestsReceived.push(request);
-        connection.end(scriptedResponse);
+        setTimeout(() => connection.end(scriptedResponse), answerDelayMs);
       });
     });
     await new Promise<void>((listening) => server.listen(localApiSocketPath, listening));
