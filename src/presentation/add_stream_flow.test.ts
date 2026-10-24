@@ -193,15 +193,21 @@ describe("events that arrive outside the form", () => {
   });
 
   it("announces the form's milestones a focus move does not say, and leaves refusals to their own alert", () => {
-    expect(addStreamStepAnnouncement(running)).toBe("");
-    expect(addStreamStepAnnouncement(initialAddStreamFlowState("project_folder"))).toBe("");
+    expect(addStreamStepAnnouncement(running, true)).toBe("");
+    expect(addStreamStepAnnouncement(initialAddStreamFlowState("project_folder"), true)).toBe("");
     const created = afterEvents(initialAddStreamFlowState("new_project"), [
       { kind: "new_project_created", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"], python_environment: { kind: "missing" } }) },
     ]);
-    expect(addStreamStepAnnouncement(created)).toBe("tatolab new wrote /Users/someone/streams/hello. Sync its .venv with uv sync, then check again.");
+    expect(addStreamStepAnnouncement(created, true)).toBe("tatolab new wrote /Users/someone/streams/hello. Sync its .venv with uv sync, then check again.");
     const synced = advanceAddStreamFlow(created, { kind: "new_project_folder_answered", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"] }) });
-    expect(addStreamStepAnnouncement(synced)).toBe("/Users/someone/streams/hello has its .venv. Compile and run is ready.");
-    expect(addStreamStepAnnouncement(advanceAddStreamFlow(synced, { kind: "work_refused", lead: "Check again was refused:", words: "gone" }))).toBe(
+    expect(addStreamStepAnnouncement(synced, true)).toBe("/Users/someone/streams/hello has its .venv. Compile and run is ready.");
+    expect(addStreamStepAnnouncement(synced, false)).toBe("");
+    const refusedAsTaken = afterEvents(synced, [
+      { kind: "run_started", request: { folder: "/Users/someone/streams/hello", streamFunction: null, streamName: "hello" }, nowMs: 0 },
+      { kind: "run_answered", outcome: { kind: "name_taken", refusal: "held", free_name: "hello-2" } },
+    ]);
+    expect(addStreamStepAnnouncement(refusedAsTaken, true)).toBe("");
+    expect(addStreamStepAnnouncement(advanceAddStreamFlow(synced, { kind: "work_refused", lead: "Check again was refused:", words: "gone" }), true)).toBe(
       "/Users/someone/streams/hello has its .venv. Compile and run is ready.",
     );
     expect(addStreamPageSection(created)).not.toBe(addStreamPageSection(synced));

@@ -320,8 +320,11 @@ export function addStreamPageSection(state: AddStreamFlowState): string {
   return [state.step, state.form.source, state.form.hasCreatedTheNewProject ? "created" : "", folder?.python_environment.kind ?? "no_folder"].join(":");
 }
 
-/** What the page's status line says, for a screen reader, of a milestone a focus move alone does not say; refusals speak through their own alert. */
-export function addStreamStepAnnouncement(state: AddStreamFlowState): string {
+/**
+ * What the page's status line says, for a screen reader, of a milestone a focus move alone does not say: a folder ready
+ * to compile only while Compile and run can be pressed. Refusals speak through their own alert.
+ */
+export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntimeRunning: boolean): string {
   switch (state.step) {
     case "compiling":
     case "running":
@@ -329,7 +332,9 @@ export function addStreamStepAnnouncement(state: AddStreamFlowState): string {
     case "form": {
       const folder = folderToRun(state.form);
       if (folder === null) return "";
-      if (folder.python_environment.kind === "present") return `${folder.folder} has its .venv. Compile and run is ready.`;
+      if (folder.python_environment.kind === "present") {
+        return compileAndRunUnavailableBecause(state.form, isTheRuntimeRunning) === null ? `${folder.folder} has its .venv. Compile and run is ready.` : "";
+      }
       return state.form.source === "new_project"
         ? `tatolab new wrote ${folder.folder}. Sync its .venv with uv sync, then check again.`
         : `${folder.folder} has no .venv. Sync it with uv sync, then check again.`;

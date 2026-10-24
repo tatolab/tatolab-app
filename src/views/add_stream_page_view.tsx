@@ -668,7 +668,7 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
 
         <div className="min-w-0 flex-1" ref={pageContent}>
           <p role="status" className="sr-only">
-            {addStreamStepAnnouncement(flowState)}
+            {addStreamStepAnnouncement(flowState, isTheRuntimeRunning)}
           </p>
           {form.refusal !== null && flowState.step === "form" && (
             <div data-add-stream-refusal="">
