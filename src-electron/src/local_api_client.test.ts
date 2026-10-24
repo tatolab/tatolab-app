@@ -365,7 +365,7 @@ test("running_a_project_calls_run_stream_kept_and_reads_its_answer_and_compile_w
     httpResponse(
       "200 OK",
       "application/json",
-      await recordedResponseBody("local-api-run-stream-answer-for-the-project-warned-whose-compile-writes-a-warning.json"),
+      await recordedResponseBody("local-api-run-stream-answer-for-the-project-warned-whose-stream-py-writes-a-line-to-stderr.json"),
     ),
   ]);
 
@@ -381,7 +381,7 @@ test("running_a_project_calls_run_stream_kept_and_reads_its_answer_and_compile_w
   expect(
     answerOf(await server.client().runStream({ projectDirectory: "/tmp/tatolab-proof/projects/warned", streamFunction: "stream.py:main", streamName: null }))
       .compile_warnings,
-  ).toEqual(["warning: nodes/heat_render.py imports cupy, which has no linux-aarch64 wheel; this stream will not run on a Jetson"]);
+  ).toEqual(["this project's stream.py writes this line to its standard error"]);
 
   const toolArguments = server.receivedRequests().map((request) => JSON.parse(headAndBodyOf(request)[1]).params.arguments);
   expect(toolArguments).toEqual([
@@ -407,6 +407,21 @@ test("a_run_the_runtime_refuses_is_its_own_refusal_and_one_that_never_answers_is
     isTheRuntimesRefusal: true,
   });
   expect(failureOf(await server.client().runStream(runOfHelloAgain)).isTheRuntimesRefusal).toBe(false);
+});
+
+test("a_compile_the_runtime_refuses_carries_its_traceback_as_its_own_refusal", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse(
+      "200 OK",
+      "application/json",
+      await recordedResponseBody("local-api-run-stream-refusal-for-the-kept-project-hello-whose-stream-py-no-longer-compiles.json"),
+    ),
+  ]);
+
+  const refusal = failureOf(await server.client().runStream({ projectDirectory: "/tmp/tatolab-proof/projects/hello", streamFunction: null, streamName: "hello" }));
+  expect(refusal.isTheRuntimesRefusal).toBe(true);
+  expect(refusal.failureDescription).toMatch(/^Runtime error: the stream function in \/tmp\/tatolab-proof\/projects\/hello failed to compile: /);
+  expect(refusal.failureDescription).toContain("SyntaxError: invalid syntax");
 });
 
 test("a_run_stream_answer_missing_a_field_is_refused_naming_it", () => {

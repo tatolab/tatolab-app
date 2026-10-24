@@ -700,8 +700,8 @@ describe("Add stream", () => {
     expect(document.querySelector("[data-add-stream-compile-output]")?.textContent).toContain("run_stream  /Users/jonathanf/code/heat-map  name=heat_map  keep=true");
 
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"]')).not.toBeNull(), MOCK_RUN_WAIT);
-    expect(screen.getByText("1 compile warning")).toBeTruthy();
-    expect(document.querySelector("[data-add-stream-compile-warnings]")?.textContent).toContain("cross-floor check: nodes/heat_render.py imports cupy");
+    expect(screen.getByText("2 compile warnings")).toBeTruthy();
+    expect(document.querySelector("[data-add-stream-compile-warnings]")?.textContent).toContain("tatolab: the cross-floor check found 1 thing binding this app to one floor.");
 
     fireEvent.click(await addStreamControl("open_stream"));
     await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("heat_map"));

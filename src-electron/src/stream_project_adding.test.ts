@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
@@ -230,4 +230,16 @@ test("a terminal opens in a chosen folder while it exists, and is refused once i
   await rm(projectFolder, { recursive: true, force: true });
   expect(await streamProjectAdding.openTerminalInStreamProjectFolder(projectFolder)).toEqual(failedWith(`${projectFolder} is not a folder on this machine.`));
   expect(terminal.openedInFolders).toEqual([projectFolder]);
+});
+
+test("a refusal while this same folder's kept stream holds the name is the compile's, answered in the runtime's own words", async () => {
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "tl-app-project-"));
+  temporaryHomes.push(projectFolder);
+  const compileRefusal = `Runtime error: the stream function in ${projectFolder} failed to compile: \`${projectFolder}/.venv/bin/python\` exited with exit status: 1.`;
+  const { streamProjectAdding, streamRuns } = await streamProjectAddingOverFakes({ dialogAnswer: succeeded(projectFolder) });
+  await streamProjectAdding.chooseStreamProjectFolder("project_to_run");
+  streamRuns.runAnswer = failedWith({ failureDescription: compileRefusal, isTheRuntimesRefusal: true });
+  streamRuns.listAnswer = succeeded([{ ...listedStreamNamed("hello"), project_directory: await realpath(projectFolder) }]);
+
+  expect(await streamProjectAdding.runStreamProject(projectFolder, null, "hello")).toEqual(failedWith(compileRefusal));
 });

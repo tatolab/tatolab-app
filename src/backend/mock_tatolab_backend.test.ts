@@ -103,7 +103,7 @@ describe("the mock backend's Add stream", () => {
     expect(run).toEqual({
       answer: {
         kind: "running",
-        answer: expect.objectContaining({ stream: "heat_map", kept: true, project_directory: folder, node_count: 4, compile_warnings: [expect.stringMatching(/^cross-floor check:/)] }),
+        answer: expect.objectContaining({ stream: "heat_map", kept: true, project_directory: folder, node_count: 4, compile_warnings: ["tatolab: the cross-floor check found 1 thing binding this app to one floor.", "  nodes/heat_render.py:4: imports `cupy`"] }),
       },
     });
     const status = await settled(() => backend.getTatolabStatus());
@@ -127,6 +127,20 @@ describe("the mock backend's Add stream", () => {
         free_name: "main-2",
       },
     });
+  });
+
+  it("replaces the stream a folder already runs when it runs again, as the runtime replaces a kept record", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
+    const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
+    const folder = "answer" in chosen && chosen.answer !== null ? chosen.answer.folder : "";
+    await settled(() => backend.runStreamProject(folder, null, "heat_map"));
+
+    expect(await settled(() => backend.runStreamProject(folder, null, "heat_map"))).toEqual({
+      answer: { kind: "running", answer: expect.objectContaining({ stream: "heat_map", replaced_the_kept_record: true }) },
+    });
+    const status = await settled(() => backend.getTatolabStatus());
+    expect("answer" in status && status.answer.streams?.filter((stream) => stream.name === "heat_map").length).toBe(1);
   });
 
   it("refuses a taken name the window did not send as the runtime does, with no free name offered", async () => {

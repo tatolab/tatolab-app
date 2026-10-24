@@ -106,9 +106,8 @@ const MOCK_RUN_STREAM_MILLISECONDS = 2600;
 /** How long the mock `tatolab new` takes. */
 const MOCK_TATOLAB_NEW_MILLISECONDS = 400;
 
-/** The cross-floor warning the mock compile writes with `?add_run=warning`. */
-const MOCK_COMPILE_WARNING =
-  "cross-floor check: nodes/heat_render.py imports cupy, which has no linux-aarch64 wheel — this stream will not run on a Jetson";
+/** The lines the mock compile writes to its standard error with `?add_run=warning`, as StreamLib's cross-floor check words them. */
+const MOCK_COMPILE_WARNINGS = ["tatolab: the cross-floor check found 1 thing binding this app to one floor.", "  nodes/heat_render.py:4: imports `cupy`"];
 
 /** What the page's query asks of the mock. */
 export interface MockTatolabOptions {
@@ -380,7 +379,9 @@ export function createMockTatolabBackend({
     const functionName = streamFunction?.split(":").at(-1) ?? project.stream_functions[0] ?? "main";
     const loadedName = streamName ?? functionName;
     const listedNames = (listStreams() ?? []).map((listing) => listing.name);
-    const holder = (listStreams() ?? []).find((listing) => listing.name === loadedName);
+    const listedHolder = (listStreams() ?? []).find((listing) => listing.name === loadedName);
+    const isAReplacement = listedHolder?.project_directory === folder;
+    const holder = isAReplacement ? undefined : listedHolder;
     const takenRefusal = `Stream graph error: the stream name \`${loadedName}\` is held by a kept stream from ${holder?.project_directory ?? ""}; load this one under another name with \`--name\``;
     if (holder !== undefined && streamName === null) throw takenRefusal;
     if (holder !== undefined) {
@@ -389,7 +390,7 @@ export function createMockTatolabBackend({
       return { kind: "name_taken", refusal: takenRefusal, free_name: `${loadedName}-${suffix}` };
     }
     const fixture = createMockStreamRunFromAProjectFolder(fixtures.machine, loadedName, folder);
-    streamNamesRunFromTheWindow.push(loadedName);
+    if (!isAReplacement) streamNamesRunFromTheWindow.push(loadedName);
     loadStream(fixture, Date.now());
     publishStatus({ streams: listStreams() });
     const answer: StreamRunAnswer = {
@@ -398,8 +399,8 @@ export function createMockTatolabBackend({
       kept: true,
       project_directory: folder,
       node_count: fixture.listing.node_count ?? 0,
-      replaced_the_kept_record: false,
-      compile_warnings: doesTheCompileWriteAWarning ? [MOCK_COMPILE_WARNING] : [],
+      replaced_the_kept_record: isAReplacement,
+      compile_warnings: doesTheCompileWriteAWarning ? [...MOCK_COMPILE_WARNINGS] : [],
     };
     return { kind: "running", answer };
   };

@@ -16,7 +16,7 @@ import type {
   StreamRunAnswer,
 } from "../../src/backend/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure, StreamRunRequest } from "./local_api_client.js";
-import { isAnExistingFolderOnThisMachine, somethingIsAt } from "./file_system_entries_on_this_machine.js";
+import { isAnExistingFolderOnThisMachine, realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
 import type { TatolabCommandLineTool, TerminalOpenedInAFolder } from "./platform/mod.js";
 import { describeHowTheProgramEnded, programSucceeded, type ProgramCompletion } from "./platform/run_program_to_completion.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -119,7 +119,9 @@ export class StreamProjectAdding {
 
   /**
    * Run `folder` kept through `run_stream`. A refusal is answered in the runtime's own words; one of a `streamName` a
-   * listed stream holds is `name_taken`, with the first `<name>-<n>` no listed stream holds.
+   * listed stream from another folder holds is `name_taken`, with the first `<name>-<n>` no listed stream holds. The
+   * runtime compiles before it reads the name, and a stream of this same folder is one it replaces, so a refusal with
+   * the name held by this folder's own stream is the compile's.
    */
   async runStreamProject(folder: string, streamFunction: string | null, streamName: string | null): Promise<Result<StreamProjectRunOutcome, string>> {
     const projectFolder = this.folderHandedToTheWindow(folder);
@@ -131,8 +133,10 @@ export class StreamProjectAdding {
     if (!run.failure.isTheRuntimesRefusal || streamName === null) return failedWith(refusal);
     const listedStreams = await streamRuns.listStreams();
     if (!listedStreams.ok) return failedWith(refusal);
+    const holder = listedStreams.value.find((listedStream) => listedStream.name === streamName);
+    if (holder === undefined) return failedWith(refusal);
+    if ((await realPathOrAsGiven(holder.project_directory)) === (await realPathOrAsGiven(projectFolder.value))) return failedWith(refusal);
     const listedNames = listedStreams.value.map((listedStream) => listedStream.name);
-    if (!listedNames.includes(streamName)) return failedWith(refusal);
     return succeeded({ kind: "name_taken", refusal, free_name: await firstFreeSuffixedName(streamName, (candidate) => listedNames.includes(candidate)) });
   }
 
