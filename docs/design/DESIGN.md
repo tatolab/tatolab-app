@@ -149,6 +149,19 @@ labels or a table view; scatter-like charts cap at three series.
 | Output exposure | Internal · This machine · Public | internal · private · public |
 | Step origin | Built-in · Python · Pack | built-in · Python node · pack |
 
+## Notifications
+
+A system notification is read at a glance by a person, so it is plain sentences, never a
+program's words.
+
+- **Title:** what happened, in general words, with no stream name, id or path:
+  "A stream couldn't start", "Tatolab couldn't update", "Tatolab is up to date".
+- **Body:** one to three short sentences: what happened, the stream's name in quotes where there
+  is one, then what to do: "The stream named “front-door” couldn't be started. An error occurred
+  while launching it. Click to see why."
+- **What a program said** (the runtime's reason, the updater's error) stays where the notification
+  leads (the stream's page, Settings), shown there in its own words.
+
 ## Components
 
 - `components/stream/primitives.tsx` — `StatusIcon`, `StatusLabel`, `RunModeLabel`,
