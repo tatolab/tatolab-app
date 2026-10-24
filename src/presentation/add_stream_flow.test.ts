@@ -276,15 +276,15 @@ describe("the notice of a run that answered away from the page", () => {
       { kind: "run_answered", outcome: { kind: "running", answer: { ...HEAT_MAP_ANSWER, stream: "hello", compile_warnings: ["a"] } } },
     ]);
     const runningNotice = addStreamRunNoticeOf(running);
-    expect(runningNotice).toEqual({ kind: "running", source: "new_project", streamName: "hello", compileWarningCount: 1 });
+    expect(runningNotice).toMatchObject({ kind: "running", source: "new_project", answer: { stream: "hello" } });
     expect(runningNotice === null ? null : presentAddStreamRunNotice(runningNotice)).toEqual({
       title: "hello is running",
-      detail: "1 compile warning: read it before you rely on this stream.",
+      detail: "It compiled with a warning. Read it before you rely on this stream.",
       tone: "warning",
     });
-    expect(presentAddStreamRunNotice({ kind: "running", source: "project_folder", streamName: "heat_map", compileWarningCount: 0 })).toEqual({
+    expect(presentAddStreamRunNotice({ kind: "running", source: "project_folder", answer: HEAT_MAP_ANSWER })).toEqual({
       title: "heat_map is running",
-      detail: "Always on. It compiled cleanly.",
+      detail: "It compiled cleanly.",
       tone: "plain",
     });
 

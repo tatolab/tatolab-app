@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { AddStreamFlowOfTheWindow, type AddStreamBackend } from "./add_stream_flow_of_the_window";
-import type { StreamProjectFolderReport, StreamProjectRunOutcome } from "./backend/tatolab_backend_contract";
+import type { StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "./backend/tatolab_backend_contract";
 
 const HEAT_MAP_FOLDER: StreamProjectFolderReport = {
   folder: "/Users/someone/code/heat-map",
@@ -13,18 +13,17 @@ const HEAT_MAP_FOLDER: StreamProjectFolderReport = {
   python_environment: { kind: "present", python_version: "3.12.10", tatolab_stream_version: "0.55.0" },
 };
 
-const RUNNING_WITH_TWO_WARNINGS: StreamProjectRunOutcome = {
-  kind: "running",
-  answer: {
-    stream: "heat_map",
-    stream_instance: "7",
-    kept: true,
-    project_directory: HEAT_MAP_FOLDER.folder,
-    node_count: 4,
-    replaced_the_kept_record: false,
-    compile_warnings: ["tatolab: the cross-floor check found 1 thing binding this app to one floor.", "  nodes/heat_render.py:4: imports `cupy`"],
-  },
+const HEAT_MAP_ANSWER_WITH_TWO_WARNINGS: StreamRunAnswer = {
+  stream: "heat_map",
+  stream_instance: "7",
+  kept: true,
+  project_directory: HEAT_MAP_FOLDER.folder,
+  node_count: 4,
+  replaced_the_kept_record: false,
+  compile_warnings: ["tatolab: the cross-floor check found 1 thing binding this app to one floor.", "  nodes/heat_render.py:4: imports `cupy`"],
 };
+
+const RUNNING_WITH_TWO_WARNINGS: StreamProjectRunOutcome = { kind: "running", answer: HEAT_MAP_ANSWER_WITH_TWO_WARNINGS };
 
 /** A backend whose run answers only when the test settles it. */
 function backendWithAPendingRun() {
@@ -57,7 +56,7 @@ function backendWithAPendingRun() {
 async function flowWithAFolderChosen() {
   const pendingRun = backendWithAPendingRun();
   const addStreamFlow = new AddStreamFlowOfTheWindow(pendingRun.backend, () => 1000);
-  addStreamFlow.setPageShown(true);
+  addStreamFlow.showPage("project_folder", false);
   addStreamFlow.chooseFolder();
   await Promise.resolve();
   return { addStreamFlow, ...pendingRun };
@@ -78,14 +77,15 @@ describe("the window's Add stream flow", () => {
   it("keeps a run that answers after the page left, and leaves a notice of it until the page shows again", async () => {
     const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
     addStreamFlow.compileAndRun();
-    addStreamFlow.setPageShown(false);
+    addStreamFlow.leavePage();
 
     await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
 
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "running", answer: { stream: "heat_map" } });
-    expect(addStreamFlow.readRunNotice()).toEqual({ kind: "running", source: "project_folder", streamName: "heat_map", compileWarningCount: 2 });
-    addStreamFlow.setPageShown(true);
+    expect(addStreamFlow.readRunNotice()).toEqual({ kind: "running", source: "project_folder", answer: HEAT_MAP_ANSWER_WITH_TWO_WARNINGS });
+    addStreamFlow.showPage("project_folder", true);
     expect(addStreamFlow.readRunNotice()).toBeNull();
+    expect(addStreamFlow.readFlowState().step).toBe("running");
   });
 
   it("leaves a notice of a refusal in the runtime's own words, which Dismiss takes away", async () => {
@@ -93,7 +93,7 @@ describe("the window's Add stream flow", () => {
     const listenedChanges: number[] = [];
     addStreamFlow.subscribeToFlow(() => listenedChanges.push(1));
     addStreamFlow.compileAndRun();
-    addStreamFlow.setPageShown(false);
+    addStreamFlow.leavePage();
 
     await refuseTheRun("Runtime error: the stream function in /Users/someone/code/heat-map failed to compile");
 
@@ -109,9 +109,22 @@ describe("the window's Add stream flow", () => {
 
   it("leaves no notice for work other than a run that finishes away from the page", async () => {
     const { addStreamFlow } = await flowWithAFolderChosen();
-    addStreamFlow.setPageShown(false);
+    addStreamFlow.leavePage();
     addStreamFlow.checkTheFolderAgain();
     await Promise.resolve();
     expect(addStreamFlow.readRunNotice()).toBeNull();
+  });
+
+  it("opened afresh, the page starts a new form unless a run is still compiling", async () => {
+    const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
+    addStreamFlow.compileAndRun();
+    addStreamFlow.leavePage();
+    addStreamFlow.showPage("new_project", false);
+    expect(addStreamFlow.readFlowState().step).toBe("compiling");
+
+    await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
+    addStreamFlow.leavePage();
+    addStreamFlow.showPage("new_project", false);
+    expect(addStreamFlow.readFlowState()).toEqual({ step: "form", form: expect.objectContaining({ source: "new_project", projectFolder: null }) });
   });
 });

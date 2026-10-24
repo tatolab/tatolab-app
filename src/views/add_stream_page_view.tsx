@@ -539,13 +539,10 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
   const machineWords = status.machine_name ?? presentPlatform(platform).thisMachineMidSentence;
   const location = useLocation();
 
-  // Shown, the page says what a run came to itself, so the window's notice of it goes. Opened afresh, rather than from
-  // that notice, a run that already landed gives way to a new form; one still compiling is shown again.
   const isOpenedFromARunNotice = isOpenedFromARunNoticeIn(location.state);
   useEffect(() => {
-    addStreamFlow.setPageShown(true);
-    if (!isOpenedFromARunNotice && addStreamFlow.readFlowState().step === "running") addStreamFlow.dispatch({ kind: "source_chosen", source });
-    return () => addStreamFlow.setPageShown(false);
+    addStreamFlow.showPage(source, isOpenedFromARunNotice);
+    return () => addStreamFlow.leavePage();
     // Once per showing of the page: the path's source and how it was opened are read as it opens.
   }, [addStreamFlow]);
 

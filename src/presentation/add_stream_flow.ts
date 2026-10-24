@@ -343,32 +343,33 @@ export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntim
 }
 
 /** What a run that landed while the Add stream page was not shown came to, for the notice that says so. */
-export type AddStreamRunNotice =
-  | { kind: "running"; source: AddStreamSource; streamName: string; compileWarningCount: number }
-  | { kind: "refused"; source: AddStreamSource; words: string };
+export type AddStreamRunNotice = { kind: "running"; source: AddStreamSource; answer: StreamRunAnswer } | { kind: "refused"; source: AddStreamSource; words: string };
 
 /** The notice for the page as a run's answer left it: the stream running, or the runtime's refusal in its own words; `null` for a page no run left. */
 export function addStreamRunNoticeOf(state: AddStreamFlowState): AddStreamRunNotice | null {
   const source = state.form.source;
-  if (state.step === "running") return { kind: "running", source, streamName: state.answer.stream, compileWarningCount: state.answer.compile_warnings.length };
+  if (state.step === "running") return { kind: "running", source, answer: state.answer };
   if (state.step !== "form") return null;
   if (state.form.nameTaken !== null) return { kind: "refused", source, words: state.form.nameTaken.refusal };
   return state.form.refusal === null ? null : { kind: "refused", source, words: state.form.refusal.words };
 }
 
+/** How bad a notice's news is: plain, a warning to read, or a failure. */
+export type NoticeTone = "plain" | "warning" | "failure";
+
 /** A run notice in words: its title, what it says under it, and how bad it is. */
 export interface AddStreamRunNoticePresentation {
   title: string;
   detail: string;
-  tone: "plain" | "warning" | "failure";
+  tone: NoticeTone;
 }
 
+/** A run notice in the done view's own words: the stream running with what its compile said, or the refusal as the runtime gave it. */
 export function presentAddStreamRunNotice(notice: AddStreamRunNotice): AddStreamRunNoticePresentation {
   if (notice.kind === "refused") return { title: "Compile and run was refused", detail: notice.words, tone: "failure" };
-  if (notice.compileWarningCount === 0) return { title: `${notice.streamName} is running`, detail: `${STREAM_RUN_MODE_LABELS.always_on}. It compiled cleanly.`, tone: "plain" };
   return {
-    title: `${notice.streamName} is running`,
-    detail: `${compileWarningsHeading(notice.compileWarningCount)}: read ${notice.compileWarningCount === 1 ? "it" : "them"} before you rely on this stream.`,
-    tone: "warning",
+    title: `${notice.answer.stream} is running`,
+    detail: streamRunningSummary(notice.answer),
+    tone: notice.answer.compile_warnings.length === 0 ? "plain" : "warning",
   };
 }

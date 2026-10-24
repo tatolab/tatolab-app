@@ -61,13 +61,20 @@ export class AddStreamFlowOfTheWindow {
     this.notifyFlowListeners();
   }
 
-  /** The page shows or leaves; showing it answers the notice, which the page now says itself. */
-  setPageShown(isShown: boolean): void {
-    this.isPageShown = isShown;
-    if (isShown && this.runNotice !== null) {
-      this.runNotice = null;
-      this.notifyFlowListeners();
-    }
+  /**
+   * The page shows, for `source`. It says what a run came to itself, so the notice of it goes. Opened afresh rather than
+   * from that notice, it starts a new form, unless a run is still compiling, which it shows again.
+   */
+  showPage(source: AddStreamSource, isOpenedFromARunNotice: boolean): void {
+    this.isPageShown = true;
+    this.runNotice = null;
+    if (!isOpenedFromARunNotice && this.flowState.step !== "compiling") this.flowState = initialAddStreamFlowState(source);
+    this.notifyFlowListeners();
+  }
+
+  /** The page leaves; a run that answers from now on leaves a notice. */
+  leavePage(): void {
+    this.isPageShown = false;
   }
 
   dismissRunNotice(): void {

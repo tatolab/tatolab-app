@@ -13,10 +13,10 @@ export function AddStreamRunNoticeView() {
   const { addStreamFlow } = useTatolabWindowEnvironment();
   const runNotice = useAddStreamRunNotice();
   const navigate = useNavigate();
-  if (runNotice === null) return null;
-  const presentation = presentAddStreamRunNotice(runNotice);
+  const presentation = runNotice === null ? null : presentAddStreamRunNotice(runNotice);
   return (
-    <div className="pointer-events-none absolute right-4 bottom-10 z-40">
+    <div className="pointer-events-none absolute right-4 bottom-10 z-40" aria-live="polite" aria-atomic="true">
+      {runNotice !== null && presentation !== null && (
       <WindowNotice
         tone={presentation.tone}
         title={presentation.title}
@@ -29,6 +29,7 @@ export function AddStreamRunNoticeView() {
         }
         data-add-stream-run-notice={runNotice.kind}
       />
+      )}
     </div>
   );
 }

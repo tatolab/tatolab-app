@@ -798,7 +798,7 @@ describe("Add stream", () => {
 
     const notice = await waitFor(() => document.querySelector<HTMLElement>('[data-add-stream-run-notice="running"]') ?? expect.unreachable("no notice yet"), MOCK_RUN_WAIT);
     expect(notice.textContent).toContain("heat_map is running");
-    expect(notice.textContent).toContain("2 compile warnings: read them before you rely on this stream.");
+    expect(notice.textContent).toContain("It compiled with 2 warnings. Read them before you rely on this stream.");
     expect(document.querySelector("[data-streams-list-page]")).not.toBeNull();
 
     fireEvent.click(notice.querySelector<HTMLElement>('[data-window-notice-action="view"]') ?? expect.unreachable("no View"));
