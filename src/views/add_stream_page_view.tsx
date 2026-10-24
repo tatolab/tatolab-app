@@ -4,20 +4,22 @@
 import { cn } from "cn";
 import { Check, FileCode2, Folder, FolderOpen, FolderPlus, LoaderCircle, type LucideIcon, Package, RotateCw, SquareTerminal, TriangleAlert, Workflow } from "lucide-react";
 import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { describeBackendRejection } from "../backend/tatolab_backend";
-import type { StreamProjectFolderReport, StreamRunAnswer } from "../backend/tatolab_backend_contract";
+import type { StreamGraphExposedPort, StreamProjectFolderReport, StreamRunAnswer } from "../backend/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
 import { ListRowButton } from "../design_system/list_row_button";
 import { RefusalLine } from "../design_system/refusal_line";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
 import { TextField } from "../design_system/text_field";
 import {
+  addStreamPageSection,
   addStreamStepAnnouncement,
   advanceAddStreamFlow,
   compileAndRunUnavailableBecause,
   compileWarningsHeading,
   compilingForWords,
+  compilingStreamWords,
   folderToRun,
   functionsOwnNameOf,
   initialAddStreamFlowState,
@@ -26,10 +28,12 @@ import {
   pythonEnvironmentSyncCommand,
   runRequestOf,
   runRequestWords,
-  stepCountWords,
   streamFileCheckDetail,
+  streamRunAnswerLines,
+  streamRunningFactsWords,
   streamRunningSummary,
   terminalCommandForTheRun,
+  terminalRunRequestOf,
   type AddStreamFlowEvent,
   type AddStreamFlowState,
   type AddStreamForm,
@@ -294,7 +298,7 @@ function CompilingView({ request, startedAtMs }: { request: AddStreamRunRequest;
       <AddStreamSectionHeading
         title={
           <>
-            Compiling <span className="font-mono">{request.streamName ?? "the stream"}</span>
+            Compiling <span className="font-mono">{compilingStreamWords(request)}</span>
           </>
         }
         lead={
@@ -336,7 +340,7 @@ function usePreviewedOutputOf(streamName: string) {
   const { backend } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
   const isListedLoaded = status.streams?.some((stream) => stream.name === streamName && stream.node_count !== null) ?? false;
-  const [previewedOutput, setPreviewedOutput] = useState<ReturnType<typeof choosePreviewedOutput>>(null);
+  const [previewedOutput, setPreviewedOutput] = useState<StreamGraphExposedPort | null>(null);
   useEffect(() => {
     if (!isListedLoaded) return;
     let isStillShown = true;
@@ -373,7 +377,7 @@ function StreamRunningView({ request, answer }: { request: AddStreamRunRequest; 
             <span className="font-mono">{answer.stream}</span> is running
           </h2>
           <p className="mt-1 text-fg-3">
-            Always on · {stepCountWords(answer.node_count)} · <MachineWords>{answer.project_directory}</MachineWords>
+            {streamRunningFactsWords(answer)} · <MachineWords>{answer.project_directory}</MachineWords>
           </p>
           <p className="mt-3 max-w-md text-fg-2">{streamRunningSummary(answer)}</p>
         </div>
@@ -386,11 +390,9 @@ function StreamRunningView({ request, answer }: { request: AddStreamRunRequest; 
             {compileWarning}
           </CompileOutputLine>
         ))}
-        <CompileOutputLine>
-          loaded {answer.stream} as instance {answer.stream_instance}: {stepCountWords(answer.node_count)}
-          {answer.replaced_the_kept_record ? ", in place of the stream this project kept" : ""}
-        </CompileOutputLine>
-        <CompileOutputLine>{answer.stream} is running; kept, so it loads again whenever the runtime starts</CompileOutputLine>
+        {streamRunAnswerLines(answer).map((answerLine) => (
+          <CompileOutputLine key={answerLine}>{answerLine}</CompileOutputLine>
+        ))}
       </CompileOutputWell>
     </div>
   );
@@ -494,7 +496,7 @@ function NewProjectForm({
         title="Create a new project"
         lead={
           <>
-            <MachineWords>tatolab new</MachineWords> writes the sample stream into a new folder. Once its .venv is synced, the app runs it Always on.
+            <MachineWords>tatolab new</MachineWords> writes the sample stream into a new folder. Once its .venv is synced, the app runs it {STREAM_RUN_MODE_LABELS.always_on}.
           </>
         }
       />
@@ -545,9 +547,18 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
   const isTheRuntimeRunning = presentRuntimeStatus(status).displayState === "running";
   const machineWords = status.machine_name ?? presentPlatform(platform).thisMachineMidSentence;
 
+  // A navigation here while a run compiles is ignored by the flow; once the run answers, the page catches up to the path.
   useEffect(() => {
     if (form.source !== source) dispatch({ kind: "source_chosen", source });
-  }, [form.source, source]);
+  }, [form.source, source, flowState.step]);
+  // Add stream pressed again on this page's own path starts afresh from the running view.
+  const navigationKey = useLocation().key;
+  const navigationKeyShownBefore = useRef(navigationKey);
+  useEffect(() => {
+    if (navigationKeyShownBefore.current === navigationKey) return;
+    navigationKeyShownBefore.current = navigationKey;
+    dispatch({ kind: "source_chosen", source });
+  }, [navigationKey, source]);
 
   const needsANewProjectProposal = form.source === "new_project" && form.newProjectFolder === null && form.workUnderWay === null && form.refusal === null;
   useEffect(() => {
@@ -616,12 +627,16 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
   const isCreatingTheNewProjectNext = form.source === "new_project" && !form.hasCreatedTheNewProject;
 
   const pageContent = useRef<HTMLDivElement>(null);
-  const stepShownBefore = useRef(flowState.step);
+  const pageSection = addStreamPageSection(flowState);
+  const pageSectionShownBefore = useRef({ pageSection, step: flowState.step });
   useEffect(() => {
-    if (stepShownBefore.current === flowState.step) return;
-    stepShownBefore.current = flowState.step;
-    pageContent.current?.querySelector<HTMLElement>("[data-add-stream-step-heading]")?.focus();
-  }, [flowState.step]);
+    const shownBefore = pageSectionShownBefore.current;
+    if (shownBefore.pageSection === pageSection) return;
+    pageSectionShownBefore.current = { pageSection, step: flowState.step };
+    const focusWasLost = document.activeElement === null || document.activeElement === document.body;
+    if (shownBefore.step !== flowState.step || focusWasLost) pageContent.current?.querySelector<HTMLElement>("[data-add-stream-step-heading]")?.focus();
+  }, [pageSection, flowState.step]);
+  const terminalRunRequest = terminalRunRequestOf(form);
 
   return (
     <div className="flex min-h-full flex-1 flex-col" data-add-stream-page={form.source}>
@@ -689,10 +704,10 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
                 </span>
               ) : compileAndRunUnavailableReason !== null && form.nameTaken === null ? (
                 <span className="truncate text-fg-3">{compileAndRunUnavailableReason}</span>
-              ) : runRequest !== null ? (
+              ) : terminalRunRequest !== null ? (
                 <>
                   <div className="max-w-[620px] min-w-0 flex-1">
-                    <CommandWithCopyButton command={terminalCommandForTheRun(runRequest, functionsOwnNameOf(form))} />
+                    <CommandWithCopyButton command={terminalCommandForTheRun(terminalRunRequest, functionsOwnNameOf(form))} />
                   </div>
                   <span className="shrink-0 text-xs text-fg-3">the same, from a terminal</span>
                 </>

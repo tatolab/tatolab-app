@@ -239,7 +239,7 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
             <>
               <StreamsListFilterControl chosenFilter={chosenFilter} onFilterChosen={setChosenFilter} listedStreams={listedStreams} />
               <SearchField label="Filter streams" placeholder="Filter" text={filterText} onTextChanged={setFilterText} />
-              <ActionButton icon={Plus} onPressed={() => navigate("/add-stream")}>
+              <ActionButton icon={Plus} onPressed={() => navigate(addStreamPagePath("project_folder"))}>
                 Add stream
               </ActionButton>
             </>

@@ -4,7 +4,12 @@
 import { describe, expect, it } from "vitest";
 import type { StreamProjectFolderReport, StreamRunAnswer } from "../backend/tatolab_backend_contract";
 import {
+  addStreamPageSection,
   addStreamStepAnnouncement,
+  compilingStreamWords,
+  streamRunAnswerLines,
+  streamRunningFactsWords,
+  terminalRunRequestOf,
   advanceAddStreamFlow,
   compileWarningsHeading,
   pythonEnvironmentCheckDetail,
@@ -187,9 +192,20 @@ describe("events that arrive outside the form", () => {
     expect(advanceAddStreamFlow(compiling, { kind: "project_folder_answered", report: folderReport("/elsewhere") })).toBe(compiling);
   });
 
-  it("announces each step for a screen reader: compiling, running, and a refusal", () => {
-    expect(addStreamStepAnnouncement(running)).toBe("heat_map is running. It compiled cleanly.");
+  it("announces the form's milestones a focus move does not say, and leaves refusals to their own alert", () => {
+    expect(addStreamStepAnnouncement(running)).toBe("");
     expect(addStreamStepAnnouncement(initialAddStreamFlowState("project_folder"))).toBe("");
+    const created = afterEvents(initialAddStreamFlowState("new_project"), [
+      { kind: "new_project_created", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"], python_environment: { kind: "missing" } }) },
+    ]);
+    expect(addStreamStepAnnouncement(created)).toBe("tatolab new wrote /Users/someone/streams/hello. Sync its .venv with uv sync, then check again.");
+    const synced = advanceAddStreamFlow(created, { kind: "new_project_folder_answered", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"] }) });
+    expect(addStreamStepAnnouncement(synced)).toBe("/Users/someone/streams/hello has its .venv. Compile and run is ready.");
+    expect(addStreamStepAnnouncement(advanceAddStreamFlow(synced, { kind: "work_refused", lead: "Check again was refused:", words: "gone" }))).toBe(
+      "/Users/someone/streams/hello has its .venv. Compile and run is ready.",
+    );
+    expect(addStreamPageSection(created)).not.toBe(addStreamPageSection(synced));
+    expect(addStreamPageSection(synced)).toBe("form:new_project:created:present");
   });
 });
 
@@ -214,6 +230,25 @@ describe("the commands and words the page shows", () => {
     expect(pythonEnvironmentCheckDetail(folderReport("/x", { python_environment: { kind: "present", python_version: null, tatolab_stream_version: null } }))).toBe("Python");
     expect(runRequestWords({ folder: "/x", streamFunction: "stream.py:a", streamName: "a" })).toBe("run_stream  /x  stream_function=stream.py:a  name=a  keep=true");
     expect([compileWarningsHeading(1), compileWarningsHeading(2)]).toEqual(["1 compile warning", "2 compile warnings"]);
+  });
+
+  it("words the compile view's name, the running facts and what the runtime did", () => {
+    expect(compilingStreamWords({ folder: "/x", streamFunction: null, streamName: null })).toBe("the stream");
+    expect(streamRunningFactsWords(HEAT_MAP_ANSWER)).toBe("Always on · 4 steps");
+    expect(streamRunAnswerLines({ ...HEAT_MAP_ANSWER, replaced_the_kept_record: true })).toEqual([
+      "loaded heat_map as instance 9: 4 steps, in place of the stream this project kept",
+      "heat_map is running; kept, so it loads again whenever the runtime starts",
+    ]);
+  });
+
+  it("offers the terminal run under the free name while the asked one is refused as taken", () => {
+    const taken = afterEvents(initialAddStreamFlowState("project_folder"), [
+      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/main-v2", { stream_functions: ["main"] }) },
+      { kind: "run_started", request: { folder: "/Users/someone/code/main-v2", streamFunction: null, streamName: "main" }, nowMs: 0 },
+      { kind: "run_answered", outcome: { kind: "name_taken", refusal: "held", free_name: "main-2" } },
+    ]);
+    expect(terminalRunRequestOf(taken.form)).toEqual({ folder: "/Users/someone/code/main-v2", streamFunction: null, streamName: "main-2" });
+    expect(compileAndRunUnavailableBecause({ ...taken.form, workUnderWay: "opening_a_terminal" }, true)).toBe("Wait for the terminal to open.");
   });
 
   it("says whether the stream compiled cleanly, with warnings, or replaced the project's kept stream", () => {

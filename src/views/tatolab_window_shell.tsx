@@ -12,6 +12,7 @@ import { isStreamLoaded } from "../presentation/stream_presentation";
 import { ActionButton } from "../design_system/action_button";
 import { IconButton } from "../design_system/icon_button";
 import { SearchOpeningButton } from "../design_system/search_opening_button";
+import { addStreamPagePath } from "./add_stream_page_path";
 import { AddStreamPageView } from "./add_stream_page_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { StreamPageView } from "./stream_page_view";
@@ -122,7 +123,7 @@ function WindowSidebar() {
         <section>
           <div className="flex items-center justify-between px-2 pb-1">
             <h2 className="label-caps">Streams</h2>
-            <IconButton icon={Plus} label="Add stream" size="compact" onPressed={() => navigate("/add-stream")} data-window-navigation="add-stream" />
+            <IconButton icon={Plus} label="Add stream" size="compact" onPressed={() => navigate(addStreamPagePath("project_folder"))} data-window-navigation="add-stream" />
           </div>
           {listedStreams === null ? (
             <p className="px-2 text-xs text-fg-3">Streams show here while the runtime runs.</p>
@@ -179,7 +180,7 @@ function WindowTitleBar() {
         onPressed={toggleTheme}
         data-window-theme-toggle=""
       />
-      <ActionButton appearance="primary" icon={Plus} onPressed={() => navigate("/add-stream")} className="ml-1">
+      <ActionButton appearance="primary" icon={Plus} onPressed={() => navigate(addStreamPagePath("project_folder"))} className="ml-1">
         Add stream
       </ActionButton>
     </header>

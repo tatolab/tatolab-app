@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import type { StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../backend/tatolab_backend_contract";
+import { STREAM_RUN_MODE_LABELS } from "./stream_presentation";
 
 /** Where a new stream starts from: a project folder the person has, or a new project `tatolab new` writes. */
 export type AddStreamSource = "project_folder" | "new_project";
@@ -209,7 +210,18 @@ export function newProjectCommand(folder: string): string {
  */
 export function compileAndRunUnavailableBecause(form: AddStreamForm, isTheRuntimeRunning: boolean): string | null {
   if (!isTheRuntimeRunning) return "The runtime isn't running, so it can't compile a stream.";
-  if (form.workUnderWay !== null) return "Wait for the folder to be checked.";
+  switch (form.workUnderWay) {
+    case "choosing_a_folder":
+      return "Choose a folder in the dialog.";
+    case "checking_the_folder":
+      return "Wait for the folder to be checked.";
+    case "creating_the_project":
+      return "Wait for tatolab new to write the project.";
+    case "opening_a_terminal":
+      return "Wait for the terminal to open.";
+    case null:
+      break;
+  }
   if (form.source === "new_project" && !form.hasCreatedTheNewProject) return "Create the project first.";
   const folder = folderToRun(form);
   if (folder === null) return "Choose a project folder first.";
@@ -273,15 +285,54 @@ export function compileWarningsHeading(warningCount: number): string {
   return `${warningCount} compile ${warningCount === 1 ? "warning" : "warnings"}`;
 }
 
-/** What the page's status line says of a step, for a screen reader: the compile under way, the stream running, or a refusal. */
+/** The name a compile view calls the stream by: the one asked for, else none yet. */
+export function compilingStreamWords(request: AddStreamRunRequest): string {
+  return request.streamName ?? "the stream";
+}
+
+/** The facts beside a running stream's name: its run mode, its steps. */
+export function streamRunningFactsWords(answer: StreamRunAnswer): string {
+  return `${STREAM_RUN_MODE_LABELS.always_on} · ${stepCountWords(answer.node_count)}`;
+}
+
+/** What the compile output says the runtime did, after the request and its warnings: the load, and that it is kept. */
+export function streamRunAnswerLines(answer: StreamRunAnswer): readonly string[] {
+  const replaced = answer.replaced_the_kept_record ? ", in place of the stream this project kept" : "";
+  return [
+    `loaded ${answer.stream} as instance ${answer.stream_instance}: ${stepCountWords(answer.node_count)}${replaced}`,
+    `${answer.stream} is running; kept, so it loads again whenever the runtime starts`,
+  ];
+}
+
+/** The terminal run the footer offers: the form's, under the free name while the asked one is refused as taken. */
+export function terminalRunRequestOf(form: AddStreamForm): AddStreamRunRequest | null {
+  const runRequest = runRequestOf(form);
+  if (runRequest === null || form.nameTaken === null) return runRequest;
+  return { ...runRequest, streamName: form.nameTaken.freeName };
+}
+
+/**
+ * Which part of the page shows: a step, and within the form its source and what the folder to run holds. Focus moves to
+ * the part's heading when it changes and the control that held focus is gone.
+ */
+export function addStreamPageSection(state: AddStreamFlowState): string {
+  const folder = folderToRun(state.form);
+  return [state.step, state.form.source, state.form.hasCreatedTheNewProject ? "created" : "", folder?.python_environment.kind ?? "no_folder"].join(":");
+}
+
+/** What the page's status line says, for a screen reader, of a milestone a focus move alone does not say; refusals speak through their own alert. */
 export function addStreamStepAnnouncement(state: AddStreamFlowState): string {
   switch (state.step) {
     case "compiling":
-      return `Compiling ${state.request.streamName ?? "the stream"}…`;
     case "running":
-      return `${state.answer.stream} is running. ${streamRunningSummary(state.answer)}`;
-    case "form":
-      if (state.form.nameTaken !== null) return `Compile and run was refused: ${state.form.nameTaken.refusal}`;
-      return state.form.refusal === null ? "" : `${state.form.refusal.lead} ${state.form.refusal.words}`;
+      return "";
+    case "form": {
+      const folder = folderToRun(state.form);
+      if (folder === null) return "";
+      if (folder.python_environment.kind === "present") return `${folder.folder} has its .venv. Compile and run is ready.`;
+      return state.form.source === "new_project"
+        ? `tatolab new wrote ${folder.folder}. Sync its .venv with uv sync, then check again.`
+        : `${folder.folder} has no .venv. Sync it with uv sync, then check again.`;
+    }
   }
 }

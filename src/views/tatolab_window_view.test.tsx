@@ -707,7 +707,7 @@ describe("Add stream", () => {
     await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("heat_map"));
   });
 
-  it("shows the runtime's refusal of a taken name in its own words, and Use <name>-2 runs it under that name", { timeout: 15_000 }, async () => {
+  it("shows the runtime's refusal of a taken name in its own words, and Run as <name>-2 runs it under that name", { timeout: 15_000 }, async () => {
     await mountedWindowOverTheMock("state=running&add_folder=taken");
     openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
@@ -767,5 +767,22 @@ describe("Add stream", () => {
 
     await waitFor(() => expect(document.querySelector("[data-add-stream-footer-words]")?.textContent).toBe("The runtime isn't running, so it can't compile a stream."));
     expect((await addStreamControl("compile_and_run")).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("catches the page up to the source the path names once a run that was compiling answers", { timeout: 15_000 }, async () => {
+    await mountedWindowOverTheMock("state=running");
+    openAddStream();
+    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-add-stream-source="new_project"]') ?? expect.unreachable("no source list yet")));
+    await waitFor(() => expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("/Users/jonathanf/streams/hello"));
+    fireEvent.click(await addStreamControl("create"));
+    fireEvent.click(await addStreamControl("check_again"));
+    await waitFor(() => expect(document.querySelector('[data-add-stream-check=".venv"]')?.getAttribute("data-add-stream-check-found")).toBe("true"));
+    fireEvent.click(await addStreamControl("compile_and_run"));
+    await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')).not.toBeNull());
+
+    openAddStream();
+
+    await waitFor(() => expect(document.querySelector("[data-add-stream-page]")?.getAttribute("data-add-stream-page")).toBe("project_folder"), MOCK_RUN_WAIT);
+    expect(document.querySelector('[data-add-stream-source="project_folder"]')?.getAttribute("aria-current")).toBe("page");
   });
 });
