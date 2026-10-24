@@ -133,6 +133,19 @@ test("describing_the_runtime_calls_describe_runtime_with_no_arguments_and_reads_
   expect(JSON.parse(body)).toMatchObject({ method: "tools/call", params: { name: "describe_runtime", arguments: {} } });
 });
 
+test("a_real_describe_runtime_result_reads_its_version_build_uptime_and_log_folder", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-runtime-tool-result-of-a-test-root-runtime.json")),
+  ]);
+
+  expect(answerOf(await server.client().describeRuntime())).toEqual({
+    version: "0.55.2",
+    build_id: "0.55.2+ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a.eecdc9dbaa1025c25565ca507699ed60",
+    up_for_ms: 10_007,
+    runtime_log_directory: "/tmp/tatolab-proof/state/logs",
+  });
+});
+
 test("a_runtime_keeping_no_own_log_describes_its_log_folder_as_null", () => {
   expect(answerOf(runtimeDescriptionFromTheDescribeRuntimeToolResult(DESCRIBE_RUNTIME_WIRE_TEXT_WITHOUT_A_LOG_FOLDER)).runtime_log_directory).toBeNull();
 });

@@ -104,7 +104,7 @@ const MOCK_CHOSEN_PROJECT_FOLDERS: readonly MockChosenProjectFolder[] = ["ready"
 
 /** The runtime the mock describes: the streamlib release the app bundles, and its build. */
 const MOCK_RUNTIME_VERSION = "0.55.2";
-const MOCK_RUNTIME_BUILD_ID = "0.55.2+ec6adf522.7f3a91";
+const MOCK_RUNTIME_BUILD_ID = "0.55.2+ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a.eecdc9dbaa1025c25565ca507699ed60";
 
 /** How long the mock runtime has been up as the page opens: 3 days, 2 hours and 14 minutes. */
 const MOCK_RUNTIME_UP_FOR_AT_OPEN_MILLISECONDS = ((3 * 24 + 2) * 60 + 14) * 60_000;
