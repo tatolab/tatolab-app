@@ -184,7 +184,9 @@ export function mountTatolabWindow(
     hostedPages.setupScreen.showStatus?.(status);
     streamsPage.setRuntimeLastAnsweredAt(runtimeLastAnsweredAt);
     streamsPage.showStatus(status);
-    if (runtimeStateLastShown !== null && status.runtime_state !== runtimeStateLastShown) runtimeDescriptionReadings.pollNow();
+    if (runtimeStateLastShown !== null && status.runtime_state !== runtimeStateLastShown) {
+      runtimeDescriptionReadings.forgetAndReadAgainAsTheRuntimesStateChanged();
+    }
     runtimeStateLastShown = status.runtime_state;
   };
   const renderTheWindowOn = (firstStatusStore: TatolabWindowStatusStore) => {

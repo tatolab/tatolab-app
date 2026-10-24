@@ -50,4 +50,24 @@ describe("the runtime's description", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(readings.readLatestReading()).toEqual({ kind: "read", description: DESCRIBED });
   });
+
+  it("forgets what the last runtime said as the runtime's state changes, until the new one answers", async () => {
+    vi.useFakeTimers();
+    let answerTheRead: (description: RuntimeDescription) => void = () => {};
+    const describeRuntime = vi
+      .fn<() => Promise<RuntimeDescription>>()
+      .mockRejectedValueOnce("no runtime answers at /tmp/x.sock")
+      .mockImplementation(() => new Promise((answer) => (answerTheRead = answer)));
+    const readings = new RuntimeDescriptionReadings({ describeRuntime }, 15_000);
+    readings.setPollingAllowed(true);
+    readings.subscribeToReading(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(readings.readLatestReading().kind).toBe("refused");
+
+    readings.forgetAndReadAgainAsTheRuntimesStateChanged();
+    expect(readings.readLatestReading()).toEqual({ kind: "not_read" });
+    answerTheRead({ ...DESCRIBED, up_for_ms: 900 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(readings.readLatestReading()).toEqual({ kind: "read", description: { ...DESCRIBED, up_for_ms: 900 } });
+  });
 });

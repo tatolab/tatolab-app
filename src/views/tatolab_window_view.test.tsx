@@ -846,6 +846,7 @@ describe("Settings", () => {
 
     await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
     const sectionList = within(screen.getByRole("navigation", { name: "Settings" }));
+    expect(sectionList.getByRole("link", { name: "General" }).getAttribute("aria-current")).toBe("page");
     expect(sectionList.getAllByRole("link").map((sectionLink) => sectionLink.textContent)).toEqual(["General", "Appearance", "Runtime", "Command line", "About"]);
     expect(sectionList.getByText("This machine")).toBeTruthy();
   });
@@ -951,6 +952,27 @@ describe("Settings", () => {
     await openSettingsOn("general");
     expect(within(settingsRow("open-at-login")).queryByRole("switch")).toBeNull();
     expect(within(settingsRow("open-at-login")).getByText("Only a packaged Tatolab opens at login.")).toBeTruthy();
+  });
+
+  it("goes back to the status's position when the backend accepts a switch and no status follows", { timeout: 8_000 }, async () => {
+    await mountedWindowOverTheMock("state=running", { setStreamFailureNotifications: async () => {} });
+    await openSettingsOn("general");
+    const notificationsSwitch = within(settingsRow("stream-failure-notifications")).getByRole("switch", { name: "When a stream fails" });
+
+    fireEvent.click(notificationsSwitch);
+    await waitFor(() => expect(notificationsSwitch.getAttribute("aria-checked")).toBe("false"));
+
+    await waitFor(() => expect(notificationsSwitch.getAttribute("aria-checked")).toBe("true"), { timeout: 5_000 });
+  });
+
+  it("colours a runtime that is not responding and says why", async () => {
+    await mountedWindowOverTheMock("state=unreachable");
+    await openSettingsOn("runtime");
+
+    const statusWords = document.querySelector<HTMLElement>("[data-runtime-status-words]") ?? expect.unreachable("no status words");
+    expect(statusWords.textContent).toBe("Not responding");
+    expect(statusWords.classList.contains("text-danger-text")).toBe(true);
+    expect(within(settingsRow("runtime-status")).getByText(/hasn't answered for 20 seconds/)).toBeTruthy();
   });
 
   it("names the tatolab command's path and version, and how a coding agent starts tatolab mcp", async () => {

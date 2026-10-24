@@ -4,7 +4,9 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeDescription, TatolabStatus } from "../backend/tatolab_backend_contract";
 import {
+  presentAboutVersions,
   presentCommandLineToolVersion,
+  presentLoginItemsRow,
   presentOpenAtLogin,
   presentRuntimeLogFolder,
   presentRuntimeStatusRow,
@@ -68,23 +70,32 @@ describe("Runtime › Status", () => {
 
   it("names the running runtime's version and uptime once it has described itself", () => {
     expect(presentRuntimeStatusRow(statusWith({}), describedAs({}))).toEqual({
-      stateWord: "Running",
+      statusWords: "Running · tatolabd 0.55.2 · up 3d 2h",
       tone: "ok",
-      versionAndUptime: "tatolabd 0.55.2 · up 3d 2h",
+      problemExplanation: null,
       refusal: null,
     });
-    expect(presentRuntimeStatusRow(statusWith({}), { kind: "not_read" }).versionAndUptime).toBeNull();
+    expect(presentRuntimeStatusRow(statusWith({}), { kind: "not_read" }).statusWords).toBe("Running");
   });
 
-  it("shows only the state word while the runtime is not running, whatever it said before", () => {
+  it("shows only the state word while the runtime is not running, with why where that is a problem", () => {
     expect(presentRuntimeStatusRow(statusWith({ runtime_state: "starting" }), describedAs({}))).toEqual({
-      stateWord: "Starting",
+      statusWords: "Starting",
       tone: "progress",
-      versionAndUptime: null,
+      problemExplanation: null,
       refusal: null,
     });
-    expect(presentRuntimeStatusRow(statusWith({ runtime_state: "unreachable" }), describedAs({})).stateWord).toBe("Not responding");
-    expect(presentRuntimeStatusRow(statusWith({ run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped" }), describedAs({})).stateWord).toBe("Stopped");
+    expect(presentRuntimeStatusRow(statusWith({ runtime_state: "unreachable" }), describedAs({}))).toEqual({
+      statusWords: "Not responding",
+      tone: "error",
+      problemExplanation: "It's switched on but hasn't answered for 20 seconds. macOS restarts it if it exits.",
+      refusal: null,
+    });
+    expect(presentRuntimeStatusRow(statusWith({ run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped" }), describedAs({}))).toMatchObject({
+      statusWords: "Stopped",
+      tone: "idle",
+      problemExplanation: null,
+    });
   });
 
   it("shows a runtime's refusal to describe itself in its own words", () => {
@@ -144,13 +155,29 @@ describe("General", () => {
   });
 });
 
+describe("About and Login Items", () => {
+  it("names the runtime's version beside the app's only while it runs and has described itself", () => {
+    expect(presentAboutVersions(statusWith({}), describedAs({}))).toBe("Version 0.45.0 · tatolabd 0.55.2");
+    expect(presentAboutVersions(statusWith({ runtime_state: "stopped" }), describedAs({}))).toBe("Version 0.45.0");
+    expect(presentAboutVersions(statusWith({}), { kind: "not_read" })).toBe("Version 0.45.0");
+  });
+
+  it("says the runtime's entry waits for approval only while it does", () => {
+    expect(presentLoginItemsRow(statusWith({ runtime_agent: "requires_approval" }))).toBe(
+      "Tatolab is waiting for you to switch it on under Allow in the Background.",
+    );
+    expect(presentLoginItemsRow(statusWith({}))).toBe("Tatolab is listed under Allow in the Background. Run Tatolab and that entry are the same setting.");
+  });
+});
+
 describe("Command line", () => {
   it("shows the CLI's version, nothing while it is read, and why where it can't be read", () => {
-    expect(presentCommandLineToolVersion({ kind: "read", version: "0.55.2" })).toEqual({ version: "0.55.2", unreadableBecause: null });
-    expect(presentCommandLineToolVersion({ kind: "reading" })).toEqual({ version: null, unreadableBecause: null });
-    expect(presentCommandLineToolVersion({ kind: "unreadable", reason: "/usr/local/bin/tatolab --version failed" })).toEqual({
+    expect(presentCommandLineToolVersion({ kind: "read", version: "0.55.2" }, true)).toEqual({ version: "0.55.2", unreadableLine: null });
+    expect(presentCommandLineToolVersion({ kind: "reading" }, true)).toEqual({ version: null, unreadableLine: null });
+    expect(presentCommandLineToolVersion({ kind: "unreadable", reason: "/usr/local/bin/tatolab --version failed" }, true)).toEqual({
       version: null,
-      unreadableBecause: "/usr/local/bin/tatolab --version failed",
+      unreadableLine: "Its version can't be read: /usr/local/bin/tatolab --version failed",
     });
+    expect(presentCommandLineToolVersion({ kind: "not_offered", reason: "no CLI in this build" }, false).unreadableLine).toBeNull();
   });
 });

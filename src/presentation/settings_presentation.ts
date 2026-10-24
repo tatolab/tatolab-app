@@ -78,32 +78,44 @@ export type RuntimeDescriptionReading =
   | { kind: "read"; description: RuntimeDescription }
   | { kind: "refused"; refusal: string };
 
-/** Runtime › Status: the state word, then the runtime's version and uptime while it runs and has described itself; a refusal to describe itself, in its own words. */
+/**
+ * Runtime › Status: the state word in its tone, then the runtime's version and uptime while it runs and has described
+ * itself; why it is in a problem state; and a running runtime's refusal to describe itself, in its own words.
+ */
 export interface RuntimeStatusRowPresentation {
-  stateWord: string;
+  /** `Running · tatolabd 0.55.2 · up 3d 2h`, or the state word alone. */
+  statusWords: string;
   tone: StatusTone;
-  /** `tatolabd 0.55.2 · up 3d 2h`; `null` while the runtime is not running or has not described itself. */
-  versionAndUptime: string | null;
+  /** Why the runtime is in a warning or error state, as the window's banner says it; `null` otherwise. */
+  problemExplanation: string | null;
   refusal: string | null;
 }
 
 /** Runtime › Status for `status` and what the runtime last said of itself. */
 export function presentRuntimeStatusRow(status: TatolabStatus, runtimeDescription: RuntimeDescriptionReading): RuntimeStatusRowPresentation {
-  const { tone, shortLabel } = presentRuntimeStatus(status);
-  if (status.runtime_state !== "running") return { stateWord: shortLabel, tone, versionAndUptime: null, refusal: null };
-  switch (runtimeDescription.kind) {
-    case "not_read":
-      return { stateWord: shortLabel, tone, versionAndUptime: null, refusal: null };
-    case "read":
-      return {
-        stateWord: shortLabel,
-        tone,
-        versionAndUptime: `tatolabd ${runtimeDescription.description.version} · ${presentRuntimeUptime(runtimeDescription.description.up_for_ms)}`,
-        refusal: null,
-      };
-    case "refused":
-      return { stateWord: shortLabel, tone, versionAndUptime: null, refusal: runtimeDescription.refusal };
+  const { tone, shortLabel, banner } = presentRuntimeStatus(status);
+  const problemExplanation = (tone === "error" || tone === "warning") && banner !== null ? banner.explanation : null;
+  if (status.runtime_state !== "running" || runtimeDescription.kind === "not_read") {
+    return { statusWords: shortLabel, tone, problemExplanation, refusal: null };
   }
+  if (runtimeDescription.kind === "refused") return { statusWords: shortLabel, tone, problemExplanation, refusal: runtimeDescription.refusal };
+  const { version, up_for_ms } = runtimeDescription.description;
+  return { statusWords: `${shortLabel} · tatolabd ${version} · ${presentRuntimeUptime(up_for_ms)}`, tone, problemExplanation, refusal: null };
+}
+
+/** About: `Version 0.45.0`, and `· tatolabd 0.55.2` beside it while the runtime runs and has described itself. */
+export function presentAboutVersions(status: TatolabStatus, runtimeDescription: RuntimeDescriptionReading): string {
+  const appVersion = `Version ${status.app_version}`;
+  return status.runtime_state === "running" && runtimeDescription.kind === "read"
+    ? `${appVersion} · tatolabd ${runtimeDescription.description.version}`
+    : appVersion;
+}
+
+/** Runtime › Login Items on macOS: what it says of the runtime's entry under Allow in the Background. */
+export function presentLoginItemsRow(status: TatolabStatus): string {
+  return status.runtime_agent === "requires_approval"
+    ? "Tatolab is waiting for you to switch it on under Allow in the Background."
+    : "Tatolab is listed under Allow in the Background. Run Tatolab and that entry are the same setting.";
 }
 
 /** Why Restart runtime cannot be pressed now; `null` when it can. */
@@ -167,15 +179,18 @@ export function presentStreamFailureNotifications(streamFailureNotifications: St
   };
 }
 
-/** Command line › tatolab: the version beside the path, or what to say in its place. */
-export function presentCommandLineToolVersion(commandLineToolVersion: TatolabCommandLineToolVersion): { version: string | null; unreadableBecause: string | null } {
+/** Command line › tatolab: the version beside the path, and, for a linked command whose version can't be read, a line saying why. */
+export function presentCommandLineToolVersion(
+  commandLineToolVersion: TatolabCommandLineToolVersion,
+  isTheCommandLinked: boolean,
+): { version: string | null; unreadableLine: string | null } {
   switch (commandLineToolVersion.kind) {
     case "read":
-      return { version: commandLineToolVersion.version, unreadableBecause: null };
+      return { version: commandLineToolVersion.version, unreadableLine: null };
     case "reading":
-      return { version: null, unreadableBecause: null };
+      return { version: null, unreadableLine: null };
     case "unreadable":
     case "not_offered":
-      return { version: null, unreadableBecause: commandLineToolVersion.reason };
+      return { version: null, unreadableLine: isTheCommandLinked ? `Its version can't be read: ${commandLineToolVersion.reason}` : null };
   }
 }

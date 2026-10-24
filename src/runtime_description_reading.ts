@@ -49,8 +49,14 @@ export class RuntimeDescriptionReadings {
     this.updatePolling();
   }
 
-  /** Read the description at once, as a change of the runtime's state asks. */
+  /** Read the description at once, as a refreshed page asks. */
   pollNow(): void {
+    this.descriptionPoll.pollNow();
+  }
+
+  /** The runtime's state changed: what it last said of itself, or why it said nothing, was about another runtime, so it is forgotten and read again at once. */
+  forgetAndReadAgainAsTheRuntimesStateChanged(): void {
+    this.showReading(NOTHING_READ_YET);
     this.descriptionPoll.pollNow();
   }
 

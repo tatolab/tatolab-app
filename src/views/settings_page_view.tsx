@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { Cpu, FolderOpen, Info, Paintbrush, RotateCw, SlidersHorizontal, SquareTerminal, type LucideIcon } from "lucide-react";
+import { cn } from "cn";
 import { useEffect, useState, type ReactNode } from "react";
-import { useParams } from "react-router";
+import { Navigate, useParams } from "react-router";
 import mascotImageUrl from "../assets/tato_mascot_3d.png";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
@@ -16,8 +17,11 @@ import { SettingsGroup, SettingsRow } from "../design_system/settings_rows";
 import { ToggleSwitch } from "../design_system/toggle_switch";
 import { presentTatolabAppUpdate } from "../presentation/app_update_presentation";
 import { presentCommandLineTool, presentPlatform } from "../presentation/platform_presentation";
+import type { StatusTone } from "../presentation/runtime_presentation";
 import {
+  presentAboutVersions,
   presentCommandLineToolVersion,
+  presentLoginItemsRow,
   presentOpenAtLogin,
   presentRuntimeLogFolder,
   presentRuntimeStatusRow,
@@ -51,9 +55,13 @@ const SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
 /** A refusal shown under a row: the window's lead naming what was refused, then the refusing side's own words. */
 type RowRefusal = { lead: string; words: string };
 
+/** How long a switch the backend accepted holds its asked-for position when no status follows: the app publishes only a status that changed. */
+const SWITCH_HELD_WITHOUT_A_FOLLOWING_STATUS_MILLISECONDS = 3_000;
+
 /**
  * A switch set through the backend: it shows the asked-for position at once and holds it until the status that follows
- * the backend's answer arrives; a refused change goes back to the status's position, with the refusal.
+ * the backend's answer arrives, or a status round's time passes with none; then the status is its position again. A
+ * refused change goes back to the status's position, with the refusal.
  */
 function useSwitchSetThroughTheBackend(
   isOnInTheStatus: boolean,
@@ -66,6 +74,12 @@ function useSwitchSetThroughTheBackend(
   useEffect(() => {
     setAskedFor((stillAskedFor) => (stillAskedFor?.hasTheBackendAnswered === true ? null : stillAskedFor));
   }, [status]);
+  const hasTheBackendAnswered = askedFor?.hasTheBackendAnswered === true;
+  useEffect(() => {
+    if (!hasTheBackendAnswered) return;
+    const settleOnTheStatusTimer = window.setTimeout(() => setAskedFor(null), SWITCH_HELD_WITHOUT_A_FOLLOWING_STATUS_MILLISECONDS);
+    return () => window.clearTimeout(settleOnTheStatusTimer);
+  }, [hasTheBackendAnswered]);
   const onSwitched = (isOn: boolean) => {
     setRefusal(null);
     setAskedFor({ isOn, hasTheBackendAnswered: false });
@@ -93,6 +107,15 @@ function useRowActionThroughTheBackend(runTheAction: () => Promise<void>, refusa
   };
   return { isPending, refusal, run };
 }
+
+/** A state word's colour: only a problem is coloured, in the text tones that keep 4.5:1 on every surface. */
+const STATUS_WORDS_TONE_CLASS_NAMES: Record<StatusTone, string | undefined> = {
+  ok: undefined,
+  progress: undefined,
+  idle: undefined,
+  warning: "text-warn-text",
+  error: "text-danger-text",
+};
 
 function SectionPageTitle({ title, explanation }: { title: string; explanation?: ReactNode }) {
   return (
@@ -261,9 +284,12 @@ function RuntimeSection() {
         <SettingsRow
           label="Status"
           description={
-            <span className="tabular" data-runtime-status-words="">
-              {[runtimeStatusRow.stateWord, runtimeStatusRow.versionAndUptime].filter((statusWords) => statusWords !== null).join(" · ")}
-            </span>
+            <>
+              <span className={cn("tabular", STATUS_WORDS_TONE_CLASS_NAMES[runtimeStatusRow.tone])} data-runtime-status-words="">
+                {runtimeStatusRow.statusWords}
+              </span>
+              {runtimeStatusRow.problemExplanation !== null && <span className="block">{runtimeStatusRow.problemExplanation}</span>}
+            </>
           }
           refusal={restartRuntime.refusal}
           data-settings-row="runtime-status"
@@ -300,11 +326,7 @@ function RuntimeSection() {
         {platformPresentation.showsLoginItems && (
           <SettingsRow
             label="Login Items"
-            description={
-              status.runtime_agent === "requires_approval"
-                ? "Tatolab is waiting for you to switch it on under Allow in the Background."
-                : "Tatolab is listed under Allow in the Background. Run Tatolab and that entry are the same setting."
-            }
+            description={presentLoginItemsRow(status)}
             control={() => <ActionButton onPressed={() => void backend.openLoginItemsSettings()}>Open Login Items…</ActionButton>}
           />
         )}
@@ -357,7 +379,7 @@ function CommandLineSection() {
   const status = useTatolabStatus();
   const linkedAt = status.command_line_tool_linked_at;
   const commandLineTool = presentCommandLineTool(platform, linkedAt);
-  const commandLineToolVersion = presentCommandLineToolVersion(status.command_line_tool_version);
+  const commandLineToolVersion = presentCommandLineToolVersion(status.command_line_tool_version, commandLineTool.isLinked);
   return (
     <>
       <SectionPageTitle title="Command line" explanation="Everything in this app is also a tatolab command." />
@@ -380,9 +402,7 @@ function CommandLineSection() {
                   Try <code>tatolab streams</code>.
                 </>
               )}
-              {commandLineToolVersion.unreadableBecause !== null && commandLineTool.isLinked && (
-                <span className="block">Its version can't be read: {commandLineToolVersion.unreadableBecause}</span>
-              )}
+              {commandLineToolVersion.unreadableLine !== null && <span className="block">{commandLineToolVersion.unreadableLine}</span>}
             </>
           }
           data-settings-row="command-line-tool"
@@ -413,16 +433,13 @@ function AboutSection() {
   const runtimeDescription = useRuntimeDescriptionReading();
   const appUpdate = presentTatolabAppUpdate(status.app_update);
   const checkForUpdates = useRowActionThroughTheBackend(() => backend.checkForTatolabAppUpdates(), "Couldn't update Tatolab:");
-  const runtimeVersion = status.runtime_state === "running" && runtimeDescription.kind === "read" ? runtimeDescription.description.version : null;
+  const versions = presentAboutVersions(status, runtimeDescription);
   return (
     <div className="flex flex-col items-center gap-6 pt-6 text-center" data-settings-about="">
       <div className="flex flex-col items-center">
         <img src={mascotImageUrl} alt="" className="size-24" />
         <h1 className="mt-3 title-lg">Tatolab</h1>
-        <p className="text-fg-3 tabular select-text">
-          Version {status.app_version}
-          {runtimeVersion !== null && ` · tatolabd ${runtimeVersion}`}
-        </p>
+        <p className="text-fg-3 tabular select-text">{versions}</p>
       </div>
       <div className="w-full text-left">
         <SettingsGroup>
@@ -460,6 +477,7 @@ const SECTION_VIEWS: Record<SettingsSection, () => ReactNode> = {
 export function SettingsPageView() {
   const { settingsSection } = useParams();
   const shownSection = settingsSectionNamed(settingsSection);
+  if (settingsSection !== shownSection) return <Navigate to={settingsSectionPath(shownSection)} replace />;
   const ShownSectionView = SECTION_VIEWS[shownSection];
   return (
     <div className="flex min-h-0 flex-1" data-settings-page={shownSection}>

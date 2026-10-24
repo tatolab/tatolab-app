@@ -153,7 +153,12 @@ export interface MockTatolabOptions {
   doesTheDesktopShowNoNotifications: boolean;
   /** `?cli_version=reading|unreadable`: the CLI's version still being read, or unreadable; read by default. */
   commandLineToolVersion: TatolabCommandLineToolVersion;
+  /** `?stream_page_requested=<stream>`: a click on that stream's failure notification, a moment after the window listens. */
+  streamPageRequestedByANotification: string | null;
 }
+
+/** How long after the window listens the mock's notification click arrives. */
+const MOCK_NOTIFICATION_CLICK_MILLISECONDS = 1200;
 
 /** What `?open_at_login=` names. */
 function mockOpenAtLogin(openAtLoginInTheQuery: string | null): TatolabAppOpenAtLogin {
@@ -211,6 +216,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     openAtLogin: mockOpenAtLogin(pageQuery.get("open_at_login")),
     doesTheDesktopShowNoNotifications: pageQuery.get("notifications") === "unsupported",
     commandLineToolVersion: mockCommandLineToolVersion(pageQuery.get("cli_version")),
+    streamPageRequestedByANotification: pageQuery.get("stream_page_requested"),
   };
 }
 
@@ -338,6 +344,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     isTheTatolabCommandMissing,
     doesTheRuntimeKeepNoOwnLog,
     isTheRuntimeRestartRefused,
+    streamPageRequestedByANotification,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -879,7 +886,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       publishStatus({ open_at_login: enabled ? { kind: "on" } : { kind: "off" } });
     },
-    onStreamPageRequested: () => () => {},
+    onStreamPageRequested: (streamPageRequestListener) => {
+      if (streamPageRequestedByANotification === null) return () => {};
+      const notificationClickTimer = window.setTimeout(() => streamPageRequestListener(streamPageRequestedByANotification), MOCK_NOTIFICATION_CLICK_MILLISECONDS);
+      return () => window.clearTimeout(notificationClickTimer);
+    },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);
       return () => statusListeners.delete(statusListener);

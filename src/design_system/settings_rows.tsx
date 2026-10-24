@@ -39,7 +39,7 @@ export function SettingsRow({
   label: ReactNode;
   description?: ReactNode;
   /** Given the ids of the name and the description, for the control to be labelled and described by. */
-  control?: (labelledBy: { labelId: string; descriptionId: string }) => ReactNode;
+  control?: (labelledBy: { labelId: string; descriptionId: string | undefined }) => ReactNode;
   /** Why the last change was refused: the refusing side's own words after the window's lead naming what was refused. */
   refusal?: { lead: string; words: string } | null;
   /** What the row holds under its name, across its whole width. */
@@ -58,7 +58,9 @@ export function SettingsRow({
             </div>
           )}
         </div>
-        {control !== undefined && <div className="flex shrink-0 items-center gap-1.5">{control({ labelId, descriptionId })}</div>}
+        {control !== undefined && (
+          <div className="flex shrink-0 items-center gap-1.5">{control({ labelId, descriptionId: description === undefined ? undefined : descriptionId })}</div>
+        )}
       </div>
       {children}
       {refusal !== null && <RefusalLine lead={refusal.lead} words={refusal.words} />}
