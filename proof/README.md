@@ -2,7 +2,44 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
-## Settings on the new design (#41)
+## Settings on the new design (#41): real verification, the pass/fail
+
+Only these results count for #41. They come from the real app on a real v0.55.2 runtime, with no mock, fake or stand-in. Each is checked against what launchd or systemd, the runtime's own CLI, the socket table, the desktop's login items or its notification server report. Frames are in [`settings-live/`](settings-live/). The Mock and stand-in frames in the section below show presentation only, and none of them counts.
+
+**macOS — Live:**
+- **The app:** the signed, notarized, stapled Tatolab 0.55.2 built from this branch (Gatekeeper: "source=Notarized Developer ID"), installed as `/Applications/Tatolab.app` on the owner's Mac.
+- **The runtime:** launchd ran streamlib v0.55.2's shipping runtime from the bundle. At launch the app restarted the runtime from its new bundle: pid 45344 (0.54.12) became 14893 (0.55.2).
+- **How it was driven:** the window's own controls, pressed through macOS accessibility and captured with `screencapture -l`, since the packaged app turns off DevTools.
+
+**Linux (container, real runtime from source):**
+- **The runtime:** `tatolabd`, `tatolab` and `moq-relay` built from streamlib v0.55.2 for arm64 Linux, plus the lend from streamlib's own wheel, all with [`build-tatolabd-from-source.sh`](settings-linux-real/build-tatolabd-from-source.sh). It ran as streamlib's own `tatolabd.service` under real systemd (PID 1, a lingering user manager), installed in `install.sh`'s layout.
+- **The desktop:** pcmanfm as the file manager and dunst as the notification server, on Xvfb.
+- **The app:** this branch's app, unpackaged, driven over DevTools by [`verify-settings-on-the-real-runtime.mjs`](settings-linux-real/verify-settings-on-the-real-runtime.mjs) and the two notification scripts beside it.
+- **What it is not:** the shipped x86_64 tarball. streamlib builds that on manylinux, with a Mesa driver it bundles there; this unit has no bundled driver and used the container's own Mesa (llvmpipe).
+
+| check | macOS (Live) | Linux (real runtime from source) |
+|---|---|---|
+| Status names the runtime's version and uptime as the runtime reports them | **PASS**: "Running · tatolabd 0.55.2 · up less than a minute", matching `tatolab --version`'s runtime line (`01`) | **PASS** (`21`) |
+| The socket shown is the one the runtime listens on | **PASS**: `lsof` shows launchd's tatolabd holding `/tmp/streamlib-501/local-api.sock`, which answers `ok` | **PASS**: `ss` shows tatolabd listening on `/run/user/1000/streamlib/local-api.sock` |
+| Open logs folder opens the folder the runtime names | **PASS**: Finder's front window is `~/Library/Application Support/Tatolab/logs/`, holding 12 `tatolabd-*.jsonl` | **PASS**: pcmanfm opened `/home/ada/.local/state/tatolab/logs`, holding its `tatolabd-*.jsonl` (`26`, top left) |
+| Restart runtime restarts it through the service manager, and the state follows | **PASS**: launchd pid 14893 → 17828; window "up 1m" → Starting → "up less than a minute"; the runtime's uptime 1m → 0m (`04`) | **PASS**: MainPID 3785 → 4024 through `systemctl --user restart`; window "up 1m" → Starting → "up less than a minute" (`22`, `23`) |
+| Run Tatolab off stops and deregisters the runtime; on brings it back | **PASS**: off — window "Stopped", `launchctl print` no longer finds the job, nothing answers, Restart and Open logs folder disabled (`05`); on — Starting → Running, the job back under Service Management | **PASS**: off — `disabled/inactive`, Restart disabled (`24`); on — `enabled/active` |
+| Open Tatolab at login | **PASS** on the switch: on adds Tatolab to macOS's login items (System Events: "Elgato Wave Link, Rectangle, Tatolab", `06`), off removes it. **NOT VERIFIED:** the app actually opening at the next login, which needs a log-out | **NOT VERIFIED**: an unpackaged app does not offer it, and the Linux packages build on x86_64 only |
+| A stream failing notifies with the runtime's reason | **PASS**: a kept sample stream, its `.venv` moved aside, then Restart runtime pressed; the runtime listed it failed ("…its interpreter …/.venv/bin/python is gone…"), and the banner showed that reason (`07`) | **PASS**: the same failure; dunst drew "(A) fails-at-start failed — it did not re-load at the runtime's start: …" (`26`) |
+| Clicking it opens the stream | **PASS**: pressing it in Notification Center opened `fails-at-start`'s page, Failed, with the runtime's reason (`08`) | **PASS**: a real X middle-click (dunst's default action) opened its page (`28`) |
+| With the switch off, a failure doesn't notify | **PASS**: the same failure, 0 Tatolab notifications; with the switch back on, the repeat gave 1 | **PASS**: the app's notifications in dunst stayed 2 → 2 |
+| Appearance: Light, Dark and System, live, and kept | **PASS**: the window's mean luminance was 254 for Light and 13 for Dark (`09`); System followed macOS Light → Dark → Light live (`10`); Dark held after Quit and reopen (`11`) | **PASS** for Dark live and kept across a reload. **NOT VERIFIED:** System following the desktop (Xvfb has no colour-scheme source) |
+| Command line: the `tatolab` path and its version; `tatolab mcp` | **PASS**: `/usr/local/bin/tatolab` → the bundle's `tatolab-cli` 0.55.2 (`02`); `tatolab mcp` served the runtime's 17 tools, `describe_runtime` among them | **PASS**: `~/.local/bin/tatolab`, 0.55.2 (`25`) |
+| About: both versions, the runtime's licence | **PASS**: "Version 0.55.2 · tatolabd 0.55.2", "Runtime licensed BUSL-1.1." (`03`) | **PASS**: "Version 0.45.0 · tatolabd 0.55.2" (the unpackaged app takes `package.json`'s version) |
+
+**Found by this verification:**
+- **Fixed:** with Run Tatolab off, the Login Items row said Tatolab was "listed under Allow in the Background" though launchd held no job. It now says Tatolab isn't listed. The rebuilt app was installed and the row re-checked.
+- **Runtime behaviour, not a defect:** a kept stream is reloaded at the runtime's start from its recorded graph without recompiling `stream.py`. A broken `stream.py` therefore didn't fail it, and the app correctly notified nothing.
+- **For streamlib:** `tatolab mcp` refuses an `initialize` request for `2026-07-28` as "Unsupported protocol version" while its error lists `2026-07-28` as supported. Stateless requests carrying `_meta` work.
+
+**Restored afterwards:** on macOS, the test stream and its project were removed, Appearance set back to Light, notifications left on, Open at login left off, and macOS's appearance restored to Light. The 0.54.12 app the owner had is kept at `~/Tatolab-0.54.12-backup/Tatolab.app`.
+
+## Settings on the new design (#41): presentation (Mock and stand-ins; not counted)
 
 Issue #41. Every frame is in [`settings/`](settings/). The runtime's version, uptime and log folder come from its `describe_runtime` tool (streamlib#2922, v0.55.2).
 
