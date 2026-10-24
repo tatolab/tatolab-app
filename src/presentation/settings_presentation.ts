@@ -111,11 +111,17 @@ export function presentAboutVersions(status: TatolabStatus, runtimeDescription: 
     : appVersion;
 }
 
-/** Runtime › Login Items on macOS: what it says of the runtime's entry under Allow in the Background. */
+/** Runtime › Login Items on macOS: what it says of the runtime's entry under Allow in the Background, as Service Management reports it. */
 export function presentLoginItemsRow(status: TatolabStatus): string {
-  return status.runtime_agent === "requires_approval"
-    ? "Tatolab is waiting for you to switch it on under Allow in the Background."
-    : "Tatolab is listed under Allow in the Background. Run Tatolab and that entry are the same setting.";
+  switch (status.runtime_agent) {
+    case "enabled":
+      return "Tatolab is listed under Allow in the Background. Run Tatolab and that entry are the same setting.";
+    case "requires_approval":
+      return "Tatolab is waiting for you to switch it on under Allow in the Background.";
+    case "not_registered":
+    case "not_found":
+      return "Tatolab isn't listed under Allow in the Background. Turning Run Tatolab on adds it.";
+  }
 }
 
 /** Why Restart runtime cannot be pressed now; `null` when it can. */

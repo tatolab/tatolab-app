@@ -162,11 +162,16 @@ describe("About and Login Items", () => {
     expect(presentAboutVersions(statusWith({}), { kind: "not_read" })).toBe("Version 0.45.0");
   });
 
-  it("says the runtime's entry waits for approval only while it does", () => {
+  it("says what Service Management reports of the runtime's entry: listed, waiting for approval, or not listed", () => {
     expect(presentLoginItemsRow(statusWith({ runtime_agent: "requires_approval" }))).toBe(
       "Tatolab is waiting for you to switch it on under Allow in the Background.",
     );
     expect(presentLoginItemsRow(statusWith({}))).toBe("Tatolab is listed under Allow in the Background. Run Tatolab and that entry are the same setting.");
+    for (const runtimeAgent of ["not_registered", "not_found"] as const) {
+      expect(presentLoginItemsRow(statusWith({ run_tatolab: false, runtime_agent: runtimeAgent }))).toBe(
+        "Tatolab isn't listed under Allow in the Background. Turning Run Tatolab on adds it.",
+      );
+    }
   });
 });
 
