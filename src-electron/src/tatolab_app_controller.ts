@@ -292,6 +292,7 @@ export class TatolabAppController {
     const { runTatolab, runtimeAgent, runtimeState } = await this.withTheRunTatolabSwitch(async (runTatolabSwitch) => {
       const runtimeAgentNow = await runTatolabSwitch.runtimeAgentRegistrationStatus();
       const isRestartingTheRuntime = runTatolabSwitch.isRestartingTheRuntime(nowMs, runtimeHealth);
+      runTatolabSwitch.noteRestartSettledIfThisRoundShowsIt(nowMs, runtimeHealth);
       if (runtimeHealth === "healthy" && !isRestartingTheRuntime) runTatolabSwitch.noteRuntimeHealthy(nowMs);
       return {
         runTatolab: runTatolabSwitch.runTatolab(),

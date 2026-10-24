@@ -356,8 +356,11 @@ test("a_restarted_runtime_reads_restarting_until_a_health_check_begun_after_the_
 
   expect(underTest.runTatolabSwitch.isRestartingTheRuntime(9_500, "healthy")).toBe(true);
   expect(underTest.runTatolabSwitch.isRestartingTheRuntime(10_399, "healthy")).toBe(true);
+  underTest.runTatolabSwitch.noteRestartSettledIfThisRoundShowsIt(10_450, "failing");
   expect(underTest.runTatolabSwitch.isRestartingTheRuntime(10_450, "failing")).toBe(false);
+  expect(underTest.runTatolabSwitch.isRestartingTheRuntime(9_000, "healthy")).toBe(true);
   expect(underTest.runTatolabSwitch.isRestartingTheRuntime(10_450, "healthy")).toBe(false);
+  underTest.runTatolabSwitch.noteRestartSettledIfThisRoundShowsIt(10_450, "healthy");
   expect(underTest.runTatolabSwitch.isRestartingTheRuntime(9_000, "healthy")).toBe(false);
 });
 

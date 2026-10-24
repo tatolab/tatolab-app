@@ -65,12 +65,17 @@ export type RunTatolabReconciliation =
   | { kind: "unregistered" }
   | { kind: "unregistration_failed"; failureDescription: string };
 
+/** A restart on request under way: when the service manager answered it, `null` until it does. */
+interface RuntimeRestartOnRequestUnderWay {
+  serviceManagerAnsweredAtMs: number | null;
+}
+
 /** The switch's remembered value, the agent it drives, and what this launch has already done. */
 export class RunTatolabSwitch {
   private loginItemsSettingsOpenedThisLaunch = false;
   private runtimeAgentLastStartAttemptAtMs: number | null = null;
-  /** A restart on request under way: `null` until the service manager answers, then when it did; `null` with no restart under way. */
-  private restartOnRequest: { serviceManagerAnsweredAtMs: number | null } | null = null;
+  /** The restart on request under way; `null` with none. */
+  private restartOnRequest: RuntimeRestartOnRequestUnderWay | null = null;
 
   private constructor(
     private readonly runtimeAgent: RuntimeAgentRegistration,
@@ -140,7 +145,7 @@ export class RunTatolabSwitch {
     const restartRequestedAtMs = readMonotonicClockMs();
     this.runtimeAgentLastStartAttemptAtMs = restartRequestedAtMs;
     this.runtimeExpectedUpSinceMs = restartRequestedAtMs;
-    const restartOnRequest: { serviceManagerAnsweredAtMs: number | null } = { serviceManagerAnsweredAtMs: null };
+    const restartOnRequest: RuntimeRestartOnRequestUnderWay = { serviceManagerAnsweredAtMs: null };
     this.restartOnRequest = restartOnRequest;
     const restarted = await this.restartTheAgentsRuntime();
     if (restarted.ok) restartOnRequest.serviceManagerAnsweredAtMs = readMonotonicClockMs();
@@ -167,13 +172,17 @@ export class RunTatolabSwitch {
    * failing answer reads as the usual derivation says, the restart's starting grace included.
    */
   isRestartingTheRuntime(roundStartedAtMs: number, runtimeHealth: RuntimeHealthObservation): boolean {
-    if (this.restartOnRequest === null || runtimeHealth === "failing") return false;
-    const { serviceManagerAnsweredAtMs } = this.restartOnRequest;
-    if (serviceManagerAnsweredAtMs !== null && roundStartedAtMs >= serviceManagerAnsweredAtMs) {
-      this.restartOnRequest = null;
-      return false;
-    }
-    return true;
+    return this.restartOnRequest !== null && runtimeHealth === "healthy" && !this.restartWasAnsweredBefore(roundStartedAtMs);
+  }
+
+  /** The restart is over once a round begun after the service manager answered finds the runtime healthy. */
+  noteRestartSettledIfThisRoundShowsIt(roundStartedAtMs: number, runtimeHealth: RuntimeHealthObservation): void {
+    if (runtimeHealth === "healthy" && this.restartWasAnsweredBefore(roundStartedAtMs)) this.restartOnRequest = null;
+  }
+
+  private restartWasAnsweredBefore(roundStartedAtMs: number): boolean {
+    const serviceManagerAnsweredAtMs = this.restartOnRequest?.serviceManagerAnsweredAtMs ?? null;
+    return serviceManagerAnsweredAtMs !== null && roundStartedAtMs >= serviceManagerAnsweredAtMs;
   }
 
   /**

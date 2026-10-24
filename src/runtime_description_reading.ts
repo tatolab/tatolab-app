@@ -20,6 +20,8 @@ export class RuntimeDescriptionReadings {
   private readonly readingListeners = new Set<() => void>();
   private readonly descriptionPoll: RepeatingBackendPoll;
   private pagesShowingIt = 0;
+  /** Counts the runtime's state changes, so an answer about the runtime before the last one is dropped. */
+  private runtimeStateChangesSeen = 0;
   private isPollingAllowed = false;
 
   constructor(
@@ -56,6 +58,7 @@ export class RuntimeDescriptionReadings {
 
   /** The runtime's state changed: what it last said of itself, or why it said nothing, was about another runtime, so it is forgotten and read again at once. */
   forgetAndReadAgainAsTheRuntimesStateChanged(): void {
+    this.runtimeStateChangesSeen += 1;
     this.showReading(NOTHING_READ_YET);
     this.descriptionPoll.pollNow();
   }
@@ -66,11 +69,14 @@ export class RuntimeDescriptionReadings {
   }
 
   private async readTheRuntimesDescription(): Promise<void> {
+    const runtimeStateChangesSeenAtTheRead = this.runtimeStateChangesSeen;
+    let reading: RuntimeDescriptionReading;
     try {
-      this.showReading({ kind: "read", description: await this.backend.describeRuntime() });
+      reading = { kind: "read", description: await this.backend.describeRuntime() };
     } catch (rejection) {
-      this.showReading({ kind: "refused", refusal: describeBackendRejection(rejection) });
+      reading = { kind: "refused", refusal: describeBackendRejection(rejection) };
     }
+    if (runtimeStateChangesSeenAtTheRead === this.runtimeStateChangesSeen) this.showReading(reading);
   }
 
   private showReading(reading: RuntimeDescriptionReading): void {

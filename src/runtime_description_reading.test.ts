@@ -51,6 +51,25 @@ describe("the runtime's description", () => {
     expect(readings.readLatestReading()).toEqual({ kind: "read", description: DESCRIBED });
   });
 
+  it("drops an answer about the runtime before the state changed that lands after it", async () => {
+    vi.useFakeTimers();
+    const answers: ((description: RuntimeDescription) => void)[] = [];
+    const describeRuntime = vi.fn(() => new Promise<RuntimeDescription>((answer) => answers.push(answer)));
+    const readings = new RuntimeDescriptionReadings({ describeRuntime }, 15_000);
+    readings.setPollingAllowed(true);
+    readings.subscribeToReading(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+
+    readings.forgetAndReadAgainAsTheRuntimesStateChanged();
+    answers[0]?.({ ...DESCRIBED, up_for_ms: 999_000 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(readings.readLatestReading()).toEqual({ kind: "not_read" });
+
+    answers[1]?.({ ...DESCRIBED, up_for_ms: 300 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(readings.readLatestReading()).toEqual({ kind: "read", description: { ...DESCRIBED, up_for_ms: 300 } });
+  });
+
   it("forgets what the last runtime said as the runtime's state changes, until the new one answers", async () => {
     vi.useFakeTimers();
     let answerTheRead: (description: RuntimeDescription) => void = () => {};
