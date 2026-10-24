@@ -39,6 +39,9 @@ Issue #40. Every frame is in [`add-stream/`](add-stream/).
 | `mock-09-macos-create-refused` | Mock | `&add=created&add_cli=missing`: the bar "Create was refused: This build of Tatolab has no tatolab command to run. Run tatolab new in a terminal instead." |
 | `mock-10-macos-runtime-stopped` | Mock | `state=stopped`: Compile and run disabled, the footer reading "The runtime isn't running, so it can't compile a stream." |
 | `mock-11-linux-project-folder` | Mock | `platform=linux`: Linux chrome, Ctrl K, and `/home/…` paths. |
+| `mock-12-macos-run-notice-running` | Mock | `?page=add-stream&add=away&add_run=warning`: Streams opened while the run compiled. Once it answered, `heat_map` is listed Running, and a notice at the bottom right reads "heat_map is running · 2 compile warnings: read them before you rely on this stream." in warn-text, with View and Dismiss. |
+| `mock-13-macos-run-notice-refused` | Mock | `&add_folder=taken`: the run refused while away. The notice reads "Compile and run was refused" and the runtime's words in danger-text; no `main-2` is listed. |
+| `mock-14-macos-run-notice-view-opens-the-result` (light) | Mock | View on the running notice: the Add stream done view of `heat_map`, with its 2 compile warnings and the compile output, and the notice gone. |
 
 ## The window as a design system built on shadcn (#51)
 
