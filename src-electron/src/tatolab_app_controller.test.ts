@@ -9,7 +9,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
 import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { failedWith, succeeded } from "./result.js";
-import { RunTatolabPreferenceFile } from "./run_tatolab_preference.js";
+import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { RuntimeRestartedForAppVersionFile } from "./runtime_restarted_for_app_version.js";
 import { MachineNameAskedOncePerRuntimeUpEpisode, TatolabAppController } from "./tatolab_app_controller.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
@@ -215,7 +215,7 @@ test("the restarted runtime gets the starting grace again", async () => {
 
 test("with Run Tatolab off nothing restarts, and the version is remembered", async () => {
   const appConfigDirectory = await aFreshAppConfigDirectory();
-  await RunTatolabPreferenceFile.inAppConfigDirectory(appConfigDirectory, createTatolabAppLog("error", () => {})).saveRunTatolab(false);
+  await RememberedSwitchFile.runTatolabInAppConfigDirectory(appConfigDirectory, createTatolabAppLog("error", () => {})).saveRememberedSwitch(false);
   const runtimeAgent = new FakeRuntimeAgentRegistration("not_registered");
   await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent)).restartTheBundledRuntimeIfTheAppChanged();
   expect(runtimeAgent.calls).toEqual([]);

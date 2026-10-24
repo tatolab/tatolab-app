@@ -8,7 +8,7 @@ import { afterEach, expect, test } from "vitest";
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
 import type { RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import { failedWith, succeeded, type Result } from "./result.js";
-import { RunTatolabPreferenceFile } from "./run_tatolab_preference.js";
+import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import {
   RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL,
   RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS,
@@ -84,8 +84,8 @@ afterEach(async () => {
 async function switchWith(agentStatus: RuntimeAgentRegistrationStatus, rememberedRunTatolab: boolean | null, appLaunchedAtMs = 0) {
   const configDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-config-"));
   temporaryConfigDirectories.push(configDirectory);
-  const preferenceFile = RunTatolabPreferenceFile.inAppConfigDirectory(configDirectory, quietTatolabAppLog);
-  if (rememberedRunTatolab !== null) await preferenceFile.saveRunTatolab(rememberedRunTatolab);
+  const preferenceFile = RememberedSwitchFile.runTatolabInAppConfigDirectory(configDirectory, quietTatolabAppLog);
+  if (rememberedRunTatolab !== null) await preferenceFile.saveRememberedSwitch(rememberedRunTatolab);
   const serviceManagement = new FakeServiceManagement(agentStatus);
   const runTatolabSwitch = await RunTatolabSwitch.load(serviceManagement, preferenceFile, appLaunchedAtMs, quietTatolabAppLog);
   return { runTatolabSwitch, serviceManagement, preferenceFile };
@@ -149,7 +149,7 @@ test("turning_the_switch_off_unregisters_the_agent_and_is_remembered", async () 
   expect(await underTest.runTatolabSwitch.setRunTatolab(false, true, 0)).toEqual({ kind: "unregistered" });
   expect(underTest.serviceManagement.calls).toEqual(["unregister"]);
   expect(underTest.serviceManagement.status).toBe("not_registered");
-  expect(await underTest.preferenceFile.loadRunTatolab()).toBe(false);
+  expect(await underTest.preferenceFile.loadRememberedSwitch()).toBe(false);
 });
 
 test("turning_the_switch_off_with_nothing_registered_calls_nothing", async () => {
@@ -163,7 +163,7 @@ test("turning_the_switch_back_on_registers_and_is_remembered", async () => {
   const underTest = await switchWith("not_registered", false);
 
   expect(await underTest.runTatolabSwitch.setRunTatolab(true, true, 0)).toEqual({ kind: "registered" });
-  expect(await underTest.preferenceFile.loadRunTatolab()).toBe(true);
+  expect(await underTest.preferenceFile.loadRememberedSwitch()).toBe(true);
 });
 
 test("toggling_flips_the_switch_and_reconciles_the_agent_each_time", async () => {
@@ -171,11 +171,11 @@ test("toggling_flips_the_switch_and_reconciles_the_agent_each_time", async () =>
 
   expect(await underTest.runTatolabSwitch.toggle(true, 0)).toEqual({ kind: "unregistered" });
   expect(underTest.runTatolabSwitch.runTatolab()).toBe(false);
-  expect(await underTest.preferenceFile.loadRunTatolab()).toBe(false);
+  expect(await underTest.preferenceFile.loadRememberedSwitch()).toBe(false);
 
   expect(await underTest.runTatolabSwitch.toggle(true, 0)).toEqual({ kind: "registered" });
   expect(underTest.runTatolabSwitch.runTatolab()).toBe(true);
-  expect(await underTest.preferenceFile.loadRunTatolab()).toBe(true);
+  expect(await underTest.preferenceFile.loadRememberedSwitch()).toBe(true);
   expect(underTest.serviceManagement.calls).toEqual(["unregister", "register", "start_if_not_running"]);
 });
 
@@ -184,7 +184,7 @@ test("toggling_on_before_machine_setup_remembers_on_and_registers_nothing", asyn
 
   expect(await underTest.runTatolabSwitch.toggle(false, 0)).toEqual({ kind: "waiting_for_machine_setup" });
   expect(underTest.runTatolabSwitch.runTatolab()).toBe(true);
-  expect(await underTest.preferenceFile.loadRunTatolab()).toBe(true);
+  expect(await underTest.preferenceFile.loadRememberedSwitch()).toBe(true);
   expect(underTest.serviceManagement.calls).toEqual([]);
 });
 
@@ -225,7 +225,7 @@ test("setting_the_switch_on_while_it_is_on_starts_an_enabled_agent_again", async
   const underTest = await switchWith("enabled", null);
 
   expect(await underTest.runTatolabSwitch.setRunTatolab(true, true, 0)).toEqual({ kind: "already_enabled" });
-  expect(await underTest.preferenceFile.loadRunTatolab()).toBe(true);
+  expect(await underTest.preferenceFile.loadRememberedSwitch()).toBe(true);
   expect(underTest.serviceManagement.calls).toEqual(["start_if_not_running"]);
 });
 

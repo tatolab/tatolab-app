@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { failedWith, succeeded, type Result } from "../../result.js";
-import { RunTatolabPreferenceFile } from "../../run_tatolab_preference.js";
+import { RememberedSwitchFile } from "../../remembered_switch_file.js";
 import { RunTatolabSwitch } from "../../run_tatolab_switch.js";
 import { createTatolabAppLog } from "../../tatolab_app_log.js";
 import {
@@ -122,7 +122,7 @@ async function switchOver(userSystemd: FakeUserSystemd): Promise<RunTatolabSwitc
   temporaryConfigDirectories.push(configDirectory);
   return RunTatolabSwitch.load(
     new SystemdUserRuntimeService(userSystemd, tatolabAppLog),
-    RunTatolabPreferenceFile.inAppConfigDirectory(configDirectory, tatolabAppLog),
+    RememberedSwitchFile.runTatolabInAppConfigDirectory(configDirectory, tatolabAppLog),
     performance.now(),
     tatolabAppLog,
   );

@@ -1,0 +1,117 @@
+// Copyright (c) 2025 Jonathan Fontanez
+// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+
+// A switch the app remembers between launches: one JSON file in the app's config directory with
+// one key, read as the switch's default when the file is absent or unreadable. "Run Tatolab" and
+// the stream-failure notifications are each one.
+
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { isAJsonObject, requiredTrueOrFalse } from "./json_on_the_wire.js";
+import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+import type { TatolabAppLog } from "./tatolab_app_log.js";
+
+/** The file "Run Tatolab" is remembered in, inside the app's config directory, under the name and key earlier builds wrote, so the switch survives an upgrade. */
+export const RUN_TATOLAB_PREFERENCE_FILE_NAME = "run-tatolab.json";
+
+/** The file the stream-failure notifications switch is remembered in, inside the app's config directory. */
+export const STREAM_FAILURE_NOTIFICATIONS_PREFERENCE_FILE_NAME = "stream-failure-notifications.json";
+
+/** One remembered switch: its file, its key, what it reads when nothing was remembered, and its name in the app's log. */
+interface RememberedSwitchSpecification {
+  fileName: string;
+  key: string;
+  valueWhenNotRemembered: boolean;
+  switchNameInTheLog: string;
+}
+
+const RUN_TATOLAB_SWITCH: RememberedSwitchSpecification = {
+  fileName: RUN_TATOLAB_PREFERENCE_FILE_NAME,
+  key: "run_tatolab",
+  valueWhenNotRemembered: true,
+  switchNameInTheLog: "the Run Tatolab preference",
+};
+
+const STREAM_FAILURE_NOTIFICATIONS_SWITCH: RememberedSwitchSpecification = {
+  fileName: STREAM_FAILURE_NOTIFICATIONS_PREFERENCE_FILE_NAME,
+  key: "notify_when_a_stream_fails",
+  valueWhenNotRemembered: true,
+  switchNameInTheLog: "the stream-failure notifications preference",
+};
+
+/** Reads and writes one remembered switch at one path. */
+export class RememberedSwitchFile {
+  private constructor(
+    private readonly preferenceFilePath: string,
+    private readonly rememberedSwitch: RememberedSwitchSpecification,
+    private readonly tatolabAppLog: TatolabAppLog,
+  ) {}
+
+  /** "Run Tatolab", remembered inside `appConfigDirectory`; on when nothing was remembered. */
+  static runTatolabInAppConfigDirectory(appConfigDirectory: string, tatolabAppLog: TatolabAppLog): RememberedSwitchFile {
+    return new RememberedSwitchFile(path.join(appConfigDirectory, RUN_TATOLAB_SWITCH.fileName), RUN_TATOLAB_SWITCH, tatolabAppLog);
+  }
+
+  /** Whether a stream failing shows a notification, remembered inside `appConfigDirectory`; on when nothing was remembered. */
+  static streamFailureNotificationsInAppConfigDirectory(appConfigDirectory: string, tatolabAppLog: TatolabAppLog): RememberedSwitchFile {
+    return new RememberedSwitchFile(
+      path.join(appConfigDirectory, STREAM_FAILURE_NOTIFICATIONS_SWITCH.fileName),
+      STREAM_FAILURE_NOTIFICATIONS_SWITCH,
+      tatolabAppLog,
+    );
+  }
+
+  /** The remembered switch; its default when nothing was remembered or the file cannot be read. */
+  async loadRememberedSwitch(): Promise<boolean> {
+    const { valueWhenNotRemembered, switchNameInTheLog } = this.rememberedSwitch;
+    const valueWhenNotRememberedWords = valueWhenNotRemembered ? "on" : "off";
+    let contents: string;
+    try {
+      contents = await readFile(this.preferenceFilePath, "utf8");
+    } catch (readFailure) {
+      if (isAMissingFileFailure(readFailure)) return valueWhenNotRemembered;
+      this.tatolabAppLog.warn(`${switchNameInTheLog} could not be read; treating it as ${valueWhenNotRememberedWords}`, {
+        path: this.preferenceFilePath,
+        failure: describeCaughtFailure(readFailure),
+      });
+      return valueWhenNotRemembered;
+    }
+    const remembered = rememberedSwitchFrom(contents, this.rememberedSwitch.key);
+    if (!remembered.ok) {
+      this.tatolabAppLog.warn(`${switchNameInTheLog} is malformed; treating it as ${valueWhenNotRememberedWords}`, {
+        path: this.preferenceFilePath,
+        failure: remembered.failure,
+      });
+      return valueWhenNotRemembered;
+    }
+    return remembered.value;
+  }
+
+  /** Remember the switch, replacing the file whole so a crash never leaves half of it. */
+  async saveRememberedSwitch(switchedOn: boolean): Promise<Result<void, string>> {
+    const contents = { [this.rememberedSwitch.key]: switchedOn };
+    const partiallyWrittenPath = `${this.preferenceFilePath}.partial`;
+    try {
+      await mkdir(path.dirname(this.preferenceFilePath), { recursive: true });
+      await writeFile(partiallyWrittenPath, JSON.stringify(contents, null, 2));
+      await rename(partiallyWrittenPath, this.preferenceFilePath);
+    } catch (writeFailure) {
+      return failedWith(describeCaughtFailure(writeFailure));
+    }
+    return succeeded(undefined);
+  }
+}
+
+function isAMissingFileFailure(caughtFailure: unknown): boolean {
+  return caughtFailure instanceof Error && "code" in caughtFailure && caughtFailure.code === "ENOENT";
+}
+
+function rememberedSwitchFrom(contents: string, key: string): Result<boolean, string> {
+  let parsedContents: unknown;
+  try {
+    parsedContents = JSON.parse(contents);
+  } catch (parseFailure) {
+    return failedWith(describeCaughtFailure(parseFailure));
+  }
+  return isAJsonObject(parsedContents) ? requiredTrueOrFalse(parsedContents, key) : failedWith(`missing field \`${key}\``);
+}

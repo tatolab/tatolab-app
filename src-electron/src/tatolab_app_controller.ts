@@ -25,7 +25,7 @@ import type { TatolabPlatformForThisBuild } from "./platform/mod.js";
 import type { BundledRuntimeRestart } from "./platform/runtime_agent_registration.js";
 import type { TatolabMachineSetup } from "./platform/tatolab_machine_setup.js";
 import type { Result } from "./result.js";
-import { RunTatolabPreferenceFile } from "./run_tatolab_preference.js";
+import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { RunTatolabSwitch, type RunTatolabReconciliation } from "./run_tatolab_switch.js";
 import { RuntimeRestartedForAppVersionFile } from "./runtime_restarted_for_app_version.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
@@ -96,7 +96,7 @@ export class TatolabAppController {
   static async create(sources: TatolabAppControllerSources): Promise<TatolabAppController> {
     const runTatolabSwitch = await RunTatolabSwitch.load(
       sources.platformForThisBuild.runtimeAgent,
-      RunTatolabPreferenceFile.inAppConfigDirectory(sources.appConfigDirectory, sources.tatolabAppLog),
+      RememberedSwitchFile.runTatolabInAppConfigDirectory(sources.appConfigDirectory, sources.tatolabAppLog),
       sources.appLaunchedAtMs,
       sources.tatolabAppLog,
     );

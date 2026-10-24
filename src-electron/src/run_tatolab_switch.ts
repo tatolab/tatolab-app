@@ -9,7 +9,7 @@
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
 import type { BundledRuntimeRestart, RuntimeAgentRegistration } from "./platform/runtime_agent_registration.js";
 import { failedWith, succeeded, type Result } from "./result.js";
-import type { RunTatolabPreferenceFile } from "./run_tatolab_preference.js";
+import type { RememberedSwitchFile } from "./remembered_switch_file.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { RuntimeHealthObservation } from "./tatolab_status.js";
 
@@ -66,7 +66,7 @@ export class RunTatolabSwitch {
 
   private constructor(
     private readonly runtimeAgent: RuntimeAgentRegistration,
-    private readonly preferenceFile: RunTatolabPreferenceFile,
+    private readonly preferenceFile: RememberedSwitchFile,
     private runTatolabSwitchedOn: boolean,
     private runtimeExpectedUpSinceMs: number,
     private readonly tatolabAppLog: TatolabAppLog,
@@ -75,11 +75,11 @@ export class RunTatolabSwitch {
   /** The switch as remembered in `preferenceFile`, driving `runtimeAgent`, as the app launches at `appLaunchedAtMs`. */
   static async load(
     runtimeAgent: RuntimeAgentRegistration,
-    preferenceFile: RunTatolabPreferenceFile,
+    preferenceFile: RememberedSwitchFile,
     appLaunchedAtMs: number,
     tatolabAppLog: TatolabAppLog,
   ): Promise<RunTatolabSwitch> {
-    const runTatolab = await preferenceFile.loadRunTatolab();
+    const runTatolab = await preferenceFile.loadRememberedSwitch();
     return new RunTatolabSwitch(runtimeAgent, preferenceFile, runTatolab, appLaunchedAtMs, tatolabAppLog);
   }
 
@@ -161,7 +161,7 @@ export class RunTatolabSwitch {
   /** Turn the switch on or off and remember it. On registers the agent once the machine is set up; off unregisters it, which stops the runtime. */
   async setRunTatolab(runTatolab: boolean, machineSetupComplete: boolean, nowMs: number): Promise<RunTatolabReconciliation> {
     this.runTatolabSwitchedOn = runTatolab;
-    const remembered = await this.preferenceFile.saveRunTatolab(runTatolab);
+    const remembered = await this.preferenceFile.saveRememberedSwitch(runTatolab);
     if (!remembered.ok) {
       this.tatolabAppLog.warn("the Run Tatolab switch could not be remembered", { failure: remembered.failure, run_tatolab: runTatolab });
     }
