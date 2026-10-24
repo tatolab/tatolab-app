@@ -69,6 +69,17 @@ export interface TatolabStatus {
   app_update: TatolabAppUpdateState;
 }
 
+/** What `describe_runtime` answers: the running runtime's version and build, how long it has been up, and the folder of its own log. */
+export interface RuntimeDescription {
+  version: string;
+  /** `<version>+<git sha>.<per-build nonce>`, which tells two builds of one version apart. */
+  build_id: string;
+  /** Monotonic milliseconds since this runtime's engine started; a restart starts it again from 0. */
+  up_for_ms: number;
+  /** The folder the runtime writes its own log to, absolute for `tatolabd`; `null` when it keeps none. */
+  runtime_log_directory: string | null;
+}
+
 /** One record of a stream's log, flattened by the backend from the runtime's JSONL record. */
 export interface StreamLogRecord {
   sequence: number;
