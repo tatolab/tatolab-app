@@ -107,6 +107,15 @@ function MachineWords({ children }: { children: ReactNode }) {
   return <code className="font-mono text-xs text-fg-2 select-text">{children}</code>;
 }
 
+/** A path on its own line under a row's words, so it never breaks after them. */
+function PathUnderTheWords({ children }: { children: ReactNode }) {
+  return (
+    <span className="block break-all">
+      <MachineWords>{children}</MachineWords>
+    </span>
+  );
+}
+
 function GeneralSection() {
   const { backend, platform, openUninstallSheet } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
@@ -205,7 +214,7 @@ function AppearanceSection() {
       <SettingsGroup>
         <SettingsRow
           label="Theme"
-          description="Light is the default. System follows your computer's appearance as it changes."
+          description="Light is the default."
           control={() => (
             <SegmentedChoiceControl
               label="Theme"
@@ -311,12 +320,7 @@ function RuntimeSection() {
           description={
             <>
               What tatolabd writes.
-              {runtimeLogFolder.folder !== null && (
-                <>
-                  {" "}
-                  <MachineWords>{runtimeLogFolder.folder}</MachineWords>
-                </>
-              )}
+              {runtimeLogFolder.folder !== null && <PathUnderTheWords>{runtimeLogFolder.folder}</PathUnderTheWords>}
             </>
           }
           refusal={openRuntimeLogFolder.refusal}
@@ -337,7 +341,8 @@ function RuntimeSection() {
           label="Stream records"
           description={
             <>
-              Each kept stream's record, which an uninstall leaves in place. <MachineWords>{streamRecordsDirectory}</MachineWords>
+              Each kept stream's record, which an uninstall leaves in place.
+              <PathUnderTheWords>{streamRecordsDirectory}</PathUnderTheWords>
             </>
           }
           control={() => <CopyIconButton label="Copy the stream records' folder" readTextToCopy={() => streamRecordsDirectory} />}

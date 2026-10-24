@@ -52,8 +52,11 @@ export class WindowAppearanceChoice {
     private readonly systemDarkPreference: SystemDarkPreference,
     private readonly documentElement: HTMLElement,
   ) {
-    this.chosenAppearance = windowAppearanceStored(readStoredValue(storage));
+    const storedAppearance = windowAppearanceStored(readStoredValue(storage));
     this.shownTheme = documentElement.classList.contains("dark") ? "dark" : "light";
+    // A page opened with `?theme=` shows that theme over the stored choice; the choice reads as what it shows.
+    this.chosenAppearance =
+      windowThemeShownFor(storedAppearance, systemDarkPreference.matches) === this.shownTheme ? storedAppearance : this.shownTheme;
     systemDarkPreference.addEventListener("change", () => {
       if (this.chosenAppearance === "system") this.showTheme(windowThemeShownFor("system", this.systemDarkPreference.matches));
     });

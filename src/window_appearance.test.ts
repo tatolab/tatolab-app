@@ -72,7 +72,13 @@ describe("the window's appearance", () => {
     const appearance = new WindowAppearanceChoice(storageHolding(null).storage, systemDarkPreferenceThatFlips(false).systemDarkPreference, documentElement);
 
     expect(appearance.readShownTheme()).toBe("dark");
+    expect(appearance.readChosenAppearance()).toBe("dark");
     expect(documentElement.classList.contains("dark")).toBe(true);
+
+    const systemShowingDark = document.createElement("html");
+    systemShowingDark.classList.add("dark");
+    const followingTheSystem = new WindowAppearanceChoice(storageHolding("system").storage, systemDarkPreferenceThatFlips(true).systemDarkPreference, systemShowingDark);
+    expect(followingTheSystem.readChosenAppearance()).toBe("system");
   });
 
   it("still shows a choice a page cannot keep", () => {
