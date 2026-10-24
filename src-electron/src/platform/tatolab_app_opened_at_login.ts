@@ -6,7 +6,7 @@
 // through its own agent either way.
 
 import type { TatolabAppOpenAtLogin } from "../../../src/backend/tatolab_backend_contract.js";
-import type { Result } from "../result.js";
+import { failedWith, type Result } from "../result.js";
 
 /** Why an unpackaged app does not offer to open at login: it runs from Electron's own bundle, which is not Tatolab. */
 export const UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL = "Only a packaged Tatolab opens at login.";
@@ -23,6 +23,6 @@ export interface TatolabAppOpenedAtLogin {
 export function tatolabAppNotOpenedAtLogin(reason: string): TatolabAppOpenedAtLogin {
   return {
     readOpenAtLogin: async () => ({ kind: "not_offered", reason }),
-    setOpenAtLogin: async () => ({ ok: false, failure: reason }),
+    setOpenAtLogin: async () => failedWith(reason),
   };
 }

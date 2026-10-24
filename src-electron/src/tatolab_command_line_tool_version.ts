@@ -7,12 +7,9 @@
 
 import type { TatolabCommandLineToolVersion } from "../../src/backend/tatolab_backend_contract.js";
 import type { TatolabCommandLineTool } from "./platform/mod.js";
-import { describeHowTheProgramEnded, programSucceeded, type ProgramCompletion } from "./platform/run_program_to_completion.js";
+import { describeHowTheProgramEnded, programSucceeded, type ProgramRunner } from "./platform/run_program_to_completion.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-
-/** Runs a program to its end, as `runProgramToCompletion` does; a test's fake answers as the CLI would. */
-export type ProgramRunToCompletion = (programPath: string, programArguments: readonly string[]) => Promise<Result<ProgramCompletion, string>>;
 
 /** The version on the first line of `tatolab --version`'s output, or why there is none. */
 export function commandLineToolVersionFromItsVersionOutput(standardOutput: string): Result<string, string> {
@@ -26,7 +23,7 @@ export class TatolabCommandLineToolVersionReadOncePerLaunch {
   private versionReadThisLaunch: TatolabCommandLineToolVersion;
 
   /** Start reading `tatolabCommandLineTool`'s version through `runProgram`; nothing runs where the build carries no CLI. */
-  constructor(tatolabCommandLineTool: TatolabCommandLineTool, runProgram: ProgramRunToCompletion, tatolabAppLog: TatolabAppLog) {
+  constructor(tatolabCommandLineTool: TatolabCommandLineTool, runProgram: ProgramRunner, tatolabAppLog: TatolabAppLog) {
     if (tatolabCommandLineTool.kind === "not_offered") {
       this.versionReadThisLaunch = { kind: "not_offered", reason: tatolabCommandLineTool.reason };
       return;
@@ -51,7 +48,7 @@ export class TatolabCommandLineToolVersionReadOncePerLaunch {
   }
 }
 
-async function readTheVersionOf(commandLineToolPath: string, runProgram: ProgramRunToCompletion): Promise<Result<string, string>> {
+async function readTheVersionOf(commandLineToolPath: string, runProgram: ProgramRunner): Promise<Result<string, string>> {
   const versionRun = await runProgram(commandLineToolPath, ["--version"]);
   if (!versionRun.ok) return versionRun;
   if (!programSucceeded(versionRun.value)) {

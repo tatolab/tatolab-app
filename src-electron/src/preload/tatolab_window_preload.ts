@@ -7,6 +7,7 @@ import {
   TATOLAB_COMMAND_NAMES,
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
+  isATatolabStreamPageRequest,
   type TatolabElectronBridge,
 } from "../../../src/backend/tatolab_electron_bridge_contract.js";
 
@@ -38,9 +39,7 @@ const tatolabElectronBridge: TatolabElectronBridge = {
   },
   onStreamPageRequested: (listener) => {
     const streamPageRequestedListener = (_streamPageRequestedEvent: IpcRendererEvent, streamPageRequest: unknown) => {
-      if (typeof streamPageRequest === "object" && streamPageRequest !== null && "stream" in streamPageRequest && typeof streamPageRequest.stream === "string") {
-        listener(streamPageRequest.stream);
-      }
+      if (isATatolabStreamPageRequest(streamPageRequest)) listener(streamPageRequest.stream);
     };
     ipcRenderer.on(TATOLAB_STREAM_PAGE_REQUESTED_EVENT, streamPageRequestedListener);
     return () => {

@@ -49,6 +49,11 @@ test("a_registration_macos_did_not_carry_out_or_electron_refused_is_refused", as
     failedWith("macOS did not add Tatolab to your login items. Add it in System Settings › General › Login Items."),
   );
 
+  const stillAwaitingApproval = new LoginItemOfTheAppBundle(fakeAppLoginItemSettings(() => "requires-approval").appLoginItemSettings);
+  expect(await stillAwaitingApproval.setOpenAtLogin(false)).toEqual(
+    failedWith("macOS did not remove Tatolab from your login items. Remove it in System Settings › General › Login Items."),
+  );
+
   const refused = new LoginItemOfTheAppBundle(fakeAppLoginItemSettings(() => "enabled", "Operation not permitted").appLoginItemSettings);
   expect(await refused.setOpenAtLogin(true)).toEqual(failedWith("Operation not permitted"));
 });

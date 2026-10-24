@@ -5,10 +5,12 @@
 // one key, read as the switch's default when the file is absent or unreadable. "Run Tatolab" and
 // the stream-failure notifications are each one.
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { replaceFileWhole } from "./file_replaced_whole.js";
+import { isAMissingFileFailure } from "./file_system_entries_on_this_machine.js";
 import { isAJsonObject, requiredTrueOrFalse } from "./json_on_the_wire.js";
-import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+import { describeCaughtFailure, failedWith, type Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 
 /** The file "Run Tatolab" is remembered in, inside the app's config directory, under the name and key earlier builds wrote, so the switch survives an upgrade. */
@@ -88,22 +90,9 @@ export class RememberedSwitchFile {
   }
 
   /** Remember the switch, replacing the file whole so a crash never leaves half of it. */
-  async saveRememberedSwitch(switchedOn: boolean): Promise<Result<void, string>> {
-    const contents = { [this.rememberedSwitch.key]: switchedOn };
-    const partiallyWrittenPath = `${this.preferenceFilePath}.partial`;
-    try {
-      await mkdir(path.dirname(this.preferenceFilePath), { recursive: true });
-      await writeFile(partiallyWrittenPath, JSON.stringify(contents, null, 2));
-      await rename(partiallyWrittenPath, this.preferenceFilePath);
-    } catch (writeFailure) {
-      return failedWith(describeCaughtFailure(writeFailure));
-    }
-    return succeeded(undefined);
+  saveRememberedSwitch(switchedOn: boolean): Promise<Result<void, string>> {
+    return replaceFileWhole(this.preferenceFilePath, JSON.stringify({ [this.rememberedSwitch.key]: switchedOn }, null, 2));
   }
-}
-
-function isAMissingFileFailure(caughtFailure: unknown): boolean {
-  return caughtFailure instanceof Error && "code" in caughtFailure && caughtFailure.code === "ENOENT";
 }
 
 function rememberedSwitchFrom(contents: string, key: string): Result<boolean, string> {

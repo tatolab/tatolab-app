@@ -52,12 +52,14 @@ export class LoginItemOfTheAppBundle implements TatolabAppOpenedAtLogin {
     if (!set.ok) return set;
     // Electron logs a refused registration rather than throwing it, so the status read back is what happened.
     const readBack = tatolabAppOpenAtLoginFrom(this.appLoginItemSettings.readAppLoginItem());
-    if (readBack.kind === "needs_approval_in_login_items") return succeeded(undefined);
-    if ((readBack.kind === "on") === openAtLogin) return succeeded(undefined);
-    return failedWith(
-      openAtLogin
-        ? "macOS did not add Tatolab to your login items. Add it in System Settings › General › Login Items."
-        : "macOS did not remove Tatolab from your login items. Remove it in System Settings › General › Login Items.",
-    );
+    if (openAtLogin) {
+      // A registration awaiting the person's approval in Login Items was carried out; the status says so.
+      return readBack.kind === "on" || readBack.kind === "needs_approval_in_login_items"
+        ? succeeded(undefined)
+        : failedWith("macOS did not add Tatolab to your login items. Add it in System Settings › General › Login Items.");
+    }
+    return readBack.kind === "off"
+      ? succeeded(undefined)
+      : failedWith("macOS did not remove Tatolab from your login items. Remove it in System Settings › General › Login Items.");
   }
 }

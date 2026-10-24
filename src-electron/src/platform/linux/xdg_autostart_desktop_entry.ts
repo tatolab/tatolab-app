@@ -6,10 +6,13 @@
 // Electron has no login-item settings on Linux. The app writes the entry when the person turns the
 // switch on and removes it when they turn it off; nothing else of theirs is touched.
 
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import type { TatolabAppOpenAtLogin } from "../../../../src/backend/tatolab_backend_contract.js";
+import { replaceFileWhole } from "../../file_replaced_whole.js";
+import { isAMissingFileFailure } from "../../file_system_entries_on_this_machine.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../../result.js";
+import type { TatolabAppLog } from "../../tatolab_app_log.js";
 import type { TatolabAppOpenedAtLogin } from "../tatolab_app_opened_at_login.js";
 
 /** The autostart entry's file name, matching the installed desktop entry's. */
@@ -56,9 +59,11 @@ export function autostartDesktopEntryOpensAtLogin(desktopEntryText: string): boo
 export class XdgAutostartDesktopEntry implements TatolabAppOpenedAtLogin {
   private readonly desktopEntryPath: string;
 
+  /** The entry in `autostartDirectory` opening `appProgramPath`, logging to `tatolabAppLog` an entry that cannot be read. */
   constructor(
     autostartDirectory: string,
     private readonly appProgramPath: string,
+    private readonly tatolabAppLog: TatolabAppLog,
   ) {
     this.desktopEntryPath = path.join(autostartDirectory, TATOLAB_AUTOSTART_DESKTOP_ENTRY_FILE_NAME);
   }
@@ -67,27 +72,33 @@ export class XdgAutostartDesktopEntry implements TatolabAppOpenedAtLogin {
     let desktopEntryText: string;
     try {
       desktopEntryText = await readFile(this.desktopEntryPath, "utf8");
-    } catch {
+    } catch (readFailure) {
+      if (!isAMissingFileFailure(readFailure)) {
+        this.tatolabAppLog.warn("the autostart entry could not be read; Open Tatolab at login reads as off", {
+          path: this.desktopEntryPath,
+          failure: describeCaughtFailure(readFailure),
+        });
+      }
       return { kind: "off" };
     }
     return autostartDesktopEntryOpensAtLogin(desktopEntryText) ? { kind: "on" } : { kind: "off" };
   }
 
-  async setOpenAtLogin(openAtLogin: boolean): Promise<Result<void, string>> {
+  setOpenAtLogin(openAtLogin: boolean): Promise<Result<void, string>> {
+    return openAtLogin ? this.writeTheAutostartEntry() : this.removeTheAutostartEntry();
+  }
+
+  private async writeTheAutostartEntry(): Promise<Result<void, string>> {
+    const written = await replaceFileWhole(this.desktopEntryPath, tatolabAutostartDesktopEntry(this.appProgramPath));
+    return written.ok ? written : failedWith(`Tatolab could not write ${this.desktopEntryPath}: ${written.failure}`);
+  }
+
+  private async removeTheAutostartEntry(): Promise<Result<void, string>> {
     try {
-      if (!openAtLogin) {
-        await rm(this.desktopEntryPath, { force: true });
-        return succeeded(undefined);
-      }
-      const partiallyWrittenPath = `${this.desktopEntryPath}.partial`;
-      await mkdir(path.dirname(this.desktopEntryPath), { recursive: true });
-      await writeFile(partiallyWrittenPath, tatolabAutostartDesktopEntry(this.appProgramPath));
-      await rename(partiallyWrittenPath, this.desktopEntryPath);
-      return succeeded(undefined);
-    } catch (writeFailure) {
-      return failedWith(
-        `${openAtLogin ? "Tatolab could not write" : "Tatolab could not remove"} ${this.desktopEntryPath}: ${describeCaughtFailure(writeFailure)}`,
-      );
+      await rm(this.desktopEntryPath, { force: true });
+    } catch (removalFailure) {
+      return failedWith(`Tatolab could not remove ${this.desktopEntryPath}: ${describeCaughtFailure(removalFailure)}`);
     }
+    return succeeded(undefined);
   }
 }

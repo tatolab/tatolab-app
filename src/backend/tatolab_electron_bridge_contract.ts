@@ -62,8 +62,18 @@ export type TatolabCommandName = (typeof TATOLAB_COMMAND_NAMES)[number];
 /** The event each status change, and the status again each time the window is shown, arrives on; it carries a `TatolabStatus`. */
 export const TATOLAB_STATUS_CHANGED_EVENT = "tatolab-status-changed";
 
-/** The event the app asks the window to show a stream's page on, as a click on that stream's failure notification does; it carries `{ stream }`. */
+/** The event the app asks the window to show a stream's page on, as a click on that stream's failure notification does; it carries a `TatolabStreamPageRequest`. */
 export const TATOLAB_STREAM_PAGE_REQUESTED_EVENT = "tatolab-stream-page-requested";
+
+/** What `tatolab-stream-page-requested` carries: the stream whose page to show. */
+export interface TatolabStreamPageRequest {
+  stream: string;
+}
+
+/** Whether an event's payload is a `TatolabStreamPageRequest`. */
+export function isATatolabStreamPageRequest(eventPayload: unknown): eventPayload is TatolabStreamPageRequest {
+  return typeof eventPayload === "object" && eventPayload !== null && "stream" in eventPayload && typeof eventPayload.stream === "string";
+}
 
 /** What a command answers: its answer (`null` for a command that answers nothing), or a refusal in words, which the window shows as it is. A command never answers with a thrown error. */
 export type TatolabCommandAnswer = { ok: true; value: unknown } | { ok: false; refusal: string };

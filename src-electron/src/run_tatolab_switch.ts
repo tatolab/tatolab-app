@@ -7,7 +7,7 @@
 // app runs, the switch on also starts an enabled agent whose runtime the poller finds down.
 
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
-import type { BundledRuntimeRestart, RuntimeAgentRegistration } from "./platform/runtime_agent_registration.js";
+import type { BundledRuntimeRestart, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import type { RememberedSwitchFile } from "./remembered_switch_file.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
@@ -299,7 +299,7 @@ export class RunTatolabSwitch {
     }
     const started = await this.runtimeAgent.startRuntimeAgentIfNotRunning();
     if (started.ok) return started;
-    const startFailure = started.failure.kind === "refused" ? started.failure.refusal : "the service manager holds no job for it";
+    const startFailure = describeRuntimeAgentStartFailure(started.failure);
     this.tatolabAppLog.warn("the runtime's agent could not be started after registering it again", { start_failure: startFailure });
     return failedWith(`The runtime's agent was registered again but could not be started: ${startFailure}`);
   }
@@ -312,5 +312,15 @@ export class RunTatolabSwitch {
       this.loginItemsSettingsOpenedThisLaunch = true;
     }
     return { kind: "needs_approval_in_login_items", openedLoginItemsSettings };
+  }
+}
+
+/** A start the service manager did not carry out, in words. */
+function describeRuntimeAgentStartFailure(startFailure: RuntimeAgentStartFailure): string {
+  switch (startFailure.kind) {
+    case "no_job_for_the_registered_agent":
+      return "the service manager holds no job for it";
+    case "refused":
+      return startFailure.refusal;
   }
 }

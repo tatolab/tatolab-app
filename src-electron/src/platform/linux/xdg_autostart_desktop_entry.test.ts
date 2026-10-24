@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { succeeded } from "../../result.js";
+import { createTatolabAppLog } from "../../tatolab_app_log.js";
 import {
   autostartDesktopEntryOpensAtLogin,
   desktopEntryExecArgument,
@@ -14,6 +15,7 @@ import {
 } from "./xdg_autostart_desktop_entry.js";
 
 const temporaryDirectories: string[] = [];
+const quietTatolabAppLog = createTatolabAppLog("error", () => {});
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
@@ -40,7 +42,7 @@ test("a_program_path_is_one_exec_argument_quoted_and_escaped_only_where_the_spec
 
 test("turning_it_on_writes_an_entry_that_opens_the_app_and_off_removes_it", async () => {
   const autostartDirectory = path.join(await temporaryConfigHome(), "autostart");
-  const autostartEntry = new XdgAutostartDesktopEntry(autostartDirectory, "/home/u/Apps/Tatolab.AppImage");
+  const autostartEntry = new XdgAutostartDesktopEntry(autostartDirectory, "/home/u/Apps/Tatolab.AppImage", quietTatolabAppLog);
   expect(await autostartEntry.readOpenAtLogin()).toEqual({ kind: "off" });
 
   expect(await autostartEntry.setOpenAtLogin(true)).toEqual(succeeded(undefined));
@@ -62,13 +64,13 @@ test("an_entry_the_desktop_was_told_to_skip_reads_off", async () => {
   const autostartDirectory = path.join(await temporaryConfigHome(), "autostart");
   await mkdir(autostartDirectory);
   await writeFile(path.join(autostartDirectory, "Tatolab.desktop"), "[Desktop Entry]\nExec=Tatolab\nHidden=true\n");
-  expect(await new XdgAutostartDesktopEntry(autostartDirectory, "/usr/lib/tatolab/Tatolab").readOpenAtLogin()).toEqual({ kind: "off" });
+  expect(await new XdgAutostartDesktopEntry(autostartDirectory, "/usr/lib/tatolab/Tatolab", quietTatolabAppLog).readOpenAtLogin()).toEqual({ kind: "off" });
 });
 
 test.skipIf(process.getuid?.() === 0)("an_entry_that_cannot_be_written_is_refused_naming_where_and_why", async () => {
   const configHome = await temporaryConfigHome();
   await chmod(configHome, 0o500);
-  const set = await new XdgAutostartDesktopEntry(path.join(configHome, "autostart"), "/usr/lib/tatolab/Tatolab").setOpenAtLogin(true);
+  const set = await new XdgAutostartDesktopEntry(path.join(configHome, "autostart"), "/usr/lib/tatolab/Tatolab", quietTatolabAppLog).setOpenAtLogin(true);
   await chmod(configHome, 0o700);
 
   expect(!set.ok && set.failure.startsWith(`Tatolab could not write ${path.join(configHome, "autostart", "Tatolab.desktop")}: `)).toBe(true);

@@ -28,6 +28,9 @@ export function describeHowTheProgramEnded(programCompletion: ProgramCompletion)
   return endingSignalNumber === undefined ? `signal: ${endingSignal}` : `signal: ${endingSignalNumber} (${endingSignal})`;
 }
 
+/** Runs a program to its end, as `runProgramToCompletion` does; a test's fake answers as the program would. */
+export type ProgramRunner = (programPath: string, programArguments: readonly string[]) => Promise<Result<ProgramCompletion, string>>;
+
 /** Run `programPath` with `programArguments`, never through a shell, until it ends; refused only when it could not be started or run to its end. */
 export function runProgramToCompletion(
   programPath: string,

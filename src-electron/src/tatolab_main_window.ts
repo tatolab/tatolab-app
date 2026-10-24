@@ -6,7 +6,11 @@
 // Dock icon shows only while the window does.
 
 import type { TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
-import { TATOLAB_STATUS_CHANGED_EVENT, TATOLAB_STREAM_PAGE_REQUESTED_EVENT } from "../../src/backend/tatolab_electron_bridge_contract.js";
+import {
+  TATOLAB_STATUS_CHANGED_EVENT,
+  TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
+  type TatolabStreamPageRequest,
+} from "../../src/backend/tatolab_electron_bridge_contract.js";
 import type { Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { DockIconHost, MainWindowChrome, TatolabPlatformItems } from "./platform/mod.js";
@@ -75,7 +79,8 @@ export class TatolabMainWindow {
   /** Show the window on `streamName`'s page, as a click on its failure notification asks. */
   showTheStreamsPage(streamName: string): void {
     this.show();
-    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STREAM_PAGE_REQUESTED_EVENT, { stream: streamName });
+    const streamPageRequest: TatolabStreamPageRequest = { stream: streamName };
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STREAM_PAGE_REQUESTED_EVENT, streamPageRequest);
   }
 
   /** Let the window close, rather than hide, from here on: the app is quitting. */
