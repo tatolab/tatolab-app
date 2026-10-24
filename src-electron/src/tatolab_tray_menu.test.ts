@@ -55,6 +55,7 @@ function statusWith(
     command_line_tool_linked_at: null,
     app_update: appUpdate,
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
+    stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
   };
 }
 

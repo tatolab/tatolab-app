@@ -53,6 +53,12 @@ export type TatolabAppUpdateState =
   | { kind: "installing"; version: string }
   | { kind: "failed"; refusal: string };
 
+/** Notifications when a stream fails: whether the person wants them, and whether this desktop shows notifications at all. */
+export interface StreamFailureNotificationsState {
+  enabled: boolean;
+  shown_by_this_desktop: boolean;
+}
+
 /** What `get_tatolab_status` answers and `tatolab-status-changed` carries. */
 export interface TatolabStatus {
   app_version: string;
@@ -69,6 +75,7 @@ export interface TatolabStatus {
   app_update: TatolabAppUpdateState;
   /** The socket this build reads the runtime's local API at. */
   local_api_socket: string;
+  stream_failure_notifications: StreamFailureNotificationsState;
 }
 
 /** What `describe_runtime` answers: the running runtime's version and build, how long it has been up, and the folder of its own log. */

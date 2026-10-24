@@ -63,6 +63,7 @@ async function controllerOverFakes(
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   return { controller, runtimeAgent, machineSetup, localApiServer };
@@ -83,7 +84,8 @@ test("a healthy runtime's status names its streams and machine, read as the wind
     '{"app_version":"0.45.0","platform":"macos","run_tatolab":true,"runtime_agent":"enabled","runtime_state":"running",' +
       '"machine_name":"jonathanf-macbook","streams":[{"name":"main","state":"kept","project_directory":"/p","node_count":4,"failed_because":null}],' +
       '"machine_setup_state":"needs_administrator","command_line_tool_linked_at":null,"app_update":{"kind":"not_checked"},' +
-      `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)}}`,
+      `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
+      '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true}}',
   );
 });
 
@@ -130,6 +132,7 @@ test("a tray toggle and a window request run in turn, never interleaved", async 
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
 
@@ -164,6 +167,7 @@ async function controllerAtAppVersion(appVersion: string, appConfigDirectory: st
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
 }
@@ -205,6 +209,7 @@ test("the restarted runtime gets the starting grace again", async () => {
     readMonotonicClockMs: () => nowMs,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   nowMs = 60_000;
@@ -247,6 +252,7 @@ test("before the machine is set up nothing restarts, and the restart waits for a
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   await controllerBeforeSetup.restartTheBundledRuntimeIfTheAppChanged();
@@ -275,6 +281,7 @@ test("each status carries where updates stand", async () => {
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   expect((await controller.composeStatus(0)).app_update).toEqual({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" });

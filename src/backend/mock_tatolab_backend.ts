@@ -226,6 +226,7 @@ function initialMockStatus(
     command_line_tool_linked_at: machine.commandLineToolLinkedAt,
     app_update: initialMockAppUpdateState(appUpdateScenario),
     local_api_socket: machine.localApiSocket,
+    stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
   };
   switch (scenario) {
     case "running":
@@ -830,6 +831,11 @@ export function createMockTatolabBackend({
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       if (doesTheRuntimeKeepNoOwnLog) throw "The runtime keeps no log of its own, so there is no folder to open.";
     },
+    setStreamFailureNotifications: async (enabled) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      publishStatus({ stream_failure_notifications: { ...mockStatus.stream_failure_notifications, enabled } });
+    },
+    onStreamPageRequested: () => () => {},
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);
       return () => statusListeners.delete(statusListener);

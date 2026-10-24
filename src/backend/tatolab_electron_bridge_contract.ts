@@ -44,10 +44,11 @@ export const TATOLAB_COMMAND_NAMES = [
   "describe_runtime",
   "restart_runtime",
   "open_runtime_log_folder",
+  "set_stream_failure_notifications",
 ] as const;
 
 /**
- * One command the window invokes. Arguments: `set_run_tatolab` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`,
+ * One command the window invokes. Arguments: `set_run_tatolab` and `set_stream_failure_notifications` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`,
  * `start_stream`, `remove_stream`, `open_stream_project_folder` and `open_stream_log_folder` `{ stream }`, `open_terminal_at_stream_project` `{ stream }` or
  * `{ folder }`, `choose_stream_project_folder` `{ chosen_for }`, `check_stream_project_folder` and `create_stream_project` `{ folder }`, `run_stream_project`
  * `{ folder, stream_function, name }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
@@ -59,6 +60,9 @@ export type TatolabCommandName = (typeof TATOLAB_COMMAND_NAMES)[number];
 
 /** The event each status change, and the status again each time the window is shown, arrives on; it carries a `TatolabStatus`. */
 export const TATOLAB_STATUS_CHANGED_EVENT = "tatolab-status-changed";
+
+/** The event the app asks the window to show a stream's page on, as a click on that stream's failure notification does; it carries `{ stream }`. */
+export const TATOLAB_STREAM_PAGE_REQUESTED_EVENT = "tatolab-stream-page-requested";
 
 /** What a command answers: its answer (`null` for a command that answers nothing), or a refusal in words, which the window shows as it is. A command never answers with a thrown error. */
 export type TatolabCommandAnswer = { ok: true; value: unknown } | { ok: false; refusal: string };
@@ -92,6 +96,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   describe_runtime: { commandArguments: undefined; answer: RuntimeDescription };
   restart_runtime: { commandArguments: undefined; answer: null };
   open_runtime_log_folder: { commandArguments: undefined; answer: null };
+  /** Refused when the choice could not be remembered, though it holds until the app quits. */
+  set_stream_failure_notifications: { commandArguments: { enabled: boolean }; answer: null };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */
@@ -107,4 +113,6 @@ export interface TatolabElectronBridge {
   ): Promise<TatolabCommandAnswerTo<CommandName>>;
   /** Calls `listener` with each status the main process sends; the returned function stops it. */
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): () => void;
+  /** Calls `listener` with the stream each request to show a stream's page names; the returned function stops it. */
+  onStreamPageRequested(listener: (streamName: string) => void): () => void;
 }

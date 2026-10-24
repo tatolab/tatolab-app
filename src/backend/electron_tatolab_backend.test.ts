@@ -19,6 +19,7 @@ type FakeCommandAnswers = Partial<{ [CommandName in TatolabCommandName]: Tatolab
 function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
   const invokedCommands: [TatolabCommandName, unknown][] = [];
   const statusListeners = new Set<(status: TatolabStatus) => void>();
+  const streamPageRequestListeners = new Set<(streamName: string) => void>();
   const tatolabElectronBridge: TatolabElectronBridge = {
     async invokeTatolabCommand<CommandName extends TatolabCommandName>(
       commandName: CommandName,
@@ -31,8 +32,12 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
       statusListeners.add(listener);
       return () => statusListeners.delete(listener);
     },
+    onStreamPageRequested(listener) {
+      streamPageRequestListeners.add(listener);
+      return () => streamPageRequestListeners.delete(listener);
+    },
   };
-  return { tatolabElectronBridge, invokedCommands, statusListeners };
+  return { tatolabElectronBridge, invokedCommands, statusListeners, streamPageRequestListeners };
 }
 
 async function aTatolabStatus(): Promise<TatolabStatus> {
@@ -187,5 +192,20 @@ describe("createElectronTatolabBackend", () => {
     fakeBridge.statusListeners.forEach((statusListener) => statusListener(tatolabStatus));
 
     expect(heardStatuses).toEqual([tatolabStatus]);
+  });
+
+  it("sends the stream-failure notifications switch, and hands each stream page request to the listener until it stops listening", async () => {
+    const fakeBridge = fakeTatolabElectronBridge({ set_stream_failure_notifications: { ok: true, value: null } });
+    const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
+    const requestedStreams: string[] = [];
+
+    await backend.setStreamFailureNotifications(false);
+    const stopListening = backend.onStreamPageRequested((streamName) => requestedStreams.push(streamName));
+    fakeBridge.streamPageRequestListeners.forEach((streamPageRequestListener) => streamPageRequestListener("camera"));
+    stopListening();
+    fakeBridge.streamPageRequestListeners.forEach((streamPageRequestListener) => streamPageRequestListener("main"));
+
+    expect(fakeBridge.invokedCommands).toEqual([["set_stream_failure_notifications", { enabled: false }]]);
+    expect(requestedStreams).toEqual(["camera"]);
   });
 });

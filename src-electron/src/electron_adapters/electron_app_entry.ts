@@ -19,7 +19,7 @@ import { askThePersonForAStreamProjectFolderThroughElectron } from "./electron_s
 import { createElectronMainWindowHostFactory } from "./electron_main_window_host.js";
 import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_handlers.js";
 import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
-import { createElectronTatolabAppUpdateNotifier } from "./electron_tatolab_app_update_notifier.js";
+import { createElectronSystemNotifications } from "./electron_system_notifications.js";
 import { ELECTRON_TATOLAB_UNINSTALL_APP_SURFACE } from "./electron_tatolab_uninstall_app_surface.js";
 import { createElectronTrayIconHostFactory } from "./electron_tray_icon.js";
 import { registerTheWindowPageSchemeBeforeReady, serveTheBuiltWindow } from "./electron_window_page_protocol.js";
@@ -79,7 +79,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   askThePersonForAStreamProjectFolder: askThePersonForAStreamProjectFolderThroughElectron,
   homeDirectory: app.getPath("home"),
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
-  createTheAppUpdateNotifier: createElectronTatolabAppUpdateNotifier,
+  systemNotifications: createElectronSystemNotifications(),
   repeatingTimer: (intervalMs, work) => {
     setInterval(work, intervalMs);
   },

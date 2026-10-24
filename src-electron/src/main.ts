@@ -19,7 +19,10 @@ import {
 } from "./tatolab_app_shared_state.js";
 import { tatolabWindowCommandHandlers, type TatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import { TatolabMainWindow, type MainWindowHostFactory } from "./tatolab_main_window.js";
-import { TatolabAppUpdater, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild, type TatolabAppUpdateNotifier } from "./tatolab_app_updater.js";
+import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
+import { RememberedSwitchFile } from "./remembered_switch_file.js";
+import { StreamFailureNotifications } from "./stream_failure_notifications.js";
+import type { SystemNotifications } from "./system_notifications.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "./tatolab_tray_menu.js";
 import type { Result } from "./result.js";
@@ -50,8 +53,8 @@ export interface TatolabElectronAppShell {
   homeDirectory: string;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
   createTheAppUpdateFeed(appUpdatePackaging: TatolabAppUpdatePackaging): TatolabAppUpdateFeedForThisBuild;
-  /** The system notifications about updates; clicking one calls `onNotificationClicked`. */
-  createTheAppUpdateNotifier(onNotificationClicked: () => void): TatolabAppUpdateNotifier;
+  /** The desktop's notifications, which updates and failing streams are told through. */
+  systemNotifications: SystemNotifications;
   /** The timer the daily update check repeats on. */
   repeatingTimer: RepeatingTimer;
   /** The app's own config directory, where "Run Tatolab" is remembered. */
@@ -114,11 +117,20 @@ export async function startTatolabApp(
   let statusPublisherOnceBuilt: TatolabStatusPublisher | null = null;
   const tatolabAppUpdater = new TatolabAppUpdater(
     tatolabElectronAppShell.createTheAppUpdateFeed(platformForThisBuild.appUpdatePackaging),
-    tatolabElectronAppShell.createTheAppUpdateNotifier(() => {
+    tatolabAppUpdateNotifierOver(tatolabElectronAppShell.systemNotifications, () => {
       tatolabMainWindow.show();
       statusPublisherOnceBuilt?.sendTheLastPublishedStatusToTheWindow();
     }),
     () => statusPublisherOnceBuilt?.requestRefresh(),
+    tatolabAppLog,
+  );
+  const streamFailureNotifications = await StreamFailureNotifications.load(
+    RememberedSwitchFile.streamFailureNotificationsInAppConfigDirectory(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
+    tatolabElectronAppShell.systemNotifications,
+    (streamName) => {
+      tatolabMainWindow.showTheStreamsPage(streamName);
+      statusPublisherOnceBuilt?.sendTheLastPublishedStatusToTheWindow();
+    },
     tatolabAppLog,
   );
   const controller = await TatolabAppController.create({
@@ -130,6 +142,7 @@ export async function startTatolabApp(
     runtimeLoopbackHttpOrigin: tatolabElectronAppShell.runtimeLoopbackHttpOrigin,
     readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     readTheAppUpdateState: () => tatolabAppUpdater.state(),
+    readStreamFailureNotifications: () => streamFailureNotifications.stateNow(),
     tatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(
@@ -139,6 +152,7 @@ export async function startTatolabApp(
     tatolabAppLog,
   );
   statusPublisherOnceBuilt = statusPublisher;
+  statusPublisher.attachStreamFailureNotifications(streamFailureNotifications);
   tatolabElectronAppShell.onTheAppQuitting(() => statusPublisher.stopPolling());
   const sharedState: TatolabAppSharedState = {
     controller,
@@ -158,6 +172,7 @@ export async function startTatolabApp(
       runProgramToCompletion,
       streamRunsOnTheRuntime: controller,
     }),
+    streamFailureNotifications,
     tatolabAppLog,
   };
   const quitTheApp = () => quitTheTatolabApp(tatolabMainWindow, (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode), tatolabAppLog);

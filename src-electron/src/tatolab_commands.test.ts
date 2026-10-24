@@ -14,7 +14,10 @@ import {
   FakeTerminalOpenedInAFolder,
   fakeTatolabPlatformForThisBuild,
 } from "./fake_tatolab_platform_for_this_build.js";
+import { FakeSystemNotifications } from "./fake_system_notifications.js";
+import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { failedWith, succeeded } from "./result.js";
+import { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import { RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL } from "./run_tatolab_switch.js";
 import { RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL } from "./runtime_log_folder_opening.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
@@ -27,9 +30,9 @@ import {
   describeStreamGraph,
   getTatolabStatus,
   readStreamLogRecords,
+  enabledArgumentsFrom,
   readStreamLogRecordsArgumentsFrom,
   runStreamAction,
-  setRunTatolabArgumentsFrom,
   streamArgumentsFrom,
   setUpTatolab,
   tatolabWindowCommandHandlers,
@@ -61,6 +64,7 @@ async function sharedStateOverFakes(
     terminal: FakeTerminalOpenedInAFolder;
     foldersShownInTheFileManager: string[];
     localApiSocketPath: string;
+    systemNotifications: FakeSystemNotifications;
   }
 > {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
@@ -87,6 +91,7 @@ async function sharedStateOverFakes(
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);
@@ -97,6 +102,13 @@ async function sharedStateOverFakes(
     quietTatolabAppLog,
   );
   const foldersShownInTheFileManager: string[] = [];
+  const systemNotifications = new FakeSystemNotifications();
+  const streamFailureNotifications = await StreamFailureNotifications.load(
+    RememberedSwitchFile.streamFailureNotificationsInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog),
+    systemNotifications,
+    () => {},
+    quietTatolabAppLog,
+  );
   return {
     controller,
     statusPublisher,
@@ -124,6 +136,8 @@ async function sharedStateOverFakes(
     terminal,
     foldersShownInTheFileManager,
     localApiSocketPath: localApiServer.localApiSocketPath,
+    streamFailureNotifications,
+    systemNotifications,
   };
 }
 
@@ -153,7 +167,8 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '{"name":"main","state":"kept","project_directory":"/private/tmp/x/pattern",' +
       '"node_count":4,"failed_because":null}],"machine_setup_state":"complete",' +
       '"command_line_tool_linked_at":"/usr/local/bin/tatolab","app_update":{"kind":"not_checked"},' +
-      `"local_api_socket":${JSON.stringify(runningRuntime.localApiSocketPath)}}`,
+      `"local_api_socket":${JSON.stringify(runningRuntime.localApiSocketPath)},` +
+      '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true}}',
   );
   const runtimeThatIsDown = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux", null);
   runtimeThatIsDown.machineSetup.machineSetupState = "needs_administrator";
@@ -162,7 +177,8 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"runtime_agent":"enabled","runtime_state":"starting","machine_name":null,' +
       '"streams":null,"machine_setup_state":"needs_administrator",' +
       '"command_line_tool_linked_at":null,"app_update":{"kind":"not_checked"},' +
-      `"local_api_socket":${JSON.stringify(runtimeThatIsDown.localApiSocketPath)}}`,
+      `"local_api_socket":${JSON.stringify(runtimeThatIsDown.localApiSocketPath)},` +
+      '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true}}',
   );
 
   const page = streamLogRecordsPageFromTheLogsToolResult(
@@ -273,9 +289,9 @@ test("Set Up Tatolab is refused at once where the platform has no machine setup"
 });
 
 test("a command's arguments are read as the window sends them, and anything else is refused", () => {
-  expect(setRunTatolabArgumentsFrom({ enabled: false })).toEqual(succeeded({ enabled: false }));
-  expect(setRunTatolabArgumentsFrom({ enabled: "yes" }).ok).toBe(false);
-  expect(setRunTatolabArgumentsFrom(null).ok).toBe(false);
+  expect(enabledArgumentsFrom("set_run_tatolab", { enabled: false })).toEqual(succeeded({ enabled: false }));
+  expect(enabledArgumentsFrom("set_run_tatolab", { enabled: "yes" }).ok).toBe(false);
+  expect(enabledArgumentsFrom("set_run_tatolab", null).ok).toBe(false);
   expect(readStreamLogRecordsArgumentsFrom({ stream: "main", after: 79 })).toEqual(succeeded({ stream: "main", after: 79 }));
   expect(readStreamLogRecordsArgumentsFrom({ stream: "main", after: -1 }).ok).toBe(false);
   expect(readStreamLogRecordsArgumentsFrom({ stream: 7, after: 0 }).ok).toBe(false);
@@ -506,4 +522,18 @@ test("opening_the_runtimes_log_folder_opens_the_folder_the_runtime_names_and_nev
   expect(await commandHandlers.open_runtime_log_folder({ folder: "/etc" })).toEqual({ ok: true, value: null });
   expect(await commandHandlers.open_runtime_log_folder(undefined)).toEqual({ ok: false, refusal: RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL });
   expect(sharedState.foldersShownInTheFileManager).toEqual([runtimeLogFolder]);
+});
+
+test("turning_stream_failure_notifications_off_is_remembered_shown_in_the_next_status_and_refuses_anything_but_true_or_false", async () => {
+  const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "macos", null);
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await commandHandlers.set_stream_failure_notifications({ enabled: false })).toEqual({ ok: true, value: null });
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
+  expect(sharedState.streamFailureNotifications.stateNow()).toEqual({ enabled: false, shown_by_this_desktop: true });
+  expect(await commandHandlers.set_stream_failure_notifications({ enabled: "no" })).toEqual({
+    ok: false,
+    refusal: "set_stream_failure_notifications needs `enabled`, true or false",
+  });
 });

@@ -148,6 +148,20 @@ describe("the window's shell", () => {
     expect(document.querySelector("[data-stream-page] [data-hosted-dom-page]")).toBeNull();
   });
 
+  it("opens the stream a failure notification names when the app asks", async () => {
+    let requestStreamPage: (streamName: string) => void = () => {};
+    await mountedWindowOverTheMock("state=running", {
+      onStreamPageRequested: (listener) => {
+        requestStreamPage = listener;
+        return () => {};
+      },
+    });
+
+    await act(async () => requestStreamPage("lobby-recorder"));
+
+    await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("lobby-recorder"));
+  });
+
   it("keeps the person's theme choice", async () => {
     await mountedWindowOverTheMock("state=running");
 

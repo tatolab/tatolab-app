@@ -77,6 +77,7 @@ test("the published status walks starting, running, starting, unreachable and st
     readMonotonicClockMs,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusesSentToTheWindow: TatolabStatus[] = [];
@@ -123,6 +124,7 @@ test("the window asking before the first round waits for it, and hears nothing w
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);

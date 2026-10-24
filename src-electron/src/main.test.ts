@@ -253,7 +253,7 @@ describe("updating the app", () => {
     fakeShell.appUpdateFeedForThisBuild = { kind: "offered", feed };
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await expect.poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "notify")).toEqual([
-      { asked: "notify", notification: "Tatolab 0.47.0 is available" },
+      { asked: "notify", title: "Tatolab 0.47.0 is available", body: "Choose Check for Updates… or open Settings to install it." },
     ]);
     expect(fakeShell.records).toContainEqual({ asked: "repeat_every", intervalMs: APP_UPDATE_CHECK_INTERVAL_MS });
     await expect

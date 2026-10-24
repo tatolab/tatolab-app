@@ -6,6 +6,7 @@
 // Check for Updates… in the tray or its button in Settings, either of which is the confirmation.
 // Every state reaches the tray and the window as the status's `app_update`.
 
+import type { SystemNotifications } from "./system_notifications.js";
 import type { TatolabAppUpdateDelivery, TatolabAppUpdateState } from "../../src/backend/tatolab_backend_contract.js";
 import { describeCaughtFailure, type Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
@@ -41,6 +42,16 @@ export interface TatolabAppUpdateNotifier {
   notifyANewerVersionIsAvailable(version: string): void;
   notifyTheAppIsUpToDate(): void;
   notifyTheUpdateFailed(refusal: string): void;
+}
+
+/** The update notifications, over the desktop's `systemNotifications`; clicking one calls `onNotificationClicked`. */
+export function tatolabAppUpdateNotifierOver(systemNotifications: SystemNotifications, onNotificationClicked: () => void): TatolabAppUpdateNotifier {
+  return {
+    notifyANewerVersionIsAvailable: (version) =>
+      systemNotifications.showNotification(`Tatolab ${version} is available`, "Choose Check for Updates… or open Settings to install it.", onNotificationClicked),
+    notifyTheAppIsUpToDate: () => systemNotifications.showNotification("Tatolab is up to date", "No newer version is available.", onNotificationClicked),
+    notifyTheUpdateFailed: (refusal) => systemNotifications.showNotification("Tatolab couldn't update", refusal, onNotificationClicked),
+  };
 }
 
 /** Where a check the person chose was chosen: the tray, whose outcome only a notification shows, or the window, where Settings shows it. */

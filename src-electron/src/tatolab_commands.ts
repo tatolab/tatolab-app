@@ -185,10 +185,19 @@ export function openRuntimeLogFolder(sharedState: TatolabAppSharedState): Promis
   );
 }
 
-/** `set_run_tatolab`'s arguments as the window sends them, or why they are not. */
-export function setRunTatolabArgumentsFrom(commandArguments: unknown): Result<{ enabled: boolean }, string> {
+/** `set_stream_failure_notifications { enabled }`: turn the stream-failure notifications on or off, then a status round; refused when the choice could not be remembered. */
+export function setStreamFailureNotifications(sharedState: TatolabAppSharedState, enabled: boolean): Promise<Result<void, string>> {
+  return answerTheWindow("set_stream_failure_notifications", async () => {
+    const set = await sharedState.streamFailureNotifications.setNotifyWhenAStreamFails(enabled);
+    sharedState.statusPublisher.requestRefresh();
+    return set;
+  });
+}
+
+/** The `{ enabled }` arguments of the command `commandName` as the window sends them, or why they are not. */
+export function enabledArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ enabled: boolean }, string> {
   if (!isAJsonObject(commandArguments) || typeof commandArguments["enabled"] !== "boolean") {
-    return failedWith("set_run_tatolab needs `enabled`, true or false");
+    return failedWith(`${commandName} needs \`enabled\`, true or false`);
   }
   return succeeded({ enabled: commandArguments["enabled"] });
 }
@@ -272,7 +281,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
   return {
     get_tatolab_status: async () => commandAnswerFrom(await getTatolabStatus(sharedState)),
     set_run_tatolab: async (commandArguments) => {
-      const setRunTatolabArguments = setRunTatolabArgumentsFrom(commandArguments);
+      const setRunTatolabArguments = enabledArgumentsFrom("set_run_tatolab", commandArguments);
       if (!setRunTatolabArguments.ok) return { ok: false, refusal: setRunTatolabArguments.failure };
       setRunTatolab(sharedState, setRunTatolabArguments.value.enabled);
       return { ok: true, value: null };
@@ -344,6 +353,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     describe_runtime: async () => commandAnswerFrom(await describeRuntime(sharedState)),
     restart_runtime: async () => commandAnswerOfNothingFrom(await restartRuntime(sharedState)),
     open_runtime_log_folder: async () => commandAnswerOfNothingFrom(await openRuntimeLogFolder(sharedState)),
+    set_stream_failure_notifications: async (commandArguments) => {
+      const enabledArguments = enabledArgumentsFrom("set_stream_failure_notifications", commandArguments);
+      if (!enabledArguments.ok) return { ok: false, refusal: enabledArguments.failure };
+      return commandAnswerOfNothingFrom(await setStreamFailureNotifications(sharedState, enabledArguments.value.enabled));
+    },
   };
 }
 

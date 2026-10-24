@@ -79,6 +79,7 @@ export function mountTatolabWindow(
     streamGraphReadings.setPollingAllowed(isVisible);
     streamLogReadings.setPollingAllowed(isVisible);
   });
+  backend.onStreamPageRequested((streamName) => void navigateTo(streamPagePath(streamName)));
   const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
   const streamsPage = new StreamsPageView(backend);
   const uninstallSheet = new UninstallSheetView(backend, platform, (flowState) =>

@@ -59,7 +59,11 @@ export interface TatolabBackend {
   restartRuntime(): Promise<void>;
   /** Show the folder the runtime writes its own log to in the file manager, rejecting with why it could not. */
   openRuntimeLogFolder(): Promise<void>;
+  /** Turn the notifications shown when a stream fails on or off, resolving once it is remembered and rejecting with why it was not; the switch arrives as the next status. */
+  setStreamFailureNotifications(enabled: boolean): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
+  /** Calls `listener` with the stream each request from the app to show a stream's page names; the returned function stops it. */
+  onStreamPageRequested(listener: (streamName: string) => void): () => void;
 }
 
 /** Where the page runs: Tatolab.app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */

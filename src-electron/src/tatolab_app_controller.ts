@@ -11,6 +11,7 @@ import type {
   ListedStream,
   RuntimeDescription,
   RuntimeState,
+  StreamFailureNotificationsState,
   StreamGraphSummary,
   StreamLogRecordsPage,
   StreamRunAnswer,
@@ -67,6 +68,8 @@ export interface TatolabAppControllerSources {
   readMonotonicClockMs: () => number;
   /** Where checking for a newer Tatolab stands, which each status carries. */
   readTheAppUpdateState: () => TatolabAppUpdateState;
+  /** Whether a stream failing shows a notification, which each status carries. */
+  readStreamFailureNotifications: () => StreamFailureNotificationsState;
   tatolabAppLog: TatolabAppLog;
 }
 
@@ -89,6 +92,7 @@ export class TatolabAppController {
     private readonly runtimeRestartedForAppVersionFile: RuntimeRestartedForAppVersionFile,
     private readonly readMonotonicClockMs: () => number,
     private readonly readTheAppUpdateState: () => TatolabAppUpdateState,
+    private readonly readStreamFailureNotifications: () => StreamFailureNotificationsState,
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
 
@@ -112,6 +116,7 @@ export class TatolabAppController {
       RuntimeRestartedForAppVersionFile.inAppConfigDirectory(sources.appConfigDirectory),
       sources.readMonotonicClockMs,
       sources.readTheAppUpdateState,
+      sources.readStreamFailureNotifications,
       sources.tatolabAppLog,
     );
   }
@@ -297,6 +302,7 @@ export class TatolabAppController {
       command_line_tool_linked_at: machineSetup.commandLineToolLinkedAt,
       app_update: this.readTheAppUpdateState(),
       local_api_socket: this.localApiSocket,
+      stream_failure_notifications: this.readStreamFailureNotifications(),
     };
   }
 
