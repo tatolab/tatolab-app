@@ -381,14 +381,12 @@ export function createMockTatolabBackend({
     const loadedName = streamName ?? functionName;
     const listedNames = (listStreams() ?? []).map((listing) => listing.name);
     const holder = (listStreams() ?? []).find((listing) => listing.name === loadedName);
+    const takenRefusal = `Stream graph error: the stream name \`${loadedName}\` is held by a kept stream from ${holder?.project_directory ?? ""}; load this one under another name with \`--name\``;
+    if (holder !== undefined && streamName === null) throw takenRefusal;
     if (holder !== undefined) {
       let suffix = 2;
       while (listedNames.includes(`${loadedName}-${suffix}`)) suffix += 1;
-      return {
-        kind: "name_taken",
-        refusal: `Stream graph error: the stream name \`${loadedName}\` is held by a kept stream from ${holder.project_directory}; load this one under another name with \`--name\``,
-        free_name: `${loadedName}-${suffix}`,
-      };
+      return { kind: "name_taken", refusal: takenRefusal, free_name: `${loadedName}-${suffix}` };
     }
     const fixture = createMockStreamRunFromAProjectFolder(fixtures.machine, loadedName, folder);
     streamNamesRunFromTheWindow.push(loadedName);

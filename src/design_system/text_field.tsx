@@ -8,6 +8,7 @@ import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring
 
 /** A one-line field the person types into: in Geist Mono for a machine word, as a stream's name; red-edged while what it holds was refused. */
 export function TextField({
+  id,
   label,
   text,
   onTextChanged,
@@ -17,6 +18,8 @@ export function TextField({
   className,
   ...controlDataAttributes
 }: {
+  /** For the `<label>` beside it that names it. */
+  id?: string;
   /** The field's accessible name, as "Stream name". */
   label: string;
   text: string;
@@ -30,6 +33,7 @@ export function TextField({
 } & ControlDataAttributes) {
   return (
     <Input
+      id={id}
       value={text}
       onChange={(changeEvent) => onTextChanged(changeEvent.target.value)}
       aria-label={label}

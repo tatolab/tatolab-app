@@ -7,14 +7,17 @@ const PRESET_STEP_TIMEOUT_MILLISECONDS = 3000;
 const PRESET_POLL_MILLISECONDS = 40;
 const GRAPH_FIT_SETTLE_MILLISECONDS = 600;
 
-/** Resolves with the first element `selector` matches once it is in the page, or `null` after a few seconds. */
-function waitForElement<ElementType extends Element>(selector: string): Promise<ElementType | null> {
+/** How long the done preset waits for the mock runtime's answer to a run. */
+const MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS = 8000;
+
+/** Resolves with the first element `selector` matches once it is in the page, or `null` after `timeoutMilliseconds`. */
+function waitForElement<ElementType extends Element>(selector: string, timeoutMilliseconds = PRESET_STEP_TIMEOUT_MILLISECONDS): Promise<ElementType | null> {
   const startedAt = performance.now();
   return new Promise((resolve) => {
     const look = () => {
       const element = document.querySelector<ElementType>(selector);
       if (element) resolve(element);
-      else if (performance.now() - startedAt > PRESET_STEP_TIMEOUT_MILLISECONDS) resolve(null);
+      else if (performance.now() - startedAt > timeoutMilliseconds) resolve(null);
       else window.setTimeout(look, PRESET_POLL_MILLISECONDS);
     };
     look();
@@ -26,9 +29,6 @@ function graphOutputPortSelector(stepDotPort: string): string {
   const [stepName = "", portName = ""] = stepDotPort.split(".");
   return `[data-stream-graph-step="${CSS.escape(stepName)}"] [data-step-output-port="${CSS.escape(portName)}"]`;
 }
-
-/** How long the mock runtime takes to answer a run, and a little more. */
-const MOCK_RUN_STREAM_SETTLE_MILLISECONDS = 3200;
 
 /** The Add stream page driven to the step `addStep` names, as a person would get there. */
 async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
@@ -42,7 +42,7 @@ async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
   if (addStep === "folder") return;
   await waitForElement(`[data-add-stream-checks]`);
   await clickWhenShown(`[data-add-stream-action="compile_and_run"]:not([disabled])`);
-  if (addStep === "done") await new Promise((settled) => window.setTimeout(settled, MOCK_RUN_STREAM_SETTLE_MILLISECONDS));
+  if (addStep === "done") await waitForElement(`[data-add-stream-step="running"], [data-add-stream-name-taken]`, MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS);
 }
 
 async function clickWhenShown(selector: string): Promise<boolean> {

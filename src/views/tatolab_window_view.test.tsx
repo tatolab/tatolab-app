@@ -755,4 +755,17 @@ describe("Add stream", () => {
       ),
     );
   });
+
+  it("says in the footer why Compile and run can't be pressed while the runtime is down", async () => {
+    const { backend, showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=running");
+    openAddStream();
+    fireEvent.click(await addStreamControl("choose_folder"));
+    await waitFor(() => expect(document.querySelector("[data-add-stream-checks]")).not.toBeNull());
+    const statusBefore = await backend.getTatolabStatus();
+
+    await showStatusAsTheBackendWould({ ...statusBefore, runtime_state: "stopped", streams: null });
+
+    await waitFor(() => expect(document.querySelector("[data-add-stream-footer-words]")?.textContent).toBe("The runtime isn't running, so it can't compile a stream."));
+    expect((await addStreamControl("compile_and_run")).hasAttribute("disabled")).toBe(true);
+  });
 });

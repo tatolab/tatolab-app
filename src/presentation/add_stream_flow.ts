@@ -115,12 +115,30 @@ function streamFunctionsChoiceAfter(previous: StreamProjectFolderReport | null, 
   return { chosenStreamFunction: firstStreamFunction, streamName: isTheSameFolder && form.streamName !== "" ? form.streamName : (firstStreamFunction ?? "") };
 }
 
-/** The page after `event`. */
+/** The page after `event`. An event of the form changes only the form step: one that arrives while a run compiles or once it runs is about a form no longer shown. */
 export function advanceAddStreamFlow(state: AddStreamFlowState, event: AddStreamFlowEvent): AddStreamFlowState {
   const form = state.form;
   switch (event.kind) {
+    case "run_answered":
+      if (state.step !== "compiling") return state;
+      if (event.outcome.kind === "running") return { step: "running", form, request: state.request, answer: event.outcome.answer };
+      return withForm(state, { nameTaken: { refusal: event.outcome.refusal, freeName: event.outcome.free_name } });
+    case "run_refused":
+      return state.step === "compiling" ? withForm(state, { refusal: { lead: "Compile and run was refused:", words: event.words } }) : state;
+    case "add_another":
+      return initialAddStreamFlowState(form.source);
     case "source_chosen":
-      return state.step === "compiling" ? state : withForm(state, { source: event.source, nameTaken: null, refusal: null, workUnderWay: null });
+      if (state.step === "running") return initialAddStreamFlowState(event.source);
+      break;
+  }
+  return state.step === "form" ? advanceTheForm(state, event) : state;
+}
+
+function advanceTheForm(state: AddStreamFlowState, event: AddStreamFlowEvent): AddStreamFlowState {
+  const form = state.form;
+  switch (event.kind) {
+    case "source_chosen":
+      return withForm(state, { source: event.source, nameTaken: null, refusal: null, workUnderWay: null });
     case "work_started":
       return withForm(state, { workUnderWay: event.work, refusal: null });
     case "folder_dialog_cancelled":
@@ -156,13 +174,9 @@ export function advanceAddStreamFlow(state: AddStreamFlowState, event: AddStream
     case "run_started":
       return { step: "compiling", form: { ...form, nameTaken: null, refusal: null, streamName: event.request.streamName ?? form.streamName }, request: event.request, startedAtMs: event.nowMs };
     case "run_answered":
-      if (state.step !== "compiling") return state;
-      if (event.outcome.kind === "running") return { step: "running", form, request: state.request, answer: event.outcome.answer };
-      return withForm(state, { nameTaken: { refusal: event.outcome.refusal, freeName: event.outcome.free_name } });
     case "run_refused":
-      return state.step === "compiling" ? withForm(state, { refusal: { lead: "Compile and run was refused:", words: event.words } }) : state;
     case "add_another":
-      return initialAddStreamFlowState(form.source);
+      return state;
   }
 }
 
@@ -221,4 +235,53 @@ export function streamRunningSummary(answer: StreamRunAnswer): string {
 /** How many steps a stream has, in words. */
 export function stepCountWords(stepCount: number): string {
   return `${stepCount} ${stepCount === 1 ? "step" : "steps"}`;
+}
+
+/** The function the stream is named after unless the form names it otherwise: the chosen one, else the folder's first. */
+export function functionsOwnNameOf(form: AddStreamForm): string | null {
+  const folder = folderToRun(form);
+  return folder === null ? null : (form.chosenStreamFunction ?? folder.stream_functions[0] ?? null);
+}
+
+/** What the `stream.py` check says it found. */
+export function streamFileCheckDetail(report: StreamProjectFolderReport): string {
+  if (!report.stream_file_present) return "The stream function the runtime compiles lives in stream.py.";
+  if (report.stream_functions.length === 0) return "No @stream function found by reading it; the runtime decides when it compiles.";
+  if (report.stream_functions.length === 1) return `Stream function ${report.stream_functions[0]}()`;
+  return `Stream functions ${report.stream_functions.map((streamFunction) => `${streamFunction}()`).join(", ")}`;
+}
+
+/** What the `.venv` check says it found: the versions it names, or where the stream compiles. */
+export function pythonEnvironmentCheckDetail(report: StreamProjectFolderReport): string {
+  const pythonEnvironment = report.python_environment;
+  if (pythonEnvironment.kind === "missing") return "The stream compiles in the project's own .venv/bin/python.";
+  const pythonWords = pythonEnvironment.python_version === null ? "Python" : `Python ${pythonEnvironment.python_version}`;
+  return pythonEnvironment.tatolab_stream_version === null ? pythonWords : `${pythonWords} · tatolab-stream ${pythonEnvironment.tatolab_stream_version}`;
+}
+
+/** The request a run sent, as the compile output's first line: the tool, the folder and each argument given. */
+export function runRequestWords(request: AddStreamRunRequest): string {
+  const requestWords = ["run_stream", request.folder];
+  if (request.streamFunction !== null) requestWords.push(`stream_function=${request.streamFunction}`);
+  if (request.streamName !== null) requestWords.push(`name=${request.streamName}`);
+  requestWords.push("keep=true");
+  return requestWords.join("  ");
+}
+
+/** How many compile warnings a run answered, in words. */
+export function compileWarningsHeading(warningCount: number): string {
+  return `${warningCount} compile ${warningCount === 1 ? "warning" : "warnings"}`;
+}
+
+/** What the page's status line says of a step, for a screen reader: the compile under way, the stream running, or a refusal. */
+export function addStreamStepAnnouncement(state: AddStreamFlowState): string {
+  switch (state.step) {
+    case "compiling":
+      return `Compiling ${state.request.streamName ?? "the stream"}…`;
+    case "running":
+      return `${state.answer.stream} is running. ${streamRunningSummary(state.answer)}`;
+    case "form":
+      if (state.form.nameTaken !== null) return `Compile and run was refused: ${state.form.nameTaken.refusal}`;
+      return state.form.refusal === null ? "" : `${state.form.refusal.lead} ${state.form.refusal.words}`;
+  }
 }

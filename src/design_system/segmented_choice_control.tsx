@@ -32,13 +32,14 @@ export function SegmentedChoiceControl<Choice extends string>({
   label: string;
   choices: readonly SegmentedChoice<Choice>[];
   chosen: Choice;
-  onChosen: (choice: Choice) => void;
+  /** Absent where every other segment says why it cannot be chosen here. */
+  onChosen?: (choice: Choice) => void;
   /** Set on each segment to its choice, as `data-stream-log-level-filter="warn"`. */
   dataAttributeOfEachSegment?: ControlDataAttributeName;
 }) {
   const choose = (value: string | undefined) => {
     const chosenSegment = choices.find((segment) => segment.choice === value);
-    if (chosenSegment !== undefined && chosenSegment.unavailableBecause === undefined && chosenSegment.choice !== chosen) onChosen(chosenSegment.choice);
+    if (chosenSegment !== undefined && chosenSegment.unavailableBecause === undefined && chosenSegment.choice !== chosen) onChosen?.(chosenSegment.choice);
   };
   // Focus arriving from another segment came by the arrow keys or a press, and chooses; focus arriving by Tab does not.
   const chooseWhenFocusMovesWithin = (focusEvent: ReactFocusEvent<HTMLButtonElement>, choice: Choice) => {

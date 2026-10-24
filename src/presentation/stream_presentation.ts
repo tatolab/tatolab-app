@@ -56,10 +56,13 @@ export function presentStreamStateAfterAStopNotRecorded(stream: ListedStream): S
   return { label: "Stopped", emphasis: "quiet", meaning: "Stopped: unloaded, but not recorded stopped, so the runtime loads it again when it restarts." };
 }
 
+/** Each run mode in the person's words. */
+export const STREAM_RUN_MODE_LABELS = { always_on: "Always on", dev_session: "Dev session" } as const;
+
 /** How a stream runs, in the person's words, with the runtime's own term beside them. */
 export interface StreamRunModePresentation {
-  runMode: "always_on" | "dev_session";
-  label: "Always on" | "Dev session";
+  runMode: keyof typeof STREAM_RUN_MODE_LABELS;
+  label: (typeof STREAM_RUN_MODE_LABELS)[keyof typeof STREAM_RUN_MODE_LABELS];
   /** The `list_streams` state the words stand for. */
   runtimeTerm: string;
   meaning: string;
@@ -73,14 +76,14 @@ export function presentStreamRunMode(stream: ListedStream): StreamRunModePresent
     case "failed":
       return {
         runMode: "always_on",
-        label: "Always on",
+        label: STREAM_RUN_MODE_LABELS.always_on,
         runtimeTerm: stream.state,
         meaning: "Loaded every time the runtime starts, until it is stopped. Keeps running when the app and the terminal close.",
       };
     case "attached":
       return {
         runMode: "dev_session",
-        label: "Dev session",
+        label: STREAM_RUN_MODE_LABELS.dev_session,
         runtimeTerm: stream.state,
         meaning: "Run by tatolab dev or tatolab run in a terminal, and ends with that session.",
       };

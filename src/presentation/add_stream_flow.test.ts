@@ -4,7 +4,12 @@
 import { describe, expect, it } from "vitest";
 import type { StreamProjectFolderReport, StreamRunAnswer } from "../backend/tatolab_backend_contract";
 import {
+  addStreamStepAnnouncement,
   advanceAddStreamFlow,
+  compileWarningsHeading,
+  pythonEnvironmentCheckDetail,
+  runRequestWords,
+  streamFileCheckDetail,
   compileAndRunUnavailableBecause,
   compilingForWords,
   initialAddStreamFlowState,
@@ -159,6 +164,35 @@ describe("creating a new project", () => {
   });
 });
 
+describe("events that arrive outside the form", () => {
+  const running = afterEvents(initialAddStreamFlowState("project_folder"), [
+    { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map") },
+    { kind: "run_started", request: { folder: "/Users/someone/code/heat-map", streamFunction: null, streamName: "heat_map" }, nowMs: 0 },
+    { kind: "run_answered", outcome: { kind: "running", answer: HEAT_MAP_ANSWER } },
+  ]);
+
+  it("keeps the running view through a form event, and starts afresh when another source is chosen", () => {
+    expect(advanceAddStreamFlow(running, { kind: "stream_name_edited", streamName: "x" })).toBe(running);
+    expect(advanceAddStreamFlow(running, { kind: "work_refused", lead: "No terminal opened:", words: "gone" })).toBe(running);
+    expect(advanceAddStreamFlow(running, { kind: "source_chosen", source: "new_project" })).toEqual(initialAddStreamFlowState("new_project"));
+  });
+
+  it("keeps a compile under way through a form event or a source chosen", () => {
+    const compiling = advanceAddStreamFlow(initialAddStreamFlowState("project_folder"), {
+      kind: "run_started",
+      request: { folder: "/Users/someone/code/heat-map", streamFunction: null, streamName: "heat_map" },
+      nowMs: 0,
+    });
+    expect(advanceAddStreamFlow(compiling, { kind: "source_chosen", source: "new_project" })).toBe(compiling);
+    expect(advanceAddStreamFlow(compiling, { kind: "project_folder_answered", report: folderReport("/elsewhere") })).toBe(compiling);
+  });
+
+  it("announces each step for a screen reader: compiling, running, and a refusal", () => {
+    expect(addStreamStepAnnouncement(running)).toBe("heat_map is running. It compiled cleanly.");
+    expect(addStreamStepAnnouncement(initialAddStreamFlowState("project_folder"))).toBe("");
+  });
+});
+
 describe("the commands and words the page shows", () => {
   it("spells the terminal commands as a shell reads them, quoting a folder with a space", () => {
     expect(terminalCommandForTheRun({ folder: "/Users/someone/code/heat-map", streamFunction: null, streamName: "heat_map" }, "heat_map")).toBe(
@@ -169,6 +203,17 @@ describe("the commands and words the page shows", () => {
     );
     expect(pythonEnvironmentSyncCommand("/Users/someone/it's here")).toBe(`cd '/Users/someone/it'"'"'s here' && uv sync`);
     expect(newProjectCommand("/Users/someone/streams/hello")).toBe("tatolab new /Users/someone/streams/hello");
+  });
+
+  it("words each check, the request line and the warning count", () => {
+    expect(streamFileCheckDetail(folderReport("/x"))).toBe("Stream function heat_map()");
+    expect(streamFileCheckDetail(folderReport("/x", { stream_functions: ["a", "b"] }))).toBe("Stream functions a(), b()");
+    expect(streamFileCheckDetail(folderReport("/x", { stream_functions: [] }))).toBe("No @stream function found by reading it; the runtime decides when it compiles.");
+    expect(streamFileCheckDetail(folderReport("/x", { stream_file_present: false, stream_functions: [] }))).toBe("The stream function the runtime compiles lives in stream.py.");
+    expect(pythonEnvironmentCheckDetail(folderReport("/x"))).toBe("Python 3.12.10 · tatolab-stream 0.55.0");
+    expect(pythonEnvironmentCheckDetail(folderReport("/x", { python_environment: { kind: "present", python_version: null, tatolab_stream_version: null } }))).toBe("Python");
+    expect(runRequestWords({ folder: "/x", streamFunction: "stream.py:a", streamName: "a" })).toBe("run_stream  /x  stream_function=stream.py:a  name=a  keep=true");
+    expect([compileWarningsHeading(1), compileWarningsHeading(2)]).toEqual(["1 compile warning", "2 compile warnings"]);
   });
 
   it("says whether the stream compiled cleanly, with warnings, or replaced the project's kept stream", () => {

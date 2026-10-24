@@ -3,25 +3,31 @@
 
 import { cn } from "cn";
 import { Check, FileCode2, Folder, FolderOpen, FolderPlus, LoaderCircle, type LucideIcon, Package, RotateCw, SquareTerminal, TriangleAlert, Workflow } from "lucide-react";
-import { useEffect, useReducer, useState, type ReactNode } from "react";
+import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { describeBackendRejection } from "../backend/tatolab_backend";
-import type { StreamGraphExposedPort, StreamProjectFolderReport, StreamRunAnswer } from "../backend/tatolab_backend_contract";
+import type { StreamProjectFolderReport, StreamRunAnswer } from "../backend/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
 import { ListRowButton } from "../design_system/list_row_button";
 import { RefusalLine } from "../design_system/refusal_line";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
 import { TextField } from "../design_system/text_field";
 import {
+  addStreamStepAnnouncement,
   advanceAddStreamFlow,
   compileAndRunUnavailableBecause,
+  compileWarningsHeading,
   compilingForWords,
   folderToRun,
+  functionsOwnNameOf,
   initialAddStreamFlowState,
   newProjectCommand,
+  pythonEnvironmentCheckDetail,
   pythonEnvironmentSyncCommand,
   runRequestOf,
+  runRequestWords,
   stepCountWords,
+  streamFileCheckDetail,
   streamRunningSummary,
   terminalCommandForTheRun,
   type AddStreamFlowEvent,
@@ -32,16 +38,13 @@ import {
 } from "../presentation/add_stream_flow";
 import { presentPlatform } from "../presentation/platform_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
-import { readableExposedPorts } from "../presentation/stream_overview_presentation";
+import { choosePreviewedOutput, exposedOutputAddress } from "../presentation/stream_overview_presentation";
+import { STREAM_RUN_MODE_LABELS } from "../presentation/stream_presentation";
+import { addStreamPagePath } from "./add_stream_page_path";
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
 import { CommandWithCopyButton } from "./stream_action_controls";
 import { streamPagePath } from "./stream_page_path";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
-
-/** The path of the Add stream page starting from `source`. */
-export function addStreamPagePath(source: AddStreamSource): string {
-  return source === "new_project" ? "/add-stream/new-project" : "/add-stream";
-}
 
 const ADD_STREAM_SOURCES: readonly { source: AddStreamSource; label: string; icon: LucideIcon }[] = [
   { source: "project_folder", label: "Run a project folder", icon: FolderOpen },
@@ -63,11 +66,17 @@ function useMonotonicNowMsWhile(isTicking: boolean): number {
   return nowMs;
 }
 
-/** One labelled row of the add-stream form: what it sets, the control, and a hint under it. */
-function AddStreamFormRow({ label, hint, hintId, children }: { label: string; hint?: ReactNode; hintId?: string; children: ReactNode }) {
+/** One labelled row of the add-stream form: what it sets, the control, and a hint under it; a field's label is its `<label>`. */
+function AddStreamFormRow({ label, fieldId, hint, hintId, children }: { label: string; fieldId?: string; hint?: ReactNode; hintId?: string; children: ReactNode }) {
   return (
     <div className="grid grid-cols-[140px_minmax(0,1fr)] items-start gap-4 py-3">
-      <div className="pt-1 text-fg-2">{label}</div>
+      {fieldId === undefined ? (
+        <div className="pt-1 text-fg-2">{label}</div>
+      ) : (
+        <label htmlFor={fieldId} className="pt-1 text-fg-2">
+          {label}
+        </label>
+      )}
       <div className="min-w-0">
         {children}
         {hint !== undefined && (
@@ -85,10 +94,13 @@ function MachineWords({ children }: { children: ReactNode }) {
   return <span className="font-mono text-xs select-text">{children}</span>;
 }
 
+/** A step's heading, which takes focus when the page moves to that step. */
 function AddStreamSectionHeading({ title, lead }: { title: ReactNode; lead: ReactNode }) {
   return (
     <div className="mb-4">
-      <h2 className="text-lg font-semibold">{title}</h2>
+      <h2 className="text-lg font-semibold outline-none" tabIndex={-1} data-add-stream-step-heading="">
+        {title}
+      </h2>
       <p className="text-fg-3">{lead}</p>
     </div>
   );
@@ -135,23 +147,6 @@ function ProjectFolderCheckRow({ icon: CheckIcon, name, isFound, detail, childre
   );
 }
 
-function streamFileDetail(report: StreamProjectFolderReport): string {
-  if (!report.stream_file_present) return "The stream function the runtime compiles lives in stream.py.";
-  if (report.stream_functions.length === 0) return "No @stream function found by reading it; the runtime decides when it compiles.";
-  if (report.stream_functions.length === 1) return `Stream function ${report.stream_functions[0]}()`;
-  return `Stream functions ${report.stream_functions.map((streamFunction) => `${streamFunction}()`).join(", ")}`;
-}
-
-function pythonEnvironmentDetail(report: StreamProjectFolderReport): string {
-  const pythonEnvironment = report.python_environment;
-  if (pythonEnvironment.kind === "missing") return "The stream compiles in the project's own .venv/bin/python.";
-  const versions = [
-    pythonEnvironment.python_version === null ? "Python" : `Python ${pythonEnvironment.python_version}`,
-    pythonEnvironment.tatolab_stream_version === null ? null : `tatolab-stream ${pythonEnvironment.tatolab_stream_version}`,
-  ].filter((version) => version !== null);
-  return versions.join(" · ");
-}
-
 /** What the folder holds that `run_stream` needs, and how to fix a missing `.venv`. */
 function ProjectFolderChecks({
   report,
@@ -166,15 +161,15 @@ function ProjectFolderChecks({
 }) {
   return (
     <div className="overflow-hidden rounded-lg border" data-add-stream-checks="">
-      <ProjectFolderCheckRow icon={FileCode2} name="stream.py" isFound={report.stream_file_present} detail={streamFileDetail(report)} />
-      <ProjectFolderCheckRow icon={Package} name=".venv" isFound={report.python_environment.kind === "present"} detail={pythonEnvironmentDetail(report)}>
+      <ProjectFolderCheckRow icon={FileCode2} name="stream.py" isFound={report.stream_file_present} detail={streamFileCheckDetail(report)} />
+      <ProjectFolderCheckRow icon={Package} name=".venv" isFound={report.python_environment.kind === "present"} detail={pythonEnvironmentCheckDetail(report)}>
         {report.python_environment.kind === "missing" && (
           <div className="mt-2.5 flex flex-col gap-2 pl-7">
             <p className="text-xs text-fg-3">Run this in a terminal to create it, then check again.</p>
             <CommandWithCopyButton command={pythonEnvironmentSyncCommand(report.folder)} />
             <div className="flex items-center justify-end gap-2">
               <ActionButton icon={SquareTerminal} isDisabled={workUnderWay !== null} onPressed={onOpenTerminal} data-add-stream-action="open_terminal">
-                Open in Terminal
+                Open a terminal here
               </ActionButton>
               <ActionButton icon={RotateCw} isDisabled={workUnderWay !== null} onPressed={onCheckAgain} data-add-stream-action="check_again">
                 {workUnderWay === "checking_the_folder" ? "Checking…" : "Check again"}
@@ -191,8 +186,9 @@ function ProjectFolderChecks({
 function StreamNameRow({ form, hint, onEdited, onUseFreeName }: { form: AddStreamForm; hint: ReactNode; onEdited: (streamName: string) => void; onUseFreeName: (freeName: string) => void }) {
   const nameTaken = form.nameTaken;
   return (
-    <AddStreamFormRow label="Name" hint={nameTaken === null ? hint : undefined} hintId="add-stream-name-hint">
+    <AddStreamFormRow label="Name" fieldId="add-stream-name" hint={nameTaken === null ? hint : undefined} hintId="add-stream-name-hint">
       <TextField
+        id="add-stream-name"
         label="Stream name"
         text={form.streamName}
         onTextChanged={onEdited}
@@ -207,7 +203,7 @@ function StreamNameRow({ form, hint, onEdited, onUseFreeName }: { form: AddStrea
           <RefusalLine words={nameTaken.refusal} />
           <div className="mt-2 pl-5">
             <ActionButton onPressed={() => onUseFreeName(nameTaken.freeName)} data-add-stream-action="use_free_name">
-              Use <span className="font-mono">{nameTaken.freeName}</span>
+              Run as <span className="font-mono">{nameTaken.freeName}</span>
             </ActionButton>
           </div>
         </div>
@@ -223,11 +219,14 @@ function RunModeRow({ hint }: { hint: ReactNode }) {
       <SegmentedChoiceControl
         label="Run mode"
         choices={[
-          { choice: "kept", label: "Always on" },
-          { choice: "attached", label: "Dev session", unavailableBecause: "A dev session lives as long as the terminal that runs it. Start one with tatolab dev in the project folder." },
+          { choice: "kept", label: STREAM_RUN_MODE_LABELS.always_on },
+          {
+            choice: "attached",
+            label: STREAM_RUN_MODE_LABELS.dev_session,
+            unavailableBecause: "A dev session lives as long as the terminal that runs it. Start one with tatolab dev in the project folder.",
+          },
         ]}
         chosen="kept"
-        onChosen={() => {}}
         dataAttributeOfEachSegment="data-add-stream-run-mode"
       />
     </AddStreamFormRow>
@@ -288,14 +287,6 @@ function CompileOutputLine({ tone = "plain", children }: { tone?: "plain" | "qui
   return <div className={cn("break-words whitespace-pre-wrap", tone === "quiet" ? "text-fg-3" : tone === "warning" ? "text-warn-text" : "text-fg")}>{children}</div>;
 }
 
-function runRequestWords(request: AddStreamRunRequest): string {
-  const requestWords = ["run_stream", request.folder];
-  if (request.streamFunction !== null) requestWords.push(`stream_function=${request.streamFunction}`);
-  if (request.streamName !== null) requestWords.push(`name=${request.streamName}`);
-  requestWords.push("keep=true");
-  return requestWords.join("  ");
-}
-
 function CompilingView({ request, startedAtMs }: { request: AddStreamRunRequest; startedAtMs: number }) {
   const nowMs = useMonotonicNowMsWhile(true);
   return (
@@ -327,9 +318,7 @@ function CompileWarningsList({ compileWarnings }: { compileWarnings: readonly st
   if (compileWarnings.length === 0) return null;
   return (
     <section aria-label="Compile warnings" data-add-stream-compile-warnings="">
-      <h3 className="label-caps mb-1.5">
-        {compileWarnings.length} compile {compileWarnings.length === 1 ? "warning" : "warnings"}
-      </h3>
+      <h3 className="label-caps mb-1.5">{compileWarningsHeading(compileWarnings.length)}</h3>
       <div className="overflow-hidden rounded-lg border">
         {compileWarnings.map((compileWarning, warningIndex) => (
           <div key={warningIndex} className="flex items-start gap-2.5 border-b px-3 py-2.5 last:border-b-0">
@@ -342,29 +331,34 @@ function CompileWarningsList({ compileWarnings }: { compileWarnings: readonly st
   );
 }
 
-/** The first output the new stream exposes beyond itself with a preview page, once its graph is read. */
-function usePreviewedOutputOf(streamName: string): StreamGraphExposedPort | null {
+/** The output the new stream's preview shows, as the Overview picks one, once the runtime lists the stream loaded and its graph is read; `null` while there is none to show. */
+function usePreviewedOutputOf(streamName: string) {
   const { backend } = useTatolabWindowEnvironment();
-  const [previewedOutput, setPreviewedOutput] = useState<StreamGraphExposedPort | null>(null);
+  const status = useTatolabStatus();
+  const isListedLoaded = status.streams?.some((stream) => stream.name === streamName && stream.node_count !== null) ?? false;
+  const [previewedOutput, setPreviewedOutput] = useState<ReturnType<typeof choosePreviewedOutput>>(null);
   useEffect(() => {
+    if (!isListedLoaded) return;
     let isStillShown = true;
     backend.describeStreamGraph(streamName).then(
       (graph) => {
-        if (isStillShown) setPreviewedOutput(readableExposedPorts(graph).find((exposedPort) => exposedPort.watch_page_url !== null) ?? null);
+        if (isStillShown) setPreviewedOutput(choosePreviewedOutput(graph, null));
       },
+      // A graph not readable yet leaves the done view without a preview; the stream's Overview reads it again.
       () => {},
     );
     return () => {
       isStillShown = false;
     };
-  }, [backend, streamName]);
+  }, [backend, streamName, isListedLoaded]);
   return previewedOutput;
 }
 
 function StreamRunningView({ request, answer }: { request: AddStreamRunRequest; answer: StreamRunAnswer }) {
+  const status = useTatolabStatus();
   const previewedOutput = usePreviewedOutputOf(answer.stream);
   const watchPageUrl = previewedOutput?.watch_page_url ?? null;
-  const previewedAddress = previewedOutput === null ? "" : `${answer.stream}/${previewedOutput.node}/${previewedOutput.port}`;
+  const previewedAddress = previewedOutput === null ? "" : exposedOutputAddress(status.machine_name, answer.stream, previewedOutput).fullAddress;
   return (
     <div className="flex flex-col gap-6" data-add-stream-step="running">
       <div className="flex items-start gap-5">
@@ -375,7 +369,7 @@ function StreamRunningView({ request, answer }: { request: AddStreamRunRequest; 
           </div>
         )}
         <div className="min-w-0 pt-1">
-          <h2 className="title-lg">
+          <h2 className="title-lg outline-none" tabIndex={-1} data-add-stream-step-heading="">
             <span className="font-mono">{answer.stream}</span> is running
           </h2>
           <p className="mt-1 text-fg-3">
@@ -619,8 +613,15 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
   const chooseSource = (chosenSource: AddStreamSource) => navigate(addStreamPagePath(chosenSource), { replace: true });
 
   const compileAndRunUnavailableReason = compileAndRunUnavailableBecause(form, isTheRuntimeRunning);
-  const folderOfTheRun = folderToRun(form);
-  const functionsOwnName = folderOfTheRun === null ? null : (form.chosenStreamFunction ?? folderOfTheRun.stream_functions[0] ?? null);
+  const isCreatingTheNewProjectNext = form.source === "new_project" && !form.hasCreatedTheNewProject;
+
+  const pageContent = useRef<HTMLDivElement>(null);
+  const stepShownBefore = useRef(flowState.step);
+  useEffect(() => {
+    if (stepShownBefore.current === flowState.step) return;
+    stepShownBefore.current = flowState.step;
+    pageContent.current?.querySelector<HTMLElement>("[data-add-stream-step-heading]")?.focus();
+  }, [flowState.step]);
 
   return (
     <div className="flex min-h-full flex-1 flex-col" data-add-stream-page={form.source}>
@@ -637,7 +638,7 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
                 icon={addStreamSource.icon}
                 isSelected={addStreamSource.source === form.source}
                 isDisabled={flowState.step === "compiling"}
-                aria-pressed={addStreamSource.source === form.source}
+                aria-current={addStreamSource.source === form.source ? "page" : undefined}
                 onPressed={() => chooseSource(addStreamSource.source)}
                 data-add-stream-source={addStreamSource.source}
               >
@@ -650,10 +651,13 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
           </p>
         </aside>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1" ref={pageContent}>
+          <p role="status" className="sr-only">
+            {addStreamStepAnnouncement(flowState)}
+          </p>
           {form.refusal !== null && flowState.step === "form" && (
-            <div className="border-b px-8 py-2" data-add-stream-refusal="">
-              <RefusalLine lead={form.refusal.lead} words={form.refusal.words} />
+            <div data-add-stream-refusal="">
+              <RefusalLine layout="bar" lead={form.refusal.lead} words={form.refusal.words} />
             </div>
           )}
           <div className="mx-auto max-w-[760px] px-8 pt-5 pb-10">
@@ -672,8 +676,8 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
       <AddStreamFooter>
         {flowState.step === "form" && (
           <>
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              {form.source === "new_project" && !form.hasCreatedTheNewProject ? (
+            <div className="flex min-w-0 flex-1 items-center gap-3" data-add-stream-footer-words="">
+              {isCreatingTheNewProjectNext ? (
                 <span className="truncate text-fg-3">
                   {form.newProjectFolder === null ? (
                     "Choose a directory for the new project."
@@ -683,21 +687,21 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
                     </>
                   )}
                 </span>
+              ) : compileAndRunUnavailableReason !== null && form.nameTaken === null ? (
+                <span className="truncate text-fg-3">{compileAndRunUnavailableReason}</span>
               ) : runRequest !== null ? (
                 <>
                   <div className="max-w-[620px] min-w-0 flex-1">
-                    <CommandWithCopyButton command={terminalCommandForTheRun(runRequest, functionsOwnName)} />
+                    <CommandWithCopyButton command={terminalCommandForTheRun(runRequest, functionsOwnNameOf(form))} />
                   </div>
                   <span className="shrink-0 text-xs text-fg-3">the same, from a terminal</span>
                 </>
-              ) : (
-                <span className="truncate text-fg-3">{compileAndRunUnavailableReason}</span>
-              )}
+              ) : null}
             </div>
             <ActionButton onPressed={() => navigate(-1)} data-add-stream-action="cancel">
               Cancel
             </ActionButton>
-            {form.source === "new_project" && !form.hasCreatedTheNewProject ? (
+            {isCreatingTheNewProjectNext ? (
               <ActionButton
                 appearance="primary"
                 isDisabled={form.newProjectFolder === null || form.workUnderWay !== null}
@@ -710,7 +714,6 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
               <ActionButton
                 appearance="primary"
                 isDisabled={compileAndRunUnavailableReason !== null}
-                tooltip={compileAndRunUnavailableReason ?? undefined}
                 onPressed={compileAndRun}
                 data-add-stream-action="compile_and_run"
               >
@@ -720,7 +723,7 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
           </>
         )}
         {flowState.step === "compiling" && (
-          <span className="inline-flex items-center gap-2 text-fg-2" role="status">
+          <span className="inline-flex items-center gap-2 text-fg-2">
             <LoaderCircle className="size-3.5 animate-spin text-fg-3" strokeWidth={1.75} aria-hidden />
             Compiling…
           </span>

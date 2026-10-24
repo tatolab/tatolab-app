@@ -129,6 +129,17 @@ describe("the mock backend's Add stream", () => {
     });
   });
 
+  it("refuses a taken name the window did not send as the runtime does, with no free name offered", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_folder=taken")));
+    const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
+    const folder = "answer" in chosen && chosen.answer !== null ? chosen.answer.folder : "";
+
+    expect(await settled(() => backend.runStreamProject(folder, null, null))).toEqual({
+      refusal: expect.stringMatching(/^Stream graph error: the stream name `main` is held by a kept stream from /),
+    });
+  });
+
   it("creates a project whose .venv a later Check again finds synced, and refuses running it before", async () => {
     vi.useFakeTimers();
     const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));

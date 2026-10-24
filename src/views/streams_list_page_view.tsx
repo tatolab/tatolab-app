@@ -43,7 +43,7 @@ import {
   type StreamActionOutcomeWords,
 } from "./stream_action_controls";
 import { streamPagePath } from "./stream_page_path";
-import { addStreamPagePath } from "./add_stream_page_view";
+import { addStreamPagePath } from "./add_stream_page_path";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 function StreamRowActions({
