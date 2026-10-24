@@ -8,7 +8,7 @@
 
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
 import type { BundledRuntimeRestart, RuntimeAgentRegistration } from "./platform/runtime_agent_registration.js";
-import { succeeded, type Result } from "./result.js";
+import { failedWith, succeeded, type Result } from "./result.js";
 import type { RunTatolabPreferenceFile } from "./run_tatolab_preference.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { RuntimeHealthObservation } from "./tatolab_status.js";
@@ -39,6 +39,9 @@ export function theRuntimeAgentShouldBeStartedNow(
     (timeSinceTheLastStartAttemptMs === null || timeSinceTheLastStartAttemptMs >= RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS)
   );
 }
+
+/** Why "Restart runtime" is refused while the switch is off: no agent is registered to restart. */
+export const RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL = "Run Tatolab is off, so there is no runtime to restart. Turn Run Tatolab on to start it.";
 
 /**
  * What reconciling the switch with the agent's registration did: `switch_is_off` leaves the agent as it
@@ -114,6 +117,26 @@ export class RunTatolabSwitch {
     this.runtimeExpectedUpSinceMs = nowMs;
     const restarted = await bundledRuntimeRestart.restartTheBundledRuntime();
     return restarted.ok ? succeeded("restarted") : restarted;
+  }
+
+  /**
+   * "Restart runtime": with the switch on, stop the agent's runtime and start it again, giving it the
+   * starting grace again from `nowMs`. launchd holding no job for the agent registers it again. Refused
+   * while the switch is off, and otherwise in the service manager's own words.
+   */
+  async restartTheRuntimeOnRequest(nowMs: number): Promise<Result<void, string>> {
+    if (!this.runTatolabSwitchedOn) return failedWith(RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL);
+    this.runtimeAgentLastStartAttemptAtMs = nowMs;
+    this.runtimeExpectedUpSinceMs = nowMs;
+    const restarted = await this.runtimeAgent.restartRuntimeAgent();
+    if (restarted.ok) return restarted;
+    switch (restarted.failure.kind) {
+      case "no_job_for_the_registered_agent":
+        this.tatolabAppLog.warn("the service manager holds no job for the registered agent; registering it again to restart it");
+        return this.registerTheAgentAgainAndStartIt();
+      case "refused":
+        return failedWith(restarted.failure.refusal);
+    }
   }
 
   /**
@@ -226,7 +249,8 @@ export class RunTatolabSwitch {
     }
   }
 
-  private async registerTheAgentAgainAndStartIt(): Promise<void> {
+  /** Unregister the agent's stale registration and register it again, then start it; refused naming the step that failed. */
+  private async registerTheAgentAgainAndStartIt(): Promise<Result<void, string>> {
     const unregistered = await this.runtimeAgent.unregisterRuntimeAgent();
     if (!unregistered.ok) {
       this.tatolabAppLog.warn("the agent's stale registration could not be removed", { failure_description: unregistered.failure });
@@ -234,14 +258,13 @@ export class RunTatolabSwitch {
     const registered = await this.runtimeAgent.registerRuntimeAgent();
     if (!registered.ok) {
       this.tatolabAppLog.warn("the runtime's agent could not be registered again", { failure_description: registered.failure });
-      return;
+      return failedWith(`The runtime's agent could not be registered again: ${registered.failure}`);
     }
     const started = await this.runtimeAgent.startRuntimeAgentIfNotRunning();
-    if (!started.ok) {
-      this.tatolabAppLog.warn("the runtime's agent could not be started after registering it again", {
-        start_failure: started.failure.kind === "refused" ? started.failure.refusal : started.failure.kind,
-      });
-    }
+    if (started.ok) return started;
+    const startFailure = started.failure.kind === "refused" ? started.failure.refusal : "the service manager holds no job for it";
+    this.tatolabAppLog.warn("the runtime's agent could not be started after registering it again", { start_failure: startFailure });
+    return failedWith(`The runtime's agent was registered again but could not be started: ${startFailure}`);
   }
 
   private async needsApprovalInLoginItems(): Promise<RunTatolabReconciliation> {

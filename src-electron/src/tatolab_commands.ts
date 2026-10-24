@@ -7,6 +7,7 @@
 // its answer or a refusal in words, never a thrown error.
 
 import type {
+  RuntimeDescription,
   StreamGraphSummary,
   StreamLogRecordsPage,
   StreamProjectFolderChosenFor,
@@ -24,6 +25,7 @@ import {
   setUpTatolabOnRequest,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
+import { openTheRuntimesLogFolder } from "./runtime_log_folder_opening.js";
 import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 
 /** How long `get_tatolab_status` waits for the poller's first round when the window asks first. */
@@ -157,6 +159,30 @@ export function runStreamProject(
     sharedState.statusPublisher.requestRefresh();
     return outcome;
   });
+}
+
+/** `describe_runtime`: the running runtime's version, build, uptime and own log folder; refused in the runtime's own words. */
+export function describeRuntime(sharedState: TatolabAppSharedState): Promise<Result<RuntimeDescription, string>> {
+  return answerTheWindow("describe_runtime", async () => {
+    const runtimeDescription = await sharedState.controller.describeRuntime();
+    return runtimeDescription.ok ? runtimeDescription : failedWith(runtimeDescription.failure.failureDescription);
+  });
+}
+
+/** `restart_runtime`: stop the runtime and start it again through the service manager, then a status round whether it restarted or was refused; refused while Run Tatolab is off, and in the service manager's words. */
+export function restartRuntime(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
+  return answerTheWindow("restart_runtime", async () => {
+    const restarted = await sharedState.controller.restartTheRuntimeOnRequest();
+    sharedState.statusPublisher.requestRefresh();
+    return restarted;
+  });
+}
+
+/** `open_runtime_log_folder`: the folder the runtime names for its own log when asked now, in the file manager; refused naming why. */
+export function openRuntimeLogFolder(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
+  return answerTheWindow("open_runtime_log_folder", async () =>
+    openTheRuntimesLogFolder(await sharedState.controller.describeRuntime(), sharedState.streamProjectFolderOpeners),
+  );
 }
 
 /** `set_run_tatolab`'s arguments as the window sends them, or why they are not. */
@@ -315,6 +341,9 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const { folder, stream_function, name } = runArguments.value;
       return commandAnswerFrom(await runStreamProject(sharedState, folder, stream_function, name));
     },
+    describe_runtime: async () => commandAnswerFrom(await describeRuntime(sharedState)),
+    restart_runtime: async () => commandAnswerOfNothingFrom(await restartRuntime(sharedState)),
+    open_runtime_log_folder: async () => commandAnswerOfNothingFrom(await openRuntimeLogFolder(sharedState)),
   };
 }
 

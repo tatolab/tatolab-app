@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import type {
+  RuntimeDescription,
   StreamGraphSummary,
   StreamLogRecordsPage,
   StreamProjectFolderChosenFor,
@@ -52,6 +53,12 @@ export interface TatolabBackend {
   runStreamProject(folder: string, streamFunction: string | null, streamName: string | null): Promise<StreamProjectRunOutcome>;
   /** Open a terminal in `folder`, a folder the app handed the window, rejecting with why it could not. */
   openTerminalAtChosenProjectFolder(folder: string): Promise<void>;
+  /** How the running runtime describes itself, rejecting in its own words when it does not answer. */
+  describeRuntime(): Promise<RuntimeDescription>;
+  /** Stop the runtime and start it again through the service manager, resolving once the service manager has answered and rejecting in its words; the state that follows arrives as the next statuses. */
+  restartRuntime(): Promise<void>;
+  /** Show the folder the runtime writes its own log to in the file manager, rejecting with why it could not. */
+  openRuntimeLogFolder(): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
 }
 

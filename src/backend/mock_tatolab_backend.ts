@@ -15,6 +15,7 @@ import type { TatolabBackend } from "./tatolab_backend";
 import {
   STREAM_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
+  type RuntimeDescription,
   type StreamGraphSummary,
   type StreamLogRecord,
   type StreamLogRecordsPage,
@@ -101,6 +102,16 @@ export type MockChosenProjectFolder = "ready" | "no-venv" | "several" | "taken" 
 
 const MOCK_CHOSEN_PROJECT_FOLDERS: readonly MockChosenProjectFolder[] = ["ready", "no-venv", "several", "taken", "no-stream-file", "cancel"];
 
+/** The runtime the mock describes: the streamlib release the app bundles, and its build. */
+const MOCK_RUNTIME_VERSION = "0.55.2";
+const MOCK_RUNTIME_BUILD_ID = "0.55.2+ec6adf522.7f3a91";
+
+/** How long the mock runtime has been up as the page opens: 3 days, 2 hours and 14 minutes. */
+const MOCK_RUNTIME_UP_FOR_AT_OPEN_MILLISECONDS = ((3 * 24 + 2) * 60 + 14) * 60_000;
+
+/** How long the mock service manager takes to answer a restart. */
+const MOCK_RUNTIME_RESTART_MILLISECONDS = 700;
+
 /** How long the mock runtime takes to compile, load and start a project. */
 const MOCK_RUN_STREAM_MILLISECONDS = 2600;
 /** How long the mock `tatolab new` takes. */
@@ -130,6 +141,10 @@ export interface MockTatolabOptions {
   doesTheCompileWriteAWarning: boolean;
   /** `?add_cli=missing`: this build has no `tatolab` CLI, so creating a project is refused. */
   isTheTatolabCommandMissing: boolean;
+  /** `?runtime_log=none`: the runtime keeps no log of its own, so `describe_runtime` names no folder. */
+  doesTheRuntimeKeepNoOwnLog: boolean;
+  /** `?restart=refused`: the service manager refuses to restart the runtime. */
+  isTheRuntimeRestartRefused: boolean;
 }
 
 /**
@@ -157,6 +172,8 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     chosenProjectFolder: MOCK_CHOSEN_PROJECT_FOLDERS.find((knownFolder) => knownFolder === pageQuery.get("add_folder")) ?? "ready",
     doesTheCompileWriteAWarning: pageQuery.get("add_run") === "warning",
     isTheTatolabCommandMissing: pageQuery.get("add_cli") === "missing",
+    doesTheRuntimeKeepNoOwnLog: pageQuery.get("runtime_log") === "none",
+    isTheRuntimeRestartRefused: pageQuery.get("restart") === "refused",
   };
 }
 
@@ -208,6 +225,7 @@ function initialMockStatus(
     machine_setup_state: "complete",
     command_line_tool_linked_at: machine.commandLineToolLinkedAt,
     app_update: initialMockAppUpdateState(appUpdateScenario),
+    local_api_socket: machine.localApiSocket,
   };
   switch (scenario) {
     case "running":
@@ -277,6 +295,8 @@ export function createMockTatolabBackend({
   chosenProjectFolder,
   doesTheCompileWriteAWarning,
   isTheTatolabCommandMissing,
+  doesTheRuntimeKeepNoOwnLog,
+  isTheRuntimeRestartRefused,
 }: MockTatolabOptions): TatolabBackend {
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -301,6 +321,8 @@ export function createMockTatolabBackend({
   let mockStatus = initialMockStatus(scenario, platform, fixtures.machine, appUpdateScenario);
   let isLoginItemsApproved = scenario !== "approval";
   let runtimeUpSinceMilliseconds: number | null = null;
+  /** When the mock runtime's engine started, which its uptime counts from: long before the page opened, until a restart. */
+  let runtimeEngineStartedAtMilliseconds = Date.now() - MOCK_RUNTIME_UP_FOR_AT_OPEN_MILLISECONDS;
   let loadedStreamInstanceCount = 3;
   let liveTickTimer: number | undefined;
 
@@ -510,9 +532,13 @@ export function createMockTatolabBackend({
   const startRuntime = (): void => {
     publishStatus({ run_tatolab: true, runtime_agent: "enabled", runtime_state: "starting", machine_name: null, streams: null });
     window.setTimeout(() => {
-      if (mockStatus.run_tatolab && mockStatus.runtime_state === "starting") bringRuntimeUp();
+      if (!mockStatus.run_tatolab || mockStatus.runtime_state !== "starting") return;
+      runtimeEngineStartedAtMilliseconds = Date.now();
+      bringRuntimeUp();
     }, MOCK_RUNTIME_STARTUP_MILLISECONDS);
   };
+
+  const noRuntimeAnswersRefusal = (): string => `no runtime answers at ${mockStatus.local_api_socket}: connect ENOENT ${mockStatus.local_api_socket}`;
 
   const loadedStreamNamed = (streamName: string): MockLoadedStream => {
     const loadedStream = loadedStreams.get(streamName);
@@ -777,6 +803,32 @@ export function createMockTatolabBackend({
       if (isTheTerminalMissing) {
         throw "No terminal opened: x-terminal-emulator is not on the PATH. Install a terminal, or choose one with sudo update-alternatives --config x-terminal-emulator.";
       }
+    },
+    describeRuntime: async (): Promise<RuntimeDescription> => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      return {
+        version: MOCK_RUNTIME_VERSION,
+        build_id: MOCK_RUNTIME_BUILD_ID,
+        up_for_ms: Date.now() - runtimeEngineStartedAtMilliseconds,
+        runtime_log_directory: doesTheRuntimeKeepNoOwnLog ? null : fixtures.machine.runtimeLogDirectory,
+      };
+    },
+    restartRuntime: async () => {
+      await sleep(MOCK_RUNTIME_RESTART_MILLISECONDS);
+      if (!mockStatus.run_tatolab) throw "Run Tatolab is off, so there is no runtime to restart. Turn Run Tatolab on to start it.";
+      if (isTheRuntimeRestartRefused) {
+        throw platform === "linux"
+          ? "systemctl --user restart tatolabd.service failed (exit 1): Job for tatolabd.service failed because the control process exited with error code."
+          : "launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 5): Input/output error";
+      }
+      takeRuntimeDown({ runtime_state: "starting" });
+      startRuntime();
+    },
+    openRuntimeLogFolder: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      if (doesTheRuntimeKeepNoOwnLog) throw "The runtime keeps no log of its own, so there is no folder to open.";
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);

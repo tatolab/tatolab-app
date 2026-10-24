@@ -69,7 +69,7 @@ async function controllerOverFakes(
 }
 
 test("a healthy runtime's status names its streams and machine, read as the window reads them", async () => {
-  const { controller } = await controllerOverFakes(
+  const { controller, localApiServer } = await controllerOverFakes(
     [
       httpResponse("200 OK", "text/plain", "ok"),
       toolResultResponse({ streams: [{ name: "main", state: "kept", project_directory: "/p", node_count: 4, failed_because: null }] }),
@@ -82,7 +82,8 @@ test("a healthy runtime's status names its streams and machine, read as the wind
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
     '{"app_version":"0.45.0","platform":"macos","run_tatolab":true,"runtime_agent":"enabled","runtime_state":"running",' +
       '"machine_name":"jonathanf-macbook","streams":[{"name":"main","state":"kept","project_directory":"/p","node_count":4,"failed_because":null}],' +
-      '"machine_setup_state":"needs_administrator","command_line_tool_linked_at":null,"app_update":{"kind":"not_checked"}}',
+      '"machine_setup_state":"needs_administrator","command_line_tool_linked_at":null,"app_update":{"kind":"not_checked"},' +
+      `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)}}`,
   );
 });
 

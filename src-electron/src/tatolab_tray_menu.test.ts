@@ -54,6 +54,7 @@ function statusWith(
     machine_setup_state: machineSetupState,
     command_line_tool_linked_at: null,
     app_update: appUpdate,
+    local_api_socket: "/tmp/streamlib-501/local-api.sock",
   };
 }
 

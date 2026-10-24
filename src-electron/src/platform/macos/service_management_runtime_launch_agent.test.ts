@@ -149,6 +149,30 @@ test("the kickstart leaves a running job alone and maps launchctl's no-such-serv
   );
 });
 
+test("restarting the agent's runtime kickstarts its job with -k, which kills a running one first", async () => {
+  const { serviceManagementAgentServices } = fakeServiceManagementAgentServices(new Map([["com.tatolab.tatolabd.plist", "enabled"]]));
+  const restartWith = async (launchctlAnswer: Result<ProgramCompletion, string>) => {
+    const launchctl = launchctlAnswering(launchctlAnswer);
+    const restarted = await ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(
+      501,
+      serviceManagementAgentServices,
+      launchctl.launchctlRunner,
+    ).restartRuntimeAgent();
+    return { restarted, launchctlCalls: launchctl.launchctlCalls };
+  };
+
+  expect(await restartWith(launchctlExiting(0))).toEqual({
+    restarted: succeeded(undefined),
+    launchctlCalls: [["kickstart", "-k", "gui/501/com.tatolab.tatolabd"]],
+  });
+  expect((await restartWith(launchctlExiting(113, "Could not find service"))).restarted).toEqual(
+    failedWith({ kind: "no_job_for_the_registered_agent" }),
+  );
+  expect((await restartWith(launchctlExiting(5, "Input/output error\n"))).restarted).toEqual(
+    failedWith({ kind: "refused", refusal: "launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 5): Input/output error" }),
+  );
+});
+
 test("restarting the bundled runtime registers the agent again, so launchd loads the plist the bundle carries now", async () => {
   const restartWith = async (launchctlAnswer: Result<ProgramCompletion, string>, registrationRefusal: string | null = null) => {
     const serviceManagement = fakeServiceManagementAgentServices(new Map([["com.tatolab.tatolabd.plist", "enabled"]]), registrationRefusal);

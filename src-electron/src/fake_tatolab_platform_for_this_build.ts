@@ -17,12 +17,19 @@ import type {
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** What the fake service manager was asked, in order. */
-export type FakeRuntimeAgentCall = "register" | "start_if_not_running" | "restart_the_bundled_runtime" | "unregister" | "open_login_items_settings";
+export type FakeRuntimeAgentCall =
+  | "register"
+  | "start_if_not_running"
+  | "restart_the_agents_runtime"
+  | "restart_the_bundled_runtime"
+  | "unregister"
+  | "open_login_items_settings";
 
-/** A service manager whose registration the test sets; registering enables the agent and unregistering removes it. Its restart answers `restartingTheBundledRuntime`. */
+/** A service manager whose registration the test sets; registering enables the agent and unregistering removes it. Its restarts answer `restartingTheAgentsRuntime` and `restartingTheBundledRuntime`. */
 export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, BundledRuntimeRestart {
   readonly calls: FakeRuntimeAgentCall[] = [];
   restartingTheBundledRuntime: Result<void, string> = succeeded(undefined);
+  restartingTheAgentsRuntime: Result<void, RuntimeAgentStartFailure> = succeeded(undefined);
 
   constructor(public status: RuntimeAgentRegistrationStatus) {}
 
@@ -39,6 +46,11 @@ export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, B
   async startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {
     this.calls.push("start_if_not_running");
     return succeeded(undefined);
+  }
+
+  async restartRuntimeAgent(): Promise<Result<void, RuntimeAgentStartFailure>> {
+    this.calls.push("restart_the_agents_runtime");
+    return this.restartingTheAgentsRuntime;
   }
 
   async restartTheBundledRuntime(): Promise<Result<void, string>> {

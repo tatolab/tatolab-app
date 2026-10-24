@@ -9,22 +9,32 @@ import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from 
 import type { RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { RunTatolabPreferenceFile } from "./run_tatolab_preference.js";
-import { RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS, RunTatolabSwitch, theRuntimeAgentShouldBeStartedNow } from "./run_tatolab_switch.js";
+import {
+  RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL,
+  RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS,
+  RunTatolabSwitch,
+  theRuntimeAgentShouldBeStartedNow,
+} from "./run_tatolab_switch.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
-type FakeServiceManagementCall = "register" | "start_if_not_running" | "unregister" | "open_login_items_settings";
+type FakeServiceManagementCall = "register" | "start_if_not_running" | "restart" | "unregister" | "open_login_items_settings";
 
 /** A service manager whose agent status the test sets, recording every call it receives. */
 class FakeServiceManagement implements RuntimeAgentRegistration {
   readonly calls: FakeServiceManagementCall[] = [];
   private statusAfterRegister: Result<RuntimeAgentRegistrationStatus, string> = succeeded("enabled");
   private startAnswers: Result<void, RuntimeAgentStartFailure>[] = [];
+  private restartAnswer: Result<void, RuntimeAgentStartFailure> = succeeded(undefined);
 
   constructor(public status: RuntimeAgentRegistrationStatus) {}
 
   /** Answer the next starts with `answers`, in order; every later start succeeds. */
   answerStartsWith(answers: Result<void, RuntimeAgentStartFailure>[]): void {
     this.startAnswers = answers;
+  }
+
+  answerRestartWith(answer: Result<void, RuntimeAgentStartFailure>): void {
+    this.restartAnswer = answer;
   }
 
   answerRegisterWith(answer: Result<RuntimeAgentRegistrationStatus, string>): void {
@@ -45,6 +55,11 @@ class FakeServiceManagement implements RuntimeAgentRegistration {
   async startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {
     this.calls.push("start_if_not_running");
     return this.startAnswers.shift() ?? succeeded(undefined);
+  }
+
+  async restartRuntimeAgent(): Promise<Result<void, RuntimeAgentStartFailure>> {
+    this.calls.push("restart");
+    return this.restartAnswer;
   }
 
   async unregisterRuntimeAgent(): Promise<Result<void, string>> {
@@ -312,4 +327,39 @@ test("a_runtime_found_down_with_the_switch_off_or_healthy_is_left_alone", async 
   const healthy = await switchWith("enabled", null);
   await healthy.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "healthy", laterMs);
   expect(healthy.serviceManagement.calls).toEqual([]);
+});
+
+test("restarting_the_runtime_on_request_restarts_the_agents_runtime_and_gives_it_the_starting_grace_again", async () => {
+  const launchedAtMs = 1_000;
+  const underTest = await switchWith("enabled", true, launchedAtMs);
+  const restartedAtMs = launchedAtMs + 90_000;
+
+  expect(await underTest.runTatolabSwitch.restartTheRuntimeOnRequest(restartedAtMs)).toEqual(succeeded(undefined));
+
+  expect(underTest.serviceManagement.calls).toEqual(["restart"]);
+  expect(underTest.runTatolabSwitch.timeSinceTheRuntimeWasExpectedUpMs(restartedAtMs + 2_000)).toBe(2_000);
+});
+
+test("restarting_the_runtime_with_the_switch_off_is_refused_and_touches_no_agent", async () => {
+  const underTest = await switchWith("not_registered", false);
+
+  expect(await underTest.runTatolabSwitch.restartTheRuntimeOnRequest(5_000)).toEqual(failedWith(RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL));
+  expect(underTest.serviceManagement.calls).toEqual([]);
+});
+
+test("a_restart_the_service_manager_refuses_is_refused_in_its_words", async () => {
+  const underTest = await switchWith("enabled", true);
+  underTest.serviceManagement.answerRestartWith(failedWith({ kind: "refused", refusal: "launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 5): Input/output error" }));
+
+  expect(await underTest.runTatolabSwitch.restartTheRuntimeOnRequest(5_000)).toEqual(
+    failedWith("launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 5): Input/output error"),
+  );
+});
+
+test("a_restart_finding_no_job_for_the_agent_registers_it_again_and_starts_it", async () => {
+  const underTest = await switchWith("enabled", true);
+  underTest.serviceManagement.answerRestartWith(failedWith({ kind: "no_job_for_the_registered_agent" }));
+
+  expect(await underTest.runTatolabSwitch.restartTheRuntimeOnRequest(5_000)).toEqual(succeeded(undefined));
+  expect(underTest.serviceManagement.calls).toEqual(["restart", "unregister", "register", "start_if_not_running"]);
 });

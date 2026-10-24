@@ -6,6 +6,7 @@
 // command answers.
 
 import type {
+  RuntimeDescription,
   StreamGraphSummary,
   StreamLogRecordsPage,
   StreamProjectFolderChosenFor,
@@ -40,6 +41,9 @@ export const TATOLAB_COMMAND_NAMES = [
   "check_stream_project_folder",
   "create_stream_project",
   "run_stream_project",
+  "describe_runtime",
+  "restart_runtime",
+  "open_runtime_log_folder",
 ] as const;
 
 /**
@@ -48,7 +52,8 @@ export const TATOLAB_COMMAND_NAMES = [
  * `{ folder }`, `choose_stream_project_folder` `{ chosen_for }`, `check_stream_project_folder` and `create_stream_project` `{ folder }`, `run_stream_project`
  * `{ folder, stream_function, name }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window, from its folder dialog or its proposal. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
- * takes it: the person choosing it is the confirmation.
+ * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `open_runtime_log_folder` opens the
+ * folder the runtime names when the app asks it, never one the window names.
  */
 export type TatolabCommandName = (typeof TATOLAB_COMMAND_NAMES)[number];
 
@@ -84,6 +89,9 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   create_stream_project: { commandArguments: { folder: string }; answer: StreamProjectFolderReport };
   /** `stream_function` as `tatolab run` takes it, `null` for the project's sole `@stream`; `name` in place of the function's own, or `null`. */
   run_stream_project: { commandArguments: { folder: string; stream_function: string | null; name: string | null }; answer: StreamProjectRunOutcome };
+  describe_runtime: { commandArguments: undefined; answer: RuntimeDescription };
+  restart_runtime: { commandArguments: undefined; answer: null };
+  open_runtime_log_folder: { commandArguments: undefined; answer: null };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */

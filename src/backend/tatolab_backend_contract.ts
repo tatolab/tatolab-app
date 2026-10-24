@@ -67,6 +67,8 @@ export interface TatolabStatus {
   /** `/usr/local/bin/tatolab` on macOS once linked; on Linux the absolute path of `~/.local/bin/tatolab` while it exists. */
   command_line_tool_linked_at: string | null;
   app_update: TatolabAppUpdateState;
+  /** The socket this build reads the runtime's local API at. */
+  local_api_socket: string;
 }
 
 /** What `describe_runtime` answers: the running runtime's version and build, how long it has been up, and the folder of its own log. */

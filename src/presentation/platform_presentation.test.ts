@@ -25,6 +25,7 @@ function statusOn(platform: unknown): TatolabStatus {
     machine_setup_state: "complete",
     command_line_tool_linked_at: null,
     app_update: { kind: "not_checked" },
+    local_api_socket: "/tmp/streamlib-501/local-api.sock",
   };
 }
 

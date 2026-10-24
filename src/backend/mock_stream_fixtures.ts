@@ -79,6 +79,10 @@ export interface MockMachine {
   name: string;
   homeDirectory: string;
   commandLineToolLinkedAt: string;
+  /** Where the mock runtime serves its local API. */
+  localApiSocket: string;
+  /** The folder the mock runtime writes its own log to, under its state directory. */
+  runtimeLogDirectory: string;
   vulkanLoaderLibrary: string;
   vulkanDeviceSelectedMessage: string;
   cameraOpenedAttrs: Record<string, string>;
@@ -91,6 +95,8 @@ const MOCK_MACHINES: Record<TatolabPlatform, MockMachine> = {
     name: "jonathanf-macbook",
     homeDirectory: "/Users/jonathanf",
     commandLineToolLinkedAt: "/usr/local/bin/tatolab",
+    localApiSocket: "/tmp/streamlib-501/local-api.sock",
+    runtimeLogDirectory: "/Users/jonathanf/Library/Application Support/Tatolab/logs",
     vulkanLoaderLibrary: "/Applications/Tatolab.app/Contents/Frameworks/tatolab-runtime/_vulkan_driver/libvulkan.1.dylib",
     vulkanDeviceSelectedMessage: "Selected Vulkan device: Apple M1 Max (type: Integrated GPU)",
     cameraOpenedAttrs: { device: "FaceTime HD Camera", format: "1920x1080 nv12" },
@@ -102,6 +108,8 @@ const MOCK_MACHINES: Record<TatolabPlatform, MockMachine> = {
     name: "jonathanf-workstation",
     homeDirectory: "/home/jonathanf",
     commandLineToolLinkedAt: "/home/jonathanf/.local/bin/tatolab",
+    localApiSocket: "/run/user/1000/streamlib/local-api.sock",
+    runtimeLogDirectory: "/home/jonathanf/.local/state/tatolab/logs",
     vulkanLoaderLibrary: "/usr/lib/x86_64-linux-gnu/libvulkan.so.1",
     vulkanDeviceSelectedMessage: "Selected Vulkan device: NVIDIA GeForce RTX 4090 (type: Discrete GPU)",
     cameraOpenedAttrs: { device: "/dev/video0", format: "1920x1080 yuyv" },

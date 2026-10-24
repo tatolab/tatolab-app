@@ -9,6 +9,7 @@
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
 import type {
   ListedStream,
+  RuntimeDescription,
   RuntimeState,
   StreamGraphSummary,
   StreamLogRecordsPage,
@@ -81,6 +82,7 @@ export class TatolabAppController {
     private readonly platform: TatolabPlatform,
     private readonly runTatolabSwitch: RunTatolabSwitch,
     private readonly machineSetup: TatolabMachineSetup,
+    private readonly localApiSocket: string,
     private readonly localApiClient: LocalApiClient,
     private readonly runtimeLoopbackHttpOrigin: string,
     private readonly bundledRuntimeRestart: BundledRuntimeRestart | null,
@@ -103,6 +105,7 @@ export class TatolabAppController {
       sources.platform,
       runTatolabSwitch,
       sources.platformForThisBuild.machineSetup,
+      sources.platformForThisBuild.localApiSocket,
       new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS, sources.appVersion),
       sources.runtimeLoopbackHttpOrigin,
       sources.platformForThisBuild.bundledRuntimeRestart,
@@ -212,6 +215,14 @@ export class TatolabAppController {
     if (!saved.ok) this.tatolabAppLog.warn("the app version the runtime was restarted under could not be remembered", { failure: saved.failure });
   }
 
+  /** "Restart runtime": stop the agent's runtime and start it again, as one queued step; refused while Run Tatolab is off, and in the service manager's words. */
+  async restartTheRuntimeOnRequest(): Promise<Result<void, string>> {
+    const restarted = await this.withTheRunTatolabSwitch((runTatolabSwitch) => runTatolabSwitch.restartTheRuntimeOnRequest(this.readMonotonicClockMs()));
+    if (restarted.ok) this.tatolabAppLog.info("the runtime was restarted on request");
+    else this.tatolabAppLog.warn("the runtime could not be restarted on request", { failure: restarted.failure });
+    return restarted;
+  }
+
   /** Whether the switch is on. */
   runTatolab(): boolean {
     return this.runTatolabSwitch.runTatolab();
@@ -285,7 +296,13 @@ export class TatolabAppController {
       machine_setup_state: machineSetup.machineSetupState,
       command_line_tool_linked_at: machineSetup.commandLineToolLinkedAt,
       app_update: this.readTheAppUpdateState(),
+      local_api_socket: this.localApiSocket,
     };
+  }
+
+  /** How the running runtime describes itself: its version and build, how long it has been up, and the folder of its own log. */
+  describeRuntime(): Promise<Result<RuntimeDescription, LocalApiRequestFailure>> {
+    return this.localApiClient.describeRuntime();
   }
 
   /** The window's next page of `stream`'s log records: those numbered after `after`. */

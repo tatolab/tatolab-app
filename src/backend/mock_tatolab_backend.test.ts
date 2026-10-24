@@ -183,3 +183,40 @@ describe("the mock backend's Add stream", () => {
     expect(await settled(() => backend.chooseStreamProjectFolder("project_to_run"))).toEqual({ answer: null });
   });
 });
+
+describe("the mock backend's runtime", () => {
+  it("describes itself while it runs, and a restart goes through starting and counts its uptime again from 0", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
+    const settled = async <Answer>(answer: Promise<Answer>, milliseconds: number): Promise<Answer> => {
+      await vi.advanceTimersByTimeAsync(milliseconds);
+      return answer;
+    };
+
+    const described = await settled(backend.describeRuntime(), 100);
+    expect(described).toMatchObject({ version: "0.55.2", runtime_log_directory: "/Users/jonathanf/Library/Application Support/Tatolab/logs" });
+    expect(described.up_for_ms).toBeGreaterThan(3 * 24 * 60 * 60_000);
+
+    await settled(backend.restartRuntime(), 1_000);
+    expect((await settled(backend.getTatolabStatus(), 100)).runtime_state).toBe("starting");
+    const describedWhileStarting = backend.describeRuntime().catch((refusal: unknown) => refusal);
+    expect(await settled(describedWhileStarting, 100)).toBe("no runtime answers at /tmp/streamlib-501/local-api.sock: connect ENOENT /tmp/streamlib-501/local-api.sock");
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect((await settled(backend.getTatolabStatus(), 100)).runtime_state).toBe("running");
+    expect((await settled(backend.describeRuntime(), 100)).up_for_ms).toBeLessThan(5_000);
+  });
+
+  it("refuses a restart while Run Tatolab is off, and names no log folder for a runtime keeping none", async () => {
+    vi.useFakeTimers();
+    const stopped = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=stopped")));
+    const restart = stopped.restartRuntime().catch((refusal: unknown) => refusal);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(await restart).toBe("Run Tatolab is off, so there is no runtime to restart. Turn Run Tatolab on to start it.");
+
+    const withoutAnOwnLog = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("runtime_log=none")));
+    const described = withoutAnOwnLog.describeRuntime();
+    await vi.advanceTimersByTimeAsync(100);
+    expect((await described).runtime_log_directory).toBeNull();
+  });
+});

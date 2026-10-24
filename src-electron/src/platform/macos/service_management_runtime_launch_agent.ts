@@ -71,17 +71,27 @@ export class ServiceManagementRuntimeLaunchAgent implements RuntimeAgentRegistra
     return this.serviceManagementAgentServices.registerAgentService(this.agentPlistName);
   }
 
-  async startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {
+  startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {
     // Without `-k`, kickstart leaves a running job alone.
+    return this.kickstartTheRuntimesJob([]);
+  }
+
+  restartRuntimeAgent(): Promise<Result<void, RuntimeAgentStartFailure>> {
+    // `-k` kills a running job before starting it, and launchd answers once it has spawned it again.
+    return this.kickstartTheRuntimesJob(["-k"]);
+  }
+
+  private async kickstartTheRuntimesJob(kickstartOptions: readonly string[]): Promise<Result<void, RuntimeAgentStartFailure>> {
     const launchdJob = `gui/${this.uid}/${RUNTIME_LAUNCH_AGENT_LABEL}`;
-    const kickstartRun = await this.launchctlRunner(["kickstart", launchdJob]);
+    const kickstartArguments = ["kickstart", ...kickstartOptions, launchdJob];
+    const kickstartRun = await this.launchctlRunner(kickstartArguments);
     if (!kickstartRun.ok) return failedWith({ kind: "refused", refusal: `launchctl could not be run: ${kickstartRun.failure}` });
     const kickstart = kickstartRun.value;
     if (programSucceeded(kickstart)) return succeeded(undefined);
     if (kickstart.exitStatus === LAUNCHCTL_NO_SUCH_SERVICE_EXIT_STATUS) return failedWith({ kind: "no_job_for_the_registered_agent" });
     return failedWith({
       kind: "refused",
-      refusal: `launchctl kickstart ${launchdJob} failed (${describeHowTheProgramEnded(kickstart)}): ${kickstart.standardError.trim()}`,
+      refusal: `launchctl ${kickstartArguments.join(" ")} failed (${describeHowTheProgramEnded(kickstart)}): ${kickstart.standardError.trim()}`,
     });
   }
 

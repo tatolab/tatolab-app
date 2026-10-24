@@ -80,6 +80,25 @@ describe("createElectronTatolabBackend", () => {
     ]);
   });
 
+  it("sends the runtime's commands under their names, answering the runtime's description as it came", async () => {
+    const runtimeDescription = { version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: null };
+    const fakeBridge = fakeTatolabElectronBridge({
+      describe_runtime: { ok: true, value: runtimeDescription },
+      restart_runtime: { ok: true, value: null },
+      open_runtime_log_folder: { ok: false, refusal: "The runtime keeps no log of its own, so there is no folder to open." },
+    });
+    const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
+
+    expect(await backend.describeRuntime()).toEqual(runtimeDescription);
+    await backend.restartRuntime();
+    await expect(backend.openRuntimeLogFolder()).rejects.toBe("The runtime keeps no log of its own, so there is no folder to open.");
+    expect(fakeBridge.invokedCommands).toEqual([
+      ["describe_runtime", undefined],
+      ["restart_runtime", undefined],
+      ["open_runtime_log_folder", undefined],
+    ]);
+  });
+
   it("sends each stream action under its command, answering a stop's notice and null for the rest", async () => {
     const notRecordedBecause = "the kept record of `camera` could not be written: Permission denied (os error 13)";
     const fakeBridge = fakeTatolabElectronBridge({

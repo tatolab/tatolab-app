@@ -69,6 +69,13 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     openTerminalAtChosenProjectFolder: async (folder) => {
       await invokeTatolabCommand("open_terminal_at_stream_project", { folder });
     },
+    describeRuntime: () => invokeTatolabCommand("describe_runtime", undefined),
+    restartRuntime: async () => {
+      await invokeTatolabCommand("restart_runtime", undefined);
+    },
+    openRuntimeLogFolder: async () => {
+      await invokeTatolabCommand("open_runtime_log_folder", undefined);
+    },
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
   };
 }
