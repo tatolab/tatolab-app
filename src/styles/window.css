@@ -11,7 +11,6 @@
 @import "@xyflow/react/dist/base.css" layer(components);
 @import "./stream_graph_canvas.css" layer(components);
 @import "./streams_page.css" layer(components);
-@import "./settings_page.css" layer(components);
 @import "./first_launch_setup.css" layer(components);
 @import "./runtime_state_page.css" layer(components);
 @import "./uninstall_sheet.css" layer(components);

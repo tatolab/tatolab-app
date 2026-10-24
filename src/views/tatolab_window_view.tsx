@@ -13,7 +13,6 @@ import { isStreamLoaded } from "../presentation/stream_presentation";
 import { FirstLaunchSetupView } from "./first_launch_setup_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { LinuxRuntimeInstallView } from "./linux_runtime_install_view";
-import { SettingsPageView } from "./settings_page_view";
 import { ControlTooltipProvider } from "../design_system/control_tooltip";
 import { readableExposedPorts } from "../presentation/stream_overview_presentation";
 import { AddStreamFlowOfTheWindow } from "../add_stream_flow_of_the_window";
@@ -26,15 +25,27 @@ import { TatolabSearchView } from "./tatolab_search_view";
 import {
   TatolabWindowEnvironmentContext,
   TatolabWindowStatusStore,
+  UninstallTatolabRefusal,
   useTatolabStatus,
   useTatolabWindowEnvironment,
   type TatolabWindowEnvironment,
   type TatolabWindowHostedPages,
 } from "./tatolab_window_context";
 import { TATOLAB_WINDOW_ROUTES } from "./tatolab_window_shell";
+import { RuntimeDescriptionReadings } from "../runtime_description_reading";
+import { SYSTEM_PREFERS_DARK_MEDIA_QUERY, WindowAppearanceChoice } from "../window_appearance";
 import { UninstallSheetView } from "./uninstall_sheet_view";
 
 type TatolabWindowRouter = ReturnType<typeof createMemoryRouter>;
+
+/** The page's storage, or `null` where the page may not use it. */
+function windowLocalStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
 
 /** The shell and its pages, or the setup screen that fills the window until Tatolab can run here. */
 function TatolabWindowRoot({ router, isUninstallUnderway }: { router: TatolabWindowRouter; isUninstallUnderway: () => boolean }) {
@@ -73,19 +84,23 @@ export function mountTatolabWindow(
 
   const streamGraphReadings = new StreamGraphReadings(backend);
   const streamLogReadings = new StreamLogReadings(backend, (streamName, streamInstance) => streamGraphReadings.rememberStreamInstance(streamName, streamInstance));
+  const runtimeDescriptionReadings = new RuntimeDescriptionReadings(backend);
   streamGraphReadings.setPollingAllowed(isTatolabWindowVisible());
   streamLogReadings.setPollingAllowed(isTatolabWindowVisible());
+  runtimeDescriptionReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => {
     streamGraphReadings.setPollingAllowed(isVisible);
     streamLogReadings.setPollingAllowed(isVisible);
+    runtimeDescriptionReadings.setPollingAllowed(isVisible);
   });
+  const windowAppearance = new WindowAppearanceChoice(windowLocalStorage(), window.matchMedia(SYSTEM_PREFERS_DARK_MEDIA_QUERY), document.documentElement);
+  const uninstallTatolabRefusal = new UninstallTatolabRefusal();
   backend.onStreamPageRequested((streamName) => void navigateTo(streamPagePath(streamName)));
   const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
   const streamsPage = new StreamsPageView(backend);
   const uninstallSheet = new UninstallSheetView(backend, platform, (flowState) =>
-    settingsPage.showUninstallTatolabRefusal(flowState.phase === "closed" ? flowState.refusalReason : null),
+    uninstallTatolabRefusal.showRefusalReason(flowState.phase === "closed" ? flowState.refusalReason : null),
   );
-  const settingsPage = new SettingsPageView(backend, platform, () => uninstallSheet.open());
   const search = new TatolabSearchView(
     backend,
     platform,
@@ -111,13 +126,13 @@ export function mountTatolabWindow(
   );
   const hostedPages: TatolabWindowHostedPages = {
     streamsPage,
-    settingsPage,
     setupScreen: platform === "linux" ? new LinuxRuntimeInstallView() : new FirstLaunchSetupView(backend),
   };
   const openSearch = () => {
     if (!uninstallSheet.isOpen()) search.open();
   };
   let statusStore: TatolabWindowStatusStore | null = null;
+  let runtimeStateLastShown: TatolabStatus["runtime_state"] | null = null;
   let runtimeLastAnsweredAt: Date | null = null;
 
   /** Runs the window shortcut for `key`, held with ⌘ on macOS and Ctrl on Linux; false when `key` has none here. */
@@ -169,7 +184,8 @@ export function mountTatolabWindow(
     hostedPages.setupScreen.showStatus?.(status);
     streamsPage.setRuntimeLastAnsweredAt(runtimeLastAnsweredAt);
     streamsPage.showStatus(status);
-    settingsPage.showStatus(status);
+    if (runtimeStateLastShown !== null && status.runtime_state !== runtimeStateLastShown) runtimeDescriptionReadings.pollNow();
+    runtimeStateLastShown = status.runtime_state;
   };
   const renderTheWindowOn = (firstStatusStore: TatolabWindowStatusStore) => {
     const environment: TatolabWindowEnvironment = {
@@ -180,6 +196,10 @@ export function mountTatolabWindow(
       streamLogReadings,
       addStreamFlow,
       hostedPages,
+      windowAppearance,
+      runtimeDescriptionReadings,
+      openUninstallSheet: () => uninstallSheet.open(),
+      uninstallTatolabRefusal,
       openSearch,
     };
     createRoot(rootElement).render(
