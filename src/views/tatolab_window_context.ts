@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { createContext, useContext, useSyncExternalStore } from "react";
+import type { AddStreamFlowOfTheWindow } from "../add_stream_flow_of_the_window";
 import type { TatolabBackend } from "../backend/tatolab_backend";
 import type { TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
+import type { AddStreamFlowState, AddStreamRunNotice } from "../presentation/add_stream_flow";
 import type { StreamGraphReading, StreamGraphReadings } from "../stream_graph_readings";
 import type { StreamLogReading, StreamLogReadings } from "../stream_log_readings";
 import type { SettingsPageView } from "./settings_page_view";
@@ -45,6 +47,8 @@ export interface TatolabWindowEnvironment {
   statusStore: TatolabWindowStatusStore;
   streamGraphReadings: StreamGraphReadings;
   streamLogReadings: StreamLogReadings;
+  /** Adding a stream, held by the window so a run outlives the page that started it. */
+  addStreamFlow: AddStreamFlowOfTheWindow;
   hostedPages: TatolabWindowHostedPages;
   openSearch(): void;
 }
@@ -75,4 +79,16 @@ export function useStreamGraphReading(streamName: string): StreamGraphReading {
 export function useStreamLogReading(streamName: string): StreamLogReading {
   const { streamLogReadings } = useTatolabWindowEnvironment();
   return useSyncExternalStore(streamLogReadings.subscribeToReadings, () => streamLogReadings.readingOf(streamName));
+}
+
+/** The Add stream flow, re-rendering the caller on each change. */
+export function useAddStreamFlowState(): AddStreamFlowState {
+  const { addStreamFlow } = useTatolabWindowEnvironment();
+  return useSyncExternalStore(addStreamFlow.subscribeToFlow, addStreamFlow.readFlowState);
+}
+
+/** What the last run that answered away from the Add stream page came to, re-rendering the caller on each change. */
+export function useAddStreamRunNotice(): AddStreamRunNotice | null {
+  const { addStreamFlow } = useTatolabWindowEnvironment();
+  return useSyncExternalStore(addStreamFlow.subscribeToFlow, addStreamFlow.readRunNotice);
 }

@@ -4,6 +4,8 @@
 import { describe, expect, it } from "vitest";
 import type { StreamProjectFolderReport, StreamRunAnswer } from "../backend/tatolab_backend_contract";
 import {
+  addStreamRunNoticeOf,
+  presentAddStreamRunNotice,
   addStreamPageSection,
   addStreamStepAnnouncement,
   compilingStreamWords,
@@ -263,5 +265,36 @@ describe("the commands and words the page shows", () => {
     expect(streamRunningSummary({ ...HEAT_MAP_ANSWER, compile_warnings: ["a", "b"], replaced_the_kept_record: true })).toBe(
       "It replaced the stream this project kept before. It compiled with 2 warnings. Read them before you rely on this stream.",
     );
+  });
+});
+
+describe("the notice of a run that answered away from the page", () => {
+  it("names the running stream, and its warnings to read, or a refusal in the runtime's words", () => {
+    const running = afterEvents(initialAddStreamFlowState("new_project"), [
+      { kind: "new_project_created", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"] }) },
+      { kind: "run_started", request: { folder: "/Users/someone/streams/hello", streamFunction: null, streamName: "hello" }, nowMs: 0 },
+      { kind: "run_answered", outcome: { kind: "running", answer: { ...HEAT_MAP_ANSWER, stream: "hello", compile_warnings: ["a"] } } },
+    ]);
+    const runningNotice = addStreamRunNoticeOf(running);
+    expect(runningNotice).toEqual({ kind: "running", source: "new_project", streamName: "hello", compileWarningCount: 1 });
+    expect(runningNotice === null ? null : presentAddStreamRunNotice(runningNotice)).toEqual({
+      title: "hello is running",
+      detail: "1 compile warning: read it before you rely on this stream.",
+      tone: "warning",
+    });
+    expect(presentAddStreamRunNotice({ kind: "running", source: "project_folder", streamName: "heat_map", compileWarningCount: 0 })).toEqual({
+      title: "heat_map is running",
+      detail: "Always on. It compiled cleanly.",
+      tone: "plain",
+    });
+
+    const taken = afterEvents(initialAddStreamFlowState("project_folder"), [
+      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/main-v2", { stream_functions: ["main"] }) },
+      { kind: "run_started", request: { folder: "/Users/someone/code/main-v2", streamFunction: null, streamName: "main" }, nowMs: 0 },
+      { kind: "run_answered", outcome: { kind: "name_taken", refusal: "the stream name `main` is held", free_name: "main-2" } },
+    ]);
+    expect(addStreamRunNoticeOf(taken)).toEqual({ kind: "refused", source: "project_folder", words: "the stream name `main` is held" });
+    expect(presentAddStreamRunNotice({ kind: "refused", source: "project_folder", words: "held" })).toEqual({ title: "Compile and run was refused", detail: "held", tone: "failure" });
+    expect(addStreamRunNoticeOf(initialAddStreamFlowState("project_folder"))).toBeNull();
   });
 });

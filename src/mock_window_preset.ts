@@ -37,11 +37,17 @@ async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
     if (addStep === "created") await clickWhenShown(`[data-add-stream-action="create"]:not([disabled])`);
     return;
   }
-  if (addStep !== "folder" && addStep !== "compiling" && addStep !== "done") return;
+  if (addStep !== "folder" && addStep !== "compiling" && addStep !== "done" && addStep !== "away") return;
   await clickWhenShown(`[data-add-stream-action="choose_folder"]`);
   if (addStep === "folder") return;
   await waitForElement(`[data-add-stream-checks]`);
   await clickWhenShown(`[data-add-stream-action="compile_and_run"]:not([disabled])`);
+  if (addStep === "away") {
+    await waitForElement(`[data-add-stream-step="compiling"]`);
+    await clickWhenShown(`[data-window-navigation="streams"]`);
+    await waitForElement(`[data-add-stream-run-notice]`, MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS);
+    return;
+  }
   if (addStep === "done") await waitForElement(`[data-add-stream-step="running"], [data-add-stream-name-taken]`, MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS);
 }
 
@@ -55,7 +61,8 @@ async function clickWhenShown(selector: string): Promise<boolean> {
  * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=overview|graph|logs|inspect`,
  * `?stream_page_action=<action>` (a header button of the stream's page, once its steps show: `stop_stream` there gives
  * the steps as of the last load), `?inspect=tree`,
- * `?page=settings|add-stream`, on Add stream `?add=folder|compiling|done` (a folder chosen, compiling, the stream running) or
+ * `?page=settings|add-stream`, on Add stream `?add=folder|compiling|done|away` (a folder chosen, compiling, the stream running, or
+ * Streams opened while it compiled and the run's notice shown once it answers) or
  * `?add=new|created` (a new project proposed, then written by `tatolab new`), with the backend's `?add_folder=`, `?add_run=warning` and
  * `?add_cli=missing`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
  * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),

@@ -3,9 +3,8 @@
 
 import { cn } from "cn";
 import { Check, FileCode2, Folder, FolderOpen, FolderPlus, LoaderCircle, type LucideIcon, Package, RotateCw, SquareTerminal, TriangleAlert, Workflow } from "lucide-react";
-import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { StreamGraphExposedPort, StreamProjectFolderReport, StreamRunAnswer } from "../backend/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
 import { ListRowButton } from "../design_system/list_row_button";
@@ -15,18 +14,14 @@ import { TextField } from "../design_system/text_field";
 import {
   addStreamPageSection,
   addStreamStepAnnouncement,
-  advanceAddStreamFlow,
   compileAndRunUnavailableBecause,
   compileWarningsHeading,
   compilingForWords,
   compilingStreamWords,
-  folderToRun,
   functionsOwnNameOf,
-  initialAddStreamFlowState,
   newProjectCommand,
   pythonEnvironmentCheckDetail,
   pythonEnvironmentSyncCommand,
-  runRequestOf,
   runRequestWords,
   streamFileCheckDetail,
   streamRunAnswerLines,
@@ -35,7 +30,6 @@ import {
   terminalCommandForTheRun,
   terminalRunRequestOf,
   type AddStreamFlowEvent,
-  type AddStreamFlowState,
   type AddStreamForm,
   type AddStreamRunRequest,
   type AddStreamSource,
@@ -44,11 +38,11 @@ import { presentPlatform } from "../presentation/platform_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import { choosePreviewedOutput, exposedOutputAddress } from "../presentation/stream_overview_presentation";
 import { STREAM_RUN_MODE_LABELS } from "../presentation/stream_presentation";
-import { addStreamPagePath } from "./add_stream_page_path";
+import { addStreamPagePath, isOpenedFromARunNoticeIn } from "./add_stream_page_path";
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
 import { CommandWithCopyButton } from "./stream_action_controls";
 import { streamPagePath } from "./stream_page_path";
-import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
+import { useAddStreamFlowState, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 const ADD_STREAM_SOURCES: readonly { source: AddStreamSource; label: string; icon: LucideIcon }[] = [
   { source: "project_folder", label: "Run a project folder", icon: FolderOpen },
@@ -535,92 +529,43 @@ function AddStreamFooter({ children }: { children: ReactNode }) {
 
 /** The Add stream page: run a project folder kept, or create one with `tatolab new` and run it once its `.venv` is synced. */
 export function AddStreamPageView({ source }: { source: AddStreamSource }) {
-  const { backend, platform } = useTatolabWindowEnvironment();
+  const { platform, addStreamFlow } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
   const navigate = useNavigate();
-  const [flowState, dispatch] = useReducer(
-    (state: AddStreamFlowState, event: AddStreamFlowEvent) => advanceAddStreamFlow(state, event),
-    source,
-    initialAddStreamFlowState,
-  );
+  const flowState = useAddStreamFlowState();
+  const dispatch = (event: AddStreamFlowEvent) => addStreamFlow.dispatch(event);
   const form = flowState.form;
   const isTheRuntimeRunning = presentRuntimeStatus(status).displayState === "running";
   const machineWords = status.machine_name ?? presentPlatform(platform).thisMachineMidSentence;
+  const location = useLocation();
+
+  // Shown, the page says what a run came to itself, so the window's notice of it goes. Opened afresh, rather than from
+  // that notice, a run that already landed gives way to a new form; one still compiling is shown again.
+  const isOpenedFromARunNotice = isOpenedFromARunNoticeIn(location.state);
+  useEffect(() => {
+    addStreamFlow.setPageShown(true);
+    if (!isOpenedFromARunNotice && addStreamFlow.readFlowState().step === "running") addStreamFlow.dispatch({ kind: "source_chosen", source });
+    return () => addStreamFlow.setPageShown(false);
+    // Once per showing of the page: the path's source and how it was opened are read as it opens.
+  }, [addStreamFlow]);
 
   // A navigation here while a run compiles is ignored by the flow; once the run answers, the page catches up to the path.
   useEffect(() => {
-    if (form.source !== source) dispatch({ kind: "source_chosen", source });
-  }, [form.source, source, flowState.step]);
+    if (form.source !== source) addStreamFlow.dispatch({ kind: "source_chosen", source });
+  }, [addStreamFlow, form.source, source, flowState.step]);
   // Add stream pressed again on this page's own path starts afresh from the running view.
-  const navigationKey = useLocation().key;
-  const navigationKeyShownBefore = useRef(navigationKey);
+  const navigationKeyShownBefore = useRef(location.key);
   useEffect(() => {
-    if (navigationKeyShownBefore.current === navigationKey) return;
-    navigationKeyShownBefore.current = navigationKey;
-    dispatch({ kind: "source_chosen", source });
-  }, [navigationKey, source]);
+    if (navigationKeyShownBefore.current === location.key) return;
+    navigationKeyShownBefore.current = location.key;
+    addStreamFlow.dispatch({ kind: "source_chosen", source });
+  }, [addStreamFlow, location.key, source]);
 
   const needsANewProjectProposal = form.source === "new_project" && form.newProjectFolder === null && form.workUnderWay === null && form.refusal === null;
   useEffect(() => {
-    if (!needsANewProjectProposal) return;
-    dispatch({ kind: "work_started", work: "choosing_a_folder" });
-    backend.proposeNewStreamProjectFolder().then(
-      (report) => dispatch({ kind: "new_project_folder_answered", report }),
-      (rejection: unknown) => dispatch({ kind: "work_refused", lead: "No directory was proposed:", words: describeBackendRejection(rejection) }),
-    );
-  }, [backend, needsANewProjectProposal]);
+    if (needsANewProjectProposal) addStreamFlow.proposeNewProjectFolder();
+  }, [addStreamFlow, needsANewProjectProposal]);
 
-  const folderAnsweredEvent = (report: StreamProjectFolderReport): AddStreamFlowEvent =>
-    form.source === "project_folder" ? { kind: "project_folder_answered", report } : { kind: "new_project_folder_answered", report };
-
-  const chooseFolder = () => {
-    dispatch({ kind: "work_started", work: "choosing_a_folder" });
-    backend.chooseStreamProjectFolder(form.source === "project_folder" ? "project_to_run" : "new_project_directory").then(
-      (report) => dispatch(report === null ? { kind: "folder_dialog_cancelled" } : folderAnsweredEvent(report)),
-      (rejection: unknown) => dispatch({ kind: "work_refused", lead: "The folder dialog was refused:", words: describeBackendRejection(rejection) }),
-    );
-  };
-  const checkAgain = () => {
-    const folder = folderToRun(form);
-    if (folder === null) return;
-    dispatch({ kind: "work_started", work: "checking_the_folder" });
-    backend.checkStreamProjectFolder(folder.folder).then(
-      (report) => dispatch(folderAnsweredEvent(report)),
-      (rejection: unknown) => dispatch({ kind: "work_refused", lead: "Check again was refused:", words: describeBackendRejection(rejection) }),
-    );
-  };
-  const openTerminal = () => {
-    const folder = folderToRun(form);
-    if (folder === null) return;
-    dispatch({ kind: "work_started", work: "opening_a_terminal" });
-    backend.openTerminalAtChosenProjectFolder(folder.folder).then(
-      () => dispatch({ kind: "terminal_opened" }),
-      (rejection: unknown) => dispatch({ kind: "work_refused", lead: "No terminal opened:", words: describeBackendRejection(rejection) }),
-    );
-  };
-  const createProject = () => {
-    const newProjectFolder = form.newProjectFolder;
-    if (newProjectFolder === null) return;
-    dispatch({ kind: "work_started", work: "creating_the_project" });
-    backend.createStreamProject(newProjectFolder.folder).then(
-      (report) => dispatch({ kind: "new_project_created", report }),
-      (rejection: unknown) => dispatch({ kind: "work_refused", lead: "Create was refused:", words: describeBackendRejection(rejection) }),
-    );
-  };
-  const run = (request: AddStreamRunRequest) => {
-    dispatch({ kind: "run_started", request, nowMs: performance.now() });
-    backend.runStreamProject(request.folder, request.streamFunction, request.streamName).then(
-      (outcome) => dispatch({ kind: "run_answered", outcome }),
-      (rejection: unknown) => dispatch({ kind: "run_refused", words: describeBackendRejection(rejection) }),
-    );
-  };
-  const runRequest = runRequestOf(form);
-  const compileAndRun = () => {
-    if (runRequest !== null) run(runRequest);
-  };
-  const useFreeName = (freeName: string) => {
-    if (runRequest !== null) run({ ...runRequest, streamName: freeName });
-  };
   const chooseSource = (chosenSource: AddStreamSource) => navigate(addStreamPagePath(chosenSource), { replace: true });
 
   const compileAndRunUnavailableReason = compileAndRunUnavailableBecause(form, isTheRuntimeRunning);
@@ -679,10 +624,10 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
             {flowState.step === "compiling" && <CompilingView request={flowState.request} startedAtMs={flowState.startedAtMs} />}
             {flowState.step === "running" && <StreamRunningView request={flowState.request} answer={flowState.answer} />}
             {flowState.step === "form" && form.source === "project_folder" && (
-              <ProjectFolderForm form={form} onChooseFolder={chooseFolder} onCheckAgain={checkAgain} onOpenTerminal={openTerminal} dispatch={dispatch} onUseFreeName={useFreeName} />
+              <ProjectFolderForm form={form} onChooseFolder={() => addStreamFlow.chooseFolder()} onCheckAgain={() => addStreamFlow.checkTheFolderAgain()} onOpenTerminal={() => addStreamFlow.openATerminalInTheFolder()} dispatch={dispatch} onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)} />
             )}
             {flowState.step === "form" && form.source === "new_project" && (
-              <NewProjectForm form={form} onChooseDirectory={chooseFolder} onCheckAgain={checkAgain} onOpenTerminal={openTerminal} dispatch={dispatch} onUseFreeName={useFreeName} />
+              <NewProjectForm form={form} onChooseDirectory={() => addStreamFlow.chooseFolder()} onCheckAgain={() => addStreamFlow.checkTheFolderAgain()} onOpenTerminal={() => addStreamFlow.openATerminalInTheFolder()} dispatch={dispatch} onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)} />
             )}
           </div>
         </div>
@@ -720,7 +665,7 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
               <ActionButton
                 appearance="primary"
                 isDisabled={form.newProjectFolder === null || form.workUnderWay !== null}
-                onPressed={createProject}
+                onPressed={() => addStreamFlow.createTheNewProject()}
                 data-add-stream-action="create"
               >
                 {form.workUnderWay === "creating_the_project" ? "Creating…" : "Create"}
@@ -729,7 +674,7 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
               <ActionButton
                 appearance="primary"
                 isDisabled={compileAndRunUnavailableReason !== null}
-                onPressed={compileAndRun}
+                onPressed={() => addStreamFlow.compileAndRun()}
                 data-add-stream-action="compile_and_run"
               >
                 Compile and run

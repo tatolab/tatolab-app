@@ -785,4 +785,30 @@ describe("Add stream", () => {
     await waitFor(() => expect(document.querySelector("[data-add-stream-page]")?.getAttribute("data-add-stream-page")).toBe("project_folder"), MOCK_RUN_WAIT);
     expect(document.querySelector('[data-add-stream-source="project_folder"]')?.getAttribute("aria-current")).toBe("page");
   });
+
+  it("keeps a run that answers after you left the page, says so in a notice, and View shows what it came to", { timeout: 15_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&add_run=warning");
+    openAddStream();
+    fireEvent.click(await addStreamControl("choose_folder"));
+    await waitFor(() => expect(document.querySelector("[data-add-stream-checks]")).not.toBeNull());
+    fireEvent.click(await addStreamControl("compile_and_run"));
+    await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')).not.toBeNull());
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-window-navigation="streams"]') ?? expect.unreachable("no Streams in the sidebar"));
+
+    const notice = await waitFor(() => document.querySelector<HTMLElement>('[data-add-stream-run-notice="running"]') ?? expect.unreachable("no notice yet"), MOCK_RUN_WAIT);
+    expect(notice.textContent).toContain("heat_map is running");
+    expect(notice.textContent).toContain("2 compile warnings: read them before you rely on this stream.");
+    expect(document.querySelector("[data-streams-list-page]")).not.toBeNull();
+
+    fireEvent.click(notice.querySelector<HTMLElement>('[data-window-notice-action="view"]') ?? expect.unreachable("no View"));
+    await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"]')).not.toBeNull());
+    expect(document.querySelector("[data-add-stream-compile-warnings]")?.textContent).toContain("2 compile warnings");
+    expect(document.querySelector("[data-add-stream-run-notice]")).toBeNull();
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-window-navigation="streams"]') ?? expect.unreachable("no Streams in the sidebar"));
+    openAddStream();
+    await waitFor(() => expect(document.querySelector('[data-add-stream-step="project_folder"]')).not.toBeNull());
+    expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("");
+  });
 });

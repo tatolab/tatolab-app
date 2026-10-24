@@ -14,6 +14,7 @@ import { IconButton } from "../design_system/icon_button";
 import { SearchOpeningButton } from "../design_system/search_opening_button";
 import { addStreamPagePath } from "./add_stream_page_path";
 import { AddStreamPageView } from "./add_stream_page_view";
+import { AddStreamRunNoticeView } from "./add_stream_run_notice_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { StreamPageView } from "./stream_page_view";
 import { streamPagePath, streamPageTabNamed } from "./stream_page_path";
@@ -213,12 +214,13 @@ function TatolabWindowShell() {
   return (
     <div className="flex h-full bg-chrome">
       <WindowSidebar />
-      <div className="my-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-window ring-1 ring-line">
+      <div className="relative my-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-window ring-1 ring-line">
         <WindowTitleBar />
         <main className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto">
           <Outlet />
         </main>
         <WindowStatusBar />
+        <AddStreamRunNoticeView />
       </div>
     </div>
   );

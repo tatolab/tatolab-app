@@ -16,6 +16,7 @@ import { LinuxRuntimeInstallView } from "./linux_runtime_install_view";
 import { SettingsPageView } from "./settings_page_view";
 import { ControlTooltipProvider } from "../design_system/control_tooltip";
 import { readableExposedPorts } from "../presentation/stream_overview_presentation";
+import { AddStreamFlowOfTheWindow } from "../add_stream_flow_of_the_window";
 import { StreamGraphReadings } from "../stream_graph_readings";
 import { StreamLogReadings } from "../stream_log_readings";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "../window_visibility";
@@ -78,6 +79,7 @@ export function mountTatolabWindow(
     streamGraphReadings.setPollingAllowed(isVisible);
     streamLogReadings.setPollingAllowed(isVisible);
   });
+  const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
   const streamsPage = new StreamsPageView(backend);
   const uninstallSheet = new UninstallSheetView(backend, platform, (flowState) =>
     settingsPage.showUninstallTatolabRefusal(flowState.phase === "closed" ? flowState.refusalReason : null),
@@ -169,7 +171,16 @@ export function mountTatolabWindow(
     settingsPage.showStatus(status);
   };
   const renderTheWindowOn = (firstStatusStore: TatolabWindowStatusStore) => {
-    const environment: TatolabWindowEnvironment = { backend, platform, statusStore: firstStatusStore, streamGraphReadings, streamLogReadings, hostedPages, openSearch };
+    const environment: TatolabWindowEnvironment = {
+      backend,
+      platform,
+      statusStore: firstStatusStore,
+      streamGraphReadings,
+      streamLogReadings,
+      addStreamFlow,
+      hostedPages,
+      openSearch,
+    };
     createRoot(rootElement).render(
       <StrictMode>
         <TatolabWindowEnvironmentContext value={environment}>
