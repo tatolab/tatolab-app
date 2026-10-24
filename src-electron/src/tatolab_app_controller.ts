@@ -12,13 +12,14 @@ import type {
   RuntimeState,
   StreamGraphSummary,
   StreamLogRecordsPage,
+  StreamRunAnswer,
   TatolabAppUpdateState,
   TatolabPlatform,
   TatolabStatus,
   TatolabStreamActionName,
 } from "../../src/backend/tatolab_backend_contract.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
-import { LocalApiClient, type LocalApiRequestFailure } from "./local_api_client.js";
+import { LocalApiClient, type LocalApiRequestFailure, type StreamRunRequest } from "./local_api_client.js";
 import type { TatolabPlatformForThisBuild } from "./platform/mod.js";
 import type { BundledRuntimeRestart } from "./platform/runtime_agent_registration.js";
 import type { TatolabMachineSetup } from "./platform/tatolab_machine_setup.js";
@@ -295,6 +296,16 @@ export class TatolabAppController {
   /** Run the stream action `streamAction` on `stream`, answering the runtime's notice beside it or `null`. */
   runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string | null, LocalApiRequestFailure>> {
     return this.localApiClient.runStreamAction(streamAction, stream);
+  }
+
+  /** Compile the project `streamRunRequest` names and load it kept, answering `run_stream`'s reply. */
+  runStream(streamRunRequest: StreamRunRequest): Promise<Result<StreamRunAnswer, LocalApiRequestFailure>> {
+    return this.localApiClient.runStream(streamRunRequest);
+  }
+
+  /** Every stream the runtime lists now. */
+  listStreams(): Promise<Result<ListedStream[], LocalApiRequestFailure>> {
+    return this.localApiClient.listStreams();
   }
 
   /** The graph of the loaded stream `stream`, its readable outputs' preview pages at the runtime's loopback HTTP. */

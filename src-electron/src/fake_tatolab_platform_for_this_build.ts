@@ -6,7 +6,7 @@
 // shipped code.
 
 import type { MachineSetupState, RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
-import type { TatolabAppUpdatePackaging, TatolabPlatformForThisBuild, TatolabUninstall, TerminalOpenedInAFolder } from "./platform/mod.js";
+import type { TatolabAppUpdatePackaging, TatolabCommandLineTool, TatolabPlatformForThisBuild, TatolabUninstall, TerminalOpenedInAFolder } from "./platform/mod.js";
 import type { BundledRuntimeRestart, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import type {
   MachineSetupAdministratorPromptOutcome,
@@ -114,6 +114,7 @@ export function fakeTatolabPlatformForThisBuild(
   appUpdatePackaging: TatolabAppUpdatePackaging = FAKE_APP_UPDATE_PACKAGING_NOT_OFFERED,
   bundledRuntimeRestart: BundledRuntimeRestart | null = runtimeAgent,
   terminalOpenedInAFolder: TerminalOpenedInAFolder = new FakeTerminalOpenedInAFolder(),
+  tatolabCommandLineTool: TatolabCommandLineTool = { kind: "not_offered", reason: "this fake platform has no tatolab command" },
 ): TatolabPlatformForThisBuild {
   return {
     runtimeAgent,
@@ -123,5 +124,6 @@ export function fakeTatolabPlatformForThisBuild(
     appUpdatePackaging,
     bundledRuntimeRestart,
     terminalOpenedInAFolder,
+    tatolabCommandLineTool,
   };
 }

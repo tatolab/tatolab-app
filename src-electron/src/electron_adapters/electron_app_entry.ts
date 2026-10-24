@@ -15,6 +15,7 @@ import { TATOLAB_WINDOW_PAGE_URL } from "../tatolab_window_page_source.js";
 import { runtimeLoopbackHttpOriginForThisBuild } from "../runtime_loopback_watch_page.js";
 import { electronApplicationMenu } from "./electron_application_menu.js";
 import { openAFolderInTheFileManagerThroughElectron } from "./electron_folder_in_the_file_manager.js";
+import { askThePersonForAStreamProjectFolderThroughElectron } from "./electron_stream_project_folder_dialog.js";
 import { createElectronMainWindowHostFactory } from "./electron_main_window_host.js";
 import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_handlers.js";
 import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
@@ -75,6 +76,8 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   buildTheTatolabPlatformForThisBuild: (platformItems) => platformItems.tatolabPlatformForThisBuild(tatolabAppLog, tatolabPlatformHostServices),
   answerTheWindowsCommands: (tatolabWindowCommandHandlers) => answerTheWindowsCommandsOverIpc(windowPageUrl, tatolabWindowCommandHandlers, tatolabAppLog),
   openAFolderInTheFileManager: openAFolderInTheFileManagerThroughElectron,
+  askThePersonForAStreamProjectFolder: askThePersonForAStreamProjectFolderThroughElectron,
+  homeDirectory: app.getPath("home"),
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
   createTheAppUpdateNotifier: createElectronTatolabAppUpdateNotifier,
   repeatingTimer: (intervalMs, work) => {

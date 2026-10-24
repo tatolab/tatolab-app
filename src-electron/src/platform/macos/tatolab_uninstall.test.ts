@@ -9,7 +9,7 @@ import { failedWith, succeeded, type Result } from "../../result.js";
 import type { RunTatolabReconciliation } from "../../run_tatolab_switch.js";
 import { createTatolabAppLog } from "../../tatolab_app_log.js";
 import type { AdministratorPromptFailure } from "./administrator_prompt.js";
-import { runProgramToCompletion } from "./run_program_to_completion.js";
+import { runProgramToCompletion } from "../run_program_to_completion.js";
 import { tatolabMachinePathsOnMacosForTheRealMachine, tatolabMachinePathsOnMacosUnderALocalProofTestRoot } from "./tatolab_machine_paths.js";
 import {
   machineFilesToRemove,

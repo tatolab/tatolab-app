@@ -2,6 +2,47 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## Add stream: run a project folder, or create one with `tatolab new` (#40)
+
+Issue #40. Every frame is in [`add-stream/`](add-stream/).
+
+**Live (local proof)** — `live-*.png`:
+- **Setup:** the unpackaged app from `npm run build && npm run build:electron`, with `machineDirectoriesUnderATestRoot` switched on in the built copy only, ran over a `tatolabd` built from streamlib `main` (fbb8ee03a) with `--local-proof-test-root`. That runtime ran by hand under `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, with its relay on 4443/4445, and the app's home was the scratch `/tmp/tatolab-proof/home`.
+- **The CLI:** the test unit's `tatolab` was copied beside the unpackaged Electron binary as `Contents/MacOS/tatolab-cli`, where a packaged bundle carries it. Create ran it through the app's own `bundledCommandLineToolPath`.
+- **How it was driven:** Playwright over DevTools at an emulated 1440×900 viewport. The native folder dialog was answered with System Events. `uv sync` ran in a terminal.
+- **The owner's runtime:** the owner's `com.tatolab.tatolabd` (pid 44718) had the same `launchctl print` record before and after. The unpackaged app's Service Management calls failed, as in #38.
+- **Contract test:** the live contract test passed against this runtime with its four streams. It reads health, streams, graphs, logs and the machine name; `run_stream` is pinned by the recorded fixtures and these frames.
+
+**Mock** — `mock-*-{light,dark}.png`, shot in Chromium at 1440×900. The presets press their buttons from script, so a step's heading shows the keyboard focus ring when the page moves focus to it.
+
+| image | label | shows |
+|---|---|---|
+| `live-01-macos-run-a-project-folder-nothing-chosen` | Live (local proof) | Add stream from the sidebar: Start from with Run a project folder selected, "No folder chosen yet", Choose…, "Choose a project folder first." in the footer, and "Streams run on jonathanf-macbook." |
+| `live-02-macos-project-folder-checked` | Live (local proof) | `/private/tmp/tatolab-proof/projects/lobby-heat` chosen in the native dialog: a real `tatolab new` scaffold after `uv sync`. `stream.py` reads "Stream function main()" and `.venv` reads "Python 3.12.10 · tatolab-stream 0.55.0", both Found. The name is prefilled `main`, and the footer shows the same `cd … && tatolab run -d`. |
+| `live-03-macos-lobby-heat-running` | Live (local proof) | Renamed `lobby-heat`, compiled and run: "lobby-heat is running", "Always on · 4 steps", "It compiled cleanly". The runtime's preview of `jonathanf-macbook/lobby-heat/h264encoder/encoded_video` is playing. The compile output reads `run_stream /private/tmp/…/lobby-heat name=lobby-heat keep=true`, then "loaded lobby-heat as instance 7: 4 steps". The compile took under a second, so no compiling frame was caught live (`mock-04` shows it). |
+| `live-04-macos-lobby-heat-always-on` | Live (local proof) | Open stream: `lobby-heat` Running, Always on, 4 steps (2 Python), its public output playing in the Overview. |
+| `live-05-macos-name-hello-refused-by-the-runtime` | Live (local proof) | `hello-again` asked to load as `hello`, which the kept `hello` from another folder holds. Under the red-edged name, the runtime's words: "Stream graph error: the stream name `hello` is held by a kept stream from /private/tmp/tatolab-proof/projects/hello; load this one under another name with `--name`". "Run as hello-2" is offered, Compile and run is disabled, and the footer's terminal command carries `--name hello-2`. (Shot after `hello-3` was loaded, so the sidebar lists `hello`, `hello-3` and `lobby-heat`.) |
+| `live-06-macos-run-as-hello-2` | Live (local proof) | One press of Run as `hello-2`: "hello-2 is running", with `name=hello-2` in the request line. |
+| `live-07-macos-create-a-new-project-proposed` | Live (local proof) | Create a new project, proposing `/tmp/tatolab-proof/home/streams/hello` under the app's home, with `tatolab new …` and Copy, What you get, and Create. |
+| `live-08-macos-tatolab-new-wrote-it-venv-missing` | Live (local proof) | After Create, the real `tatolab new` wrote the project: `stream.py` Found ("Stream function main()"), `.venv` Missing. Shown under it: `cd /tmp/tatolab-proof/home/streams/hello && uv sync`, Open a terminal here and Check again. The name is `hello`, and Compile and run is disabled, the footer reading "Sync the project's .venv with uv sync, then check again." |
+| `live-09-macos-check-again-finds-the-venv` | Live (local proof) | After `uv sync` in a terminal, Check again reads `.venv` Found ("Python 3.12.10 · tatolab-stream 0.55.0"), and the footer offers `tatolab run -d --name hello` and Compile and run. |
+| `live-10-macos-new-project-running-as-hello-3` | Live (local proof) | Compile and run: the runtime refused `hello`, held by the kept stream of `projects/hello`. `hello-2` was listed too, so it offered Run as `hello-3`, which loaded it. "hello-3 is running", Always on, its preview playing. `tatolab streams` then listed `hello`, `hello-2`, `hello-3` and `lobby-heat`, all `kept`. |
+| `live-11-macos-new-project-running-dark` | Live (local proof) | The same done view in dark. |
+| `mock-01-macos-project-folder` | Mock | `?page=add-stream&add=folder`: the folder chosen, checks Found, name `heat_map`, Always on with Dev session dim (its reason is in a tooltip). |
+| `mock-02-macos-venv-missing` | Mock | `&add_folder=no-venv`: `.venv` Missing in warn-text with `uv sync`, Open a terminal here and Check again; Compile and run disabled, its reason in the footer. |
+| `mock-03-macos-several-stream-functions` | Mock | `&add_folder=several`: a Stream function choice of `front_door()` and `back_door()`; the footer command names `stream.py:front_door`. |
+| `mock-04-macos-compiling` | Mock | `&add=compiling`: "Compiling heat_map", the `run_stream` request line, and "waiting for the runtime's answer · 1s". Start from is dimmed, and Compiling… shows with no Cancel. |
+| `mock-05-macos-running-with-warnings` | Mock | `&add=done&add_run=warning`: "2 compile warnings" in the cross-floor check's own lines, the same lines in warn-text in the compile output, the preview addressed `jonathanf-macbook/heat_map/…`, Open graph and Open stream. |
+| `mock-06-macos-name-taken` | Mock | `&add=done&add_folder=taken`: the runtime's refusal of `main`, Run as `main-2`, Compile and run disabled, and the footer's command `cd /Users/jonathanf/code/main-v2 && tatolab run -d --name main-2`, cut off at this width. The section's heading holds focus, since the refused Compile and run left the page. |
+| `mock-07-macos-new-project` | Mock | `&add=new`: Directory, Runs, Run mode and What you get, with Create. |
+| `mock-08-macos-new-project-created` | Mock | `&add=created`: after `tatolab new`, `.venv` Missing with `uv sync`, Compile and run disabled until it is synced. |
+| `mock-09-macos-create-refused` | Mock | `&add=created&add_cli=missing`: the bar "Create was refused: This build of Tatolab has no tatolab command to run. Run tatolab new in a terminal instead." |
+| `mock-10-macos-runtime-stopped` | Mock | `state=stopped`: Compile and run disabled, the footer reading "The runtime isn't running, so it can't compile a stream." |
+| `mock-11-linux-project-folder` | Mock | `platform=linux`: Linux chrome, Ctrl K, and `/home/…` paths. |
+| `mock-12-macos-run-notice-running` | Mock | `?page=add-stream&add=away&add_run=warning`: Streams opened while the run compiled. Once it answered, `heat_map` is listed Running, and a notice at the bottom right reads "heat_map is running" and, in the done view's own words in warn-text, "It compiled with 2 warnings. Read them before you rely on this stream.", with View and Dismiss. |
+| `mock-13-macos-run-notice-refused` | Mock | `&add_folder=taken`: the run refused while away. The notice reads "Compile and run was refused" and the runtime's words in full in danger-text; no `main-2` is listed. |
+| `mock-14-macos-run-notice-view-opens-the-result` (light) | Mock | View on the running notice: the Add stream done view of `heat_map`, with its 2 compile warnings and the compile output, and the notice gone. |
+
 ## The window as a design system built on shadcn (#51)
 
 Issue #51. **Mock** — [`design-system/mock/`](design-system/mock/).

@@ -70,6 +70,19 @@ export interface TatolabPlatformForThisBuild {
   bundledRuntimeRestart: BundledRuntimeRestart | null;
   /** The desktop's terminal, which the window's Terminal opens on a stream's project folder. */
   terminalOpenedInAFolder: TerminalOpenedInAFolder;
+  /** The `tatolab` CLI the app runs `tatolab new` with. */
+  tatolabCommandLineTool: TatolabCommandLineTool;
+}
+
+/** The `tatolab` CLI at `path`: the one in the app's bundle on macOS, the installer's link on Linux; `not_offered` with why in a build that carries none. */
+export type TatolabCommandLineTool = { kind: "at"; path: string } | { kind: "not_offered"; reason: string };
+
+/** Why a build without a `tatolab` CLI cannot create a project. */
+export const NO_TATOLAB_COMMAND_LINE_TOOL_REFUSAL = "This build of Tatolab has no tatolab command to run. Run tatolab new in a terminal instead.";
+
+/** The CLI at `path`, or not offered when there is none. */
+export function tatolabCommandLineToolAt(path: string | null): TatolabCommandLineTool {
+  return path === null ? { kind: "not_offered", reason: NO_TATOLAB_COMMAND_LINE_TOOL_REFUSAL } : { kind: "at", path };
 }
 
 /** The desktop's terminal: Terminal.app on macOS, `x-terminal-emulator` on Linux. */

@@ -10,7 +10,7 @@ import {
   type OsascriptRunner,
 } from "./administrator_prompt.js";
 import { machineSetupAdministratorShellScript } from "./machine_setup.js";
-import { runProgramToCompletion, type ProgramCompletion } from "./run_program_to_completion.js";
+import { runProgramToCompletion, type ProgramCompletion } from "../run_program_to_completion.js";
 import { tatolabUninstallAdministratorShellScript } from "./tatolab_uninstall.js";
 
 const OSASCRIPT_RUNS_HERE = process.platform === "darwin";

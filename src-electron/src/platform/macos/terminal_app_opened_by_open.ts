@@ -3,7 +3,7 @@
 
 import { failedWith, succeeded, type Result } from "../../result.js";
 import type { TerminalOpenedInAFolder } from "../mod.js";
-import { describeHowTheProgramEnded, programSucceeded, runProgramToCompletion, type ProgramCompletion } from "./run_program_to_completion.js";
+import { describeHowTheProgramEnded, programSucceeded, runProgramToCompletion, type ProgramCompletion } from "../run_program_to_completion.js";
 
 /** `open` at its system path, which Launch Services answers. */
 export const OPEN_AT_ITS_SYSTEM_PATH = "/usr/bin/open";

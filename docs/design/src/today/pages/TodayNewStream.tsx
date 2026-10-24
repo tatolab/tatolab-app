@@ -78,8 +78,10 @@ export default function TodayNewStream() {
 
   const folder = conflict ? "~/code/front-door-v2" : "~/code/heat-map"
   const streamFunction = conflict ? "front_door" : "heat_map"
-  const [name, setName] = useState(streamFunction.replace(/_/g, "-"))
-  useEffect(() => setName(streamFunction.replace(/_/g, "-")), [streamFunction])
+  // The runtime names a stream after its function, underscores kept; the conflict frame shows a name typed over it.
+  const initialName = conflict ? "front-door" : streamFunction
+  const [name, setName] = useState(initialName)
+  useEffect(() => setName(initialName), [initialName])
   const heldBy = todayStreams.find((s) => s.id === name)?.project
 
   const [directory, setDirectory] = useState("~/streams/hello")

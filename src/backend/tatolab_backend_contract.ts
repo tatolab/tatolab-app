@@ -156,3 +156,41 @@ export interface StreamGraphSummary {
   /** The `graph` tool's text exactly as the runtime wrote it, which `tatolab graph --stream` prints. */
   graph_document_text: string;
 }
+
+/** What a project folder is chosen for in the app's folder dialog: a project to run, or the directory `tatolab new` creates. */
+export type StreamProjectFolderChosenFor = "project_to_run" | "new_project_directory";
+
+/** A project's `.venv` as the app found it: its interpreter present, with the Python and `tatolab-stream` versions it names when it names them; or missing, which `uv sync` in the project creates. */
+export type StreamProjectPythonEnvironment =
+  | { kind: "present"; python_version: string | null; tatolab_stream_version: string | null }
+  | { kind: "missing" };
+
+/** What the app found in a project folder the window may name: whether it exists, its `stream.py`, and its `.venv`. */
+export interface StreamProjectFolderReport {
+  /** An absolute path. */
+  folder: string;
+  folder_exists: boolean;
+  stream_file_present: boolean;
+  /** The functions `stream.py` marks `@stream`, in file order, found by reading its text; the runtime decides what compiles. */
+  stream_functions: string[];
+  python_environment: StreamProjectPythonEnvironment;
+}
+
+/** What `run_stream` answers for a load it carried out, field for field. */
+export interface StreamRunAnswer {
+  /** The name the stream was loaded under, as the runtime cast it. */
+  stream: string;
+  stream_instance: string;
+  kept: boolean;
+  project_directory: string;
+  node_count: number;
+  /** Whether the load replaced the kept stream of the same project and function. */
+  replaced_the_kept_record: boolean;
+  /** Each line the compile wrote to its standard error, the cross-floor check's warnings among them. */
+  compile_warnings: string[];
+}
+
+/** What running a project folder came to: the stream running, or the runtime's refusal of a name a listed stream holds, with the first name no listed stream holds. Any other refusal is the command's refusal. */
+export type StreamProjectRunOutcome =
+  | { kind: "running"; answer: StreamRunAnswer }
+  | { kind: "name_taken"; refusal: string; free_name: string };

@@ -6,7 +6,6 @@
 // `project_directory` the runtime listed for it in the status the app last published, or the log
 // folder under it, so a page can never have the app open a path of its choosing.
 
-import { stat } from "node:fs/promises";
 import path from "node:path";
 import { STREAM_LOG_FOLDER_IN_THE_PROJECT, type ListedStream } from "../../src/backend/tatolab_backend_contract.js";
 import type { TerminalOpenedInAFolder } from "./platform/mod.js";
@@ -21,15 +20,6 @@ export interface StreamProjectFolderOpeners {
   openAFolderInTheFileManager(folder: string): Promise<Result<void, string>>;
   terminalOpenedInAFolder: TerminalOpenedInAFolder;
   isAnExistingFolder(folderPath: string): Promise<boolean>;
-}
-
-/** Whether `folderPath` names a folder on this machine. */
-export async function isAnExistingFolderOnThisMachine(folderPath: string): Promise<boolean> {
-  try {
-    return (await stat(folderPath)).isDirectory();
-  } catch {
-    return false;
-  }
 }
 
 /** `folder` opened by `openTheFolder` while it is a folder on this machine; refused with `refusalWhenMissing` once it is not. */

@@ -4,8 +4,8 @@
 // The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
 // local API's Unix socket. `GET /health` says the runtime is up, the MCP tools `list_streams`,
 // `logs` and `graph` over `POST /mcp` list its streams, read one's log records and draw one's
-// graph, `stop_stream`, `start_stream` and `remove_stream` act on one, and `GET /api/graph` names
-// the machine.
+// graph, `run_stream` compiles a project and loads it kept, `stop_stream`, `start_stream` and
+// `remove_stream` act on one, and `GET /api/graph` names the machine.
 //
 // The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
 // `mcp.rs` serves rmcp's stateless Streamable HTTP with per-request protocol metadata
@@ -14,15 +14,18 @@
 
 import { isUtf8 } from "node:buffer";
 import net from "node:net";
-import type { ListedStream, StreamGraphSummary, StreamLogRecordsPage, TatolabStreamActionName } from "../../src/backend/tatolab_backend_contract.js";
+import type { ListedStream, StreamGraphSummary, StreamLogRecordsPage, StreamRunAnswer, TatolabStreamActionName } from "../../src/backend/tatolab_backend_contract.js";
 import {
   everyOneRead,
   isAJsonObject,
   jsonObject,
+  type JsonObjectOnTheWire,
   optionalText,
   optionalUnsignedInteger,
   parseJsonOnTheWire,
   requiredText,
+  requiredTrueOrFalse,
+  requiredUnsignedInteger,
   textOrDefault,
 } from "./json_on_the_wire.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
@@ -38,16 +41,71 @@ const LOCAL_API_MCP_CLIENT_NAME = "tatolab-app";
 /** How long a stream action may go without a byte: `start_stream` answers once the stream's graph has loaded, which compiles `stream.py` and starts its Python processes. */
 const STREAM_ACTION_RESPONSE_TIMEOUT_MS = 120_000;
 
+/** How long `run_stream` may go without a byte: StreamLib's `STREAM_LOAD_TOOL_CALL_TIMEOUT`, which the runtime's compile, describe and teardown bounds fit within. */
+const STREAM_LOAD_RESPONSE_TIMEOUT_MS = 360_000;
+
 /** The most bytes one local API response may carry before the client gives up on it. */
 const LARGEST_LOCAL_API_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 /** Why a local API request came back without an answer. */
 export interface LocalApiRequestFailure {
   failureDescription: string;
+  /** Whether the runtime answered and refused, in its own words, rather than not answering or answering something unreadable. */
+  isTheRuntimesRefusal: boolean;
 }
 
 function localApiRequestFailure(failureDescription: string): { ok: false; failure: LocalApiRequestFailure } {
-  return failedWith({ failureDescription });
+  return failedWith({ failureDescription, isTheRuntimesRefusal: false });
+}
+
+function theRuntimesRefusal(failureDescription: string): { ok: false; failure: LocalApiRequestFailure } {
+  return failedWith({ failureDescription, isTheRuntimesRefusal: true });
+}
+
+/** What the app asks `run_stream` to load: a project folder, kept. `streamFunction` as `tatolab run` takes it, `null` for the project's sole `@stream`; `streamName` in place of the function's own, or `null`. */
+export interface StreamRunRequest {
+  projectDirectory: string;
+  streamFunction: string | null;
+  streamName: string | null;
+}
+
+/** A `run_stream` tool result read field for field; unknown fields are ignored. */
+export function streamRunAnswerFromTheRunStreamToolResult(toolResultText: string): Result<StreamRunAnswer, string> {
+  const parsedToolResult = parseJsonOnTheWire(toolResultText);
+  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the run_stream result") : parsedToolResult;
+  const streamRunAnswer = toolResult.ok ? streamRunAnswerOnTheWire(toolResult.value) : toolResult;
+  return streamRunAnswer.ok ? streamRunAnswer : failedWith(`the runtime's run_stream result could not be read: ${streamRunAnswer.failure}`);
+}
+
+function streamRunAnswerOnTheWire(toolResult: JsonObjectOnTheWire): Result<StreamRunAnswer, string> {
+  const stream = requiredText(toolResult, "stream");
+  if (!stream.ok) return stream;
+  const streamInstance = requiredText(toolResult, "stream_instance");
+  if (!streamInstance.ok) return streamInstance;
+  const kept = requiredTrueOrFalse(toolResult, "kept");
+  if (!kept.ok) return kept;
+  const projectDirectory = requiredText(toolResult, "project_directory");
+  if (!projectDirectory.ok) return projectDirectory;
+  const nodeCount = requiredUnsignedInteger(toolResult, "node_count");
+  if (!nodeCount.ok) return nodeCount;
+  const replacedTheKeptRecord = requiredTrueOrFalse(toolResult, "replaced_the_kept_record");
+  if (!replacedTheKeptRecord.ok) return replacedTheKeptRecord;
+  const compileWarningsOnTheWire = toolResult["compile_warnings"];
+  if (compileWarningsOnTheWire === undefined) return failedWith("missing field `compile_warnings`");
+  if (!Array.isArray(compileWarningsOnTheWire)) return failedWith("`compile_warnings` is not an array");
+  const compileWarnings = everyOneRead(compileWarningsOnTheWire, (compileWarning: unknown) =>
+    typeof compileWarning === "string" ? succeeded(compileWarning) : failedWith("a compile warning is not a string"),
+  );
+  if (!compileWarnings.ok) return compileWarnings;
+  return succeeded({
+    stream: stream.value,
+    stream_instance: streamInstance.value,
+    kept: kept.value,
+    project_directory: projectDirectory.value,
+    node_count: nodeCount.value,
+    replaced_the_kept_record: replacedTheKeptRecord.value,
+    compile_warnings: compileWarnings.value,
+  });
 }
 
 /** One HTTP response as the client read it. */
@@ -168,6 +226,23 @@ export class LocalApiClient {
     return notice.ok ? notice : localApiRequestFailure(notice.failure);
   }
 
+  /** Compile the project `streamRunRequest` names in its own `.venv` and load it kept, through the runtime's `run_stream` tool; refused in the runtime's own words. */
+  async runStream(streamRunRequest: StreamRunRequest): Promise<Result<StreamRunAnswer, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool(
+      "run_stream",
+      {
+        project_directory: streamRunRequest.projectDirectory,
+        ...(streamRunRequest.streamFunction === null ? {} : { stream_function: streamRunRequest.streamFunction }),
+        ...(streamRunRequest.streamName === null ? {} : { name: streamRunRequest.streamName }),
+        keep: true,
+      },
+      STREAM_LOAD_RESPONSE_TIMEOUT_MS,
+    );
+    if (!toolResultText.ok) return toolResultText;
+    const streamRunAnswer = streamRunAnswerFromTheRunStreamToolResult(toolResultText.value);
+    return streamRunAnswer.ok ? streamRunAnswer : localApiRequestFailure(streamRunAnswer.failure);
+  }
+
   /** The graph of the loaded stream `stream` from the runtime's `graph` tool, the text `tatolab graph --stream` prints, its readable outputs' preview pages at `runtimeLoopbackHttpOrigin`. */
   async describeStreamGraph(stream: string, runtimeLoopbackHttpOrigin: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool("graph", { stream });
@@ -210,8 +285,7 @@ export class LocalApiClient {
       responseTimeoutMs,
     );
     if (!response.ok) return response;
-    const firstText = firstTextBlockOfToolCallResponse(toolName, response.value);
-    return firstText.ok ? firstText : localApiRequestFailure(firstText.failure);
+    return firstTextBlockOfToolCallResponse(toolName, response.value);
   }
 
   private sendOneHttpRequestAndReadItsResponse(
@@ -302,25 +376,25 @@ function mcpToolCallRequestBody(toolName: string, toolArguments: Readonly<Record
   });
 }
 
-function firstTextBlockOfToolCallResponse(toolName: string, response: LocalApiHttpResponse): Result<string, string> {
+function firstTextBlockOfToolCallResponse(toolName: string, response: LocalApiHttpResponse): Result<string, LocalApiRequestFailure> {
   const jsonRpcResponse = parseJsonOnTheWire(response.body.toString("utf8"));
   if (!jsonRpcResponse.ok) {
-    return failedWith(`\`${toolName}\` answered ${response.statusCode} with a body that is not JSON-RPC: ${jsonRpcResponse.failure}`);
+    return localApiRequestFailure(`\`${toolName}\` answered ${response.statusCode} with a body that is not JSON-RPC: ${jsonRpcResponse.failure}`);
   }
   const jsonRpcFields = isAJsonObject(jsonRpcResponse.value) ? jsonRpcResponse.value : {};
   const jsonRpcError = jsonRpcFields["error"];
   if (jsonRpcError !== undefined) {
     const message = isAJsonObject(jsonRpcError) && typeof jsonRpcError["message"] === "string" ? jsonRpcError["message"] : "no message";
-    return failedWith(`the runtime refused \`${toolName}\` (${response.statusCode}): ${message}`);
+    return theRuntimesRefusal(`the runtime refused \`${toolName}\` (${response.statusCode}): ${message}`);
   }
   const toolResult = jsonRpcFields["result"];
-  if (toolResult === undefined) return failedWith(`\`${toolName}\` answered with neither a result nor an error`);
+  if (toolResult === undefined) return localApiRequestFailure(`\`${toolName}\` answered with neither a result nor an error`);
   const toolResultFields = isAJsonObject(toolResult) ? toolResult : {};
   const content = toolResultFields["content"];
   const firstText = Array.isArray(content) ? content.map(textOfATextBlock).find((blockText) => blockText !== null) ?? null : null;
   const toolFailed = toolResultFields["isError"] === true;
-  if (toolFailed) return failedWith(firstText ?? `\`${toolName}\` failed and gave no reason`);
-  return firstText === null ? failedWith(`\`${toolName}\` answered with no text`) : succeeded(firstText);
+  if (toolFailed) return theRuntimesRefusal(firstText ?? `\`${toolName}\` failed and gave no reason`);
+  return firstText === null ? localApiRequestFailure(`\`${toolName}\` answered with no text`) : succeeded(firstText);
 }
 
 /** A content block's text when it is a text block carrying text. */

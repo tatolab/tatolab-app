@@ -7,7 +7,7 @@
 import { failedWith, succeeded, type Result } from "../../result.js";
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../../../src/backend/tatolab_backend_contract.js";
 import type { BundledRuntimeRestart, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "../runtime_agent_registration.js";
-import { describeHowTheProgramEnded, programSucceeded, runProgramToCompletion, type ProgramCompletion } from "./run_program_to_completion.js";
+import { describeHowTheProgramEnded, programSucceeded, runProgramToCompletion, type ProgramCompletion } from "../run_program_to_completion.js";
 import type { ServiceManagementAgentServices, ServiceManagementAgentServiceStatus } from "./service_management_agent_services.js";
 
 /** The agent plist's file name inside the bundle's `Contents/Library/LaunchAgents/`. */

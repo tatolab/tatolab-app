@@ -3,7 +3,7 @@
 
 import { expect, test } from "vitest";
 import { failedWith, succeeded } from "../../result.js";
-import type { ProgramCompletion } from "./run_program_to_completion.js";
+import type { ProgramCompletion } from "../run_program_to_completion.js";
 import { TerminalAppOpenedByOpen } from "./terminal_app_opened_by_open.js";
 
 function programRunsAnswering(completion: ProgramCompletion) {
