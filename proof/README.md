@@ -2,6 +2,54 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## Settings on the new design (#41)
+
+Issue #41. Every frame is in [`settings/`](settings/). The runtime's version, uptime and log folder come from its `describe_runtime` tool (streamlib#2922, v0.55.2).
+
+**Live (local proof)** — `19`–`23`:
+- **Setup:** the unpackaged app from `npm run build && npm run build:electron`, with `machineDirectoriesUnderATestRoot` switched on in the built copy only. It ran over a `tatolabd` built from streamlib v0.55.2 (ec6adf522) with `--local-proof-test-root`, run by hand under `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`. The app's home was a scratch home holding `run-tatolab.json` with Run Tatolab off, so no Service Management or `launchctl` call reached the owner's agent. It reconciled to `switch_is_off`.
+- **How it was driven:** Playwright over DevTools at the window's own 1040×700 size.
+- **The owner's runtime:** the owner's `com.tatolab.tatolabd` (pid 44718) had the same `launchctl print` record before and after.
+- **Contract:** `src-electron/test-fixtures/local-api-describe-runtime-tool-result-of-a-test-root-runtime.json` was recorded from this runtime, and the live contract test passed against it.
+- **Not covered here:** Restart runtime through the real `launchctl kickstart -k`. With Run Tatolab on, it would restart the owner's runtime, so it waits for the owner. The Linux frames below show it through the service manager's stand-in.
+
+**Linux (container, unbundled) · stand-in runtime** — `24`–`28`:
+- **Setup:** [`settings-linux/run-in-an-ubuntu-container.sh`](settings-linux/run-in-an-ubuntu-container.sh) runs the unpackaged app in `ubuntu:22.04` under Xvfb.
+- **The service manager:** the extended [`systemctl-stand-in`](electron-linux-systemd/systemctl-stand-in) runs `tatolabd.service`. It answers `restart`.
+- **The runtime:** a stand-in, [`local-api-stand-in.mjs`](settings-linux/local-api-stand-in.mjs), answers `/health`, `/api/graph`, `list_streams` and `describe_runtime`, its uptime counted from its own start. The CLI is [`tatolab-cli-stand-in`](settings-linux/tatolab-cli-stand-in).
+- **How it was driven:** shot over DevTools with [`shoot-settings-over-devtools.mjs`](settings-linux/shoot-settings-over-devtools.mjs) at an emulated 1240×780 viewport.
+- **The restart:** the status words through Restart runtime read `Running · tatolabd 0.55.2 · up 1m` → `Starting` → `Running · tatolabd 0.55.2 · up less than a minute`. The stand-in received one `--user restart tatolabd.service`.
+
+**Mock** — `01`–`18` and `29`–`31`, shot in Chrome at 1440×900 (2×) from the presets in `mock_window_preset.ts` and `mock_tatolab_backend.ts`.
+
+| image | label | shows |
+|---|---|---|
+| `01-mock-general-light`, `02-mock-general-dark` | Mock | General: Open Tatolab at login off ("The runtime starts at login either way; this opens the app too."), Notifications › When a stream fails on, and Quit or uninstall with Quit Tatolab and the red Uninstall Tatolab…. |
+| `03-mock-appearance-light`, `04-mock-appearance-dark` | Mock | Appearance: Theme, "Light is the default.", with Light, Dark and System; the segment chosen is the theme shown. |
+| `05-mock-runtime-light`, `06-mock-runtime-dark` | Mock | Runtime on `jonathanf-macbook`: Status "Running · tatolabd 0.55.2 · up 3d 2h" with Restart runtime; Run Tatolab on; Login Items; Local API socket `/tmp/streamlib-501/local-api.sock`; Logs › Runtime logs, "What tatolabd writes." over `/Users/jonathanf/Library/Application Support/Tatolab/logs`, with Open logs folder; Stream records. |
+| `07-mock-command-line-light`, `08-mock-command-line-dark` | Mock | Command line: `tatolab` at `/usr/local/bin/tatolab`, version `0.55.2`, and Coding agents with `$ tatolab mcp` and the `.mcp.json` block, each with a copy button. |
+| `09-mock-about-light`, `10-mock-about-dark` | Mock | About: the mascot, "Tatolab", "Version 0.45.0 · tatolabd 0.55.2", Updates with Check for Updates…, and "Runtime licensed BUSL-1.1. © 2025 Jonathan Fontanez". |
+| `11-mock-runtime-restarting-starting` | Mock | `restart=pressed`: Status "Starting", the sidebar saying streams show while the runtime runs, Open logs folder disabled, the status bar "Runtime starting". |
+| `12-mock-runtime-restart-refused` | Mock | `restart=refused`: under Status, "Couldn't restart the runtime: launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 5): Input/output error". |
+| `13-mock-runtime-stopped` | Mock | `state=stopped`: Status "Stopped", Restart runtime disabled, Run Tatolab off, Open logs folder disabled. |
+| `14-mock-runtime-keeps-no-own-log` | Mock | `runtime_log=none`, dark: Running with its version and uptime; Runtime logs names no folder and Open logs folder is disabled. |
+| `15-mock-general-login-approval-no-notifications` | Mock | `open_at_login=approval&notifications=unsupported`: "macOS is waiting for you to allow Tatolab under Login Items." with Open Login Items…; "This desktop shows no notifications, so Tatolab can't tell you here when a stream fails." |
+| `16-mock-general-not-offered-linux` | Mock | Linux, `open_at_login=not_offered`: "Only a packaged Tatolab opens at login." and no switch; the Linux quit and uninstall words. |
+| `17-mock-runtime-linux-dark` | Mock | Linux Runtime: Run Tatolab naming `tatolabd.service`, no Login Items, the socket `/run/user/1000/streamlib/local-api.sock`, the log folder `/home/jonathanf/.local/state/tatolab/logs`. |
+| `18-mock-command-line-unreadable` | Mock | `cli_version=unreadable`: no version beside the path, and "Its version can't be read:" with the CLI's own words. |
+| `29-mock-runtime-not-responding-light`, `30-…-dark` | Mock | `state=unreachable`: Status "Not responding" in danger-text, with "It's switched on but hasn't answered for 20 seconds. macOS restarts it if it exits." |
+| `31-mock-notification-click-opens-lobby-recorder` | Mock | `stream_page_requested=lobby-recorder`: a click on that stream's failure notification opens its Overview, Failed, with the runtime's reason in the banner. |
+| `19-live-local-proof-runtime` | Live (local proof) | Runtime read from the real v0.55.2 runtime: "Running · tatolabd 0.55.2 · up 25m", the socket `/tmp/tatolab-proof/run/local-api.sock`, Runtime logs `/tmp/tatolab-proof/state/logs` with Open logs folder (pressed, Finder opened `/private/tmp/tatolab-proof/state/logs/`); Restart runtime disabled with Run Tatolab off. |
+| `20-live-local-proof-runtime-stopped` | Live (local proof) | The test runtime stopped by hand: Status "Stopped", Open logs folder disabled, the sidebar's streams gone. |
+| `21-live-local-proof-runtime-after-it-restarted` | Live (local proof) | The test runtime started again by hand, not by Restart runtime: "Running · tatolabd 0.55.2 · up less than a minute", the uptime read afresh. |
+| `22-live-local-proof-about-dark` | Live (local proof) | About in dark after choosing Dark: "Version 0.45.0 · tatolabd 0.55.2"; Updates "Only a packaged Tatolab updates itself." |
+| `23-live-local-proof-appearance-dark-after-relaunch` | Live (local proof) | The app quit and opened again: still dark, with Dark the chosen segment. |
+| `24-linux-container-runtime` | Linux (container, unbundled) · stand-in runtime | Runtime on the container's host name: "Running · tatolabd 0.55.2 · up less than a minute", Run Tatolab naming `tatolabd.service`, the socket `/tmp/xdg-runtime/streamlib/local-api.sock`, the stand-in's log folder `/root/.local/state/tatolab/logs`. |
+| `25-linux-container-runtime-restarting-starting` | Linux (container, unbundled) · stand-in runtime | Restart runtime pressed: Status "Starting", the status bar "Runtime starting". |
+| `26-linux-container-runtime-after-restart-runtime` | Linux (container, unbundled) · stand-in runtime | After the restart: "Running · tatolabd 0.55.2 · up less than a minute", where a moment before it read "up 1m". |
+| `27-linux-container-general` | Linux (container, unbundled) | General on Linux: "Only a packaged Tatolab opens at login." (the app is unpackaged), and "This desktop shows no notifications…", since the container has no notification server. |
+| `28-linux-container-command-line` | Linux (container, unbundled) · stand-in CLI | `tatolab` at `/root/.local/bin/tatolab`, version `0.55.2` read from its `--version`, and the coding-agent config. |
+
 ## Add stream: run a project folder, or create one with `tatolab new` (#40)
 
 Issue #40. Every frame is in [`add-stream/`](add-stream/).
@@ -259,7 +307,7 @@ Playwright drove the window. Beside each image, `<image>.tatolab-streams.txt` is
 | `mock-05-macos-stop-not-recorded` | `stop_not_recorded=camera&stream_action=stop_stream:camera` | A stop the runtime could not record: `camera` Stopped, with "Stopped, but not recorded, so it loads again when the runtime restarts:" in warn-text, then the runtime's reason. |
 | `mock-06-macos-remove-asks-first` | `remove=pattern-two` | The Remove confirmation. |
 | `mock-07-macos-stream-graph-and-logs` | `stream=main` | A stream's page, hosted: graph and logs. |
-| `mock-08-macos-settings` | `page=settings` | Settings, hosted. |
+| `mock-08-macos-settings` | `page=settings` | Settings, hosted: the page #41 retired (see its section). |
 | `mock-09-macos-add-stream-guide` | `page=add-stream` | What every Add stream control opens until #40: the first-stream guide. |
 | `mock-10-macos-runtime-off` | `state=stopped` | Tatolab is off; the status bar reads "Runtime stopped". |
 | `mock-11-macos-first-launch-setup` | `state=setup` | First-launch setup fills the window. |
@@ -320,7 +368,7 @@ same before and after.
 | image | label | shows |
 |---|---|---|
 | ![](electron-window/live-macos-local-proof-01-streams-graph-logs.png) | Live (local proof) | The Electron window with hidden-inset traffic lights. `jonathanf-macbook` is running, `main` is Kept from the test-root runtime, and the graph shows its four nodes and three links ("4 nodes running, 3 links wired"). The logs follow live `brightness` records. |
-| ![](electron-window/live-macos-local-proof-02-settings.png) | Live (local proof) | Settings: Run Tatolab on, the command Not linked (a local-proof build links none), the version and the machine. |
+| ![](electron-window/live-macos-local-proof-02-settings.png) | Live (local proof) | Settings: Run Tatolab on, the command Not linked (a local-proof build links none), the version and the machine. The page #41 retired. |
 | ![](electron-window/live-macos-local-proof-03-menu-bar-menu.png) | Live (local proof) | The menu bar menu under the Electron app's template icon (the installed app's icon sits beside it): "Runtime running · 1 stream" greyed, Open Tatolab, ✓ Run Tatolab, Quit Tatolab. |
 | ![](electron-window/live-macos-local-proof-04-run-tatolab-refusal-not-shown.png) | Live (local proof) | Run Tatolab clicked off and then on. Unpackaged Electron has no agent plist, so registration was refused, but the window shows nothing. The refusal is only in the log: `registration_failed: The operation couldn't be completed. Unable to read plist: com.tatolab.tatolabd.plist`. The Tauri app has the same behaviour, because `set_run_tatolab` answers nothing and only the status follows. |
 
@@ -337,7 +385,7 @@ in `src-electron/test-fixtures/`, on `$XDG_RUNTIME_DIR/streamlib/local-api.sock`
 | image | label | shows |
 |---|---|---|
 | ![](electron-window/live-linux-01-running-graph-and-logs.png) | Linux (container, unbundled) · stand-in runtime | The Electron window in openbox, titled Tatolab, on the stand-in: machine `linux-container-stand-in`, "Tatolab is running", `main` Kept and `pattern-two` Stopped (dimmed); `main`'s graph with its four recorded nodes and links, and the log dock following the recorded records with three warnings. The Tatolab mark sits in the tray at the top right. |
-| ![](electron-window/live-linux-02-settings-run-tatolab-on.png) | Linux (container, unbundled) · stand-in runtime | Settings with Run Tatolab on, naming `tatolabd.service`, the `tatolab` command Not installed (no `~/.local/bin/tatolab` in the container), and This computer `linux-container-stand-in`. |
+| ![](electron-window/live-linux-02-settings-run-tatolab-on.png) | Linux (container, unbundled) · stand-in runtime | Settings with Run Tatolab on, naming `tatolabd.service`, the `tatolab` command Not installed (no `~/.local/bin/tatolab` in the container), and This computer `linux-container-stand-in`. The page #41 retired. |
 | ![](electron-window/live-linux-03-run-tatolab-off.png) | Linux (container, unbundled) · stand-in runtime | After clicking the switch: Run Tatolab off and "Tatolab is off" in the sidebar. The app ran `systemctl --user disable --now tatolabd.service` and the stand-in runtime stopped (logged `reconciliation=unregistered`, then `runtime_state=stopped`). |
 | ![](electron-window/live-linux-04-back-on-logs-following.png) | Linux (container, unbundled) · stand-in runtime | After switching it on again (`enable --now`, then `starting` → `running`): `main`'s Logs tab following the records the page read again over the bridge. |
 | ![](electron-window/live-linux-05-stopped-stream.png) | Linux (container, unbundled) · stand-in runtime | `pattern-two` selected: "Stopped.", its project path, and its two terminal commands with copy buttons. |
@@ -359,14 +407,14 @@ the WebKit shots in [Platforms and uninstall](#platforms-and-uninstall-mock-data
 |---|---|---|
 | ![](electron-window/01-macos-running-graph-light.png) ![](electron-window/01-macos-running-graph-dark.png) | Mock (Chromium 141) | `main` (Kept) selected on `jonathanf-macbook`, "Tatolab is running", five streams with `pattern-two` Stopped and dimmed and `lobby-recorder` Failed in red with its reason; the Graph tab with four node cards and their links, and the log dock following below. |
 | ![](electron-window/02-macos-running-logs-light.png) ![](electron-window/02-macos-running-logs-dark.png) | Mock (Chromium 141) | The Logs tab of `main`: timestamped records with info, a yellow warn and a red error, each with its key=value attributes, Following on. |
-| ![](electron-window/03-macos-settings-light.png) ![](electron-window/03-macos-settings-dark.png) | Mock (Chromium 141) | Settings: Run Tatolab on, Login Items with Open Login Items…, the `tatolab` command at `/usr/local/bin/tatolab`, About with the version, the Mac and stream records, Quit Tatolab. |
+| ![](electron-window/03-macos-settings-light.png) ![](electron-window/03-macos-settings-dark.png) | Mock (Chromium 141) | Settings: Run Tatolab on, Login Items with Open Login Items…, the `tatolab` command at `/usr/local/bin/tatolab`, About with the version, the Mac and stream records, Quit Tatolab. The page #41 retired. |
 | ![](electron-window/04-macos-approval-light.png) ![](electron-window/04-macos-approval-dark.png) | Mock (Chromium 141) | "Needs approval" in the sidebar, the page "Allow Tatolab in Login Items" with its Open Login Items… button. |
 | ![](electron-window/05-macos-setup-light.png) ![](electron-window/05-macos-setup-dark.png) | Mock (Chromium 141) | "Runtime missing" in red, the page "This copy of Tatolab is missing its runtime" with what to do. |
 | ![](electron-window/06-macos-uninstall-sheet-light.png) ![](electron-window/06-macos-uninstall-sheet-dark.png) | Mock (Chromium 141) | The Uninstall Tatolab? sheet over Settings: its three steps, records kept, Cancel and Uninstall. |
 | ![](electron-window/07-macos-uninstalling-light.png) ![](electron-window/07-macos-uninstalling-dark.png) | Mock (Chromium 141) | The same sheet after Uninstall: "macOS asks for your password now", Cancel greyed and Uninstalling… with its spinner. |
 | ![](electron-window/08-macos-unreachable-light.png) ![](electron-window/08-macos-unreachable-dark.png) | Mock (Chromium 141) | "Not responding" in red, the page "The runtime isn't responding" with Run Tatolab On, the `tatolab streams` command and "Still asking." |
 | ![](electron-window/09-linux-running-overview-light.png) ![](electron-window/09-linux-running-overview-dark.png) | Mock (Chromium 141) | `jonathanf-workstation` on Linux: the Overview tab of `main` with its exposed output, four nodes, and three terminal commands with copy buttons; Ctrl key caps. |
-| ![](electron-window/10-linux-settings-light.png) ![](electron-window/10-linux-settings-dark.png) | Mock (Chromium 141) | Linux Settings: Run Tatolab naming `tatolabd.service`, the command in `~/.local/bin`, records in `~/.local/state/tatolab`, Quit and Uninstall Tatolab… |
+| ![](electron-window/10-linux-settings-light.png) ![](electron-window/10-linux-settings-dark.png) | Mock (Chromium 141) | Linux Settings: Run Tatolab naming `tatolabd.service`, the command in `~/.local/bin`, records in `~/.local/state/tatolab`, Quit and Uninstall Tatolab… The page #41 retired. |
 | ![](electron-window/11-linux-setup-not-found-light.png) ![](electron-window/11-linux-setup-not-found-dark.png) | Mock (Chromium 141) | "Install the Tatolab runtime": the install command, its two steps, and "Waiting for `tatolabd.service`". |
 | ![](electron-window/12-linux-stopped-light.png) ![](electron-window/12-linux-stopped-dark.png) | Mock (Chromium 141) | "Tatolab is off": `tatolabd.service` stopped, with Turn On Tatolab. |
 | ![](electron-window/13-linux-search-light.png) ![](electron-window/13-linux-search-dark.png) | Mock (Chromium 141) | The search palette over `main`'s graph, with "main" typed: the stream, its exposed output and a copy command. |

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Copyright (c) 2025 Jonathan Fontanez
+# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
+# A stand-in for the installer's tatolab CLI: it answers --version as tatolab 0.55.2 does.
+[ "$1" = --version ] || { echo "stand-in only answers --version" >&2; exit 2; }
+printf 'tatolab 0.55.2\nruntime 0.55.2 (0.55.2+ec6adf5.stand-in), up 0d 0h 0m, log /root/.local/state/tatolab/logs\n'
