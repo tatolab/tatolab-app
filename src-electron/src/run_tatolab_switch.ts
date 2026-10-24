@@ -43,6 +43,12 @@ export function theRuntimeAgentShouldBeStartedNow(
 /** Why "Restart runtime" is refused while the switch is off: no agent is registered to restart. */
 export const RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL = "Run Tatolab is off, so there is no runtime to restart. Turn Run Tatolab on to start it.";
 
+/** Why "Restart runtime" is refused before the machine is set up: the runtime cannot start without its machine lock. */
+export const RESTART_BEFORE_MACHINE_SETUP_REFUSAL = "Tatolab isn't set up on this machine yet, so there is no runtime to restart.";
+
+/** Why "Restart runtime" is refused while the agent is not enabled: registering it is Run Tatolab's, never a restart's. */
+export const RESTART_WITH_THE_AGENT_NOT_ENABLED_REFUSAL = "The runtime's login item isn't enabled, so there is no runtime to restart.";
+
 /**
  * What reconciling the switch with the agent's registration did: `switch_is_off` leaves the agent as it
  * is; `waiting_for_machine_setup` is the switch on before the machine lock and CLI link are set up;
@@ -63,6 +69,8 @@ export type RunTatolabReconciliation =
 export class RunTatolabSwitch {
   private loginItemsSettingsOpenedThisLaunch = false;
   private runtimeAgentLastStartAttemptAtMs: number | null = null;
+  /** A restart on request under way: `null` until the service manager answers, then when it did; `null` with no restart under way. */
+  private restartOnRequest: { serviceManagerAnsweredAtMs: number | null } | null = null;
 
   private constructor(
     private readonly runtimeAgent: RuntimeAgentRegistration,
@@ -120,14 +128,27 @@ export class RunTatolabSwitch {
   }
 
   /**
-   * "Restart runtime": with the switch on, stop the agent's runtime and start it again, giving it the
-   * starting grace again from `nowMs`. launchd holding no job for the agent registers it again. Refused
-   * while the switch is off, and otherwise in the service manager's own words.
+   * "Restart runtime": with the switch on, the machine set up and the agent enabled, stop the agent's
+   * runtime and start it again, giving it the starting grace again; until a health check that began
+   * after the service manager answered finds it healthy, it reads as restarting. launchd holding no job
+   * for the agent registers it again. Refused otherwise, and in the service manager's own words.
    */
-  async restartTheRuntimeOnRequest(nowMs: number): Promise<Result<void, string>> {
+  async restartTheRuntimeOnRequest(machineSetupComplete: boolean, readMonotonicClockMs: () => number): Promise<Result<void, string>> {
     if (!this.runTatolabSwitchedOn) return failedWith(RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL);
-    this.runtimeAgentLastStartAttemptAtMs = nowMs;
-    this.runtimeExpectedUpSinceMs = nowMs;
+    if (!machineSetupComplete) return failedWith(RESTART_BEFORE_MACHINE_SETUP_REFUSAL);
+    if ((await this.runtimeAgent.registrationStatus()) !== "enabled") return failedWith(RESTART_WITH_THE_AGENT_NOT_ENABLED_REFUSAL);
+    const restartRequestedAtMs = readMonotonicClockMs();
+    this.runtimeAgentLastStartAttemptAtMs = restartRequestedAtMs;
+    this.runtimeExpectedUpSinceMs = restartRequestedAtMs;
+    const restartOnRequest: { serviceManagerAnsweredAtMs: number | null } = { serviceManagerAnsweredAtMs: null };
+    this.restartOnRequest = restartOnRequest;
+    const restarted = await this.restartTheAgentsRuntime();
+    if (restarted.ok) restartOnRequest.serviceManagerAnsweredAtMs = readMonotonicClockMs();
+    else this.restartOnRequest = null;
+    return restarted;
+  }
+
+  private async restartTheAgentsRuntime(): Promise<Result<void, string>> {
     const restarted = await this.runtimeAgent.restartRuntimeAgent();
     if (restarted.ok) return restarted;
     switch (restarted.failure.kind) {
@@ -137,6 +158,22 @@ export class RunTatolabSwitch {
       case "refused":
         return failedWith(restarted.failure.refusal);
     }
+  }
+
+  /**
+   * Whether the runtime still reads as restarting in a round whose health check began at `roundStartedAtMs`
+   * and found it `runtimeHealth`: a healthy answer counts only from a check that began after the service
+   * manager answered the restart, since an earlier one may have reached the runtime being replaced. A
+   * failing answer reads as the usual derivation says, the restart's starting grace included.
+   */
+  isRestartingTheRuntime(roundStartedAtMs: number, runtimeHealth: RuntimeHealthObservation): boolean {
+    if (this.restartOnRequest === null || runtimeHealth === "failing") return false;
+    const { serviceManagerAnsweredAtMs } = this.restartOnRequest;
+    if (serviceManagerAnsweredAtMs !== null && roundStartedAtMs >= serviceManagerAnsweredAtMs) {
+      this.restartOnRequest = null;
+      return false;
+    }
+    return true;
   }
 
   /**

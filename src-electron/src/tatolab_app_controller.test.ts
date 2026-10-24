@@ -48,6 +48,7 @@ async function controllerOverFakes(
   scriptedLocalApiResponses: readonly Buffer[],
   runtimeAgentStatus: "enabled" | "not_registered",
   machineSetupState: "complete" | "needs_administrator",
+  readMonotonicClockMs: () => number = () => 0,
 ) {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
   const appConfigDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-config-"));
@@ -60,7 +61,7 @@ async function controllerOverFakes(
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
-    readMonotonicClockMs: () => 0,
+    readMonotonicClockMs,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
@@ -292,4 +293,23 @@ test("each status carries where updates stand", async () => {
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   expect((await controller.composeStatus(0)).app_update).toEqual({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" });
+});
+
+test("a status composed while the runtime restarts reads Starting until a round begun after the service manager answered finds it healthy", async () => {
+  const healthyAnswer = () => httpResponse("200 OK", "text/plain", "ok");
+  const noStreams = () => toolResultResponse({ streams: [] });
+  const theMachine = () => httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] }));
+  const clockReadAtTheRequestThenAtTheAnswer = [100, 200];
+  const { controller, runtimeAgent } = await controllerOverFakes(
+    [healthyAnswer(), noStreams(), theMachine(), healthyAnswer(), noStreams()],
+    "enabled",
+    "complete",
+    () => clockReadAtTheRequestThenAtTheAnswer.shift() ?? 200,
+  );
+
+  expect(await controller.restartTheRuntimeOnRequest()).toEqual({ ok: true, value: undefined });
+  expect(runtimeAgent.calls).toEqual(["restart_the_agents_runtime"]);
+
+  expect((await controller.composeStatus(150)).runtime_state).toBe("starting");
+  expect((await controller.composeStatus(250)).runtime_state).toBe("running");
 });

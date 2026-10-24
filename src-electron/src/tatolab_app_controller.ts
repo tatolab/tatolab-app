@@ -230,7 +230,10 @@ export class TatolabAppController {
 
   /** "Restart runtime": stop the agent's runtime and start it again, as one queued step; refused while Run Tatolab is off, and in the service manager's words. */
   async restartTheRuntimeOnRequest(): Promise<Result<void, string>> {
-    const restarted = await this.withTheRunTatolabSwitch((runTatolabSwitch) => runTatolabSwitch.restartTheRuntimeOnRequest(this.readMonotonicClockMs()));
+    const machineSetupComplete = await this.machineSetupIsComplete();
+    const restarted = await this.withTheRunTatolabSwitch((runTatolabSwitch) =>
+      runTatolabSwitch.restartTheRuntimeOnRequest(machineSetupComplete, () => this.readMonotonicClockMs()),
+    );
     if (restarted.ok) this.tatolabAppLog.info("the runtime was restarted on request");
     else this.tatolabAppLog.warn("the runtime could not be restarted on request", { failure: restarted.failure });
     return restarted;
@@ -288,16 +291,14 @@ export class TatolabAppController {
 
     const { runTatolab, runtimeAgent, runtimeState } = await this.withTheRunTatolabSwitch(async (runTatolabSwitch) => {
       const runtimeAgentNow = await runTatolabSwitch.runtimeAgentRegistrationStatus();
-      if (runtimeHealth === "healthy") runTatolabSwitch.noteRuntimeHealthy(nowMs);
+      const isRestartingTheRuntime = runTatolabSwitch.isRestartingTheRuntime(nowMs, runtimeHealth);
+      if (runtimeHealth === "healthy" && !isRestartingTheRuntime) runTatolabSwitch.noteRuntimeHealthy(nowMs);
       return {
         runTatolab: runTatolabSwitch.runTatolab(),
         runtimeAgent: runtimeAgentNow,
-        runtimeState: deriveRuntimeState(
-          runTatolabSwitch.runTatolab(),
-          runtimeAgentNow,
-          runtimeHealth,
-          runTatolabSwitch.timeSinceTheRuntimeWasExpectedUpMs(nowMs),
-        ),
+        runtimeState: isRestartingTheRuntime
+          ? "starting"
+          : deriveRuntimeState(runTatolabSwitch.runTatolab(), runtimeAgentNow, runtimeHealth, runTatolabSwitch.timeSinceTheRuntimeWasExpectedUpMs(nowMs)),
       };
     });
     const previousRuntimeState = this.runtimeStateLastObserved;
