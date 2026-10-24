@@ -120,8 +120,8 @@ export class StreamProjectAdding {
   /**
    * Run `folder` kept through `run_stream`. A refusal is answered in the runtime's own words; one of a `streamName` a
    * listed stream from another folder holds is `name_taken`, with the first `<name>-<n>` no listed stream holds. The
-   * runtime compiles before it reads the name, and a stream of this same folder is one it replaces, so a refusal with
-   * the name held by this folder's own stream is the compile's.
+   * runtime compiles before it reads the name and replaces a stream of the same folder and function, so a refusal while
+   * this folder's own stream holds the name is answered as it is: the listing names no function to tell the two apart.
    */
   async runStreamProject(folder: string, streamFunction: string | null, streamName: string | null): Promise<Result<StreamProjectRunOutcome, string>> {
     const projectFolder = this.folderHandedToTheWindow(folder);
