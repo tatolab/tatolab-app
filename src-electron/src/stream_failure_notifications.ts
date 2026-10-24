@@ -1,9 +1,11 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-// A notification each time a stream fails while the app runs, with the reason the runtime gives,
-// while the person keeps the switch on. A stream fails when its listing says `failed` and the last
-// listing before it did not; the first listing after launch only sets where the app starts from.
+// A notification each time a stream fails while the app runs, while the person keeps the switch on.
+// A stream fails when its listing says `failed` and the last listing before it did not; the first
+// listing after launch only sets where the app starts from. The runtime marks a stream failed only
+// when it did not re-load at the runtime's start, so the notification says that in plain words; the
+// runtime's own reason is on the stream's page, which clicking it opens.
 
 import type { StreamFailureNotificationsState, TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -14,8 +16,13 @@ import type { TatolabAppLog } from "./tatolab_app_log.js";
 /** The state the runtime lists a stream in once it has failed. */
 const FAILED_STREAM_STATE = "failed";
 
-/** What a failed stream's notification says when the runtime gave no reason. */
-export const FAILED_WITHOUT_A_REASON_NOTIFICATION_BODY = "The runtime gave no reason.";
+/** What a failed stream's notification says under its title. */
+export const STREAM_FAILURE_NOTIFICATION_BODY = "It failed to load when the runtime started. Click to see why and retry it.";
+
+/** A failed stream's notification title. */
+export function streamFailureNotificationTitle(streamName: string): string {
+  return `${streamName} didn't start`;
+}
 
 /** The switch, the desktop's notifications, and the failed streams the last listing held. */
 export class StreamFailureNotifications {
@@ -63,10 +70,8 @@ export class StreamFailureNotifications {
     if (failedStreamsBefore === null || !this.notifyWhenAStreamFails) return;
     for (const newlyFailedStream of failedStreams.filter((failedStream) => !failedStreamsBefore.has(failedStream.name))) {
       this.tatolabAppLog.info("a stream failed; notifying", { stream: newlyFailedStream.name });
-      this.systemNotifications.showNotification(
-        `${newlyFailedStream.name} failed`,
-        newlyFailedStream.failed_because ?? FAILED_WITHOUT_A_REASON_NOTIFICATION_BODY,
-        () => this.showTheStreamsPage(newlyFailedStream.name),
+      this.systemNotifications.showNotification(streamFailureNotificationTitle(newlyFailedStream.name), STREAM_FAILURE_NOTIFICATION_BODY, () =>
+        this.showTheStreamsPage(newlyFailedStream.name),
       );
     }
   }

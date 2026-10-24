@@ -180,7 +180,7 @@ export function presentStreamFailureNotifications(streamFailureNotifications: St
   return {
     isSwitchedOn: streamFailureNotifications.enabled,
     description: streamFailureNotifications.shown_by_this_desktop
-      ? "A notification with the reason the runtime gives. Clicking it opens the stream."
+      ? "Tells you when a stream fails to start. Clicking it opens the stream and why."
       : "This desktop shows no notifications, so Tatolab can't tell you here when a stream fails.",
   };
 }

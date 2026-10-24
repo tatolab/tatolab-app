@@ -147,7 +147,7 @@ describe("General", () => {
   it("says when the desktop shows no notifications", () => {
     expect(presentStreamFailureNotifications({ enabled: false, shown_by_this_desktop: true })).toEqual({
       isSwitchedOn: false,
-      description: "A notification with the reason the runtime gives. Clicking it opens the stream.",
+      description: "Tells you when a stream fails to start. Clicking it opens the stream and why.",
     });
     expect(presentStreamFailureNotifications({ enabled: true, shown_by_this_desktop: false }).description).toBe(
       "This desktop shows no notifications, so Tatolab can't tell you here when a stream fails.",

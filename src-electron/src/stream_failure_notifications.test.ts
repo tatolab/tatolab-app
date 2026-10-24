@@ -8,7 +8,7 @@ import { afterEach, expect, test } from "vitest";
 import type { ListedStream, TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
-import { FAILED_WITHOUT_A_REASON_NOTIFICATION_BODY, StreamFailureNotifications } from "./stream_failure_notifications.js";
+import { STREAM_FAILURE_NOTIFICATION_BODY, StreamFailureNotifications } from "./stream_failure_notifications.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
 const quietTatolabAppLog = createTatolabAppLog("error", () => {});
@@ -56,13 +56,15 @@ async function notificationsOverFakes() {
   return { streamFailureNotifications, systemNotifications, streamPagesShown, appConfigDirectory, rememberedSwitch };
 }
 
-test("a_stream_failing_while_the_app_runs_notifies_with_the_runtimes_reason_and_a_click_shows_its_page", async () => {
+test("a_stream_failing_while_the_app_runs_notifies_in_plain_words_and_a_click_shows_its_page_with_the_runtimes_reason", async () => {
   const { streamFailureNotifications, systemNotifications, streamPagesShown } = await notificationsOverFakes();
 
   streamFailureNotifications.noticeStatus(statusListing([listedStream("camera", "kept")]));
   streamFailureNotifications.noticeStatus(statusListing([listedStream("camera", "failed", "camera access is denied for Tatolab")]));
 
-  expect(systemNotifications.notificationsShown).toEqual([{ title: "camera failed", body: "camera access is denied for Tatolab" }]);
+  expect(systemNotifications.notificationsShown).toEqual([
+    { title: "camera didn't start", body: "It failed to load when the runtime started. Click to see why and retry it." },
+  ]);
   systemNotifications.clickTheLastNotification();
   expect(streamPagesShown).toEqual(["camera"]);
 });
@@ -78,7 +80,7 @@ test("streams_already_failed_at_launch_or_still_failed_notify_nothing_and_a_stre
   streamFailureNotifications.noticeStatus(statusListing([listedStream("lobby-recorder", "kept"), listedStream("main", "kept")]));
   streamFailureNotifications.noticeStatus(statusListing(null));
   streamFailureNotifications.noticeStatus(statusListing([listedStream("lobby-recorder", "failed"), listedStream("main", "kept")]));
-  expect(systemNotifications.notificationsShown).toEqual([{ title: "lobby-recorder failed", body: FAILED_WITHOUT_A_REASON_NOTIFICATION_BODY }]);
+  expect(systemNotifications.notificationsShown).toEqual([{ title: "lobby-recorder didn't start", body: STREAM_FAILURE_NOTIFICATION_BODY }]);
 });
 
 test("with_the_switch_off_nothing_notifies_and_the_switch_is_remembered_across_launches", async () => {
