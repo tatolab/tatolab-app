@@ -5,7 +5,12 @@
 // setup the test completes or leaves missing, each recording what it was asked. Never imported by
 // shipped code.
 
-import type { MachineSetupState, RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
+import type {
+  MachineSetupState,
+  RuntimeAgentRegistration as RuntimeAgentRegistrationStatus,
+  TatolabAppOpenAtLogin,
+} from "../../src/backend/tatolab_backend_contract.js";
+import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
 import type { TatolabAppUpdatePackaging, TatolabCommandLineTool, TatolabPlatformForThisBuild, TatolabUninstall, TerminalOpenedInAFolder } from "./platform/mod.js";
 import type { BundledRuntimeRestart, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import type {
@@ -17,12 +22,19 @@ import type {
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** What the fake service manager was asked, in order. */
-export type FakeRuntimeAgentCall = "register" | "start_if_not_running" | "restart_the_bundled_runtime" | "unregister" | "open_login_items_settings";
+export type FakeRuntimeAgentCall =
+  | "register"
+  | "start_if_not_running"
+  | "restart_the_agents_runtime"
+  | "restart_the_bundled_runtime"
+  | "unregister"
+  | "open_login_items_settings";
 
-/** A service manager whose registration the test sets; registering enables the agent and unregistering removes it. Its restart answers `restartingTheBundledRuntime`. */
+/** A service manager whose registration the test sets; registering enables the agent and unregistering removes it. Its restarts answer `restartingTheAgentsRuntime` and `restartingTheBundledRuntime`. */
 export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, BundledRuntimeRestart {
   readonly calls: FakeRuntimeAgentCall[] = [];
   restartingTheBundledRuntime: Result<void, string> = succeeded(undefined);
+  restartingTheAgentsRuntime: Result<void, RuntimeAgentStartFailure> = succeeded(undefined);
 
   constructor(public status: RuntimeAgentRegistrationStatus) {}
 
@@ -39,6 +51,11 @@ export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, B
   async startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {
     this.calls.push("start_if_not_running");
     return succeeded(undefined);
+  }
+
+  async restartRuntimeAgent(): Promise<Result<void, RuntimeAgentStartFailure>> {
+    this.calls.push("restart_the_agents_runtime");
+    return this.restartingTheAgentsRuntime;
   }
 
   async restartTheBundledRuntime(): Promise<Result<void, string>> {
@@ -102,6 +119,24 @@ export class FakeTerminalOpenedInAFolder implements TerminalOpenedInAFolder {
   }
 }
 
+/** A desktop that opens the app at login once told to, recording each change it was asked for; it refuses with `refusal` when the test sets one. */
+export class FakeTatolabAppOpenedAtLogin implements TatolabAppOpenedAtLogin {
+  readonly setsAsked: boolean[] = [];
+  openAtLogin: TatolabAppOpenAtLogin = { kind: "off" };
+  refusal: string | null = null;
+
+  async readOpenAtLogin(): Promise<TatolabAppOpenAtLogin> {
+    return this.openAtLogin;
+  }
+
+  async setOpenAtLogin(openAtLogin: boolean): Promise<Result<void, string>> {
+    this.setsAsked.push(openAtLogin);
+    if (this.refusal !== null) return failedWith(this.refusal);
+    this.openAtLogin = openAtLogin ? { kind: "on" } : { kind: "off" };
+    return succeeded(undefined);
+  }
+}
+
 /** How the fakes' app updates unless a test says otherwise: as an unpackaged app, which offers none. */
 const FAKE_APP_UPDATE_PACKAGING_NOT_OFFERED: TatolabAppUpdatePackaging = { kind: "not_offered", reason: "this fake platform updates nothing" };
 
@@ -115,6 +150,7 @@ export function fakeTatolabPlatformForThisBuild(
   bundledRuntimeRestart: BundledRuntimeRestart | null = runtimeAgent,
   terminalOpenedInAFolder: TerminalOpenedInAFolder = new FakeTerminalOpenedInAFolder(),
   tatolabCommandLineTool: TatolabCommandLineTool = { kind: "not_offered", reason: "this fake platform has no tatolab command" },
+  tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin = new FakeTatolabAppOpenedAtLogin(),
 ): TatolabPlatformForThisBuild {
   return {
     runtimeAgent,
@@ -125,5 +161,6 @@ export function fakeTatolabPlatformForThisBuild(
     bundledRuntimeRestart,
     terminalOpenedInAFolder,
     tatolabCommandLineTool,
+    tatolabAppOpenedAtLogin,
   };
 }

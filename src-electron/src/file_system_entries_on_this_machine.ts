@@ -36,3 +36,8 @@ export async function realPathOrAsGiven(fileSystemPath: string): Promise<string>
     return fileSystemPath;
   }
 }
+
+/** Whether a caught filesystem failure is the file not being there (`ENOENT`), rather than one that could not be read. */
+export function isAMissingFileFailure(caughtFailure: unknown): boolean {
+  return caughtFailure instanceof Error && "code" in caughtFailure && caughtFailure.code === "ENOENT";
+}

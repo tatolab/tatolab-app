@@ -9,7 +9,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
 import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { failedWith, succeeded } from "./result.js";
-import { RunTatolabPreferenceFile } from "./run_tatolab_preference.js";
+import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { RuntimeRestartedForAppVersionFile } from "./runtime_restarted_for_app_version.js";
 import { MachineNameAskedOncePerRuntimeUpEpisode, TatolabAppController } from "./tatolab_app_controller.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
@@ -48,6 +48,7 @@ async function controllerOverFakes(
   scriptedLocalApiResponses: readonly Buffer[],
   runtimeAgentStatus: "enabled" | "not_registered",
   machineSetupState: "complete" | "needs_administrator",
+  readMonotonicClockMs: () => number = () => 0,
 ) {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
   const appConfigDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-config-"));
@@ -60,16 +61,18 @@ async function controllerOverFakes(
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
-    readMonotonicClockMs: () => 0,
+    readMonotonicClockMs,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   return { controller, runtimeAgent, machineSetup, localApiServer };
 }
 
 test("a healthy runtime's status names its streams and machine, read as the window reads them", async () => {
-  const { controller } = await controllerOverFakes(
+  const { controller, localApiServer } = await controllerOverFakes(
     [
       httpResponse("200 OK", "text/plain", "ok"),
       toolResultResponse({ streams: [{ name: "main", state: "kept", project_directory: "/p", node_count: 4, failed_because: null }] }),
@@ -82,7 +85,10 @@ test("a healthy runtime's status names its streams and machine, read as the wind
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
     '{"app_version":"0.45.0","platform":"macos","run_tatolab":true,"runtime_agent":"enabled","runtime_state":"running",' +
       '"machine_name":"jonathanf-macbook","streams":[{"name":"main","state":"kept","project_directory":"/p","node_count":4,"failed_because":null}],' +
-      '"machine_setup_state":"needs_administrator","command_line_tool_linked_at":null,"app_update":{"kind":"not_checked"}}',
+      '"machine_setup_state":"needs_administrator","command_line_tool_linked_at":null,"app_update":{"kind":"not_checked"},' +
+      `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
+      '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
+      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
   );
 });
 
@@ -129,6 +135,8 @@ test("a tray toggle and a window request run in turn, never interleaved", async 
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
 
@@ -163,6 +171,8 @@ async function controllerAtAppVersion(appVersion: string, appConfigDirectory: st
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
 }
@@ -204,6 +214,8 @@ test("the restarted runtime gets the starting grace again", async () => {
     readMonotonicClockMs: () => nowMs,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   nowMs = 60_000;
@@ -214,7 +226,7 @@ test("the restarted runtime gets the starting grace again", async () => {
 
 test("with Run Tatolab off nothing restarts, and the version is remembered", async () => {
   const appConfigDirectory = await aFreshAppConfigDirectory();
-  await RunTatolabPreferenceFile.inAppConfigDirectory(appConfigDirectory, createTatolabAppLog("error", () => {})).saveRunTatolab(false);
+  await RememberedSwitchFile.runTatolabInAppConfigDirectory(appConfigDirectory, createTatolabAppLog("error", () => {})).saveRememberedSwitch(false);
   const runtimeAgent = new FakeRuntimeAgentRegistration("not_registered");
   await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent)).restartTheBundledRuntimeIfTheAppChanged();
   expect(runtimeAgent.calls).toEqual([]);
@@ -246,6 +258,8 @@ test("before the machine is set up nothing restarts, and the restart waits for a
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   await controllerBeforeSetup.restartTheBundledRuntimeIfTheAppChanged();
@@ -274,7 +288,28 @@ test("each status carries where updates stand", async () => {
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   expect((await controller.composeStatus(0)).app_update).toEqual({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" });
+});
+
+test("a status composed while the runtime restarts reads Starting until a round begun after the service manager answered finds it healthy", async () => {
+  const healthyAnswer = () => httpResponse("200 OK", "text/plain", "ok");
+  const noStreams = () => toolResultResponse({ streams: [] });
+  const theMachine = () => httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] }));
+  const clockReadAtTheRequestThenAtTheAnswer = [100, 200];
+  const { controller, runtimeAgent } = await controllerOverFakes(
+    [healthyAnswer(), noStreams(), theMachine(), healthyAnswer(), noStreams()],
+    "enabled",
+    "complete",
+    () => clockReadAtTheRequestThenAtTheAnswer.shift() ?? 200,
+  );
+
+  expect(await controller.restartTheRuntimeOnRequest()).toEqual({ ok: true, value: undefined });
+  expect(runtimeAgent.calls).toEqual(["restart_the_agents_runtime"]);
+
+  expect((await controller.composeStatus(150)).runtime_state).toBe("starting");
+  expect((await controller.composeStatus(250)).runtime_state).toBe("running");
 });

@@ -10,11 +10,17 @@ import type { TatolabPlatform } from "../../src/backend/tatolab_backend_contract
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
 import {
   FakeRuntimeAgentRegistration,
+  FakeTatolabAppOpenedAtLogin,
   FakeTatolabMachineSetup,
   FakeTerminalOpenedInAFolder,
   fakeTatolabPlatformForThisBuild,
 } from "./fake_tatolab_platform_for_this_build.js";
+import { FakeSystemNotifications } from "./fake_system_notifications.js";
+import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { failedWith, succeeded } from "./result.js";
+import { StreamFailureNotifications } from "./stream_failure_notifications.js";
+import { RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL } from "./run_tatolab_switch.js";
+import { RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL } from "./runtime_log_folder_opening.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { streamLogRecordsPageFromTheLogsToolResult } from "./stream_log_records_page.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
@@ -25,9 +31,9 @@ import {
   describeStreamGraph,
   getTatolabStatus,
   readStreamLogRecords,
+  enabledArgumentsFrom,
   readStreamLogRecordsArgumentsFrom,
   runStreamAction,
-  setRunTatolabArgumentsFrom,
   streamArgumentsFrom,
   setUpTatolab,
   tatolabWindowCommandHandlers,
@@ -52,20 +58,34 @@ async function sharedStateOverFakes(
   setUpTatolabRefusal: string | null,
   existingFolders: readonly string[] = [],
   folderTheDialogAnswers: string | null = null,
-): Promise<TatolabAppSharedState & { machineSetup: FakeTatolabMachineSetup; terminal: FakeTerminalOpenedInAFolder; foldersShownInTheFileManager: string[] }> {
+): Promise<
+  TatolabAppSharedState & {
+    machineSetup: FakeTatolabMachineSetup;
+    runtimeAgent: FakeRuntimeAgentRegistration;
+    terminal: FakeTerminalOpenedInAFolder;
+    foldersShownInTheFileManager: string[];
+    localApiSocketPath: string;
+    systemNotifications: FakeSystemNotifications;
+    tatolabAppOpenedAtLogin: FakeTatolabAppOpenedAtLogin;
+  }
+> {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
   const appConfigDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-config-"));
   cleanUps.push(() => localApiServer.close(), () => rm(appConfigDirectory, { recursive: true, force: true }));
   const machineSetup = new FakeTatolabMachineSetup("complete", setUpTatolabRefusal);
   const terminal = new FakeTerminalOpenedInAFolder();
+  const runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
+  const tatolabAppOpenedAtLogin = new FakeTatolabAppOpenedAtLogin();
   const platformForThisBuild = fakeTatolabPlatformForThisBuild(
-    new FakeRuntimeAgentRegistration("enabled"),
+    runtimeAgent,
     machineSetup,
     localApiServer.localApiSocketPath,
     undefined,
     undefined,
     undefined,
     terminal,
+    undefined,
+    tatolabAppOpenedAtLogin,
   );
   const controller = await TatolabAppController.create({
     platform,
@@ -76,6 +96,8 @@ async function sharedStateOverFakes(
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
+    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);
@@ -86,6 +108,13 @@ async function sharedStateOverFakes(
     quietTatolabAppLog,
   );
   const foldersShownInTheFileManager: string[] = [];
+  const systemNotifications = new FakeSystemNotifications();
+  const streamFailureNotifications = await StreamFailureNotifications.load(
+    RememberedSwitchFile.streamFailureNotificationsInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog),
+    systemNotifications,
+    () => {},
+    quietTatolabAppLog,
+  );
   return {
     controller,
     statusPublisher,
@@ -109,8 +138,13 @@ async function sharedStateOverFakes(
     }),
     tatolabAppLog: quietTatolabAppLog,
     machineSetup,
+    runtimeAgent,
     terminal,
     foldersShownInTheFileManager,
+    localApiSocketPath: localApiServer.localApiSocketPath,
+    streamFailureNotifications,
+    systemNotifications,
+    tatolabAppOpenedAtLogin,
   };
 }
 
@@ -139,7 +173,10 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"machine_name":"jonathanf-macbook","streams":[' +
       '{"name":"main","state":"kept","project_directory":"/private/tmp/x/pattern",' +
       '"node_count":4,"failed_because":null}],"machine_setup_state":"complete",' +
-      '"command_line_tool_linked_at":"/usr/local/bin/tatolab","app_update":{"kind":"not_checked"}}',
+      '"command_line_tool_linked_at":"/usr/local/bin/tatolab","app_update":{"kind":"not_checked"},' +
+      `"local_api_socket":${JSON.stringify(runningRuntime.localApiSocketPath)},` +
+      '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
+      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
   );
   const runtimeThatIsDown = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux", null);
   runtimeThatIsDown.machineSetup.machineSetupState = "needs_administrator";
@@ -147,7 +184,10 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
     '{"app_version":"0.45.0","platform":"linux","run_tatolab":true,' +
       '"runtime_agent":"enabled","runtime_state":"starting","machine_name":null,' +
       '"streams":null,"machine_setup_state":"needs_administrator",' +
-      '"command_line_tool_linked_at":null,"app_update":{"kind":"not_checked"}}',
+      '"command_line_tool_linked_at":null,"app_update":{"kind":"not_checked"},' +
+      `"local_api_socket":${JSON.stringify(runtimeThatIsDown.localApiSocketPath)},` +
+      '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
+      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
   );
 
   const page = streamLogRecordsPageFromTheLogsToolResult(
@@ -258,9 +298,9 @@ test("Set Up Tatolab is refused at once where the platform has no machine setup"
 });
 
 test("a command's arguments are read as the window sends them, and anything else is refused", () => {
-  expect(setRunTatolabArgumentsFrom({ enabled: false })).toEqual(succeeded({ enabled: false }));
-  expect(setRunTatolabArgumentsFrom({ enabled: "yes" }).ok).toBe(false);
-  expect(setRunTatolabArgumentsFrom(null).ok).toBe(false);
+  expect(enabledArgumentsFrom("set_run_tatolab", { enabled: false })).toEqual(succeeded({ enabled: false }));
+  expect(enabledArgumentsFrom("set_run_tatolab", { enabled: "yes" }).ok).toBe(false);
+  expect(enabledArgumentsFrom("set_run_tatolab", null).ok).toBe(false);
   expect(readStreamLogRecordsArgumentsFrom({ stream: "main", after: 79 })).toEqual(succeeded({ stream: "main", after: 79 }));
   expect(readStreamLogRecordsArgumentsFrom({ stream: "main", after: -1 }).ok).toBe(false);
   expect(readStreamLogRecordsArgumentsFrom({ stream: 7, after: 0 }).ok).toBe(false);
@@ -434,4 +474,92 @@ test("the commands that add a stream read their arguments as the window sends th
     ok: false,
     refusal: "run_stream_project needs `folder`, a folder chosen in the window, and `stream_function` and `name`, each text or null",
   });
+});
+
+/** The window's `RuntimeDescription` reads exactly this JSON. */
+test("describing_the_runtime_answers_the_window_in_the_contracts_shape_and_a_runtime_that_is_down_in_why", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      toolResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: null, from_later: true }),
+      httpResponse("503 Service Unavailable", "text/plain", ""),
+    ],
+    "macos",
+    null,
+  );
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(JSON.stringify(await commandHandlers.describe_runtime(undefined))).toBe(
+    '{"ok":true,"value":{"version":"0.55.2","build_id":"0.55.2+ec6adf522.7f3a91","up_for_ms":4000,"runtime_log_directory":null}}',
+  );
+  expect(await commandHandlers.describe_runtime(undefined)).toEqual({
+    ok: false,
+    refusal: "`describe_runtime` answered 503 with a body that is not JSON-RPC: Unexpected end of JSON input",
+  });
+});
+
+test("restarting_the_runtime_waits_for_the_service_manager_then_observes_again_and_is_refused_in_its_words", async () => {
+  const sharedState = await sharedStateOverFakes([], "linux", null);
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await commandHandlers.restart_runtime(undefined)).toEqual({ ok: true, value: null });
+  expect(sharedState.runtimeAgent.calls).toEqual(["restart_the_agents_runtime"]);
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
+
+  const refusal = "systemctl --user restart tatolabd.service failed (exit 1): Job for tatolabd.service failed.";
+  sharedState.runtimeAgent.restartingTheAgentsRuntime = failedWith({ kind: "refused", refusal });
+  expect(await commandHandlers.restart_runtime(undefined)).toEqual({ ok: false, refusal });
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
+
+  await sharedState.controller.setRunTatolab(false);
+  expect(await commandHandlers.restart_runtime(undefined)).toEqual({ ok: false, refusal: RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL });
+});
+
+test("opening_the_runtimes_log_folder_opens_the_folder_the_runtime_names_and_never_a_path_from_the_window", async () => {
+  const runtimeLogFolder = "/Users/jonathanf/Library/Application Support/Tatolab/logs";
+  const sharedState = await sharedStateOverFakes(
+    [
+      toolResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 4_000, runtime_log_directory: runtimeLogFolder }),
+      toolResultResponse({ version: "0.55.2", build_id: "0.55.2+ec6adf522.7f3a91", up_for_ms: 5_000, runtime_log_directory: null }),
+    ],
+    "macos",
+    null,
+    [runtimeLogFolder],
+  );
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await commandHandlers.open_runtime_log_folder({ folder: "/etc" })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.open_runtime_log_folder(undefined)).toEqual({ ok: false, refusal: RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL });
+  expect(sharedState.foldersShownInTheFileManager).toEqual([runtimeLogFolder]);
+});
+
+test("turning_stream_failure_notifications_off_is_remembered_shown_in_the_next_status_and_refuses_anything_but_true_or_false", async () => {
+  const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "macos", null);
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await commandHandlers.set_stream_failure_notifications({ enabled: false })).toEqual({ ok: true, value: null });
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
+  expect(sharedState.streamFailureNotifications.stateNow()).toEqual({ enabled: false, shown_by_this_desktop: true });
+  expect(await commandHandlers.set_stream_failure_notifications({ enabled: "no" })).toEqual({
+    ok: false,
+    refusal: "set_stream_failure_notifications needs `enabled`, true or false",
+  });
+});
+
+test("opening_tatolab_at_login_asks_the_desktop_then_observes_again_and_is_refused_in_its_words", async () => {
+  const sharedState = await sharedStateOverFakes([], "linux", null);
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await commandHandlers.set_open_tatolab_at_login({ enabled: true })).toEqual({ ok: true, value: null });
+  expect(sharedState.tatolabAppOpenedAtLogin.setsAsked).toEqual([true]);
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
+
+  sharedState.tatolabAppOpenedAtLogin.refusal = "Tatolab could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied";
+  expect(await commandHandlers.set_open_tatolab_at_login({ enabled: false })).toEqual({
+    ok: false,
+    refusal: "Tatolab could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
+  });
+  expect(await commandHandlers.set_open_tatolab_at_login({})).toEqual({ ok: false, refusal: "set_open_tatolab_at_login needs `enabled`, true or false" });
 });

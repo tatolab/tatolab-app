@@ -61,7 +61,10 @@ async function clickWhenShown(selector: string): Promise<boolean> {
  * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=overview|graph|logs|inspect`,
  * `?stream_page_action=<action>` (a header button of the stream's page, once its steps show: `stop_stream` there gives
  * the steps as of the last load), `?inspect=tree`,
- * `?page=settings|add-stream`, on Add stream `?add=folder|compiling|done|away` (a folder chosen, compiling, the stream running, or
+ * `?page=settings|add-stream`, on Settings `?section=general|appearance|runtime|command-line|about` and on its Runtime
+ * `?restart=pressed` (Restart runtime pressed: Starting, then Running up 0m) or `?restart=refused` (the service manager refusing it), with the
+ * backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, the backend's `?stream_page_requested=<stream>` (a
+ * click on that stream's failure notification), on Add stream `?add=folder|compiling|done|away` (a folder chosen, compiling, the stream running, or
  * Streams opened while it compiled and the run's notice shown once it answers) or
  * `?add=new|created` (a new project proposed, then written by `tatolab new`), with the backend's `?add_folder=`, `?add_run=warning` and
  * `?add_cli=missing`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
@@ -134,6 +137,9 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   const page = pageQuery.get("page");
   if (page === "settings" || page === "add-stream") await clickWhenShown(`[data-window-navigation="${page}"]`);
   if (page === "add-stream") await driveAddStreamToPreset(pageQuery.get("add"));
+  const settingsSection = pageQuery.get("section");
+  if (page === "settings" && settingsSection !== null) await clickWhenShown(`[data-settings-section="${CSS.escape(settingsSection)}"]`);
+  if (pageQuery.get("restart") === "pressed" || pageQuery.get("restart") === "refused") await clickWhenShown(`[data-runtime-action="restart"]:not([disabled])`);
   const sheet = pageQuery.get("sheet");
   if (sheet === "uninstall" || sheet === "uninstalling" || sheet === "uninstalled") {
     if (page !== "settings") await clickWhenShown(`[data-window-navigation="settings"]`);

@@ -13,6 +13,8 @@ import { MACOS_MAIN_WINDOW_CHROME, MACOS_TRAY_ICON_IMAGE, macosTatolabPlatformFo
 import { LINUX_MAIN_WINDOW_CHROME, LINUX_TRAY_ICON_IMAGE, linuxTatolabPlatformForThisBuild, setLinuxDockIconVisible } from "./linux/mod.js";
 import type { BundledRuntimeRestart, RuntimeAgentRegistration } from "./runtime_agent_registration.js";
 import type { TatolabMachineSetup } from "./tatolab_machine_setup.js";
+import type { TatolabAppOpenedAtLogin } from "./tatolab_app_opened_at_login.js";
+import type { AppLoginItemSettings } from "./macos/login_item_of_the_app_bundle.js";
 import type { TatolabUninstallAppSurface } from "./macos/tatolab_uninstall.js";
 import type { Result } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
@@ -72,6 +74,8 @@ export interface TatolabPlatformForThisBuild {
   terminalOpenedInAFolder: TerminalOpenedInAFolder;
   /** The `tatolab` CLI the app runs `tatolab new` with. */
   tatolabCommandLineTool: TatolabCommandLineTool;
+  /** "Open Tatolab at login": the bundle's login item on macOS, an XDG autostart entry on Linux; not offered by an unpackaged app. */
+  tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin;
 }
 
 /** The `tatolab` CLI at `path`: the one in the app's bundle on macOS, the installer's link on Linux; `not_offered` with why in a build that carries none. */
@@ -91,7 +95,7 @@ export interface TerminalOpenedInAFolder {
   openTerminalIn(folder: string): Promise<Result<void, string>>;
 }
 
-/** What a platform takes from the app around it to build its items; Linux takes only whether the app is packaged. */
+/** What a platform takes from the app around it to build its items; Linux takes only whether the app is packaged and its binary. */
 export interface TatolabPlatformHostServices {
   /** The app's root, under which an unpackaged app finds its Service Management addon. */
   appPath: string;
@@ -103,6 +107,8 @@ export interface TatolabPlatformHostServices {
   appConfigDirectory: string;
   /** The Trash and quitting, which uninstalling ends with. */
   tatolabUninstallAppSurface: TatolabUninstallAppSurface;
+  /** Electron's login-item settings for the app's own bundle, which only macOS has. */
+  appLoginItemSettings: AppLoginItemSettings;
 }
 
 /** The tray's icon as a platform shows it, by its file name in the app's icons directory. */

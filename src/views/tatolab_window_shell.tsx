@@ -3,7 +3,7 @@
 
 import { cn } from "cn";
 import { Activity, Boxes, ChevronLeft, ChevronRight, Moon, Plus, Settings, SquareX, Sun, TriangleAlert, Workflow } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } from "react-router";
 import type { ListedStream } from "../backend/tatolab_backend_contract";
 import { presentPlatform, presentWindowShortcut, windowDragRegionAttribute } from "../presentation/platform_presentation";
@@ -19,31 +19,13 @@ import { HostedDomPageView } from "./hosted_dom_page_view";
 import { StreamPageView } from "./stream_page_view";
 import { streamPagePath, streamPageTabNamed } from "./stream_page_path";
 import { StreamsListPageView } from "./streams_list_page_view";
-import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
-
-/** Where the person's light or dark choice is kept; the page's first script reads it before first paint. */
-const CHOSEN_WINDOW_THEME_STORAGE_KEY = "tatolab-window-theme";
+import { SettingsPageView } from "./settings_page_view";
+import { useTatolabStatus, useTatolabWindowEnvironment, useWindowAppearance } from "./tatolab_window_context";
 
 /** The streams `list_streams` gave while the runtime runs; `null` while it is down or the listing failed. */
 function useListedStreamsWhileTheRuntimeRuns(): ListedStream[] | null {
   const status = useTatolabStatus();
   return presentRuntimeStatus(status).displayState === "running" ? status.streams : null;
-}
-
-/** The light or dark toggle: flips the `dark` class on the page and keeps the choice. */
-function useWindowThemeToggle(): { isDark: boolean; toggleTheme: () => void } {
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains("dark"));
-  const toggleTheme = () => {
-    const nextIsDark = !isDark;
-    document.documentElement.classList.toggle("dark", nextIsDark);
-    try {
-      localStorage.setItem(CHOSEN_WINDOW_THEME_STORAGE_KEY, nextIsDark ? "dark" : "light");
-    } catch {
-      // A page that cannot keep the choice still shows it until the window reloads.
-    }
-    setIsDark(nextIsDark);
-  };
-  return { isDark, toggleTheme };
 }
 
 function SidebarNavigationRow({
@@ -161,7 +143,8 @@ function WindowSidebar() {
 function WindowTitleBar() {
   const { platform, openSearch } = useTatolabWindowEnvironment();
   const navigate = useNavigate();
-  const { isDark, toggleTheme } = useWindowThemeToggle();
+  const { shownTheme, chooseAppearance } = useWindowAppearance();
+  const isDark = shownTheme === "dark";
   return (
     <header
       className="flex h-(--title-bar-height) shrink-0 items-center gap-1 border-b px-2"
@@ -178,7 +161,7 @@ function WindowTitleBar() {
       <IconButton
         icon={isDark ? Sun : Moon}
         label={isDark ? "Use the light theme" : "Use the dark theme"}
-        onPressed={toggleTheme}
+        onPressed={() => chooseAppearance(isDark ? "light" : "dark")}
         data-window-theme-toggle=""
       />
       <ActionButton appearance="primary" icon={Plus} onPressed={() => navigate(addStreamPagePath("project_folder"))} className="ml-1">
@@ -247,19 +230,14 @@ function StreamRoute() {
   return <StreamPageView key={stream.name} stream={stream} shownTab={shownTab} />;
 }
 
-function SettingsRoute() {
-  const { hostedPages } = useTatolabWindowEnvironment();
-  return <HostedDomPageView hostedPage={hostedPages.settingsPage} />;
-}
-
-/** The window's routes, in its memory router: the Streams list, a stream, Settings, and adding a stream from a project folder or a new project. */
+/** The window's routes, in its memory router: the Streams list, a stream, Settings on one of its sections, and adding a stream from a project folder or a new project. */
 export const TATOLAB_WINDOW_ROUTES: RouteObject[] = [
   {
     element: <TatolabWindowShell />,
     children: [
       { index: true, element: <StreamsRoute /> },
       { path: "streams/:streamName/:streamTab?", element: <StreamRoute /> },
-      { path: "settings", element: <SettingsRoute /> },
+      { path: "settings/:settingsSection?", element: <SettingsPageView /> },
       { path: "add-stream", element: <AddStreamPageView source="project_folder" /> },
       { path: "add-stream/new-project", element: <AddStreamPageView source="new_project" /> },
     ],

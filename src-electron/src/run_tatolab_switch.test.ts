@@ -8,23 +8,35 @@ import { afterEach, expect, test } from "vitest";
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
 import type { RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import { failedWith, succeeded, type Result } from "./result.js";
-import { RunTatolabPreferenceFile } from "./run_tatolab_preference.js";
-import { RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS, RunTatolabSwitch, theRuntimeAgentShouldBeStartedNow } from "./run_tatolab_switch.js";
+import { RememberedSwitchFile } from "./remembered_switch_file.js";
+import {
+  RESTART_BEFORE_MACHINE_SETUP_REFUSAL,
+  RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL,
+  RESTART_WITH_THE_AGENT_NOT_ENABLED_REFUSAL,
+  RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS,
+  RunTatolabSwitch,
+  theRuntimeAgentShouldBeStartedNow,
+} from "./run_tatolab_switch.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
-type FakeServiceManagementCall = "register" | "start_if_not_running" | "unregister" | "open_login_items_settings";
+type FakeServiceManagementCall = "register" | "start_if_not_running" | "restart" | "unregister" | "open_login_items_settings";
 
 /** A service manager whose agent status the test sets, recording every call it receives. */
 class FakeServiceManagement implements RuntimeAgentRegistration {
   readonly calls: FakeServiceManagementCall[] = [];
   private statusAfterRegister: Result<RuntimeAgentRegistrationStatus, string> = succeeded("enabled");
   private startAnswers: Result<void, RuntimeAgentStartFailure>[] = [];
+  private restartAnswer: Result<void, RuntimeAgentStartFailure> = succeeded(undefined);
 
   constructor(public status: RuntimeAgentRegistrationStatus) {}
 
   /** Answer the next starts with `answers`, in order; every later start succeeds. */
   answerStartsWith(answers: Result<void, RuntimeAgentStartFailure>[]): void {
     this.startAnswers = answers;
+  }
+
+  answerRestartWith(answer: Result<void, RuntimeAgentStartFailure>): void {
+    this.restartAnswer = answer;
   }
 
   answerRegisterWith(answer: Result<RuntimeAgentRegistrationStatus, string>): void {
@@ -45,6 +57,11 @@ class FakeServiceManagement implements RuntimeAgentRegistration {
   async startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {
     this.calls.push("start_if_not_running");
     return this.startAnswers.shift() ?? succeeded(undefined);
+  }
+
+  async restartRuntimeAgent(): Promise<Result<void, RuntimeAgentStartFailure>> {
+    this.calls.push("restart");
+    return this.restartAnswer;
   }
 
   async unregisterRuntimeAgent(): Promise<Result<void, string>> {
@@ -69,8 +86,8 @@ afterEach(async () => {
 async function switchWith(agentStatus: RuntimeAgentRegistrationStatus, rememberedRunTatolab: boolean | null, appLaunchedAtMs = 0) {
   const configDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-config-"));
   temporaryConfigDirectories.push(configDirectory);
-  const preferenceFile = RunTatolabPreferenceFile.inAppConfigDirectory(configDirectory, quietTatolabAppLog);
-  if (rememberedRunTatolab !== null) await preferenceFile.saveRunTatolab(rememberedRunTatolab);
+  const preferenceFile = RememberedSwitchFile.runTatolabInAppConfigDirectory(configDirectory, quietTatolabAppLog);
+  if (rememberedRunTatolab !== null) await preferenceFile.saveRememberedSwitch(rememberedRunTatolab);
   const serviceManagement = new FakeServiceManagement(agentStatus);
   const runTatolabSwitch = await RunTatolabSwitch.load(serviceManagement, preferenceFile, appLaunchedAtMs, quietTatolabAppLog);
   return { runTatolabSwitch, serviceManagement, preferenceFile };
@@ -134,7 +151,7 @@ test("turning_the_switch_off_unregisters_the_agent_and_is_remembered", async () 
   expect(await underTest.runTatolabSwitch.setRunTatolab(false, true, 0)).toEqual({ kind: "unregistered" });
   expect(underTest.serviceManagement.calls).toEqual(["unregister"]);
   expect(underTest.serviceManagement.status).toBe("not_registered");
-  expect(await underTest.preferenceFile.loadRunTatolab()).toBe(false);
+  expect(await underTest.preferenceFile.loadRememberedSwitch()).toBe(false);
 });
 
 test("turning_the_switch_off_with_nothing_registered_calls_nothing", async () => {
@@ -148,7 +165,7 @@ test("turning_the_switch_back_on_registers_and_is_remembered", async () => {
   const underTest = await switchWith("not_registered", false);
 
   expect(await underTest.runTatolabSwitch.setRunTatolab(true, true, 0)).toEqual({ kind: "registered" });
-  expect(await underTest.preferenceFile.loadRunTatolab()).toBe(true);
+  expect(await underTest.preferenceFile.loadRememberedSwitch()).toBe(true);
 });
 
 test("toggling_flips_the_switch_and_reconciles_the_agent_each_time", async () => {
@@ -156,11 +173,11 @@ test("toggling_flips_the_switch_and_reconciles_the_agent_each_time", async () =>
 
   expect(await underTest.runTatolabSwitch.toggle(true, 0)).toEqual({ kind: "unregistered" });
   expect(underTest.runTatolabSwitch.runTatolab()).toBe(false);
-  expect(await underTest.preferenceFile.loadRunTatolab()).toBe(false);
+  expect(await underTest.preferenceFile.loadRememberedSwitch()).toBe(false);
 
   expect(await underTest.runTatolabSwitch.toggle(true, 0)).toEqual({ kind: "registered" });
   expect(underTest.runTatolabSwitch.runTatolab()).toBe(true);
-  expect(await underTest.preferenceFile.loadRunTatolab()).toBe(true);
+  expect(await underTest.preferenceFile.loadRememberedSwitch()).toBe(true);
   expect(underTest.serviceManagement.calls).toEqual(["unregister", "register", "start_if_not_running"]);
 });
 
@@ -169,7 +186,7 @@ test("toggling_on_before_machine_setup_remembers_on_and_registers_nothing", asyn
 
   expect(await underTest.runTatolabSwitch.toggle(false, 0)).toEqual({ kind: "waiting_for_machine_setup" });
   expect(underTest.runTatolabSwitch.runTatolab()).toBe(true);
-  expect(await underTest.preferenceFile.loadRunTatolab()).toBe(true);
+  expect(await underTest.preferenceFile.loadRememberedSwitch()).toBe(true);
   expect(underTest.serviceManagement.calls).toEqual([]);
 });
 
@@ -210,7 +227,7 @@ test("setting_the_switch_on_while_it_is_on_starts_an_enabled_agent_again", async
   const underTest = await switchWith("enabled", null);
 
   expect(await underTest.runTatolabSwitch.setRunTatolab(true, true, 0)).toEqual({ kind: "already_enabled" });
-  expect(await underTest.preferenceFile.loadRunTatolab()).toBe(true);
+  expect(await underTest.preferenceFile.loadRememberedSwitch()).toBe(true);
   expect(underTest.serviceManagement.calls).toEqual(["start_if_not_running"]);
 });
 
@@ -312,4 +329,74 @@ test("a_runtime_found_down_with_the_switch_off_or_healthy_is_left_alone", async 
   const healthy = await switchWith("enabled", null);
   await healthy.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "healthy", laterMs);
   expect(healthy.serviceManagement.calls).toEqual([]);
+});
+
+/** A monotonic clock standing at `nowMs`. */
+function clockAt(nowMs: number) {
+  return { readMonotonicClockMs: () => nowMs };
+}
+
+test("restarting_the_runtime_on_request_restarts_the_agents_runtime_and_gives_it_the_starting_grace_again", async () => {
+  const launchedAtMs = 1_000;
+  const underTest = await switchWith("enabled", true, launchedAtMs);
+  const clock = clockAt(launchedAtMs + 90_000);
+
+  expect(await underTest.runTatolabSwitch.restartTheRuntimeOnRequest(true, clock.readMonotonicClockMs)).toEqual(succeeded(undefined));
+
+  expect(underTest.serviceManagement.calls).toEqual(["restart"]);
+  expect(underTest.runTatolabSwitch.timeSinceTheRuntimeWasExpectedUpMs(launchedAtMs + 92_000)).toBe(2_000);
+});
+
+test("a_restarted_runtime_reads_restarting_until_a_health_check_begun_after_the_service_manager_answered_finds_it_healthy", async () => {
+  const underTest = await switchWith("enabled", true);
+  const clockReadAtTheRequestThenAtTheAnswer = [10_000, 10_400];
+  const readMonotonicClockMs = () => clockReadAtTheRequestThenAtTheAnswer.shift() ?? 10_400;
+
+  await underTest.runTatolabSwitch.restartTheRuntimeOnRequest(true, readMonotonicClockMs);
+
+  expect(underTest.runTatolabSwitch.isRestartingTheRuntime(9_500, "healthy")).toBe(true);
+  expect(underTest.runTatolabSwitch.isRestartingTheRuntime(10_399, "healthy")).toBe(true);
+  underTest.runTatolabSwitch.noteRestartSettledIfThisRoundShowsIt(10_450, "failing");
+  expect(underTest.runTatolabSwitch.isRestartingTheRuntime(10_450, "failing")).toBe(false);
+  expect(underTest.runTatolabSwitch.isRestartingTheRuntime(9_000, "healthy")).toBe(true);
+  expect(underTest.runTatolabSwitch.isRestartingTheRuntime(10_450, "healthy")).toBe(false);
+  underTest.runTatolabSwitch.noteRestartSettledIfThisRoundShowsIt(10_450, "healthy");
+  expect(underTest.runTatolabSwitch.isRestartingTheRuntime(9_000, "healthy")).toBe(false);
+});
+
+test("restarting_the_runtime_with_the_switch_off_before_setup_or_with_the_agent_not_enabled_is_refused_and_registers_nothing", async () => {
+  const clock = clockAt(5_000);
+  const switchedOff = await switchWith("not_registered", false);
+  expect(await switchedOff.runTatolabSwitch.restartTheRuntimeOnRequest(true, clock.readMonotonicClockMs)).toEqual(failedWith(RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL));
+  expect(switchedOff.serviceManagement.calls).toEqual([]);
+
+  const beforeSetup = await switchWith("enabled", true);
+  expect(await beforeSetup.runTatolabSwitch.restartTheRuntimeOnRequest(false, clock.readMonotonicClockMs)).toEqual(failedWith(RESTART_BEFORE_MACHINE_SETUP_REFUSAL));
+  expect(beforeSetup.serviceManagement.calls).toEqual([]);
+
+  for (const agentStatus of ["not_registered", "requires_approval", "not_found"] as const) {
+    const agentNotEnabled = await switchWith(agentStatus, true);
+    expect(await agentNotEnabled.runTatolabSwitch.restartTheRuntimeOnRequest(true, clock.readMonotonicClockMs)).toEqual(
+      failedWith(RESTART_WITH_THE_AGENT_NOT_ENABLED_REFUSAL),
+    );
+    expect(agentNotEnabled.serviceManagement.calls).toEqual([]);
+    expect(agentNotEnabled.runTatolabSwitch.isRestartingTheRuntime(5_000, "healthy")).toBe(false);
+  }
+});
+
+test("a_restart_the_service_manager_refuses_is_refused_in_its_words_and_leaves_nothing_restarting", async () => {
+  const underTest = await switchWith("enabled", true);
+  const refusal = "launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 5): Input/output error";
+  underTest.serviceManagement.answerRestartWith(failedWith({ kind: "refused", refusal }));
+
+  expect(await underTest.runTatolabSwitch.restartTheRuntimeOnRequest(true, clockAt(5_000).readMonotonicClockMs)).toEqual(failedWith(refusal));
+  expect(underTest.runTatolabSwitch.isRestartingTheRuntime(4_000, "healthy")).toBe(false);
+});
+
+test("a_restart_finding_no_job_for_the_agent_registers_it_again_and_starts_it", async () => {
+  const underTest = await switchWith("enabled", true);
+  underTest.serviceManagement.answerRestartWith(failedWith({ kind: "no_job_for_the_registered_agent" }));
+
+  expect(await underTest.runTatolabSwitch.restartTheRuntimeOnRequest(true, clockAt(5_000).readMonotonicClockMs)).toEqual(succeeded(undefined));
+  expect(underTest.serviceManagement.calls).toEqual(["restart", "unregister", "register", "start_if_not_running"]);
 });

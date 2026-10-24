@@ -6,6 +6,7 @@
 // Check for Updates… in the tray or its button in Settings, either of which is the confirmation.
 // Every state reaches the tray and the window as the status's `app_update`.
 
+import type { SystemNotifications } from "./system_notifications.js";
 import type { TatolabAppUpdateDelivery, TatolabAppUpdateState } from "../../src/backend/tatolab_backend_contract.js";
 import { describeCaughtFailure, type Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
@@ -36,11 +37,26 @@ export interface TatolabAppUpdateFeed {
 /** This build's feed, or why this app cannot update itself. */
 export type TatolabAppUpdateFeedForThisBuild = { kind: "offered"; feed: TatolabAppUpdateFeed } | { kind: "not_offered"; reason: string };
 
-/** What tells the person about updates outside the window: one notification per newer version found on its own, and the outcome of a check chosen from the tray. */
+/** What tells the person about updates outside the window: one notification per newer version found on its own, and the outcome of a check chosen from the tray. The updater's own words for a failure are in Settings, not the notification. */
 export interface TatolabAppUpdateNotifier {
   notifyANewerVersionIsAvailable(version: string): void;
   notifyTheAppIsUpToDate(): void;
-  notifyTheUpdateFailed(refusal: string): void;
+  notifyTheUpdateFailed(): void;
+}
+
+/** The update notifications, over the desktop's `systemNotifications`; clicking one calls `onNotificationClicked`. */
+export function tatolabAppUpdateNotifierOver(systemNotifications: SystemNotifications, onNotificationClicked: () => void): TatolabAppUpdateNotifier {
+  return {
+    notifyANewerVersionIsAvailable: (version) =>
+      systemNotifications.showNotification(`Tatolab ${version} is available`, "Click to open Settings and install it.", onNotificationClicked),
+    notifyTheAppIsUpToDate: () => systemNotifications.showNotification("Tatolab is up to date", "You have the newest version.", onNotificationClicked),
+    notifyTheUpdateFailed: () =>
+      systemNotifications.showNotification(
+        "Tatolab couldn't update",
+        "Something went wrong while updating. Open Settings to see what happened and try again.",
+        onNotificationClicked,
+      ),
+  };
 }
 
 /** Where a check the person chose was chosen: the tray, whose outcome only a notification shows, or the window, where Settings shows it. */
@@ -142,7 +158,7 @@ export class TatolabAppUpdater {
   private failChosenUpdate(chosenFrom: TatolabAppUpdateCheckChosenFrom, refusal: string): void {
     this.tatolabAppLog.warn("the update failed; the installed Tatolab keeps running", { refusal });
     this.changeStateTo({ kind: "failed", refusal });
-    if (chosenFrom === "tray") this.notifier.notifyTheUpdateFailed(refusal);
+    if (chosenFrom === "tray") this.notifier.notifyTheUpdateFailed();
   }
 
   private changeStateTo(appUpdateState: TatolabAppUpdateState): void {

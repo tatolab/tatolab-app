@@ -15,6 +15,9 @@ import type { TatolabBackend } from "./tatolab_backend";
 import {
   STREAM_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
+  type RuntimeDescription,
+  type TatolabAppOpenAtLogin,
+  type TatolabCommandLineToolVersion,
   type StreamGraphSummary,
   type StreamLogRecord,
   type StreamLogRecordsPage,
@@ -101,6 +104,16 @@ export type MockChosenProjectFolder = "ready" | "no-venv" | "several" | "taken" 
 
 const MOCK_CHOSEN_PROJECT_FOLDERS: readonly MockChosenProjectFolder[] = ["ready", "no-venv", "several", "taken", "no-stream-file", "cancel"];
 
+/** The runtime the mock describes: the streamlib release the app bundles, and its build. */
+const MOCK_RUNTIME_VERSION = "0.55.2";
+const MOCK_RUNTIME_BUILD_ID = "0.55.2+ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a.eecdc9dbaa1025c25565ca507699ed60";
+
+/** How long the mock runtime has been up as the page opens: 3 days, 2 hours and 14 minutes. */
+const MOCK_RUNTIME_UP_FOR_AT_OPEN_MILLISECONDS = ((3 * 24 + 2) * 60 + 14) * 60_000;
+
+/** How long the mock service manager takes to answer a restart. */
+const MOCK_RUNTIME_RESTART_MILLISECONDS = 700;
+
 /** How long the mock runtime takes to compile, load and start a project. */
 const MOCK_RUN_STREAM_MILLISECONDS = 2600;
 /** How long the mock `tatolab new` takes. */
@@ -130,6 +143,47 @@ export interface MockTatolabOptions {
   doesTheCompileWriteAWarning: boolean;
   /** `?add_cli=missing`: this build has no `tatolab` CLI, so creating a project is refused. */
   isTheTatolabCommandMissing: boolean;
+  /** `?runtime_log=none`: the runtime keeps no log of its own, so `describe_runtime` names no folder. */
+  doesTheRuntimeKeepNoOwnLog: boolean;
+  /** `?restart=refused`: the service manager refuses to restart the runtime. */
+  isTheRuntimeRestartRefused: boolean;
+  /** `?open_at_login=on|approval|not_offered`: what the desktop reports of opening the app at login; off by default. */
+  openAtLogin: TatolabAppOpenAtLogin;
+  /** `?notifications=unsupported`: this desktop shows no notifications. */
+  doesTheDesktopShowNoNotifications: boolean;
+  /** `?cli_version=reading|unreadable`: the CLI's version still being read, or unreadable; read by default. */
+  commandLineToolVersion: TatolabCommandLineToolVersion;
+  /** `?stream_page_requested=<stream>`: a click on that stream's failure notification, a moment after the window listens. */
+  streamPageRequestedByANotification: string | null;
+}
+
+/** How long after the window listens the mock's notification click arrives. */
+const MOCK_NOTIFICATION_CLICK_MILLISECONDS = 1200;
+
+/** What `?open_at_login=` names. */
+function mockOpenAtLogin(openAtLoginInTheQuery: string | null): TatolabAppOpenAtLogin {
+  switch (openAtLoginInTheQuery) {
+    case "on":
+      return { kind: "on" };
+    case "approval":
+      return { kind: "needs_approval_in_login_items" };
+    case "not_offered":
+      return { kind: "not_offered", reason: "Only a packaged Tatolab opens at login." };
+    default:
+      return { kind: "off" };
+  }
+}
+
+/** What `?cli_version=` names. */
+function mockCommandLineToolVersion(commandLineToolVersionInTheQuery: string | null): TatolabCommandLineToolVersion {
+  switch (commandLineToolVersionInTheQuery) {
+    case "reading":
+      return { kind: "reading" };
+    case "unreadable":
+      return { kind: "unreadable", reason: "/usr/local/bin/tatolab --version failed (exit status: 1): error: the runtime's socket is held by another user" };
+    default:
+      return { kind: "read", version: MOCK_RUNTIME_VERSION };
+  }
 }
 
 /**
@@ -157,6 +211,12 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     chosenProjectFolder: MOCK_CHOSEN_PROJECT_FOLDERS.find((knownFolder) => knownFolder === pageQuery.get("add_folder")) ?? "ready",
     doesTheCompileWriteAWarning: pageQuery.get("add_run") === "warning",
     isTheTatolabCommandMissing: pageQuery.get("add_cli") === "missing",
+    doesTheRuntimeKeepNoOwnLog: pageQuery.get("runtime_log") === "none",
+    isTheRuntimeRestartRefused: pageQuery.get("restart") === "refused",
+    openAtLogin: mockOpenAtLogin(pageQuery.get("open_at_login")),
+    doesTheDesktopShowNoNotifications: pageQuery.get("notifications") === "unsupported",
+    commandLineToolVersion: mockCommandLineToolVersion(pageQuery.get("cli_version")),
+    streamPageRequestedByANotification: pageQuery.get("stream_page_requested"),
   };
 }
 
@@ -195,7 +255,7 @@ function initialMockStatus(
   scenario: MockTatolabScenario,
   platform: TatolabPlatform,
   machine: MockMachine,
-  appUpdateScenario: MockTatolabAppUpdateScenario,
+  { appUpdateScenario, openAtLogin, doesTheDesktopShowNoNotifications, commandLineToolVersion }: MockTatolabOptions,
 ): TatolabStatus {
   const runningStatus: TatolabStatus = {
     app_version: "0.45.0",
@@ -208,6 +268,10 @@ function initialMockStatus(
     machine_setup_state: "complete",
     command_line_tool_linked_at: machine.commandLineToolLinkedAt,
     app_update: initialMockAppUpdateState(appUpdateScenario),
+    local_api_socket: machine.localApiSocket,
+    stream_failure_notifications: { enabled: true, shown_by_this_desktop: !doesTheDesktopShowNoNotifications },
+    open_at_login: openAtLogin,
+    command_line_tool_version: commandLineToolVersion,
   };
   switch (scenario) {
     case "running":
@@ -265,19 +329,23 @@ function sleep(milliseconds: number): Promise<void> {
 }
 
 /** A backend whose commands change its own state and whose streams log on their own, so the window works in a browser. */
-export function createMockTatolabBackend({
-  scenario,
-  platform,
-  isUninstallPromptCancelled,
-  appUpdateScenario,
-  streamWhoseStopIsNotRecorded,
-  isTheTerminalMissing,
-  isTheLogFolderMissing,
-  mostRecordsHeldPerStream,
-  chosenProjectFolder,
-  doesTheCompileWriteAWarning,
-  isTheTatolabCommandMissing,
-}: MockTatolabOptions): TatolabBackend {
+export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions): TatolabBackend {
+  const {
+    scenario,
+    platform,
+    isUninstallPromptCancelled,
+    appUpdateScenario,
+    streamWhoseStopIsNotRecorded,
+    isTheTerminalMissing,
+    isTheLogFolderMissing,
+    mostRecordsHeldPerStream,
+    chosenProjectFolder,
+    doesTheCompileWriteAWarning,
+    isTheTatolabCommandMissing,
+    doesTheRuntimeKeepNoOwnLog,
+    isTheRuntimeRestartRefused,
+    streamPageRequestedByANotification,
+  } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
     scenario === "node-error"
@@ -298,9 +366,11 @@ export function createMockTatolabBackend({
   const streamNamesUnloadedButNotRecordedStopped = new Set<string>();
   /** Whether the attached demo was stopped or removed, which ends its `tatolab dev` session for good. */
   let hasTheAttachedDemoSessionEnded = false;
-  let mockStatus = initialMockStatus(scenario, platform, fixtures.machine, appUpdateScenario);
+  let mockStatus = initialMockStatus(scenario, platform, fixtures.machine, mockTatolabOptions);
   let isLoginItemsApproved = scenario !== "approval";
   let runtimeUpSinceMilliseconds: number | null = null;
+  /** When the mock runtime's engine started, which its uptime counts from: long before the page opened, until a restart. */
+  let runtimeEngineStartedAtMilliseconds = Date.now() - MOCK_RUNTIME_UP_FOR_AT_OPEN_MILLISECONDS;
   let loadedStreamInstanceCount = 3;
   let liveTickTimer: number | undefined;
 
@@ -510,9 +580,13 @@ export function createMockTatolabBackend({
   const startRuntime = (): void => {
     publishStatus({ run_tatolab: true, runtime_agent: "enabled", runtime_state: "starting", machine_name: null, streams: null });
     window.setTimeout(() => {
-      if (mockStatus.run_tatolab && mockStatus.runtime_state === "starting") bringRuntimeUp();
+      if (!mockStatus.run_tatolab || mockStatus.runtime_state !== "starting") return;
+      runtimeEngineStartedAtMilliseconds = Date.now();
+      bringRuntimeUp();
     }, MOCK_RUNTIME_STARTUP_MILLISECONDS);
   };
+
+  const noRuntimeAnswersRefusal = (): string => `no runtime answers at ${mockStatus.local_api_socket}: connect ENOENT ${mockStatus.local_api_socket}`;
 
   const loadedStreamNamed = (streamName: string): MockLoadedStream => {
     const loadedStream = loadedStreams.get(streamName);
@@ -777,6 +851,45 @@ export function createMockTatolabBackend({
       if (isTheTerminalMissing) {
         throw "No terminal opened: x-terminal-emulator is not on the PATH. Install a terminal, or choose one with sudo update-alternatives --config x-terminal-emulator.";
       }
+    },
+    describeRuntime: async (): Promise<RuntimeDescription> => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      return {
+        version: MOCK_RUNTIME_VERSION,
+        build_id: MOCK_RUNTIME_BUILD_ID,
+        up_for_ms: Date.now() - runtimeEngineStartedAtMilliseconds,
+        runtime_log_directory: doesTheRuntimeKeepNoOwnLog ? null : fixtures.machine.runtimeLogDirectory,
+      };
+    },
+    restartRuntime: async () => {
+      await sleep(MOCK_RUNTIME_RESTART_MILLISECONDS);
+      if (!mockStatus.run_tatolab) throw "Run Tatolab is off, so there is no runtime to restart. Turn Run Tatolab on to start it.";
+      if (isTheRuntimeRestartRefused) {
+        throw platform === "linux"
+          ? "systemctl --user restart tatolabd.service failed (exit 1): Job for tatolabd.service failed because the control process exited with error code."
+          : "launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 5): Input/output error";
+      }
+      takeRuntimeDown({ runtime_state: "starting" });
+      startRuntime();
+    },
+    openRuntimeLogFolder: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      if (doesTheRuntimeKeepNoOwnLog) throw "The runtime keeps no log of its own, so there is no folder to open.";
+    },
+    setStreamFailureNotifications: async (enabled) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      publishStatus({ stream_failure_notifications: { ...mockStatus.stream_failure_notifications, enabled } });
+    },
+    setOpenTatolabAtLogin: async (enabled) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      publishStatus({ open_at_login: enabled ? { kind: "on" } : { kind: "off" } });
+    },
+    onStreamPageRequested: (streamPageRequestListener) => {
+      if (streamPageRequestedByANotification === null) return () => {};
+      const notificationClickTimer = window.setTimeout(() => streamPageRequestListener(streamPageRequestedByANotification), MOCK_NOTIFICATION_CLICK_MILLISECONDS);
+      return () => window.clearTimeout(notificationClickTimer);
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);

@@ -7,9 +7,9 @@
 // app runs, the switch on also starts an enabled agent whose runtime the poller finds down.
 
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
-import type { BundledRuntimeRestart, RuntimeAgentRegistration } from "./platform/runtime_agent_registration.js";
-import { succeeded, type Result } from "./result.js";
-import type { RunTatolabPreferenceFile } from "./run_tatolab_preference.js";
+import type { BundledRuntimeRestart, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
+import { failedWith, succeeded, type Result } from "./result.js";
+import type { RememberedSwitchFile } from "./remembered_switch_file.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { RuntimeHealthObservation } from "./tatolab_status.js";
 
@@ -40,6 +40,15 @@ export function theRuntimeAgentShouldBeStartedNow(
   );
 }
 
+/** Why "Restart runtime" is refused while the switch is off: no agent is registered to restart. */
+export const RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL = "Run Tatolab is off, so there is no runtime to restart. Turn Run Tatolab on to start it.";
+
+/** Why "Restart runtime" is refused before the machine is set up: the runtime cannot start without its machine lock. */
+export const RESTART_BEFORE_MACHINE_SETUP_REFUSAL = "Tatolab isn't set up on this machine yet, so there is no runtime to restart.";
+
+/** Why "Restart runtime" is refused while the agent is not enabled: registering it is Run Tatolab's, never a restart's. */
+export const RESTART_WITH_THE_AGENT_NOT_ENABLED_REFUSAL = "The runtime's login item isn't enabled, so there is no runtime to restart.";
+
 /**
  * What reconciling the switch with the agent's registration did: `switch_is_off` leaves the agent as it
  * is; `waiting_for_machine_setup` is the switch on before the machine lock and CLI link are set up;
@@ -56,14 +65,21 @@ export type RunTatolabReconciliation =
   | { kind: "unregistered" }
   | { kind: "unregistration_failed"; failureDescription: string };
 
+/** A restart on request under way: when the service manager answered it, `null` until it does. */
+interface RuntimeRestartOnRequestUnderWay {
+  serviceManagerAnsweredAtMs: number | null;
+}
+
 /** The switch's remembered value, the agent it drives, and what this launch has already done. */
 export class RunTatolabSwitch {
   private loginItemsSettingsOpenedThisLaunch = false;
   private runtimeAgentLastStartAttemptAtMs: number | null = null;
+  /** The restart on request under way; `null` with none. */
+  private restartOnRequest: RuntimeRestartOnRequestUnderWay | null = null;
 
   private constructor(
     private readonly runtimeAgent: RuntimeAgentRegistration,
-    private readonly preferenceFile: RunTatolabPreferenceFile,
+    private readonly preferenceFile: RememberedSwitchFile,
     private runTatolabSwitchedOn: boolean,
     private runtimeExpectedUpSinceMs: number,
     private readonly tatolabAppLog: TatolabAppLog,
@@ -72,11 +88,11 @@ export class RunTatolabSwitch {
   /** The switch as remembered in `preferenceFile`, driving `runtimeAgent`, as the app launches at `appLaunchedAtMs`. */
   static async load(
     runtimeAgent: RuntimeAgentRegistration,
-    preferenceFile: RunTatolabPreferenceFile,
+    preferenceFile: RememberedSwitchFile,
     appLaunchedAtMs: number,
     tatolabAppLog: TatolabAppLog,
   ): Promise<RunTatolabSwitch> {
-    const runTatolab = await preferenceFile.loadRunTatolab();
+    const runTatolab = await preferenceFile.loadRememberedSwitch();
     return new RunTatolabSwitch(runtimeAgent, preferenceFile, runTatolab, appLaunchedAtMs, tatolabAppLog);
   }
 
@@ -117,6 +133,59 @@ export class RunTatolabSwitch {
   }
 
   /**
+   * "Restart runtime": with the switch on, the machine set up and the agent enabled, stop the agent's
+   * runtime and start it again, giving it the starting grace again; until a health check that began
+   * after the service manager answered finds it healthy, it reads as restarting. launchd holding no job
+   * for the agent registers it again. Refused otherwise, and in the service manager's own words.
+   */
+  async restartTheRuntimeOnRequest(machineSetupComplete: boolean, readMonotonicClockMs: () => number): Promise<Result<void, string>> {
+    if (!this.runTatolabSwitchedOn) return failedWith(RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL);
+    if (!machineSetupComplete) return failedWith(RESTART_BEFORE_MACHINE_SETUP_REFUSAL);
+    if ((await this.runtimeAgent.registrationStatus()) !== "enabled") return failedWith(RESTART_WITH_THE_AGENT_NOT_ENABLED_REFUSAL);
+    const restartRequestedAtMs = readMonotonicClockMs();
+    this.runtimeAgentLastStartAttemptAtMs = restartRequestedAtMs;
+    this.runtimeExpectedUpSinceMs = restartRequestedAtMs;
+    const restartOnRequest: RuntimeRestartOnRequestUnderWay = { serviceManagerAnsweredAtMs: null };
+    this.restartOnRequest = restartOnRequest;
+    const restarted = await this.restartTheAgentsRuntime();
+    if (restarted.ok) restartOnRequest.serviceManagerAnsweredAtMs = readMonotonicClockMs();
+    else this.restartOnRequest = null;
+    return restarted;
+  }
+
+  private async restartTheAgentsRuntime(): Promise<Result<void, string>> {
+    const restarted = await this.runtimeAgent.restartRuntimeAgent();
+    if (restarted.ok) return restarted;
+    switch (restarted.failure.kind) {
+      case "no_job_for_the_registered_agent":
+        this.tatolabAppLog.warn("the service manager holds no job for the registered agent; registering it again to restart it");
+        return this.registerTheAgentAgainAndStartIt();
+      case "refused":
+        return failedWith(restarted.failure.refusal);
+    }
+  }
+
+  /**
+   * Whether the runtime still reads as restarting in a round whose health check began at `roundStartedAtMs`
+   * and found it `runtimeHealth`: a healthy answer counts only from a check that began after the service
+   * manager answered the restart, since an earlier one may have reached the runtime being replaced. A
+   * failing answer reads as the usual derivation says, the restart's starting grace included.
+   */
+  isRestartingTheRuntime(roundStartedAtMs: number, runtimeHealth: RuntimeHealthObservation): boolean {
+    return this.restartOnRequest !== null && runtimeHealth === "healthy" && !this.restartWasAnsweredBefore(roundStartedAtMs);
+  }
+
+  /** The restart is over once a round begun after the service manager answered finds the runtime healthy. */
+  noteRestartSettledIfThisRoundShowsIt(roundStartedAtMs: number, runtimeHealth: RuntimeHealthObservation): void {
+    if (runtimeHealth === "healthy" && this.restartWasAnsweredBefore(roundStartedAtMs)) this.restartOnRequest = null;
+  }
+
+  private restartWasAnsweredBefore(roundStartedAtMs: number): boolean {
+    const serviceManagerAnsweredAtMs = this.restartOnRequest?.serviceManagerAnsweredAtMs ?? null;
+    return serviceManagerAnsweredAtMs !== null && roundStartedAtMs >= serviceManagerAnsweredAtMs;
+  }
+
+  /**
    * Bring the agent in line with the switch: with the switch on and the machine set up, an unregistered
    * agent is registered and an enabled one is started if it is not running.
    */
@@ -138,7 +207,7 @@ export class RunTatolabSwitch {
   /** Turn the switch on or off and remember it. On registers the agent once the machine is set up; off unregisters it, which stops the runtime. */
   async setRunTatolab(runTatolab: boolean, machineSetupComplete: boolean, nowMs: number): Promise<RunTatolabReconciliation> {
     this.runTatolabSwitchedOn = runTatolab;
-    const remembered = await this.preferenceFile.saveRunTatolab(runTatolab);
+    const remembered = await this.preferenceFile.saveRememberedSwitch(runTatolab);
     if (!remembered.ok) {
       this.tatolabAppLog.warn("the Run Tatolab switch could not be remembered", { failure: remembered.failure, run_tatolab: runTatolab });
     }
@@ -226,7 +295,8 @@ export class RunTatolabSwitch {
     }
   }
 
-  private async registerTheAgentAgainAndStartIt(): Promise<void> {
+  /** Unregister the agent's stale registration and register it again, then start it; refused naming the step that failed. */
+  private async registerTheAgentAgainAndStartIt(): Promise<Result<void, string>> {
     const unregistered = await this.runtimeAgent.unregisterRuntimeAgent();
     if (!unregistered.ok) {
       this.tatolabAppLog.warn("the agent's stale registration could not be removed", { failure_description: unregistered.failure });
@@ -234,14 +304,13 @@ export class RunTatolabSwitch {
     const registered = await this.runtimeAgent.registerRuntimeAgent();
     if (!registered.ok) {
       this.tatolabAppLog.warn("the runtime's agent could not be registered again", { failure_description: registered.failure });
-      return;
+      return failedWith(`The runtime's agent could not be registered again: ${registered.failure}`);
     }
     const started = await this.runtimeAgent.startRuntimeAgentIfNotRunning();
-    if (!started.ok) {
-      this.tatolabAppLog.warn("the runtime's agent could not be started after registering it again", {
-        start_failure: started.failure.kind === "refused" ? started.failure.refusal : started.failure.kind,
-      });
-    }
+    if (started.ok) return started;
+    const startFailure = describeRuntimeAgentStartFailure(started.failure);
+    this.tatolabAppLog.warn("the runtime's agent could not be started after registering it again", { start_failure: startFailure });
+    return failedWith(`The runtime's agent was registered again but could not be started: ${startFailure}`);
   }
 
   private async needsApprovalInLoginItems(): Promise<RunTatolabReconciliation> {
@@ -252,5 +321,15 @@ export class RunTatolabSwitch {
       this.loginItemsSettingsOpenedThisLaunch = true;
     }
     return { kind: "needs_approval_in_login_items", openedLoginItemsSettings };
+  }
+}
+
+/** A start the service manager did not carry out, in words. */
+function describeRuntimeAgentStartFailure(startFailure: RuntimeAgentStartFailure): string {
+  switch (startFailure.kind) {
+    case "no_job_for_the_registered_agent":
+      return "the service manager holds no job for it";
+    case "refused":
+      return startFailure.refusal;
   }
 }

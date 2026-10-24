@@ -23,7 +23,7 @@ export interface StreamProjectFolderOpeners {
 }
 
 /** `folder` opened by `openTheFolder` while it is a folder on this machine; refused with `refusalWhenMissing` once it is not. */
-async function openedWhenAnExistingFolder(
+export async function openedWhenAnExistingFolder(
   streamProjectFolderOpeners: StreamProjectFolderOpeners,
   folder: string,
   refusalWhenMissing: string,

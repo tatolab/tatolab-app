@@ -13,7 +13,8 @@
         try {
           chosenTheme = localStorage.getItem("tatolab-window-theme");
         } catch (unreadableStorage) {}
-        var theme = queriedTheme === "light" || queriedTheme === "dark" ? queriedTheme : chosenTheme === "dark" ? "dark" : "light";
+        var systemPrefersDark = chosenTheme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var theme = queriedTheme === "light" || queriedTheme === "dark" ? queriedTheme : chosenTheme === "dark" || systemPrefersDark ? "dark" : "light";
         document.documentElement.classList.toggle("dark", theme === "dark");
       })();
     </script>

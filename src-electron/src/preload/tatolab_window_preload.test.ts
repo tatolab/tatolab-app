@@ -78,3 +78,19 @@ test("each status sent reaches the listener, and stopping removes the very liste
   expect(heardStatuses).toEqual([{ runtime_state: "running" }]);
   expect(fakeElectron.ipcRenderer.removeListener).toHaveBeenCalledWith("tatolab-status-changed", addedListener);
 });
+
+test("each stream page request reaches the listener with its stream, one naming no stream is dropped, and stopping removes the listener", async () => {
+  const tatolabElectronBridge = await exposedTatolabElectronBridge();
+  const requestedStreams: string[] = [];
+
+  const stopListening = tatolabElectronBridge.onStreamPageRequested((streamName) => requestedStreams.push(streamName));
+  const [streamPageChannel, addedListener] = fakeElectron.ipcRenderer.on.mock.calls[0] ?? [];
+  addedListener?.({}, { stream: "camera" });
+  addedListener?.({}, { stream: 7 });
+  addedListener?.({}, null);
+  stopListening();
+
+  expect(streamPageChannel).toBe("tatolab-stream-page-requested");
+  expect(requestedStreams).toEqual(["camera"]);
+  expect(fakeElectron.ipcRenderer.removeListener).toHaveBeenCalledWith("tatolab-stream-page-requested", addedListener);
+});

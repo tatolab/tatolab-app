@@ -7,7 +7,10 @@
 // stream's project. The window keeps the desktop's own title bar with no menu bar, there is no
 // Dock, and the tray's mark keeps its colours.
 
+import os from "node:os";
 import { failedWith } from "../../result.js";
+import { tatolabAppNotOpenedAtLogin, UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL, type TatolabAppOpenedAtLogin } from "../tatolab_app_opened_at_login.js";
+import { XdgAutostartDesktopEntry, xdgAutostartDirectory } from "./xdg_autostart_desktop_entry.js";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
 import {
   currentProcessUid,
@@ -54,10 +57,23 @@ export function tatolabAppUpdatePackagingOnLinux(appIsPackaged: boolean, appImag
   return { kind: "deb" };
 }
 
+/** An autostart entry opening the AppImage this build updates as, or the installed app binary; not offered by an unpackaged app. */
+export function tatolabAppOpenedAtLoginOnLinux(
+  appUpdatePackaging: TatolabAppUpdatePackaging,
+  appExecutable: string,
+  xdgConfigHome: string | undefined,
+  homeDirectory: string,
+  tatolabAppLog: TatolabAppLog,
+): TatolabAppOpenedAtLogin {
+  if (appUpdatePackaging.kind === "not_offered") return tatolabAppNotOpenedAtLogin(UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL);
+  const appProgramPath = appUpdatePackaging.kind === "appimage" ? appUpdatePackaging.appImagePath : appExecutable;
+  return new XdgAutostartDesktopEntry(xdgAutostartDirectory(xdgConfigHome, homeDirectory), appProgramPath, tatolabAppLog);
+}
+
 /** The installer's systemd user unit, the machine as the installer set it up, and how this package updates; the installer installs the runtime, so the app restarts none. */
 export async function linuxTatolabPlatformForThisBuild(
   tatolabAppLog: TatolabAppLog,
-  { appIsPackaged }: TatolabPlatformHostServices,
+  { appIsPackaged, appExecutable }: TatolabPlatformHostServices,
 ): Promise<TatolabPlatformForThisBuild> {
   const machinePaths = tatolabMachinePathsOnLinuxForThisBuild(currentProcessUid());
   tatolabAppLog.info("Tatolab app paths", {
@@ -66,14 +82,16 @@ export async function linuxTatolabPlatformForThisBuild(
     local_proof_test_machine_root: machinePaths.localProofTestMachineRoot,
     runtime_systemd_user_unit: RUNTIME_SYSTEMD_USER_UNIT_NAME,
   });
+  const appUpdatePackaging = tatolabAppUpdatePackagingOnLinux(appIsPackaged, process.env["APPIMAGE"]);
   return {
     runtimeAgent: new SystemdUserRuntimeService(new SystemctlOnThePath(), tatolabAppLog),
     machineSetup: new MachineSetUpByTheInstaller(machinePaths.commandLineToolLink),
     localApiSocket: machinePaths.localApiSocket,
     tatolabUninstall: LINUX_TATOLAB_UNINSTALL,
-    appUpdatePackaging: tatolabAppUpdatePackagingOnLinux(appIsPackaged, process.env["APPIMAGE"]),
+    appUpdatePackaging,
     bundledRuntimeRestart: null,
     terminalOpenedInAFolder: new XTerminalEmulatorOnThePath(),
     tatolabCommandLineTool: tatolabCommandLineToolAt(machinePaths.commandLineToolLink),
+    tatolabAppOpenedAtLogin: tatolabAppOpenedAtLoginOnLinux(appUpdatePackaging, appExecutable, process.env["XDG_CONFIG_HOME"], os.homedir(), tatolabAppLog),
   };
 }

@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
-// local API's Unix socket. `GET /health` says the runtime is up, the MCP tools `list_streams`,
+// local API's Unix socket. `GET /health` says the runtime is up, `describe_runtime` names its
+// version, uptime and log folder, the MCP tools `list_streams`,
 // `logs` and `graph` over `POST /mcp` list its streams, read one's log records and draw one's
 // graph, `run_stream` compiles a project and loads it kept, `stop_stream`, `start_stream` and
 // `remove_stream` act on one, and `GET /api/graph` names the machine.
@@ -14,7 +15,14 @@
 
 import { isUtf8 } from "node:buffer";
 import net from "node:net";
-import type { ListedStream, StreamGraphSummary, StreamLogRecordsPage, StreamRunAnswer, TatolabStreamActionName } from "../../src/backend/tatolab_backend_contract.js";
+import type {
+  ListedStream,
+  RuntimeDescription,
+  StreamGraphSummary,
+  StreamLogRecordsPage,
+  StreamRunAnswer,
+  TatolabStreamActionName,
+} from "../../src/backend/tatolab_backend_contract.js";
 import {
   everyOneRead,
   isAJsonObject,
@@ -108,6 +116,26 @@ function streamRunAnswerOnTheWire(toolResult: JsonObjectOnTheWire): Result<Strea
   });
 }
 
+/** A `describe_runtime` tool result read field for field; unknown fields are ignored. */
+export function runtimeDescriptionFromTheDescribeRuntimeToolResult(toolResultText: string): Result<RuntimeDescription, string> {
+  const parsedToolResult = parseJsonOnTheWire(toolResultText);
+  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the describe_runtime result") : parsedToolResult;
+  const runtimeDescription = toolResult.ok ? runtimeDescriptionOnTheWire(toolResult.value) : toolResult;
+  return runtimeDescription.ok ? runtimeDescription : failedWith(`the runtime's describe_runtime result could not be read: ${runtimeDescription.failure}`);
+}
+
+function runtimeDescriptionOnTheWire(toolResult: JsonObjectOnTheWire): Result<RuntimeDescription, string> {
+  const version = requiredText(toolResult, "version");
+  if (!version.ok) return version;
+  const buildId = requiredText(toolResult, "build_id");
+  if (!buildId.ok) return buildId;
+  const upForMs = requiredUnsignedInteger(toolResult, "up_for_ms");
+  if (!upForMs.ok) return upForMs;
+  const runtimeLogDirectory = optionalText(toolResult, "runtime_log_directory");
+  if (!runtimeLogDirectory.ok) return runtimeLogDirectory;
+  return succeeded({ version: version.value, build_id: buildId.value, up_for_ms: upForMs.value, runtime_log_directory: runtimeLogDirectory.value });
+}
+
 /** One HTTP response as the client read it. */
 export interface LocalApiHttpResponse {
   statusCode: number;
@@ -191,6 +219,14 @@ export class LocalApiClient {
     const body = response.value.body.toString("utf8").trim();
     if (response.value.statusCode === 200 && body === "ok") return succeeded(undefined);
     return localApiRequestFailure(`the runtime at ${this.localApiSocketPath} answered /health with ${response.value.statusCode}: ${body}`);
+  }
+
+  /** How the running runtime describes itself, from its `describe_runtime` tool. */
+  async describeRuntime(): Promise<Result<RuntimeDescription, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("describe_runtime", {});
+    if (!toolResultText.ok) return toolResultText;
+    const runtimeDescription = runtimeDescriptionFromTheDescribeRuntimeToolResult(toolResultText.value);
+    return runtimeDescription.ok ? runtimeDescription : localApiRequestFailure(runtimeDescription.failure);
   }
 
   /** Every stream the runtime holds, from its `list_streams` tool. */

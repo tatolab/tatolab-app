@@ -5,9 +5,10 @@
 // directory. An app whose version differs has been replaced since, by an update or by hand, while
 // the runtime may still run from the bundle as it was.
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+import { replaceFileWhole } from "./file_replaced_whole.js";
+import type { Result } from "./result.js";
 
 /** The file the version is remembered in, inside the app's config directory. */
 export const RUNTIME_RESTARTED_FOR_APP_VERSION_FILE_NAME = "runtime-restarted-for-app-version.json";
@@ -45,16 +46,8 @@ export class RuntimeRestartedForAppVersionFile {
   }
 
   /** Remember `appVersion`, replacing the file whole so a crash never leaves half of it. */
-  async saveAppVersion(appVersion: string): Promise<Result<void, string>> {
+  saveAppVersion(appVersion: string): Promise<Result<void, string>> {
     const contents: RuntimeRestartedForAppVersionFileContents = { app_version: appVersion };
-    const partiallyWrittenPath = `${this.versionFilePath}.partial`;
-    try {
-      await mkdir(path.dirname(this.versionFilePath), { recursive: true });
-      await writeFile(partiallyWrittenPath, JSON.stringify(contents, null, 2));
-      await rename(partiallyWrittenPath, this.versionFilePath);
-    } catch (writeFailure) {
-      return failedWith(describeCaughtFailure(writeFailure));
-    }
-    return succeeded(undefined);
+    return replaceFileWhole(this.versionFilePath, JSON.stringify(contents, null, 2));
   }
 }

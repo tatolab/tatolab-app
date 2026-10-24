@@ -1,9 +1,15 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { expect, test } from "vitest";
 import { failedWith } from "../../result.js";
-import { LINUX_TATOLAB_UNINSTALL, tatolabAppUpdatePackagingOnLinux } from "./mod.js";
+import { createTatolabAppLog } from "../../tatolab_app_log.js";
+
+const quietTatolabAppLog = createTatolabAppLog("error", () => {});
+import { LINUX_TATOLAB_UNINSTALL, tatolabAppOpenedAtLoginOnLinux, tatolabAppUpdatePackagingOnLinux } from "./mod.js";
 
 test("Linux refuses Uninstall Tatolab… and says the installer does it, turning nothing off", async () => {
   const runTatolabSwitchCalls: boolean[] = [];
@@ -26,4 +32,35 @@ test("an AppImage replaces its own file, the .deb opens its download, and an unp
   expect(tatolabAppUpdatePackagingOnLinux(true, undefined)).toEqual({ kind: "deb" });
   expect(tatolabAppUpdatePackagingOnLinux(true, "")).toEqual({ kind: "deb" });
   expect(tatolabAppUpdatePackagingOnLinux(false, "/tmp/.mount_Tatola/AppRun")).toEqual({ kind: "not_offered", reason: "Only a packaged Tatolab updates itself." });
+});
+
+test("Open Tatolab at login writes an autostart entry opening the AppImage or the installed binary, and an unpackaged app offers none", async () => {
+  const configHome = await mkdtemp(path.join(os.tmpdir(), "tl-app-xdg-config-"));
+  try {
+    const appImage = tatolabAppOpenedAtLoginOnLinux(
+      { kind: "appimage", appImagePath: "/home/ada/Applications/Tatolab-0.55.2-x86_64.AppImage" },
+      "/tmp/.mount_Tatola/Tatolab",
+      configHome,
+      "/home/ada",
+      quietTatolabAppLog,
+    );
+    await appImage.setOpenAtLogin(true);
+    expect(await readFile(path.join(configHome, "autostart", "Tatolab.desktop"), "utf8")).toContain("\nExec=/home/ada/Applications/Tatolab-0.55.2-x86_64.AppImage\n");
+
+    const installedBinary = tatolabAppOpenedAtLoginOnLinux({ kind: "deb" }, "/usr/lib/tatolab/Tatolab", configHome, "/home/ada", quietTatolabAppLog);
+    await installedBinary.setOpenAtLogin(true);
+    expect(await readFile(path.join(configHome, "autostart", "Tatolab.desktop"), "utf8")).toContain("\nExec=/usr/lib/tatolab/Tatolab\n");
+  } finally {
+    await rm(configHome, { recursive: true, force: true });
+  }
+
+  const unpackaged = tatolabAppOpenedAtLoginOnLinux(
+    { kind: "not_offered", reason: "Only a packaged Tatolab updates itself." },
+    "/home/ada/tatolab-app/node_modules/electron/dist/electron",
+    undefined,
+    "/home/ada",
+    quietTatolabAppLog,
+  );
+  expect(await unpackaged.readOpenAtLogin()).toEqual({ kind: "not_offered", reason: "Only a packaged Tatolab opens at login." });
+  expect(await unpackaged.setOpenAtLogin(true)).toEqual(failedWith("Only a packaged Tatolab opens at login."));
 });

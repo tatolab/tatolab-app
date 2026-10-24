@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { expect, test } from "vitest";
+import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import type { TatolabAppUpdateDelivery, TatolabAppUpdateState } from "../../src/backend/tatolab_backend_contract.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
@@ -12,6 +13,7 @@ import {
   type TatolabAppUpdateFeedForThisBuild,
   type TatolabAppUpdateNotifier,
   type TatolabAppUpdateProgress,
+  tatolabAppUpdateNotifierOver,
 } from "./tatolab_app_updater.js";
 
 /** A feed offering what the test sets, recording each time it was taken from. */
@@ -42,7 +44,7 @@ function updaterOver(feedForThisBuild: TatolabAppUpdateFeedForThisBuild) {
   const notifier: TatolabAppUpdateNotifier = {
     notifyANewerVersionIsAvailable: (version) => notifications.push(`available ${version}`),
     notifyTheAppIsUpToDate: () => notifications.push("up to date"),
-    notifyTheUpdateFailed: (refusal) => notifications.push(`failed: ${refusal}`),
+    notifyTheUpdateFailed: () => notifications.push("failed"),
   };
   const updater: TatolabAppUpdater = new TatolabAppUpdater(feedForThisBuild, notifier, () => statesSeen.push(updater.state()), createTatolabAppLog("error", () => {}));
   return { updater, notifications, statesSeen };
@@ -137,7 +139,7 @@ test("a failed update says why in the updater's own words, by notification only 
   expect(notifications).toEqual([]);
   feed.newerVersion = failedWith("HttpError: 404");
   await updater.checkAndTakeANewerVersion("tray");
-  expect(notifications).toEqual(["failed: HttpError: 404"]);
+  expect(notifications).toEqual(["failed"]);
 });
 
 test("a .deb opens the newer version's download and keeps offering it", async () => {
@@ -157,4 +159,19 @@ test("a second choice while an update is under way does nothing", async () => {
   await Promise.all([firstChoice, secondChoice, checkOnItsOwn]);
   expect(feed.takenCount).toBe(1);
   expect(updater.state()).toEqual({ kind: "installing", version: "0.47.0" });
+});
+
+test("each update notification reads as plain sentences, and the update's own words stay out of it", () => {
+  const systemNotifications = new FakeSystemNotifications();
+  const notifier = tatolabAppUpdateNotifierOver(systemNotifications, () => {});
+
+  notifier.notifyANewerVersionIsAvailable("0.56.0");
+  notifier.notifyTheAppIsUpToDate();
+  notifier.notifyTheUpdateFailed();
+
+  expect(systemNotifications.notificationsShown).toEqual([
+    { title: "Tatolab 0.56.0 is available", body: "Click to open Settings and install it." },
+    { title: "Tatolab is up to date", body: "You have the newest version." },
+    { title: "Tatolab couldn't update", body: "Something went wrong while updating. Open Settings to see what happened and try again." },
+  ]);
 });

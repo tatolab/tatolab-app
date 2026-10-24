@@ -9,6 +9,7 @@ import type { TatolabStatus } from "../../src/backend/tatolab_backend_contract.j
 import { describeCaughtFailure } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
+import type { StreamFailureNotifications } from "./stream_failure_notifications.js";
 
 /** How often the poller observes the runtime when nothing asks it to sooner. */
 export const STATUS_POLL_INTERVAL_MS = 2_000;
@@ -58,6 +59,7 @@ export class TatolabStatusPublisher {
   private lastPublishedStatus: TatolabStatus | null = null;
   private readonly waitingForTheFirstStatus: (() => void)[] = [];
   private tatolabTrayMenu: TatolabStatusShownInTheTray | null = null;
+  private streamFailureNotifications: Pick<StreamFailureNotifications, "noticeStatus"> | null = null;
   private readonly refreshRequests = new TatolabStatusRefreshRequests();
   private polling = false;
 
@@ -79,6 +81,11 @@ export class TatolabStatusPublisher {
     this.tatolabTrayMenu = tatolabTrayMenu;
   }
 
+  /** Hand the stream-failure notifications every later change; attached before polling starts, so the first listing they see is the launch's. */
+  attachStreamFailureNotifications(streamFailureNotifications: Pick<StreamFailureNotifications, "noticeStatus">): void {
+    this.streamFailureNotifications = streamFailureNotifications;
+  }
+
   /** The poller's one round: observe everything, react to an agent needing approval or a runtime that is down, and publish the status if it changed. Everyone else asks for a round with `requestRefresh`. */
   async refreshAndPublish(): Promise<void> {
     const nowMs = this.readMonotonicClockMs();
@@ -97,6 +104,7 @@ export class TatolabStatusPublisher {
     });
     this.sendTheLastPublishedStatusToTheWindow();
     this.tatolabTrayMenu?.showStatus(status);
+    this.streamFailureNotifications?.noticeStatus(status);
   }
 
   /** Remember `status` when it differs from the last one published, waking whoever waits for the first; whether it did. */

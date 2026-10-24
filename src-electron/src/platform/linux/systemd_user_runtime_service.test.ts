@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { failedWith, succeeded, type Result } from "../../result.js";
-import { RunTatolabPreferenceFile } from "../../run_tatolab_preference.js";
+import { RememberedSwitchFile } from "../../remembered_switch_file.js";
 import { RunTatolabSwitch } from "../../run_tatolab_switch.js";
 import { createTatolabAppLog } from "../../tatolab_app_log.js";
 import {
@@ -99,6 +99,12 @@ class FakeUserSystemd implements SystemctlUserCommandRunner {
         this.unitEnabled = false;
         this.unitActive = false;
         return succeeded(systemctlAnswered(0, "", ""));
+      case `restart ${RUNTIME_SYSTEMD_USER_UNIT_NAME}`:
+        if (!this.unitFileInstalled) {
+          return succeeded(systemctlAnswered(5, "", "Failed to restart tatolabd.service: Unit tatolabd.service not found.\n"));
+        }
+        this.unitActive = true;
+        return succeeded(systemctlAnswered(0, "", ""));
       case `start ${RUNTIME_SYSTEMD_USER_UNIT_NAME}`:
         if (!this.unitFileInstalled) {
           return succeeded(systemctlAnswered(5, "", "Failed to start tatolabd.service: Unit tatolabd.service not found.\n"));
@@ -116,7 +122,7 @@ async function switchOver(userSystemd: FakeUserSystemd): Promise<RunTatolabSwitc
   temporaryConfigDirectories.push(configDirectory);
   return RunTatolabSwitch.load(
     new SystemdUserRuntimeService(userSystemd, tatolabAppLog),
-    RunTatolabPreferenceFile.inAppConfigDirectory(configDirectory, tatolabAppLog),
+    RememberedSwitchFile.runTatolabInAppConfigDirectory(configDirectory, tatolabAppLog),
     performance.now(),
     tatolabAppLog,
   );
@@ -230,4 +236,18 @@ test("linux_refuses_to_open_login_items", async () => {
   const runtimeService = new SystemdUserRuntimeService(FakeUserSystemd.withTheUnit(true, true), tatolabAppLog);
 
   expect(await runtimeService.openLoginItemsSettings()).toEqual(failedWith(LINUX_HAS_NO_LOGIN_ITEMS));
+});
+
+test("restarting_the_runtime_restarts_the_unit_and_a_missing_unit_is_refused_in_systemctls_words", async () => {
+  const userSystemd = FakeUserSystemd.withTheUnit(true, true);
+  expect(await new SystemdUserRuntimeService(userSystemd, tatolabAppLog).restartRuntimeAgent()).toEqual(succeeded(undefined));
+  expect(userSystemd.commands).toEqual(["restart tatolabd.service"]);
+
+  const withoutTheUnit = FakeUserSystemd.beforeTheInstallerRan();
+  expect(await new SystemdUserRuntimeService(withoutTheUnit, tatolabAppLog).restartRuntimeAgent()).toEqual(
+    failedWith({
+      kind: "refused",
+      refusal: "systemctl --user restart tatolabd.service failed (exit 5): Failed to restart tatolabd.service: Unit tatolabd.service not found.",
+    }),
+  );
 });

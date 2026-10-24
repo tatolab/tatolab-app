@@ -53,6 +53,32 @@ export type TatolabAppUpdateState =
   | { kind: "installing"; version: string }
   | { kind: "failed"; refusal: string };
 
+/**
+ * Whether the app opens at login, as the OS reports it: on, off, registered but waiting for the person's approval in
+ * Login Items (macOS only), or not offered, with why, in a build that cannot open at login.
+ */
+export type TatolabAppOpenAtLogin =
+  | { kind: "on" }
+  | { kind: "off" }
+  | { kind: "needs_approval_in_login_items" }
+  | { kind: "not_offered"; reason: string };
+
+/**
+ * The `tatolab` CLI's version, from the first line `tatolab --version` prints: read; still being read as the app opens;
+ * unreadable, with why; or not offered by a build that carries no CLI, with why.
+ */
+export type TatolabCommandLineToolVersion =
+  | { kind: "read"; version: string }
+  | { kind: "reading" }
+  | { kind: "unreadable"; reason: string }
+  | { kind: "not_offered"; reason: string };
+
+/** Notifications when a stream fails: whether the person wants them, and whether this desktop shows notifications at all. */
+export interface StreamFailureNotificationsState {
+  enabled: boolean;
+  shown_by_this_desktop: boolean;
+}
+
 /** What `get_tatolab_status` answers and `tatolab-status-changed` carries. */
 export interface TatolabStatus {
   app_version: string;
@@ -67,6 +93,22 @@ export interface TatolabStatus {
   /** `/usr/local/bin/tatolab` on macOS once linked; on Linux the absolute path of `~/.local/bin/tatolab` while it exists. */
   command_line_tool_linked_at: string | null;
   app_update: TatolabAppUpdateState;
+  /** The socket this build reads the runtime's local API at. */
+  local_api_socket: string;
+  stream_failure_notifications: StreamFailureNotificationsState;
+  open_at_login: TatolabAppOpenAtLogin;
+  command_line_tool_version: TatolabCommandLineToolVersion;
+}
+
+/** What `describe_runtime` answers: the running runtime's version and build, how long it has been up, and the folder of its own log. */
+export interface RuntimeDescription {
+  version: string;
+  /** `<version>+<git sha>.<per-build nonce>`, which tells two builds of one version apart. */
+  build_id: string;
+  /** Monotonic milliseconds since this runtime's engine started; a restart starts it again from 0. */
+  up_for_ms: number;
+  /** The folder the runtime writes its own log to, absolute for `tatolabd`; `null` when it keeps none. */
+  runtime_log_directory: string | null;
 }
 
 /** One record of a stream's log, flattened by the backend from the runtime's JSONL record. */

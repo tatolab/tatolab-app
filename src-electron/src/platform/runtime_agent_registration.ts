@@ -37,6 +37,9 @@ export interface RuntimeAgentRegistration {
    */
   startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>>;
 
+  /** Stop the registered agent's runtime and start it again, starting it if it was not running; "Restart runtime" in Settings. */
+  restartRuntimeAgent(): Promise<Result<void, RuntimeAgentStartFailure>>;
+
   /** Unregister the agent, which stops the runtime and keeps it from starting at login. */
   unregisterRuntimeAgent(): Promise<Result<void, string>>;
 

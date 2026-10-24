@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // A test's stand-in for Electron: it records what the app asked of the window, the tray and the
-// Dock, builds a platform of fakes over the update feed the test sets, and lets the test open the
+// Dock and the notifications it showed, builds a platform of fakes over the update feed the test sets, and lets the test open the
 // app again, quit it, click a tray item or a notification, or invoke a command as the window does.
 
 import { randomUUID } from "node:crypto";
@@ -12,6 +12,7 @@ import path from "node:path";
 import type { StreamProjectFolderChosenFor } from "../../src/backend/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../../src/backend/tatolab_electron_bridge_contract.js";
 import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { failedWith, succeeded } from "./result.js";
 import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
@@ -31,7 +32,7 @@ export type FakeShellRecord =
   | { asked: "set_activation_policy"; activationPolicy: MacosActivationPolicy }
   | { asked: "show_tray_menu"; trayMenuItems: readonly TrayMenuItemDescription[] }
   | { asked: "exit"; exitCode: number }
-  | { asked: "notify"; notification: string }
+  | { asked: "notify"; title: string; body: string }
   | { asked: "repeat_every"; intervalMs: number }
   | { asked: "set_application_menu"; applicationMenu: ApplicationMenu }
   | { asked: "open_folder_in_the_file_manager"; folder: string }
@@ -51,7 +52,7 @@ export class FakeTatolabElectronAppShell {
   appUpdateFeedForThisBuild: TatolabAppUpdateFeedForThisBuild = { kind: "not_offered", reason: "this fake platform updates nothing" };
   /** The folder the fake dialog answers with; `null` reads as the person cancelling it. */
   streamProjectFolderTheDialogAnswers: string | null = null;
-  private clickANotification: (() => void) | null = null;
+  readonly systemNotifications = new FakeSystemNotifications((notificationShown) => this.records.push({ asked: "notify", ...notificationShown }));
   readonly appConfigDirectory = path.join(os.tmpdir(), `tl-app-config-${randomUUID()}`);
   private tatolabWindowCommandHandlers: TatolabWindowCommandHandlers | null = null;
   private readonly appOpenedAgainListeners: (() => void)[] = [];
@@ -88,14 +89,7 @@ export class FakeTatolabElectronAppShell {
     },
     homeDirectory: path.join(this.appConfigDirectory, "home"),
     createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,
-    createTheAppUpdateNotifier: (onNotificationClicked) => {
-      this.clickANotification = onNotificationClicked;
-      return {
-        notifyANewerVersionIsAvailable: (version) => this.records.push({ asked: "notify", notification: `Tatolab ${version} is available` }),
-        notifyTheAppIsUpToDate: () => this.records.push({ asked: "notify", notification: "Tatolab is up to date" }),
-        notifyTheUpdateFailed: (refusal) => this.records.push({ asked: "notify", notification: `Tatolab couldn't update: ${refusal}` }),
-      };
-    },
+    systemNotifications: this.systemNotifications,
     repeatingTimer: (intervalMs) => this.records.push({ asked: "repeat_every", intervalMs }),
     appConfigDirectory: this.appConfigDirectory,
     appVersion: "0.45.0",
@@ -149,7 +143,7 @@ export class FakeTatolabElectronAppShell {
   }
 
   clickTheNotification(): void {
-    this.clickANotification?.();
+    this.systemNotifications.clickTheLastNotification();
   }
 
   clickTheTrayMenuItem(trayMenuItemId: TrayMenuItemId): void {

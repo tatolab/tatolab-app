@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import type {
+  RuntimeDescription,
   StreamGraphSummary,
   StreamLogRecordsPage,
   StreamProjectFolderChosenFor,
@@ -52,7 +53,19 @@ export interface TatolabBackend {
   runStreamProject(folder: string, streamFunction: string | null, streamName: string | null): Promise<StreamProjectRunOutcome>;
   /** Open a terminal in `folder`, a folder the app handed the window, rejecting with why it could not. */
   openTerminalAtChosenProjectFolder(folder: string): Promise<void>;
+  /** How the running runtime describes itself, rejecting in its own words when it does not answer. */
+  describeRuntime(): Promise<RuntimeDescription>;
+  /** Stop the runtime and start it again through the service manager, resolving once the service manager has answered and rejecting in its words; the state that follows arrives as the next statuses. */
+  restartRuntime(): Promise<void>;
+  /** Show the folder the runtime writes its own log to in the file manager, rejecting with why it could not. */
+  openRuntimeLogFolder(): Promise<void>;
+  /** Turn the notifications shown when a stream fails on or off, resolving once it is remembered and rejecting with why it was not; the switch arrives as the next status. */
+  setStreamFailureNotifications(enabled: boolean): Promise<void>;
+  /** Have the desktop open Tatolab at login, or stop, resolving once it has and rejecting in its words; what it reports arrives as the next status. */
+  setOpenTatolabAtLogin(enabled: boolean): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
+  /** Calls `listener` with the stream each request from the app to show a stream's page names; the returned function stops it. */
+  onStreamPageRequested(listener: (streamName: string) => void): () => void;
 }
 
 /** Where the page runs: Tatolab.app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */

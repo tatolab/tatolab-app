@@ -148,6 +148,20 @@ describe("the window's shell", () => {
     expect(document.querySelector("[data-stream-page] [data-hosted-dom-page]")).toBeNull();
   });
 
+  it("opens the stream a failure notification names when the app asks", async () => {
+    let requestStreamPage: (streamName: string) => void = () => {};
+    await mountedWindowOverTheMock("state=running", {
+      onStreamPageRequested: (listener) => {
+        requestStreamPage = listener;
+        return () => {};
+      },
+    });
+
+    await act(async () => requestStreamPage("lobby-recorder"));
+
+    await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("lobby-recorder"));
+  });
+
   it("keeps the person's theme choice", async () => {
     await mountedWindowOverTheMock("state=running");
 
@@ -810,5 +824,173 @@ describe("Add stream", () => {
     openAddStream();
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="project_folder"]')).not.toBeNull());
     expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("");
+  });
+});
+
+/** Settings opened from the sidebar, on `section`. */
+async function openSettingsOn(section: string): Promise<void> {
+  fireEvent.click(document.querySelector<HTMLElement>(`[data-window-navigation="settings"]`) ?? expect.unreachable("no Settings in the sidebar"));
+  const sectionLink = await waitFor(() => document.querySelector<HTMLElement>(`[data-settings-section="${section}"]`) ?? expect.unreachable(`no ${section} section`));
+  fireEvent.click(sectionLink);
+  await waitFor(() => expect(document.querySelector(`[data-settings-page="${section}"]`)).not.toBeNull());
+}
+
+function settingsRow(rowName: string): HTMLElement {
+  return document.querySelector<HTMLElement>(`[data-settings-row="${rowName}"]`) ?? expect.unreachable(`no ${rowName} row`);
+}
+
+describe("Settings", () => {
+  it("opens on General, listing every section under its group", async () => {
+    await mountedWindowOverTheMock("state=running");
+    fireEvent.click(document.querySelector<HTMLElement>(`[data-window-navigation="settings"]`) ?? expect.unreachable("no Settings"));
+
+    await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
+    const sectionList = within(screen.getByRole("navigation", { name: "Settings" }));
+    expect(sectionList.getByRole("link", { name: "General" }).getAttribute("aria-current")).toBe("page");
+    expect(sectionList.getAllByRole("link").map((sectionLink) => sectionLink.textContent)).toEqual(["General", "Appearance", "Runtime", "Command line", "About"]);
+    expect(sectionList.getByText("This machine")).toBeTruthy();
+  });
+
+  it("switches the window light, dark or to the system's look live, and keeps the choice", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openSettingsOn("appearance");
+
+    fireEvent.click(screen.getByRole("button", { name: "Dark" }));
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(localStorage.getItem("tatolab-window-theme")).toBe("dark");
+    expect(screen.getByRole("button", { name: "Use the light theme" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "System" }));
+    expect(localStorage.getItem("tatolab-window-theme")).toBe("system");
+    expect(document.documentElement.classList.contains("dark")).toBe(window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+    fireEvent.click(screen.getByRole("button", { name: "Use the dark theme" }));
+    expect(screen.getByRole("button", { name: "Dark" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("names the running runtime's version and uptime and its local API socket, and restarts it through Starting", { timeout: 10_000 }, async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openSettingsOn("runtime");
+
+    await waitFor(() => expect(textOf("[data-runtime-status-words]")).toBe("Running · tatolabd 0.55.2 · up 3d 2h"));
+    expect(within(settingsRow("runtime-logs")).getByText("/Users/jonathanf/Library/Application Support/Tatolab/logs")).toBeTruthy();
+    expect(screen.getByText("/tmp/streamlib-501/local-api.sock")).toBeTruthy();
+    expect(within(document.querySelector<HTMLElement>("[data-settings-page]") ?? document.body).getByText("jonathanf-macbook")).toBeTruthy();
+
+    fireEvent.click(within(settingsRow("runtime-status")).getByRole("button", { name: "Restart runtime" }));
+    expect(within(settingsRow("runtime-status")).getByRole("button", { name: "Restarting…" })).toBeTruthy();
+    await waitFor(() => expect(textOf("[data-runtime-status-words]")).toBe("Starting"), { timeout: 3_000 });
+    await waitFor(() => expect(textOf("[data-runtime-status-words]")).toBe("Running · tatolabd 0.55.2 · up less than a minute"), { timeout: 5_000 });
+  });
+
+  it("shows a refused restart in the service manager's words, and offers none while Run Tatolab is off", { timeout: 5_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&restart=refused");
+    await openSettingsOn("runtime");
+
+    fireEvent.click(within(settingsRow("runtime-status")).getByRole("button", { name: "Restart runtime" }));
+
+    await waitFor(() =>
+      expect(within(settingsRow("runtime-status")).getByRole("alert").textContent).toContain(
+        "launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 5): Input/output error",
+      ),
+    );
+    document.body.replaceChildren();
+    await mountedWindowOverTheMock("state=stopped");
+    await openSettingsOn("runtime");
+    expect(textOf("[data-runtime-status-words]")).toBe("Stopped");
+    expect(within(settingsRow("runtime-status")).getByRole("button", { name: "Restart runtime" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("opens the runtime's log folder, and offers none for a runtime that keeps no log of its own", async () => {
+    let logFolderOpenings = 0;
+    await mountedWindowOverTheMock("state=running", {
+      openRuntimeLogFolder: async () => {
+        logFolderOpenings += 1;
+      },
+    });
+    await openSettingsOn("runtime");
+    const openLogsFolder = await waitFor(() => {
+      const button = within(settingsRow("runtime-logs")).getByRole("button", { name: "Open logs folder" });
+      expect(button.hasAttribute("disabled")).toBe(false);
+      return button;
+    });
+    fireEvent.click(openLogsFolder);
+    await waitFor(() => expect(logFolderOpenings).toBe(1));
+
+    document.body.replaceChildren();
+    await mountedWindowOverTheMock("state=running&runtime_log=none");
+    await openSettingsOn("runtime");
+    await waitFor(() => expect(textOf("[data-runtime-status-words]")).toContain("tatolabd 0.55.2"));
+    expect(within(settingsRow("runtime-logs")).getByRole("button", { name: "Open logs folder" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("switches stream-failure notifications and opening at login through the backend, and says why where a build can't open at login", async () => {
+    const switchesAsked: string[] = [];
+    await mountedWindowOverTheMock("state=running", {
+      setStreamFailureNotifications: async (enabled) => {
+        switchesAsked.push(`notifications ${enabled}`);
+      },
+      setOpenTatolabAtLogin: async () => {
+        throw "Tatolab could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied";
+      },
+    });
+    await openSettingsOn("general");
+
+    fireEvent.click(within(settingsRow("stream-failure-notifications")).getByRole("switch", { name: "When a stream fails" }));
+    await waitFor(() => expect(switchesAsked).toEqual(["notifications false"]));
+    const openAtLoginSwitch = within(settingsRow("open-at-login")).getByRole("switch", { name: "Open Tatolab at login" });
+    fireEvent.click(openAtLoginSwitch);
+    await waitFor(() =>
+      expect(within(settingsRow("open-at-login")).getByRole("alert").textContent).toContain(
+        "Tatolab could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
+      ),
+    );
+    expect(openAtLoginSwitch.getAttribute("aria-checked")).toBe("false");
+
+    document.body.replaceChildren();
+    await mountedWindowOverTheMock("state=running&open_at_login=not_offered");
+    await openSettingsOn("general");
+    expect(within(settingsRow("open-at-login")).queryByRole("switch")).toBeNull();
+    expect(within(settingsRow("open-at-login")).getByText("Only a packaged Tatolab opens at login.")).toBeTruthy();
+  });
+
+  it("goes back to the status's position when the backend accepts a switch and no status follows", { timeout: 8_000 }, async () => {
+    await mountedWindowOverTheMock("state=running", { setStreamFailureNotifications: async () => {} });
+    await openSettingsOn("general");
+    const notificationsSwitch = within(settingsRow("stream-failure-notifications")).getByRole("switch", { name: "When a stream fails" });
+
+    fireEvent.click(notificationsSwitch);
+    await waitFor(() => expect(notificationsSwitch.getAttribute("aria-checked")).toBe("false"));
+
+    await waitFor(() => expect(notificationsSwitch.getAttribute("aria-checked")).toBe("true"), { timeout: 5_000 });
+  });
+
+  it("colours a runtime that is not responding and says why", async () => {
+    await mountedWindowOverTheMock("state=unreachable");
+    await openSettingsOn("runtime");
+
+    const statusWords = document.querySelector<HTMLElement>("[data-runtime-status-words]") ?? expect.unreachable("no status words");
+    expect(statusWords.textContent).toBe("Not responding");
+    expect(statusWords.classList.contains("text-danger-text")).toBe(true);
+    expect(within(settingsRow("runtime-status")).getByText(/hasn't answered for 20 seconds/)).toBeTruthy();
+  });
+
+  it("names the tatolab command's path and version, and how a coding agent starts tatolab mcp", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openSettingsOn("command-line");
+
+    expect(within(settingsRow("command-line-tool")).getByText("/usr/local/bin/tatolab")).toBeTruthy();
+    expect(within(settingsRow("command-line-tool")).getByText("0.55.2")).toBeTruthy();
+    expect(textOf("[data-coding-agent-command]")).toContain("tatolab mcp");
+    expect(textOf("[data-coding-agent-config]")).toContain('"args": ["mcp"]');
+  });
+
+  it("names the app's and the runtime's versions and the runtime's licence in About", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openSettingsOn("about");
+
+    await waitFor(() => expect(within(document.querySelector<HTMLElement>("[data-settings-about]") ?? document.body).getByText("Version 0.45.0 · tatolabd 0.55.2")).toBeTruthy());
+    expect(screen.getByText(/Runtime licensed BUSL-1\.1\./)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Check for Updates…" })).toBeTruthy();
   });
 });

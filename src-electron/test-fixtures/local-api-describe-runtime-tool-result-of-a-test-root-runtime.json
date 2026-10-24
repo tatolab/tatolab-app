@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"version\": \"0.55.2\",\n  \"build_id\": \"0.55.2+ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a.eecdc9dbaa1025c25565ca507699ed60\",\n  \"up_for_ms\": 10007,\n  \"runtime_log_directory\": \"/tmp/tatolab-proof/state/logs\"\n}"}],"isError":false}}

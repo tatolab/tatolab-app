@@ -12,6 +12,7 @@ import {
   listedStreamsFromTheListStreamsToolResult,
   LocalApiClient,
   parseHttpResponse,
+  runtimeDescriptionFromTheDescribeRuntimeToolResult,
   streamRunAnswerFromTheRunStreamToolResult,
 } from "./local_api_client.js";
 import type { Result } from "./result.js";
@@ -110,6 +111,59 @@ test("listing_streams_sends_the_headers_and_meta_the_runtime_requires", async ()
   expect(requestBody).toHaveProperty(["params", "_meta", "io.modelcontextprotocol/clientInfo", "name"], "tatolab-app");
   expect(requestBody).toHaveProperty(["params", "_meta", "io.modelcontextprotocol/clientInfo", "version"], expect.any(String));
   expect(requestBody).toHaveProperty(["params", "_meta", "io.modelcontextprotocol/clientCapabilities"], {});
+});
+
+/** `describe_runtime`'s result as streamlib's wire-text test writes it, with and without the runtime's own log. */
+const DESCRIBE_RUNTIME_WIRE_TEXT_WITH_A_LOG_FOLDER =
+  '{"version":"0.55.1","build_id":"0.55.1+0123abc.9f8e7d","up_for_ms":266400000,"runtime_log_directory":"/home/u/.local/state/tatolab/logs"}';
+const DESCRIBE_RUNTIME_WIRE_TEXT_WITHOUT_A_LOG_FOLDER =
+  '{"version":"0.55.1","build_id":"0.55.1+0123abc.9f8e7d","up_for_ms":266400000,"runtime_log_directory":null}';
+
+test("describing_the_runtime_calls_describe_runtime_with_no_arguments_and_reads_its_four_fields", async () => {
+  const server = await fakeLocalApiServerAnswering([toolResultResponse(JSON.parse(DESCRIBE_RUNTIME_WIRE_TEXT_WITH_A_LOG_FOLDER))]);
+
+  expect(answerOf(await server.client().describeRuntime())).toEqual({
+    version: "0.55.1",
+    build_id: "0.55.1+0123abc.9f8e7d",
+    up_for_ms: 266_400_000,
+    runtime_log_directory: "/home/u/.local/state/tatolab/logs",
+  });
+  const [head, body] = headAndBodyOf(server.receivedRequests()[0]);
+  expect(head).toContain("Mcp-Name: describe_runtime");
+  expect(JSON.parse(body)).toMatchObject({ method: "tools/call", params: { name: "describe_runtime", arguments: {} } });
+});
+
+test("a_real_describe_runtime_result_reads_its_version_build_uptime_and_log_folder", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-runtime-tool-result-of-a-test-root-runtime.json")),
+  ]);
+
+  expect(answerOf(await server.client().describeRuntime())).toEqual({
+    version: "0.55.2",
+    build_id: "0.55.2+ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a.eecdc9dbaa1025c25565ca507699ed60",
+    up_for_ms: 10_007,
+    runtime_log_directory: "/tmp/tatolab-proof/state/logs",
+  });
+});
+
+test("a_runtime_keeping_no_own_log_describes_its_log_folder_as_null", () => {
+  expect(answerOf(runtimeDescriptionFromTheDescribeRuntimeToolResult(DESCRIBE_RUNTIME_WIRE_TEXT_WITHOUT_A_LOG_FOLDER)).runtime_log_directory).toBeNull();
+});
+
+test("a_describe_runtime_result_missing_a_field_is_refused_naming_it", () => {
+  expect(failureOf(runtimeDescriptionFromTheDescribeRuntimeToolResult('{"version":"0.55.1","up_for_ms":5,"runtime_log_directory":null}'))).toBe(
+    "the runtime's describe_runtime result could not be read: missing field `build_id`",
+  );
+});
+
+test("a_runtime_older_than_describe_runtime_refuses_it_in_its_own_words", async () => {
+  const unknownToolRefusal = JSON.stringify({ jsonrpc: "2.0", id: 1, error: { code: -32602, message: "tool not found: describe_runtime" } });
+  const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", unknownToolRefusal)]);
+
+  expect(failureOf(await server.client().describeRuntime())).toEqual({
+    failureDescription: "the runtime refused `describe_runtime` (200): tool not found: describe_runtime",
+    isTheRuntimesRefusal: true,
+  });
 });
 
 function listedStream(name: string, state: string, projectDirectory: string, nodeCount: number | null, failedBecause: string | null): ListedStream {
@@ -438,10 +492,13 @@ test("a_chunked_response_is_dechunked", async () => {
 
 /** Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src-electron/src/local_api_client.test.ts`. */
 const noLiveRuntimeSocketIsNamed = !process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"];
-test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_streams_their_graphs_and_logs_and_its_machine_name", async () => {
+test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_and_logs_and_its_machine_name", async () => {
   const client = new LocalApiClient(process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "", 5_000, "0.45.0");
 
   answerOf(await client.checkHealth());
+  const runtimeDescription = answerOf(await client.describeRuntime());
+  expect(runtimeDescription.build_id.startsWith(`${runtimeDescription.version}+`)).toBe(true);
+  expect(runtimeDescription.up_for_ms).toBeGreaterThan(0);
   const streams = answerOf(await client.listStreams());
   expect(answerOf(await client.machineName())).not.toBe("");
   for (const loadedStream of streams.filter((listedStream) => listedStream.node_count !== null)) {

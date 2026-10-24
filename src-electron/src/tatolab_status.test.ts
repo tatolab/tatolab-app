@@ -32,6 +32,10 @@ function statusWith(runtimeState: RuntimeState, runtimeAgent: RuntimeAgentRegist
     machine_setup_state: "complete",
     command_line_tool_linked_at: null,
     app_update: { kind: "not_checked" },
+    local_api_socket: "/tmp/streamlib-501/local-api.sock",
+    stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
+    open_at_login: { kind: "off" },
+    command_line_tool_version: { kind: "read", version: "0.55.2" },
   };
 }
 

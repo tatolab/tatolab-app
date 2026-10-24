@@ -9,7 +9,8 @@ import type { ListedStream, StreamProjectFolderChosenFor, StreamRunAnswer } from
 import type { LocalApiRequestFailure, StreamRunRequest } from "./local_api_client.js";
 import type { TatolabCommandLineTool } from "./platform/mod.js";
 import { failedWith, succeeded, type Result } from "./result.js";
-import { firstFreeSuffixedName, StreamProjectAdding, type ProgramRunner, type StreamRunsOnTheRuntime } from "./stream_project_adding.js";
+import type { ProgramRunner } from "./platform/run_program_to_completion.js";
+import { firstFreeSuffixedName, StreamProjectAdding, type StreamRunsOnTheRuntime } from "./stream_project_adding.js";
 import { FakeTerminalOpenedInAFolder } from "./fake_tatolab_platform_for_this_build.js";
 
 const temporaryHomes: string[] = [];

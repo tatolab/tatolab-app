@@ -6,9 +6,11 @@ import type { AddStreamFlowOfTheWindow } from "../add_stream_flow_of_the_window"
 import type { TatolabBackend } from "../backend/tatolab_backend";
 import type { TatolabPlatform, TatolabStatus } from "../backend/tatolab_backend_contract";
 import type { AddStreamFlowState, AddStreamRunNotice } from "../presentation/add_stream_flow";
+import type { RuntimeDescriptionReading } from "../presentation/settings_presentation";
+import type { RuntimeDescriptionReadings } from "../runtime_description_reading";
+import type { WindowAppearance, WindowAppearanceChoice, WindowTheme } from "../window_appearance";
 import type { StreamGraphReading, StreamGraphReadings } from "../stream_graph_readings";
 import type { StreamLogReading, StreamLogReadings } from "../stream_log_readings";
-import type { SettingsPageView } from "./settings_page_view";
 import type { StreamsPageView } from "./streams_page_view";
 import type { TatolabWindowPage } from "./tatolab_window_page";
 
@@ -32,15 +34,34 @@ export class TatolabWindowStatusStore {
   }
 }
 
+/** Why the last uninstall was refused, which Settings shows under Uninstall Tatolab…, until the sheet opens again. */
+export class UninstallTatolabRefusal {
+  private refusalReason: string | null = null;
+  private readonly refusalListeners = new Set<() => void>();
+
+  readonly readRefusalReason = (): string | null => this.refusalReason;
+
+  readonly subscribeToRefusal = (refusalListener: () => void): (() => void) => {
+    this.refusalListeners.add(refusalListener);
+    return () => this.refusalListeners.delete(refusalListener);
+  };
+
+  /** Keep `refusalReason`, `null` to clear it, and tell every subscriber. */
+  showRefusalReason(refusalReason: string | null): void {
+    if (this.refusalReason === refusalReason) return;
+    this.refusalReason = refusalReason;
+    for (const refusalListener of this.refusalListeners) refusalListener();
+  }
+}
+
 /** The DOM pages the window keeps until later tickets rebuild them in React. */
 export interface TatolabWindowHostedPages {
   streamsPage: StreamsPageView;
-  settingsPage: SettingsPageView;
   /** What fills the window until Tatolab can run here: macOS's administrator setup, or Linux's installer. */
   setupScreen: TatolabWindowPage;
 }
 
-/** What every part of the React window reads: the backend, the platform, the status, the shown stream's graph and log, and the hosted DOM pages. */
+/** What every part of the React window reads: the backend, the platform, the status, the shown stream's graph and log, the hosted DOM pages, the window's look, the runtime's description and uninstalling. */
 export interface TatolabWindowEnvironment {
   backend: TatolabBackend;
   platform: TatolabPlatform;
@@ -50,6 +71,13 @@ export interface TatolabWindowEnvironment {
   /** Adding a stream, held by the window so a run outlives the page that started it. */
   addStreamFlow: AddStreamFlowOfTheWindow;
   hostedPages: TatolabWindowHostedPages;
+  /** The person's choice of light, dark or the system's look, which the title bar and Settings › Appearance both change. */
+  windowAppearance: WindowAppearanceChoice;
+  /** The runtime's version, uptime and log folder, read while Settings shows them. */
+  runtimeDescriptionReadings: RuntimeDescriptionReadings;
+  /** Open the sheet "Uninstall Tatolab…" asks to confirm in. */
+  openUninstallSheet(): void;
+  uninstallTatolabRefusal: UninstallTatolabRefusal;
   openSearch(): void;
 }
 
@@ -91,4 +119,24 @@ export function useAddStreamFlowState(): AddStreamFlowState {
 export function useAddStreamRunNotice(): AddStreamRunNotice | null {
   const { addStreamFlow } = useTatolabWindowEnvironment();
   return useSyncExternalStore(addStreamFlow.subscribeToFlow, addStreamFlow.readRunNotice);
+}
+
+/** The person's choice of look and the theme it shows, re-rendering the caller on each change. */
+export function useWindowAppearance(): { chosenAppearance: WindowAppearance; shownTheme: WindowTheme; chooseAppearance: (appearance: WindowAppearance) => void } {
+  const { windowAppearance } = useTatolabWindowEnvironment();
+  const chosenAppearance = useSyncExternalStore(windowAppearance.subscribeToAppearance, windowAppearance.readChosenAppearance);
+  const shownTheme = useSyncExternalStore(windowAppearance.subscribeToAppearance, windowAppearance.readShownTheme);
+  return { chosenAppearance, shownTheme, chooseAppearance: (appearance) => windowAppearance.choose(appearance) };
+}
+
+/** What the runtime last said of itself, read while the caller is shown, re-rendering it on each change. */
+export function useRuntimeDescriptionReading(): RuntimeDescriptionReading {
+  const { runtimeDescriptionReadings } = useTatolabWindowEnvironment();
+  return useSyncExternalStore(runtimeDescriptionReadings.subscribeToReading, runtimeDescriptionReadings.readLatestReading);
+}
+
+/** Why the last uninstall was refused, `null` for none, re-rendering the caller on each change. */
+export function useUninstallTatolabRefusalReason(): string | null {
+  const { uninstallTatolabRefusal } = useTatolabWindowEnvironment();
+  return useSyncExternalStore(uninstallTatolabRefusal.subscribeToRefusal, uninstallTatolabRefusal.readRefusalReason);
 }

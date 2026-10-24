@@ -4,8 +4,8 @@
 // The runtime's agent on Linux: the systemd user unit `tatolabd.service` the installer
 // (`curl -fsSL https://get.tatolab.com/install.sh | sh`) writes and enables, driven over
 // `systemctl --user`. "Run Tatolab" is the unit's enablement, `enable --now` and
-// `disable --now`, and starting a runtime the poller found down is `start`, which leaves an
-// active unit alone.
+// `disable --now`, starting a runtime the poller found down is `start`, which leaves an active
+// unit alone, and "Restart runtime" is `restart`.
 
 import { execFile } from "node:child_process";
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../../../src/backend/tatolab_backend_contract.js";
@@ -104,6 +104,11 @@ export class SystemdUserRuntimeService implements RuntimeAgentRegistration {
   async startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {
     const started = await this.runSystemctlUserExpectingSuccess(["start", RUNTIME_SYSTEMD_USER_UNIT_NAME]);
     return started.ok ? started : failedWith({ kind: "refused", refusal: started.failure });
+  }
+
+  async restartRuntimeAgent(): Promise<Result<void, RuntimeAgentStartFailure>> {
+    const restarted = await this.runSystemctlUserExpectingSuccess(["restart", RUNTIME_SYSTEMD_USER_UNIT_NAME]);
+    return restarted.ok ? restarted : failedWith({ kind: "refused", refusal: restarted.failure });
   }
 
   unregisterRuntimeAgent(): Promise<Result<void, string>> {

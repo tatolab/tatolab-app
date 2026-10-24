@@ -18,7 +18,7 @@ import type {
 import type { LocalApiRequestFailure, StreamRunRequest } from "./local_api_client.js";
 import { isAnExistingFolderOnThisMachine, realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
 import type { TatolabCommandLineTool, TerminalOpenedInAFolder } from "./platform/mod.js";
-import { describeHowTheProgramEnded, programSucceeded, type ProgramCompletion } from "./platform/run_program_to_completion.js";
+import { describeHowTheProgramEnded, programSucceeded, type ProgramRunner } from "./platform/run_program_to_completion.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { inspectStreamProjectFolder } from "./stream_project_folder_inspection.js";
 
@@ -33,9 +33,6 @@ const FIRST_SUFFIX_OF_A_TAKEN_NAME = 2;
 
 /** Asks the person for a folder in the desktop's dialog, opened at `defaultFolder`: an existing project to run, or a new project's directory, which may not exist yet. `null` when they cancel. */
 export type StreamProjectFolderDialog = (chosenFor: StreamProjectFolderChosenFor, defaultFolder: string) => Promise<Result<string | null, string>>;
-
-/** Runs a program to its end, never through a shell. */
-export type ProgramRunner = (programPath: string, programArguments: readonly string[]) => Promise<Result<ProgramCompletion, string>>;
 
 /** The runtime's two tools a run needs: `run_stream`, and `list_streams` to tell a taken name. */
 export interface StreamRunsOnTheRuntime {
