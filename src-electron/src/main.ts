@@ -22,6 +22,7 @@ import { TatolabMainWindow, type MainWindowHostFactory } from "./tatolab_main_wi
 import { TatolabAppUpdater, tatolabAppUpdateNotifierOver, type RepeatingTimer, type TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
+import { TatolabCommandLineToolVersionReadOncePerLaunch } from "./tatolab_command_line_tool_version.js";
 import type { SystemNotifications } from "./system_notifications.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "./tatolab_tray_menu.js";
@@ -133,6 +134,11 @@ export async function startTatolabApp(
     },
     tatolabAppLog,
   );
+  const tatolabCommandLineToolVersion = new TatolabCommandLineToolVersionReadOncePerLaunch(
+    platformForThisBuild.tatolabCommandLineTool,
+    runProgramToCompletion,
+    tatolabAppLog,
+  );
   const controller = await TatolabAppController.create({
     platform: platformItems.platform,
     platformForThisBuild,
@@ -143,6 +149,7 @@ export async function startTatolabApp(
     readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     readTheAppUpdateState: () => tatolabAppUpdater.state(),
     readStreamFailureNotifications: () => streamFailureNotifications.stateNow(),
+    readTheCommandLineToolVersion: () => tatolabCommandLineToolVersion.versionNow(),
     tatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(

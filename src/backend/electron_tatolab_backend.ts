@@ -79,6 +79,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     setStreamFailureNotifications: async (enabled) => {
       await invokeTatolabCommand("set_stream_failure_notifications", { enabled });
     },
+    setOpenTatolabAtLogin: async (enabled) => {
+      await invokeTatolabCommand("set_open_tatolab_at_login", { enabled });
+    },
     onStreamPageRequested: (listener) => tatolabElectronBridge.onStreamPageRequested(listener),
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
   };

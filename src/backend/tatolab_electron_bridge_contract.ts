@@ -45,10 +45,11 @@ export const TATOLAB_COMMAND_NAMES = [
   "restart_runtime",
   "open_runtime_log_folder",
   "set_stream_failure_notifications",
+  "set_open_tatolab_at_login",
 ] as const;
 
 /**
- * One command the window invokes. Arguments: `set_run_tatolab` and `set_stream_failure_notifications` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`,
+ * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`,
  * `start_stream`, `remove_stream`, `open_stream_project_folder` and `open_stream_log_folder` `{ stream }`, `open_terminal_at_stream_project` `{ stream }` or
  * `{ folder }`, `choose_stream_project_folder` `{ chosen_for }`, `check_stream_project_folder` and `create_stream_project` `{ folder }`, `run_stream_project`
  * `{ folder, stream_function, name }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
@@ -98,6 +99,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   open_runtime_log_folder: { commandArguments: undefined; answer: null };
   /** Refused when the choice could not be remembered, though it holds until the app quits. */
   set_stream_failure_notifications: { commandArguments: { enabled: boolean }; answer: null };
+  /** Answers once the desktop has; refused in its words, or with why this build does not offer it. */
+  set_open_tatolab_at_login: { commandArguments: { enabled: boolean }; answer: null };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */

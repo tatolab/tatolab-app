@@ -64,6 +64,7 @@ async function controllerOverFakes(
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   return { controller, runtimeAgent, machineSetup, localApiServer };
@@ -85,7 +86,8 @@ test("a healthy runtime's status names its streams and machine, read as the wind
       '"machine_name":"jonathanf-macbook","streams":[{"name":"main","state":"kept","project_directory":"/p","node_count":4,"failed_because":null}],' +
       '"machine_setup_state":"needs_administrator","command_line_tool_linked_at":null,"app_update":{"kind":"not_checked"},' +
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
-      '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true}}',
+      '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
+      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
   );
 });
 
@@ -133,6 +135,7 @@ test("a tray toggle and a window request run in turn, never interleaved", async 
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
 
@@ -168,6 +171,7 @@ async function controllerAtAppVersion(appVersion: string, appConfigDirectory: st
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
 }
@@ -210,6 +214,7 @@ test("the restarted runtime gets the starting grace again", async () => {
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   nowMs = 60_000;
@@ -253,6 +258,7 @@ test("before the machine is set up nothing restarts, and the restart waits for a
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   await controllerBeforeSetup.restartTheBundledRuntimeIfTheAppChanged();
@@ -282,6 +288,7 @@ test("each status carries where updates stand", async () => {
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   expect((await controller.composeStatus(0)).app_update).toEqual({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" });

@@ -53,6 +53,26 @@ export type TatolabAppUpdateState =
   | { kind: "installing"; version: string }
   | { kind: "failed"; refusal: string };
 
+/**
+ * Whether the app opens at login, as the OS reports it: on, off, registered but waiting for the person's approval in
+ * Login Items (macOS only), or not offered, with why, in a build that cannot open at login.
+ */
+export type TatolabAppOpenAtLogin =
+  | { kind: "on" }
+  | { kind: "off" }
+  | { kind: "needs_approval_in_login_items" }
+  | { kind: "not_offered"; reason: string };
+
+/**
+ * The `tatolab` CLI's version, from the first line `tatolab --version` prints: read; still being read as the app opens;
+ * unreadable, with why; or not offered by a build that carries no CLI, with why.
+ */
+export type TatolabCommandLineToolVersion =
+  | { kind: "read"; version: string }
+  | { kind: "reading" }
+  | { kind: "unreadable"; reason: string }
+  | { kind: "not_offered"; reason: string };
+
 /** Notifications when a stream fails: whether the person wants them, and whether this desktop shows notifications at all. */
 export interface StreamFailureNotificationsState {
   enabled: boolean;
@@ -76,6 +96,8 @@ export interface TatolabStatus {
   /** The socket this build reads the runtime's local API at. */
   local_api_socket: string;
   stream_failure_notifications: StreamFailureNotificationsState;
+  open_at_login: TatolabAppOpenAtLogin;
+  command_line_tool_version: TatolabCommandLineToolVersion;
 }
 
 /** What `describe_runtime` answers: the running runtime's version and build, how long it has been up, and the folder of its own log. */

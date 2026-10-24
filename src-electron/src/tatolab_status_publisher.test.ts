@@ -78,6 +78,7 @@ test("the published status walks starting, running, starting, unreachable and st
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusesSentToTheWindow: TatolabStatus[] = [];
@@ -125,6 +126,7 @@ test("the window asking before the first round waits for it, and hears nothing w
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);

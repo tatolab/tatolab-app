@@ -194,6 +194,15 @@ export function setStreamFailureNotifications(sharedState: TatolabAppSharedState
   });
 }
 
+/** `set_open_tatolab_at_login { enabled }`: have the desktop open the app at login, or stop, then a status round; refused in the desktop's words. */
+export function setOpenTatolabAtLogin(sharedState: TatolabAppSharedState, enabled: boolean): Promise<Result<void, string>> {
+  return answerTheWindow("set_open_tatolab_at_login", async () => {
+    const set = await sharedState.controller.setOpenTatolabAtLogin(enabled);
+    sharedState.statusPublisher.requestRefresh();
+    return set;
+  });
+}
+
 /** The `{ enabled }` arguments of the command `commandName` as the window sends them, or why they are not. */
 export function enabledArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ enabled: boolean }, string> {
   if (!isAJsonObject(commandArguments) || typeof commandArguments["enabled"] !== "boolean") {
@@ -357,6 +366,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const enabledArguments = enabledArgumentsFrom("set_stream_failure_notifications", commandArguments);
       if (!enabledArguments.ok) return { ok: false, refusal: enabledArguments.failure };
       return commandAnswerOfNothingFrom(await setStreamFailureNotifications(sharedState, enabledArguments.value.enabled));
+    },
+    set_open_tatolab_at_login: async (commandArguments) => {
+      const enabledArguments = enabledArgumentsFrom("set_open_tatolab_at_login", commandArguments);
+      if (!enabledArguments.ok) return { ok: false, refusal: enabledArguments.failure };
+      return commandAnswerOfNothingFrom(await setOpenTatolabAtLogin(sharedState, enabledArguments.value.enabled));
     },
   };
 }

@@ -194,18 +194,25 @@ describe("createElectronTatolabBackend", () => {
     expect(heardStatuses).toEqual([tatolabStatus]);
   });
 
-  it("sends the stream-failure notifications switch, and hands each stream page request to the listener until it stops listening", async () => {
-    const fakeBridge = fakeTatolabElectronBridge({ set_stream_failure_notifications: { ok: true, value: null } });
+  it("sends the stream-failure notifications and open-at-login switches, and hands each stream page request to the listener until it stops listening", async () => {
+    const fakeBridge = fakeTatolabElectronBridge({
+      set_stream_failure_notifications: { ok: true, value: null },
+      set_open_tatolab_at_login: { ok: true, value: null },
+    });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
     const requestedStreams: string[] = [];
 
     await backend.setStreamFailureNotifications(false);
+    await backend.setOpenTatolabAtLogin(true);
     const stopListening = backend.onStreamPageRequested((streamName) => requestedStreams.push(streamName));
     fakeBridge.streamPageRequestListeners.forEach((streamPageRequestListener) => streamPageRequestListener("camera"));
     stopListening();
     fakeBridge.streamPageRequestListeners.forEach((streamPageRequestListener) => streamPageRequestListener("main"));
 
-    expect(fakeBridge.invokedCommands).toEqual([["set_stream_failure_notifications", { enabled: false }]]);
+    expect(fakeBridge.invokedCommands).toEqual([
+      ["set_stream_failure_notifications", { enabled: false }],
+      ["set_open_tatolab_at_login", { enabled: true }],
+    ]);
     expect(requestedStreams).toEqual(["camera"]);
   });
 });

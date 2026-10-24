@@ -25,6 +25,8 @@ import { LAUNCHCTL_AT_ITS_SYSTEM_PATH, ServiceManagementRuntimeLaunchAgent } fro
 import { appBundleContaining, bundledCommandLineToolPath, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
 import { TerminalAppOpenedByOpen } from "./terminal_app_opened_by_open.js";
 import { TatolabUninstallOnThisMac } from "./tatolab_uninstall.js";
+import { LoginItemOfTheAppBundle } from "./login_item_of_the_app_bundle.js";
+import { tatolabAppNotOpenedAtLogin, UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL } from "../tatolab_app_opened_at_login.js";
 
 export { MACOS_MAIN_WINDOW_CHROME, setMacosDockIconVisible } from "./main_window_chrome.js";
 
@@ -39,7 +41,7 @@ export function tatolabAppUpdatePackagingOnMacos(appIsPackaged: boolean): Tatola
 /** The bundle's launch agent through the Service Management addon, the machine setup this build's paths need for the bundle the app binary runs from, and uninstalling them behind the administrator prompt. */
 export async function macosTatolabPlatformForThisBuild(
   tatolabAppLog: TatolabAppLog,
-  { appPath, appExecutable, appIsPackaged, appConfigDirectory, tatolabUninstallAppSurface }: TatolabPlatformHostServices,
+  { appPath, appExecutable, appIsPackaged, appConfigDirectory, tatolabUninstallAppSurface, appLoginItemSettings }: TatolabPlatformHostServices,
 ): Promise<TatolabPlatformForThisBuild> {
   const uid = currentProcessUid();
   const machinePaths = tatolabMachinePathsOnMacosForThisBuild(uid);
@@ -80,5 +82,8 @@ export async function macosTatolabPlatformForThisBuild(
     bundledRuntimeRestart: runtimeLaunchAgent,
     terminalOpenedInAFolder: new TerminalAppOpenedByOpen(),
     tatolabCommandLineTool: tatolabCommandLineToolAt(bundledCommandLineTool),
+    tatolabAppOpenedAtLogin: appIsPackaged
+      ? new LoginItemOfTheAppBundle(appLoginItemSettings)
+      : tatolabAppNotOpenedAtLogin(UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL),
   };
 }

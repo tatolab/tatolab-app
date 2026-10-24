@@ -227,6 +227,8 @@ function initialMockStatus(
     app_update: initialMockAppUpdateState(appUpdateScenario),
     local_api_socket: machine.localApiSocket,
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
+    open_at_login: { kind: "off" },
+    command_line_tool_version: { kind: "read", version: MOCK_RUNTIME_VERSION },
   };
   switch (scenario) {
     case "running":
@@ -834,6 +836,10 @@ export function createMockTatolabBackend({
     setStreamFailureNotifications: async (enabled) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       publishStatus({ stream_failure_notifications: { ...mockStatus.stream_failure_notifications, enabled } });
+    },
+    setOpenTatolabAtLogin: async (enabled) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      publishStatus({ open_at_login: enabled ? { kind: "on" } : { kind: "off" } });
     },
     onStreamPageRequested: () => () => {},
     onTatolabStatusChanged: async (statusListener) => {

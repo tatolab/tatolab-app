@@ -12,6 +12,7 @@ import type {
   RuntimeDescription,
   RuntimeState,
   StreamFailureNotificationsState,
+  TatolabCommandLineToolVersion,
   StreamGraphSummary,
   StreamLogRecordsPage,
   StreamRunAnswer,
@@ -24,6 +25,7 @@ import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import { LocalApiClient, type LocalApiRequestFailure, type StreamRunRequest } from "./local_api_client.js";
 import type { TatolabPlatformForThisBuild } from "./platform/mod.js";
 import type { BundledRuntimeRestart } from "./platform/runtime_agent_registration.js";
+import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
 import type { TatolabMachineSetup } from "./platform/tatolab_machine_setup.js";
 import type { Result } from "./result.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
@@ -70,6 +72,8 @@ export interface TatolabAppControllerSources {
   readTheAppUpdateState: () => TatolabAppUpdateState;
   /** Whether a stream failing shows a notification, which each status carries. */
   readStreamFailureNotifications: () => StreamFailureNotificationsState;
+  /** The `tatolab` CLI's version as read so far this launch, which each status carries. */
+  readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion;
   tatolabAppLog: TatolabAppLog;
 }
 
@@ -93,6 +97,8 @@ export class TatolabAppController {
     private readonly readMonotonicClockMs: () => number,
     private readonly readTheAppUpdateState: () => TatolabAppUpdateState,
     private readonly readStreamFailureNotifications: () => StreamFailureNotificationsState,
+    private readonly readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion,
+    private readonly tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin,
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
 
@@ -117,6 +123,8 @@ export class TatolabAppController {
       sources.readMonotonicClockMs,
       sources.readTheAppUpdateState,
       sources.readStreamFailureNotifications,
+      sources.readTheCommandLineToolVersion,
+      sources.platformForThisBuild.tatolabAppOpenedAtLogin,
       sources.tatolabAppLog,
     );
   }
@@ -228,6 +236,14 @@ export class TatolabAppController {
     return restarted;
   }
 
+  /** "Open Tatolab at login": have the desktop open the app at login, or stop; refused in the desktop's words. */
+  async setOpenTatolabAtLogin(openAtLogin: boolean): Promise<Result<void, string>> {
+    const set = await this.tatolabAppOpenedAtLogin.setOpenAtLogin(openAtLogin);
+    if (set.ok) this.tatolabAppLog.info("Open Tatolab at login set", { open_at_login: openAtLogin });
+    else this.tatolabAppLog.warn("Open Tatolab at login could not be set", { open_at_login: openAtLogin, failure: set.failure });
+    return set;
+  }
+
   /** Whether the switch is on. */
   runTatolab(): boolean {
     return this.runTatolabSwitch.runTatolab();
@@ -303,6 +319,8 @@ export class TatolabAppController {
       app_update: this.readTheAppUpdateState(),
       local_api_socket: this.localApiSocket,
       stream_failure_notifications: this.readStreamFailureNotifications(),
+      open_at_login: await this.tatolabAppOpenedAtLogin.readOpenAtLogin(),
+      command_line_tool_version: this.readTheCommandLineToolVersion(),
     };
   }
 
