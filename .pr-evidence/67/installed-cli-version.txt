@@ -1,0 +1,2 @@
+tatolab 0.55.4
+runtime 0.55.4 (0.55.4+ef5c8b22995a90b1f7ae671e214c96480615c911.fa782a0f16b13e5e1cd6dc3903e4fed1), up 0d 0h 2m, log /Users/fonta/Library/Application Support/Tatolab/logs
