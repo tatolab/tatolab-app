@@ -98,12 +98,13 @@ for required_electron_fuse_state in "RunAsNode is Disabled" "EnableNodeOptionsEn
   grep -qF "$required_electron_fuse_state" <<<"$electron_fuse_states" \
     || { echo "the packaged app's Electron fuse is not '$required_electron_fuse_state'" >&2; exit 1; }
 done
-packaged_build_features="$(node scripts/tatolab_app_build_features.mjs read "$packaged_app_directory/resources/app.asar")"
 if $local_proof_test_root; then
+  packaged_build_features="$(node scripts/tatolab_app_build_features.mjs read "$packaged_app_directory/resources/app.asar")"
+  expected_app_update_feed_url="${app_update_feed_url:-$(node -p 'require("./src/main/tatolab_app_build_features.json").appUpdateFeedUrl')}"
   grep -qx "machineDirectoriesUnderATestRoot=true" <<<"$packaged_build_features" \
     || { echo "the packaged app was not built with machineDirectoriesUnderATestRoot: $packaged_build_features" >&2; exit 1; }
-  [ -z "$app_update_feed_url" ] || grep -qxF "appUpdateFeedUrl=$app_update_feed_url" <<<"$packaged_build_features" \
-    || { echo "the packaged app does not check $app_update_feed_url for updates: $packaged_build_features" >&2; exit 1; }
+  grep -qxF "appUpdateFeedUrl=$expected_app_update_feed_url" <<<"$packaged_build_features" \
+    || { echo "the packaged app does not check $expected_app_update_feed_url for updates: $packaged_build_features" >&2; exit 1; }
 else
   node scripts/tatolab_app_build_features.mjs read "$packaged_app_directory/resources/app.asar" --shipping >/dev/null \
     || { echo "the packaged app was not built with the shipping features" >&2; exit 1; }

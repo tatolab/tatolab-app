@@ -189,13 +189,17 @@ verify_app_bundle() {
     && pass "every .py under Resources/lend/tatolab/runtime has ${required_lend_bytecode_cache_tags[*]} bytecode" \
     || fail "$missing_lend_bytecode_count .pyc missing under Resources/lend/tatolab/runtime (first: $first_missing_lend_bytecode); a processor interpreter would write it into the signed bundle"
 
-  local packaged_build_features packaged_build_features_readable=false
-  if packaged_build_features="$(node "$repository_root/scripts/tatolab_app_build_features.mjs" read "$contents/Resources/app.asar" 2>&1)"; then
-    packaged_build_features_readable=true
-    pass "app.asar carries the build features: $(tr '\n' ' ' <<<"$packaged_build_features")"
-  else
-    fail "app.asar's build features are unreadable: $packaged_build_features"
-  fi
+  # One read: stdout is the features, stderr the reasons this build may not ship.
+  local packaged_build_features shipping_build_features_refusals_file shipping_build_features_refusals
+  local packaged_build_features_are_shipping=false
+  shipping_build_features_refusals_file="$(mktemp)"
+  packaged_build_features="$(node "$repository_root/scripts/tatolab_app_build_features.mjs" read "$contents/Resources/app.asar" --shipping 2>"$shipping_build_features_refusals_file")" \
+    && packaged_build_features_are_shipping=true
+  shipping_build_features_refusals="$(cat "$shipping_build_features_refusals_file")"
+  rm -f "$shipping_build_features_refusals_file"
+  [ -n "$packaged_build_features" ] \
+    && pass "app.asar carries the build features: $(tr '\n' ' ' <<<"$packaged_build_features")" \
+    || fail "app.asar's build features are unreadable: $shipping_build_features_refusals"
 
   local launch_agent_plist="$contents/Library/LaunchAgents/com.tatolab.tatolabd.plist"
   if plutil -lint -s "$launch_agent_plist" 2>/dev/null; then
@@ -276,11 +280,11 @@ verify_app_bundle() {
     && pass "electron-updater is in app.asar" || fail "app.asar carries no electron-updater"
   grep -qx 'updaterCacheDirName: tatolab-app-updater' "$contents/Resources/app-update.yml" 2>/dev/null \
     && pass "Resources/app-update.yml names the updater's cache" || fail "no Resources/app-update.yml naming the updater's cache: electron-updater cannot download"
-  local shipping_build_features_refusals shipping_build_features_refusal
-  if $packaged_build_features_readable; then
-    if shipping_build_features_refusals="$(node "$repository_root/scripts/tatolab_app_build_features.mjs" read "$contents/Resources/app.asar" --shipping 2>&1 >/dev/null)"; then
-      pass "the app was built with the shipping features: real machine directories, updates from get.tatolab.com/app/"
-    elif $shipping; then
+  local shipping_build_features_refusal
+  if $packaged_build_features_are_shipping; then
+    pass "the app was built with the shipping features: real machine directories, updates from get.tatolab.com/app/"
+  elif [ -n "$packaged_build_features" ]; then
+    if $shipping; then
       while IFS= read -r shipping_build_features_refusal; do
         fail "the app $shipping_build_features_refusal: never ship it"
       done <<<"$shipping_build_features_refusals"

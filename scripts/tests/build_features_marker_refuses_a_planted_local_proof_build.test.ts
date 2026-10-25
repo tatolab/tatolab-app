@@ -9,11 +9,11 @@ import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 import { createPackage } from "@electron/asar";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
-const REPOSITORY_ROOT = new URL("../..", import.meta.url).pathname;
+const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const BUILD_FEATURES_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "tatolab_app_build_features.mjs");
 const SHIPPING_BUILD_FEATURES = { machineDirectoriesUnderATestRoot: false, appUpdateFeedUrl: "https://get.tatolab.com/app/" };
 const LOCAL_APP_UPDATE_FEED_URL = "http://127.0.0.1:8765/app/";
@@ -24,12 +24,13 @@ interface BuildFeaturesScriptOutcome {
   stderr: string;
 }
 
-async function runTheBuildFeaturesScript(scriptArguments: string[]): Promise<BuildFeaturesScriptOutcome> {
-  const scriptRun = promisify(execFile)(process.execPath, [BUILD_FEATURES_SCRIPT, ...scriptArguments], { cwd: REPOSITORY_ROOT });
-  return scriptRun.then(
-    ({ stdout, stderr }) => ({ exitCode: 0, stdout, stderr }),
-    (failedRun: { code?: number; stdout?: string; stderr?: string }) => ({ exitCode: failedRun.code ?? -1, stdout: failedRun.stdout ?? "", stderr: failedRun.stderr ?? "" }),
-  );
+function runTheBuildFeaturesScript(scriptArguments: string[]): Promise<BuildFeaturesScriptOutcome> {
+  return new Promise((resolveOutcome) => {
+    execFile(process.execPath, [BUILD_FEATURES_SCRIPT, ...scriptArguments], { cwd: REPOSITORY_ROOT }, (scriptFailure, stdout, stderr) => {
+      const exitCode = scriptFailure === null ? 0 : typeof scriptFailure.code === "number" ? scriptFailure.code : -1;
+      resolveOutcome({ exitCode, stdout, stderr });
+    });
+  });
 }
 
 let scratchDirectory = "";
