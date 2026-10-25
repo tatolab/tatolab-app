@@ -110,11 +110,27 @@ function CommandLineSection() {
   return (
     <>
       <SettingsGroup>
-        <SettingsRow label="tatolab" description={<Mono>/opt/homebrew/bin/tatolab</Mono>}>
+        <SettingsRow
+          label="tatolab"
+          description={
+            <>
+              <Mono>~/.local/bin/tatolab</Mono> · Linked to the copy inside Tatolab.app. It works in any terminal with ~/.local/bin on its PATH.
+            </>
+          }
+        >
           <Mono>{thisMachine.runtimeVersion}</Mono>
         </SettingsRow>
-        <SettingsRow label="Installed with the app" description="The cask installs the app, the runtime and the command line together.">
-          <Mono>brew install --cask tatolab/tap/tatolab</Mono>
+        <div className="flex flex-col gap-1.5 px-4 py-3">
+          <p className="text-xs text-fg-3">If a terminal can't find it, add this line to ~/.zprofile and open a new terminal:</p>
+          <CommandBlock command={'export PATH="$HOME/.local/bin:$PATH"'} />
+        </div>
+        <SettingsRow
+          label="Link in /usr/local/bin"
+          description="Works in every terminal, with no change to your PATH. macOS asks for your password, and its dialog says “osascript wants to make changes.”"
+        >
+          <Button variant="outline" size="sm" className={small}>
+            Link in /usr/local/bin…
+          </Button>
         </SettingsRow>
       </SettingsGroup>
       <SettingsGroup title="Coding agents" description="The MCP server: it serves this runtime to a coding agent over stdio.">

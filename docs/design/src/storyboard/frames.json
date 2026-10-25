@@ -4,31 +4,31 @@
       "id": "today-first-run",
       "edition": "today",
       "title": "First run",
-      "summary": "Install the runtime as a login service, check the machine, get the CLI and the MCP bridge, and run the sample stream.",
+      "summary": "No administrator password: Welcome, then Getting set up, which ticks as the runtime starts and asks for something only when macOS needs the person. Get Started opens the Streams list.",
       "frames": [
         {
           "id": "today/setup-1",
           "title": "Welcome",
           "route": "/setup?step=1",
-          "caption": "One screen, one sentence."
+          "caption": "What Tatolab is, in one sentence, and Continue."
         },
         {
           "id": "today/setup-2",
-          "title": "Start the runtime",
-          "route": "/setup?step=2",
-          "caption": "tatolabd starts as a login service; the local relay's two listeners join."
+          "title": "Getting set up",
+          "route": "/setup?step=2&runtime=done",
+          "caption": "One step, Start the runtime, ticked once it answers; Get Started opens the Streams list."
         },
         {
           "id": "today/setup-3",
-          "title": "Command line and agents",
-          "route": "/setup?step=3",
-          "caption": "tatolab comes with the app; tatolab mcp connects a coding agent."
+          "title": "Needs your approval",
+          "route": "/setup?step=2&runtime=approval",
+          "caption": "A step appears only when macOS needs the person: the switch to turn on in Login Items."
         },
         {
           "id": "today/setup-4",
-          "title": "First stream",
-          "route": "/setup?step=4",
-          "caption": "Create the sample stream with tatolab new and keep it running."
+          "title": "Blocked by macOS",
+          "route": "/setup?step=2&runtime=blocked",
+          "caption": "launchd gave up on the runtime: said in plain words, with Try Again."
         }
       ]
     },
@@ -252,7 +252,7 @@
           "id": "today/settings-cli",
           "title": "Command line",
           "route": "/settings?section=cli",
-          "caption": "tatolab and the MCP bridge."
+          "caption": "tatolab in ~/.local/bin with no password, /usr/local/bin as an option behind one, and the MCP bridge."
         }
       ]
     },
