@@ -7,8 +7,8 @@ description: Prove a change to Tatolab.app works the way a person meets it — t
 
 Tests catch logic; they cannot show that the window says the right thing, that the tray follows,
 or that launchd and systemd do what the platform layer assumes. This skill produces the evidence
-`review-pr` requires for any visible or machine-facing change, in the shape `proof/README.md`
-already uses.
+`review-pr` requires for any visible or machine-facing change. The evidence lives in the pull
+request and never reaches `main`.
 
 ## Pick the lowest rung that proves the claim
 
@@ -81,19 +81,23 @@ already uses.
    `import -window root`. Packaging itself (`.deb` Depends, desktop entry, AppImage) is proven only
    by an x86_64 build (CI). A runtime stand-in (a fake local API answering on the socket) is
    allowed and **named as a stand-in**. Label **Linux** or **Linux (container, unbundled)**.
-   Commit the container recipe the first time you use one.
+   On a Mac, `scripts/verify/run-the-window-in-an-ubuntu-container.sh <folder>` does this with the
+   stand-ins in `scripts/verify/linux-stand-ins/`.
 
 ## Capture
 
-- Screenshots go under `proof/<topic>/` with descriptive names (`03-four-streams-attached.png`),
+- Shoot into the session's scratch folder with descriptive names (`03-four-streams-attached.png`),
   both themes for a visual change, and the window at its real size — not cropped to the change.
 - The packaged window cannot be driven by Playwright (its fuses turn off the inspector); capture it
   with the platform's screenshot tool — on macOS `screencapture -l <CGWindowID>` (find the id with
   `osascript -e 'tell application "System Events" to id of first window of process "Tatolab"'`
   or a small `CGWindowListCopyWindowInfo` script; the terminal needs Screen Recording), on Linux
   `gnome-screenshot -w` or `import`.
-- In the PR body, images in this private repository render only as
-  `https://github.com/tatolab/tatolab-app/blob/<sha>/proof/<path>?raw=true` links.
+- For the PR body, copy the images to `.pr-evidence/<issue>/` on the PR branch and commit them: in
+  this private repository they render only as
+  `https://github.com/tatolab/tatolab-app/blob/<sha>/.pr-evidence/<issue>/<file>?raw=true` links,
+  which keep working from the PR after the files are gone. The PR's last commit before merge
+  deletes `.pr-evidence/`.
 - Never capture a secret, a signing identity, a token, or a home-directory path that names a real
   person other than the owner.
 
@@ -106,14 +110,13 @@ is a failure, not evidence. Check AA contrast on any colour the change introduce
 
 ## Report
 
-Add a section to `proof/README.md` (newest first) when the evidence is worth keeping, and put the
-evidence in the PR body:
+Put the evidence in the PR body:
 
 ```markdown
 ## Evidence
 | what | label | image | shows |
 |---|---|---|---|
-| <the claim> | Mock / Live (local proof) / Live / Linux | proof/<topic>/<file>.png | <the description> |
+| <the claim> | Mock / Live (local proof) / Live / Linux | [<file>](<blob link>) | <the description> |
 
 Found and fixed while shooting: <anything the run surfaced, with the proof of the fix> (or "nothing").
 Not covered: <what this evidence does not prove, and why> (or "nothing").

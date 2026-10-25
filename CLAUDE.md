@@ -27,8 +27,9 @@ a parallel one. Search first.
      owner's call, recorded in the tatolab-app issue that builds it. What it needs from the
      runtime — a capability, a local API contract — is streamlib's: filed there, and the app waits
      on it. This repository has no `docs/plan/`; never start one.
-  2. How the window looks, reads and flows is `docs/design` (`DESIGN.md` and the prototype it
-     describes) + `src/renderer/styles/tokens.css`, changed with the owner's say-so in the same PR.
+  2. How the window looks, reads and flows is the design system in code — `src/renderer/styles/tokens.css`,
+     then shadcn, then `src/renderer/design_system/` and its variants, then a rare call-site class —
+     changed with the owner's say-so in the same PR.
   3. How the app's own code is shaped — modules, interfaces, platform items, the window's IPC
      commands, the backend contract — goes in the issue's Design section, settled by `/module-design` before
      `/implement`.
@@ -61,7 +62,7 @@ Writing down what is true is ordinary work. Deciding what we build is not. The s
 sharpen decisions, not to license prose.
 
 - **A factual record needs no skill, no prompt, and no approval.** A README claim your change
-  falsified, a stale path, a proof caption that no longer matches the app — fix it in the same PR
+  falsified, a stale path, a comment that no longer matches the code — fix it in the same PR
   as the change, and say so in the PR body. Leaving the record wrong to avoid ceremony is the
   worse outcome, always.
 - **A decision goes to the owner** — changing what the app is, or settling a question the issue or
@@ -131,7 +132,7 @@ attention spent on settled things is unavailable for real forks.
   or `systemctl`.
 - Tests are always in scope and never need approval. Code drives tests, never the reverse.
 - **Secrets come from Infisical, never the tree.** `.infisical.json` stays untracked; signing
-  certificates, API keys and tokens never appear in a commit, a log, a PR body or a proof image.
+  certificates, API keys and tokens never appear in a commit, a log, a PR body or an evidence image.
 - **The version is never hand-edited**: a release builds the app at the streamlib version it
   bundles.
 - **Done means seen.** A change to the window, the tray, setup, uninstall or the runtime switch is

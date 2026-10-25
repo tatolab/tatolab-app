@@ -1,6 +1,6 @@
 ---
 name: hygiene
-description: Sniff out everything in the app repo that runs counter to the operating model — README claims false against the tree, proof captions describing a window that changed, references to deleted files or retired features, dead rule globs, issues pointing at closed streamlib work. Detects and reports only; it never fixes anything.
+description: Sniff out everything in the app repo that runs counter to the operating model — README claims false against the tree, comments describing a window that changed, references to deleted files or retired features, dead rule globs, issues pointing at closed streamlib work. Detects and reports only; it never fixes anything.
 disable-model-invocation: false
 ---
 
@@ -16,8 +16,8 @@ Sweep these surfaces:
 2. **Runtime-contract drift.** Anything here that contradicts the local API contract in
    streamlib's plan (read from streamlib's `main`) — and any app behaviour that needs a runtime
    contract the plan does not state.
-3. **Proof drift.** `proof/` captions and `docs/design` describing a window, a state or a flow the
-   code no longer has; screenshots of retired features presented as current.
+3. **Doc drift.** Comments, rules or skills describing a window, a state or a flow the code no
+   longer has.
 4. **References to deleted machinery.** Mentions of removed features (the retired output-port tap and frame
    exchange), deleted files, or dead vocabulary in code comments, rules, skills, agents, hooks, the
    issue forms and the workflows.

@@ -2,24 +2,19 @@
 paths:
   - "src/renderer/**"
   - "src/shared/**"
-  - "proof/design-final/**"
 ---
 
 # The window (frontend)
 
-- **The design source is `docs/design`** — `DESIGN.md` for the rules, tokens, words and layout,
-  the prototype for every screen, its storyboard frames for citing one — **and
-  `src/renderer/styles/tokens.css`.** State is written as words, not dots; stopped streams are dimmed; only
-  a failure is red, with its reason.
-- **The design source sets the look; it is not a pixel spec** (owner, #51). Within its language,
-  visual details — spacing rhythm, aligned shared edges, proportion, sizes on the scale — are
-  chosen by design principles and consistency, and need no question. An old proof frame is a
-  reference, not a target to match. What stays the owner's call, brought and never drifted into:
-  the design language itself (a token or colour, the type face, the window's root size, a rule in
-  `DESIGN.md`) and anything an issue or `DESIGN.md` states outright.
+- **The design system is the code, and the only design source.** Its values are
+  `src/renderer/styles/tokens.css`; its components are shadcn's (`src/renderer/components/ui/`) and
+  the Tatolab design system's (`src/renderer/design_system/`). A change to the design language — a
+  token, the type face, the window's root size, how a design-system component looks everywhere —
+  is made there, with the owner's say-so in the same PR. Within it, visual details (spacing rhythm,
+  aligned edges, proportion, sizes on the scale) are chosen for consistency and need no question.
 - **Colours, radii, fonts and the window's structural sizes (band, sidebar, page padding) come
   from `tokens.css`**, with a light and a dark value for every colour. Spacing and type sizes come
-  from Tailwind's scale as the design source uses it, with literal px only where the scale has no
+  from Tailwind's scale as the design system uses it, with literal px only where the scale has no
   step. Component stylesheets remain only for the DOM pages the window still hosts. A new colour
   literal outside `tokens.css` is a defect.
 - **Text stays WCAG AA** (4.5:1 body, 3:1 large and UI) in light and dark, including on hover,
@@ -28,9 +23,9 @@ paths:
   different chrome (`platform_presentation.ts`). A layout change is looked at for both.
 - **The window is a design system built on shadcn** (owner, #36, #51). It is a pyramid, used
   from the bottom up, with less customisation at each step:
-  1. **shadcn.** Stock shadcn components (base-ui, the design source's `base-nova` style), added
+  1. **shadcn.** Stock shadcn components (base-ui, the `base-nova` style `components.json` names), added
      with the shadcn CLI into `src/renderer/components/ui/` and never edited. Their theme comes from
-     `tokens.css`, the design language.
+     `tokens.css`.
   2. **The Tatolab design system.** One component for each recurring piece of the UI, built from
      shadcn components and the tokens, with its look defined there.
   3. **Its variants.** A component that needs another look gets a variant in the design system.

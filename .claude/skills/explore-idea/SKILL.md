@@ -41,10 +41,10 @@ picture plus the smallest sensible way to start.
    - **Graduate** → `/file-issue`; a calm-native spec change → a stated question to the owner,
      then `/file-issue`; a runtime contract the app needs → a streamlib issue the app issue waits
      on.
-   - **Park** → memo at `docs/research/explorations/<slug>.md`: the idea, the shapes considered,
-     the recommended start, and what unknown must resolve before it revives.
-   - **Kill** → same memo, with the reason — so the idea is not innocently re-explored in three
-     months.
+   - **Park** → an issue: the idea, the shapes considered, the recommended start, and what unknown
+     must resolve before it revives.
+   - **Kill** → the same issue, closed as not planned with the reason — so the idea is not
+     innocently re-explored in three months.
 
 If exploration reveals the idea is really N ideas, or more than one set of issues' worth of work,
 say so and split before graduating.

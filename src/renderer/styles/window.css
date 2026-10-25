@@ -24,8 +24,8 @@
   * {
     @apply border-border outline-ring;
   }
-  /* The root keeps the browser's 16 px, so the rem steps Tailwind and shadcn size boxes with land on DESIGN.md's sizes
-     (h-7 is its 28 px control); text is set in px, 13/18 from the body. */
+  /* The root keeps the browser's 16 px, so the rem steps Tailwind and shadcn size boxes with land on the window's sizes
+     (h-7 is a 28 px control); text is set in px, 13/18 from the body. */
   html {
     font-family: var(--font-sans);
     font-feature-settings: "calt";
