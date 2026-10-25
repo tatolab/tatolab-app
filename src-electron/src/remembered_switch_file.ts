@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // A switch the app remembers between launches: one JSON file in the app's config directory with
-// one key, read as the switch's default when the file is absent or unreadable. "Run Tatolab" and
-// the stream-failure notifications are each one.
+// one key, read as the switch's default when the file is absent or unreadable. "Run Tatolab", the
+// stream-failure notifications and whether first run has finished are each one.
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -18,6 +18,9 @@ export const RUN_TATOLAB_PREFERENCE_FILE_NAME = "run-tatolab.json";
 
 /** The file the stream-failure notifications switch is remembered in, inside the app's config directory. */
 export const STREAM_FAILURE_NOTIFICATIONS_PREFERENCE_FILE_NAME = "stream-failure-notifications.json";
+
+/** The file "Get Started" remembers first run finished in, inside the app's config directory. */
+export const FIRST_RUN_FINISHED_FILE_NAME = "first-run-finished.json";
 
 /** One remembered switch: its file, its key, what it reads when nothing was remembered, and its name in the app's log. */
 interface RememberedSwitchSpecification {
@@ -41,6 +44,13 @@ const STREAM_FAILURE_NOTIFICATIONS_SWITCH: RememberedSwitchSpecification = {
   switchNameInTheLog: "the stream-failure notifications preference",
 };
 
+const FIRST_RUN_FINISHED_SWITCH: RememberedSwitchSpecification = {
+  fileName: FIRST_RUN_FINISHED_FILE_NAME,
+  key: "first_run_finished",
+  valueWhenNotRemembered: false,
+  switchNameInTheLog: "whether first run finished",
+};
+
 /** Reads and writes one remembered switch at one path. */
 export class RememberedSwitchFile {
   private constructor(
@@ -61,6 +71,11 @@ export class RememberedSwitchFile {
       STREAM_FAILURE_NOTIFICATIONS_SWITCH,
       tatolabAppLog,
     );
+  }
+
+  /** Whether "Get Started" ended first run, remembered inside `appConfigDirectory`; not finished when nothing was remembered. */
+  static firstRunFinishedInAppConfigDirectory(appConfigDirectory: string, tatolabAppLog: TatolabAppLog): RememberedSwitchFile {
+    return new RememberedSwitchFile(path.join(appConfigDirectory, FIRST_RUN_FINISHED_SWITCH.fileName), FIRST_RUN_FINISHED_SWITCH, tatolabAppLog);
   }
 
   /** The remembered switch; its default when nothing was remembered or the file cannot be read. */

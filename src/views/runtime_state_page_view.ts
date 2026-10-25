@@ -4,16 +4,16 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import { createElement, type ElementChild } from "../dom";
 import { LOCK_ICON_SVG, POWER_ICON_SVG } from "../icons";
-import type { RuntimeBannerPresentation, RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
+import type { RuntimeBannerAction, RuntimeBannerPresentation, RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
 import { createCopyButton } from "./copy_button";
 import { createFailureIcon, createFailureLine, createIcon, createSpinner } from "./window_controls";
 
-type RuntimeBannerAction = NonNullable<RuntimeBannerPresentation["action"]>;
-
-const BANNER_ACTION_LABELS: Record<RuntimeBannerAction, string> = {
+/** The words on the button of each action that brings the runtime back. */
+export const RUNTIME_BANNER_ACTION_LABELS: Record<RuntimeBannerAction, string> = {
   turn_on_run_tatolab: "Turn On Tatolab",
   open_login_items: "Open Login Items…",
   retry_run_tatolab: "Try Again",
+  register_the_runtime_again: "Try Again",
 };
 
 /** The command each banner action runs. */
@@ -24,6 +24,8 @@ export function runBannerAction(backend: TatolabBackend, action: RuntimeBannerAc
       return backend.setRunTatolab(true);
     case "open_login_items":
       return backend.openLoginItemsSettings();
+    case "register_the_runtime_again":
+      return backend.registerTheRuntimeAgain();
   }
 }
 
@@ -36,6 +38,8 @@ function headingIcon(presentation: RuntimeDisplayPresentation): Element | null {
     case "needs_login_items_approval":
       return createIcon(LOCK_ICON_SVG, 20, "runtime-page-heading-icon");
     case "unreachable":
+    case "never_answered":
+    case "blocked_by_the_service_manager":
     case "runtime_missing_from_app":
     case "not_registered":
       return createFailureIcon(20);
@@ -80,8 +84,8 @@ export function createRuntimeStatePage(
     action !== null &&
     createElement(
       "button",
-      { type: "button", class: action === "retry_run_tatolab" ? "button" : "button button-primary" },
-      [BANNER_ACTION_LABELS[action]],
+      { type: "button", class: action === "retry_run_tatolab" ? "button" : "button button-primary", "data-runtime-banner-action": action },
+      [RUNTIME_BANNER_ACTION_LABELS[action]],
     );
   if (actionButton && action !== null) {
     actionButton.addEventListener("click", () => {

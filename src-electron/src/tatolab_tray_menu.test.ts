@@ -2,21 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { expect, test } from "vitest";
-import type { MachineSetupState, TatolabAppUpdateState, TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
+import type { RuntimeAgentRegistration, RuntimeState, TatolabAppUpdateState, TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
 import {
   appUpdateTrayMenuItemPresentation,
-  setUpTatolabMenuItemPresentation,
   TatolabTrayMenu,
   type TrayMenuChoice,
   type TrayMenuItemDescription,
   type TrayMenuItemId,
 } from "./tatolab_tray_menu.js";
-
-test("set_up_tatolab_shows_only_while_machine_setup_is_missing_and_waits_while_the_prompt_shows", () => {
-  expect(setUpTatolabMenuItemPresentation("complete")).toBe("hidden");
-  expect(setUpTatolabMenuItemPresentation("needs_administrator")).toBe("shown_enabled");
-  expect(setUpTatolabMenuItemPresentation("waiting_for_administrator")).toBe("shown_disabled");
-});
 
 function buildTrayMenuOnAFakeTrayIconHost() {
   const shownMenus: (readonly TrayMenuItemDescription[])[] = [];
@@ -40,19 +33,21 @@ function buildTrayMenuOnAFakeTrayIconHost() {
 
 function statusWith(
   runTatolab: boolean,
-  machineSetupState: MachineSetupState,
+  runtimeState: RuntimeState,
   appUpdate: TatolabAppUpdateState = { kind: "not_offered", reason: "Only a packaged Tatolab updates itself." },
+  runtimeAgent: RuntimeAgentRegistration = "enabled",
 ): TatolabStatus {
   return {
     app_version: "0.45.0",
     platform: "macos",
     run_tatolab: runTatolab,
-    runtime_agent: "enabled",
-    runtime_state: "running",
+    runtime_agent: runtimeAgent,
+    runtime_state: runtimeState,
     machine_name: null,
     streams: [],
-    machine_setup_state: machineSetupState,
+    first_run_finished: true,
     command_line_tool_linked_at: null,
+    command_line_tool_usr_local_bin_link: { kind: "not_linked" },
     app_update: appUpdate,
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
@@ -75,25 +70,34 @@ test("the tray menu is the status line, Open Tatolab, the Run Tatolab check and 
   ]);
 });
 
-test("each status shows in the status line and the check, with Set Up Tatolab… after the check while setup is missing", () => {
+test("each status shows in the status line and the check, with what brings the runtime back after the check", () => {
   const { tatolabTrayMenu, shownMenus } = buildTrayMenuOnAFakeTrayIconHost();
-  tatolabTrayMenu.showStatus(statusWith(false, "needs_administrator"));
-  tatolabTrayMenu.showStatus(statusWith(false, "waiting_for_administrator"));
-  tatolabTrayMenu.showStatus(statusWith(true, "complete"));
+  tatolabTrayMenu.showStatus(statusWith(true, "stopped", undefined, "requires_approval"));
+  tatolabTrayMenu.showStatus(statusWith(true, "blocked_by_the_service_manager"));
+  tatolabTrayMenu.showStatus(statusWith(true, "never_answered"));
+  tatolabTrayMenu.showStatus(statusWith(true, "running"));
   expect(shownMenus.slice(1)).toEqual([
     [
-      { kind: "item", id: "tray_status_line", label: "Setup unfinished", enabled: false },
+      { kind: "item", id: "tray_status_line", label: "Needs your approval in Login Items", enabled: false },
       { kind: "item", id: "open_tatolab", label: "Open Tatolab", enabled: true },
-      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: false },
-      { kind: "item", id: "set_up_tatolab", label: "Set Up Tatolab…", enabled: true },
+      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
+      { kind: "item", id: "open_login_items_settings", label: "Open Login Items…", enabled: true },
       { kind: "separator" },
       { kind: "item", id: "quit_tatolab", label: "Quit Tatolab", enabled: true },
     ],
     [
-      { kind: "item", id: "tray_status_line", label: "Setting up Tatolab…", enabled: false },
+      { kind: "item", id: "tray_status_line", label: "Runtime blocked by macOS", enabled: false },
       { kind: "item", id: "open_tatolab", label: "Open Tatolab", enabled: true },
-      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: false },
-      { kind: "item", id: "set_up_tatolab", label: "Set Up Tatolab…", enabled: false },
+      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
+      { kind: "item", id: "register_the_runtime_again", label: "Try Again", enabled: true },
+      { kind: "separator" },
+      { kind: "item", id: "quit_tatolab", label: "Quit Tatolab", enabled: true },
+    ],
+    [
+      { kind: "item", id: "tray_status_line", label: "Runtime didn't start", enabled: false },
+      { kind: "item", id: "open_tatolab", label: "Open Tatolab", enabled: true },
+      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
+      { kind: "item", id: "register_the_runtime_again", label: "Try Again", enabled: true },
       { kind: "separator" },
       { kind: "item", id: "quit_tatolab", label: "Quit Tatolab", enabled: true },
     ],
@@ -112,15 +116,23 @@ test("a click on an item is that item's choice, and the status line chooses noth
   trayMenu.clickTrayMenuItem("tray_status_line");
   trayMenu.clickTrayMenuItem("open_tatolab");
   trayMenu.clickTrayMenuItem("run_tatolab");
-  trayMenu.clickTrayMenuItem("set_up_tatolab");
+  trayMenu.clickTrayMenuItem("open_login_items_settings");
+  trayMenu.clickTrayMenuItem("register_the_runtime_again");
   trayMenu.clickTrayMenuItem("check_for_app_updates");
   trayMenu.clickTrayMenuItem("quit_tatolab");
-  expect(trayMenu.trayMenuChoices).toEqual(["open_tatolab", "toggle_run_tatolab_switch", "set_up_tatolab", "check_for_app_updates", "quit_the_app"]);
+  expect(trayMenu.trayMenuChoices).toEqual([
+    "open_tatolab",
+    "toggle_run_tatolab_switch",
+    "open_login_items_settings",
+    "register_the_runtime_again",
+    "check_for_app_updates",
+    "quit_the_app",
+  ]);
 });
 
 test("a packaged app shows Check for Updates… just above Quit Tatolab", () => {
   const { tatolabTrayMenu, shownMenus } = buildTrayMenuOnAFakeTrayIconHost();
-  tatolabTrayMenu.showStatus(statusWith(true, "complete", { kind: "not_checked" }));
+  tatolabTrayMenu.showStatus(statusWith(true, "running", { kind: "not_checked" }));
   expect(shownMenus.at(-1)?.slice(-3)).toEqual([
     { kind: "separator" },
     { kind: "item", id: "check_for_app_updates", label: "Check for Updates…", enabled: true },

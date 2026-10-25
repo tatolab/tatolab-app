@@ -9,7 +9,7 @@ import {
   singleQuotedShellWord,
   type OsascriptRunner,
 } from "./administrator_prompt.js";
-import { machineSetupAdministratorShellScript } from "./machine_setup.js";
+import { usrLocalBinLinkAdministratorShellScript } from "./command_line_tool_links_on_this_mac.js";
 import { runProgramToCompletion, type ProgramCompletion } from "../run_program_to_completion.js";
 import { tatolabUninstallAdministratorShellScript } from "./tatolab_uninstall.js";
 
@@ -27,19 +27,13 @@ async function programAnswer(programPath: string, programArguments: readonly str
 
 test.skipIf(!OSASCRIPT_RUNS_HERE)("every_administrator_script_round_trips_through_osascript_unchanged", async () => {
   const bundleWithQuotesBackslashesAndGlobs = "/Users/o'neil/Apps/\"Tatolab\" \\ $HOME * copy.app";
-  const machineSetupScript = machineSetupAdministratorShellScript([
-    {
-      kind: "command_line_tool_link",
-      linkPath: "/usr/local/bin/tatolab",
-      bundledCommandLineTool: `${bundleWithQuotesBackslashesAndGlobs}/Contents/MacOS/tatolab-cli`,
-    },
-  ]);
-  const uninstallScript = tatolabUninstallAdministratorShellScript(
+  const usrLocalBinLinkScript = usrLocalBinLinkAdministratorShellScript(
     "/usr/local/bin/tatolab",
-    bundleWithQuotesBackslashesAndGlobs,
-    "/Library/Application Support/Tatolab",
+    `${bundleWithQuotesBackslashesAndGlobs}/Contents/MacOS/tatolab-cli`,
   );
-  for (const shellScript of [machineSetupScript, uninstallScript]) {
+  const uninstallScript =
+    tatolabUninstallAdministratorShellScript("/usr/local/bin/tatolab", bundleWithQuotesBackslashesAndGlobs, "/Library/Application Support/Tatolab") ?? "";
+  for (const shellScript of [usrLocalBinLinkScript, uninstallScript]) {
     expect(await programAnswer("/usr/bin/osascript", ["-e", `return ${applescriptStringLiteral(shellScript)}`])).toBe(shellScript);
   }
 

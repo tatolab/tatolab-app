@@ -14,7 +14,7 @@ import type { StreamFailureNotifications } from "./stream_failure_notifications.
 /** How often the poller observes the runtime when nothing asks it to sooner. */
 export const STATUS_POLL_INTERVAL_MS = 2_000;
 
-/** Where the status shows in the tray: its status line, the switch's check mark, and "Set Up Tatolab…". */
+/** Where the status shows in the tray: its status line, the switch's check mark, and the item that brings the runtime back. */
 export interface TatolabStatusShownInTheTray {
   showStatus(status: TatolabStatus): void;
 }
@@ -99,7 +99,7 @@ export class TatolabStatusPublisher {
       run_tatolab: status.run_tatolab,
       listed_stream_count: status.streams?.length ?? null,
       machine_name: status.machine_name,
-      machine_setup_state: status.machine_setup_state,
+      first_run_finished: status.first_run_finished,
       app_update: status.app_update.kind,
     });
     this.sendTheLastPublishedStatusToTheWindow();

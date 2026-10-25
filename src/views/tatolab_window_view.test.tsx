@@ -972,15 +972,16 @@ describe("Settings", () => {
     const statusWords = document.querySelector<HTMLElement>("[data-runtime-status-words]") ?? expect.unreachable("no status words");
     expect(statusWords.textContent).toBe("Not responding");
     expect(statusWords.classList.contains("text-danger-text")).toBe(true);
-    expect(within(settingsRow("runtime-status")).getByText(/hasn't answered for 20 seconds/)).toBeTruthy();
+    expect(within(settingsRow("runtime-status")).getByText(/then stopped 20 seconds ago/)).toBeTruthy();
   });
 
   it("names the tatolab command's path and version, and how a coding agent starts tatolab mcp", async () => {
     await mountedWindowOverTheMock("state=running");
     await openSettingsOn("command-line");
 
-    expect(within(settingsRow("command-line-tool")).getByText("/usr/local/bin/tatolab")).toBeTruthy();
+    expect(within(settingsRow("command-line-tool")).getByText("~/.local/bin/tatolab")).toBeTruthy();
     expect(within(settingsRow("command-line-tool")).getByText("0.55.2")).toBeTruthy();
+    expect(textOf("[data-command-line-path-line]")).toContain('export PATH="$HOME/.local/bin:$PATH"');
     expect(textOf("[data-coding-agent-command]")).toContain("tatolab mcp");
     expect(textOf("[data-coding-agent-config]")).toContain('"args": ["mcp"]');
   });
@@ -992,5 +993,84 @@ describe("Settings", () => {
     await waitFor(() => expect(within(document.querySelector<HTMLElement>("[data-settings-about]") ?? document.body).getByText("Version 0.45.0 · tatolabd 0.55.2")).toBeTruthy());
     expect(screen.getByText(/Runtime licensed BUSL-1\.1\./)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Check for Updates…" })).toBeTruthy();
+  });
+});
+
+function gettingStartedControl(action: string): HTMLElement {
+  return document.querySelector<HTMLElement>(`[data-getting-started-action="${action}"]`) ?? expect.unreachable(`no ${action} on first run`);
+}
+
+describe("first run on macOS", () => {
+  it("says what Tatolab is, then ticks Start the runtime as it starts, and Get Started opens the Streams list", async () => {
+    const { showStatusAsTheBackendWould, backend } = await mountedWindowOverTheMock("state=setup");
+
+    expect(document.querySelector('[data-getting-started-screen="welcome"]')).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Welcome to Tatolab" })).toBeTruthy();
+    expect(document.querySelector("[data-window-navigation]")).toBeNull();
+    fireEvent.click(gettingStartedControl("continue"));
+
+    expect(screen.getByRole("heading", { name: "Getting set up" })).toBeTruthy();
+    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Starting…");
+    expect(gettingStartedControl("get_started").hasAttribute("disabled")).toBe(true);
+
+    await showStatusAsTheBackendWould({ ...(await backend.getTatolabStatus()), runtime_state: "running", streams: [] });
+    expect(document.querySelector('[data-getting-started-step="start_the_runtime"]')?.getAttribute("data-checklist-step-progress")).toBe("done");
+    fireEvent.click(gettingStartedControl("get_started"));
+
+    await waitFor(() => expect(document.querySelector('[data-getting-started-screen]')).toBeNull());
+    expect(document.querySelector("[data-window-navigation]")).not.toBeNull();
+  });
+
+  it("shows a step for macOS's approval with Open Login Items, and one for a blocked runtime with Try Again", async () => {
+    await mountedWindowOverTheMock("state=approval&first_run=unfinished");
+    fireEvent.click(gettingStartedControl("continue"));
+    expect(textOf('[data-getting-started-step="approve_in_login_items"]')).toContain("Allow in the Background");
+    expect(document.querySelector('[data-getting-started-step-action="open_login_items"]')?.textContent).toBe("Open Login Items…");
+    document.body.replaceChildren();
+
+    await mountedWindowOverTheMock("state=blocked&first_run=unfinished");
+    fireEvent.click(gettingStartedControl("continue"));
+    expect(textOf('[data-getting-started-step="unblock_the_runtime"]')).toContain("Blocked by macOS");
+    fireEvent.click(document.querySelector<HTMLElement>('[data-getting-started-step-action="register_the_runtime_again"]') ?? expect.unreachable("no Try Again"));
+    await waitFor(() => expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Starting…"));
+  });
+
+  it("never says not responding for a start that never answered", async () => {
+    await mountedWindowOverTheMock("state=never-answered&first_run=unfinished");
+    fireEvent.click(gettingStartedControl("continue"));
+    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("The runtime didn't start");
+    expect(document.body.textContent).not.toContain("not responding");
+  });
+
+  it("keeps Linux on its installer screen and never shows Welcome", async () => {
+    await mountedWindowOverTheMock("platform=linux&state=setup");
+    expect(document.querySelector("[data-getting-started-screen]")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Install the Tatolab runtime" })).toBeTruthy();
+  });
+});
+
+describe("Settings › Command line › Link in /usr/local/bin", () => {
+  it("warns that the prompt says osascript, waits for the password, then shows the link", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openSettingsOn("command-line");
+
+    expect(settingsRow("usr-local-bin-link").textContent).toContain("osascript wants to make changes");
+    fireEvent.click(within(settingsRow("usr-local-bin-link")).getByRole("button", { name: "Link in /usr/local/bin…" }));
+    expect(within(settingsRow("usr-local-bin-link")).getByText("Waiting for your password…")).toBeTruthy();
+    await waitFor(() => expect(settingsRow("usr-local-bin-link").textContent).toContain("Linked at /usr/local/bin/tatolab"), { timeout: 4_000 });
+  });
+
+  it("says a cancelled prompt changed nothing, and Linux shows no such row", async () => {
+    await mountedWindowOverTheMock("state=running&usr_local_bin=cancel");
+    await openSettingsOn("command-line");
+    fireEvent.click(within(settingsRow("usr-local-bin-link")).getByRole("button", { name: "Link in /usr/local/bin…" }));
+    await waitFor(() => expect(settingsRow("usr-local-bin-link").textContent).toContain("The password prompt was cancelled, so nothing changed."), {
+      timeout: 4_000,
+    });
+    document.body.replaceChildren();
+
+    await mountedWindowOverTheMock("platform=linux&state=running");
+    await openSettingsOn("command-line");
+    expect(document.querySelector('[data-settings-row="usr-local-bin-link"]')).toBeNull();
   });
 });

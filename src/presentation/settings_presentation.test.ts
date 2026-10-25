@@ -12,6 +12,7 @@ import {
   presentRuntimeStatusRow,
   presentRuntimeUptime,
   presentStreamFailureNotifications,
+  presentUsrLocalBinLink,
   restartRuntimeUnavailableBecause,
   settingsSectionNamed,
   settingsSectionPath,
@@ -26,8 +27,9 @@ function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
     runtime_state: "running",
     machine_name: "ada-macbook-pro",
     streams: [],
-    machine_setup_state: "complete",
-    command_line_tool_linked_at: "/usr/local/bin/tatolab",
+    first_run_finished: true,
+    command_line_tool_linked_at: "/Users/ada/.local/bin/tatolab",
+    command_line_tool_usr_local_bin_link: { kind: "not_linked" },
     app_update: { kind: "not_checked" },
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
@@ -88,7 +90,7 @@ describe("Runtime › Status", () => {
     expect(presentRuntimeStatusRow(statusWith({ runtime_state: "unreachable" }), describedAs({}))).toEqual({
       statusWords: "Not responding",
       tone: "error",
-      problemExplanation: "It's switched on but hasn't answered for 20 seconds. macOS restarts it if it exits.",
+      problemExplanation: "It was answering, then stopped 20 seconds ago. macOS restarts it if it exits.",
       refusal: null,
     });
     expect(presentRuntimeStatusRow(statusWith({ run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped" }), describedAs({}))).toMatchObject({
@@ -184,5 +186,26 @@ describe("Command line", () => {
       unreadableLine: "Its version can't be read: /usr/local/bin/tatolab --version failed",
     });
     expect(presentCommandLineToolVersion({ kind: "not_offered", reason: "no CLI in this build" }, false).unreadableLine).toBeNull();
+  });
+});
+
+describe("Command line › Link in /usr/local/bin", () => {
+  it("offers the link behind the password, warning that the dialog says osascript, and shows it once linked", () => {
+    expect(presentUsrLocalBinLink("macos", { kind: "not_linked" })).toMatchObject({ isShown: true, isOffered: true });
+    expect(presentUsrLocalBinLink("macos", { kind: "not_linked" }).description).toContain("osascript wants to make changes");
+    expect(presentUsrLocalBinLink("macos", { kind: "linked", path: "/usr/local/bin/tatolab" })).toEqual({
+      isShown: true,
+      description: "Linked at /usr/local/bin/tatolab, so it works in every terminal.",
+      isOffered: false,
+    });
+  });
+
+  it("gives a build that does not link there its reason, and shows nothing on Linux", () => {
+    expect(presentUsrLocalBinLink("macos", { kind: "not_offered", reason: "A local-proof build never links tatolab in /usr/local/bin." })).toEqual({
+      isShown: true,
+      description: "A local-proof build never links tatolab in /usr/local/bin.",
+      isOffered: false,
+    });
+    expect(presentUsrLocalBinLink("linux", { kind: "not_offered", reason: "On Linux the installer links tatolab." }).isShown).toBe(false);
   });
 });

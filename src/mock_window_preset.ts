@@ -67,9 +67,10 @@ async function clickWhenShown(selector: string): Promise<boolean> {
  * click on that stream's failure notification), on Add stream `?add=folder|compiling|done|away` (a folder chosen, compiling, the stream running, or
  * Streams opened while it compiled and the run's notice shown once it answers) or
  * `?add=new|created` (a new project proposed, then written by `tatolab new`), with the backend's `?add_folder=`, `?add_run=warning` and
- * `?add_cli=missing`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
+ * `?add_cli=missing`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
  * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),
- * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`, on Graph `?step=<step>` (selected), `?focus=<step>` (its card
+ * `?sheet=uninstall|uninstalling|uninstalled`, on first run `?setup=getting_set_up` (Continue pressed on Welcome; with the backend's
+ * `?state=setup` or `?first_run=unfinished` over any runtime state, as `?state=approval|blocked|never-answered`), on Graph `?step=<step>` (selected), `?focus=<step>` (its card
  * holding keyboard focus), `?pin=<step>.<port>`
  * (its preview pinned), `?hover=<step>.<port>` (its hover preview open), `?previews=off` and `?counters=off`,
  * on Logs `?levels=info|warnings|errors`, `?held_records=<n>` and `?log_folder=missing` (the backend's options for the pointer row and a refused open), `?record=<sequence>` or `?record=problem` (the newest warning or error selected) and
@@ -146,7 +147,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     await clickWhenShown(`[data-action="uninstall"]`);
   }
   if (sheet === "uninstalling" || sheet === "uninstalled") await clickWhenShown(".uninstall-sheet[open] .button-destructive");
-  if (pageQuery.get("setup") === "waiting") await clickWhenShown(".setup-screen .button-primary");
+  if (pageQuery.get("setup") === "getting_set_up") await clickWhenShown(`[data-getting-started-action="continue"]`);
   const searchQuery = pageQuery.get("search");
   if (searchQuery !== null) {
     document.dispatchEvent(

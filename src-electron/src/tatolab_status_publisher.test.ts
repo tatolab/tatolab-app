@@ -8,7 +8,7 @@ import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { afterEach, expect, test, vi } from "vitest";
 import type { TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
-import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import { FakeRuntimeAgentRegistration, FakeTatolabCommandLineToolLinks, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import { STATUS_POLL_INTERVAL_MS, TatolabStatusPublisher, TatolabStatusRefreshRequests } from "./tatolab_status_publisher.js";
@@ -70,7 +70,7 @@ test("the published status walks starting, running, starting, unreachable and st
   const runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
   const controller = await TatolabAppController.create({
     platform: "linux",
-    platformForThisBuild: fakeTatolabPlatformForThisBuild(runtimeAgent, new FakeTatolabMachineSetup("complete", null), localApiServer.localApiSocketPath),
+    platformForThisBuild: fakeTatolabPlatformForThisBuild(runtimeAgent, new FakeTatolabCommandLineToolLinks(null), localApiServer.localApiSocketPath),
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
@@ -116,7 +116,7 @@ test("the window asking before the first round waits for it, and hears nothing w
     platform: "linux",
     platformForThisBuild: fakeTatolabPlatformForThisBuild(
       new FakeRuntimeAgentRegistration("enabled"),
-      new FakeTatolabMachineSetup("complete", null),
+      new FakeTatolabCommandLineToolLinks(null),
       localApiServer.localApiSocketPath,
     ),
     appConfigDirectory,

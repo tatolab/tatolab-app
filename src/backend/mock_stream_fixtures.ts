@@ -94,7 +94,7 @@ const MOCK_MACHINES: Record<TatolabPlatform, MockMachine> = {
   macos: {
     name: "jonathanf-macbook",
     homeDirectory: "/Users/jonathanf",
-    commandLineToolLinkedAt: "/usr/local/bin/tatolab",
+    commandLineToolLinkedAt: "/Users/jonathanf/.local/bin/tatolab",
     localApiSocket: "/tmp/streamlib-501/local-api.sock",
     runtimeLogDirectory: "/Users/jonathanf/Library/Application Support/Tatolab/logs",
     vulkanLoaderLibrary: "/Applications/Tatolab.app/Contents/Frameworks/tatolab-runtime/_vulkan_driver/libvulkan.1.dylib",

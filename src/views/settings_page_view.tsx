@@ -8,8 +8,10 @@ import { Navigate, useParams } from "react-router";
 import mascotImageUrl from "../assets/tato_mascot_3d.png";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
+import { useActionThroughTheBackend, type BackendActionRefusal } from "./backend_action";
 import { CodeBlock, CommandLine } from "../design_system/code_block";
 import { CopyIconButton } from "../design_system/copy_icon_button";
+import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
 import { SectionNavigationList } from "../design_system/section_navigation_list";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
@@ -21,6 +23,8 @@ import type { StatusTone } from "../presentation/runtime_presentation";
 import {
   presentAboutVersions,
   presentCommandLineToolVersion,
+  presentUsrLocalBinLink,
+  HOME_FOLDER_BIN_ON_THE_PATH_LINE,
   presentLoginItemsRow,
   presentOpenAtLogin,
   presentRuntimeLogFolder,
@@ -52,8 +56,6 @@ const SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   about: Info,
 };
 
-/** A refusal shown under a row: the window's lead naming what was refused, then the refusing side's own words. */
-type RowRefusal = { lead: string; words: string };
 
 /** How long a switch the backend accepted holds its asked-for position when no status follows: the app publishes only a status that changed. */
 const SWITCH_HELD_WITHOUT_A_FOLLOWING_STATUS_MILLISECONDS = 3_000;
@@ -67,10 +69,10 @@ function useSwitchSetThroughTheBackend(
   isOnInTheStatus: boolean,
   switchItThroughTheBackend: (isOn: boolean) => Promise<void>,
   refusalLead: (isOn: boolean) => string,
-): { isOn: boolean; isSwitching: boolean; refusal: RowRefusal | null; onSwitched: (isOn: boolean) => void } {
+): { isOn: boolean; isSwitching: boolean; refusal: BackendActionRefusal | null; onSwitched: (isOn: boolean) => void } {
   const status = useTatolabStatus();
   const [askedFor, setAskedFor] = useState<{ isOn: boolean; hasTheBackendAnswered: boolean } | null>(null);
-  const [refusal, setRefusal] = useState<RowRefusal | null>(null);
+  const [refusal, setRefusal] = useState<BackendActionRefusal | null>(null);
   useEffect(() => {
     setAskedFor((stillAskedFor) => (stillAskedFor?.hasTheBackendAnswered === true ? null : stillAskedFor));
   }, [status]);
@@ -92,20 +94,6 @@ function useSwitchSetThroughTheBackend(
     );
   };
   return { isOn: askedFor?.isOn ?? isOnInTheStatus, isSwitching: askedFor?.hasTheBackendAnswered === false, refusal, onSwitched };
-}
-
-/** An action run through the backend from a row: pending while it runs, and the refusal under the row when it is refused. */
-function useRowActionThroughTheBackend(runTheAction: () => Promise<void>, refusalLead: string) {
-  const [isPending, setIsPending] = useState(false);
-  const [refusal, setRefusal] = useState<RowRefusal | null>(null);
-  const run = () => {
-    setRefusal(null);
-    setIsPending(true);
-    runTheAction()
-      .catch((rejection: unknown) => setRefusal({ lead: refusalLead, words: describeBackendRejection(rejection) }))
-      .finally(() => setIsPending(false));
-  };
-  return { isPending, refusal, run };
 }
 
 /** A state word's colour: only a problem is coloured, in the text tones that keep 4.5:1 on every surface. */
@@ -260,9 +248,9 @@ function RuntimeSection() {
   const platformPresentation = presentPlatform(platform);
   const runtimeStatusRow = presentRuntimeStatusRow(status, runtimeDescription);
   const restartUnavailableBecause = restartRuntimeUnavailableBecause(status);
-  const restartRuntime = useRowActionThroughTheBackend(() => backend.restartRuntime(), "Couldn't restart the runtime:");
+  const restartRuntime = useActionThroughTheBackend(() => backend.restartRuntime(), "Couldn't restart the runtime:");
   const runtimeLogFolder = presentRuntimeLogFolder(status, runtimeDescription);
-  const openRuntimeLogFolder = useRowActionThroughTheBackend(() => backend.openRuntimeLogFolder(), "Couldn't open the runtime's log folder:");
+  const openRuntimeLogFolder = useActionThroughTheBackend(() => backend.openRuntimeLogFolder(), "Couldn't open the runtime's log folder:");
   const runTatolabSwitch = useSwitchSetThroughTheBackend(
     status.run_tatolab,
     (isOn) => backend.setRunTatolab(isOn),
@@ -375,11 +363,13 @@ function RuntimeSection() {
 }
 
 function CommandLineSection() {
-  const { platform } = useTatolabWindowEnvironment();
+  const { backend, platform } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
   const linkedAt = status.command_line_tool_linked_at;
   const commandLineTool = presentCommandLineTool(platform, linkedAt);
   const commandLineToolVersion = presentCommandLineToolVersion(status.command_line_tool_version, commandLineTool.isLinked);
+  const usrLocalBinLink = presentUsrLocalBinLink(platform, status.command_line_tool_usr_local_bin_link);
+  const linkInUsrLocalBin = useActionThroughTheBackend(() => backend.linkCommandLineToolInUsrLocalBin(), "tatolab wasn't linked:");
   return (
     <>
       <SectionPageTitle title="Command line" explanation="Everything in this app is also a tatolab command." />
@@ -412,7 +402,31 @@ function CommandLineSection() {
               {commandLineTool.isLinked && <CopyIconButton label="Copy the tatolab command's path" readTextToCopy={() => linkedAt ?? ""} />}
             </>
           )}
-        />
+        >
+          {platform === "macos" && commandLineTool.isLinked && (
+            <div className="flex flex-col gap-1.5" data-command-line-path-line="">
+              <p className="text-xs text-fg-3">If a terminal can't find it, add this line to ~/.zprofile and open a new terminal:</p>
+              <CommandLine command={HOME_FOLDER_BIN_ON_THE_PATH_LINE} />
+            </div>
+          )}
+        </SettingsRow>
+        {usrLocalBinLink.isShown && (
+          <SettingsRow
+            label="Link in /usr/local/bin"
+            description={usrLocalBinLink.description}
+            refusal={linkInUsrLocalBin.refusal}
+            data-settings-row="usr-local-bin-link"
+            control={() =>
+              !usrLocalBinLink.isOffered ? null : linkInUsrLocalBin.isPending ? (
+                <PendingActionWords words="Waiting for your password…" />
+              ) : (
+                <ActionButton onPressed={linkInUsrLocalBin.run} data-settings-action="link-in-usr-local-bin">
+                  Link in /usr/local/bin…
+                </ActionButton>
+              )
+            }
+          />
+        )}
       </SettingsGroup>
       <SettingsGroup title="Coding agents" description="The MCP server: it serves this runtime to a coding agent over stdio.">
         <div className="flex flex-col gap-3 px-4 py-3">
@@ -432,7 +446,7 @@ function AboutSection() {
   const status = useTatolabStatus();
   const runtimeDescription = useRuntimeDescriptionReading();
   const appUpdate = presentTatolabAppUpdate(status.app_update);
-  const checkForUpdates = useRowActionThroughTheBackend(() => backend.checkForTatolabAppUpdates(), "Couldn't update Tatolab:");
+  const checkForUpdates = useActionThroughTheBackend(() => backend.checkForTatolabAppUpdates(), "Couldn't update Tatolab:");
   const versions = presentAboutVersions(status, runtimeDescription);
   return (
     <div className="flex flex-col items-center gap-6 pt-6 text-center" data-settings-about="">

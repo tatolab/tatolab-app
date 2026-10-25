@@ -6,7 +6,7 @@
 // the window both make.
 
 import type { TatolabUninstall } from "./platform/mod.js";
-import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+import { describeCaughtFailure } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabAppUpdateCheckChosenFrom, TatolabAppUpdater } from "./tatolab_app_updater.js";
@@ -44,17 +44,6 @@ export function runInTheBackgroundWithTheController(
       failure: describeCaughtFailure(unexpectedFailure),
     });
   });
-}
-
-/** "Set Up Tatolab…" from the tray or the window: the administrator prompt for whatever machine setup is missing, then a status round; refused at once where the platform has no machine setup. */
-export function setUpTatolabOnRequest(sharedState: TatolabAppSharedState): Result<void, string> {
-  const setUpTatolabRefusal = sharedState.controller.setUpTatolabRefusal();
-  if (setUpTatolabRefusal !== null) return failedWith(setUpTatolabRefusal);
-  runInTheBackgroundWithTheController(sharedState, "tatolab-set-up-tatolab", async (controller, statusPublisher) => {
-    await controller.setUpTheMachineOnRequest();
-    statusPublisher.requestRefresh();
-  });
-  return succeeded(undefined);
 }
 
 /** Check for Updates…, from the tray, the window or the notification: check and take a newer Tatolab, its progress reaching the window as the next statuses. */

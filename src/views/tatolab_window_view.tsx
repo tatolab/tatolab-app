@@ -10,7 +10,7 @@ import type { TatolabFrontendFeatureFlags } from "../feature_flags";
 import { holdsWindowShortcutModifier } from "../presentation/platform_presentation";
 import { chooseTatolabWindowScreen } from "../presentation/runtime_presentation";
 import { isStreamLoaded } from "../presentation/stream_presentation";
-import { FirstLaunchSetupView } from "./first_launch_setup_view";
+import { GettingStartedView } from "./getting_started_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { LinuxRuntimeInstallView } from "./linux_runtime_install_view";
 import { ControlTooltipProvider } from "../design_system/control_tooltip";
@@ -47,12 +47,16 @@ function windowLocalStorage(): Storage | null {
   }
 }
 
-/** The shell and its pages, or the setup screen that fills the window until Tatolab can run here. */
+/** The shell and its pages, or what fills the window until Tatolab runs here: macOS's first run, or Linux's installer. */
 function TatolabWindowRoot({ router, isUninstallUnderway }: { router: TatolabWindowRouter; isUninstallUnderway: () => boolean }) {
   const { hostedPages } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
   if (!isUninstallUnderway() && chooseTatolabWindowScreen(status) === "setup") {
-    return <HostedDomPageView hostedPage={hostedPages.setupScreen} className="h-full" />;
+    return hostedPages.linuxRuntimeInstallScreen === null ? (
+      <GettingStartedView />
+    ) : (
+      <HostedDomPageView hostedPage={hostedPages.linuxRuntimeInstallScreen} className="h-full" />
+    );
   }
   return <RouterProvider router={router} />;
 }
@@ -126,7 +130,7 @@ export function mountTatolabWindow(
   );
   const hostedPages: TatolabWindowHostedPages = {
     streamsPage,
-    setupScreen: platform === "linux" ? new LinuxRuntimeInstallView() : new FirstLaunchSetupView(backend),
+    linuxRuntimeInstallScreen: platform === "linux" ? new LinuxRuntimeInstallView() : null,
   };
   const openSearch = () => {
     if (!uninstallSheet.isOpen()) search.open();
@@ -181,7 +185,7 @@ export function mountTatolabWindow(
   const showStatusOnTheHostedPages = (status: TatolabStatus) => {
     if (status.runtime_state === "running") runtimeLastAnsweredAt = new Date();
     if (!uninstallSheet.isUninstallUnderway() && chooseTatolabWindowScreen(status) === "setup") search.close();
-    hostedPages.setupScreen.showStatus?.(status);
+    hostedPages.linuxRuntimeInstallScreen?.showStatus?.(status);
     streamsPage.setRuntimeLastAnsweredAt(runtimeLastAnsweredAt);
     streamsPage.showStatus(status);
     if (runtimeStateLastShown !== null && status.runtime_state !== runtimeStateLastShown) {

@@ -1,4 +1,4 @@
-/* The centred pages (setup, runtime down) and the setup screens' own parts. */
+/* The centred pages (Linux's installer, runtime down) and the Linux install screen's own parts. */
 .centred-page {
   flex: 1;
   min-height: 0;
@@ -11,7 +11,6 @@
 .centred-page-column { width: min(520px, 100%); }
 
 .setup-screen { display: flex; flex-direction: column; height: 100vh; background: var(--window); }
-.setup-screen-drag-band { flex: none; height: var(--title-bar-height); }
 .setup-screen .centred-page { padding-top: max(40px, 10vh); }
 .setup-screen-linux .centred-page-column { width: min(600px, 100%); }
 .setup-screen-mark { display: block; width: 52px; height: 52px; }
@@ -31,16 +30,6 @@
 .setup-step-title { font-size: 13px; line-height: 18px; font-weight: 500; }
 .setup-step-note { margin-top: 2px; color: var(--fg-2); font-size: 12px; line-height: 17px; }
 
-.setup-screen-actions { display: flex; align-items: center; gap: 10px; margin-top: 20px; }
-.setup-screen-password-note {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin-right: auto;
-  color: var(--fg-3);
-  font-size: 12px;
-}
-.setup-screen .failure-line { margin-top: 16px; }
 .setup-screen-linux .standalone-command { margin-top: 18px; min-height: 40px; }
 .setup-screen-linux .standalone-command .command-text { white-space: nowrap; }
 .setup-screen-waiting { display: flex; align-items: center; gap: 9px; margin-top: 18px; color: var(--fg-3); font-size: 12px; }

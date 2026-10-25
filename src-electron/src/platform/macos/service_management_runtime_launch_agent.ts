@@ -28,6 +28,26 @@ export type LaunchctlRunner = (launchctlArguments: readonly string[]) => Promise
 export const LAUNCHCTL_AT_ITS_SYSTEM_PATH: LaunchctlRunner = (launchctlArguments) =>
   runProgramToCompletion(LAUNCHCTL_PATH, launchctlArguments);
 
+/** A top-level field of `launchctl print`'s answer for one job, a line indented by one tab; `null` when it prints none. */
+function launchctlPrintField(launchctlPrintOutput: string, fieldName: string): string | null {
+  const fieldLine = launchctlPrintOutput.split("\n").find((printedLine) => printedLine.startsWith(`\t${fieldName} = `));
+  return fieldLine === undefined ? null : fieldLine.slice(fieldName.length + 4).trim();
+}
+
+/**
+ * launchd's words for having given up on the job `launchctl print` describes, or `null`: a job not running whose
+ * last spawn exited 78 (EX_CONFIG, launchd refusing to spawn it) or was ended for its code signature, as a Launch
+ * Constraint Violation is.
+ */
+export function whyLaunchdGaveUpOnTheJob(launchctlPrintOutput: string): string | null {
+  if (launchctlPrintField(launchctlPrintOutput, "state") === "running") return null;
+  const lastExitReason = launchctlPrintField(launchctlPrintOutput, "last exit reason");
+  if (lastExitReason !== null && lastExitReason.includes("CODESIGNING")) return `launchd: last exit reason = ${lastExitReason}`;
+  const lastExitCode = launchctlPrintField(launchctlPrintOutput, "last exit code");
+  if (lastExitCode !== null && /^78\b/.test(lastExitCode)) return `launchd: last exit code = ${lastExitCode}`;
+  return null;
+}
+
 /** The contract's spelling of an `SMAppService` status; a status Service Management does not answer reads as not found. */
 export function runtimeAgentRegistrationStatusFrom(
   serviceManagementStatus: ServiceManagementAgentServiceStatus | null,
@@ -71,6 +91,12 @@ export class ServiceManagementRuntimeLaunchAgent implements RuntimeAgentRegistra
     return this.serviceManagementAgentServices.registerAgentService(this.agentPlistName);
   }
 
+  async whyTheServiceManagerGaveUpOnTheRuntime(): Promise<string | null> {
+    const printed = await this.launchctlRunner(["print", this.launchdJob()]);
+    if (!printed.ok || !programSucceeded(printed.value)) return null;
+    return whyLaunchdGaveUpOnTheJob(printed.value.standardOutput);
+  }
+
   startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {
     // Without `-k`, kickstart leaves a running job alone.
     return this.kickstartTheRuntimesJob([]);
@@ -82,8 +108,7 @@ export class ServiceManagementRuntimeLaunchAgent implements RuntimeAgentRegistra
   }
 
   private async kickstartTheRuntimesJob(kickstartOptions: readonly string[]): Promise<Result<void, RuntimeAgentStartFailure>> {
-    const launchdJob = `gui/${this.uid}/${RUNTIME_LAUNCH_AGENT_LABEL}`;
-    const kickstartArguments = ["kickstart", ...kickstartOptions, launchdJob];
+    const kickstartArguments = ["kickstart", ...kickstartOptions, this.launchdJob()];
     const kickstartRun = await this.launchctlRunner(kickstartArguments);
     if (!kickstartRun.ok) return failedWith({ kind: "refused", refusal: `launchctl could not be run: ${kickstartRun.failure}` });
     const kickstart = kickstartRun.value;
@@ -93,6 +118,11 @@ export class ServiceManagementRuntimeLaunchAgent implements RuntimeAgentRegistra
       kind: "refused",
       refusal: `launchctl ${kickstartArguments.join(" ")} failed (${describeHowTheProgramEnded(kickstart)}): ${kickstart.standardError.trim()}`,
     });
+  }
+
+  /** The runtime's job in this user's launchd domain, as `launchctl` names it. */
+  private launchdJob(): string {
+    return `gui/${this.uid}/${RUNTIME_LAUNCH_AGENT_LABEL}`;
   }
 
   async restartTheBundledRuntime(): Promise<Result<void, string>> {

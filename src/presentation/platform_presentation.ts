@@ -100,7 +100,7 @@ export interface CommandLineToolPresentation {
   explanation: string;
 }
 
-/** The `tatolab` command as Settings shows it: the app's own link on macOS, the installer's on Linux. */
+/** The `tatolab` command as Settings shows it: the app's own link in `~/.local/bin` on macOS, the installer's on Linux. */
 export function presentCommandLineTool(platform: TatolabPlatform, linkedAt: string | null): CommandLineToolPresentation {
   if (platform === "linux") {
     return linkedAt === null
@@ -112,6 +112,10 @@ export function presentCommandLineTool(platform: TatolabPlatform, linkedAt: stri
         };
   }
   return linkedAt === null
-    ? { isLinked: false, shownValue: "Not linked", explanation: "Setting up Tatolab links it, so it works in every terminal." }
-    : { isLinked: true, shownValue: linkedAt, explanation: "Linked to the copy inside Tatolab.app, so it works in every terminal." };
+    ? { isLinked: false, shownValue: "Not linked", explanation: "Tatolab links it in ~/.local/bin each time it opens." }
+    : {
+        isLinked: true,
+        shownValue: abbreviateHomeDirectory(linkedAt),
+        explanation: "Linked to the copy inside Tatolab.app. It works in any terminal with ~/.local/bin on its PATH.",
+      };
 }

@@ -10,11 +10,17 @@ export type TatolabPlatform = "macos" | "linux";
  */
 export type RuntimeAgentRegistration = "enabled" | "requires_approval" | "not_registered" | "not_found";
 
-/** Whether the runtime answers its local API. */
-export type RuntimeState = "running" | "starting" | "stopped" | "unreachable";
+/**
+ * Whether the runtime answers its local API. `starting` is the agent enabled and the runtime not answering yet,
+ * within the start timeout; past it, `unreachable` is a runtime that answered since it was last started and then
+ * stopped, and `never_answered` one that has not answered once since. `blocked_by_the_service_manager` is launchd
+ * giving up on the agent (a spawn it refused, exit 78 EX_CONFIG, or a code-signing kill such as a Launch Constraint
+ * Violation), or systemd holding `tatolabd.service` failed.
+ */
+export type RuntimeState = "running" | "starting" | "stopped" | "unreachable" | "never_answered" | "blocked_by_the_service_manager";
 
-/** Whether first-launch machine setup still needs the administrator prompt; always `complete` on Linux. */
-export type MachineSetupState = "complete" | "needs_administrator" | "waiting_for_administrator";
+/** `/usr/local/bin/tatolab` on macOS: linked to this app's CLI, not linked, or not offered with why (Linux, whose installer links the command; a local-proof build; an app with no CLI in it). */
+export type CommandLineToolUsrLocalBinLink = { kind: "linked"; path: string } | { kind: "not_linked" } | { kind: "not_offered"; reason: string };
 
 /** One stream the runtime lists. `state` is attached, kept, stopped or failed, or a state newer than this app. */
 export interface ListedStream {
@@ -89,9 +95,11 @@ export interface TatolabStatus {
   machine_name: string | null;
   /** `null` when the streams were not listed: the runtime is down or listing them failed. */
   streams: ListedStream[] | null;
-  machine_setup_state: MachineSetupState;
-  /** `/usr/local/bin/tatolab` on macOS once linked; on Linux the absolute path of `~/.local/bin/tatolab` while it exists. */
+  /** Whether "Get Started" ended first run; the window shows Welcome until it has. Always `true` on Linux, which has no first run. */
+  first_run_finished: boolean;
+  /** The absolute path of `~/.local/bin/tatolab` while it is linked: on macOS to this app's CLI, on Linux by the installer. */
   command_line_tool_linked_at: string | null;
+  command_line_tool_usr_local_bin_link: CommandLineToolUsrLocalBinLink;
   app_update: TatolabAppUpdateState;
   /** The socket this build reads the runtime's local API at. */
   local_api_socket: string;

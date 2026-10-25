@@ -37,6 +37,7 @@ const runtimeLoopbackHttpOrigin = runtimeLoopbackHttpOriginForThisBuild();
 const builtWindowDirectory = path.join(app.getAppPath(), "dist");
 const builtWindowPreloadScript = path.join(app.getAppPath(), "src-electron", "build", "preload", "tatolab_window_preload.cjs");
 const tatolabPlatformHostServices: TatolabPlatformHostServices = {
+  homeDirectory: app.getPath("home"),
   appPath: app.getAppPath(),
   appExecutable: process.execPath,
   appIsPackaged: app.isPackaged,

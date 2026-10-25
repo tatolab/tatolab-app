@@ -4,8 +4,9 @@
 // Tatolab.app: opening it shows its window and puts it in the tray, opening it again shows the
 // window of the one app already running, closing the window leaves the app in the tray, and
 // quitting quits only the app — the runtime stays on. Each opening reconciles the runtime's agent
-// with "Run Tatolab"; the first also offers the machine setup still missing, restarts a runtime
-// left running from the bundle before an update, and starts checking for updates on its own.
+// with "Run Tatolab"; the first also links the `tatolab` command in the home folder, restarts a
+// runtime left running from the bundle before an update, and starts checking for updates on its
+// own.
 
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { ApplicationMenu, DockIconHost, TatolabAppUpdatePackaging, TatolabPlatformForThisBuild, TatolabPlatformItems } from "./platform/mod.js";
@@ -14,7 +15,6 @@ import {
   checkForTatolabAppUpdatesOnRequest,
   quitTheTatolabApp,
   runInTheBackgroundWithTheController,
-  setUpTatolabOnRequest,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
 import { tatolabWindowCommandHandlers, type TatolabWindowCommandHandlers } from "./tatolab_commands.js";
@@ -200,11 +200,18 @@ export async function startTatolabApp(
           statusPublisher.requestRefresh();
         });
         return;
-      case "set_up_tatolab": {
-        const setUpTatolab = setUpTatolabOnRequest(sharedState);
-        if (!setUpTatolab.ok) tatolabAppLog.warn("Set Up Tatolab… was refused", { refusal: setUpTatolab.failure });
+      case "open_login_items_settings":
+        runInTheBackgroundWithTheController(sharedState, "tatolab-tray-opened-login-items", async (controller) => {
+          const opened = await controller.openLoginItemsSettings();
+          if (!opened.ok) tatolabAppLog.warn("Login Items could not be opened from the tray", { failure: opened.failure });
+        });
         return;
-      }
+      case "register_the_runtime_again":
+        runInTheBackgroundWithTheController(sharedState, "tatolab-tray-registered-the-runtime-again", async (controller, statusPublisher) => {
+          await controller.registerTheRuntimeAgainOnRequest();
+          statusPublisher.requestRefresh();
+        });
+        return;
       case "check_for_app_updates":
         checkForTatolabAppUpdatesOnRequest(sharedState, "tray");
         return;
@@ -225,7 +232,7 @@ export async function startTatolabApp(
     await controller.reconcileTheAgentWithTheRunTatolabSwitch();
     statusPublisher.startPolling();
     tatolabAppUpdater.startCheckingOnItsOwn(tatolabElectronAppShell.repeatingTimer);
-    await controller.setUpTheMachineOnAppOpened();
+    await controller.linkTheCommandLineToolInTheHomeFolderAsTheAppOpens();
     await controller.restartTheBundledRuntimeIfTheAppChanged();
     statusPublisher.requestRefresh();
   });

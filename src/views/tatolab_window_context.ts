@@ -57,8 +57,8 @@ export class UninstallTatolabRefusal {
 /** The DOM pages the window keeps until later tickets rebuild them in React. */
 export interface TatolabWindowHostedPages {
   streamsPage: StreamsPageView;
-  /** What fills the window until Tatolab can run here: macOS's administrator setup, or Linux's installer. */
-  setupScreen: TatolabWindowPage;
+  /** What fills the Linux window until the installer has put tatolabd.service in place; `null` on macOS, whose first run is the React getting-started view. */
+  linuxRuntimeInstallScreen: TatolabWindowPage | null;
 }
 
 /** What every part of the React window reads: the backend, the platform, the status, the shown stream's graph and log, the hosted DOM pages, the window's look, the runtime's description and uninstalling. */

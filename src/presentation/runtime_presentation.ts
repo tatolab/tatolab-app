@@ -12,17 +12,22 @@ export type RuntimeDisplayState =
   | "running"
   | "starting"
   | "unreachable"
+  | "never_answered"
+  | "blocked_by_the_service_manager"
   | "switched_off"
   | "needs_login_items_approval"
   | "runtime_missing_from_app"
   | "not_registered"
   | "runtime_not_installed";
 
+/** What a runtime state offers to bring the runtime back: turn the switch on, open Login Items, turn it on again, or register the agent again (Try Again). */
+export type RuntimeBannerAction = "turn_on_run_tatolab" | "open_login_items" | "retry_run_tatolab" | "register_the_runtime_again";
+
 /** What the banner above the streams says, and the one action it offers. */
 export interface RuntimeBannerPresentation {
   title: string;
   explanation: string;
-  action: "turn_on_run_tatolab" | "open_login_items" | "retry_run_tatolab" | null;
+  action: RuntimeBannerAction | null;
 }
 
 /** How the window shows the runtime: its tone, its short label, and the banner a non-running state needs. */
@@ -45,6 +50,10 @@ export function deriveRuntimeDisplayState(status: TatolabStatus): RuntimeDisplay
       return "starting";
     case "unreachable":
       return "unreachable";
+    case "never_answered":
+      return "never_answered";
+    case "blocked_by_the_service_manager":
+      return "blocked_by_the_service_manager";
     case "stopped":
       if (platformOf(status) === "linux") {
         return status.runtime_agent === "not_found" ? "runtime_not_installed" : "switched_off";
@@ -84,10 +93,40 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         banner: {
           title: "The runtime isn't responding",
           explanation: isLinux
-            ? "It's switched on but hasn't answered for 20 seconds. systemd restarts tatolabd.service if it fails."
-            : "It's switched on but hasn't answered for 20 seconds. macOS restarts it if it exits.",
+            ? "It was answering, then stopped 20 seconds ago. systemd restarts tatolabd.service if it fails."
+            : "It was answering, then stopped 20 seconds ago. macOS restarts it if it exits.",
           action: null,
         },
+      };
+    case "never_answered":
+      return {
+        displayState,
+        tone: "error",
+        shortLabel: "Didn't start",
+        banner: {
+          title: "The runtime didn't start",
+          explanation: isLinux
+            ? "systemd started tatolabd.service, but it hasn't answered in 20 seconds."
+            : "macOS started it, but it hasn't answered in 20 seconds.",
+          action: "register_the_runtime_again",
+        },
+      };
+    case "blocked_by_the_service_manager":
+      return {
+        displayState,
+        tone: "error",
+        shortLabel: "Blocked",
+        banner: isLinux
+          ? {
+              title: "systemd stopped the runtime",
+              explanation: "tatolabd.service kept failing, so systemd won't start it again by itself. Try Again starts it afresh.",
+              action: "register_the_runtime_again",
+            }
+          : {
+              title: "Blocked by macOS",
+              explanation: "macOS stopped the runtime from starting and won't try again by itself. Try Again hands it to macOS afresh.",
+              action: "register_the_runtime_again",
+            },
       };
     case "switched_off":
       return {
@@ -108,8 +147,8 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         tone: "warning",
         shortLabel: "Needs approval",
         banner: {
-          title: "Allow Tatolab in Login Items",
-          explanation: "macOS asks before the runtime runs in the background. Switch Tatolab on under Allow in the Background.",
+          title: "Needs your approval",
+          explanation: "macOS asks before the runtime runs in the background. In Login Items, turn on Tatolab under Allow in the Background.",
           action: "open_login_items",
         },
       };
@@ -130,7 +169,7 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         tone: "error",
         shortLabel: "Not running",
         banner: {
-          title: "The runtime didn't start",
+          title: "The runtime isn't registered",
           explanation: "Run Tatolab is on, but macOS hasn't registered the runtime.",
           action: "retry_run_tatolab",
         },
@@ -152,12 +191,9 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
 /** Which screen fills the window: the platform's own setup until Tatolab can run here, then the pages. */
 export type TatolabWindowScreen = "setup" | "pages";
 
-/** macOS sets up behind one administrator prompt; Linux waits for the installer to put tatolabd.service in place. */
+/** macOS shows Welcome and Getting set up until "Get Started" ends first run; Linux waits for the installer to put tatolabd.service in place. */
 export function chooseTatolabWindowScreen(status: TatolabStatus): TatolabWindowScreen {
-  const needsSetup =
-    platformOf(status) === "linux"
-      ? deriveRuntimeDisplayState(status) === "runtime_not_installed"
-      : status.machine_setup_state !== "complete";
+  const needsSetup = platformOf(status) === "linux" ? deriveRuntimeDisplayState(status) === "runtime_not_installed" : !status.first_run_finished;
   return needsSetup ? "setup" : "pages";
 }
 
@@ -172,6 +208,8 @@ const STATUS_BAR_RUNTIME_WORDS: Record<RuntimeDisplayState, string> = {
   running: "Runtime running",
   starting: "Runtime starting",
   unreachable: "Runtime not responding",
+  never_answered: "Runtime didn't start",
+  blocked_by_the_service_manager: "Runtime blocked",
   switched_off: "Runtime stopped",
   needs_login_items_approval: "Runtime needs approval",
   runtime_missing_from_app: "Runtime missing",

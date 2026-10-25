@@ -1,11 +1,12 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-// Where this build expects the runtime's machine-wide pieces: the machine runtime lock, the local
-// API socket, and the PATH link to the bundled CLI. The paths mirror StreamLib's
-// `streamlib-runtime-client-contract` (`machine_runtime_lock.rs`,
-// `streamlib_runtime_directory.rs`, `machine_directories_test_root.rs`); a local-proof build
-// keeps all of them under one test root and never touches `/Library` or `/usr/local/bin`.
+// Where this build expects the runtime's pieces on macOS: the local API socket, as StreamLib's
+// `streamlib-runtime-client-contract` resolves it (`streamlib_runtime_directory.rs`,
+// `machine_directories_test_root.rs`), and the links that put the bundled CLI on the PATH. The
+// machine runtime lock is the loopback port the runtime binds itself, so no path here names it.
+// A local-proof build keeps the socket and its one link under its test root and never touches
+// `/usr/local/bin` or the person's home folder.
 
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
@@ -17,66 +18,56 @@ import {
   perUserStreamlibRuntimeDirectoryUnderTmp,
 } from "../mod.js";
 
-/** The root-owned directory the real machine runtime lock sits in. */
-export const MACHINE_RUNTIME_LOCK_DIRECTORY_ON_MACOS = "/Library/Application Support/Tatolab";
+/** Where the app links the `tatolab` CLI with no prompt, relative to the home folder: the folder the Linux installer links it in too. */
+export const COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER = ".local/bin/tatolab";
 
-/** The lock file's name inside its directory. */
-export const MACHINE_RUNTIME_LOCK_FILE_NAME = "runtime.lock";
+/** Where the app links the `tatolab` CLI behind the administrator prompt, when the person asks: a folder every terminal's PATH holds. */
+export const COMMAND_LINE_TOOL_USR_LOCAL_BIN_LINK_PATH = "/usr/local/bin/tatolab";
 
-/** Where first launch links the `tatolab` CLI onto the PATH. */
-export const COMMAND_LINE_TOOL_LINK_PATH = "/usr/local/bin/tatolab";
+/** The root-owned directory earlier versions created for the machine runtime lock, which uninstalling removes when it is still there. */
+export const EARLIER_MACHINE_RUNTIME_LOCK_DIRECTORY = "/Library/Application Support/Tatolab";
 
 /** The CLI's file name beside the app binary in `Contents/MacOS/`. Not `tatolab`: a default APFS volume folds case, so that name would overwrite the app's own `Tatolab`. */
-const BUNDLED_COMMAND_LINE_TOOL_FILE_NAME = "tatolab-cli";
+export const BUNDLED_COMMAND_LINE_TOOL_FILE_NAME = "tatolab-cli";
 
-/** Who must own the machine runtime lock and its directory: root for the real lock, created behind one administrator prompt; the user running the app for a local-proof lock, created with no prompt. */
-export type MachineRuntimeLockOwner = { kind: "root" } | { kind: "this_user"; uid: number };
-
-/** The uid the lock and its directory must be owned by. */
-export function machineRuntimeLockOwnerUid(machineRuntimeLockOwner: MachineRuntimeLockOwner): number {
-  return machineRuntimeLockOwner.kind === "root" ? 0 : machineRuntimeLockOwner.uid;
-}
-
-/** Every machine-wide path this build of the app reads or prepares. */
+/** Every path this build of the app reads or links on macOS. */
 export interface TatolabMachinePathsOnMacos {
-  machineRuntimeLockDirectory: string;
-  machineRuntimeLockFile: string;
-  machineRuntimeLockOwner: MachineRuntimeLockOwner;
   localApiSocket: string;
-  /** Where the CLI is linked onto the PATH; `null` when this build links nothing. */
-  commandLineToolLink: string | null;
-  /** The test root a local-proof build prepares; `null` for a real build. */
+  /** `~/.local/bin/tatolab`; `null` with no absolute home folder to link in. */
+  commandLineToolHomeFolderLink: string | null;
+  /** `/usr/local/bin/tatolab`; `null` in a local-proof build, which never links there. */
+  commandLineToolUsrLocalBinLink: string | null;
+  /** The directory an earlier version's machine runtime lock sat in; `null` in a local-proof build. */
+  earlierMachineRuntimeLockDirectory: string | null;
+  /** The test root a local-proof build keeps everything under; `null` for a real build. */
   localProofTestMachineRoot: string | null;
 }
 
-/** The paths this build uses for the user with `uid`. */
-export function tatolabMachinePathsOnMacosForThisBuild(uid: number): TatolabMachinePathsOnMacos {
+/** The paths this build uses for the user with `uid`, whose home folder is `homeDirectory`. */
+export function tatolabMachinePathsOnMacosForThisBuild(uid: number, homeDirectory: string): TatolabMachinePathsOnMacos {
   return TATOLAB_APP_BUILD_FEATURES.machineDirectoriesUnderATestRoot
-    ? tatolabMachinePathsOnMacosUnderALocalProofTestRoot(LOCAL_PROOF_TEST_MACHINE_ROOT, uid)
-    : tatolabMachinePathsOnMacosForTheRealMachine(uid);
+    ? tatolabMachinePathsOnMacosUnderALocalProofTestRoot(LOCAL_PROOF_TEST_MACHINE_ROOT)
+    : tatolabMachinePathsOnMacosForTheRealMachine(uid, homeDirectory);
 }
 
-/** The real machine's paths for the user with `uid`. */
-export function tatolabMachinePathsOnMacosForTheRealMachine(uid: number): TatolabMachinePathsOnMacos {
+/** The real machine's paths for the user with `uid`, whose home folder is `homeDirectory`. */
+export function tatolabMachinePathsOnMacosForTheRealMachine(uid: number, homeDirectory: string): TatolabMachinePathsOnMacos {
   return {
-    machineRuntimeLockDirectory: MACHINE_RUNTIME_LOCK_DIRECTORY_ON_MACOS,
-    machineRuntimeLockFile: path.join(MACHINE_RUNTIME_LOCK_DIRECTORY_ON_MACOS, MACHINE_RUNTIME_LOCK_FILE_NAME),
-    machineRuntimeLockOwner: { kind: "root" },
     localApiSocket: path.join(perUserStreamlibRuntimeDirectoryUnderTmp(uid), LOCAL_API_SOCKET_FILE_NAME),
-    commandLineToolLink: COMMAND_LINE_TOOL_LINK_PATH,
+    commandLineToolHomeFolderLink: path.isAbsolute(homeDirectory) ? path.join(homeDirectory, COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER) : null,
+    commandLineToolUsrLocalBinLink: COMMAND_LINE_TOOL_USR_LOCAL_BIN_LINK_PATH,
+    earlierMachineRuntimeLockDirectory: EARLIER_MACHINE_RUNTIME_LOCK_DIRECTORY,
     localProofTestMachineRoot: null,
   };
 }
 
-/** The paths under `testMachineRoot`, laid out as StreamLib's test-root build lays them. */
-export function tatolabMachinePathsOnMacosUnderALocalProofTestRoot(testMachineRoot: string, uid: number): TatolabMachinePathsOnMacos {
-  const machineRuntimeLockDirectory = path.join(testMachineRoot, "lock");
+/** The paths under `testMachineRoot`, laid out as StreamLib's test-root build lays them, with the home-folder link under its `home/`. */
+export function tatolabMachinePathsOnMacosUnderALocalProofTestRoot(testMachineRoot: string): TatolabMachinePathsOnMacos {
   return {
-    machineRuntimeLockDirectory,
-    machineRuntimeLockFile: path.join(machineRuntimeLockDirectory, MACHINE_RUNTIME_LOCK_FILE_NAME),
-    machineRuntimeLockOwner: { kind: "this_user", uid },
     localApiSocket: localApiSocketUnderALocalProofTestRoot(testMachineRoot),
-    commandLineToolLink: null,
+    commandLineToolHomeFolderLink: path.join(testMachineRoot, "home", COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER),
+    commandLineToolUsrLocalBinLink: null,
+    earlierMachineRuntimeLockDirectory: null,
     localProofTestMachineRoot: testMachineRoot,
   };
 }

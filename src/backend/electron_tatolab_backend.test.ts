@@ -49,7 +49,9 @@ describe("createElectronTatolabBackend", () => {
     const fakeBridge = fakeTatolabElectronBridge({
       set_run_tatolab: { ok: true, value: null },
       open_login_items_settings: { ok: true, value: null },
-      set_up_tatolab: { ok: true, value: null },
+      remember_first_run_finished: { ok: true, value: null },
+      register_the_runtime_again: { ok: true, value: null },
+      link_command_line_tool_in_usr_local_bin: { ok: true, value: null },
       quit_tatolab_app: { ok: true, value: null },
       uninstall_tatolab: { ok: true, value: null },
       read_stream_log_records: { ok: true, value: { stream: "camera", stream_instance: "camera-0", records: [], next_after: 7, records_no_longer_held: 0 } },
@@ -62,7 +64,9 @@ describe("createElectronTatolabBackend", () => {
 
     await backend.setRunTatolab(false);
     await backend.openLoginItemsSettings();
-    await backend.setUpTatolab();
+    await backend.rememberFirstRunFinished();
+    await backend.registerTheRuntimeAgain();
+    await backend.linkCommandLineToolInUsrLocalBin();
     await backend.quitTatolabApp();
     await backend.uninstallTatolab();
     await backend.readStreamLogRecords("camera", 7);
@@ -74,7 +78,9 @@ describe("createElectronTatolabBackend", () => {
     expect(fakeBridge.invokedCommands).toEqual([
       ["set_run_tatolab", { enabled: false }],
       ["open_login_items_settings", undefined],
-      ["set_up_tatolab", undefined],
+      ["remember_first_run_finished", undefined],
+      ["register_the_runtime_again", undefined],
+      ["link_command_line_tool_in_usr_local_bin", undefined],
       ["quit_tatolab_app", undefined],
       ["uninstall_tatolab", undefined],
       ["read_stream_log_records", { stream: "camera", after: 7 }],
