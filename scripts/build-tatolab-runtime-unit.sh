@@ -29,9 +29,12 @@ streamlib_commit="$(git -C "$streamlib_checkout" rev-parse HEAD)"
 [ -z "$(git -C "$streamlib_checkout" status --porcelain --untracked-files=no)" ] \
   || { echo "streamlib checkout $streamlib_checkout has uncommitted changes: the unit would not be $streamlib_commit" >&2; exit 1; }
 export CARGO_TARGET_DIR="$streamlib_checkout/target"
+runtime_unit_directory="$streamlib_checkout/target/tatolab-runtime"
+# xtask rebuilds the unit in place, so a build that fails part-way must not leave the previous
+# build's commit vouching for the half-replaced unit.
+rm -f "$runtime_unit_directory/streamlib-commit"
 (cd "$streamlib_checkout" && cargo xtask "${xtask_arguments[@]}") >&2
 
-runtime_unit_directory="$streamlib_checkout/target/tatolab-runtime"
 for required in bin/tatolabd bin/tatolab bin/moq-relay lib/tatolab/lend/tatolab/runtime lib/tatolab/watch/index.html; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit is missing $required" >&2; exit 1; }
 done
