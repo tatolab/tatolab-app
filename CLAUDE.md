@@ -27,8 +27,9 @@ a parallel one. Search first.
      owner's call, recorded in the tatolab-app issue that builds it. What it needs from the
      runtime — a capability, a local API contract — is streamlib's: filed there, and the app waits
      on it. This repository has no `docs/plan/`; never start one.
-  2. How the window looks, reads and flows is `docs/design` (`DESIGN.md` and the prototype it
-     describes) + `src/renderer/styles/tokens.css`, changed with the owner's say-so in the same PR.
+  2. How the window looks, reads and flows is the design system in code — `src/renderer/styles/tokens.css`,
+     then shadcn, then `src/renderer/design_system/` and its variants, then a rare call-site class —
+     changed with the owner's say-so in the same PR.
   3. How the app's own code is shaped — modules, interfaces, platform items, the window's IPC
      commands, the backend contract — goes in the issue's Design section, settled by `/module-design` before
      `/implement`.
@@ -52,8 +53,8 @@ a parallel one. Search first.
   sets a rule or a glob to `ask` — the checked-in config asks on `publish`
   (`.claude/scripts/machine-brake` edits it). The doctrine still decides what is right — an
   approved prompt means the owner judged this one case the exception, not that the rule bent.
-- Code is the authority on what IS; the issues and the spec on what we AGREED for the app, and
-  streamlib's plan on what the runtime serves.
+- Code is the authority on what IS; the issues on what we AGREED for the app, and streamlib's
+  plan on what the runtime serves.
 
 ## Recording facts vs deciding
 
@@ -61,11 +62,11 @@ Writing down what is true is ordinary work. Deciding what we build is not. The s
 sharpen decisions, not to license prose.
 
 - **A factual record needs no skill, no prompt, and no approval.** A README claim your change
-  falsified, a stale path, a proof caption that no longer matches the app — fix it in the same PR
+  falsified, a stale path, a comment that no longer matches the code — fix it in the same PR
   as the change, and say so in the PR body. Leaving the record wrong to avoid ceremony is the
   worse outcome, always.
-- **A decision goes to the owner** — changing what the app is, or settling a question the issue or
-  the spec leaves open by building one answer. Tier 1 is the owner's call, recorded in the issue,
+- **A decision goes to the owner** — changing what the app is, or settling a question the issue
+  leaves open by building one answer. Tier 1 is the owner's call, recorded in the issue,
   and a runtime need is filed in streamlib; tier 2 is a stated question; tier 3 is the issue's
   Design section.
 - The test: **could a careful reader derive it from the diff and the tree?** Then it is a fact.
@@ -113,7 +114,7 @@ attention spent on settled things is unavailable for real forks.
 - **Platform code lives in `src/main/platform/`** (enforced); both platforms are checked
   on every change, and the `ubuntu-22.04` PR check is the Linux gate — a Mac cannot exercise the
   Linux module against a real systemd or desktop.
-- A decision the issue or the spec doesn't state stops the work and goes to the owner;
+- A decision the issue doesn't state stops the work and goes to the owner;
   it is never inferred from existing code or git history.
 - The main process logs only through `tatolab_app_log.ts`; no `console.*` or `debugger` in
   shipped code, the window included (enforced).
@@ -131,7 +132,7 @@ attention spent on settled things is unavailable for real forks.
   or `systemctl`.
 - Tests are always in scope and never need approval. Code drives tests, never the reverse.
 - **Secrets come from Infisical, never the tree.** `.infisical.json` stays untracked; signing
-  certificates, API keys and tokens never appear in a commit, a log, a PR body or a proof image.
+  certificates, API keys and tokens never appear in a commit, a log, a PR body or an evidence image.
 - **The version is never hand-edited**: a release builds the app at the streamlib version it
   bundles.
 - **Done means seen.** A change to the window, the tray, setup, uninstall or the runtime switch is

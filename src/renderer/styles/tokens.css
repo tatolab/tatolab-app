@@ -1,4 +1,4 @@
-/* The tokens of docs/design/DESIGN.md: one value per theme for every colour, the type ladder, radii and the window's
+/* The window's design language: one value per theme for every colour, the type ladder, radii and the window's
    structural sizes. */
 
 @theme inline {

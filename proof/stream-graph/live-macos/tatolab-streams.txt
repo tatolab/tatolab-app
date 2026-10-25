@@ -1,3 +1,0 @@
-NAME          STATE  NODES  PROJECT
-dock-counter  kept   4      /private/tmp/proof38/projects/dock-counter
-front-door    kept   4      /private/tmp/proof38/projects/front-door

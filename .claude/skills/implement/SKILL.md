@@ -10,7 +10,8 @@ disable-model-invocation: false
    newer than the body; conflicts resolve toward the comment) — and, when it depends on what the
    runtime serves, that contract from streamlib's plan at `main` as `CLAUDE.md` gives (never a
    local checkout's branch).
-   Read `docs/design/DESIGN.md` and the frames the issue cites when it touches the window.
+   When it touches the window, read the design system it builds on (`src/renderer/styles/tokens.css`,
+   `src/renderer/design_system/`).
 2. **Ultracode gate**: an issue whose body opens with **Run with ultracode** is built only in a run
    that has ultracode on — a system-reminder confirms it when the owner's message carries the
    keyword (`/implement <N> ultracode`) or the session has it on. Without it, **stop** before any
@@ -19,7 +20,7 @@ disable-model-invocation: false
    every agent that edits files runs in its own worktree; the steps below hold.
 3. **Plan gate**: list every open item this work needs: a decision, a question you would ask the
    owner, an assumption you would rather not make. Give each one its options, your pick and why.
-   Resolve whatever the issue, its comments, the spec, the tree or the runtime's contract answers; that is
+   Resolve whatever the issue, its comments, the tree or the runtime's contract answers; that is
    discovery, not a question. A new module, interface or window IPC command the issue's Design section
    does not settle goes through `/module-design`, and its recommendation is written into the
    Design. Never infer a decision from existing code or git history. When items remain, spawn
@@ -51,7 +52,7 @@ disable-model-invocation: false
 12. **Review**: spawn `review-pr`, plus `main-process-craftsmanship-reviewer` when `src/main/` or `src/preload/` changed and
     `window-craftsmanship-reviewer` when `src/renderer/` or `src/shared/` changed, in parallel. Fix-loop capped at 3 rounds;
     a 4th disagreement is posted on the issue as `[NEEDS OWNER]` DISCUSS, and the build stops.
-13. **PR**: run `scripts/check-conventional-pr-title.sh "<title>"`, push, `gh pr create` — title
+13. **PR**: run `printf '%s' "<title>" | npx commitlint`, push, `gh pr create` — title
     `type(scope): summary`; body `## Summary`, `## Closes` (one `Closes #N` per line), `## Exit
     criteria`, `## Test plan`, `## Evidence` (the `/verify-app` images and what each shows,
     labelled Live / Linux / Mock), `## Notes for owner` (the batched findings).

@@ -16,7 +16,7 @@ const EMPHASIS_CLASS_NAMES: Record<StateWordsEmphasis, string> = {
   plain: "text-fg-2",
 };
 
-/** A state as a word, as DESIGN.md has it: no icon while healthy, a spinner while starting, a red square for a failure; `meaning` in its tooltip. */
+/** A state as a word: no icon while healthy, a spinner while starting, a red square for a failure; `meaning` in its tooltip. */
 export function StateWords({ emphasis, words, meaning }: { emphasis: StateWordsEmphasis; words: string; meaning?: string }) {
   return (
     <span title={meaning} className={cn("inline-flex min-w-0 items-center gap-1.5", EMPHASIS_CLASS_NAMES[emphasis])}>

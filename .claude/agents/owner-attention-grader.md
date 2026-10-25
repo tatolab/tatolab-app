@@ -23,8 +23,8 @@ specification and newer than the body). Never trust the implementer's summary of
 
 1. **What the app is.** It changes the app's features, its framework, or how it is packaged or
    updated, and neither the issue nor an owner comment on it decides that.
-2. **How the window looks.** It departs visibly from `docs/design` (`DESIGN.md` and its prototype) or
-   `src/renderer/styles/tokens.css`, and the issue does not name the departure.
+2. **How the window looks.** It changes the design language (`src/renderer/styles/tokens.css`, or how a
+   design-system component looks everywhere), and the issue does not name the change.
 3. **A live fork.** There are two defensible paths with materially different outcomes, a wrong
    guess wastes real work (not a review comment's worth of rework), and the issue's Design, its
    comments and the tree do not settle it.
@@ -35,12 +35,12 @@ specification and newer than the body). Never trust the implementer's summary of
    for: publish a release or dispatch a publishing workflow, edit `LICENSE`, change what code
    signing reads (entitlements, `Info.plist`, the launch-agent plist), change the owner's real
    runtime or machine state, or handle a secret.
-6. **No reading works.** The issue contradicts the runtime's contract, the spec or itself, so no
+6. **No reading works.** The issue contradicts the runtime's contract, the design system in code or itself, so no
    reading of it delivers its Done means.
 
 ## Always PROCEED
 
-- Anything a careful reader can derive from the issue, the spec, the tree or the runtime's
+- Anything a careful reader can derive from the issue, the tree or the runtime's
   contract. That is a fact, not a decision (`CLAUDE.md` §Recording facts vs deciding). Discover
   it; never ask it.
 - Choices the issue's Design already settles, and re-confirming scope the issue states.

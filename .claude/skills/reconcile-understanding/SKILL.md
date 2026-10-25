@@ -1,6 +1,6 @@
 ---
 name: reconcile-understanding
-description: The correction loop — the owner fixes something Claude got wrong about the app, and the wrong belief is hunted down in every place it lives (CLAUDE.md, rules, skills, agents, README, proof captions, code comments, issues). Use when the owner says "that's wrong", "you misunderstood", "let me correct you", or steers Claude's model of the app.
+description: The correction loop — the owner fixes something Claude got wrong about the app, and the wrong belief is hunted down in every place it lives (CLAUDE.md, rules, skills, agents, README, code comments, issues). Use when the owner says "that's wrong", "you misunderstood", "let me correct you", or steers Claude's model of the app.
 ---
 
 # Reconcile understanding
@@ -9,8 +9,8 @@ A correction that only fixes the conversation evaporates at session end. This sk
 
 1. **Say-back gate.** Restate the correction in your own words — not the owner's — until they
    confirm it matches their intent. Do not proceed past this step without the yes.
-2. **Hunt the belief's homes.** Search everywhere the wrong version may live: `CLAUDE.md`, `.claude/` rules, agents and skills, `README.md`, `proof/` captions and
-   `docs/design`, code comments, and open issues. When the belief is about the runtime or the
+2. **Hunt the belief's homes.** Search everywhere the wrong version may live: `CLAUDE.md`, `.claude/` rules, agents and skills, `README.md`,
+   code comments, and open issues. When the belief is about the runtime or the
    plan, it may live in streamlib too — name those places and leave their fix to a streamlib
    session. List every occurrence found.
 3. **Propose the fix batch**: place / current wrong text / corrected text, one table. The owner

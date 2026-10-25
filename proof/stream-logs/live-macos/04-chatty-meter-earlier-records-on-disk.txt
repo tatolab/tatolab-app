@@ -1,5 +1,0 @@
-chatty-meter, read at 18:55:57Z from the window over the DevTools protocol:
-  rows the window holds: 5000 (sequences 5817 to 10816; the window keeps a load's newest 5000)
-  pointer row: 5,816 earlier records are in /private/tmp/proof39/projects/chatty-meter/.streamlib/logs/Open
-  so the earlier records not held are sequences 1 to 5816: the runtime keeps only its newest 4096, and the window let go of the rest past its 5000
-  lines in the stream's on-disk JSONL segment at that moment: 10836 (>= 10816, every record of the load)

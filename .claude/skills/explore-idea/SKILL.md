@@ -7,14 +7,15 @@ disable-model-invocation: false
 # Explore idea
 
 The pressure-release valve before work: ideas too fuzzy or too broad for an issue get explored
-here first. Nothing in this skill commits anything: **no issues, no plan edits, no code.**
+here first. Nothing in this skill commits to work: **no work issues, no code.** Its only artefact is
+the exit below.
 
 This skill is proactive, not just inquisitive — the owner brings a fuzzy want; Claude's job is to
 give it a shape they can react to. Digging and questioning are means; the deliverable is a formed
 picture plus the smallest sensible way to start.
 
 1. **Situate.** Read the local API it would read (streamlib's plan, §Control plane &
-   observability), the calm-native spec, the relevant code, and the open issues circling the idea. When the input is a
+   observability), the design system in code, the relevant code, and the open issues circling the idea. When the input is a
    messy set of issues, reverse-engineer what they collectively want and present that back first.
 2. **Sharpen the fuzz with `grilling`.** One question at a time, each with a recommended answer.
    Facts get looked up, never asked.
@@ -38,13 +39,13 @@ picture plus the smallest sensible way to start.
 5. **Drive to identical understanding.** Say the idea AND the recommended start back in your own
    words until the owner confirms it matches what is in their head. Unconfirmed = unexplored.
 6. **Exit explicitly**, one of three ways:
-   - **Graduate** → `/file-issue`; a calm-native spec change → a stated question to the owner,
+   - **Graduate** → `/file-issue`; a design-language change → a stated question to the owner,
      then `/file-issue`; a runtime contract the app needs → a streamlib issue the app issue waits
      on.
-   - **Park** → memo at `docs/research/explorations/<slug>.md`: the idea, the shapes considered,
-     the recommended start, and what unknown must resolve before it revives.
-   - **Kill** → same memo, with the reason — so the idea is not innocently re-explored in three
-     months.
+   - **Park** → an issue: the idea, the shapes considered, the recommended start, and what unknown
+     must resolve before it revives.
+   - **Kill** → the same issue, closed as not planned with the reason — so the idea is not
+     innocently re-explored in three months.
 
 If exploration reveals the idea is really N ideas, or more than one set of issues' worth of work,
 say so and split before graduating.

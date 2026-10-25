@@ -123,7 +123,7 @@ expect silent "grep -rn 'tatolab stop; launchctl bootout' src/main"
 expect silent "echo 'a; tatolab stop main'"
 expect silent 'gh api repos/tatolab/streamlib/releases/latest'
 expect silent 'open docs/Tatolab'
-expect silent 'open "proof/live-v2/Tatolab window.png"'
+expect silent 'open "/tmp/verify-app/Tatolab window.png"'
 expect silent 'brew install jq tatolab-cli-docs'
 expect silent 'cat /usr/local/bin/tatolab'
 expect silent 'git push -u origin chore/claude-operating-model'

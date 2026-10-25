@@ -13,20 +13,20 @@ import {
 } from "./tatolab_window_page_source.js";
 
 test("a request on the app's origin reads its file from the built window, and the root reads index.html", () => {
-  expect(builtWindowFileForRequest("/app/dist", "tatolab-app://app/index.html")).toBe("/app/dist/index.html");
-  expect(builtWindowFileForRequest("/app/dist", "tatolab-app://app/")).toBe("/app/dist/index.html");
-  expect(builtWindowFileForRequest("/app/dist", "tatolab-app://app/assets/index-1a2b.js?v=1")).toBe("/app/dist/assets/index-1a2b.js");
+  expect(builtWindowFileForRequest("/app/out/renderer", "tatolab-app://app/index.html")).toBe("/app/out/renderer/index.html");
+  expect(builtWindowFileForRequest("/app/out/renderer", "tatolab-app://app/")).toBe("/app/out/renderer/index.html");
+  expect(builtWindowFileForRequest("/app/out/renderer", "tatolab-app://app/assets/index-1a2b.js?v=1")).toBe("/app/out/renderer/assets/index-1a2b.js");
 });
 
 test("a request off the app's origin or out of the built window reads nothing", () => {
-  expect(builtWindowFileForRequest("/app/dist", "tatolab-app://elsewhere/index.html")).toBeNull();
-  expect(builtWindowFileForRequest("/app/dist", "https://app/index.html")).toBeNull();
-  expect(builtWindowFileForRequest("/app/dist", "tatolab-app://app/%2F..%2F..%2Fetc%2Fpasswd")).toBeNull();
-  expect(builtWindowFileForRequest("/app/dist", "tatolab-app://app/%E0%A4%A")).toBeNull();
+  expect(builtWindowFileForRequest("/app/out/renderer", "tatolab-app://elsewhere/index.html")).toBeNull();
+  expect(builtWindowFileForRequest("/app/out/renderer", "https://app/index.html")).toBeNull();
+  expect(builtWindowFileForRequest("/app/out/renderer", "tatolab-app://app/%2F..%2F..%2Fetc%2Fpasswd")).toBeNull();
+  expect(builtWindowFileForRequest("/app/out/renderer", "tatolab-app://app/%E0%A4%A")).toBeNull();
 });
 
 test("an encoded dot-segment is folded by the URL and stays inside the built window", () => {
-  expect(builtWindowFileForRequest("/app/dist", "tatolab-app://app/%2e%2e/%2e%2e/etc/passwd")).toBe("/app/dist/etc/passwd");
+  expect(builtWindowFileForRequest("/app/out/renderer", "tatolab-app://app/%2e%2e/%2e%2e/etc/passwd")).toBe("/app/out/renderer/etc/passwd");
 });
 
 test("the window navigates only on its own page's scheme and host, never to a file, data, another host or a web page", () => {

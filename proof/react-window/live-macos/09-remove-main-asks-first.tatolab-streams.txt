@@ -1,4 +1,0 @@
-NAME            STATE  NODES  PROJECT
-lobby-recorder  kept   4      /private/tmp/tatolab-proof/projects/lobby-recorder
-main            kept   4      /private/tmp/tatolab-proof/projects/front-door
-test-pattern    kept   4      /private/tmp/tatolab-proof/projects/front-door

@@ -2,7 +2,9 @@
   "extends": "./tsconfig.node.json",
   "compilerOptions": {
     "noEmit": false,
+    "rootDir": "src",
     "outDir": "out"
   },
+  "include": ["src/main", "src/preload", "src/shared"],
   "exclude": ["src/**/*.test.ts", "src/main/fake_*.ts", "src/preload"]
 }

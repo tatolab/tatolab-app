@@ -1,6 +1,6 @@
 name: Pull request checks
 
-# The merge gate: the source gates and the app's type checks and tests on macOS and Linux, on every
+# The merge gate: the lint and the app's type checks and tests on macOS and Linux, on every
 # pull request. Hermetic only — no runtime, no signing, no streamlib checkout; building, signing and
 # publishing stay in macos-app.yml.
 on:
@@ -17,26 +17,33 @@ permissions:
   contents: read
 
 jobs:
-  source-gates:
-    name: Source gates and the pull request title
+  lint:
+    name: Lint and the pull request title
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
       - name: Check the pull request title is conventional
         if: github.event_name == 'pull_request'
         env:
           PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
-        run: scripts/check-conventional-pr-title.sh "$PULL_REQUEST_TITLE"
+        run: printf '%s' "$PULL_REQUEST_TITLE" | npx commitlint
 
-      - name: Run every source gate
-        run: scripts/check-all-source-gates.sh
+      - name: Lint
+        run: npm run lint
 
-      - name: Prove each source gate fails on a planted violation
-        run: scripts/tests/source_gates_fail_on_a_violation.test.sh
+      - name: Prove the licence-header check fails on a planted violation
+        run: scripts/tests/license_header_check_fails_on_a_violation.test.sh
 
       - name: Prove the machine-brake hook notes, stays silent and prompts where it should
         run: .claude/scripts/tests/machine-brake.test.sh

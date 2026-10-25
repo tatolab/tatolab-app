@@ -1,8 +1,0 @@
-gui/501/com.tatolab.tatolabd = {
-	state = running
-	program identifier = Contents/MacOS/tatolabd (mode: 2)
-		TATOLAB_TEST_MACHINE_ROOT => /tmp/tatolab-proof
-	pid = 88637
-	last exit code = (never exited)
-		state = active
-		state = active

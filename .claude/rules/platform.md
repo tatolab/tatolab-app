@@ -15,7 +15,7 @@ paths:
   `TatolabUninstall`) and the `TatolabPlatformForThisBuild` each platform module builds. Where a
   platform has nothing to do, its item is `null` or `not_offered` with the reason, and says so in
   its doc. No `process.platform` or `os.platform()` outside `platform/` —
-  `scripts/check-platform-cfg-confinement.sh` enforces it.
+  ESLint (`eslint.config.js`) enforces it.
 - **Extend the platform seam, never bypass it.** A new OS mechanism (a service-manager call, a
   path, a prompt) is a new item on both modules or a new method on the existing interface — never an
   `execFile("launchctl")` in shared code, never a second registration path.

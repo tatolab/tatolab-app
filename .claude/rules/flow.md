@@ -27,5 +27,5 @@ paths:
 - Labels are display output only — nothing reads a label as control flow. Every work item is
   classified fresh from its content and from current code, never from its labels.
 - PR titles are conventional-commit typed (`type(scope): summary`, scopes as the history uses them:
-  `app`, `window`, `logs`, `platform`, `packaging`, `proof`, …). Run
-  `scripts/check-conventional-pr-title.sh "<title>"` before opening the PR; PR CI runs it too.
+  `app`, `window`, `logs`, `platform`, `packaging`, …). Run
+  `printf '%s' "<title>" | npx commitlint` before opening the PR.

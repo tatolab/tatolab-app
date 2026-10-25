@@ -123,7 +123,7 @@ runtime), `TatolabCommandLineToolLinks` (the `tatolab` command's links: the app'
 the installer's on Linux), and
 each platform's window chrome, Dock icon, tray image, menu and uninstall. Both platform modules
 expose the same items, and only `platform/` reads `process.platform`
-(`scripts/check-platform-cfg-confinement.sh`). `platform/macos/` drives `SMAppService` through the
+(ESLint, `eslint.config.js`). `platform/macos/` drives `SMAppService` through the
 app's native addon, `launchctl kickstart` and `osascript`; `platform/linux/` drives
 `systemctl --user` and reads the machine's paths. Neither module needs its OS to run its tests, so
 `npm test` on either platform runs both. On any other OS the app refuses to start.
@@ -196,7 +196,7 @@ scripts/build-tatolab-app.sh
 ```
 
 It builds streamlib's runtime unit (`cargo xtask build-runtime --release`, in streamlib's own
-target directory), then the Electron app: `npm run build` (the window into `dist/`),
+target directory), then the Electron app: `npm run build` (the window into `out/renderer/`),
 `npm run build:electron` (the main process and the preload), the arm64 Service Management addon,
 and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
 `@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
@@ -270,18 +270,19 @@ X.Y.Z` sets the packages' version; `--local-proof-test-root` builds with
 
 ## Working on the window
 
-The window is React with Tailwind and shadcn (base-ui), in the design language of
-[`docs/design`](docs/design/DESIGN.md); its tokens are `src/renderer/styles/tokens.css`. `npm run dev` serves the window on `http://localhost:1420`; `npm run electron:dev`, in a second
+The window is React with Tailwind and shadcn (base-ui). Its design system is the code: the tokens in
+`src/renderer/styles/tokens.css`, shadcn's components, and the Tatolab components and variants in
+`src/renderer/design_system/`. `npm run dev` serves the window on `http://localhost:1420`; `npm run electron:dev`, in a second
 terminal, builds the main process and runs the app against it, unpackaged. It shows whatever
 runtime is already running on the machine's local API socket; only a `--local-proof-test-root`
 build reads a local-proof runtime's `/tmp/tatolab-proof/run/local-api.sock`. On macOS an
 unpackaged app finds no launch agent, so "Run Tatolab" registers nothing there; on Linux it drives the installer's `tatolabd.service` as the
 packaged app does. `npm run dev` alone serves the window in a browser against a mock backend; a build leaves the mock
-out, and packaging refuses a `dist/` that carries it.
+out, and packaging refuses an `out/renderer/` that carries it.
 
 ## CI
 
-`.github/workflows/pull-request-checks.yml` runs the source gates and, on `macos-15` and
+`.github/workflows/pull-request-checks.yml` runs `npm run lint` and, on `macos-15` and
 `ubuntu-22.04`, `npm run build`, `npm run build:electron` and `npm test` on every pull request.
 `.github/workflows/macos-app.yml` builds the macOS app on `macos-15` and the Linux packages on
 `ubuntu-22.04`, each job type-checking and testing the app first, and keeps the uploaded artifacts

@@ -13,10 +13,9 @@ The deliverable is shared understanding, not just an answer. No edits from this 
 2. **Answer in labeled layers**:
    - **[CODE]** — what the tree does today, with `file:line`. Code is the authority on current
      behaviour.
-   - **[PLAN]** — what the app's issues say is agreed for the app, what the calm-native spec says
-     about the window, or what streamlib's `docs/plan/` says about the local API.
+   - **[PLAN]** — what the app's issues say is agreed for the app, or what streamlib's `docs/plan/` says about the local API.
    - **[INFERRED]** — Claude's judgment or reconstruction, with stated confidence.
-3. **Surface disagreements found on the way.** If the code contradicts the plan, the spec or the
+3. **Surface disagreements found on the way.** If the code contradicts the plan or the
    README, say so in the answer.
 4. **Close the say-back loop.** End with one paragraph: "So my understanding is … — does that match
    yours?" A correction goes through `/reconcile-understanding`.
