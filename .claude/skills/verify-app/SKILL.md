@@ -28,7 +28,9 @@ Evidence counts only when it was shot on what would ship now:
   - the bundle's `Contents/Resources/streamlib-commit` (unpackaged: the unit's `streamlib-commit`);
   - the build id that the bundled `tatolab-cli -V` reports from the running runtime.
 
-  If `main` moved while you were working, rebuild. Evidence from any other commit is not evidence.
+  The build itself checks `main` again when it finishes. A build of `main` that ends without
+  `streamlib main is still <commit>` failed because `main` moved, so build again. If `main` moves
+  after that, while you are shooting, rebuild. Evidence from any other commit is not evidence.
 - Building streamlib needs the `bun` its preview page pins. Fetch that version into a scratch
   directory and put it first on `PATH`, never over the owner's.
 
