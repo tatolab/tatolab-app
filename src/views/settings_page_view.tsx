@@ -8,7 +8,6 @@ import { Navigate, useParams } from "react-router";
 import mascotImageUrl from "../assets/tato_mascot_3d.png";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
-import { useActionThroughTheBackend, type BackendActionRefusal } from "./backend_action";
 import { CodeBlock, CommandLine } from "../design_system/code_block";
 import { CopyIconButton } from "../design_system/copy_icon_button";
 import { PendingActionWords } from "../design_system/pending_action_words";
@@ -24,7 +23,6 @@ import {
   presentAboutVersions,
   presentCommandLineToolVersion,
   presentUsrLocalBinLink,
-  HOME_FOLDER_BIN_ON_THE_PATH_LINE,
   presentLoginItemsRow,
   presentOpenAtLogin,
   presentRuntimeLogFolder,
@@ -40,6 +38,7 @@ import {
   type SettingsSection,
 } from "../presentation/settings_presentation";
 import type { WindowAppearance } from "../window_appearance";
+import { useActionThroughTheBackend, type BackendActionRefusal } from "./action_through_the_backend";
 import {
   useRuntimeDescriptionReading,
   useTatolabStatus,
@@ -55,7 +54,6 @@ const SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   "command-line": SquareTerminal,
   about: Info,
 };
-
 
 /** How long a switch the backend accepted holds its asked-for position when no status follows: the app publishes only a status that changed. */
 const SWITCH_HELD_WITHOUT_A_FOLLOWING_STATUS_MILLISECONDS = 3_000;
@@ -403,10 +401,10 @@ function CommandLineSection() {
             </>
           )}
         >
-          {platform === "macos" && commandLineTool.isLinked && (
+          {commandLineTool.pathLineToAdd !== null && (
             <div className="flex flex-col gap-1.5" data-command-line-path-line="">
-              <p className="text-xs text-fg-3">If a terminal can't find it, add this line to ~/.zprofile and open a new terminal:</p>
-              <CommandLine command={HOME_FOLDER_BIN_ON_THE_PATH_LINE} />
+              <p className="text-xs text-fg-3">{commandLineTool.pathLineToAdd.lead}</p>
+              <CommandLine command={commandLineTool.pathLineToAdd.line} />
             </div>
           )}
         </SettingsRow>

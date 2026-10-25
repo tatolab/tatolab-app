@@ -47,7 +47,7 @@ export type TrayMenuChoice =
   | "quit_the_app";
 
 /** The item that brings the runtime back, as the menu shows it for `trayRuntimeRemedy`; `null` when there is none. */
-export function trayRuntimeRemedyMenuItem(remedy: TrayRuntimeRemedy): TrayMenuItemDescription | null {
+function trayRuntimeRemedyMenuItem(remedy: TrayRuntimeRemedy): TrayMenuItemDescription | null {
   switch (remedy) {
     case "open_login_items":
       return { kind: "item", id: "open_login_items_settings", label: "Open Login Items…", enabled: true };

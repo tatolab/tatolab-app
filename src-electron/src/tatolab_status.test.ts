@@ -95,7 +95,7 @@ test("the_service_manager_giving_up_is_blocked_even_inside_the_grace_period", ()
   }
 });
 
-test("the_runtime_stops_answering_only_on_the_round_it_turns_unreachable_never_answered_or_blocked", () => {
+test("the_runtime_stops_answering_only_on_the_round_it_first_turns_unreachable_never_answered_or_blocked", () => {
   const cases: [RuntimeState | null, RuntimeState, boolean][] = [
     [null, "unreachable", true],
     ["starting", "unreachable", true],
@@ -103,7 +103,7 @@ test("the_runtime_stops_answering_only_on_the_round_it_turns_unreachable_never_a
     ["unreachable", "unreachable", false],
     ["unreachable", "starting", false],
     ["starting", "never_answered", true],
-    ["never_answered", "blocked_by_the_service_manager", true],
+    ["never_answered", "blocked_by_the_service_manager", false],
     ["blocked_by_the_service_manager", "blocked_by_the_service_manager", false],
     [null, "stopped", false],
   ];

@@ -25,6 +25,15 @@ export interface RuntimeStateObservations {
   timeSinceTheRuntimeWasExpectedUpMs: number;
 }
 
+/** Whether a round could find the service manager given up on the runtime: only with the switch on, the agent enabled and the runtime not answering, as `deriveRuntimeState` reads the give-up only then. */
+export function theServiceManagerMayHaveGivenUp({
+  runTatolab,
+  runtimeAgent,
+  runtimeHealth,
+}: Pick<RuntimeStateObservations, "runTatolab" | "runtimeAgent" | "runtimeHealth">): boolean {
+  return runTatolab && runtimeAgent === "enabled" && runtimeHealth === "failing";
+}
+
 /**
  * The runtime's state: running while it answers; stopped with the switch off or the agent not enabled; blocked once the
  * service manager has given up on it; starting within the grace period; past it, not responding when it has answered
@@ -32,7 +41,7 @@ export interface RuntimeStateObservations {
  */
 export function deriveRuntimeState(observations: RuntimeStateObservations): RuntimeState {
   if (observations.runtimeHealth === "healthy") return "running";
-  if (!observations.runTatolab || observations.runtimeAgent !== "enabled") return "stopped";
+  if (!theServiceManagerMayHaveGivenUp(observations)) return "stopped";
   if (observations.serviceManagerGaveUpOnTheRuntime) return "blocked_by_the_service_manager";
   if (observations.timeSinceTheRuntimeWasExpectedUpMs < RUNTIME_STARTING_GRACE_PERIOD_MS) return "starting";
   return observations.runtimeAnsweredSinceItWasLastStarted ? "unreachable" : "never_answered";
@@ -43,9 +52,9 @@ function isARuntimeNotAnswering(runtimeState: RuntimeState): boolean {
   return runtimeState === "unreachable" || runtimeState === "never_answered" || runtimeState === "blocked_by_the_service_manager";
 }
 
-/** Whether this round is the one the runtime stopped answering in, after `previousRuntimeState`: it is now unreachable, never answered or blocked, and was not that before. */
+/** Whether this round is the one the runtime stopped answering in, after `previousRuntimeState`: it is now unreachable, never answered or blocked, and was none of them before. */
 export function theRuntimeJustStoppedAnswering(previousRuntimeState: RuntimeState | null, runtimeState: RuntimeState): boolean {
-  return isARuntimeNotAnswering(runtimeState) && previousRuntimeState !== runtimeState;
+  return isARuntimeNotAnswering(runtimeState) && (previousRuntimeState === null || !isARuntimeNotAnswering(previousRuntimeState));
 }
 
 /** What the tray offers to bring the runtime back: Login Items while macOS waits for the person's approval, Try Again once it never answered or the service manager gave up; `null` otherwise. */

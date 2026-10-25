@@ -27,13 +27,20 @@ export const RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS = 10_000;
  * the agent enabled, never once the service manager has given up on it, and no sooner than
  * `RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS` after the last start attempt.
  */
-export function theRuntimeAgentShouldBeStartedNow(
-  runTatolab: boolean,
-  runtimeAgent: RuntimeAgentRegistrationStatus,
-  runtimeHealth: RuntimeHealthObservation,
-  serviceManagerGaveUpOnTheRuntime: boolean,
-  timeSinceTheLastStartAttemptMs: number | null,
-): boolean {
+export function theRuntimeAgentShouldBeStartedNow({
+  runTatolab,
+  runtimeAgent,
+  runtimeHealth,
+  serviceManagerGaveUpOnTheRuntime,
+  timeSinceTheLastStartAttemptMs,
+}: {
+  runTatolab: boolean;
+  runtimeAgent: RuntimeAgentRegistrationStatus;
+  runtimeHealth: RuntimeHealthObservation;
+  serviceManagerGaveUpOnTheRuntime: boolean;
+  /** `null` when this launch has made no start attempt. */
+  timeSinceTheLastStartAttemptMs: number | null;
+}): boolean {
   return (
     runTatolab &&
     runtimeAgent === "enabled" &&
@@ -279,8 +286,7 @@ export class RunTatolabSwitch {
 
   private async register(nowMs: number): Promise<RunTatolabReconciliation> {
     const registered = await this.runtimeAgent.registerRuntimeAgent();
-    this.runtimeExpectedUpSinceMs = nowMs;
-    this.runtimeAnsweredSinceLastStarted = false;
+    this.noteTheRuntimeStartedAfresh(nowMs);
     // Service Management refuses the registration of an agent the user has not approved yet, while
     // recording it as awaiting approval.
     if ((await this.runtimeAgent.registrationStatus()) === "requires_approval") return this.needsApprovalInLoginItems();
@@ -302,7 +308,13 @@ export class RunTatolabSwitch {
     const timeSinceTheLastStartAttemptMs =
       this.runtimeAgentLastStartAttemptAtMs === null ? null : Math.max(0, nowMs - this.runtimeAgentLastStartAttemptAtMs);
     if (
-      !theRuntimeAgentShouldBeStartedNow(this.runTatolabSwitchedOn, runtimeAgent, runtimeHealth, serviceManagerGaveUpOnTheRuntime, timeSinceTheLastStartAttemptMs)
+      !theRuntimeAgentShouldBeStartedNow({
+        runTatolab: this.runTatolabSwitchedOn,
+        runtimeAgent,
+        runtimeHealth,
+        serviceManagerGaveUpOnTheRuntime,
+        timeSinceTheLastStartAttemptMs,
+      })
     ) {
       return;
     }

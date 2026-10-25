@@ -3,9 +3,9 @@
 
 import type { TatolabStatus } from "../backend/tatolab_backend_contract";
 import { platformOf } from "./platform_presentation";
-import { presentRuntimeStatus, type RuntimeBannerAction } from "./runtime_presentation";
+import { presentRuntimeStatus, type RuntimeBannerAction, type RuntimeBannerPresentation } from "./runtime_presentation";
 
-/** Where a getting-started step stands: not yet its turn, under way, done, waiting on the person, or failed. */
+/** Where a getting-started step stands, as the checklist shows it: not yet its turn, under way, done, waiting on the person, or failed. */
 export type GettingStartedStepProgress = "waiting" | "in_progress" | "done" | "needs_you" | "failed";
 
 /** A step of Getting set up: starting the runtime, and the ones that appear only when macOS or systemd needs the person. */
@@ -39,6 +39,13 @@ const START_THE_RUNTIME = "Start the runtime";
 export function presentGettingStarted(status: TatolabStatus): GettingStartedPresentation {
   const runtimePresentation = presentRuntimeStatus(status);
   const serviceManagerName = platformOf(status) === "linux" ? "systemd" : "macOS";
+  const stepThatNeedsThePerson = (
+    step: GettingStartedStepName,
+    banner: RuntimeBannerPresentation | null,
+    progressWords: string,
+    progress: GettingStartedStepProgress,
+  ): GettingStartedStepPresentation[] =>
+    banner === null ? [] : [{ step, title: banner.title, progressWords, explanation: banner.explanation, progress, action: banner.action }];
   const waitingOnTheRuntime = (steps: GettingStartedStepPresentation[]): GettingStartedPresentation => ({
     steps,
     getStartedIsOffered: false,
@@ -58,14 +65,7 @@ export function presentGettingStarted(status: TatolabStatus): GettingStartedPres
     case "needs_login_items_approval":
       return waitingOnTheRuntime([
         { step: "start_the_runtime", title: START_THE_RUNTIME, progressWords: "Starts once you approve it", explanation: null, progress: "waiting", action: null },
-        {
-          step: "approve_in_login_items",
-          title: runtimePresentation.banner?.title ?? "Needs your approval",
-          progressWords: "Waiting for you",
-          explanation: runtimePresentation.banner?.explanation ?? null,
-          progress: "needs_you",
-          action: "open_login_items",
-        },
+        ...stepThatNeedsThePerson("approve_in_login_items", runtimePresentation.banner, "Waiting for you", "needs_you"),
       ]);
     case "blocked_by_the_service_manager":
       return waitingOnTheRuntime([
@@ -77,14 +77,7 @@ export function presentGettingStarted(status: TatolabStatus): GettingStartedPres
           progress: "waiting",
           action: null,
         },
-        {
-          step: "unblock_the_runtime",
-          title: runtimePresentation.banner?.title ?? `Blocked by ${serviceManagerName}`,
-          progressWords: "Stopped",
-          explanation: runtimePresentation.banner?.explanation ?? null,
-          progress: "failed",
-          action: "register_the_runtime_again",
-        },
+        ...stepThatNeedsThePerson("unblock_the_runtime", runtimePresentation.banner, "Stopped", "failed"),
       ]);
     default:
       return waitingOnTheRuntime([
@@ -98,4 +91,9 @@ export function presentGettingStarted(status: TatolabStatus): GettingStartedPres
         },
       ]);
   }
+}
+
+/** The notice over the Streams list when Get Started could not be remembered: first run is over for this launch, and Welcome comes back at the next. */
+export function presentFirstRunFinishingRefusal(refusalReason: string): { title: string; detail: string } {
+  return { title: "Tatolab couldn't remember that you've set it up", detail: `Welcome shows again next time Tatolab opens. ${refusalReason}` };
 }

@@ -4,10 +4,8 @@
 import { cn } from "cn";
 import { Check, Hourglass, LoaderCircle, SquareX, TriangleAlert, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import type { GettingStartedStepProgress as ChecklistStepProgress } from "../presentation/getting_started_presentation";
 import type { ControlDataAttributes } from "./control_data_attributes";
-
-/** Where a checklist step stands: not yet its turn, under way, done, waiting on the person, or failed. */
-export type ChecklistStepProgress = "waiting" | "in_progress" | "done" | "needs_you" | "failed";
 
 /** Each progress's icon and its colour: status in a shape only where something needs the person or went wrong. */
 const PROGRESS_ICONS: Record<ChecklistStepProgress, { icon: LucideIcon; className: string; label: string }> = {

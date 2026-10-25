@@ -2,27 +2,30 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { ChevronLeft } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import mascotImageUrl from "../assets/tato_mascot_3d.png";
+import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { ProgressChecklist, ProgressChecklistStep } from "../design_system/progress_checklist";
 import { RefusalLine } from "../design_system/refusal_line";
 import { presentGettingStarted, type GettingStartedStepPresentation } from "../presentation/getting_started_presentation";
 import { windowDragRegionAttribute } from "../presentation/platform_presentation";
-import type { RuntimeBannerAction } from "../presentation/runtime_presentation";
-import { useActionThroughTheBackend } from "./backend_action";
-import { runBannerAction, RUNTIME_BANNER_ACTION_LABELS } from "./runtime_state_page_view";
+import { RUNTIME_BANNER_ACTION_LABELS, RUNTIME_BANNER_ACTION_REFUSAL_LEADS } from "../presentation/runtime_presentation";
+import { runBannerAction, useActionThroughTheBackend } from "./action_through_the_backend";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 /** The two screens of first run: Welcome, then Getting set up. */
 export type GettingStartedScreen = "welcome" | "getting_set_up";
 
-/** The action that moves a step on, waiting for the backend's answer in its place, and its refusal under the step. */
+/** One step of the checklist, with the action that moves it on waiting for the backend's answer in its place and its refusal under it. */
 function GettingStartedStep({ step }: { step: GettingStartedStepPresentation }) {
   const { backend } = useTatolabWindowEnvironment();
-  const action: RuntimeBannerAction | null = step.action;
-  const stepAction = useActionThroughTheBackend(() => (action === null ? Promise.resolve() : runBannerAction(backend, action)), "That didn't work:");
+  const { action } = step;
+  const stepAction = useActionThroughTheBackend(
+    () => (action === null ? Promise.resolve() : runBannerAction(backend, action)),
+    action === null ? "" : RUNTIME_BANNER_ACTION_REFUSAL_LEADS[action],
+  );
   return (
     <ProgressChecklistStep
       progress={step.progress}
@@ -61,16 +64,20 @@ function WelcomeScreen() {
   );
 }
 
-function GettingSetUpScreen() {
-  const status = useTatolabStatus();
-  const gettingStarted = presentGettingStarted(status);
+/** Getting set up, taking keyboard focus at its heading as it opens, so focus never falls to the page when Continue goes. */
+function GettingSetUpScreen({ steps }: { steps: readonly GettingStartedStepPresentation[] }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => headingRef.current?.focus(), []);
   return (
     <div data-getting-started-screen="getting_set_up">
-      <h1 className="title-lg">Getting set up</h1>
+      <h1 ref={headingRef} tabIndex={-1} className="title-lg outline-none">
+        Getting set up
+      </h1>
       <p className="mt-1 mb-5 text-fg-2">The runtime starts in the background. Tatolab asks you for something only when macOS needs you.</p>
       <ProgressChecklist label="Getting set up">
-        {gettingStarted.steps.map((step) => (
-          <GettingStartedStep key={step.step} step={step} />
+        {steps.map((step) => (
+          // A step whose standing changes starts afresh, so a refusal never outlives the state it was refused in.
+          <GettingStartedStep key={`${step.step}:${step.progress}:${step.action ?? "none"}`} step={step} />
         ))}
       </ProgressChecklist>
     </div>
@@ -79,18 +86,25 @@ function GettingSetUpScreen() {
 
 /** First run on macOS, filling the window until Get Started: Welcome, then Getting set up, whose checklist ticks as the runtime comes up. */
 export function GettingStartedView() {
-  const { backend, platform } = useTatolabWindowEnvironment();
+  const { backend, platform, firstRunFinishingRefusal } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
   const [screen, setScreen] = useState<GettingStartedScreen>("welcome");
+  const [isGetStartedPending, setIsGetStartedPending] = useState(false);
   const gettingStarted = presentGettingStarted(status);
-  const getStarted = useActionThroughTheBackend(() => backend.rememberFirstRunFinished(), "Tatolab couldn't remember this:");
+  const getStarted = () => {
+    setIsGetStartedPending(true);
+    firstRunFinishingRefusal.showRefusalReason(null);
+    backend
+      .rememberFirstRunFinished()
+      .catch((rejection: unknown) => firstRunFinishingRefusal.showRefusalReason(describeBackendRejection(rejection)))
+      .finally(() => setIsGetStartedPending(false));
+  };
   return (
     <div className="flex h-screen flex-col bg-window text-fg">
       <div className="h-(--title-bar-height) shrink-0" data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined} />
       <main className="scrollbar-thin flex min-h-0 flex-1 overflow-y-auto">
         <div className={screen === "welcome" ? "m-auto w-[560px] max-w-full px-8 py-10" : "mx-auto w-[560px] max-w-full px-8 pt-[8vh] pb-10"}>
-          {screen === "welcome" ? <WelcomeScreen /> : <GettingSetUpScreen />}
-          {getStarted.refusal !== null && <RefusalLine lead={getStarted.refusal.lead} words={getStarted.refusal.words} />}
+          {screen === "welcome" ? <WelcomeScreen /> : <GettingSetUpScreen steps={gettingStarted.steps} />}
         </div>
       </main>
       <footer className="shrink-0 border-t bg-chrome">
@@ -115,8 +129,8 @@ export function GettingStartedView() {
             ) : (
               <ActionButton
                 appearance="primary"
-                isDisabled={!gettingStarted.getStartedIsOffered || getStarted.isPending}
-                onPressed={getStarted.run}
+                isDisabled={!gettingStarted.getStartedIsOffered || isGetStartedPending}
+                onPressed={getStarted}
                 data-getting-started-action="get_started"
               >
                 Get Started

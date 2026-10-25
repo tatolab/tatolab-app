@@ -266,17 +266,17 @@ test("registering_or_a_healthy_answer_restarts_the_starting_grace_period", async
 
 test("the_runtime_agent_is_started_only_while_on_enabled_and_failing_health", () => {
   const neverAttempted = null;
-  expect(theRuntimeAgentShouldBeStartedNow(true, "enabled", "failing", false, neverAttempted)).toBe(true);
-  expect(theRuntimeAgentShouldBeStartedNow(false, "enabled", "failing", false, neverAttempted)).toBe(false);
-  expect(theRuntimeAgentShouldBeStartedNow(true, "enabled", "healthy", false, neverAttempted)).toBe(false);
+  expect(theRuntimeAgentShouldBeStartedNow({ runTatolab: true, runtimeAgent: "enabled", runtimeHealth: "failing", serviceManagerGaveUpOnTheRuntime: false, timeSinceTheLastStartAttemptMs: neverAttempted })).toBe(true);
+  expect(theRuntimeAgentShouldBeStartedNow({ runTatolab: false, runtimeAgent: "enabled", runtimeHealth: "failing", serviceManagerGaveUpOnTheRuntime: false, timeSinceTheLastStartAttemptMs: neverAttempted })).toBe(false);
+  expect(theRuntimeAgentShouldBeStartedNow({ runTatolab: true, runtimeAgent: "enabled", runtimeHealth: "healthy", serviceManagerGaveUpOnTheRuntime: false, timeSinceTheLastStartAttemptMs: neverAttempted })).toBe(false);
   for (const runtimeAgent of ["requires_approval", "not_registered", "not_found"] as const) {
-    expect(theRuntimeAgentShouldBeStartedNow(true, runtimeAgent, "failing", false, neverAttempted), runtimeAgent).toBe(false);
+    expect(theRuntimeAgentShouldBeStartedNow({ runTatolab: true, runtimeAgent, runtimeHealth: "failing", serviceManagerGaveUpOnTheRuntime: false, timeSinceTheLastStartAttemptMs: neverAttempted }), runtimeAgent).toBe(false);
   }
 });
 
 test("the_runtime_agent_is_never_started_by_the_app_once_the_service_manager_gave_up_on_it", () => {
-  expect(theRuntimeAgentShouldBeStartedNow(true, "enabled", "failing", true, null)).toBe(false);
-  expect(theRuntimeAgentShouldBeStartedNow(true, "enabled", "failing", true, 60_000)).toBe(false);
+  expect(theRuntimeAgentShouldBeStartedNow({ runTatolab: true, runtimeAgent: "enabled", runtimeHealth: "failing", serviceManagerGaveUpOnTheRuntime: true, timeSinceTheLastStartAttemptMs: null })).toBe(false);
+  expect(theRuntimeAgentShouldBeStartedNow({ runTatolab: true, runtimeAgent: "enabled", runtimeHealth: "failing", serviceManagerGaveUpOnTheRuntime: true, timeSinceTheLastStartAttemptMs: 60_000 })).toBe(false);
 });
 
 test("the_runtime_agent_is_started_at_most_once_per_minimum_interval", () => {
@@ -287,7 +287,7 @@ test("the_runtime_agent_is_started_at_most_once_per_minimum_interval", () => {
     [60_000, true],
   ];
   for (const [timeSinceTheLastStartAttemptMs, expected] of cases) {
-    expect(theRuntimeAgentShouldBeStartedNow(true, "enabled", "failing", false, timeSinceTheLastStartAttemptMs), `${timeSinceTheLastStartAttemptMs} ms`).toBe(
+    expect(theRuntimeAgentShouldBeStartedNow({ runTatolab: true, runtimeAgent: "enabled", runtimeHealth: "failing", serviceManagerGaveUpOnTheRuntime: false, timeSinceTheLastStartAttemptMs: timeSinceTheLastStartAttemptMs }), `${timeSinceTheLastStartAttemptMs} ms`).toBe(
       expected,
     );
   }

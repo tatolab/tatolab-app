@@ -28,7 +28,10 @@ export const COMMAND_LINE_TOOL_USR_LOCAL_BIN_LINK_PATH = "/usr/local/bin/tatolab
 export const EARLIER_MACHINE_RUNTIME_LOCK_DIRECTORY = "/Library/Application Support/Tatolab";
 
 /** The CLI's file name beside the app binary in `Contents/MacOS/`. Not `tatolab`: a default APFS volume folds case, so that name would overwrite the app's own `Tatolab`. */
-export const BUNDLED_COMMAND_LINE_TOOL_FILE_NAME = "tatolab-cli";
+const BUNDLED_COMMAND_LINE_TOOL_FILE_NAME = "tatolab-cli";
+
+/** Where a bundle keeps its CLI, from the bundle's own folder. */
+const BUNDLED_COMMAND_LINE_TOOL_INSIDE_THE_BUNDLE = path.join("Contents", "MacOS", BUNDLED_COMMAND_LINE_TOOL_FILE_NAME);
 
 /** Every path this build of the app reads or links on macOS. */
 export interface TatolabMachinePathsOnMacos {
@@ -100,5 +103,10 @@ export function appBundleContaining(appExecutable: string): string | null {
 
 /** `<bundle>/Contents/MacOS/tatolab-cli`. */
 export function bundledCommandLineToolIn(appBundle: string): string {
-  return path.join(appBundle, "Contents", "MacOS", BUNDLED_COMMAND_LINE_TOOL_FILE_NAME);
+  return path.join(appBundle, BUNDLED_COMMAND_LINE_TOOL_INSIDE_THE_BUNDLE);
+}
+
+/** Whether `linkTarget` names the CLI inside some bundle, `<bundle>/Contents/MacOS/tatolab-cli`. */
+export function isABundledCommandLineToolPath(linkTarget: string): boolean {
+  return linkTarget.endsWith(`${path.sep}${BUNDLED_COMMAND_LINE_TOOL_INSIDE_THE_BUNDLE}`);
 }

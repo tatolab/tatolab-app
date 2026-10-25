@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 import { useState } from "react";
-import { describeBackendRejection } from "../backend/tatolab_backend";
+import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
+import type { RuntimeBannerAction } from "../presentation/runtime_presentation";
 
 /** A refusal shown under what was refused: the window's lead naming it, then the refusing side's own words. */
 export type BackendActionRefusal = { lead: string; words: string };
@@ -19,4 +20,17 @@ export function useActionThroughTheBackend(runTheAction: () => Promise<void>, re
       .finally(() => setIsPending(false));
   };
   return { isPending, refusal, run };
+}
+
+/** The command each action that brings the runtime back runs. */
+export function runBannerAction(backend: TatolabBackend, action: RuntimeBannerAction): Promise<void> {
+  switch (action) {
+    case "turn_on_run_tatolab":
+    case "retry_run_tatolab":
+      return backend.setRunTatolab(true);
+    case "open_login_items":
+      return backend.openLoginItemsSettings();
+    case "register_the_runtime_again":
+      return backend.registerTheRuntimeAgain();
+  }
 }

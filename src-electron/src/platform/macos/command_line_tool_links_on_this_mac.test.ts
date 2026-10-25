@@ -209,3 +209,18 @@ test("a_local_proof_build_links_under_its_test_root_and_never_in_usr_local_bin",
   });
   expect(promptsShown).toEqual([]);
 });
+
+test("two links asked for at once show one prompt, and the second is refused while it shows", async () => {
+  const { bundledCommandLineTool, machinePaths } = await realShapedMachine();
+  const { administratorPrompt, promptsShown, heldPrompts } = fakeAdministratorPrompt("held");
+  const commandLineToolLinks = new CommandLineToolLinksOnThisMac(machinePaths, bundledCommandLineTool, administratorPrompt, quietTatolabAppLog);
+
+  const firstLinking = commandLineToolLinks.linkTheCommandLineToolInUsrLocalBin();
+  const secondLinking = commandLineToolLinks.linkTheCommandLineToolInUsrLocalBin();
+
+  expect(await secondLinking).toEqual(failedWith({ kind: "refused", refusal: USR_LOCAL_BIN_LINK_PROMPT_ALREADY_SHOWING_REFUSAL }));
+  await expect.poll(() => heldPrompts.length).toBe(1);
+  heldPrompts[0]?.(succeeded(undefined));
+  expect(await firstLinking).toEqual(succeeded(undefined));
+  expect(promptsShown).toHaveLength(1);
+});

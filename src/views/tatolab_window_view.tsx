@@ -25,7 +25,7 @@ import { TatolabSearchView } from "./tatolab_search_view";
 import {
   TatolabWindowEnvironmentContext,
   TatolabWindowStatusStore,
-  UninstallTatolabRefusal,
+  RefusalKeptForTheWindow,
   useTatolabStatus,
   useTatolabWindowEnvironment,
   type TatolabWindowEnvironment,
@@ -98,7 +98,8 @@ export function mountTatolabWindow(
     runtimeDescriptionReadings.setPollingAllowed(isVisible);
   });
   const windowAppearance = new WindowAppearanceChoice(windowLocalStorage(), window.matchMedia(SYSTEM_PREFERS_DARK_MEDIA_QUERY), document.documentElement);
-  const uninstallTatolabRefusal = new UninstallTatolabRefusal();
+  const uninstallTatolabRefusal = new RefusalKeptForTheWindow();
+  const firstRunFinishingRefusal = new RefusalKeptForTheWindow();
   backend.onStreamPageRequested((streamName) => void navigateTo(streamPagePath(streamName)));
   const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
   const streamsPage = new StreamsPageView(backend);
@@ -206,6 +207,7 @@ export function mountTatolabWindow(
       runtimeDescriptionReadings,
       openUninstallSheet: () => uninstallSheet.open(),
       uninstallTatolabRefusal,
+      firstRunFinishingRefusal,
       openSearch,
     };
     createRoot(rootElement).render(

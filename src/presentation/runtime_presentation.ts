@@ -23,6 +23,22 @@ export type RuntimeDisplayState =
 /** What a runtime state offers to bring the runtime back: turn the switch on, open Login Items, turn it on again, or register the agent again (Try Again). */
 export type RuntimeBannerAction = "turn_on_run_tatolab" | "open_login_items" | "retry_run_tatolab" | "register_the_runtime_again";
 
+/** The words on the button of each action that brings the runtime back. */
+export const RUNTIME_BANNER_ACTION_LABELS: Record<RuntimeBannerAction, string> = {
+  turn_on_run_tatolab: "Turn On Tatolab",
+  open_login_items: "Open Login Items…",
+  retry_run_tatolab: "Try Again",
+  register_the_runtime_again: "Try Again",
+};
+
+/** The window's lead before each action's refusal, naming what was refused. */
+export const RUNTIME_BANNER_ACTION_REFUSAL_LEADS: Record<RuntimeBannerAction, string> = {
+  turn_on_run_tatolab: "Couldn't turn Tatolab on:",
+  open_login_items: "Couldn't open Login Items:",
+  retry_run_tatolab: "Couldn't turn Tatolab on:",
+  register_the_runtime_again: "Couldn't start the runtime again:",
+};
+
 /** What the banner above the streams says, and the one action it offers. */
 export interface RuntimeBannerPresentation {
   title: string;
@@ -93,8 +109,8 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         banner: {
           title: "The runtime isn't responding",
           explanation: isLinux
-            ? "It was answering, then stopped 20 seconds ago. systemd restarts tatolabd.service if it fails."
-            : "It was answering, then stopped 20 seconds ago. macOS restarts it if it exits.",
+            ? "It was answering, then stopped, and hasn't answered for over 20 seconds. systemd restarts tatolabd.service if it fails."
+            : "It was answering, then stopped, and hasn't answered for over 20 seconds. macOS restarts it if it exits.",
           action: null,
         },
       };

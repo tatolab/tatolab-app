@@ -90,7 +90,7 @@ describe("Runtime › Status", () => {
     expect(presentRuntimeStatusRow(statusWith({ runtime_state: "unreachable" }), describedAs({}))).toEqual({
       statusWords: "Not responding",
       tone: "error",
-      problemExplanation: "It was answering, then stopped 20 seconds ago. macOS restarts it if it exits.",
+      problemExplanation: "It was answering, then stopped, and hasn't answered for over 20 seconds. macOS restarts it if it exits.",
       refusal: null,
     });
     expect(presentRuntimeStatusRow(statusWith({ run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped" }), describedAs({}))).toMatchObject({

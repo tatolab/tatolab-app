@@ -4,30 +4,10 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import { createElement, type ElementChild } from "../dom";
 import { LOCK_ICON_SVG, POWER_ICON_SVG } from "../icons";
-import type { RuntimeBannerAction, RuntimeBannerPresentation, RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
+import { RUNTIME_BANNER_ACTION_LABELS, type RuntimeBannerPresentation, type RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
+import { runBannerAction } from "./action_through_the_backend";
 import { createCopyButton } from "./copy_button";
 import { createFailureIcon, createFailureLine, createIcon, createSpinner } from "./window_controls";
-
-/** The words on the button of each action that brings the runtime back. */
-export const RUNTIME_BANNER_ACTION_LABELS: Record<RuntimeBannerAction, string> = {
-  turn_on_run_tatolab: "Turn On Tatolab",
-  open_login_items: "Open Login Items…",
-  retry_run_tatolab: "Try Again",
-  register_the_runtime_again: "Try Again",
-};
-
-/** The command each banner action runs. */
-export function runBannerAction(backend: TatolabBackend, action: RuntimeBannerAction): Promise<void> {
-  switch (action) {
-    case "turn_on_run_tatolab":
-    case "retry_run_tatolab":
-      return backend.setRunTatolab(true);
-    case "open_login_items":
-      return backend.openLoginItemsSettings();
-    case "register_the_runtime_again":
-      return backend.registerTheRuntimeAgain();
-  }
-}
 
 function headingIcon(presentation: RuntimeDisplayPresentation): Element | null {
   switch (presentation.displayState) {

@@ -4,7 +4,7 @@
 // Linux's `tatolab` command, which the installer links into `~/.local/bin` with the runtime and
 // its service. The app only reads where it is linked, and links nothing itself.
 
-import { stat } from "node:fs/promises";
+import { somethingIsAt } from "../../file_system_entries_on_this_machine.js";
 import { failedWith, type Result } from "../../result.js";
 import type { CommandLineToolLinkRefusal, CommandLineToolLinksObservation, TatolabCommandLineToolLinks } from "../tatolab_command_line_tool_links.js";
 
@@ -19,7 +19,7 @@ export class CommandLineToolLinkedByTheInstaller implements TatolabCommandLineTo
   async observeCommandLineToolLinks(): Promise<CommandLineToolLinksObservation> {
     return {
       homeFolderLinkedAt:
-        this.commandLineToolLink !== null && (await pathResolvesToSomething(this.commandLineToolLink)) ? this.commandLineToolLink : null,
+        this.commandLineToolLink !== null && (await somethingIsAt(this.commandLineToolLink)) ? this.commandLineToolLink : null,
       usrLocalBinLink: { kind: "not_offered", reason: LINUX_INSTALLER_LINKS_THE_COMMAND },
     };
   }
@@ -30,15 +30,5 @@ export class CommandLineToolLinkedByTheInstaller implements TatolabCommandLineTo
 
   async linkTheCommandLineToolInUsrLocalBin(): Promise<Result<void, CommandLineToolLinkRefusal>> {
     return failedWith({ kind: "not_offered", reason: LINUX_INSTALLER_LINKS_THE_COMMAND });
-  }
-}
-
-/** Whether `candidatePath` names something once every link in it is followed, as Rust's `Path::exists` answers. */
-async function pathResolvesToSomething(candidatePath: string): Promise<boolean> {
-  try {
-    await stat(candidatePath);
-    return true;
-  } catch {
-    return false;
   }
 }

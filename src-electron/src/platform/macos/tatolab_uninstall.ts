@@ -10,8 +10,9 @@
 // runtime's agent and stops the runtime, the app's own config directory is removed, the bundle
 // goes to the Trash, and the app quits. A local-proof build removes its test root instead.
 
-import { lstat, readlink, rm } from "node:fs/promises";
+import { readlink, rm } from "node:fs/promises";
 import path from "node:path";
+import { somethingIsAt } from "../../file_system_entries_on_this_machine.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../../result.js";
 import type { RunTatolabReconciliation } from "../../run_tatolab_switch.js";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
@@ -67,21 +68,25 @@ export async function uninstallTatolabInOrder(steps: TatolabUninstallSteps, mach
 
 async function removeTheMachineFiles(steps: TatolabUninstallSteps, machineFiles: MachineFilesToRemove): Promise<Result<void, string>> {
   if (machineFiles.kind === "local_proof_test_root") return steps.removeTheLocalProofTestRoot(machineFiles.testMachineRoot);
-  if (machineFiles.removalScriptBehindTheAdministratorPrompt !== null) {
-    const removed = await steps.runBehindTheAdministratorPrompt(machineFiles.removalScriptBehindTheAdministratorPrompt);
-    if (!removed.ok) {
-      return failedWith(
-        removed.failure.kind === "cancelled"
-          ? "the administrator prompt was cancelled, so nothing was uninstalled"
-          : `the machine's Tatolab files could not be removed: ${removed.failure.failureDescription}`,
-      );
-    }
-  }
+  const rootsFilesRemoved = await removeWhatOnlyRootMayRemove(steps, machineFiles.removalScriptBehindTheAdministratorPrompt);
+  if (!rootsFilesRemoved.ok) return rootsFilesRemoved;
   return machineFiles.homeFolderLink === null ? succeeded(undefined) : steps.removeTheHomeFolderLink(machineFiles.homeFolderLink);
 }
 
+/** Run `removalScript` behind the administrator prompt; nothing, with no prompt, when there is no script. */
+async function removeWhatOnlyRootMayRemove(steps: TatolabUninstallSteps, removalScript: string | null): Promise<Result<void, string>> {
+  if (removalScript === null) return succeeded(undefined);
+  const removed = await steps.runBehindTheAdministratorPrompt(removalScript);
+  if (removed.ok) return removed;
+  return failedWith(
+    removed.failure.kind === "cancelled"
+      ? "the administrator prompt was cancelled, so nothing was uninstalled"
+      : `the machine's Tatolab files could not be removed: ${removed.failure.failureDescription}`,
+  );
+}
+
 /** Whether the link at `linkPath` points into `appBundle`. */
-export async function linksIntoTheBundle(linkPath: string, appBundle: string): Promise<boolean> {
+async function linksIntoTheBundle(linkPath: string, appBundle: string): Promise<boolean> {
   const linkTarget = await readlink(linkPath).catch(() => null);
   return linkTarget !== null && linkTarget.startsWith(`${appBundle}/`);
 }
@@ -94,7 +99,7 @@ export async function machineFilesToRemove(machinePaths: TatolabMachinePathsOnMa
   const usrLocalBinLink = machinePaths.commandLineToolUsrLocalBinLink;
   const usrLocalBinLinkToRemove = usrLocalBinLink !== null && (await linksIntoTheBundle(usrLocalBinLink, appBundle)) ? usrLocalBinLink : null;
   const earlierLockDirectory = machinePaths.earlierMachineRuntimeLockDirectory;
-  const earlierLockDirectoryToRemove = earlierLockDirectory !== null && (await lstat(earlierLockDirectory).then(() => true, () => false)) ? earlierLockDirectory : null;
+  const earlierLockDirectoryToRemove = earlierLockDirectory !== null && (await somethingIsAt(earlierLockDirectory)) ? earlierLockDirectory : null;
   return {
     kind: "this_users_and_the_machines",
     homeFolderLink: machinePaths.commandLineToolHomeFolderLink,

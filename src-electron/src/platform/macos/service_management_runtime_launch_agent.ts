@@ -30,8 +30,9 @@ export const LAUNCHCTL_AT_ITS_SYSTEM_PATH: LaunchctlRunner = (launchctlArguments
 
 /** A top-level field of `launchctl print`'s answer for one job, a line indented by one tab; `null` when it prints none. */
 function launchctlPrintField(launchctlPrintOutput: string, fieldName: string): string | null {
-  const fieldLine = launchctlPrintOutput.split("\n").find((printedLine) => printedLine.startsWith(`\t${fieldName} = `));
-  return fieldLine === undefined ? null : fieldLine.slice(fieldName.length + 4).trim();
+  const fieldPrefix = `\t${fieldName} = `;
+  const fieldLine = launchctlPrintOutput.split("\n").find((printedLine) => printedLine.startsWith(fieldPrefix));
+  return fieldLine === undefined ? null : fieldLine.slice(fieldPrefix.length).trim();
 }
 
 /**

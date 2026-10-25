@@ -32,7 +32,7 @@ import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { RunTatolabSwitch, type RunTatolabReconciliation } from "./run_tatolab_switch.js";
 import { RuntimeRestartedForAppVersionFile } from "./runtime_restarted_for_app_version.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import { deriveRuntimeState, theRuntimeJustStoppedAnswering, type RuntimeHealthObservation } from "./tatolab_status.js";
+import { deriveRuntimeState, theRuntimeJustStoppedAnswering, theServiceManagerMayHaveGivenUp, type RuntimeHealthObservation } from "./tatolab_status.js";
 
 /** How long one local API request may go without a byte before the runtime reads as not answering. */
 const LOCAL_API_REQUEST_TIMEOUT_MS = 3_000;
@@ -185,7 +185,7 @@ export class TatolabAppController {
       return succeeded(undefined);
     }
     this.tatolabAppLog.warn("first run finishing could not be remembered; Welcome shows again next launch", { failure: remembered.failure });
-    return failedWith(`Tatolab couldn't remember that you've set it up, so Welcome shows again next time it opens: ${remembered.failure}`);
+    return failedWith(remembered.failure);
   }
 
   /** Try Again: register the runtime's agent again and start it, as one queued step; refused while Run Tatolab is off, and in the service manager's words. */
@@ -306,10 +306,9 @@ export class TatolabAppController {
       const isRestartingTheRuntime = runTatolabSwitch.isRestartingTheRuntime(nowMs, runtimeHealth);
       runTatolabSwitch.noteRestartSettledIfThisRoundShowsIt(nowMs, runtimeHealth);
       if (runtimeHealth === "healthy" && !isRestartingTheRuntime) runTatolabSwitch.noteRuntimeHealthy(nowMs);
-      const whyTheServiceManagerGaveUpNow =
-        runtimeHealth === "failing" && runTatolabSwitch.runTatolab() && runtimeAgentNow === "enabled"
-          ? await runTatolabSwitch.whyTheServiceManagerGaveUpOnTheRuntime()
-          : null;
+      const whyTheServiceManagerGaveUpNow = theServiceManagerMayHaveGivenUp({ runTatolab: runTatolabSwitch.runTatolab(), runtimeAgent: runtimeAgentNow, runtimeHealth })
+        ? await runTatolabSwitch.whyTheServiceManagerGaveUpOnTheRuntime()
+        : null;
       return {
         runTatolab: runTatolabSwitch.runTatolab(),
         runtimeAgent: runtimeAgentNow,

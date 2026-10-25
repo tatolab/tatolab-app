@@ -202,9 +202,6 @@ export function presentCommandLineToolVersion(
   }
 }
 
-/** The line that puts `~/.local/bin` on a zsh terminal's PATH, for `~/.zprofile`. */
-export const HOME_FOLDER_BIN_ON_THE_PATH_LINE = 'export PATH="$HOME/.local/bin:$PATH"';
-
 /** Command line › Link in /usr/local/bin: whether the row shows, what it says, and whether its button links. */
 export interface UsrLocalBinLinkPresentation {
   isShown: boolean;

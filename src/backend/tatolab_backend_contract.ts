@@ -95,7 +95,7 @@ export interface TatolabStatus {
   machine_name: string | null;
   /** `null` when the streams were not listed: the runtime is down or listing them failed. */
   streams: ListedStream[] | null;
-  /** Whether "Get Started" ended first run; the window shows Welcome until it has. Always `true` on Linux, which has no first run. */
+  /** Whether "Get Started" ended first run; the macOS window shows Welcome until it has. Linux has no first run, so its window never reads it. */
   first_run_finished: boolean;
   /** The absolute path of `~/.local/bin/tatolab` while it is linked: on macOS to this app's CLI, on Linux by the installer. */
   command_line_tool_linked_at: string | null;
