@@ -7,11 +7,10 @@
 // asar, and flips Electron's fuses. Prints the packaged app's path (Tatolab.app on macOS, the
 // app's directory on Linux) as its last line.
 //
-// Usage: node scripts/package_tatolab_electron_app.mjs <darwin|linux> <app version> <output dir> [--local-proof-test-root] [--app-update-feed-url URL]
-//   --local-proof-test-root     the app keeps every machine directory under the local-proof test root;
-//                               never shipped
-//   --app-update-feed-url URL   the app reads its updates from URL instead of get.tatolab.com; only
-//                               with --local-proof-test-root
+// The app keeps the build features `npm run build:electron` wrote; a local-proof build passes its
+// flags there.
+//
+// Usage: node scripts/package_tatolab_electron_app.mjs <darwin|linux> <app version> <output dir>
 import { FuseV1Options, FuseVersion, flipFuses } from "@electron/fuses";
 import { packager } from "@electron/packager";
 import { execFileSync } from "node:child_process";
@@ -21,34 +20,14 @@ import { fileURLToPath } from "node:url";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const [targetPlatform, appVersion, outputDirectoryArgument, ...remainingArguments] = process.argv.slice(2);
-let localProofTestRoot = false;
-let localAppUpdateFeedUrl = null;
-let argumentsAreValid = ["darwin", "linux"].includes(targetPlatform) && /^[0-9]+\.[0-9]+\.[0-9]+$/.test(appVersion ?? "") && outputDirectoryArgument !== undefined;
-for (let argumentIndex = 0; argumentIndex < remainingArguments.length; argumentIndex += 1) {
-  const argument = remainingArguments[argumentIndex];
-  if (argument === "--local-proof-test-root") {
-    localProofTestRoot = true;
-  } else if (argument === "--app-update-feed-url" && URL.canParse(remainingArguments[argumentIndex + 1] ?? "")) {
-    localAppUpdateFeedUrl = remainingArguments[argumentIndex + 1];
-    argumentIndex += 1;
-  } else {
-    argumentsAreValid = false;
-  }
-}
+const argumentsAreValid =
+  ["darwin", "linux"].includes(targetPlatform) && /^[0-9]+\.[0-9]+\.[0-9]+$/.test(appVersion ?? "") && outputDirectoryArgument !== undefined && remainingArguments.length === 0;
 if (!argumentsAreValid) {
-  process.stderr.write("usage: package_tatolab_electron_app.mjs <darwin|linux> <X.Y.Z> <output dir> [--local-proof-test-root] [--app-update-feed-url URL]\n");
-  process.exit(2);
-}
-if (localAppUpdateFeedUrl !== null && !localProofTestRoot) {
-  process.stderr.write("--app-update-feed-url needs --local-proof-test-root: a shipped app reads its updates only from get.tatolab.com\n");
+  process.stderr.write("usage: package_tatolab_electron_app.mjs <darwin|linux> <X.Y.Z> <output dir>\n");
   process.exit(2);
 }
 const outputDirectory = path.resolve(outputDirectoryArgument);
 const stagedAppDirectory = path.join(outputDirectory, "staged-app");
-const builtFeaturesModule = path.join("out", "main", "tatolab_app_build_features.js");
-const shippingFeaturesLiteral = "machineDirectoriesUnderATestRoot: false";
-const localProofFeaturesLiteral = "machineDirectoriesUnderATestRoot: true";
-const shippingAppUpdateFeedLiteral = 'appUpdateFeedUrl: "https://get.tatolab.com/app/"';
 
 const repositoryPackageJson = JSON.parse(await readFile(path.join(repositoryRoot, "package.json"), "utf8"));
 const electronVersion = JSON.parse(await readFile(path.join(repositoryRoot, "node_modules", "electron", "package.json"), "utf8")).version;
@@ -86,18 +65,6 @@ for (const productionPackageDirectory of productionPackageDirectories) {
   });
 }
 
-const stagedFeaturesModule = path.join(stagedAppDirectory, builtFeaturesModule);
-const builtFeaturesSource = await readFile(stagedFeaturesModule, "utf8");
-if (builtFeaturesSource.split(shippingFeaturesLiteral).length !== 2) {
-  throw new Error(`${builtFeaturesModule} does not carry "${shippingFeaturesLiteral}" exactly once: run npm run build:electron`);
-}
-if (builtFeaturesSource.split(shippingAppUpdateFeedLiteral).length !== 2) {
-  throw new Error(`${builtFeaturesModule} does not carry '${shippingAppUpdateFeedLiteral}' exactly once: run npm run build:electron`);
-}
-let stagedFeaturesSource = builtFeaturesSource;
-if (localProofTestRoot) stagedFeaturesSource = stagedFeaturesSource.replace(shippingFeaturesLiteral, localProofFeaturesLiteral);
-if (localAppUpdateFeedUrl !== null) stagedFeaturesSource = stagedFeaturesSource.replace(shippingAppUpdateFeedLiteral, `appUpdateFeedUrl: ${JSON.stringify(localAppUpdateFeedUrl)}`);
-await writeFile(stagedFeaturesModule, stagedFeaturesSource);
 // electron-updater names its download cache from resources/app-update.yml, and refuses to download
 // without the file. The feed itself is set from the build features, so the file holds only the name.
 const appUpdateConfigFile = path.join(outputDirectory, "app-update.yml");

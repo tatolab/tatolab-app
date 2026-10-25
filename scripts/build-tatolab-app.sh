@@ -87,11 +87,11 @@ echo "==> Electron app"
 cd "$repository_root"
 npm ci
 npm run build
-npm run build:electron
+npm run build:electron -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"}
 npm run build:service-management-addon -- --arch=arm64
 built_service_management_addon="$repository_root/native/service_management_agent_services/build/Release/service_management_agent_services.node"
 [ "$(lipo -archs "$built_service_management_addon")" = arm64 ] || { echo "$built_service_management_addon is not arm64-only" >&2; exit 1; }
-packaged_app="$(node scripts/package_tatolab_electron_app.mjs darwin "$app_version" "$build_directory/electron-packaging" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} | tail -1)"
+packaged_app="$(node scripts/package_tatolab_electron_app.mjs darwin "$app_version" "$build_directory/electron-packaging" | tail -1)"
 rm -rf "$assembled_app"
 ditto "$packaged_app" "$assembled_app"
 mkdir -p "$assembled_app/Contents/Frameworks/tatolab-app-native"
