@@ -1,0 +1,98 @@
+npm run dev -- --noSandbox --remoteDebuggingPort 9333 in ubuntu:22.04 under Xvfb, over the stand-in local API and systemctl stand-in (scripts/verify/linux-stand-ins/), tree at 65be53b.
+Edits made while it ran: the renderer's streams_list_presentation.ts subtitle, then a blank line on src/preload/tatolab_window_preload.ts, then a blank line on src/main/tatolab_status.ts. Chromium's dbus/GPU lines are filtered out.
+
+
+> tatolab-app@0.45.0 dev
+> electron-vite dev --watch --noSandbox --remoteDebuggingPort 9333
+
+vite v8.3.4 building ssr environment for development...
+
+watching for file changes...
+
+build started...
+transforming...
+✓ 65 modules transformed.
+rendering chunks...
+out/main/tatolab_app_build_features.json    0.10 kB
+out/main/electron_app_entry.js            248.73 kB
+
+built in 229ms.
+
+electron main process built successfully
+
+-----
+
+vite v8.3.4 building ssr environment for development...
+
+watching for file changes...
+
+build started...
+transforming...
+✓ 3 modules transformed.
+rendering chunks...
+out/preload/tatolab_window_preload.cjs  3.74 kB
+
+built in 12ms.
+
+electron preload scripts built successfully
+
+-----
+
+dev server running for the electron renderer process at:
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+
+starting electron app...
+
+
+DevTools listening on ws://127.0.0.1:9333/devtools/browser/db4199de-e374-434c-be90-00712e21dea5
+ INFO Tatolab app paths local_api_socket=/tmp/xdg-runtime/streamlib/local-api.sock command_line_tool_link=/root/.local/bin/tatolab local_proof_test_machine_root=null runtime_systemd_user_unit=tatolabd.service
+ WARN the tatolab command's version could not be read command_line_tool=/root/.local/bin/tatolab failure="/root/.local/bin/tatolab could not be run: spawn /root/.local/bin/tatolab ENOENT"
+ INFO reconciled the agent with the Run Tatolab switch reconciliation=already_enabled
+ INFO the tatolab command is not linked in the home folder by this build reason="On Linux the installer links tatolab into ~/.local/bin with the runtime."
+ INFO Tatolab status changed runtime_state=running runtime_agent=enabled run_tatolab=true listed_stream_count=3 machine_name=linux-container-stand-in first_run_finished=false app_update=not_offered
+11:08:18 PM [vite] (client) hmr update /styles/window.css, /views/streams_list_page_view.tsx, /views/stream_action_controls.tsx
+11:08:18 PM [vite] (client) hmr invalidate /views/stream_action_controls.tsx Could not Fast Refresh ("useStreamActionsUnderWay" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+11:08:18 PM [vite] (client) hmr update /views/add_stream_page_view.tsx, /views/stream_page_view.tsx, /views/streams_list_page_view.tsx, /views/stream_page_header_view.tsx
+
+build started...
+transforming...
+✓ 3 modules transformed.
+rendering chunks...
+out/preload/tatolab_window_preload.cjs  3.74 kB
+
+built in 6ms.
+
+electron preload scripts rebuilt successfully
+
+reloading electron renderer...
+
+
+build started...
+transforming...
+✓ 65 modules transformed.
+rendering chunks...
+out/main/tatolab_app_build_features.json    0.10 kB
+out/main/electron_app_entry.js            248.73 kB
+
+built in 40ms.
+
+electron main process rebuilt successfully
+
+restarting electron app...
+
+
+DevTools listening on ws://127.0.0.1:9333/devtools/browser/98c421fe-03af-4f39-b282-a67c44b23888
+ INFO Tatolab app paths local_api_socket=/tmp/xdg-runtime/streamlib/local-api.sock command_line_tool_link=/root/.local/bin/tatolab local_proof_test_machine_root=null runtime_systemd_user_unit=tatolabd.service
+ WARN the tatolab command's version could not be read command_line_tool=/root/.local/bin/tatolab failure="/root/.local/bin/tatolab could not be run: spawn /root/.local/bin/tatolab ENOENT"
+ INFO reconciled the agent with the Run Tatolab switch reconciliation=already_enabled
+ INFO the tatolab command is not linked in the home folder by this build reason="On Linux the installer links tatolab into ~/.local/bin with the runtime."
+ INFO Tatolab status changed runtime_state=running runtime_agent=enabled run_tatolab=true listed_stream_count=3 machine_name=linux-container-stand-in first_run_finished=false app_update=not_offered
+
+DevTools targets once the app started:
+   "url": "http://localhost:5173/",
+
+Electron main process pid:
+before the main-process edit: 4139
+after the main-process edit: 4339

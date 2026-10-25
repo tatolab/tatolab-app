@@ -1,0 +1,138 @@
+$ git ls-remote https://github.com/tatolab/streamlib.git refs/heads/main
+ef5c8b22995a90b1f7ae671e214c96480615c911	refs/heads/main
+
+$ PATH=<bun 1.3.11>:$PATH scripts/build-tatolab-app.sh --local-proof-test-root   (branch build/68-electron-vite at b2ca9a9; cargo lines trimmed)
+==> runtime unit (streamlib main)
+fetched streamlib main at ef5c8b22995a90b1f7ae671e214c96480615c911 into ~/Repositories/tatolab/tatolab-app/build/streamlib
+==> Electron app
+==> assemble
+assembled ~/Repositories/tatolab/tatolab-app/build/Tatolab.app from streamlib ef5c8b22995a90b1f7ae671e214c96480615c911: tatolabd, tatolab-cli, moq-relay, 3 Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython 3.10 3.11 3.12 3.13 3.14), preview page in Resources/watch (local proof, test root /tmp/tatolab-proof)
+==> sign (-)
+==> installer
+built ~/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg (160M), signed with '-'
+==> verify
+  ok    the image is signed
+  ok    Tatolab-0.55.4-arm64.dmg carries no notarization ticket: Gatekeeper not assessed
+  ok    the image links Applications
+  ok    the image carries the installer background
+  ok    codesign --verify --deep --strict
+  ok    CFBundleIdentifier is com.tatolab.tatolab
+  ok    LSUIElement is true
+  ok    the app executable Contents/MacOS/Tatolab is present
+  ok    Contents/MacOS/tatolabd is present
+  ok    Contents/MacOS/tatolab-cli is present
+  ok    Contents/MacOS/moq-relay is present
+  ok    the bundled tatolabd is 0.55.4, the app's version
+  ok    the runtime was built from streamlib ef5c8b22995a90b1f7ae671e214c96480615c911
+  ok    Info.plist carries no App Transport Security exception
+  ok    NSCameraUsageDescription names Tatolab
+  ok    NSMicrophoneUsageDescription names Tatolab
+  ok    NSLocalNetworkUsageDescription names Tatolab
+  ok    NSDocumentsFolderUsageDescription names Tatolab
+  ok    NSDesktopFolderUsageDescription names Tatolab
+  ok    NSDownloadsFolderUsageDescription names Tatolab
+  ok    every Mach-O sits in Contents/MacOS or Contents/Frameworks
+  ok    every Mach-O is signed (hardened runtime unless ad-hoc)
+  ok    every Mach-O is signed by one team (not set)
+  ok    every symlink resolves inside the bundle
+  ok    Resources/lend carries the runtime package
+  ok    Resources/lend links 3 Mach-O into Frameworks/tatolab-runtime
+  ok    Resources/watch carries the runtime's preview page
+  ok    every .py under Resources/lend/tatolab/runtime has cpython-310 cpython-311 cpython-312 cpython-313 cpython-314 bytecode
+  ok    app.asar carries the build features: machineDirectoriesUnderATestRoot=true appUpdateFeedUrl=https://get.tatolab.com/app/ 
+  ok    launch agent plist is valid
+  ok    launch agent Label is com.tatolab.tatolabd
+  ok    launch agent BundleProgram is the bundled tatolabd
+  ok    launch agent is associated with com.tatolab.tatolab
+  ok    launch agent may open 65536 files
+  note  LOCAL PROOF build: every machine directory lives under TATOLAB_TEST_MACHINE_ROOT
+  ok    local-proof launch agent sets TATOLAB_TEST_LOCAL_RELAY_LOOPBACK_PORT=14443
+  ok    local-proof launch agent sets TATOLAB_TEST_LOCAL_RELAY_EVERY_INTERFACE_PORT=14445
+  ok    local-proof launch agent sets TATOLAB_TEST_LOOPBACK_HTTP_PORT=14446
+  ok    com.apple.security.device.camera on tatolabd
+  ok    com.apple.security.device.audio-input on tatolabd
+  ok    com.apple.security.device.camera on Tatolab.app
+  ok    com.apple.security.device.audio-input on Tatolab.app
+  ok    the app carries exactly: com.apple.security.cs.allow-jit com.apple.security.device.audio-input com.apple.security.device.camera
+  ok    tatolabd carries exactly: com.apple.security.device.audio-input com.apple.security.device.camera
+  ok    moq-relay carries no entitlements
+  ok    Tatolab Helper (GPU).app carries exactly: no entitlements
+  ok    Tatolab Helper (Plugin).app carries exactly: no entitlements
+  ok    Tatolab Helper (Renderer).app carries exactly: com.apple.security.cs.allow-jit
+  ok    Tatolab Helper.app carries exactly: no entitlements
+  ok    Electron fuse: RunAsNode is Disabled
+  ok    Electron fuse: EnableNodeOptionsEnvironmentVariable is Disabled
+  ok    Electron fuse: EnableNodeCliInspectArguments is Disabled
+  ok    Electron fuse: EnableEmbeddedAsarIntegrityValidation is Enabled
+  ok    Electron fuse: OnlyLoadAppFromAsar is Enabled
+  ok    the Service Management addon is in Frameworks/tatolab-app-native
+  ok    electron-updater is in app.asar
+  ok    Resources/app-update.yml names the updater's cache
+  note  LOCAL PROOF build: the app's build features are machineDirectoriesUnderATestRoot=true appUpdateFeedUrl=https://get.tatolab.com/app/ 
+  ok    Tatolab.app carries no notarization ticket: Gatekeeper not assessed
+all checks passed for ~/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg
+==> update
+==> streamlib main, now
+    streamlib main is still ef5c8b22995a90b1f7ae671e214c96480615c911
+built ~/Repositories/tatolab/tatolab-app/build/Tatolab.app (streamlib ef5c8b22995a90b1f7ae671e214c96480615c911, version 0.55.4)
+built ~/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg
+built ~/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64-mac.zip
+built ~/Repositories/tatolab/tatolab-app/build/latest-mac.yml
+
+$ cat build/Tatolab.app/Contents/Resources/streamlib-commit
+ef5c8b22995a90b1f7ae671e214c96480615c911
+
+$ npx asar list build/Tatolab.app/Contents/Resources/app.asar | grep -v ^/node_modules
+/out
+/out/main
+/out/main/electron_app_entry.js
+/out/main/tatolab_app_build_features.json
+/out/preload
+/out/preload/tatolab_window_preload.cjs
+/out/renderer
+/out/renderer/assets
+/out/renderer/assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2
+/out/renderer/assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2
+/out/renderer/assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2
+/out/renderer/assets/geist-latin-wght-normal-BgDaEnEv.woff2
+/out/renderer/assets/geist-mono-cyrillic-ext-wght-normal-X_5orZeX.woff2
+/out/renderer/assets/geist-mono-cyrillic-wght-normal-DiZS0aHC.woff2
+/out/renderer/assets/geist-mono-latin-ext-wght-normal-Bwz-egvJ.woff2
+/out/renderer/assets/geist-mono-latin-wght-normal-XN7g48iV.woff2
+/out/renderer/assets/geist-mono-symbols2-wght-normal-CO5SzqOn.woff2
+/out/renderer/assets/geist-mono-vietnamese-wght-normal-DadHysG0.woff2
+/out/renderer/assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2
+/out/renderer/assets/index-C3Shvmxo.js
+/out/renderer/assets/index-o4JCuWUJ.css
+/out/renderer/assets/tato_mascot_3d-C4X3t-ku.png
+/out/renderer/index.html
+/out/renderer/licenses
+/out/renderer/licenses/shadcn-ui-MIT.txt
+/out/renderer/licenses/window-third-party-notices.txt
+/package.json
+/resources
+/resources/tray-coloured.png
+/resources/tray-template.png
+/resources/tray-template@2x.png
+
+$ npx asar list ... | grep -c ^/node_modules/electron-updater
+162
+
+$ head -12 out/main/electron_app_entry.js (inside app.asar)
+import { createRequire } from "node:module";
+import path from "node:path";
+import { BrowserWindow, Menu, Notification, Tray, app, autoUpdater, dialog, ipcMain, nativeImage, net, protocol, shell } from "electron";
+import { isUtf8 } from "node:buffer";
+import net$1 from "node:net";
+import builtTatolabAppBuildFeatures from "./tatolab_app_build_features.json" with { type: "json" };
+import { lstat, mkdir, readFile, readdir, readlink, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { execFile, spawn } from "node:child_process";
+import os from "node:os";
+import { isDeepStrictEqual } from "node:util";
+import { createHash } from "node:crypto";
+import electronUpdater from "electron-updater";
+
+HEAD 65be53b's npm run build against the packaged app.asar:
+byte-identical: out/main/electron_app_entry.js
+byte-identical: out/preload/tatolab_window_preload.cjs
+byte-identical: out/renderer/
