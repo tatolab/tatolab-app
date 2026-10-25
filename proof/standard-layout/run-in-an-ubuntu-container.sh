@@ -6,15 +6,16 @@
 # (npm run build, npm run build:electron), runs it unpackaged under Xvfb over the stand-in local API
 # that replays src/main/test-fixtures/, and shoots the Streams list over the DevTools protocol.
 # Linux's node_modules lives in a container volume, so the host's never changes.
-# Usage (from the repository root): proof/standard-layout/run-in-an-ubuntu-container.sh
+# Usage (from the repository root): proof/standard-layout/run-in-an-ubuntu-container.sh [output directory]
 set -euo pipefail
 repository_root="$(git rev-parse --show-toplevel)"
+output_directory="$(mkdir -p "${1:-$repository_root/proof/standard-layout}" && cd "${1:-$repository_root/proof/standard-layout}" && pwd)"
 tree_archive_directory="$(mktemp -d)"
 trap 'rm -rf "$tree_archive_directory"' EXIT
 git -C "$repository_root" archive HEAD -o "$tree_archive_directory/tree.tar"
 docker run --rm \
   -v "$tree_archive_directory:/tree-archive:ro" \
-  -v "$repository_root/proof/standard-layout:/proof-output" \
+  -v "$output_directory:/proof-output" \
   -v "$repository_root/docs/design/node_modules:/playwright-driver/node_modules:ro" \
   -v tatolab-app-linux-node-modules:/work/node_modules \
   ubuntu:22.04 bash -euo pipefail -c '
