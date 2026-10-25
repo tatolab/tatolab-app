@@ -4,8 +4,9 @@
 #
 # Signs an assembled Tatolab.app inside-out with the hardened runtime: every loose Mach-O in
 # Contents/Frameworks (the runtime's dylibs, the app's Service Management addon, Electron's
-# libraries), each framework, each Electron helper app, Contents/MacOS/tatolabd and
-# Contents/MacOS/tatolab-cli, then the app. Ad-hoc ("-") signatures carry no hardened runtime.
+# libraries), each framework, each Electron helper app, Contents/MacOS/tatolabd,
+# Contents/MacOS/tatolab-cli and Contents/MacOS/moq-relay, then the app. Ad-hoc ("-") signatures
+# carry no hardened runtime.
 #
 # Usage: sign-tatolab-app-bundle.sh <Tatolab.app> <identity>
 #   identity  "-" (ad-hoc), an "Apple Development: …" identity, or a "Developer ID Application: …"
@@ -22,7 +23,7 @@ app_entitlements="$repository_root/packaging/entitlements/tatolab-app.entitlemen
 renderer_helper_entitlements="$repository_root/packaging/entitlements/tatolab-renderer-helper.entitlements"
 tatolabd_entitlements="$repository_root/packaging/entitlements/tatolabd.entitlements"
 
-for required in MacOS/Tatolab MacOS/tatolabd MacOS/tatolab-cli Frameworks/tatolab-runtime Frameworks/tatolab-app-native \
+for required in MacOS/Tatolab MacOS/tatolabd MacOS/tatolab-cli MacOS/moq-relay Frameworks/tatolab-runtime Frameworks/tatolab-app-native \
   "Frameworks/Electron Framework.framework" Library/LaunchAgents/com.tatolab.tatolabd.plist; do
   [ -e "$contents/$required" ] || { echo "$app_bundle is not assembled: Contents/$required is missing" >&2; exit 1; }
 done
@@ -69,7 +70,8 @@ done < <(find "$contents/Frameworks" -maxdepth 1 -name '*.app' -print0)
 codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.tatolabd \
   --entitlements "$tatolabd_entitlements" "$contents/MacOS/tatolabd"
 codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.tatolab-cli "$contents/MacOS/tatolab-cli"
+codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.moq-relay "$contents/MacOS/moq-relay"
 codesign "${codesign_common_arguments[@]}" --entitlements "$app_entitlements" "$app_bundle"
 
 codesign --verify --deep --strict "$app_bundle"
-echo "signed $app_bundle with '$signing_identity': $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count helper apps, tatolabd, tatolab-cli, the app"
+echo "signed $app_bundle with '$signing_identity': $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count helper apps, tatolabd, tatolab-cli, moq-relay, the app"

@@ -5,10 +5,10 @@
 # Checks a signed Tatolab.app, or the Tatolab.app inside a .dmg, against the bundle contract:
 # a strict deep signature, the hardened runtime on every Mach-O unless ad-hoc, no Mach-O outside
 # Contents/MacOS and Contents/Frameworks, every symlink resolving inside the bundle, the launch
-# agent plist, the Info.plist usage strings, the lend's CPython 3.10-3.14 bytecode, the
-# entitlements of tatolabd, the app and Electron's helpers, Electron's fuses, the build features
-# the app was built with, and the Service Management addon. Reading the fuses and the build
-# features needs this checkout's node_modules (npm ci).
+# agent plist, the Info.plist usage strings, the lend's CPython 3.10-3.14 bytecode, the runtime's
+# preview page, the entitlements of tatolabd, moq-relay, the app and Electron's helpers, Electron's
+# fuses, the build features the app was built with, and the Service Management addon. Reading the
+# fuses and the build features needs this checkout's node_modules (npm ci).
 # A stapled target must also pass Gatekeeper.
 #
 # Usage: verify-tatolab-app-bundle.sh <Tatolab.app|file.dmg> [--shipping]
@@ -97,7 +97,7 @@ verify_app_bundle() {
   [ -n "$bundle_executable" ] && [ -x "$contents/MacOS/$bundle_executable" ] && is_mach_o "$contents/MacOS/$bundle_executable" \
     && pass "the app executable Contents/MacOS/$bundle_executable is present" || fail "the app executable '$bundle_executable' is missing"
   local bundled_executable
-  for bundled_executable in tatolabd tatolab-cli; do
+  for bundled_executable in tatolabd tatolab-cli moq-relay; do
     [ -x "$contents/MacOS/$bundled_executable" ] && pass "Contents/MacOS/$bundled_executable is present" \
       || fail "Contents/MacOS/$bundled_executable is missing"
   done
@@ -175,6 +175,9 @@ verify_app_bundle() {
   [ "$lend_mach_o_links" -gt 0 ] && pass "Resources/lend links $lend_mach_o_links Mach-O into Frameworks/tatolab-runtime" \
     || fail "Resources/lend links no Mach-O into Frameworks/tatolab-runtime"
 
+  [ -f "$contents/Resources/watch/index.html" ] \
+    && pass "Resources/watch carries the runtime's preview page" || fail "Resources/watch has no index.html: the runtime serves no preview page"
+
   local lend_python_source lend_bytecode_cache_tag lend_bytecode_file missing_lend_bytecode_count=0 first_missing_lend_bytecode=""
   while IFS= read -r -d '' lend_python_source; do
     for lend_bytecode_cache_tag in "${required_lend_bytecode_cache_tags[@]}"; do
@@ -251,6 +254,11 @@ verify_app_bundle() {
   signed_code_entitlement_keys="$(entitlement_keys_of "$contents/MacOS/tatolabd")"
   [ "$signed_code_entitlement_keys" = "$allowed_tatolabd_entitlements" ] \
     && pass "tatolabd carries exactly: $allowed_tatolabd_entitlements" || fail "tatolabd's entitlements are '$signed_code_entitlement_keys', not '$allowed_tatolabd_entitlements'"
+  if [ -e "$contents/MacOS/moq-relay" ]; then
+    signed_code_entitlement_keys="$(entitlement_keys_of "$contents/MacOS/moq-relay")"
+    [ -z "$signed_code_entitlement_keys" ] \
+      && pass "moq-relay carries no entitlements" || fail "moq-relay's entitlements are '$signed_code_entitlement_keys', not none"
+  fi
   local helper_app helper_app_count=0 allowed_helper_entitlements
   while IFS= read -r -d '' helper_app; do
     helper_app_count=$((helper_app_count + 1))
