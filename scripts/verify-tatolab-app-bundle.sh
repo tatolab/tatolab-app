@@ -6,12 +6,14 @@
 # a strict deep signature, the hardened runtime on every Mach-O unless ad-hoc, no Mach-O outside
 # Contents/MacOS and Contents/Frameworks, every symlink resolving inside the bundle, the launch
 # agent plist, the Info.plist usage strings, the lend's CPython 3.10-3.14 bytecode, the
-# entitlements of tatolabd, the app and Electron's helpers, Electron's fuses, and the Service
-# Management addon. Reading the fuses needs this checkout's node_modules (npm ci).
+# entitlements of tatolabd, the app and Electron's helpers, Electron's fuses, the build features
+# the app was built with, and the Service Management addon. Reading the fuses and the build
+# features needs this checkout's node_modules (npm ci).
 # A stapled target must also pass Gatekeeper.
 #
 # Usage: verify-tatolab-app-bundle.sh <Tatolab.app|file.dmg> [--shipping]
-#   --shipping  also refuse a local-proof (test machine root) build
+#   --shipping  also refuse a local-proof (test machine root) build, and one that checks any
+#               update feed but get.tatolab.com's
 # `check && pass … || fail …` is safe here: pass only prints, so it never falls through to fail.
 # shellcheck disable=SC2015
 set -euo pipefail
@@ -187,6 +189,14 @@ verify_app_bundle() {
     && pass "every .py under Resources/lend/tatolab/runtime has ${required_lend_bytecode_cache_tags[*]} bytecode" \
     || fail "$missing_lend_bytecode_count .pyc missing under Resources/lend/tatolab/runtime (first: $first_missing_lend_bytecode); a processor interpreter would write it into the signed bundle"
 
+  local packaged_build_features packaged_build_features_readable=false
+  if packaged_build_features="$(node "$repository_root/scripts/tatolab_app_build_features.mjs" read "$contents/Resources/app.asar" 2>&1)"; then
+    packaged_build_features_readable=true
+    pass "app.asar carries the build features: $(tr '\n' ' ' <<<"$packaged_build_features")"
+  else
+    fail "app.asar's build features are unreadable: $packaged_build_features"
+  fi
+
   local launch_agent_plist="$contents/Library/LaunchAgents/com.tatolab.tatolabd.plist"
   if plutil -lint -s "$launch_agent_plist" 2>/dev/null; then
     pass "launch agent plist is valid"
@@ -202,11 +212,9 @@ verify_app_bundle() {
     agent_open_files_limit="$(plutil -extract SoftResourceLimits.NumberOfFiles raw -o - "$launch_agent_plist" 2>/dev/null || echo 0)"
     [ "$agent_open_files_limit" -ge 10240 ] \
       && pass "launch agent may open $agent_open_files_limit files" || fail "launch agent's SoftResourceLimits.NumberOfFiles is ${agent_open_files_limit}, below 10240"
-    # The asar stores the main process's modules uncompressed, so the build's feature literal reads as text.
     if plutil -extract EnvironmentVariables.TATOLAB_TEST_MACHINE_ROOT raw -o - "$launch_agent_plist" >/dev/null 2>&1 \
       || [ -e "$contents/Resources/machine-directories-under-a-test-root" ] \
-      || grep -aqF "machineDirectoriesUnderATestRoot: true" "$contents/Resources/app.asar" \
-      || ! grep -aqF "machineDirectoriesUnderATestRoot: false" "$contents/Resources/app.asar"; then
+      || ! grep -qx "machineDirectoriesUnderATestRoot=false" <<<"$packaged_build_features"; then
       if $shipping; then
         fail "LOCAL PROOF build (test machine root): never ship it"
       else
@@ -268,12 +276,17 @@ verify_app_bundle() {
     && pass "electron-updater is in app.asar" || fail "app.asar carries no electron-updater"
   grep -qx 'updaterCacheDirName: tatolab-app-updater' "$contents/Resources/app-update.yml" 2>/dev/null \
     && pass "Resources/app-update.yml names the updater's cache" || fail "no Resources/app-update.yml naming the updater's cache: electron-updater cannot download"
-  if grep -aqF 'appUpdateFeedUrl: "https://get.tatolab.com/app/"' "$contents/Resources/app.asar"; then
-    pass "the app checks get.tatolab.com/app/ for updates"
-  elif $shipping; then
-    fail "the app checks a feed other than get.tatolab.com/app/ for updates: never ship it"
-  else
-    echo "  note  LOCAL PROOF build: the app checks a local feed for updates"
+  local shipping_build_features_refusals shipping_build_features_refusal
+  if $packaged_build_features_readable; then
+    if shipping_build_features_refusals="$(node "$repository_root/scripts/tatolab_app_build_features.mjs" read "$contents/Resources/app.asar" --shipping 2>&1 >/dev/null)"; then
+      pass "the app was built with the shipping features: real machine directories, updates from get.tatolab.com/app/"
+    elif $shipping; then
+      while IFS= read -r shipping_build_features_refusal; do
+        fail "the app $shipping_build_features_refusal: never ship it"
+      done <<<"$shipping_build_features_refusals"
+    else
+      echo "  note  LOCAL PROOF build: the app's build features are $(tr '\n' ' ' <<<"$packaged_build_features")"
+    fi
   fi
 
   stapled_and_accepted_by_gatekeeper "$app_bundle" execute

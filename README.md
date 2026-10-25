@@ -197,7 +197,7 @@ scripts/build-tatolab-app.sh
 
 It builds streamlib's runtime unit (`cargo xtask build-runtime --release`, in streamlib's own
 target directory), then the Electron app: `npm run build` (the window into `out/renderer/`),
-`npm run build:electron` (the main process and the preload), the arm64 Service Management addon,
+`npm run build:electron` (the main process, the preload and the build features), the arm64 Service Management addon,
 and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
 `@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
 branded `.dmg` and checks the result. The output is `build/Tatolab.app`,
@@ -215,8 +215,11 @@ manifest `build/latest-mac.yml`.
 | `--app-update-feed-url URL` | the update feed the app checks, in place of get.tatolab.com's; only with `--local-proof-test-root` |
 
 **Local proof build** (`--local-proof-test-root`). The runtime unit is built with the
-`machine-directories-under-a-test-root` feature, and the packaged app with
-`TATOLAB_APP_BUILD_FEATURES.machineDirectoriesUnderATestRoot` set to `true`. The agent plist sets
+`machine-directories-under-a-test-root` feature, and the app with
+`npm run build:electron -- --local-proof-test-root`, which writes
+`machineDirectoriesUnderATestRoot: true` into the build features the main process imports,
+`out/main/tatolab_app_build_features.json` (`src/main/tatolab_app_build_features.json` holds the
+shipping ones). The agent plist sets
 `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, so the state directory and the socket live under
 that root, and gives the runtime its test ports: its local relay on 14443 and
 14445 and its loopback HTTP on 14446, where the app reads the preview page. That page reads the
@@ -225,15 +228,17 @@ the root's `home/.local/bin` and never in `/usr/local/bin`. Uninstalling a local
 `/tmp/tatolab-proof` instead of prompting. Use it to prove the app on a development Mac. It is
 never shipped: `assemble-tatolab-app-bundle.sh` refuses a test-root unit without the flag, and
 `verify-tatolab-app-bundle.sh --shipping` fails such a bundle, whether the marker, the agent's
-environment or the asar's build features give it away, and fails one that checks any update feed
-but get.tatolab.com's.
+environment or the build features inside the asar give it away, and fails one that checks any
+update feed but get.tatolab.com's.
 
 The individual steps are separate scripts in `scripts/`:
 
 | Script | |
 |---|---|
 | `build-tatolab-runtime-unit.sh <streamlib> [--local-proof-test-root]` | builds the runtime unit |
-| `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out> [--local-proof-test-root] [--app-update-feed-url URL]` | packs the built app and its production `node_modules` with `@electron/packager` and flips its fuses |
+| `tatolab_app_build_features.mjs write <features.json> [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features; `npm run build:electron -- <flags>` runs it last |
+| `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features a packaged app carries; `--shipping` refuses the test root or any feed but get.tatolab.com's |
+| `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
 | `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> [--local-proof-test-root]` | lays the unit into the packaged app |
 | `sign-tatolab-app-bundle.sh <Tatolab.app> <identity>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, the app) |
 | `make-tatolab-dmg.sh <Tatolab.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless) and its signature |
@@ -260,7 +265,7 @@ scripts/build-tatolab-linux-app.sh
 
 It builds and packages the Electron app as on macOS, lays out the `.deb` and builds it with
 `dpkg-deb`, builds the AppImage with a pinned `appimagetool` and AppImage runtime (checksums in
-the script), checks the fuses, the update feed, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Tatolab-<version>-amd64.deb`,
+the script), checks the fuses, the build features, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Tatolab-<version>-amd64.deb`,
 `build/linux/Tatolab-<version>-x86_64.AppImage` and the update manifest listing both,
 `build/linux/latest-linux.yml`. No streamlib checkout is needed. `--app-version
 X.Y.Z` sets the packages' version; `--local-proof-test-root` builds with

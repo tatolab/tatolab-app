@@ -87,8 +87,8 @@ mkdir -p "$linux_build_directory" "$output_directory"
 echo "==> Electron app"
 npm ci
 npm run build
-npm run build:electron
-packaged_app_directory="$(node scripts/package_tatolab_electron_app.mjs linux "$app_version" "$linux_build_directory/packaged" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} | tail -1)"
+npm run build:electron -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"}
+packaged_app_directory="$(node scripts/package_tatolab_electron_app.mjs linux "$app_version" "$linux_build_directory/packaged" | tail -1)"
 [ -x "$packaged_app_directory/Tatolab" ] || { echo "packaging left no $packaged_app_directory/Tatolab" >&2; exit 1; }
 [ -f "$packaged_app_directory/chrome-sandbox" ] || { echo "packaging left no $packaged_app_directory/chrome-sandbox" >&2; exit 1; }
 # A process could otherwise run the app as plain Node.
@@ -98,13 +98,16 @@ for required_electron_fuse_state in "RunAsNode is Disabled" "EnableNodeOptionsEn
   grep -qF "$required_electron_fuse_state" <<<"$electron_fuse_states" \
     || { echo "the packaged app's Electron fuse is not '$required_electron_fuse_state'" >&2; exit 1; }
 done
-# The asar stores the main process's modules uncompressed, so the build's feature literal reads as text.
-expected_build_features_literal="machineDirectoriesUnderATestRoot: $($local_proof_test_root && echo true || echo false)"
-grep -aqF "$expected_build_features_literal" "$packaged_app_directory/resources/app.asar" \
-  || { echo "the packaged app was not built with $expected_build_features_literal" >&2; exit 1; }
-expected_app_update_feed_literal="appUpdateFeedUrl: \"${app_update_feed_url:-https://get.tatolab.com/app/}\""
-grep -aqF "$expected_app_update_feed_literal" "$packaged_app_directory/resources/app.asar" \
-  || { echo "the packaged app was not built with $expected_app_update_feed_literal" >&2; exit 1; }
+packaged_build_features="$(node scripts/tatolab_app_build_features.mjs read "$packaged_app_directory/resources/app.asar")"
+if $local_proof_test_root; then
+  grep -qx "machineDirectoriesUnderATestRoot=true" <<<"$packaged_build_features" \
+    || { echo "the packaged app was not built with machineDirectoriesUnderATestRoot: $packaged_build_features" >&2; exit 1; }
+  [ -z "$app_update_feed_url" ] || grep -qxF "appUpdateFeedUrl=$app_update_feed_url" <<<"$packaged_build_features" \
+    || { echo "the packaged app does not check $app_update_feed_url for updates: $packaged_build_features" >&2; exit 1; }
+else
+  node scripts/tatolab_app_build_features.mjs read "$packaged_app_directory/resources/app.asar" --shipping >/dev/null \
+    || { echo "the packaged app was not built with the shipping features" >&2; exit 1; }
+fi
 # The asar's header is JSON naming every directory it holds.
 grep -aqF '"electron-updater":{"files"' "$packaged_app_directory/resources/app.asar" \
   || { echo "the packaged app carries no electron-updater" >&2; exit 1; }
