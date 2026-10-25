@@ -1,8 +1,8 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-// Writes public/licenses/window-third-party-notices.txt: every npm package Vite bundles into the
-// window's dist/, with its version, licence and licence text. It builds the window with source maps
+// Writes src/renderer/public/licenses/window-third-party-notices.txt: every npm package Vite bundles into the
+// window's out/renderer/, with its version, licence and licence text. It builds the window with source maps
 // into a temporary directory and reads which packages the bundle's sources come from, so the list
 // is what ships, not what package.json names; the stylesheet's packages and fonts are added by name. Run it after changing the window's dependencies:
 //   node scripts/write_window_third_party_notices.mjs
@@ -47,7 +47,7 @@ try {
     const licenceText = licenceTexts.length > 0 ? licenceTexts.join("\n\n") : `${packageManifest.license} (the package ships no licence file)`;
     return `${packageManifest.name} ${packageManifest.version} — ${packageManifest.license}\n\n${licenceText}`;
   });
-  const noticesFile = path.join(repositoryRoot, "public/licenses/window-third-party-notices.txt");
+  const noticesFile = path.join(repositoryRoot, "src/renderer/public/licenses/window-third-party-notices.txt");
   writeFileSync(
     noticesFile,
     `The npm packages bundled into Tatolab's window, with their licences.\n\n${notices.join(`\n\n${"=".repeat(78)}\n\n`)}\n`,

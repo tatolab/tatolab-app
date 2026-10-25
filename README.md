@@ -196,7 +196,7 @@ scripts/build-tatolab-app.sh
 ```
 
 It builds streamlib's runtime unit (`cargo xtask build-runtime --release`, in streamlib's own
-target directory), then the Electron app: `npm run build` (the window into `dist/`),
+target directory), then the Electron app: `npm run build` (the window into `out/renderer/`),
 `npm run build:electron` (the main process and the preload), the arm64 Service Management addon,
 and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
 `@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
@@ -277,7 +277,7 @@ runtime is already running on the machine's local API socket; only a `--local-pr
 build reads a local-proof runtime's `/tmp/tatolab-proof/run/local-api.sock`. On macOS an
 unpackaged app finds no launch agent, so "Run Tatolab" registers nothing there; on Linux it drives the installer's `tatolabd.service` as the
 packaged app does. `npm run dev` alone serves the window in a browser against a mock backend; a build leaves the mock
-out, and packaging refuses a `dist/` that carries it.
+out, and packaging refuses an `out/renderer/` that carries it.
 
 ## CI
 

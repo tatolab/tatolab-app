@@ -15,5 +15,5 @@
     "types": ["vite/client"],
     "paths": { "@/*": ["./src/renderer/*"] }
   },
-  "include": ["src/renderer", "src/shared", "vite.config.ts", "vite.window_preload.config.ts"]
+  "include": ["src/renderer", "src/shared"]
 }

@@ -7,7 +7,7 @@
 # `#!` names a shell. Type declarations (`*.d.ts`) are exempt, and so are shadcn's components as the
 # shadcn CLI generates them, under its MIT licence: the app's src/renderer/components/ui/ and the design
 # prototype's docs/design/src/components/ui/. Files come from `git ls-files`
-# (tracked plus new and unignored), so node_modules, target/ and dist/ never count. A CRLF line
+# (tracked plus new and unignored), so node_modules, target/ and out/ never count. A CRLF line
 # ending or a UTF-8 byte-order mark does not change the verdict.
 #
 # Usage: scripts/check-license-headers.sh   (from anywhere inside the repository)

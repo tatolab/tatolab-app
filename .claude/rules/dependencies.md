@@ -17,6 +17,6 @@ paths:
   their licences in the PR.
 - `electron` and the `@electron/*` packaging tools are pinned in the lockfile and move together
   in their own PR, with the packaged app checked on both platforms.
-- The window takes no runtime npm dependency: Vite bundles what it needs (the font) into `dist/`.
+- The window takes no runtime npm dependency: Vite bundles what it needs (the font) into `out/renderer/`.
 - A Linux system library the app links joins the `.deb` dependency check in
   `scripts/build-tatolab-linux-app.sh` and stays within what `ubuntu-22.04` ships.

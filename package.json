@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.web.json && tsc -p tsconfig.node.json && vite build",
-    "build:electron": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true })\" && tsc -p tsconfig.node.build.json && vite build --config vite.window_preload.config.ts",
+    "build:electron": "node -e \"for (const built of ['out/main', 'out/preload', 'out/shared']) require('node:fs').rmSync(built, { recursive: true, force: true })\" && tsc -p tsconfig.node.build.json && vite build --config vite.window_preload.config.ts",
     "build:service-management-addon": "node-gyp rebuild --directory native/service_management_agent_services",
     "preview": "vite preview",
     "test": "vitest run",

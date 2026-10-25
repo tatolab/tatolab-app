@@ -34,7 +34,7 @@ process.on("unhandledRejection", (unhandledRejection) => {
 const windowDevServerUrl = app.isPackaged ? null : windowDevServerUrlNamedIn(process.env["TATOLAB_APP_WINDOW_DEV_SERVER_URL"]);
 const windowPageUrl = windowDevServerUrl ?? TATOLAB_WINDOW_PAGE_URL;
 const runtimeLoopbackHttpOrigin = runtimeLoopbackHttpOriginForThisBuild();
-const builtWindowDirectory = path.join(app.getAppPath(), "dist");
+const builtWindowDirectory = path.join(app.getAppPath(), "out", "renderer");
 const builtWindowPreloadScript = path.join(app.getAppPath(), "out", "preload", "tatolab_window_preload.cjs");
 const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   homeDirectory: app.getPath("home"),

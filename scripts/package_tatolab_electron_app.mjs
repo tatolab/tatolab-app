@@ -60,13 +60,12 @@ await writeFile(
   path.join(stagedAppDirectory, "package.json"),
   `${JSON.stringify({ name: "tatolab", productName: "Tatolab", version: appVersion, private: true, type: "module", main: repositoryPackageJson.main }, null, 2)}\n`,
 );
-await cp(path.join(repositoryRoot, "dist"), path.join(stagedAppDirectory, "dist"), { recursive: true });
 // The mock backend and its presets are the dev server's alone; a window built with them could show made-up streams.
 const mockWindowModuleNames = ["mock_tatolab_backend", "mock_window_preset"];
-for (const builtWindowFileName of await readdir(path.join(stagedAppDirectory, "dist", "assets"))) {
+for (const builtWindowFileName of await readdir(path.join(repositoryRoot, "out", "renderer", "assets"))) {
   const mockWindowModuleName = mockWindowModuleNames.find((moduleName) => builtWindowFileName.startsWith(`${moduleName}-`));
   if (mockWindowModuleName !== undefined) {
-    throw new Error(`dist/assets/${builtWindowFileName} is the mock window's ${mockWindowModuleName}, which the app never ships: run npm run build`);
+    throw new Error(`out/renderer/assets/${builtWindowFileName} is the mock window's ${mockWindowModuleName}, which the app never ships: run npm run build`);
   }
 }
 await cp(path.join(repositoryRoot, "out"), path.join(stagedAppDirectory, "out"), { recursive: true });
@@ -117,7 +116,7 @@ const [packagedDirectory] = await packager({
   appCategoryType: "public.app-category.developer-tools",
   appCopyright: "Copyright (c) 2025 Jonathan Fontanez",
   extendInfo: path.join(repositoryRoot, "packaging", "macos", "Info.plist"),
-  icon: path.join(repositoryRoot, "resources", "icon.icns"),
+  icon: path.join(repositoryRoot, "packaging", "icons", "icon.icns"),
   asar: true,
   prune: false,
   extraResource: [appUpdateConfigFile],
