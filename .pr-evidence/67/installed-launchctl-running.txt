@@ -1,7 +1,0 @@
-	state = running
-	program identifier = Contents/MacOS/tatolabd (mode: 2)
-	parent bundle identifier = com.tatolab.tatolab
-	parent bundle version = 0.55.4
-	runs = 1
-	pid = 51341
-	last exit code = (never exited)

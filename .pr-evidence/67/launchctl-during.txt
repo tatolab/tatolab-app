@@ -1,8 +1,0 @@
-	path = (submitted by smd.566)
-	state = running
-	program identifier = Contents/MacOS/tatolabd (mode: 2)
-		TATOLAB_TEST_MACHINE_ROOT => /tmp/tatolab-proof
-	pid = 92705
-		state = active
-		state = active
-	job state = running
