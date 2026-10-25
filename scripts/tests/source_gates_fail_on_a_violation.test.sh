@@ -33,6 +33,7 @@ expect_gate_outcome() {
 planted_path=""
 plant() { planted_path="$1"; printf '%b' "$2" >"$planted_path"; }
 unplant() { rm -f "$planted_path"; git checkout -q -- . 2>/dev/null; planted_path=""; }
+append_to_tracked() { planted_path=""; printf '%b' "$2" >>"$1"; }
 
 readonly SOURCE_HEADER='// Copyright (c) 2025 Jonathan Fontanez\n// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary\n'
 
@@ -155,6 +156,14 @@ expect_gate_outcome pass check-electron-typescript-forms.sh "the forms named onl
 plant src/main/zz_planted.test.ts "${SOURCE_HEADER}import { readFileSync } from \"node:fs\";\nexport const planted = readFileSync(\"/dev/null\") as Buffer;\n"
 expect_gate_outcome pass check-electron-typescript-forms.sh "a Sync call and a cast in a main-process test"; unplant
 
+
+# A violation in a file the tree already tracks: each gate's own file list must reach tracked files.
+append_to_tracked src/main/electron_adapters/electron_main_window_host.ts 'export const plantedCast = JSON.parse("1") as number;\n'
+expect_gate_outcome fail check-electron-typescript-forms.sh "an as cast appended to a tracked main-process file"; unplant
+append_to_tracked src/main/electron_adapters/electron_main_window_host.ts 'process.stderr.write("planted");\n'
+expect_gate_outcome fail check-no-print-debugging.sh "process.stderr appended to a tracked main-process file"; unplant
+append_to_tracked src/renderer/views/settings_page_view.tsx 'export const PlantedScreen = () => <button type="button">Planted</button>;\n'
+expect_gate_outcome fail check-window-design-system.sh "a raw <button> appended to a tracked screen"; unplant
 
 if scripts/check-conventional-pr-title.sh "feat(window): planted" 2>/dev/null; then echo "ok   conventional title pass"; else echo "FAIL conventional title rejected a good title"; failures=$((failures + 1)); fi
 if scripts/check-conventional-pr-title.sh "Planted a thing" 2>/dev/null; then echo "FAIL conventional title accepted a bad title"; failures=$((failures + 1)); else echo "ok   conventional title fail"; fi
