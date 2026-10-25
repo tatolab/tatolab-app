@@ -38,7 +38,7 @@ repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 launch_agent_template="$repository_root/packaging/launch-agent/com.tatolab.tatolabd.plist"
 local_proof_test_machine_root="/tmp/tatolab-proof"
 # The app's local-proof build reads the preview page at LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT
-# (src-electron/src/runtime_loopback_watch_page.ts); the relay ports sit beside the runtime's own
+# (src/main/runtime_loopback_watch_page.ts); the relay ports sit beside the runtime's own
 # 4443 and 4445 so a proof runtime never binds the machine's.
 local_proof_test_local_relay_loopback_port=14443
 local_proof_test_local_relay_every_interface_port=14445

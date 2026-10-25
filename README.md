@@ -117,7 +117,7 @@ On Linux the app's "Uninstall Tatolab…" shows these steps and removes nothing 
 
 ## The app's platform layer
 
-Everything that differs by platform sits in `src-electron/src/platform/`, behind the interfaces
+Everything that differs by platform sits in `src/main/platform/`, behind the interfaces
 the rest of the main process uses: `RuntimeAgentRegistration` (the service manager that runs the
 runtime), `TatolabCommandLineToolLinks` (the `tatolab` command's links: the app's own on macOS,
 the installer's on Linux), and
@@ -271,7 +271,7 @@ X.Y.Z` sets the packages' version; `--local-proof-test-root` builds with
 ## Working on the window
 
 The window is React with Tailwind and shadcn (base-ui), in the design language of
-[`docs/design`](docs/design/DESIGN.md); its tokens are `src/styles/tokens.css`. `npm run dev` serves the window on `http://localhost:1420`; `npm run electron:dev`, in a second
+[`docs/design`](docs/design/DESIGN.md); its tokens are `src/renderer/styles/tokens.css`. `npm run dev` serves the window on `http://localhost:1420`; `npm run electron:dev`, in a second
 terminal, builds the main process and runs the app against it, unpackaged. It shows whatever
 runtime is already running on the machine's local API socket; only a `--local-proof-test-root`
 build reads a local-proof runtime's `/tmp/tatolab-proof/run/local-api.sock`. On macOS an

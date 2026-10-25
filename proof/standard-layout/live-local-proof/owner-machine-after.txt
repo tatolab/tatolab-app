@@ -1,0 +1,9 @@
+$ launchctl print gui/501/com.tatolab.tatolabd
+Bad request.
+Could not find service "com.tatolab.tatolabd" in domain for user gui: 501
+$ ls /Applications/Tatolab.app
+ls: /Applications/Tatolab.app: No such file or directory
+$ ls ~/Library/Application\ Support/com.tatolab.tatolab
+ls: ~/Library/Application Support/com.tatolab.tatolab: No such file or directory
+$ ls /tmp/tatolab-proof
+ls: /tmp/tatolab-proof: No such file or directory

@@ -14,8 +14,8 @@ already uses.
 
 1. **Mock (browser).** Pure window changes — layout, copy, a new state's presentation, light/dark.
    Start `npm run dev` in the background (stop it at the end), then drive the page with Playwright
-   at `http://localhost:1420/` with the presets `index.html`, `src/feature_flags.ts`,
-   `src/backend/mock_tatolab_backend.ts` and `src/mock_window_preset.ts` read:
+   at `http://localhost:1420/` with the presets `index.html`, `src/renderer/feature_flags.ts`,
+   `src/renderer/backend/mock_tatolab_backend.ts` and `src/renderer/mock_window_preset.ts` read:
    `?theme=light|dark`, `?platform=linux`, `?state=` (running, empty, loading, node-error,
    not-listed, starting, stopped, unreachable, setup; macOS-only approval, missing,
    not-registered), `?uninstall=cancel`, and the screen keys `?stream=`, `?tab=`,
@@ -67,7 +67,7 @@ already uses.
 
    A change to what the app reads from the local API also runs the live contract test against
    that runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=/tmp/tatolab-proof/run/local-api.sock npx vitest
-   run src-electron/src/local_api_client.test.ts`.
+   run src/main/local_api_client.test.ts`.
 3. **Live on the machine.** Only for what the test root cannot reach: the real administrator
    prompt, `SMAppService` registration after a `brew` reinstall, Gatekeeper, TCC prompts. This
    acts on the owner's real runtime — the `machine-brake` hook notes it — so say what you will

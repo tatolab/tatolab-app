@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const buildDirectory = mkdtempSync(path.join(os.tmpdir(), "tatolab-window-notices-"));
 const LICENCE_FILE_NAMES = /^(licen[cs]e|copying|notice)(\.(md|txt|markdown))?$/i;
-/** The packages src/styles/window.css imports, which the JavaScript bundle's source maps do not name. */
+/** The packages src/renderer/styles/window.css imports, which the JavaScript bundle's source maps do not name. */
 const STYLESHEET_PACKAGES = ["tailwindcss", "tw-animate-css", "shadcn", "@fontsource-variable/geist", "@fontsource-variable/geist-mono"];
 
 /** The package directory under node_modules a bundled source path comes from, scoped names included. */

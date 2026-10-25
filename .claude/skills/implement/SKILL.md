@@ -48,8 +48,8 @@ disable-model-invocation: false
 11. **Prove it**: run `/verify-app` for anything a person sees or the machine feels; its evidence
     goes in the PR. Evidence that needs the owner present, such as a real administrator or privacy
     prompt, is listed in the PR as pending the owner, and the build goes on.
-12. **Review**: spawn `review-pr`, plus `main-process-craftsmanship-reviewer` when `src-electron/` changed and
-    `window-craftsmanship-reviewer` when `src/` changed, in parallel. Fix-loop capped at 3 rounds;
+12. **Review**: spawn `review-pr`, plus `main-process-craftsmanship-reviewer` when `src/main/` or `src/preload/` changed and
+    `window-craftsmanship-reviewer` when `src/renderer/` or `src/shared/` changed, in parallel. Fix-loop capped at 3 rounds;
     a 4th disagreement is posted on the issue as `[NEEDS OWNER]` DISCUSS, and the build stops.
 13. **PR**: run `scripts/check-conventional-pr-title.sh "<title>"`, push, `gh pr create` — title
     `type(scope): summary`; body `## Summary`, `## Closes` (one `Closes #N` per line), `## Exit

@@ -7,11 +7,11 @@
 # Checked in the window's shipped TypeScript, TSX and CSS, and index.html:
 # - a small `rounded-full` element (size, or width and height, of 3 or less);
 # - a pulsing animation (`animate-ping`, `animate-pulse`, `animate-breathe`);
-# - an SVG `<circle>` in UI markup — src/icons.ts is exempt, its circles being a glyph's geometry
+# - an SVG `<circle>` in UI markup — src/renderer/icons.ts is exempt, its circles being a glyph's geometry
 #   (a magnifier's lens, a gear's hub, an eye's pupil);
 # - a bullet glyph;
 # - a round status icon, which reads as a dot (TriangleAlert and SquareX are the problem icons).
-# shadcn's components (src/components/ui/) are controls, not indicators, and are not checked.
+# shadcn's components (src/renderer/components/ui/) are controls, not indicators, and are not checked.
 #
 # Usage: scripts/check-no-dot-indicators.sh   (from anywhere inside the repository)
 
@@ -26,8 +26,8 @@ cd "$repository_root" || exit 2
 readonly SMALL_SIZE='(0\.5|1|1\.5|2|2\.5|3)'
 
 window_files() {
-  git ls-files -z --cached --others --exclude-standard -- 'src/*.ts' 'src/*.tsx' 'src/*.css' 'index.html' \
-    ':!:*.test.ts' ':!:*.test.tsx' ':!:src/components/ui/*' "$@"
+  git ls-files -z --cached --others --exclude-standard -- 'src/renderer/*.ts' 'src/renderer/*.tsx' 'src/renderer/*.css' 'src/renderer/index.html' 'src/shared/*.ts' \
+    ':!:src/*.test.ts' ':!:src/*.test.tsx' ':!:src/renderer/components/ui/*' "$@"
 }
 
 # Lines of the window's files that match the extended regular expression $1, as `file:line:code`.
@@ -42,7 +42,7 @@ small_round_elements="$(
   lines_matching 'rounded-full' | grep -E "\\bw-${SMALL_SIZE}\\b" | grep -E "\\bh-${SMALL_SIZE}\\b"
 )"
 pulsing_indicators="$(lines_matching 'animate-(ping|pulse|breathe)')"
-svg_circles="$(lines_matching '<circle\b' ':!:src/icons.ts')"
+svg_circles="$(lines_matching '<circle\b' ':!:src/renderer/icons.ts')"
 bullet_glyphs="$(lines_matching '[•●◉⬤]')"
 round_status_icons="$(
   lines_matching '\b(OctagonX|OctagonAlert|CircleX|XCircle|CircleAlert|AlertCircle|CircleDot|CircleSlash|CirclePlay|CirclePause|CircleStop)\b'

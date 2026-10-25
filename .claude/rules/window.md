@@ -1,7 +1,7 @@
 ---
 paths:
-  - "src/**"
-  - "index.html"
+  - "src/renderer/**"
+  - "src/shared/**"
   - "proof/design-final/**"
 ---
 
@@ -9,7 +9,7 @@ paths:
 
 - **The design source is `docs/design`** — `DESIGN.md` for the rules, tokens, words and layout,
   the prototype for every screen, its storyboard frames for citing one — **and
-  `src/styles/tokens.css`.** State is written as words, not dots; stopped streams are dimmed; only
+  `src/renderer/styles/tokens.css`.** State is written as words, not dots; stopped streams are dimmed; only
   a failure is red, with its reason.
 - **The design source sets the look; it is not a pixel spec** (owner, #51). Within its language,
   visual details — spacing rhythm, aligned shared edges, proportion, sizes on the scale — are
@@ -29,7 +29,7 @@ paths:
 - **The window is a design system built on shadcn** (owner, #36, #51). It is a pyramid, used
   from the bottom up, with less customisation at each step:
   1. **shadcn.** Stock shadcn components (base-ui, the design source's `base-nova` style), added
-     with the shadcn CLI into `src/components/ui/` and never edited. Their theme comes from
+     with the shadcn CLI into `src/renderer/components/ui/` and never edited. Their theme comes from
      `tokens.css`, the design language.
   2. **The Tatolab design system.** One component for each recurring piece of the UI, built from
      shadcn components and the tokens, with its look defined there.
@@ -40,10 +40,10 @@ paths:
   Screens are built from the design system, not from shadcn directly and not from hand-built
   controls. So a change to how something looks is made once, in the design system or the tokens,
   and applies everywhere.
-- **The window is React and Tailwind v4.** Views are React components in `src/views/`, beside the
+- **The window is React and Tailwind v4.** Views are React components in `src/renderer/views/`, beside the
   DOM pages it still hosts until their tickets rebuild them; presentation is pure functions
-  (`src/presentation/`) with vitest tests; and the backend is the `TatolabBackend` contract with an
-  Electron and a mock implementation (`src/backend/`). Extend those layers; never add a parallel
+  (`src/renderer/presentation/`) with vitest tests; and the backend is the `TatolabBackend` contract with an
+  Electron and a mock implementation (`src/renderer/backend/`). Extend those layers; never add a parallel
   one. A package the window bundles follows `dependencies.md`.
 - **Runtime-supplied text** (stream names, node names, log records, refusals) reaches the DOM only
   through `textContent`, never `innerHTML`.
@@ -54,6 +54,6 @@ paths:
   a screen.
 - **Copy is plain and specific.** Name the thing and the action ("Run Tatolab", "Uninstall
   Tatolab…"); a runtime refusal is shown in its own words.
-- Presentation logic is tested in `src/presentation/*.test.ts`; DOM behaviour that has a seam is
+- Presentation logic is tested in `src/renderer/presentation/*.test.ts`; DOM behaviour that has a seam is
   tested with happy-dom; time is driven through injected clocks or fake timers, as the existing
   tests do.

@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 // Drives the built Linux runtime service and Run Tatolab switch through the systemctl on the PATH: node drive-the-run-tatolab-switch.mjs status|on|off
-const electronBuildSourceDirectory = new URL("../../src-electron/build/src-electron/src", import.meta.url).pathname;
+const electronBuildSourceDirectory = new URL("../../out/main", import.meta.url).pathname;
 const { SystemdUserRuntimeService, SystemctlOnThePath } = await import(`${electronBuildSourceDirectory}/platform/linux/systemd_user_runtime_service.js`);
 const { RunTatolabSwitch } = await import(`${electronBuildSourceDirectory}/run_tatolab_switch.js`);
 const { RememberedSwitchFile } = await import(`${electronBuildSourceDirectory}/remembered_switch_file.js`);

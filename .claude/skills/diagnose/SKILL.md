@@ -9,7 +9,7 @@ Phases in order. The feedback loop is the skill; everything else is mechanical.
 
 1. **Build a red-capable feedback loop first**: one command — already run at least once (paste the
    invocation and its output) — deterministic, fast, that shows the failure. Failing test (a
-   vitest case in `src-electron/` against the fake local API server or an injected platform seam; a vitest case
+   vitest case in `src/main/` against the fake local API server or an injected platform seam; a vitest case
    against a presentation function or the mock backend) > script > throwaway harness > bisection.
    Catching yourself reading code to build a theory before this command exists is the exact failure
    this skill prevents: **no red-capable command, no phase 2.** Genuinely can't build one → stop and

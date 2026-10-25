@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "types": ["vite/client"],
+    "paths": { "@/*": ["./src/renderer/*"] }
+  },
+  "include": ["src/renderer", "src/shared", "vite.config.ts", "vite.window_preload.config.ts"]
+}

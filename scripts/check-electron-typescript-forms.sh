@@ -2,9 +2,9 @@
 # Copyright (c) 2025 Jonathan Fontanez
 # SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 #
-# CLAUDE.md's code rules in the Electron main process's TypeScript (src-electron/), checked line by line
+# CLAUDE.md's code rules in the Electron main process's TypeScript (src/main/ and src/preload/), checked line by line
 # with comments and string literals blanked out:
-# - only src-electron/src/electron_adapters/ and src-electron/src/preload/ import `electron`, so
+# - only src/main/electron_adapters/ and src/preload/ import `electron`, so
 #   every other module and its tests run in plain Node;
 # - shipped code has no `any`, no `as` cast but `as const`, no non-null `!`, no `throw` (a failure
 #   is a returned value the caller propagates), no blocking `*Sync(` call, and no wall-clock
@@ -46,14 +46,14 @@ code_lines_without_comments_or_strings() {
 }
 
 every_electron_file() {
-  git ls-files -z --cached --others --exclude-standard -- 'src-electron/*.ts' 'src-electron/*.cts'
+  git ls-files -z --cached --others --exclude-standard -- 'src/main/*.ts' 'src/main/*.cts' 'src/preload/*.ts' 'src/preload/*.cts'
 }
 shipped_electron_files() {
-  git ls-files -z --cached --others --exclude-standard -- 'src-electron/*.ts' 'src-electron/*.cts' \
-    ':!:*.test.ts' ':!:src-electron/**/fake_*.ts'
+  git ls-files -z --cached --others --exclude-standard -- 'src/main/*.ts' 'src/main/*.cts' 'src/preload/*.ts' 'src/preload/*.cts' \
+    ':!:src/*.test.ts' ':(exclude,glob)src/**/fake_*.ts'
 }
 test_electron_files() {
-  git ls-files -z --cached --others --exclude-standard -- 'src-electron/*.test.ts'
+  git ls-files -z --cached --others --exclude-standard -- 'src/main/*.test.ts' 'src/preload/*.test.ts'
 }
 
 found_violation=0
@@ -67,7 +67,7 @@ report() {
 
 electron_imports_outside_the_adapters="$(
   every_electron_file | code_lines_without_comments_or_strings |
-    grep -vE '^src-electron/src/(electron_adapters|preload)/' |
+    grep -vE '^src/(main/electron_adapters|preload)/' |
     awk -F: '{ line = $0; sub(/^[^:]*:[^:]*:/, "", line) } line ~ /(from|require\(|import\()[[:space:]]*""/ { print }' |
     while IFS= read -r stripped_line; do
       file_and_line="$(printf '%s' "$stripped_line" | cut -d: -f1-2)"
@@ -76,7 +76,7 @@ electron_imports_outside_the_adapters="$(
         printf '%s: %s\n' "$file_and_line" "$original_line"
     done
 )"
-report "electron imported outside src-electron/src/electron_adapters/ and preload/" "$electron_imports_outside_the_adapters"
+report "electron imported outside src/main/electron_adapters/ and src/preload/" "$electron_imports_outside_the_adapters"
 
 shipped_code="$(shipped_electron_files | code_lines_without_comments_or_strings)"
 shipped_lines_matching() { printf '%s\n' "$shipped_code" | grep -E "^[^:]+:[0-9]+:.*($1)" || true; }
