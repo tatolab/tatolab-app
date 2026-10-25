@@ -2,6 +2,45 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## The standard Electron layout (#64)
+
+The code moved to `src/main`, `src/preload`, `src/renderer` and `src/shared`, with no change to what the app does. Frames are in [`standard-layout/`](standard-layout/).
+
+### Live (local proof)
+
+- **Setup:** `scripts/build-tatolab-app.sh --local-proof-test-root` built a packaged, ad-hoc-signed Tatolab.app from the new layout. It wraps streamlib v0.55.4's test-root runtime unit (ef5c8b229), built in a scratch worktree. The bundle check passed, and `app.asar` holds `dist/`, `out/main`, `out/preload`, `out/shared` and `resources/tray-*.png`. The app was opened from `build/` and driven from the keyboard. The window was captured with `screencapture -l`.
+- **The owner's machine:** before the run, `owner-machine-before.txt` records no installed Tatolab.app, no `com.tatolab.tatolabd` agent and no app settings. Afterwards, Run Tatolab was turned off in the proof build, which unregistered its agent. The app was quit, and the proof's settings folder and `/tmp/tatolab-proof` were removed. `owner-machine-after.txt` matches the before record.
+
+| what | label | image | shows |
+|---|---|---|---|
+| The packaged app opens | Live (local proof) | `live-local-proof/01-opened.png` | Welcome to Tatolab: the mascot, the one-line pitch, "Takes about a minute." and a focused Continue. `launchctl print` already showed the proof agent with `TATOLAB_TEST_MACHINE_ROOT => /tmp/tatolab-proof`. |
+| launchd's first spawn refused | Live (local proof) | `live-local-proof/02-getting-set-up.png` | Getting set up: "Start the runtime · Starts once macOS lets it", then "Blocked by macOS · Stopped" with Try Again. launchd reported `OS_REASON_CODESIGNING` on the first spawn, the same refusal #3's run hit on handover. |
+| It starts its runtime | Live (local proof) | `live-local-proof/03-runtime-running.png` | Try Again pressed: "Start the runtime · Running" with a tick, "The runtime is running." and Get Started enabled. `launchctl-proof-agent-running.txt` shows `state = running`, pid 88637, `last exit code = (never exited)`. |
+| The Streams list | Live (local proof) | `live-local-proof/04-streams.png` | Streams on `jonathanf-macbook`: "Nothing loaded on jonathanf-macbook", "No streams on jonathanf-macbook yet", Create the sample stream, Run a project folder and `tatolab dev`. Status bar "Runtime running · Tatolab 0.45.0", as in #3's frame 05. The test-root CLI answered "No streams in this runtime." |
+| The tray icon from `resources/` | Live (local proof) | `live-local-proof/05-tray-icon-in-the-menu-bar.png` | The menu bar's right side with the Tatolab "T" template icon leftmost among the status items. A capture after quitting shows it gone. |
+| What it reads from the runtime | Live (local proof) | `live-local-proof/06-settings-runtime.png` | Settings › Runtime: "Running · tatolabd 0.55.4 · up 2m", Run Tatolab on, "Tatolab is listed under Allow in the Background", the socket `/tmp/tatolab-proof/run/local-api.sock`, Runtime logs `/tmp/tatolab-proof/state/logs`. |
+
+### Linux (container, unbundled) · stand-in runtime
+
+- **Setup:** [`standard-layout/run-in-an-ubuntu-container.sh`](standard-layout/run-in-an-ubuntu-container.sh) builds `git archive HEAD` in `ubuntu:22.04` (arm64) with `npm run build` and `npm run build:electron`, then runs the app unpackaged under Xvfb.
+- **The runtime:** no runtime ran. The `systemctl` stand-in from `electron-window/linux-stand-ins/` starts the **stand-in local API**, which replays the responses recorded in `src/main/test-fixtures/`.
+- **How it was driven:** [`shoot-the-streams-list-over-devtools.mjs`](standard-layout/shoot-the-streams-list-over-devtools.mjs) drives the app over DevTools at an emulated 1240×780 viewport.
+
+| what | label | image | shows |
+|---|---|---|---|
+| The Streams list on Linux | Linux (container, unbundled) · stand-in runtime | `linux-01-streams-light.png` | Streams on `linux-container-stand-in`, "1 of 3 loaded": main Running (Always on, 4 steps), pattern-two Stopped, lobby-recorder Failed in red with "it did not re-load at the runtime's start: Invalid configuration…". Search reads "Ctrl K". Status bar "Runtime running". |
+| The same, dark | Linux (container, unbundled) · stand-in runtime | `linux-02-streams-dark.png` | The same rows in the dark theme, after pressing the theme toggle. |
+
+### Mock
+
+`npm run dev` serves the window from `src/renderer`, with Vite's root there. Driven by Playwright with `?state=running`, there were no page errors.
+
+| what | label | image | shows |
+|---|---|---|---|
+| macOS, light | Mock | `mock-01-macos-streams-light.png` | Streams on `jonathanf-macbook`, "3 of 5 loaded": main, camera and attached-demo Running, pattern-two Stopped, lobby-recorder Failed with its camera reason. |
+| macOS, dark | Mock | `mock-01-macos-streams-dark.png` | The same in the dark theme. |
+| Linux, light | Mock | `mock-02-linux-streams-light.png` | `?platform=linux`: `jonathanf-workstation`, "Ctrl K", and lobby-recorder's `/dev/video0: permission denied` reason. |
+
 ## First run with no administrator password, and the runtime's states in their own words (#3)
 
 Frames are in [`first-run/`](first-run/). The earlier first-launch frames in the #36 and "Every window state" sections below show the administrator setup this change retired.
