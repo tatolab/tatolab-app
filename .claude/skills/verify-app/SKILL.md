@@ -10,6 +10,28 @@ or that launchd and systemd do what the platform layer assumes. This skill produ
 `review-pr` requires for any visible or machine-facing change. The evidence lives in the pull
 request and never reaches `main`.
 
+## Always the latest: the branch's head and streamlib's `main`
+
+Evidence counts only when it was shot on what would ship now:
+
+- **The app** is built from the PR branch's head commit. A commit that changes anything the build
+  takes in after you shot means you rebuild and shoot again.
+- **The runtime** is streamlib's `main` at its current head, fetched and built by this repository's
+  own scripts. `scripts/build-tatolab-app.sh` does that by default: it resolves `main` on GitHub,
+  fetches exactly that commit into `build/streamlib` and builds the unit there. Never build in, read,
+  or pass a unit from the owner's `../streamlib` or any other checkout or `/tmp` directory. A unit
+  from `build/streamlib/target/tatolab-runtime` may be passed with `--runtime-unit` only when it was
+  built at `main`'s current head; the build refuses it otherwise. `--streamlib-ref` is for a release
+  tag, or for unreleased streamlib work the owner names, never to avoid a rebuild.
+- **Check it before you shoot, and put it in the evidence.** These must name one commit:
+  - `git ls-remote https://github.com/tatolab/streamlib.git refs/heads/main`;
+  - the bundle's `Contents/Resources/streamlib-commit` (unpackaged: the unit's `streamlib-commit`);
+  - the build id that the bundled `tatolab-cli -V` reports from the running runtime.
+
+  If `main` moved while you were working, rebuild. Evidence from any other commit is not evidence.
+- Building streamlib needs the `bun` its preview page pins. Fetch that version into a scratch
+  directory and put it first on `PATH`, never over the owner's.
+
 ## Pick the lowest rung that proves the claim
 
 1. **Mock (browser).** Pure window changes — layout, copy, a new state's presentation, light/dark.
@@ -30,9 +52,9 @@ request and never reaches `main`.
    runtime unit and an app whose machine lock, state and socket live under
    `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`: no administrator prompt, nothing written to
    `/Library` or `/usr/local/bin`. Drive streams with that unit's own CLI
-   (`<streamlib>/target/tatolab-runtime/bin/tatolab`, with `TATOLAB_TEST_MACHINE_ROOT` set) —
-   test-pattern streams only. Reuse an already-built unit with `--runtime-unit` rather than
-   rebuilding streamlib. **The proof build shares the installed app's bundle id and agent label,
+   (`build/streamlib/target/tatolab-runtime/bin/tatolab`, with `TATOLAB_TEST_MACHINE_ROOT` set) —
+   test-pattern streams only. `build/streamlib` keeps cargo's cache between builds, so building
+   again at an unchanged commit is quick. **The proof build shares the installed app's bundle id and agent label,
    so while it runs it replaces the owner's runtime.** Before: record
    `launchctl print gui/$(id -u)/com.tatolab.tatolabd | head -5` and quit the installed Tatolab.
    After: turn "Run Tatolab" off in the proof build and quit it. Never use its "Uninstall
@@ -43,10 +65,10 @@ request and never reaches `main`.
 
    Without the packaged build — the unpackaged app over a runtime run by hand, as #37 and #38
    did:
-   - Build streamlib `main`'s test-root unit in a scratch worktree with
-     `scripts/build-tatolab-runtime-unit.sh <worktree> --local-proof-test-root`, so the owner's
-     checkout keeps its own unit. The build pins the `bun` it makes the preview page with: fetch
-     that version into a scratch directory and put it first on `PATH`, never over the owner's.
+   - Fetch streamlib `main` and build its test-root unit with
+     `scripts/fetch-streamlib-for-the-app-build.sh build/streamlib`, then
+     `scripts/build-tatolab-runtime-unit.sh build/streamlib --local-proof-test-root`. The unit's
+     `streamlib-commit` must name `main`'s current head.
    - Create the lock `tatolabd` asks for (its refusal gives the commands), then run the unit's
      `tatolabd` with `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`,
      `TATOLAB_TEST_LOOPBACK_HTTP_PORT=14446` and the two `TATOLAB_TEST_LOCAL_RELAY_*_PORT`s. The
@@ -62,8 +84,8 @@ request and never reaches `main`.
      `com.tatolab.tatolabd`. In #38 both calls failed, but nothing stops them. Record
      `launchctl print gui/$(id -u)/com.tatolab.tatolabd` and the runtime's pid before, and show
      both unchanged after.
-   - After: quit the app, stop the unit's `tatolabd`, `rm -rf /tmp/tatolab-proof`, remove the
-     scratch worktree, and run `npm run build:electron` again so `out/` holds the shipping
+   - After: quit the app, stop the unit's `tatolabd`, `rm -rf /tmp/tatolab-proof`, and run
+     `npm run build:electron` again so `out/` holds the shipping
      features.
 
    A change to what the app reads from the local API also runs the live contract test against
@@ -115,6 +137,9 @@ Put the evidence in the PR body:
 
 ```markdown
 ## Evidence
+Built from <branch head sha>; the runtime is streamlib `main` <commit>, matching `git ls-remote`
+and the running runtime's build id (or "no runtime: Mock / Linux stand-in only").
+
 | what | label | image | shows |
 |---|---|---|---|
 | <the claim> | Mock / Live (local proof) / Live / Linux | [<file>](<blob link>) | <the description> |
