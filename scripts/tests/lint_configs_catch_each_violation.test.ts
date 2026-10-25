@@ -30,6 +30,9 @@ const reportedCases: [string, string, string, string][] = [
   ["a small rounded-full element", "src/renderer/views/zz_planted.tsx", 'export const plantedDot = () => <span className="size-2 rounded-full bg-danger" />;\n', "no-restricted-syntax"],
   ["a rounded-full element sized by width and height", "src/renderer/views/zz_planted.tsx", 'export const plantedDot = () => <span className="h-1.5 w-1.5 rounded-full" />;\n', "no-restricted-syntax"],
   ["a dot class in a template literal", "src/renderer/design_system/zz_planted.tsx", "export const plantedDot = (tone: string) => <span className={`rounded-full size-1.5 ${tone}`} />;\n", "no-restricted-syntax"],
+  ["a dot whose classes are split across cn()'s arguments", "src/renderer/design_system/zz_planted.tsx", 'import { cn } from "cn";\nexport const plantedDot = () => <span className={cn("rounded-full", "size-2")} />;\n', "no-restricted-syntax"],
+  ["a bullet glyph as JSX text", "src/renderer/views/zz_planted.tsx", "export const plantedBullet = () => <span>• planted</span>;\n", "no-restricted-syntax"],
+  ["a console.log in a shadcn component", "src/renderer/components/ui/zz-planted.tsx", 'export const plantedLog = () => console.log("planted");\n', "no-console"],
   ["a pulsing indicator", "src/renderer/views/zz_planted.tsx", 'export const plantedPulse = () => <span className="animate-pulse" />;\n', "no-restricted-syntax"],
   ["an SVG circle in a screen", "src/renderer/views/zz_planted.tsx", 'export const plantedCircle = () => <svg><circle r="3" /></svg>;\n', "no-restricted-syntax"],
   ["an SVG circle in a DOM page's markup", "src/renderer/views/zz_planted.ts", 'export const PLANTED_SVG = \'<svg><circle r="3" /></svg>\';\n', "no-restricted-syntax"],
@@ -81,6 +84,8 @@ const quietCases: [string, string, string][] = [
   ["electron imported by the preload", "src/preload/zz_planted.ts", 'import { ipcRenderer } from "electron";\nexport const plantedBridge = ipcRenderer;\n'],
   ["process.stdout written by tatolab_app_log.ts", "src/main/tatolab_app_log.ts", 'process.stdout.write("planted");\n'],
   ["a cast, a throw and a Sync call in a main-process test", "src/main/zz_planted.test.ts", 'import { readFileSync } from "node:fs";\nexport const planted = readFileSync("/dev/null") as Buffer;\nexport function failing(): void {\n  throw new Error("planted");\n}\n'],
+  ["a process.platform read in a fake under platform/", "src/main/platform/fake_zz_planted.ts", "export const plantedPlatform = process.platform;\n"],
+  ["electron imported by a fake under electron_adapters/", "src/main/electron_adapters/fake_zz_planted.ts", 'import { app } from "electron";\nexport const plantedApp = app;\n'],
   ["a cast and a throw in a fake", "src/main/fake_zz_planted.ts", 'export const planted = JSON.parse("1") as number;\nexport function failing(): void {\n  throw new Error("planted");\n}\n'],
   ["as const in shipped main-process code", "src/main/zz_planted.ts", 'export const planted = ["as a string", "throw it"] as const;\n'],
   ["the forms named only in a comment and a string", "src/main/zz_planted.ts", '// planted: as Error, throw, Date.now() and electron in a comment\nexport const planted = "throw it and Date.now()";\n'],
@@ -94,7 +99,10 @@ const stylesheetCases: [string, string, boolean][] = [
   ["a bullet glyph in a stylesheet", '.planted::before { content: "●"; }\n', true],
   ["a pulsing animation in a stylesheet", ".planted { animation: pulse 2s infinite; }\n", true],
   ["a pulsing class in a stylesheet", ".animate-ping { opacity: 1; }\n", true],
+  ["a pulse applied by Tailwind", ".planted { @apply animate-pulse; }\n", true],
+  ["a dot applied by Tailwind", ".planted { @apply size-2 rounded-full; }\n", true],
   ["a spinner in a stylesheet", ".planted { animation: spin 1s linear infinite; }\n", false],
+  ["a large round applied by Tailwind", ".planted { @apply size-8 rounded-full; }\n", false],
 ];
 
 test.each(stylesheetCases)("stylelint on %s", async (_caseDescription, plantedStylesheet, isReported) => {
@@ -107,6 +115,10 @@ const pullRequestTitleCases: [string, boolean][] = [
   ["refactor: the window builds to out/renderer, its public files sit under it, Tauri's icons are sorted", true],
   ["Planted a thing", false],
   ["style: planted", false],
+  ["Merge branch 'x' into main", false],
+  ["fixup! anything", false],
+  ['Revert "x"', false],
+  ["feat(Scope): x", false],
 ];
 
 test.each(pullRequestTitleCases)("commitlint on the title %j", async (pullRequestTitle, isAccepted) => {

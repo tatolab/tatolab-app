@@ -20,6 +20,6 @@ body:
     id: deliverable-shape
     attributes:
       label: Deliverable shape
-      description: "what the answer looks like when done — a memo, a spike report, a recommendation"
+      description: "what the answer looks like when done — a recommendation in the issue, a spike, the issues it files"
     validations:
       required: true

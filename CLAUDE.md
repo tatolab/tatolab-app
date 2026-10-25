@@ -53,8 +53,8 @@ a parallel one. Search first.
   sets a rule or a glob to `ask` — the checked-in config asks on `publish`
   (`.claude/scripts/machine-brake` edits it). The doctrine still decides what is right — an
   approved prompt means the owner judged this one case the exception, not that the rule bent.
-- Code is the authority on what IS; the issues and the spec on what we AGREED for the app, and
-  streamlib's plan on what the runtime serves.
+- Code is the authority on what IS; the issues on what we AGREED for the app, and streamlib's
+  plan on what the runtime serves.
 
 ## Recording facts vs deciding
 
@@ -65,8 +65,8 @@ sharpen decisions, not to license prose.
   falsified, a stale path, a comment that no longer matches the code — fix it in the same PR
   as the change, and say so in the PR body. Leaving the record wrong to avoid ceremony is the
   worse outcome, always.
-- **A decision goes to the owner** — changing what the app is, or settling a question the issue or
-  the spec leaves open by building one answer. Tier 1 is the owner's call, recorded in the issue,
+- **A decision goes to the owner** — changing what the app is, or settling a question the issue
+  leaves open by building one answer. Tier 1 is the owner's call, recorded in the issue,
   and a runtime need is filed in streamlib; tier 2 is a stated question; tier 3 is the issue's
   Design section.
 - The test: **could a careful reader derive it from the diff and the tree?** Then it is a fact.
@@ -114,7 +114,7 @@ attention spent on settled things is unavailable for real forks.
 - **Platform code lives in `src/main/platform/`** (enforced); both platforms are checked
   on every change, and the `ubuntu-22.04` PR check is the Linux gate — a Mac cannot exercise the
   Linux module against a real systemd or desktop.
-- A decision the issue or the spec doesn't state stops the work and goes to the owner;
+- A decision the issue doesn't state stops the work and goes to the owner;
   it is never inferred from existing code or git history.
 - The main process logs only through `tatolab_app_log.ts`; no `console.*` or `debugger` in
   shipped code, the window included (enforced).

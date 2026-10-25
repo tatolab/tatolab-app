@@ -9,15 +9,20 @@ import tseslint from "typescript-eslint";
 
 const SMALL_SIZE = String.raw`(0\.5|1|1\.5|2|2\.5|3)`;
 
-/** Selectors matched against string and template literals, with the message each reports. */
+/** Selectors matched against string literals, template literals and JSX text, with the message each reports. */
 const stringPatterns = (regexSource, message) => [
   { selector: `Literal[value=/${regexSource}/]`, message },
   { selector: `TemplateElement[value.raw=/${regexSource}/]`, message },
+  { selector: `JSXText[value=/${regexSource}/]`, message },
 ];
 
+const DOT_MESSAGE = "A small rounded-full element is a dot. Status is a word, and a problem is an icon.";
+
 const DOT_INDICATOR_SELECTORS = [
-  ...stringPatterns(String.raw`rounded-full[^"\x60]*\bsize-${SMALL_SIZE}\b|\bsize-${SMALL_SIZE}\b[^"\x60]*rounded-full`, "A small rounded-full element is a dot. Status is a word, and a problem is an icon."),
-  ...stringPatterns(String.raw`^(?=.*rounded-full)(?=.*\bw-${SMALL_SIZE}\b)(?=.*\bh-${SMALL_SIZE}\b)`, "A small rounded-full element is a dot. Status is a word, and a problem is an icon."),
+  ...stringPatterns(String.raw`rounded-full[^"\x60]*\bsize-${SMALL_SIZE}\b|\bsize-${SMALL_SIZE}\b[^"\x60]*rounded-full`, DOT_MESSAGE),
+  ...stringPatterns(String.raw`^(?=.*rounded-full)(?=.*\bw-${SMALL_SIZE}\b)(?=.*\bh-${SMALL_SIZE}\b)`, DOT_MESSAGE),
+  { selector: String.raw`CallExpression:has(> Literal[value=/\brounded-full\b/]):has(> Literal[value=/\bsize-${SMALL_SIZE}\b/])`, message: DOT_MESSAGE },
+  { selector: String.raw`CallExpression:has(> Literal[value=/\brounded-full\b/]):has(> Literal[value=/\bw-${SMALL_SIZE}\b/]):has(> Literal[value=/\bh-${SMALL_SIZE}\b/])`, message: DOT_MESSAGE },
   ...stringPatterns(String.raw`animate-(ping|pulse|breathe)`, "No pulsing indicators."),
   ...stringPatterns("[•●◉⬤]", "No bullet glyphs."),
 ];
@@ -99,24 +104,31 @@ const MAIN_PROCESS_GROUPS = [
   { files: ["src/preload/**/*.{ts,cts}"], mayImportElectron: true },
   { files: ["src/main/platform/**/*.{ts,cts}"], mayReadPlatform: true },
   { files: ["src/main/tatolab_app_log.ts"], mayWriteStandardStreams: true },
-  { files: ["src/main/**/fake_*.ts"], isFake: true },
 ];
+const FAKE_FILES = ["src/**/fake_*.ts"];
 
-/** Each main-process file in exactly one group, as a shipped file or a test. */
+/** A group's file patterns narrowed to one kind of file in it: `*.test.ts` or `fake_*.ts`. */
+function filesOfKind(group, kindPattern) {
+  return group.files.filter((pattern) => pattern.endsWith("*.{ts,cts}")).map((pattern) => pattern.replace(/\*\.\{ts,cts\}$/, kindPattern));
+}
+
+/** Each main-process file in exactly one group, and within it as a shipped file, a fake or a test. */
 function mainProcessConfigs() {
   const specialFiles = MAIN_PROCESS_GROUPS.flatMap((group) => group.files);
   const groups = [...MAIN_PROCESS_GROUPS, { files: MAIN_PROCESS_FILES, ignores: specialFiles }];
   return groups.flatMap((group) => [
     {
       files: group.files,
-      ignores: [...(group.ignores ?? []), ...TEST_FILES],
-      rules: mainProcessRestrictions({ ...group, isShipped: !group.isFake, isTest: false }),
+      ignores: [...(group.ignores ?? []), ...TEST_FILES, ...FAKE_FILES],
+      rules: mainProcessRestrictions({ ...group, isShipped: true, isTest: false }),
     },
-    {
-      files: group.files.map((pattern) => (pattern.endsWith("*.{ts,cts}") ? pattern.replace(/\*\.\{ts,cts\}$/, "*.test.ts") : pattern.replace(/\.ts$/, ".test.ts"))),
-      ignores: group.ignores ?? [],
-      rules: mainProcessRestrictions({ ...group, isShipped: false, isTest: true }),
-    },
+    ...[
+      { kindPattern: "fake_*.ts", isTest: false },
+      { kindPattern: "*.test.ts", isTest: true },
+    ]
+      .map(({ kindPattern, isTest }) => ({ files: filesOfKind(group, kindPattern), ignores: group.ignores ?? [], isTest }))
+      .filter((kindGroup) => kindGroup.files.length > 0)
+      .map(({ files, ignores, isTest }) => ({ files, ignores, rules: mainProcessRestrictions({ ...group, isShipped: false, isTest }) })),
   ]);
 }
 
@@ -147,4 +159,5 @@ export default defineConfig(
   { files: WINDOW_FILES, ignores: [...TEST_FILES, ...SHADCN_FILES, ...SCREEN_FILES, ...ICON_GEOMETRY_FILES], rules: windowRestrictions({}) },
   { files: ICON_GEOMETRY_FILES, rules: windowRestrictions({ mayDrawCircles: true }) },
   { files: SCREEN_FILES, ignores: TEST_FILES, rules: windowRestrictions({ isScreen: true }) },
+  { files: SHADCN_FILES, ignores: TEST_FILES, rules: { "no-console": "error", "no-debugger": "error" } },
 );

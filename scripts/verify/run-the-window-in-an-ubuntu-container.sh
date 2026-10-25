@@ -22,8 +22,9 @@ docker run --rm \
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq >/dev/null
   apt-get install -y -qq curl ca-certificates xz-utils xvfb dbus-x11 libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2 libxss1 libdrm2 libxshmfence1 >/dev/null
-  curl -fsSL https://nodejs.org/dist/v22.23.1/node-v22.23.1-linux-arm64.tar.xz | tar -xJ -C /opt
-  export PATH=/opt/node-v22.23.1-linux-arm64/bin:$PATH
+  case "$(uname -m)" in aarch64) node_architecture=arm64 ;; *) node_architecture=x64 ;; esac
+  curl -fsSL "https://nodejs.org/dist/v22.23.1/node-v22.23.1-linux-$node_architecture.tar.xz" | tar -xJ -C /opt
+  export PATH="/opt/node-v22.23.1-linux-$node_architecture/bin:$PATH"
   cd /work && tar -xf /tree-archive/tree.tar
   npm ci --ignore-scripts >/dev/null 2>&1 && node node_modules/electron/install.js >/dev/null
   npm run build >/dev/null && npm run build:electron >/dev/null
