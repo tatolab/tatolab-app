@@ -47,14 +47,9 @@ export function deriveRuntimeState(observations: RuntimeStateObservations): Runt
   return observations.runtimeAnsweredSinceItWasLastStarted ? "unreachable" : "never_answered";
 }
 
-/** A runtime state in which the switch is on and the agent enabled but the runtime is not answering, past its start. */
-function isARuntimeNotAnswering(runtimeState: RuntimeState): boolean {
+/** Whether `runtimeState` is the switch on and the agent enabled but the runtime not answering, past its start: unreachable, never answered or blocked. */
+export function isARuntimeNotAnswering(runtimeState: RuntimeState): boolean {
   return runtimeState === "unreachable" || runtimeState === "never_answered" || runtimeState === "blocked_by_the_service_manager";
-}
-
-/** Whether this round is the one the runtime stopped answering in, after `previousRuntimeState`: it is now unreachable, never answered or blocked, and was none of them before. */
-export function theRuntimeJustStoppedAnswering(previousRuntimeState: RuntimeState | null, runtimeState: RuntimeState): boolean {
-  return isARuntimeNotAnswering(runtimeState) && (previousRuntimeState === null || !isARuntimeNotAnswering(previousRuntimeState));
 }
 
 /** What the tray offers to bring the runtime back: Login Items while macOS waits for the person's approval, Try Again once it never answered or the service manager gave up; `null` otherwise. */

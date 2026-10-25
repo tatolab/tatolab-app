@@ -10,6 +10,7 @@
 // runtime's agent and stops the runtime, the app's own config directory is removed, the bundle
 // goes to the Trash, and the app quits. A local-proof build removes its test root instead.
 
+import type { RmOptions } from "node:fs";
 import { readlink, rm } from "node:fs/promises";
 import path from "node:path";
 import { somethingIsAt } from "../../file_system_entries_on_this_machine.js";
@@ -144,21 +145,23 @@ export async function removeTheAppConfigDirectoryNamedFor(appConfigDirectory: st
   return removeTheDirectoryUnlessAbsent(appConfigDirectory);
 }
 
-/** Remove `directory` and everything in it; one that is not there is already removed. */
-async function removeTheDirectoryUnlessAbsent(directory: string): Promise<Result<void, string>> {
-  return rm(directory, { recursive: true, force: true }).then(
+/** Remove `removalPath` as `rmOptions` say, refused naming it. */
+function removedOrRefused(removalPath: string, rmOptions: RmOptions): Promise<Result<void, string>> {
+  return rm(removalPath, rmOptions).then(
     () => succeeded(undefined),
-    (removalFailure: unknown) => failedWith(`${directory} could not be removed: ${describeCaughtFailure(removalFailure)}`),
+    (removalFailure: unknown) => failedWith(`${removalPath} could not be removed: ${describeCaughtFailure(removalFailure)}`),
   );
+}
+
+/** Remove `directory` and everything in it; one that is not there is already removed. */
+function removeTheDirectoryUnlessAbsent(directory: string): Promise<Result<void, string>> {
+  return removedOrRefused(directory, { recursive: true, force: true });
 }
 
 /** Remove the link at `linkPath` while it points into `appBundle`; one that is not there, or links elsewhere, is left as it is. */
 async function removeTheLinkIntoTheBundle(linkPath: string, appBundle: string): Promise<Result<void, string>> {
   if (!(await linksIntoTheBundle(linkPath, appBundle))) return succeeded(undefined);
-  return rm(linkPath, { force: true }).then(
-    () => succeeded(undefined),
-    (removalFailure: unknown) => failedWith(`${linkPath} could not be removed: ${describeCaughtFailure(removalFailure)}`),
-  );
+  return removedOrRefused(linkPath, { force: true });
 }
 
 /** What uninstalling needs from the app around it: the Trash and quitting. */

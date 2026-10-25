@@ -10,7 +10,6 @@ import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from 
 import type {
   ListedStream,
   RuntimeDescription,
-  RuntimeState,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
   StreamGraphSummary,
@@ -32,7 +31,7 @@ import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { RunTatolabSwitch, type RunTatolabReconciliation } from "./run_tatolab_switch.js";
 import { RuntimeRestartedForAppVersionFile } from "./runtime_restarted_for_app_version.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import { deriveRuntimeState, theRuntimeJustStoppedAnswering, theServiceManagerMayHaveGivenUp, type RuntimeHealthObservation } from "./tatolab_status.js";
+import { deriveRuntimeState, isARuntimeNotAnswering, theServiceManagerMayHaveGivenUp, type RuntimeHealthObservation } from "./tatolab_status.js";
 
 /** How long one local API request may go without a byte before the runtime reads as not answering. */
 const LOCAL_API_REQUEST_TIMEOUT_MS = 3_000;
@@ -79,7 +78,7 @@ export interface TatolabAppControllerSources {
 
 /** The switch, the command's links, first run, and what the controller remembers between status rounds. */
 export class TatolabAppController {
-  private runtimeStateLastObserved: RuntimeState | null = null;
+  private readonly runtimeNotAnsweringOnset = new ConditionOnsetLatch();
   private readonly streamListingFailureOnset = new ConditionOnsetLatch();
   private readonly serviceManagerGiveUpOnset = new ConditionOnsetLatch();
   private readonly machineNameOfTheRunningRuntime = new MachineNameAskedOncePerRuntimeUpEpisode();
@@ -306,17 +305,18 @@ export class TatolabAppController {
       const isRestartingTheRuntime = runTatolabSwitch.isRestartingTheRuntime(nowMs, runtimeHealth);
       runTatolabSwitch.noteRestartSettledIfThisRoundShowsIt(nowMs, runtimeHealth);
       if (runtimeHealth === "healthy" && !isRestartingTheRuntime) runTatolabSwitch.noteRuntimeHealthy(nowMs);
-      const whyTheServiceManagerGaveUpNow = theServiceManagerMayHaveGivenUp({ runTatolab: runTatolabSwitch.runTatolab(), runtimeAgent: runtimeAgentNow, runtimeHealth })
+      const runTatolabNow = runTatolabSwitch.runTatolab();
+      const whyTheServiceManagerGaveUpNow = theServiceManagerMayHaveGivenUp({ runTatolab: runTatolabNow, runtimeAgent: runtimeAgentNow, runtimeHealth })
         ? await runTatolabSwitch.whyTheServiceManagerGaveUpOnTheRuntime()
         : null;
       return {
-        runTatolab: runTatolabSwitch.runTatolab(),
+        runTatolab: runTatolabNow,
         runtimeAgent: runtimeAgentNow,
         whyTheServiceManagerGaveUp: whyTheServiceManagerGaveUpNow,
         runtimeState: isRestartingTheRuntime
           ? "starting"
           : deriveRuntimeState({
-              runTatolab: runTatolabSwitch.runTatolab(),
+              runTatolab: runTatolabNow,
               runtimeAgent: runtimeAgentNow,
               runtimeHealth,
               serviceManagerGaveUpOnTheRuntime: whyTheServiceManagerGaveUpNow !== null,
@@ -325,9 +325,7 @@ export class TatolabAppController {
             }),
       };
     });
-    const previousRuntimeState = this.runtimeStateLastObserved;
-    this.runtimeStateLastObserved = runtimeState;
-    if (theRuntimeJustStoppedAnswering(previousRuntimeState, runtimeState) && !healthCheck.ok) {
+    if (this.runtimeNotAnsweringOnset.conditionJustStartedHolding(isARuntimeNotAnswering(runtimeState)) && !healthCheck.ok) {
       this.tatolabAppLog.warn("the runtime is not responding to its health check", {
         runtime_state: runtimeState,
         failure: healthCheck.failure.failureDescription,

@@ -11,7 +11,7 @@ import type {
 import {
   deriveRuntimeState,
   RUNTIME_STARTING_GRACE_PERIOD_MS,
-  theRuntimeJustStoppedAnswering,
+  isARuntimeNotAnswering,
   trayRuntimeRemedy,
   trayStatusLine,
   type RuntimeStateObservations,
@@ -95,21 +95,16 @@ test("the_service_manager_giving_up_is_blocked_even_inside_the_grace_period", ()
   }
 });
 
-test("the_runtime_stops_answering_only_on_the_round_it_first_turns_unreachable_never_answered_or_blocked", () => {
-  const cases: [RuntimeState | null, RuntimeState, boolean][] = [
-    [null, "unreachable", true],
-    ["starting", "unreachable", true],
-    ["running", "unreachable", true],
-    ["unreachable", "unreachable", false],
-    ["unreachable", "starting", false],
-    ["starting", "never_answered", true],
-    ["never_answered", "blocked_by_the_service_manager", false],
-    ["blocked_by_the_service_manager", "blocked_by_the_service_manager", false],
-    [null, "stopped", false],
+test("unreachable_never_answered_and_blocked_are_the_states_of_a_runtime_not_answering", () => {
+  const cases: [RuntimeState, boolean][] = [
+    ["unreachable", true],
+    ["never_answered", true],
+    ["blocked_by_the_service_manager", true],
+    ["running", false],
+    ["starting", false],
+    ["stopped", false],
   ];
-  for (const [previousRuntimeState, runtimeState, expected] of cases) {
-    expect(theRuntimeJustStoppedAnswering(previousRuntimeState, runtimeState), `${previousRuntimeState} -> ${runtimeState}`).toBe(expected);
-  }
+  for (const [runtimeState, expected] of cases) expect(isARuntimeNotAnswering(runtimeState), runtimeState).toBe(expected);
 });
 
 test("the_tray_line_names_the_runtime_state_and_stream_count", () => {

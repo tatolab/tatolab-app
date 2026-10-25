@@ -85,6 +85,9 @@ async function linkReplacedWhole(linkPath: string, linkTarget: string): Promise<
   }
 }
 
+/** Why this build makes no such link. */
+type CommandLineToolLinkNotOffered = Extract<CommandLineToolLinkRefusal, { kind: "not_offered" }>;
+
 /** A link this build makes: where it goes and the CLI it points at. */
 interface OfferedCommandLineToolLink {
   linkPath: string;
@@ -147,14 +150,14 @@ export class CommandLineToolLinksOnThisMac implements TatolabCommandLineToolLink
     return failedWith({ kind: "refused", refusal: `tatolab couldn't be linked in /usr/local/bin: ${linked.failure.failureDescription}` });
   }
 
-  private homeFolderLinkOffered(): Result<OfferedCommandLineToolLink, CommandLineToolLinkRefusal> {
+  private homeFolderLinkOffered(): Result<OfferedCommandLineToolLink, CommandLineToolLinkNotOffered> {
     if (this.bundledCommandLineTool === null) return failedWith({ kind: "not_offered", reason: NO_BUNDLED_COMMAND_LINE_TOOL_LINK_REFUSAL });
     const linkPath = this.machinePaths.commandLineToolHomeFolderLink;
     if (linkPath === null) return failedWith({ kind: "not_offered", reason: NO_HOME_FOLDER_LINK_REFUSAL });
     return succeeded({ linkPath, bundledCommandLineTool: this.bundledCommandLineTool });
   }
 
-  private usrLocalBinLinkOffered(): Result<OfferedCommandLineToolLink, CommandLineToolLinkRefusal> {
+  private usrLocalBinLinkOffered(): Result<OfferedCommandLineToolLink, CommandLineToolLinkNotOffered> {
     const linkPath = this.machinePaths.commandLineToolUsrLocalBinLink;
     if (linkPath === null) return failedWith({ kind: "not_offered", reason: LOCAL_PROOF_USR_LOCAL_BIN_LINK_REFUSAL });
     if (this.bundledCommandLineTool === null) return failedWith({ kind: "not_offered", reason: NO_BUNDLED_COMMAND_LINE_TOOL_LINK_REFUSAL });
@@ -170,7 +173,7 @@ export class CommandLineToolLinksOnThisMac implements TatolabCommandLineToolLink
 
   private async observeUsrLocalBinLink(): Promise<CommandLineToolUsrLocalBinLink> {
     const offered = this.usrLocalBinLinkOffered();
-    if (!offered.ok) return offered.failure.kind === "not_offered" ? { kind: "not_offered", reason: offered.failure.reason } : { kind: "not_linked" };
+    if (!offered.ok) return offered.failure;
     const { linkPath, bundledCommandLineTool } = offered.value;
     return (await commandLineToolLinkPlace(linkPath, bundledCommandLineTool)) === "linked_to_this_app" ? { kind: "linked", path: linkPath } : { kind: "not_linked" };
   }

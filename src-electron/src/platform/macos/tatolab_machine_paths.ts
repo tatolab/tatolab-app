@@ -19,13 +19,13 @@ import {
 } from "../mod.js";
 
 /** Where the app links the `tatolab` CLI with no prompt, relative to the home folder: the folder the Linux installer links it in too. */
-export const COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER = ".local/bin/tatolab";
+const COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER = ".local/bin/tatolab";
 
 /** Where the app links the `tatolab` CLI behind the administrator prompt, when the person asks: a folder every terminal's PATH holds. */
-export const COMMAND_LINE_TOOL_USR_LOCAL_BIN_LINK_PATH = "/usr/local/bin/tatolab";
+const COMMAND_LINE_TOOL_USR_LOCAL_BIN_LINK_PATH = "/usr/local/bin/tatolab";
 
 /** The root-owned directory earlier versions created for the machine runtime lock, which uninstalling removes when it is still there. */
-export const EARLIER_MACHINE_RUNTIME_LOCK_DIRECTORY = "/Library/Application Support/Tatolab";
+const EARLIER_MACHINE_RUNTIME_LOCK_DIRECTORY = "/Library/Application Support/Tatolab";
 
 /** The CLI's file name beside the app binary in `Contents/MacOS/`. Not `tatolab`: a default APFS volume folds case, so that name would overwrite the app's own `Tatolab`. */
 const BUNDLED_COMMAND_LINE_TOOL_FILE_NAME = "tatolab-cli";
