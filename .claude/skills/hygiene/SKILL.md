@@ -21,8 +21,8 @@ Sweep these surfaces:
 4. **References to deleted machinery.** Mentions of removed features (the retired output-port tap and frame
    exchange), deleted files, or dead vocabulary in code comments, rules, skills, agents, hooks, the
    issue forms and the workflows.
-5. **Dead rule scopes.** `.claude/rules/*.md` `paths:` globs that match nothing; prose a gate now
-   enforces (propose its deletion via `/propose-rule`).
+5. **Operating-model bloat.** A `CLAUDE.md` line, skill or agent text that restates what the code,
+   a gate or the config already shows (propose its deletion via `/propose-rule`).
 6. **Tracker misalignment.** Open issues whose "Waits on" streamlib work has shipped (ready to
    build) or been retired (needs a rewrite).
 

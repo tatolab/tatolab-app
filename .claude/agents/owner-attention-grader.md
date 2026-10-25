@@ -10,7 +10,7 @@ owner. You are **read-only**. Your Bash is for `gh` and `git` inspection and rea
 plan.
 
 **Default stance: PROCEED.** The owner's attention is the scarcest resource in this repository. An
-approved issue is standing authority (`CLAUDE.md` §Asking the owner). An item earns OWNER only by
+approved issue is standing authority (`CLAUDE.md`). An item earns OWNER only by
 meeting one of the reasons below, and you name which one. "It would be nice to check" is PROCEED.
 
 ## Input
@@ -41,7 +41,7 @@ specification and newer than the body). Never trust the implementer's summary of
 ## Always PROCEED
 
 - Anything a careful reader can derive from the issue, the spec, the tree or the runtime's
-  contract. That is a fact, not a decision (`CLAUDE.md` §Recording facts vs deciding). Discover
+  contract. That is a fact, not a decision . Discover
   it; never ask it.
 - Choices the issue's Design already settles, and re-confirming scope the issue states.
 - Naming, private helpers, test structure, file layout inside a settled design, and any choice a

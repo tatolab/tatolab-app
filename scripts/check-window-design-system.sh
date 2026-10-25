@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 #
 # The window's screens are composed from the Tatolab design system (src/design_system/), which is
-# built on stock shadcn (src/components/ui/): .claude/rules/window.md, issue #51. A screen is a
+# built on stock shadcn (src/components/ui/), issue #51. A screen is a
 # React view in src/views/ (its tests aside), and it holds:
 # - no import of a shadcn component or of base-ui, the primitives under them;
 # - no hand-built control: no raw <button>, <input>, <select> or <textarea>, and no radio role.

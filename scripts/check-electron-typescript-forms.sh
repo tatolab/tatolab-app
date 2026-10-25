@@ -2,7 +2,7 @@
 # Copyright (c) 2025 Jonathan Fontanez
 # SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 #
-# CLAUDE.md's code rules in the Electron main process's TypeScript (src-electron/), checked line by line
+# The main process's code rules in the Electron main process's TypeScript (src-electron/), checked line by line
 # with comments and string literals blanked out:
 # - only src-electron/src/electron_adapters/ and src-electron/src/preload/ import `electron`, so
 #   every other module and its tests run in plain Node;
