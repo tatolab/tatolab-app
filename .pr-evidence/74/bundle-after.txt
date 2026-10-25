@@ -1,0 +1,18 @@
+/Applications/Tatolab.app/Contents/MacOS:
+total 186832
+drwxr-xr-x@  6 fonta  staff       192 Oct 25 17:05 .
+drwxr-xr-x@ 10 fonta  staff       320 Oct 25 17:07 ..
+-rwxr-xr-x@  1 fonta  staff  37136288 Oct 25 17:05 moq-relay
+-rwxr-xr-x@  1 fonta  staff     52976 Oct 25 17:05 Tatolab
+-rwxr-xr-x@  1 fonta  staff   8866080 Oct 25 17:05 tatolab-cli
+-rwxr-xr-x@  1 fonta  staff  49596064 Oct 25 17:05 tatolabd
+
+/Applications/Tatolab.app/Contents/Resources/watch:
+total 4912
+drwxr-xr-x@  7 fonta  staff      224 Oct 25 15:42 .
+drwxr-xr-x@ 62 fonta  staff     1984 Oct 25 17:05 ..
+-rw-r--r--@  1 fonta  staff     1281 Oct 25 10:19 index.html
+-rw-r--r--@  1 fonta  staff   286800 Oct 19 13:51 libav-6.10.9.0-opus-af.wasm.mjs
+-rw-r--r--@  1 fonta  staff  1561126 Oct 19 13:51 libav-6.10.9.0-opus-af.wasm.wasm
+-rw-r--r--@  1 fonta  staff    28361 Oct 19 13:51 libav-opus-af.mjs
+-rw-r--r--@  1 fonta  staff   625677 Oct 25 15:42 main.js
