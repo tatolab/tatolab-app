@@ -1,0 +1,91 @@
+verifying build/Tatolab-0.45.0-arm64.dmg
+  ok    the image is signed
+  ok    Tatolab-0.45.0-arm64.dmg carries no notarization ticket: Gatekeeper not assessed
+  ok    the image links Applications
+  ok    the image carries the installer background
+verifying /var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/.
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/Helpers/app_shim_loader
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/Helpers/app_shim_loader
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/Helpers/chrome_crashpad_handler
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/Helpers/chrome_crashpad_handler
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/.
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Mantle.framework/Versions/Current/.
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Mantle.framework/Versions/Current/.
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/ReactiveObjC.framework/Versions/Current/.
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/ReactiveObjC.framework/Versions/Current/.
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Squirrel.framework/Versions/Current/.
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Squirrel.framework/Versions/Current/.
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Tatolab Helper (GPU).app
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Tatolab Helper (GPU).app
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Tatolab Helper (Plugin).app
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Tatolab Helper (Plugin).app
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Tatolab Helper (Renderer).app
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Tatolab Helper (Renderer).app
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Tatolab Helper.app
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/Tatolab Helper.app
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/tatolab-app-native/service_management_agent_services.node
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/tatolab-app-native/service_management_agent_services.node
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/tatolab-runtime/_engine.abi3.so
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/tatolab-runtime/_engine.abi3.so
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/tatolab-runtime/_vulkan_driver/libMoltenVK.dylib
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/tatolab-runtime/_vulkan_driver/libMoltenVK.dylib
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/tatolab-runtime/_vulkan_driver/libvulkan.1.dylib
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/Frameworks/tatolab-runtime/_vulkan_driver/libvulkan.1.dylib
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/MacOS/tatolab-cli
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/MacOS/tatolab-cli
+        --prepared:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/MacOS/tatolabd
+        --validated:/private/var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app/Contents/MacOS/tatolabd
+        /var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app: valid on disk
+        /var/folders/7j/7n9sd2gn3m1b8xh69jngqw1c0000gn/T/tmp.6QmCkm7rVv/Tatolab.app: satisfies its Designated Requirement
+  ok    codesign --verify --deep --strict
+  ok    CFBundleIdentifier is com.tatolab.tatolab
+  ok    LSUIElement is true
+  ok    the app executable Contents/MacOS/Tatolab is present
+  ok    Contents/MacOS/tatolabd is present
+  ok    Contents/MacOS/tatolab-cli is present
+  ok    Info.plist carries no App Transport Security exception
+  ok    NSCameraUsageDescription names Tatolab
+  ok    NSMicrophoneUsageDescription names Tatolab
+  ok    NSLocalNetworkUsageDescription names Tatolab
+  ok    NSDocumentsFolderUsageDescription names Tatolab
+  ok    NSDesktopFolderUsageDescription names Tatolab
+  ok    NSDownloadsFolderUsageDescription names Tatolab
+  ok    every Mach-O sits in Contents/MacOS or Contents/Frameworks
+  ok    every Mach-O is signed (hardened runtime unless ad-hoc)
+  ok    every Mach-O is signed by one team (not set)
+  ok    every symlink resolves inside the bundle
+  ok    Resources/lend carries the runtime package
+  ok    Resources/lend links 3 Mach-O into Frameworks/tatolab-runtime
+  ok    every .py under Resources/lend/tatolab/runtime has cpython-310 cpython-311 cpython-312 cpython-313 cpython-314 bytecode
+  ok    app.asar carries the build features: machineDirectoriesUnderATestRoot=true appUpdateFeedUrl=http://127.0.0.1:8765/app/ 
+  ok    launch agent plist is valid
+  ok    launch agent Label is com.tatolab.tatolabd
+  ok    launch agent BundleProgram is the bundled tatolabd
+  ok    launch agent is associated with com.tatolab.tatolab
+  ok    launch agent may open 65536 files
+  note  LOCAL PROOF build: every machine directory lives under TATOLAB_TEST_MACHINE_ROOT
+  ok    local-proof launch agent sets TATOLAB_TEST_LOCAL_RELAY_LOOPBACK_PORT=14443
+  ok    local-proof launch agent sets TATOLAB_TEST_LOCAL_RELAY_EVERY_INTERFACE_PORT=14445
+  ok    local-proof launch agent sets TATOLAB_TEST_LOOPBACK_HTTP_PORT=14446
+  ok    com.apple.security.device.camera on tatolabd
+  ok    com.apple.security.device.audio-input on tatolabd
+  ok    com.apple.security.device.camera on Tatolab.app
+  ok    com.apple.security.device.audio-input on Tatolab.app
+  ok    the app carries exactly: com.apple.security.cs.allow-jit com.apple.security.device.audio-input com.apple.security.device.camera
+  ok    tatolabd carries exactly: com.apple.security.device.audio-input com.apple.security.device.camera
+  ok    Tatolab Helper (GPU).app carries exactly: no entitlements
+  ok    Tatolab Helper (Plugin).app carries exactly: no entitlements
+  ok    Tatolab Helper (Renderer).app carries exactly: com.apple.security.cs.allow-jit
+  ok    Tatolab Helper.app carries exactly: no entitlements
+  ok    Electron fuse: RunAsNode is Disabled
+  ok    Electron fuse: EnableNodeOptionsEnvironmentVariable is Disabled
+  ok    Electron fuse: EnableNodeCliInspectArguments is Disabled
+  ok    Electron fuse: EnableEmbeddedAsarIntegrityValidation is Enabled
+  ok    Electron fuse: OnlyLoadAppFromAsar is Enabled
+  ok    the Service Management addon is in Frameworks/tatolab-app-native
+  ok    electron-updater is in app.asar
+  ok    Resources/app-update.yml names the updater's cache
+  note  LOCAL PROOF build: the app's build features are machineDirectoriesUnderATestRoot=true appUpdateFeedUrl=http://127.0.0.1:8765/app/ 
+  ok    Tatolab.app carries no notarization ticket: Gatekeeper not assessed
+all checks passed for build/Tatolab-0.45.0-arm64.dmg

@@ -1,0 +1,2 @@
+tatolab 0.55.4
+runtime 0.55.4 (0.55.4+ef5c8b22995a90b1f7ae671e214c96480615c911.b2bcbd4f485f8168c723b033ec364284), up 0d 0h 0m, log /tmp/tatolab-proof/state/logs
