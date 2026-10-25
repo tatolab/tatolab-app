@@ -15,7 +15,7 @@ The deliverable is shared understanding, not just an answer. No edits from this 
      behaviour.
    - **[PLAN]** — what the app's issues say is agreed for the app, or what streamlib's `docs/plan/` says about the local API.
    - **[INFERRED]** — Claude's judgment or reconstruction, with stated confidence.
-3. **Surface disagreements found on the way.** If the code contradicts the plan, the spec or the
+3. **Surface disagreements found on the way.** If the code contradicts the plan or the
    README, say so in the answer.
 4. **Close the say-back loop.** End with one paragraph: "So my understanding is … — does that match
    yours?" A correction goes through `/reconcile-understanding`.

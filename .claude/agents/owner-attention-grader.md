@@ -35,12 +35,12 @@ specification and newer than the body). Never trust the implementer's summary of
    for: publish a release or dispatch a publishing workflow, edit `LICENSE`, change what code
    signing reads (entitlements, `Info.plist`, the launch-agent plist), change the owner's real
    runtime or machine state, or handle a secret.
-6. **No reading works.** The issue contradicts the runtime's contract, the spec or itself, so no
+6. **No reading works.** The issue contradicts the runtime's contract, the design system in code or itself, so no
    reading of it delivers its Done means.
 
 ## Always PROCEED
 
-- Anything a careful reader can derive from the issue, the spec, the tree or the runtime's
+- Anything a careful reader can derive from the issue, the tree or the runtime's
   contract. That is a fact, not a decision (`CLAUDE.md` §Recording facts vs deciding). Discover
   it; never ask it.
 - Choices the issue's Design already settles, and re-confirming scope the issue states.

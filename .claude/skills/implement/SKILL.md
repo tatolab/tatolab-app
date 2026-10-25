@@ -20,7 +20,7 @@ disable-model-invocation: false
    every agent that edits files runs in its own worktree; the steps below hold.
 3. **Plan gate**: list every open item this work needs: a decision, a question you would ask the
    owner, an assumption you would rather not make. Give each one its options, your pick and why.
-   Resolve whatever the issue, its comments, the spec, the tree or the runtime's contract answers; that is
+   Resolve whatever the issue, its comments, the tree or the runtime's contract answers; that is
    discovery, not a question. A new module, interface or window IPC command the issue's Design section
    does not settle goes through `/module-design`, and its recommendation is written into the
    Design. Never infer a decision from existing code or git history. When items remain, spawn
