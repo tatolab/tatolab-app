@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 #
 # The Linux rung of /verify-app on a Mac: builds the committed tree at HEAD in an ubuntu:22.04
-# container (npm run build, npm run build:electron), runs it unpackaged under Xvfb over the stand-in
+# container (npm run build), runs it unpackaged under Xvfb over the stand-in
 # local API that replays src/main/test-fixtures/, and shoots the Streams list over the DevTools
 # protocol into <output directory>. Linux's node_modules lives in a container volume, so the host's
 # never changes.
@@ -27,7 +27,7 @@ docker run --rm \
   export PATH="/opt/node-v22.23.1-linux-$node_architecture/bin:$PATH"
   cd /work && tar -xf /tree-archive/tree.tar
   npm ci --ignore-scripts >/dev/null 2>&1 && node node_modules/electron/install.js >/dev/null
-  npm run build >/dev/null && npm run build:electron >/dev/null
+  npm run build >/dev/null
   echo "main entry: $(node -p "require(\"./package.json\").main")"; ls out
   export XDG_RUNTIME_DIR=/tmp/xdg-runtime SYSTEMCTL_STAND_IN_STATE=/tmp/systemctl-stand-in
   mkdir -p -m 0700 $XDG_RUNTIME_DIR && mkdir -p $SYSTEMCTL_STAND_IN_STATE

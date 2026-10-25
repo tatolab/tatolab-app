@@ -3,17 +3,14 @@
   "private": true,
   "version": "0.45.0",
   "type": "module",
-  "main": "out/main/electron_adapters/electron_app_entry.js",
+  "main": "out/main/electron_app_entry.js",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit -p tsconfig.web.json && tsc -p tsconfig.node.json && vite build",
-    "build:electron": "node -e \"for (const built of ['out/main', 'out/preload', 'out/shared']) require('node:fs').rmSync(built, { recursive: true, force: true })\" && tsc -p tsconfig.node.build.json && vite build --config vite.window_preload.config.ts && node scripts/tatolab_app_build_features.mjs write out/main/tatolab_app_build_features.json",
+    "dev": "electron-vite dev --watch",
+    "build": "npm run typecheck && electron-vite build && node scripts/tatolab_app_build_features.mjs write out/main/tatolab_app_build_features.json",
+    "typecheck": "tsc -b",
     "build:service-management-addon": "node-gyp rebuild --directory native/service_management_agent_services",
-    "preview": "vite preview",
     "test": "vitest run",
-    "lint": "eslint . && stylelint \"src/renderer/**/*.css\" && scripts/check-license-headers.sh",
-    "electron": "npm run build && npm run build:electron && electron .",
-    "electron:dev": "npm run build:electron && TATOLAB_APP_WINDOW_DEV_SERVER_URL=http://localhost:1420/ electron ."
+    "lint": "eslint . && stylelint \"src/renderer/**/*.css\" && scripts/check-license-headers.sh"
   },
   "dependencies": {
     "electron-updater": "6.8.9"
@@ -38,6 +35,7 @@
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.0",
     "electron": "^44.9.1",
+    "electron-vite": "^6.0.0",
     "eslint": "^10.13.0",
     "happy-dom": "^21.0.1",
     "lucide-react": "^1.61.0",

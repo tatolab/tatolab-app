@@ -28,9 +28,9 @@ function packageDirectoryOf(sourcePath) {
 }
 
 try {
-  execFileSync("npx", ["vite", "build", "--sourcemap", "--outDir", buildDirectory, "--emptyOutDir"], { cwd: repositoryRoot, stdio: "ignore" });
+  execFileSync("npx", ["electron-vite", "build", "--sourcemap", "--outDir", buildDirectory], { cwd: repositoryRoot, stdio: "ignore" });
   const packageDirectories = new Set(STYLESHEET_PACKAGES.map((packageName) => path.join(repositoryRoot, "node_modules", packageName)));
-  const assetsDirectory = path.join(buildDirectory, "assets");
+  const assetsDirectory = path.join(buildDirectory, "renderer", "assets");
   for (const mapFile of readdirSync(assetsDirectory).filter((fileName) => fileName.endsWith(".map"))) {
     const { sources } = JSON.parse(readFileSync(path.join(assetsDirectory, mapFile), "utf8"));
     for (const source of sources) {

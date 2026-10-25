@@ -94,8 +94,7 @@ output_update_manifest="$build_directory/latest-mac.yml"
 echo "==> Electron app"
 cd "$repository_root"
 npm ci
-npm run build
-npm run build:electron -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"}
+npm run build -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"}
 npm run build:service-management-addon -- --arch=arm64
 built_service_management_addon="$repository_root/native/service_management_agent_services/build/Release/service_management_agent_services.node"
 [ "$(lipo -archs "$built_service_management_addon")" = arm64 ] || { echo "$built_service_management_addon is not arm64-only" >&2; exit 1; }

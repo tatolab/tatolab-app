@@ -1,14 +1,14 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-// Packages the built Electron app (`npm ci`, `npm run build` and `npm run build:electron` first)
+// Packages the built Electron app (`npm ci` and `npm run build` first)
 // for one platform with @electron/packager: it stages exactly what the main process, the preload
 // and the window load, with the production dependencies the lockfile installed, packs it into the
 // asar, and flips Electron's fuses. Prints the packaged app's path (Tatolab.app on macOS, the
 // app's directory on Linux) as its last line.
 //
-// The app keeps the build features `npm run build:electron` wrote; a local-proof build passes its
-// flags there.
+// The app keeps the build features `npm run build` wrote; a local-proof build passes its flags
+// there.
 //
 // Usage: node scripts/package_tatolab_electron_app.mjs <darwin|linux> <app version> <output dir>
 import { FuseV1Options, FuseVersion, flipFuses } from "@electron/fuses";
@@ -47,7 +47,7 @@ for (const builtWindowFileName of await readdir(path.join(repositoryRoot, "out",
     throw new Error(`out/renderer/assets/${builtWindowFileName} is the mock window's ${mockWindowModuleName}, which the app never ships: run npm run build`);
   }
 }
-for (const builtProcessDirectory of ["main", "preload", "renderer", "shared"]) {
+for (const builtProcessDirectory of ["main", "preload", "renderer"]) {
   await cp(path.join(repositoryRoot, "out", builtProcessDirectory), path.join(stagedAppDirectory, "out", builtProcessDirectory), { recursive: true });
 }
 for (const trayIconFileName of ["tray-template.png", "tray-template@2x.png", "tray-coloured.png"]) {
