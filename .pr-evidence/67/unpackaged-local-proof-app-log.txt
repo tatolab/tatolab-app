@@ -1,1 +1,2 @@
-DevTools listening on ws://127.0.0.1:9333/devtools/browser/7ef11b0b-9b17-473b-951a-18ac4f23757f
+ INFO Tatolab app paths local_api_socket=/tmp/tatolab-proof/run/local-api.sock command_line_tool_home_folder_link=/tmp/tatolab-proof/home/.local/bin/tatolab bundled_command_line_tool=null local_proof_test_machine_root=/tmp/tatolab-proof
+ WARN the runtime's agent could not be registered failure_description="The operation couldn’t be completed. Unable to read plist: com.tatolab.tatolabd.plist"
