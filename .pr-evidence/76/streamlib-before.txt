@@ -1,4 +1,0 @@
-$ git -C ../streamlib describe --tags --always   # the stale checkout beside this repository
-v0.54.12-1-gf2ec4338a
-$ git ls-remote https://github.com/tatolab/streamlib.git refs/heads/main
-ef5c8b22995a90b1f7ae671e214c96480615c911	refs/heads/main
