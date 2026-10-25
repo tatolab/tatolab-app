@@ -41,118 +41,118 @@ for source_gate in check-license-headers.sh check-platform-cfg-confinement.sh ch
   expect_gate_outcome pass "$source_gate" "the tree as it stands"
 done
 
-plant src/zz_planted.ts 'export const plantedValue = 1;\n'
+plant src/renderer/zz_planted.ts 'export const plantedValue = 1;\n'
 expect_gate_outcome fail check-license-headers.sh "a TypeScript file with no header"; unplant
 plant scripts/zz_planted.sh '#!/usr/bin/env bash\necho planted\n'
 expect_gate_outcome fail check-license-headers.sh "a shell script with no header after its #! line"; unplant
 plant scripts/zz-planted-no-extension '#!/usr/bin/env bash\necho planted\n'
 expect_gate_outcome fail check-license-headers.sh "an extensionless shell script with no header"; unplant
-plant src/zz_planted.ts '// Copyright (c) 2025 Jonathan Fontanez\nexport const plantedValue = 1;\n'
+plant src/renderer/zz_planted.ts '// Copyright (c) 2025 Jonathan Fontanez\nexport const plantedValue = 1;\n'
 expect_gate_outcome fail check-license-headers.sh "a TypeScript file with the copyright line but no SPDX line"; unplant
-plant src/zz_planted.ts '\xEF\xBB\xBF// Copyright (c) 2025 Jonathan Fontanez\r\n// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary\r\nexport const plantedValue = 1;\r\n'
+plant src/renderer/zz_planted.ts '\xEF\xBB\xBF// Copyright (c) 2025 Jonathan Fontanez\r\n// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary\r\nexport const plantedValue = 1;\r\n'
 expect_gate_outcome pass check-license-headers.sh "a TypeScript file with the header, a BOM and CRLF endings"; unplant
 
 
-plant src/components/ui/zz-planted.tsx 'export const plantedValue = 1;\n'
-expect_gate_outcome pass check-license-headers.sh "a shadcn component in src/components/ui/ with no header"; unplant
-plant src/design_system/zz_planted.tsx 'export const plantedValue = 1;\n'
+plant src/renderer/components/ui/zz-planted.tsx 'export const plantedValue = 1;\n'
+expect_gate_outcome pass check-license-headers.sh "a shadcn component in src/renderer/components/ui/ with no header"; unplant
+plant src/renderer/design_system/zz_planted.tsx 'export const plantedValue = 1;\n'
 expect_gate_outcome fail check-license-headers.sh "a design-system file with no header"; unplant
 
-plant src-electron/src/zz_planted.cts 'export const plantedValue = 1;\n'
+plant src/main/zz_planted.cts 'export const plantedValue = 1;\n'
 expect_gate_outcome fail check-license-headers.sh "a CommonJS TypeScript file with no header"; unplant
 
-plant src/zz_planted.tsx "${SOURCE_HEADER}export const plantedFailure = () => null;\n"
+plant src/renderer/zz_planted.tsx "${SOURCE_HEADER}export const plantedFailure = () => null;\n"
 expect_gate_outcome pass check-license-headers.sh "a TSX file with the header"; unplant
-plant src/zz_planted.tsx 'export const plantedFailure = () => null;\n'
+plant src/renderer/zz_planted.tsx 'export const plantedFailure = () => null;\n'
 expect_gate_outcome fail check-license-headers.sh "a TSX file with no header"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedLog = () => console.log(\"planted\");\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedLog = () => console.log(\"planted\");\n"
 expect_gate_outcome fail check-no-print-debugging.sh "a console call in the window's TSX"; unplant
 
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedDot = () => <span className=\"size-2 rounded-full bg-danger\" />;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedDot = () => <span className=\"size-2 rounded-full bg-danger\" />;\n"
 expect_gate_outcome fail check-no-dot-indicators.sh "a small rounded-full element"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedDot = () => <span className=\"h-1.5 w-1.5 rounded-full\" />;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedDot = () => <span className=\"h-1.5 w-1.5 rounded-full\" />;\n"
 expect_gate_outcome fail check-no-dot-indicators.sh "a rounded-full element sized by width and height"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedPulse = () => <span className=\"animate-pulse\" />;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedPulse = () => <span className=\"animate-pulse\" />;\n"
 expect_gate_outcome fail check-no-dot-indicators.sh "a pulsing indicator"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedCircle = () => <svg><circle r=\"3\" /></svg>;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedCircle = () => <svg><circle r=\"3\" /></svg>;\n"
 expect_gate_outcome fail check-no-dot-indicators.sh "an SVG circle in the window's markup"; unplant
-plant src/styles/zz_planted.css '.planted::before { content: \"\xE2\x97\x8F\"; }\n'
+plant src/renderer/styles/zz_planted.css '.planted::before { content: \"\xE2\x97\x8F\"; }\n'
 expect_gate_outcome fail check-no-dot-indicators.sh "a bullet glyph in a stylesheet"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}import { CircleAlert } from \"lucide-react\";\nexport const plantedIcon = CircleAlert;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}import { CircleAlert } from \"lucide-react\";\nexport const plantedIcon = CircleAlert;\n"
 expect_gate_outcome fail check-no-dot-indicators.sh "a round status icon"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedSpinner = () => <span className=\"size-3.5 animate-spin\" />;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}export const plantedSpinner = () => <span className=\"size-3.5 animate-spin\" />;\n"
 expect_gate_outcome pass check-no-dot-indicators.sh "a spinner, which is not a dot"; unplant
 
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}import { Button } from \"@/components/ui/button\";\nexport const PlantedScreen = () => <Button>Planted</Button>;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}import { Button } from \"@/components/ui/button\";\nexport const PlantedScreen = () => <Button>Planted</Button>;\n"
 expect_gate_outcome fail check-window-design-system.sh "a screen importing a shadcn component"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}import { Toggle } from \"../components/ui/toggle\";\nexport const PlantedScreen = Toggle;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}import { Toggle } from \"../components/ui/toggle\";\nexport const PlantedScreen = Toggle;\n"
 expect_gate_outcome fail check-window-design-system.sh "a screen importing a shadcn component by a relative path"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}import { Menu } from \"@base-ui/react/menu\";\nexport const PlantedScreen = Menu.Root;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}import { Menu } from \"@base-ui/react/menu\";\nexport const PlantedScreen = Menu.Root;\n"
 expect_gate_outcome fail check-window-design-system.sh "a screen importing base-ui directly"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => <button type=\"button\">Planted</button>;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => <button type=\"button\">Planted</button>;\n"
 expect_gate_outcome fail check-window-design-system.sh "a raw button in a screen"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => (\n  <input\n    value=\"planted\"\n  />\n);\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => (\n  <input\n    value=\"planted\"\n  />\n);\n"
 expect_gate_outcome fail check-window-design-system.sh "a raw input in a screen, its attributes on the lines below"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => <select><option>Planted</option></select>;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => <select><option>Planted</option></select>;\n"
 expect_gate_outcome fail check-window-design-system.sh "a raw select in a screen"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => <textarea />;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => <textarea />;\n"
 expect_gate_outcome fail check-window-design-system.sh "a raw textarea in a screen"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => <div role=\"radiogroup\"><span role=\"radio\" aria-checked /></div>;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}export const PlantedScreen = () => <div role=\"radiogroup\"><span role=\"radio\" aria-checked /></div>;\n"
 expect_gate_outcome fail check-window-design-system.sh "a hand-built radio role in a screen"; unplant
-plant src/views/zz_planted.tsx "${SOURCE_HEADER}import { ActionButton } from \"../design_system/action_button\";\nexport const PlantedScreen = () => <ActionButton onPressed={() => {}}>Planted</ActionButton>;\n"
+plant src/renderer/views/zz_planted.tsx "${SOURCE_HEADER}import { ActionButton } from \"../design_system/action_button\";\nexport const PlantedScreen = () => <ActionButton onPressed={() => {}}>Planted</ActionButton>;\n"
 expect_gate_outcome pass check-window-design-system.sh "a screen composed from the design system"; unplant
-plant src/views/zz_planted.test.tsx "${SOURCE_HEADER}export const plantedTestMarkup = () => <button type=\"button\">Planted</button>;\n"
+plant src/renderer/views/zz_planted.test.tsx "${SOURCE_HEADER}export const plantedTestMarkup = () => <button type=\"button\">Planted</button>;\n"
 expect_gate_outcome pass check-window-design-system.sh "a raw button in a window test"; unplant
-plant src/design_system/zz_planted.tsx "${SOURCE_HEADER}import { Button } from \"@/components/ui/button\";\nexport const PlantedControl = () => <Button>Planted</Button>;\n"
+plant src/renderer/design_system/zz_planted.tsx "${SOURCE_HEADER}import { Button } from \"@/components/ui/button\";\nexport const PlantedControl = () => <Button>Planted</Button>;\n"
 expect_gate_outcome pass check-window-design-system.sh "the design system built on a shadcn component"; unplant
-plant src/components/ui/zz-planted.tsx "export const PlantedDot = () => <span className=\"size-2 rounded-full bg-border\" />;\n"
+plant src/renderer/components/ui/zz-planted.tsx "export const PlantedDot = () => <span className=\"size-2 rounded-full bg-border\" />;\n"
 expect_gate_outcome pass check-no-dot-indicators.sh "a round shape inside a shadcn component, a control's part"; unplant
 
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}export const plantedPlatform = process.platform;\n"
+plant src/main/zz_planted.ts "${SOURCE_HEADER}export const plantedPlatform = process.platform;\n"
 expect_gate_outcome fail check-platform-cfg-confinement.sh "a process.platform read in the main process outside platform/"; unplant
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}import os from \"node:os\";\nexport const plantedPlatform = os.platform();\n"
+plant src/main/zz_planted.ts "${SOURCE_HEADER}import os from \"node:os\";\nexport const plantedPlatform = os.platform();\n"
 expect_gate_outcome fail check-platform-cfg-confinement.sh "an os.platform() call in the main process outside platform/"; unplant
-plant src-electron/src/platform/zz_planted.ts "${SOURCE_HEADER}export const plantedPlatform = process.platform;\n"
-expect_gate_outcome pass check-platform-cfg-confinement.sh "a process.platform read inside src-electron/src/platform/"; unplant
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}// process.platform differs here, so the platform layer decides\nexport const plantedValue = 1;\n"
+plant src/main/platform/zz_planted.ts "${SOURCE_HEADER}export const plantedPlatform = process.platform;\n"
+expect_gate_outcome pass check-platform-cfg-confinement.sh "a process.platform read inside src/main/platform/"; unplant
+plant src/main/zz_planted.ts "${SOURCE_HEADER}// process.platform differs here, so the platform layer decides\nexport const plantedValue = 1;\n"
 expect_gate_outcome pass check-platform-cfg-confinement.sh "process.platform named in a comment"; unplant
 
-plant src/zz_planted.ts "${SOURCE_HEADER}console.log(\"planted\");\n"
+plant src/renderer/zz_planted.ts "${SOURCE_HEADER}console.log(\"planted\");\n"
 expect_gate_outcome fail check-no-print-debugging.sh "a console.log in the window"; unplant
-plant src/zz_planted.ts "${SOURCE_HEADER}console.table([1]);\n"
+plant src/renderer/zz_planted.ts "${SOURCE_HEADER}console.table([1]);\n"
 expect_gate_outcome fail check-no-print-debugging.sh "a console.table in the window"; unplant
-plant src/zz_planted.ts "${SOURCE_HEADER}export function planted(): void {\n  debugger;\n}\n"
+plant src/renderer/zz_planted.ts "${SOURCE_HEADER}export function planted(): void {\n  debugger;\n}\n"
 expect_gate_outcome fail check-no-print-debugging.sh "a debugger statement in the window"; unplant
-plant src/zz_planted.test.ts "${SOURCE_HEADER}console.log(\"planted\");\n"
+plant src/renderer/zz_planted.test.ts "${SOURCE_HEADER}console.log(\"planted\");\n"
 expect_gate_outcome pass check-no-print-debugging.sh "a console.log in a window test"; unplant
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}console.error(\"planted\");\n"
+plant src/main/zz_planted.ts "${SOURCE_HEADER}console.error(\"planted\");\n"
 expect_gate_outcome fail check-no-print-debugging.sh "a console.error in the main process"; unplant
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}process.stderr.write(\"planted\");\n"
+plant src/main/zz_planted.ts "${SOURCE_HEADER}process.stderr.write(\"planted\");\n"
 expect_gate_outcome fail check-no-print-debugging.sh "a standard error write in the main process outside its log"; unplant
 
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}import { app } from \"electron\";\nexport const plantedApp = app;\n"
+plant src/main/zz_planted.ts "${SOURCE_HEADER}import { app } from \"electron\";\nexport const plantedApp = app;\n"
 expect_gate_outcome fail check-electron-typescript-forms.sh "an electron import outside the adapters"; unplant
-plant src-electron/src/zz_planted.test.ts "${SOURCE_HEADER}import { app } from 'electron';\nexport const plantedApp = app;\n"
+plant src/main/zz_planted.test.ts "${SOURCE_HEADER}import { app } from 'electron';\nexport const plantedApp = app;\n"
 expect_gate_outcome fail check-electron-typescript-forms.sh "an electron import in a main-process test"; unplant
-plant src-electron/src/electron_adapters/zz_planted.ts "${SOURCE_HEADER}import { app } from \"electron\";\nexport const plantedApp = app;\n"
+plant src/main/electron_adapters/zz_planted.ts "${SOURCE_HEADER}import { app } from \"electron\";\nexport const plantedApp = app;\n"
 expect_gate_outcome pass check-electron-typescript-forms.sh "an electron import inside the adapters"; unplant
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}export const planted = JSON.parse(\"1\") as number;\n"
+plant src/main/zz_planted.ts "${SOURCE_HEADER}export const planted = JSON.parse(\"1\") as number;\n"
 expect_gate_outcome fail check-electron-typescript-forms.sh "an as cast in shipped main-process code"; unplant
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}export const planted: any = 1;\n"
+plant src/main/zz_planted.ts "${SOURCE_HEADER}export const planted: any = 1;\n"
 expect_gate_outcome fail check-electron-typescript-forms.sh "an any type in shipped main-process code"; unplant
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}export const planted = [1].find(Boolean)!.toFixed();\n"
+plant src/main/zz_planted.ts "${SOURCE_HEADER}export const planted = [1].find(Boolean)!.toFixed();\n"
 expect_gate_outcome fail check-electron-typescript-forms.sh "a non-null assertion in shipped main-process code"; unplant
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}export function planted(): void {\n  throw new Error(\"planted\");\n}\n"
+plant src/main/zz_planted.ts "${SOURCE_HEADER}export function planted(): void {\n  throw new Error(\"planted\");\n}\n"
 expect_gate_outcome fail check-electron-typescript-forms.sh "a throw in shipped main-process code"; unplant
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}import { readFileSync } from \"node:fs\";\nexport const planted = readFileSync(\"/dev/null\");\n"
+plant src/main/zz_planted.ts "${SOURCE_HEADER}import { readFileSync } from \"node:fs\";\nexport const planted = readFileSync(\"/dev/null\");\n"
 expect_gate_outcome fail check-electron-typescript-forms.sh "a blocking Sync call in shipped main-process code"; unplant
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}export const planted = Date.now();\n"
+plant src/main/zz_planted.ts "${SOURCE_HEADER}export const planted = Date.now();\n"
 expect_gate_outcome fail check-electron-typescript-forms.sh "wall-clock time in shipped main-process code"; unplant
-plant src-electron/src/zz_planted.test.ts "${SOURCE_HEADER}import { test } from \"vitest\";\ntest.only(\"planted\", () => {});\n"
+plant src/main/zz_planted.test.ts "${SOURCE_HEADER}import { test } from \"vitest\";\ntest.only(\"planted\", () => {});\n"
 expect_gate_outcome fail check-electron-typescript-forms.sh "a focused main-process test"; unplant
-plant src-electron/src/zz_planted.ts "${SOURCE_HEADER}// planted: as Error, throw, Date.now() and electron in a comment\nexport const planted = [\"as a string\", \"throw it\"] as const;\n"
+plant src/main/zz_planted.ts "${SOURCE_HEADER}// planted: as Error, throw, Date.now() and electron in a comment\nexport const planted = [\"as a string\", \"throw it\"] as const;\n"
 expect_gate_outcome pass check-electron-typescript-forms.sh "the forms named only in a comment, a string and as const"; unplant
-plant src-electron/src/zz_planted.test.ts "${SOURCE_HEADER}import { readFileSync } from \"node:fs\";\nexport const planted = readFileSync(\"/dev/null\") as Buffer;\n"
+plant src/main/zz_planted.test.ts "${SOURCE_HEADER}import { readFileSync } from \"node:fs\";\nexport const planted = readFileSync(\"/dev/null\") as Buffer;\n"
 expect_gate_outcome pass check-electron-typescript-forms.sh "a Sync call and a cast in a main-process test"; unplant
 
 

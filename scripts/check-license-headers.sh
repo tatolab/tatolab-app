@@ -5,7 +5,7 @@
 # Every Rust, TypeScript (including TSX) and shell source file carries the proprietary header on its first two
 # lines, or on lines 2-3 after a `#!` line. Shell means `*.sh` and any extensionless file whose
 # `#!` names a shell. Type declarations (`*.d.ts`) are exempt, and so are shadcn's components as the
-# shadcn CLI generates them, under its MIT licence: the app's src/components/ui/ and the design
+# shadcn CLI generates them, under its MIT licence: the app's src/renderer/components/ui/ and the design
 # prototype's docs/design/src/components/ui/. Files come from `git ls-files`
 # (tracked plus new and unignored), so node_modules, target/ and dist/ never count. A CRLF line
 # ending or a UTF-8 byte-order mark does not change the verdict.
@@ -46,7 +46,7 @@ while IFS= read -r -d '' source_file; do
     [ "$(source_line "$source_file" $((header_line_number + 1)))" != "${comment_prefix}${SPDX_TEXT}" ]; then
     files_missing_the_header+=("$source_file")
   fi
-done < <(git ls-files -z --cached --others --exclude-standard -- ':!:*.d.ts' ':!:src/components/ui/*' ':!:docs/design/src/components/ui/*')
+done < <(git ls-files -z --cached --others --exclude-standard -- ':!:*.d.ts' ':!:src/renderer/components/ui/*' ':!:docs/design/src/components/ui/*')
 
 if [ ${#files_missing_the_header[@]} -ne 0 ]; then
   echo "❌ ${#files_missing_the_header[@]} source file(s) are missing the proprietary header:"

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 #
 # The app logs nothing to the console in its shipped code: no console.* call or `debugger`
-# statement in src/ or src-electron/ outside their tests. The Electron main process logs
+# statement in src/ outside its tests. The Electron main process logs
 # through tatolab_app_log.ts, the one file that writes to standard output or error.
 #
 # Usage: scripts/check-no-print-debugging.sh   (from anywhere inside the repository)
@@ -17,12 +17,12 @@ repository_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 cd "$repository_root" || exit 2
 
 window_console_calls="$(
-  git ls-files -z --cached --others --exclude-standard -- 'src/*.ts' 'src/*.tsx' 'src-electron/*.ts' 'src-electron/*.cts' ':!:*.test.ts' ':!:*.test.tsx' |
+  git ls-files -z --cached --others --exclude-standard -- 'src/*.ts' 'src/*.tsx' 'src/*.cts' ':!:src/*.test.ts' ':!:src/*.test.tsx' |
     xargs -0 grep -nHE '\bconsole[[:space:]]*\.[[:space:]]*[a-zA-Z]+[[:space:]]*\(|(^|[^[:alnum:]_.])debugger[[:space:]]*(;|$)' 2>/dev/null || true
 )"
 main_process_standard_stream_writes="$(
-  git ls-files -z --cached --others --exclude-standard -- 'src-electron/*.ts' 'src-electron/*.cts' ':!:*.test.ts' \
-    ':!:src-electron/src/tatolab_app_log.ts' |
+  git ls-files -z --cached --others --exclude-standard -- 'src/main/*.ts' 'src/main/*.cts' 'src/preload/*.ts' 'src/preload/*.cts' ':!:src/*.test.ts' \
+    ':!:src/main/tatolab_app_log.ts' |
     xargs -0 grep -nHE '\bprocess[[:space:]]*\.[[:space:]]*std(out|err)[[:space:]]*\.[[:space:]]*write\b' 2>/dev/null || true
 )"
 
