@@ -23,7 +23,6 @@ cask "tatolab" do
             delete:    [
               "~/.local/bin/tatolab",
               "/usr/local/bin/tatolab",
-              "/Library/Application Support/Tatolab",
             ]
 
   zap trash: [

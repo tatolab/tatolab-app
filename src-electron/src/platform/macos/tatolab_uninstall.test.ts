@@ -74,7 +74,7 @@ function fakeUninstallStepsAnsweringThePrompt(
 const REMOVAL_BEHIND_THE_PROMPT: MachineFilesToRemove = {
   kind: "this_users_and_the_machines",
   homeFolderLink: "/Users/someone/.local/bin/tatolab",
-  removalScriptBehindTheAdministratorPrompt: "rm -rf '/Library/Application Support/Tatolab'",
+  removalScriptBehindTheAdministratorPrompt: `case "$(readlink '/usr/local/bin/tatolab')" in '/Applications/Tatolab.app'/*) rm -f '/usr/local/bin/tatolab' ;; esac`,
 };
 
 test("a_real_build_prompts_once_then_removes_the_home_link_stops_the_runtime_removes_the_app_and_quits", async () => {
@@ -82,7 +82,7 @@ test("a_real_build_prompts_once_then_removes_the_home_link_stops_the_runtime_rem
 
   expect(await uninstallTatolabInOrder(steps, REMOVAL_BEHIND_THE_PROMPT)).toEqual(succeeded(undefined));
   expect(stepsTaken).toEqual([
-    { kind: "administrator_prompt", removalScript: "rm -rf '/Library/Application Support/Tatolab'" },
+    { kind: "administrator_prompt", removalScript: `case "$(readlink '/usr/local/bin/tatolab')" in '/Applications/Tatolab.app'/*) rm -f '/usr/local/bin/tatolab' ;; esac` },
     { kind: "remove_the_home_folder_link", homeFolderLink: "/Users/someone/.local/bin/tatolab" },
     { kind: "turn_run_tatolab_off" },
     { kind: "remove_the_app_config_directory" },
@@ -148,46 +148,39 @@ test("the_first_failing_step_stops_the_rest_and_the_app_stays_open", async () =>
   expect(stepsTaken.at(-1)).toEqual({ kind: "move_this_app_bundle_to_the_trash" });
 });
 
-/** A real-shaped machine under a temporary root: its `/usr/local/bin` link to `usrLocalBinLinkTargetInsideRoot` when given, and an earlier version's lock directory when asked. */
-async function realShapedMachineUnder(usrLocalBinLinkTargetInsideRoot: string | null, withTheEarlierLockDirectory: boolean) {
+/** A real-shaped machine under a temporary root, its `/usr/local/bin` link to `usrLocalBinLinkTargetInsideRoot` when given. */
+async function realShapedMachineUnder(usrLocalBinLinkTargetInsideRoot: string | null) {
   const root = await temporaryRoot();
   const machinePaths: TatolabMachinePathsOnMacos = {
     localApiSocket: path.join(root, "run/local-api.sock"),
     commandLineToolHomeFolderLink: path.join(root, "home/.local/bin/tatolab"),
     commandLineToolUsrLocalBinLink: path.join(root, "usr/local/bin/tatolab"),
-    earlierMachineRuntimeLockDirectory: path.join(root, "Library/Application Support/Tatolab"),
     localProofTestMachineRoot: null,
   };
   if (usrLocalBinLinkTargetInsideRoot !== null) {
     await mkdir(path.join(root, "usr/local/bin"), { recursive: true });
     await symlink(path.join(root, usrLocalBinLinkTargetInsideRoot), path.join(root, "usr/local/bin/tatolab"));
   }
-  if (withTheEarlierLockDirectory) await mkdir(path.join(root, "Library/Application Support/Tatolab"), { recursive: true });
   return { root, machinePaths };
 }
 
-test("only_what_is_there_goes_behind_the_prompt_and_with_nothing_there_no_prompt_shows", async () => {
-  const both = await realShapedMachineUnder("Apps/Tatolab.app/Contents/MacOS/tatolab-cli", true);
-  const appBundle = path.join(both.root, "Apps/Tatolab.app");
-  const usrLocalBinLink = path.join(both.root, "usr/local/bin/tatolab");
-  expect(await machineFilesToRemove(both.machinePaths, appBundle)).toEqual({
+test("the_password_is_asked_only_for_a_usr_local_bin_link_into_this_app", async () => {
+  const linkedHere = await realShapedMachineUnder("Apps/Tatolab.app/Contents/MacOS/tatolab-cli");
+  const appBundle = path.join(linkedHere.root, "Apps/Tatolab.app");
+  expect(await machineFilesToRemove(linkedHere.machinePaths, appBundle)).toEqual({
     kind: "this_users_and_the_machines",
-    homeFolderLink: path.join(both.root, "home/.local/bin/tatolab"),
-    removalScriptBehindTheAdministratorPrompt: tatolabUninstallAdministratorShellScript(
-      usrLocalBinLink,
-      appBundle,
-      path.join(both.root, "Library/Application Support/Tatolab"),
-    ),
+    homeFolderLink: path.join(linkedHere.root, "home/.local/bin/tatolab"),
+    removalScriptBehindTheAdministratorPrompt: tatolabUninstallAdministratorShellScript(path.join(linkedHere.root, "usr/local/bin/tatolab"), appBundle),
   });
 
-  const intoAnotherBundle = await realShapedMachineUnder("Apps/Other.app/Contents/MacOS/tatolab-cli", false);
+  const intoAnotherBundle = await realShapedMachineUnder("Apps/Other.app/Contents/MacOS/tatolab-cli");
   expect(await machineFilesToRemove(intoAnotherBundle.machinePaths, path.join(intoAnotherBundle.root, "Apps/Tatolab.app"))).toMatchObject({
     removalScriptBehindTheAdministratorPrompt: null,
   });
 
-  const onlyTheEarlierLock = await realShapedMachineUnder(null, true);
-  expect(await machineFilesToRemove(onlyTheEarlierLock.machinePaths, path.join(onlyTheEarlierLock.root, "Apps/Tatolab.app"))).toMatchObject({
-    removalScriptBehindTheAdministratorPrompt: `rm -rf ${"'"}${path.join(onlyTheEarlierLock.root, "Library/Application Support/Tatolab")}'`,
+  const notLinked = await realShapedMachineUnder(null);
+  expect(await machineFilesToRemove(notLinked.machinePaths, path.join(notLinked.root, "Apps/Tatolab.app"))).toMatchObject({
+    removalScriptBehindTheAdministratorPrompt: null,
   });
 });
 
@@ -200,32 +193,22 @@ test("a_local_proof_build_removes_its_test_root", async () => {
 
 test("a_bundle_path_with_quotes_and_glob_characters_stays_one_literal_shell_word", () => {
   expect(
-    tatolabUninstallAdministratorShellScript(
-      "/usr/local/bin/tatolab",
-      '/Users/o\'neil/My Apps/T*tolab "x" \\ $HOME.app',
-      "/Library/Application Support/Tatolab",
-    ),
-  ).toBe(
-    String.raw`case "$(readlink '/usr/local/bin/tatolab')" in '/Users/o'\''neil/My Apps/T*tolab "x" \ $HOME.app'/*) rm -f '/usr/local/bin/tatolab' ;; esac && rm -rf '/Library/Application Support/Tatolab'`,
-  );
+    tatolabUninstallAdministratorShellScript("/usr/local/bin/tatolab", '/Users/o\'neil/My Apps/T*tolab "x" \\ $HOME.app'),
+  ).toBe(String.raw`case "$(readlink '/usr/local/bin/tatolab')" in '/Users/o'\''neil/My Apps/T*tolab "x" \ $HOME.app'/*) rm -f '/usr/local/bin/tatolab' ;; esac`);
 });
 
-/** A machine under a temporary root with the lock directory, and the CLI linked to `linkTargetInsideRoot` when given. */
+/** A machine under a temporary root with the CLI linked to `linkTargetInsideRoot` when given. */
 async function machineFilesWithTheCliLinkedTo(linkTargetInsideRoot: string | null) {
   const root = await temporaryRoot();
-  const machineRuntimeLockDirectory = path.join(root, "Library/Application Support/Tatolab");
-  await mkdir(machineRuntimeLockDirectory, { recursive: true });
-  await writeFile(path.join(machineRuntimeLockDirectory, "runtime.lock"), "");
   const commandLineToolLink = path.join(root, "bin/tatolab");
   await mkdir(path.dirname(commandLineToolLink), { recursive: true });
   if (linkTargetInsideRoot !== null) await symlink(path.join(root, linkTargetInsideRoot), commandLineToolLink);
   return {
     /** Run the uninstall's removal script as this user, for the bundle at `appBundleInsideRoot`. */
     async runTheRemovalScriptFor(appBundleInsideRoot: string) {
-      const removalScript = tatolabUninstallAdministratorShellScript(commandLineToolLink, path.join(root, appBundleInsideRoot), machineRuntimeLockDirectory) ?? "";
+      const removalScript = tatolabUninstallAdministratorShellScript(commandLineToolLink, path.join(root, appBundleInsideRoot)) ?? "";
       const removal = await runProgramToCompletion("/bin/sh", ["-c", removalScript]);
       expect(removal.ok && removal.value.exitStatus, `${removalScript}: ${JSON.stringify(removal)}`).toBe(0);
-      expect(await stat(machineRuntimeLockDirectory).catch(() => null)).toBeNull();
     },
     async commandLineToolLinkRemains() {
       return (await lstat(commandLineToolLink).catch(() => null)) !== null;
@@ -233,8 +216,8 @@ async function machineFilesWithTheCliLinkedTo(linkTargetInsideRoot: string | nul
   };
 }
 
-test("with_nothing_to_remove_there_is_no_removal_script", () => {
-  expect(tatolabUninstallAdministratorShellScript(null, "/Applications/Tatolab.app", null)).toBeNull();
+test("with_no_usr_local_bin_link_there_is_no_removal_script", () => {
+  expect(tatolabUninstallAdministratorShellScript(null, "/Applications/Tatolab.app")).toBeNull();
 });
 
 test("the_removal_script_removes_the_cli_link_only_while_it_points_into_this_bundle", async () => {
@@ -299,7 +282,7 @@ const quietTatolabAppLog = createTatolabAppLog("error", () => {});
 test("an unpackaged app has no bundle to uninstall and changes nothing", async () => {
   const appSurfaceCalls: string[] = [];
   const tatolabUninstall = new TatolabUninstallOnThisMac(
-    (await realShapedMachineUnder(null, true)).machinePaths,
+    (await realShapedMachineUnder("Tatolab.app/Contents/MacOS/tatolab-cli")).machinePaths,
     null,
     "/nowhere/com.tatolab.tatolab",
     "com.tatolab.tatolab",
@@ -341,10 +324,12 @@ test("a second uninstall while one is under way is refused, and a refused one ca
   const homeFolderLink = path.join(root, "home/.local/bin/tatolab");
   await mkdir(path.dirname(homeFolderLink), { recursive: true });
   await symlink(path.join(root, "Tatolab.app/Contents/MacOS/tatolab-cli"), homeFolderLink);
+  await mkdir(path.join(root, "usr/local/bin"), { recursive: true });
+  await symlink(path.join(root, "Tatolab.app/Contents/MacOS/tatolab-cli"), path.join(root, "usr/local/bin/tatolab"));
   const promptsShowing: ((answer: Result<void, AdministratorPromptFailure>) => void)[] = [];
   const appSurfaceCalls: string[] = [];
   const tatolabUninstall = new TatolabUninstallOnThisMac(
-    { ...(await realShapedMachineUnder(null, true)).machinePaths, commandLineToolHomeFolderLink: path.join(root, "home/.local/bin/tatolab") },
+    { ...(await realShapedMachineUnder(null)).machinePaths, commandLineToolUsrLocalBinLink: path.join(root, "usr/local/bin/tatolab"), commandLineToolHomeFolderLink: path.join(root, "home/.local/bin/tatolab") },
     appExecutable,
     appConfigDirectory,
     "com.tatolab.tatolab",

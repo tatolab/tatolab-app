@@ -23,9 +23,6 @@ const COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER = ".local/bin/tatolab";
 /** Where the app links the `tatolab` CLI behind the administrator prompt, when the person asks: a folder every terminal's PATH holds. */
 const COMMAND_LINE_TOOL_USR_LOCAL_BIN_LINK_PATH = "/usr/local/bin/tatolab";
 
-/** The root-owned directory earlier versions created for the machine runtime lock, which uninstalling removes when it is still there. */
-const EARLIER_MACHINE_RUNTIME_LOCK_DIRECTORY = "/Library/Application Support/Tatolab";
-
 /** The CLI's file name beside the app binary in `Contents/MacOS/`. Not `tatolab`: a default APFS volume folds case, so that name would overwrite the app's own `Tatolab`. */
 const BUNDLED_COMMAND_LINE_TOOL_FILE_NAME = "tatolab-cli";
 
@@ -39,8 +36,6 @@ export interface TatolabMachinePathsOnMacos {
   commandLineToolHomeFolderLink: string | null;
   /** `/usr/local/bin/tatolab`; `null` in a local-proof build, which never links there. */
   commandLineToolUsrLocalBinLink: string | null;
-  /** The directory an earlier version's machine runtime lock sat in; `null` in a local-proof build. */
-  earlierMachineRuntimeLockDirectory: string | null;
   /** The test root a local-proof build keeps everything under; `null` for a real build. */
   localProofTestMachineRoot: string | null;
 }
@@ -58,7 +53,6 @@ export function tatolabMachinePathsOnMacosForTheRealMachine(uid: number, homeDir
     localApiSocket: path.join(perUserStreamlibRuntimeDirectoryUnderTmp(uid), LOCAL_API_SOCKET_FILE_NAME),
     commandLineToolHomeFolderLink: path.isAbsolute(homeDirectory) ? path.join(homeDirectory, COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER) : null,
     commandLineToolUsrLocalBinLink: COMMAND_LINE_TOOL_USR_LOCAL_BIN_LINK_PATH,
-    earlierMachineRuntimeLockDirectory: EARLIER_MACHINE_RUNTIME_LOCK_DIRECTORY,
     localProofTestMachineRoot: null,
   };
 }
@@ -69,7 +63,6 @@ export function tatolabMachinePathsOnMacosUnderALocalProofTestRoot(testMachineRo
     localApiSocket: localApiSocketUnderALocalProofTestRoot(testMachineRoot),
     commandLineToolHomeFolderLink: path.join(testMachineRoot, "home", COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER),
     commandLineToolUsrLocalBinLink: null,
-    earlierMachineRuntimeLockDirectory: null,
     localProofTestMachineRoot: testMachineRoot,
   };
 }

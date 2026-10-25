@@ -94,9 +94,8 @@ runtime keeps your kept streams and logs.
 
 **macOS.** The app's "Uninstall Tatolab…":
 
-1. removes `/usr/local/bin/tatolab` if it links into this app, and the machine runtime lock
-   directory an earlier version created, `/Library/Application Support/Tatolab`, behind one
-   administrator prompt shown only when either is there. Cancelling the prompt changes nothing;
+1. removes `/usr/local/bin/tatolab` if it links into this app, behind one administrator prompt
+   shown only then. Cancelling the prompt changes nothing;
 2. removes `~/.local/bin/tatolab` if it links into this app;
 3. unregisters the login item, which stops the runtime;
 4. removes the app's own settings, `~/Library/Application Support/com.tatolab.tatolab`;

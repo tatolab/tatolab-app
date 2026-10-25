@@ -3,17 +3,15 @@
 
 // "Uninstall Tatolab…" on macOS, as the installer's `--uninstall` does on Linux: the service and
 // the files go, and the runtime's state directory, `~/Library/Application Support/Tatolab`, stays.
-// What only root may remove — a `/usr/local/bin/tatolab` linking into this bundle, and the
-// machine runtime lock's directory an earlier version created — goes first, behind one
-// administrator prompt shown only when one of them is there, so a cancelled prompt changes
-// nothing. Then the home folder's link goes, "Run Tatolab" is turned off, which unregisters the
+// A `/usr/local/bin/tatolab` linking into this bundle, which only root may remove, goes first,
+// behind one administrator prompt shown only when that link is there, so a cancelled prompt
+// changes nothing. Then the home folder's link goes, "Run Tatolab" is turned off, which unregisters the
 // runtime's agent and stops the runtime, the app's own config directory is removed, the bundle
 // goes to the Trash, and the app quits. A local-proof build removes its test root instead.
 
 import type { RmOptions } from "node:fs";
 import { readlink, rm } from "node:fs/promises";
 import path from "node:path";
-import { somethingIsAt } from "../../file_system_entries_on_this_machine.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../../result.js";
 import type { RunTatolabReconciliation } from "../../run_tatolab_switch.js";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
@@ -22,12 +20,12 @@ import { shellWordForPath, type AdministratorPrompt, type AdministratorPromptFai
 import { appBundleOfTheExecutable, type TatolabMachinePathsOnMacos } from "./tatolab_machine_paths.js";
 
 /** The words the uninstall's administrator prompt shows under "osascript wants to make changes." */
-export const UNINSTALL_ADMINISTRATOR_PROMPT_TEXT = "Tatolab needs to remove the tatolab command from /usr/local/bin and its old files to uninstall.";
+export const UNINSTALL_ADMINISTRATOR_PROMPT_TEXT = "Tatolab needs to remove the tatolab command from /usr/local/bin to uninstall.";
 
 /**
  * What uninstalling removes outside the app's own folders: a real build's home-folder link while it links into the
- * bundle, with no prompt, after a root script behind one administrator prompt when there is anything only root may
- * remove (`null` when there is not); or a local-proof build's test root, with no prompt.
+ * bundle, with no prompt, after a root script behind one administrator prompt when `/usr/local/bin/tatolab` links into
+ * it (`null` when it does not); or a local-proof build's test root, with no prompt.
  */
 export type MachineFilesToRemove =
   | { kind: "this_users_and_the_machines"; homeFolderLink: string | null; removalScriptBehindTheAdministratorPrompt: string | null }
@@ -99,28 +97,18 @@ export async function machineFilesToRemove(machinePaths: TatolabMachinePathsOnMa
   }
   const usrLocalBinLink = machinePaths.commandLineToolUsrLocalBinLink;
   const usrLocalBinLinkToRemove = usrLocalBinLink !== null && (await linksIntoTheBundle(usrLocalBinLink, appBundle)) ? usrLocalBinLink : null;
-  const earlierLockDirectory = machinePaths.earlierMachineRuntimeLockDirectory;
-  const earlierLockDirectoryToRemove = earlierLockDirectory !== null && (await somethingIsAt(earlierLockDirectory)) ? earlierLockDirectory : null;
   return {
     kind: "this_users_and_the_machines",
     homeFolderLink: machinePaths.commandLineToolHomeFolderLink,
-    removalScriptBehindTheAdministratorPrompt: tatolabUninstallAdministratorShellScript(usrLocalBinLinkToRemove, appBundle, earlierLockDirectoryToRemove),
+    removalScriptBehindTheAdministratorPrompt: tatolabUninstallAdministratorShellScript(usrLocalBinLinkToRemove, appBundle),
   };
 }
 
-/** The one root shell script uninstalling runs, or `null` with nothing for it to remove: it removes `usrLocalBinLink` only while it points into `appBundle`, then `earlierLockDirectory` and everything in it. */
-export function tatolabUninstallAdministratorShellScript(
-  usrLocalBinLink: string | null,
-  appBundle: string,
-  earlierLockDirectory: string | null,
-): string | null {
-  const steps: string[] = [];
-  if (usrLocalBinLink !== null) {
-    const link = shellWordForPath(usrLocalBinLink);
-    steps.push(`case "$(readlink ${link})" in ${shellWordForPath(appBundle)}/*) rm -f ${link} ;; esac`);
-  }
-  if (earlierLockDirectory !== null) steps.push(`rm -rf ${shellWordForPath(earlierLockDirectory)}`);
-  return steps.length === 0 ? null : steps.join(" && ");
+/** The root shell script uninstalling runs, or `null` with no `/usr/local/bin` link to remove: it removes `usrLocalBinLink` only while it points into `appBundle`. */
+export function tatolabUninstallAdministratorShellScript(usrLocalBinLink: string | null, appBundle: string): string | null {
+  if (usrLocalBinLink === null) return null;
+  const link = shellWordForPath(usrLocalBinLink);
+  return `case "$(readlink ${link})" in ${shellWordForPath(appBundle)}/*) rm -f ${link} ;; esac`;
 }
 
 /** Whether turning "Run Tatolab" off left the runtime's launch agent unregistered: only `unregistered` lets the uninstall go on, and any other reconciliation stops it, named. */

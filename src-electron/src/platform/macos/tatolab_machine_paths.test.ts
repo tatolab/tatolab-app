@@ -16,7 +16,6 @@ test("the_real_machine_paths_match_the_runtimes_and_link_in_the_home_folder", ()
     localApiSocket: "/tmp/streamlib-501/local-api.sock",
     commandLineToolHomeFolderLink: "/Users/someone/.local/bin/tatolab",
     commandLineToolUsrLocalBinLink: "/usr/local/bin/tatolab",
-    earlierMachineRuntimeLockDirectory: "/Library/Application Support/Tatolab",
     localProofTestMachineRoot: null,
   });
 });
@@ -30,7 +29,6 @@ test("a_local_proof_build_keeps_every_path_under_its_test_root_and_never_links_i
     localApiSocket: "/tmp/tatolab-proof/run/local-api.sock",
     commandLineToolHomeFolderLink: "/tmp/tatolab-proof/home/.local/bin/tatolab",
     commandLineToolUsrLocalBinLink: null,
-    earlierMachineRuntimeLockDirectory: null,
     localProofTestMachineRoot: "/tmp/tatolab-proof",
   });
 });

@@ -44,6 +44,7 @@ Each frame is at `first-run/mock/<name>-light.png` and `-dark.png`, from `npm ru
 | `15-usr-local-bin-waiting-for-password` | `state=running&page=settings&section=command-line&link=pressed` | Link in /usr/local/bin… pressed: "Waiting for your password…" with a spinner in its place. |
 | `16-usr-local-bin-linked` | the same, once the mock prompt answers | "Linked at /usr/local/bin/tatolab, so it works in every terminal.", with no button. |
 | `17-usr-local-bin-cancelled` | the same with `usr_local_bin=cancel` | "tatolab wasn't linked: The password prompt was cancelled, so nothing changed." under the row, with Link in /usr/local/bin… offered again. |
+| `18-uninstall-sheet` | `state=running&page=settings&sheet=uninstall` | Uninstall Tatolab?: "Stop the runtime and remove it from Login Items", "Remove the `tatolab` command — `~/.local/bin/tatolab`, and `/usr/local/bin/tatolab` if you linked it there. macOS asks for your password only for that one.", "Move Tatolab to the Trash". No lock folder, and no password unless the `/usr/local/bin` link is there. |
 
 Not covered:
 - **Pending the owner:**

@@ -46,7 +46,6 @@ async function realShapedMachine() {
     localApiSocket: path.join(root, "run/local-api.sock"),
     commandLineToolHomeFolderLink: path.join(root, "home/.local/bin/tatolab"),
     commandLineToolUsrLocalBinLink: path.join(root, "usr/local/bin/tatolab"),
-    earlierMachineRuntimeLockDirectory: path.join(root, "Library/Application Support/Tatolab"),
     localProofTestMachineRoot: null,
   };
   return { root, bundledCommandLineTool, machinePaths };

@@ -130,12 +130,12 @@ export class UninstallSheetView {
         createRemovalRow(POWER_ICON_SVG, ["Stop the runtime and remove it from Login Items"], null),
         createRemovalRow(
           TERMINAL_ICON_SVG,
-          ["Remove the ", createElement("code", {}, ["tatolab"]), " command and the machine lock"],
+          ["Remove the ", createElement("code", {}, ["tatolab"]), " command"],
           [
+            createElement("code", { class: "selectable-text" }, ["~/.local/bin/tatolab"]),
+            ", and ",
             createElement("code", { class: "selectable-text" }, ["/usr/local/bin/tatolab"]),
-            " and ",
-            createElement("code", { class: "selectable-text" }, ["/Library/Application Support/Tatolab"]),
-            ". macOS asks for an administrator password once.",
+            " if you linked it there. macOS asks for your password only for that one.",
           ],
         ),
         createRemovalRow(TRASH_ICON_SVG, ["Move Tatolab to the Trash"], ["Then it quits."]),
