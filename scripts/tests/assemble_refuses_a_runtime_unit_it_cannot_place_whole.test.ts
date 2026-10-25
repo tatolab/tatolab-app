@@ -1,9 +1,10 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-// scripts/assemble-tatolab-app-bundle.sh places every binary the runtime unit ships: it refuses a
-// unit without moq-relay, which tatolabd runs from beside itself, and a unit whose bin/ holds a
-// binary it does not place. Both refusals come before it touches the bundle.
+// scripts/assemble-tatolab-app-bundle.sh places everything the runtime unit ships: it refuses a
+// unit without moq-relay, which tatolabd runs from beside itself, or without the preview page
+// tatolabd serves from Resources/watch, and a unit whose bin/ or lib/tatolab/ holds something it
+// does not place. Every refusal comes before it touches the bundle.
 
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -15,6 +16,7 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const ASSEMBLE_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "assemble-tatolab-app-bundle.sh");
 const PLACED_RUNTIME_UNIT_BINARIES = ["moq-relay", "tatolab", "tatolabd"];
+const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend", "watch"];
 
 interface AssembleScriptOutcome {
   exitCode: number;
@@ -43,10 +45,18 @@ afterEach(async () => {
   await rm(scratchDirectory, { recursive: true, force: true });
 });
 
-async function runtimeUnitPlantedWithBinaries(binaryNames: string[]): Promise<string> {
+async function runtimeUnitPlantedWith(binaryNames: string[], libraryDirectoryNames: string[]): Promise<string> {
   const runtimeUnitDirectory = path.join(scratchDirectory, "tatolab-runtime");
   await mkdir(path.join(runtimeUnitDirectory, "bin"), { recursive: true });
-  await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", "lend", "tatolab", "runtime"), { recursive: true });
+  for (const libraryDirectoryName of libraryDirectoryNames) {
+    await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", libraryDirectoryName), { recursive: true });
+  }
+  if (libraryDirectoryNames.includes("lend")) {
+    await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", "lend", "tatolab", "runtime"), { recursive: true });
+  }
+  if (libraryDirectoryNames.includes("watch")) {
+    await writeFile(path.join(runtimeUnitDirectory, "lib", "tatolab", "watch", "index.html"), "");
+  }
   for (const binaryName of binaryNames) {
     await writeFile(path.join(runtimeUnitDirectory, "bin", binaryName), "");
     await chmod(path.join(runtimeUnitDirectory, "bin", binaryName), 0o755);
@@ -55,7 +65,7 @@ async function runtimeUnitPlantedWithBinaries(binaryNames: string[]): Promise<st
 }
 
 test("a unit without moq-relay is refused and the bundle is untouched", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWithBinaries(["tatolab", "tatolabd"]);
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(["tatolab", "tatolabd"], PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
   const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
   expect(assembleOutcome.exitCode).toBe(1);
   expect(assembleOutcome.stderr).toContain("is missing bin/moq-relay");
@@ -63,9 +73,25 @@ test("a unit without moq-relay is refused and the bundle is untouched", async ()
 });
 
 test("a unit whose bin/ holds a binary the bundle does not place is refused and the bundle is untouched", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWithBinaries([...PLACED_RUNTIME_UNIT_BINARIES, "tatolab-something-new"]);
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith([...PLACED_RUNTIME_UNIT_BINARIES, "tatolab-something-new"], PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
   const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
   expect(assembleOutcome.exitCode).toBe(1);
   expect(assembleOutcome.stderr).toContain("bin/tatolab-something-new");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
+test("a unit without the preview page is refused and the bundle is untouched", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, ["lend"]);
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+  expect(assembleOutcome.exitCode).toBe(1);
+  expect(assembleOutcome.stderr).toContain("is missing lib/tatolab/watch/index.html");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
+test("a unit whose lib/tatolab/ holds something the bundle does not place is refused and the bundle is untouched", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, [...PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES, "something-new"]);
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+  expect(assembleOutcome.exitCode).toBe(1);
+  expect(assembleOutcome.stderr).toContain("lib/tatolab/something-new");
   expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
 });

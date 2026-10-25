@@ -151,6 +151,8 @@ Tatolab.app/Contents/
   Resources/lend/                             streamlib's lib/tatolab/lend; each Mach-O is a relative
                                               symlink into Frameworks/tatolab-runtime; precompiled
                                               (unchecked-hash .pyc) for CPython 3.10-3.14
+  Resources/watch/                            the preview page tatolabd serves on its loopback HTTP
+                                              (streamlib's lib/tatolab/watch)
   Library/LaunchAgents/com.tatolab.tatolabd.plist
                                               the SMAppService agent (packaging/launch-agent/)
 ```
@@ -241,7 +243,7 @@ The individual steps are separate scripts in `scripts/`:
 | `tatolab_app_build_features.mjs write <features.json> [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features; `npm run build:electron -- <flags>` runs it last |
 | `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features a packaged app carries; `--shipping` refuses the test root or any feed but get.tatolab.com's |
 | `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
-| `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit whose `bin/` lacks `tatolabd`, `tatolab` or `moq-relay`, or holds any other file |
+| `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/moq-relay`, `lib/tatolab/lend` or `lib/tatolab/watch`, or ships anything else in `bin/` or `lib/tatolab/` |
 | `sign-tatolab-app-bundle.sh <Tatolab.app> <identity>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) |
 | `make-tatolab-dmg.sh <Tatolab.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless) and its signature |
 | `notarize-and-staple.sh <Tatolab.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
