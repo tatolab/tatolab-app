@@ -68,7 +68,9 @@ for (const builtWindowFileName of await readdir(path.join(repositoryRoot, "out",
     throw new Error(`out/renderer/assets/${builtWindowFileName} is the mock window's ${mockWindowModuleName}, which the app never ships: run npm run build`);
   }
 }
-await cp(path.join(repositoryRoot, "out"), path.join(stagedAppDirectory, "out"), { recursive: true });
+for (const builtProcessDirectory of ["main", "preload", "renderer", "shared"]) {
+  await cp(path.join(repositoryRoot, "out", builtProcessDirectory), path.join(stagedAppDirectory, "out", builtProcessDirectory), { recursive: true });
+}
 for (const trayIconFileName of ["tray-template.png", "tray-template@2x.png", "tray-coloured.png"]) {
   await cp(path.join(repositoryRoot, "resources", trayIconFileName), path.join(stagedAppDirectory, "resources", trayIconFileName));
 }
