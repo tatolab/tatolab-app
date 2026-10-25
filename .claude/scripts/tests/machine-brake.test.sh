@@ -15,6 +15,12 @@ test_project="$(mktemp -d)"
 test_home="$(mktemp -d)"
 trap 'rm -rf "$test_project" "$test_home"' EXIT
 mkdir -p "$test_project/.claude"
+# A test-root unit carries streamlib's marker and drives only a runtime under a test root; a unit
+# without it is a real runtime's, whose CLI drives the owner's runtime.
+test_root_unit="$test_project/test-root-streamlib/target/tatolab-runtime"
+real_runtime_unit="$test_project/real-streamlib/target/tatolab-runtime"
+mkdir -p "$test_root_unit/bin" "$real_runtime_unit/bin"
+touch "$test_root_unit/machine-directories-under-a-test-root"
 
 failures=0
 outcome_of() {
@@ -103,8 +109,12 @@ expect silent 'systemctl --user status tatolabd.service'
 expect silent 'tatolab streams'
 expect silent 'tatolab logs --stream main'
 expect warn:machine_runtime 'TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof tatolab stop main'
-expect silent 'TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof ../streamlib/target/tatolab-runtime/bin/tatolab run --dir . --name a'
-expect silent '../streamlib/target/tatolab-runtime/bin/tatolabd'
+expect silent "TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof $test_root_unit/bin/tatolab run --dir . --name a"
+expect silent "$test_root_unit/bin/tatolabd"
+expect warn:machine_runtime "$real_runtime_unit/bin/tatolab run --dir . --name a"
+expect warn:machine_runtime "$real_runtime_unit/bin/tatolabd"
+expect warn:machine_runtime '../streamlib/target/tatolab-runtime/bin/tatolabd'
+expect silent "$real_runtime_unit/bin/tatolab streams"
 expect silent 'tatolab exchange --channel main/camera/video --out /tmp/x --count 3'
 expect silent 'tatolabd --version'
 expect silent 'npm run build:electron'

@@ -159,6 +159,17 @@ unquote_leading_argument() {
   esac
 }
 
+# Whether `command_word` runs a test-root unit's own tatolab or tatolabd: a unit carrying
+# streamlib's machine-directories-under-a-test-root marker, which only ever drives a runtime under a
+# test root. A unit without it is a real runtime's, wherever it was built.
+runs_a_test_root_units_own_binary() {
+  local command_word="$1" runtime_unit_directory
+  case "$command_word" in */bin/tatolab|*/bin/tatolabd) ;; *) return 1 ;; esac
+  runtime_unit_directory="${command_word%/bin/*}"
+  case "$runtime_unit_directory" in /*) ;; *) runtime_unit_directory="$session_cwd/$runtime_unit_directory" ;; esac
+  [ -f "$runtime_unit_directory/machine-directories-under-a-test-root" ]
+}
+
 classify_command_line() {
   local command_line="$1" nesting_depth="$2" segment original_segment command_word command_name
   local arguments blanked_segment next_word inner_command_line
@@ -268,13 +279,13 @@ classify_command_line() {
           && note_rule systemd_service "$original_segment"
         ;;
       tatolab|tatolab-cli)
-        case "$command_word" in */target/tatolab-runtime/bin/tatolab|*/target/tatolab-runtime/bin/tatolabd) continue ;; esac
+        runs_a_test_root_units_own_binary "$command_word" && continue
         printf '%s' "$arguments" | awk '{ for (i = 1; i <= NF; i++) if ($i !~ /^-/) { print $i; exit } }' \
           | grep -Eqx 'run|dev|stop|start|rm|expose|enable-virtual-camera' \
           && note_rule machine_runtime "$original_segment"
         ;;
       tatolabd)
-        case "$command_word" in */target/tatolab-runtime/bin/tatolab|*/target/tatolab-runtime/bin/tatolabd) continue ;; esac
+        runs_a_test_root_units_own_binary "$command_word" && continue
         printf '%s' "$arguments" | grep -Eq '[[:space:]](--help|-h|--version|-V)([[:space:]]|$)' || note_rule machine_runtime "$original_segment"
         ;;
       open)
@@ -404,7 +415,7 @@ if [ "$outcome" = ask ]; then
 fi
 
 system_message="${config_problems}machine-brake: ${first_rule} noted, not a prompt. Silence it: ${HELPER} rule ${first_rule} off  or  ${HELPER} allow '${suggested_glob}'"
-context="machine-brake note, advisory only, nothing was blocked: this command matched ${rules_text}. It acts on the owner's real machine or sends something outside the repository. That is fine when the owner asked for it. Otherwise prefer the hermetic path — tests with the fake local API server, the mock window (npm run dev), or a local-proof build under TATOLAB_TEST_MACHINE_ROOT — and say what you ran. Read-only verbs (launchctl print, systemctl --user status, tatolab streams/graph/logs/tap/exchange) and the test-root unit's own CLI (target/tatolab-runtime/bin/tatolab) never trigger this note. Owner preferences: ${preferences:-none recorded}. The owner can silence this with \`${HELPER} rule ${first_rule} off\` or \`${HELPER} allow '${suggested_glob}'\`; offer that if they say the command is fine, and never add an exception yourself."
+context="machine-brake note, advisory only, nothing was blocked: this command matched ${rules_text}. It acts on the owner's real machine or sends something outside the repository. That is fine when the owner asked for it. Otherwise prefer the hermetic path — tests with the fake local API server, the mock window (npm run dev), or a local-proof build under TATOLAB_TEST_MACHINE_ROOT — and say what you ran. Read-only verbs (launchctl print, systemctl --user status, tatolab streams/graph/logs/tap/exchange) and a test-root unit's own tatolab or tatolabd (a unit carrying the machine-directories-under-a-test-root marker) never trigger this note. Owner preferences: ${preferences:-none recorded}. The owner can silence this with \`${HELPER} rule ${first_rule} off\` or \`${HELPER} allow '${suggested_glob}'\`; offer that if they say the command is fine, and never add an exception yourself."
 jq -n --arg message "$system_message" --arg context "$context" \
   '{systemMessage: $message, hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $context}}'
 exit 0
