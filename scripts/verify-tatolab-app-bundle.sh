@@ -6,9 +6,9 @@
 # a strict deep signature, the hardened runtime on every Mach-O unless ad-hoc, no Mach-O outside
 # Contents/MacOS and Contents/Frameworks, every symlink resolving inside the bundle, the launch
 # agent plist, the Info.plist usage strings, the lend's CPython 3.10-3.14 bytecode, the
-# entitlements of tatolabd, the app and Electron's helpers, Electron's fuses, the build features
-# the app was built with, and the Service Management addon. Reading the fuses and the build
-# features needs this checkout's node_modules (npm ci).
+# entitlements of tatolabd, moq-relay, the app and Electron's helpers, Electron's fuses, the build
+# features the app was built with, and the Service Management addon. Reading the fuses and the
+# build features needs this checkout's node_modules (npm ci).
 # A stapled target must also pass Gatekeeper.
 #
 # Usage: verify-tatolab-app-bundle.sh <Tatolab.app|file.dmg> [--shipping]
@@ -97,7 +97,7 @@ verify_app_bundle() {
   [ -n "$bundle_executable" ] && [ -x "$contents/MacOS/$bundle_executable" ] && is_mach_o "$contents/MacOS/$bundle_executable" \
     && pass "the app executable Contents/MacOS/$bundle_executable is present" || fail "the app executable '$bundle_executable' is missing"
   local bundled_executable
-  for bundled_executable in tatolabd tatolab-cli; do
+  for bundled_executable in tatolabd tatolab-cli moq-relay; do
     [ -x "$contents/MacOS/$bundled_executable" ] && pass "Contents/MacOS/$bundled_executable is present" \
       || fail "Contents/MacOS/$bundled_executable is missing"
   done
@@ -251,6 +251,9 @@ verify_app_bundle() {
   signed_code_entitlement_keys="$(entitlement_keys_of "$contents/MacOS/tatolabd")"
   [ "$signed_code_entitlement_keys" = "$allowed_tatolabd_entitlements" ] \
     && pass "tatolabd carries exactly: $allowed_tatolabd_entitlements" || fail "tatolabd's entitlements are '$signed_code_entitlement_keys', not '$allowed_tatolabd_entitlements'"
+  signed_code_entitlement_keys="$(entitlement_keys_of "$contents/MacOS/moq-relay")"
+  [ -z "$signed_code_entitlement_keys" ] \
+    && pass "moq-relay carries no entitlements" || fail "moq-relay's entitlements are '$signed_code_entitlement_keys', not none"
   local helper_app helper_app_count=0 allowed_helper_entitlements
   while IFS= read -r -d '' helper_app; do
     helper_app_count=$((helper_app_count + 1))

@@ -142,6 +142,8 @@ Tatolab.app/Contents/
   MacOS/tatolabd                              the runtime (streamlib bin/tatolabd)
   MacOS/tatolab-cli                           the CLI (streamlib bin/tatolab); the app links
                                               ~/.local/bin/tatolab to it
+  MacOS/moq-relay                             the local relay (streamlib bin/moq-relay); tatolabd
+                                              runs it from beside itself as its two local relays
   Frameworks/tatolab-runtime/                 every Mach-O of the lend's tatolab/runtime/, same paths
     _engine.abi3.so
     _vulkan_driver/libvulkan.1.dylib
@@ -165,7 +167,7 @@ Entitlements: `packaging/entitlements/tatolab-app.entitlements` (the app) and
 `device.audio-input`. The hardened runtime refuses camera and microphone access without them. The
 app and `Tatolab Helper (Renderer).app` (`packaging/entitlements/tatolab-renderer-helper.entitlements`)
 also carry `cs.allow-jit`, because V8 maps its code writable and executable; Electron's other
-helpers and the CLI carry none. The packaged app's Electron fuses turn off `RunAsNode`,
+helpers, the CLI and the relay carry none. The packaged app's Electron fuses turn off `RunAsNode`,
 `NODE_OPTIONS` and `--inspect`, so no other process can run the signed app as plain Node and
 inherit its camera grant, and turn on asar integrity and asar-only loading. Electron's own
 Bluetooth and audio-capture usage strings and its `NSAllowsArbitraryLoads` exception are removed;
@@ -239,8 +241,8 @@ The individual steps are separate scripts in `scripts/`:
 | `tatolab_app_build_features.mjs write <features.json> [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features; `npm run build:electron -- <flags>` runs it last |
 | `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features a packaged app carries; `--shipping` refuses the test root or any feed but get.tatolab.com's |
 | `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
-| `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> [--local-proof-test-root]` | lays the unit into the packaged app |
-| `sign-tatolab-app-bundle.sh <Tatolab.app> <identity>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, the app) |
+| `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit whose `bin/` lacks `tatolabd`, `tatolab` or `moq-relay`, or holds any other file |
+| `sign-tatolab-app-bundle.sh <Tatolab.app> <identity>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) |
 | `make-tatolab-dmg.sh <Tatolab.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless) and its signature |
 | `notarize-and-staple.sh <Tatolab.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
 | `verify-tatolab-app-bundle.sh <Tatolab.app\|.dmg> [--shipping]` | checks the signature, layout, plists, entitlements, fuses, and Gatekeeper once stapled |

@@ -6,6 +6,8 @@
 #   Contents/MacOS/tatolabd, Contents/MacOS/tatolab-cli  the runtime and the CLI (bin/tatolab: the
 #                                                         filesystem is case-insensitive, so "tatolab"
 #                                                         would replace the app's own "Tatolab")
+#   Contents/MacOS/moq-relay                              the local relay, which tatolabd runs from
+#                                                         beside itself as two children
 #   Contents/Frameworks/tatolab-runtime/<path>            every Mach-O of lend/tatolab/runtime
 #   Contents/Resources/lend/                              the lend, each Mach-O a relative symlink
 #                                                         into Frameworks/tatolab-runtime, precompiled
@@ -50,8 +52,15 @@ processor_interpreter_python_versions=(3.10 3.11 3.12 3.13 3.14)
 
 contents="$app_bundle/Contents"
 [ -x "$contents/MacOS/Tatolab" ] || { echo "$app_bundle has no Contents/MacOS/Tatolab: not a packaged Tatolab.app" >&2; exit 1; }
-for required in bin/tatolabd bin/tatolab "lib/tatolab/lend/$lent_runtime_package_relative_to_the_lend"; do
+for required in bin/tatolabd bin/tatolab bin/moq-relay "lib/tatolab/lend/$lent_runtime_package_relative_to_the_lend"; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit $runtime_unit_directory is missing $required" >&2; exit 1; }
+done
+# A binary streamlib adds to the unit would otherwise be left out of the bundle without a word.
+for runtime_unit_binary in "$runtime_unit_directory"/bin/*; do
+  case "${runtime_unit_binary##*/}" in
+    tatolabd|tatolab|moq-relay) ;;
+    *) echo "runtime unit $runtime_unit_directory ships bin/${runtime_unit_binary##*/}, which this script does not place in the bundle" >&2; exit 1 ;;
+  esac
 done
 if $local_proof_test_root; then
   [ -f "$runtime_unit_directory/$marker_file_name" ] || {
@@ -85,11 +94,12 @@ relative_path_from_contents_link() {
 
 rm -rf "$contents/Frameworks/tatolab-runtime" "$contents/Resources/lend" \
   "$contents/Library/LaunchAgents/com.tatolab.tatolabd.plist" "$contents/Resources/$marker_file_name" \
-  "$contents/MacOS/tatolabd" "$contents/MacOS/tatolab-cli"
+  "$contents/MacOS/tatolabd" "$contents/MacOS/tatolab-cli" "$contents/MacOS/moq-relay"
 mkdir -p "$contents/Frameworks/tatolab-runtime" "$contents/Resources" "$contents/Library/LaunchAgents"
 
 install -m 0755 "$runtime_unit_directory/bin/tatolabd" "$contents/MacOS/tatolabd"
 install -m 0755 "$runtime_unit_directory/bin/tatolab" "$contents/MacOS/tatolab-cli"
+install -m 0755 "$runtime_unit_directory/bin/moq-relay" "$contents/MacOS/moq-relay"
 
 ditto "$lend_source" "$contents/Resources/lend"
 find "$contents/Resources/lend" -name __pycache__ -type d -prune -exec rm -rf {} +
@@ -130,4 +140,4 @@ if $local_proof_test_root; then
 fi
 plutil -lint -s "$launch_agent_plist"
 
-echo "assembled $app_bundle: tatolabd, tatolab-cli, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]})$($local_proof_test_root && echo ' (local proof, test root '"$local_proof_test_machine_root"')')"
+echo "assembled $app_bundle: tatolabd, tatolab-cli, moq-relay, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]})$($local_proof_test_root && echo ' (local proof, test root '"$local_proof_test_machine_root"')')"
