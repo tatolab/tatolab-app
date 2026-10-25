@@ -1,3 +1,0 @@
-	state = running
-	parent bundle version = 0.55.2
-	pid = 51143

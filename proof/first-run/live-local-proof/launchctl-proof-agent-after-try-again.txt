@@ -1,4 +1,0 @@
-	state = running
-	parent bundle version = 0.45.0
-	pid = 47958
-	last exit code = (never exited)

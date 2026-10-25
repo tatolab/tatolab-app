@@ -1,7 +1,0 @@
-NAME            STATE    NODES  PROJECT
-dock-counter    kept     4      /private/tmp/proof37/projects/dock-counter
-front-door      kept     4      /private/tmp/proof37/projects/front-door
-lobby-recorder  failed   -      /private/tmp/proof37/projects/lobby-recorder
-test-pattern    stopped  -      /private/tmp/proof37/projects/test-pattern
-
-lobby-recorder failed: `start` retried it, and it did not load: Invalid configuration: the kept stream `lobby-recorder` was not loaded: its interpreter /private/tmp/proof37/projects/lobby-recorder/.venv/bin/python is gone; run `uv sync` in /private/tmp/proof37/projects/lobby-recorder. `tatolab start lobby-recorder` retries it, `tatolab rm lobby-recorder` forgets it.

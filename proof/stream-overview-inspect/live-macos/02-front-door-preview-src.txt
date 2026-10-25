@@ -1,1 +1,0 @@
-http://127.0.0.1:14446/watch/jonathanf-macbook/front-door/h264encoder/encoded_video
