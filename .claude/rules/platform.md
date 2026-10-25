@@ -32,6 +32,11 @@ paths:
   the app at a local update feed. Never ship either: the bundle scripts refuse a test-root unit
   without `--local-proof-test-root`, and `verify-tatolab-app-bundle.sh --shipping` fails a bundle
   with the test root or any update feed but get.tatolab.com's.
+- **A build's features are a build-time input, never a patch.** `npm run build:electron --
+  [--local-proof-test-root] [--app-update-feed-url URL]` writes
+  `out/main/tatolab_app_build_features.json`, which the main process imports and the bundle checks
+  read out of `app.asar` (`scripts/tatolab_app_build_features.mjs read`). No script edits compiled
+  JavaScript, and no check greps the asar for compiler text.
 - **Signing and the bundle's seal are load-bearing.** Code lives only under `Contents/MacOS/` and
   `Contents/Frameworks/`; nothing writes into a signed bundle at run time; entitlements change only
   with a stated reason (each one is something the hardened runtime otherwise refuses). A
