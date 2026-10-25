@@ -8,7 +8,7 @@ const [, , outputFolder] = process.argv;
 const browser = await chromium.connectOverCDP("http://localhost:9333");
 const page = browser.contexts()[0].pages().find((candidate) => candidate.url().startsWith("tatolab-app:"));
 await page.setViewportSize({ width: 1240, height: 780 });
-await page.getByText("3 of 4 loaded", { exact: false }).waitFor({ timeout: 60_000 }).catch(() => {});
+await page.getByText("loaded on", { exact: false }).waitFor({ timeout: 60_000 });
 await page.waitForTimeout(1500);
 console.log("the window's page:", page.url());
 console.log((await page.locator("main").innerText()).slice(0, 600));
