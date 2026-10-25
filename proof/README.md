@@ -105,7 +105,7 @@ Issue #41. Every frame is in [`settings/`](settings/). The runtime's version, up
 - **Setup:** the unpackaged app from `npm run build && npm run build:electron`, with `machineDirectoriesUnderATestRoot` switched on in the built copy only. It ran over a `tatolabd` built from streamlib v0.55.2 (ec6adf522) with `--local-proof-test-root`, run by hand under `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`. The app's home was a scratch home holding `run-tatolab.json` with Run Tatolab off, so no Service Management or `launchctl` call reached the owner's agent. It reconciled to `switch_is_off`.
 - **How it was driven:** Playwright over DevTools at the window's own 1040×700 size.
 - **The owner's runtime:** the owner's `com.tatolab.tatolabd` (pid 44718) had the same `launchctl print` record before and after.
-- **Contract:** `src-electron/test-fixtures/local-api-describe-runtime-tool-result-of-a-test-root-runtime.json` was recorded from this runtime, and the live contract test passed against it.
+- **Contract:** `src/main/test-fixtures/local-api-describe-runtime-tool-result-of-a-test-root-runtime.json` was recorded from this runtime, and the live contract test passed against it.
 - **Not covered here:** Restart runtime through the real `launchctl kickstart -k`. With Run Tatolab on, it would restart the owner's runtime, so it waits for the owner. The Linux frames below show it through the service manager's stand-in.
 
 **Linux (container, unbundled) · stand-in runtime** — `24`–`28`:
@@ -382,7 +382,7 @@ Playwright drove the window. Beside each image, `<image>.tatolab-streams.txt` is
 | ![](react-window/live-macos-installed/05-installed-remove-app-check-asks-first.png) | Live | The row's More menu, Remove…: "Remove app-check?", what the runtime does, and that its project folder stays. |
 | ![](react-window/live-macos-installed/06-installed-app-check-removed-from-the-window.png) | Live | Remove confirmed: the runtime forgot it ("No streams in this runtime."), and the window is back to its empty state. |
 
-**Linux (container, unbundled)** — [`react-window/linux-container/`](react-window/linux-container/). The recipe there runs the committed tree in `ubuntu:22.04` on the Mac (arm64): Electron 44.9.1 unpackaged, under Xvfb with openbox and stalonetray. **No runtime ran.** The `systemctl` stand-in from `electron-window/linux-stand-ins/` started the **stand-in local API**, which replays responses recorded from tatolabd 0.45.6 (`src-electron/test-fixtures/`), including stop, start and remove.
+**Linux (container, unbundled)** — [`react-window/linux-container/`](react-window/linux-container/). The recipe there runs the committed tree in `ubuntu:22.04` on the Mac (arm64): Electron 44.9.1 unpackaged, under Xvfb with openbox and stalonetray. **No runtime ran.** The `systemctl` stand-in from `electron-window/linux-stand-ins/` started the **stand-in local API**, which replays responses recorded from tatolabd 0.45.6 (`src/main/test-fixtures/`), including stop, start and remove.
 
 | image | label | shows |
 |---|---|---|
@@ -475,7 +475,7 @@ reads everything through the preload's bridge and the main process's IPC handler
 runtime ran.** [`linux-stand-ins/`](electron-window/linux-stand-ins/) puts a `systemctl` stand-in
 first on the PATH. Its `tatolabd.service` starts a **stand-in local API**, which answers
 `/health`, `list_streams`, `logs` and `/api/graph` from the responses recorded from a real runtime
-in `src-electron/test-fixtures/`, on `$XDG_RUNTIME_DIR/streamlib/local-api.sock`.
+in `src/main/test-fixtures/`, on `$XDG_RUNTIME_DIR/streamlib/local-api.sock`.
 
 | image | label | shows |
 |---|---|---|

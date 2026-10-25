@@ -109,7 +109,7 @@ expect silent 'tatolab exchange --channel main/camera/video --out /tmp/x --count
 expect silent 'tatolabd --version'
 expect silent 'npm run build:electron'
 expect silent 'npm test'
-expect silent 'npx vitest run src-electron/src/main.test.ts'
+expect silent 'npx vitest run src/main/main.test.ts'
 expect silent 'npm run dev'
 expect silent 'scripts/build-tatolab-app.sh --local-proof-test-root'
 expect silent 'gh pr create --title "fix: x" --body "ran launchctl kickstart and gh release upload"'
@@ -119,7 +119,7 @@ expect silent 'gh workflow run macos-app.yml'
 expect silent "gh pr create --title 'ci: x' --body 'drops the manual step; gh release upload now runs in CI'"
 expect silent 'gh pr create --title "x" --body "Steps:
 xcrun notarytool submit build/x.dmg"'
-expect silent "grep -rn 'tatolab stop; launchctl bootout' src-electron"
+expect silent "grep -rn 'tatolab stop; launchctl bootout' src/main"
 expect silent "echo 'a; tatolab stop main'"
 expect silent 'gh api repos/tatolab/streamlib/releases/latest'
 expect silent 'open docs/Tatolab'

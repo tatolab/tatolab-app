@@ -1,13 +1,16 @@
 ---
 paths:
-  - "src-electron/**"
+  - "src/main/**"
+  - "src/preload/**"
+  - "native/**"
+  - "resources/**"
   - "packaging/**"
   - "scripts/**"
 ---
 
 # Platform layer
 
-- **Everything that differs by platform sits in `src-electron/src/platform/`**, behind the
+- **Everything that differs by platform sits in `src/main/platform/`**, behind the
   interfaces the rest of the app uses (`RuntimeAgentRegistration`, `TatolabMachineSetup`,
   `TatolabUninstall`) and the `TatolabPlatformForThisBuild` each platform module builds. Where a
   platform has nothing to do, its item is `null` or `not_offered` with the reason, and says so in

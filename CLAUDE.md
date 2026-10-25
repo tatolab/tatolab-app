@@ -8,7 +8,7 @@ Rust, TypeScript and shell source file carries, on its first two lines (after a 
     // Copyright (c) 2025 Jonathan Fontanez
     // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-(`#` in place of `//` for shell). shadcn's generated components (`src/components/ui/`) keep their
+(`#` in place of `//` for shell). shadcn's generated components (`src/renderer/components/ui/`) keep their
 MIT form and carry no Tatolab header. The runtime the app bundles is streamlib's, BUSL-1.1, and
 keeps its own licence. Do not modify `LICENSE` without explicit approval.
 `scripts/check-license-headers.sh` enforces the header in PR CI.
@@ -28,7 +28,7 @@ a parallel one. Search first.
      runtime — a capability, a local API contract — is streamlib's: filed there, and the app waits
      on it. This repository has no `docs/plan/`; never start one.
   2. How the window looks, reads and flows is `docs/design` (`DESIGN.md` and the prototype it
-     describes) + `src/styles/tokens.css`, changed with the owner's say-so in the same PR.
+     describes) + `src/renderer/styles/tokens.css`, changed with the owner's say-so in the same PR.
   3. How the app's own code is shaped — modules, interfaces, platform items, the window's IPC
      commands, the backend contract — goes in the issue's Design section, settled by `/module-design` before
      `/implement`.
@@ -38,7 +38,7 @@ a parallel one. Search first.
   never a local checkout's branch**:
   `gh api repos/tatolab/streamlib/contents/docs/plan/ARCHITECTURE.md -q .content | base64 -d`
   (the same for `GLOSSARY.md`), and read only the sections you need — the file is large.
-- Source edits (`src/`, `src-electron/`, `scripts/`, `packaging/`) belong inside `/implement`
+- Source edits (`src/`, `native/`, `scripts/`, `packaging/`) belong inside `/implement`
   against a tatolab-app issue. Nothing prompts on one — the distinction is the session's to apply.
 - Lifecycle here: `/file-issue` → `/implement` → `/verify-app` for anything a person sees or the
   machine feels. `/diagnose` for bugs, `/research` for questions, `/explore-idea` for what-ifs,
@@ -97,10 +97,10 @@ attention spent on settled things is unavailable for real forks.
   manager. It never reads the runtime's state directory or other sockets. The only machine state
   it touches is what it owns: on macOS the machine runtime lock and the `/usr/local/bin/tatolab`
   link, created and removed behind one administrator prompt, and its own settings.
-- **The contract is streamlib's.** Recorded responses under `src-electron/test-fixtures/` pin it;
+- **The contract is streamlib's.** Recorded responses under `src/main/test-fixtures/` pin it;
   refresh one by recording it from a real runtime — never hand-edit one to make a test pass. A
   change to what the app reads also runs the skipped live contract test against a running runtime
-  (`TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src-electron/src/local_api_client.test.ts`).
+  (`TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/local_api_client.test.ts`).
 - **A missing runtime capability is filed in streamlib and the app waits on it.** Never work
   around it in the app (no scraping logs for state the API does not give, no second channel). An
   app issue that needs one names the streamlib issue under "Waits on".
@@ -110,7 +110,7 @@ attention spent on settled things is unavailable for real forks.
 
 ## Non-negotiables
 
-- **Platform code lives in `src-electron/src/platform/`** (enforced); both platforms are checked
+- **Platform code lives in `src/main/platform/`** (enforced); both platforms are checked
   on every change, and the `ubuntu-22.04` PR check is the Linux gate — a Mac cannot exercise the
   Linux module against a real systemd or desktop.
 - A decision the issue or the spec doesn't state stops the work and goes to the owner;

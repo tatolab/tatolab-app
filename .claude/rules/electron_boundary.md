@@ -1,11 +1,12 @@
 ---
 paths:
-  - "src-electron/src/electron_adapters/**"
-  - "src-electron/src/preload/**"
-  - "src-electron/src/tatolab_commands.ts"
-  - "src-electron/src/tatolab_window_page_source.ts"
+  - "src/main/electron_adapters/**"
+  - "src/preload/**"
+  - "src/main/tatolab_commands.ts"
+  - "src/main/tatolab_window_page_source.ts"
   - "scripts/package_tatolab_electron_app.mjs"
-  - "src/backend/**"
+  - "src/renderer/backend/**"
+  - "src/shared/**"
 ---
 
 # The Electron boundary
