@@ -8,7 +8,8 @@
 # build/Tatolab-<version>-arm64-mac.zip and its feed manifest build/latest-mac.yml.
 # The runtime is always streamlib's main, or --streamlib-ref, fetched by
 # fetch-streamlib-for-the-app-build.sh into build/streamlib; nothing outside this repository is read.
-# The app's version is the version of the tatolabd it bundles.
+# The app's version is the version of the tatolabd it bundles. When it finishes it checks
+# streamlib's main again: a build of main fails if main moved on while it ran.
 #
 # Usage: build-tatolab-app.sh [--streamlib-ref REF] [--runtime-unit DIR] [--local-proof-test-root]
 #                             [--sign-identity ID] [--notarize] [--app-update-feed-url URL]
@@ -145,6 +146,21 @@ echo "==> update"
 rm -f "$output_update_zip"
 ditto -c -k --sequesterRsrc --keepParent "$assembled_app" "$output_update_zip"
 node "$scripts_directory/write_tatolab_app_update_manifest.mjs" "$output_update_manifest" "$app_version" "$output_update_zip"
+
+echo "==> streamlib main, now"
+streamlib_main_check="$("$scripts_directory/fetch-streamlib-for-the-app-build.sh" "$fetched_streamlib" --streamlib-ref main --resolve-only --expect-commit "$streamlib_commit" 2>&1)" \
+  && streamlib_main_check_status=0 || streamlib_main_check_status=$?
+case "$streamlib_main_check_status" in
+  0) echo "    streamlib main is still $streamlib_commit" ;;
+  1)
+    if [ "$streamlib_ref" = main ]; then
+      echo "$streamlib_main_check: this build of main is already behind it; build again" >&2
+      exit 1
+    fi
+    echo "    this build is streamlib $streamlib_ref, not main: $streamlib_main_check"
+    ;;
+  *) echo "    could not check streamlib main: $streamlib_main_check" ;;
+esac
 
 echo "built $assembled_app (streamlib $streamlib_commit, version $app_version)"
 echo "built $output_dmg"

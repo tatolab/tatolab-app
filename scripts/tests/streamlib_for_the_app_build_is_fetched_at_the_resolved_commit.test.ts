@@ -170,3 +170,28 @@ test("a destination that is some other git checkout is refused and left alone", 
   expect(fetchOutcome.exitCode).toBe(1);
   expect(await readFile(path.join(fetchDestination, "uncommitted-work"), "utf8")).toBe("mine\n");
 });
+
+test("--expect-commit passes when main is still at that commit", async () => {
+  const headOfMain = await commitOnStreamlibMain("0.55.4");
+  const checkOutcome = await fetchStreamlib(["--resolve-only", "--expect-commit", headOfMain]);
+  expect(checkOutcome).toMatchObject({ exitCode: 0, stdout: `${headOfMain}\n` });
+});
+
+test("--expect-commit fails, naming both commits, when main has moved on", async () => {
+  const builtCommit = await commitOnStreamlibMain("0.55.4");
+  const newHeadOfMain = await commitOnStreamlibMain("0.55.5");
+  const checkOutcome = await fetchStreamlib(["--resolve-only", "--expect-commit", builtCommit]);
+  expect(checkOutcome.exitCode).toBe(1);
+  expect(checkOutcome.stderr).toContain(builtCommit);
+  expect(checkOutcome.stderr).toContain(newHeadOfMain);
+});
+
+test("a streamlib it cannot reach is its own failure, apart from a moved main", async () => {
+  const checkOutcome = await runProgram(
+    "bash",
+    [FETCH_SCRIPT, fetchDestination, "--resolve-only", "--expect-commit", "0".repeat(40), "--from-repository", `file://${path.join(scratchDirectory, "no-such-repository.git")}`],
+    REPOSITORY_ROOT,
+  );
+  expect(checkOutcome.exitCode).toBe(3);
+  expect(checkOutcome.stderr).toContain("could not reach streamlib");
+});

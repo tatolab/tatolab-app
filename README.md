@@ -205,7 +205,9 @@ it resolves `main` on github.com/tatolab/streamlib to a commit, fetches exactly 
 `build/streamlib` (keeping its cargo `target/` between builds), and builds the runtime unit there
 (`cargo xtask build-runtime --release`). The unit records that commit in `streamlib-commit`, the
 bundle carries it in `Contents/Resources/streamlib-commit`, and the app's version is the version
-of the `tatolabd` it bundles. Then the Electron app: `npm run build` (the window into `out/renderer/`),
+of the `tatolabd` it bundles. When the build finishes it checks `main` again: if `main` moved on
+while it ran, the build fails and says to build again (a `--streamlib-ref` build only notes it,
+and an unreachable GitHub is noted, not fatal). Then the Electron app: `npm run build` (the window into `out/renderer/`),
 `npm run build:electron` (the main process, the preload and the build features), the arm64 Service Management addon,
 and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
 `@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
@@ -243,7 +245,7 @@ The individual steps are separate scripts in `scripts/`:
 
 | Script | |
 |---|---|
-| `fetch-streamlib-for-the-app-build.sh <dir> [--streamlib-ref REF] [--resolve-only]` | resolves streamlib's `main` (or REF) to a commit and fetches exactly that commit into `<dir>` |
+| `fetch-streamlib-for-the-app-build.sh <dir> [--streamlib-ref REF] [--resolve-only] [--expect-commit SHA]` | resolves streamlib's `main` (or REF) to a commit and fetches exactly that commit into `<dir>`; `--expect-commit` fails when REF has moved off SHA |
 | `build-tatolab-runtime-unit.sh <streamlib> [--local-proof-test-root]` | builds the runtime unit in a clean streamlib checkout and records its commit in the unit's `streamlib-commit` |
 | `tatolab_app_build_features.mjs write <features.json> [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features; `npm run build:electron -- <flags>` runs it last |
 | `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features a packaged app carries; `--shipping` refuses the test root or any feed but get.tatolab.com's |

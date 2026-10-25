@@ -9,9 +9,11 @@
 # script's own: it refuses one that holds anything but a checkout it made, or cargo's target/.
 #
 # Usage: fetch-streamlib-for-the-app-build.sh <destination> [--streamlib-ref REF] [--resolve-only]
-#                                            [--from-repository URL]
+#                                            [--expect-commit SHA] [--from-repository URL]
 #   --streamlib-ref REF      a branch, tag or full commit of streamlib (default: main)
 #   --resolve-only           print the commit REF resolves to and fetch nothing
+#   --expect-commit SHA      fail (exit 1) when REF no longer resolves to SHA
+# Exits 3 when streamlib cannot be reached, so a caller can tell that from a ref that moved.
 #   --from-repository URL    fetch from URL instead of https://github.com/tatolab/streamlib.git; for
 #                            the tests, which fetch from a planted repository
 set -euo pipefail
@@ -23,10 +25,12 @@ shift
 streamlib_ref=main
 streamlib_repository_url="https://github.com/tatolab/streamlib.git"
 resolve_only=false
+expected_streamlib_commit=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --streamlib-ref) [ $# -ge 2 ] || usage; streamlib_ref="$2"; shift ;;
     --resolve-only) resolve_only=true ;;
+    --expect-commit) [ $# -ge 2 ] || usage; expected_streamlib_commit="$2"; shift ;;
     --from-repository) [ $# -ge 2 ] || usage; streamlib_repository_url="$2"; shift ;;
     *) usage ;;
   esac
@@ -36,7 +40,8 @@ done
 if [[ "$streamlib_ref" =~ ^[0-9a-f]{40}$ ]]; then
   streamlib_commit="$streamlib_ref"
 else
-  remote_refs="$(git ls-remote --heads --tags "$streamlib_repository_url")"
+  remote_refs="$(git ls-remote --heads --tags "$streamlib_repository_url" 2>/dev/null)" \
+    || { echo "could not reach streamlib at $streamlib_repository_url" >&2; exit 3; }
   streamlib_commit=""
   # An annotated tag's commit is its peeled "^{}" entry; a lightweight tag and a branch name theirs directly.
   for candidate_ref in "refs/tags/$streamlib_ref^{}" "refs/tags/$streamlib_ref" "refs/heads/$streamlib_ref"; do
@@ -44,6 +49,10 @@ else
     [ -z "$streamlib_commit" ] || break
   done
   [ -n "$streamlib_commit" ] || { echo "streamlib at $streamlib_repository_url has no branch or tag '$streamlib_ref'" >&2; exit 1; }
+fi
+if [ -n "$expected_streamlib_commit" ] && [ "$streamlib_commit" != "$expected_streamlib_commit" ]; then
+  echo "streamlib $streamlib_ref is now $streamlib_commit, not $expected_streamlib_commit" >&2
+  exit 1
 fi
 if $resolve_only; then
   echo "$streamlib_commit"

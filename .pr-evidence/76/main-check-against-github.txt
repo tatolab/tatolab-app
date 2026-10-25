@@ -1,0 +1,6 @@
+$ scripts/fetch-streamlib-for-the-app-build.sh build/streamlib --resolve-only --expect-commit ef5c8b22995a90b1f7ae671e214c96480615c911
+ef5c8b22995a90b1f7ae671e214c96480615c911
+exit 0
+$ scripts/fetch-streamlib-for-the-app-build.sh build/streamlib --resolve-only --expect-commit f2ec4338a0000000000000000000000000000000   # an older commit
+streamlib main is now ef5c8b22995a90b1f7ae671e214c96480615c911, not f2ec4338a0000000000000000000000000000000
+exit 1
