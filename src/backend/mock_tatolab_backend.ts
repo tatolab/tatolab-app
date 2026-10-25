@@ -731,6 +731,8 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   };
 
   if (mockStatus.runtime_state === "running") bringRuntimeUp();
+  // Opening the app registers the runtime's agent, so first run's runtime comes up as the real one does.
+  if (scenario === "setup" && platform === "macos") startRuntime();
 
   return {
     getTatolabStatus: async () => {
