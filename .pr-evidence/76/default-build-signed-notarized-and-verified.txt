@@ -1,0 +1,501 @@
+2026-10-25T17:41:28-04:00 INF Injecting 26 Infisical secrets into your application process
+signing keychain ready; building
+==> runtime unit (streamlib main)
+fetched streamlib main at ef5c8b22995a90b1f7ae671e214c96480615c911 into /Users/fonta/Repositories/tatolab/tatolab-app/build/streamlib
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 15.07s
+     Running `target/debug/xtask build-runtime --release`
+MoltenVK v1.4.2: the Khronos release build, thinned to arm64
+<tmp>/tmp.xVmeC8ge9m/MoltenVK-macos.tar: OK
+/Users/fonta/Repositories/tatolab/tatolab-app/build/streamlib/sdk/streamlib-python-wheel/python/tatolab/runtime/_vulkan_driver/libMoltenVK.dylib: replacing existing signature
+Vulkan-Loader vulkan-sdk-1.4.357.0: built for arm64 at macOS 15.0
+Note: switching to '5f157b62e333c63260d05d81bf66faa216ab0fb8'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+-- The C compiler identification is AppleClang 21.0.0.21000334
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+Starting builds in <tmp>/tmp.xVmeC8ge9m/Vulkan-Loader/external/Release/64
+Installed Vulkan-Headers (v1.4.357) in 0.6370129585266113 seconds
+-- Found Git: /usr/bin/git (found version "2.54.0 (Apple Git-157)")
+-- Looking for realpath
+-- Looking for realpath - found
+-- Looking for alloca.h
+-- Looking for alloca.h - found
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- The ASM compiler identification is AppleClang
+-- Found assembler: /usr/bin/cc
+-- Found PkgConfig: /opt/homebrew/bin/pkg-config (found version "2.5.1")
+-- Configuring done (9.2s)
+-- Generating done (0.0s)
+-- Build files have been written to: <tmp>/tmp.xVmeC8ge9m/Vulkan-Loader/build
+[1/22] Building C object loader/CMakeFiles/asm_offset.dir/asm_offset.c.o
+[2/22] Linking C executable loader/asm_offset
+[3/22] Generating gen_defines.asm
+[4/22] Building C object loader/CMakeFiles/vulkan.dir/gpa_helper.c.o
+[5/22] Building C object loader/CMakeFiles/vulkan.dir/log.c.o
+[6/22] Building C object loader/CMakeFiles/vulkan.dir/loader_environment.c.o
+[7/22] Building C object loader/CMakeFiles/vulkan.dir/extension_manual.c.o
+[8/22] Building C object loader/CMakeFiles/vulkan.dir/allocation.c.o
+[9/22] Building C object loader/CMakeFiles/vulkan.dir/loader_json.c.o
+[10/22] Building C object loader/CMakeFiles/vulkan.dir/terminator.c.o
+[11/22] Building C object loader/CMakeFiles/vulkan.dir/debug_utils.c.o
+[12/22] Building C object loader/CMakeFiles/vulkan.dir/settings.c.o
+[13/22] Building C object loader/CMakeFiles/vulkan.dir/dev_ext_trampoline.c.o
+[14/22] Building C object loader/CMakeFiles/vulkan.dir/phys_dev_ext.c.o
+[15/22] Building C object loader/CMakeFiles/vulkan.dir/cJSON.c.o
+[16/22] Building C object loader/CMakeFiles/vulkan.dir/unknown_function_handling.c.o
+[17/22] Building C object loader/CMakeFiles/vulkan.dir/trampoline.c.o
+[18/22] Building C object loader/CMakeFiles/vulkan.dir/wsi.c.o
+[19/22] Building ASM object loader/CMakeFiles/vulkan.dir/unknown_ext_chain_gas_aarch.S.o
+[20/22] Building C object loader/CMakeFiles/vulkan.dir/loader.c.o
+[21/22] Linking C shared library loader/libvulkan.1.4.357.dylib
+[22/22] Creating library symlink loader/libvulkan.1.dylib loader/libvulkan.dylib
+/Users/fonta/Repositories/tatolab/tatolab-app/build/streamlib/sdk/streamlib-python-wheel/python/tatolab/runtime/_vulkan_driver/libvulkan.1.dylib: replacing existing signature
+total 11776
+-rwxr-xr-x  1 fonta  staff  5305840 Oct 25 17:41 libMoltenVK.dylib
+-rwxr-xr-x  1 fonta  staff   712992 Oct 25 17:42 libvulkan.1.dylib
+-rw-r--r--  1 fonta  staff      179 Oct 25 17:41 MoltenVK_icd.json
+🍹 Building a mixed python/rust project
+🔗 Found pyo3 bindings with abi3 support
+🐍 Not using a specific python interpreter
+📡 Using build options features from pyproject.toml
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+help: replace the use of the deprecated method
+55 -             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |tag| {
+55 +             .try_update(Ordering::Relaxed, Ordering::Relaxed, |tag| {
+
+help: replace the use of the deprecated method
+97 -     let (Ok(previous) | Err(previous)) = THE_MACHINES_SHUTDOWN_ESCALATION.fetch_update(
+97 +     let (Ok(previous) | Err(previous)) = THE_MACHINES_SHUTDOWN_ESCALATION.try_update(
+
+help: replace the use of the deprecated method
+156 -             let _ = self.queued_frame_measure_total.fetch_update(
+156 +             let _ = self.queued_frame_measure_total.try_update(
+
+
+...
+
+
+...
+
+ --> runtime/streamlib-engine/src/core/compiler/link_config_change.rs:8:12
+
+...
+...
+...
+
+ --> runtime/streamlib-engine/src/core/compiler/pending_operation_queue.rs:9:12
+
+...
+...
+...
+...
+...
+...
+...
+...
+
+ --> runtime/streamlib-engine/src/core/compiler/processor_config_change.rs:8:12
+
+
+...
+...
+...
+...
+...
+...
+...
+...
+...
+
+
+
+
+
+
+
+
+
+
+    --> runtime/streamlib-engine/src/core/context/gpu_context.rs:4482:19
+...
+
+...
+
+...
+
+...
+
+...
+
+...
+
+
+...
+...
+
+...
+
+...
+
+...
+    = note: `HostVisibleAllocationIntent` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+...
+
+...
+...
+
+...
+    = note: `BindingResource` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+...
+...
+...
+
+    --> runtime/streamlib-engine/src/vulkan/rhi/vulkan_compute_kernel.rs:1230:19
+...
+...
+...
+
+
+
+...
+
+...
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+...
+
+...
+
+    Finished `release` profile [optimized] target(s) in 2m 35s
+📦 Including files matching "tatolab/runtime/_vulkan_driver/*.so"
+📦 Built wheel for abi3 Python ≥ 3.10 to /Users/fonta/Repositories/tatolab/tatolab-app/build/streamlib/target/tatolab-runtime/wheel/streamlib-0.55.4-cp310-abi3-macosx_15_0_arm64.whl
+ INFO build-runtime: /Users/fonta/Repositories/tatolab/tatolab-app/build/streamlib/target/tatolab-runtime/wheel/streamlib-0.55.4-cp310-abi3-macosx_15_0_arm64.whl unpacked into the lend at /Users/fonta/Repositories/tatolab/tatolab-app/build/streamlib/target/tatolab-runtime/lib/tatolab/lend
+bun install v1.3.11 (af24e281)
+
++ @moq/watch@0.6.3
+
+24 packages installed [69.00ms]
+Bundled 280 modules in 39ms
+
+  main.js  0.63 MB  (entry point)
+
+ INFO stage-watch-page: the preview page is staged at /Users/fonta/Repositories/tatolab/tatolab-app/build/streamlib/target/tatolab-runtime/lib/tatolab/watch
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+help: replace the use of the deprecated method
+55 -             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |tag| {
+55 +             .try_update(Ordering::Relaxed, Ordering::Relaxed, |tag| {
+
+help: replace the use of the deprecated method
+97 -     let (Ok(previous) | Err(previous)) = THE_MACHINES_SHUTDOWN_ESCALATION.fetch_update(
+97 +     let (Ok(previous) | Err(previous)) = THE_MACHINES_SHUTDOWN_ESCALATION.try_update(
+
+help: replace the use of the deprecated method
+156 -             let _ = self.queued_frame_measure_total.fetch_update(
+156 +             let _ = self.queued_frame_measure_total.try_update(
+
+
+...
+
+
+...
+
+ --> runtime/streamlib-engine/src/core/compiler/link_config_change.rs:8:12
+
+...
+...
+...
+
+ --> runtime/streamlib-engine/src/core/compiler/pending_operation_queue.rs:9:12
+
+...
+...
+...
+...
+...
+...
+...
+...
+
+ --> runtime/streamlib-engine/src/core/compiler/processor_config_change.rs:8:12
+
+
+...
+...
+...
+...
+...
+...
+...
+...
+...
+
+
+
+
+
+
+
+
+
+
+    --> runtime/streamlib-engine/src/core/context/gpu_context.rs:4482:19
+...
+
+...
+
+...
+
+...
+
+...
+
+...
+
+
+...
+...
+
+...
+
+...
+
+...
+    = note: `HostVisibleAllocationIntent` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+...
+
+...
+...
+
+...
+    = note: `BindingResource` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+...
+...
+...
+
+    --> runtime/streamlib-engine/src/vulkan/rhi/vulkan_compute_kernel.rs:1230:19
+...
+...
+...
+
+
+
+...
+
+...
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+    Finished `release` profile [optimized] target(s) in 2m 23s
+    Updating crates.io index
+  Installing moq-relay v0.17.7
+    Updating crates.io index
+    Updating crates.io index
+    Finished `release` profile [optimized] target(s) in 1m 22s
+  Installing /Users/fonta/Repositories/tatolab/tatolab-app/build/streamlib/target/local-relay/bin/moq-relay
+   Installed package `moq-relay v0.17.7` (executable `moq-relay`)
+ INFO stage-local-relay: moq-relay 0.17.7 is at /Users/fonta/Repositories/tatolab/tatolab-app/build/streamlib/target/local-relay/bin/moq-relay
+ INFO build-runtime: tatolabd, tatolab and the local relay placed in /Users/fonta/Repositories/tatolab/tatolab-app/build/streamlib/target/tatolab-runtime/bin
+    /Users/fonta/Repositories/tatolab/tatolab-app/build/streamlib/target/tatolab-runtime: streamlib ef5c8b22995a90b1f7ae671e214c96480615c911, version 0.55.4
+==> Electron app
+
+added 657 packages, and audited 658 packages in 6s
+
+200 packages are looking for funding
+  run `npm fund` for details
+1 high severity vulnerability
+
+To address all issues, run:
+  npm audit fix
+Run `npm audit` for details.
+> tatolab-app@0.45.0 build
+> tsc --noEmit -p tsconfig.web.json && tsc -p tsconfig.node.json && vite build
+
+vite v8.3.4 building client environment for production...
+transforming...
+✓ 2575 modules transformed.
+rendering chunks...
+computing gzip size...
+out/renderer/index.html                                                   1.37 kB │ gzip:   0.72 kB
+out/renderer/assets/geist-mono-symbols2-wght-normal-CO5SzqOn.woff2        5.81 kB
+out/renderer/assets/geist-mono-cyrillic-ext-wght-normal-X_5orZeX.woff2    6.17 kB
+out/renderer/assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2         7.42 kB
+out/renderer/assets/geist-mono-vietnamese-wght-normal-DadHysG0.woff2      7.69 kB
+out/renderer/assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2           8.00 kB
+out/renderer/assets/geist-mono-cyrillic-wght-normal-DiZS0aHC.woff2       12.94 kB
+out/renderer/assets/geist-mono-latin-ext-wght-normal-Bwz-egvJ.woff2      14.69 kB
+out/renderer/assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2            15.08 kB
+out/renderer/assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2           16.51 kB
+out/renderer/assets/geist-mono-latin-wght-normal-XN7g48iV.woff2          23.12 kB
+out/renderer/assets/geist-latin-wght-normal-BgDaEnEv.woff2               29.40 kB
+out/renderer/assets/tato_mascot_3d-C4X3t-ku.png                          99.46 kB
+out/renderer/assets/index-DeYWsrfq.css                                  108.33 kB │ gzip:  19.37 kB
+out/renderer/assets/index-plmd0tCk.js                                   986.44 kB │ gzip: 312.96 kB
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 344ms
+> tatolab-app@0.45.0 build:electron
+> node -e "for (const built of ['out/main', 'out/preload', 'out/shared']) require('node:fs').rmSync(built, { recursive: true, force: true })" && tsc -p tsconfig.node.build.json && vite build --config vite.window_preload.config.ts && node scripts/tatolab_app_build_features.mjs write out/main/tatolab_app_build_features.json
+
+vite v8.3.4 building client environment for production...
+transforming...
+✓ 3 modules transformed.
+rendering chunks...
+computing gzip size...
+out/preload/tatolab_window_preload.cjs  3.74 kB │ gzip: 1.31 kB
+
+✓ built in 9ms
+
+> tatolab-app@0.45.0 build:service-management-addon
+> node-gyp rebuild --directory native/service_management_agent_services --arch=arm64
+
+WARNING: Could not find icon "/Users/fonta/Repositories/tatolab/tatolab-app/packaging/icons/icon.icns" with extension ".icon", skipping this app icon format
+    removed Electron's NSAudioCaptureUsageDescription
+    removed Electron's NSBluetoothAlwaysUsageDescription
+    removed Electron's NSBluetoothPeripheralUsageDescription
+==> assemble
+assembled /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app from streamlib ef5c8b22995a90b1f7ae671e214c96480615c911: tatolabd, tatolab-cli, moq-relay, 3 Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython 3.10 3.11 3.12 3.13 3.14), preview page in Resources/watch
+==> sign (Developer ID Application: <redacted>
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Libraries/libvk_swiftshader.dylib: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Libraries/libffmpeg.dylib: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Helpers/app_shim_loader: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Helpers/chrome_crashpad_handler: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/ReactiveObjC.framework/Versions/A/ReactiveObjC: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Squirrel.framework/Versions/A/Resources/ShipIt: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Squirrel.framework/Versions/A/Squirrel: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/tatolab-runtime/_engine.abi3.so: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/tatolab-runtime/_vulkan_driver/libMoltenVK.dylib: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/tatolab-runtime/_vulkan_driver/libvulkan.1.dylib: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Mantle.framework/Versions/A/Mantle: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/tatolab-app-native/service_management_agent_services.node: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Electron Framework.framework: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/ReactiveObjC.framework: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Squirrel.framework: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Mantle.framework: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Tatolab Helper (Renderer).app: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Tatolab Helper (GPU).app: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Tatolab Helper (Plugin).app: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/Frameworks/Tatolab Helper.app: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/MacOS/tatolabd: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/MacOS/tatolab-cli: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app/Contents/MacOS/moq-relay: replacing existing signature
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app: replacing existing signature
+signed /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app with 'Developer ID Application: <redacted>': 13 loose Mach-O in Frameworks, the frameworks, 4 helper apps, tatolabd, tatolab-cli, moq-relay, the app
+==> notarize the app
+{"message":"Processing complete","status":"Accepted","id":"<id>"}
+Processing: /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app
+Processing: /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app
+The staple and validate action worked!
+Processing: /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app
+The validate action worked!
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app: accepted
+source=Notarized Developer ID
+origin=Developer ID Application: <redacted>
+notarized and stapled /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app
+==> installer
+built /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg (160M), signed with 'Developer ID Application: <redacted>'
+==> notarize the installer
+{"status":"Accepted","message":"Processing complete","id":"<id>"}
+Processing: /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg
+Processing: /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg
+The staple and validate action worked!
+Processing: /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg
+The validate action worked!
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg: accepted
+source=Notarized Developer ID
+origin=Developer ID Application: <redacted>
+notarized and stapled /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg
+==> verify
+verifying /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg
+  ok    the image is signed
+/Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg: accepted
+source=Notarized Developer ID
+  ok    Gatekeeper accepts the stapled Tatolab-0.55.4-arm64.dmg
+  ok    the image links Applications
+  ok    the image carries the installer background
+verifying <tmp>/tmp.NjgsPxUlRM/Tatolab.app
+        <tmp>/tmp.NjgsPxUlRM/Tatolab.app: valid on disk
+        <tmp>/tmp.NjgsPxUlRM/Tatolab.app: satisfies its Designated Requirement
+  ok    codesign --verify --deep --strict
+  ok    CFBundleIdentifier is com.tatolab.tatolab
+  ok    LSUIElement is true
+  ok    the app executable Contents/MacOS/Tatolab is present
+  ok    Contents/MacOS/tatolabd is present
+  ok    Contents/MacOS/tatolab-cli is present
+  ok    Contents/MacOS/moq-relay is present
+  ok    the bundled tatolabd is 0.55.4, the app's version
+  ok    the runtime was built from streamlib ef5c8b22995a90b1f7ae671e214c96480615c911
+  ok    Info.plist carries no App Transport Security exception
+  ok    NSCameraUsageDescription names Tatolab
+  ok    NSMicrophoneUsageDescription names Tatolab
+  ok    NSLocalNetworkUsageDescription names Tatolab
+  ok    NSDocumentsFolderUsageDescription names Tatolab
+  ok    NSDesktopFolderUsageDescription names Tatolab
+  ok    NSDownloadsFolderUsageDescription names Tatolab
+  ok    every Mach-O sits in Contents/MacOS or Contents/Frameworks
+  ok    every Mach-O is signed (hardened runtime unless ad-hoc)
+  ok    every Mach-O is signed by one team (<team>)
+  ok    every symlink resolves inside the bundle
+  ok    Resources/lend carries the runtime package
+  ok    Resources/lend links 3 Mach-O into Frameworks/tatolab-runtime
+  ok    Resources/watch carries the runtime's preview page
+  ok    every .py under Resources/lend/tatolab/runtime has cpython-310 cpython-311 cpython-312 cpython-313 cpython-314 bytecode
+  ok    app.asar carries the build features: machineDirectoriesUnderATestRoot=false appUpdateFeedUrl=https://get.tatolab.com/app/ 
+  ok    launch agent plist is valid
+  ok    launch agent Label is com.tatolab.tatolabd
+  ok    launch agent BundleProgram is the bundled tatolabd
+  ok    launch agent is associated with com.tatolab.tatolab
+  ok    launch agent may open 65536 files
+  ok    real machine directories (no test machine root)
+  ok    com.apple.security.device.camera on tatolabd
+  ok    com.apple.security.device.audio-input on tatolabd
+  ok    com.apple.security.device.camera on Tatolab.app
+  ok    com.apple.security.device.audio-input on Tatolab.app
+  ok    the app carries exactly: com.apple.security.cs.allow-jit com.apple.security.device.audio-input com.apple.security.device.camera
+  ok    tatolabd carries exactly: com.apple.security.device.audio-input com.apple.security.device.camera
+  ok    moq-relay carries no entitlements
+  ok    Tatolab Helper (GPU).app carries exactly: no entitlements
+  ok    Tatolab Helper (Plugin).app carries exactly: no entitlements
+  ok    Tatolab Helper (Renderer).app carries exactly: com.apple.security.cs.allow-jit
+  ok    Tatolab Helper.app carries exactly: no entitlements
+  ok    Electron fuse: RunAsNode is Disabled
+  ok    Electron fuse: EnableNodeOptionsEnvironmentVariable is Disabled
+  ok    Electron fuse: EnableNodeCliInspectArguments is Disabled
+  ok    Electron fuse: EnableEmbeddedAsarIntegrityValidation is Enabled
+  ok    Electron fuse: OnlyLoadAppFromAsar is Enabled
+  ok    the Service Management addon is in Frameworks/tatolab-app-native
+  ok    electron-updater is in app.asar
+  ok    Resources/app-update.yml names the updater's cache
+  ok    the app was built with the shipping features: real machine directories, updates from get.tatolab.com/app/
+<tmp>/tmp.NjgsPxUlRM/Tatolab.app: accepted
+source=Notarized Developer ID
+  ok    Gatekeeper accepts the stapled Tatolab.app
+all checks passed for /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg
+==> update
+/Users/fonta/Repositories/tatolab/tatolab-app/build/latest-mac.yml
+built /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab.app (streamlib ef5c8b22995a90b1f7ae671e214c96480615c911, version 0.55.4)
+built /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64.dmg
+built /Users/fonta/Repositories/tatolab/tatolab-app/build/Tatolab-0.55.4-arm64-mac.zip
+built /Users/fonta/Repositories/tatolab/tatolab-app/build/latest-mac.yml
+exit 0

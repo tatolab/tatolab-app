@@ -1,0 +1,3 @@
+RELAY                             ADAPTER  STATE   SETTINGS  SECRETS
+local-loopback (built in)         local    joined  {}
+local-every-interface (built in)  local    joined  {}

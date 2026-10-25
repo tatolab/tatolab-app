@@ -1,0 +1,2 @@
+/Applications/Tatolab.app: accepted
+source=Notarized Developer ID

@@ -1,0 +1,4 @@
+$ scripts/build-tatolab-app.sh --runtime-unit /tmp/streamlib-v0.55.4/target/tatolab-runtime
+==> runtime unit (streamlib main)
+runtime unit /tmp/streamlib-v0.55.4/target/tatolab-runtime was built from streamlib 'no recorded commit', not ef5c8b22995a90b1f7ae671e214c96480615c911 (main)
+exit 1

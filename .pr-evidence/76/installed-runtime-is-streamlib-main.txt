@@ -1,0 +1,10 @@
+$ cat /Applications/Tatolab.app/Contents/Resources/streamlib-commit
+ef5c8b22995a90b1f7ae671e214c96480615c911
+$ /Applications/Tatolab.app/Contents/MacOS/tatolab-cli -V   # against the running runtime
+tatolab 0.55.4
+runtime 0.55.4 (0.55.4+ef5c8b22995a90b1f7ae671e214c96480615c911.3154d666bae1ec4d22f54135ab2c12cc), up 0d 0h 0m, log /Users/fonta/Library/Application Support/Tatolab/logs
+# the build nonce after the commit differs from the old /tmp v0.55.4 unit's (fa782a0f…): this runtime was compiled by this build from build/streamlib
+$ git ls-remote https://github.com/tatolab/streamlib.git refs/heads/main
+ef5c8b22995a90b1f7ae671e214c96480615c911	refs/heads/main
+$ git -C ../streamlib describe --tags --always   # the stale checkout beside this repository, never read
+v0.54.12-1-gf2ec4338a
