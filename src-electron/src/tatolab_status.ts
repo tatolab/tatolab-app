@@ -17,7 +17,11 @@ export interface RuntimeStateObservations {
   runTatolab: boolean;
   runtimeAgent: RuntimeAgentRegistrationStatus;
   runtimeHealth: RuntimeHealthObservation;
-  /** Whether the service manager has given up starting the runtime; asked only while it fails its health check with the agent enabled. */
+  /**
+   * Whether the service manager still gives up starting the runtime after the app registered its agent afresh once this
+   * launch; asked only while it fails its health check with the agent enabled. Before that one fresh registration a
+   * give-up reads as starting, since registering afresh is what clears launchd's stale job.
+   */
   serviceManagerGaveUpOnTheRuntime: boolean;
   /** Whether the runtime has answered once since the app launched or last registered, restarted or registered it again. */
   runtimeAnsweredSinceItWasLastStarted: boolean;

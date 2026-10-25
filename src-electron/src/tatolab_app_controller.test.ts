@@ -139,18 +139,32 @@ test("a runtime that never answers reads starting, then never answered, and not 
   expect((await neverAnswered.controller.composeStatus(30_000)).runtime_state).toBe("never_answered");
 });
 
-test("a runtime the service manager gave up on reads blocked, the app leaves it alone, and try again registers it again", async () => {
+test("the first give-up by the service manager reads starting and registers the agent afresh, which clears launchd's stale job", async () => {
   const { controller, runtimeAgent } = await controllerOverFakes([], "enabled");
   runtimeAgent.whyTheServiceManagerGaveUp = "launchd: last exit code = 78: EX_CONFIG";
 
-  const blocked = await controller.composeStatus(0);
+  const firstRound = await controller.composeStatus(0);
+  expect(firstRound.runtime_state).toBe("starting");
+  await controller.startTheRuntimeIfThePollerFoundItDown(firstRound, 0);
+  expect(runtimeAgent.calls).toEqual(["unregister", "register", "start_if_not_running"]);
+
+  expect((await controller.composeStatus(2_000)).runtime_state).toBe("starting");
+});
+
+test("a give-up that outlasts the fresh registration reads blocked, the app leaves it alone, and try again registers it again", async () => {
+  const { controller, runtimeAgent } = await controllerOverFakes([], "enabled");
+  runtimeAgent.whyTheServiceManagerGaveUp = "launchd: last exit reason = OS_REASON_CODESIGNING | Launch Constraint Violation";
+  runtimeAgent.givesUpWhateverTheRegistration = true;
+  await controller.startTheRuntimeIfThePollerFoundItDown(await controller.composeStatus(0), 0);
+  runtimeAgent.calls.length = 0;
+
+  const blocked = await controller.composeStatus(2_000);
   expect(blocked.runtime_state).toBe("blocked_by_the_service_manager");
   await controller.startTheRuntimeIfThePollerFoundItDown(blocked, 60_000);
   expect(runtimeAgent.calls).toEqual([]);
 
   expect(await controller.registerTheRuntimeAgainOnRequest()).toEqual(succeeded(undefined));
   expect(runtimeAgent.calls).toEqual(["unregister", "register", "start_if_not_running"]);
-  expect((await controller.composeStatus(0)).runtime_state).toBe("starting");
 });
 
 /** A service manager whose unregistering waits until the test opens its gate. */

@@ -4,8 +4,9 @@
 // The "Run Tatolab" switch: one registration is both "the runtime runs now" and "the runtime
 // starts at login". Opening the app with the switch on registers the agent; turning it off
 // unregisters it, which stops the runtime, and is remembered. While the app runs, the switch on
-// also starts an enabled agent whose runtime the poller finds down, unless the service manager
-// has given up on it, which only the person's Try Again registers again.
+// also starts an enabled agent whose runtime the poller finds down. The first time a launch finds
+// the service manager has given up on it, the app registers the agent afresh by itself; after
+// that only the person's Try Again does.
 
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../src/backend/tatolab_backend_contract.js";
 import type { BundledRuntimeRestart, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
@@ -83,6 +84,7 @@ export class RunTatolabSwitch {
   private loginItemsSettingsOpenedThisLaunch = false;
   private runtimeAgentLastStartAttemptAtMs: number | null = null;
   private runtimeAnsweredSinceLastStarted = false;
+  private registeredAfreshAfterAGiveUp = false;
   /** The restart on request under way; `null` with none. */
   private restartOnRequest: RuntimeRestartOnRequestUnderWay | null = null;
 
@@ -128,6 +130,12 @@ export class RunTatolabSwitch {
   noteRuntimeHealthy(nowMs: number): void {
     this.runtimeExpectedUpSinceMs = nowMs;
     this.runtimeAnsweredSinceLastStarted = true;
+    this.registeredAfreshAfterAGiveUp = false;
+  }
+
+  /** Whether the app has already registered the agent afresh by itself since the runtime last answered, so a give-up now is the person's to retry. */
+  hasRegisteredAfreshAfterAGiveUp(): boolean {
+    return this.registeredAfreshAfterAGiveUp;
   }
 
   /** Whether the runtime has answered since the app launched or last registered, restarted or registered it again. */
@@ -298,13 +306,25 @@ export class RunTatolabSwitch {
     return { kind: "registration_failed", failureDescription: registered.failure };
   }
 
-  /** Start the runtime when the poller found it failing its health check at `nowMs` and `theRuntimeAgentShouldBeStartedNow` says to. */
+  /**
+   * Start the runtime when the poller found it failing its health check at `nowMs` and `theRuntimeAgentShouldBeStartedNow`
+   * says to. The first give-up the service manager reports since the runtime last answered is answered by registering
+   * the agent afresh: launchd can hold a job whose Background Task Management record is gone, after the agent's label
+   * passes from one copy of the app to another, and every spawn of that job exits 78 until it is registered again.
+   */
   async startTheRuntimeIfThePollerFoundItDown(
     runtimeAgent: RuntimeAgentRegistrationStatus,
     runtimeHealth: RuntimeHealthObservation,
     serviceManagerGaveUpOnTheRuntime: boolean,
     nowMs: number,
   ): Promise<void> {
+    if (serviceManagerGaveUpOnTheRuntime && this.runTatolabSwitchedOn && runtimeAgent === "enabled" && !this.registeredAfreshAfterAGiveUp) {
+      this.registeredAfreshAfterAGiveUp = true;
+      this.tatolabAppLog.warn("the service manager gave up starting the runtime; registering its agent afresh");
+      this.noteTheRuntimeStartedAfresh(nowMs);
+      await this.registerTheAgentAgainAndStartIt();
+      return;
+    }
     const timeSinceTheLastStartAttemptMs =
       this.runtimeAgentLastStartAttemptAtMs === null ? null : Math.max(0, nowMs - this.runtimeAgentLastStartAttemptAtMs);
     if (

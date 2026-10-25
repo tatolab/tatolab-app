@@ -423,3 +423,23 @@ test("try_again_with_the_switch_off_is_refused_and_registers_nothing", async () 
   expect(await underTest.runTatolabSwitch.registerTheRuntimeAgainOnRequest(5_000)).toEqual(failedWith(REGISTER_AGAIN_WITH_RUN_TATOLAB_OFF_REFUSAL));
   expect(underTest.serviceManagement.calls).toEqual([]);
 });
+
+test("the_first_give_up_registers_the_agent_afresh_once_and_an_answer_lets_a_later_give_up_do_it_again", async () => {
+  const underTest = await switchWith("enabled", true);
+
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "failing", true, 1_000);
+  expect(underTest.serviceManagement.calls).toEqual(["unregister", "register", "start_if_not_running"]);
+  expect(underTest.runTatolabSwitch.hasRegisteredAfreshAfterAGiveUp()).toBe(true);
+
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "failing", true, 60_000);
+  expect(underTest.serviceManagement.calls, "a second give-up is the person's to retry").toHaveLength(3);
+
+  underTest.runTatolabSwitch.noteRuntimeHealthy(70_000);
+  expect(underTest.runTatolabSwitch.hasRegisteredAfreshAfterAGiveUp()).toBe(false);
+});
+
+test("a_give_up_with_the_switch_off_registers_nothing", async () => {
+  const underTest = await switchWith("enabled", false);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "failing", true, 1_000);
+  expect(underTest.serviceManagement.calls).toEqual([]);
+});

@@ -31,6 +31,8 @@ export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, B
   restartingTheAgentsRuntime: Result<void, RuntimeAgentStartFailure> = succeeded(undefined);
   /** The service manager's words for having given up on the runtime, until registering the agent clears them; `null` while it has not. */
   whyTheServiceManagerGaveUp: string | null = null;
+  /** Whether the service manager gives up again however often the agent is registered, as a code-signing refusal does. */
+  givesUpWhateverTheRegistration = false;
 
   constructor(public status: RuntimeAgentRegistrationStatus) {}
 
@@ -41,7 +43,7 @@ export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, B
   async registerRuntimeAgent(): Promise<Result<void, string>> {
     this.calls.push("register");
     this.status = "enabled";
-    this.whyTheServiceManagerGaveUp = null;
+    if (!this.givesUpWhateverTheRegistration) this.whyTheServiceManagerGaveUp = null;
     return succeeded(undefined);
   }
 
