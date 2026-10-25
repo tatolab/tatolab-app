@@ -14,5 +14,5 @@ export default defineConfig({
   server: { port: 1420, strictPort: true },
   // Every font ships as its own file: a CSP whose font-src names only 'self' refuses data: URLs.
   build: { target: ["chrome152"], outDir: path.resolve(import.meta.dirname, "out/renderer"), emptyOutDir: true, assetsInlineLimit: 0 },
-  test: { root: import.meta.dirname, exclude: [...configDefaults.exclude, "out/**"] },
+  test: { root: import.meta.dirname, exclude: [...configDefaults.exclude, "out/**", "build/**"] },
 });

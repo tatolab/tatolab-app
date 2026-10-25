@@ -84,14 +84,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check out streamlib at ${{ needs.release.outputs.streamlib_ref }}
-        uses: actions/checkout@v4
-        with:
-          repository: tatolab/streamlib
-          ref: ${{ needs.release.outputs.streamlib_ref }}
-          path: streamlib
-          persist-credentials: false
-
       # `glslc` stages the engine's SPIR-V; cmake and ninja build shaderc's C++ and the bundled
       # Vulkan loader (streamlib's macos-wheel.yml installs the same).
       - name: Install glslc and the C++ build tools
@@ -102,7 +94,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: streamlib -> target
+          workspaces: build/streamlib -> target
           shared-key: tatolab-app-macos
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
@@ -165,8 +157,7 @@ jobs:
           APP_VERSION: ${{ needs.release.outputs.app_version }}
           STREAMLIB_REF: ${{ needs.release.outputs.streamlib_ref }}
         run: |
-          build_arguments=(--streamlib "$GITHUB_WORKSPACE/streamlib")
-          [ -z "$APP_VERSION" ] || build_arguments+=(--app-version "$APP_VERSION")
+          build_arguments=(--streamlib-ref "$STREAMLIB_REF")
           notarized=false
           if [ "${DEVELOPER_ID_READY:-0}" = 1 ]; then
             build_arguments+=(--sign-identity "$APPLE_SIGNING_IDENTITY")
@@ -178,11 +169,14 @@ jobs:
           fi
           scripts/build-tatolab-app.sh "${build_arguments[@]}"
           dmg_path="$(ls build/Tatolab-*-arm64.dmg)"
+          if [ -n "$APP_VERSION" ] && [ "$(basename "$dmg_path")" != "Tatolab-$APP_VERSION-arm64.dmg" ]; then
+            echo "::error::built $(basename "$dmg_path"), but the release tag is $APP_VERSION"; exit 1
+          fi
           echo "dmg_name=$(basename "$dmg_path")" >> "$GITHUB_OUTPUT"
           echo "notarized=$notarized" >> "$GITHUB_OUTPUT"
           {
             echo "### Tatolab.app"
-            echo "- streamlib: \`$STREAMLIB_REF\`"
+            echo "- streamlib: \`$STREAMLIB_REF\` at \`$(cat build/Tatolab.app/Contents/Resources/streamlib-commit)\`"
             echo "- image: \`$(basename "$dmg_path")\` ($(du -h "$dmg_path" | cut -f1))"
             echo "- signed: $([ "${DEVELOPER_ID_READY:-0}" = 1 ] && echo 'Developer ID' || echo 'ad-hoc')"
             echo "- notarized: $notarized"

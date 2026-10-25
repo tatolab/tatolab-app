@@ -3,8 +3,9 @@
 
 // scripts/assemble-tatolab-app-bundle.sh places everything the runtime unit ships: it refuses a
 // unit without moq-relay, which tatolabd runs from beside itself, or without the preview page
-// tatolabd serves from Resources/watch, and a unit whose bin/ or lib/tatolab/ holds something it
-// does not place. Every refusal comes before it touches the bundle.
+// tatolabd serves from Resources/watch, a unit whose bin/ or lib/tatolab/ holds something it does
+// not place, and a unit built from any streamlib commit but the one the build resolved. Every
+// refusal comes before it touches the bundle.
 
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -17,15 +18,17 @@ const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const ASSEMBLE_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "assemble-tatolab-app-bundle.sh");
 const PLACED_RUNTIME_UNIT_BINARIES = ["moq-relay", "tatolab", "tatolabd"];
 const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend", "watch"];
+const RESOLVED_STREAMLIB_COMMIT = "ef5c8b22995a90b1f7ae671e214c96480615c911";
+const AN_OLDER_STREAMLIB_COMMIT = "f2ec4338a0d1c2b3e4f5a6b7c8d9e0f1a2b3c4d5";
 
 interface AssembleScriptOutcome {
   exitCode: number;
   stderr: string;
 }
 
-function runTheAssembleScript(appBundle: string, runtimeUnitDirectory: string): Promise<AssembleScriptOutcome> {
+function runTheAssembleScript(appBundle: string, runtimeUnitDirectory: string, assembleFlags: string[] = ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT]): Promise<AssembleScriptOutcome> {
   return new Promise((resolveOutcome) => {
-    execFile("bash", [ASSEMBLE_SCRIPT, appBundle, runtimeUnitDirectory], { cwd: REPOSITORY_ROOT }, (scriptFailure, _stdout, stderr) => {
+    execFile("bash", [ASSEMBLE_SCRIPT, appBundle, runtimeUnitDirectory, ...assembleFlags], { cwd: REPOSITORY_ROOT }, (scriptFailure, _stdout, stderr) => {
       const exitCode = scriptFailure === null ? 0 : typeof scriptFailure.code === "number" ? scriptFailure.code : -1;
       resolveOutcome({ exitCode, stderr });
     });
@@ -45,9 +48,14 @@ afterEach(async () => {
   await rm(scratchDirectory, { recursive: true, force: true });
 });
 
-async function runtimeUnitPlantedWith(binaryNames: string[], libraryDirectoryNames: string[]): Promise<string> {
+async function runtimeUnitPlantedWith(
+  binaryNames: string[],
+  libraryDirectoryNames: string[],
+  builtFromStreamlibCommit: string | null = RESOLVED_STREAMLIB_COMMIT,
+): Promise<string> {
   const runtimeUnitDirectory = path.join(scratchDirectory, "tatolab-runtime");
   await mkdir(path.join(runtimeUnitDirectory, "bin"), { recursive: true });
+  if (builtFromStreamlibCommit !== null) await writeFile(path.join(runtimeUnitDirectory, "streamlib-commit"), `${builtFromStreamlibCommit}\n`);
   for (const libraryDirectoryName of libraryDirectoryNames) {
     await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", libraryDirectoryName), { recursive: true });
   }
@@ -93,5 +101,29 @@ test("a unit whose lib/tatolab/ holds something the bundle does not place is ref
   const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
   expect(assembleOutcome.exitCode).toBe(1);
   expect(assembleOutcome.stderr).toContain("lib/tatolab/something-new");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
+test("a unit built from another streamlib commit is refused, naming both commits, and the bundle is untouched", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES, AN_OLDER_STREAMLIB_COMMIT);
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+  expect(assembleOutcome.exitCode).toBe(1);
+  expect(assembleOutcome.stderr).toContain(AN_OLDER_STREAMLIB_COMMIT);
+  expect(assembleOutcome.stderr).toContain(RESOLVED_STREAMLIB_COMMIT);
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
+test("a unit that names no streamlib commit is refused and the bundle is untouched", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES, null);
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+  expect(assembleOutcome.exitCode).toBe(1);
+  expect(assembleOutcome.stderr).toContain("names no streamlib commit");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
+test("assembling without the streamlib commit the build resolved is a usage error", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory, []);
+  expect(assembleOutcome.exitCode).toBe(2);
   expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
 });

@@ -15,9 +15,13 @@
 #   Contents/Resources/watch/                             the preview page tatolabd serves on its
 #                                                         loopback HTTP (lib/tatolab/watch)
 #   Contents/Library/LaunchAgents/com.tatolab.tatolabd.plist
+#   Contents/Resources/streamlib-commit                   the streamlib commit the runtime was built from
 # Code signing requires code under MacOS/ or Frameworks/; the lend keeps its shape through the links.
 #
-# Usage: assemble-tatolab-app-bundle.sh <Tatolab.app> <runtime unit dir> [--local-proof-test-root]
+# Usage: assemble-tatolab-app-bundle.sh <Tatolab.app> <runtime unit dir> --streamlib-commit SHA
+#                                      [--local-proof-test-root]
+#   --streamlib-commit SHA   the streamlib commit the build resolved; the unit's streamlib-commit
+#                            must name it
 #   --local-proof-test-root  the unit must carry the machine-directories-under-a-test-root marker;
 #                            the agent gets TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof and the
 #                            test ports its local relay and loopback HTTP bind (14443, 14445,
@@ -30,13 +34,16 @@ app_bundle="$(cd "$1" && pwd)"
 runtime_unit_directory="$(cd "$2" && pwd)"
 shift 2
 local_proof_test_root=false
+resolved_streamlib_commit=""
 while [ $# -gt 0 ]; do
   case "$1" in
+    --streamlib-commit) [ $# -ge 2 ] || usage; resolved_streamlib_commit="$2"; shift ;;
     --local-proof-test-root) local_proof_test_root=true ;;
     *) usage ;;
   esac
   shift
 done
+[[ "$resolved_streamlib_commit" =~ ^[0-9a-f]{40}$ ]] || usage
 
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 launch_agent_template="$repository_root/packaging/launch-agent/com.tatolab.tatolabd.plist"
@@ -48,6 +55,7 @@ local_proof_test_local_relay_loopback_port=14443
 local_proof_test_local_relay_every_interface_port=14445
 local_proof_test_loopback_http_port=14446
 marker_file_name="machine-directories-under-a-test-root"
+streamlib_commit_file_name="streamlib-commit"
 lend_source="$runtime_unit_directory/lib/tatolab/lend"
 watch_page_source="$runtime_unit_directory/lib/tatolab/watch"
 lent_runtime_package_relative_to_the_lend="tatolab/runtime"
@@ -65,6 +73,15 @@ for runtime_unit_entry in "$runtime_unit_directory"/bin/* "$runtime_unit_directo
     *) echo "runtime unit $runtime_unit_directory ships ${runtime_unit_entry#"$runtime_unit_directory/"}, which this script does not place in the bundle" >&2; exit 1 ;;
   esac
 done
+unit_streamlib_commit="$(cat "$runtime_unit_directory/$streamlib_commit_file_name" 2>/dev/null || true)"
+[ -n "$unit_streamlib_commit" ] || {
+  echo "runtime unit $runtime_unit_directory names no streamlib commit ($streamlib_commit_file_name): build it with build-tatolab-runtime-unit.sh" >&2
+  exit 1
+}
+[ "$unit_streamlib_commit" = "$resolved_streamlib_commit" ] || {
+  echo "runtime unit $runtime_unit_directory was built from streamlib $unit_streamlib_commit, not $resolved_streamlib_commit, the commit this build resolved" >&2
+  exit 1
+}
 if $local_proof_test_root; then
   [ -f "$runtime_unit_directory/$marker_file_name" ] || {
     echo "--local-proof-test-root needs a unit built with --machine-directories-under-a-test-root (no $marker_file_name marker)" >&2
@@ -97,6 +114,7 @@ relative_path_from_contents_link() {
 
 rm -rf "$contents/Frameworks/tatolab-runtime" "$contents/Resources/lend" "$contents/Resources/watch" \
   "$contents/Library/LaunchAgents/com.tatolab.tatolabd.plist" "$contents/Resources/$marker_file_name" \
+  "$contents/Resources/$streamlib_commit_file_name" \
   "$contents/MacOS/tatolabd" "$contents/MacOS/tatolab-cli" "$contents/MacOS/moq-relay"
 mkdir -p "$contents/Frameworks/tatolab-runtime" "$contents/Resources" "$contents/Library/LaunchAgents"
 
@@ -106,6 +124,7 @@ install -m 0755 "$runtime_unit_directory/bin/moq-relay" "$contents/MacOS/moq-rel
 
 ditto "$lend_source" "$contents/Resources/lend"
 ditto "$watch_page_source" "$contents/Resources/watch"
+cp "$runtime_unit_directory/$streamlib_commit_file_name" "$contents/Resources/$streamlib_commit_file_name"
 find "$contents/Resources/lend" -name __pycache__ -type d -prune -exec rm -rf {} +
 
 relocated_mach_o_count=0
@@ -144,4 +163,4 @@ if $local_proof_test_root; then
 fi
 plutil -lint -s "$launch_agent_plist"
 
-echo "assembled $app_bundle: tatolabd, tatolab-cli, moq-relay, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}), preview page in Resources/watch$($local_proof_test_root && echo ' (local proof, test root '"$local_proof_test_machine_root"')')"
+echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: tatolabd, tatolab-cli, moq-relay, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}), preview page in Resources/watch$($local_proof_test_root && echo ' (local proof, test root '"$local_proof_test_machine_root"')')"
