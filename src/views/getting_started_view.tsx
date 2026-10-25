@@ -11,21 +11,17 @@ import { ProgressChecklist, ProgressChecklistStep } from "../design_system/progr
 import { RefusalLine } from "../design_system/refusal_line";
 import { presentGettingStarted, type GettingStartedStepPresentation } from "../presentation/getting_started_presentation";
 import { windowDragRegionAttribute } from "../presentation/platform_presentation";
-import { RUNTIME_BANNER_ACTION_LABELS, RUNTIME_BANNER_ACTION_REFUSAL_LEADS } from "../presentation/runtime_presentation";
+import { RUNTIME_BANNER_ACTION_LABELS, RUNTIME_BANNER_ACTION_REFUSAL_LEADS, type RuntimeBannerAction } from "../presentation/runtime_presentation";
 import { runBannerAction, useActionThroughTheBackend } from "./action_through_the_backend";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 /** The two screens of first run: Welcome, then Getting set up. */
 export type GettingStartedScreen = "welcome" | "getting_set_up";
 
-/** One step of the checklist, with the action that moves it on waiting for the backend's answer in its place and its refusal under it. */
-function GettingStartedStep({ step }: { step: GettingStartedStepPresentation }) {
+/** The action that moves a step on, waiting for the backend's answer in its place, and its refusal under the step. */
+function GettingStartedStepWithAction({ step, action }: { step: GettingStartedStepPresentation; action: RuntimeBannerAction }) {
   const { backend } = useTatolabWindowEnvironment();
-  const { action } = step;
-  const stepAction = useActionThroughTheBackend(
-    () => (action === null ? Promise.resolve() : runBannerAction(backend, action)),
-    action === null ? "" : RUNTIME_BANNER_ACTION_REFUSAL_LEADS[action],
-  );
+  const stepAction = useActionThroughTheBackend(() => runBannerAction(backend, action), RUNTIME_BANNER_ACTION_REFUSAL_LEADS[action]);
   return (
     <ProgressChecklistStep
       progress={step.progress}
@@ -34,7 +30,7 @@ function GettingStartedStep({ step }: { step: GettingStartedStepPresentation }) 
       explanation={step.explanation}
       data-getting-started-step={step.step}
       action={
-        action === null ? null : stepAction.isPending ? (
+        stepAction.isPending ? (
           <PendingActionWords words="Asking…" />
         ) : (
           <ActionButton
@@ -49,6 +45,20 @@ function GettingStartedStep({ step }: { step: GettingStartedStepPresentation }) 
     >
       {stepAction.refusal !== null && <RefusalLine lead={stepAction.refusal.lead} words={stepAction.refusal.words} />}
     </ProgressChecklistStep>
+  );
+}
+
+/** One step of the checklist, with the action that moves it on when it has one. */
+function GettingStartedStep({ step }: { step: GettingStartedStepPresentation }) {
+  if (step.action !== null) return <GettingStartedStepWithAction step={step} action={step.action} />;
+  return (
+    <ProgressChecklistStep
+      progress={step.progress}
+      title={step.title}
+      progressWords={step.progressWords}
+      explanation={step.explanation}
+      data-getting-started-step={step.step}
+    />
   );
 }
 
@@ -70,7 +80,7 @@ function GettingSetUpScreen({ steps }: { steps: readonly GettingStartedStepPrese
   useEffect(() => headingRef.current?.focus(), []);
   return (
     <div data-getting-started-screen="getting_set_up">
-      <h1 ref={headingRef} tabIndex={-1} className="title-lg outline-none">
+      <h1 ref={headingRef} tabIndex={-1} className="title-lg focus-visible:shadow-none">
         Getting set up
       </h1>
       <p className="mt-1 mb-5 text-fg-2">The runtime starts in the background. Tatolab asks you for something only when macOS needs you.</p>

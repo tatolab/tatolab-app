@@ -15,7 +15,7 @@ export function AddStreamRunNoticeView() {
   const navigate = useNavigate();
   const presentation = runNotice === null ? null : presentAddStreamRunNotice(runNotice);
   return (
-    <div className="pointer-events-none absolute right-4 bottom-10 z-40" aria-live="polite" aria-atomic="true">
+    <div aria-live="polite" aria-atomic="true">
       {runNotice !== null && presentation !== null && (
       <WindowNotice
         tone={presentation.tone}

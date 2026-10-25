@@ -204,8 +204,10 @@ function TatolabWindowShell() {
           <Outlet />
         </main>
         <WindowStatusBar />
-        <AddStreamRunNoticeView />
-        <FirstRunFinishingRefusalNoticeView />
+        <div className="pointer-events-none absolute right-4 bottom-10 z-40 flex flex-col-reverse gap-2">
+          <AddStreamRunNoticeView />
+          <FirstRunFinishingRefusalNoticeView />
+        </div>
       </div>
     </div>
   );

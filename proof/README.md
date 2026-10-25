@@ -39,6 +39,11 @@ Each frame is at `first-run/mock/<name>-light.png` and `-dark.png`, from `npm ru
 | `10-settings-command-line` | `state=running&page=settings&section=command-line` | `~/.local/bin/tatolab` at 0.55.2, the `export PATH="$HOME/.local/bin:$PATH"` line for `~/.zprofile`, and "Link in /usr/local/bin" with its warning that the dialog says "osascript wants to make changes", plus Link in /usr/local/bin…. |
 | `11-linux-install-screen` | `platform=linux&state=setup` | Linux keeps its installer screen: "Install the Tatolab runtime", the `curl … \| sh` line, and a wait for `tatolabd.service`. |
 | `12-linux-systemd-stopped-the-runtime` | `platform=linux&state=blocked` | "systemd stopped the runtime", "tatolabd.service kept failing, so systemd won't start it again by itself. Try Again starts it afresh." and Try Again. Status bar "Runtime blocked". |
+| `13-step-refusal` | `state=never-answered&first_run=unfinished&register_again=refused&setup=getting_set_up&setup_step_action=register_the_runtime_again` | Try Again refused: under the step, "Couldn't start the runtime again: Service Management could not register the runtime's agent: Operation not permitted", with Try Again offered again. |
+| `14-setup-not-saved-notice` | `state=setup&first_run_remember=refused&setup=get_started` | Get Started pressed, but its file couldn't be written. The Streams list opens anyway, with the notice "Setup wasn't saved": "Tatolab couldn't remember that you've set it up, so Welcome shows again next time it opens. EACCES: permission denied, open '…/first-run-finished.json'", and Dismiss. |
+| `15-usr-local-bin-waiting-for-password` | `state=running&page=settings&section=command-line&link=pressed` | Link in /usr/local/bin… pressed: "Waiting for your password…" with a spinner in its place. |
+| `16-usr-local-bin-linked` | the same, once the mock prompt answers | "Linked at /usr/local/bin/tatolab, so it works in every terminal.", with no button. |
+| `17-usr-local-bin-cancelled` | the same with `usr_local_bin=cancel` | "tatolab wasn't linked: The password prompt was cancelled, so nothing changed." under the row, with Link in /usr/local/bin… offered again. |
 
 Not covered:
 - **Pending the owner:**

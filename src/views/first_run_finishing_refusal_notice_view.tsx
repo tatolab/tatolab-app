@@ -11,7 +11,7 @@ export function FirstRunFinishingRefusalNoticeView() {
   const refusalReason = useFirstRunFinishingRefusalReason();
   const presentation = refusalReason === null ? null : presentFirstRunFinishingRefusal(refusalReason);
   return (
-    <div className="pointer-events-none absolute right-4 bottom-10 z-40" aria-live="assertive" aria-atomic="true">
+    <div aria-live="assertive" aria-atomic="true">
       {presentation !== null && (
         <WindowNotice
           tone="failure"

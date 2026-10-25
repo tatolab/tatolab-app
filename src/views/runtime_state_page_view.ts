@@ -4,7 +4,7 @@
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import { createElement, type ElementChild } from "../dom";
 import { LOCK_ICON_SVG, POWER_ICON_SVG } from "../icons";
-import { RUNTIME_BANNER_ACTION_LABELS, type RuntimeBannerPresentation, type RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
+import { RUNTIME_BANNER_ACTION_LABELS, RUNTIME_BANNER_ACTION_REFUSAL_LEADS, type RuntimeBannerPresentation, type RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
 import { runBannerAction } from "./action_through_the_backend";
 import { createCopyButton } from "./copy_button";
 import { createFailureIcon, createFailureLine, createIcon, createSpinner } from "./window_controls";
@@ -72,7 +72,7 @@ export function createRuntimeStatePage(
       actionButton.disabled = true;
       actionFailure.show(null);
       void runBannerAction(backend, action)
-        .catch((rejection: unknown) => actionFailure.show(describeBackendRejection(rejection)))
+        .catch((rejection: unknown) => actionFailure.show(`${RUNTIME_BANNER_ACTION_REFUSAL_LEADS[action]} ${describeBackendRejection(rejection)}`))
         .finally(() => {
           actionButton.disabled = false;
         });

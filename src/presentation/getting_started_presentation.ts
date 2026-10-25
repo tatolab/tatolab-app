@@ -26,7 +26,7 @@ export interface GettingStartedStepPresentation {
 
 /** Getting set up for one status: its checklist, and whether Get Started may be pressed yet. */
 export interface GettingStartedPresentation {
-  steps: GettingStartedStepPresentation[];
+  steps: readonly GettingStartedStepPresentation[];
   /** Get Started opens the Streams list once the runtime answers. */
   getStartedIsOffered: boolean;
   /** What the footer says beside Get Started. */
@@ -46,7 +46,7 @@ export function presentGettingStarted(status: TatolabStatus): GettingStartedPres
     progress: GettingStartedStepProgress,
   ): GettingStartedStepPresentation[] =>
     banner === null ? [] : [{ step, title: banner.title, progressWords, explanation: banner.explanation, progress, action: banner.action }];
-  const waitingOnTheRuntime = (steps: GettingStartedStepPresentation[]): GettingStartedPresentation => ({
+  const waitingOnTheRuntime = (steps: readonly GettingStartedStepPresentation[]): GettingStartedPresentation => ({
     steps,
     getStartedIsOffered: false,
     footerWords: "Get Started opens once the runtime answers.",
@@ -95,5 +95,5 @@ export function presentGettingStarted(status: TatolabStatus): GettingStartedPres
 
 /** The notice over the Streams list when Get Started could not be remembered: first run is over for this launch, and Welcome comes back at the next. */
 export function presentFirstRunFinishingRefusal(refusalReason: string): { title: string; detail: string } {
-  return { title: "Tatolab couldn't remember that you've set it up", detail: `Welcome shows again next time Tatolab opens. ${refusalReason}` };
+  return { title: "Setup wasn't saved", detail: `Tatolab couldn't remember that you've set it up, so Welcome shows again next time it opens. ${refusalReason}` };
 }

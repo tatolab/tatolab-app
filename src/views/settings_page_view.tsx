@@ -22,12 +22,12 @@ import type { StatusTone } from "../presentation/runtime_presentation";
 import {
   presentAboutVersions,
   presentCommandLineToolVersion,
-  presentUsrLocalBinLink,
   presentLoginItemsRow,
   presentOpenAtLogin,
   presentRuntimeLogFolder,
   presentRuntimeStatusRow,
   presentStreamFailureNotifications,
+  presentUsrLocalBinLink,
   restartRuntimeUnavailableBecause,
   RUNTIME_LICENCE,
   SETTINGS_SECTION_GROUPS,
@@ -408,7 +408,7 @@ function CommandLineSection() {
             </div>
           )}
         </SettingsRow>
-        {usrLocalBinLink.isShown && (
+        {usrLocalBinLink !== null && (
           <SettingsRow
             label="Link in /usr/local/bin"
             description={usrLocalBinLink.description}

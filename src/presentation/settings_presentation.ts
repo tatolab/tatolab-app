@@ -202,27 +202,25 @@ export function presentCommandLineToolVersion(
   }
 }
 
-/** Command line › Link in /usr/local/bin: whether the row shows, what it says, and whether its button links. */
+/** Command line › Link in /usr/local/bin: what the row says, and whether its button links. */
 export interface UsrLocalBinLinkPresentation {
-  isShown: boolean;
   description: string;
   /** Whether the row offers its button: only while the link is not made and the build makes it. */
   isOffered: boolean;
 }
 
-/** The `/usr/local/bin` link as Settings shows it on `platform`: macOS's option behind the administrator prompt, warning beforehand what the prompt says; Linux shows none. */
-export function presentUsrLocalBinLink(platform: TatolabPlatform, usrLocalBinLink: CommandLineToolUsrLocalBinLink): UsrLocalBinLinkPresentation {
-  if (platform === "linux") return { isShown: false, description: "", isOffered: false };
+/** The `/usr/local/bin` link as Settings shows it on `platform`: macOS's option behind the administrator prompt, warning beforehand what the prompt says; `null` on Linux, which shows no such row. */
+export function presentUsrLocalBinLink(platform: TatolabPlatform, usrLocalBinLink: CommandLineToolUsrLocalBinLink): UsrLocalBinLinkPresentation | null {
+  if (platform === "linux") return null;
   switch (usrLocalBinLink.kind) {
     case "linked":
-      return { isShown: true, description: `Linked at ${usrLocalBinLink.path}, so it works in every terminal.`, isOffered: false };
+      return { description: `Linked at ${usrLocalBinLink.path}, so it works in every terminal.`, isOffered: false };
     case "not_linked":
       return {
-        isShown: true,
         description: "Works in every terminal, with no change to your PATH. macOS asks for your password, and its dialog says “osascript wants to make changes.”",
         isOffered: true,
       };
     case "not_offered":
-      return { isShown: true, description: usrLocalBinLink.reason, isOffered: false };
+      return { description: usrLocalBinLink.reason, isOffered: false };
   }
 }

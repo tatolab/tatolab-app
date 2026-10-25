@@ -1066,7 +1066,7 @@ describe("first run on macOS", () => {
     fireEvent.click(gettingStartedControl("get_started"));
     await showStatusAsTheBackendWould({ ...(await mockBackend.getTatolabStatus()), first_run_finished: true, runtime_state: "running", streams: [] });
 
-    await waitFor(() => expect(textOf("[data-first-run-finishing-refusal]")).toContain("Welcome shows again next time Tatolab opens. EACCES"));
+    await waitFor(() => expect(textOf("[data-first-run-finishing-refusal]")).toContain("Welcome shows again next time it opens. EACCES"));
     expect(document.querySelector("[data-window-navigation]")).not.toBeNull();
   });
 

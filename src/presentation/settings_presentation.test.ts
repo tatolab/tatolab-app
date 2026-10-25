@@ -191,10 +191,9 @@ describe("Command line", () => {
 
 describe("Command line › Link in /usr/local/bin", () => {
   it("offers the link behind the password, warning that the dialog says osascript, and shows it once linked", () => {
-    expect(presentUsrLocalBinLink("macos", { kind: "not_linked" })).toMatchObject({ isShown: true, isOffered: true });
-    expect(presentUsrLocalBinLink("macos", { kind: "not_linked" }).description).toContain("osascript wants to make changes");
+    expect(presentUsrLocalBinLink("macos", { kind: "not_linked" })).toMatchObject({ isOffered: true });
+    expect(presentUsrLocalBinLink("macos", { kind: "not_linked" })?.description).toContain("osascript wants to make changes");
     expect(presentUsrLocalBinLink("macos", { kind: "linked", path: "/usr/local/bin/tatolab" })).toEqual({
-      isShown: true,
       description: "Linked at /usr/local/bin/tatolab, so it works in every terminal.",
       isOffered: false,
     });
@@ -202,10 +201,9 @@ describe("Command line › Link in /usr/local/bin", () => {
 
   it("gives a build that does not link there its reason, and shows nothing on Linux", () => {
     expect(presentUsrLocalBinLink("macos", { kind: "not_offered", reason: "A local-proof build never links tatolab in /usr/local/bin." })).toEqual({
-      isShown: true,
       description: "A local-proof build never links tatolab in /usr/local/bin.",
       isOffered: false,
     });
-    expect(presentUsrLocalBinLink("linux", { kind: "not_offered", reason: "On Linux the installer links tatolab." }).isShown).toBe(false);
+    expect(presentUsrLocalBinLink("linux", { kind: "not_offered", reason: "On Linux the installer links tatolab." })).toBeNull();
   });
 });
