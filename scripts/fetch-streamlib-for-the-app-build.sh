@@ -5,7 +5,8 @@
 # Resolves streamlib's main, or an explicit tag or commit, to one commit, fetches exactly that
 # commit into <destination> and checks it out, discarding whatever else is there but cargo's
 # target/. Prints the commit as its last line. The app is always built against the streamlib this
-# fetches, never a checkout that happens to sit on the builder's disk.
+# fetches, never a checkout that happens to sit on the builder's disk. <destination> is this
+# script's own: it refuses one that holds anything but a checkout it made, or cargo's target/.
 #
 # Usage: fetch-streamlib-for-the-app-build.sh <destination> [--streamlib-ref REF] [--resolve-only]
 #                                            [--from-repository URL]
@@ -49,12 +50,20 @@ if $resolve_only; then
   exit 0
 fi
 
-if [ -e "$destination" ] && [ ! -d "$destination/.git" ] && [ -n "$(ls -A "$destination" | grep -vx target || true)" ]; then
+fetched_checkout_marker_key="tatolab.streamlibFetchedForTheAppBuild"
+if [ -d "$destination/.git" ]; then
+  [ "$(git -C "$destination" config --local --get "$fetched_checkout_marker_key" || true)" = true ] || {
+    echo "$destination is a git checkout this script did not make; refusing to replace it" >&2
+    exit 1
+  }
+elif [ -e "$destination" ] && [ -n "$(ls -A "$destination" | grep -vx target || true)" ]; then
   echo "$destination holds something other than a streamlib this script fetched; refusing to replace it" >&2
   exit 1
+else
+  mkdir -p "$destination"
+  git -C "$destination" init -q
+  git -C "$destination" config --local "$fetched_checkout_marker_key" true
 fi
-mkdir -p "$destination"
-[ -d "$destination/.git" ] || git -C "$destination" init -q
 git -C "$destination" fetch -q --depth 1 "$streamlib_repository_url" "$streamlib_commit" \
   || { echo "could not fetch streamlib $streamlib_commit ($streamlib_ref) from $streamlib_repository_url" >&2; exit 1; }
 git -C "$destination" checkout -q --force --detach "$streamlib_commit"

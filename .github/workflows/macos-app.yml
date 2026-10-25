@@ -92,6 +92,13 @@ jobs:
       # Rust builds the streamlib runtime the app bundles.
       - uses: dtolnay/rust-toolchain@stable
 
+      # Fetched before rust-cache, which keys the cache on the workspace's Cargo.lock;
+      # build-tatolab-app.sh fetches the same commit again and finds it in place.
+      - name: Fetch streamlib at ${{ needs.release.outputs.streamlib_ref }}
+        env:
+          STREAMLIB_REF: ${{ needs.release.outputs.streamlib_ref }}
+        run: scripts/fetch-streamlib-for-the-app-build.sh build/streamlib --streamlib-ref "$STREAMLIB_REF"
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: build/streamlib -> target

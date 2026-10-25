@@ -127,3 +127,14 @@ test("assembling without the streamlib commit the build resolved is a usage erro
   expect(assembleOutcome.exitCode).toBe(2);
   expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
 });
+
+test("a unit built from the resolved commit passes the commit check", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
+  // The test-root marker makes assemble stop at its next refusal, so the bundle is never built from planted files.
+  await writeFile(path.join(runtimeUnitDirectory, "machine-directories-under-a-test-root"), "");
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+  expect(assembleOutcome.exitCode).toBe(1);
+  expect(assembleOutcome.stderr).toContain("refusing to ship a test-root runtime unit");
+  expect(assembleOutcome.stderr).not.toContain("streamlib");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});

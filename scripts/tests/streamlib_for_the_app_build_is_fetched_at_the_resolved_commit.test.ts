@@ -160,3 +160,13 @@ test("a destination holding only cargo's target/, as a restored build cache leav
   expect(lastLineOf(fetchOutcome.stdout)).toBe(headOfMain);
   expect(await readFile(path.join(fetchDestination, "target", "cargo-cache-entry"), "utf8")).toBe("kept\n");
 });
+
+test("a destination that is some other git checkout is refused and left alone", async () => {
+  await commitOnStreamlibMain("0.55.4");
+  await mkdir(fetchDestination, { recursive: true });
+  await runGitIn(fetchDestination, ["init", "-q"]);
+  await writeFile(path.join(fetchDestination, "uncommitted-work"), "mine\n");
+  const fetchOutcome = await fetchStreamlib();
+  expect(fetchOutcome.exitCode).toBe(1);
+  expect(await readFile(path.join(fetchDestination, "uncommitted-work"), "utf8")).toBe("mine\n");
+});
