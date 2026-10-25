@@ -22,7 +22,6 @@ import { describeCaughtFailure, failedWith, succeeded, type Result } from "./res
 import {
   checkForTatolabAppUpdatesOnRequest,
   runInTheBackgroundWithTheController,
-  setUpTatolabOnRequest,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
 import { openTheRuntimesLogFolder } from "./runtime_log_folder_opening.js";
@@ -38,6 +37,19 @@ export async function answerTheWindow<Answer>(commandName: string, work: () => P
   } catch (unexpectedFailure) {
     return failedWith(`${commandName} ended without an answer: ${describeCaughtFailure(unexpectedFailure)}`);
   }
+}
+
+/** `work`'s answer to the command `commandName`, then a status round whether it was carried out or refused, so the window sees what it changed. */
+function answerTheWindowThenRefreshTheStatus(
+  sharedState: TatolabAppSharedState,
+  commandName: string,
+  work: () => Promise<Result<void, string>>,
+): Promise<Result<void, string>> {
+  return answerTheWindow(commandName, async () => {
+    const answer = await work();
+    sharedState.statusPublisher.requestRefresh();
+    return answer;
+  });
 }
 
 /** `get_tatolab_status`: the status as of the poller's last round. */
@@ -61,9 +73,19 @@ export function openLoginItemsSettings(sharedState: TatolabAppSharedState): Prom
   return answerTheWindow("open_login_items_settings", () => sharedState.controller.openLoginItemsSettings());
 }
 
-/** `set_up_tatolab`: the one administrator prompt, as the tray's item shows it; refused where the platform has no machine setup. */
-export function setUpTatolab(sharedState: TatolabAppSharedState): Result<void, string> {
-  return setUpTatolabOnRequest(sharedState);
+/** `remember_first_run_finished`: "Get Started" ended first run, answered once it is remembered, then a status round; refused when it could not be remembered, though it holds until the app quits. */
+export function rememberFirstRunFinished(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
+  return answerTheWindowThenRefreshTheStatus(sharedState, "remember_first_run_finished", () => sharedState.controller.rememberFirstRunFinished());
+}
+
+/** `register_the_runtime_again`: Try Again, registering the runtime's agent again and starting it, answered once the service manager has, then a status round; refused while Run Tatolab is off, and in the service manager's words. */
+export function registerTheRuntimeAgain(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
+  return answerTheWindowThenRefreshTheStatus(sharedState, "register_the_runtime_again", () => sharedState.controller.registerTheRuntimeAgainOnRequest());
+}
+
+/** `link_command_line_tool_in_usr_local_bin`: link `tatolab` in `/usr/local/bin` behind the administrator prompt, answered once it closes, then a status round; refused in words, and where it is not offered, with why. */
+export function linkCommandLineToolInUsrLocalBin(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
+  return answerTheWindowThenRefreshTheStatus(sharedState, "link_command_line_tool_in_usr_local_bin", () => sharedState.controller.linkTheCommandLineToolInUsrLocalBin());
 }
 
 /** `uninstall_tatolab`: uninstall Tatolab, turning "Run Tatolab" off first and ending with the app quitting; refused in words, leaving the app usable, and at once on Linux, where the installer uninstalls. */
@@ -296,7 +318,9 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       return { ok: true, value: null };
     },
     open_login_items_settings: async () => commandAnswerOfNothingFrom(await openLoginItemsSettings(sharedState)),
-    set_up_tatolab: async () => commandAnswerOfNothingFrom(setUpTatolab(sharedState)),
+    remember_first_run_finished: async () => commandAnswerOfNothingFrom(await rememberFirstRunFinished(sharedState)),
+    register_the_runtime_again: async () => commandAnswerOfNothingFrom(await registerTheRuntimeAgain(sharedState)),
+    link_command_line_tool_in_usr_local_bin: async () => commandAnswerOfNothingFrom(await linkCommandLineToolInUsrLocalBin(sharedState)),
     uninstall_tatolab: async () => commandAnswerOfNothingFrom(await uninstallTatolab(sharedState)),
     quit_tatolab_app: async () => {
       quitTheApp();

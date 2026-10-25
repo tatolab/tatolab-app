@@ -3,9 +3,10 @@
 
 // The runtime's agent on Linux: the systemd user unit `tatolabd.service` the installer
 // (`curl -fsSL https://get.tatolab.com/install.sh | sh`) writes and enables, driven over
-// `systemctl --user`. "Run Tatolab" is the unit's enablement, `enable --now` and
-// `disable --now`, starting a runtime the poller found down is `start`, which leaves an active
-// unit alone, and "Restart runtime" is `restart`.
+// `systemctl --user`. "Run Tatolab" is the unit's enablement, `enable --now` (after `reset-failed`,
+// so a unit systemd gave up on starts again) and `disable --now`, starting a runtime the poller
+// found down is `start`, which leaves an active unit alone, "Restart runtime" is `restart`, and
+// systemd has given up on the runtime while `is-failed` answers `failed`.
 
 import { execFile } from "node:child_process";
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../../../src/backend/tatolab_backend_contract.js";
@@ -97,8 +98,18 @@ export class SystemdUserRuntimeService implements RuntimeAgentRegistration {
     return registrationStatus;
   }
 
-  registerRuntimeAgent(): Promise<Result<void, string>> {
+  async registerRuntimeAgent(): Promise<Result<void, string>> {
+    const failedStateCleared = await this.runSystemctlUserExpectingSuccess(["reset-failed", RUNTIME_SYSTEMD_USER_UNIT_NAME]);
+    if (!failedStateCleared.ok) this.tatolabAppLog.warn("the unit's failed state could not be cleared; enabling it anyway", { failure: failedStateCleared.failure });
     return this.runSystemctlUserExpectingSuccess(["enable", "--now", RUNTIME_SYSTEMD_USER_UNIT_NAME]);
+  }
+
+  async whyTheServiceManagerGaveUpOnTheRuntime(): Promise<string | null> {
+    const isFailedAnswer = await this.systemctl.runSystemctlUser(["is-failed", RUNTIME_SYSTEMD_USER_UNIT_NAME]);
+    if (!isFailedAnswer.ok || isFailedAnswer.value.exitCode !== 0 || isFailedAnswer.value.stdout.trim() !== "failed") return null;
+    const unitResult = await this.systemctl.runSystemctlUser(["show", "--property=Result", "--value", RUNTIME_SYSTEMD_USER_UNIT_NAME]);
+    const unitResultWords = unitResult.ok && unitResult.value.exitCode === 0 ? unitResult.value.stdout.trim() : "";
+    return unitResultWords === "" ? `systemd: ${RUNTIME_SYSTEMD_USER_UNIT_NAME} failed` : `systemd: ${RUNTIME_SYSTEMD_USER_UNIT_NAME} failed (${unitResultWords})`;
   }
 
   async startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {

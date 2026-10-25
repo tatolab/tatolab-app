@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
 // Everything that differs by platform: the service manager that runs the runtime, the machine's
-// paths and setup, uninstalling, and the window's and the tray's platform looks. Each platform
+// paths, the `tatolab` command's links, uninstalling, and the window's and the tray's platform looks. Each platform
 // module exposes the same items, picked here, so the rest of the app never asks which platform it
 // runs on; where a platform has nothing to do for one — Linux has no Dock icon — that item says so.
 
@@ -12,7 +12,7 @@ import type { TatolabPlatform } from "../../../src/backend/tatolab_backend_contr
 import { MACOS_MAIN_WINDOW_CHROME, MACOS_TRAY_ICON_IMAGE, macosTatolabPlatformForThisBuild, setMacosDockIconVisible } from "./macos/mod.js";
 import { LINUX_MAIN_WINDOW_CHROME, LINUX_TRAY_ICON_IMAGE, linuxTatolabPlatformForThisBuild, setLinuxDockIconVisible } from "./linux/mod.js";
 import type { BundledRuntimeRestart, RuntimeAgentRegistration } from "./runtime_agent_registration.js";
-import type { TatolabMachineSetup } from "./tatolab_machine_setup.js";
+import type { TatolabCommandLineToolLinks } from "./tatolab_command_line_tool_links.js";
 import type { TatolabAppOpenedAtLogin } from "./tatolab_app_opened_at_login.js";
 import type { AppLoginItemSettings } from "./macos/login_item_of_the_app_bundle.js";
 import type { TatolabUninstallAppSurface } from "./macos/tatolab_uninstall.js";
@@ -64,7 +64,7 @@ export const UNPACKAGED_APP_UPDATE_REFUSAL = "Only a packaged Tatolab updates it
 /** What this build's platform hands the app's controller. */
 export interface TatolabPlatformForThisBuild {
   runtimeAgent: RuntimeAgentRegistration;
-  machineSetup: TatolabMachineSetup;
+  commandLineToolLinks: TatolabCommandLineToolLinks;
   localApiSocket: string;
   tatolabUninstall: TatolabUninstall;
   appUpdatePackaging: TatolabAppUpdatePackaging;
@@ -97,6 +97,8 @@ export interface TerminalOpenedInAFolder {
 
 /** What a platform takes from the app around it to build its items; Linux takes only whether the app is packaged and its binary. */
 export interface TatolabPlatformHostServices {
+  /** The person's home folder, where macOS links the `tatolab` command. */
+  homeDirectory: string;
   /** The app's root, under which an unpackaged app finds its Service Management addon. */
   appPath: string;
   /** The app binary's path, by which macOS finds its bundle and the CLI in it. */
@@ -141,7 +143,7 @@ export interface TatolabPlatformItems {
   mainWindowChrome: MainWindowChrome;
   applicationMenu: ApplicationMenu;
   setDockIconVisible(dockIconHost: DockIconHost, dockIconVisible: boolean): void;
-  /** This platform's runtime agent, machine setup, local API socket and uninstall, built from the host's services. */
+  /** This platform's runtime agent, the command's links, local API socket and uninstall, built from the host's services. */
   tatolabPlatformForThisBuild(tatolabAppLog: TatolabAppLog, tatolabPlatformHostServices: TatolabPlatformHostServices): Promise<TatolabPlatformForThisBuild>;
 }
 

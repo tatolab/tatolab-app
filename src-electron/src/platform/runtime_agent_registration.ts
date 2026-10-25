@@ -27,8 +27,15 @@ export interface RuntimeAgentRegistration {
   /** What the service manager says about the agent now. */
   registrationStatus(): Promise<RuntimeAgentRegistrationStatus>;
 
-  /** Register the agent so the service manager starts the runtime now and at every login. */
+  /** Register the agent so the service manager starts the runtime now and at every login, clearing any give-up the service manager holds against it. */
   registerRuntimeAgent(): Promise<Result<void, string>>;
+
+  /**
+   * The service manager's words for having given up starting the agent's runtime — launchd refusing to spawn it (exit
+   * 78, EX_CONFIG) or killing it for its code signature, systemd holding the unit failed — or `null` while it has not or
+   * could not be asked. Reads only.
+   */
+  whyTheServiceManagerGaveUpOnTheRuntime(): Promise<string | null>;
 
   /**
    * Start the registered agent's runtime unless it is already running. Service Management loads a newly

@@ -26,8 +26,14 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     openLoginItemsSettings: async () => {
       await invokeTatolabCommand("open_login_items_settings", undefined);
     },
-    setUpTatolab: async () => {
-      await invokeTatolabCommand("set_up_tatolab", undefined);
+    rememberFirstRunFinished: async () => {
+      await invokeTatolabCommand("remember_first_run_finished", undefined);
+    },
+    registerTheRuntimeAgain: async () => {
+      await invokeTatolabCommand("register_the_runtime_again", undefined);
+    },
+    linkCommandLineToolInUsrLocalBin: async () => {
+      await invokeTatolabCommand("link_command_line_tool_in_usr_local_bin", undefined);
     },
     quitTatolabApp: async () => {
       await invokeTatolabCommand("quit_tatolab_app", undefined);

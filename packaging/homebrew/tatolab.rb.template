@@ -21,8 +21,8 @@ cask "tatolab" do
   uninstall launchctl: "com.tatolab.tatolabd",
             quit:      "com.tatolab.tatolab",
             delete:    [
+              "~/.local/bin/tatolab",
               "/usr/local/bin/tatolab",
-              "/Library/Application Support/Tatolab",
             ]
 
   zap trash: [

@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import type { StreamProjectFolderChosenFor } from "../../src/backend/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../../src/backend/tatolab_electron_bridge_contract.js";
-import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import { FakeRuntimeAgentRegistration, FakeTatolabCommandLineToolLinks, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { failedWith, succeeded } from "./result.js";
 import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
@@ -46,7 +46,7 @@ export class FakeTatolabElectronAppShell {
   holdsTheSingleInstanceLock = true;
   mainWindowCreationFailure: string | null = null;
   readonly runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
-  machineSetup = new FakeTatolabMachineSetup("complete", null);
+  commandLineToolLinks = new FakeTatolabCommandLineToolLinks("/Users/someone/.local/bin/tatolab");
   tatolabUninstall: TatolabUninstall | undefined = undefined;
   appUpdatePackaging: TatolabAppUpdatePackaging = { kind: "not_offered", reason: "this fake platform updates nothing" };
   appUpdateFeedForThisBuild: TatolabAppUpdateFeedForThisBuild = { kind: "not_offered", reason: "this fake platform updates nothing" };
@@ -71,7 +71,7 @@ export class FakeTatolabElectronAppShell {
     buildTheTatolabPlatformForThisBuild: async () =>
       fakeTatolabPlatformForThisBuild(
         this.runtimeAgent,
-        this.machineSetup,
+        this.commandLineToolLinks,
         path.join(this.appConfigDirectory, "no-runtime.sock"),
         this.tatolabUninstall,
         this.appUpdatePackaging,

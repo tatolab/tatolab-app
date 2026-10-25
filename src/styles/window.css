@@ -51,4 +51,5 @@
   .scrollbar-thin { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   .label-caps { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--fg-3); }
   .title-lg { font-size: 20px; line-height: 26px; font-weight: 600; letter-spacing: -0.012em; }
+  .title-xl { font-size: 26px; line-height: 32px; font-weight: 700; letter-spacing: -0.016em; }
 }

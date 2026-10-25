@@ -60,6 +60,7 @@ class FakeUserSystemd implements SystemctlUserCommandRunner {
     private readonly userManagerAnswers: boolean,
     public unitEnabled: boolean,
     public unitActive: boolean,
+    public unitFailedBecause: string | null = null,
   ) {}
 
   static withTheUnit(unitEnabled: boolean, unitActive: boolean): FakeUserSystemd {
@@ -95,6 +96,14 @@ class FakeUserSystemd implements SystemctlUserCommandRunner {
             "Created symlink /home/u/.config/systemd/user/default.target.wants/tatolabd.service → /home/u/.config/systemd/user/tatolabd.service.\n",
           ),
         );
+      case `reset-failed ${RUNTIME_SYSTEMD_USER_UNIT_NAME}`:
+        if (!this.unitFileInstalled) return succeeded(systemctlAnswered(1, "", "Failed to reset failed state of unit tatolabd.service: Unit tatolabd.service not loaded.\n"));
+        this.unitFailedBecause = null;
+        return succeeded(systemctlAnswered(0, "", ""));
+      case `is-failed ${RUNTIME_SYSTEMD_USER_UNIT_NAME}`:
+        return succeeded(this.unitFailedBecause === null ? systemctlAnswered(1, this.unitActive ? "active\n" : "inactive\n", "") : systemctlAnswered(0, "failed\n", ""));
+      case `show --property=Result --value ${RUNTIME_SYSTEMD_USER_UNIT_NAME}`:
+        return succeeded(systemctlAnswered(0, `${this.unitFailedBecause ?? "success"}\n`, ""));
       case `disable --now ${RUNTIME_SYSTEMD_USER_UNIT_NAME}`:
         this.unitEnabled = false;
         this.unitActive = false;
@@ -132,11 +141,12 @@ test("opening_the_app_with_the_switch_on_enables_a_disabled_unit_now", async () 
   const userSystemd = FakeUserSystemd.withTheUnit(false, false);
   const runTatolabSwitch = await switchOver(userSystemd);
 
-  const reconciliation = await runTatolabSwitch.reconcileTheAgentWithTheRunTatolabSwitch(true, performance.now());
+  const reconciliation = await runTatolabSwitch.reconcileTheAgentWithTheRunTatolabSwitch(performance.now());
 
   expect(reconciliation).toEqual({ kind: "registered" });
   expect(userSystemd.commands).toEqual([
     "is-enabled tatolabd.service",
+    "reset-failed tatolabd.service",
     "enable --now tatolabd.service",
     "is-enabled tatolabd.service",
     "start tatolabd.service",
@@ -148,14 +158,15 @@ test("turning_the_switch_off_disables_the_unit_now_and_on_again_enables_it", asy
   const userSystemd = FakeUserSystemd.withTheUnit(true, true);
   const runTatolabSwitch = await switchOver(userSystemd);
 
-  expect(await runTatolabSwitch.setRunTatolab(false, true, performance.now())).toEqual({ kind: "unregistered" });
+  expect(await runTatolabSwitch.setRunTatolab(false, performance.now())).toEqual({ kind: "unregistered" });
   expect(!userSystemd.unitEnabled && !userSystemd.unitActive).toBe(true);
-  expect(await runTatolabSwitch.setRunTatolab(true, true, performance.now())).toEqual({ kind: "registered" });
+  expect(await runTatolabSwitch.setRunTatolab(true, performance.now())).toEqual({ kind: "registered" });
   expect(userSystemd.unitEnabled && userSystemd.unitActive).toBe(true);
   expect(userSystemd.commands).toEqual([
     "is-enabled tatolabd.service",
     "disable --now tatolabd.service",
     "is-enabled tatolabd.service",
+    "reset-failed tatolabd.service",
     "enable --now tatolabd.service",
     "is-enabled tatolabd.service",
     "start tatolabd.service",
@@ -169,6 +180,7 @@ test("the_poller_starts_an_enabled_unit_whose_runtime_is_down", async () => {
   await runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown(
     await runTatolabSwitch.runtimeAgentRegistrationStatus(),
     "failing",
+    false,
     performance.now(),
   );
 
@@ -180,7 +192,7 @@ test("before_the_installer_ran_there_is_no_unit_and_enabling_it_fails_in_systemc
   const runTatolabSwitch = await switchOver(FakeUserSystemd.beforeTheInstallerRan());
 
   expect(await runTatolabSwitch.runtimeAgentRegistrationStatus()).toBe("not_found");
-  expect(await runTatolabSwitch.reconcileTheAgentWithTheRunTatolabSwitch(true, performance.now())).toEqual({
+  expect(await runTatolabSwitch.reconcileTheAgentWithTheRunTatolabSwitch(performance.now())).toEqual({
     kind: "registration_failed",
     failureDescription:
       "systemctl --user enable --now tatolabd.service failed (exit 1): Failed to enable unit: Unit file tatolabd.service does not exist.",
@@ -250,4 +262,16 @@ test("restarting_the_runtime_restarts_the_unit_and_a_missing_unit_is_refused_in_
       refusal: "systemctl --user restart tatolabd.service failed (exit 5): Failed to restart tatolabd.service: Unit tatolabd.service not found.",
     }),
   );
+});
+
+test("systemd_has_given_up_on_the_runtime_while_the_unit_is_failed_and_registering_it_again_clears_that", async () => {
+  const userSystemd = FakeUserSystemd.withTheUnit(true, false);
+  const runtimeService = new SystemdUserRuntimeService(userSystemd, tatolabAppLog);
+  expect(await runtimeService.whyTheServiceManagerGaveUpOnTheRuntime()).toBeNull();
+
+  userSystemd.unitFailedBecause = "start-limit-hit";
+  expect(await runtimeService.whyTheServiceManagerGaveUpOnTheRuntime()).toBe("systemd: tatolabd.service failed (start-limit-hit)");
+
+  expect(await runtimeService.registerRuntimeAgent()).toEqual(succeeded(undefined));
+  expect(await runtimeService.whyTheServiceManagerGaveUpOnTheRuntime()).toBeNull();
 });

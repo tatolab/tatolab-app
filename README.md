@@ -7,9 +7,9 @@ login service on and off. Closing the window leaves the app in the menu bar or p
 Tatolab" brings the window back. Quitting the app closes the window and the tray item; the runtime
 keeps running.
 
-The tray menu shows a one-line status, "Open Tatolab", the "Run Tatolab" switch, "Set Up
-Tatolab…" while macOS's first-launch setup is unfinished, "Check for Updates…" in a packaged app,
-and "Quit Tatolab". The window reads
+The tray menu shows a one-line status, "Open Tatolab", the "Run Tatolab" switch, "Open Login
+Items…" while macOS waits for approval, "Try Again" once the runtime didn't start or was blocked,
+"Check for Updates…" in a packaged app, and "Quit Tatolab". The window reads
 everything from the runtime's local API: `list_streams`, `logs` and `graph` over MCP, and
 `GET /api/graph` for the machine's name. It stops, starts (or retries) and removes a stream with
 the MCP tools `stop_stream`, `start_stream` and `remove_stream`; loading a new stream is the
@@ -22,7 +22,7 @@ file manager, and in Terminal.app or `x-terminal-emulator`.
 |---|---|---|
 | The runtime | inside the app, run as a login item the app registers with `SMAppService` | from the installer, run as the systemd user service `tatolabd.service` |
 | "Run Tatolab" | registers and unregisters the login item | `systemctl --user enable --now` / `disable --now tatolabd.service` |
-| First launch | links `/usr/local/bin/tatolab` and creates the machine runtime lock behind one administrator prompt | nothing: the installer set the machine up |
+| First launch | Welcome and Getting set up, with no administrator password; links `~/.local/bin/tatolab` | nothing: the installer set the machine up |
 | Local API socket | `/tmp/streamlib-<uid>/local-api.sock` | `$XDG_RUNTIME_DIR/streamlib/local-api.sock`, else `/tmp/streamlib-<uid>/local-api.sock` |
 | Uninstall | the app's "Uninstall Tatolab…", or `brew uninstall --cask tatolab` | the installer's `--uninstall`, then remove the app's package |
 
@@ -33,7 +33,7 @@ A packaged app checks the feed at `https://get.tatolab.com/app/` at launch and o
 generic provider. A check on its own only notifies that a newer version is available; nothing
 downloads or installs until the person chooses "Check for Updates…" in the tray, or its button in
 Settings. On macOS Squirrel.Mac replaces the bundle from the signed `.zip` and reopens it, and the
-app then, once the machine is set up, registers the runtime's agent again, so launchd runs the
+app then registers the runtime's agent again, so launchd runs the
 version the bundle ships with and the runtime reloads its kept streams; the AppImage replaces its own file and reopens; a `.deb` opens the newer
 package's download in the browser, since apt alone replaces it. The feed's manifests are
 `app/latest-mac.yml` and `app/latest-linux.yml`, which point at `releases/<version>/`.
@@ -58,8 +58,11 @@ Applications, or:
 brew install --cask tatolab/tap/tatolab
 ```
 
-Opening the app registers the runtime's login item and, the first time, asks once for an
-administrator's password to link the `tatolab` command and create the machine runtime lock.
+Opening the app registers the runtime's login item and links the `tatolab` command into
+`~/.local/bin`, with no administrator password. The first time, it says what Tatolab is and shows
+the runtime starting, asking for something only when macOS needs it: approval in Login Items, or a
+Try Again when macOS blocks the runtime. Settings › Command line also offers a link in
+`/usr/local/bin`, which works in every terminal and asks for an administrator's password.
 
 **Linux.** The installer is the one way to install the runtime. It unpacks it to
 `~/.local/share/tatolab/<version>/`, links `tatolab` and `tatolabd` into `~/.local/bin`, and
@@ -89,14 +92,14 @@ status reads the agent as `not_found` until the installer has run.
 Uninstalling removes the runtime's service and files and never its state directory, where the
 runtime keeps your kept streams and logs.
 
-**macOS.** The app's "Uninstall Tatolab…" asks once for an administrator's password, then:
+**macOS.** The app's "Uninstall Tatolab…":
 
-1. removes `/usr/local/bin/tatolab` if it links into this app, and
-   `/Library/Application Support/Tatolab` (the machine runtime lock). Cancelling the prompt
-   changes nothing;
-2. unregisters the login item, which stops the runtime;
-3. removes the app's own settings, `~/Library/Application Support/com.tatolab.tatolab`;
-4. moves Tatolab.app to the Trash, and quits.
+1. removes `/usr/local/bin/tatolab` if it links into this app, behind one administrator prompt
+   shown only then. Cancelling the prompt changes nothing;
+2. removes `~/.local/bin/tatolab` if it links into this app;
+3. unregisters the login item, which stops the runtime;
+4. removes the app's own settings, `~/Library/Application Support/com.tatolab.tatolab`;
+5. moves Tatolab.app to the Trash, and quits.
 
 `~/Library/Application Support/Tatolab`, the state directory, stays. `brew uninstall --cask
 tatolab` removes the same service and files; `brew uninstall --zap --cask tatolab` removes the
@@ -116,7 +119,8 @@ On Linux the app's "Uninstall Tatolab…" shows these steps and removes nothing 
 
 Everything that differs by platform sits in `src-electron/src/platform/`, behind the interfaces
 the rest of the main process uses: `RuntimeAgentRegistration` (the service manager that runs the
-runtime), `TatolabMachineSetup` (macOS's administrator-prompt setup; always complete on Linux), and
+runtime), `TatolabCommandLineToolLinks` (the `tatolab` command's links: the app's own on macOS,
+the installer's on Linux), and
 each platform's window chrome, Dock icon, tray image, menu and uninstall. Both platform modules
 expose the same items, and only `platform/` reads `process.platform`
 (`scripts/check-platform-cfg-confinement.sh`). `platform/macos/` drives `SMAppService` through the
@@ -136,8 +140,8 @@ Tatolab.app/Contents/
   Frameworks/tatolab-app-native/service_management_agent_services.node
                                               the app's Service Management addon
   MacOS/tatolabd                              the runtime (streamlib bin/tatolabd)
-  MacOS/tatolab-cli                           the CLI (streamlib bin/tatolab); first launch links
-                                              /usr/local/bin/tatolab to it
+  MacOS/tatolab-cli                           the CLI (streamlib bin/tatolab); the app links
+                                              ~/.local/bin/tatolab to it
   Frameworks/tatolab-runtime/                 every Mach-O of the lend's tatolab/runtime/, same paths
     _engine.abi3.so
     _vulkan_driver/libvulkan.1.dylib
@@ -213,11 +217,11 @@ manifest `build/latest-mac.yml`.
 **Local proof build** (`--local-proof-test-root`). The runtime unit is built with the
 `machine-directories-under-a-test-root` feature, and the packaged app with
 `TATOLAB_APP_BUILD_FEATURES.machineDirectoriesUnderATestRoot` set to `true`. The agent plist sets
-`TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, so the machine lock, the state directory and the
-socket all live under that root, and gives the runtime its test ports: its local relay on 14443 and
+`TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, so the state directory and the socket live under
+that root, and gives the runtime its test ports: its local relay on 14443 and
 14445 and its loopback HTTP on 14446, where the app reads the preview page. That page reads the
-relay only at 4443 until tatolab/streamlib#2917, so a local-proof bundle's preview stays dark. The app prepares the root itself: no administrator prompt, and
-nothing is written to `/Library` or `/usr/local/bin`. Uninstalling a local-proof build removes
+relay only at 4443 until tatolab/streamlib#2917, so a local-proof bundle's preview stays dark. The app links `tatolab` under
+the root's `home/.local/bin` and never in `/usr/local/bin`. Uninstalling a local-proof build removes
 `/tmp/tatolab-proof` instead of prompting. Use it to prove the app on a development Mac. It is
 never shipped: `assemble-tatolab-app-bundle.sh` refuses a test-root unit without the flag, and
 `verify-tatolab-app-bundle.sh --shipping` fails such a bundle, whether the marker, the agent's

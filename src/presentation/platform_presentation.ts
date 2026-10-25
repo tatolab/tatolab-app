@@ -92,26 +92,40 @@ export function holdsWindowShortcutModifier(
     : keyboardEvent.ctrlKey && !keyboardEvent.metaKey;
 }
 
+/** The line that puts `~/.local/bin` on a zsh terminal's PATH, for `~/.zprofile`. */
+export const HOME_FOLDER_BIN_ON_THE_PATH_LINE = 'export PATH="$HOME/.local/bin:$PATH"';
+
 /** What the Settings row shows for the `tatolab` command, and why it works in a terminal. */
 export interface CommandLineToolPresentation {
   isLinked: boolean;
   /** The link's path, its home shortened to `~`, or what stands in for a missing one. */
   shownValue: string;
   explanation: string;
+  /** The line a terminal that can't find the app's link adds, under what says where; `null` where the installer's own link needs none. */
+  pathLineToAdd: { lead: string; line: string } | null;
 }
 
-/** The `tatolab` command as Settings shows it: the app's own link on macOS, the installer's on Linux. */
+/** The `tatolab` command as Settings shows it: the app's own link in `~/.local/bin` on macOS, the installer's on Linux. */
 export function presentCommandLineTool(platform: TatolabPlatform, linkedAt: string | null): CommandLineToolPresentation {
   if (platform === "linux") {
     return linkedAt === null
-      ? { isLinked: false, shownValue: "Not installed", explanation: "The installer puts it in ~/.local/bin with the runtime." }
+      ? { isLinked: false, shownValue: "Not installed", explanation: "The installer puts it in ~/.local/bin with the runtime.", pathLineToAdd: null }
       : {
           isLinked: true,
           shownValue: abbreviateHomeDirectory(linkedAt),
           explanation: "Installed with the runtime. It works in any terminal with ~/.local/bin on its PATH.",
+          pathLineToAdd: null,
         };
   }
   return linkedAt === null
-    ? { isLinked: false, shownValue: "Not linked", explanation: "Setting up Tatolab links it, so it works in every terminal." }
-    : { isLinked: true, shownValue: linkedAt, explanation: "Linked to the copy inside Tatolab.app, so it works in every terminal." };
+    ? { isLinked: false, shownValue: "Not linked", explanation: "Tatolab links it in ~/.local/bin each time it opens.", pathLineToAdd: null }
+    : {
+        isLinked: true,
+        shownValue: abbreviateHomeDirectory(linkedAt),
+        explanation: "Linked to the copy inside Tatolab.app. It works in any terminal with ~/.local/bin on its PATH.",
+        pathLineToAdd: {
+          lead: "If a terminal can't find it, add this line to ~/.zprofile and open a new terminal:",
+          line: HOME_FOLDER_BIN_ON_THE_PATH_LINE,
+        },
+      };
 }

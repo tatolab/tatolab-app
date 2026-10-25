@@ -7,7 +7,7 @@ import path from "node:path";
 import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { afterEach, expect, test, vi } from "vitest";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
-import { FakeRuntimeAgentRegistration, FakeTatolabMachineSetup, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import { FakeRuntimeAgentRegistration, FakeTatolabCommandLineToolLinks, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { failedWith, succeeded } from "./result.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { RuntimeRestartedForAppVersionFile } from "./runtime_restarted_for_app_version.js";
@@ -47,17 +47,16 @@ test("a_machine_name_the_runtime_did_not_give_is_asked_again_only_after_a_restar
 async function controllerOverFakes(
   scriptedLocalApiResponses: readonly Buffer[],
   runtimeAgentStatus: "enabled" | "not_registered",
-  machineSetupState: "complete" | "needs_administrator",
   readMonotonicClockMs: () => number = () => 0,
 ) {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
   const appConfigDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-config-"));
   cleanUps.push(() => localApiServer.close(), () => rm(appConfigDirectory, { recursive: true, force: true }));
   const runtimeAgent = new FakeRuntimeAgentRegistration(runtimeAgentStatus);
-  const machineSetup = new FakeTatolabMachineSetup(machineSetupState, null);
+  const commandLineToolLinks = new FakeTatolabCommandLineToolLinks("/Users/someone/.local/bin/tatolab");
   const controller = await TatolabAppController.create({
     platform: "macos",
-    platformForThisBuild: fakeTatolabPlatformForThisBuild(runtimeAgent, machineSetup, localApiServer.localApiSocketPath),
+    platformForThisBuild: fakeTatolabPlatformForThisBuild(runtimeAgent, commandLineToolLinks, localApiServer.localApiSocketPath),
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
@@ -68,7 +67,7 @@ async function controllerOverFakes(
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
-  return { controller, runtimeAgent, machineSetup, localApiServer };
+  return { controller, runtimeAgent, commandLineToolLinks, localApiServer, appConfigDirectory };
 }
 
 test("a healthy runtime's status names its streams and machine, read as the window reads them", async () => {
@@ -79,28 +78,93 @@ test("a healthy runtime's status names its streams and machine, read as the wind
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
     ],
     "enabled",
-    "needs_administrator",
   );
 
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
     '{"app_version":"0.45.0","platform":"macos","run_tatolab":true,"runtime_agent":"enabled","runtime_state":"running",' +
       '"machine_name":"jonathanf-macbook","streams":[{"name":"main","state":"kept","project_directory":"/p","node_count":4,"failed_because":null}],' +
-      '"machine_setup_state":"needs_administrator","command_line_tool_linked_at":null,"app_update":{"kind":"not_checked"},' +
+      '"first_run_finished":false,"command_line_tool_linked_at":null,"command_line_tool_usr_local_bin_link":{"kind":"not_linked"},' +
+      '"app_update":{"kind":"not_checked"},' +
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
   );
 });
 
-test("opening the app registers nothing until the administrator prompt sets the machine up, then registers", async () => {
-  const { controller, runtimeAgent, machineSetup } = await controllerOverFakes([], "not_registered", "needs_administrator");
+test("opening the app registers the agent with no prompt and links the command in the home folder", async () => {
+  const { controller, runtimeAgent, commandLineToolLinks } = await controllerOverFakes([], "not_registered");
 
   await controller.reconcileTheAgentWithTheRunTatolabSwitch();
+  await controller.linkTheCommandLineToolInTheHomeFolderAsTheAppOpens();
+
+  expect(runtimeAgent.calls).toEqual(["register", "start_if_not_running"]);
+  expect(commandLineToolLinks.linksAsked).toEqual(["home_folder"]);
+  expect((await controller.composeStatus(0)).command_line_tool_linked_at).toBe("/Users/someone/.local/bin/tatolab");
+});
+
+test("first run stays unfinished until get started remembers it, across launches", async () => {
+  const { controller, appConfigDirectory } = await controllerOverFakes([], "enabled");
+  expect((await controller.composeStatus(0)).first_run_finished).toBe(false);
+
+  expect(await controller.rememberFirstRunFinished()).toEqual(succeeded(undefined));
+  expect((await controller.composeStatus(0)).first_run_finished).toBe(true);
+  expect(await RememberedSwitchFile.firstRunFinishedInAppConfigDirectory(appConfigDirectory, createTatolabAppLog("error", () => {})).loadRememberedSwitch()).toBe(
+    true,
+  );
+});
+
+test("the usr local bin link is refused in its own words", async () => {
+  const { controller, commandLineToolLinks } = await controllerOverFakes([], "enabled");
+  commandLineToolLinks.linkingInUsrLocalBin = failedWith({ kind: "refused", refusal: "The password prompt was cancelled, so nothing changed." });
+  expect(await controller.linkTheCommandLineToolInUsrLocalBin()).toEqual(failedWith("The password prompt was cancelled, so nothing changed."));
+
+  commandLineToolLinks.linkingInUsrLocalBin = succeeded(undefined);
+  expect(await controller.linkTheCommandLineToolInUsrLocalBin()).toEqual(succeeded(undefined));
+  expect((await controller.composeStatus(0)).command_line_tool_usr_local_bin_link).toEqual({ kind: "linked", path: "/usr/local/bin/tatolab" });
+});
+
+test("a runtime that never answers reads starting, then never answered, and not responding only once it has answered", async () => {
+  const healthyAnswer = () => httpResponse("200 OK", "text/plain", "ok");
+  const { controller } = await controllerOverFakes(
+    [healthyAnswer(), toolResultResponse({ streams: [] }), httpResponse("200 OK", "application/json", JSON.stringify({ machine: "m", streams: [] }))],
+    "enabled",
+  );
+
+  expect((await controller.composeStatus(0)).runtime_state).toBe("running");
+  expect((await controller.composeStatus(5_000)).runtime_state, "the scripted answers are spent, so the runtime stops answering").toBe("starting");
+  expect((await controller.composeStatus(30_000)).runtime_state).toBe("unreachable");
+
+  const neverAnswered = await controllerOverFakes([], "enabled");
+  expect((await neverAnswered.controller.composeStatus(5_000)).runtime_state).toBe("starting");
+  expect((await neverAnswered.controller.composeStatus(30_000)).runtime_state).toBe("never_answered");
+});
+
+test("the first give-up by the service manager reads starting and registers the agent afresh, which clears launchd's stale job", async () => {
+  const { controller, runtimeAgent } = await controllerOverFakes([], "enabled");
+  runtimeAgent.whyTheServiceManagerGaveUp = "launchd: last exit code = 78: EX_CONFIG";
+
+  const firstRound = await controller.composeStatus(0);
+  expect(firstRound.runtime_state).toBe("starting");
+  await controller.startTheRuntimeIfThePollerFoundItDown(firstRound, 0);
+  expect(runtimeAgent.calls).toEqual(["unregister", "register", "start_if_not_running"]);
+
+  expect((await controller.composeStatus(2_000)).runtime_state).toBe("starting");
+});
+
+test("a give-up that outlasts the fresh registration reads blocked, the app leaves it alone, and try again registers it again", async () => {
+  const { controller, runtimeAgent } = await controllerOverFakes([], "enabled");
+  runtimeAgent.whyTheServiceManagerGaveUp = "launchd: last exit reason = OS_REASON_CODESIGNING | Launch Constraint Violation";
+  runtimeAgent.givesUpWhateverTheRegistration = true;
+  await controller.startTheRuntimeIfThePollerFoundItDown(await controller.composeStatus(0), 0);
+  runtimeAgent.calls.length = 0;
+
+  const blocked = await controller.composeStatus(2_000);
+  expect(blocked.runtime_state).toBe("blocked_by_the_service_manager");
+  await controller.startTheRuntimeIfThePollerFoundItDown(blocked, 60_000);
   expect(runtimeAgent.calls).toEqual([]);
 
-  await controller.setUpTheMachineOnAppOpened();
-  expect(machineSetup.setUpTriggers).toEqual(["reconciling_the_switch", "app_opened", "reconciling_the_switch"]);
-  expect(runtimeAgent.calls).toEqual(["register", "start_if_not_running"]);
+  expect(await controller.registerTheRuntimeAgainOnRequest()).toEqual(succeeded(undefined));
+  expect(runtimeAgent.calls).toEqual(["unregister", "register", "start_if_not_running"]);
 });
 
 /** A service manager whose unregistering waits until the test opens its gate. */
@@ -128,7 +192,7 @@ test("a tray toggle and a window request run in turn, never interleaved", async 
   const runtimeAgent = new RuntimeAgentRegistrationUnregisteringBehindAGate("enabled");
   const controller = await TatolabAppController.create({
     platform: "macos",
-    platformForThisBuild: fakeTatolabPlatformForThisBuild(runtimeAgent, new FakeTatolabMachineSetup("complete", null), "/tmp/tl-app-no-runtime.sock"),
+    platformForThisBuild: fakeTatolabPlatformForThisBuild(runtimeAgent, new FakeTatolabCommandLineToolLinks(null), "/tmp/tl-app-no-runtime.sock"),
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
@@ -159,7 +223,7 @@ async function controllerAtAppVersion(appVersion: string, appConfigDirectory: st
     platform: carriesTheRuntime ? "macos" : "linux",
     platformForThisBuild: fakeTatolabPlatformForThisBuild(
       runtimeAgent,
-      new FakeTatolabMachineSetup("complete", null),
+      new FakeTatolabCommandLineToolLinks(null),
       "/tmp/tl-app-no-runtime.sock",
       undefined,
       undefined,
@@ -207,7 +271,7 @@ test("the restarted runtime gets the starting grace again", async () => {
   let nowMs = 0;
   const controller = await TatolabAppController.create({
     platform: "macos",
-    platformForThisBuild: fakeTatolabPlatformForThisBuild(runtimeAgent, new FakeTatolabMachineSetup("complete", null), "/tmp/tl-app-no-runtime.sock"),
+    platformForThisBuild: fakeTatolabPlatformForThisBuild(runtimeAgent, new FakeTatolabCommandLineToolLinks(null), "/tmp/tl-app-no-runtime.sock"),
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.47.0",
@@ -219,7 +283,7 @@ test("the restarted runtime gets the starting grace again", async () => {
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   nowMs = 60_000;
-  expect((await controller.composeStatus(nowMs)).runtime_state).toBe("unreachable");
+  expect((await controller.composeStatus(nowMs)).runtime_state).toBe("never_answered");
   await controller.restartTheBundledRuntimeIfTheAppChanged();
   expect((await controller.composeStatus(nowMs + 1_000)).runtime_state).toBe("starting");
 });
@@ -245,31 +309,6 @@ test("a refused restart is tried again at the next launch", async () => {
   expect(await RuntimeRestartedForAppVersionFile.inAppConfigDirectory(appConfigDirectory).loadAppVersion()).toBe("0.47.0");
 });
 
-test("before the machine is set up nothing restarts, and the restart waits for a launch after setup", async () => {
-  const appConfigDirectory = await aFreshAppConfigDirectory();
-  await RuntimeRestartedForAppVersionFile.inAppConfigDirectory(appConfigDirectory).saveAppVersion("0.46.3");
-  const runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
-  const controllerBeforeSetup = await TatolabAppController.create({
-    platform: "macos",
-    platformForThisBuild: fakeTatolabPlatformForThisBuild(runtimeAgent, new FakeTatolabMachineSetup("needs_administrator", null), "/tmp/tl-app-no-runtime.sock"),
-    appConfigDirectory,
-    appLaunchedAtMs: 0,
-    appVersion: "0.47.0",
-    readMonotonicClockMs: () => 0,
-    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
-    readTheAppUpdateState: () => ({ kind: "not_checked" }),
-    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
-    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
-    tatolabAppLog: createTatolabAppLog("error", () => {}),
-  });
-  await controllerBeforeSetup.restartTheBundledRuntimeIfTheAppChanged();
-  expect(runtimeAgent.calls).toEqual([]);
-  expect(await RuntimeRestartedForAppVersionFile.inAppConfigDirectory(appConfigDirectory).loadAppVersion()).toBe("0.46.3");
-
-  await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent)).restartTheBundledRuntimeIfTheAppChanged();
-  expect(runtimeAgent.calls).toEqual(["restart_the_bundled_runtime"]);
-});
-
 test("an app that carries no runtime restarts none", async () => {
   const appConfigDirectory = await aFreshAppConfigDirectory();
   const runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
@@ -281,7 +320,7 @@ test("each status carries where updates stand", async () => {
   const appConfigDirectory = await aFreshAppConfigDirectory();
   const controller = await TatolabAppController.create({
     platform: "macos",
-    platformForThisBuild: fakeTatolabPlatformForThisBuild(new FakeRuntimeAgentRegistration("enabled"), new FakeTatolabMachineSetup("complete", null), "/tmp/tl-app-no-runtime.sock"),
+    platformForThisBuild: fakeTatolabPlatformForThisBuild(new FakeRuntimeAgentRegistration("enabled"), new FakeTatolabCommandLineToolLinks(null), "/tmp/tl-app-no-runtime.sock"),
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.46.3",
@@ -303,7 +342,6 @@ test("a status composed while the runtime restarts reads Starting until a round 
   const { controller, runtimeAgent } = await controllerOverFakes(
     [healthyAnswer(), noStreams(), theMachine(), healthyAnswer(), noStreams()],
     "enabled",
-    "complete",
     () => clockReadAtTheRequestThenAtTheAnswer.shift() ?? 200,
   );
 

@@ -5,28 +5,32 @@ import { expect, test } from "vitest";
 import {
   appBundleContaining,
   bundledCommandLineToolIn,
-  machineRuntimeLockOwnerUid,
   tatolabMachinePathsOnMacosForTheRealMachine,
   tatolabMachinePathsOnMacosForThisBuild,
   tatolabMachinePathsOnMacosUnderALocalProofTestRoot,
 } from "./tatolab_machine_paths.js";
 
-test("the_real_machine_paths_match_the_runtimes", () => {
-  const machinePaths = tatolabMachinePathsOnMacosForTheRealMachine(501);
-  expect(machinePaths.machineRuntimeLockFile).toBe("/Library/Application Support/Tatolab/runtime.lock");
-  expect(machineRuntimeLockOwnerUid(machinePaths.machineRuntimeLockOwner)).toBe(0);
-  expect(machinePaths.localApiSocket).toBe("/tmp/streamlib-501/local-api.sock");
-  expect(machinePaths.commandLineToolLink).toBe("/usr/local/bin/tatolab");
-  expect(machinePaths.localProofTestMachineRoot).toBeNull();
+test("the_real_machine_paths_match_the_runtimes_and_link_in_the_home_folder", () => {
+  const machinePaths = tatolabMachinePathsOnMacosForTheRealMachine(501, "/Users/someone");
+  expect(machinePaths).toEqual({
+    localApiSocket: "/tmp/streamlib-501/local-api.sock",
+    commandLineToolHomeFolderLink: "/Users/someone/.local/bin/tatolab",
+    commandLineToolUsrLocalBinLink: "/usr/local/bin/tatolab",
+    localProofTestMachineRoot: null,
+  });
 });
 
-test("a_local_proof_build_keeps_every_path_under_its_test_root_and_links_nothing", () => {
-  const machinePaths = tatolabMachinePathsOnMacosUnderALocalProofTestRoot("/tmp/tatolab-proof", 501);
-  expect(machinePaths.machineRuntimeLockDirectory).toBe("/tmp/tatolab-proof/lock");
-  expect(machinePaths.machineRuntimeLockFile).toBe("/tmp/tatolab-proof/lock/runtime.lock");
-  expect(machinePaths.machineRuntimeLockOwner).toEqual({ kind: "this_user", uid: 501 });
-  expect(machinePaths.localApiSocket).toBe("/tmp/tatolab-proof/run/local-api.sock");
-  expect(machinePaths.commandLineToolLink).toBeNull();
+test("a_home_folder_that_is_not_absolute_gets_no_home_folder_link", () => {
+  expect(tatolabMachinePathsOnMacosForTheRealMachine(501, "").commandLineToolHomeFolderLink).toBeNull();
+});
+
+test("a_local_proof_build_keeps_every_path_under_its_test_root_and_never_links_in_usr_local_bin", () => {
+  expect(tatolabMachinePathsOnMacosUnderALocalProofTestRoot("/tmp/tatolab-proof")).toEqual({
+    localApiSocket: "/tmp/tatolab-proof/run/local-api.sock",
+    commandLineToolHomeFolderLink: "/tmp/tatolab-proof/home/.local/bin/tatolab",
+    commandLineToolUsrLocalBinLink: null,
+    localProofTestMachineRoot: "/tmp/tatolab-proof",
+  });
 });
 
 test("the_bundle_and_its_cli_are_found_only_around_an_app_binary_in_contents_macos", () => {
@@ -36,5 +40,5 @@ test("the_bundle_and_its_cli_are_found_only_around_an_app_binary_in_contents_mac
 });
 
 test("a build without the local-proof feature uses the real machine's paths", () => {
-  expect(tatolabMachinePathsOnMacosForThisBuild(501)).toEqual(tatolabMachinePathsOnMacosForTheRealMachine(501));
+  expect(tatolabMachinePathsOnMacosForThisBuild(501, "/Users/someone")).toEqual(tatolabMachinePathsOnMacosForTheRealMachine(501, "/Users/someone"));
 });

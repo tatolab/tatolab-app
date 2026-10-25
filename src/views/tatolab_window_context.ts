@@ -34,8 +34,8 @@ export class TatolabWindowStatusStore {
   }
 }
 
-/** Why the last uninstall was refused, which Settings shows under Uninstall Tatolab…, until the sheet opens again. */
-export class UninstallTatolabRefusal {
+/** A refusal the window keeps after the place that asked has gone, for another place to show: why the last uninstall was refused, or why first run's finishing was not remembered. */
+export class RefusalKeptForTheWindow {
   private refusalReason: string | null = null;
   private readonly refusalListeners = new Set<() => void>();
 
@@ -57,8 +57,8 @@ export class UninstallTatolabRefusal {
 /** The DOM pages the window keeps until later tickets rebuild them in React. */
 export interface TatolabWindowHostedPages {
   streamsPage: StreamsPageView;
-  /** What fills the window until Tatolab can run here: macOS's administrator setup, or Linux's installer. */
-  setupScreen: TatolabWindowPage;
+  /** What fills the Linux window until the installer has put tatolabd.service in place; `null` on macOS, whose first run is the React getting-started view. */
+  linuxRuntimeInstallScreen: TatolabWindowPage | null;
 }
 
 /** What every part of the React window reads: the backend, the platform, the status, the shown stream's graph and log, the hosted DOM pages, the window's look, the runtime's description and uninstalling. */
@@ -77,7 +77,10 @@ export interface TatolabWindowEnvironment {
   runtimeDescriptionReadings: RuntimeDescriptionReadings;
   /** Open the sheet "Uninstall Tatolab…" asks to confirm in. */
   openUninstallSheet(): void;
-  uninstallTatolabRefusal: UninstallTatolabRefusal;
+  /** Why the last uninstall was refused, which Settings shows under Uninstall Tatolab…, until the sheet opens again. */
+  uninstallTatolabRefusal: RefusalKeptForTheWindow;
+  /** Why Get Started could not be remembered, which a notice shows over the Streams list once first run is over. */
+  firstRunFinishingRefusal: RefusalKeptForTheWindow;
   openSearch(): void;
 }
 
@@ -139,4 +142,10 @@ export function useRuntimeDescriptionReading(): RuntimeDescriptionReading {
 export function useUninstallTatolabRefusalReason(): string | null {
   const { uninstallTatolabRefusal } = useTatolabWindowEnvironment();
   return useSyncExternalStore(uninstallTatolabRefusal.subscribeToRefusal, uninstallTatolabRefusal.readRefusalReason);
+}
+
+/** Why Get Started could not be remembered, `null` with no refusal or once dismissed. */
+export function useFirstRunFinishingRefusalReason(): string | null {
+  const { firstRunFinishingRefusal } = useTatolabWindowEnvironment();
+  return useSyncExternalStore(firstRunFinishingRefusal.subscribeToRefusal, firstRunFinishingRefusal.readRefusalReason);
 }

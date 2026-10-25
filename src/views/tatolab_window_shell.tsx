@@ -15,6 +15,7 @@ import { SearchOpeningButton } from "../design_system/search_opening_button";
 import { addStreamPagePath } from "./add_stream_page_path";
 import { AddStreamPageView } from "./add_stream_page_view";
 import { AddStreamRunNoticeView } from "./add_stream_run_notice_view";
+import { FirstRunFinishingRefusalNoticeView } from "./first_run_finishing_refusal_notice_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { StreamPageView } from "./stream_page_view";
 import { streamPagePath, streamPageTabNamed } from "./stream_page_path";
@@ -203,7 +204,10 @@ function TatolabWindowShell() {
           <Outlet />
         </main>
         <WindowStatusBar />
-        <AddStreamRunNoticeView />
+        <div className="pointer-events-none absolute right-4 bottom-10 z-40 flex flex-col-reverse gap-2">
+          <AddStreamRunNoticeView />
+          <FirstRunFinishingRefusalNoticeView />
+        </div>
       </div>
     </div>
   );

@@ -1,24 +1,18 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-// Tests' stand-in for a platform: a service manager whose agent status the test sets and a machine
-// setup the test completes or leaves missing, each recording what it was asked. Never imported by
-// shipped code.
+// Tests' stand-in for a platform: a service manager whose agent status the test sets and the
+// `tatolab` command's links, each recording what it was asked. Never imported by shipped code.
 
 import type {
-  MachineSetupState,
+  CommandLineToolUsrLocalBinLink,
   RuntimeAgentRegistration as RuntimeAgentRegistrationStatus,
   TatolabAppOpenAtLogin,
 } from "../../src/backend/tatolab_backend_contract.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
 import type { TatolabAppUpdatePackaging, TatolabCommandLineTool, TatolabPlatformForThisBuild, TatolabUninstall, TerminalOpenedInAFolder } from "./platform/mod.js";
 import type { BundledRuntimeRestart, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
-import type {
-  MachineSetupAdministratorPromptOutcome,
-  MachineSetupObservation,
-  MachineSetupTrigger,
-  TatolabMachineSetup,
-} from "./platform/tatolab_machine_setup.js";
+import type { CommandLineToolLinkRefusal, CommandLineToolLinksObservation, TatolabCommandLineToolLinks } from "./platform/tatolab_command_line_tool_links.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** What the fake service manager was asked, in order. */
@@ -35,6 +29,10 @@ export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, B
   readonly calls: FakeRuntimeAgentCall[] = [];
   restartingTheBundledRuntime: Result<void, string> = succeeded(undefined);
   restartingTheAgentsRuntime: Result<void, RuntimeAgentStartFailure> = succeeded(undefined);
+  /** The service manager's words for having given up on the runtime, until registering the agent clears them; `null` while it has not. */
+  whyTheServiceManagerGaveUp: string | null = null;
+  /** Whether the service manager gives up again however often the agent is registered, as a code-signing refusal does. */
+  givesUpWhateverTheRegistration = false;
 
   constructor(public status: RuntimeAgentRegistrationStatus) {}
 
@@ -45,7 +43,12 @@ export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, B
   async registerRuntimeAgent(): Promise<Result<void, string>> {
     this.calls.push("register");
     this.status = "enabled";
+    if (!this.givesUpWhateverTheRegistration) this.whyTheServiceManagerGaveUp = null;
     return succeeded(undefined);
+  }
+
+  async whyTheServiceManagerGaveUpOnTheRuntime(): Promise<string | null> {
+    return this.whyTheServiceManagerGaveUp;
   }
 
   async startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {
@@ -75,31 +78,30 @@ export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, B
   }
 }
 
-/** A machine setup in the state the test sets, recording each trigger it was asked to set up for. */
-export class FakeTatolabMachineSetup implements TatolabMachineSetup {
-  readonly setUpTriggers: MachineSetupTrigger[] = [];
+/** The command's links as the test sets them, linking in the home folder when asked and answering the `/usr/local/bin` link as the test says, recording each request. */
+export class FakeTatolabCommandLineToolLinks implements TatolabCommandLineToolLinks {
+  readonly linksAsked: ("home_folder" | "usr_local_bin")[] = [];
+  homeFolderLinkedAt: string | null = null;
+  usrLocalBinLink: CommandLineToolUsrLocalBinLink = { kind: "not_linked" };
+  linkingInUsrLocalBin: Result<void, CommandLineToolLinkRefusal> = succeeded(undefined);
 
-  constructor(
-    public machineSetupState: MachineSetupState,
-    private readonly setUpTatolabRefusalOnThisPlatform: string | null,
-  ) {}
+  constructor(private readonly homeFolderLink: string | null) {}
 
-  async observeMachineSetup(): Promise<MachineSetupObservation> {
-    return {
-      machineSetupState: this.machineSetupState,
-      commandLineToolLinkedAt: this.machineSetupState === "complete" ? "/usr/local/bin/tatolab" : null,
-    };
+  async observeCommandLineToolLinks(): Promise<CommandLineToolLinksObservation> {
+    return { homeFolderLinkedAt: this.homeFolderLinkedAt, usrLocalBinLink: this.usrLocalBinLink };
   }
 
-  async setUpTheMachine(trigger: MachineSetupTrigger): Promise<MachineSetupAdministratorPromptOutcome> {
-    this.setUpTriggers.push(trigger);
-    if (trigger === "reconciling_the_switch" || this.machineSetupState === "complete") return "no_administrator_prompt_shown";
-    this.machineSetupState = "complete";
-    return "administrator_prompt_shown";
+  async linkTheCommandLineToolInTheHomeFolder(): Promise<Result<void, CommandLineToolLinkRefusal>> {
+    this.linksAsked.push("home_folder");
+    if (this.homeFolderLink === null) return failedWith({ kind: "not_offered", reason: "this fake platform links nothing" });
+    this.homeFolderLinkedAt = this.homeFolderLink;
+    return succeeded(undefined);
   }
 
-  setUpTatolabRefusal(): string | null {
-    return this.setUpTatolabRefusalOnThisPlatform;
+  async linkTheCommandLineToolInUsrLocalBin(): Promise<Result<void, CommandLineToolLinkRefusal>> {
+    this.linksAsked.push("usr_local_bin");
+    if (this.linkingInUsrLocalBin.ok) this.usrLocalBinLink = { kind: "linked", path: "/usr/local/bin/tatolab" };
+    return this.linkingInUsrLocalBin;
   }
 }
 
@@ -143,7 +145,7 @@ const FAKE_APP_UPDATE_PACKAGING_NOT_OFFERED: TatolabAppUpdatePackaging = { kind:
 /** A platform of these fakes, serving its local API at `localApiSocket`, whose bundle carries the runtime `runtimeAgent` restarts unless `bundledRuntimeRestart` says it carries none. */
 export function fakeTatolabPlatformForThisBuild(
   runtimeAgent: FakeRuntimeAgentRegistration,
-  machineSetup: FakeTatolabMachineSetup,
+  commandLineToolLinks: FakeTatolabCommandLineToolLinks,
   localApiSocket: string,
   tatolabUninstall: TatolabUninstall = FAKE_TATOLAB_UNINSTALL_REFUSING,
   appUpdatePackaging: TatolabAppUpdatePackaging = FAKE_APP_UPDATE_PACKAGING_NOT_OFFERED,
@@ -154,7 +156,7 @@ export function fakeTatolabPlatformForThisBuild(
 ): TatolabPlatformForThisBuild {
   return {
     runtimeAgent,
-    machineSetup,
+    commandLineToolLinks,
     localApiSocket,
     tatolabUninstall,
     appUpdatePackaging,

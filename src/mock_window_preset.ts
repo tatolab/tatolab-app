@@ -7,6 +7,9 @@ const PRESET_STEP_TIMEOUT_MILLISECONDS = 3000;
 const PRESET_POLL_MILLISECONDS = 40;
 const GRAPH_FIT_SETTLE_MILLISECONDS = 600;
 
+/** How long the first-run preset waits for the mock runtime to come up before it presses Get Started. */
+const MOCK_RUNTIME_STARTUP_WAIT_MILLISECONDS = 6000;
+
 /** How long the done preset waits for the mock runtime's answer to a run. */
 const MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS = 8000;
 
@@ -51,8 +54,8 @@ async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
   if (addStep === "done") await waitForElement(`[data-add-stream-step="running"], [data-add-stream-name-taken]`, MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS);
 }
 
-async function clickWhenShown(selector: string): Promise<boolean> {
-  const element = await waitForElement<HTMLElement>(selector);
+async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STEP_TIMEOUT_MILLISECONDS): Promise<boolean> {
+  const element = await waitForElement<HTMLElement>(selector, timeoutMilliseconds);
   element?.click();
   return element !== null;
 }
@@ -67,9 +70,12 @@ async function clickWhenShown(selector: string): Promise<boolean> {
  * click on that stream's failure notification), on Add stream `?add=folder|compiling|done|away` (a folder chosen, compiling, the stream running, or
  * Streams opened while it compiled and the run's notice shown once it answers) or
  * `?add=new|created` (a new project proposed, then written by `tatolab new`), with the backend's `?add_folder=`, `?add_run=warning` and
- * `?add_cli=missing`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
+ * `?add_cli=missing`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
  * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),
- * `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`, on Graph `?step=<step>` (selected), `?focus=<step>` (its card
+ * `?sheet=uninstall|uninstalling|uninstalled`, on first run `?setup=getting_set_up` (Continue pressed on Welcome) or `?setup=get_started` (then
+ * Get Started once the runtime answers) and `?setup_step_action=<action>` (a step's action pressed), with the backend's `?state=setup`, or
+ * `?first_run=unfinished` over any runtime state, as `?state=approval|blocked|never-answered`, and its `?first_run_remember=refused` and
+ * `?register_again=refused`, on Settings › Command line `?link=pressed` (Link in /usr/local/bin… pressed), on Graph `?step=<step>` (selected), `?focus=<step>` (its card
  * holding keyboard focus), `?pin=<step>.<port>`
  * (its preview pinned), `?hover=<step>.<port>` (its hover preview open), `?previews=off` and `?counters=off`,
  * on Logs `?levels=info|warnings|errors`, `?held_records=<n>` and `?log_folder=missing` (the backend's options for the pointer row and a refused open), `?record=<sequence>` or `?record=problem` (the newest warning or error selected) and
@@ -146,7 +152,12 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     await clickWhenShown(`[data-action="uninstall"]`);
   }
   if (sheet === "uninstalling" || sheet === "uninstalled") await clickWhenShown(".uninstall-sheet[open] .button-destructive");
-  if (pageQuery.get("setup") === "waiting") await clickWhenShown(".setup-screen .button-primary");
+  const firstRunStep = pageQuery.get("setup");
+  if (firstRunStep === "getting_set_up" || firstRunStep === "get_started") await clickWhenShown(`[data-getting-started-action="continue"]`);
+  if (firstRunStep === "get_started") await clickWhenShown(`[data-getting-started-action="get_started"]:not([disabled])`, MOCK_RUNTIME_STARTUP_WAIT_MILLISECONDS);
+  const setupStepAction = pageQuery.get("setup_step_action");
+  if (setupStepAction !== null) await clickWhenShown(`[data-getting-started-step-action="${CSS.escape(setupStepAction)}"]`);
+  if (pageQuery.get("link") === "pressed") await clickWhenShown(`[data-settings-action="link-in-usr-local-bin"]`);
   const searchQuery = pageQuery.get("search");
   if (searchQuery !== null) {
     document.dispatchEvent(

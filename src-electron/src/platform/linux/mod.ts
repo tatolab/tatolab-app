@@ -24,7 +24,7 @@ import {
   type TatolabUninstall,
   type TrayIconImage,
 } from "../mod.js";
-import { MachineSetUpByTheInstaller } from "./machine_set_up_by_the_installer.js";
+import { CommandLineToolLinkedByTheInstaller } from "./command_line_tool_linked_by_the_installer.js";
 import { RUNTIME_SYSTEMD_USER_UNIT_NAME, SystemctlOnThePath, SystemdUserRuntimeService } from "./systemd_user_runtime_service.js";
 import { tatolabMachinePathsOnLinuxForThisBuild } from "./tatolab_machine_paths.js";
 import { XTerminalEmulatorOnThePath } from "./x_terminal_emulator_on_the_path.js";
@@ -70,7 +70,7 @@ export function tatolabAppOpenedAtLoginOnLinux(
   return new XdgAutostartDesktopEntry(xdgAutostartDirectory(xdgConfigHome, homeDirectory), appProgramPath, tatolabAppLog);
 }
 
-/** The installer's systemd user unit, the machine as the installer set it up, and how this package updates; the installer installs the runtime, so the app restarts none. */
+/** The installer's systemd user unit, the command as the installer linked it, and how this package updates; the installer installs the runtime, so the app restarts none. */
 export async function linuxTatolabPlatformForThisBuild(
   tatolabAppLog: TatolabAppLog,
   { appIsPackaged, appExecutable }: TatolabPlatformHostServices,
@@ -85,7 +85,7 @@ export async function linuxTatolabPlatformForThisBuild(
   const appUpdatePackaging = tatolabAppUpdatePackagingOnLinux(appIsPackaged, process.env["APPIMAGE"]);
   return {
     runtimeAgent: new SystemdUserRuntimeService(new SystemctlOnThePath(), tatolabAppLog),
-    machineSetup: new MachineSetUpByTheInstaller(machinePaths.commandLineToolLink),
+    commandLineToolLinks: new CommandLineToolLinkedByTheInstaller(machinePaths.commandLineToolLink),
     localApiSocket: machinePaths.localApiSocket,
     tatolabUninstall: LINUX_TATOLAB_UNINSTALL,
     appUpdatePackaging,

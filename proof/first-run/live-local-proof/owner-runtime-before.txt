@@ -1,0 +1,12 @@
+gui/501/com.tatolab.tatolabd = {
+	active count = 2
+	path = (submitted by smd.566)
+	type = Submitted
+	managed_by = com.apple.xpc.ServiceManagement
+	state = running
+
+	program identifier = Contents/MacOS/tatolabd (mode: 2)
+	state = running
+	parent bundle version = 0.55.2
+	pid = 5242
+		state = active

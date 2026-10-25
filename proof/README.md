@@ -2,6 +2,58 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## First run with no administrator password, and the runtime's states in their own words (#3)
+
+Frames are in [`first-run/`](first-run/). The earlier first-launch frames in the #36 and "Every window state" sections below show the administrator setup this change retired.
+
+### Live (local proof)
+
+- **Setup:** `scripts/build-tatolab-app.sh --local-proof-test-root` built a packaged, ad-hoc-signed Tatolab.app around streamlib v0.55.4's test-root runtime unit (ef5c8b229, the release carrying tatolab/streamlib#2927's loopback-port lock), built in a scratch worktree. Opened from `build/`, it registered its own launch agent with the test root's environment (`TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, loopback HTTP on 14446). The window was captured with `screencapture -l` and driven from the keyboard (Return, Tab).
+- **The owner's machine:** `owner-runtime-before.txt` holds the installed app's runtime before the run: 0.55.2, running, pid 5242, no streams. The installed app was quit, and its settings files (`run-tatolab.json`, `runtime-restarted-for-app-version.json`, `stream-failure-notifications.json`) were copied aside. Afterwards those files were put back, the proof's `first-run-finished.json` and `/tmp/tatolab-proof` were removed, and `/Applications/Tatolab.app` was reopened. `owner-runtime-after.txt` shows 0.55.2 running again (pid 51143).
+
+| what | label | image | shows |
+|---|---|---|---|
+| Welcome, no administrator prompt | Live (local proof) | `live-local-proof/01-welcome.png` | The mascot, "Welcome to Tatolab", "Tatolab runs your live video, audio and AI streams in a runtime in the background. This window is where you see and control it.", "Takes about a minute." and a focused Continue. No password dialog appeared. `launchctl print` already showed the proof agent, from bundle 0.45.0, registered. |
+| Blocked by macOS, for real | Live (local proof) | `live-local-proof/02-getting-set-up.png` | Getting set up, its heading holding keyboard focus after Continue. "Start the runtime · Starts once macOS lets it" with an hourglass, then "Blocked by macOS · Stopped" in red, "macOS stopped the runtime from starting and won't try again by itself. Try Again hands it to macOS afresh." and Try Again. Get Started is disabled. Nothing staged this: `launchctl print` read `state = spawn scheduled`, `last exit code = 78: EX_CONFIG`, `runs = 4`, while the bundle's own `tatolabd`, run by hand under the same environment, started cleanly. |
+| Try Again starts it | Live (local proof) | `live-local-proof/03-try-again-starting.png` | Try Again pressed: a single step, "Start the runtime · Starting…" with a spinner. Get Started stays disabled, and the footer says "Get Started opens once the runtime answers." |
+| Ticked once it answers | Live (local proof) | `live-local-proof/04-start-the-runtime-ticked.png` | "Start the runtime · Running" with a tick, "The runtime is running." and Get Started enabled. `launchctl-proof-agent-after-try-again.txt`: `state = running`, `last exit code = (never exited)`. The test-root CLI answered `runtime 0.55.4`, and `lsof` showed `tatolabd` holding `127.0.0.1:14446`, its own port: no lock file, nothing root-owned, nothing the app created. |
+| Get Started opens Streams | Live (local proof) | `live-local-proof/05-streams-after-get-started.png` | The Streams list on `jonathanf-macbook`: "No streams on jonathanf-macbook yet", Create the sample stream, Run a project folder, `tatolab dev`. Status bar "Runtime running · Tatolab 0.45.0". `first-run-finished.json` read `{"first_run_finished": true}`. `~/.local/bin/tatolab` under the test root's `home/` linked to the bundle's `tatolab-cli` with no prompt. |
+
+Found while proving it: reopening the installed 0.55.2 app after the proof hit the same `78: EX_CONFIG`, seven runs and no spawn, on a Developer-ID-signed bundle. launchd refuses the first spawns after the agent's label passes from one bundle to another. 0.55.2 has no Try Again, so the stuck job was booted out and the app re-registered its own agent, which is the unregister, register and start that Try Again does.
+
+### Mock
+
+Each frame is at `first-run/mock/<name>-light.png` and `-dark.png`, from `npm run dev` driven by Playwright.
+
+| frame | query | shows |
+|---|---|---|
+| `01-welcome` | `state=setup` | Welcome: the mascot, the one-line pitch, Continue. |
+| `02-getting-set-up-starting` | `state=setup&setup=getting_set_up` | "Start the runtime · Starting…" with a spinner, and Get Started disabled. |
+| `03-getting-set-up-ticked` | the same, 3 s later | The mock runtime came up: the step is "Running" with a tick, and Get Started is enabled. |
+| `04-needs-your-approval` | `state=approval&first_run=unfinished&setup=getting_set_up` | "Start the runtime · Starts once you approve it", then "Needs your approval · Waiting for you" in amber, the line naming "turn on Tatolab under Allow in the Background", and Open Login Items…. |
+| `05-blocked-by-macos` | `state=blocked&first_run=unfinished&setup=getting_set_up` | "Blocked by macOS · Stopped" with Try Again. |
+| `06-didnt-start` | `state=never-answered&first_run=unfinished&setup=getting_set_up` | "Start the runtime · The runtime didn't start", "macOS started it, but it hasn't answered in 20 seconds." and Try Again. "Not responding" appears nowhere. |
+| `07-streams-blocked-by-macos` | `state=blocked` | The Streams page: "Blocked by macOS", its explanation, Try Again. Status bar "Runtime blocked". |
+| `08-streams-didnt-start` | `state=never-answered` | "The runtime didn't start", Try Again. Status bar "Runtime didn't start". |
+| `09-streams-not-responding` | `state=unreachable` | "The runtime isn't responding": "It was answering, then stopped, and hasn't answered for over 20 seconds." Status bar "Runtime not responding". |
+| `10-settings-command-line` | `state=running&page=settings&section=command-line` | `~/.local/bin/tatolab` at 0.55.2, the `export PATH="$HOME/.local/bin:$PATH"` line for `~/.zprofile`, and "Link in /usr/local/bin" with its warning that the dialog says "osascript wants to make changes", plus Link in /usr/local/bin…. |
+| `11-linux-install-screen` | `platform=linux&state=setup` | Linux keeps its installer screen: "Install the Tatolab runtime", the `curl … \| sh` line, and a wait for `tatolabd.service`. |
+| `12-linux-systemd-stopped-the-runtime` | `platform=linux&state=blocked` | "systemd stopped the runtime", "tatolabd.service kept failing, so systemd won't start it again by itself. Try Again starts it afresh." and Try Again. Status bar "Runtime blocked". |
+| `13-step-refusal` | `state=never-answered&first_run=unfinished&register_again=refused&setup=getting_set_up&setup_step_action=register_the_runtime_again` | Try Again refused: under the step, "Couldn't start the runtime again: Service Management could not register the runtime's agent: Operation not permitted", with Try Again offered again. |
+| `14-setup-not-saved-notice` | `state=setup&first_run_remember=refused&setup=get_started` | Get Started pressed, but its file couldn't be written. The Streams list opens anyway, with the notice "Setup wasn't saved": "Tatolab couldn't remember that you've set it up, so Welcome shows again next time it opens. EACCES: permission denied, open '…/first-run-finished.json'", and Dismiss. |
+| `15-usr-local-bin-waiting-for-password` | `state=running&page=settings&section=command-line&link=pressed` | Link in /usr/local/bin… pressed: "Waiting for your password…" with a spinner in its place. |
+| `16-usr-local-bin-linked` | the same, once the mock prompt answers | "Linked at /usr/local/bin/tatolab, so it works in every terminal.", with no button. |
+| `17-usr-local-bin-cancelled` | the same with `usr_local_bin=cancel` | "tatolab wasn't linked: The password prompt was cancelled, so nothing changed." under the row, with Link in /usr/local/bin… offered again. |
+| `18-uninstall-sheet` | `state=running&page=settings&sheet=uninstall` | Uninstall Tatolab?: "Stop the runtime and remove it from Login Items", "Remove the `tatolab` command — `~/.local/bin/tatolab`, and `/usr/local/bin/tatolab` if you linked it there. macOS asks for your password only for that one.", "Move Tatolab to the Trash". No lock folder, and no password unless the `/usr/local/bin` link is there. |
+
+Not covered:
+- **Pending the owner:**
+  - a real Launch Constraint Violation (the exit-78 block above is real; a constraint kill is not, since one cannot be staged);
+  - the real `/usr/local/bin` administrator prompt;
+  - `brew install --cask` on a clean Mac.
+- **The tray** (Open Login Items…, Try Again, the status lines) is proven by its tests only.
+- **Linux live:** the `ubuntu-22.04` PR check is the Linux gate.
+
 ## Settings on the new design (#41): real verification, the pass/fail
 
 Only these results count for #41. They come from the real app on a real v0.55.2 runtime, with no mock, fake or stand-in. Each is checked against what launchd or systemd, the runtime's own CLI, the socket table, the desktop's login items or its notification server report. Frames are in [`settings-live/`](settings-live/). The Mock and stand-in frames in the section below show presentation only, and none of them counts.

@@ -3,7 +3,6 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { TatolabStatus } from "../../src/backend/tatolab_backend_contract.js";
-import { FakeTatolabMachineSetup } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeTatolabElectronAppShell } from "./fake_tatolab_electron_app_shell.js";
 import { startTatolabApp, type TatolabRunningApp } from "./main.js";
 import { TatolabMainWindow } from "./tatolab_main_window.js";
@@ -211,23 +210,19 @@ describe("starting the app", () => {
     await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("register");
   });
 
-  test("the first opening offers the missing machine setup, and Set Up Tatolab… in the tray asks again; a refusal is logged", async () => {
+  test("the first opening links the command in the home folder, and the tray's Try Again and Open Login Items reach the service manager", async () => {
     const fakeShell = fakeShellQuitAfterTheTest();
-    fakeShell.machineSetup = new FakeTatolabMachineSetup("needs_administrator", null);
     const tatolabRunningApp = await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await theFirstPublishedStatus(tatolabRunningApp);
-    await expect.poll(() => fakeShell.machineSetup.setUpTriggers).toContain("app_opened");
-    expect(fakeShell.machineSetup.setUpTriggers).not.toContain("user_asked");
-    fakeShell.clickTheTrayMenuItem("set_up_tatolab");
-    await expect.poll(() => fakeShell.machineSetup.setUpTriggers).toContain("user_asked");
+    await expect.poll(() => fakeShell.commandLineToolLinks.linksAsked).toEqual(["home_folder"]);
 
-    const refusingFakeShell = fakeShellQuitAfterTheTest();
-    refusingFakeShell.machineSetup = new FakeTatolabMachineSetup("complete", "On Linux the installer sets up Tatolab");
-    await startTatolabApp(refusingFakeShell.tatolabElectronAppShell, LINUX_PLATFORM_ITEMS, refusingFakeShell.tatolabAppLog);
-    refusingFakeShell.clickTheTrayMenuItem("set_up_tatolab");
-    expect(refusingFakeShell.writtenLogLines).toContain(' WARN Set Up Tatolab… was refused refusal="On Linux the installer sets up Tatolab"');
-    expect(await refusingFakeShell.invokeTheCommand("set_up_tatolab")).toEqual({ ok: false, refusal: "On Linux the installer sets up Tatolab" });
+    fakeShell.runtimeAgent.calls.length = 0;
+    fakeShell.clickTheTrayMenuItem("register_the_runtime_again");
+    await expect.poll(() => fakeShell.runtimeAgent.calls).toEqual(["unregister", "register", "start_if_not_running"]);
+    fakeShell.clickTheTrayMenuItem("open_login_items_settings");
+    await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("open_login_items_settings");
   });
+
 });
 
 /** A feed offering `newerVersion`, counting each time it was taken from; taking it installs at once. */

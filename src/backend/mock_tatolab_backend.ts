@@ -31,7 +31,7 @@ import {
 
 /**
  * Browser-only stand-ins for the app backend, picked with `?state=`. `approval`, `missing` and `not-registered` exist
- * only on macOS.
+ * only on macOS. `setup` is first run on macOS, its runtime starting as the app opens, and Linux's missing installer.
  */
 export type MockTatolabScenario =
   | "running"
@@ -46,7 +46,9 @@ export type MockTatolabScenario =
   | "missing"
   | "not-registered"
   | "setup"
-  | "unreachable";
+  | "unreachable"
+  | "never-answered"
+  | "blocked";
 
 const MOCK_TATOLAB_SCENARIOS: readonly MockTatolabScenario[] = [
   "running",
@@ -62,9 +64,17 @@ const MOCK_TATOLAB_SCENARIOS: readonly MockTatolabScenario[] = [
   "not-registered",
   "setup",
   "unreachable",
+  "never-answered",
+  "blocked",
 ];
 
 const MACOS_ONLY_SCENARIOS: readonly MockTatolabScenario[] = ["approval", "missing", "not-registered"];
+
+/** Where the mock links the `tatolab` command behind the administrator prompt. */
+const MOCK_USR_LOCAL_BIN_LINK = "/usr/local/bin/tatolab";
+
+/** Why the mock refuses a `/usr/local/bin` link on Linux, as the app does. */
+const MOCK_LINUX_INSTALLER_LINKS_THE_COMMAND = "On Linux the installer links tatolab into ~/.local/bin with the runtime.";
 
 const MOCK_COMMAND_LATENCY_MILLISECONDS = 30;
 const MOCK_RUNTIME_STARTUP_MILLISECONDS = 2400;
@@ -155,6 +165,14 @@ export interface MockTatolabOptions {
   commandLineToolVersion: TatolabCommandLineToolVersion;
   /** `?stream_page_requested=<stream>`: a click on that stream's failure notification, a moment after the window listens. */
   streamPageRequestedByANotification: string | null;
+  /** `?first_run=unfinished`: Get Started has not ended first run, so macOS shows Welcome over whatever state the runtime is in. */
+  isFirstRunUnfinished: boolean;
+  /** `?usr_local_bin=linked|cancel`: the `tatolab` command already linked in `/usr/local/bin`, or the prompt that links it cancelled. */
+  usrLocalBinLinkScenario: "not_linked" | "linked" | "cancel";
+  /** `?first_run_remember=refused`: Get Started ends first run but its file cannot be written, as when the app's config folder refuses it. */
+  isRememberingFirstRunRefused: boolean;
+  /** `?register_again=refused`: the service manager refuses Try Again. */
+  isRegisteringTheRuntimeAgainRefused: boolean;
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -217,6 +235,10 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     doesTheDesktopShowNoNotifications: pageQuery.get("notifications") === "unsupported",
     commandLineToolVersion: mockCommandLineToolVersion(pageQuery.get("cli_version")),
     streamPageRequestedByANotification: pageQuery.get("stream_page_requested"),
+    isFirstRunUnfinished: pageQuery.get("first_run") === "unfinished",
+    usrLocalBinLinkScenario: pageQuery.get("usr_local_bin") === "linked" ? "linked" : pageQuery.get("usr_local_bin") === "cancel" ? "cancel" : "not_linked",
+    isRememberingFirstRunRefused: pageQuery.get("first_run_remember") === "refused",
+    isRegisteringTheRuntimeAgainRefused: pageQuery.get("register_again") === "refused",
   };
 }
 
@@ -255,7 +277,7 @@ function initialMockStatus(
   scenario: MockTatolabScenario,
   platform: TatolabPlatform,
   machine: MockMachine,
-  { appUpdateScenario, openAtLogin, doesTheDesktopShowNoNotifications, commandLineToolVersion }: MockTatolabOptions,
+  { appUpdateScenario, openAtLogin, doesTheDesktopShowNoNotifications, commandLineToolVersion, isFirstRunUnfinished, usrLocalBinLinkScenario }: MockTatolabOptions,
 ): TatolabStatus {
   const runningStatus: TatolabStatus = {
     app_version: "0.45.0",
@@ -265,8 +287,14 @@ function initialMockStatus(
     runtime_state: "running",
     machine_name: machine.name,
     streams: [],
-    machine_setup_state: "complete",
+    first_run_finished: !isFirstRunUnfinished,
     command_line_tool_linked_at: machine.commandLineToolLinkedAt,
+    command_line_tool_usr_local_bin_link:
+      platform === "linux"
+        ? { kind: "not_offered", reason: MOCK_LINUX_INSTALLER_LINKS_THE_COMMAND }
+        : usrLocalBinLinkScenario === "linked"
+          ? { kind: "linked", path: MOCK_USR_LOCAL_BIN_LINK }
+          : { kind: "not_linked" },
     app_update: initialMockAppUpdateState(appUpdateScenario),
     local_api_socket: machine.localApiSocket,
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: !doesTheDesktopShowNoNotifications },
@@ -300,6 +328,10 @@ function initialMockStatus(
       return { ...runningStatus, runtime_agent: "not_registered", runtime_state: "stopped", machine_name: null, streams: null };
     case "unreachable":
       return { ...runningStatus, runtime_state: "unreachable", streams: null };
+    case "never-answered":
+      return { ...runningStatus, runtime_state: "never_answered", machine_name: null, streams: null };
+    case "blocked":
+      return { ...runningStatus, runtime_state: "blocked_by_the_service_manager", machine_name: null, streams: null };
     case "setup":
       if (platform === "linux") {
         return {
@@ -312,15 +344,7 @@ function initialMockStatus(
           command_line_tool_linked_at: null,
         };
       }
-      return {
-        ...runningStatus,
-        runtime_agent: "not_registered",
-        runtime_state: "stopped",
-        machine_name: null,
-        streams: null,
-        machine_setup_state: "needs_administrator",
-        command_line_tool_linked_at: null,
-      };
+      return { ...runningStatus, runtime_state: "starting", machine_name: null, streams: null, first_run_finished: false };
   }
 }
 
@@ -345,6 +369,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     doesTheRuntimeKeepNoOwnLog,
     isTheRuntimeRestartRefused,
     streamPageRequestedByANotification,
+    usrLocalBinLinkScenario,
+    isRememberingFirstRunRefused,
+    isRegisteringTheRuntimeAgainRefused,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -712,6 +739,8 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   };
 
   if (mockStatus.runtime_state === "running") bringRuntimeUp();
+  // Opening the app registers the runtime's agent, so first run's runtime comes up as the real one does.
+  if (scenario === "setup" && platform === "macos") startRuntime();
 
   return {
     getTatolabStatus: async () => {
@@ -738,14 +767,27 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       isLoginItemsApproved = true;
       window.setTimeout(startRuntime, MOCK_ADMINISTRATOR_PROMPT_MILLISECONDS);
     },
-    setUpTatolab: async () => {
+    rememberFirstRunFinished: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (platform === "linux") throw "Linux needs no administrator setup";
-      publishStatus({ machine_setup_state: "waiting_for_administrator" });
-      window.setTimeout(() => {
-        publishStatus({ machine_setup_state: "complete", command_line_tool_linked_at: fixtures.machine.commandLineToolLinkedAt });
-        startRuntime();
-      }, MOCK_ADMINISTRATOR_PROMPT_MILLISECONDS);
+      publishStatus({ first_run_finished: true });
+      if (isRememberingFirstRunRefused) {
+        throw "EACCES: permission denied, open '/Users/jonathanf/Library/Application Support/com.tatolab.tatolab/first-run-finished.json'";
+      }
+    },
+    registerTheRuntimeAgain: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (!mockStatus.run_tatolab) throw "Run Tatolab is off, so the runtime isn't started. Turn Run Tatolab on to start it.";
+      if (isRegisteringTheRuntimeAgainRefused) {
+        throw "Service Management could not register the runtime's agent: Operation not permitted";
+      }
+      startRuntime();
+    },
+    linkCommandLineToolInUsrLocalBin: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (platform === "linux") throw MOCK_LINUX_INSTALLER_LINKS_THE_COMMAND;
+      await sleep(MOCK_ADMINISTRATOR_PROMPT_MILLISECONDS);
+      if (usrLocalBinLinkScenario === "cancel") throw "The password prompt was cancelled, so nothing changed.";
+      publishStatus({ command_line_tool_usr_local_bin_link: { kind: "linked", path: MOCK_USR_LOCAL_BIN_LINK } });
     },
     quitTatolabApp: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -757,7 +799,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       }
       await sleep(MOCK_UNINSTALL_ADMINISTRATOR_PROMPT_MILLISECONDS);
       if (isUninstallPromptCancelled) throw "the administrator prompt was cancelled, so nothing was removed";
-      publishStatus({ machine_setup_state: "needs_administrator", command_line_tool_linked_at: null });
+      publishStatus({ command_line_tool_linked_at: null, command_line_tool_usr_local_bin_link: { kind: "not_linked" } });
       takeRuntimeDown({ run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped" });
     },
     readStreamLogRecords: async (streamName, afterSequence): Promise<StreamLogRecordsPage> => {

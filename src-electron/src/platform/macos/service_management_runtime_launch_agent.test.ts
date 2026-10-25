@@ -9,6 +9,7 @@ import { failedWith, succeeded, type Result } from "../../result.js";
 import type { ProgramCompletion } from "../run_program_to_completion.js";
 import {
   runtimeAgentRegistrationStatusFrom,
+  whyLaunchdGaveUpOnTheJob,
   ServiceManagementRuntimeLaunchAgent,
   type LaunchctlRunner,
 } from "./service_management_runtime_launch_agent.js";
@@ -213,4 +214,72 @@ test("opening Login Items goes to Service Management's settings", async () => {
 
   expect(await runtimeLaunchAgent.openLoginItemsSettings()).toEqual(succeeded(undefined));
   expect(serviceManagementCalls).toEqual(["open Login Items"]);
+});
+
+/** `launchctl print gui/501/com.tatolab.tatolabd`, trimmed, as macOS 26.7 printed it for the running agent. */
+const LAUNCHCTL_PRINT_OF_THE_RUNNING_AGENT = [
+  "gui/501/com.tatolab.tatolabd = {",
+  "\tactive count = 2",
+  "\tpath = (submitted by smd.566)",
+  "\ttype = Submitted",
+  "\tmanaged_by = com.apple.xpc.ServiceManagement",
+  "\tstate = running",
+  "",
+  "\tprogram identifier = Contents/MacOS/tatolabd (mode: 2)",
+  "\tminimum runtime = 10",
+  "\texit timeout = 5",
+  "\truns = 5",
+  "\tpid = 5242",
+  "\timmediate reason = non-ipc demand",
+  "\tlast exit code = 0",
+  "",
+  "\tresource coalition = {",
+  "\t\tID = 47110",
+  "\t\ttype = resource",
+  "\t\tstate = active",
+  "\t\tname = com.tatolab.tatolabd",
+  "\t}",
+  "}",
+  "",
+].join("\n");
+
+/** The same job not running, its last spawn as `lastExitLines` describe it. */
+function launchctlPrintOfTheAgentNotRunning(lastExitLines: readonly string[]): string {
+  return LAUNCHCTL_PRINT_OF_THE_RUNNING_AGENT.replace("\tstate = running", "\tstate = not running")
+    .replace("\tpid = 5242\n", "")
+    .replace("\tlast exit code = 0", lastExitLines.join("\n"));
+}
+
+test("launchd_gave_up_only_on_a_job_not_running_whose_spawn_was_refused_or_killed_for_its_signature", () => {
+  expect(whyLaunchdGaveUpOnTheJob(LAUNCHCTL_PRINT_OF_THE_RUNNING_AGENT)).toBeNull();
+  expect(whyLaunchdGaveUpOnTheJob(launchctlPrintOfTheAgentNotRunning(["\tlast exit code = 78: EX_CONFIG"]))).toBe(
+    "launchd: last exit code = 78: EX_CONFIG",
+  );
+  expect(
+    whyLaunchdGaveUpOnTheJob(
+      launchctlPrintOfTheAgentNotRunning(["\tlast terminating signal = Killed: 9", "\tlast exit reason = OS_REASON_CODESIGNING | Launch Constraint Violation"]),
+    ),
+  ).toBe("launchd: last exit reason = OS_REASON_CODESIGNING | Launch Constraint Violation");
+  expect(whyLaunchdGaveUpOnTheJob(launchctlPrintOfTheAgentNotRunning(["\tlast exit code = 1"])), "a crash launchd restarts").toBeNull();
+  expect(whyLaunchdGaveUpOnTheJob(launchctlPrintOfTheAgentNotRunning(["\tlast exit code = 0"]))).toBeNull();
+  expect(
+    whyLaunchdGaveUpOnTheJob(LAUNCHCTL_PRINT_OF_THE_RUNNING_AGENT.replace("\tlast exit code = 0", "\tlast exit code = 78: EX_CONFIG")),
+    "a job running again has been given another go",
+  ).toBeNull();
+});
+
+test("the_launch_agent_reads_launchds_give_up_from_launchctl_print_and_none_when_launchctl_finds_no_job", async () => {
+  const { serviceManagementAgentServices } = fakeServiceManagementAgentServices(new Map([["com.tatolab.tatolabd.plist", "enabled"]]));
+  const givenUp = launchctlAnswering(
+    succeeded({ exitStatus: 0, endingSignal: null, standardOutput: launchctlPrintOfTheAgentNotRunning(["\tlast exit code = 78: EX_CONFIG"]), standardError: "" }),
+  );
+  const launchAgent = ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(501, serviceManagementAgentServices, givenUp.launchctlRunner);
+
+  expect(await launchAgent.whyTheServiceManagerGaveUpOnTheRuntime()).toBe("launchd: last exit code = 78: EX_CONFIG");
+  expect(givenUp.launchctlCalls).toEqual([["print", "gui/501/com.tatolab.tatolabd"]]);
+
+  const noJob = launchctlAnswering(launchctlExiting(113, 'Could not find service "com.tatolab.tatolabd" in domain for user gui: 501'));
+  expect(
+    await ServiceManagementRuntimeLaunchAgent.forTheBundledRuntime(501, serviceManagementAgentServices, noJob.launchctlRunner).whyTheServiceManagerGaveUpOnTheRuntime(),
+  ).toBeNull();
 });

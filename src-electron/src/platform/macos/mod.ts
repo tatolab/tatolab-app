@@ -1,9 +1,9 @@
 // Copyright (c) 2025 Jonathan Fontanez
 // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 
-// macOS: Service Management registers the runtime's launch agent, first-launch setup creates the
-// machine runtime lock and the CLI's PATH link behind one administrator prompt, "Uninstall
-// Tatolab…" removes them behind another, Terminal.app opens a stream's project, the window draws
+// macOS: Service Management registers the runtime's launch agent, the app links the CLI in the
+// home folder with no prompt and in `/usr/local/bin` behind the administrator prompt when asked,
+// "Uninstall Tatolab…" removes them, Terminal.app opens a stream's project, the window draws
 // under a hidden title bar with the Dock icon following it, and the tray's mark is a template
 // image.
 
@@ -19,7 +19,7 @@ import {
   type TrayIconImage,
 } from "../mod.js";
 import { OSASCRIPT_AT_ITS_SYSTEM_PATH, OsascriptAdministratorPrompt } from "./administrator_prompt.js";
-import { MachineSetupBehindAnAdministratorPrompt } from "./machine_setup.js";
+import { CommandLineToolLinksOnThisMac } from "./command_line_tool_links_on_this_mac.js";
 import { loadServiceManagementAddon, serviceManagementAddonBuiltUnder, serviceManagementAddonInTheAppBundle } from "./service_management_addon.js";
 import { LAUNCHCTL_AT_ITS_SYSTEM_PATH, ServiceManagementRuntimeLaunchAgent } from "./service_management_runtime_launch_agent.js";
 import { appBundleContaining, bundledCommandLineToolPath, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
@@ -38,17 +38,17 @@ export function tatolabAppUpdatePackagingOnMacos(appIsPackaged: boolean): Tatola
   return appIsPackaged ? { kind: "squirrel_mac_zip" } : { kind: "not_offered", reason: UNPACKAGED_APP_UPDATE_REFUSAL };
 }
 
-/** The bundle's launch agent through the Service Management addon, the machine setup this build's paths need for the bundle the app binary runs from, and uninstalling them behind the administrator prompt. */
+/** The bundle's launch agent through the Service Management addon, the links of the CLI in the bundle the app binary runs from, and uninstalling them. */
 export async function macosTatolabPlatformForThisBuild(
   tatolabAppLog: TatolabAppLog,
-  { appPath, appExecutable, appIsPackaged, appConfigDirectory, tatolabUninstallAppSurface, appLoginItemSettings }: TatolabPlatformHostServices,
+  { homeDirectory, appPath, appExecutable, appIsPackaged, appConfigDirectory, tatolabUninstallAppSurface, appLoginItemSettings }: TatolabPlatformHostServices,
 ): Promise<TatolabPlatformForThisBuild> {
   const uid = currentProcessUid();
-  const machinePaths = tatolabMachinePathsOnMacosForThisBuild(uid);
+  const machinePaths = tatolabMachinePathsOnMacosForThisBuild(uid, homeDirectory);
   const bundledCommandLineTool = await bundledCommandLineToolPath(appExecutable);
   tatolabAppLog.info("Tatolab app paths", {
     local_api_socket: machinePaths.localApiSocket,
-    machine_runtime_lock: machinePaths.machineRuntimeLockFile,
+    command_line_tool_home_folder_link: machinePaths.commandLineToolHomeFolderLink,
     bundled_command_line_tool: bundledCommandLineTool,
     local_proof_test_machine_root: machinePaths.localProofTestMachineRoot,
   });
@@ -62,12 +62,7 @@ export async function macosTatolabPlatformForThisBuild(
   );
   return {
     runtimeAgent: runtimeLaunchAgent,
-    machineSetup: MachineSetupBehindAnAdministratorPrompt.create(
-      machinePaths,
-      bundledCommandLineTool,
-      administratorPrompt,
-      tatolabAppLog,
-    ),
+    commandLineToolLinks: new CommandLineToolLinksOnThisMac(machinePaths, bundledCommandLineTool, administratorPrompt, tatolabAppLog),
     localApiSocket: machinePaths.localApiSocket,
     tatolabUninstall: new TatolabUninstallOnThisMac(
       machinePaths,

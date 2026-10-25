@@ -22,8 +22,9 @@ function statusOn(platform: unknown): TatolabStatus {
     runtime_state: "running",
     machine_name: "ada-workstation",
     streams: [],
-    machine_setup_state: "complete",
+    first_run_finished: true,
     command_line_tool_linked_at: null,
+    command_line_tool_usr_local_bin_link: { kind: "not_linked" },
     app_update: { kind: "not_checked" },
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
@@ -123,13 +124,22 @@ describe("holdsWindowShortcutModifier", () => {
 });
 
 describe("presentCommandLineTool", () => {
-  it("shows macOS's link to the copy inside the app", () => {
-    expect(presentCommandLineTool("macos", "/usr/local/bin/tatolab")).toEqual({
+  it("shows macOS's home-folder link to the copy inside the app, and says the app links it when it is missing", () => {
+    expect(presentCommandLineTool("macos", "/Users/ada/.local/bin/tatolab")).toEqual({
       isLinked: true,
-      shownValue: "/usr/local/bin/tatolab",
-      explanation: "Linked to the copy inside Tatolab.app, so it works in every terminal.",
+      shownValue: "~/.local/bin/tatolab",
+      explanation: "Linked to the copy inside Tatolab.app. It works in any terminal with ~/.local/bin on its PATH.",
+      pathLineToAdd: {
+        lead: "If a terminal can't find it, add this line to ~/.zprofile and open a new terminal:",
+        line: 'export PATH="$HOME/.local/bin:$PATH"',
+      },
     });
-    expect(presentCommandLineTool("macos", null)).toMatchObject({ isLinked: false, shownValue: "Not linked" });
+    expect(presentCommandLineTool("macos", null)).toEqual({
+      isLinked: false,
+      shownValue: "Not linked",
+      explanation: "Tatolab links it in ~/.local/bin each time it opens.",
+      pathLineToAdd: null,
+    });
   });
 
   it("shows the installer's link on Linux with its home shortened", () => {
@@ -137,11 +147,13 @@ describe("presentCommandLineTool", () => {
       isLinked: true,
       shownValue: "~/.local/bin/tatolab",
       explanation: "Installed with the runtime. It works in any terminal with ~/.local/bin on its PATH.",
+      pathLineToAdd: null,
     });
     expect(presentCommandLineTool("linux", null)).toEqual({
       isLinked: false,
       shownValue: "Not installed",
       explanation: "The installer puts it in ~/.local/bin with the runtime.",
+      pathLineToAdd: null,
     });
   });
 });

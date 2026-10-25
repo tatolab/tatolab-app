@@ -25,7 +25,12 @@ export interface TatolabBackend {
   getTatolabStatus(): Promise<TatolabStatus>;
   setRunTatolab(enabled: boolean): Promise<void>;
   openLoginItemsSettings(): Promise<void>;
-  setUpTatolab(): Promise<void>;
+  /** "Get Started": end first run, resolving once it is remembered and rejecting with why it was not; the window shows the Streams list either way. */
+  rememberFirstRunFinished(): Promise<void>;
+  /** Try Again: register the runtime's agent again and start it, resolving once the service manager has and rejecting in its words. */
+  registerTheRuntimeAgain(): Promise<void>;
+  /** Link `tatolab` in `/usr/local/bin` behind macOS's administrator prompt, resolving once it is linked and rejecting in words when the prompt is cancelled or the link is not offered. */
+  linkCommandLineToolInUsrLocalBin(): Promise<void>;
   quitTatolabApp(): Promise<void>;
   /** On macOS uninstalls Tatolab and quits at the end, rejecting with the reason when it can't; on Linux rejects with how to. */
   uninstallTatolab(): Promise<void>;
