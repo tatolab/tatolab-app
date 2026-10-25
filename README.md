@@ -219,7 +219,7 @@ manifest `build/latest-mac.yml`.
 `machine-directories-under-a-test-root` feature, and the packaged app with
 `TATOLAB_APP_BUILD_FEATURES.machineDirectoriesUnderATestRoot` set to `true`. The agent plist sets
 `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, so the state directory and the socket live under
-that root, and the machine lock is the test loopback port, and gives the runtime its test ports: its local relay on 14443 and
+that root, and gives the runtime its test ports: its local relay on 14443 and
 14445 and its loopback HTTP on 14446, where the app reads the preview page. That page reads the
 relay only at 4443 until tatolab/streamlib#2917, so a local-proof bundle's preview stays dark. The app links `tatolab` under
 the root's `home/.local/bin` and never in `/usr/local/bin`. Uninstalling a local-proof build removes

@@ -3,8 +3,7 @@
 
 // Where this build expects the runtime's pieces on macOS: the local API socket, as StreamLib's
 // `streamlib-runtime-client-contract` resolves it (`streamlib_runtime_directory.rs`,
-// `machine_directories_test_root.rs`), and the links that put the bundled CLI on the PATH. The
-// machine runtime lock is the loopback port the runtime binds itself, so no path here names it.
+// `machine_directories_test_root.rs`), and the links that put the bundled CLI on the PATH.
 // A local-proof build keeps the socket and its one link under its test root and never touches
 // `/usr/local/bin` or the person's home folder.
 
