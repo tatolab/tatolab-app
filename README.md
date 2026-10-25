@@ -153,6 +153,7 @@ Tatolab.app/Contents/
                                               (unchecked-hash .pyc) for CPython 3.10-3.14
   Resources/watch/                            the preview page tatolabd serves on its loopback HTTP
                                               (streamlib's lib/tatolab/watch)
+  Resources/streamlib-commit                  the streamlib commit the runtime was built from
   Library/LaunchAgents/com.tatolab.tatolabd.plist
                                               the SMAppService agent (packaging/launch-agent/)
 ```
@@ -193,14 +194,20 @@ namespaces (on by default on Ubuntu 22.04, restricted by AppArmor on 24.04).
 
 ## Building on macOS
 
-One command, from a checkout that has streamlib beside it (`../streamlib`):
+One command:
 
 ```sh
 scripts/build-tatolab-app.sh
 ```
 
-It builds streamlib's runtime unit (`cargo xtask build-runtime --release`, in streamlib's own
-target directory), then the Electron app: `npm run build` (the window into `out/renderer/`),
+It bundles streamlib's latest `main`. It never reads a streamlib checkout elsewhere on the machine:
+it resolves `main` on github.com/tatolab/streamlib to a commit, fetches exactly that commit into
+`build/streamlib` (keeping its cargo `target/` between builds), and builds the runtime unit there
+(`cargo xtask build-runtime --release`). The unit records that commit in `streamlib-commit`, the
+bundle carries it in `Contents/Resources/streamlib-commit`, and the app's version is the version
+of the `tatolabd` it bundles. When the build finishes it checks `main` again: if `main` moved on
+while it ran, the build fails and says to build again (a `--streamlib-ref` build only notes it,
+and an unreachable GitHub is noted, not fatal). Then the Electron app: `npm run build` (the window into `out/renderer/`),
 `npm run build:electron` (the main process, the preload and the build features), the arm64 Service Management addon,
 and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
 `@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
@@ -210,11 +217,10 @@ manifest `build/latest-mac.yml`.
 
 | Option | |
 |---|---|
-| `--streamlib PATH` | streamlib checkout (default `../streamlib`) |
-| `--runtime-unit DIR` | use an already-built runtime unit (`<streamlib>/target/tatolab-runtime`) |
+| `--streamlib-ref REF` | bundle this streamlib tag or commit instead of `main`'s head; a release passes its tag |
+| `--runtime-unit DIR` | use an already-built runtime unit; refused unless its `streamlib-commit` names the commit the build resolved |
 | `--sign-identity ID` | codesign identity; default `-` (ad-hoc) |
 | `--notarize` | notarize and staple; needs a `Developer ID Application` identity and `APPLE_API_KEY_PATH`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` |
-| `--app-version X.Y.Z` | bundle version; a release passes the streamlib version it bundles |
 | `--local-proof-test-root` | local proof build, below |
 | `--app-update-feed-url URL` | the update feed the app checks, in place of get.tatolab.com's; only with `--local-proof-test-root` |
 
@@ -239,15 +245,16 @@ The individual steps are separate scripts in `scripts/`:
 
 | Script | |
 |---|---|
-| `build-tatolab-runtime-unit.sh <streamlib> [--local-proof-test-root]` | builds the runtime unit |
+| `fetch-streamlib-for-the-app-build.sh <dir> [--streamlib-ref REF] [--resolve-only] [--expect-commit SHA]` | resolves streamlib's `main` (or REF) to a commit and fetches exactly that commit into `<dir>`; `--expect-commit` fails when REF has moved off SHA |
+| `build-tatolab-runtime-unit.sh <streamlib> [--local-proof-test-root]` | builds the runtime unit in a clean streamlib checkout and records its commit in the unit's `streamlib-commit` |
 | `tatolab_app_build_features.mjs write <features.json> [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features; `npm run build:electron -- <flags>` runs it last |
 | `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features a packaged app carries; `--shipping` refuses the test root or any feed but get.tatolab.com's |
 | `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
-| `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/moq-relay`, `lib/tatolab/lend` or `lib/tatolab/watch`, or ships anything else in `bin/` or `lib/tatolab/` |
+| `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/moq-relay`, `lib/tatolab/lend` or `lib/tatolab/watch`, or ships anything else in `bin/` or `lib/tatolab/` |
 | `sign-tatolab-app-bundle.sh <Tatolab.app> <identity>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) |
 | `make-tatolab-dmg.sh <Tatolab.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless) and its signature |
 | `notarize-and-staple.sh <Tatolab.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
-| `verify-tatolab-app-bundle.sh <Tatolab.app\|.dmg> [--shipping]` | checks the signature, layout, plists, entitlements, fuses, and Gatekeeper once stapled |
+| `verify-tatolab-app-bundle.sh <Tatolab.app\|.dmg> [--shipping]` | checks the signature, layout, plists, that the bundled `tatolabd` is the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
 | `write_tatolab_app_update_manifest.mjs <manifest.yml> <version> <file>...` | writes the update feed's manifest for those files: sizes, SHA-512s, and URLs under `../releases/<version>/` |
 | `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tatolab.rb` from `packaging/homebrew/tatolab.rb.template` |
 

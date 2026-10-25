@@ -5,7 +5,8 @@
 # Checks a signed Tatolab.app, or the Tatolab.app inside a .dmg, against the bundle contract:
 # a strict deep signature, the hardened runtime on every Mach-O unless ad-hoc, no Mach-O outside
 # Contents/MacOS and Contents/Frameworks, every symlink resolving inside the bundle, the launch
-# agent plist, the Info.plist usage strings, the lend's CPython 3.10-3.14 bytecode, the runtime's
+# agent plist, the Info.plist usage strings, the bundled runtime's version against the app's and
+# the streamlib commit it was built from, the lend's CPython 3.10-3.14 bytecode, the runtime's
 # preview page, the entitlements of tatolabd, moq-relay, the app and Electron's helpers, Electron's
 # fuses, the build features the app was built with, and the Service Management addon. Reading the
 # fuses and the build features needs this checkout's node_modules (npm ci).
@@ -101,6 +102,18 @@ verify_app_bundle() {
     [ -x "$contents/MacOS/$bundled_executable" ] && pass "Contents/MacOS/$bundled_executable is present" \
       || fail "Contents/MacOS/$bundled_executable is missing"
   done
+  local app_short_version bundled_tatolabd_version
+  app_short_version="$(plutil -extract CFBundleShortVersionString raw -o - "$info_plist" 2>/dev/null || true)"
+  bundled_tatolabd_version="$("$contents/MacOS/tatolabd" --version 2>/dev/null || true)"
+  bundled_tatolabd_version="${bundled_tatolabd_version##* }"
+  [ -n "$app_short_version" ] && [ "$bundled_tatolabd_version" = "$app_short_version" ] \
+    && pass "the bundled tatolabd is $bundled_tatolabd_version, the app's version" \
+    || fail "the bundled tatolabd is '$bundled_tatolabd_version', not the app's version '$app_short_version'"
+  local bundled_streamlib_commit
+  bundled_streamlib_commit="$(cat "$contents/Resources/streamlib-commit" 2>/dev/null || true)"
+  [[ "$bundled_streamlib_commit" =~ ^[0-9a-f]{40}$ ]] \
+    && pass "the runtime was built from streamlib $bundled_streamlib_commit" \
+    || fail "Resources/streamlib-commit names no streamlib commit: which runtime this bundles is unknown"
   plutil -extract NSAppTransportSecurity xml1 -o - "$info_plist" >/dev/null 2>&1 \
     && fail "Info.plist carries Electron's NSAppTransportSecurity exception" || pass "Info.plist carries no App Transport Security exception"
   local usage_key usage_description
