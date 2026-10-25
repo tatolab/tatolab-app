@@ -24,10 +24,12 @@ function buildFeaturesBesideTheMainBundle(): Plugin {
     resolveId: (importedId) => (importedId === BUILD_FEATURES_IMPORT ? { id: BUILD_FEATURES_IMPORT, external: true } : null),
     // Vite's build import analysis drops an external import's `with { type: "json" }`, and Node
     // refuses to import JSON without it.
-    renderChunk(chunkCode) {
+    renderChunk(chunkCode, chunk) {
+      if (!chunk.imports.includes(BUILD_FEATURES_IMPORT)) return null;
       const importsWithoutTheAttribute = chunkCode.split(BUILD_FEATURES_IMPORT_WITHOUT_ITS_ATTRIBUTE).length - 1;
-      if (importsWithoutTheAttribute === 0) return null;
-      if (importsWithoutTheAttribute > 1) this.error(`the main bundle imports ${BUILD_FEATURES_IMPORT} ${importsWithoutTheAttribute} times; expected once`);
+      if (importsWithoutTheAttribute !== 1) {
+        this.error(`${chunk.fileName} imports ${BUILD_FEATURES_IMPORT}, but its import reads as \`${BUILD_FEATURES_IMPORT_WITHOUT_ITS_ATTRIBUTE}\` ${importsWithoutTheAttribute} times; expected once`);
+      }
       return chunkCode.replace(BUILD_FEATURES_IMPORT_WITHOUT_ITS_ATTRIBUTE, `from "${BUILD_FEATURES_IMPORT}" with { type: "json" };`);
     },
     async generateBundle() {
