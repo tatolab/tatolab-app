@@ -89,7 +89,7 @@ npm ci
 npm run build
 npm run build:electron
 npm run build:service-management-addon -- --arch=arm64
-built_service_management_addon="$repository_root/src-electron/native/service_management_agent_services/build/Release/service_management_agent_services.node"
+built_service_management_addon="$repository_root/native/service_management_agent_services/build/Release/service_management_agent_services.node"
 [ "$(lipo -archs "$built_service_management_addon")" = arm64 ] || { echo "$built_service_management_addon is not arm64-only" >&2; exit 1; }
 packaged_app="$(node scripts/package_tatolab_electron_app.mjs darwin "$app_version" "$build_directory/electron-packaging" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} | tail -1)"
 rm -rf "$assembled_app"

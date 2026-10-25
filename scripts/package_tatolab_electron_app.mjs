@@ -45,7 +45,7 @@ if (localAppUpdateFeedUrl !== null && !localProofTestRoot) {
 }
 const outputDirectory = path.resolve(outputDirectoryArgument);
 const stagedAppDirectory = path.join(outputDirectory, "staged-app");
-const builtFeaturesModule = path.join("src-electron", "build", "src-electron", "src", "tatolab_app_build_features.js");
+const builtFeaturesModule = path.join("out", "main", "tatolab_app_build_features.js");
 const shippingFeaturesLiteral = "machineDirectoriesUnderATestRoot: false";
 const localProofFeaturesLiteral = "machineDirectoriesUnderATestRoot: true";
 const shippingAppUpdateFeedLiteral = 'appUpdateFeedUrl: "https://get.tatolab.com/app/"';
@@ -69,9 +69,9 @@ for (const builtWindowFileName of await readdir(path.join(stagedAppDirectory, "d
     throw new Error(`dist/assets/${builtWindowFileName} is the mock window's ${mockWindowModuleName}, which the app never ships: run npm run build`);
   }
 }
-await cp(path.join(repositoryRoot, "src-electron", "build"), path.join(stagedAppDirectory, "src-electron", "build"), { recursive: true });
+await cp(path.join(repositoryRoot, "out"), path.join(stagedAppDirectory, "out"), { recursive: true });
 for (const trayIconFileName of ["tray-template.png", "tray-template@2x.png", "tray-coloured.png"]) {
-  await cp(path.join(repositoryRoot, "src-electron", "icons", trayIconFileName), path.join(stagedAppDirectory, "src-electron", "icons", trayIconFileName));
+  await cp(path.join(repositoryRoot, "resources", trayIconFileName), path.join(stagedAppDirectory, "resources", trayIconFileName));
 }
 // The main process's runtime dependencies, as `npm ci` installed them from the lockfile: every
 // package `npm ls --omit=dev` names, at the path it holds under node_modules.
@@ -117,7 +117,7 @@ const [packagedDirectory] = await packager({
   appCategoryType: "public.app-category.developer-tools",
   appCopyright: "Copyright (c) 2025 Jonathan Fontanez",
   extendInfo: path.join(repositoryRoot, "packaging", "macos", "Info.plist"),
-  icon: path.join(repositoryRoot, "src-electron", "icons", "icon.icns"),
+  icon: path.join(repositoryRoot, "resources", "icon.icns"),
   asar: true,
   prune: false,
   extraResource: [appUpdateConfigFile],

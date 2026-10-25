@@ -5,13 +5,13 @@
 // answers on `<socket>` what the app reads — `GET /health`, the MCP tools `list_streams`, `logs`
 // and `graph`, and `GET /api/graph`'s machine name — and the stream actions `stop_stream`, `start_stream` and
 // `remove_stream`, changing its listing as the runtime does, from the responses recorded from a
-// real runtime under src-electron/test-fixtures/. Usage: node tatolabd-local-api-stand-in.mjs <socket>
+// real runtime under src/main/test-fixtures/. Usage: node tatolabd-local-api-stand-in.mjs <socket>
 import { readFileSync, rmSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const RECORDED_RESPONSES = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../src-electron/test-fixtures");
+const RECORDED_RESPONSES = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../src/main/test-fixtures");
 const STAND_IN_MACHINE_NAME = "linux-container-stand-in";
 const recorded = (fileName) => JSON.parse(readFileSync(path.join(RECORDED_RESPONSES, fileName), "utf8"));
 

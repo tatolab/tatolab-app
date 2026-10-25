@@ -138,7 +138,7 @@ DESKTOP
       *) icon_file="$icon_size.png" ;;
     esac
     mkdir -p "$install_root/usr/share/icons/hicolor/$icon_size/apps"
-    install -m 0644 "src-electron/icons/$icon_file" "$install_root/usr/share/icons/hicolor/$icon_size/apps/Tatolab.png"
+    install -m 0644 "resources/$icon_file" "$install_root/usr/share/icons/hicolor/$icon_size/apps/Tatolab.png"
   done
 }
 

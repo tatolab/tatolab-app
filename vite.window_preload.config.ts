@@ -9,11 +9,11 @@ export default defineConfig({
   publicDir: false,
   build: {
     target: "chrome152",
-    outDir: "src-electron/build/preload",
+    outDir: "out/preload",
     emptyOutDir: true,
     minify: false,
     lib: {
-      entry: "src-electron/src/preload/tatolab_window_preload.ts",
+      entry: "src/preload/tatolab_window_preload.ts",
       formats: ["cjs"],
       fileName: () => "tatolab_window_preload.cjs",
     },
