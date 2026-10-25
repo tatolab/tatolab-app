@@ -2,6 +2,18 @@
 
 Everything below was captured while building ticket tatolab/streamlib#2609. **Live** = the real app on a real runtime on a Mac. **Linux** = arm64 Ubuntu containers on that Mac (runtime stand-ins labeled — no Linux runtime ran). **Mock** = the window's frontend in a browser with realistic mock data, for states that are hard to reach live.
 
+## The window builds to out/renderer, and Tauri's icons are sorted (#66)
+
+Frames are in [`standard-layout/finish-66/`](standard-layout/finish-66/). The packaged app is the same local-proof build as #64's, over streamlib v0.55.4's test-root unit. Its `app.asar` holds `out/main`, `out/preload`, `out/renderer`, `out/shared` and `resources/tray-*.png`, and no `dist/`. The bundle's `electron.icns` is byte-identical to `packaging/icons/icon.icns`.
+
+| what | label | image | shows |
+|---|---|---|---|
+| The packaged app opens | Live (local proof) | `finish-66/01-opened.png` | Welcome to Tatolab, served from `out/renderer` in the asar. |
+| Its runtime answers | Live (local proof) | `finish-66/02-getting-set-up.png` | "Start the runtime · Running" with a tick, and Get Started enabled. |
+| The Streams list | Live (local proof) | `finish-66/03-streams.png` | "Nothing loaded on jonathanf-macbook", the empty state's choices, and "Runtime running · Tatolab 0.45.0". |
+| The tray icon | Live (local proof) | `finish-66/04-tray-icon-in-the-menu-bar.png` | The "T" template icon leftmost in the menu bar. |
+| Linux, built from HEAD | Linux (container, unbundled) · stand-in runtime | `finish-66/linux-01-streams-light.png`, `linux-02-streams-dark.png` | "1 of 3 loaded": main Running, pattern-two Stopped, lobby-recorder Failed with its reason, light and dark, over the stand-in local API. |
+
 ## The standard Electron layout (#64)
 
 The code moved to `src/main`, `src/preload`, `src/renderer` and `src/shared`, with no change to what the app does. Frames are in [`standard-layout/`](standard-layout/).
