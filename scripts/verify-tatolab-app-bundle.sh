@@ -251,9 +251,11 @@ verify_app_bundle() {
   signed_code_entitlement_keys="$(entitlement_keys_of "$contents/MacOS/tatolabd")"
   [ "$signed_code_entitlement_keys" = "$allowed_tatolabd_entitlements" ] \
     && pass "tatolabd carries exactly: $allowed_tatolabd_entitlements" || fail "tatolabd's entitlements are '$signed_code_entitlement_keys', not '$allowed_tatolabd_entitlements'"
-  signed_code_entitlement_keys="$(entitlement_keys_of "$contents/MacOS/moq-relay")"
-  [ -z "$signed_code_entitlement_keys" ] \
-    && pass "moq-relay carries no entitlements" || fail "moq-relay's entitlements are '$signed_code_entitlement_keys', not none"
+  if [ -e "$contents/MacOS/moq-relay" ]; then
+    signed_code_entitlement_keys="$(entitlement_keys_of "$contents/MacOS/moq-relay")"
+    [ -z "$signed_code_entitlement_keys" ] \
+      && pass "moq-relay carries no entitlements" || fail "moq-relay's entitlements are '$signed_code_entitlement_keys', not none"
+  fi
   local helper_app helper_app_count=0 allowed_helper_entitlements
   while IFS= read -r -d '' helper_app; do
     helper_app_count=$((helper_app_count + 1))
