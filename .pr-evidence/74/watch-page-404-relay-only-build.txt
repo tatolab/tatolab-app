@@ -1,8 +1,0 @@
-# with moq-relay bundled but no Contents/Resources/watch (commit 16a9091 build)
-$ curl -i http://127.0.0.1:4446/watch/jonathanf-macbook/hello-4/h264encoder/encoded_video
-HTTP/1.1 404 Not Found
-content-type: text/plain; charset=utf-8
-content-length: 112
-
-this runtime unit carries no preview page: /Applications/Tatolab.app/Contents/Resources/watch is not a directory
-

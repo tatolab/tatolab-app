@@ -1,4 +1,0 @@
-  PID  PPID COMMAND
-35259     1 Contents/MacOS/tatolabd
-35261 35259 /Applications/Tatolab.app/Contents/MacOS/moq-relay /tmp/streamlib-501/relays/local-loopback/relay.toml
-35262 35259 /Applications/Tatolab.app/Contents/MacOS/moq-relay /tmp/streamlib-501/relays/local-every-interface/relay.toml
