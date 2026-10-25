@@ -52,9 +52,9 @@ request and never reaches `main`.
      `TATOLAB_TEST_LOOPBACK_HTTP_PORT=14446` and the two `TATOLAB_TEST_LOCAL_RELAY_*_PORT`s. The
      preview page reads the relay only at 4443, so a preview plays only when the test relay takes
      4443 and 4445; check they are free first.
-   - `npm run build && npm run build:electron`, switch `machineDirectoriesUnderATestRoot` on in
-     the built `tatolab_app_build_features.js` only, and run `npx electron .
-     --remote-debugging-port=<port>` with `TATOLAB_TEST_MACHINE_ROOT` and `CFFIXED_USER_HOME` (a
+   - `npm run build && npm run build:electron -- --local-proof-test-root` (it writes
+     `machineDirectoriesUnderATestRoot: true` into `out/main/tatolab_app_build_features.json`;
+     never edit the built `.js`), and run `npx electron . --remote-debugging-port=<port>` with `TATOLAB_TEST_MACHINE_ROOT` and `CFFIXED_USER_HOME` (a
      scratch home) set. Drive it with Playwright over the DevTools protocol; Electron answers no
      window-bounds command there, so a larger page is an emulated viewport, said in the caption.
    - **The unpackaged app still calls Service Management at launch**: it tries to register the
@@ -63,7 +63,8 @@ request and never reaches `main`.
      `launchctl print gui/$(id -u)/com.tatolab.tatolabd` and the runtime's pid before, and show
      both unchanged after.
    - After: quit the app, stop the unit's `tatolabd`, `rm -rf /tmp/tatolab-proof`, remove the
-     scratch worktree, and build again so the built copy is back to `false`.
+     scratch worktree, and run `npm run build:electron` again so `out/` holds the shipping
+     features.
 
    A change to what the app reads from the local API also runs the live contract test against
    that runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=/tmp/tatolab-proof/run/local-api.sock npx vitest

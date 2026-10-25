@@ -3,6 +3,7 @@ paths:
   - "package.json"
   - "package-lock.json"
   - "scripts/package_tatolab_electron_app.mjs"
+  - "scripts/tatolab_app_build_features.mjs"
   - "scripts/build-tatolab-linux-app.sh"
 ---
 
