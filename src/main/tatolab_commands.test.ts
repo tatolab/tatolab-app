@@ -91,6 +91,7 @@ async function sharedStateOverFakes(
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
+    appBuild: { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", build_kind: "dev", built_with_uncommitted_changes: true },
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
@@ -165,7 +166,9 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
     "macos"
   );
   expect(JSON.stringify(await runningRuntime.controller.composeStatus(0))).toBe(
-    '{"app_version":"0.45.0","platform":"macos","run_tatolab":true,' +
+    '{"app_version":"0.45.0",' +
+      '"app_build":{"tatolab_app_commit":"22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1","build_kind":"dev","built_with_uncommitted_changes":true},' +
+      '"platform":"macos","run_tatolab":true,' +
       '"runtime_agent":"enabled","runtime_state":"running",' +
       '"machine_name":"jonathanf-macbook","streams":[' +
       '{"name":"main","state":"kept","project_directory":"/private/tmp/x/pattern",' +
@@ -180,7 +183,9 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
   runtimeThatIsDown.commandLineToolLinks.homeFolderLinkedAt = null;
   runtimeThatIsDown.commandLineToolLinks.usrLocalBinLink = { kind: "not_offered", reason: "On Linux the installer links tatolab into ~/.local/bin with the runtime." };
   expect(JSON.stringify(await runtimeThatIsDown.controller.composeStatus(0))).toBe(
-    '{"app_version":"0.45.0","platform":"linux","run_tatolab":true,' +
+    '{"app_version":"0.45.0",' +
+      '"app_build":{"tatolab_app_commit":"22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1","build_kind":"dev","built_with_uncommitted_changes":true},' +
+      '"platform":"linux","run_tatolab":true,' +
       '"runtime_agent":"enabled","runtime_state":"starting","machine_name":null,' +
       '"streams":null,"first_run_finished":false,"command_line_tool_linked_at":null,' +
       '"command_line_tool_usr_local_bin_link":{"kind":"not_offered","reason":"On Linux the installer links tatolab into ~/.local/bin with the runtime."},' +

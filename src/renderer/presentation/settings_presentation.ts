@@ -2,6 +2,7 @@ import type {
   CommandLineToolUsrLocalBinLink,
   RuntimeDescription,
   StreamFailureNotificationsState,
+  TatolabAppBuild,
   TatolabAppOpenAtLogin,
   TatolabCommandLineToolVersion,
   TatolabPlatform,
@@ -107,6 +108,18 @@ export function presentAboutVersions(status: TatolabStatus, runtimeDescription: 
   return status.runtime_state === "running" && runtimeDescription.kind === "read"
     ? `${appVersion} · tatolabd ${runtimeDescription.description.version}`
     : appVersion;
+}
+
+/** About's Build line: `Build 22b07a1-release`, `Build 22b07a1-dev (modified)` for a build with uncommitted changes, or `Build not recorded`. */
+export function presentAboutBuild(appBuild: TatolabAppBuild | null): string {
+  if (appBuild === null) return "Build not recorded";
+  const buildId = `${appBuild.tatolab_app_commit.slice(0, 7)}-${appBuild.build_kind}`;
+  return appBuild.built_with_uncommitted_changes ? `Build ${buildId} (modified)` : `Build ${buildId}`;
+}
+
+/** About's copyright, in the year `wallClockNow` reads. */
+export function presentAboutCopyright(wallClockNow: Date): string {
+  return `© ${wallClockNow.getFullYear()} Jonathan Fontanez`;
 }
 
 /** Runtime › Login Items on macOS: what it says of the runtime's entry under Allow in the Background, as Service Management reports it. */

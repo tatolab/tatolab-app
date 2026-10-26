@@ -82,9 +82,21 @@ export interface StreamFailureNotificationsState {
   shown_by_this_desktop: boolean;
 }
 
+/** Which build of the app is running, as its build features recorded it when it was built. */
+export interface TatolabAppBuild {
+  /** The full 40-hex tatolab-app commit the build was built at. */
+  tatolab_app_commit: string;
+  /** `release` for a build the release workflow made; every other build, a local proof build included, is `dev`. */
+  build_kind: "dev" | "release";
+  /** Whether the checkout it was built from had changes, untracked files included, that the commit does not hold. */
+  built_with_uncommitted_changes: boolean;
+}
+
 /** What `get_tatolab_status` answers and `tatolab-status-changed` carries. */
 export interface TatolabStatus {
   app_version: string;
+  /** `null` for a build that recorded none, which only `electron-vite dev` runs. */
+  app_build: TatolabAppBuild | null;
   platform: TatolabPlatform;
   run_tatolab: boolean;
   runtime_agent: RuntimeAgentRegistration;

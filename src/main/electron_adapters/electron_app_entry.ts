@@ -6,7 +6,7 @@ import { app, autoUpdater as electronNativeAutoUpdater, Menu } from "electron";
 import { startTatolabApp, type TatolabElectronAppShell, type TatolabRunningApp } from "../main.js";
 import { describeCaughtFailure } from "../result.js";
 import { createTatolabAppLogToStandardError } from "../tatolab_app_log.js";
-import { TATOLAB_APP_BUILD_FEATURES } from "../tatolab_app_build_features.js";
+import { TATOLAB_APP_BUILD_FEATURES, tatolabAppBuildForTheWindow } from "../tatolab_app_build_features.js";
 import { TATOLAB_APP_IDENTIFIER } from "../platform/tatolab_app_identifier.js";
 import { tatolabPlatformItemsForThisBuild } from "../platform/tatolab_platform_items.js";
 import type { TatolabPlatformHostServices } from "../platform/tatolab_platform_for_this_build.js";
@@ -87,6 +87,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   },
   appConfigDirectory: tatolabPlatformHostServices.appConfigDirectory,
   appVersion: app.getVersion(),
+  appBuild: tatolabAppBuildForTheWindow(TATOLAB_APP_BUILD_FEATURES.tatolabAppBuildId),
   runtimeLoopbackHttpOrigin,
   readMonotonicClockMs: () => performance.now(),
   mainWindowHostFactory: createElectronMainWindowHostFactory(

@@ -13,6 +13,7 @@ import {
   STREAM_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
   type RuntimeDescription,
+  type TatolabAppBuild,
   type TatolabAppOpenAtLogin,
   type TatolabCommandLineToolVersion,
   type StreamGraphSummary,
@@ -168,6 +169,8 @@ export interface MockTatolabOptions {
   usrLocalBinLinkScenario: "not_linked" | "linked" | "cancel";
   /** `?first_run_remember=refused`: Get Started ends first run but its file cannot be written, as when the app's config folder refuses it. */
   isRememberingFirstRunRefused: boolean;
+  /** `?app_build=release|modified|none`: a release build, a dev build with uncommitted changes, or one that recorded none; a dev build by default. */
+  appBuild: TatolabAppBuild | null;
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -184,6 +187,21 @@ function mockOpenAtLogin(openAtLoginInTheQuery: string | null): TatolabAppOpenAt
       return { kind: "not_offered", reason: "Only a packaged Tatolab opens at login." };
     default:
       return { kind: "off" };
+  }
+}
+
+/** What `?app_build=` names. */
+function mockAppBuild(appBuildInTheQuery: string | null): TatolabAppBuild | null {
+  const mockDevBuild: TatolabAppBuild = { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", build_kind: "dev", built_with_uncommitted_changes: false };
+  switch (appBuildInTheQuery) {
+    case "release":
+      return { ...mockDevBuild, build_kind: "release" };
+    case "modified":
+      return { ...mockDevBuild, built_with_uncommitted_changes: true };
+    case "none":
+      return null;
+    default:
+      return mockDevBuild;
   }
 }
 
@@ -233,6 +251,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isFirstRunUnfinished: pageQuery.get("first_run") === "unfinished",
     usrLocalBinLinkScenario: pageQuery.get("usr_local_bin") === "linked" ? "linked" : pageQuery.get("usr_local_bin") === "cancel" ? "cancel" : "not_linked",
     isRememberingFirstRunRefused: pageQuery.get("first_run_remember") === "refused",
+    appBuild: mockAppBuild(pageQuery.get("app_build")),
   };
 }
 
@@ -271,10 +290,11 @@ function initialMockStatus(
   scenario: MockTatolabScenario,
   platform: TatolabPlatform,
   machine: MockMachine,
-  { appUpdateScenario, openAtLogin, doesTheDesktopShowNoNotifications, commandLineToolVersion, isFirstRunUnfinished, usrLocalBinLinkScenario }: MockTatolabOptions,
+  { appUpdateScenario, openAtLogin, doesTheDesktopShowNoNotifications, commandLineToolVersion, isFirstRunUnfinished, usrLocalBinLinkScenario, appBuild }: MockTatolabOptions,
 ): TatolabStatus {
   const runningStatus: TatolabStatus = {
     app_version: "0.45.0",
+    app_build: appBuild,
     platform,
     run_tatolab: true,
     runtime_agent: "enabled",

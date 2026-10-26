@@ -27,6 +27,7 @@ function listedStreams(streamCount: number): ListedStream[] {
 function statusWith(runtimeState: RuntimeState, runtimeAgent: RuntimeAgentRegistrationStatus, streamCount: number | null): TatolabStatus {
   return {
     app_version: "0.45.0",
+    app_build: null,
     platform: "macos",
     run_tatolab: true,
     runtime_agent: runtimeAgent,

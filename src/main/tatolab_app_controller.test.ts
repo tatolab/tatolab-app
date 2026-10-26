@@ -58,6 +58,7 @@ async function controllerOverFakes(
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
+    appBuild: null,
     readMonotonicClockMs,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
@@ -79,7 +80,7 @@ test("a healthy runtime's status names its streams and machine, read as the wind
   );
 
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
-    '{"app_version":"0.45.0","platform":"macos","run_tatolab":true,"runtime_agent":"enabled","runtime_state":"running",' +
+    '{"app_version":"0.45.0","app_build":null,"platform":"macos","run_tatolab":true,"runtime_agent":"enabled","runtime_state":"running",' +
       '"machine_name":"jonathanf-macbook","streams":[{"name":"main","state":"kept","project_directory":"/p","node_count":4,"failed_because":null}],' +
       '"first_run_finished":false,"command_line_tool_linked_at":null,"command_line_tool_usr_local_bin_link":{"kind":"not_linked"},' +
       '"app_update":{"kind":"not_checked"},' +
@@ -222,6 +223,7 @@ test("a tray toggle and a window request run in turn, never interleaved", async 
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.45.0",
+    appBuild: null,
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
@@ -258,6 +260,7 @@ async function controllerAtAppVersion(appVersion: string, appConfigDirectory: st
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion,
+    appBuild: null,
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
@@ -301,6 +304,7 @@ test("the restarted runtime gets the starting grace again", async () => {
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.47.0",
+    appBuild: null,
     readMonotonicClockMs: () => nowMs,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
@@ -350,6 +354,7 @@ test("each status carries where updates stand", async () => {
     appConfigDirectory,
     appLaunchedAtMs: 0,
     appVersion: "0.46.3",
+    appBuild: null,
     readMonotonicClockMs: () => 0,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" }),

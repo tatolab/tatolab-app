@@ -17,6 +17,8 @@ import { presentTatolabAppUpdate } from "../presentation/app_update_presentation
 import { presentCommandLineTool, presentPlatform } from "../presentation/platform_presentation";
 import type { StatusTone } from "../presentation/runtime_presentation";
 import {
+  presentAboutBuild,
+  presentAboutCopyright,
   presentAboutVersions,
   presentCommandLineToolVersion,
   presentLoginItemsRow,
@@ -449,6 +451,9 @@ function AboutSection() {
         <img src={mascotImageUrl} alt="" className="size-24" />
         <h1 className="mt-3 title-lg">Tatolab</h1>
         <p className="text-fg-3 tabular select-text">{versions}</p>
+        <p className="text-fg-3 tabular select-text" data-about-build="">
+          {presentAboutBuild(status.app_build)}
+        </p>
       </div>
       <div className="w-full text-left">
         <SettingsGroup>
@@ -468,7 +473,8 @@ function AboutSection() {
       </div>
       <p className="max-w-sm text-xs text-fg-3">
         Runtime licensed {RUNTIME_LICENCE}.
-        <br />© 2025 Jonathan Fontanez
+        <br />
+        {presentAboutCopyright(new Date())}
       </p>
     </div>
   );

@@ -5,6 +5,7 @@ import { presentGettingStarted } from "./getting_started_presentation";
 function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
   return {
     app_version: "0.55.4",
+    app_build: null,
     platform: "macos",
     run_tatolab: true,
     runtime_agent: "enabled",
