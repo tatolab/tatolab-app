@@ -37,6 +37,11 @@ paths:
   `out/main/tatolab_app_build_features.json`, which the main process imports and the bundle checks
   read out of `app.asar` (`scripts/tatolab_app_build_features.mjs read`). No script edits compiled
   JavaScript, and no check greps the asar for compiler text.
+- **One signing identity.** The bundle is signed with the Developer ID Application identity from
+  Infisical, imported for the build and removed after it, and by nothing else. The build scripts
+  accept no other identity and have no ad-hoc mode; a missing certificate or identity stops the
+  build before it assembles anything, naming what is missing. `verify-tatolab-app-bundle.sh` fails
+  any bundle whose signature is ad-hoc or carries another Team ID. Only a release is notarized.
 - **Signing and the bundle's seal are load-bearing.** Code lives only under `Contents/MacOS/` and
   `Contents/Frameworks/`; nothing writes into a signed bundle at run time; entitlements change only
   with a stated reason (each one is something the hardened runtime otherwise refuses). A
