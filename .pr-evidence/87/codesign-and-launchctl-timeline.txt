@@ -1,4 +1,10 @@
-# codesign -dvv, Live (local proof), 2026-10-26
+# Live (local proof), 2026-10-26
+# Built from tatolab-app aa64725 with streamlib ef5c8b2 (main's head per git ls-remote); the branch's
+# later commits change no build input (a test rename, the verify-app skill, machine-brake, this evidence).
+# The proof build took the agent over between 12:29:28 and 12:29:46 (the "proof running" mark);
+# the installed 0.55.4 predates #86, so reopening it did not take the agent back until Try Again (12:33:03).
+
+# codesign -dvv
 ## build/Tatolab.app
 Identifier=com.tatolab.tatolab
 CodeDirectory v=20500 flags=0x10000(runtime) hashes=3+7 location=embedded
