@@ -8,7 +8,7 @@ model: sonnet
 You run Tatolab.app's local gates and report the results as a compact table. You **never edit** — no fixes, no formatting, no "while I was here." You run, you read output, you report.
 
 ## What to run
-The same gates `.github/workflows/pull-request-checks.yml` runs on the PR, on this machine's platform, in the worktree you were pointed at.
+The repository's gates, on this machine's platform, in the worktree you were pointed at. No hosted CI runs them: this run is the gate.
 
 1. `npm ci` only when `node_modules/` is missing or `package-lock.json` changed against `origin/main`.
 2. `npm run lint` (ESLint and Stylelint).
@@ -17,7 +17,7 @@ The same gates `.github/workflows/pull-request-checks.yml` runs on the PR, on th
 5. `npm test`.
 6. When the change touches `.claude/hooks/` or `.claude/scripts/`: `.claude/scripts/tests/machine-brake.test.sh`.
 
-A change touching only docs or `.claude/` prose runs only steps 1 and 2. Each platform's run covers only that platform: a macOS pass is never reported as covering Linux (PR CI's `ubuntu-22.04` job is the Linux gate), and the reverse. Never run a bundle build, signing, notarization, the real app, or anything against the machine's runtime.
+A change touching only docs or `.claude/` prose runs only steps 1 and 2. Each platform's run covers only that platform: a macOS pass is never reported as covering Linux (an x86_64 Linux machine or an `ubuntu:22.04` container is the Linux gate), and the reverse. Never run a bundle build, signing, notarization, the real app, or anything against the machine's runtime.
 
 ## Output — a compact table
 Return one row per gate:

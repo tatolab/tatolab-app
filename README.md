@@ -305,47 +305,35 @@ unpackaged app finds no launch agent, so "Run Tatolab" registers nothing there; 
 packaged app does. `node scripts/serve_the_mock_window_in_a_browser.mjs` serves the window alone, in a browser at the URL it prints, against a mock backend; a build leaves the mock
 out, and packaging refuses an `out/renderer/` that carries it.
 
-## CI
+## Checks
 
-`.github/workflows/pull-request-checks.yml` runs `npm run lint` and, on `macos-15` and
-`ubuntu-22.04`, `npm run build` and `npm test` on every pull request.
-`.github/workflows/macos-app.yml` builds the macOS app on `macos-15` and the Linux packages on
-`ubuntu-22.04`, each job type-checking and testing the app first, and keeps the uploaded artifacts
-7 days:
+No hosted CI runs on this repository; every gate runs on a developer's machine. Before a pull
+request: `npm run lint`, `npm run build` and `npm test` (on macOS also
+`npm run build:service-management-addon`), which the `local-ci-runner` agent runs and reports.
+`npm test` runs both platforms' modules on any OS. A packaging change also carries a signed
+`scripts/build-tatolab-app.sh` build of its branch, whose last step is
+`scripts/verify-tatolab-app-bundle.sh`, and a Linux packaging change a
+`scripts/build-tatolab-linux-app.sh` run on x86_64 Linux.
 
-- **push to `main`**: builds against streamlib `main` and uploads the `.dmg`, the `.deb` and the
-  AppImage as artifacts.
-- **`workflow_dispatch`**: `streamlib_ref` (branch, tag or sha) and `publish` (needs a release
-  tag such as `v0.46.0`).
-- **`repository_dispatch` `streamlib-release`**: `client_payload.tag` names the streamlib
-  release. It builds against that tag and publishes.
-
-Secrets (the Infisical names). Without the Developer ID secrets the macOS build fails; without the
-App Store Connect key it is signed but not notarized, and nothing is published:
+The build scripts read these secrets from Infisical (`infisical run -- …`). Without the Developer
+ID ones the macOS build stops; notarization needs the App Store Connect key:
 
 | Secret | |
 |---|---|
 | `APPLE_CERTIFICATE` | base64 Developer ID Application `.p12` |
 | `APPLE_CERTIFICATE_PASSWORD` | its password |
 | `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: … (TEAMID)` |
-| `APPLE_TEAM_ID` | the team id |
 | `APPLE_API_KEY_ID` | App Store Connect API key id (notarization) |
 | `APPLE_API_ISSUER` | its issuer id |
-| `APPLE_API_KEY_P8_BASE64` | base64 of the `AuthKey_<id>.p8` |
-| `STREAMLIB_RELEASE_UPLOAD_TOKEN` | token allowed to upload assets to tatolab/streamlib releases |
-| `HOMEBREW_TAP_DEPLOY_KEY` | write deploy key of tatolab/homebrew-tap |
+| `APPLE_API_KEY_PATH` | path to the `AuthKey_<id>.p8` (notarization) |
 
 ## How a release flows
 
-1. streamlib cuts release `vX.Y.Z` (release-please).
-2. streamlib's release workflow sends `repository_dispatch` (`event_type: streamlib-release`,
-   `client_payload: {"tag": "vX.Y.Z"}`) to this repository.
-3. `macos-app.yml` builds Tatolab.app X.Y.Z around that tag's runtime unit. It signs with the
-   Developer ID, notarizes and staples the app and the `.dmg`, and verifies both. Beside it, it
-   builds the Linux `.deb` and AppImage at X.Y.Z.
-4. The publish job refuses anything that was not notarized. Otherwise it uploads
-   `Tatolab-X.Y.Z-arm64.dmg`, `Tatolab-X.Y.Z-amd64.deb` and `Tatolab-X.Y.Z-x86_64.AppImage` to
-   streamlib's `vX.Y.Z` release and pushes `Casks/tatolab.rb` with the new version and sha256 to
-   tatolab/homebrew-tap.
-5. `brew install --cask tatolab/tap/tatolab` installs it on macOS; on Linux the installer and
-   the release's `.deb` or AppImage do.
+A release runs on a local release runner, outside this repository, once streamlib cuts release
+`vX.Y.Z`. It drives this repository's scripts: `scripts/build-tatolab-app.sh --streamlib-ref vX.Y.Z
+--release --notarize` builds, signs, notarizes and verifies Tatolab.app and its `.dmg`;
+`scripts/build-tatolab-linux-app.sh --app-version X.Y.Z --release` builds the `.deb` and the
+AppImage on x86_64 Linux; the release's assets go on streamlib's `vX.Y.Z` release; and
+`scripts/bump-homebrew-cask.sh` writes the new `Casks/tatolab.rb` for tatolab/homebrew-tap.
+`brew install --cask tatolab/tap/tatolab` installs it on macOS; on Linux the installer and the
+release's `.deb` or AppImage do.

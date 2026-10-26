@@ -106,8 +106,8 @@ Evidence counts only when it was shot on what would ship now:
    then `npx electron .`) with a container volume over `node_modules/`, so Linux's Electron never
    lands in the host's; run it under Xvfb with a StatusNotifier host and capture with
    `import -window root`. Packaging itself (`.deb` Depends, desktop entry, AppImage) is proven only
-   by an x86_64 build (CI). A runtime stand-in (a fake local API answering on the socket) is
-   allowed and **named as a stand-in**. Label **Linux** or **Linux (container, unbundled)**.
+   by `scripts/build-tatolab-linux-app.sh` on x86_64 Linux. A runtime stand-in (a fake local API
+   answering on the socket) is allowed and **named as a stand-in**. Label **Linux** or **Linux (container, unbundled)**.
    On a Mac, `scripts/verify/run-the-window-in-an-ubuntu-container.sh <folder>` does this with the
    stand-ins in `scripts/verify/linux-stand-ins/`.
 

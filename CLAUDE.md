@@ -42,8 +42,8 @@ a parallel one. Search first.
   `/propose-rule` is the only way rules change. Shared understanding: `/architecture-question`
   (how does X work, with evidence), `/reconcile-understanding` (corrections that stick).
 - **Guardrails prompt; they never wall off.** The `ask` entries in `.claude/settings.json` cover
-  only what is expensive to undo — the licence, what code signing reads, `gh pr merge`, and a
-  workflow dispatch (which can publish). The `machine-brake` hook is advisory: it notes a command
+  only what is expensive to undo — the licence, what code signing reads, and `gh pr merge`. The
+  `machine-brake` hook is advisory: it notes a command
   that touches the owner's real runtime or publishes something, and prompts only where its config
   sets a rule or a glob to `ask` — the checked-in config asks on `publish`
   (`.claude/scripts/machine-brake` edits it). The doctrine still decides what is right — an
@@ -107,7 +107,8 @@ attention spent on settled things is unavailable for real forks.
 ## Non-negotiables
 
 - **Platform code lives in `src/main/platform/`** (enforced); both platforms are checked
-  on every change, and the `ubuntu-22.04` PR check is the Linux gate — a Mac cannot exercise the
+  on every change: `npm test` runs both platform modules on any OS, and Linux is proven on an
+  x86_64 Linux machine or, from a Mac, in an `ubuntu:22.04` container — a Mac cannot exercise the
   Linux module against a real systemd or desktop.
 - A decision the issue doesn't state stops the work and goes to the owner;
   it is never inferred from existing code or git history.
