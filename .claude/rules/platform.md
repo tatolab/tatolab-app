@@ -45,9 +45,9 @@ paths:
 - **Signing and the bundle's seal are load-bearing.** Code lives only under `Contents/MacOS/` and
   `Contents/Frameworks/`; nothing writes into a signed bundle at run time; entitlements change only
   with a stated reason (each one is something the hardened runtime otherwise refuses). A
-  packaging, bundle or release-workflow change carries a green `macos-app.yml` run on its branch
-  (`gh workflow run macos-app.yml --ref <branch>`, publish left off), whose bundle check is
-  `scripts/verify-tatolab-app-bundle.sh`.
+  packaging, bundle or release change carries a signed `scripts/build-tatolab-app.sh` build of its
+  branch whose `scripts/verify-tatolab-app-bundle.sh` check passes, and a Linux packaging change a
+  `scripts/build-tatolab-linux-app.sh` run on x86_64 Linux.
 - **Privacy prompts follow the app.** TCC attributes the runtime's camera and microphone use to
   Tatolab.app, whose login item it is. A protected resource the runtime reads needs its usage
   string in `packaging/macos/Info.plist` and, where the hardened runtime gates it, the entitlement
@@ -61,5 +61,6 @@ paths:
   Check for Updates… (a packaged app) · Quit Tatolab. An update installs only when the person
   chooses it. Changing any of these is a decision.
 - **macOS changes are proven on macOS, Linux changes on Linux.** A Mac cannot run the Linux module
-  against a real systemd or desktop; the `ubuntu-22.04` PR check is the gate for it. Linux proof without a Linux machine runs
-  in a container and is labelled so (a runtime stand-in is named a stand-in).
+  against a real systemd or desktop; an x86_64 Linux machine or an `ubuntu:22.04` container is the
+  gate for it. Linux proof without a Linux machine runs in a container and is labelled so (a
+  runtime stand-in is named a stand-in).
