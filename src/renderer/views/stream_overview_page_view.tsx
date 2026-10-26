@@ -305,13 +305,23 @@ function StreamDetailsPanel({ stream, reading }: { stream: ListedStream; reading
         ) : (
           <ul className="flex flex-col gap-1">
             {readableOutputs.map((output) => (
-              <li key={`${output.node}/${output.port}`} className="py-1">
-                <div className="truncate font-mono text-xs text-fg select-text">
-                  {output.node}/{output.port}
+              <li key={`${output.node}/${output.port}`} className="flex items-start gap-2 py-1" data-stream-output={`${output.node}/${output.port}`}>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-mono text-xs text-fg select-text">
+                    {output.node}/{output.port}
+                  </div>
+                  <div className="mt-0.5">
+                    <ExposureLevelWords level={output.level} />
+                  </div>
                 </div>
-                <div className="mt-0.5">
-                  <ExposureLevelWords level={output.level} />
-                </div>
+                {output.watch_page_url !== null && (
+                  <CopyIconButton
+                    label="Copy preview link"
+                    size="compact"
+                    readTextToCopy={() => output.watch_page_url ?? ""}
+                    data-stream-output-action="copy_preview_link"
+                  />
+                )}
               </li>
             ))}
           </ul>

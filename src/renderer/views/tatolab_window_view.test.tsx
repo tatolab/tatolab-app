@@ -285,6 +285,22 @@ describe("a stream's page", () => {
     expect(document.querySelector("[data-graph-document-view='tree']")?.textContent).toContain("machine:");
   });
 
+  it("copies each exposed output's preview link, the runtime's loopback preview page for it", async () => {
+    const copiedTexts: string[] = [];
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => void copiedTexts.push(text) } });
+    const { backend } = await mountedWindowOverTheMock("state=running");
+    await openTheStreamPageOf("camera");
+    const servedWatchPageUrl = (await backend.describeStreamGraph("camera")).exposed.find((port) => port.node === "camerasource" && port.port === "video")?.watch_page_url;
+
+    const videoOutput = await waitFor(() => document.querySelector<HTMLElement>('[data-stream-output="camerasource/video"]') ?? expect.unreachable("no video output in Details"));
+    fireEvent.click(within(videoOutput).getByRole("button", { name: "Copy preview link" }));
+
+    await waitFor(() => expect(copiedTexts).toHaveLength(1));
+    expect(servedWatchPageUrl).toBeTruthy();
+    expect(copiedTexts).toEqual([servedWatchPageUrl]);
+    Reflect.deleteProperty(navigator, "clipboard");
+  });
+
   it("asks before removing the stream from its bar's menu, and goes back to the list once it is gone", async () => {
     await mountedWindowOverTheMock("state=running");
     const streamPage = await openTheStreamPageOf("pattern-two");
