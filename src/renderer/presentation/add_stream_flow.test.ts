@@ -264,8 +264,8 @@ describe("the commands and words the page shows", () => {
   });
 
   it("words each check, the request line and the warning count", () => {
-    expect(presentStreamFunctionChecks(folderReport("/x"))).toEqual([{ checked: "stream_function", name: "heat_map()", isFound: true, detail: "@stream in stream.py" }]);
-    expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: ["a", "b"] })).map((check) => check.name)).toEqual(["a()", "b()"]);
+    expect(presentStreamFunctionChecks(folderReport("/x"))).toEqual([{ checked: "stream_function", name: "heat_map", isFound: true, detail: null }]);
+    expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: ["a", "b"] })).map((check) => check.name)).toEqual(["a", "b"]);
     expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: [] }))).toEqual([
       { checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it compiles." },
     ]);

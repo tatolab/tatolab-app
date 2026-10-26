@@ -270,7 +270,8 @@ export interface StreamFunctionCheck {
   checked: "stream_function" | "stream_file";
   name: string;
   isFound: boolean;
-  detail: string;
+  /** Why `stream.py` stands in for its functions; `null` on a function's row, which is its name alone. */
+  detail: string | null;
 }
 
 /** A row for each `@stream` function `stream.py` holds, in file order; one row for `stream.py` when it is missing or marks none. */
@@ -279,7 +280,7 @@ export function presentStreamFunctionChecks(report: StreamProjectFolderReport): 
   if (report.stream_functions.length === 0) {
     return [{ checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it compiles." }];
   }
-  return report.stream_functions.map((streamFunction) => ({ checked: "stream_function", name: `${streamFunction}()`, isFound: true, detail: "@stream in stream.py" }));
+  return report.stream_functions.map((streamFunction) => ({ checked: "stream_function", name: streamFunction, isFound: true, detail: null }));
 }
 
 /** The lead of the runtime's refusal of a run, before its own words. */

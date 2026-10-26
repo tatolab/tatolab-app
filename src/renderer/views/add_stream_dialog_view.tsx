@@ -130,7 +130,7 @@ function ProjectFolderChooserRow({ folder, isChoosing, onChoose }: { folder: str
   );
 }
 
-function ProjectFolderCheckRow({ icon: CheckIcon, name, isFound, detail }: { icon: LucideIcon; name: string; isFound: boolean; detail: ReactNode }) {
+function ProjectFolderCheckRow({ icon: CheckIcon, name, isFound, detail }: { icon: LucideIcon; name: string; isFound: boolean; detail: ReactNode | null }) {
   return (
     <div className="border-b px-3 py-2.5 last:border-b-0" data-add-stream-check={name} data-add-stream-check-found={isFound ? "true" : "false"}>
       <div className="flex items-center gap-3">
