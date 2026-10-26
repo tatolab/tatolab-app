@@ -67,7 +67,6 @@ jobs:
           npm ci
           npm run build:service-management-addon
           npm run build
-          npm run build:electron
           npm test
 
   linux:
@@ -88,5 +87,4 @@ jobs:
         run: |
           npm ci
           npm run build
-          npm run build:electron
           npm test

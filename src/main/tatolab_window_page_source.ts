@@ -3,7 +3,7 @@
 
 // Where the shipped window's page comes from: the built window in `out/renderer/`, served under the
 // app's own `tatolab-app://app/` origin with a content security policy, since a `file://` page
-// breaks Vite's absolute asset paths and module scripts.
+// breaks the window's module scripts.
 
 import { createHash } from "node:crypto";
 import path from "node:path";

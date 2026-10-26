@@ -30,8 +30,8 @@ process.on("unhandledRejection", (unhandledRejection) => {
   tatolabAppLog.error("a promise was rejected and nothing handled it", { failure: describeCaughtFailure(unhandledRejection) });
 });
 
-/** Vite's dev server, which an unpackaged app loads the window from when `TATOLAB_APP_WINDOW_DEV_SERVER_URL` names it; a packaged app always serves its built window. */
-const windowDevServerUrl = app.isPackaged ? null : windowDevServerUrlNamedIn(process.env["TATOLAB_APP_WINDOW_DEV_SERVER_URL"]);
+/** electron-vite's renderer dev server, which an unpackaged app loads the window from when `electron-vite dev` names it in `ELECTRON_RENDERER_URL`; a packaged app always serves its built window. */
+const windowDevServerUrl = app.isPackaged ? null : windowDevServerUrlNamedIn(process.env["ELECTRON_RENDERER_URL"]);
 const windowPageUrl = windowDevServerUrl ?? TATOLAB_WINDOW_PAGE_URL;
 const runtimeLoopbackHttpOrigin = runtimeLoopbackHttpOriginForThisBuild();
 const builtWindowDirectory = path.join(app.getAppPath(), "out", "renderer");
@@ -53,7 +53,7 @@ registerTheWindowPageSchemeBeforeReady();
 function windowDevServerUrlNamedIn(windowDevServerUrlText: string | undefined): string | null {
   if (windowDevServerUrlText === undefined) return null;
   if (URL.canParse(windowDevServerUrlText)) return windowDevServerUrlText;
-  tatolabAppLog.warn("TATOLAB_APP_WINDOW_DEV_SERVER_URL is not a URL; the built window loads instead", {
+  tatolabAppLog.warn("ELECTRON_RENDERER_URL is not a URL; the built window loads instead", {
     window_dev_server_url: windowDevServerUrlText,
   });
   return null;

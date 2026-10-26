@@ -207,9 +207,9 @@ it resolves `main` on github.com/tatolab/streamlib to a commit, fetches exactly 
 bundle carries it in `Contents/Resources/streamlib-commit`, and the app's version is the version
 of the `tatolabd` it bundles. When the build finishes it checks `main` again: if `main` moved on
 while it ran, the build fails and says to build again (a `--streamlib-ref` build only notes it,
-and an unreachable GitHub is noted, not fatal). Then the Electron app: `npm run build` (the window into `out/renderer/`),
-`npm run build:electron` (the main process, the preload and the build features), the arm64 Service Management addon,
-and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
+and an unreachable GitHub is noted, not fatal). Then the Electron app: `npm run build` (electron-vite bundles the main process into `out/main/`,
+the preload into `out/preload/` and the window into `out/renderer/`, then writes the build features),
+the arm64 Service Management addon, and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
 `@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
 branded `.dmg` and checks the result. The output is `build/Tatolab.app`,
 `build/Tatolab-<version>-arm64.dmg`, and the update: `build/Tatolab-<version>-arm64-mac.zip` and its
@@ -226,7 +226,7 @@ manifest `build/latest-mac.yml`.
 
 **Local proof build** (`--local-proof-test-root`). The runtime unit is built with the
 `machine-directories-under-a-test-root` feature, and the app with
-`npm run build:electron -- --local-proof-test-root`, which writes
+`npm run build -- --local-proof-test-root`, which writes
 `machineDirectoriesUnderATestRoot: true` into the build features the main process imports,
 `out/main/tatolab_app_build_features.json` (`src/main/tatolab_app_build_features.json` holds the
 shipping ones). The agent plist sets
@@ -247,7 +247,7 @@ The individual steps are separate scripts in `scripts/`:
 |---|---|
 | `fetch-streamlib-for-the-app-build.sh <dir> [--streamlib-ref REF] [--resolve-only] [--expect-commit SHA]` | resolves streamlib's `main` (or REF) to a commit and fetches exactly that commit into `<dir>`; `--expect-commit` fails when REF has moved off SHA |
 | `build-tatolab-runtime-unit.sh <streamlib> [--local-proof-test-root]` | builds the runtime unit in a clean streamlib checkout and records its commit in the unit's `streamlib-commit` |
-| `tatolab_app_build_features.mjs write <features.json> [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features; `npm run build:electron -- <flags>` runs it last |
+| `tatolab_app_build_features.mjs write <features.json> [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features; `npm run build -- <flags>` runs it last |
 | `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features a packaged app carries; `--shipping` refuses the test root or any feed but get.tatolab.com's |
 | `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
 | `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/moq-relay`, `lib/tatolab/lend` or `lib/tatolab/watch`, or ships anything else in `bin/` or `lib/tatolab/` |
@@ -288,18 +288,18 @@ X.Y.Z` sets the packages' version; `--local-proof-test-root` builds with
 
 The window is React with Tailwind and shadcn (base-ui). Its design system is the code: the tokens in
 `src/renderer/styles/tokens.css`, shadcn's components, and the Tatolab components and variants in
-`src/renderer/design_system/`. `npm run dev` serves the window on `http://localhost:1420`; `npm run electron:dev`, in a second
-terminal, builds the main process and runs the app against it, unpackaged. It shows whatever
+`src/renderer/design_system/`. `npm run dev` runs the app unpackaged with electron-vite: the window reloads as it changes, and the
+app restarts when the main process or the preload changes. It shows whatever
 runtime is already running on the machine's local API socket; only a `--local-proof-test-root`
 build reads a local-proof runtime's `/tmp/tatolab-proof/run/local-api.sock`. On macOS an
 unpackaged app finds no launch agent, so "Run Tatolab" registers nothing there; on Linux it drives the installer's `tatolabd.service` as the
-packaged app does. `npm run dev` alone serves the window in a browser against a mock backend; a build leaves the mock
+packaged app does. `node scripts/serve_the_mock_window_in_a_browser.mjs` serves the window alone, in a browser at the URL it prints, against a mock backend; a build leaves the mock
 out, and packaging refuses an `out/renderer/` that carries it.
 
 ## CI
 
 `.github/workflows/pull-request-checks.yml` runs `npm run lint` and, on `macos-15` and
-`ubuntu-22.04`, `npm run build`, `npm run build:electron` and `npm test` on every pull request.
+`ubuntu-22.04`, `npm run build` and `npm test` on every pull request.
 `.github/workflows/macos-app.yml` builds the macOS app on `macos-15` and the Linux packages on
 `ubuntu-22.04`, each job type-checking and testing the app first, and keeps the uploaded artifacts
 7 days:
