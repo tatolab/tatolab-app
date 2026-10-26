@@ -708,7 +708,7 @@ describe("Add stream", () => {
     expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "heat_map");
     expect(screen.getByText("cd /Users/jonathanf/code/heat-map && tatolab run -d")).toBeTruthy();
 
-    fireEvent.click(await addStreamControl("compile_and_run"));
+    fireEvent.click(await addStreamControl("add"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')).not.toBeNull());
     expect(document.querySelector("[data-add-stream-compile-output]")?.textContent).toContain("run_stream  /Users/jonathanf/code/heat-map  name=heat_map  keep=true");
 
@@ -725,31 +725,28 @@ describe("Add stream", () => {
     openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "main"));
-    fireEvent.click(await addStreamControl("compile_and_run"));
+    fireEvent.click(await addStreamControl("add"));
 
     await waitFor(() => expect(document.querySelector("[data-add-stream-name-taken]")).not.toBeNull(), MOCK_RUN_WAIT);
     expect(document.querySelector("[data-add-stream-name-taken]")?.textContent).toContain(
       "Stream graph error: the stream name `main` is held by a kept stream from /Users/jonathanf/streams/pattern; load this one under another name with `--name`",
     );
-    expect((await addStreamControl("compile_and_run")).hasAttribute("disabled")).toBe(true);
+    expect((await addStreamControl("add")).hasAttribute("disabled")).toBe(true);
 
     fireEvent.click(await addStreamControl("use_free_name"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"] h2')?.textContent).toBe("main-2 is running"), MOCK_RUN_WAIT);
   });
 
-  it("creates the sample project with tatolab new, then Compile and run sets up its Python and runs it, with no command to run", { timeout: 20_000 }, async () => {
+  it("creates the sample project with Create alone, which writes it, sets up its Python and runs it, with no command to run", { timeout: 20_000 }, async () => {
     await mountedWindowOverTheMock("state=empty");
     fireEvent.click(screen.getByRole("link", { name: /Create the sample stream/ }));
     await waitFor(() => expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("/Users/jonathanf/streams/hello"));
     expect(screen.getByText("tatolab new /Users/jonathanf/streams/hello")).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "hello");
+    expect(document.querySelector('[data-add-stream-step="new_project"]')?.textContent).not.toMatch(/\.venv|uv sync|Compile and run/);
+    expect(document.querySelector('[data-add-stream-action="add"]')).toBeNull();
 
     fireEvent.click(await addStreamControl("create"));
-    await waitFor(() => expect(document.querySelector('[data-add-stream-step="new_project_created"]')).not.toBeNull());
-    expect(document.querySelector('[data-add-stream-check=".venv"]')).toBeNull();
-    expect(document.querySelector('[data-add-stream-step="new_project_created"]')?.textContent).not.toMatch(/\.venv|uv sync/);
-    expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "hello");
-
-    fireEvent.click(await addStreamControl("compile_and_run"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')?.getAttribute("data-add-stream-makes-the-python-environment")).toBe("true"));
     expect(document.querySelector('[data-add-stream-step="compiling"] h2')?.textContent).toBe("Setting up Python, then compiling hello");
     expect(document.querySelector("[data-add-stream-compile-output]")?.textContent).toContain("uv sync  python=Tatolab's Python 3.12.12");
@@ -761,7 +758,7 @@ describe("Add stream", () => {
     openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
     await waitFor(() => expect(document.querySelector("[data-add-stream-checks]")).not.toBeNull());
-    fireEvent.click(await addStreamControl("compile_and_run"));
+    fireEvent.click(await addStreamControl("add"));
 
     await waitFor(
       () => expect(document.querySelector("[data-add-stream-refusal]")?.textContent).toMatch(/^Tatolab couldn't set up the project's Python: error: Failed to fetch/),
@@ -793,8 +790,8 @@ describe("Add stream", () => {
 
     await showStatusAsTheBackendWould({ ...statusBefore, runtime_state: "stopped", streams: null });
 
-    await waitFor(() => expect(document.querySelector("[data-add-stream-footer-words]")?.textContent).toBe("The runtime isn't running, so it can't compile a stream."));
-    expect((await addStreamControl("compile_and_run")).hasAttribute("disabled")).toBe(true);
+    await waitFor(() => expect(document.querySelector("[data-add-stream-footer-words]")?.textContent).toBe("The runtime isn't running, so it can't add a stream."));
+    expect((await addStreamControl("add")).hasAttribute("disabled")).toBe(true);
   });
 
   it("catches the page up to the source the path names once a run that was compiling answers", { timeout: 15_000 }, async () => {
@@ -803,8 +800,6 @@ describe("Add stream", () => {
     fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-add-stream-source="new_project"]') ?? expect.unreachable("no source list yet")));
     await waitFor(() => expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("/Users/jonathanf/streams/hello"));
     fireEvent.click(await addStreamControl("create"));
-    await waitFor(() => expect(document.querySelector('[data-add-stream-step="new_project_created"]')).not.toBeNull());
-    fireEvent.click(await addStreamControl("compile_and_run"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')).not.toBeNull());
 
     openAddStream();
@@ -818,7 +813,7 @@ describe("Add stream", () => {
     openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
     await waitFor(() => expect(document.querySelector("[data-add-stream-checks]")).not.toBeNull());
-    fireEvent.click(await addStreamControl("compile_and_run"));
+    fireEvent.click(await addStreamControl("add"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')).not.toBeNull());
 
     fireEvent.click(document.querySelector<HTMLElement>('[data-window-navigation="streams"]') ?? expect.unreachable("no Streams in the sidebar"));

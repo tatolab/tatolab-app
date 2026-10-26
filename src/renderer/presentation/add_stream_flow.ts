@@ -127,7 +127,7 @@ export function advanceAddStreamFlow(state: AddStreamFlowState, event: AddStream
           return withForm(state, { refusal: { lead: PYTHON_ENVIRONMENT_NOT_MADE_LEAD, words: event.outcome.words } });
       }
     case "run_refused":
-      return state.step === "compiling" ? withForm(state, { refusal: { lead: COMPILE_AND_RUN_REFUSED_LEAD, words: event.words } }) : state;
+      return state.step === "compiling" ? withForm(state, { refusal: { lead: ADDING_THE_STREAM_REFUSED_LEAD, words: event.words } }) : state;
     case "add_another":
       return initialAddStreamFlowState(form.source);
     case "source_chosen":
@@ -193,7 +193,7 @@ export function shellWord(word: string): string {
   return /^[A-Za-z0-9_./~@%+=:,-]+$/.test(word) ? word : `'${word.replaceAll("'", `'"'"'`)}'`;
 }
 
-/** The terminal command that does what Compile and run does: `uv sync` first when the folder has no `.venv`, then `tatolab run -d` in the folder, with the function and name the form gives. */
+/** The terminal command that does what Add does: `uv sync` first when the folder has no `.venv`, then `tatolab run -d` in the folder, with the function and name the form gives. */
 export function terminalCommandForTheRun(request: AddStreamRunRequest, functionsOwnName: string | null, setsUpThePythonEnvironmentFirst: boolean): string {
   const commandWords = ["cd", shellWord(request.folder), "&&", ...(setsUpThePythonEnvironmentFirst ? ["uv", "sync", "&&"] : []), "tatolab", "run", "-d"];
   if (request.streamFunction !== null) commandWords.push(shellWord(request.streamFunction));
@@ -206,9 +206,20 @@ export function newProjectCommand(folder: string): string {
   return `tatolab new ${shellWord(folder)}`;
 }
 
-/** Why Compile and run cannot be pressed now, or `null` when it can. A folder with no `.venv` can, while the app has a Python to set it up with. */
-export function compileAndRunUnavailableBecause(form: AddStreamForm, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string | null {
-  if (!isTheRuntimeRunning) return "The runtime isn't running, so it can't compile a stream.";
+/** The page's one action: Create, for a new project `tatolab new` has not written yet, which writes it and then adds it; Add, for a folder that holds a project. */
+export type AddStreamAction = "create" | "add";
+
+/** Each action's button label. */
+export const ADD_STREAM_ACTION_LABELS: Record<AddStreamAction, string> = { create: "Create", add: "Add" };
+
+/** The action the form offers now: Create until `tatolab new` has written the new project, Add after, and for a project folder. */
+export function addStreamActionOf(form: AddStreamForm): AddStreamAction {
+  return form.source === "new_project" && !form.hasCreatedTheNewProject ? "create" : "add";
+}
+
+/** Why the page's action cannot be pressed now, or `null` when it can. A folder with no `.venv` can be added while the app has a Python to set it up with. */
+export function addStreamActionUnavailableBecause(form: AddStreamForm, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string | null {
+  if (!isTheRuntimeRunning) return "The runtime isn't running, so it can't add a stream.";
   switch (form.workUnderWay) {
     case "choosing_a_folder":
       return "Choose a folder in the dialog.";
@@ -217,12 +228,14 @@ export function compileAndRunUnavailableBecause(form: AddStreamForm, isTheRuntim
     case null:
       break;
   }
-  if (form.source === "new_project" && !form.hasCreatedTheNewProject) return "Create the project first.";
+  const noPythonToSetUpAProjectWith = "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.";
+  if (addStreamActionOf(form) === "create") {
+    if (form.newProjectFolder === null) return "Choose a directory for the new project.";
+    return pythonForNewEnvironments.kind === "built_in_not_offered" ? noPythonToSetUpAProjectWith : null;
+  }
   const folder = folderToRun(form);
   if (folder === null) return "Choose a project folder first.";
-  if (folder.python_environment.kind === "missing" && pythonForNewEnvironments.kind === "built_in_not_offered") {
-    return "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.";
-  }
+  if (folder.python_environment.kind === "missing" && pythonForNewEnvironments.kind === "built_in_not_offered") return noPythonToSetUpAProjectWith;
   if (form.nameTaken !== null) return "Choose another name, or use the one offered.";
   return null;
 }
@@ -261,14 +274,14 @@ export function streamFileCheckDetail(report: StreamProjectFolderReport): string
 }
 
 /** The lead of the runtime's refusal of a run, before its own words. */
-export const COMPILE_AND_RUN_REFUSED_LEAD = "Compile and run was refused:";
+export const ADDING_THE_STREAM_REFUSED_LEAD = "Adding the stream was refused:";
 
 /** The lead of the app's uv failing to set up a folder's Python, before uv's own words. */
 export const PYTHON_ENVIRONMENT_NOT_MADE_LEAD = "Tatolab couldn't set up the project's Python:";
 
 /** The title a run's refusal gets in the notice of a run that answered away from the page, by the lead it was given. */
 const RUN_REFUSAL_NOTICE_TITLES: Record<string, string> = {
-  [COMPILE_AND_RUN_REFUSED_LEAD]: "Compile and run was refused",
+  [ADDING_THE_STREAM_REFUSED_LEAD]: "Adding the stream was refused",
   [PYTHON_ENVIRONMENT_NOT_MADE_LEAD]: "Tatolab couldn't set up the project's Python",
 };
 
@@ -350,7 +363,7 @@ export function addStreamPageSection(state: AddStreamFlowState): string {
 
 /**
  * What the page's status line says, for a screen reader, of a milestone a focus move alone does not say: a folder ready
- * to compile only while Compile and run can be pressed. Refusals speak through their own alert.
+ * to compile only while Add can be pressed. Refusals speak through their own alert.
  */
 export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string {
   switch (state.step) {
@@ -360,8 +373,8 @@ export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntim
     case "form": {
       const folder = folderToRun(state.form);
       if (folder === null) return "";
-      if (compileAndRunUnavailableBecause(state.form, isTheRuntimeRunning, pythonForNewEnvironments) !== null) return "";
-      return state.form.source === "new_project" ? `tatolab new wrote ${folder.folder}. Compile and run is ready.` : `${folder.folder} is ready. Compile and run is ready.`;
+      if (addStreamActionUnavailableBecause(state.form, isTheRuntimeRunning, pythonForNewEnvironments) !== null) return "";
+      return state.form.source === "new_project" ? `tatolab new wrote ${folder.folder}. Add is ready.` : `${folder.folder} is ready to add.`;
     }
   }
 }
@@ -376,7 +389,7 @@ export function addStreamRunNoticeOf(state: AddStreamFlowState): AddStreamRunNot
   const source = state.form.source;
   if (state.step === "running") return { kind: "running", source, answer: state.answer };
   if (state.step !== "form") return null;
-  if (state.form.nameTaken !== null) return { kind: "refused", source, title: "Compile and run was refused", words: state.form.nameTaken.refusal };
+  if (state.form.nameTaken !== null) return { kind: "refused", source, title: "Adding the stream was refused", words: state.form.nameTaken.refusal };
   if (state.form.refusal === null) return null;
   const title = RUN_REFUSAL_NOTICE_TITLES[state.form.refusal.lead];
   return title === undefined ? null : { kind: "refused", source, title, words: state.form.refusal.words };

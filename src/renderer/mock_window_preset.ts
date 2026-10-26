@@ -41,7 +41,7 @@ async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
   await clickWhenShown(`[data-add-stream-action="choose_folder"]`);
   if (addStep === "folder") return;
   await waitForElement(`[data-add-stream-checks]`);
-  await clickWhenShown(`[data-add-stream-action="compile_and_run"]:not([disabled])`);
+  await clickWhenShown(`[data-add-stream-action="add"]:not([disabled])`);
   if (addStep === "away") {
     await waitForElement(`[data-add-stream-step="compiling"]`);
     await clickWhenShown(`[data-window-navigation="streams"]`);
@@ -67,7 +67,7 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream>` (a
  * click on that stream's failure notification), on Add stream `?add=folder|compiling|done|away` (a folder chosen, compiling, the stream running, or
  * Streams opened while it compiled and the run's notice shown once it answers) or
- * `?add=new|created` (a new project proposed, then written by `tatolab new`), with the backend's `?add_folder=` (`no-venv` for a run that
+ * `?add=new|created` (a new project proposed, then Create pressed, which writes it with `tatolab new` and adds it), with the backend's `?add_folder=` (`no-venv` for a run that
  * makes the `.venv` first), `?add_venv=refused` (uv refusing to make it), `?add_run=warning` and `?add_cli=missing`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
  * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),
  * `?sheet=uninstall|uninstalling|uninstalled`, on first run `?setup=getting_set_up` (Continue pressed on Welcome) or `?setup=get_started` (then

@@ -1,6 +1,7 @@
 import { describeBackendRejection, type TatolabBackend } from "./backend/tatolab_backend";
 import type { StreamProjectFolderReport } from "../shared/tatolab_backend_contract";
 import {
+  addStreamActionOf,
   addStreamRunNoticeOf,
   advanceAddStreamFlow,
   initialAddStreamFlowState,
@@ -94,18 +95,26 @@ export class AddStreamFlowOfTheWindow {
     );
   }
 
-  createTheNewProject(): void {
+  /** The page's action: Create writes the new project with `tatolab new`, then adds it; Add adds the folder the form names. */
+  performTheAction(): void {
+    if (addStreamActionOf(this.flowState.form) === "create") this.createTheNewProjectThenAddIt();
+    else this.addTheStream();
+  }
+
+  private createTheNewProjectThenAddIt(): void {
     const newProjectFolder = this.flowState.form.newProjectFolder;
     if (newProjectFolder === null) return;
     this.dispatch({ kind: "work_started", work: "creating_the_project" });
     this.backend.createStreamProject(newProjectFolder.folder).then(
-      (report) => this.dispatch({ kind: "new_project_created", report }),
+      (report) => {
+        this.dispatch({ kind: "new_project_created", report });
+        this.addTheStream();
+      },
       (rejection: unknown) => this.dispatch({ kind: "work_refused", lead: "Create was refused:", words: describeBackendRejection(rejection) }),
     );
   }
 
-  /** Compile and run what the form asks for. */
-  compileAndRun(): void {
+  private addTheStream(): void {
     const runRequest = runRequestOf(this.flowState.form);
     if (runRequest !== null) this.run(runRequest);
   }

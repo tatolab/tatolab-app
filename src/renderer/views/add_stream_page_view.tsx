@@ -11,7 +11,9 @@ import { TextField } from "../design_system/text_field";
 import {
   addStreamPageSection,
   addStreamStepAnnouncement,
-  compileAndRunUnavailableBecause,
+  ADD_STREAM_ACTION_LABELS,
+  addStreamActionOf,
+  addStreamActionUnavailableBecause,
   compileWarningsHeading,
   compileWaitingWords,
   compilingHeadingVerb,
@@ -446,7 +448,8 @@ function NewProjectForm({
           title="Create a new project"
           lead={
             <>
-              <MachineWords>tatolab new</MachineWords> wrote the sample stream into <MachineWords>{report.folder}</MachineWords>. Compile and run it.
+              <MachineWords>tatolab new</MachineWords> wrote the sample stream into <MachineWords>{report.folder}</MachineWords>. Add runs it{" "}
+              {STREAM_RUN_MODE_LABELS.always_on}.
             </>
           }
         />
@@ -479,20 +482,22 @@ function NewProjectForm({
       <div className="divide-y border-y">
         <AddStreamFormRow
           label="Directory"
-          hint={
-            report === null ? undefined : (
-              <>
-                Loads as <MachineWords>{form.streamName}</MachineWords>. The folder must not exist yet.
-              </>
-            )
-          }
+          hint={report === null ? undefined : "The folder must not exist yet."}
         >
           <ProjectFolderChooserRow folder={report?.folder ?? null} isChoosing={form.workUnderWay === "choosing_a_folder"} onChoose={onChooseDirectory} />
         </AddStreamFormRow>
         {report !== null && (
-          <AddStreamFormRow label="Runs" hint="The app runs this for you, then compiles and runs the project.">
+          <AddStreamFormRow label="Runs" hint="The app runs this for you, then sets up the project's Python and adds it.">
             <CommandWithCopyButton command={newProjectCommand(report.folder)} />
           </AddStreamFormRow>
+        )}
+        {report !== null && (
+          <StreamNameRow
+            form={form}
+            hint="From the project's folder. One name per stream on this machine."
+            onEdited={(streamName) => dispatch({ kind: "stream_name_edited", streamName })}
+            onUseFreeName={onUseFreeName}
+          />
         )}
         <RunModeRow hint="Kept by the runtime: it loads again whenever the runtime starts." />
       </div>
@@ -547,8 +552,8 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
 
   const chooseSource = (chosenSource: AddStreamSource) => navigate(addStreamPagePath(chosenSource), { replace: true });
 
-  const compileAndRunUnavailableReason = compileAndRunUnavailableBecause(form, isTheRuntimeRunning, status.python_for_new_environments);
-  const isCreatingTheNewProjectNext = form.source === "new_project" && !form.hasCreatedTheNewProject;
+  const addStreamAction = addStreamActionOf(form);
+  const addStreamActionUnavailableReason = addStreamActionUnavailableBecause(form, isTheRuntimeRunning, status.python_for_new_environments);
 
   const pageContent = useRef<HTMLDivElement>(null);
   const pageSection = addStreamPageSection(flowState);
@@ -633,18 +638,12 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
         {flowState.step === "form" && (
           <>
             <div className="flex min-w-0 flex-1 items-center gap-3" data-add-stream-footer-words="">
-              {isCreatingTheNewProjectNext ? (
+              {addStreamActionUnavailableReason !== null && form.nameTaken === null ? (
+                <span className="truncate text-fg-3">{addStreamActionUnavailableReason}</span>
+              ) : addStreamAction === "create" && form.newProjectFolder !== null ? (
                 <span className="truncate text-fg-3">
-                  {form.newProjectFolder === null ? (
-                    "Choose a directory for the new project."
-                  ) : (
-                    <>
-                      Creates <MachineWords>{form.newProjectFolder.folder}</MachineWords> with <MachineWords>tatolab new</MachineWords>.
-                    </>
-                  )}
+                  Creates <MachineWords>{form.newProjectFolder.folder}</MachineWords> with <MachineWords>tatolab new</MachineWords>, then adds it.
                 </span>
-              ) : compileAndRunUnavailableReason !== null && form.nameTaken === null ? (
-                <span className="truncate text-fg-3">{compileAndRunUnavailableReason}</span>
               ) : terminalRunRequest !== null ? (
                 <>
                   <div className="max-w-[620px] min-w-0 flex-1">
@@ -659,25 +658,14 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
             <ActionButton onPressed={() => navigate(-1)} data-add-stream-action="cancel">
               Cancel
             </ActionButton>
-            {isCreatingTheNewProjectNext ? (
-              <ActionButton
-                appearance="primary"
-                isDisabled={form.newProjectFolder === null || form.workUnderWay !== null}
-                onPressed={() => addStreamFlow.createTheNewProject()}
-                data-add-stream-action="create"
-              >
-                {form.workUnderWay === "creating_the_project" ? "Creating…" : "Create"}
-              </ActionButton>
-            ) : (
-              <ActionButton
-                appearance="primary"
-                isDisabled={compileAndRunUnavailableReason !== null}
-                onPressed={() => addStreamFlow.compileAndRun()}
-                data-add-stream-action="compile_and_run"
-              >
-                Compile and run
-              </ActionButton>
-            )}
+            <ActionButton
+              appearance="primary"
+              isDisabled={addStreamActionUnavailableReason !== null}
+              onPressed={() => addStreamFlow.performTheAction()}
+              data-add-stream-action={addStreamAction}
+            >
+              {form.workUnderWay === "creating_the_project" ? "Creating…" : ADD_STREAM_ACTION_LABELS[addStreamAction]}
+            </ActionButton>
           </>
         )}
         {flowState.step === "compiling" && (
