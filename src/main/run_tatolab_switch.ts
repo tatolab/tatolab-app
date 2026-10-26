@@ -25,7 +25,7 @@ export const RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS = 10_000;
  */
 export const RUNTIME_AGENT_TAKEOVER_WAIT_MS = 15_000;
 
-/** How long a runtime that never answered may go, since it was last started, before the app registers its agent afresh: well past the starting grace, so a slow start is not cut short. */
+/** How long a runtime that never answered may go, since it was last started, before the app registers its agent afresh, each time: well past the starting grace, so a slow start is not cut short. */
 export const RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS = 60_000;
 
 /** The wait after the app's first fresh registration of the agent before its second, doubling after each one the runtime does not answer. */
@@ -410,7 +410,9 @@ export class RunTatolabSwitch {
     if (freshRegistrations === null) {
       return !runtimeMayStillBeStartingSlowly || this.timeSinceTheRuntimeWasExpectedUpMs(nowMs) >= RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS;
     }
-    return nowMs - freshRegistrations.lastFreshRegistrationAtMs >= runtimeAgentRecoveryIntervalMs(freshRegistrations.freshRegistrationsSoFar);
+    const recoveryIntervalMs = runtimeAgentRecoveryIntervalMs(freshRegistrations.freshRegistrationsSoFar);
+    const waitBeforeTheNextMs = runtimeMayStillBeStartingSlowly ? Math.max(recoveryIntervalMs, RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS) : recoveryIntervalMs;
+    return nowMs - freshRegistrations.lastFreshRegistrationAtMs >= waitBeforeTheNextMs;
   }
 
   private async registerTheAgentAfreshByItself(

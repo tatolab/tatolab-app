@@ -533,21 +533,24 @@ test("the_takeover_wait_reads_as_starting", () => {
   expect(RUNTIME_AGENT_TAKEOVER_WAIT_MS).toBeLessThan(RUNTIME_STARTING_GRACE_PERIOD_MS);
 });
 
-test("a_runtime_that_never_answered_is_registered_afresh_a_minute_after_it_was_started_then_less_often", async () => {
+test("a_runtime_that_never_answered_is_registered_afresh_no_sooner_than_a_minute_after_each_start", async () => {
   const underTest = await switchRegisteredAt(0);
+  const freshRegistrations = () => underTest.serviceManagement.calls.filter((call) => call === "unregister").length;
 
-  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "never_answered", RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS - 1);
-  expect(underTest.serviceManagement.calls, "a slow start is not cut short, nor started over").toEqual([]);
-
-  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "never_answered", RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS);
-  expect(underTest.serviceManagement.calls).toEqual(ONE_FRESH_REGISTRATION);
-
-  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown(
-    "enabled",
-    "never_answered",
-    RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS + RUNTIME_AGENT_RECOVERY_FIRST_INTERVAL_MS,
-  );
-  expect(underTest.serviceManagement.calls).toEqual([...ONE_FRESH_REGISTRATION, ...ONE_FRESH_REGISTRATION]);
+  const cases: [number, number][] = [
+    [RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS - 1, 0],
+    [RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS, 1],
+    [RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS + RUNTIME_AGENT_RECOVERY_FIRST_INTERVAL_MS, 1],
+    [2 * RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS - 1, 1],
+    [2 * RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS, 2],
+    [3 * RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS, 3],
+    [3 * RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS + 119_999, 3],
+    [3 * RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS + 120_000, 4],
+  ];
+  for (const [nowMs, expectedFreshRegistrations] of cases) {
+    await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "never_answered", nowMs);
+    expect(freshRegistrations(), `${nowMs} ms, a slow start is never cut short sooner than a minute`).toBe(expectedFreshRegistrations);
+  }
 });
 
 test("an_agent_not_registered_with_the_switch_on_is_registered_by_the_app_itself_then_less_often", async () => {
