@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 /** Runs `pollOnce` now and again `intervalMilliseconds` after each run settles, one run at a time, until stopped. */
 export class RepeatingBackendPoll {
   private isRunning = false;

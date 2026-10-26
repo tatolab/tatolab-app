@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeDescription } from "../shared/tatolab_backend_contract";
 import { RuntimeDescriptionReadings } from "./runtime_description_reading";

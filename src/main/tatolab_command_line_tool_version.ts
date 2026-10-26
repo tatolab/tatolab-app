@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The `tatolab` CLI's version, read once per launch from the first line `tatolab --version`
 // prints (`tatolab <version>`). Its second line describes the runtime, which the app reads from
 // the local API instead, so it is ignored.

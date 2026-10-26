@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { BrowserWindow } from "electron";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";

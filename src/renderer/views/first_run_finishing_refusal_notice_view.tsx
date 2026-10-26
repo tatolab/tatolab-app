@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { WindowNotice } from "../design_system/window_notice";
 import { presentFirstRunFinishingRefusal } from "../presentation/getting_started_presentation";
 import { useFirstRunFinishingRefusalReason, useTatolabWindowEnvironment } from "./tatolab_window_context";

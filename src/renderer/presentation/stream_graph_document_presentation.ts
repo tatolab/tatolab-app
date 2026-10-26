@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 /** A value of the graph document as Inspect's tree shows it: a number keeps the digits the runtime wrote, which a float would round past 2^53. */
 export type GraphDocumentValue =
   | { kind: "object"; entries: [string, GraphDocumentValue][] }

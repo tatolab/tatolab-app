@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Rust's Result for the main process: a failure is a value the caller handles, never a throw.
 
 /** A value, or the failure that stopped it. */

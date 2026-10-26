@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2025 Jonathan Fontanez
-# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-#
 # The Linux rung of /verify-app on a Mac: builds the committed tree at HEAD in an ubuntu:22.04
 # container (npm run build), runs it unpackaged under Xvfb over the stand-in
 # local API that replays src/main/test-fixtures/, and shoots the Streams list over the DevTools

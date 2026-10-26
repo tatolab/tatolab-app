@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The runtime's launch agent registered through Service Management's `SMAppService`, from the
 // plist the bundle carries in `Contents/Library/LaunchAgents/`.
 

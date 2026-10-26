@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { Activity, Image, Minus, Network, PanelRight, Plus, Scan } from "lucide-react";
 import { ActionButton } from "../design_system/action_button";
 import { IconButton } from "../design_system/icon_button";

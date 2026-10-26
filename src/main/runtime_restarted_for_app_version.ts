@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The app version the bundled runtime was last restarted under: one JSON file in the app's config
 // directory. An app whose version differs has been replaced since, by an update or by hand, while
 // the runtime may still run from the bundle as it was.

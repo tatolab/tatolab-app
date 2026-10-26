@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2025 Jonathan Fontanez
-# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-#
 # Lays streamlib's runtime unit into a Tatolab.app that @electron/packager produced:
 #   Contents/MacOS/tatolabd, Contents/MacOS/tatolab-cli  the runtime and the CLI (bin/tatolab: the
 #                                                         filesystem is case-insensitive, so "tatolab"

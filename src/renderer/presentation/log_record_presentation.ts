@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { STREAM_LOG_FOLDER_IN_THE_PROJECT, type ListedStream, type StreamGraphSummary, type StreamLogRecord } from "../../shared/tatolab_backend_contract";
 import { abbreviateHomeDirectory, countLabel, streamNotLoadedReason } from "./stream_presentation";
 

@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Where this build expects the runtime's pieces on Linux: the local API socket, as StreamLib's
 // `streamlib-runtime-client-contract` resolves it (`streamlib_runtime_directory.rs`,
 // `machine_directories_test_root.rs`), and the CLI the installer links into `~/.local/bin`. A

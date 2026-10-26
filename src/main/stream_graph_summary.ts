@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // A stream's graph as the window draws it, read from the runtime's `graph {stream}` tool: its
 // nodes by name with their type, state, declared ports and drop counters, its links by id, node and port, the
 // ports it exposes with the preview page of each one readable outside it, and the tool's text

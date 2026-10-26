@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // A condition the app checks every round and logs only on the round it starts holding, so a
 // failure that persists is logged once rather than every round.
 

@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Each rule in eslint.config.js, stylelint.config.js and commitlint.config.js reports a planted
 // violation where it governs and stays quiet where it does not apply: a rule never seen firing locks
 // nothing.
@@ -13,10 +10,9 @@ import { expect, test } from "vitest";
 
 const REPOSITORY_ROOT = new URL("../..", import.meta.url).pathname;
 const eslint = new ESLint({ cwd: REPOSITORY_ROOT });
-const SOURCE_HEADER = "// Copyright (c) 2025 Jonathan Fontanez\n// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary\n";
 
 async function ruleIdsReportedFor(filePath: string, plantedSource: string): Promise<string[]> {
-  const [lintResult] = await eslint.lintText(SOURCE_HEADER + plantedSource, { filePath });
+  const [lintResult] = await eslint.lintText(plantedSource, { filePath });
   return (lintResult?.messages ?? []).map((lintMessage) => lintMessage.ruleId ?? lintMessage.message);
 }
 

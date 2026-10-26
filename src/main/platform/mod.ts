@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Everything that differs by platform: the service manager that runs the runtime, the machine's
 // paths, the `tatolab` command's links, uninstalling, and the window's and the tray's platform looks. Each platform
 // module exposes the same items, picked here, so the rest of the app never asks which platform it

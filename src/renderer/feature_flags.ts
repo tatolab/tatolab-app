@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 /** Frontend-only switches for surfaces the plan has decided on but whose data arrives later. */
 export interface TatolabFrontendFeatureFlags {
   /** Search's Watch rows, each opening Graph with that exposed output's preview pinned. */

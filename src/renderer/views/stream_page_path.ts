@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 /** An output port, by its node and name, such as the one a navigation asks a stream's page to preview or pin. */
 export interface GraphOutputPortAddress {
   node: string;

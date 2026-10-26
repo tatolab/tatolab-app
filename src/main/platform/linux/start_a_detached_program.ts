@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { spawn } from "node:child_process";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../../result.js";
 

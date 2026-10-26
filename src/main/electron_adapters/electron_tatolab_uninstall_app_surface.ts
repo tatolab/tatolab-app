@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { app, shell } from "electron";
 import { describeCaughtFailure, failedWith, succeeded } from "../result.js";
 import type { TatolabUninstallAppSurface } from "../platform/macos/tatolab_uninstall.js";

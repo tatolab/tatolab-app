@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The main window's macOS looks: the hidden title bar the window draws under, and the Dock icon,
 // shown only while the window is.
 

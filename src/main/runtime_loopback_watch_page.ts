@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The runtime's loopback HTTP, which serves the preview page that plays an exposed output:
 // `GET /watch/<machine>/<stream>/<node>/<port>`. A release `tatolabd` binds it at a fixed address,
 // StreamLib's `LOOPBACK_HTTP_LISTENER_DEFAULT_PORT`; the local API does not serve the address. A

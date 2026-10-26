@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // "Uninstall Tatolab…" on macOS, as the installer's `--uninstall` does on Linux: the service and
 // the files go, and the runtime's state directory, `~/Library/Application Support/Tatolab`, stays.
 // A `/usr/local/bin/tatolab` linking into this bundle, which only root may remove, goes first,

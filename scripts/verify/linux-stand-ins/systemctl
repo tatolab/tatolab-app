@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2025 Jonathan Fontanez
-# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 # Stand-in for systemctl --user: one unit, tatolabd.service, whose ExecStart is the local API stand-in
 # beside this script, serving on $XDG_RUNTIME_DIR/streamlib/local-api.sock.
 state="$SYSTEMCTL_STAND_IN_STATE"; echo "$*" >> "$state/commands"

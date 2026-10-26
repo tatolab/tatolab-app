@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // What a project folder holds that `run_stream` needs, read from the person's own folder and never
 // from the runtime's state: the `stream.py` the runtime compiles and the `@stream` functions in it,
 // and the interpreter at `.venv/bin/python`, the only one the runtime takes (StreamLib's

@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The main process's entry: Electron's app, windows, tray and Dock behind the shell the
 // lifecycle in main.ts drives.
 

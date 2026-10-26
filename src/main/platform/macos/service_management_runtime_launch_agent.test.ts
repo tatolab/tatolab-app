@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import { createTatolabAppLog } from "../../tatolab_app_log.js";

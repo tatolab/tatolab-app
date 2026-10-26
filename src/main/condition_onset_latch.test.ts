@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { expect, test } from "vitest";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 

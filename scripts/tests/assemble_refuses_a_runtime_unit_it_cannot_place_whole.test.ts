@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // scripts/assemble-tatolab-app-bundle.sh places everything the runtime unit ships: it refuses a
 // unit without moq-relay, which tatolabd runs from beside itself, or without the preview page
 // tatolabd serves from Resources/watch, a unit whose bin/ or lib/tatolab/ holds something it does

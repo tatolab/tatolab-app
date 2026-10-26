@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import type { StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
 import { STREAM_RUN_MODE_LABELS } from "./stream_presentation";
 

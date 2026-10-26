@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { expect, test } from "vitest";
 import { failedWith, succeeded } from "../../result.js";
 import type { ProgramCompletion } from "../run_program_to_completion.js";

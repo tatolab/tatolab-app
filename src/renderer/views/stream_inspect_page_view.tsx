@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { cn } from "cn";
 import { ChevronRight, FileBraces, SquareTerminal } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";

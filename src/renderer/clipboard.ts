@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { createElement } from "./dom";
 
 /** Copies `text`, falling back to a hidden text area where the async clipboard is not offered. */

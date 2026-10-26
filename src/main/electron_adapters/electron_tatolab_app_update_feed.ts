@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The update feed through electron-updater: `MacUpdater` hands the signed `.zip` to Squirrel.Mac,
 // which replaces the bundle and reopens it; `AppImageUpdater` replaces the AppImage's file and
 // reopens it; `DebUpdater` only reads the feed, and the `.deb`'s download opens in the browser.

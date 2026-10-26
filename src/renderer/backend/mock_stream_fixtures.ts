@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import type { ListedStream, StreamGraphDeclaredPort, StreamGraphLink, StreamLogRecord, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 
 /** A stable runtime-looking id for `streamName`'s node `nodeName`, such as `P0kq3…`, which its graph and its log records both name it by. */

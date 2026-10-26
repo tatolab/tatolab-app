@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Separator } from "@/components/ui/separator";

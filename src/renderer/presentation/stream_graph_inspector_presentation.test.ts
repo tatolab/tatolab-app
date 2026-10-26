@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { describe, expect, it } from "vitest";
 import type { StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 import { presentStreamGraphCanvas } from "./stream_graph_canvas_presentation";

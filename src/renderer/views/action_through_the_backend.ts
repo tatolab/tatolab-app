@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { useState } from "react";
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type { RuntimeBannerAction } from "../presentation/runtime_presentation";

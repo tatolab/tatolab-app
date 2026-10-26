@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { describe, expect, it } from "vitest";
 import { AddStreamFlowOfTheWindow, type AddStreamBackend } from "./add_stream_flow_of_the_window";
 import type { StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../shared/tatolab_backend_contract";

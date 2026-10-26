@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { createElement, createSvgFromMarkup, setTextIfChanged, type ElementChild } from "../dom";

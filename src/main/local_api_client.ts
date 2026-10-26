@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
 // local API's Unix socket. `GET /health` says the runtime is up, `describe_runtime` names its
 // version, uptime and log folder, the MCP tools `list_streams`,

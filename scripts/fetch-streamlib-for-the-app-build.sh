@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2025 Jonathan Fontanez
-# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-#
 # Resolves streamlib's main, or an explicit tag or commit, to one commit, fetches exactly that
 # commit into <destination> and checks it out, discarding whatever else is there but cargo's
 # target/. Prints the commit as its last line. The app is always built against the streamlib this

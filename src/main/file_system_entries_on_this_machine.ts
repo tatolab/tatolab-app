@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import type { Stats } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
 

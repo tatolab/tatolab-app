@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import type { StreamGraphCanvas, StreamGraphStepCard } from "./stream_graph_canvas_presentation";
 
 /** A step card's width on the canvas. */

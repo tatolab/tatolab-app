@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The macOS administrator prompt: one root shell script, run by `osascript`'s
 // `do shell script … with administrator privileges` behind the system's password dialog, and the
 // quoting that keeps every path one shell word inside one AppleScript string.

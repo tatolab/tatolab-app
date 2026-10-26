@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { cn } from "cn";
 import { Globe, Laptop, Lock } from "lucide-react";
 import { presentExposureLevel } from "../presentation/stream_overview_presentation";

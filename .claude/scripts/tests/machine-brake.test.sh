@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2025 Jonathan Fontanez
-# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-#
 # The machine-brake hook notes what reaches the owner's machine or the outside, stays silent on
 # everything else, and prompts only where a config says `ask`. Runs against a temporary project
 # directory and HOME, so no real config is read or written.

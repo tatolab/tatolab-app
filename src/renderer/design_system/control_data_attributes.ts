@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 /** The `data-*` attributes a screen gives a control so tests and the mock window's presets can find it, as `data-stream-log-toolbar="follow"`. */
 export type ControlDataAttributes = { [dataAttributeName: ControlDataAttributeName]: string | undefined };
 

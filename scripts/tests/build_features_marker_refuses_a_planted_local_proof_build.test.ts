@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // scripts/tatolab_app_build_features.mjs writes the build features from a build's flags, and reads
 // them back out of a packaged app.asar: `read --shipping` refuses an asar planted with the test
 // root or with any update feed but the shipping one.

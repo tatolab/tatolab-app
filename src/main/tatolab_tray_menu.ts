@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The tray item, in macOS's menu bar or a Linux panel: the Tatolab mark in this platform's tray
 // image, and a native menu on either click — a disabled status line, "Open Tatolab", the
 // "Run Tatolab" check, "Open Login Items…" while macOS waits for the person's approval, "Try

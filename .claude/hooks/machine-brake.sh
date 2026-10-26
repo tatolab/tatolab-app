@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2025 Jonathan Fontanez
-# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-#
 # machine-brake (PreToolUse / Bash): notes a Bash command that reaches past the repository — into
 # the owner's real Tatolab runtime, the machine's service manager, the machine's Tatolab paths, or
 # out to Apple, GitHub releases or the Homebrew tap. Advisory by default: every rule's outcome is

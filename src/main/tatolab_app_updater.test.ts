@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { expect, test } from "vitest";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import type { TatolabAppUpdateDelivery, TatolabAppUpdateState } from "../shared/tatolab_backend_contract.js";

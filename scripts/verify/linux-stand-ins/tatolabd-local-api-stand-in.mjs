@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // A stand-in for tatolabd's local API, for proof in a Linux container where no runtime runs: it
 // answers on `<socket>` what the app reads — `GET /health`, the MCP tools `list_streams`, `logs`
 // and `graph`, and `GET /api/graph`'s machine name — and the stream actions `stop_stream`, `start_stream` and

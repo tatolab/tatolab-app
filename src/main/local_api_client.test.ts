@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";

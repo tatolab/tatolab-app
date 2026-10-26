@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // scripts/fetch-streamlib-for-the-app-build.sh resolves streamlib's main, or an explicit ref, to a
 // commit and checks exactly that commit out where the build tells it, whatever was there before,
 // keeping only cargo's target/. These tests fetch from a planted repository standing in for

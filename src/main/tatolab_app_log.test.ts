@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { describe, expect, test } from "vitest";
 import { createTatolabAppLog, formatTatolabAppLogLine, tatolabAppLogLevelNamed } from "./tatolab_app_log.js";
 

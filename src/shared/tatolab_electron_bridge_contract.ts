@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The wire between the window and the Electron main process: the commands the window invokes,
 // under their snake_case names, the event each status change arrives on, and how a
 // command answers.

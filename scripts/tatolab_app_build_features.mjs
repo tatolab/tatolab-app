@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Writes the features a build of the app is built with, and reads them back out of a packaged
 // app.asar. The main process imports out/main/tatolab_app_build_features.json, so the file this
 // writes is both what the app runs with and the marker the bundle checks read.

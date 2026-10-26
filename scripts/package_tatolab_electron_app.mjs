@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Packages the built Electron app (`npm ci` and `npm run build` first)
 // for one platform with @electron/packager: it stages exactly what the main process, the preload
 // and the window load, with the production dependencies the lockfile installed, packs it into the

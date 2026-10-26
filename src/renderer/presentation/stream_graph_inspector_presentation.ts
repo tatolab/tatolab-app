@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { previewedOutputOf, type StreamGraphCanvas, type StreamGraphPreviewedOutput, type StreamGraphStepCard, type StreamGraphStepOutputPort } from "./stream_graph_canvas_presentation";
 import type { GraphDocumentValue } from "./stream_graph_document_presentation";
 import { stepProcessOf } from "./stream_overview_presentation";

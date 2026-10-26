@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 /** How much the app logs: each level also logs every level above it. */
 export type TatolabAppLogLevel = "error" | "warn" | "info" | "debug";
 

@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The `tatolab` command's links on macOS: `~/.local/bin/tatolab`, which the app makes with no
 // prompt each time it opens, and `/usr/local/bin/tatolab`, which it makes behind the
 // administrator prompt only when the person asks. Either is replaced only when it is missing, a

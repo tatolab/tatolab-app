@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The links that put the `tatolab` command on a terminal's PATH: on macOS the app's own link in
 // `~/.local/bin`, made with no prompt each time the app opens, and the optional one in
 // `/usr/local/bin` behind the administrator prompt; on Linux the installer's link, which the app

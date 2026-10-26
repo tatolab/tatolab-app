@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { cn } from "cn";
 import { Check, FileCode2, Folder, FolderOpen, FolderPlus, LoaderCircle, type LucideIcon, Package, RotateCw, SquareTerminal, TriangleAlert, Workflow } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";

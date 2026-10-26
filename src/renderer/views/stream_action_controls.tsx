@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { useEffect, useRef, useState } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";

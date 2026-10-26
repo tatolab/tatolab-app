@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The commands the window's frontend invokes, under the names it invokes them by. A request that
 // changes the machine starts in the background, as the tray's choices do, and its outcome reaches
 // the window as the next `tatolab-status-changed`. A question the window awaits is answered with

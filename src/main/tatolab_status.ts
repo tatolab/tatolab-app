@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The status the tray and the window show, and the pure rules that derive the runtime's state
 // from what the poller observed. The status's own types are the window's contract.
 

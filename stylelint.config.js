@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import stylelint from "stylelint";
 
 const NO_DOT_INDICATORS = "No dot indicators in the window: status is a word, and a problem is an icon.";
