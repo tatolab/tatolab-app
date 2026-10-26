@@ -1018,7 +1018,7 @@ describe("first run on macOS", () => {
     expect(document.querySelector("[data-window-navigation]")).not.toBeNull();
   });
 
-  it("shows a step for macOS's approval with Open Login Items, and one for a blocked runtime with nothing to press", async () => {
+  it("shows a step for macOS's approval with Open Login Items, and a blocked runtime as the start step retrying with nothing to press", async () => {
     await mountedWindowOverTheMock("state=approval&first_run=unfinished");
     fireEvent.click(gettingStartedControl("continue"));
     expect(textOf('[data-getting-started-step="approve_in_login_items"]')).toContain("Allow in the Background");
@@ -1027,8 +1027,8 @@ describe("first run on macOS", () => {
 
     await mountedWindowOverTheMock("state=blocked&first_run=unfinished");
     fireEvent.click(gettingStartedControl("continue"));
-    expect(textOf('[data-getting-started-step="unblock_the_runtime"]')).toContain("Blocked by macOS");
-    expect(textOf('[data-getting-started-step="unblock_the_runtime"]')).toContain("Tatolab keeps asking macOS to start it.");
+    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Retrying…");
+    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Blocked by macOS");
     expect(document.querySelector("[data-getting-started-step-action]")).toBeNull();
   });
 

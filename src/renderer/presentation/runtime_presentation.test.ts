@@ -81,7 +81,7 @@ describe("presentRuntimeStatus", () => {
     });
     expect(presentRuntimeStatus(statusWith({ runtime_state: "never_answered" }))).toMatchObject({
       shortLabel: "Didn't start",
-      banner: { title: "The runtime didn't start", explanation: "macOS started it, but it hasn't answered in 20 seconds. Tatolab starts it again by itself." },
+      banner: { title: "The runtime didn't start", explanation: "Retrying automatically." },
     });
   });
 
@@ -141,7 +141,7 @@ describe("on Linux", () => {
       "macOS is launching it. This usually takes a few seconds.",
     );
     expect(presentRuntimeStatus(linuxStatusWith({ runtime_state: "blocked_by_the_service_manager" })).banner?.title).toBe("systemd stopped the runtime");
-    expect(presentRuntimeStatus(linuxStatusWith({ runtime_state: "never_answered" })).banner?.explanation).toContain("tatolabd.service");
+    expect(presentRuntimeStatus(linuxStatusWith({ runtime_state: "never_answered" })).banner?.title).toBe("The runtime didn't start");
   });
 });
 

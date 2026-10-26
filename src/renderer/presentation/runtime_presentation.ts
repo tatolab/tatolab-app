@@ -114,9 +114,7 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         shortLabel: "Didn't start",
         banner: {
           title: "The runtime didn't start",
-          explanation: isLinux
-            ? "systemd started tatolabd.service, but it hasn't answered in 20 seconds. Tatolab starts it again by itself."
-            : "macOS started it, but it hasn't answered in 20 seconds. Tatolab starts it again by itself.",
+          explanation: "Retrying automatically.",
           action: null,
         },
       };
@@ -128,12 +126,12 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         banner: isLinux
           ? {
               title: "systemd stopped the runtime",
-              explanation: "tatolabd.service kept failing, so systemd stopped starting it. Tatolab keeps starting it again.",
+              explanation: "Retrying automatically.",
               action: null,
             }
           : {
               title: "Blocked by macOS",
-              explanation: "macOS stopped the runtime from starting. Tatolab keeps asking macOS to start it.",
+              explanation: "Retrying automatically.",
               action: null,
             },
       };
@@ -179,7 +177,7 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         shortLabel: "Not running",
         banner: {
           title: "The runtime isn't registered",
-          explanation: "Run Tatolab is on, but macOS hasn't registered the runtime. Tatolab registers it by itself.",
+          explanation: "Retrying automatically.",
           action: null,
         },
       };
