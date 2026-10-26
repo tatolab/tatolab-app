@@ -106,8 +106,10 @@ for required_electron_fuse_state in "RunAsNode is Disabled" "EnableNodeOptionsEn
   grep -qF "$required_electron_fuse_state" <<<"$electron_fuse_states" \
     || { echo "the packaged app's Electron fuse is not '$required_electron_fuse_state'" >&2; exit 1; }
 done
-packaged_build_features="$(node scripts/tatolab_app_build_features.mjs read "$packaged_app_directory/resources/app.asar")" \
-  || { echo "the packaged app's build features are unreadable or carry no build id" >&2; exit 1; }
+build_features_read_arguments=(--shipping)
+$local_proof_test_root && build_features_read_arguments=()
+packaged_build_features="$(node scripts/tatolab_app_build_features.mjs read "$packaged_app_directory/resources/app.asar" ${build_features_read_arguments[@]+"${build_features_read_arguments[@]}"})" \
+  || { echo "the packaged app's build features carry no build id, are unreadable, or are not the shipping ones" >&2; exit 1; }
 echo "    built at tatolab-app $(sed -n 's/^tatolabAppCommit=//p' <<<"$packaged_build_features"), $(sed -n 's/^buildKind=//p' <<<"$packaged_build_features")"
 if $local_proof_test_root; then
   expected_app_update_feed_url="${app_update_feed_url:-$(node -p 'require("./src/main/tatolab_app_build_features.json").appUpdateFeedUrl')}"
@@ -115,9 +117,6 @@ if $local_proof_test_root; then
     || { echo "the packaged app was not built with machineDirectoriesUnderATestRoot: $packaged_build_features" >&2; exit 1; }
   grep -qxF "appUpdateFeedUrl=$expected_app_update_feed_url" <<<"$packaged_build_features" \
     || { echo "the packaged app does not check $expected_app_update_feed_url for updates: $packaged_build_features" >&2; exit 1; }
-else
-  node scripts/tatolab_app_build_features.mjs read "$packaged_app_directory/resources/app.asar" --shipping >/dev/null \
-    || { echo "the packaged app was not built with the shipping features" >&2; exit 1; }
 fi
 # The asar's header is JSON naming every directory it holds.
 grep -aqF '"electron-updater":{"files"' "$packaged_app_directory/resources/app.asar" \

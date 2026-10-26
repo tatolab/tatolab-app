@@ -450,10 +450,10 @@ function AboutSection() {
       <div className="flex flex-col items-center">
         <img src={mascotImageUrl} alt="" className="size-24" />
         <h1 className="mt-3 title-lg">Tatolab</h1>
-        <p className="text-fg-3 tabular select-text">{versions}</p>
-        <p className="text-fg-3 tabular select-text" data-about-build="">
-          {presentAboutBuild(status.app_build)}
-        </p>
+        <div className="text-fg-3 tabular select-text">
+          <p>{versions}</p>
+          <p data-about-build="">{presentAboutBuild(status.app_build)}</p>
+        </div>
       </div>
       <div className="w-full text-left">
         <SettingsGroup>

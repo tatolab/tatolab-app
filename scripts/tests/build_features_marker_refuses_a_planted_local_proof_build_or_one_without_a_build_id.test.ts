@@ -160,7 +160,8 @@ test("the writer refuses a build outside a git checkout, which has no commit to 
   const writtenFeaturesFile = path.join(scratchDirectory, "tatolab_app_build_features.json");
   const writerOutcome = await runTheBuildFeaturesScript(["write", writtenFeaturesFile]);
   expect(writerOutcome.exitCode).toBe(1);
-  expect(writerOutcome.stderr).toContain("records the tatolab-app commit it was built from");
+  expect(writerOutcome.stderr).toContain("every build records the tatolab-app commit it was built from");
+  expect(writerOutcome.stderr.toLowerCase()).toContain("not a git repository");
   await expect(readFile(writtenFeaturesFile, "utf8")).rejects.toThrow();
 });
 

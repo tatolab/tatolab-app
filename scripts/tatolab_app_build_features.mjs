@@ -66,16 +66,18 @@ function buildFeaturesFromSource(buildFeaturesSource) {
   return isExactlyTheFeatures ? { ...otherBuildFeatures, tatolabAppBuildId } : null;
 }
 
-// The commit this checkout is at and whether it has uncommitted changes, untracked files that git
-// does not ignore included; null when it is not a git checkout with a commit.
+// { buildId } with the commit this checkout is at and whether it has uncommitted changes, untracked
+// files that git does not ignore included; { gitRefusal } with git's own words when git cannot say.
 async function buildIdOfThisCheckout(buildKind) {
   const runGit = promisify(execFile);
   try {
     const { stdout: headCommitOutput } = await runGit("git", ["-C", repositoryRoot, "rev-parse", "--verify", "HEAD"]);
-    const { stdout: uncommittedChangesOutput } = await runGit("git", ["-C", repositoryRoot, "status", "--porcelain"]);
-    return { tatolabAppCommit: headCommitOutput.trim(), buildKind, builtWithUncommittedChanges: uncommittedChangesOutput.trim() !== "" };
-  } catch {
-    return null;
+    // A tree with many untracked files lists more than execFile's default 1 MiB.
+    const { stdout: uncommittedChangesOutput } = await runGit("git", ["-C", repositoryRoot, "status", "--porcelain"], { maxBuffer: 256 * 1024 * 1024 });
+    return { buildId: { tatolabAppCommit: headCommitOutput.trim(), buildKind, builtWithUncommittedChanges: uncommittedChangesOutput.trim() !== "" } };
+  } catch (gitFailure) {
+    const gitWords = typeof gitFailure.stderr === "string" && gitFailure.stderr.trim() !== "" ? gitFailure.stderr.trim() : gitFailure.message;
+    return { gitRefusal: gitWords };
   }
 }
 
@@ -113,11 +115,14 @@ if (subcommand === "write") {
     process.stderr.write("--release and --local-proof-test-root together: a local-proof build is a dev build\n");
     process.exit(2);
   }
-  const tatolabAppBuildId = await buildIdOfThisCheckout(releaseBuild ? "release" : "dev");
-  if (tatolabAppBuildId === null) {
-    process.stderr.write(`${repositoryRoot} is not a git checkout with a commit: every build records the tatolab-app commit it was built from\n`);
+  const checkoutBuildId = await buildIdOfThisCheckout(releaseBuild ? "release" : "dev");
+  if (checkoutBuildId.gitRefusal !== undefined) {
+    process.stderr.write(
+      `git cannot name the commit ${repositoryRoot} is at, and every build records the tatolab-app commit it was built from: ${checkoutBuildId.gitRefusal}\n`,
+    );
     process.exit(1);
   }
+  const tatolabAppBuildId = checkoutBuildId.buildId;
   const writtenBuildFeatures = {
     machineDirectoriesUnderATestRoot: localProofTestRoot,
     appUpdateFeedUrl: localAppUpdateFeedUrl ?? shippingBuildFeatures.appUpdateFeedUrl,
