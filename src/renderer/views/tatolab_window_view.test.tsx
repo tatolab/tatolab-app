@@ -622,11 +622,11 @@ describe("a stream's Graph tab", () => {
     expect(stepCardOf("invertingeffect").querySelector("iframe")).toBeNull();
   });
 
-  it("shows the selected step's type, origin, process, config and outputs, and the whole stream with nothing selected", async () => {
+  it("shows the selected node's type, origin, process, config and outputs, and no inspector with nothing selected", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheGraphOf("main");
-    await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector='stream']")).not.toBeNull());
-    expect(textOf("[data-stream-graph-inspector]")).toContain("Nothing selected");
+    await waitFor(() => stepCardOf("testpatternsource"));
+    expect(document.querySelector("[data-stream-graph-inspector]")).toBeNull();
 
     fireEvent.click(stepCardOf("testpatternsource"));
 
@@ -641,7 +641,7 @@ describe("a stream's Graph tab", () => {
 
     fireEvent.keyDown(window, { key: "Escape" });
 
-    await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector='stream']")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector]")).toBeNull());
   });
 
   it("opens with the output Search's Watch asked for pinned, with the Watch flag on", async () => {
@@ -710,7 +710,7 @@ describe("a stream's Graph tab", () => {
 
     fireEvent.click(sourceInMain);
 
-    expect(document.querySelector("[data-stream-graph-inspector='stream']")).not.toBeNull();
+    expect(document.querySelector("[data-stream-graph-inspector]")).toBeNull();
   });
 });
 
@@ -724,7 +724,6 @@ async function addStreamControl(action: string): Promise<HTMLElement> {
   });
 }
 
-/** The sidebar's Add stream. */
 /** The add-stream dialog opened from the sidebar's + menu on New project. */
 async function openTheAddStreamDialogOnNewProject(): Promise<void> {
   fireEvent.click(document.querySelector<HTMLElement>('[data-window-navigation="add-project-menu"]') ?? expect.unreachable("no + menu in the sidebar"));

@@ -71,7 +71,6 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
   const [selectedStepName, setSelectedStepName] = useState<string | null>(() => selectedStepAskedBy(location.state));
   const [arePreviewsShown, setArePreviewsShown] = useState(true);
   const [areCountersShown, setAreCountersShown] = useState(true);
-  const [isInspectorOpen, setIsInspectorOpen] = useState(true);
   const [movedStepPositions, setMovedStepPositions] = useState<ReadonlyMap<string, StreamGraphStepPosition>>(new Map());
   const [hoveredOutput, setHoveredOutput] = useState<StreamGraphHoveredOutput | null>(null);
   const [pinnedPreviews, setPinnedPreviews] = useState<PinnedOutputPreviewPlace[]>([]);
@@ -159,13 +158,13 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [closeHoverPreview, viewport]);
 
-  const inspectorPanel = isInspectorOpen ? (
+  const inspectorPanel = inspection !== null ? (
     <StreamGraphInspectorView
       inspection={inspection}
       outputPlace={outputPlace}
       pinnedOutputKeys={pinnedOutputKeys}
       actions={{
-        onClosed: () => setIsInspectorOpen(false),
+        onClosed: () => setSelectedStepName(null),
         onStepSelected: setSelectedStepName,
         onOutputPinToggled: togglePinnedPreview,
         onErrorsInLogsShown: () => void navigate(streamPagePath(stream.name, "logs"), { state: { askedLogView: "errors_only" } }),
@@ -180,7 +179,6 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
         <StreamGraphToolbarView
           arePreviewsShown={arePreviewsShown}
           areCountersShown={areCountersShown}
-          isInspectorOpen={isInspectorOpen}
           onAutoLayout={() => {
             setMovedStepPositions(new Map());
             setLaidOut({ layoutKey, stepPositions: layOutStreamGraphSteps(canvas, arePreviewsShown) });
@@ -188,7 +186,6 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
           }}
           onPreviewsToggled={() => setArePreviewsShown((areShown) => !areShown)}
           onCountersToggled={() => setAreCountersShown((areShown) => !areShown)}
-          onInspectorOpened={() => setIsInspectorOpen(true)}
         />
         {reading.readRefusal !== null && (
           <div data-stream-graph-read-refusal="">
@@ -201,7 +198,7 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
             stepPositions={stepPositions}
             streamName={stream.name}
             machineName={machineName}
-            selectedStepName={inspection.kind === "step" ? inspection.step.name : null}
+            selectedStepName={inspection === null ? null : inspection.step.name}
             arePreviewsShown={arePreviewsShown}
             areCountersShown={areCountersShown}
             pinnedOutputKeys={pinnedOutputKeys}
