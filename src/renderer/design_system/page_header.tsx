@@ -16,6 +16,7 @@ export interface PageBreadcrumb {
 export function PageHeader({
   breadcrumb,
   title,
+  isTitleShown = true,
   facts,
   tabs,
   actions,
@@ -25,6 +26,8 @@ export function PageHeader({
 }: {
   breadcrumb?: PageBreadcrumb;
   title: string;
+  /** False where the sidebar already shows what the view is of: the title is then said to a screen reader only. */
+  isTitleShown?: boolean;
   /** Short facts beside the title, as a stream's state. */
   facts?: ReactNode;
   tabs?: ReactNode;
@@ -37,7 +40,7 @@ export function PageHeader({
   return (
     <header className="shrink-0" {...controlDataAttributes}>
       <div className="flex h-(--title-bar-height) min-w-0 items-center gap-5 border-b pr-3 pl-(--page-x)" data-window-drag-region={windowDragRegion ?? undefined}>
-        <div className="flex min-w-0 shrink items-center gap-1.5">
+        <div className={isTitleShown ? "flex min-w-0 shrink items-center gap-1.5" : "sr-only"}>
           {breadcrumb !== undefined && (
             <>
               <InlineLink destination={{ to: breadcrumb.parentPath }} tone="quiet">

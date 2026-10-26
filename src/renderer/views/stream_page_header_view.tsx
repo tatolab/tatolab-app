@@ -9,7 +9,6 @@ import { PageHeader } from "../design_system/page_header";
 import { PageTabs } from "../design_system/page_tabs";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
-import { StreamStateWords } from "../design_system/stream_state_words";
 import { shortcutHint, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import {
   isStreamLoaded,
@@ -57,7 +56,7 @@ export interface StreamPageActions {
   askToRemove(): void;
 }
 
-/** A stream's bar on every tab: its name and state, its tabs, Start or Stop, and every other action in its menu. */
+/** A stream's bar on every tab: its tabs, Start or Stop, and every other action in its menu; the sidebar shows its name and state. */
 export function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { stream: ListedStream; shownTab: StreamPageTab; streamPageActions: StreamPageActions }) {
   const { backend, platform } = useTatolabWindowEnvironment();
   /** Why the project folder or a terminal in it did not open, in the words of what refused it, which name what failed. */
@@ -71,7 +70,7 @@ export function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { 
   return (
     <PageHeader
       title={stream.name}
-      facts={<StreamStateWords stream={stream} isAfterAStopNotRecorded={outcome?.kind === "notice"} />}
+      isTitleShown={false}
       tabs={<StreamPageTabs stream={stream} shownTab={shownTab} />}
       actions={
         <>
