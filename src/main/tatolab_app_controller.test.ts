@@ -9,6 +9,7 @@ import { failedWith, succeeded } from "./result.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { RuntimeRestartedForAppVersionFile } from "./runtime_restarted_for_app_version.js";
 import { MachineNameAskedOncePerRuntimeUpEpisode, TatolabAppController } from "./tatolab_app_controller.js";
+import { RUNTIME_AGENT_TAKEOVER_WAIT_MS } from "./run_tatolab_switch.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
@@ -138,7 +139,7 @@ test("a runtime that never answers reads starting, then never answered, and not 
 
 test("the first give-up by the service manager reads starting and registers the agent afresh, which clears launchd's stale job", async () => {
   const { controller, runtimeAgent } = await controllerOverFakes([], "enabled");
-  runtimeAgent.whyTheServiceManagerGaveUp = "launchd: last exit code = 78: EX_CONFIG";
+  runtimeAgent.whyTheServiceManagerGaveUp = { serviceManagerWords: "launchd: last exit code = 78: EX_CONFIG", registeringAgainWaitsForTheNextSpawn: false };
 
   const firstRound = await controller.composeStatus(0);
   expect(firstRound.runtime_state).toBe("starting");
@@ -148,14 +149,39 @@ test("the first give-up by the service manager reads starting and registers the 
   expect((await controller.composeStatus(2_000)).runtime_state).toBe("starting");
 });
 
+test("a takeover from a copy of the app signed differently reads starting until launchd spawns the job again, then registers the agent afresh once", async () => {
+  const { controller, runtimeAgent } = await controllerOverFakes([], "enabled");
+  expect(await controller.registerTheRuntimeAgainOnRequest()).toEqual(succeeded(undefined));
+  runtimeAgent.calls.length = 0;
+  runtimeAgent.whyTheServiceManagerGaveUp = { serviceManagerWords: "launchd: last exit reason = OS_REASON_CODESIGNING", registeringAgainWaitsForTheNextSpawn: true };
+
+  for (const nowMs of [2_000, 4_000, 8_000]) {
+    const roundBeforeTheNextSpawn = await controller.composeStatus(nowMs);
+    expect(roundBeforeTheNextSpawn.runtime_state, `${nowMs} ms`).toBe("starting");
+    await controller.startTheRuntimeIfThePollerFoundItDown(roundBeforeTheNextSpawn, nowMs);
+  }
+  expect(runtimeAgent.calls).toEqual([]);
+
+  runtimeAgent.whyTheServiceManagerGaveUp = { serviceManagerWords: "launchd: last exit code = 78: EX_CONFIG", registeringAgainWaitsForTheNextSpawn: false };
+  const roundAfterTheNextSpawn = await controller.composeStatus(12_000);
+  expect(roundAfterTheNextSpawn.runtime_state).toBe("starting");
+  await controller.startTheRuntimeIfThePollerFoundItDown(roundAfterTheNextSpawn, 12_000);
+  expect(runtimeAgent.calls).toEqual(["unregister", "register", "start_if_not_running"]);
+  expect((await controller.composeStatus(14_000)).runtime_state).toBe("starting");
+});
+
 test("a give-up that outlasts the fresh registration reads blocked, the app leaves it alone, and try again registers it again", async () => {
   const { controller, runtimeAgent } = await controllerOverFakes([], "enabled");
-  runtimeAgent.whyTheServiceManagerGaveUp = "launchd: last exit reason = OS_REASON_CODESIGNING | Launch Constraint Violation";
+  runtimeAgent.whyTheServiceManagerGaveUp = {
+    serviceManagerWords: "launchd: last exit reason = OS_REASON_CODESIGNING | Launch Constraint Violation",
+    registeringAgainWaitsForTheNextSpawn: true,
+  };
   runtimeAgent.givesUpWhateverTheRegistration = true;
-  await controller.startTheRuntimeIfThePollerFoundItDown(await controller.composeStatus(0), 0);
+  await controller.startTheRuntimeIfThePollerFoundItDown(await controller.composeStatus(RUNTIME_AGENT_TAKEOVER_WAIT_MS), RUNTIME_AGENT_TAKEOVER_WAIT_MS);
+  expect(runtimeAgent.calls, "a code-signing give-up still there past the takeover wait is registered afresh").toEqual(["unregister", "register", "start_if_not_running"]);
   runtimeAgent.calls.length = 0;
 
-  const blocked = await controller.composeStatus(2_000);
+  const blocked = await controller.composeStatus(RUNTIME_AGENT_TAKEOVER_WAIT_MS + 2_000);
   expect(blocked.runtime_state).toBe("blocked_by_the_service_manager");
   await controller.startTheRuntimeIfThePollerFoundItDown(blocked, 60_000);
   expect(runtimeAgent.calls).toEqual([]);

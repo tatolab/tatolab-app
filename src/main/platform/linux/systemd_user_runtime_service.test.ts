@@ -177,7 +177,7 @@ test("the_poller_starts_an_enabled_unit_whose_runtime_is_down", async () => {
   await runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown(
     await runTatolabSwitch.runtimeAgentRegistrationStatus(),
     "failing",
-    false,
+    null,
     performance.now(),
   );
 
@@ -267,7 +267,10 @@ test("systemd_has_given_up_on_the_runtime_while_the_unit_is_failed_and_registeri
   expect(await runtimeService.whyTheServiceManagerGaveUpOnTheRuntime()).toBeNull();
 
   userSystemd.unitFailedBecause = "start-limit-hit";
-  expect(await runtimeService.whyTheServiceManagerGaveUpOnTheRuntime()).toBe("systemd: tatolabd.service failed (start-limit-hit)");
+  expect(await runtimeService.whyTheServiceManagerGaveUpOnTheRuntime()).toEqual({
+    serviceManagerWords: "systemd: tatolabd.service failed (start-limit-hit)",
+    registeringAgainWaitsForTheNextSpawn: false,
+  });
 
   expect(await runtimeService.registerRuntimeAgent()).toEqual(succeeded(undefined));
   expect(await runtimeService.whyTheServiceManagerGaveUpOnTheRuntime()).toBeNull();

@@ -20,7 +20,7 @@ import type {
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import { LocalApiClient, type LocalApiRequestFailure, type StreamRunRequest } from "./local_api_client.js";
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
-import type { BundledRuntimeRestart } from "./platform/runtime_agent_registration.js";
+import type { BundledRuntimeRestart, RuntimeAgentGiveUp } from "./platform/runtime_agent_registration.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
 import type { CommandLineToolLinkRefusal, TatolabCommandLineToolLinks } from "./platform/tatolab_command_line_tool_links.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -78,8 +78,8 @@ export class TatolabAppController {
   private readonly runtimeNotAnsweringOnset = new ConditionOnsetLatch();
   private readonly streamListingFailureOnset = new ConditionOnsetLatch();
   private readonly serviceManagerGiveUpOnset = new ConditionOnsetLatch();
-  /** Whether the last status round found the service manager given up on the runtime, which the poller's start step answers. */
-  private serviceManagerGaveUpInTheLastRound = false;
+  /** The service manager's give-up the last status round found, which the poller's start step answers; `null` with none. */
+  private serviceManagerGiveUpInTheLastRound: RuntimeAgentGiveUp | null = null;
   private readonly machineNameOfTheRunningRuntime = new MachineNameAskedOncePerRuntimeUpEpisode();
   private runTatolabSwitchQueue: Promise<unknown> = Promise.resolve();
 
@@ -270,12 +270,12 @@ export class TatolabAppController {
     return this.withTheRunTatolabSwitch((runTatolabSwitch) => runTatolabSwitch.noticeRuntimeAgentRegistrationStatus(runtimeAgent));
   }
 
-  /** Start the runtime when the poller's `status`, observed at `nowMs`, found it down with the switch on and the agent enabled, no sooner after the last start than the service manager would start it again; a first give-up by the service manager registers the agent afresh instead. */
+  /** Start the runtime when the poller's `status`, observed at `nowMs`, found it down with the switch on and the agent enabled, no sooner after the last start than the service manager would start it again; this launch's first give-up by the service manager registers the agent afresh instead, once launchd has spawned the job again when the give-up waits for that. */
   startTheRuntimeIfThePollerFoundItDown(status: TatolabStatus, nowMs: number): Promise<void> {
     const runtimeHealth: RuntimeHealthObservation = status.runtime_state === "running" ? "healthy" : "failing";
-    const serviceManagerGaveUpOnTheRuntime = this.serviceManagerGaveUpInTheLastRound;
+    const serviceManagerGiveUp = this.serviceManagerGiveUpInTheLastRound;
     return this.withTheRunTatolabSwitch((runTatolabSwitch) =>
-      runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown(status.runtime_agent, runtimeHealth, serviceManagerGaveUpOnTheRuntime, nowMs),
+      runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown(status.runtime_agent, runtimeHealth, serviceManagerGiveUp, nowMs),
     );
   }
 
@@ -299,26 +299,26 @@ export class TatolabAppController {
       this.machineNameOfTheRunningRuntime.runtimeIsDown();
     }
 
-    const { runTatolab, runtimeAgent, runtimeState, whyTheServiceManagerGaveUp } = await this.withTheRunTatolabSwitch(async (runTatolabSwitch) => {
+    const { runTatolab, runtimeAgent, runtimeState, serviceManagerGiveUp } = await this.withTheRunTatolabSwitch(async (runTatolabSwitch) => {
       const runtimeAgentNow = await runTatolabSwitch.runtimeAgentRegistrationStatus();
       const isRestartingTheRuntime = runTatolabSwitch.isRestartingTheRuntime(nowMs, runtimeHealth);
       runTatolabSwitch.noteRestartSettledIfThisRoundShowsIt(nowMs, runtimeHealth);
       if (runtimeHealth === "healthy" && !isRestartingTheRuntime) runTatolabSwitch.noteRuntimeHealthy(nowMs);
       const runTatolabNow = runTatolabSwitch.runTatolab();
-      const whyTheServiceManagerGaveUpNow = theServiceManagerMayHaveGivenUp({ runTatolab: runTatolabNow, runtimeAgent: runtimeAgentNow, runtimeHealth })
+      const serviceManagerGiveUpNow = theServiceManagerMayHaveGivenUp({ runTatolab: runTatolabNow, runtimeAgent: runtimeAgentNow, runtimeHealth })
         ? await runTatolabSwitch.whyTheServiceManagerGaveUpOnTheRuntime()
         : null;
       return {
         runTatolab: runTatolabNow,
         runtimeAgent: runtimeAgentNow,
-        whyTheServiceManagerGaveUp: whyTheServiceManagerGaveUpNow,
+        serviceManagerGiveUp: serviceManagerGiveUpNow,
         runtimeState: isRestartingTheRuntime
           ? "starting"
           : deriveRuntimeState({
               runTatolab: runTatolabNow,
               runtimeAgent: runtimeAgentNow,
               runtimeHealth,
-              serviceManagerGaveUpOnTheRuntime: whyTheServiceManagerGaveUpNow !== null && runTatolabSwitch.hasRegisteredAfreshAfterAGiveUp(),
+              serviceManagerGaveUpOnTheRuntime: serviceManagerGiveUpNow !== null && runTatolabSwitch.hasRegisteredAfreshThisLaunchAfterAGiveUp(),
               runtimeAnsweredSinceItWasLastStarted: runTatolabSwitch.runtimeAnsweredSinceItWasLastStarted(),
               timeSinceTheRuntimeWasExpectedUpMs: runTatolabSwitch.timeSinceTheRuntimeWasExpectedUpMs(nowMs),
             }),
@@ -330,9 +330,9 @@ export class TatolabAppController {
         failure: healthCheck.failure.failureDescription,
       });
     }
-    this.serviceManagerGaveUpInTheLastRound = whyTheServiceManagerGaveUp !== null;
-    if (this.serviceManagerGiveUpOnset.conditionJustStartedHolding(whyTheServiceManagerGaveUp !== null) && whyTheServiceManagerGaveUp !== null) {
-      this.tatolabAppLog.warn("the service manager gave up starting the runtime", { service_manager_words: whyTheServiceManagerGaveUp });
+    this.serviceManagerGiveUpInTheLastRound = serviceManagerGiveUp;
+    if (this.serviceManagerGiveUpOnset.conditionJustStartedHolding(serviceManagerGiveUp !== null) && serviceManagerGiveUp !== null) {
+      this.tatolabAppLog.warn("the service manager gave up starting the runtime", { service_manager_words: serviceManagerGiveUp.serviceManagerWords });
     }
 
     return {

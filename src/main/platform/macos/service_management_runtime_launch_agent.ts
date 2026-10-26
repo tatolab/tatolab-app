@@ -3,7 +3,7 @@
 
 import { failedWith, succeeded, type Result } from "../../result.js";
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../../shared/tatolab_backend_contract.js";
-import type { BundledRuntimeRestart, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "../runtime_agent_registration.js";
+import type { BundledRuntimeRestart, RuntimeAgentGiveUp, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "../runtime_agent_registration.js";
 import { describeHowTheProgramEnded, programSucceeded, runProgramToCompletion, type ProgramCompletion } from "../run_program_to_completion.js";
 import type { ServiceManagementAgentServices, ServiceManagementAgentServiceStatus } from "./service_management_agent_services.js";
 
@@ -33,16 +33,22 @@ function launchctlPrintField(launchctlPrintOutput: string, fieldName: string): s
 }
 
 /**
- * launchd's words for having given up on the job `launchctl print` describes, or `null`: a job not running whose
- * last spawn exited 78 (EX_CONFIG, launchd refusing to spawn it) or was ended for its code signature, as a Launch
- * Constraint Violation is.
+ * launchd having given up on the job `launchctl print` describes, or `null`: a job not running whose last spawn exited
+ * 78 (EX_CONFIG, launchd refusing to spawn it) or was ended for its code signature, as a Launch Constraint Violation is.
+ * The code-signing ending is the one a registration must wait out: Background Task Management keys the agent's record
+ * by its label, so a copy of the app signed differently inherits the last copy's record and its launch constraint, and
+ * replaces it only when launchd spawns the job again; from then on each spawn exits 78 until the agent is registered again.
  */
-export function whyLaunchdGaveUpOnTheJob(launchctlPrintOutput: string): string | null {
+export function whyLaunchdGaveUpOnTheJob(launchctlPrintOutput: string): RuntimeAgentGiveUp | null {
   if (launchctlPrintField(launchctlPrintOutput, "state") === "running") return null;
   const lastExitReason = launchctlPrintField(launchctlPrintOutput, "last exit reason");
-  if (lastExitReason !== null && lastExitReason.includes("CODESIGNING")) return `launchd: last exit reason = ${lastExitReason}`;
+  if (lastExitReason !== null && lastExitReason.includes("CODESIGNING")) {
+    return { serviceManagerWords: `launchd: last exit reason = ${lastExitReason}`, registeringAgainWaitsForTheNextSpawn: true };
+  }
   const lastExitCode = launchctlPrintField(launchctlPrintOutput, "last exit code");
-  if (lastExitCode !== null && /^78\b/.test(lastExitCode)) return `launchd: last exit code = ${lastExitCode}`;
+  if (lastExitCode !== null && /^78\b/.test(lastExitCode)) {
+    return { serviceManagerWords: `launchd: last exit code = ${lastExitCode}`, registeringAgainWaitsForTheNextSpawn: false };
+  }
   return null;
 }
 
@@ -89,7 +95,7 @@ export class ServiceManagementRuntimeLaunchAgent implements RuntimeAgentRegistra
     return this.serviceManagementAgentServices.registerAgentService(this.agentPlistName);
   }
 
-  async whyTheServiceManagerGaveUpOnTheRuntime(): Promise<string | null> {
+  async whyTheServiceManagerGaveUpOnTheRuntime(): Promise<RuntimeAgentGiveUp | null> {
     const printed = await this.launchctlRunner(["print", this.launchdJob()]);
     if (!printed.ok || !programSucceeded(printed.value)) return null;
     return whyLaunchdGaveUpOnTheJob(printed.value.standardOutput);
