@@ -1,8 +1,9 @@
 // scripts/assemble-tatolab-app-bundle.sh places everything the runtime unit ships: it refuses a
 // unit without moq-relay, which tatolabd runs from beside itself, or without the preview page
 // tatolabd serves from Resources/watch, a unit whose bin/ or lib/tatolab/ holds something it does
-// not place, and a unit built from any streamlib commit but the one the build resolved. Every
-// refusal comes before it touches the bundle.
+// not place, a unit built from any streamlib commit but the one the build resolved, and a Python
+// toolchain without uv or without exactly one built-in Python. Every refusal comes before it
+// touches the bundle.
 
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -23,7 +24,11 @@ interface AssembleScriptOutcome {
   stderr: string;
 }
 
-function runTheAssembleScript(appBundle: string, runtimeUnitDirectory: string, assembleFlags: string[] = ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT]): Promise<AssembleScriptOutcome> {
+function runTheAssembleScript(
+  appBundle: string,
+  runtimeUnitDirectory: string,
+  assembleFlags: string[] = ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT, "--python-toolchain", path.join(scratchDirectory, "python-toolchain")],
+): Promise<AssembleScriptOutcome> {
   return new Promise((resolveOutcome) => {
     execFile("bash", [ASSEMBLE_SCRIPT, appBundle, runtimeUnitDirectory, ...assembleFlags], { cwd: REPOSITORY_ROOT }, (scriptFailure, _stdout, stderr) => {
       const exitCode = scriptFailure === null ? 0 : typeof scriptFailure.code === "number" ? scriptFailure.code : -1;
@@ -40,7 +45,25 @@ beforeEach(async () => {
   await mkdir(path.join(plantedAppBundle, "Contents", "MacOS"), { recursive: true });
   await writeFile(path.join(plantedAppBundle, "Contents", "MacOS", "Tatolab"), "");
   await chmod(path.join(plantedAppBundle, "Contents", "MacOS", "Tatolab"), 0o755);
+  await pythonToolchainPlantedWith({ hasUv: true, builtInPythonFolderNames: ["cpython-3.12.15+20261013"] });
 });
+
+/** A Python toolchain as the fetch script lays it out, with or without its uv, holding these built-in Python folders. */
+async function pythonToolchainPlantedWith({ hasUv, builtInPythonFolderNames }: { hasUv: boolean; builtInPythonFolderNames: string[] }): Promise<void> {
+  const pythonToolchainDirectory = path.join(scratchDirectory, "python-toolchain");
+  await rm(pythonToolchainDirectory, { recursive: true, force: true });
+  await mkdir(path.join(pythonToolchainDirectory, "python"), { recursive: true });
+  if (hasUv) {
+    await writeFile(path.join(pythonToolchainDirectory, "uv"), "");
+    await chmod(path.join(pythonToolchainDirectory, "uv"), 0o755);
+  }
+  for (const builtInPythonFolderName of builtInPythonFolderNames) {
+    const interpreter = path.join(pythonToolchainDirectory, "python", builtInPythonFolderName, "bin", "python3");
+    await mkdir(path.dirname(interpreter), { recursive: true });
+    await writeFile(interpreter, "");
+    await chmod(interpreter, 0o755);
+  }
+}
 afterEach(async () => {
   await rm(scratchDirectory, { recursive: true, force: true });
 });
@@ -133,5 +156,32 @@ test("a unit built from the resolved commit passes the commit check", async () =
   expect(assembleOutcome.exitCode).toBe(1);
   expect(assembleOutcome.stderr).toContain("refusing to ship a test-root runtime unit");
   expect(assembleOutcome.stderr).not.toContain("streamlib");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
+test("a Python toolchain with no uv is refused and the bundle is untouched", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
+  await pythonToolchainPlantedWith({ hasUv: false, builtInPythonFolderNames: ["cpython-3.12.15+20261013"] });
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+  expect(assembleOutcome.exitCode).toBe(1);
+  expect(assembleOutcome.stderr).toContain("has no uv");
+  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+});
+
+test("a Python toolchain with two built-in Pythons, or none, is refused and the bundle is untouched", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
+  for (const builtInPythonFolderNames of [["cpython-3.12.15+20261013", "cpython-3.13.9+20261013"], []]) {
+    await pythonToolchainPlantedWith({ hasUv: true, builtInPythonFolderNames });
+    const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+    expect(assembleOutcome.exitCode).toBe(1);
+    expect(assembleOutcome.stderr).toContain(`holds ${builtInPythonFolderNames.length} built-in Pythons under python/, not one`);
+    expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+  }
+});
+
+test("assembling without a Python toolchain is a usage error", async () => {
+  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
+  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory, ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT]);
+  expect(assembleOutcome.exitCode).toBe(2);
   expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
 });

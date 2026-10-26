@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds Tatolab.app and its installer end to end: streamlib's runtime unit, the Electron app, the
-# assembled bundle, signatures, the branded .dmg, optional notarization, and the bundle checks.
+# Builds Tatolab.app and its installer end to end: streamlib's runtime unit, the pinned uv and
+# built-in Python, the Electron app, the assembled bundle, signatures, the branded .dmg, optional
+# notarization, and the bundle checks.
 # Outputs build/Tatolab.app, build/Tatolab-<version>-arm64.dmg, and the update Squirrel.Mac takes:
 # build/Tatolab-<version>-arm64-mac.zip and its feed manifest build/latest-mac.yml.
 # The runtime is always streamlib's main, or --streamlib-ref, fetched by
@@ -141,6 +142,9 @@ output_dmg="$build_directory/Tatolab-$app_version-arm64.dmg"
 output_update_zip="$build_directory/Tatolab-$app_version-arm64-mac.zip"
 output_update_manifest="$build_directory/latest-mac.yml"
 
+echo "==> uv and the built-in Python"
+python_toolchain_directory="$("$scripts_directory/fetch-python-toolchain-for-the-app-build.sh" "$build_directory/python-toolchain" macos-arm64 | tail -1)"
+
 echo "==> Electron app"
 cd "$repository_root"
 npm ci
@@ -169,7 +173,8 @@ while IFS= read -r usage_description_key; do
 done < <(plutil -convert json -o - "$info_plist" | node -e 'process.stdout.write(Object.keys(JSON.parse(require("node:fs").readFileSync(0, "utf8"))).filter((key) => key.endsWith("UsageDescription")).join("\n") + "\n")')
 
 echo "==> assemble"
-"$scripts_directory/assemble-tatolab-app-bundle.sh" "$assembled_app" "$runtime_unit_directory" --streamlib-commit "$streamlib_commit" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"}
+"$scripts_directory/assemble-tatolab-app-bundle.sh" "$assembled_app" "$runtime_unit_directory" --streamlib-commit "$streamlib_commit" \
+  --python-toolchain "$python_toolchain_directory" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"}
 
 echo "==> sign (Developer ID)"
 "$scripts_directory/sign-tatolab-app-bundle.sh" "$assembled_app" "$signing_identity"

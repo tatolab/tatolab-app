@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds Tatolab for Linux: the .deb and the AppImage of the Electron window and tray over the
-# runtime's systemd user service. Neither carries a runtime; the installer
+# runtime's systemd user service, each with the pinned uv and built-in Python the app makes a
+# project's .venv with, in its resources/. Neither carries a runtime; the installer
 # (curl -fsSL https://get.tatolab.com/install.sh | sh) installs the runtime and its service.
 # Outputs build/linux/Tatolab-<version>-amd64.deb, build/linux/Tatolab-<version>-x86_64.AppImage,
 # and the update feed's manifest listing both, build/linux/latest-linux.yml.
@@ -124,6 +125,14 @@ grep -aqF '"electron-updater":{"files"' "$packaged_app_directory/resources/app.a
 grep -qx 'updaterCacheDirName: tatolab-app-updater' "$packaged_app_directory/resources/app-update.yml" \
   || { echo "the packaged app has no resources/app-update.yml naming the updater's cache" >&2; exit 1; }
 
+echo "==> uv and the built-in Python"
+python_toolchain_directory="$(scripts/fetch-python-toolchain-for-the-app-build.sh "$linux_build_directory/python-toolchain" linux-x86_64 | tail -1)"
+install -m 0755 "$python_toolchain_directory/uv" "$packaged_app_directory/resources/uv"
+cp -a "$python_toolchain_directory/python" "$packaged_app_directory/resources/python"
+built_in_python_folder_name="$(basename "$(find "$packaged_app_directory/resources/python" -mindepth 1 -maxdepth 1 -type d -name 'cpython-*' | head -1)")"
+"$packaged_app_directory/resources/python/$built_in_python_folder_name/bin/python3" -I -B -c "" \
+  || { echo "the built-in Python $built_in_python_folder_name does not run on this machine" >&2; exit 1; }
+
 # Lays the app, its desktop entry and its icons under <root>/usr.
 lay_out_the_app_under() {
   local install_root="$1"
@@ -208,6 +217,10 @@ unreadable_deb_members="$(awk '$1 !~ /^l/ && $1 !~ /^[-d]r[-w][-xs]r-[-x]r-[-x]$
 [ -z "$unreadable_deb_members" ] || { echo "the .deb carries members other users cannot read: $unreadable_deb_members" >&2; exit 1; }
 grep -qE '[[:space:]]\./usr/bin/Tatolab -> \.\./lib/tatolab/Tatolab$' <<<"$deb_contents" \
   || { echo "the .deb does not link usr/bin/Tatolab to the app" >&2; exit 1; }
+grep -qE '^-rwxr-xr-x .*[[:space:]]\./usr/lib/tatolab/resources/uv$' <<<"$deb_contents" \
+  || { echo "the .deb carries no runnable usr/lib/tatolab/resources/uv" >&2; exit 1; }
+grep -qF "./usr/lib/tatolab/resources/python/$built_in_python_folder_name/bin/python3" <<<"$deb_contents" \
+  || { echo "the .deb carries no built-in Python at usr/lib/tatolab/resources/python/$built_in_python_folder_name" >&2; exit 1; }
 echo "    Depends: $deb_depends"
 
 echo "==> AppImage"
