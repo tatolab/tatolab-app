@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import type { ListedStream, StreamProjectFolderChosenFor, StreamRunAnswer } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure, StreamRunRequest } from "./local_api_client.js";
-import type { TatolabCommandLineTool } from "./platform/mod.js";
+import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_tool.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import type { ProgramRunner } from "./platform/run_program_to_completion.js";
 import { firstFreeSuffixedName, StreamProjectAdding, type StreamRunsOnTheRuntime } from "./stream_project_adding.js";

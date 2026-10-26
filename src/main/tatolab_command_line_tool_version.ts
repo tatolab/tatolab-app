@@ -3,7 +3,7 @@
 // the local API instead, so it is ignored.
 
 import type { TatolabCommandLineToolVersion } from "../shared/tatolab_backend_contract.js";
-import type { TatolabCommandLineTool } from "./platform/mod.js";
+import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_tool.js";
 import { describeHowTheProgramEnded, programSucceeded, type ProgramRunner } from "./platform/run_program_to_completion.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";

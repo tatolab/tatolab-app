@@ -4,7 +4,7 @@ import { FakeTatolabElectronAppShell } from "./fake_tatolab_electron_app_shell.j
 import { startTatolabApp, type TatolabRunningApp } from "./main.js";
 import { TatolabMainWindow } from "./tatolab_main_window.js";
 import { TatolabTrayMenu } from "./tatolab_tray_menu.js";
-import { tatolabPlatformItemsFor } from "./platform/mod.js";
+import { tatolabPlatformItemsFor } from "./platform/tatolab_platform_items.js";
 import { succeeded } from "./result.js";
 import { APP_UPDATE_CHECK_INTERVAL_MS, type TatolabAppUpdateFeed } from "./tatolab_app_updater.js";
 

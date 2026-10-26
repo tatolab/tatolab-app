@@ -19,7 +19,7 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import { LocalApiClient, type LocalApiRequestFailure, type StreamRunRequest } from "./local_api_client.js";
-import type { TatolabPlatformForThisBuild } from "./platform/mod.js";
+import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { BundledRuntimeRestart } from "./platform/runtime_agent_registration.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
 import type { CommandLineToolLinkRefusal, TatolabCommandLineToolLinks } from "./platform/tatolab_command_line_tool_links.js";

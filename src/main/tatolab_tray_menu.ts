@@ -5,7 +5,7 @@
 // Updates…" in a packaged app, and "Quit Tatolab".
 
 import type { TatolabAppUpdateState, TatolabStatus } from "../shared/tatolab_backend_contract.js";
-import type { TrayIconImage } from "./platform/mod.js";
+import type { TrayIconImage } from "./platform/tray_icon_image.js";
 import { trayRuntimeRemedy, trayStatusLine, type TrayRuntimeRemedy } from "./tatolab_status.js";
 
 /** A tray menu item's id, which a click reports. */

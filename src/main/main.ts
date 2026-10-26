@@ -6,7 +6,10 @@
 // own.
 
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import type { ApplicationMenu, DockIconHost, TatolabAppUpdatePackaging, TatolabPlatformForThisBuild, TatolabPlatformItems } from "./platform/mod.js";
+import type { ApplicationMenu, DockIconHost } from "./platform/main_window_platform_looks.js";
+import type { TatolabAppUpdatePackaging } from "./platform/tatolab_app_update_packaging.js";
+import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
+import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
 import {
   checkForTatolabAppUpdatesOnRequest,

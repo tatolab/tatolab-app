@@ -10,7 +10,7 @@ import {
   LOCAL_PROOF_TEST_MACHINE_ROOT,
   localApiSocketUnderALocalProofTestRoot,
   perUserStreamlibRuntimeDirectoryUnderTmp,
-} from "../mod.js";
+} from "../local_api_socket_paths.js";
 import { TATOLAB_APP_BUILD_FEATURES } from "../../tatolab_app_build_features.js";
 
 /** The folder the runtime keeps inside `$XDG_RUNTIME_DIR`. */

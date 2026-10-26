@@ -14,12 +14,13 @@ import { failedWith, succeeded } from "./result.js";
 import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabElectronAppShell } from "./main.js";
-import type { ApplicationMenu, MacosActivationPolicy, TatolabUninstall } from "./platform/mod.js";
+import type { ApplicationMenu, MacosActivationPolicy } from "./platform/main_window_platform_looks.js";
+import type { TatolabUninstall } from "./platform/tatolab_uninstall.js";
 import type { TatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import type { MainWindowCloseRequestAnswer, MainWindowSpecification } from "./tatolab_main_window.js";
 import type { TrayMenuItemDescription, TrayMenuItemId } from "./tatolab_tray_menu.js";
 import type { TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
-import type { TatolabAppUpdatePackaging } from "./platform/mod.js";
+import type { TatolabAppUpdatePackaging } from "./platform/tatolab_app_update_packaging.js";
 
 /** One thing the app asked of the fake shell, in order. */
 export type FakeShellRecord =

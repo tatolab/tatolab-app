@@ -17,7 +17,7 @@ import {
   uninstallTatolabInOrder,
   type MachineFilesToRemove,
   type TatolabUninstallSteps,
-} from "./tatolab_uninstall.js";
+} from "./tatolab_uninstall_on_this_mac.js";
 
 const temporaryRoots: string[] = [];
 

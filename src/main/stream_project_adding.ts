@@ -14,7 +14,8 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure, StreamRunRequest } from "./local_api_client.js";
 import { isAnExistingFolderOnThisMachine, realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
-import type { TatolabCommandLineTool, TerminalOpenedInAFolder } from "./platform/mod.js";
+import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_tool.js";
+import type { TerminalOpenedInAFolder } from "./platform/terminal_opened_in_a_folder.js";
 import { describeHowTheProgramEnded, programSucceeded, type ProgramRunner } from "./platform/run_program_to_completion.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { inspectStreamProjectFolder } from "./stream_project_folder_inspection.js";

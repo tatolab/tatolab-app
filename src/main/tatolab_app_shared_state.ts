@@ -2,7 +2,7 @@
 // controller, the status publisher, the updater and uninstalling, and the requests the tray and
 // the window both make.
 
-import type { TatolabUninstall } from "./platform/mod.js";
+import type { TatolabUninstall } from "./platform/tatolab_uninstall.js";
 import { describeCaughtFailure } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";

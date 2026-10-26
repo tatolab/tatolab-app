@@ -8,7 +8,7 @@ import {
 } from "./administrator_prompt.js";
 import { usrLocalBinLinkAdministratorShellScript } from "./command_line_tool_links_on_this_mac.js";
 import { runProgramToCompletion, type ProgramCompletion } from "../run_program_to_completion.js";
-import { tatolabUninstallAdministratorShellScript } from "./tatolab_uninstall.js";
+import { tatolabUninstallAdministratorShellScript } from "./tatolab_uninstall_on_this_mac.js";
 
 const OSASCRIPT_RUNS_HERE = process.platform === "darwin";
 
