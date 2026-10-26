@@ -296,13 +296,18 @@ classify_command_line() {
         note_rule app_launch "$original_segment"
         ;;
       npm)
-        printf '%s' "$arguments" | grep -Eq '^[[:space:]]+run[[:space:]]+electron(:dev)?([[:space:]]|$)' && note_rule app_launch "$original_segment"
+        printf '%s' "$arguments" | grep -Eq '^[[:space:]]+run[[:space:]]+dev([[:space:]]|$)' && note_rule app_launch "$original_segment"
         ;;
       npx)
         printf '%s' "$arguments" | grep -Eq '^([[:space:]]+-[^[:space:]]+)*[[:space:]]+electron([[:space:]]|$)' && note_rule app_launch "$original_segment"
+        printf '%s' "$arguments" | grep -Eq '^([[:space:]]+-[^[:space:]]+)*[[:space:]]+electron-vite([[:space:]]+(dev|preview|-[^[:space:]]*)([[:space:]]|$)|[[:space:]]*$)' \
+          && note_rule app_launch "$original_segment"
         ;;
       electron)
         note_rule app_launch "$original_segment"
+        ;;
+      electron-vite)
+        printf '%s' "$arguments" | grep -Eq '^([[:space:]]+(dev|preview|-[^[:space:]]*)([[:space:]]|$)|[[:space:]]*$)' && note_rule app_launch "$original_segment"
         ;;
       apt|apt-get|dpkg)
         printf '%s' "$arguments" | grep -Eiq '[[:space:]](install|remove|purge|-i|-r|-P)([[:space:]]|$)' \
@@ -415,7 +420,7 @@ if [ "$outcome" = ask ]; then
 fi
 
 system_message="${config_problems}machine-brake: ${first_rule} noted, not a prompt. Silence it: ${HELPER} rule ${first_rule} off  or  ${HELPER} allow '${suggested_glob}'"
-context="machine-brake note, advisory only, nothing was blocked: this command matched ${rules_text}. It acts on the owner's real machine or sends something outside the repository. That is fine when the owner asked for it. Otherwise prefer the hermetic path — tests with the fake local API server, the mock window (npm run dev), or a local-proof build under TATOLAB_TEST_MACHINE_ROOT — and say what you ran. Read-only verbs (launchctl print, systemctl --user status, tatolab streams/graph/logs/tap/exchange) and a test-root unit's own tatolab or tatolabd (a unit carrying the machine-directories-under-a-test-root marker) never trigger this note. Owner preferences: ${preferences:-none recorded}. The owner can silence this with \`${HELPER} rule ${first_rule} off\` or \`${HELPER} allow '${suggested_glob}'\`; offer that if they say the command is fine, and never add an exception yourself."
+context="machine-brake note, advisory only, nothing was blocked: this command matched ${rules_text}. It acts on the owner's real machine or sends something outside the repository. That is fine when the owner asked for it. Otherwise prefer the hermetic path — tests with the fake local API server, the mock window (node scripts/serve_the_mock_window_in_a_browser.mjs), or a local-proof build under TATOLAB_TEST_MACHINE_ROOT — and say what you ran. Read-only verbs (launchctl print, systemctl --user status, tatolab streams/graph/logs/tap/exchange) and a test-root unit's own tatolab or tatolabd (a unit carrying the machine-directories-under-a-test-root marker) never trigger this note. Owner preferences: ${preferences:-none recorded}. The owner can silence this with \`${HELPER} rule ${first_rule} off\` or \`${HELPER} allow '${suggested_glob}'\`; offer that if they say the command is fine, and never add an exception yourself."
 jq -n --arg message "$system_message" --arg context "$context" \
   '{systemMessage: $message, hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $context}}'
 exit 0
