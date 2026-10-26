@@ -4,7 +4,6 @@ import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab
 import { STOP_NOT_RECORDED_LEAD, streamActionRefusalLead, type StreamPrimaryActionPresentation } from "../presentation/stream_presentation";
 import { isStreamActionStillUnderWay, presentStreamRemovalConfirmation, type StreamActionUnderWay } from "../presentation/streams_list_presentation";
 import { ConfirmationDialog } from "../design_system/confirmation_dialog";
-import { CopyWordsButton } from "../design_system/copy_words_button";
 import { RefusalLine } from "../design_system/refusal_line";
 import { useTatolabWindowEnvironment } from "./tatolab_window_context";
 
@@ -109,17 +108,3 @@ export function useStreamRemovalDialog(onRemove: (stream: ListedStream) => void)
   return { askToRemove, removalDialog };
 }
 
-/** A terminal command in a well, with a button that copies it. */
-export function CommandWithCopyButton({ command }: { command: string }) {
-  return (
-    <div className="flex h-9 items-center gap-2 rounded-md border bg-well pr-1 pl-3 font-mono">
-      <span className="text-fg-3 select-none" aria-hidden>
-        $
-      </span>
-      <span className="min-w-0 flex-1 truncate text-fg select-text">{command}</span>
-      <span className="font-sans">
-        <CopyWordsButton appearance="quiet" readTextToCopy={() => command} />
-      </span>
-    </div>
-  );
-}

@@ -5,7 +5,6 @@ import { presentStreamGraphCanvas, previewedOutputOf, type StreamGraphCanvas, ty
 import { readTheGraphDocument } from "../presentation/stream_graph_document_presentation";
 import { presentStreamGraphInspection } from "../presentation/stream_graph_inspector_presentation";
 import { layOutStreamGraphSteps, streamGraphLayoutKey, type StreamGraphStepPosition } from "../presentation/stream_graph_step_layout";
-import { streamGraphDocumentCommand } from "../presentation/stream_overview_presentation";
 import { EmptyState } from "../design_system/empty_state";
 import { RefusalLine } from "../design_system/refusal_line";
 import { WorkAreaWithSidePanel } from "../design_system/side_panel";
@@ -164,7 +163,6 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
     <StreamGraphInspectorView
       inspection={inspection}
       outputPlace={outputPlace}
-      streamInstance={reading.streamInstance}
       pinnedOutputKeys={pinnedOutputKeys}
       actions={{
         onClosed: () => setIsInspectorOpen(false),
@@ -268,7 +266,7 @@ export function StreamGraphPageView({ stream }: { stream: ListedStream }) {
     );
   }
   if (canvas.steps.length === 0) {
-    return <GraphTabMessage title={`${stream.name} has no nodes yet`} detail={`${streamGraphDocumentCommand(stream.name)} prints the graph the runtime holds.`} />;
+    return <GraphTabMessage title={`${stream.name} has no nodes yet`} detail="Its nodes show here once its stream function adds them." />;
   }
   return (
     <StreamGraphCanvasProvider key={stream.name}>

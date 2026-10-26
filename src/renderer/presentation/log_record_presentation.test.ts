@@ -16,7 +16,6 @@ import {
   searchMatchRangesOf,
   STREAM_LOG_LEVEL_FILTERS,
   earlierRecordsNotHeldWords,
-  streamLoadWords,
   type StreamLogFilters,
 } from "./log_record_presentation";
 
@@ -260,13 +259,6 @@ describe("the pointer to records not held", () => {
     expect(earlierRecordsNotHeldWords(1)).toBe("1 earlier record is in");
     expect(earlierRecordsNotHeldWords(2312)).toBe("2,312 earlier records are in");
     expect(logFolderPathOfStream("/Users/jonathanf/streams/front-door")).toBe("~/streams/front-door/.streamlib/logs/");
-  });
-});
-
-describe("streamLoadWords", () => {
-  it("numbers a load the runtime numbers, and names any other as the runtime does", () => {
-    expect(streamLoadWords("5")).toBe("Load #5");
-    expect(streamLoadWords("front-door#2")).toBe("Load front-door#2");
   });
 });
 

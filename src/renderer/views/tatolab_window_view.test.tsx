@@ -130,7 +130,7 @@ describe("the Streams list", () => {
     await mountedWindowOverTheMock("state=empty");
 
     expect(screen.getByText("No streams on jonathanf-macbook yet")).toBeTruthy();
-    expect(screen.getByText("tatolab dev")).toBeTruthy();
+    expect(screen.queryByText("tatolab dev")).toBeNull();
   });
 
   it("shows the page that says why while the runtime is not running", async () => {
@@ -220,7 +220,8 @@ describe("a stream's page", () => {
     expect(within(stepRows[0]).queryByText("Running"), "every node runs, so no State column").toBeNull();
     expect(document.querySelector("[data-dropping-links]")).toBeNull();
     const details = within(document.querySelector<HTMLElement>("[data-stream-details]") ?? document.body);
-    await waitFor(() => expect(details.getByText("4")).toBeTruthy());
+    expect(details.getByText("~/streams/pattern")).toBeTruthy();
+    expect(details.queryByText("Instance")).toBeNull();
     expect(details.queryByText("tatolab graph --stream main")).toBeNull();
   });
 
@@ -249,7 +250,6 @@ describe("a stream's page", () => {
     await waitFor(() => expect(textOf("[data-nothing-to-preview]")).toContain("Stopped, so nothing to preview"));
     expect(screen.getByRole("button", { name: "Start stream" })).toBeTruthy();
     expect(textOf("[data-stream-steps]")).toContain("as of the last load");
-    expect(within(document.querySelector<HTMLElement>("[data-stream-details]") ?? document.body).getByText("Not loaded")).toBeTruthy();
   });
 
   it("shows a failed stream's reason in the runtime's words and retries it from the bar, the banner offering no second Retry", async () => {
@@ -273,7 +273,6 @@ describe("a stream's page", () => {
     fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Inspect" })));
 
     await waitFor(() => expect(document.querySelector("[data-graph-document-view='raw']")).not.toBeNull());
-    expect(textOf("[data-stream-inspect]")).toContain("tatolab graph --stream main");
     expect(textOf("[data-graph-document-view='raw']")).toContain('"stream": "main"');
     const outline = within(screen.getByRole("complementary", { name: "Graph document outline" }));
     expect(outline.getByText("nodes")).toBeTruthy();
@@ -382,7 +381,6 @@ describe("a stream's Logs tab", () => {
     const loadingRow = logRowOf("Loading the stream `main`");
     expect(loadingRow.textContent).toMatch(/^\d{2}:\d{2}:\d{2}\.\d{3}INFOruntimeLoading the stream `main`/);
     expect(logRowOf("mean=127.5").textContent).toMatch(/INFObrightnessmeterbrightness {2}height=720 {2}mean=127.5 {2}width=1280$/);
-    expect(textOf("[data-stream-log-load]")).toMatch(/^Load #\d+$/);
     const rowCountBefore = shownLogMessages().length;
 
     await waitFor(() => expect(shownLogMessages().length).toBeGreaterThan(rowCountBefore), { timeout: 4000 });

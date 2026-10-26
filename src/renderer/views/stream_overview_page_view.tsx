@@ -269,7 +269,6 @@ function StreamDetailsPanel({
         {abbreviateHomeDirectory(stream.project_directory)}
       </span>,
     ],
-    ["Instance", reading.streamInstance === null ? <span className="text-fg-3">Not loaded</span> : <span className="font-mono text-xs select-text">{reading.streamInstance}</span>],
   ];
   const readableOutputs = graph === null ? [] : readableExposedPorts(graph);
   const isFromTheLastLoad = graph !== null && reading.graphSource !== "loaded";

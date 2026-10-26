@@ -291,7 +291,7 @@ describe("the commands and words the page shows", () => {
     expect(compilingStreamWords({ folder: "/x", streamFunction: null, streamName: null })).toBe("the stream");
     expect(streamRunningFactsWords(HEAT_MAP_ANSWER)).toBe("4 nodes");
     expect(streamRunAnswerLines({ ...HEAT_MAP_ANSWER, replaced_the_kept_record: true })).toEqual([
-      "loaded heat_map as instance 9: 4 nodes, in place of the stream this project kept",
+      "loaded heat_map: 4 nodes, in place of the stream this project kept",
       "heat_map is running; kept, so it loads again whenever the runtime starts",
     ]);
   });

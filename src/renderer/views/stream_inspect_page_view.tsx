@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { ChevronRight, FileBraces, SquareTerminal } from "lucide-react";
+import { ChevronRight, FileBraces } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import {
@@ -9,7 +9,6 @@ import {
   type GraphDocumentValue,
   type JsonSyntaxKind,
 } from "../presentation/stream_graph_document_presentation";
-import { streamGraphDocumentCommand } from "../presentation/stream_overview_presentation";
 import { isStreamLoaded } from "../presentation/stream_presentation";
 import { CopyWordsButton } from "../design_system/copy_words_button";
 import { EmptyState } from "../design_system/empty_state";
@@ -185,23 +184,16 @@ function GraphDocumentViewSwitch({ shownView, onViewChosen }: { shownView: Graph
   );
 }
 
-/** The command bar every state of Inspect shows: the terminal command that prints the same document. */
-function GraphDocumentCommandBar({ command, children }: { command: string; children?: ReactNode }) {
-  return (
-    <div className="flex h-10 shrink-0 items-center gap-3 border-b px-4">
-      <SquareTerminal className="size-4 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
-      <code className="truncate text-xs text-fg-2 select-text">{command}</code>
-      {children !== undefined && <div className="ml-auto flex items-center gap-2">{children}</div>}
-    </div>
-  );
+/** Inspect's bar over the document: which view of it shows, and Copy. */
+function GraphDocumentBar({ children }: { children: ReactNode }) {
+  return <div className="flex h-10 shrink-0 items-center justify-end gap-2 border-b px-4">{children}</div>;
 }
 
-/** Inspect: the `graph` document of the loaded stream exactly as `tatolab graph --stream` prints it, with an outline of its top-level keys. */
+/** Inspect: the `graph` document of the loaded stream as the runtime gives it, with an outline of its top-level keys. */
 export function StreamInspectPageView({ stream }: { stream: ListedStream }) {
   const reading = useStreamGraphReading(stream.name);
   const [shownView, setShownView] = useState<GraphDocumentView>("raw");
   const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
-  const command = streamGraphDocumentCommand(stream.name);
   const graphDocumentText = reading.graphSource === "loaded" ? (reading.graph?.graph_document_text ?? null) : null;
   const graphDocument = useMemo(() => (graphDocumentText === null ? null : readTheGraphDocument(graphDocumentText)), [graphDocumentText]);
 
@@ -209,14 +201,13 @@ export function StreamInspectPageView({ stream }: { stream: ListedStream }) {
     const isNotLoaded = !isStreamLoaded(stream);
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-stream-inspect="">
-        <GraphDocumentCommandBar command={command} />
         <EmptyState
           icon={FileBraces}
           title={isNotLoaded ? "No graph while the stream is not loaded" : reading.readRefusal === null ? "Reading its graph…" : "Its graph could not be read"}
           explanation={
             isNotLoaded
-              ? `The runtime serves a stream's graph only while it is loaded. ${stream.state === "failed" ? "Retry it" : "Start it"} and the graph shows here, as the command prints it.`
-              : (reading.readRefusal ?? "The graph shows here as the command prints it.")
+              ? `The runtime serves a stream's graph only while it is loaded. ${stream.state === "failed" ? "Retry it" : "Start it"} and the graph shows here.`
+              : (reading.readRefusal ?? "The graph shows here once the runtime gives it.")
           }
         />
       </div>
@@ -255,10 +246,10 @@ export function StreamInspectPageView({ stream }: { stream: ListedStream }) {
         ))}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <GraphDocumentCommandBar command={command}>
+        <GraphDocumentBar>
           <GraphDocumentViewSwitch shownView={shownView} onViewChosen={setShownView} />
           <CopyWordsButton readTextToCopy={() => graphDocumentText} />
-        </GraphDocumentCommandBar>
+        </GraphDocumentBar>
         <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
           {shownView === "tree" && graphDocument !== null ? (
             <GraphDocumentTree graphDocument={graphDocument} highlightedKey={highlightedKey} />

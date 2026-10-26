@@ -174,15 +174,7 @@ function StepInspectorView({
   );
 }
 
-function StreamSummaryInspectorView({
-  inspection,
-  streamInstance,
-  actions,
-}: {
-  inspection: StreamGraphStreamInspection;
-  streamInstance: string | null;
-  actions: StreamGraphInspectorActions;
-}) {
+function StreamSummaryInspectorView({ inspection, actions }: { inspection: StreamGraphStreamInspection; actions: StreamGraphInspectorActions }) {
   return (
     <>
       <PanelSection title="Summary" isDivided>
@@ -197,7 +189,6 @@ function StreamSummaryInspectorView({
               </>,
             ],
             ["Exposed", inspection.exposedOutputs.length],
-            ["Instance", <span className="font-mono text-xs select-text">{streamInstance ?? "—"}</span>],
           ]}
         />
       </PanelSection>
@@ -244,13 +235,11 @@ function StreamSummaryInspectorView({
 export function StreamGraphInspectorView({
   inspection,
   outputPlace,
-  streamInstance,
   pinnedOutputKeys,
   actions,
 }: {
   inspection: StreamGraphInspection;
   outputPlace: StreamGraphOutputPlace;
-  streamInstance: string | null;
   pinnedOutputKeys: ReadonlySet<string>;
   actions: StreamGraphInspectorActions;
 }) {
@@ -275,7 +264,7 @@ export function StreamGraphInspectorView({
       {inspection.kind === "step" ? (
         <StepInspectorView key={inspection.step.name} inspection={inspection} outputPlace={outputPlace} pinnedOutputKeys={pinnedOutputKeys} actions={actions} />
       ) : (
-        <StreamSummaryInspectorView inspection={inspection} streamInstance={streamInstance} actions={actions} />
+        <StreamSummaryInspectorView inspection={inspection} actions={actions} />
       )}
     </SidePanel>
   );

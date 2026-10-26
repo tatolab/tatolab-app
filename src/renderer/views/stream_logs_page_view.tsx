@@ -13,7 +13,6 @@ import {
   presentStreamLogRecordDetails,
   presentStreamLogsOfAStreamNotLoaded,
   searchMatchRangesOf,
-  streamLoadWords,
   type StreamLogLevelFilter,
   type StreamLogLevelFilterChoice,
   type StreamLogMessageLinePartKind,
@@ -248,16 +247,6 @@ function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stre
   );
 }
 
-/** Which load of the stream the rows are from, and that the window holds its records since that load. */
-function StreamLoadExplanation({ streamInstance }: { streamInstance: string }) {
-  return (
-    <span className="block">
-      {streamLoadWords(streamInstance)}: records since this load are held in memory.
-      <span className="mt-1 block font-mono text-2xs opacity-80">stream_instance: {streamInstance}</span>
-    </span>
-  );
-}
-
 /** A loaded stream's records as the runtime holds them, followed live, with the toolbar, the rows and the selected record's details. */
 function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   const { platform } = useTatolabWindowEnvironment();
@@ -381,15 +370,7 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
           />
           <StreamLogStepFilterControl streamLog={streamLog} shownStepKeys={shownStepKeys} onShownStepKeysChosen={setShownStepKeys} />
           <ToolbarGroup isAtTheEnd>
-            {reading.streamInstance !== null && (
-              <ToolbarWords explanation={<StreamLoadExplanation streamInstance={reading.streamInstance} />} isDroppedWhenNarrow data-stream-log-load="">
-                {streamLoadWords(reading.streamInstance)}
-              </ToolbarWords>
-            )}
-            <ToolbarWords
-              explanation={reading.streamInstance === null ? undefined : <StreamLoadExplanation streamInstance={reading.streamInstance} />}
-              data-stream-log-line-count=""
-            >
+            <ToolbarWords explanation="Records since the stream last loaded, held in memory." data-stream-log-line-count="">
               {streamLog.lineCountWords}
             </ToolbarWords>
             <ToggleIconButton

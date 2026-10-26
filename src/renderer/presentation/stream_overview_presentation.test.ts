@@ -9,7 +9,6 @@ import {
   presentStreamSteps,
   previewableOutputsOf,
   readableExposedPorts,
-  streamObservationCommands,
 } from "./stream_overview_presentation";
 
 function wiredLink(source: string, sourcePort: string, target: string, targetPort: string, state = "wired"): StreamGraphLink {
@@ -187,8 +186,3 @@ describe("previewable outputs", () => {
   });
 });
 
-describe("terminal commands of the details panel", () => {
-  it("follows the stream's logs and prints its graph, as tatolab-cli's verbs spell them", () => {
-    expect(streamObservationCommands("front-door")).toEqual(["tatolab logs --stream front-door -f", "tatolab graph --stream front-door"]);
-  });
-});

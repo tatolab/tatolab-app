@@ -201,12 +201,3 @@ export function choosePreviewedOutput(
   return stillPreviewable ?? previewableOutputs[0] ?? null;
 }
 
-/** The command that prints the `graph` document Inspect shows. */
-export function streamGraphDocumentCommand(streamName: string): string {
-  return `tatolab graph --stream ${streamName}`;
-}
-
-/** The `tatolab` commands that watch `streamName` from a terminal: follow its logs, and print the graph Inspect shows. */
-export function streamObservationCommands(streamName: string): string[] {
-  return [`tatolab logs --stream ${streamName} -f`, streamGraphDocumentCommand(streamName)];
-}

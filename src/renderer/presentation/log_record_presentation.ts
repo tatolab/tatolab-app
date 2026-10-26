@@ -393,11 +393,6 @@ export function logFolderPathOfStream(projectDirectory: string): string {
   return `${abbreviateHomeDirectory(projectDirectory)}/${STREAM_LOG_FOLDER_IN_THE_PROJECT}/`;
 }
 
-/** The toolbar's words for which load of the stream the records are from: `Load #5` for a numbered one, else the instance as the runtime names it. */
-export function streamLoadWords(streamInstance: string): string {
-  return /^\d+$/.test(streamInstance) ? `Load #${streamInstance}` : `Load ${streamInstance}`;
-}
-
 /** What the Logs tab of a stream that is not loaded says. */
 export interface StreamLogsOfAStreamNotLoaded {
   hasFailed: boolean;

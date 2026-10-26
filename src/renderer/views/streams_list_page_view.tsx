@@ -33,7 +33,6 @@ import {
   type StreamsListFilter,
 } from "../presentation/streams_list_presentation";
 import {
-  CommandWithCopyButton,
   StreamActionOutcomeLine,
   useStreamActionsUnderWay,
   useStreamRemovalDialog,
@@ -170,10 +169,6 @@ function NoStreamsYet({ machineWords }: { machineWords: string }) {
         <div className="mt-6 w-full overflow-hidden rounded-lg border text-left">
           <FirstStreamChoice icon={Sparkles} title="Create the sample stream" explanation="A sample stream you can edit, made with tatolab new." source="new_project" />
           <FirstStreamChoice icon={FolderOpen} title="Run a project folder" explanation="Any folder with a stream.py." source="project_folder" />
-        </div>
-        <div className="mt-6 w-full text-left">
-          <div className="mb-1.5 text-xs text-fg-3">Or in a terminal, from a project folder, to reload on every save:</div>
-          <CommandWithCopyButton command="tatolab dev" />
         </div>
       </div>
     </div>

@@ -11,7 +11,6 @@ import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
 import { StreamStateWords } from "../design_system/stream_state_words";
 import { shortcutHint, windowDragRegionAttribute } from "../presentation/platform_presentation";
-import { streamObservationCommands } from "../presentation/stream_overview_presentation";
 import {
   isStreamLoaded,
   presentStreamPrimaryAction,
@@ -102,11 +101,6 @@ export function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { 
             <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(stream.project_directory)}>
               Copy project folder path
             </MenuItem>
-            {streamObservationCommands(stream.name).map((command) => (
-              <MenuItem key={command} icon={Copy} onChosen={() => void writeTextToClipboard(command)} data-stream-copy-command={command}>
-                Copy <span className="font-mono text-xs">{command}</span>
-              </MenuItem>
-            ))}
             <MenuSeparator />
             <MenuItem icon={Trash2} isDestructive isDisabled={actionUnderWay !== undefined} onChosen={askToRemove} data-stream-action="remove_stream">
               Remove…

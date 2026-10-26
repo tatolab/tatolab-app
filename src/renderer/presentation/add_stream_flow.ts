@@ -336,7 +336,7 @@ export function streamRunningFactsWords(answer: StreamRunAnswer): string {
 export function streamRunAnswerLines(answer: StreamRunAnswer): readonly string[] {
   const replaced = answer.replaced_the_kept_record ? ", in place of the stream this project kept" : "";
   return [
-    `loaded ${answer.stream} as instance ${answer.stream_instance}: ${stepCountWords(answer.node_count)}${replaced}`,
+    `loaded ${answer.stream}: ${stepCountWords(answer.node_count)}${replaced}`,
     `${answer.stream} is running; kept, so it loads again whenever the runtime starts`,
   ];
 }
