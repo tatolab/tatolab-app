@@ -24,10 +24,10 @@ export function SectionNavigationList({
   dataAttributeOfEachSection: ControlDataAttributeName;
 }) {
   return (
-    <nav aria-label={label} className="scrollbar-thin flex w-52 shrink-0 flex-col gap-4 overflow-y-auto border-r px-2 pt-3 pb-4">
+    <nav aria-label={label} className="scrollbar-thin flex w-52 shrink-0 flex-col gap-5 overflow-y-auto border-r px-2 pt-3 pb-4">
       {sectionGroups.map(({ groupLabel, sections }) => (
         <section key={groupLabel}>
-          <h2 className="label-caps flex h-7 items-center px-2">{groupLabel}</h2>
+          <h2 className="label-caps flex h-8 items-center px-2">{groupLabel}</h2>
           {sections.map(({ path, label: sectionLabel, icon: SectionIcon, dataValue }) => (
             <NavLink
               key={path}
@@ -35,7 +35,7 @@ export function SectionNavigationList({
               {...{ [dataAttributeOfEachSection]: dataValue }}
               className={({ isActive }) =>
                 cn(
-                  "flex h-7 items-center gap-2 rounded-md px-2 text-fg outline-none hover:bg-hover",
+                  "flex h-8 items-center gap-2 rounded-md px-2 text-fg outline-none hover:bg-hover",
                   FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
                   isActive && "bg-selected",
                 )

@@ -871,7 +871,8 @@ describe("Settings", () => {
     expect(sectionList.getByText("This machine")).toBeTruthy();
     const sidebar = within(screen.getByRole("navigation", { name: "Tatolab" }));
     expect(sidebar.getByRole("link", { name: "Settings" }).getAttribute("aria-current")).toBe("page");
-    expect(sidebar.getByRole("link", { name: "camera" })).toBeTruthy();
+    expect(sidebar.getByRole("link", { name: "camera, Running" })).toBeTruthy();
+    expect(sidebar.getByRole("link", { name: "lobby-recorder, Failed" })).toBeTruthy();
   });
 
   it("switches the window light, dark or to the system's look live, and keeps the choice", async () => {

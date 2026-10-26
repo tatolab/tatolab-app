@@ -11,9 +11,18 @@ type ListRowButtonElementProps = Pick<
   "aria-label" | "aria-describedby" | "aria-expanded" | "aria-pressed" | "aria-current" | "onMouseEnter" | "onMouseLeave" | "onFocus" | "onBlur" | "style"
 >;
 
-/** A row of a list or panel that acts when pressed: its icon, its words, and what trails them; filled while selected, dim while it cannot act. */
+/** How a row's icon reads: quiet beside its words, or in the danger colour for a row that holds a failure. */
+export type ListRowIconTone = "quiet" | "danger";
+
+const ICON_TONE_CLASS_NAMES: Record<ListRowIconTone, string> = { quiet: "text-fg-3", danger: "text-danger" };
+
+/**
+ * A row of a list or panel that acts when pressed: its icon, its words, and what trails them; filled while selected,
+ * never because it is expanded, and dim while it cannot act.
+ */
 export function ListRowButton({
   icon: RowIcon,
+  iconTone = "quiet",
   isSelected = false,
   isDisabled = false,
   trailing,
@@ -23,6 +32,7 @@ export function ListRowButton({
   ...elementProps
 }: {
   icon?: LucideIcon;
+  iconTone?: ListRowIconTone;
   isSelected?: boolean;
   isDisabled?: boolean;
   trailing?: ReactNode;
@@ -38,14 +48,14 @@ export function ListRowButton({
       disabled={isDisabled}
       onClick={onPressed}
       className={cn(
-        "group/list-row h-7 w-full min-w-0 justify-start gap-2 rounded-md px-2 text-left font-normal text-fg-2 hover:bg-hover hover:text-fg active:not-aria-[haspopup]:translate-y-0 dark:hover:bg-hover",
-        isSelected && "bg-selected text-fg hover:bg-selected dark:hover:bg-selected",
+        "group/list-row h-7 w-full min-w-0 justify-start gap-2 rounded-md px-2 text-left font-normal text-fg-2 hover:bg-hover hover:text-fg active:not-aria-[haspopup]:translate-y-0 aria-expanded:bg-transparent aria-expanded:hover:bg-hover dark:hover:bg-hover",
+        isSelected && "bg-selected text-fg hover:bg-selected aria-expanded:bg-selected aria-expanded:hover:bg-selected dark:hover:bg-selected",
         FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
         className,
       )}
       {...elementProps}
     >
-      {RowIcon !== undefined && <RowIcon className="size-4 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />}
+      {RowIcon !== undefined && <RowIcon className={cn("size-4 shrink-0", ICON_TONE_CLASS_NAMES[iconTone])} strokeWidth={1.75} aria-hidden />}
       {children}
       {trailing}
     </Button>

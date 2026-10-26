@@ -5,6 +5,7 @@ import {
   presentStreamRemovalConfirmation,
   streamMatchesFilterText,
   streamMatchesListFilter,
+  streamProjectFoldersOf,
 } from "./streams_list_presentation";
 
 function listedStream(name: string, state: string, nodeCount: number | null): ListedStream {
@@ -33,6 +34,36 @@ describe("streamMatchesFilterText", () => {
     expect(streamMatchesFilterText(listedStream("main", "kept", 4), "streams/ma")).toBe(true);
     expect(streamMatchesFilterText(listedStream("main", "kept", 4), "lobby")).toBe(false);
     expect(streamMatchesFilterText(listedStream("main", "kept", 4), "  ")).toBe(true);
+  });
+});
+
+describe("streamProjectFoldersOf", () => {
+  function streamIn(name: string, projectDirectory: string): ListedStream {
+    return { name, state: "kept", project_directory: projectDirectory, node_count: 4, failed_because: null };
+  }
+
+  it("puts each stream under the folder it was added from, in the order the runtime lists them", () => {
+    const folders = streamProjectFoldersOf([
+      streamIn("main", "/Users/ada/streams/pattern"),
+      streamIn("camera", "/Users/ada/streams/camera"),
+      streamIn("attached-demo", "/Users/ada/streams/pattern"),
+    ]);
+
+    expect(folders.map(({ folderName, streams }) => [folderName, streams.map((stream) => stream.name)])).toEqual([
+      ["pattern", ["main", "attached-demo"]],
+      ["camera", ["camera"]],
+    ]);
+    expect(folders[0]?.projectDirectory).toBe("/Users/ada/streams/pattern");
+  });
+
+  it("names two folders that share a name by their parent too", () => {
+    const folders = streamProjectFoldersOf([streamIn("a", "/Users/ada/work/demo"), streamIn("b", "/Users/ada/play/demo/"), streamIn("c", "/Users/ada/camera")]);
+
+    expect(folders.map((folder) => folder.folderName)).toEqual(["work/demo", "play/demo", "camera"]);
+  });
+
+  it("has no folders when the runtime lists no streams", () => {
+    expect(streamProjectFoldersOf([])).toEqual([]);
   });
 });
 

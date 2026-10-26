@@ -31,6 +31,44 @@ export function streamMatchesFilterText(stream: ListedStream, filterText: string
   return wantedText === "" || `${stream.name}\n${stream.project_directory}`.toLowerCase().includes(wantedText);
 }
 
+/** A project folder in the sidebar: where it is, the name it shows under, and the streams added from it. */
+export interface StreamProjectFolder {
+  projectDirectory: string;
+  folderName: string;
+  streams: readonly ListedStream[];
+}
+
+function lastPathSegments(absolutePath: string, segmentCount: number): string {
+  return absolutePath.split("/").filter((segment) => segment !== "").slice(-segmentCount).join("/");
+}
+
+/**
+ * The listing's streams under the project folders they were added from, in the order the runtime lists them. A folder
+ * shows under its own name, or under its parent's and its own where two folders share a name.
+ */
+export function streamProjectFoldersOf(streams: readonly ListedStream[]): StreamProjectFolder[] {
+  const streamsOfEachDirectory = new Map<string, ListedStream[]>();
+  for (const stream of streams) {
+    const streamsOfThisDirectory = streamsOfEachDirectory.get(stream.project_directory);
+    if (streamsOfThisDirectory === undefined) streamsOfEachDirectory.set(stream.project_directory, [stream]);
+    else streamsOfThisDirectory.push(stream);
+  }
+  const directories = [...streamsOfEachDirectory.keys()];
+  const directoryCountOfEachName = new Map<string, number>();
+  for (const directory of directories) {
+    const name = lastPathSegments(directory, 1);
+    directoryCountOfEachName.set(name, (directoryCountOfEachName.get(name) ?? 0) + 1);
+  }
+  return directories.map((directory) => {
+    const name = lastPathSegments(directory, 1);
+    return {
+      projectDirectory: directory,
+      folderName: (directoryCountOfEachName.get(name) ?? 0) > 1 ? lastPathSegments(directory, 2) : name,
+      streams: streamsOfEachDirectory.get(directory) ?? [],
+    };
+  });
+}
+
 /** What the dialog asking to remove a stream says. */
 export interface StreamRemovalConfirmationPresentation {
   title: string;

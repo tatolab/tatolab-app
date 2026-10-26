@@ -80,13 +80,13 @@
   --raised: #ffffff;
   --well: #f4f4f5;
   --popover: #ffffff;
-  --hover: rgba(0, 0, 0, 0.04);
-  --selected: rgba(0, 0, 0, 0.065);
+  --hover: rgba(0, 0, 0, 0.05);
+  --selected: rgba(0, 0, 0, 0.095);
   --line: #e8e8ea;
   --line-strong: #d9d9dc;
   --fg: #111113;
   --fg-2: #46464e;
-  --fg-3: #6e6e77;
+  --fg-3: #606068;
   --fg-4: #a8a8b0;
   --brand: #2a5bff;
   --brand-text: #2a5bff;
@@ -107,10 +107,11 @@
   --shadow-segment: 0 0 0 0.5px var(--line-strong), 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
-/* The macOS overlay title bar puts the traffic lights over the sidebar's top, level with the view's bar beside it;
-   Linux decorates the window natively. */
-[data-platform="macos"] { --traffic-light-strip-height: var(--title-bar-height); }
-[data-platform="linux"] { --traffic-light-strip-height: 0px; }
+/* The macOS overlay title bar puts the traffic lights over the sidebar's top, centred level with the view's bar beside
+   it, and the sidebar's rows start just under them; Linux decorates the window natively, and its sidebar heading sits
+   level with the view's bar. */
+[data-platform="macos"] { --traffic-light-strip-height: 36px; }
+[data-platform="linux"] { --traffic-light-strip-height: 8px; }
 
 .dark {
   color-scheme: dark;
@@ -119,13 +120,13 @@
   --raised: #161618;
   --well: #18181b;
   --popover: #1a1a1d;
-  --hover: rgba(255, 255, 255, 0.045);
-  --selected: rgba(255, 255, 255, 0.08);
+  --hover: rgba(255, 255, 255, 0.06);
+  --selected: rgba(255, 255, 255, 0.115);
   --line: #222225;
   --line-strong: #2e2e32;
   --fg: #f0f0f2;
   --fg-2: #b8b8c0;
-  --fg-3: #8e8e98;
+  --fg-3: #9a9aa3;
   --fg-4: #5a5a63;
   --brand: #2a5bff;
   --brand-text: #7c9bff;
