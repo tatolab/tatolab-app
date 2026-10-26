@@ -13,7 +13,7 @@ export interface PageTab<TabKey extends string> {
   disabledReason?: string | null;
 }
 
-/** A page's tabs under its header, each a link to its path; the shown one underlined, one that cannot be shown dimmed with its reason. */
+/** A view's tabs in its bar, each a link to its path; the shown one underlined on the bar's bottom edge, one that cannot be shown dimmed with its reason. */
 export function PageTabs<TabKey extends string>({
   label,
   tabs,
@@ -27,9 +27,9 @@ export function PageTabs<TabKey extends string>({
   dataAttributeOfEachTab?: ControlDataAttributeName;
 }) {
   return (
-    <nav aria-label={label} className="mt-2 -mb-px flex gap-4">
+    <nav aria-label={label} className="-mb-px flex items-stretch gap-4">
       {tabs.map(({ tab, label: tabLabel, path, tooltip, disabledReason }) => {
-        const tabClassNames = "flex h-9 items-center border-b-2 border-transparent";
+        const tabClassNames = "flex items-center border-b-2 border-transparent";
         if (disabledReason !== undefined && disabledReason !== null) {
           return (
             <span key={tab} aria-disabled title={`${tabLabel}: ${disabledReason}`} className={cn(tabClassNames, "cursor-default text-fg-4")}>

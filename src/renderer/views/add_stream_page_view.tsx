@@ -1,10 +1,10 @@
 import { cn } from "cn";
-import { Check, FileCode2, Folder, FolderOpen, FolderPlus, LoaderCircle, type LucideIcon, Package, TriangleAlert, Workflow } from "lucide-react";
+import { Check, FileCode2, Folder, FolderOpen, LoaderCircle, type LucideIcon, Package, TriangleAlert, Workflow } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import type { PythonForNewEnvironments, StreamGraphExposedPort, StreamProjectFolderReport, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
-import { ListRowButton } from "../design_system/list_row_button";
+import { PageHeader } from "../design_system/page_header";
 import { RefusalLine } from "../design_system/refusal_line";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
 import { TextField } from "../design_system/text_field";
@@ -34,7 +34,7 @@ import {
   type AddStreamRunRequest,
   type AddStreamSource,
 } from "../presentation/add_stream_flow";
-import { presentPlatform } from "../presentation/platform_presentation";
+import { windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import { choosePreviewedOutput, exposedOutputAddress } from "../presentation/stream_overview_presentation";
 import { STREAM_RUN_MODE_LABELS } from "../presentation/stream_presentation";
@@ -44,9 +44,9 @@ import { CommandWithCopyButton } from "./stream_action_controls";
 import { streamPagePath } from "./stream_page_path";
 import { useAddStreamFlowState, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
-const ADD_STREAM_SOURCES: readonly { source: AddStreamSource; label: string; icon: LucideIcon }[] = [
-  { source: "project_folder", label: "Run a project folder", icon: FolderOpen },
-  { source: "new_project", label: "Create a new project", icon: FolderPlus },
+const ADD_STREAM_SOURCES: readonly { source: AddStreamSource; label: string }[] = [
+  { source: "project_folder", label: "Project folder" },
+  { source: "new_project", label: "New project" },
 ];
 
 /** How often the compile view counts the seconds a run has taken. */
@@ -522,7 +522,6 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
   const dispatch = (event: AddStreamFlowEvent) => addStreamFlow.dispatch(event);
   const form = flowState.form;
   const isTheRuntimeRunning = presentRuntimeStatus(status).displayState === "running";
-  const machineWords = status.machine_name ?? presentPlatform(platform).thisMachineMidSentence;
   const location = useLocation();
 
   const isOpenedFromARunNotice = isOpenedFromARunNoticeIn(location.state);
@@ -567,33 +566,27 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
   const terminalRunRequest = terminalRunRequestOf(form);
 
   return (
-    <div className="flex min-h-full flex-1 flex-col" data-add-stream-page={form.source}>
-      <div className="flex min-h-0 flex-1">
-        <aside className="flex w-[220px] shrink-0 flex-col border-r bg-chrome" aria-label="Start from">
-          <div className="px-4 pt-5 pb-2">
-            <h1 className="title-lg">Add stream</h1>
+    <div className="flex min-h-0 flex-1 flex-col" data-add-stream-page={form.source}>
+      <PageHeader
+        title="Add stream"
+        tabs={
+          <div className="flex items-center">
+            <SegmentedChoiceControl
+              label="Start from"
+              choices={ADD_STREAM_SOURCES.map(({ source: addStreamSource, label }) => ({
+                choice: addStreamSource,
+                label,
+                unavailableBecause: flowState.step === "compiling" && addStreamSource !== form.source ? "Not while the stream compiles" : undefined,
+              }))}
+              chosen={form.source}
+              onChosen={chooseSource}
+              dataAttributeOfEachSegment="data-add-stream-source"
+            />
           </div>
-          <h2 className="label-caps px-4 pt-1 pb-1">Start from</h2>
-          <div className="flex flex-col gap-px px-2">
-            {ADD_STREAM_SOURCES.map((addStreamSource) => (
-              <ListRowButton
-                key={addStreamSource.source}
-                icon={addStreamSource.icon}
-                isSelected={addStreamSource.source === form.source}
-                isDisabled={flowState.step === "compiling"}
-                aria-current={addStreamSource.source === form.source ? "page" : undefined}
-                onPressed={() => chooseSource(addStreamSource.source)}
-                data-add-stream-source={addStreamSource.source}
-              >
-                {addStreamSource.label}
-              </ListRowButton>
-            ))}
-          </div>
-          <p className="mt-auto px-4 pt-6 pb-4 text-xs text-fg-3">
-            Streams run on {status.machine_name === null ? machineWords : <MachineWords>{machineWords}</MachineWords>}.
-          </p>
-        </aside>
-
+        }
+        windowDragRegion={windowDragRegionAttribute(platform, "deep")}
+      />
+      <div className="scrollbar-thin flex min-h-0 flex-1 overflow-y-auto">
         <div className="min-w-0 flex-1" ref={pageContent}>
           <p role="status" className="sr-only">
             {addStreamStepAnnouncement(flowState, isTheRuntimeRunning, status.python_for_new_environments)}

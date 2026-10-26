@@ -203,29 +203,3 @@ export function chooseTatolabWindowScreen(status: TatolabStatus): TatolabWindowS
   const needsSetup = platformOf(status) === "linux" ? deriveRuntimeDisplayState(status) === "runtime_not_installed" : !status.first_run_finished;
   return needsSetup ? "setup" : "pages";
 }
-
-/** What the window's status bar says: the runtime's state, its tone, and the app's version. */
-export interface WindowStatusBarPresentation {
-  runtimeWords: string;
-  tone: StatusTone;
-  appVersionWords: string;
-}
-
-const STATUS_BAR_RUNTIME_WORDS: Record<RuntimeDisplayState, string> = {
-  running: "Runtime running",
-  starting: "Runtime starting",
-  unreachable: "Runtime not responding",
-  never_answered: "Runtime didn't start",
-  blocked_by_the_service_manager: "Runtime blocked",
-  switched_off: "Runtime stopped",
-  needs_login_items_approval: "Runtime needs approval",
-  runtime_missing_from_app: "Runtime missing",
-  not_registered: "Runtime not running",
-  runtime_not_installed: "Runtime not installed",
-};
-
-/** `Runtime running`, `Runtime not responding`, …, beside `Tatolab <version>`. */
-export function presentWindowStatusBar(status: TatolabStatus): WindowStatusBarPresentation {
-  const { displayState, tone } = presentRuntimeStatus(status);
-  return { runtimeWords: STATUS_BAR_RUNTIME_WORDS[displayState], tone, appVersionWords: `Tatolab ${status.app_version}` };
-}

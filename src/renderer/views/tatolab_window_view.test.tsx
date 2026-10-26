@@ -56,7 +56,6 @@ describe("the Streams list", () => {
     expect(within(rowOf("pattern-two")).getByText("Stopped")).toBeTruthy();
     expect(within(rowOf("pattern-two")).getByText("—")).toBeTruthy();
     expect(within(rowOf("lobby-recorder")).getByText("Failed")).toBeTruthy();
-    expect(screen.getByText("3 of 5 loaded on jonathanf-macbook")).toBeTruthy();
   });
 
   it("stops a stream through the backend, shows it pending, then shows the runtime's new listing", async () => {
@@ -130,7 +129,7 @@ describe("the Streams list", () => {
 
     expect(document.querySelector("[data-streams-list-page]")).toBeNull();
     expect(document.querySelector("[data-hosted-dom-page] .streams-page")).not.toBeNull();
-    expect(screen.getByText("Runtime stopped")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Streams" })).toBeTruthy();
   });
 });
 
@@ -159,20 +158,18 @@ describe("the window's shell", () => {
     await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("lobby-recorder"));
   });
 
-  it("keeps the person's theme choice", async () => {
+  it("shows no sidebar header, title bar controls or status bar, leaving one way to add a stream", async () => {
     await mountedWindowOverTheMock("state=running");
 
-    fireEvent.click(screen.getByRole("button", { name: "Use the dark theme" }));
-
-    expect(document.documentElement.classList.contains("dark")).toBe(true);
-    expect(localStorage.getItem("tatolab-window-theme")).toBe("dark");
-  });
-
-  it("names the runtime's state and the app's version in the status bar", async () => {
-    await mountedWindowOverTheMock("state=running");
-
-    expect(screen.getByText("Runtime running")).toBeTruthy();
-    expect(screen.getByText("Tatolab 0.45.0")).toBeTruthy();
+    const sidebar = within(screen.getByRole("navigation", { name: "Tatolab" }));
+    expect(sidebar.queryByText("jonathanf-macbook")).toBeNull();
+    expect(sidebar.queryByText("Tatolab")).toBeNull();
+    for (const removedControl of ["Back", "Forward", "Use the dark theme", "Search streams, outputs and views"]) {
+      expect(screen.queryByRole("button", { name: removedControl }), removedControl).toBeNull();
+    }
+    expect(screen.queryByText("Runtime running")).toBeNull();
+    expect(screen.queryByText("Tatolab 0.45.0")).toBeNull();
+    expect(screen.getAllByRole("button", { name: /Add stream/ }).map((addStreamButton) => addStreamButton.getAttribute("data-window-navigation"))).toEqual(["add-stream"]);
   });
 });
 
@@ -246,7 +243,7 @@ describe("a stream's page", () => {
     expect(within(document.querySelector<HTMLElement>("[data-stream-details]") ?? document.body).getByText("Not loaded")).toBeTruthy();
   });
 
-  it("shows a failed stream's reason in the runtime's words and retries it from the banner", async () => {
+  it("shows a failed stream's reason in the runtime's words and retries it from the bar, the banner offering no second Retry", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("lobby-recorder");
 
@@ -255,7 +252,8 @@ describe("a stream's page", () => {
     expect(textOf("[data-nothing-to-preview]")).toContain("Not loaded, so nothing to preview");
     expect(textOf("[data-stream-steps]")).toContain("Its steps show here once it is loaded.");
 
-    fireEvent.click(within(banner ?? document.body).getByRole("button", { name: /Retry/ }));
+    expect(within(banner ?? document.body).queryByRole("button")).toBeNull();
+    fireEvent.click(document.querySelector<HTMLElement>('[data-stream-page-header] [data-stream-action="start_stream"]') ?? expect.unreachable("no Retry in the bar"));
 
     await waitFor(() => expect(textOf("[data-stream-page-header] [role=alert]")).toMatch(/^Retry was refused: the stream's CameraSource could not open camera/));
   });
@@ -277,6 +275,20 @@ describe("a stream's page", () => {
     expect(document.querySelector("[data-graph-document-view='tree']")?.textContent).toContain("machine:");
   });
 
+  it("asks before removing the stream from its bar's menu, and goes back to the list once it is gone", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const streamPage = await openTheStreamPageOf("pattern-two");
+
+    fireEvent.click(within(streamPage).getByRole("button", { name: "More for pattern-two" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Remove…" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Remove pattern-two?")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(document.querySelector("[data-streams-list-page]")).not.toBeNull());
+    expect(document.querySelector('[data-stream-row="pattern-two"]')).toBeNull();
+  });
+
   it("opens the stream's project and a terminal in it, showing what refused either in its own words", async () => {
     const openedProjects: string[] = [];
     await mountedWindowOverTheMock("state=running&platform=linux&terminal=missing", {
@@ -287,7 +299,7 @@ describe("a stream's page", () => {
     await openTheStreamPageOf("camera");
 
     fireEvent.click(screen.getByRole("button", { name: /Open project/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Terminal/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Open a terminal in the project" }));
 
     await waitFor(() =>
       expect(textOf("[data-stream-page-header] [role=alert]")).toBe(
@@ -805,7 +817,7 @@ describe("Add stream", () => {
     openAddStream();
 
     await waitFor(() => expect(document.querySelector("[data-add-stream-page]")?.getAttribute("data-add-stream-page")).toBe("project_folder"), MOCK_RUN_AFTER_MAKING_THE_VENV_WAIT);
-    expect(document.querySelector('[data-add-stream-source="project_folder"]')?.getAttribute("aria-current")).toBe("page");
+    expect(document.querySelector('[data-add-stream-source="project_folder"]')?.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("keeps a run that answers after you left the page, says so in a notice, and View shows what it came to", { timeout: 15_000 }, async () => {
@@ -848,14 +860,14 @@ function settingsRow(rowName: string): HTMLElement {
 }
 
 describe("Settings", () => {
-  it("opens on General, listing every section under its group", async () => {
+  it("opens on General, the sidebar listing every section under its group and the way back to the streams", async () => {
     await mountedWindowOverTheMock("state=running");
     fireEvent.click(document.querySelector<HTMLElement>(`[data-window-navigation="settings"]`) ?? expect.unreachable("no Settings"));
 
     await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
     const sectionList = within(screen.getByRole("navigation", { name: "Settings" }));
     expect(sectionList.getByRole("link", { name: "General" }).getAttribute("aria-current")).toBe("page");
-    expect(sectionList.getAllByRole("link").map((sectionLink) => sectionLink.textContent)).toEqual(["General", "Appearance", "Runtime", "Command line", "About"]);
+    expect(sectionList.getAllByRole("link").map((sectionLink) => sectionLink.textContent)).toEqual(["Back to streams", "General", "Appearance", "Runtime", "Command line", "About"]);
     expect(sectionList.getByText("This machine")).toBeTruthy();
   });
 
@@ -866,13 +878,12 @@ describe("Settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dark" }));
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(localStorage.getItem("tatolab-window-theme")).toBe("dark");
-    expect(screen.getByRole("button", { name: "Use the light theme" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "System" }));
     expect(localStorage.getItem("tatolab-window-theme")).toBe("system");
     expect(document.documentElement.classList.contains("dark")).toBe(window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-    fireEvent.click(screen.getByRole("button", { name: "Use the dark theme" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dark" }));
     expect(screen.getByRole("button", { name: "Dark" }).getAttribute("aria-pressed")).toBe("true");
   });
 

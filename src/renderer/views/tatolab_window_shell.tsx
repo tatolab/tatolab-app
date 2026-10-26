@@ -1,14 +1,14 @@
 import { cn } from "cn";
-import { Activity, Boxes, ChevronLeft, ChevronRight, Moon, Plus, Settings, SquareX, Sun, TriangleAlert, Workflow } from "lucide-react";
+import { Boxes, ChevronLeft, Plus, Settings, SquareX, Workflow } from "lucide-react";
 import type { ReactNode } from "react";
-import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } from "react-router";
+import { Navigate, NavLink, Outlet, useMatch, useNavigate, useParams, type RouteObject } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
-import { presentPlatform, presentWindowShortcut, windowDragRegionAttribute } from "../presentation/platform_presentation";
-import { presentRuntimeStatus, presentWindowStatusBar } from "../presentation/runtime_presentation";
+import { windowDragRegionAttribute } from "../presentation/platform_presentation";
+import { presentRuntimeStatus } from "../presentation/runtime_presentation";
+import { SETTINGS_SECTION_GROUPS, settingsSectionPath } from "../presentation/settings_presentation";
 import { isStreamLoaded } from "../presentation/stream_presentation";
-import { ActionButton } from "../design_system/action_button";
 import { IconButton } from "../design_system/icon_button";
-import { SearchOpeningButton } from "../design_system/search_opening_button";
+import { PageHeader } from "../design_system/page_header";
 import { addStreamPagePath } from "./add_stream_page_path";
 import { AddStreamPageView } from "./add_stream_page_view";
 import { AddStreamRunNoticeView } from "./add_stream_run_notice_view";
@@ -17,8 +17,8 @@ import { HostedDomPageView } from "./hosted_dom_page_view";
 import { StreamPageView } from "./stream_page_view";
 import { streamPagePath, streamPageTabNamed } from "./stream_page_path";
 import { StreamsListPageView } from "./streams_list_page_view";
-import { SettingsPageView } from "./settings_page_view";
-import { useTatolabStatus, useTatolabWindowEnvironment, useWindowAppearance } from "./tatolab_window_context";
+import { SETTINGS_SECTION_ICONS, SettingsPageView } from "./settings_page_view";
+import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 /** The streams `list_streams` gave while the runtime runs; `null` while it is down or the listing failed. */
 function useListedStreamsWhileTheRuntimeRuns(): ListedStream[] | null {
@@ -33,6 +33,7 @@ function SidebarNavigationRow({
   label,
   trailing,
   windowNavigationName,
+  dataSettingsSection,
   isQuiet,
 }: {
   to: string;
@@ -41,6 +42,7 @@ function SidebarNavigationRow({
   label: string;
   trailing?: ReactNode;
   windowNavigationName?: string;
+  dataSettingsSection?: string;
   isQuiet?: boolean;
 }) {
   return (
@@ -48,6 +50,7 @@ function SidebarNavigationRow({
       to={to}
       end={end}
       data-window-navigation={windowNavigationName}
+      data-settings-section={dataSettingsSection}
       title={label}
       className={({ isActive }) =>
         cn(
@@ -66,46 +69,37 @@ function SidebarNavigationRow({
   );
 }
 
-function WindowSidebar() {
-  const { platform } = useTatolabWindowEnvironment();
-  const status = useTatolabStatus();
+function SidebarSectionHeading({ children, trailing }: { children: ReactNode; trailing?: ReactNode }) {
+  return (
+    <div className="flex h-7 items-center justify-between px-2">
+      <h2 className="label-caps">{children}</h2>
+      {trailing}
+    </div>
+  );
+}
+
+const SIDEBAR_ICON_CLASS_NAMES = "size-4 shrink-0 text-fg-3";
+
+function StreamsSidebarNavigation() {
   const listedStreams = useListedStreamsWhileTheRuntimeRuns();
   const navigate = useNavigate();
-  const sidebarIconClassName = "size-4 shrink-0 text-fg-3";
   return (
-    <nav aria-label="Tatolab" className="flex w-(--sidebar-width) shrink-0 flex-col bg-chrome">
-      <div className="h-(--traffic-light-strip-height) shrink-0" data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined} />
-      <div className="flex items-center gap-2.5 px-4 pt-3 pb-4">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-raised ring-1 ring-line" aria-hidden>
-          <svg viewBox="0 0 22 22" className="size-[18px] text-fg">
-            <rect x="1" y="1" width="20" height="20" rx="6" fill="none" stroke="currentColor" strokeWidth="1.6" />
-            <path d="M7 8h8M11 8v7" stroke="var(--brand)" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-        </span>
-        <span className="grid min-w-0 leading-tight">
-          <span className="truncate font-semibold">Tatolab</span>
-          <span className={cn("truncate text-xs text-fg-3", status.machine_name !== null && "font-mono")}>
-            {status.machine_name ?? presentPlatform(platform).thisMachineAtSentenceStart}
-          </span>
-        </span>
-      </div>
-      <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2">
+    <>
+      <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pt-1">
+        <SidebarNavigationRow
+          to="/"
+          end
+          windowNavigationName="streams"
+          icon={<Boxes className={SIDEBAR_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
+          label="All streams"
+          trailing={listedStreams !== null && <span className="text-fg-3 tabular">{listedStreams.length}</span>}
+        />
         <section>
-          <h2 className="label-caps px-2 pb-1">Workspace</h2>
-          <SidebarNavigationRow
-            to="/"
-            end
-            windowNavigationName="streams"
-            icon={<Boxes className={sidebarIconClassName} strokeWidth={1.75} aria-hidden />}
-            label="Streams"
-            trailing={listedStreams !== null && <span className="text-fg-2 tabular">{listedStreams.length}</span>}
-          />
-        </section>
-        <section>
-          <div className="flex items-center justify-between px-2 pb-1">
-            <h2 className="label-caps">Streams</h2>
-            <IconButton icon={Plus} label="Add stream" size="compact" onPressed={() => navigate(addStreamPagePath("project_folder"))} data-window-navigation="add-stream" />
-          </div>
+          <SidebarSectionHeading
+            trailing={<IconButton icon={Plus} label="Add stream" size="compact" onPressed={() => navigate(addStreamPagePath("project_folder"))} data-window-navigation="add-stream" />}
+          >
+            Streams
+          </SidebarSectionHeading>
           {listedStreams === null ? (
             <p className="px-2 text-xs text-fg-3">Streams show here while the runtime runs.</p>
           ) : (
@@ -113,7 +107,7 @@ function WindowSidebar() {
               <SidebarNavigationRow
                 key={stream.name}
                 to={streamPagePath(stream.name)}
-                icon={<Workflow className={sidebarIconClassName} strokeWidth={1.75} aria-hidden />}
+                icon={<Workflow className={SIDEBAR_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
                 label={stream.name}
                 isQuiet={!isStreamLoaded(stream)}
                 trailing={
@@ -126,104 +120,100 @@ function WindowSidebar() {
           )}
         </section>
       </div>
-      <div className="px-2 py-3">
+      <div className="px-2 py-2">
         <SidebarNavigationRow
           to="/settings"
           windowNavigationName="settings"
-          icon={<Settings className={sidebarIconClassName} strokeWidth={1.75} aria-hidden />}
+          icon={<Settings className={SIDEBAR_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
           label="Settings"
         />
       </div>
+    </>
+  );
+}
+
+function SettingsSidebarNavigation() {
+  return (
+    <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pt-1">
+      <SidebarNavigationRow
+        to="/"
+        end
+        windowNavigationName="back-to-streams"
+        icon={<ChevronLeft className={SIDEBAR_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
+        label="Back to streams"
+      />
+      {SETTINGS_SECTION_GROUPS.map(({ groupLabel, sections }) => (
+        <section key={groupLabel}>
+          <SidebarSectionHeading>{groupLabel}</SidebarSectionHeading>
+          {sections.map(({ section, label }) => {
+            const SectionIcon = SETTINGS_SECTION_ICONS[section];
+            return (
+              <SidebarNavigationRow
+                key={section}
+                to={settingsSectionPath(section)}
+                icon={<SectionIcon className={SIDEBAR_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
+                label={label}
+                dataSettingsSection={section}
+              />
+            );
+          })}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/** The sidebar down the window's left edge: the streams to go to, or Settings' sections while Settings is open. */
+function WindowSidebar() {
+  const { platform } = useTatolabWindowEnvironment();
+  const isSettingsOpen = useMatch("/settings/*") !== null;
+  return (
+    <nav aria-label={isSettingsOpen ? "Settings" : "Tatolab"} className="flex w-(--sidebar-width) shrink-0 flex-col border-r bg-chrome">
+      <div className="h-(--traffic-light-strip-height) shrink-0" data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined} />
+      {isSettingsOpen ? <SettingsSidebarNavigation /> : <StreamsSidebarNavigation />}
     </nav>
   );
 }
 
-function WindowTitleBar() {
-  const { platform, openSearch } = useTatolabWindowEnvironment();
-  const navigate = useNavigate();
-  const { shownTheme, chooseAppearance } = useWindowAppearance();
-  const isDark = shownTheme === "dark";
-  return (
-    <header
-      className="flex h-(--title-bar-height) shrink-0 items-center gap-1 border-b px-2"
-      data-window-drag-region={windowDragRegionAttribute(platform, "deep") ?? undefined}
-    >
-      <IconButton icon={ChevronLeft} label="Back" onPressed={() => navigate(-1)} />
-      <IconButton icon={ChevronRight} label="Forward" onPressed={() => navigate(1)} />
-      <SearchOpeningButton
-        label="Search streams, outputs and views"
-        shortcut={presentWindowShortcut(platform, "K")}
-        onPressed={openSearch}
-        data-window-search=""
-      />
-      <IconButton
-        icon={isDark ? Sun : Moon}
-        label={isDark ? "Use the light theme" : "Use the dark theme"}
-        onPressed={() => chooseAppearance(isDark ? "light" : "dark")}
-        data-window-theme-toggle=""
-      />
-      <ActionButton appearance="primary" icon={Plus} onPressed={() => navigate(addStreamPagePath("project_folder"))} className="ml-1">
-        Add stream
-      </ActionButton>
-    </header>
-  );
-}
-
-function WindowStatusBar() {
-  const status = useTatolabStatus();
-  const statusBar = presentWindowStatusBar(status);
-  const RuntimeIcon = statusBar.tone === "error" ? SquareX : statusBar.tone === "warning" ? TriangleAlert : Activity;
-  return (
-    <footer className="flex h-(--status-bar-height) shrink-0 items-center gap-4 border-t px-3 text-xs text-fg-3">
-      <span
-        className={cn(
-          "flex items-center gap-1.5",
-          statusBar.tone === "error" && "text-danger-text",
-          statusBar.tone === "warning" && "text-warn-text",
-        )}
-      >
-        <RuntimeIcon className="size-3" strokeWidth={2} aria-hidden />
-        {statusBar.runtimeWords}
-      </span>
-      <span className="ml-auto font-mono">{statusBar.appVersionWords}</span>
-    </footer>
-  );
-}
-
-/** The window around every page: the sidebar, the title bar, the page, and the status bar. */
+/** The window around every view: the sidebar beside the view, each view bringing its own bar. */
 function TatolabWindowShell() {
   return (
-    <div className="flex h-full bg-chrome">
+    <div className="flex h-full bg-window">
       <WindowSidebar />
-      <div className="relative my-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-window ring-1 ring-line">
-        <WindowTitleBar />
-        <main className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <Outlet />
-        </main>
-        <WindowStatusBar />
-        <div className="pointer-events-none absolute right-4 bottom-10 z-40 flex flex-col-reverse gap-2">
+      <main className="relative flex min-w-0 flex-1 flex-col">
+        <Outlet />
+        <div className="pointer-events-none absolute right-4 bottom-4 z-40 flex flex-col-reverse gap-2">
           <AddStreamRunNoticeView />
           <FirstRunFinishingRefusalNoticeView />
         </div>
-      </div>
+      </main>
     </div>
+  );
+}
+
+/** The hosted page saying why the runtime lists no streams, under the Streams bar. */
+function StreamsPageWhileTheRuntimeListsNone() {
+  const { hostedPages, platform } = useTatolabWindowEnvironment();
+  return (
+    <>
+      <PageHeader title="Streams" windowDragRegion={windowDragRegionAttribute(platform, "deep")} />
+      <HostedDomPageView hostedPage={hostedPages.streamsPage} className="scrollbar-thin overflow-y-auto" />
+    </>
   );
 }
 
 /** The Streams list while the runtime lists its streams; otherwise the hosted page that says why it cannot. */
 function StreamsRoute() {
-  const { hostedPages } = useTatolabWindowEnvironment();
   const listedStreams = useListedStreamsWhileTheRuntimeRuns();
-  if (listedStreams === null) return <HostedDomPageView hostedPage={hostedPages.streamsPage} />;
+  if (listedStreams === null) return <StreamsPageWhileTheRuntimeListsNone />;
   return <StreamsListPageView listedStreams={listedStreams} />;
 }
 
 /** One stream's page on the tab its path names; the hosted page saying why while the runtime lists none; back to the list once it is not listed. */
 function StreamRoute() {
-  const { hostedPages } = useTatolabWindowEnvironment();
   const listedStreams = useListedStreamsWhileTheRuntimeRuns();
   const { streamName, streamTab } = useParams();
-  if (listedStreams === null) return <HostedDomPageView hostedPage={hostedPages.streamsPage} />;
+  if (listedStreams === null) return <StreamsPageWhileTheRuntimeListsNone />;
   const stream = listedStreams.find((listedStream) => listedStream.name === streamName);
   if (stream === undefined) return <Navigate to="/" replace />;
   const shownTab = streamPageTabNamed(streamTab);

@@ -7,8 +7,6 @@ import { useStreamGraphViewportCommands, useStreamGraphZoomPercent } from "./str
 
 /** The Graph tab's toolbar: zoom, fit, auto-layout, the previews and counters toggles, and the inspector once it is closed. */
 export function StreamGraphToolbarView({
-  streamName,
-  selectedStepName,
   arePreviewsShown,
   areCountersShown,
   isInspectorOpen,
@@ -17,8 +15,6 @@ export function StreamGraphToolbarView({
   onCountersToggled,
   onInspectorOpened,
 }: {
-  streamName: string;
-  selectedStepName: string | null;
   arePreviewsShown: boolean;
   areCountersShown: boolean;
   isInspectorOpen: boolean;
@@ -65,17 +61,6 @@ export function StreamGraphToolbarView({
           data-stream-graph-toolbar="counters"
         />
       </ToolbarGroup>
-      <div className="pointer-events-none absolute inset-x-0 hidden justify-center @[720px]:flex">
-        <div className="flex items-center gap-1 font-mono text-xs text-fg-3">
-          <span>{streamName}</span>
-          {selectedStepName !== null && (
-            <>
-              <span aria-hidden>/</span>
-              <span className="text-fg-2">{selectedStepName}</span>
-            </>
-          )}
-        </div>
-      </div>
       {!isInspectorOpen && (
         <ToolbarGroup isAtTheEnd>
           <IconButton icon={PanelRight} label="Show inspector" onPressed={onInspectorOpened} data-stream-graph-toolbar="show_inspector" />

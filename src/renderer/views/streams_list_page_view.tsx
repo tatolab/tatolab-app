@@ -1,11 +1,10 @@
 import { cn } from "cn";
-import { ChevronRight, Copy, FolderOpen, type LucideIcon, Play, Plus, Sparkles, Square, Trash2, Workflow } from "lucide-react";
+import { ChevronRight, Copy, FolderOpen, type LucideIcon, Play, Sparkles, Square, Trash2, Workflow } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import mascotImageUrl from "../assets/tato_mascot_3d.png";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { writeTextToClipboard } from "../clipboard";
-import { ActionButton } from "../design_system/action_button";
 import { EmptyState } from "../design_system/empty_state";
 import { IconButton } from "../design_system/icon_button";
 import { MenuItem, MenuSeparator, MoreActionsMenu } from "../design_system/menus";
@@ -15,7 +14,7 @@ import { SearchField } from "../design_system/search_field";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
 import { StreamRunModeWords } from "../design_system/stream_run_mode_words";
 import { StreamStateWords } from "../design_system/stream_state_words";
-import { presentPlatform } from "../presentation/platform_presentation";
+import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import {
   abbreviateHomeDirectory,
   isStreamLoaded,
@@ -28,7 +27,6 @@ import {
   STREAMS_LIST_FILTERS,
   streamMatchesFilterText,
   streamMatchesListFilter,
-  streamsListHeadline,
   type StreamActionUnderWay,
   type StreamsListFilter,
 } from "../presentation/streams_list_presentation";
@@ -173,7 +171,7 @@ function FirstStreamChoice({ icon: ChoiceIcon, title, explanation, to }: { icon:
 
 function NoStreamsYet({ machineWords }: { machineWords: string }) {
   return (
-    <div className="flex flex-1 items-start justify-center border-t px-5 pt-[9vh] pb-16" data-streams-list-empty="">
+    <div className="scrollbar-thin flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-5 pt-[9vh] pb-16" data-streams-list-empty="">
       <div className="flex w-[480px] flex-col items-center text-center">
         <img src={mascotImageUrl} alt="" draggable={false} className="size-[120px] object-contain select-none" />
         <h2 className="mt-4 text-lg font-semibold">No streams on {machineWords} yet</h2>
@@ -218,7 +216,6 @@ function StreamsListFilterControl({
 export function StreamsListPageView({ listedStreams }: { listedStreams: readonly ListedStream[] }) {
   const { platform } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
-  const navigate = useNavigate();
   const [chosenFilter, setChosenFilter] = useState<StreamsListFilter>("all");
   const [filterText, setFilterText] = useState("");
   const { actionsUnderWay, outcomeWords, runStreamAction } = useStreamActionsUnderWay(listedStreams);
@@ -227,29 +224,26 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
   const machineWords = status.machine_name ?? presentPlatform(platform).thisMachineMidSentence;
 
   return (
-    <div className="flex min-h-full flex-col" data-streams-list-page="">
+    <div className="flex min-h-0 flex-1 flex-col" data-streams-list-page="">
       <PageHeader
-        title="Streams"
-        subtitle={streamsListHeadline(listedStreams, status.machine_name, platform)}
+        title="All streams"
         actions={
           listedStreams.length > 0 ? (
             <>
               <StreamsListFilterControl chosenFilter={chosenFilter} onFilterChosen={setChosenFilter} listedStreams={listedStreams} />
               <SearchField label="Filter streams" placeholder="Filter" text={filterText} onTextChanged={setFilterText} />
-              <ActionButton icon={Plus} onPressed={() => navigate(addStreamPagePath("project_folder"))}>
-                Add stream
-              </ActionButton>
             </>
           ) : undefined
         }
+        windowDragRegion={windowDragRegionAttribute(platform, "deep")}
       />
 
       {listedStreams.length === 0 ? (
         <NoStreamsYet machineWords={machineWords} />
       ) : (
-        <div className="border-t">
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
           <table className="w-full table-fixed border-collapse text-left">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-window">
               <tr className="border-b text-xs text-fg-3">
                 <th className="h-8 w-[34%] pr-3 pl-5 font-normal">Name</th>
                 <th className="px-3 font-normal">Status</th>

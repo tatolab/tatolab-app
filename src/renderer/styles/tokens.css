@@ -68,7 +68,6 @@
 
 :root {
   --title-bar-height: 44px;
-  --status-bar-height: 24px;
   --sidebar-width: 256px;
   --page-x: 20px;
   --page-top: 20px;
@@ -108,9 +107,9 @@
   --shadow-segment: 0 0 0 0.5px var(--line-strong), 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
-/* The macOS overlay title bar puts the traffic lights over the sidebar's top, level with the title bar beside it (8 px
-   inset, 44 px tall); Linux decorates the window natively. */
-[data-platform="macos"] { --traffic-light-strip-height: 52px; }
+/* The macOS overlay title bar puts the traffic lights over the sidebar's top, level with the view's bar beside it;
+   Linux decorates the window natively. */
+[data-platform="macos"] { --traffic-light-strip-height: var(--title-bar-height); }
 [data-platform="linux"] { --traffic-light-strip-height: 0px; }
 
 .dark {

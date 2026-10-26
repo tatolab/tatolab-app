@@ -5,7 +5,6 @@ import {
   presentStreamRemovalConfirmation,
   streamMatchesFilterText,
   streamMatchesListFilter,
-  streamsListHeadline,
 } from "./streams_list_presentation";
 
 function listedStream(name: string, state: string, nodeCount: number | null): ListedStream {
@@ -34,14 +33,6 @@ describe("streamMatchesFilterText", () => {
     expect(streamMatchesFilterText(listedStream("main", "kept", 4), "streams/ma")).toBe(true);
     expect(streamMatchesFilterText(listedStream("main", "kept", 4), "lobby")).toBe(false);
     expect(streamMatchesFilterText(listedStream("main", "kept", 4), "  ")).toBe(true);
-  });
-});
-
-describe("streamsListHeadline", () => {
-  it("counts the loaded streams on the machine, or this machine when it has no name yet", () => {
-    expect(streamsListHeadline(listedStreams, "studio-mac", "macos")).toBe("2 of 4 loaded on studio-mac");
-    expect(streamsListHeadline([listedStream("pattern-two", "stopped", null)], "studio-mac", "macos")).toBe("None of 1 loaded on studio-mac");
-    expect(streamsListHeadline([], null, "linux")).toBe("Nothing loaded on this computer");
   });
 });
 

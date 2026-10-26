@@ -1,6 +1,5 @@
-import type { ListedStream, TatolabPlatform, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";
-import { presentPlatform } from "./platform_presentation";
-import { abbreviateHomeDirectory, isStreamLoaded } from "./stream_presentation";
+import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";
+import { abbreviateHomeDirectory } from "./stream_presentation";
 
 /** Which streams the Streams list shows. */
 export type StreamsListFilter = "all" | "running" | "stopped" | "failed";
@@ -30,14 +29,6 @@ export function streamMatchesListFilter(stream: ListedStream, filter: StreamsLis
 export function streamMatchesFilterText(stream: ListedStream, filterText: string): boolean {
   const wantedText = filterText.trim().toLowerCase();
   return wantedText === "" || `${stream.name}\n${stream.project_directory}`.toLowerCase().includes(wantedText);
-}
-
-/** `5 of 7 loaded on studio-mac`, `None of 2 …`, or `Nothing loaded on …` with no streams at all. */
-export function streamsListHeadline(streams: readonly ListedStream[], machineName: string | null, platform: TatolabPlatform): string {
-  const machineWords = machineName ?? presentPlatform(platform).thisMachineMidSentence;
-  if (streams.length === 0) return `Nothing loaded on ${machineWords}`;
-  const loadedCount = streams.filter(isStreamLoaded).length;
-  return `${loadedCount === 0 ? "None" : loadedCount} of ${streams.length} loaded on ${machineWords}`;
 }
 
 /** What the dialog asking to remove a stream says. */

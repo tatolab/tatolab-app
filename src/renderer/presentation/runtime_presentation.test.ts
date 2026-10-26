@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TatolabStatus } from "../../shared/tatolab_backend_contract";
-import { chooseTatolabWindowScreen, deriveRuntimeDisplayState, presentRuntimeStatus, presentWindowStatusBar } from "./runtime_presentation";
+import { chooseTatolabWindowScreen, deriveRuntimeDisplayState, presentRuntimeStatus } from "./runtime_presentation";
 
 function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
   return {
@@ -161,14 +161,5 @@ describe("chooseTatolabWindowScreen", () => {
     expect(chooseTatolabWindowScreen(linuxStatusWith({ runtime_state: "starting", runtime_agent: "enabled" }))).toBe("pages");
     expect(chooseTatolabWindowScreen(linuxStatusWith({ runtime_agent: "not_found" }))).toBe("pages");
     expect(chooseTatolabWindowScreen(linuxStatusWith({ first_run_finished: false })), "Linux has no first run").toBe("pages");
-  });
-});
-
-describe("presentWindowStatusBar", () => {
-  it("names the runtime's state and the app's version, and nothing else", () => {
-    expect(presentWindowStatusBar(statusWith({}))).toEqual({ runtimeWords: "Runtime running", tone: "ok", appVersionWords: "Tatolab 0.45.0" });
-    expect(presentWindowStatusBar(statusWith({ runtime_state: "unreachable" }))).toMatchObject({ runtimeWords: "Runtime not responding", tone: "error" });
-    expect(presentWindowStatusBar(statusWith({ runtime_state: "stopped", runtime_agent: "not_found" })).runtimeWords).toBe("Runtime missing");
-    expect(presentWindowStatusBar(linuxStatusWith({ runtime_state: "stopped", runtime_agent: "not_found" })).runtimeWords).toBe("Runtime not installed");
   });
 });

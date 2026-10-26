@@ -180,8 +180,6 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
     <div className="flex min-h-0 flex-1 bg-window" data-stream-graph-page={stream.name}>
       <WorkAreaWithSidePanel sidePanel={inspectorPanel}>
         <StreamGraphToolbarView
-          streamName={stream.name}
-          selectedStepName={inspection.kind === "step" ? inspection.step.name : null}
           arePreviewsShown={arePreviewsShown}
           areCountersShown={areCountersShown}
           isInspectorOpen={isInspectorOpen}

@@ -1,20 +1,6 @@
-/* ---------- the hosted pages' band ---------- */
+/* ---------- the hosted pages ---------- */
 .window-page { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
-.content-band {
-  position: relative;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex: none;
-  height: var(--title-bar-height);
-  padding: 0 14px 0 20px;
-  border-bottom: 1px solid var(--line);
-  background: var(--window);
-}
-.content-band-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.content-band-page-name { font: 600 14px/20px var(--font-sans); }
 
 /* ---------- segmented control ---------- */
 .segmented-control {
@@ -43,8 +29,3 @@
 .segmented-control-segment[data-segment="Warnings"] .segmented-control-count { color: var(--warn-text); }
 .segmented-control-segment[data-segment="Errors"] .segmented-control-count { color: var(--danger-text); }
 .segmented-control-segment[data-segment="Errors"][aria-selected="true"] .segmented-control-count { color: var(--danger-text); }
-
-@media (max-width: 960px) {
-  .band-search-button { min-width: 64px; }
-  .band-search-button-label { display: none; }
-}

@@ -1,4 +1,4 @@
-import { Play, RotateCw, TriangleAlert, Video, Workflow } from "lucide-react";
+import { Play, TriangleAlert, Video, Workflow } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
 import type { ListedStream, StreamGraphExposedPort } from "../../shared/tatolab_backend_contract";
@@ -31,22 +31,10 @@ import { previewedOutputAskedBy, streamPagePath, type GraphOutputPortAddress } f
 import type { StreamPageActions } from "./stream_page_header_view";
 import { useStreamGraphReading, useTatolabStatus } from "./tatolab_window_context";
 
-/** The red row a failed stream carries: the runtime's reason in its own words, and Retry. */
-function FailedStreamBanner({ stream, streamPageActions }: { stream: ListedStream; streamPageActions: StreamPageActions }) {
-  const retry = presentStreamPrimaryAction(stream);
+/** The red row a failed stream carries: the runtime's reason in its own words; Retry is the bar's. */
+function FailedStreamBanner({ stream }: { stream: ListedStream }) {
   return (
-    <FailureBanner
-      place="page"
-      action={
-        retry !== null &&
-        streamPageActions.actionUnderWay === undefined && (
-          <ActionButton icon={RotateCw} onPressed={() => streamPageActions.runPrimaryAction(retry)} data-stream-action="retry_from_the_banner">
-            {retry.label}
-          </ActionButton>
-        )
-      }
-      data-failed-stream-banner=""
-    >
+    <FailureBanner place="page" data-failed-stream-banner="">
       <span className="text-danger-text">Failed</span> — {stream.failed_because ?? "The runtime gave no reason."}
     </FailureBanner>
   );
@@ -313,7 +301,7 @@ function StreamDetailsPanel({ stream, reading }: { stream: ListedStream; reading
   return (
     <aside
       aria-label={`${stream.name} details`}
-      className="grid shrink-0 grid-cols-1 border-t bg-chrome py-1 sm:grid-cols-3 xl:block xl:w-80 xl:border-t-0 xl:border-l"
+      className="scrollbar-thin grid shrink-0 grid-cols-1 border-t bg-chrome py-1 sm:grid-cols-3 xl:block xl:w-80 xl:overflow-y-auto xl:border-t-0 xl:border-l"
       data-stream-details=""
     >
       <PanelSection title="Details" isTheTopHeading>
@@ -355,11 +343,11 @@ export function StreamOverviewPageView({ stream, streamPageActions }: { stream: 
   const status = useTatolabStatus();
   const reading = useStreamGraphReading(stream.name);
   return (
-    <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto" data-stream-overview="">
-      {stream.state === "failed" && <FailedStreamBanner stream={stream} streamPageActions={streamPageActions} />}
-      {/* Below 1280 px the details sit under the Overview, so the steps table keeps room for its columns. */}
-      <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
-        <div className="min-w-0 flex-1 px-5 pt-5 pb-8">
+    <div className="flex min-h-0 flex-1 flex-col" data-stream-overview="">
+      {stream.state === "failed" && <FailedStreamBanner stream={stream} />}
+      {/* Below 1280 px the details sit under the Overview in one scroll, so the steps table keeps room for its columns. */}
+      <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto xl:flex-row xl:overflow-hidden">
+        <div className="scrollbar-thin min-w-0 flex-1 px-5 pt-5 pb-8 xl:overflow-y-auto">
           <DroppingLinkLines stream={stream} reading={reading} />
           <StreamOutputPreview stream={stream} reading={reading} machineName={status.machine_name} streamPageActions={streamPageActions} />
           <StreamStepsSection stream={stream} reading={reading} />
