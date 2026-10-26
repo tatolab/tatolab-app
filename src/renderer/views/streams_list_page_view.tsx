@@ -180,7 +180,7 @@ function NoStreamsYet({ machineWords }: { machineWords: string }) {
         <p className="mt-1 max-w-md text-fg-3">A stream is a Python project with a stream.py. The runtime compiles it, loads its graph and keeps it running.</p>
         <div className="mt-6 w-full overflow-hidden rounded-lg border text-left">
           <FirstStreamChoice icon={Sparkles} title="Create the sample stream" explanation="A sample stream you can edit, made with tatolab new." to={addStreamPagePath("new_project")} />
-          <FirstStreamChoice icon={FolderOpen} title="Run a project folder" explanation="Any folder with a stream.py and a .venv." to={addStreamPagePath("project_folder")} />
+          <FirstStreamChoice icon={FolderOpen} title="Run a project folder" explanation="Any folder with a stream.py." to={addStreamPagePath("project_folder")} />
         </div>
         <div className="mt-6 w-full text-left">
           <div className="mb-1.5 text-xs text-fg-3">Or in a terminal, from a project folder, to reload on every save:</div>
