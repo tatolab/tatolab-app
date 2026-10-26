@@ -143,17 +143,19 @@ function ProjectFolderTreeRow({ check }: { check: StreamFunctionCheck }) {
   );
 }
 
-/**
- * What the folder holds that `run_stream` needs, as a tree hanging from the folder above it: the `@stream` functions of
- * its `stream.py`. The app sets up its Python itself.
- */
+/** What the folder holds that `run_stream` needs, under a heading: the `@stream` functions of its `stream.py`. The app sets up its Python itself. */
 function ProjectFolderChecks({ report }: { report: StreamProjectFolderReport }) {
   return (
-    <ul aria-label="Streams found in the folder" className="ml-5 border-l" data-add-stream-checks="">
-      {presentStreamFunctionChecks(report).map((check) => (
-        <ProjectFolderTreeRow key={check.name} check={check} />
-      ))}
-    </ul>
+    <section aria-labelledby="add-stream-streams-found" className="mt-5" data-add-stream-checks="">
+      <h3 id="add-stream-streams-found" className="label-caps flex h-7 items-center">
+        Streams found
+      </h3>
+      <ul className="ml-2 border-l">
+        {presentStreamFunctionChecks(report).map((check) => (
+          <ProjectFolderTreeRow key={check.name} check={check} />
+        ))}
+      </ul>
+    </section>
   );
 }
 
