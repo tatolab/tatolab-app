@@ -194,6 +194,8 @@ classify_command_line() {
         sudo\ *|env\ *|nohup\ *|command\ *|exec\ *|time\ *|nice\ *) segment="${segment#* }" ;;
         timeout\ *) segment="$(printf '%s' "$segment" | sed -E 's/^timeout[[:space:]]+[^[:space:]]+[[:space:]]+//')" ;;
         xargs\ *) segment="$(printf '%s' "$segment" | sed -E 's/^xargs([[:space:]]+-[^[:space:]]+)*[[:space:]]+//')" ;;
+        # The build runs under Infisical, which hands it the Developer ID.
+        infisical\ run\ *--\ *) segment="${segment#* -- }" ;;
         *) break ;;
       esac
       segment="$(printf '%s' "$segment" | sed -E 's/^[[:space:]]+//')"
