@@ -38,31 +38,6 @@ export function readTheGraphDocument(graphDocumentText: string): GraphDocumentVa
   }
 }
 
-/** One top-level key of the graph document as Inspect's outline lists it. */
-export interface GraphDocumentOutlineEntry {
-  key: string;
-  /** A string's text, a number's digits, a list's count, an object's key count. */
-  summary: string;
-}
-
-/** The graph document's top-level keys, in its order, each with what it holds in a word. */
-export function outlineOfTheGraphDocument(graphDocument: GraphDocumentValue): GraphDocumentOutlineEntry[] {
-  if (graphDocument.kind !== "object") return [];
-  return graphDocument.entries.map(([key, value]) => {
-    switch (value.kind) {
-      case "array":
-        return { key, summary: String(value.items.length) };
-      case "object":
-        return { key, summary: String(value.entries.length) };
-      case "string":
-        return { key, summary: value.text };
-      case "number":
-      case "literal":
-        return { key, summary: value.literal };
-    }
-  });
-}
-
 /** What a run of a JSON line is, which decides its colour. */
 export type JsonSyntaxKind = "key" | "string" | "number" | "literal" | "punctuation";
 

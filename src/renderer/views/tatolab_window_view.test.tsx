@@ -267,16 +267,14 @@ describe("a stream's page", () => {
     await waitFor(() => expect(textOf("[data-stream-page-header] [role=alert]")).toMatch(/^Retry was refused: the stream's CameraSource could not open camera/));
   });
 
-  it("shows the graph document as the runtime wrote it in Inspect, outlined by its top-level keys", async () => {
+  it("shows the graph document as the runtime wrote it in Inspect, raw or as a tree, with no outline beside it", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("main");
     fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Inspect" })));
 
     await waitFor(() => expect(document.querySelector("[data-graph-document-view='raw']")).not.toBeNull());
     expect(textOf("[data-graph-document-view='raw']")).toContain('"stream": "main"');
-    const outline = within(screen.getByRole("complementary", { name: "Graph document outline" }));
-    expect(outline.getByText("nodes")).toBeTruthy();
-    expect(outline.getByText("jonathanf-macbook")).toBeTruthy();
+    expect(screen.queryByRole("complementary", { name: "Graph document outline" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Tree" }));
 
