@@ -149,7 +149,7 @@ describe("the window's shell", () => {
     fireEvent.click(rowOf("main"));
 
     await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("main"));
-    expect(document.querySelector("[data-stream-page] [data-stream-details]")).not.toBeNull();
+    expect(document.querySelector("[data-stream-page] [data-stream-overview]")).not.toBeNull();
     expect(document.querySelector("[data-stream-page] [data-hosted-dom-page]")).toBeNull();
   });
 
@@ -198,31 +198,43 @@ function textOf(selector: string): string {
 }
 
 describe("a stream's page", () => {
-  it("opens on Overview, playing the first exposed output, which Details marks with its preview link, over its nodes in pipeline order", async () => {
+  it("opens on Overview playing each exposed output, and lists its project, outputs with their links and nodes in the Details slide-out", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("main");
 
     const preview = await waitFor(() => {
-      const previewFrame = document.querySelector<HTMLIFrameElement>("[data-stream-output-preview] iframe");
+      const previewFrame = document.querySelector<HTMLIFrameElement>('[data-stream-output-preview="invertingeffect/video_to_downstream"] iframe');
       if (previewFrame === null) throw new Error("no preview yet");
       return previewFrame;
     });
     expect(preview.getAttribute("src")?.startsWith("data:text/html")).toBe(true);
-    expect(document.querySelector("[data-stream-output-preview]")?.getAttribute("data-stream-output-preview")).toBe("invertingeffect/video_to_downstream");
-    const previewedOutputRow = document.querySelector<HTMLElement>('[data-stream-details] [data-stream-output="invertingeffect/video_to_downstream"]') ?? expect.unreachable("no previewed output in Details");
-    expect(within(previewedOutputRow).getByRole("button", { pressed: true }).textContent).toContain("This machine");
-    expect(previewedOutputRow.querySelector("[data-stream-output-preview-link]")?.textContent).toBe(preview.getAttribute("src"));
+    expect(textOf('[data-stream-output-preview="invertingeffect/video_to_downstream"]')).toContain("This machine");
+    expect(document.querySelector("[data-stream-details]"), "Details stays closed until asked").toBeNull();
+    expect(document.querySelector("[data-dropping-links]")).toBeNull();
+
+    await openTheOverviewDetails();
+
+    const details = within(document.querySelector<HTMLElement>("[data-stream-details]") ?? expect.unreachable("no Details"));
+    expect(details.getByText("~/streams/pattern")).toBeTruthy();
+    expect(document.querySelector('[data-stream-details] [data-stream-output="invertingeffect/video_to_downstream"] [data-stream-output-preview-link]')?.textContent).toBe(preview.getAttribute("src"));
     const stepRows = [...document.querySelectorAll<HTMLElement>("[data-stream-step]")];
     expect(stepRows.map((stepRow) => stepRow.dataset.streamStep)).toEqual(["testpatternsource", "invertingeffect", "displaywindow", "brightnessmeter"]);
-    expect(within(stepRows[1]).getByText("Python")).toBeTruthy();
-    expect(within(stepRows[1]).getByText("own process")).toBeTruthy();
-    expect(within(stepRows[0]).getByText("in runtime")).toBeTruthy();
-    expect(within(stepRows[0]).queryByText("Running"), "every node runs, so no State column").toBeNull();
-    expect(document.querySelector("[data-dropping-links]")).toBeNull();
-    const details = within(document.querySelector<HTMLElement>("[data-stream-details]") ?? document.body);
-    expect(details.getByText("~/streams/pattern")).toBeTruthy();
+    expect(stepRows[1].textContent).toContain("Python · own process");
+    expect(stepRows[0].textContent).toContain("in runtime");
+    expect(within(stepRows[0]).queryByText("Running"), "every node runs, so no state beside them").toBeNull();
     expect(details.queryByText("Instance")).toBeNull();
-    expect(details.queryByText("tatolab graph --stream main")).toBeNull();
+  });
+
+  it("plays every output a stream exposes in a tile of its own, each named with its exposure", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheStreamPageOf("camera");
+
+    await waitFor(() => expect(document.querySelectorAll("[data-stream-output-previews] iframe")).toHaveLength(2));
+    expect([...document.querySelectorAll<HTMLElement>("[data-stream-output-preview]")].map((tile) => tile.dataset.streamOutputPreview)).toEqual([
+      "camerasource/video",
+      "microphonesource/audio",
+    ]);
+    expect(textOf('[data-stream-output-preview="microphonesource/audio"]')).toContain("Public");
   });
 
   it("names each link that dropped messages, with the counts the graph reports beside its steps", async () => {
@@ -235,6 +247,7 @@ describe("a stream's page", () => {
       return droppingLinks.textContent ?? "";
     });
     expect(droppingLine).toMatch(/^invertingeffect → brightnessmeter has dropped [\d,]+ messages since it was wired/);
+    await openTheOverviewDetails();
     expect(document.querySelector("[data-stream-step='brightnessmeter']")?.textContent).toMatch(/[\d,]+ dropped/);
     expect(document.querySelector("[data-stream-step='invertingeffect']")?.textContent).toMatch(/[\d,]+ refused/);
     expect(document.querySelector("[data-stream-step='testpatternsource']")?.textContent).not.toMatch(/dropped|refused/);
@@ -243,13 +256,14 @@ describe("a stream's page", () => {
   it("keeps the steps of a stream it stopped as of the last load, muted, with Start in place of the preview", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("main");
-    await waitFor(() => expect(document.querySelector("[data-stream-step]")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-stream-output-preview]")).not.toBeNull());
 
     fireEvent.click(within(document.querySelector<HTMLElement>("[data-stream-page-header]") ?? document.body).getByRole("button", { name: /Stop/ }));
 
     await waitFor(() => expect(textOf("[data-nothing-to-preview]")).toContain("Stopped, so nothing to preview"));
     expect(screen.getByRole("button", { name: "Start stream" })).toBeTruthy();
-    expect(textOf("[data-stream-steps]")).toContain("as of the last load");
+    await openTheOverviewDetails();
+    expect(textOf("[data-stream-details]")).toContain("Nodes as of the last load");
   });
 
   it("shows a failed stream's reason in the runtime's words and retries it from the bar, the banner offering no second Retry", async () => {
@@ -259,7 +273,8 @@ describe("a stream's page", () => {
     const banner = document.querySelector<HTMLElement>("[data-failed-stream-banner]");
     expect(banner?.textContent).toContain("Failed — the stream's CameraSource could not open camera 0x1420000");
     expect(textOf("[data-nothing-to-preview]")).toContain("Not loaded, so nothing to preview");
-    expect(textOf("[data-stream-steps]")).toContain("Its nodes show here once it is loaded.");
+    await openTheOverviewDetails();
+    expect(textOf("[data-stream-details]")).toContain("Its nodes show here once it is loaded.");
 
     expect(within(banner ?? document.body).queryByRole("button")).toBeNull();
     fireEvent.click(document.querySelector<HTMLElement>('[data-stream-page-header] [data-stream-action="start_stream"]') ?? expect.unreachable("no Retry in the bar"));
@@ -288,7 +303,7 @@ describe("a stream's page", () => {
     await openTheStreamPageOf("camera");
     const servedWatchPageUrl = (await backend.describeStreamGraph("camera")).exposed.find((port) => port.node === "camerasource" && port.port === "video")?.watch_page_url;
 
-    const videoOutput = await waitFor(() => document.querySelector<HTMLElement>('[data-stream-output="camerasource/video"]') ?? expect.unreachable("no video output in Details"));
+    const videoOutput = await waitFor(() => document.querySelector<HTMLElement>('[data-stream-output-preview="camerasource/video"]') ?? expect.unreachable("no video output playing"));
     fireEvent.click(within(videoOutput).getByRole("button", { name: "Copy preview link" }));
 
     await waitFor(() => expect(copiedTexts).toHaveLength(1));
@@ -336,7 +351,7 @@ describe("a stream's page", () => {
   it("focuses the log search with ⌘F, from Overview by way of Logs, and on Logs where it is", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("main");
-    await waitFor(() => expect(document.querySelector("[data-stream-step]")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-stream-output-preview]")).not.toBeNull());
     const pressCommandF = () => fireEvent.keyDown(document, { key: "f", metaKey: true });
     const focusedLogFilter = () => document.activeElement?.hasAttribute("data-stream-log-search") === true;
 
@@ -645,7 +660,7 @@ describe("a stream's Graph tab", () => {
   it("opens with the output Search's Watch asked for pinned, with the Watch flag on", async () => {
     await mountedWindowOverTheMock("state=running", {}, { watchExposedOutput: true });
     await openTheStreamPageOf("main");
-    await waitFor(() => expect(document.querySelector("[data-stream-step]")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-stream-output-preview]")).not.toBeNull());
 
     fireEvent.keyDown(document, { key: "k", metaKey: true });
     const searchInput = await waitFor(() => {
@@ -720,6 +735,12 @@ async function addStreamControl(action: string): Promise<HTMLElement> {
     if (control === null) return expect.unreachable(`no ${action} control yet`);
     return control;
   });
+}
+
+/** Overview's Details slide-out, opened from the stream's bar. */
+async function openTheOverviewDetails(): Promise<void> {
+  fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-stream-page-header] [data-stream-action="details"]') ?? expect.unreachable("no Details toggle")));
+  await waitFor(() => expect(document.querySelector("[data-stream-details]")).not.toBeNull());
 }
 
 /** The add-stream dialog opened from the sidebar's + menu on New project. */

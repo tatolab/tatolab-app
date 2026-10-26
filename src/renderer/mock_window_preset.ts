@@ -66,7 +66,7 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
 
 /**
  * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=overview|graph|logs|inspect`,
- * `?stream_page_action=<action>` (a header button of the stream's page, once its steps show: `stop_stream` there gives
+ * `?stream_page_action=<action>` (a header or menu action of the stream's page, once its graph shows: `stop_stream` there gives
  * the steps as of the last load), `?inspect=tree`,
  * `?page=settings|add-stream` (the add-stream dialog, on Import project), on Settings `?section=general|appearance|runtime|command-line|about` and on its Runtime
  * `?restart=pressed` (Restart runtime pressed: Starting, then Running up 0m) or `?restart=refused` (the service manager refusing it),
@@ -103,7 +103,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   if (tab !== null) await clickWhenShown(`[data-stream-page-header] [data-stream-tab="${CSS.escape(tab)}"]`);
   const streamPageAction = pageQuery.get("stream_page_action");
   if (streamPageAction !== null) {
-    await waitForElement("[data-stream-step]");
+    await waitForElement("[data-stream-output-preview], [data-stream-graph-step]");
     const headerActionSelector = `[data-stream-page-header] [data-stream-action="${CSS.escape(streamPageAction)}"]`;
     if (document.querySelector(headerActionSelector) === null) await clickWhenShown(`[data-stream-page-header] [data-stream-action="more"]`);
     await clickWhenShown(`${headerActionSelector}, [data-stream-action="${CSS.escape(streamPageAction)}"][role="menuitem"]`);

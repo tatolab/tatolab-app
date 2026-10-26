@@ -1,4 +1,4 @@
-import { CodeXml, Copy, Play, Square, SquareTerminal, Trash2 } from "lucide-react";
+import { CodeXml, Copy, PanelRight, Play, Square, SquareTerminal, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
@@ -9,6 +9,7 @@ import { PageHeader } from "../design_system/page_header";
 import { PageTabs } from "../design_system/page_tabs";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
+import { ToggleIconButton } from "../design_system/toggle_icon_button";
 import { shortcutHint, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import {
   isStreamLoaded,
@@ -57,7 +58,18 @@ export interface StreamPageActions {
 }
 
 /** A stream's bar on every tab: its tabs, Start or Stop, and every other action in its menu; the sidebar shows its name and state. */
-export function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { stream: ListedStream; shownTab: StreamPageTab; streamPageActions: StreamPageActions }) {
+export function StreamPageHeaderView({
+  stream,
+  shownTab,
+  streamPageActions,
+  overviewDetailsPanel,
+}: {
+  stream: ListedStream;
+  shownTab: StreamPageTab;
+  streamPageActions: StreamPageActions;
+  /** Whether Overview's Details slide-out is open, and how its toggle opens or closes it. */
+  overviewDetailsPanel: { isOpen: boolean; onToggled: (isOpen: boolean) => void };
+}) {
   const { backend, platform } = useTatolabWindowEnvironment();
   /** Why the project folder or a terminal in it did not open, in the words of what refused it, which name what failed. */
   const [projectOpeningRefusal, setProjectOpeningRefusal] = useState<string | null>(null);
@@ -88,6 +100,17 @@ export function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { 
                 {primaryAction.label}
               </ActionButton>
             )
+          )}
+          {shownTab === "overview" && (
+            <ToggleIconButton
+              icon={PanelRight}
+              label="Details"
+              tooltipWhileOn="Hide details"
+              tooltipWhileOff="Show details"
+              isOn={overviewDetailsPanel.isOpen}
+              onToggled={overviewDetailsPanel.onToggled}
+              data-stream-action="details"
+            />
           )}
           <MoreActionsMenu label={`More for ${stream.name}`} data-stream-action="more">
             <MenuItem icon={CodeXml} onChosen={() => openTheProject(backend.openStreamProjectFolder(stream.name))} data-stream-action="open_stream_project_folder">

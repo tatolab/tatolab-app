@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { PageFrame } from "../design_system/page_frame";
@@ -16,6 +16,7 @@ import { useTatolabWindowEnvironment } from "./tatolab_window_context";
 export function StreamPageView({ stream, shownTab }: { stream: ListedStream; shownTab: StreamPageTab }) {
   const { hostedPages, streamGraphReadings, streamLogReadings } = useTatolabWindowEnvironment();
   const isLoaded = isStreamLoaded(stream);
+  const [isOverviewDetailsPanelOpen, setIsOverviewDetailsPanelOpen] = useState(false);
   const thisStreamsListing = useMemo(() => [stream], [stream]);
   const { actionsUnderWay, outcomeWords, runStreamAction } = useStreamActionsUnderWay(thisStreamsListing);
   const { askToRemove, removalDialog } = useStreamRemovalDialog((streamToRemove) => runStreamAction("remove_stream", "Remove", streamToRemove));
@@ -40,10 +41,27 @@ export function StreamPageView({ stream, shownTab }: { stream: ListedStream; sho
 
   if (shownTab === "graph" && !isLoaded) return <Navigate to={streamPagePath(stream.name)} replace />;
   return (
-    <PageFrame header={<StreamPageHeaderView stream={stream} shownTab={shownTab} streamPageActions={streamPageActions} />} data-stream-page={stream.name}>
+    <PageFrame
+      header={
+        <StreamPageHeaderView
+          stream={stream}
+          shownTab={shownTab}
+          streamPageActions={streamPageActions}
+          overviewDetailsPanel={{ isOpen: isOverviewDetailsPanelOpen, onToggled: setIsOverviewDetailsPanelOpen }}
+        />
+      }
+      data-stream-page={stream.name}
+    >
       {shownTab === "graph" && <StreamGraphPageView stream={stream} />}
       {shownTab === "logs" && <StreamLogsPageView stream={stream} streamPageActions={streamPageActions} />}
-      {shownTab === "overview" && <StreamOverviewPageView stream={stream} streamPageActions={streamPageActions} />}
+      {shownTab === "overview" && (
+        <StreamOverviewPageView
+          stream={stream}
+          streamPageActions={streamPageActions}
+          isDetailsPanelOpen={isOverviewDetailsPanelOpen}
+          onDetailsPanelHidden={() => setIsOverviewDetailsPanelOpen(false)}
+        />
+      )}
       {shownTab === "inspect" && <StreamInspectPageView stream={stream} />}
       {removalDialog}
     </PageFrame>
