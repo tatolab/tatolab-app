@@ -179,9 +179,7 @@ Bluetooth and audio-capture usage strings and its `NSAllowsArbitraryLoads` excep
 the app uses none of them. The main process
 keeps Chromium's profile in `~/Library/Application Support/com.tatolab.tatolab` (Linux:
 `~/.config/com.tatolab.tatolab`), never in the runtime's `~/Library/Application Support/Tatolab`. Neither carries `cs.disable-library-validation`: every Mach-O in the bundle is
-signed by the same team, so library validation accepts the dylibs `tatolabd` loads. Ad-hoc builds
-are signed without the hardened runtime, because ad-hoc code has no Team ID and library
-validation would refuse the bundled dylibs.
+signed by the same team, so library validation accepts the dylibs `tatolabd` loads.
 
 ## Linux packages
 
@@ -196,11 +194,18 @@ namespaces (on by default on Ubuntu 22.04, restricted by AppArmor on 24.04).
 
 ## Building on macOS
 
-One command:
+One command, run under Infisical so the build has the Developer ID it signs with:
 
 ```sh
-scripts/build-tatolab-app.sh
+infisical run -- scripts/build-tatolab-app.sh
 ```
+
+Every bundle, a release and a local proof build alike, is signed with the Developer ID
+Application identity from Infisical (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
+`APPLE_SIGNING_IDENTITY`; pass `--env=<env>` to `infisical run` if they live in another
+environment). The build imports it into a temporary keychain and deletes that keychain, and
+restores the keychain search list, when it ends. Without it the build stops before it does
+anything, naming what is missing; there is no other way to sign. Only a release is notarized.
 
 It bundles streamlib's latest `main`. It never reads a streamlib checkout elsewhere on the machine:
 it resolves `main` on github.com/tatolab/streamlib to a commit, fetches exactly that commit into
@@ -221,8 +226,7 @@ manifest `build/latest-mac.yml`.
 |---|---|
 | `--streamlib-ref REF` | bundle this streamlib tag or commit instead of `main`'s head; a release passes its tag |
 | `--runtime-unit DIR` | use an already-built runtime unit; refused unless its `streamlib-commit` names the commit the build resolved |
-| `--sign-identity ID` | codesign identity; default `-` (ad-hoc) |
-| `--notarize` | notarize and staple; needs a `Developer ID Application` identity and `APPLE_API_KEY_PATH`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` |
+| `--notarize` | notarize and staple, for a release; needs `APPLE_API_KEY_PATH`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` |
 | `--local-proof-test-root` | local proof build, below |
 | `--app-update-feed-url URL` | the update feed the app checks, in place of get.tatolab.com's; only with `--local-proof-test-root` |
 
@@ -253,10 +257,10 @@ The individual steps are separate scripts in `scripts/`:
 | `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features a packaged app carries; `--shipping` refuses the test root or any feed but get.tatolab.com's |
 | `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
 | `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/moq-relay`, `lib/tatolab/lend` or `lib/tatolab/watch`, or ships anything else in `bin/` or `lib/tatolab/` |
-| `sign-tatolab-app-bundle.sh <Tatolab.app> <identity>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) |
-| `make-tatolab-dmg.sh <Tatolab.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless) and its signature |
+| `sign-tatolab-app-bundle.sh <Tatolab.app> <identity>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) with the hardened runtime; refuses any identity but a `Developer ID Application` |
+| `make-tatolab-dmg.sh <Tatolab.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless), signed with the app's own Developer ID; refuses an app signed any other way |
 | `notarize-and-staple.sh <Tatolab.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
-| `verify-tatolab-app-bundle.sh <Tatolab.app\|.dmg> [--shipping]` | checks the signature, layout, plists, that the bundled `tatolabd` is the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
+| `verify-tatolab-app-bundle.sh <Tatolab.app\|.dmg> [--shipping]` | checks the signature (every Mach-O and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
 | `write_tatolab_app_update_manifest.mjs <manifest.yml> <version> <file>...` | writes the update feed's manifest for those files: sizes, SHA-512s, and URLs under `../releases/<version>/` |
 | `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tatolab.rb` from `packaging/homebrew/tatolab.rb.template` |
 
@@ -313,8 +317,8 @@ out, and packaging refuses an `out/renderer/` that carries it.
 - **`repository_dispatch` `streamlib-release`**: `client_payload.tag` names the streamlib
   release. It builds against that tag and publishes.
 
-Secrets (the Infisical names). Without the Apple secrets the build is ad-hoc signed and nothing is
-published:
+Secrets (the Infisical names). Without the Developer ID secrets the macOS build fails; without the
+App Store Connect key it is signed but not notarized, and nothing is published:
 
 | Secret | |
 |---|---|
