@@ -122,7 +122,8 @@ const pullRequestTitleCases: [string, boolean][] = [
 ];
 
 test.each(pullRequestTitleCases)("commitlint on the title %j", async (pullRequestTitle, isAccepted) => {
-  const commitlint = promisify(execFile)(`${REPOSITORY_ROOT}node_modules/.bin/commitlint`, ["--edit", "/dev/stdin"], { cwd: REPOSITORY_ROOT });
+  // A child's stdin is a socket; Linux's /dev/stdin reopens it through /proc, which fails with ENXIO, so `--edit /dev/stdin` reads nothing there.
+  const commitlint = promisify(execFile)(`${REPOSITORY_ROOT}node_modules/.bin/commitlint`, [], { cwd: REPOSITORY_ROOT });
   commitlint.child.stdin?.end(pullRequestTitle);
   const accepted = await commitlint.then(
     () => true,
