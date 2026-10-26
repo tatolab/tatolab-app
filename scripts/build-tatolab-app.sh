@@ -7,18 +7,23 @@
 # fetch-streamlib-for-the-app-build.sh into build/streamlib; nothing outside this repository is read.
 # The app's version is the version of the tatolabd it bundles. When it finishes it checks
 # streamlib's main again: a build of main fails if main moved on while it ran.
+# Every build is signed with the Developer ID from Infisical, imported into a temporary keychain
+# that is deleted when the build ends; without it the build stops before doing anything.
 #
 # Usage: build-tatolab-app.sh [--streamlib-ref REF] [--runtime-unit DIR] [--local-proof-test-root]
-#                             [--sign-identity ID] [--notarize] [--app-update-feed-url URL]
+#                             [--notarize] [--app-update-feed-url URL]
+#   APPLE_CERTIFICATE           base64 of the Developer ID Application .p12 (Infisical)
+#   APPLE_CERTIFICATE_PASSWORD  its password (Infisical)
+#   APPLE_SIGNING_IDENTITY      "Developer ID Application: … (TEAMID)" (Infisical)
+#                               locally: infisical run -- scripts/build-tatolab-app.sh …
 #   --streamlib-ref REF      the streamlib tag or commit to bundle instead of main's head; a release
 #                            passes the release tag it builds
 #   --runtime-unit DIR       an already-built runtime unit, accepted only when its streamlib-commit
 #                            names the commit the build resolved
 #   --local-proof-test-root  every machine directory under TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof
 #                            and no administrator prompt; for proving on this Mac, never shipped
-#   --sign-identity ID       codesign identity (default "-", ad-hoc)
-#   --notarize               notarize and staple the app and the .dmg (needs a Developer ID
-#                            identity and APPLE_API_KEY_PATH, APPLE_API_KEY_ID, APPLE_API_ISSUER)
+#   --notarize               notarize and staple the app and the .dmg, for a release (needs
+#                            APPLE_API_KEY_PATH, APPLE_API_KEY_ID, APPLE_API_ISSUER)
 #   --app-update-feed-url URL  the feed the app checks for updates (default: get.tatolab.com's);
 #                            only with --local-proof-test-root, for proving an update locally
 set -euo pipefail
@@ -29,7 +34,6 @@ scripts_directory="$repository_root/scripts"
 streamlib_ref=main
 prebuilt_runtime_unit=""
 local_proof_test_root=false
-signing_identity="-"
 notarize=false
 app_update_feed_url=""
 while [ $# -gt 0 ]; do
@@ -37,7 +41,6 @@ while [ $# -gt 0 ]; do
     --streamlib-ref) [ $# -ge 2 ] || usage; streamlib_ref="$2"; shift ;;
     --runtime-unit) [ $# -ge 2 ] || usage; prebuilt_runtime_unit="$2"; shift ;;
     --local-proof-test-root) local_proof_test_root=true ;;
-    --sign-identity) [ $# -ge 2 ] || usage; signing_identity="$2"; shift ;;
     --notarize) notarize=true ;;
     --app-update-feed-url) [ $# -ge 2 ] || usage; app_update_feed_url="$2"; shift ;;
     -h|--help) usage ;;
@@ -46,16 +49,56 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-if $notarize; then
-  case "$signing_identity" in
-    "Developer ID Application"*) ;;
-    *) echo "--notarize needs a 'Developer ID Application' identity, not '$signing_identity'" >&2; exit 1 ;;
-  esac
-  if $local_proof_test_root; then
-    echo "--notarize and --local-proof-test-root together: a local-proof build is never distributed" >&2
-    exit 1
-  fi
+if $notarize && $local_proof_test_root; then
+  echo "--notarize and --local-proof-test-root together: a local-proof build is never distributed" >&2
+  exit 1
 fi
+
+missing_developer_id_variables=()
+for developer_id_variable in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
+  [ -n "${!developer_id_variable:-}" ] || missing_developer_id_variables+=("$developer_id_variable")
+done
+if [ ${#missing_developer_id_variables[@]} -gt 0 ]; then
+  echo "no Developer ID to sign with: ${missing_developer_id_variables[*]} not set." >&2
+  echo "Every Tatolab.app is signed with the Developer ID from Infisical: run the build under" >&2
+  echo "'infisical run -- scripts/build-tatolab-app.sh …' (with --env=<env> if the Apple secrets live in another environment)." >&2
+  exit 1
+fi
+case "$APPLE_SIGNING_IDENTITY" in
+  "Developer ID Application: "*) signing_identity="$APPLE_SIGNING_IDENTITY" ;;
+  *) echo "APPLE_SIGNING_IDENTITY is not a 'Developer ID Application: …' identity: Tatolab.app is signed with nothing else" >&2; exit 1 ;;
+esac
+
+echo "==> Developer ID"
+developer_id_scratch_directory="$(mktemp -d)"
+developer_id_keychain="$developer_id_scratch_directory/tatolab-developer-id.keychain-db"
+keychain_search_list_before_the_build=()
+while IFS= read -r listed_keychain; do
+  listed_keychain="$(sed -e 's/^[[:space:]]*"//' -e 's/"[[:space:]]*$//' <<<"$listed_keychain")"
+  [ -n "$listed_keychain" ] && keychain_search_list_before_the_build+=("$listed_keychain")
+done < <(security list-keychains -d user)
+remove_the_developer_id_keychain() {
+  security list-keychains -d user -s ${keychain_search_list_before_the_build[@]+"${keychain_search_list_before_the_build[@]}"}
+  security delete-keychain "$developer_id_keychain" 2>/dev/null || true
+  rm -rf "$developer_id_scratch_directory"
+}
+trap remove_the_developer_id_keychain EXIT
+trap 'exit 130' INT TERM HUP
+developer_id_keychain_password="$(openssl rand -hex 16)"
+security create-keychain -p "$developer_id_keychain_password" "$developer_id_keychain"
+security set-keychain-settings -lut 21600 "$developer_id_keychain"
+security unlock-keychain -p "$developer_id_keychain_password" "$developer_id_keychain"
+(umask 077 && printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$developer_id_scratch_directory/developer-id.p12")
+security import "$developer_id_scratch_directory/developer-id.p12" -k "$developer_id_keychain" \
+  -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security >/dev/null
+rm -f "$developer_id_scratch_directory/developer-id.p12"
+security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$developer_id_keychain_password" "$developer_id_keychain" >/dev/null
+security list-keychains -d user -s "$developer_id_keychain" ${keychain_search_list_before_the_build[@]+"${keychain_search_list_before_the_build[@]}"}
+security find-identity -v -p codesigning "$developer_id_keychain" | grep -qF "\"$signing_identity\"" || {
+  echo "APPLE_CERTIFICATE holds no valid codesigning identity named by APPLE_SIGNING_IDENTITY" >&2
+  exit 1
+}
+echo "    imported into a temporary keychain, deleted when the build ends"
 
 local_proof_arguments=()
 $local_proof_test_root && local_proof_arguments=(--local-proof-test-root)
@@ -117,7 +160,7 @@ done < <(plutil -convert json -o - "$info_plist" | node -e 'process.stdout.write
 echo "==> assemble"
 "$scripts_directory/assemble-tatolab-app-bundle.sh" "$assembled_app" "$runtime_unit_directory" --streamlib-commit "$streamlib_commit" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"}
 
-echo "==> sign ($signing_identity)"
+echo "==> sign (Developer ID)"
 "$scripts_directory/sign-tatolab-app-bundle.sh" "$assembled_app" "$signing_identity"
 if $notarize; then
   echo "==> notarize the app"
@@ -125,7 +168,7 @@ if $notarize; then
 fi
 
 echo "==> installer"
-TATOLAB_SIGNING_IDENTITY="$signing_identity" "$scripts_directory/make-tatolab-dmg.sh" "$assembled_app" "$output_dmg"
+"$scripts_directory/make-tatolab-dmg.sh" "$assembled_app" "$output_dmg"
 if $notarize; then
   echo "==> notarize the installer"
   "$scripts_directory/notarize-and-staple.sh" "$output_dmg"

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks a signed Tatolab.app, or the Tatolab.app inside a .dmg, against the bundle contract:
-# a strict deep signature, the hardened runtime on every Mach-O unless ad-hoc, no Mach-O outside
+# a strict deep signature, every Mach-O and the image signed by Tatolab's Developer ID Application
+# identity with the hardened runtime (never ad-hoc, never another team), no Mach-O outside
 # Contents/MacOS and Contents/Frameworks, every symlink resolving inside the bundle, the launch
 # agent plist, the Info.plist usage strings, the bundled runtime's version against the app's and
 # the streamlib commit it was built from, the lend's CPython 3.10-3.14 bytecode, the runtime's
@@ -35,6 +36,24 @@ pass() { printf '  ok    %s\n' "$1"; }
 fail() { printf '  FAIL  %s\n' "$1" >&2; failure_count=$((failure_count + 1)); }
 is_mach_o() { [[ "$(file -b "$1")" == Mach-O* ]]; }
 
+# Why the code `codesign -dvv` described in $1 is not signed by Tatolab's Developer ID, or nothing
+# when it is.
+not_signed_by_the_tatolab_developer_id() {
+  local code_signature_description="$1" signing_authority signing_team_identifier
+  if grep -q 'flags=.*adhoc' <<<"$code_signature_description"; then
+    echo "it is signed ad-hoc"
+    return
+  fi
+  signing_authority="$(sed -n '/^Authority=/{s/^Authority=//p;q;}' <<<"$code_signature_description")"
+  signing_team_identifier="$(sed -n 's/^TeamIdentifier=//p' <<<"$code_signature_description")"
+  case "$signing_authority" in
+    "Developer ID Application: "*) ;;
+    *) echo "it is signed by '${signing_authority:-no authority}', not a Developer ID Application identity"; return ;;
+  esac
+  [ "$signing_team_identifier" = "$tatolab_developer_id_team_identifier" ] \
+    || echo "it is signed by team '${signing_team_identifier:-none}', not Tatolab's $tatolab_developer_id_team_identifier"
+}
+
 stapled_and_accepted_by_gatekeeper() {
   local stapled_target="$1" assessment_type="$2"
   if xcrun stapler validate -q "$stapled_target" >/dev/null 2>&1; then
@@ -68,6 +87,9 @@ required_electron_fuse_states=(
   "EnableEmbeddedAsarIntegrityValidation is Enabled" "OnlyLoadAppFromAsar is Enabled"
 )
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
+# The team of the Developer ID every Tatolab.app is signed by; a TeamIdentifier is public in every
+# signature it makes.
+tatolab_developer_id_team_identifier=QV2N7EDV53
 
 # The entitlement keys `signed_code` carries, sorted, on one line.
 entitlement_keys_of() {
@@ -130,8 +152,8 @@ verify_app_bundle() {
     esac
   done
 
-  local mach_o_outside_code_directories=0 unsigned_or_unhardened=0 bundle_file path_in_contents code_signature_description
-  local first_team_identifier="" bundle_file_team_identifier mixed_team_identifiers=0
+  local mach_o_outside_code_directories=0 unhardened_mach_o_count=0 bundle_file path_in_contents
+  local foreign_signature_count=0 foreign_signature_reason code_signature_description
   while IFS= read -r -d '' bundle_file; do
     is_mach_o "$bundle_file" || continue
     path_in_contents="${bundle_file#"$contents/"}"
@@ -140,27 +162,20 @@ verify_app_bundle() {
       *) fail "Mach-O outside MacOS/ and Frameworks/: Contents/$path_in_contents"
          mach_o_outside_code_directories=$((mach_o_outside_code_directories + 1)) ;;
     esac
-    code_signature_description="$(codesign -dv "$bundle_file" 2>&1 || true)"
-    bundle_file_team_identifier="$(sed -n 's/^TeamIdentifier=//p' <<<"$code_signature_description")"
-    if [ -z "$first_team_identifier" ]; then
-      first_team_identifier="$bundle_file_team_identifier"
-    elif [ "$bundle_file_team_identifier" != "$first_team_identifier" ]; then
-      fail "Contents/$path_in_contents is signed by team '$bundle_file_team_identifier', not '$first_team_identifier': library validation refuses mixed teams"
-      mixed_team_identifiers=$((mixed_team_identifiers + 1))
+    code_signature_description="$(codesign -dvv "$bundle_file" 2>&1 || true)"
+    foreign_signature_reason="$(not_signed_by_the_tatolab_developer_id "$code_signature_description")"
+    if [ -n "$foreign_signature_reason" ]; then
+      fail "Contents/$path_in_contents is not signed by Tatolab's Developer ID: $foreign_signature_reason"
+      foreign_signature_count=$((foreign_signature_count + 1))
     fi
-    if grep -q 'flags=.*adhoc' <<<"$code_signature_description"; then
-      if grep -q 'flags=.*runtime' <<<"$code_signature_description"; then
-        fail "ad-hoc signature with the hardened runtime on Contents/$path_in_contents: library validation refuses it"
-        unsigned_or_unhardened=$((unsigned_or_unhardened + 1))
-      fi
-    elif ! grep -q 'flags=.*runtime' <<<"$code_signature_description"; then
+    if ! grep -q 'flags=.*runtime' <<<"$code_signature_description"; then
       fail "no hardened runtime signature on Contents/$path_in_contents"
-      unsigned_or_unhardened=$((unsigned_or_unhardened + 1))
+      unhardened_mach_o_count=$((unhardened_mach_o_count + 1))
     fi
   done < <(find "$contents" -type f -print0)
   [ "$mach_o_outside_code_directories" -eq 0 ] && pass "every Mach-O sits in Contents/MacOS or Contents/Frameworks"
-  [ "$unsigned_or_unhardened" -eq 0 ] && pass "every Mach-O is signed (hardened runtime unless ad-hoc)"
-  [ "$mixed_team_identifiers" -eq 0 ] && pass "every Mach-O is signed by one team ($first_team_identifier)"
+  [ "$foreign_signature_count" -eq 0 ] && pass "every Mach-O is signed by Tatolab's Developer ID (team $tatolab_developer_id_team_identifier)"
+  [ "$unhardened_mach_o_count" -eq 0 ] && pass "every Mach-O is signed with the hardened runtime"
 
   local escaping_symlinks=0 bundle_symlink resolved_symlink
   while IFS= read -r -d '' bundle_symlink; do
@@ -318,6 +333,9 @@ case "$verification_target" in
   *.dmg)
     echo "verifying $verification_target"
     codesign --verify --strict "$verification_target" && pass "the image is signed" || fail "the image is not signed"
+    dmg_foreign_signature_reason="$(not_signed_by_the_tatolab_developer_id "$(codesign -dvv "$verification_target" 2>&1 || true)")"
+    [ -z "$dmg_foreign_signature_reason" ] && pass "the image is signed by Tatolab's Developer ID" \
+      || fail "the image is not signed by Tatolab's Developer ID: $dmg_foreign_signature_reason"
     stapled_and_accepted_by_gatekeeper "$verification_target" open
     dmg_mount_point="$(mktemp -d)"
     hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$dmg_mount_point" "$verification_target" >/dev/null
