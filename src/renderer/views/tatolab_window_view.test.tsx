@@ -745,7 +745,7 @@ describe("Add stream", () => {
 
     fireEvent.click(await addStreamControl("create"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-check=".venv"]')?.textContent).toContain("Made on run"));
-    expect(document.querySelector('[data-add-stream-check=".venv"]')?.textContent).toContain("Compile and run makes it first, with Tatolab's Python 3.12.12.");
+    expect(document.querySelector('[data-add-stream-check=".venv"]')?.textContent).toContain("From Tatolab's Python 3.12.12");
     expect(screen.queryByText(/uv sync/)).toBeNull();
     expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "hello");
 
@@ -899,14 +899,14 @@ describe("Settings", () => {
     await mountedWindowOverTheMock("state=running");
     await openSettingsOn("runtime");
 
-    expect(settingsRow("python-for-new-environments").textContent).toContain("Tatolab's own Python 3.12.12.");
+    expect(settingsRow("python-for-new-environments").textContent).toContain("Tatolab's own Python 3.12.12,");
     expect(within(settingsRow("python-for-new-environments")).queryByRole("button", { name: "Use Tatolab's Python" })).toBeNull();
     fireEvent.click(within(settingsRow("python-for-new-environments")).getByRole("button", { name: "Choose Your Own…" }));
     await waitFor(() => expect(within(settingsRow("python-for-new-environments")).getByText("/opt/homebrew/bin/python3.12")).toBeTruthy());
-    expect(settingsRow("python-for-new-environments").textContent).toContain("Your own Python.");
+    expect(settingsRow("python-for-new-environments").textContent).toContain("Your own Python,");
 
     fireEvent.click(within(settingsRow("python-for-new-environments")).getByRole("button", { name: "Use Tatolab's Python" }));
-    await waitFor(() => expect(settingsRow("python-for-new-environments").textContent).toContain("Tatolab's own Python 3.12.12."));
+    await waitFor(() => expect(settingsRow("python-for-new-environments").textContent).toContain("Tatolab's own Python 3.12.12,"));
   });
 
   it("shows a picked file that is no Python refused in the app's words, the choice unchanged", { timeout: 5_000 }, async () => {
@@ -916,7 +916,7 @@ describe("Settings", () => {
     fireEvent.click(within(settingsRow("python-for-new-environments")).getByRole("button", { name: "Choose Your Own…" }));
 
     await waitFor(() => expect(settingsRow("python-for-new-environments").textContent).toContain("Couldn't use that Python: /usr/bin/ruby is not a Python interpreter: ruby 3.3.0"));
-    expect(settingsRow("python-for-new-environments").textContent).toContain("Tatolab's own Python 3.12.12.");
+    expect(settingsRow("python-for-new-environments").textContent).toContain("Tatolab's own Python 3.12.12,");
   });
 
   it("shows a refused restart in the service manager's words, and offers none while Run Tatolab is off", { timeout: 5_000 }, async () => {

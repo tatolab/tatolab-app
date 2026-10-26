@@ -226,13 +226,13 @@ describe("Command line › Link in /usr/local/bin", () => {
 describe("Runtime › Python", () => {
   it("says what a project's .venv is made from, shows a chosen interpreter's path, and offers the other choice", () => {
     expect(presentPythonForNewEnvironments({ kind: "built_in", python_version: "3.12.12" })).toEqual({
-      description: "Tatolab's own Python 3.12.12. Tatolab makes a project's .venv with it when the project has none; a project with its own .venv keeps it.",
+      description: "Tatolab's own Python 3.12.12, which makes a project's .venv when it has none.",
       chosenInterpreter: null,
       offersYourOwnPython: true,
       offersTatolabsPython: false,
     });
     expect(presentPythonForNewEnvironments({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" })).toEqual({
-      description: "Your own Python. Tatolab makes a project's .venv with it when the project has none; a project with its own .venv keeps it.",
+      description: "Your own Python, which makes a project's .venv when it has none.",
       chosenInterpreter: "/opt/homebrew/bin/python3.12",
       offersYourOwnPython: true,
       offersTatolabsPython: true,

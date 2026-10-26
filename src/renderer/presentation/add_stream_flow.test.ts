@@ -254,10 +254,10 @@ describe("the commands and words the page shows", () => {
     expect(pythonEnvironmentCheckDetail(folderReport("/x"), builtIn)).toBe("Python 3.12.10 · tatolab-stream 0.55.0");
     expect(pythonEnvironmentCheckDetail(folderReport("/x", { python_environment: { kind: "present", python_version: null, tatolab_stream_version: null } }), builtIn)).toBe("Python");
     expect(pythonEnvironmentCheckDetail(folderReport("/x", { python_environment: { kind: "missing" } }), builtIn)).toBe(
-      "None yet. Compile and run makes it first, with Tatolab's Python 3.12.12.",
+      "From Tatolab's Python 3.12.12",
     );
     expect(pythonEnvironmentCheckDetail(folderReport("/x", { python_environment: { kind: "missing" } }), { kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" })).toBe(
-      "None yet. Compile and run makes it first, with /opt/homebrew/bin/python3.12.",
+      "From /opt/homebrew/bin/python3.12",
     );
     expect(pythonEnvironmentCheckDetail(folderReport("/x", { python_environment: { kind: "missing" } }), { kind: "built_in_not_offered", reason: "No uv here." })).toBe("No uv here.");
     expect(pythonEnvironmentSyncWords(builtIn)).toBe("uv sync  python=Tatolab's Python 3.12.12");

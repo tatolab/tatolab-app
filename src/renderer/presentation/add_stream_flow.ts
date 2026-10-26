@@ -277,7 +277,7 @@ export function pythonEnvironmentCheckDetail(report: StreamProjectFolderReport, 
   const pythonEnvironment = report.python_environment;
   if (pythonEnvironment.kind === "missing") {
     if (pythonForNewEnvironments.kind === "built_in_not_offered") return pythonForNewEnvironments.reason;
-    return `None yet. Compile and run makes it first, with ${pythonForNewEnvironmentsWords(pythonForNewEnvironments)}.`;
+    return `From ${pythonForNewEnvironmentsWords(pythonForNewEnvironments)}`;
   }
   const pythonWords = pythonEnvironment.python_version === null ? "Python" : `Python ${pythonEnvironment.python_version}`;
   return pythonEnvironment.tatolab_stream_version === null ? pythonWords : `${pythonWords} · tatolab-stream ${pythonEnvironment.tatolab_stream_version}`;

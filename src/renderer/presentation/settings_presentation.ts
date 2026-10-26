@@ -175,11 +175,10 @@ export interface PythonForNewEnvironmentsPresentation {
 
 /** What the app makes a project's `.venv` from, the person's own Python or Tatolab's, as the Python row says it. */
 export function presentPythonForNewEnvironments(pythonForNewEnvironments: PythonForNewEnvironments): PythonForNewEnvironmentsPresentation {
-  const whenItIsUsed = "Tatolab makes a project's .venv with it when the project has none; a project with its own .venv keeps it.";
   switch (pythonForNewEnvironments.kind) {
     case "built_in":
       return {
-        description: `Tatolab's own Python ${pythonForNewEnvironments.python_version}. ${whenItIsUsed}`,
+        description: `Tatolab's own Python ${pythonForNewEnvironments.python_version}, which makes a project's .venv when it has none.`,
         chosenInterpreter: null,
         offersYourOwnPython: true,
         offersTatolabsPython: false,
@@ -187,7 +186,7 @@ export function presentPythonForNewEnvironments(pythonForNewEnvironments: Python
     case "built_in_not_offered":
       return { description: pythonForNewEnvironments.reason, chosenInterpreter: null, offersYourOwnPython: false, offersTatolabsPython: false };
     case "chosen":
-      return { description: `Your own Python. ${whenItIsUsed}`, chosenInterpreter: pythonForNewEnvironments.interpreter, offersYourOwnPython: true, offersTatolabsPython: true };
+      return { description: "Your own Python, which makes a project's .venv when it has none.", chosenInterpreter: pythonForNewEnvironments.interpreter, offersYourOwnPython: true, offersTatolabsPython: true };
   }
 }
 
