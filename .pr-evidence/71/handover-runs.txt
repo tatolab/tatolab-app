@@ -1,11 +1,12 @@
 # Issue 71 live handover runs, 2026-10-26, on the owner's Mac (macOS, Apple Silicon). Label: Live (local proof).
-# Proof builds: scripts/build-tatolab-app.sh --local-proof-test-root, ad-hoc signed, Tatolab 0.55.4,
-#   streamlib main ef5c8b22995a90b1f7ae671e214c96480615c911 (the build ended 'streamlib main is still ef5c8b2...';
-#   git ls-remote and the bundle's Contents/Resources/streamlib-commit name the same commit).
-#   'before' runs: tatolab-app main 7ef822c. 'after' runs A and B: tatolab-app baba035 (this branch).
+# Proof builds: scripts/build-tatolab-app.sh --local-proof-test-root, ad-hoc signed, Tatolab 0.55.4, streamlib main
+#   ef5c8b22995a90b1f7ae671e214c96480615c911 (each build ended 'streamlib main is still ef5c8b2...'; git ls-remote and the
+#   bundle's Contents/Resources/streamlib-commit name the same commit).
+#   'before' runs: tatolab-app main 7ef822c. 'after' runs A and B: tatolab-app 00a91a8, this branch's last code commit.
 # The installed app is the owner's Developer ID Tatolab 0.55.4. The settings folder is shared with the proof builds;
 #   'over an older version' is runtime-restarted-for-app-version.json set to 0.55.3, restored afterwards.
-# Each run: 'launchctl print gui/501/com.tatolab.tatolabd' sampled every 2 s (changes only), then the app's own log.
+# Each run: 'launchctl print gui/501/com.tatolab.tatolabd' sampled every 2 s (changes only; 'runs = 1' marks a fresh job),
+#   then the app's own log (after-runs: each line prefixed with the wall-clock time it was read).
 
 ## before (7ef822c): Try Again in a proof build at another path, taking the agent from the Developer ID app
 09:58:46 | state = running | parent bundle version = 0.55.4 | BTM uuid = E9649BBB-2BD4-4134-B242-789C9F21A2A2 | runs = 1 | pid = 85026 | last exit code = (never exited) |  runatload | resolve program | has LWCR | health 000
@@ -109,49 +110,52 @@
  INFO Tatolab status changed runtime_state=running runtime_agent=enabled run_tatolab=true listed_stream_count=0 machine_name=jonathanf-macbook first_run_finished=true app_update=up_to_date
  INFO quitting the Tatolab app; the runtime keeps running
 
-## after (baba035): proof build at another path over an older version, from the Developer ID app; no button exists
-10:49:53 | state = running | parent bundle version = 0.55.4 | BTM uuid = 140E9857-A0E2-4135-96C9-0744E41B471B | runs = 1 | pid = 3261 | last exit code = (never exited) |  runatload | resolve program | has LWCR | health 000
-10:49:57 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 140E9857-A0E2-4135-96C9-0744E41B471B | runs = 1 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | needs LWCR update | has LWCR | health 000
-10:50:07 | state = running | parent bundle version = 0.55.4 | BTM uuid = 32A3BB5F-3C5C-439B-9B69-6E89A07B8FAB | runs = 1 | pid = 54006 | last exit code = (never exited) |  runatload | resolve program | has LWCR | health 200
+## after A (00a91a8): proof build at another path over an older version, from the Developer ID app; no button exists
+11:08:42 | state = running | parent bundle version = 0.55.4 | BTM uuid = 79D22DC0-0B7F-48AD-9CC7-09EC9E1E0074 | runs = 1 | pid = 56546 | last exit code = (never exited) |  runatload | resolve program | has LWCR | health 000
+11:08:46 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 79D22DC0-0B7F-48AD-9CC7-09EC9E1E0074 | runs = 1 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | needs LWCR update | has LWCR | health 000
+11:08:57 | state = running | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 1 | pid = 12880 | last exit code = (never exited) |  runatload | resolve program | has LWCR | health 200
 -- app log
- INFO reconciled the agent with the Run Tatolab switch reconciliation=already_enabled
- INFO Tatolab status changed runtime_state=starting runtime_agent=enabled run_tatolab=true listed_stream_count=null machine_name=null first_run_finished=false app_update=checking
- INFO the runtime runs under this app's version app_version=0.55.4 restarted_for_app_version=0.55.3 outcome=restarted
- WARN the service manager gave up starting the runtime service_manager_words="launchd: last exit reason = OS_REASON_CODESIGNING"
- INFO Tatolab status changed runtime_state=starting runtime_agent=enabled run_tatolab=true listed_stream_count=null machine_name=null first_run_finished=false app_update=up_to_date
- WARN registering the runtime's agent afresh to recover the runtime runtime_agent=enabled runtime_state=starting service_manager_words="launchd: last exit code = 78: EX_CONFIG" fresh_registration=1
- INFO Tatolab status changed runtime_state=running runtime_agent=enabled run_tatolab=true listed_stream_count=0 machine_name=jonathanf-macbook first_run_finished=false app_update=up_to_date
- INFO quitting the Tatolab app; the runtime keeps running
+11:08:45  INFO reconciled the agent with the Run Tatolab switch reconciliation=already_enabled
+11:08:45  INFO the runtime runs under this app's version app_version=0.55.4 restarted_for_app_version=0.55.3 outcome=restarted
+11:08:45  INFO Tatolab status changed runtime_state=starting runtime_agent=enabled run_tatolab=true listed_stream_count=null machine_name=null first_run_finished=false app_update=checking
+11:08:45  INFO Tatolab status changed runtime_state=starting runtime_agent=enabled run_tatolab=true listed_stream_count=null machine_name=null first_run_finished=false app_update=checking
+11:08:45  WARN the service manager gave up starting the runtime service_manager_words="launchd: last exit reason = OS_REASON_CODESIGNING"
+11:08:45  INFO Tatolab status changed runtime_state=starting runtime_agent=enabled run_tatolab=true listed_stream_count=null machine_name=null first_run_finished=false app_update=up_to_date
+11:08:55  WARN registering the runtime's agent afresh to recover the runtime runtime_agent=enabled runtime_state=starting service_manager_words="launchd: last exit code = 78: EX_CONFIG" fresh_registration=1
+11:08:57  INFO Tatolab status changed runtime_state=running runtime_agent=enabled run_tatolab=true listed_stream_count=0 machine_name=jonathanf-macbook first_run_finished=false app_update=up_to_date
 
-## after (baba035): a copy whose tatolabd has one byte changed (an invalid signature), a block that lasts
-10:51:05 | state = running | parent bundle version = 0.55.4 | BTM uuid = 32A3BB5F-3C5C-439B-9B69-6E89A07B8FAB | runs = 1 | pid = 54006 | last exit code = (never exited) |  runatload | resolve program | has LWCR | health 200
-10:51:09 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 32A3BB5F-3C5C-439B-9B69-6E89A07B8FAB | runs = 1 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
-10:51:19 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 32A3BB5F-3C5C-439B-9B69-6E89A07B8FAB | runs = 2 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
-10:51:26 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 32A3BB5F-3C5C-439B-9B69-6E89A07B8FAB | runs = 1 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
-10:51:36 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 32A3BB5F-3C5C-439B-9B69-6E89A07B8FAB | runs = 2 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
-10:51:44 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 32A3BB5F-3C5C-439B-9B69-6E89A07B8FAB | runs = 3 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
-10:51:55 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 32A3BB5F-3C5C-439B-9B69-6E89A07B8FAB | runs = 1 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
-10:52:05 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 32A3BB5F-3C5C-439B-9B69-6E89A07B8FAB | runs = 2 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
-10:52:15 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 32A3BB5F-3C5C-439B-9B69-6E89A07B8FAB | runs = 3 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
-10:52:26 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 32A3BB5F-3C5C-439B-9B69-6E89A07B8FAB | runs = 4 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
-10:52:36 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 32A3BB5F-3C5C-439B-9B69-6E89A07B8FAB | runs = 5 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+## after B (00a91a8): a copy whose tatolabd has one byte changed (an invalid signature), a block that lasts
+11:09:55 | state = running | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 1 | pid = 12880 | last exit code = (never exited) |  runatload | resolve program | has LWCR | health 200
+11:09:59 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 1 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:10:09 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 2 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:10:15 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 1 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:10:26 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 2 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:10:34 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 3 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:10:44 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 1 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:10:55 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 2 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:11:05 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 3 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:11:15 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 4 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:11:26 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 5 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:11:36 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 6 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:11:47 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 1 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:11:57 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 2 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:12:05 | state = xpcproxy | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 3 | pid = 14528 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:12:07 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 3 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
+11:12:16 | state = spawn scheduled | parent bundle version = 0.55.4 | BTM uuid = 4B0A4CF2-6096-4E8D-87E4-85DB528E2420 | runs = 4 | last exit reason = OS_REASON_CODESIGNING |  runatload | resolve program | has LWCR | health 000
 -- app log
- INFO reconciled the agent with the Run Tatolab switch reconciliation=already_enabled
- INFO the runtime runs under this app's version app_version=0.55.4 restarted_for_app_version=0.55.3 outcome=restarted
- INFO Tatolab status changed runtime_state=running runtime_agent=enabled run_tatolab=true listed_stream_count=0 machine_name=jonathanf-macbook first_run_finished=false app_update=up_to_date
- INFO Tatolab status changed runtime_state=starting runtime_agent=enabled run_tatolab=true listed_stream_count=null machine_name=null first_run_finished=false app_update=up_to_date
- WARN the service manager gave up starting the runtime service_manager_words="launchd: last exit reason = OS_REASON_CODESIGNING"
- WARN registering the runtime's agent afresh to recover the runtime runtime_agent=enabled runtime_state=starting service_manager_words="launchd: last exit reason = OS_REASON_CODESIGNING" fresh_registration=1
- WARN the runtime is not responding to its health check runtime_state=blocked_by_the_service_manager failure="no runtime answers at /tmp/tatolab-proof/run/local-api.sock: connect ENOENT /tmp/tatolab-proof/run/local-api.sock"
- INFO Tatolab status changed runtime_state=blocked_by_the_service_manager runtime_agent=enabled run_tatolab=true listed_stream_count=null machine_name=null first_run_finished=false app_update=up_to_date
- WARN the service manager gave up starting the runtime service_manager_words="launchd: last exit reason = OS_REASON_CODESIGNING"
- WARN registering the runtime's agent afresh to recover the runtime runtime_agent=enabled runtime_state=blocked_by_the_service_manager service_manager_words="launchd: last exit reason = OS_REASON_CODESIGNING" fresh_registration=2
- WARN registering the runtime's agent afresh to recover the runtime runtime_agent=enabled runtime_state=blocked_by_the_service_manager service_manager_words="launchd: last exit reason = OS_REASON_CODESIGNING" fresh_registration=3
- INFO Run Tatolab switched run_tatolab=false reconciliation=unregistered
- INFO Tatolab status changed runtime_state=stopped runtime_agent=not_registered run_tatolab=false listed_stream_count=null machine_name=null first_run_finished=false app_update=up_to_date
- INFO quitting the Tatolab app; the runtime keeps running
+11:09:57  INFO reconciled the agent with the Run Tatolab switch reconciliation=already_enabled
+11:09:57  INFO the runtime runs under this app's version app_version=0.55.4 restarted_for_app_version=0.55.3 outcome=restarted
+11:09:57  INFO Tatolab status changed runtime_state=running runtime_agent=enabled run_tatolab=true listed_stream_count=0 machine_name=jonathanf-macbook first_run_finished=false app_update=up_to_date
+11:09:58  INFO Tatolab status changed runtime_state=starting runtime_agent=enabled run_tatolab=true listed_stream_count=null machine_name=null first_run_finished=false app_update=up_to_date
+11:10:00  WARN the service manager gave up starting the runtime service_manager_words="launchd: last exit reason = OS_REASON_CODESIGNING"
+11:10:14  WARN registering the runtime's agent afresh to recover the runtime runtime_agent=enabled runtime_state=starting service_manager_words="launchd: last exit reason = OS_REASON_CODESIGNING" fresh_registration=1
+11:10:16  WARN the runtime is not responding to its health check runtime_state=blocked_by_the_service_manager failure="no runtime answers at /tmp/tatolab-proof/run/local-api.sock: connect ENOENT /tmp/tatolab-proof/run/local-api.sock"
+11:10:16  INFO Tatolab status changed runtime_state=blocked_by_the_service_manager runtime_agent=enabled run_tatolab=true listed_stream_count=null machine_name=null first_run_finished=false app_update=up_to_date
+11:10:26  WARN the service manager gave up starting the runtime service_manager_words="launchd: last exit reason = OS_REASON_CODESIGNING"
+11:10:44  WARN registering the runtime's agent afresh to recover the runtime runtime_agent=enabled runtime_state=blocked_by_the_service_manager service_manager_words="launchd: last exit reason = OS_REASON_CODESIGNING" fresh_registration=2
+11:11:45  WARN registering the runtime's agent afresh to recover the runtime runtime_agent=enabled runtime_state=blocked_by_the_service_manager service_manager_words="launchd: last exit reason = OS_REASON_CODESIGNING" fresh_registration=3
 
--- run B tray menu while blocked:
+-- after B, the tray menu while blocked:
 Runtime blocked by macOS, Open Tatolab, Run Tatolab, missing value, Check for Updates…, Quit Tatolab
 
 ## BTM, run1b (unified log): the registration reuses the previous copy's record; the next spawn replaces it
