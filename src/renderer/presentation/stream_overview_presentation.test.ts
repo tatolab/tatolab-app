@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ListedStream, StreamGraphExposedPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type { StreamGraphExposedPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 import {
   choosePreviewedOutput,
   droppingLinksOf,
@@ -10,12 +10,7 @@ import {
   previewableOutputsOf,
   readableExposedPorts,
   streamObservationCommands,
-  streamStepsCountLabel,
 } from "./stream_overview_presentation";
-
-function listedStream(name: string, state: string, nodeCount: number | null, projectDirectory = "/Users/ada/streams/pattern"): ListedStream {
-  return { name, state, project_directory: projectDirectory, node_count: nodeCount, failed_because: null };
-}
 
 function wiredLink(source: string, sourcePort: string, target: string, targetPort: string, state = "wired"): StreamGraphLink {
   return { id: "L1", source_node: source, source_port: sourcePort, target_node: target, target_port: targetPort, state };
@@ -189,15 +184,6 @@ describe("previewable outputs", () => {
     expect(choosePreviewedOutput(DROPPING_GRAPH, { node: "brightnessmeter", port: "levels" })?.port).toBe("levels");
     expect(choosePreviewedOutput(DROPPING_GRAPH, { node: "halftonelenseffect", port: "video_to_downstream" })?.port).toBe("encoded_video");
     expect(choosePreviewedOutput(TEST_PATTERN_GRAPH, null)).toBeNull();
-  });
-});
-
-describe("streamStepsCountLabel", () => {
-  it("counts the graph's steps with its Python ones, or the listing's count without a graph", () => {
-    expect(streamStepsCountLabel(DROPPING_GRAPH, listedStream("main", "kept", 4))).toBe("4 · 2 Python");
-    expect(streamStepsCountLabel({ ...DROPPING_GRAPH, nodes: [stepNode("a", "tatolab.stream:A", null)] }, listedStream("main", "kept", 1))).toBe("1");
-    expect(streamStepsCountLabel(null, listedStream("main", "kept", 4))).toBe("4");
-    expect(streamStepsCountLabel(null, listedStream("main", "stopped", null))).toBe("—");
   });
 });
 

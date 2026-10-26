@@ -198,7 +198,7 @@ function textOf(selector: string): string {
 }
 
 describe("a stream's page", () => {
-  it("opens on Overview, playing the first exposed output and listing its steps in pipeline order with their state", async () => {
+  it("opens on Overview, playing the first exposed output, which Details marks with its preview link, over its nodes in pipeline order", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("main");
 
@@ -208,20 +208,20 @@ describe("a stream's page", () => {
       return previewFrame;
     });
     expect(preview.getAttribute("src")?.startsWith("data:text/html")).toBe(true);
-    expect(textOf("[data-stream-output-preview]")).toContain("jonathanf-macbook/main/invertingeffect/video_to_downstream");
-    expect(textOf("[data-stream-output-preview]")).toContain("This machine");
+    expect(document.querySelector("[data-stream-output-preview]")?.getAttribute("data-stream-output-preview")).toBe("invertingeffect/video_to_downstream");
+    const previewedOutputRow = document.querySelector<HTMLElement>('[data-stream-details] [data-stream-output="invertingeffect/video_to_downstream"]') ?? expect.unreachable("no previewed output in Details");
+    expect(within(previewedOutputRow).getByRole("button", { pressed: true }).textContent).toContain("This machine");
+    expect(previewedOutputRow.querySelector("[data-stream-output-preview-link]")?.textContent).toBe(preview.getAttribute("src"));
     const stepRows = [...document.querySelectorAll<HTMLElement>("[data-stream-step]")];
     expect(stepRows.map((stepRow) => stepRow.dataset.streamStep)).toEqual(["testpatternsource", "invertingeffect", "displaywindow", "brightnessmeter"]);
     expect(within(stepRows[1]).getByText("Python")).toBeTruthy();
     expect(within(stepRows[1]).getByText("own process")).toBeTruthy();
     expect(within(stepRows[0]).getByText("in runtime")).toBeTruthy();
-    expect(within(stepRows[0]).getByText("Running")).toBeTruthy();
-    expect(textOf("[data-stream-steps]")).toContain("in pipeline order");
+    expect(within(stepRows[0]).queryByText("Running"), "every node runs, so no State column").toBeNull();
     expect(document.querySelector("[data-dropping-links]")).toBeNull();
     const details = within(document.querySelector<HTMLElement>("[data-stream-details]") ?? document.body);
-    expect(details.getByText("4 · 2 Python")).toBeTruthy();
     await waitFor(() => expect(details.getByText("4")).toBeTruthy());
-    expect(details.getByText("tatolab graph --stream main")).toBeTruthy();
+    expect(details.queryByText("tatolab graph --stream main")).toBeNull();
   });
 
   it("names each link that dropped messages, with the counts the graph reports beside its steps", async () => {
@@ -249,7 +249,6 @@ describe("a stream's page", () => {
     await waitFor(() => expect(textOf("[data-nothing-to-preview]")).toContain("Stopped, so nothing to preview"));
     expect(screen.getByRole("button", { name: "Start stream" })).toBeTruthy();
     expect(textOf("[data-stream-steps]")).toContain("as of the last load");
-    expect([...document.querySelectorAll("[data-stream-step]")].every((stepRow) => stepRow.textContent?.includes("Not loaded"))).toBe(true);
     expect(within(document.querySelector<HTMLElement>("[data-stream-details]") ?? document.body).getByText("Not loaded")).toBeTruthy();
   });
 
@@ -324,8 +323,10 @@ describe("a stream's page", () => {
     });
     await openTheStreamPageOf("camera");
 
-    fireEvent.click(screen.getByRole("button", { name: /Open project/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Open a terminal in the project" }));
+    fireEvent.click(screen.getByRole("button", { name: "More for camera" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Open project" }));
+    fireEvent.click(screen.getByRole("button", { name: "More for camera" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Open a terminal in the project" }));
 
     await waitFor(() =>
       expect(textOf("[data-stream-page-header] [role=alert]")).toBe(

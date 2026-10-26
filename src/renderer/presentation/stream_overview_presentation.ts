@@ -1,4 +1,4 @@
-import type { ListedStream, StreamGraphExposedPort, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type { StreamGraphExposedPort, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 import { labelUnknownStreamState } from "./stream_presentation";
 
 /** An exposure level in the window's words: who may read the output, and what that means. */
@@ -199,13 +199,6 @@ export function choosePreviewedOutput(
   const previewableOutputs = previewableOutputsOf(graph);
   const stillPreviewable = chosenOutput === null ? undefined : previewableOutputs.find((output) => output.node === chosenOutput.node && output.port === chosenOutput.port);
   return stillPreviewable ?? previewableOutputs[0] ?? null;
-}
-
-/** `6 · 3 Python` from a graph, or the listing's step count while there is none, `—` while it is not loaded. */
-export function streamStepsCountLabel(graph: StreamGraphSummary | null, stream: ListedStream): string {
-  if (graph === null) return stream.node_count === null ? "—" : String(stream.node_count);
-  const pythonStepCount = graph.nodes.filter((node) => presentNodeKind(node.type) === "Python").length;
-  return pythonStepCount === 0 ? String(graph.nodes.length) : `${graph.nodes.length} · ${pythonStepCount} Python`;
 }
 
 /** The command that prints the `graph` document Inspect shows. */

@@ -4,14 +4,14 @@ import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { writeTextToClipboard } from "../clipboard";
 import { ActionButton } from "../design_system/action_button";
-import { IconButton } from "../design_system/icon_button";
-import { MenuItem, MoreActionsMenu } from "../design_system/menus";
+import { MenuItem, MenuSeparator, MoreActionsMenu } from "../design_system/menus";
 import { PageHeader } from "../design_system/page_header";
 import { PageTabs } from "../design_system/page_tabs";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
 import { StreamStateWords } from "../design_system/stream_state_words";
 import { shortcutHint, windowDragRegionAttribute } from "../presentation/platform_presentation";
+import { streamObservationCommands } from "../presentation/stream_overview_presentation";
 import {
   isStreamLoaded,
   presentStreamPrimaryAction,
@@ -58,7 +58,7 @@ export interface StreamPageActions {
   askToRemove(): void;
 }
 
-/** A stream's bar on every tab: its name and state, its tabs, and its actions. */
+/** A stream's bar on every tab: its name and state, its tabs, Start or Stop, and every other action in its menu. */
 export function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { stream: ListedStream; shownTab: StreamPageTab; streamPageActions: StreamPageActions }) {
   const { backend, platform } = useTatolabWindowEnvironment();
   /** Why the project folder or a terminal in it did not open, in the words of what refused it, which name what failed. */
@@ -76,13 +76,6 @@ export function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { 
       tabs={<StreamPageTabs stream={stream} shownTab={shownTab} />}
       actions={
         <>
-          <IconButton icon={CodeXml} label="Open project" onPressed={() => openTheProject(backend.openStreamProjectFolder(stream.name))} data-stream-action="open_stream_project_folder" />
-          <IconButton
-            icon={SquareTerminal}
-            label="Open a terminal in the project"
-            onPressed={() => openTheProject(backend.openTerminalAtStreamProject(stream.name))}
-            data-stream-action="open_terminal_at_stream_project"
-          />
           {actionUnderWay !== undefined ? (
             <PendingActionWords words={streamActionPendingWords(actionUnderWay.streamAction)} />
           ) : (
@@ -92,17 +85,29 @@ export function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { 
                 icon={primaryAction.streamAction === "stop_stream" ? Square : Play}
                 tooltip={primaryAction.meaning}
                 onPressed={() => runPrimaryAction(primaryAction)}
-                className="ml-1"
                 data-stream-action={primaryAction.streamAction}
               >
                 {primaryAction.label}
               </ActionButton>
             )
           )}
-          <MoreActionsMenu label={`More for ${stream.name}`}>
+          <MoreActionsMenu label={`More for ${stream.name}`} data-stream-action="more">
+            <MenuItem icon={CodeXml} onChosen={() => openTheProject(backend.openStreamProjectFolder(stream.name))} data-stream-action="open_stream_project_folder">
+              Open project
+            </MenuItem>
+            <MenuItem icon={SquareTerminal} onChosen={() => openTheProject(backend.openTerminalAtStreamProject(stream.name))} data-stream-action="open_terminal_at_stream_project">
+              Open a terminal in the project
+            </MenuItem>
+            <MenuSeparator />
             <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(stream.project_directory)}>
               Copy project folder path
             </MenuItem>
+            {streamObservationCommands(stream.name).map((command) => (
+              <MenuItem key={command} icon={Copy} onChosen={() => void writeTextToClipboard(command)} data-stream-copy-command={command}>
+                Copy <span className="font-mono text-xs">{command}</span>
+              </MenuItem>
+            ))}
+            <MenuSeparator />
             <MenuItem icon={Trash2} isDestructive isDisabled={actionUnderWay !== undefined} onChosen={askToRemove} data-stream-action="remove_stream">
               Remove…
             </MenuItem>

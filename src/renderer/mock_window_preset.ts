@@ -104,7 +104,9 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   const streamPageAction = pageQuery.get("stream_page_action");
   if (streamPageAction !== null) {
     await waitForElement("[data-stream-step]");
-    await clickWhenShown(`[data-stream-page-header] [data-stream-action="${CSS.escape(streamPageAction)}"]`);
+    const headerActionSelector = `[data-stream-page-header] [data-stream-action="${CSS.escape(streamPageAction)}"]`;
+    if (document.querySelector(headerActionSelector) === null) await clickWhenShown(`[data-stream-page-header] [data-stream-action="more"]`);
+    await clickWhenShown(`${headerActionSelector}, [data-stream-action="${CSS.escape(streamPageAction)}"][role="menuitem"]`);
   }
   if (pageQuery.get("inspect") === "tree") await clickWhenShown(`[data-graph-document-view-choice="tree"]`);
   if (pageQuery.get("previews") === "off") await clickWhenShown(`[data-stream-graph-toolbar="previews"]`);
