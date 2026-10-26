@@ -286,7 +286,7 @@ describe("the commands and words the page shows", () => {
 
   it("words the compile view's name, the running facts and what the runtime did", () => {
     expect(compilingStreamWords({ folder: "/x", streamFunction: null, streamName: null })).toBe("the stream");
-    expect(streamRunningFactsWords(HEAT_MAP_ANSWER)).toBe("Always on · 4 steps");
+    expect(streamRunningFactsWords(HEAT_MAP_ANSWER)).toBe("4 steps");
     expect(streamRunAnswerLines({ ...HEAT_MAP_ANSWER, replaced_the_kept_record: true })).toEqual([
       "loaded heat_map as instance 9: 4 steps, in place of the stream this project kept",
       "heat_map is running; kept, so it loads again whenever the runtime starts",

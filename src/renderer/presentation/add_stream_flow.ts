@@ -1,5 +1,4 @@
 import type { PythonForNewEnvironments, StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
-import { STREAM_RUN_MODE_LABELS } from "./stream_presentation";
 
 /** Where a new stream starts from: a project folder the person has, or a new project `tatolab new` writes. */
 export type AddStreamSource = "project_folder" | "new_project";
@@ -341,9 +340,9 @@ export function compilingStreamWords(request: AddStreamRunRequest): string {
   return request.streamName ?? "the stream";
 }
 
-/** The facts beside a running stream's name: its run mode, its steps. */
+/** The facts beside a running stream's name: its steps. */
 export function streamRunningFactsWords(answer: StreamRunAnswer): string {
-  return `${STREAM_RUN_MODE_LABELS.always_on} · ${stepCountWords(answer.node_count)}`;
+  return stepCountWords(answer.node_count);
 }
 
 /** What the compile output says the runtime did, after the request and its warnings: the load, and that it is kept. */

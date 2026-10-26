@@ -5,7 +5,6 @@ import {
   abbreviateHomeDirectory,
   countLabel,
   presentStreamPrimaryAction,
-  presentStreamRunMode,
   presentStreamState,
   presentStreamStateAfterAStopNotRecorded,
   streamActionPendingWords,
@@ -50,19 +49,6 @@ describe("presentStreamStateAfterAStopNotRecorded", () => {
   });
 });
 
-describe("presentStreamRunMode", () => {
-  it("words a kept, stopped or failed stream Always on and an attached one Dev session, keeping the runtime's term", () => {
-    for (const keptState of ["kept", "stopped", "failed"]) {
-      expect(presentStreamRunMode(listedStream("main", keptState, null))).toMatchObject({ label: "Always on", runtimeTerm: keptState });
-    }
-    expect(presentStreamRunMode(listedStream("main", "attached", 4))).toMatchObject({ label: "Dev session", runtimeTerm: "attached" });
-  });
-
-  it("has no run mode for a state newer than this app", () => {
-    expect(presentStreamRunMode(listedStream("main", "awaiting_restart", 2))).toBeNull();
-  });
-});
-
 describe("presentStreamPrimaryAction", () => {
   it("stops a loaded stream, starts a stopped one and retries a failed one", () => {
     expect(presentStreamPrimaryAction(listedStream("main", "kept", 4))).toMatchObject({ streamAction: "stop_stream", label: "Stop" });
@@ -70,11 +56,11 @@ describe("presentStreamPrimaryAction", () => {
     expect(presentStreamPrimaryAction(listedStream("main", "failed", null))).toMatchObject({ streamAction: "start_stream", label: "Retry" });
   });
 
-  it("stops an attached stream too, saying it ends the session that runs it", () => {
+  it("stops an attached stream too, saying it ends the terminal command that runs it", () => {
     expect(presentStreamPrimaryAction(listedStream("main", "attached", 4))).toEqual({
       streamAction: "stop_stream",
       label: "Stop",
-      meaning: "Stop: ends the tatolab dev session that runs it",
+      meaning: "Stop: ends the tatolab command in the terminal that runs it",
     });
   });
 

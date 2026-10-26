@@ -37,7 +37,6 @@ import {
 } from "../presentation/add_stream_flow";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import { choosePreviewedOutput, exposedOutputAddress } from "../presentation/stream_overview_presentation";
-import { STREAM_RUN_MODE_LABELS } from "../presentation/stream_presentation";
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
 import { CommandWithCopyButton } from "./stream_action_controls";
 import { streamPagePath, type StreamPageTab } from "./stream_page_path";
@@ -53,7 +52,7 @@ const ADD_STREAM_DIALOG_WORDS: Record<AddStreamSource, { title: string; descript
     title: "New project",
     description: (
       <>
-        <span className="font-mono text-xs">tatolab new</span> writes the sample stream into a new folder, and the app runs it {STREAM_RUN_MODE_LABELS.always_on}.
+        <span className="font-mono text-xs">tatolab new</span> writes the sample stream into a new folder, and the app runs it.
       </>
     ),
   },
@@ -189,27 +188,6 @@ function StreamNameRow({ form, hint, onEdited, onUseFreeName }: { form: AddStrea
           </div>
         </div>
       )}
-    </AddStreamFormRow>
-  );
-}
-
-/** Always on, the one run mode the app can start; a dev session belongs to a terminal. */
-function RunModeRow({ hint }: { hint: ReactNode }) {
-  return (
-    <AddStreamFormRow label="Run mode" hint={hint}>
-      <SegmentedChoiceControl
-        label="Run mode"
-        choices={[
-          { choice: "kept", label: STREAM_RUN_MODE_LABELS.always_on },
-          {
-            choice: "attached",
-            label: STREAM_RUN_MODE_LABELS.dev_session,
-            unavailableBecause: "A dev session lives as long as the terminal that runs it. Start one with tatolab dev in the project folder.",
-          },
-        ]}
-        chosen="kept"
-        dataAttributeOfEachSegment="data-add-stream-run-mode"
-      />
     </AddStreamFormRow>
   );
 }
@@ -419,14 +397,6 @@ function ProjectFolderForm({
               onEdited={(streamName) => dispatch({ kind: "stream_name_edited", streamName })}
               onUseFreeName={onUseFreeName}
             />
-            <RunModeRow
-              hint={
-                <>
-                  Kept by the runtime: it loads again whenever the runtime starts. A dev session that reloads on save runs from a terminal: <MachineWords>tatolab dev</MachineWords> in the
-                  project folder.
-                </>
-              }
-            />
           </div>
         </section>
       )}
@@ -453,8 +423,7 @@ function NewProjectForm({
           title="Project created"
           lead={
             <>
-              <MachineWords>tatolab new</MachineWords> wrote the sample stream into <MachineWords>{report.folder}</MachineWords>. Add runs it{" "}
-              {STREAM_RUN_MODE_LABELS.always_on}.
+              <MachineWords>tatolab new</MachineWords> wrote the sample stream into <MachineWords>{report.folder}</MachineWords>. Add runs it.
             </>
           }
         />
@@ -468,7 +437,6 @@ function NewProjectForm({
               onEdited={(streamName) => dispatch({ kind: "stream_name_edited", streamName })}
               onUseFreeName={onUseFreeName}
             />
-            <RunModeRow hint="Kept by the runtime: it loads again whenever the runtime starts." />
           </div>
         </section>
       </div>
@@ -496,7 +464,6 @@ function NewProjectForm({
             onUseFreeName={onUseFreeName}
           />
         )}
-        <RunModeRow hint="Kept by the runtime: it loads again whenever the runtime starts." />
       </div>
       <section className="mt-8" aria-label="What you get">
         <h3 className="label-caps mb-1.5">What you get</h3>

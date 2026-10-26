@@ -14,7 +14,7 @@ import {
 } from "../presentation/stream_overview_presentation";
 import { presentStreamGraphCanvas } from "../presentation/stream_graph_canvas_presentation";
 import { stepNamesInFlowOrder } from "../presentation/stream_graph_step_layout";
-import { abbreviateHomeDirectory, isStreamLoaded, presentStreamPrimaryAction, presentStreamRunMode, streamNotLoadedReason } from "../presentation/stream_presentation";
+import { abbreviateHomeDirectory, isStreamLoaded, presentStreamPrimaryAction, streamNotLoadedReason } from "../presentation/stream_presentation";
 import type { StreamGraphReading } from "../stream_graph_readings";
 import { ActionButton } from "../design_system/action_button";
 import { CopyIconButton } from "../design_system/copy_icon_button";
@@ -269,7 +269,6 @@ function CopyableTerminalCommand({ command }: { command: string }) {
 }
 
 function StreamDetailsPanel({ stream, reading }: { stream: ListedStream; reading: StreamGraphReading }) {
-  const runMode = presentStreamRunMode(stream);
   const graph = reading.graph;
   const detailRows: KeyValueRow[] = [
     [
@@ -277,16 +276,6 @@ function StreamDetailsPanel({ stream, reading }: { stream: ListedStream; reading
       <span className="block truncate font-mono text-xs select-text" title={stream.project_directory}>
         {abbreviateHomeDirectory(stream.project_directory)}
       </span>,
-    ],
-    [
-      "Run mode",
-      runMode === null ? (
-        <span className="text-fg-3">—</span>
-      ) : (
-        <span>
-          {runMode.label} <span className="font-mono text-xs text-fg-3">· {runMode.runtimeTerm}</span>
-        </span>
-      ),
     ],
     ["Instance", reading.streamInstance === null ? <span className="text-fg-3">Not loaded</span> : <span className="font-mono text-xs select-text">{reading.streamInstance}</span>],
   ];

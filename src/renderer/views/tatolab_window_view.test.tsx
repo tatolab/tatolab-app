@@ -51,7 +51,6 @@ describe("the Streams list", () => {
     const patternFolder = within(document.querySelector<HTMLElement>('[data-streams-list-project-folder="/Users/jonathanf/streams/pattern"]') ?? expect.unreachable("no pattern folder"));
     expect(patternFolder.getAllByRole("listitem").map((row) => row.getAttribute("data-stream-row"))).toEqual(["main", "attached-demo", "pattern-two"]);
     expect(within(rowOf("main")).getByRole("link", { name: "main, Running" })).toBeTruthy();
-    expect(within(rowOf("main")).queryByText("Always on")).toBeNull();
     expect(within(rowOf("pattern-two")).getByRole("link", { name: "pattern-two, Stopped" })).toBeTruthy();
     expect(within(rowOf("lobby-recorder")).getByRole("link", { name: "lobby-recorder, Failed" })).toBeTruthy();
     expect(rowOf("lobby-recorder").textContent).toContain("camera access is denied for Tatolab");
