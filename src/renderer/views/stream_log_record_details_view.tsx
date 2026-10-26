@@ -1,7 +1,6 @@
 import { cn } from "cn";
-import { Filter, ScrollText, Workflow } from "lucide-react";
+import { Filter, Workflow } from "lucide-react";
 import { CopyIconButton } from "../design_system/copy_icon_button";
-import { EmptyState } from "../design_system/empty_state";
 import { KeyValueRows } from "../design_system/key_value_rows";
 import { ListRowButton } from "../design_system/list_row_button";
 import { PanelSection } from "../design_system/panel_section";
@@ -40,7 +39,7 @@ export function StreamLogRecordDetailsView({
   streamName,
   actions,
 }: {
-  details: StreamLogRecordDetails | null;
+  details: StreamLogRecordDetails;
   streamName: string;
   actions: StreamLogRecordDetailsActions;
 }) {
@@ -48,76 +47,70 @@ export function StreamLogRecordDetailsView({
     <SidePanel
       label="Selected record"
       title="Line"
-      actions={details !== null && <CopyIconButton readTextToCopy={() => details.jsonlLine} label="Copy as JSON" data-stream-log-details-copy="record" />}
+      actions={<CopyIconButton readTextToCopy={() => details.jsonlLine} label="Copy as JSON" data-stream-log-details-copy="record" />}
       hideLabel="Hide details"
       onHidden={actions.onClosed}
       data-stream-log-record-details=""
     >
-      {details === null ? (
-        <div className="flex h-full">
-          <EmptyState icon={ScrollText} title="No line selected" explanation="Select a line to see its full record." />
-        </div>
-      ) : (
-        <div className="pb-2">
-          <PanelSection title="Message">
-            <div className="flex items-start gap-2">
-              <span className={cn("font-mono text-xs leading-5", LOG_LEVEL_WORD_TONE_CLASS_NAMES[details.levelTone])}>{details.levelWord}</span>
-              <div className="min-w-0 font-mono text-[12.5px] leading-5 break-words text-fg select-text">{details.message}</div>
-            </div>
-          </PanelSection>
-          <PanelSection title="Source">
-            <KeyValueRows
-              rows={[
-                ["Time", <span className="font-mono text-xs tabular select-text">{details.dateAndTimeText}</span>],
-                ["Stream", <span className="select-text">{streamName}</span>],
-                ["Node", <span className="font-mono text-xs select-text">{details.step.stepName}</span>],
-                ["Process", <span className="select-text">{details.processWords}</span>],
-              ]}
-            />
-          </PanelSection>
-          <PanelSection title="Go to">
-            <div className="-mx-2 flex flex-col gap-px">
-              {details.step.isAStepOfTheGraph && (
-                <ListRowButton icon={Workflow} onPressed={() => actions.onStepShownInGraph(details.step.stepName)} data-stream-log-details-go-to="graph">
-                  <span className="min-w-0 truncate">Show in graph</span>
-                </ListRowButton>
-              )}
-              <ListRowButton icon={Filter} onPressed={() => actions.onOnlyStepShown(details.step.stepKey)} data-stream-log-details-go-to="only_this_step">
-                <span className="min-w-0 truncate">
-                  Only lines from <span className="font-mono text-xs">{details.step.stepName}</span>
-                </span>
+      <div className="pb-2">
+        <PanelSection title="Message">
+          <div className="flex items-start gap-2">
+            <span className={cn("font-mono text-xs leading-5", LOG_LEVEL_WORD_TONE_CLASS_NAMES[details.levelTone])}>{details.levelWord}</span>
+            <div className="min-w-0 font-mono text-[12.5px] leading-5 break-words text-fg select-text">{details.message}</div>
+          </div>
+        </PanelSection>
+        <PanelSection title="Source">
+          <KeyValueRows
+            rows={[
+              ["Time", <span className="font-mono text-xs tabular select-text">{details.dateAndTimeText}</span>],
+              ["Stream", <span className="select-text">{streamName}</span>],
+              ["Node", <span className="font-mono text-xs select-text">{details.step.stepName}</span>],
+              ["Process", <span className="select-text">{details.processWords}</span>],
+            ]}
+          />
+        </PanelSection>
+        <PanelSection title="Go to">
+          <div className="-mx-2 flex flex-col gap-px">
+            {details.step.isAStepOfTheGraph && (
+              <ListRowButton icon={Workflow} onPressed={() => actions.onStepShownInGraph(details.step.stepName)} data-stream-log-details-go-to="graph">
+                <span className="min-w-0 truncate">Show in graph</span>
               </ListRowButton>
-            </div>
-          </PanelSection>
-          {details.fields.length > 0 && (
-            <PanelSection
-              title="Fields"
-              aside={<CopyIconButton readTextToCopy={() => details.fieldsTextToCopy} label="Copy fields" size="compact" data-stream-log-details-copy="fields" />}
-            >
-              <KeyValueRows look="fields" rows={details.fields.map((field) => [field.key, field.valueText] as const)} />
-            </PanelSection>
-          )}
+            )}
+            <ListRowButton icon={Filter} onPressed={() => actions.onOnlyStepShown(details.step.stepKey)} data-stream-log-details-go-to="only_this_step">
+              <span className="min-w-0 truncate">
+                Only lines from <span className="font-mono text-xs">{details.step.stepName}</span>
+              </span>
+            </ListRowButton>
+          </div>
+        </PanelSection>
+        {details.fields.length > 0 && (
           <PanelSection
-            title="Record"
-            aside={<CopyIconButton readTextToCopy={() => details.jsonlLine} label="Copy as JSONL" size="compact" data-stream-log-details-copy="jsonl_line" />}
+            title="Fields"
+            aside={<CopyIconButton readTextToCopy={() => details.fieldsTextToCopy} label="Copy fields" size="compact" data-stream-log-details-copy="fields" />}
           >
-            <pre
-              className="scrollbar-thin overflow-x-auto rounded-md border bg-window p-2.5 font-mono text-[11px] leading-4 whitespace-pre select-text"
-              data-stream-log-details-record=""
-            >
-              {details.recordJsonLines.map((jsonLine, lineIndex) => (
-                <div key={lineIndex}>
-                  {syntaxPartsOfAJsonLine(jsonLine).map((syntaxPart, partIndex) => (
-                    <span key={partIndex} className={JSON_SYNTAX_CLASS_NAMES[syntaxPart.kind]}>
-                      {syntaxPart.text}
-                    </span>
-                  ))}
-                </div>
-              ))}
-            </pre>
+            <KeyValueRows look="fields" rows={details.fields.map((field) => [field.key, field.valueText] as const)} />
           </PanelSection>
-        </div>
-      )}
+        )}
+        <PanelSection
+          title="Record"
+          aside={<CopyIconButton readTextToCopy={() => details.jsonlLine} label="Copy as JSONL" size="compact" data-stream-log-details-copy="jsonl_line" />}
+        >
+          <pre
+            className="scrollbar-thin overflow-x-auto rounded-md border bg-window p-2.5 font-mono text-[11px] leading-4 whitespace-pre select-text"
+            data-stream-log-details-record=""
+          >
+            {details.recordJsonLines.map((jsonLine, lineIndex) => (
+              <div key={lineIndex}>
+                {syntaxPartsOfAJsonLine(jsonLine).map((syntaxPart, partIndex) => (
+                  <span key={partIndex} className={JSON_SYNTAX_CLASS_NAMES[syntaxPart.kind]}>
+                    {syntaxPart.text}
+                  </span>
+                ))}
+              </div>
+            ))}
+          </pre>
+        </PanelSection>
+      </div>
     </SidePanel>
   );
 }

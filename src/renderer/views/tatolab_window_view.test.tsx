@@ -386,11 +386,11 @@ describe("a stream's Logs tab", () => {
     await waitFor(() => expect(shownLogMessages().length).toBeGreaterThan(rowCountBefore), { timeout: 4000 });
   });
 
-  it("shows a selected record in full, with its JSON record as the runtime wrote it, and goes to its step on Graph", async () => {
+  it("opens a selected record in full, with its JSON record as the runtime wrote it, and goes to its node on Graph", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheLogsOf("main");
-    await waitFor(() => expect(textOf("[data-stream-log-record-details]")).toContain("No line selected"));
     const brightnessRow = await waitFor(() => logRowOf("mean=127.5"));
+    expect(document.querySelector("[data-stream-log-record-details]"), "no panel until a line is selected").toBeNull();
 
     fireEvent.mouseDown(brightnessRow);
 

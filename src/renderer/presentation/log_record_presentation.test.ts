@@ -114,7 +114,6 @@ describe("presentStreamLog", () => {
       { text: '"FaceTime HD Camera"', kind: "field_value" },
     ]);
     expect(streamLog.rows.map((row) => row.levelWord)).toEqual(["INFO", "INFO", "WARN", "ERROR", "DEBUG"]);
-    expect(streamLog.lineCountWords).toBe("5 lines");
   });
 
   it("offers each step the records name, in the graph's order, then any the graph does not hold, then the runtime", () => {
@@ -139,7 +138,6 @@ describe("presentStreamLog", () => {
     ]);
     expect(streamLog.stepFilterWords).toEqual({ words: "persondetector", isOneStepChosen: true });
     expect(streamLog.rows.map((row) => row.record.sequence)).toEqual([3]);
-    expect(streamLog.lineCountWords).toBe("1 of 5");
   });
 
   it("words the step filter as every step, the one chosen, or how many of how many", () => {
@@ -170,7 +168,6 @@ describe("presentStreamLog", () => {
 
     const cleared = presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, clearedThroughSequence: 5 });
     expect(cleared.rows).toEqual([]);
-    expect(cleared.lineCountWords).toBe("0 lines");
     expect(cleared.emptyWords).toBe("Cleared. New lines appear here.");
     expect(presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, clearedThroughSequence: 3 }).rows.map((row) => row.record.sequence)).toEqual([4, 5]);
     expect(presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, searchText: "nothing like it" }).emptyWords).toBe("No lines match.");

@@ -165,8 +165,6 @@ export interface StreamLogPresentation {
   stepChoices: StreamLogStepChoice[];
   /** The step filter's words: `All steps`, the one step chosen, or `2 of 5`. */
   stepFilterWords: { words: string; isOneStepChosen: boolean };
-  /** `113 lines`, or `12 of 113` while a filter hides some. */
-  lineCountWords: string;
   /** Why no row shows; `null` while some do. */
   emptyWords: string | null;
 }
@@ -287,7 +285,6 @@ export function presentStreamLog(records: readonly StreamLogRecord[], graph: Str
             : `${filters.shownStepKeys.size} of ${stepChoices.length}`,
       isOneStepChosen: onlyStepChosen !== undefined,
     },
-    lineCountWords: rows.length === rowsNotCleared.length ? countLabel(rows.length, "line", "lines") : `${rows.length.toLocaleString("en-US")} of ${rowsNotCleared.length.toLocaleString("en-US")}`,
     emptyWords,
   };
 }
