@@ -1,18 +1,18 @@
-# Live (local proof), 2026-10-26
-# Built from tatolab-app aa64725 with streamlib ef5c8b2 (main's head per git ls-remote); the branch's
-# later commits change no build input (a test rename, the verify-app skill, machine-brake, this evidence).
-# The proof build took the agent over between 12:29:28 and 12:29:46 (the "proof running" mark);
-# the installed 0.55.4 predates #86, so reopening it did not take the agent back until Try Again (12:33:03).
+# Live (local proof), 2026-10-26: fresh builds only
+# The old 0.55.4 release was uninstalled first (its own Settings > Uninstall Tatolab...).
+# Shipping app: built from tatolab-app 22b07a1, installed from its .dmg into /Applications.
+# Proof build: built from tatolab-app aa64725 (--local-proof-test-root); 22b07a1 changes no build input.
+# Both bundle streamlib ef5c8b2, main's head per git ls-remote; each build ended "streamlib main is still ef5c8b2".
 
 # codesign -dvv
-## build/Tatolab.app
+## /Applications/Tatolab.app
 Identifier=com.tatolab.tatolab
 CodeDirectory v=20500 flags=0x10000(runtime) hashes=3+7 location=embedded
 Authority=Developer ID Application: Jonathan Fontanez (QV2N7EDV53)
 Authority=Developer ID Certification Authority
 Authority=Apple Root CA
 TeamIdentifier=QV2N7EDV53
-## /Applications/Tatolab.app
+## build/proof/Tatolab.app
 Identifier=com.tatolab.tatolab
 CodeDirectory v=20500 flags=0x10000(runtime) hashes=3+7 location=embedded
 Authority=Developer ID Application: Jonathan Fontanez (QV2N7EDV53)
@@ -21,78 +21,62 @@ Authority=Apple Root CA
 TeamIdentifier=QV2N7EDV53
 
 # launchctl print gui/501/com.tatolab.tatolabd, sampled
-12:28:27 open proof
-12:28:32 state=running pid=63816 runs=1 exit=(never exited) test_root=0
-12:28:38 state=running pid=63816 runs=1 exit=(never exited) test_root=0
-12:28:43 state=running pid=63816 runs=1 exit=(never exited) test_root=0
-12:28:48 state=running pid=63816 runs=1 exit=(never exited) test_root=0
-12:28:53 state=running pid=63816 runs=1 exit=(never exited) test_root=0
-12:28:58 state=running pid=63816 runs=1 exit=(never exited) test_root=0
-12:29:03 state=running pid=63816 runs=1 exit=(never exited) test_root=0
-12:29:08 state=running pid=63816 runs=1 exit=(never exited) test_root=0
-12:29:13 state=running pid=63816 runs=1 exit=(never exited) test_root=0
-12:29:18 state=running pid=63816 runs=1 exit=(never exited) test_root=0
-12:29:23 state=running pid=63816 runs=1 exit=(never exited) test_root=0
-12:29:28 state=running pid=63816 runs=1 exit=(never exited) test_root=0
-12:29:46 proof running
-12:30:07 reopen release
-12:30:12 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:30:17 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:30:22 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:30:27 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:30:32 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:30:38 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:30:43 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:30:48 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:30:53 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:30:58 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:31:03 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:31:08 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:31:13 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:31:18 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:31:23 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:31:28 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:31:34 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:31:39 state=running pid=33758 runs=1 last_exit=(never exited) test_root=1
-12:32:14 pid=33758 test_root=1
-12:33:03 press Try Again in the release
-12:33:09 state=running pid=36560 runs=1 last_exit=(never exited) test_root=0
-12:33:14 state=running pid=36560 runs=1 last_exit=(never exited) test_root=0
-12:33:19 state=running pid=36560 runs=1 last_exit=(never exited) test_root=0
-12:33:24 state=running pid=36560 runs=1 last_exit=(never exited) test_root=0
-12:33:29 state=running pid=36560 runs=1 last_exit=(never exited) test_root=0
-12:33:34 state=running pid=36560 runs=1 last_exit=(never exited) test_root=0
-12:33:39 state=running pid=36560 runs=1 last_exit=(never exited) test_root=0
-12:33:45 state=running pid=36560 runs=1 last_exit=(never exited) test_root=0
-12:33:50 state=running pid=36560 runs=1 last_exit=(never exited) test_root=0
-12:33:55 state=running pid=36560 runs=1 last_exit=(never exited) test_root=0
-12:34:00 state=running pid=36560 runs=1 last_exit=(never exited) test_root=0
-12:34:05 state=running pid=36560 runs=1 last_exit=(never exited) test_root=0
+12:49:07 open fresh shipping app
+12:49:50 fresh shipping set up
+12:49:50 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:49:53 quit shipping app; open fresh proof build
+12:49:58 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:50:03 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:50:08 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:50:14 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:50:19 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:50:24 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:50:29 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:50:34 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:50:39 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:50:44 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:50:49 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:50:54 state=running pid=8515 runs=1 last_exit=(never exited) test_root=0
+12:50:59 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:51:12 proof running
+12:51:12 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:51:15 quit proof app; reopen fresh shipping app
+12:51:20 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:51:25 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:51:30 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:51:36 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:51:41 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:51:46 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:51:51 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:51:56 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:52:01 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:52:06 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:52:11 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:52:16 state=running pid=9722 runs=1 last_exit=(never exited) test_root=1
+12:52:21 state=running pid=10653 runs=1 last_exit=(never exited) test_root=0
 
-# the agent after each handover (excerpt)
-## 00-before
+# the agent at each step (excerpt)
+## 07-fresh-shipping
 	state = running
 	parent bundle identifier = com.tatolab.tatolab
 	parent bundle version = 0.55.4
 	runs = 1
-	pid = 63816
+	pid = 8515
 	last exit code = (never exited)
-## 01-proof
+## 10-fresh-proof
 	state = running
 	parent bundle identifier = com.tatolab.tatolab
 	parent bundle version = 0.55.4
 		TATOLAB_TEST_MACHINE_ROOT => /tmp/tatolab-proof
 	runs = 1
-	pid = 33758
+	pid = 9722
 	last exit code = (never exited)
-## 03-release
+## 11-fresh-shipping-back
 	state = running
 	parent bundle identifier = com.tatolab.tatolab
 	parent bundle version = 0.55.4
 	runs = 1
-	pid = 36560
+	pid = 10653
 	last exit code = (never exited)
 
-# runtime build ids
-tatolab 0.55.4
-runtime 0.55.4 (0.55.4+ef5c8b22995a90b1f7ae671e214c96480615c911.25727fc43d53eb34897ffd3068471a0c), up 0d 0h 0m, log /tmp/tatolab-proof/state/logs
+# no OS_REASON_CODESIGNING, exit 78 or last exit reason in any launchctl print
