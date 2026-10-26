@@ -23,11 +23,8 @@ export function useActionThroughTheBackend(runTheAction: () => Promise<void>, re
 export function runBannerAction(backend: TatolabBackend, action: RuntimeBannerAction): Promise<void> {
   switch (action) {
     case "turn_on_run_tatolab":
-    case "retry_run_tatolab":
       return backend.setRunTatolab(true);
     case "open_login_items":
       return backend.openLoginItemsSettings();
-    case "register_the_runtime_again":
-      return backend.registerTheRuntimeAgain();
   }
 }

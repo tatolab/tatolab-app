@@ -15,9 +15,9 @@ export interface RuntimeStateObservations {
   runtimeAgent: RuntimeAgentRegistrationStatus;
   runtimeHealth: RuntimeHealthObservation;
   /**
-   * Whether the service manager still gives up starting the runtime after the app registered its agent afresh once this
-   * launch; asked only while it fails its health check with the agent enabled. Before that one fresh registration a
-   * give-up reads as starting, since registering afresh is what clears launchd's stale job.
+   * Whether the service manager still gives up starting the runtime after the app registered its agent afresh since the
+   * runtime last answered; asked only while it fails its health check with the agent enabled. Before the first fresh
+   * registration a give-up reads as starting, since registering afresh is what clears launchd's stale job.
    */
   serviceManagerGaveUpOnTheRuntime: boolean;
   /** Whether the runtime has answered once since the app launched or last registered, restarted or registered it again. */
@@ -53,20 +53,19 @@ export function isARuntimeNotAnswering(runtimeState: RuntimeState): boolean {
   return runtimeState === "unreachable" || runtimeState === "never_answered" || runtimeState === "blocked_by_the_service_manager";
 }
 
-/** What the tray offers to bring the runtime back: Login Items while macOS waits for the person's approval, Try Again once it never answered or the service manager gave up; `null` otherwise. */
-export type TrayRuntimeRemedy = "open_login_items" | "register_the_runtime_again" | null;
+/** What the tray offers to bring the runtime back: Login Items while macOS waits for the person's approval, which only the person can give; `null` otherwise, as the app recovers the runtime itself. */
+export type TrayRuntimeRemedy = "open_login_items" | null;
 
 /** The remedy the tray offers for `status`. */
 export function trayRuntimeRemedy(status: TatolabStatus): TrayRuntimeRemedy {
   switch (status.runtime_state) {
     case "stopped":
       return status.run_tatolab && status.runtime_agent === "requires_approval" ? "open_login_items" : null;
-    case "never_answered":
-    case "blocked_by_the_service_manager":
-      return "register_the_runtime_again";
     case "running":
     case "starting":
     case "unreachable":
+    case "never_answered":
+    case "blocked_by_the_service_manager":
       return null;
   }
 }

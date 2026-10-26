@@ -9,7 +9,7 @@ import { failedWith, succeeded } from "./result.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { RuntimeRestartedForAppVersionFile } from "./runtime_restarted_for_app_version.js";
 import { MachineNameAskedOncePerRuntimeUpEpisode, TatolabAppController } from "./tatolab_app_controller.js";
-import { RUNTIME_AGENT_TAKEOVER_WAIT_MS } from "./run_tatolab_switch.js";
+import { RUNTIME_AGENT_RECOVERY_FIRST_INTERVAL_MS, RUNTIME_AGENT_TAKEOVER_WAIT_MS } from "./run_tatolab_switch.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
@@ -150,8 +150,8 @@ test("the first give-up by the service manager reads starting and registers the 
 });
 
 test("a takeover from a copy of the app signed differently reads starting until launchd spawns the job again, then registers the agent afresh once", async () => {
-  const { controller, runtimeAgent } = await controllerOverFakes([], "enabled");
-  expect(await controller.registerTheRuntimeAgainOnRequest()).toEqual(succeeded(undefined));
+  const { controller, runtimeAgent } = await controllerOverFakes([], "not_registered");
+  await controller.reconcileTheAgentWithTheRunTatolabSwitch();
   runtimeAgent.calls.length = 0;
   runtimeAgent.whyTheServiceManagerGaveUp = { serviceManagerWords: "launchd: last exit reason = OS_REASON_CODESIGNING", registeringAgainWaitsForTheNextSpawn: true };
 
@@ -170,7 +170,7 @@ test("a takeover from a copy of the app signed differently reads starting until 
   expect((await controller.composeStatus(14_000)).runtime_state).toBe("starting");
 });
 
-test("a give-up that outlasts the fresh registration reads blocked, the app leaves it alone, and try again registers it again", async () => {
+test("a give-up that outlasts the fresh registration reads blocked, and the app registers the agent afresh again by itself once the backoff allows", async () => {
   const { controller, runtimeAgent } = await controllerOverFakes([], "enabled");
   runtimeAgent.whyTheServiceManagerGaveUp = {
     serviceManagerWords: "launchd: last exit reason = OS_REASON_CODESIGNING | Launch Constraint Violation",
@@ -183,10 +183,13 @@ test("a give-up that outlasts the fresh registration reads blocked, the app leav
 
   const blocked = await controller.composeStatus(RUNTIME_AGENT_TAKEOVER_WAIT_MS + 2_000);
   expect(blocked.runtime_state).toBe("blocked_by_the_service_manager");
-  await controller.startTheRuntimeIfThePollerFoundItDown(blocked, 60_000);
-  expect(runtimeAgent.calls).toEqual([]);
+  await controller.startTheRuntimeIfThePollerFoundItDown(blocked, RUNTIME_AGENT_TAKEOVER_WAIT_MS + 2_000);
+  expect(runtimeAgent.calls, "nothing is started while the service manager refuses it").toEqual([]);
 
-  expect(await controller.registerTheRuntimeAgainOnRequest()).toEqual(succeeded(undefined));
+  const nextFreshRegistrationAtMs = RUNTIME_AGENT_TAKEOVER_WAIT_MS + RUNTIME_AGENT_RECOVERY_FIRST_INTERVAL_MS;
+  const stillBlocked = await controller.composeStatus(nextFreshRegistrationAtMs);
+  expect(stillBlocked.runtime_state).toBe("blocked_by_the_service_manager");
+  await controller.startTheRuntimeIfThePollerFoundItDown(stillBlocked, nextFreshRegistrationAtMs);
   expect(runtimeAgent.calls).toEqual(["unregister", "register", "start_if_not_running"]);
 });
 

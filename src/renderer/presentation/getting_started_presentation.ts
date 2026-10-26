@@ -36,7 +36,7 @@ const START_THE_RUNTIME = "Start the runtime";
 export function presentGettingStarted(status: TatolabStatus): GettingStartedPresentation {
   const runtimePresentation = presentRuntimeStatus(status);
   const serviceManagerName = platformOf(status) === "linux" ? "systemd" : "macOS";
-  const stepThatNeedsThePerson = (
+  const stepOfItsOwn = (
     step: GettingStartedStepName,
     banner: RuntimeBannerPresentation | null,
     progressWords: string,
@@ -62,7 +62,7 @@ export function presentGettingStarted(status: TatolabStatus): GettingStartedPres
     case "needs_login_items_approval":
       return waitingOnTheRuntime([
         { step: "start_the_runtime", title: START_THE_RUNTIME, progressWords: "Starts once you approve it", explanation: null, progress: "waiting", action: null },
-        ...stepThatNeedsThePerson("approve_in_login_items", runtimePresentation.banner, "Waiting for you", "needs_you"),
+        ...stepOfItsOwn("approve_in_login_items", runtimePresentation.banner, "Waiting for you", "needs_you"),
       ]);
     case "blocked_by_the_service_manager":
       return waitingOnTheRuntime([
@@ -74,7 +74,7 @@ export function presentGettingStarted(status: TatolabStatus): GettingStartedPres
           progress: "waiting",
           action: null,
         },
-        ...stepThatNeedsThePerson("unblock_the_runtime", runtimePresentation.banner, "Stopped", "failed"),
+        ...stepOfItsOwn("unblock_the_runtime", runtimePresentation.banner, "Tatolab keeps trying", "failed"),
       ]);
     default:
       return waitingOnTheRuntime([

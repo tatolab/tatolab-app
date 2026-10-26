@@ -207,15 +207,13 @@ describe("starting the app", () => {
     await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("register");
   });
 
-  test("the first opening links the command in the home folder, and the tray's Try Again and Open Login Items reach the service manager", async () => {
+  test("the first opening links the command in the home folder, and the tray's Open Login Items reaches the service manager", async () => {
     const fakeShell = fakeShellQuitAfterTheTest();
     const tatolabRunningApp = await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await theFirstPublishedStatus(tatolabRunningApp);
     await expect.poll(() => fakeShell.commandLineToolLinks.linksAsked).toEqual(["home_folder"]);
 
     fakeShell.runtimeAgent.calls.length = 0;
-    fakeShell.clickTheTrayMenuItem("register_the_runtime_again");
-    await expect.poll(() => fakeShell.runtimeAgent.calls).toEqual(["unregister", "register", "start_if_not_running"]);
     fakeShell.clickTheTrayMenuItem("open_login_items_settings");
     await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("open_login_items_settings");
   });

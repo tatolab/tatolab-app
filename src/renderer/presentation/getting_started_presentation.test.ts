@@ -46,9 +46,15 @@ describe("presentGettingStarted", () => {
     expect(approval.getStartedIsOffered).toBe(false);
   });
 
-  it("adds a blocked step with Try Again, naming the service manager of the platform", () => {
+  it("adds a blocked step that Tatolab keeps working on by itself, naming the service manager of the platform", () => {
     const blocked = presentGettingStarted(statusWith({ runtime_state: "blocked_by_the_service_manager" }));
-    expect(blocked.steps[1]).toMatchObject({ step: "unblock_the_runtime", title: "Blocked by macOS", progress: "failed", action: "register_the_runtime_again" });
+    expect(blocked.steps[1]).toMatchObject({
+      step: "unblock_the_runtime",
+      title: "Blocked by macOS",
+      progressWords: "Tatolab keeps trying",
+      progress: "failed",
+      action: null,
+    });
     expect(blocked.steps[0]?.progressWords).toBe("Starts once macOS lets it");
 
     const blockedOnLinux = presentGettingStarted(statusWith({ platform: "linux", runtime_state: "blocked_by_the_service_manager" }));
@@ -62,9 +68,9 @@ describe("presentGettingStarted", () => {
         step: "start_the_runtime",
         title: "Start the runtime",
         progressWords: "The runtime didn't start",
-        explanation: "macOS started it, but it hasn't answered in 20 seconds.",
+        explanation: "macOS started it, but it hasn't answered in 20 seconds. Tatolab starts it again by itself.",
         progress: "failed",
-        action: "register_the_runtime_again",
+        action: null,
       },
     ]);
   });

@@ -33,7 +33,6 @@ import {
   runStreamAction,
   streamArgumentsFrom,
   linkCommandLineToolInUsrLocalBin,
-  registerTheRuntimeAgain,
   rememberFirstRunFinished,
   tatolabWindowCommandHandlers,
 } from "./tatolab_commands.js";
@@ -289,14 +288,11 @@ test("the window asking for the status before the first round waits for it", asy
   expect((await status).ok).toBe(true);
 });
 
-test("get started is remembered, try again registers the agent again, and the usr local bin link answers once the prompt closes", async () => {
+test("get started is remembered, and the usr local bin link answers once the prompt closes", async () => {
   const sharedState = await sharedStateOverFakes([], "macos");
 
   expect(await rememberFirstRunFinished(sharedState)).toEqual(succeeded(undefined));
   expect((await sharedState.controller.composeStatus(0)).first_run_finished).toBe(true);
-
-  expect(await registerTheRuntimeAgain(sharedState)).toEqual(succeeded(undefined));
-  expect(sharedState.runtimeAgent.calls).toEqual(["unregister", "register", "start_if_not_running"]);
 
   sharedState.commandLineToolLinks.linkingInUsrLocalBin = failedWith({ kind: "refused", refusal: "The password prompt was cancelled, so nothing changed." });
   expect(await linkCommandLineToolInUsrLocalBin(sharedState)).toEqual(failedWith("The password prompt was cancelled, so nothing changed."));
@@ -327,7 +323,6 @@ test("each command answers the window in the contract's shape, a refusal in its 
   });
   expect(await commandHandlers.describe_stream_graph({ stream: "nope" })).toEqual({ ok: false, refusal: graphRefusal });
   expect(await commandHandlers.link_command_line_tool_in_usr_local_bin(undefined)).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.register_the_runtime_again(undefined)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.remember_first_run_finished(undefined)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.uninstall_tatolab(undefined)).toEqual({ ok: false, refusal: "this fake platform uninstalls nothing" });
   expect(await commandHandlers.quit_tatolab_app(undefined)).toEqual({ ok: true, value: null });

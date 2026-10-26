@@ -26,9 +26,6 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     rememberFirstRunFinished: async () => {
       await invokeTatolabCommand("remember_first_run_finished", undefined);
     },
-    registerTheRuntimeAgain: async () => {
-      await invokeTatolabCommand("register_the_runtime_again", undefined);
-    },
     linkCommandLineToolInUsrLocalBin: async () => {
       await invokeTatolabCommand("link_command_line_tool_in_usr_local_bin", undefined);
     },

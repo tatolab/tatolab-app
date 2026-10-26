@@ -14,14 +14,12 @@ import type { Result } from "../result.js";
 export type RuntimeAgentStartFailure = { kind: "no_job_for_the_registered_agent" } | { kind: "refused"; refusal: string };
 
 /**
- * The service manager having given up starting the agent's runtime, in its words. `registeringAgainWaitsForTheNextSpawn` is
- * launchd killing the job for its code signature: after a copy of the app signed differently registered the agent, the job
- * runs under that copy's Background Task Management record and launch constraint until launchd's next spawn, about 10 s
- * later, replaces the record, and a registration before then is refused the same way. Only macOS reports it.
+ * The service manager having given up starting the agent's runtime, in its words. `registeringAgainWaitsForTheNextSpawn`:
+ * registering the agent now is refused the same way until the service manager spawns the job again; only macOS reports it.
  */
 export interface RuntimeAgentGiveUp {
-  serviceManagerWords: string;
-  registeringAgainWaitsForTheNextSpawn: boolean;
+  readonly serviceManagerWords: string;
+  readonly registeringAgainWaitsForTheNextSpawn: boolean;
 }
 
 /** Restarts the runtime the app's own bundle carries, so a runtime still running from the bundle before an update runs from the bundle as it is now. */

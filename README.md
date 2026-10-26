@@ -8,8 +8,10 @@ Tatolab" brings the window back. Quitting the app closes the window and the tray
 keeps running.
 
 The tray menu shows a one-line status, "Open Tatolab", the "Run Tatolab" switch, "Open Login
-Items…" while macOS waits for approval, "Try Again" once the runtime didn't start or was blocked,
-"Check for Updates…" in a packaged app, and "Quit Tatolab". The window reads
+Items…" while macOS waits for approval, "Check for Updates…" in a packaged app, and "Quit
+Tatolab". A runtime that didn't start, was blocked by the service manager or lost its
+registration the app recovers by itself, registering its agent afresh less often each time until
+it answers. The window reads
 everything from the runtime's local API: `list_streams`, `logs` and `graph` over MCP, and
 `GET /api/graph` for the machine's name. It stops, starts (or retries) and removes a stream with
 the MCP tools `stop_stream`, `start_stream` and `remove_stream`; loading a new stream is the
@@ -60,8 +62,8 @@ brew install --cask tatolab/tap/tatolab
 
 Opening the app registers the runtime's login item and links the `tatolab` command into
 `~/.local/bin`, with no administrator password. The first time, it says what Tatolab is and shows
-the runtime starting, asking for something only when macOS needs it: approval in Login Items, or a
-Try Again when macOS blocks the runtime. Settings › Command line also offers a link in
+the runtime starting, asking for something only when macOS needs it: approval in Login Items.
+Settings › Command line also offers a link in
 `/usr/local/bin`, which works in every terminal and asks for an administrator's password.
 
 **Linux.** The installer is the one way to install the runtime. It unpacks it to

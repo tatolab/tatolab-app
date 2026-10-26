@@ -176,8 +176,7 @@ test("the_poller_starts_an_enabled_unit_whose_runtime_is_down", async () => {
 
   await runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown(
     await runTatolabSwitch.runtimeAgentRegistrationStatus(),
-    "failing",
-    null,
+    "starting",
     performance.now(),
   );
 

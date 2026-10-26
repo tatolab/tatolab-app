@@ -75,11 +75,6 @@ export function rememberFirstRunFinished(sharedState: TatolabAppSharedState): Pr
   return answerTheWindowThenRefreshTheStatus(sharedState, "remember_first_run_finished", () => sharedState.controller.rememberFirstRunFinished());
 }
 
-/** `register_the_runtime_again`: Try Again, registering the runtime's agent again and starting it, answered once the service manager has, then a status round; refused while Run Tatolab is off, and in the service manager's words. */
-export function registerTheRuntimeAgain(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
-  return answerTheWindowThenRefreshTheStatus(sharedState, "register_the_runtime_again", () => sharedState.controller.registerTheRuntimeAgainOnRequest());
-}
-
 /** `link_command_line_tool_in_usr_local_bin`: link `tatolab` in `/usr/local/bin` behind the administrator prompt, answered once it closes, then a status round; refused in words, and where it is not offered, with why. */
 export function linkCommandLineToolInUsrLocalBin(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
   return answerTheWindowThenRefreshTheStatus(sharedState, "link_command_line_tool_in_usr_local_bin", () => sharedState.controller.linkTheCommandLineToolInUsrLocalBin());
@@ -316,7 +311,6 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     },
     open_login_items_settings: async () => commandAnswerOfNothingFrom(await openLoginItemsSettings(sharedState)),
     remember_first_run_finished: async () => commandAnswerOfNothingFrom(await rememberFirstRunFinished(sharedState)),
-    register_the_runtime_again: async () => commandAnswerOfNothingFrom(await registerTheRuntimeAgain(sharedState)),
     link_command_line_tool_in_usr_local_bin: async () => commandAnswerOfNothingFrom(await linkCommandLineToolInUsrLocalBin(sharedState)),
     uninstall_tatolab: async () => commandAnswerOfNothingFrom(await uninstallTatolab(sharedState)),
     quit_tatolab_app: async () => {

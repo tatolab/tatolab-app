@@ -1,11 +1,11 @@
 // The "Run Tatolab" switch: one registration is both "the runtime runs now" and "the runtime
 // starts at login". Opening the app with the switch on registers the agent; turning it off
 // unregisters it, which stops the runtime, and is remembered. While the app runs, the switch on
-// also starts an enabled agent whose runtime the poller finds down. The first time a launch finds
-// the service manager has given up on it, the app registers the agent afresh by itself, once that
-// launch; after that only the person's Try Again does.
+// also starts an enabled agent whose runtime the poller finds down, and recovers one the service
+// manager gave up on, that never answered, or that is not registered by registering it afresh by
+// itself, less often each time, until the runtime answers.
 
-import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../shared/tatolab_backend_contract.js";
+import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus, RuntimeState } from "../shared/tatolab_backend_contract.js";
 import type { BundledRuntimeRestart, RuntimeAgentGiveUp, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import type { RememberedSwitchFile } from "./remembered_switch_file.js";
@@ -23,6 +23,21 @@ export const RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS = 10_000;
  * the agent's last registration or start: launchd's 10 s between spawns with a margin, inside the starting grace period.
  */
 export const RUNTIME_AGENT_TAKEOVER_WAIT_MS = 15_000;
+
+/** How long a runtime that never answered may go, since it was last started, before the app registers its agent afresh: well past the starting grace, so a slow start is not cut short. */
+export const RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS = 60_000;
+
+/** The wait after the app's first fresh registration of the agent before its second, doubling after each one the runtime does not answer. */
+export const RUNTIME_AGENT_RECOVERY_FIRST_INTERVAL_MS = 30_000;
+
+/** The longest wait between the app's own fresh registrations: macOS can notify the person of each registration, so a lasting refusal is retried rarely. */
+export const RUNTIME_AGENT_RECOVERY_LONGEST_INTERVAL_MS = 30 * 60_000;
+
+/** The wait after the app's `freshRegistrationsSoFar`-th fresh registration since the runtime last answered before the next: none before the first. */
+export function runtimeAgentRecoveryIntervalMs(freshRegistrationsSoFar: number): number {
+  if (freshRegistrationsSoFar <= 0) return 0;
+  return Math.min(RUNTIME_AGENT_RECOVERY_FIRST_INTERVAL_MS * 2 ** (freshRegistrationsSoFar - 1), RUNTIME_AGENT_RECOVERY_LONGEST_INTERVAL_MS);
+}
 
 /**
  * Whether to start the runtime's agent now. launchd may leave even an enabled agent's job pended as a
@@ -57,9 +72,6 @@ export function theRuntimeAgentShouldBeStartedNow({
 /** Why "Restart runtime" is refused while the switch is off: no agent is registered to restart. */
 export const RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL = "Run Tatolab is off, so there is no runtime to restart. Turn Run Tatolab on to start it.";
 
-/** Why Try Again is refused while the switch is off: registering the agent is Run Tatolab's to turn on. */
-export const REGISTER_AGAIN_WITH_RUN_TATOLAB_OFF_REFUSAL = "Run Tatolab is off, so the runtime isn't started. Turn Run Tatolab on to start it.";
-
 /** Why "Restart runtime" is refused while the agent is not enabled: registering it is Run Tatolab's, never a restart's. */
 export const RESTART_WITH_THE_AGENT_NOT_ENABLED_REFUSAL = "The runtime's login item isn't enabled, so there is no runtime to restart.";
 
@@ -87,18 +99,24 @@ export class RunTatolabSwitch {
   private loginItemsSettingsOpenedThisLaunch = false;
   private runtimeAgentLastStartAttemptAtMs: number | null = null;
   private runtimeAnsweredSinceLastStarted = false;
-  private registeredAfreshThisLaunchAfterAGiveUp = false;
+  private freshRegistrationsSinceTheRuntimeLastAnswered = 0;
+  private lastFreshRegistrationAtMs: number | null = null;
+  /** When the runtime was last registered, restarted or registered again; `null` when this launch has not. */
+  private runtimeLastStartedAfreshAtMs: number | null = null;
+  private serviceManagerGiveUpSinceTheRuntimeWasLastStarted: RuntimeAgentGiveUp | null = null;
   /** The restart on request under way; `null` with none. */
   private restartOnRequest: RuntimeRestartOnRequestUnderWay | null = null;
+  private runtimeExpectedUpSinceMs: number;
 
   private constructor(
     private readonly runtimeAgent: RuntimeAgentRegistration,
     private readonly preferenceFile: RememberedSwitchFile,
     private runTatolabSwitchedOn: boolean,
-    private runtimeExpectedUpSinceMs: number,
     private readonly appLaunchedAtMs: number,
     private readonly tatolabAppLog: TatolabAppLog,
-  ) {}
+  ) {
+    this.runtimeExpectedUpSinceMs = appLaunchedAtMs;
+  }
 
   /** The switch as remembered in `preferenceFile`, driving `runtimeAgent`, as the app launches at `appLaunchedAtMs`. */
   static async load(
@@ -108,7 +126,7 @@ export class RunTatolabSwitch {
     tatolabAppLog: TatolabAppLog,
   ): Promise<RunTatolabSwitch> {
     const runTatolab = await preferenceFile.loadRememberedSwitch();
-    return new RunTatolabSwitch(runtimeAgent, preferenceFile, runTatolab, appLaunchedAtMs, appLaunchedAtMs, tatolabAppLog);
+    return new RunTatolabSwitch(runtimeAgent, preferenceFile, runTatolab, appLaunchedAtMs, tatolabAppLog);
   }
 
   /** Whether the switch is on. */
@@ -134,11 +152,28 @@ export class RunTatolabSwitch {
   noteRuntimeHealthy(nowMs: number): void {
     this.runtimeExpectedUpSinceMs = nowMs;
     this.runtimeAnsweredSinceLastStarted = true;
+    this.freshRegistrationsSinceTheRuntimeLastAnswered = 0;
+    this.lastFreshRegistrationAtMs = null;
+    this.serviceManagerGiveUpSinceTheRuntimeWasLastStarted = null;
   }
 
-  /** Whether the app has already registered the agent afresh by itself this launch, so a give-up now is the person's to retry. */
-  hasRegisteredAfreshThisLaunchAfterAGiveUp(): boolean {
-    return this.registeredAfreshThisLaunchAfterAGiveUp;
+  /**
+   * Note the give-up a status round read, `null` when it read none. A give-up holds until the runtime answers or is
+   * started afresh: a round can catch launchd's job running for a moment between two refused spawns, and that is not
+   * the service manager letting it run.
+   */
+  noteTheServiceManagersGiveUp(serviceManagerGiveUp: RuntimeAgentGiveUp | null): void {
+    if (serviceManagerGiveUp !== null) this.serviceManagerGiveUpSinceTheRuntimeWasLastStarted = serviceManagerGiveUp;
+  }
+
+  /** The service manager's latest give-up since the runtime was last started afresh or answered; `null` with none. */
+  serviceManagerGiveUpSinceTheRuntimeWasLastStartedAfresh(): RuntimeAgentGiveUp | null {
+    return this.serviceManagerGiveUpSinceTheRuntimeWasLastStarted;
+  }
+
+  /** Whether the app has registered the agent afresh by itself since the runtime last answered, so a give-up now outlasts a fresh registration. */
+  hasRegisteredAfreshSinceTheRuntimeLastAnswered(): boolean {
+    return this.freshRegistrationsSinceTheRuntimeLastAnswered > 0;
   }
 
   /** Whether the runtime has answered since the app launched or last registered, restarted or registered it again. */
@@ -149,13 +184,20 @@ export class RunTatolabSwitch {
   /** The runtime is being started afresh at `nowMs`: it gets the starting grace from then, and has not answered since. */
   private noteTheRuntimeStartedAfresh(nowMs: number): void {
     this.runtimeAgentLastStartAttemptAtMs = nowMs;
+    this.runtimeLastStartedAfreshAtMs = nowMs;
     this.runtimeExpectedUpSinceMs = nowMs;
     this.runtimeAnsweredSinceLastStarted = false;
+    this.serviceManagerGiveUpSinceTheRuntimeWasLastStarted = null;
   }
 
   /** How long the runtime has had to come up since the app launched, the agent was registered, or the runtime last answered. */
   timeSinceTheRuntimeWasExpectedUpMs(nowMs: number): number {
     return Math.max(0, nowMs - this.runtimeExpectedUpSinceMs);
+  }
+
+  /** How long since this launch last registered or started the agent; `null` when it has not. */
+  private timeSinceTheLastStartAttemptMs(nowMs: number): number | null {
+    return this.runtimeAgentLastStartAttemptAtMs === null ? null : Math.max(0, nowMs - this.runtimeAgentLastStartAttemptAtMs);
   }
 
   /**
@@ -219,17 +261,6 @@ export class RunTatolabSwitch {
   private restartWasAnsweredBefore(roundStartedAtMs: number): boolean {
     const serviceManagerAnsweredAtMs = this.restartOnRequest?.serviceManagerAnsweredAtMs ?? null;
     return serviceManagerAnsweredAtMs !== null && roundStartedAtMs >= serviceManagerAnsweredAtMs;
-  }
-
-  /**
-   * Try Again: with the switch on, register the agent again and start it — what brings back a runtime the
-   * service manager gave up on, or one that never answered — giving it the starting grace afresh from `nowMs`;
-   * refused with the switch off, and in the service manager's own words.
-   */
-  async registerTheRuntimeAgainOnRequest(nowMs: number): Promise<Result<void, string>> {
-    if (!this.runTatolabSwitchedOn) return failedWith(REGISTER_AGAIN_WITH_RUN_TATOLAB_OFF_REFUSAL);
-    this.noteTheRuntimeStartedAfresh(nowMs);
-    return this.registerTheAgentAgainAndStartIt();
   }
 
   /**
@@ -310,37 +341,35 @@ export class RunTatolabSwitch {
   }
 
   /**
-   * Start the runtime when the poller found it failing its health check at `nowMs` and `theRuntimeAgentShouldBeStartedNow`
-   * says to. The first give-up `serviceManagerGiveUp` the service manager reports this launch is answered by registering
-   * the agent afresh: after the agent's label passes from one copy of the app to another, launchd can hold a job whose
-   * Background Task Management record is gone, and every spawn of that job exits 78 until it is registered again. A
-   * give-up that waits for the next spawn is held until it does, for at most `RUNTIME_AGENT_TAKEOVER_WAIT_MS`.
+   * React to the poller finding the runtime `runtimeState` at `nowMs`, with the switch on. An agent the service manager
+   * gave up on since it was last started afresh, whose runtime never answered, or that is not registered is registered afresh by the app itself: at once
+   * for a give-up, after `RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS` for a runtime that never answered, then less often each
+   * time by `runtimeAgentRecoveryIntervalMs` until the runtime answers. A give-up that waits for the service manager's next
+   * spawn is held until that spawn, for at most `RUNTIME_AGENT_TAKEOVER_WAIT_MS` from the last fresh start. Otherwise a runtime down with its agent
+   * enabled is started as `theRuntimeAgentShouldBeStartedNow` says.
    */
   async startTheRuntimeIfThePollerFoundItDown(
     runtimeAgent: RuntimeAgentRegistrationStatus,
-    runtimeHealth: RuntimeHealthObservation,
-    serviceManagerGiveUp: RuntimeAgentGiveUp | null,
+    runtimeState: RuntimeState,
     nowMs: number,
   ): Promise<void> {
-    if (serviceManagerGiveUp !== null && this.runTatolabSwitchedOn && runtimeAgent === "enabled" && !this.registeredAfreshThisLaunchAfterAGiveUp) {
-      const timeSinceTheAgentWasLastStartedMs = Math.max(0, nowMs - (this.runtimeAgentLastStartAttemptAtMs ?? this.appLaunchedAtMs));
-      if (serviceManagerGiveUp.registeringAgainWaitsForTheNextSpawn && timeSinceTheAgentWasLastStartedMs < RUNTIME_AGENT_TAKEOVER_WAIT_MS) return;
-      this.registeredAfreshThisLaunchAfterAGiveUp = true;
-      this.tatolabAppLog.warn("the service manager gave up starting the runtime; registering its agent afresh", {
-        service_manager_words: serviceManagerGiveUp.serviceManagerWords,
-        time_since_the_agent_was_last_started_ms: timeSinceTheAgentWasLastStartedMs,
-      });
-      this.noteTheRuntimeStartedAfresh(nowMs);
-      await this.registerTheAgentAgainAndStartIt();
+    if (!this.runTatolabSwitchedOn) return;
+    const serviceManagerGiveUp = this.serviceManagerGiveUpSinceTheRuntimeWasLastStarted;
+    const runtimeNeedsRegisteringAfresh =
+      runtimeAgent === "not_registered" || (runtimeAgent === "enabled" && (serviceManagerGiveUp !== null || runtimeState === "never_answered"));
+    if (runtimeNeedsRegisteringAfresh) {
+      const runtimeMayStillBeStartingSlowly = runtimeAgent === "enabled" && serviceManagerGiveUp === null;
+      if (this.aFreshRegistrationIsDue(serviceManagerGiveUp, runtimeMayStillBeStartingSlowly, nowMs)) {
+        await this.registerTheAgentAfreshByItself(runtimeAgent, runtimeState, serviceManagerGiveUp, nowMs);
+      }
       return;
     }
-    const timeSinceTheLastStartAttemptMs =
-      this.runtimeAgentLastStartAttemptAtMs === null ? null : Math.max(0, nowMs - this.runtimeAgentLastStartAttemptAtMs);
+    const timeSinceTheLastStartAttemptMs = this.timeSinceTheLastStartAttemptMs(nowMs);
     if (
       !theRuntimeAgentShouldBeStartedNow({
         runTatolab: this.runTatolabSwitchedOn,
         runtimeAgent,
-        runtimeHealth,
+        runtimeHealth: runtimeState === "running" ? "healthy" : "failing",
         serviceManagerGaveUpOnTheRuntime: serviceManagerGiveUp !== null,
         timeSinceTheLastStartAttemptMs,
       })
@@ -351,6 +380,38 @@ export class RunTatolabSwitch {
       time_since_the_last_start_attempt_ms: timeSinceTheLastStartAttemptMs,
     });
     await this.startTheRuntimeIfNotRunning(nowMs);
+  }
+
+  /** Whether the app's next fresh registration is due at `nowMs`, by the backoff since the runtime last answered and, for the first, by what held the runtime back. */
+  private aFreshRegistrationIsDue(serviceManagerGiveUp: RuntimeAgentGiveUp | null, runtimeMayStillBeStartingSlowly: boolean, nowMs: number): boolean {
+    const timeSinceTheRuntimeWasLastStartedAfreshMs = Math.max(0, nowMs - (this.runtimeLastStartedAfreshAtMs ?? this.appLaunchedAtMs));
+    if (serviceManagerGiveUp?.registeringAgainWaitsForTheNextSpawn === true && timeSinceTheRuntimeWasLastStartedAfreshMs < RUNTIME_AGENT_TAKEOVER_WAIT_MS) return false;
+    if (this.lastFreshRegistrationAtMs === null) {
+      return !runtimeMayStillBeStartingSlowly || this.timeSinceTheRuntimeWasExpectedUpMs(nowMs) >= RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS;
+    }
+    return nowMs - this.lastFreshRegistrationAtMs >= runtimeAgentRecoveryIntervalMs(this.freshRegistrationsSinceTheRuntimeLastAnswered);
+  }
+
+  private async registerTheAgentAfreshByItself(
+    runtimeAgent: RuntimeAgentRegistrationStatus,
+    runtimeState: RuntimeState,
+    serviceManagerGiveUp: RuntimeAgentGiveUp | null,
+    nowMs: number,
+  ): Promise<void> {
+    this.freshRegistrationsSinceTheRuntimeLastAnswered += 1;
+    this.lastFreshRegistrationAtMs = nowMs;
+    this.tatolabAppLog.warn("registering the runtime's agent afresh to recover the runtime", {
+      runtime_agent: runtimeAgent,
+      runtime_state: runtimeState,
+      service_manager_words: serviceManagerGiveUp?.serviceManagerWords ?? null,
+      fresh_registration: this.freshRegistrationsSinceTheRuntimeLastAnswered,
+    });
+    if (runtimeAgent === "not_registered") {
+      await this.register(nowMs);
+      return;
+    }
+    this.noteTheRuntimeStartedAfresh(nowMs);
+    await this.registerTheAgentAgainAndStartIt();
   }
 
   private async startTheRuntimeIfNotRunning(nowMs: number): Promise<void> {

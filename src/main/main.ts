@@ -207,12 +207,6 @@ export async function startTatolabApp(
           if (!opened.ok) tatolabAppLog.warn("Login Items could not be opened from the tray", { failure: opened.failure });
         });
         return;
-      case "register_the_runtime_again":
-        runInTheBackgroundWithTheController(sharedState, "tatolab-tray-registered-the-runtime-again", async (controller, statusPublisher) => {
-          await controller.registerTheRuntimeAgainOnRequest();
-          statusPublisher.requestRefresh();
-        });
-        return;
       case "check_for_app_updates":
         checkForTatolabAppUpdatesOnRequest(sharedState, "tray");
         return;

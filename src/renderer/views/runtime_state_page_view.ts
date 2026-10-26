@@ -61,7 +61,7 @@ export function createRuntimeStatePage(
     action !== null &&
     createElement(
       "button",
-      { type: "button", class: action === "retry_run_tatolab" ? "button" : "button button-primary", "data-runtime-banner-action": action },
+      { type: "button", class: "button button-primary", "data-runtime-banner-action": action },
       [RUNTIME_BANNER_ACTION_LABELS[action]],
     );
   if (actionButton && action !== null) {

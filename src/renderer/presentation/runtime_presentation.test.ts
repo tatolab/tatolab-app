@@ -60,7 +60,7 @@ describe("deriveRuntimeDisplayState", () => {
 });
 
 describe("presentRuntimeStatus", () => {
-  it("offers the one action that helps each banner", () => {
+  it("offers the person an action only for what only they can do, and none where the app recovers the runtime itself", () => {
     expect(presentRuntimeStatus(statusWith({})).banner).toBeNull();
     expect(presentRuntimeStatus(statusWith({ runtime_state: "stopped", run_tatolab: false })).banner?.action).toBe(
       "turn_on_run_tatolab",
@@ -69,8 +69,9 @@ describe("presentRuntimeStatus", () => {
       presentRuntimeStatus(statusWith({ runtime_state: "stopped", runtime_agent: "requires_approval" })).banner?.action,
     ).toBe("open_login_items");
     expect(presentRuntimeStatus(statusWith({ runtime_state: "unreachable" })).banner?.action).toBeNull();
-    expect(presentRuntimeStatus(statusWith({ runtime_state: "never_answered" })).banner?.action).toBe("register_the_runtime_again");
-    expect(presentRuntimeStatus(statusWith({ runtime_state: "blocked_by_the_service_manager" })).banner?.action).toBe("register_the_runtime_again");
+    expect(presentRuntimeStatus(statusWith({ runtime_state: "never_answered" })).banner?.action).toBeNull();
+    expect(presentRuntimeStatus(statusWith({ runtime_state: "blocked_by_the_service_manager" })).banner?.action).toBeNull();
+    expect(presentRuntimeStatus(statusWith({ runtime_state: "stopped", runtime_agent: "not_registered" })).banner?.action).toBeNull();
   });
 
   it("says not responding only of a runtime that answered, and gives a start that never answered its own words", () => {
@@ -80,7 +81,7 @@ describe("presentRuntimeStatus", () => {
     });
     expect(presentRuntimeStatus(statusWith({ runtime_state: "never_answered" }))).toMatchObject({
       shortLabel: "Didn't start",
-      banner: { title: "The runtime didn't start", explanation: "macOS started it, but it hasn't answered in 20 seconds." },
+      banner: { title: "The runtime didn't start", explanation: "macOS started it, but it hasn't answered in 20 seconds. Tatolab starts it again by itself." },
     });
   });
 
