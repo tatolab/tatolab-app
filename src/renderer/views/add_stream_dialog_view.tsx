@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { FileCode2, Folder, FolderOpen, LoaderCircle, type LucideIcon, Package, TriangleAlert, Workflow } from "lucide-react";
+import { Check, FileCode2, Folder, FolderOpen, LoaderCircle, type LucideIcon, Package, TriangleAlert, Workflow } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import type { PythonForNewEnvironments, StreamGraphExposedPort, StreamProjectFolderReport, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
@@ -131,12 +131,16 @@ function ProjectFolderChooserRow({ folder, isChoosing, onChoose }: { folder: str
   );
 }
 
-/** One branch of the folder's tree: a stream found in it by its name alone, or `stream.py` with why it stands in. */
-function ProjectFolderTreeRow({ check }: { check: StreamFunctionCheck }) {
-  const RowIcon = check.checked === "stream_function" ? Workflow : check.isFound ? FileCode2 : TriangleAlert;
+/** One stream found in the folder, by its name alone and checked; or `stream.py` with why it stands in, a warning where it is missing. */
+function ProjectFolderFoundRow({ check }: { check: StreamFunctionCheck }) {
+  const RowIcon = !check.isFound ? TriangleAlert : check.checked === "stream_function" ? Check : FileCode2;
   return (
-    <li className="flex min-h-8 items-center gap-2 py-1 pl-4" data-add-stream-check={check.name} data-add-stream-check-found={check.isFound ? "true" : "false"}>
-      <RowIcon className={cn("size-4 shrink-0", check.isFound ? "text-fg-3" : "text-warn")} strokeWidth={1.75} aria-hidden />
+    <li className="flex min-h-7 items-center gap-2 py-0.5" data-add-stream-check={check.name} data-add-stream-check-found={check.isFound ? "true" : "false"}>
+      <RowIcon
+        className={cn("size-4 shrink-0", !check.isFound ? "text-warn" : check.checked === "stream_function" ? "text-brand-text" : "text-fg-3")}
+        strokeWidth={check.checked === "stream_function" ? 2 : 1.75}
+        aria-hidden
+      />
       <span className="shrink-0 font-mono text-sm text-fg">{check.name}</span>
       {check.detail !== null && <span className={cn("min-w-0 text-xs", check.isFound ? "text-fg-3" : "text-warn-text")}>{check.detail}</span>}
     </li>
@@ -150,9 +154,9 @@ function ProjectFolderChecks({ report }: { report: StreamProjectFolderReport }) 
       <h3 id="add-stream-streams-found" className="label-caps flex h-7 items-center">
         Streams found
       </h3>
-      <ul className="ml-2 border-l">
+      <ul>
         {presentStreamFunctionChecks(report).map((check) => (
-          <ProjectFolderTreeRow key={check.name} check={check} />
+          <ProjectFolderFoundRow key={check.name} check={check} />
         ))}
       </ul>
     </section>
