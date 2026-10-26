@@ -17,7 +17,7 @@ Evidence counts only when it was shot on what would ship now:
 - **The app** is built from the PR branch's head commit. A commit that changes anything the build
   takes in after you shot means you rebuild and shoot again.
 - **The runtime** is streamlib's `main` at its current head, fetched and built by this repository's
-  own scripts. `scripts/build-tatolab-app.sh` does that by default: it resolves `main` on GitHub,
+  own scripts. `infisical run -- scripts/build-tatolab-app.sh` does that by default: it resolves `main` on GitHub,
   fetches exactly that commit into `build/streamlib` and builds the unit there. Never build in, read,
   or pass a unit from the owner's `../streamlib` or any other checkout or `/tmp` directory. A unit
   from `build/streamlib/target/tatolab-runtime` may be passed with `--runtime-unit` only when it was
@@ -50,10 +50,13 @@ Evidence counts only when it was shot on what would ship now:
    ignored without a word, so check each frame shows the state its URL asks for. Shoot both themes. Label every image **Mock**. A screen the
    presets cannot reach gets a preset in the same change.
 2. **Local-proof live (macOS).** Anything that talks to a runtime — streams appearing and going,
-   graph, logs, the switch, setup. `scripts/build-tatolab-app.sh --local-proof-test-root` builds a
-   runtime unit and an app whose machine lock, state and socket live under
+   graph, logs, the switch, setup. `infisical run -- scripts/build-tatolab-app.sh --local-proof-test-root`
+   builds a runtime unit and an app signed with the Developer ID from Infisical — the identity and
+   team the installed release carries — whose machine lock, state and socket live under
    `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`: no administrator prompt, nothing written to
-   `/Library` or `/usr/local/bin`. Drive streams with that unit's own CLI
+   `/Library` or `/usr/local/bin`. Without the Developer ID the build stops and names what is
+   missing; there is no other way to build one, so a proof never runs on a bundle signed
+   differently from what ships. Drive streams with that unit's own CLI
    (`build/streamlib/target/tatolab-runtime/bin/tatolab`, with `TATOLAB_TEST_MACHINE_ROOT` set) —
    test-pattern streams only. `build/streamlib` keeps cargo's cache between builds, so building
    again at an unchanged commit is quick. **The proof build shares the installed app's bundle id and agent label,
