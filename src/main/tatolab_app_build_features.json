@@ -1,4 +1,5 @@
 {
   "machineDirectoriesUnderATestRoot": false,
-  "appUpdateFeedUrl": "https://get.tatolab.com/app/"
+  "appUpdateFeedUrl": "https://get.tatolab.com/app/",
+  "tatolabAppBuildId": null
 }
