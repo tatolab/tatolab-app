@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import type { TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
 
 /** How Settings' Updates row reads: its description, its button (`null` for none), and a failure line (`null` for none). */

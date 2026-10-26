@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { createElement, type ElementChild } from "../dom";
 import { createIcon } from "./window_controls";
 

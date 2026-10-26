@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import type { TatolabBackend } from "../backend/tatolab_backend";
 import type { ListedStream, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import { createElement } from "../dom";

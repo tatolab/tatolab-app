@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Writes the update feed's manifest for one platform, `latest-mac.yml` or `latest-linux.yml`, as
 // electron-updater reads it: the version, and each file's URL, sha512 and size. The URLs are
 // relative to the feed's `app/` directory, `../releases/<version>/<file>`, so one manifest serves

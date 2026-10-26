@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // macOS: Service Management registers the runtime's launch agent, the app links the CLI in the
 // home folder with no prompt and in `/usr/local/bin` behind the administrator prompt when asked,
 // "Uninstall Tatolab…" removes them, Terminal.app opens a stream's project, the window draws

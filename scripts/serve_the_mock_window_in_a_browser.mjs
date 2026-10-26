@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Serves the window alone, in a browser against the mock backend, from electron.vite.config.ts's
 // renderer config, and prints its URL. `electron-vite dev --rendererOnly` still launches the app
 // on the last main-process build, so the mock window is served by Vite directly.

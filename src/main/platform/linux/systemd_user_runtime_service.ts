@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The runtime's agent on Linux: the systemd user unit `tatolabd.service` the installer
 // (`curl -fsSL https://get.tatolab.com/install.sh | sh`) writes and enables, driven over
 // `systemctl --user`. "Run Tatolab" is the unit's enablement, `enable --now` (after `reset-failed`,

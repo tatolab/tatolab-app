@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // "Open Tatolab at login" on Linux: an XDG autostart entry, `Tatolab.desktop` in
 // `$XDG_CONFIG_HOME/autostart/` (`~/.config/autostart/`), which the desktop session opens at login.
 // Electron has no login-item settings on Linux. The app writes the entry when the person turns the

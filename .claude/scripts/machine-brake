@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2025 Jonathan Fontanez
-# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-#
 # machine-brake: edit, inspect and dry-run the config the machine-brake hook reads.
 set -uo pipefail
 

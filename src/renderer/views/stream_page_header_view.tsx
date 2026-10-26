@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { CodeXml, Copy, Play, Square, SquareTerminal, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";

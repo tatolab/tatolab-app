@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The seam between "Open Tatolab at login" and the desktop's own login items: the app's login
 // item on macOS, an XDG autostart entry on Linux. It opens the app; the runtime starts at login
 // through its own agent either way.

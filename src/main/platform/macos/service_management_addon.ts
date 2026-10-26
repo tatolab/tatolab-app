@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Service Management's agent services through the app's Node-API addon
 // (`native/service_management_agent_services/`), which calls `SMAppService` off the
 // main thread and answers its `NSError` text; Electron's own login item API keeps that text to its

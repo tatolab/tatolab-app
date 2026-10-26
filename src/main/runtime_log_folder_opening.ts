@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Opening the runtime's own log folder from Settings. The window names nothing: the folder is the
 // one the runtime names in `describe_runtime` when asked, so a page can never have the app open a
 // path of its choosing.

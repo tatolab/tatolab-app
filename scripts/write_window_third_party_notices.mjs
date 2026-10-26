@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Writes src/renderer/public/licenses/window-third-party-notices.txt: every npm package Vite bundles into the
 // window's out/renderer/, with its version, licence and licence text. It builds the window with source maps
 // into a temporary directory and reads which packages the bundle's sources come from, so the list

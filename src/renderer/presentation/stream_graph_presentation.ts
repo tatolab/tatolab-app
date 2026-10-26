@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import type { StreamGraphLink } from "../../shared/tatolab_backend_contract";
 
 /** How a link's stroke reads: solid when wired, dashed while wiring or waiting, faded dashed while ending, red when failed. */

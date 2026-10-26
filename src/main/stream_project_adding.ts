@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Adding a stream from the window: choosing a project folder or a new project's directory,
 // checking what the folder holds, writing the sample project with `tatolab new`, and running a
 // folder kept through the runtime's `run_stream`. A command naming a folder acts only on one this

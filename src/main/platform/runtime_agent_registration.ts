@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The seam between the "Run Tatolab" decision and the platform's service manager that runs the
 // runtime as the user's agent: Service Management's `SMAppService` launch agent on macOS, the
 // installer's systemd user unit on Linux.

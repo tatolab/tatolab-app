@@ -11,11 +11,11 @@ You run Tatolab.app's local gates and report the results as a compact table. You
 The same gates `.github/workflows/pull-request-checks.yml` runs on the PR, on this machine's platform, in the worktree you were pointed at.
 
 1. `npm ci` only when `node_modules/` is missing or `package-lock.json` changed against `origin/main`.
-2. `npm run lint` (ESLint, Stylelint and the licence-header check).
+2. `npm run lint` (ESLint and Stylelint).
 3. On macOS only: `npm run build:service-management-addon`.
 4. `npm run build` (`tsc -b` over the window and the main process, then `electron-vite build`).
 5. `npm test`.
-6. When the change touches `scripts/` or `.claude/hooks/`: `scripts/tests/license_header_check_fails_on_a_violation.test.sh` and `.claude/scripts/tests/machine-brake.test.sh`.
+6. When the change touches `.claude/hooks/` or `.claude/scripts/`: `.claude/scripts/tests/machine-brake.test.sh`.
 
 A change touching only docs or `.claude/` prose runs only steps 1 and 2. Each platform's run covers only that platform: a macOS pass is never reported as covering Linux (PR CI's `ubuntu-22.04` job is the Linux gate), and the reverse. Never run a bundle build, signing, notarization, the real app, or anything against the machine's runtime.
 

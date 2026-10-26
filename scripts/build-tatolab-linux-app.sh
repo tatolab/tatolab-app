@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2025 Jonathan Fontanez
-# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-#
 # Builds Tatolab for Linux: the .deb and the AppImage of the Electron window and tray over the
 # runtime's systemd user service. Neither carries a runtime; the installer
 # (curl -fsSL https://get.tatolab.com/install.sh | sh) installs the runtime and its service.

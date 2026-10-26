@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
 import type { StreamLogRecord } from "../shared/tatolab_backend_contract.js";

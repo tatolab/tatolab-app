@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { failedWith, type Result } from "../../result.js";
 import type { TerminalOpenedInAFolder } from "../mod.js";
 import { startADetachedProgramOnThePath, type DetachedProgramStart } from "./start_a_detached_program.js";

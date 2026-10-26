@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";

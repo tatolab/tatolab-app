@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Checking for a newer Tatolab and taking it. The app checks on its own at launch and once a
 // day, and then only says a newer version is available; it installs only when the person chooses
 // Check for Updates… in the tray or its button in Settings, either of which is the confirmation.

@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // One page of a stream's log records as the window shows them, read from the runtime's `logs`
 // tool result. Each record keeps the JSONL fields the window shows, and the whole record as JSON
 // text with the digits the runtime wrote.

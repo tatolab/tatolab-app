@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { ChevronLeft } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import mascotImageUrl from "../assets/tato_mascot_3d.png";

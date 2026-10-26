@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { LoaderCircle } from "lucide-react";
 
 /** An action the runtime has been asked for and not yet answered, in the place of its button: a spinner and its words, as Stopping…. */

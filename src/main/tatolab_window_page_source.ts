@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Where the shipped window's page comes from: the built window in `out/renderer/`, served under the
 // app's own `tatolab-app://app/` origin with a content security policy, since a `file://` page
 // breaks the window's module scripts.

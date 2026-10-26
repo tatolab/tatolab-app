@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { useNavigate } from "react-router";
 import { ActionButton } from "../design_system/action_button";
 import { WindowNotice } from "../design_system/window_notice";

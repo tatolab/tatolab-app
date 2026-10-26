@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2025 Jonathan Fontanez
-# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-#
 # Signs an assembled Tatolab.app inside-out with the hardened runtime: every loose Mach-O in
 # Contents/Frameworks (the runtime's dylibs, the app's Service Management addon, Electron's
 # libraries), each framework, each Electron helper app, Contents/MacOS/tatolabd,

@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The browser mock's `graph` tool: a mock stream's graph rendered as the runtime renders its
 // document — node ids, config, ports, components with state and metrics, link ids and ends,
 // `exposed`, `machine` — and the summary the main process would read from it. The preview page

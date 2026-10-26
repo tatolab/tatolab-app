@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { ipcMain } from "electron";
 import { TATOLAB_COMMAND_NAMES } from "../../shared/tatolab_electron_bridge_contract.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";

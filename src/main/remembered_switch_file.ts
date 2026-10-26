@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // A switch the app remembers between launches: one JSON file in the app's config directory with
 // one key, read as the switch's default when the file is absent or unreadable. "Run Tatolab", the
 // stream-failure notifications and whether first run has finished are each one.

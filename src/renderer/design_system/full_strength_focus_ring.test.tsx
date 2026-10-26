@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // @vitest-environment happy-dom
 import { cleanup, render } from "@testing-library/react";
 import { Ban, Plus } from "lucide-react";

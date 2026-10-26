@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // What the tray, the window's commands and the app's events reach once the app is set up: the
 // controller, the status publisher, the updater and uninstalling, and the requests the tray and
 // the window both make.

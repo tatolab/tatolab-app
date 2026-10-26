@@ -42,9 +42,6 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Prove the licence-header check fails on a planted violation
-        run: scripts/tests/license_header_check_fails_on_a_violation.test.sh
-
       - name: Prove the machine-brake hook notes, stays silent and prompts where it should
         run: .claude/scripts/tests/machine-brake.test.sh
 

@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { createContext, useContext, useSyncExternalStore } from "react";
 import type { AddStreamFlowOfTheWindow } from "../add_stream_flow_of_the_window";
 import type { TatolabBackend } from "../backend/tatolab_backend";

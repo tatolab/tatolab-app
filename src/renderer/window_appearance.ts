@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The window's look as the person chose it: Light, Dark, or the system's. The choice is kept under
 // one storage key, which the page's first script reads before first paint (`index.html`); a
 // System choice follows the OS live while the window is open.

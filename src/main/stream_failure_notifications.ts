@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // A notification each time a stream fails while the app runs, while the person keeps the switch on.
 // A stream fails when its listing says `failed` and the last listing before it did not; the first
 // listing after launch only sets where the app starts from. A notification is read at a glance, so it

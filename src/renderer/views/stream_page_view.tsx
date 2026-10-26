@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { useEffect, useMemo } from "react";
 import { Navigate } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";

@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Tests' stand-in for the runtime's local API: a Unix socket answering each connection with the
 // next scripted raw HTTP response, and the responses the runtime writes. Never imported by shipped
 // code.

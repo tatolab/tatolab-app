@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Opening a stream's project folder from the window, in the file manager or in a terminal, or its
 // log folder in the file manager. The window names only the stream; the folder is the
 // `project_directory` the runtime listed for it in the status the app last published, or the log

@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // "Open Tatolab at login" on macOS: the app bundle's own login item, which Electron registers
 // through `SMAppService.mainApp` on macOS 13 and later and reads back with its status.
 

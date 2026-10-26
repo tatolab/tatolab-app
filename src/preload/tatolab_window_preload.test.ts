@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { beforeEach, expect, test, vi } from "vitest";
 import type { TatolabElectronBridge } from "../shared/tatolab_electron_bridge_contract.js";
 

@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Reading the runtime's JSON: a required key that is absent or of another type is refused, an
 // optional one reads `null`, a defaulted one reads its default, and keys the app does not know are
 // ignored, so a newer runtime's additions never break the app.

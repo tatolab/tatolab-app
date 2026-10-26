@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // A test's stand-in for Electron: it records what the app asked of the window, the tray and the
 // Dock and the notifications it showed, builds a platform of fakes over the update feed the test sets, and lets the test open the
 // app again, quit it, click a tray item or a notification, or invoke a command as the window does.

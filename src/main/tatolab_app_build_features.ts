@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import builtTatolabAppBuildFeatures from "./tatolab_app_build_features.json" with { type: "json" };
 
 /** The features this build was built with: `out/main/tatolab_app_build_features.json`, as `scripts/tatolab_app_build_features.mjs write` wrote it. */

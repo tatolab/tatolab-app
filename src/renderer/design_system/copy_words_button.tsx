@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { Check, Copy } from "lucide-react";
 import type { ActionButtonAppearance } from "./action_button";
 import { ActionButton } from "./action_button";

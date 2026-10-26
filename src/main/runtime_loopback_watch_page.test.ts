@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { expect, test } from "vitest";
 import { isOnTheRuntimesWatchPage, runtimeLoopbackHttpOriginFor, runtimeWatchPageUrl } from "./runtime_loopback_watch_page.js";
 

@@ -1,5 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
 // Shoots the unpackaged app's Streams list over the DevTools protocol on port 9333, in light and then dark, at an
 // emulated 1240×780 viewport. Usage: node shoot-the-streams-list-over-devtools.mjs <folder>
 import { chromium } from "playwright";

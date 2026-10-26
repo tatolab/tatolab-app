@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Tatolab.app: opening it shows its window and puts it in the tray, opening it again shows the
 // window of the one app already running, closing the window leaves the app in the tray, and
 // quitting quits only the app — the runtime stays on. Each opening reconciles the runtime's agent

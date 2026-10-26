@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The "Run Tatolab" switch: one registration is both "the runtime runs now" and "the runtime
 // starts at login". Opening the app with the switch on registers the agent; turning it off
 // unregisters it, which stops the runtime, and is remembered. While the app runs, the switch on

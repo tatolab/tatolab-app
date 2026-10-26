@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Linux's `tatolab` command, which the installer links into `~/.local/bin` with the runtime and
 // its service. The app only reads where it is linked, and links nothing itself.
 

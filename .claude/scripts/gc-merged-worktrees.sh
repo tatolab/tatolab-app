@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2025 Jonathan Fontanez
-# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-#
 # gc-merged-worktrees — remove any worktree under .claude/worktrees/ whose branch
 # has a MERGED pull request, reclaiming its build output (node_modules, dist, and build).
 # Keyed on a merged PR, not on git ancestry, so it holds whether the PR was squashed or

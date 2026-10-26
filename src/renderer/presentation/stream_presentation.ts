@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";
 
 /** How strongly a stream's state word reads: plain, with a spinner while it loads, dimmed while stopped, or red with an alert icon when failed. */

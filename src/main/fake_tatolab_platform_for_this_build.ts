@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Tests' stand-in for a platform: a service manager whose agent status the test sets and the
 // `tatolab` command's links, each recording what it was asked. Never imported by shipped code.
 

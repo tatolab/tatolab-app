@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The app's one controller: it owns the "Run Tatolab" switch, the `tatolab` command's links,
 // whether first run has finished, and the local API client, and composes the status the tray and the window show. Every step that reads or
 // changes the switch runs in turn on one queue, so a tray toggle and a window request never

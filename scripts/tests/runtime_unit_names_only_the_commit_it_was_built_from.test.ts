@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // scripts/build-tatolab-runtime-unit.sh writes the unit's streamlib-commit only after a build that
 // succeeded from a clean checkout: a build that fails leaves no streamlib-commit vouching for a
 // unit it half rebuilt, and a checkout with uncommitted changes is refused before anything builds.

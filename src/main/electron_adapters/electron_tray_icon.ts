@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import path from "node:path";
 import { Menu, Tray, nativeImage, type MenuItemConstructorOptions } from "electron";
 import type { TrayIconHost, TrayIconHostFactory, TrayMenuItemDescription } from "../tatolab_tray_menu.js";

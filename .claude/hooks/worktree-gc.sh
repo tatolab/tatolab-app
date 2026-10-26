@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Copyright (c) 2025 Jonathan Fontanez
-# SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-#
 # worktree-gc (PostToolUse / Bash): after a `gh pr merge`, remove the merged PR's worktree so its
 # build output (node_modules, dist) doesn't leak. Delegates to
 # .claude/scripts/gc-merged-worktrees.sh, which removes only merged-PR worktrees, so this no-ops

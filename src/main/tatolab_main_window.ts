@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // The app's one window. It shows when the app opens, when the app is opened again, and from the
 // tray's "Open Tatolab"; closing it hides it and the app keeps running in the tray. On macOS the
 // Dock icon shows only while the window does.

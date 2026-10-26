@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { cn } from "cn";
 import { Filter, ScrollText, Workflow } from "lucide-react";
 import { CopyIconButton } from "../design_system/copy_icon_button";

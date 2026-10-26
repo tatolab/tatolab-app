@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Tests' stand-in for the desktop's notifications: it records each notification shown and lets
 // the test click one. Never imported by shipped code.
 

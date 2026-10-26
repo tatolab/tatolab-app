@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // scripts/verify-tatolab-app-bundle.sh fails a bundle whose tatolabd reports another version than
 // the app's CFBundleShortVersionString, or that names no streamlib commit. It reads the plist with
 // macOS's plutil, so these run only where plutil is.

@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Polls the status every couple of seconds and publishes each change to the tray menu and, as
 // the `tatolab-status-changed` event, to the window.
 

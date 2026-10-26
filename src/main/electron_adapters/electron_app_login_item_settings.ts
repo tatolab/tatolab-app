@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { app } from "electron";
 import type { AppLoginItemSettings } from "../platform/macos/login_item_of_the_app_bundle.js";
 import { describeCaughtFailure, failedWith, succeeded } from "../result.js";

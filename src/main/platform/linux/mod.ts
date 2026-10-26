@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // Linux: the window and tray over the systemd user service the installer registers. The runtime,
 // its service and the CLI come only from the installer, so this app installs nothing and sets
 // nothing up; "Run Tatolab" enables and disables the service, and `x-terminal-emulator` opens a

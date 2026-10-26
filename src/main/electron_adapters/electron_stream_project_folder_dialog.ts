@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { BrowserWindow, dialog, type OpenDialogOptions, type SaveDialogOptions } from "electron";
 import type { StreamProjectFolderChosenFor } from "../../shared/tatolab_backend_contract.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";

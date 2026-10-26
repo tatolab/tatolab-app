@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { expect, test } from "vitest";
 import { failedWith, succeeded, type Result } from "../../result.js";
 import { LoginItemOfTheAppBundle, tatolabAppOpenAtLoginFrom, type AppLoginItemReading, type AppLoginItemSettings } from "./login_item_of_the_app_bundle.js";

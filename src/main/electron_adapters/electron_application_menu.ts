@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { Menu } from "electron";
 import type { ApplicationMenu } from "../platform/mod.js";
 

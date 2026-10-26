@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 // A pull request's title is the commit a squash merge writes: `type(scope): summary`.
 export default {
   extends: ["@commitlint/config-conventional"],

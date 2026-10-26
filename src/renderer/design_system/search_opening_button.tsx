@@ -1,6 +1,3 @@
-// Copyright (c) 2025 Jonathan Fontanez
-// SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ControlDataAttributes } from "./control_data_attributes";
