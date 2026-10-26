@@ -13,7 +13,7 @@ import {
   advanceAddStreamFlow,
   compileWarningsHeading,
   runRequestWords,
-  streamFileCheckDetail,
+  presentStreamFunctionChecks,
   addStreamActionUnavailableBecause,
   compilingForWords,
   initialAddStreamFlowState,
@@ -264,10 +264,14 @@ describe("the commands and words the page shows", () => {
   });
 
   it("words each check, the request line and the warning count", () => {
-    expect(streamFileCheckDetail(folderReport("/x"))).toBe("Stream function heat_map()");
-    expect(streamFileCheckDetail(folderReport("/x", { stream_functions: ["a", "b"] }))).toBe("Stream functions a(), b()");
-    expect(streamFileCheckDetail(folderReport("/x", { stream_functions: [] }))).toBe("No @stream function found by reading it; the runtime decides when it compiles.");
-    expect(streamFileCheckDetail(folderReport("/x", { stream_file_present: false, stream_functions: [] }))).toBe("The stream function the runtime compiles lives in stream.py.");
+    expect(presentStreamFunctionChecks(folderReport("/x"))).toEqual([{ checked: "stream_function", name: "heat_map()", isFound: true, detail: "@stream in stream.py" }]);
+    expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: ["a", "b"] })).map((check) => check.name)).toEqual(["a()", "b()"]);
+    expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: [] }))).toEqual([
+      { checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it compiles." },
+    ]);
+    expect(presentStreamFunctionChecks(folderReport("/x", { stream_file_present: false, stream_functions: [] }))).toEqual([
+      { checked: "stream_file", name: "stream.py", isFound: false, detail: "The stream function the runtime compiles lives in stream.py." },
+    ]);
     const builtIn = TATOLABS_OWN_PYTHON;
     expect(pythonEnvironmentSyncWords(builtIn)).toBe("uv sync  python=Tatolab's Python 3.12.12");
     expect(pythonEnvironmentSyncWords({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" })).toBe("uv sync  python=/opt/homebrew/bin/python3.12");

@@ -739,7 +739,7 @@ describe("Add stream", () => {
     await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
 
-    await waitFor(() => expect(document.querySelector('[data-add-stream-check="stream.py"]')?.textContent).toContain("Stream function heat_map()"));
+    await waitFor(() => expect(document.querySelector('[data-add-stream-check="heat_map()"]')?.textContent).toContain("@stream in stream.py"));
     expect(document.querySelector('[data-add-stream-check=".venv"]')).toBeNull();
     expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "heat_map");
     expect(screen.getByText("cd /Users/jonathanf/code/heat-map && tatolab run -d")).toBeTruthy();

@@ -265,12 +265,21 @@ export function functionsOwnNameOf(form: AddStreamForm): string | null {
   return folder === null ? null : (form.chosenStreamFunction ?? folder.stream_functions[0] ?? null);
 }
 
-/** What the `stream.py` check says it found. */
-export function streamFileCheckDetail(report: StreamProjectFolderReport): string {
-  if (!report.stream_file_present) return "The stream function the runtime compiles lives in stream.py.";
-  if (report.stream_functions.length === 0) return "No @stream function found by reading it; the runtime decides when it compiles.";
-  if (report.stream_functions.length === 1) return `Stream function ${report.stream_functions[0]}()`;
-  return `Stream functions ${report.stream_functions.map((streamFunction) => `${streamFunction}()`).join(", ")}`;
+/** One row of a folder's check: a `@stream` function found in its `stream.py`, or `stream.py` itself when it holds none or is missing. */
+export interface StreamFunctionCheck {
+  checked: "stream_function" | "stream_file";
+  name: string;
+  isFound: boolean;
+  detail: string;
+}
+
+/** A row for each `@stream` function `stream.py` holds, in file order; one row for `stream.py` when it is missing or marks none. */
+export function presentStreamFunctionChecks(report: StreamProjectFolderReport): StreamFunctionCheck[] {
+  if (!report.stream_file_present) return [{ checked: "stream_file", name: "stream.py", isFound: false, detail: "The stream function the runtime compiles lives in stream.py." }];
+  if (report.stream_functions.length === 0) {
+    return [{ checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it compiles." }];
+  }
+  return report.stream_functions.map((streamFunction) => ({ checked: "stream_function", name: `${streamFunction}()`, isFound: true, detail: "@stream in stream.py" }));
 }
 
 /** The lead of the runtime's refusal of a run, before its own words. */

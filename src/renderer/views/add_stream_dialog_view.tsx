@@ -23,7 +23,7 @@ import {
   pythonEnvironmentSyncWords,
   pythonForNewEnvironmentsWords,
   runRequestWords,
-  streamFileCheckDetail,
+  presentStreamFunctionChecks,
   streamRunAnswerLines,
   streamRunningFactsWords,
   streamRunningSummary,
@@ -135,7 +135,7 @@ function ProjectFolderCheckRow({ icon: CheckIcon, name, isFound, detail }: { ico
     <div className="border-b px-3 py-2.5 last:border-b-0" data-add-stream-check={name} data-add-stream-check-found={isFound ? "true" : "false"}>
       <div className="flex items-center gap-3">
         <CheckIcon className="size-4 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
-        <span className="w-24 shrink-0 font-mono text-sm text-fg">{name}</span>
+        <span className="min-w-0 shrink truncate font-mono text-sm text-fg">{name}</span>
         <span className="min-w-0 flex-1 truncate text-xs text-fg-3">{detail}</span>
         {isFound ? (
           <span className="inline-flex items-center gap-1.5 text-fg-2">
@@ -153,11 +153,13 @@ function ProjectFolderCheckRow({ icon: CheckIcon, name, isFound, detail }: { ico
   );
 }
 
-/** What the folder holds that `run_stream` needs: its `stream.py`. The app sets up its Python itself. */
+/** What the folder holds that `run_stream` needs: the `@stream` functions of its `stream.py`. The app sets up its Python itself. */
 function ProjectFolderChecks({ report }: { report: StreamProjectFolderReport }) {
   return (
     <div className="overflow-hidden rounded-lg border" data-add-stream-checks="">
-      <ProjectFolderCheckRow icon={FileCode2} name="stream.py" isFound={report.stream_file_present} detail={streamFileCheckDetail(report)} />
+      {presentStreamFunctionChecks(report).map((check) => (
+        <ProjectFolderCheckRow key={check.name} icon={check.checked === "stream_function" ? Workflow : FileCode2} name={check.name} isFound={check.isFound} detail={check.detail} />
+      ))}
     </div>
   );
 }
