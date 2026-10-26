@@ -1,12 +1,12 @@
 import { cn } from "cn";
-import { Check, FileCode2, Folder, FolderOpen, LoaderCircle, type LucideIcon, Package, TriangleAlert, Workflow } from "lucide-react";
+import { Check, FolderInput, FolderPlus, LoaderCircle, type LucideIcon, TriangleAlert, Workflow } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import type { PythonForNewEnvironments, StreamGraphExposedPort, StreamProjectFolderReport, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
-import { FormDialog } from "../design_system/form_dialog";
+import { FormDialog, FormDialogRow, FormDialogRows } from "../design_system/form_dialog";
+import { FieldMenu, MenuSingleChoiceGroup } from "../design_system/menus";
 import { RefusalLine } from "../design_system/refusal_line";
-import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
 import { TextField } from "../design_system/text_field";
 import {
   addStreamPageSection,
@@ -14,12 +14,11 @@ import {
   ADD_STREAM_ACTION_LABELS,
   addStreamActionOf,
   addStreamActionUnavailableBecause,
+  addStreamBlockerTheFormDoesNotShow,
   compileWarningsHeading,
   compileWaitingWords,
   compilingHeadingVerb,
   compilingStreamWords,
-  functionsOwnNameOf,
-  newProjectCommand,
   pythonEnvironmentSyncWords,
   pythonForNewEnvironmentsWords,
   runRequestWords,
@@ -27,29 +26,28 @@ import {
   streamRunAnswerLines,
   streamRunningFactsWords,
   streamRunningSummary,
-  terminalCommandForTheRun,
-  terminalRunRequestOf,
   type AddStreamFlowEvent,
   type AddStreamForm,
   type AddStreamRunRequest,
   type AddStreamSource,
-  type StreamFunctionCheck,
 } from "../presentation/add_stream_flow";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import { choosePreviewedOutput, exposedOutputAddress } from "../presentation/stream_overview_presentation";
+import { abbreviateHomeDirectory } from "../presentation/stream_presentation";
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
-import { CommandWithCopyButton } from "./stream_action_controls";
 import { streamPagePath, type StreamPageTab } from "./stream_page_path";
 import { useAddStreamFlowState, useOpenAddStreamDialog, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 /** The dialog's title and what it does, for each source it opens on. */
-const ADD_STREAM_DIALOG_WORDS: Record<AddStreamSource, { title: string; description: ReactNode }> = {
+const ADD_STREAM_DIALOG_WORDS: Record<AddStreamSource, { title: string; description: ReactNode; icon: LucideIcon }> = {
   project_folder: {
     title: "Import project",
+    icon: FolderInput,
     description: "A folder with a stream.py. Tatolab installs what it needs, then the runtime compiles it, loads and starts it.",
   },
   new_project: {
     title: "New project",
+    icon: FolderPlus,
     description: (
       <>
         <span className="font-mono text-xs">tatolab new</span> writes the sample stream into a new folder, and the app runs it.
@@ -73,29 +71,6 @@ function useMonotonicNowMsWhile(isTicking: boolean): number {
   return nowMs;
 }
 
-/** One labelled row of the add-stream form: what it sets, the control, and a hint under it; a field's label is its `<label>`. */
-function AddStreamFormRow({ label, fieldId, hint, hintId, children }: { label: string; fieldId?: string; hint?: ReactNode; hintId?: string; children: ReactNode }) {
-  return (
-    <div className="grid grid-cols-[140px_minmax(0,1fr)] items-start gap-4 py-3">
-      {fieldId === undefined ? (
-        <div className="pt-1 text-fg-2">{label}</div>
-      ) : (
-        <label htmlFor={fieldId} className="pt-1 text-fg-2">
-          {label}
-        </label>
-      )}
-      <div className="min-w-0">
-        {children}
-        {hint !== undefined && (
-          <div id={hintId} className="mt-1.5 text-xs text-fg-3">
-            {hint}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /** A path or command in Geist Mono, in running text. */
 function MachineWords({ children }: { children: ReactNode }) {
   return <span className="font-mono text-xs select-text">{children}</span>;
@@ -113,60 +88,83 @@ function AddStreamSectionHeading({ title, lead }: { title: ReactNode; lead: Reac
   );
 }
 
-/** The folder a run compiles, and Choose… to pick another in the app's dialog. */
-function ProjectFolderChooserRow({ folder, isChoosing, onChoose }: { folder: string | null; isChoosing: boolean; onChoose: () => void }) {
+/** The folder a run compiles, cut at its start so its own name stays in view, and Choose… or Change… to pick it in the app's dialog. */
+function ProjectFolderRow({ folder, isChoosing, onChoose }: { folder: string | null; isChoosing: boolean; onChoose: (() => void) | null }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border px-3 py-2" data-add-stream-folder={folder ?? ""}>
-      <FolderOpen className="size-4 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
-      {folder === null ? (
-        <span className="min-w-0 flex-1 text-fg-3">No folder chosen yet</span>
-      ) : (
-        <span className="min-w-0 flex-1 truncate font-mono text-sm text-fg select-text">{folder}</span>
+    <FormDialogRow label="Folder" data-add-stream-folder={folder ?? ""}>
+      {folder !== null && (
+        <span className="min-w-0 truncate font-mono text-sm text-fg [direction:rtl] select-text" title={folder}>
+          <bdi>{abbreviateHomeDirectory(folder)}</bdi>
+        </span>
       )}
-      <ActionButton isDisabled={isChoosing} onPressed={onChoose} data-add-stream-action="choose_folder">
-        Choose…
-      </ActionButton>
-    </div>
+      {onChoose !== null && (
+        <ActionButton appearance={folder === null ? "secondary" : "quiet"} isDisabled={isChoosing} onPressed={onChoose} data-add-stream-action="choose_folder">
+          {folder === null ? "Choose…" : "Change…"}
+        </ActionButton>
+      )}
+    </FormDialogRow>
   );
 }
 
-/** One stream found in the folder, by its name alone and checked; or `stream.py` with why it stands in, a warning where it is missing. */
-function ProjectFolderFoundRow({ check }: { check: StreamFunctionCheck }) {
-  const RowIcon = !check.isFound ? TriangleAlert : check.checked === "stream_function" ? Check : FileCode2;
+/**
+ * The stream the folder holds, as its `stream.py` marks it `@stream`: its name, checked; a menu of them where it marks
+ * several, the one chosen running; or why `stream.py` holds none.
+ */
+function StreamFoundRow({ report, chosenStreamFunction, onChosen }: { report: StreamProjectFolderReport; chosenStreamFunction: string | null; onChosen: (streamFunction: string) => void }) {
+  const checks = presentStreamFunctionChecks(report);
+  const chosen = chosenStreamFunction ?? report.stream_functions[0] ?? "";
   return (
-    <li className="flex min-h-7 items-center gap-2 py-0.5" data-add-stream-check={check.name} data-add-stream-check-found={check.isFound ? "true" : "false"}>
-      <RowIcon
-        className={cn("size-4 shrink-0", !check.isFound ? "text-warn" : check.checked === "stream_function" ? "text-brand-text" : "text-fg-3")}
-        strokeWidth={check.checked === "stream_function" ? 2 : 1.75}
-        aria-hidden
-      />
-      <span className="shrink-0 font-mono text-sm text-fg">{check.name}</span>
-      {check.detail !== null && <span className={cn("min-w-0 text-xs", check.isFound ? "text-fg-3" : "text-warn-text")}>{check.detail}</span>}
-    </li>
-  );
-}
-
-/** What the folder holds that `run_stream` needs, under a heading: the `@stream` functions of its `stream.py`. The app sets up its Python itself. */
-function ProjectFolderChecks({ report }: { report: StreamProjectFolderReport }) {
-  return (
-    <section aria-labelledby="add-stream-streams-found" className="mt-5" data-add-stream-checks="">
-      <h3 id="add-stream-streams-found" className="label-caps flex h-7 items-center">
-        Streams found
-      </h3>
-      <ul>
-        {presentStreamFunctionChecks(report).map((check) => (
-          <ProjectFolderFoundRow key={check.name} check={check} />
-        ))}
-      </ul>
-    </section>
+    <FormDialogRow label="Stream" data-add-stream-checks="">
+      {checks.length > 1 ? (
+        <FieldMenu label={`Stream to run: ${chosen}`} words={<span className="font-mono text-xs">{chosen}</span>} data-add-stream-function-menu="">
+          <MenuSingleChoiceGroup
+            choices={report.stream_functions.map((streamFunction) => ({ choice: streamFunction, label: <span className="font-mono text-xs">{streamFunction}</span> }))}
+            chosen={chosen}
+            onChosen={onChosen}
+            dataAttributeOfEachChoice="data-add-stream-function"
+          />
+        </FieldMenu>
+      ) : (
+        checks.map((check) => (
+          <span key={check.name} className="flex min-w-0 items-center gap-2" data-add-stream-check={check.name} data-add-stream-check-found={check.isFound ? "true" : "false"}>
+            {check.checked === "stream_function" ? (
+              <>
+                <Check className="size-4 shrink-0 text-brand-text" strokeWidth={2} aria-hidden />
+                <span className="truncate font-mono text-sm text-fg">{check.name}</span>
+              </>
+            ) : (
+              <>
+                {!check.isFound && <TriangleAlert className="size-3.5 shrink-0 text-warn" strokeWidth={1.75} aria-hidden />}
+                <span className={cn("text-right text-xs", check.isFound ? "text-fg-3" : "text-warn-text")}>{check.detail}</span>
+              </>
+            )}
+          </span>
+        ))
+      )}
+    </FormDialogRow>
   );
 }
 
 /** The name the stream loads under, and the runtime's refusal when a listed stream holds it, with the name to use instead. */
-function StreamNameRow({ form, hint, onEdited, onUseFreeName }: { form: AddStreamForm; hint: ReactNode; onEdited: (streamName: string) => void; onUseFreeName: (freeName: string) => void }) {
+function StreamNameRow({ form, onEdited, onUseFreeName }: { form: AddStreamForm; onEdited: (streamName: string) => void; onUseFreeName: (freeName: string) => void }) {
   const nameTaken = form.nameTaken;
   return (
-    <AddStreamFormRow label="Name" fieldId="add-stream-name" hint={nameTaken === null ? hint : undefined} hintId="add-stream-name-hint">
+    <FormDialogRow
+      label="Name"
+      labelFor="add-stream-name"
+      below={
+        nameTaken !== null && (
+          <div id="add-stream-name-hint" className="mt-2" data-add-stream-name-taken="">
+            <RefusalLine words={nameTaken.refusal} />
+            <div className="mt-2 pl-5">
+              <ActionButton onPressed={() => onUseFreeName(nameTaken.freeName)} data-add-stream-action="use_free_name">
+                Run as <span className="font-mono">{nameTaken.freeName}</span>
+              </ActionButton>
+            </div>
+          </div>
+        )
+      }
+    >
       <TextField
         id="add-stream-name"
         label="Stream name"
@@ -174,58 +172,11 @@ function StreamNameRow({ form, hint, onEdited, onUseFreeName }: { form: AddStrea
         onTextChanged={onEdited}
         isMachineWord
         isRefused={nameTaken !== null}
-        describedBy="add-stream-name-hint"
-        className="max-w-sm"
+        describedBy={nameTaken === null ? undefined : "add-stream-name-hint"}
+        className="w-64"
         data-add-stream-name=""
       />
-      {nameTaken !== null && (
-        <div id="add-stream-name-hint" data-add-stream-name-taken="">
-          <RefusalLine words={nameTaken.refusal} />
-          <div className="mt-2 pl-5">
-            <ActionButton onPressed={() => onUseFreeName(nameTaken.freeName)} data-add-stream-action="use_free_name">
-              Run as <span className="font-mono">{nameTaken.freeName}</span>
-            </ActionButton>
-          </div>
-        </div>
-      )}
-    </AddStreamFormRow>
-  );
-}
-
-function StreamFunctionRow({ report, chosenStreamFunction, onChosen }: { report: StreamProjectFolderReport; chosenStreamFunction: string | null; onChosen: (streamFunction: string) => void }) {
-  if (report.stream_functions.length <= 1) return null;
-  return (
-    <AddStreamFormRow label="Stream function" hint="stream.py marks several functions @stream; the stream runs the one chosen.">
-      <SegmentedChoiceControl
-        label="Stream function"
-        choices={report.stream_functions.map((streamFunction) => ({ choice: streamFunction, label: <span className="font-mono">{streamFunction}()</span> }))}
-        chosen={chosenStreamFunction ?? report.stream_functions[0] ?? ""}
-        onChosen={onChosen}
-        dataAttributeOfEachSegment="data-add-stream-function"
-      />
-    </AddStreamFormRow>
-  );
-}
-
-const SAMPLE_PROJECT_FILES: readonly { icon: LucideIcon; name: string; description: string }[] = [
-  { icon: FileCode2, name: "stream.py", description: "The stream function, main: Tatolab's sample animation through a halftone lens, encoded and shared." },
-  { icon: Folder, name: "nodes/", description: "Your Python nodes, one file each: the halftone lens and a brightness meter. Each runs in its own process." },
-  { icon: Package, name: "pyproject.toml", description: "Its dependencies, tatolab-stream and numpy, which Tatolab installs before it first runs." },
-];
-
-function SampleProjectContents() {
-  return (
-    <div className="overflow-hidden rounded-lg border" data-add-stream-sample-contents="">
-      {SAMPLE_PROJECT_FILES.map((sampleFile) => (
-        <div key={sampleFile.name} className="flex gap-2.5 border-b px-3 py-2.5 last:border-b-0">
-          <sampleFile.icon className="mt-0.5 size-4 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
-          <div className="min-w-0">
-            <div className="font-mono text-sm text-fg">{sampleFile.name}</div>
-            <div className="text-xs text-fg-3">{sampleFile.description}</div>
-          </div>
-        </div>
-      ))}
-    </div>
+    </FormDialogRow>
   );
 }
 
@@ -382,24 +333,13 @@ function ProjectFolderForm({
   const report = form.projectFolder;
   return (
     <div data-add-stream-step="project_folder">
-      <div className="flex flex-col">
-        <ProjectFolderChooserRow folder={report?.folder ?? null} isChoosing={form.workUnderWay === "choosing_a_folder"} onChoose={onChooseFolder} />
-        {report !== null && <ProjectFolderChecks report={report} />}
-      </div>
-      {report !== null && (
-        <section className="mt-8" aria-label="Configuration">
-          <h3 className="label-caps mb-1">Configuration</h3>
-          <div className="divide-y border-y">
-            <StreamFunctionRow report={report} chosenStreamFunction={form.chosenStreamFunction} onChosen={(streamFunction) => dispatch({ kind: "stream_function_chosen", streamFunction })} />
-            <StreamNameRow
-              form={form}
-              hint="From the stream function. One name per stream on this machine."
-              onEdited={(streamName) => dispatch({ kind: "stream_name_edited", streamName })}
-              onUseFreeName={onUseFreeName}
-            />
-          </div>
-        </section>
-      )}
+      <FormDialogRows>
+        <ProjectFolderRow folder={report?.folder ?? null} isChoosing={form.workUnderWay === "choosing_a_folder"} onChoose={onChooseFolder} />
+        {report !== null && (
+          <StreamFoundRow report={report} chosenStreamFunction={form.chosenStreamFunction} onChosen={(streamFunction) => dispatch({ kind: "stream_function_chosen", streamFunction })} />
+        )}
+        {report !== null && <StreamNameRow form={form} onEdited={(streamName) => dispatch({ kind: "stream_name_edited", streamName })} onUseFreeName={onUseFreeName} />}
+      </FormDialogRows>
     </div>
   );
 }
@@ -416,72 +356,40 @@ function NewProjectForm({
   onUseFreeName: (freeName: string) => void;
 }) {
   const report = form.newProjectFolder;
-  if (form.hasCreatedTheNewProject && report !== null) {
-    return (
-      <div data-add-stream-step="new_project_created">
+  const hasCreatedIt = form.hasCreatedTheNewProject && report !== null;
+  return (
+    <div data-add-stream-step={hasCreatedIt ? "new_project_created" : "new_project"}>
+      {hasCreatedIt && (
         <AddStreamSectionHeading
           title="Project created"
           lead={
             <>
-              <MachineWords>tatolab new</MachineWords> wrote the sample stream into <MachineWords>{report.folder}</MachineWords>. Add runs it.
+              <MachineWords>tatolab new</MachineWords> wrote the sample stream. Add runs it.
             </>
           }
         />
-        <ProjectFolderChecks report={report} />
-        <section className="mt-8" aria-label="Configuration">
-          <h3 className="label-caps mb-1">Configuration</h3>
-          <div className="divide-y border-y">
-            <StreamNameRow
-              form={form}
-              hint="From the project's folder. One name per stream on this machine."
-              onEdited={(streamName) => dispatch({ kind: "stream_name_edited", streamName })}
-              onUseFreeName={onUseFreeName}
-            />
-          </div>
-        </section>
-      </div>
-    );
-  }
-  return (
-    <div data-add-stream-step="new_project">
-      <div className="divide-y border-y">
-        <AddStreamFormRow
-          label="Directory"
-          hint={report === null ? undefined : "The folder must not exist yet."}
-        >
-          <ProjectFolderChooserRow folder={report?.folder ?? null} isChoosing={form.workUnderWay === "choosing_a_folder"} onChoose={onChooseDirectory} />
-        </AddStreamFormRow>
-        {report !== null && (
-          <AddStreamFormRow label="Runs" hint="The app runs this for you, then sets up the project's Python and adds it.">
-            <CommandWithCopyButton command={newProjectCommand(report.folder)} />
-          </AddStreamFormRow>
+      )}
+      <FormDialogRows>
+        <ProjectFolderRow folder={report?.folder ?? null} isChoosing={form.workUnderWay === "choosing_a_folder"} onChoose={hasCreatedIt ? null : onChooseDirectory} />
+        {hasCreatedIt && (
+          <StreamFoundRow report={report} chosenStreamFunction={form.chosenStreamFunction} onChosen={(streamFunction) => dispatch({ kind: "stream_function_chosen", streamFunction })} />
         )}
-        {report !== null && (
-          <StreamNameRow
-            form={form}
-            hint="From the project's folder. One name per stream on this machine."
-            onEdited={(streamName) => dispatch({ kind: "stream_name_edited", streamName })}
-            onUseFreeName={onUseFreeName}
-          />
-        )}
-      </div>
-      <section className="mt-8" aria-label="What you get">
-        <h3 className="label-caps mb-1.5">What you get</h3>
-        <SampleProjectContents />
-      </section>
+        {report !== null && <StreamNameRow form={form} onEdited={(streamName) => dispatch({ kind: "stream_name_edited", streamName })} onUseFreeName={onUseFreeName} />}
+      </FormDialogRows>
     </div>
   );
 }
 
-/** The bar under the page: the terminal command or what pressing does, and the page's actions for its step. */
+/** The bar under the dialog's body: its actions for the step it is on. */
 function AddStreamFooter({ children }: { children: ReactNode }) {
-  return <footer className="flex min-h-14 shrink-0 items-center gap-3 border-t bg-chrome px-(--page-x) py-2.5">{children}</footer>;
+  return <footer className="flex min-h-14 shrink-0 items-center gap-3 border-t px-6 py-3">{children}</footer>;
 }
 
 /** New project or Import project, over the window while the flow's dialog is open: run a project folder kept, or create one with `tatolab new` and run it, the app setting up its Python first. */
 export function AddStreamDialogView() {
   const { addStreamFlow } = useTatolabWindowEnvironment();
   const openDialog = useOpenAddStreamDialog();
+  const flowState = useAddStreamFlowState();
   return (
     <FormDialog
       isOpen={openDialog !== null}
@@ -490,6 +398,7 @@ export function AddStreamDialogView() {
       }}
       title={ADD_STREAM_DIALOG_WORDS[openDialog?.source ?? "project_folder"].title}
       description={ADD_STREAM_DIALOG_WORDS[openDialog?.source ?? "project_folder"].description}
+      icon={openDialog !== null && flowState.step === "form" ? ADD_STREAM_DIALOG_WORDS[openDialog.source].icon : undefined}
       footer={openDialog !== null && <AddStreamDialogFooter />}
       data-add-stream-page={openDialog?.source}
     >
@@ -505,6 +414,7 @@ function AddStreamDialogBody({ source }: { source: AddStreamSource }) {
   const dispatch = (event: AddStreamFlowEvent) => addStreamFlow.dispatch(event);
   const form = flowState.form;
   const isTheRuntimeRunning = presentRuntimeStatus(status).displayState === "running";
+  const blockerTheFormDoesNotShow = addStreamBlockerTheFormDoesNotShow(form, isTheRuntimeRunning, status.python_for_new_environments);
 
   // An opening while a run compiles is ignored by the flow; once the run answers, the dialog catches up to its source.
   useEffect(() => {
@@ -562,6 +472,11 @@ function AddStreamDialogBody({ source }: { source: AddStreamSource }) {
           onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
         />
       )}
+      {flowState.step === "form" && blockerTheFormDoesNotShow !== null && (
+        <p className="mt-3 text-xs text-fg-3" data-add-stream-blocker="">
+          {blockerTheFormDoesNotShow}
+        </p>
+      )}
     </div>
   );
 }
@@ -576,7 +491,6 @@ function AddStreamDialogFooter() {
   const isTheRuntimeRunning = presentRuntimeStatus(status).displayState === "running";
   const addStreamAction = addStreamActionOf(form);
   const addStreamActionUnavailableReason = addStreamActionUnavailableBecause(form, isTheRuntimeRunning, status.python_for_new_environments);
-  const terminalRunRequest = terminalRunRequestOf(form);
   const openTheStream = (streamName: string, tab?: StreamPageTab) => {
     addStreamFlow.closeDialog();
     void navigate(streamPagePath(streamName, tab));
@@ -585,22 +499,7 @@ function AddStreamDialogFooter() {
     <AddStreamFooter>
       {flowState.step === "form" && (
         <>
-          <div className="flex min-w-0 flex-1 items-center gap-3" data-add-stream-footer-words="">
-            {addStreamActionUnavailableReason !== null && form.nameTaken === null ? (
-              <span className="truncate text-fg-3">{addStreamActionUnavailableReason}</span>
-            ) : addStreamAction === "create" && form.newProjectFolder !== null ? (
-              <span className="truncate text-fg-3">
-                Creates <MachineWords>{form.newProjectFolder.folder}</MachineWords> with <MachineWords>tatolab new</MachineWords>, then adds it.
-              </span>
-            ) : terminalRunRequest !== null ? (
-              <>
-                <div className="max-w-[620px] min-w-0 flex-1">
-                  <CommandWithCopyButton command={terminalCommandForTheRun(terminalRunRequest, functionsOwnNameOf(form))} />
-                </div>
-                <span className="shrink-0 text-xs text-fg-3">the same, from a terminal</span>
-              </>
-            ) : null}
-          </div>
+          <div className="flex-1" />
           <ActionButton onPressed={() => addStreamFlow.closeDialog()} data-add-stream-action="cancel">
             Cancel
           </ActionButton>

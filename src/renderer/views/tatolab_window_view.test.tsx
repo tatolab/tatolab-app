@@ -741,7 +741,6 @@ describe("Add stream", () => {
     await waitFor(() => expect(document.querySelector('[data-add-stream-check="heat_map"]')?.textContent).toBe("heat_map"));
     expect(document.querySelector('[data-add-stream-check=".venv"]')).toBeNull();
     expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "heat_map");
-    expect(screen.getByText("cd /Users/jonathanf/code/heat-map && tatolab run -d")).toBeTruthy();
 
     fireEvent.click(await addStreamControl("add"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')).not.toBeNull());
@@ -776,7 +775,6 @@ describe("Add stream", () => {
     await mountedWindowOverTheMock("state=empty");
     fireEvent.click(screen.getByRole("button", { name: /Create the sample stream/ }));
     await waitFor(() => expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("/Users/jonathanf/streams/hello"));
-    expect(screen.getByText("tatolab new /Users/jonathanf/streams/hello")).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "hello");
     expect(document.querySelector('[data-add-stream-step="new_project"]')?.textContent).not.toMatch(/\.venv|uv sync|Compile and run/);
     expect(document.querySelector('[data-add-stream-action="add"]')).toBeNull();
@@ -815,7 +813,7 @@ describe("Add stream", () => {
     );
   });
 
-  it("says in the footer why Compile and run can't be pressed while the runtime is down", async () => {
+  it("says in the dialog why Add can't be pressed while the runtime is down", async () => {
     const { backend, showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=running");
     await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
@@ -824,7 +822,7 @@ describe("Add stream", () => {
 
     await showStatusAsTheBackendWould({ ...statusBefore, runtime_state: "stopped", streams: null });
 
-    await waitFor(() => expect(document.querySelector("[data-add-stream-footer-words]")?.textContent).toBe("The runtime isn't running, so it can't add a stream."));
+    await waitFor(() => expect(document.querySelector("[data-add-stream-blocker]")?.textContent).toBe("The runtime isn't running, so it can't add a stream."));
     expect((await addStreamControl("add")).hasAttribute("disabled")).toBe(true);
   });
 

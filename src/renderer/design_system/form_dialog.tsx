@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X, type LucideIcon } from "lucide-react";
 import { useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -14,6 +14,7 @@ export function FormDialog({
   onOpenChange,
   title,
   description,
+  icon: TaskIcon,
   footer,
   children,
   ...controlDataAttributes
@@ -22,6 +23,8 @@ export function FormDialog({
   onOpenChange: (isOpen: boolean) => void;
   title: string;
   description: ReactNode;
+  /** Drawn large above the body, the task's picture. */
+  icon?: LucideIcon;
   footer?: ReactNode;
   children: ReactNode;
 } & ControlDataAttributes) {
@@ -32,7 +35,7 @@ export function FormDialog({
       <DialogContent
         initialFocus={bodyElement}
         showCloseButton={false}
-        className="flex max-h-[min(720px,calc(100vh-4rem))] flex-col gap-0 overflow-hidden bg-window p-0 sm:max-w-2xl"
+        className="flex max-h-[min(720px,calc(100vh-4rem))] flex-col gap-0 overflow-hidden bg-window p-0 sm:max-w-xl"
         {...controlDataAttributes}
       >
         <div className="flex shrink-0 items-start gap-3 px-6 pt-5 pb-4">
@@ -45,10 +48,53 @@ export function FormDialog({
           </DialogClose>
         </div>
         <div ref={bodyElement} tabIndex={-1} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-6 pb-6 focus-visible:shadow-none">
+          {TaskIcon !== undefined && (
+            <div className="flex justify-center pt-2 pb-6">
+              <span className="grid size-14 place-items-center rounded-full bg-well">
+                <TaskIcon className="size-6 text-fg-3" strokeWidth={1.5} aria-hidden />
+              </span>
+            </div>
+          )}
           {children}
         </div>
         {footer}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A form dialog's rows, hairlines between them, each a label on the left and its value or control on the right. */
+export function FormDialogRows({ children }: { children: ReactNode }) {
+  return <div className="divide-y border-y">{children}</div>;
+}
+
+/** One row of a form dialog: what it sets on the left, its value or control on the right, and what was said about it under both. */
+export function FormDialogRow({
+  label,
+  labelFor,
+  below,
+  children,
+  ...controlDataAttributes
+}: {
+  label: string;
+  /** The control's id, where the value is a field the label names. */
+  labelFor?: string;
+  below?: ReactNode;
+  children: ReactNode;
+} & ControlDataAttributes) {
+  return (
+    <div className="py-2" {...controlDataAttributes}>
+      <div className="flex min-h-9 items-center justify-between gap-6">
+        {labelFor === undefined ? (
+          <span className="shrink-0 text-fg-2">{label}</span>
+        ) : (
+          <label htmlFor={labelFor} className="shrink-0 text-fg-2">
+            {label}
+          </label>
+        )}
+        <div className="flex min-w-0 items-center justify-end gap-2">{children}</div>
+      </div>
+      {below}
+    </div>
   );
 }

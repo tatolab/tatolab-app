@@ -187,24 +187,6 @@ function advanceTheForm(state: AddStreamFlowState, event: AddStreamFlowEvent): A
   }
 }
 
-/** `word` as a POSIX shell reads it back unchanged: as it is when it holds only characters a shell leaves alone, else in single quotes. */
-export function shellWord(word: string): string {
-  return /^[A-Za-z0-9_./~@%+=:,-]+$/.test(word) ? word : `'${word.replaceAll("'", `'"'"'`)}'`;
-}
-
-/** The terminal command that does what Add does for a folder whose Python is set up: `tatolab run -d` in the folder, with the function and name the form gives. */
-export function terminalCommandForTheRun(request: AddStreamRunRequest, functionsOwnName: string | null): string {
-  const commandWords = ["cd", shellWord(request.folder), "&&", "tatolab", "run", "-d"];
-  if (request.streamFunction !== null) commandWords.push(shellWord(request.streamFunction));
-  if (request.streamName !== null && request.streamName !== functionsOwnName) commandWords.push("--name", shellWord(request.streamName));
-  return commandWords.join(" ");
-}
-
-/** `tatolab new` for `folder`, the command Create runs. */
-export function newProjectCommand(folder: string): string {
-  return `tatolab new ${shellWord(folder)}`;
-}
-
 /** The page's one action: Create, for a new project `tatolab new` has not written yet, which writes it and then adds it; Add, for a folder that holds a project. */
 export type AddStreamAction = "create" | "add";
 
@@ -216,9 +198,12 @@ export function addStreamActionOf(form: AddStreamForm): AddStreamAction {
   return form.source === "new_project" && !form.hasCreatedTheNewProject ? "create" : "add";
 }
 
-/** Why the page's action cannot be pressed now, or `null` when it can. A folder with no `.venv` can be added while the app has a Python to set it up with. */
+const THE_RUNTIME_IS_NOT_RUNNING = "The runtime isn't running, so it can't add a stream.";
+const NO_PYTHON_TO_SET_UP_A_PROJECT_WITH = "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.";
+
+/** Why the dialog's action cannot be pressed now, or `null` when it can. A folder with no `.venv` can be added while the app has a Python to set it up with. */
 export function addStreamActionUnavailableBecause(form: AddStreamForm, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string | null {
-  if (!isTheRuntimeRunning) return "The runtime isn't running, so it can't add a stream.";
+  if (!isTheRuntimeRunning) return THE_RUNTIME_IS_NOT_RUNNING;
   switch (form.workUnderWay) {
     case "choosing_a_folder":
       return "Choose a folder in the dialog.";
@@ -227,16 +212,24 @@ export function addStreamActionUnavailableBecause(form: AddStreamForm, isTheRunt
     case null:
       break;
   }
-  const noPythonToSetUpAProjectWith = "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.";
   if (addStreamActionOf(form) === "create") {
     if (form.newProjectFolder === null) return "Choose a directory for the new project.";
-    return pythonForNewEnvironments.kind === "built_in_not_offered" ? noPythonToSetUpAProjectWith : null;
+    return pythonForNewEnvironments.kind === "built_in_not_offered" ? NO_PYTHON_TO_SET_UP_A_PROJECT_WITH : null;
   }
   const folder = folderToRun(form);
   if (folder === null) return "Choose a project folder first.";
-  if (folder.python_environment.kind === "missing" && pythonForNewEnvironments.kind === "built_in_not_offered") return noPythonToSetUpAProjectWith;
+  if (folder.python_environment.kind === "missing" && pythonForNewEnvironments.kind === "built_in_not_offered") return NO_PYTHON_TO_SET_UP_A_PROJECT_WITH;
   if (form.nameTaken !== null) return "Choose another name, or use the one offered.";
   return null;
+}
+
+/**
+ * Why Add or Create cannot be pressed, said in the dialog's body where the form does not already show it: the runtime
+ * down, or no Python to set the project up with. A folder or name still to choose shows in the form itself.
+ */
+export function addStreamBlockerTheFormDoesNotShow(form: AddStreamForm, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string | null {
+  const reason = addStreamActionUnavailableBecause(form, isTheRuntimeRunning, pythonForNewEnvironments);
+  return reason === THE_RUNTIME_IS_NOT_RUNNING || reason === NO_PYTHON_TO_SET_UP_A_PROJECT_WITH ? reason : null;
 }
 
 /** Whole seconds a run has been compiling, as the compile view counts them. */
@@ -256,12 +249,6 @@ export function streamRunningSummary(answer: StreamRunAnswer): string {
 /** How many steps a stream has, in words. */
 export function stepCountWords(stepCount: number): string {
   return `${stepCount} ${stepCount === 1 ? "step" : "steps"}`;
-}
-
-/** The function the stream is named after unless the form names it otherwise: the chosen one, else the folder's first. */
-export function functionsOwnNameOf(form: AddStreamForm): string | null {
-  const folder = folderToRun(form);
-  return folder === null ? null : (form.chosenStreamFunction ?? folder.stream_functions[0] ?? null);
 }
 
 /** One row of a folder's check: a `@stream` function found in its `stream.py`, or `stream.py` itself when it holds none or is missing. */
@@ -352,14 +339,6 @@ export function streamRunAnswerLines(answer: StreamRunAnswer): readonly string[]
     `loaded ${answer.stream} as instance ${answer.stream_instance}: ${stepCountWords(answer.node_count)}${replaced}`,
     `${answer.stream} is running; kept, so it loads again whenever the runtime starts`,
   ];
-}
-
-/** The terminal run the footer offers: the form's, under the free name while the asked one is refused as taken; none for a folder whose Python the app sets up first, which has no one-command equivalent. */
-export function terminalRunRequestOf(form: AddStreamForm): AddStreamRunRequest | null {
-  if (folderToRun(form)?.python_environment.kind === "missing") return null;
-  const runRequest = runRequestOf(form);
-  if (runRequest === null || form.nameTaken === null) return runRequest;
-  return { ...runRequest, streamName: form.nameTaken.freeName };
 }
 
 /**
