@@ -18,6 +18,7 @@ import { TatolabUninstallOnThisMac } from "./tatolab_uninstall_on_this_mac.js";
 import { LoginItemOfTheAppBundle } from "./login_item_of_the_app_bundle.js";
 import { tatolabAppUpdatePackagingOnMacos } from "./tatolab_app_update_packaging_on_macos.js";
 import { pythonToolchainInTheAppBundle } from "./python_toolchain_in_the_app_bundle.js";
+import { bundledPythonToolchainAsTheLogNamesIt } from "../bundled_python_toolchain.js";
 
 /** The bundle's launch agent through the Service Management addon, the links of the CLI in the bundle the app binary runs from, and uninstalling them. */
 export async function macosTatolabPlatformForThisBuild(
@@ -32,7 +33,7 @@ export async function macosTatolabPlatformForThisBuild(
     local_api_socket: machinePaths.localApiSocket,
     command_line_tool_home_folder_link: machinePaths.commandLineToolHomeFolderLink,
     bundled_command_line_tool: bundledCommandLineTool,
-    bundled_python_toolchain: bundledPythonToolchain.kind === "in_the_app" ? bundledPythonToolchain.builtInPythonInTheApp : bundledPythonToolchain.reason,
+    bundled_python_toolchain: bundledPythonToolchainAsTheLogNamesIt(bundledPythonToolchain),
     local_proof_test_machine_root: machinePaths.localProofTestMachineRoot,
   });
   const administratorPrompt = new OsascriptAdministratorPrompt(OSASCRIPT_AT_ITS_SYSTEM_PATH);

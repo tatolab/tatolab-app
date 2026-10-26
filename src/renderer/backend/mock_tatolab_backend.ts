@@ -135,6 +135,8 @@ const MOCK_PYTHON_ENVIRONMENT_MILLISECONDS = 3200;
 const MOCK_BUILT_IN_PYTHON_VERSION = "3.12.12";
 /** The interpreter the mock's file dialog picks in Settings. */
 const MOCK_PICKED_PYTHON_INTERPRETER = "/opt/homebrew/bin/python3.12";
+/** The version MOCK_PICKED_PYTHON_INTERPRETER answers to `--version`, which a `.venv` made from it names. */
+const MOCK_PICKED_PYTHON_VERSION = "3.12.7";
 
 /** What uv says in the mock when `?add_venv=refused` has it fail to make a project's `.venv`: the package index out of reach. */
 const MOCK_UV_SYNC_REFUSAL = [
@@ -499,7 +501,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     const pythonForNewEnvironments = mockStatus.python_for_new_environments;
     if (pythonForNewEnvironments.kind === "built_in_not_offered") return { refusal: pythonForNewEnvironments.reason };
     if (isMakingThePythonEnvironmentRefused) return { refusal: MOCK_UV_SYNC_REFUSAL };
-    const pythonVersion = pythonForNewEnvironments.kind === "built_in" ? pythonForNewEnvironments.python_version : "3.12.7";
+    const pythonVersion = pythonForNewEnvironments.kind === "built_in" ? pythonForNewEnvironments.python_version : MOCK_PICKED_PYTHON_VERSION;
     return { made: { kind: "present", python_version: pythonVersion, tatolab_stream_version: "0.55.0" } };
   };
   const projectFolderReport = (folder: string, streamFunctions: string[], isSynced: boolean): StreamProjectFolderReport => ({

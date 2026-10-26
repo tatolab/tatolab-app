@@ -25,9 +25,15 @@ export function describeHowTheProgramEnded(programCompletion: ProgramCompletion)
   return endingSignalNumber === undefined ? `signal: ${endingSignal}` : `signal: ${endingSignalNumber} (${endingSignal})`;
 }
 
+/** What a program that failed said, in its own words: its standard error, else how it ended after `programName`. */
+export function programsOwnWordsOrHowItEnded(programName: string, programCompletion: ProgramCompletion): string {
+  const standardError = programCompletion.standardError.trim();
+  return standardError === "" ? `${programName} ended with ${describeHowTheProgramEnded(programCompletion)}` : standardError;
+}
+
 /** How a program runs beyond its arguments: the app's own environment variables it is started without. */
 export interface ProgramRunOptions {
-  environmentVariablesLeftOut: readonly string[];
+  readonly environmentVariablesLeftOut: readonly string[];
 }
 
 /** Runs a program to its end, as `runProgramToCompletion` does; a test's fake answers as the program would. */

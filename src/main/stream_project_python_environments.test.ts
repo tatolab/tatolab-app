@@ -81,7 +81,7 @@ async function pythonEnvironmentsOverFakes({
   bundledPythonToolchain: BundledPythonToolchain;
   appConfigDirectory?: string;
   dialogAnswer?: Result<string | null, string>;
-  uvAnswer?: Result<ProgramCompletion, string>;
+  uvAnswer?: Result<ProgramCompletion, string> | "never, as when the app quits during the sync";
   uvWritesAVenv?: boolean;
   interpreterRuns?: (interpreter: string) => boolean;
   versionOutput?: string;
@@ -101,6 +101,7 @@ async function pythonEnvironmentsOverFakes({
           await mkdir(path.join(projectFolder, ".venv", "bin"), { recursive: true });
           await writeFile(path.join(projectFolder, ".venv", "bin", "python"), "the venv's interpreter");
         }
+        if (uvAnswer === "never, as when the app quits during the sync") return new Promise(() => undefined);
         return uvAnswer;
       }
       if (programArguments[0] === "--version") return exitedWith(0, "", versionOutput);
@@ -323,4 +324,21 @@ test("a malformed choice file reads as Tatolab's built-in Python", async () => {
   const { pythonEnvironments } = await pythonEnvironmentsOverFakes({ bundledPythonToolchain: toolchain, appConfigDirectory });
 
   expect(pythonEnvironments.pythonForNewEnvironmentsNow()).toEqual({ kind: "built_in", python_version: "3.12.12" });
+});
+
+test("a sync the app quit during is made again at the next launch, though its .venv's interpreter runs", async () => {
+  const toolchain = await bundledPythonToolchainInATemporaryApp();
+  const appConfigDirectory = await temporaryFolder("tl-app-config-");
+  const projectFolder = await temporaryFolder("tl-project-");
+  const quitDuringTheSync = await pythonEnvironmentsOverFakes({ bundledPythonToolchain: toolchain, appConfigDirectory, uvAnswer: "never, as when the app quits during the sync" });
+  void quitDuringTheSync.pythonEnvironments.makePythonEnvironmentUnlessOneWorks(projectFolder);
+  await expect.poll(() => isAFile(path.join(projectFolder, ".venv", "bin", "python"))).toBe(true);
+
+  const nextLaunch = await pythonEnvironmentsOverFakes({ bundledPythonToolchain: toolchain, appConfigDirectory });
+  expect(await nextLaunch.pythonEnvironments.makePythonEnvironmentUnlessOneWorks(projectFolder)).toEqual(succeeded(undefined));
+  expect(uvRunsIn(nextLaunch.programsRun, toolchain.uvPath)).toHaveLength(1);
+
+  const theLaunchAfter = await pythonEnvironmentsOverFakes({ bundledPythonToolchain: toolchain, appConfigDirectory });
+  await theLaunchAfter.pythonEnvironments.makePythonEnvironmentUnlessOneWorks(projectFolder);
+  expect(uvRunsIn(theLaunchAfter.programsRun, toolchain.uvPath)).toEqual([]);
 });

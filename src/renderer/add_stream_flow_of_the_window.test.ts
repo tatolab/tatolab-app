@@ -103,7 +103,7 @@ describe("the window's Add stream flow", () => {
     expect(listenedChanges.length).toBeGreaterThan(2);
   });
 
-  it("leaves a notice of uv failing to make the folder's .venv, titled so and in uv's own words", async () => {
+  it("leaves a notice of uv failing to set up the folder's Python, titled so and in uv's own words", async () => {
     const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
     addStreamFlow.compileAndRun();
     addStreamFlow.leavePage();
@@ -113,7 +113,7 @@ describe("the window's Add stream flow", () => {
     expect(addStreamFlow.readRunNotice()).toEqual({
       kind: "refused",
       source: "project_folder",
-      title: "Tatolab couldn't make the project's .venv",
+      title: "Tatolab couldn't set up the project's Python",
       words: "error: Failed to fetch: `https://pypi.org/simple/tatolab-stream/`",
     });
   });

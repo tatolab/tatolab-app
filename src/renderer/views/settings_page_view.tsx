@@ -258,6 +258,10 @@ function RuntimeSection() {
   const pythonForNewEnvironments = presentPythonForNewEnvironments(status.python_for_new_environments);
   const chooseYourOwnPython = useActionThroughTheBackend(() => backend.choosePythonForNewEnvironments("chosen_in_a_file_dialog"), "Couldn't use that Python:");
   const useTatolabsPython = useActionThroughTheBackend(() => backend.choosePythonForNewEnvironments("built_in"), "Couldn't go back to Tatolab's Python:");
+  const [lastPythonChoicePressed, setLastPythonChoicePressed] = useState<"choose_your_own" | "use_tatolabs" | null>(null);
+  const pythonChoiceRefusal =
+    lastPythonChoicePressed === "choose_your_own" ? chooseYourOwnPython.refusal : lastPythonChoicePressed === "use_tatolabs" ? useTatolabsPython.refusal : null;
+  const isAPythonChoicePending = chooseYourOwnPython.isPending || useTatolabsPython.isPending;
   return (
     <>
       <SectionPageTitle
@@ -334,18 +338,32 @@ function RuntimeSection() {
               {pythonForNewEnvironments.chosenInterpreter !== null && <PathUnderTheWords>{pythonForNewEnvironments.chosenInterpreter}</PathUnderTheWords>}
             </>
           }
-          refusal={chooseYourOwnPython.refusal ?? useTatolabsPython.refusal}
+          refusal={pythonChoiceRefusal}
           data-settings-row="python-for-new-environments"
           control={() => (
             <>
               {pythonForNewEnvironments.offersTatolabsPython && (
-                <ActionButton isDisabled={useTatolabsPython.isPending || chooseYourOwnPython.isPending} onPressed={useTatolabsPython.run} data-settings-action="use-tatolabs-python">
+                <ActionButton
+                  isDisabled={isAPythonChoicePending}
+                  onPressed={() => {
+                    setLastPythonChoicePressed("use_tatolabs");
+                    useTatolabsPython.run();
+                  }}
+                  data-settings-action="use-tatolabs-python"
+                >
                   Use Tatolab's Python
                 </ActionButton>
               )}
-              {pythonForNewEnvironments.offersYourOwnPython && (
-                <ActionButton isDisabled={useTatolabsPython.isPending || chooseYourOwnPython.isPending} onPressed={chooseYourOwnPython.run} data-settings-action="choose-your-own-python">
-                  {pythonForNewEnvironments.offersTatolabsPython ? "Choose Another…" : "Choose Your Own…"}
+              {pythonForNewEnvironments.chooseYourOwnPythonLabel !== null && (
+                <ActionButton
+                  isDisabled={isAPythonChoicePending}
+                  onPressed={() => {
+                    setLastPythonChoicePressed("choose_your_own");
+                    chooseYourOwnPython.run();
+                  }}
+                  data-settings-action="choose-your-own-python"
+                >
+                  {pythonForNewEnvironments.chooseYourOwnPythonLabel}
                 </ActionButton>
               )}
             </>

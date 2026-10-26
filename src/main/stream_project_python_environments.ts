@@ -3,7 +3,7 @@
 // Python. The runtime compiles and runs a project only in its `.venv/bin/python`, and refuses one
 // with none. A `.venv` whose interpreter runs is never touched.
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { cp, mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import type { PythonForNewEnvironments, PythonForNewEnvironmentsChoice } from "../shared/tatolab_backend_contract.js";
@@ -14,8 +14,9 @@ import {
   pythonInterpreterInsideThePythonFolder,
   pythonVersionOfTheBuiltInPythonFolder,
   type BundledPythonToolchain,
+  type BundledPythonToolchainInTheApp,
 } from "./platform/bundled_python_toolchain.js";
-import { describeHowTheProgramEnded, programSucceeded, type ProgramCompletion, type ProgramRunner } from "./platform/run_program_to_completion.js";
+import { programsOwnWordsOrHowItEnded, programSucceeded, type ProgramRunner } from "./platform/run_program_to_completion.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 
@@ -47,6 +48,13 @@ const PYTHON_VERSION_OUTPUT_PREFIX = "Python ";
 /** The marker between a built-in Python's folder name and a copy of it still being made. */
 const PARTIAL_BUILT_IN_PYTHON_COPY_MARKER = ".partial-";
 
+/**
+ * The folder, inside the app's config directory, holding one file for each project whose `.venv` a sync is making. A sync
+ * the app quit during leaves its `.venv` with an interpreter that runs and only some of its packages; the file left
+ * behind has the next run sync it again.
+ */
+const PYTHON_ENVIRONMENTS_BEING_MADE_FOLDER_NAME = "python-environments-being-made";
+
 /** Asks the person for a Python interpreter in the desktop's file dialog; `null` when they cancel. */
 export type PythonInterpreterFileDialog = () => Promise<Result<string | null, string>>;
 
@@ -57,12 +65,6 @@ export interface StreamProjectPythonEnvironmentsSources {
   pythonInterpreterFileDialog: PythonInterpreterFileDialog;
   runProgramToCompletion: ProgramRunner;
   tatolabAppLog: TatolabAppLog;
-}
-
-/** What a program wrote to its standard error, else how it ended, after `programName`. */
-function programsOwnWords(programName: string, programCompletion: ProgramCompletion): string {
-  const standardError = programCompletion.standardError.trim();
-  return standardError === "" ? `${programName} ended with ${describeHowTheProgramEnded(programCompletion)}` : standardError;
 }
 
 /** The Python new environments are made from, remembered between launches, and making a project's `.venv` with the app's uv. */
@@ -119,27 +121,43 @@ export class StreamProjectPythonEnvironments {
 
   private async makeThePythonEnvironmentUnlessOneWorks(projectFolder: string): Promise<Result<void, string>> {
     const projectInterpreter = path.join(projectFolder, PROJECT_PYTHON_ENVIRONMENT_INTERPRETER);
-    if (await this.pythonInterpreterRuns(projectInterpreter)) return succeeded(undefined);
+    const unfinishedSyncFile = this.unfinishedSyncFileOf(projectFolder);
+    const wasASyncLeftUnfinished = await isAFileOnThisMachine(unfinishedSyncFile);
+    if (!wasASyncLeftUnfinished && (await this.pythonInterpreterRuns(projectInterpreter))) return succeeded(undefined);
     const toolchain = this.sources.bundledPythonToolchain;
     if (toolchain.kind === "not_offered") return failedWith(toolchain.reason);
     const interpreter = this.chosenPythonInterpreter === null ? await this.builtInPythonInterpreter(toolchain) : succeeded(this.chosenPythonInterpreter);
     if (!interpreter.ok) return interpreter;
-    this.sources.tatolabAppLog.info("making a stream project's .venv with uv sync", { project_folder: projectFolder, python_interpreter: interpreter.value });
+    const markedUnfinished = await replaceFileWhole(unfinishedSyncFile, projectFolder);
+    if (!markedUnfinished.ok) return failedWith(`Tatolab could not note that it is making ${projectFolder}'s .venv: ${markedUnfinished.failure}`);
+    this.sources.tatolabAppLog.info("making a stream project's .venv with uv sync", {
+      project_folder: projectFolder,
+      python_interpreter: interpreter.value,
+      after_an_unfinished_sync: wasASyncLeftUnfinished,
+    });
     const sync = await this.sources.runProgramToCompletion(
       toolchain.uvPath,
       ["sync", "--directory", projectFolder, "--python", interpreter.value, "--no-python-downloads"],
       { environmentVariablesLeftOut: ENVIRONMENT_VARIABLES_UV_SYNC_IS_STARTED_WITHOUT },
     );
-    const syncRefusal = !sync.ok ? sync.failure : programSucceeded(sync.value) ? null : programsOwnWords("uv sync", sync.value);
+    const syncRefusal = !sync.ok ? sync.failure : programSucceeded(sync.value) ? null : programsOwnWordsOrHowItEnded("uv sync", sync.value);
     if (syncRefusal !== null) {
-      await this.removeTheHalfMadePythonEnvironment(projectFolder);
+      await this.removeAFolderLeftHalfMade(path.join(projectFolder, PROJECT_PYTHON_ENVIRONMENT_FOLDER_NAME), "a .venv uv sync left half-made");
+      await this.removeAFolderLeftHalfMade(unfinishedSyncFile, "the note of an unfinished uv sync");
       this.sources.tatolabAppLog.warn("uv sync could not make a stream project's .venv", { project_folder: projectFolder, failure: syncRefusal });
       return failedWith(syncRefusal);
     }
+    await this.removeAFolderLeftHalfMade(unfinishedSyncFile, "the note of a finished uv sync");
     if (!(await this.pythonInterpreterRuns(projectInterpreter))) {
       return failedWith(`uv sync finished, but ${projectInterpreter} does not run.`);
     }
     return succeeded(undefined);
+  }
+
+  /** The file noting a sync of `projectFolder` under way, named for the folder's path. */
+  private unfinishedSyncFileOf(projectFolder: string): string {
+    const projectFolderDigest = createHash("sha256").update(projectFolder).digest("hex");
+    return path.join(this.sources.appConfigDirectory, PYTHON_ENVIRONMENTS_BEING_MADE_FOLDER_NAME, projectFolderDigest);
   }
 
   private async pythonInterpreterRuns(interpreter: string): Promise<boolean> {
@@ -147,24 +165,19 @@ export class StreamProjectPythonEnvironments {
     return ran.ok && programSucceeded(ran.value);
   }
 
-  private async removeTheHalfMadePythonEnvironment(projectFolder: string): Promise<void> {
-    const pythonEnvironmentFolder = path.join(projectFolder, PROJECT_PYTHON_ENVIRONMENT_FOLDER_NAME);
-    await rm(pythonEnvironmentFolder, { recursive: true, force: true }).catch((removalFailure: unknown) => {
-      this.sources.tatolabAppLog.warn("a .venv uv sync left half-made could not be removed", {
-        python_environment_folder: pythonEnvironmentFolder,
-        failure: describeCaughtFailure(removalFailure),
-      });
+  /** Remove `leftHalfMade`, `whatItIs` in the log when it cannot be. */
+  private async removeAFolderLeftHalfMade(leftHalfMade: string, whatItIs: string): Promise<void> {
+    await rm(leftHalfMade, { recursive: true, force: true }).catch((removalFailure: unknown) => {
+      this.sources.tatolabAppLog.warn(`${whatItIs} could not be removed`, { path: leftHalfMade, failure: describeCaughtFailure(removalFailure) });
     });
   }
 
-  /** The built-in Python's interpreter in its copy outside the app, copied first when there is none; one copy at a time, tried again after a failure. */
-  private builtInPythonInterpreter(toolchain: Extract<BundledPythonToolchain, { kind: "in_the_app" }>): Promise<Result<string, string>> {
+  /** The built-in Python's interpreter in its copy outside the app, copied first when there is none; callers at once share one copy, and each later one checks the copy is still there. */
+  private builtInPythonInterpreter(toolchain: BundledPythonToolchainInTheApp): Promise<Result<string, string>> {
     if (this.builtInPythonCopyUnderWay === null) {
-      const copying = this.copyTheBuiltInPythonOutOfTheAppUnlessCopied(toolchain).then((copied) => {
-        if (!copied.ok) this.builtInPythonCopyUnderWay = null;
-        return copied;
+      this.builtInPythonCopyUnderWay = this.copyTheBuiltInPythonOutOfTheAppUnlessCopied(toolchain).finally(() => {
+        this.builtInPythonCopyUnderWay = null;
       });
-      this.builtInPythonCopyUnderWay = copying;
     }
     return this.builtInPythonCopyUnderWay;
   }
@@ -174,7 +187,7 @@ export class StreamProjectPythonEnvironments {
    * layout uses. It is copied beside that folder, checked to run, then renamed into place, so the folder never holds half
    * a Python; earlier versions' copies stay, since the environments made from them name them.
    */
-  private async copyTheBuiltInPythonOutOfTheAppUnlessCopied(toolchain: Extract<BundledPythonToolchain, { kind: "in_the_app" }>): Promise<Result<string, string>> {
+  private async copyTheBuiltInPythonOutOfTheAppUnlessCopied(toolchain: BundledPythonToolchainInTheApp): Promise<Result<string, string>> {
     const { builtInPythonInTheApp, builtInPythonFolderName, builtInPythonCopiesFolder } = toolchain;
     const copiedPythonFolder = path.join(builtInPythonCopiesFolder, builtInPythonFolderName);
     const copiedInterpreter = pythonInterpreterInsideThePythonFolder(copiedPythonFolder);
@@ -188,19 +201,21 @@ export class StreamProjectPythonEnvironments {
       }
       await cp(builtInPythonInTheApp, partialCopy, { recursive: true, dereference: true });
     } catch (copyFailure) {
-      await rm(partialCopy, { recursive: true, force: true }).catch(() => undefined);
+      await this.removeAFolderLeftHalfMade(partialCopy, "a half-made copy of Tatolab's Python");
       return failedWith(`Tatolab could not copy its Python into ${builtInPythonCopiesFolder}: ${describeCaughtFailure(copyFailure)}`);
     }
     const partialInterpreter = pythonInterpreterInsideThePythonFolder(partialCopy);
     const ran = await this.sources.runProgramToCompletion(partialInterpreter, PYTHON_INTERPRETER_RUNS_ARGUMENTS);
     if (!ran.ok || !programSucceeded(ran.value)) {
-      await rm(partialCopy, { recursive: true, force: true }).catch(() => undefined);
-      return failedWith(`Tatolab's Python, copied into ${builtInPythonCopiesFolder}, does not run: ${ran.ok ? programsOwnWords(partialInterpreter, ran.value) : ran.failure}`);
+      await this.removeAFolderLeftHalfMade(partialCopy, "a copy of Tatolab's Python that does not run");
+      return failedWith(
+        `Tatolab's Python, copied into ${builtInPythonCopiesFolder}, does not run: ${ran.ok ? programsOwnWordsOrHowItEnded(partialInterpreter, ran.value) : ran.failure}`,
+      );
     }
     try {
       await rename(partialCopy, copiedPythonFolder);
     } catch (renameFailure) {
-      await rm(partialCopy, { recursive: true, force: true }).catch(() => undefined);
+      await this.removeAFolderLeftHalfMade(partialCopy, "a copy of Tatolab's Python another copy beat into place");
       if (!(await isAFileOnThisMachine(copiedInterpreter))) {
         return failedWith(`Tatolab could not put its Python in ${copiedPythonFolder}: ${describeCaughtFailure(renameFailure)}`);
       }
@@ -215,7 +230,9 @@ export class StreamProjectPythonEnvironments {
     if (!versionAnswer.ok) return versionAnswer;
     const printedVersion = versionAnswer.value.standardOutput.trim();
     if (programSucceeded(versionAnswer.value) && printedVersion.startsWith(PYTHON_VERSION_OUTPUT_PREFIX)) return succeeded(undefined);
-    return failedWith(`${pickedInterpreter} is not a Python interpreter: ${printedVersion === "" ? programsOwnWords(pickedInterpreter, versionAnswer.value) : printedVersion}`);
+    return failedWith(
+      `${pickedInterpreter} is not a Python interpreter: ${printedVersion === "" ? programsOwnWordsOrHowItEnded(pickedInterpreter, versionAnswer.value) : printedVersion}`,
+    );
   }
 
   private async rememberThePythonInterpreter(pythonInterpreter: string | null): Promise<Result<void, string>> {

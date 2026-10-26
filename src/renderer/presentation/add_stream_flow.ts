@@ -32,7 +32,7 @@ export interface AddStreamForm {
   workUnderWay: AddStreamWorkUnderWay | null;
 }
 
-/** The Add stream page: the form, a run compiling since `startedAtMs` (the app making the folder's `.venv` first when it had none), or the stream running. */
+/** The Add stream page: the form, a run compiling since `startedAtMs` (the app setting up the folder's Python first when it had none), or the stream running. */
 export type AddStreamFlowState =
   | { step: "form"; form: AddStreamForm }
   | { step: "compiling"; form: AddStreamForm; request: AddStreamRunRequest; startedAtMs: number; makesThePythonEnvironmentFirst: boolean }
@@ -127,7 +127,7 @@ export function advanceAddStreamFlow(state: AddStreamFlowState, event: AddStream
           return withForm(state, { refusal: { lead: PYTHON_ENVIRONMENT_NOT_MADE_LEAD, words: event.outcome.words } });
       }
     case "run_refused":
-      return state.step === "compiling" ? withForm(state, { refusal: { lead: "Compile and run was refused:", words: event.words } }) : state;
+      return state.step === "compiling" ? withForm(state, { refusal: { lead: COMPILE_AND_RUN_REFUSED_LEAD, words: event.words } }) : state;
     case "add_another":
       return initialAddStreamFlowState(form.source);
     case "source_chosen":
@@ -193,9 +193,9 @@ export function shellWord(word: string): string {
   return /^[A-Za-z0-9_./~@%+=:,-]+$/.test(word) ? word : `'${word.replaceAll("'", `'"'"'`)}'`;
 }
 
-/** The terminal command that does what Compile and run does: `tatolab run -d` in the folder, with the function and name the form gives. */
-export function terminalCommandForTheRun(request: AddStreamRunRequest, functionsOwnName: string | null): string {
-  const commandWords = ["cd", shellWord(request.folder), "&&", "tatolab", "run", "-d"];
+/** The terminal command that does what Compile and run does: `uv sync` first when the folder has no `.venv`, then `tatolab run -d` in the folder, with the function and name the form gives. */
+export function terminalCommandForTheRun(request: AddStreamRunRequest, functionsOwnName: string | null, setsUpThePythonEnvironmentFirst: boolean): string {
+  const commandWords = ["cd", shellWord(request.folder), "&&", ...(setsUpThePythonEnvironmentFirst ? ["uv", "sync", "&&"] : []), "tatolab", "run", "-d"];
   if (request.streamFunction !== null) commandWords.push(shellWord(request.streamFunction));
   if (request.streamName !== null && request.streamName !== functionsOwnName) commandWords.push("--name", shellWord(request.streamName));
   return commandWords.join(" ");
@@ -206,8 +206,8 @@ export function newProjectCommand(folder: string): string {
   return `tatolab new ${shellWord(folder)}`;
 }
 
-/** Why Compile and run cannot be pressed now, or `null` when it can. A folder with no `.venv` can: the app makes it first. */
-export function compileAndRunUnavailableBecause(form: AddStreamForm, isTheRuntimeRunning: boolean): string | null {
+/** Why Compile and run cannot be pressed now, or `null` when it can. A folder with no `.venv` can, while the app has a Python to set it up with. */
+export function compileAndRunUnavailableBecause(form: AddStreamForm, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string | null {
   if (!isTheRuntimeRunning) return "The runtime isn't running, so it can't compile a stream.";
   switch (form.workUnderWay) {
     case "choosing_a_folder":
@@ -220,6 +220,9 @@ export function compileAndRunUnavailableBecause(form: AddStreamForm, isTheRuntim
   if (form.source === "new_project" && !form.hasCreatedTheNewProject) return "Create the project first.";
   const folder = folderToRun(form);
   if (folder === null) return "Choose a project folder first.";
+  if (folder.python_environment.kind === "missing" && pythonForNewEnvironments.kind === "built_in_not_offered") {
+    return "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.";
+  }
   if (form.nameTaken !== null) return "Choose another name, or use the one offered.";
   return null;
 }
@@ -257,8 +260,17 @@ export function streamFileCheckDetail(report: StreamProjectFolderReport): string
   return `Stream functions ${report.stream_functions.map((streamFunction) => `${streamFunction}()`).join(", ")}`;
 }
 
-/** The lead of a refusal by the app's uv to make a folder's `.venv`, before uv's own words. */
-export const PYTHON_ENVIRONMENT_NOT_MADE_LEAD = "Tatolab couldn't make the project's .venv:";
+/** The lead of the runtime's refusal of a run, before its own words. */
+export const COMPILE_AND_RUN_REFUSED_LEAD = "Compile and run was refused:";
+
+/** The lead of the app's uv failing to set up a folder's Python, before uv's own words. */
+export const PYTHON_ENVIRONMENT_NOT_MADE_LEAD = "Tatolab couldn't set up the project's Python:";
+
+/** The title a run's refusal gets in the notice of a run that answered away from the page, by the lead it was given. */
+const RUN_REFUSAL_NOTICE_TITLES: Record<string, string> = {
+  [COMPILE_AND_RUN_REFUSED_LEAD]: "Compile and run was refused",
+  [PYTHON_ENVIRONMENT_NOT_MADE_LEAD]: "Tatolab couldn't set up the project's Python",
+};
 
 /** The Python new environments are made from, in words: Tatolab's own with its version, or the chosen interpreter's path. */
 export function pythonForNewEnvironmentsWords(pythonForNewEnvironments: PythonForNewEnvironments): string {
@@ -270,17 +282,6 @@ export function pythonForNewEnvironmentsWords(pythonForNewEnvironments: PythonFo
     case "chosen":
       return pythonForNewEnvironments.interpreter;
   }
-}
-
-/** What the `.venv` check says it found: the versions it names, or, with none, that Compile and run makes it from `pythonForNewEnvironments`. */
-export function pythonEnvironmentCheckDetail(report: StreamProjectFolderReport, pythonForNewEnvironments: PythonForNewEnvironments): string {
-  const pythonEnvironment = report.python_environment;
-  if (pythonEnvironment.kind === "missing") {
-    if (pythonForNewEnvironments.kind === "built_in_not_offered") return pythonForNewEnvironments.reason;
-    return `From ${pythonForNewEnvironmentsWords(pythonForNewEnvironments)}`;
-  }
-  const pythonWords = pythonEnvironment.python_version === null ? "Python" : `Python ${pythonEnvironment.python_version}`;
-  return pythonEnvironment.tatolab_stream_version === null ? pythonWords : `${pythonWords} · tatolab-stream ${pythonEnvironment.tatolab_stream_version}`;
 }
 
 /** The request a run sent, as the compile output's first line: the tool, the folder and each argument given. */
@@ -297,14 +298,14 @@ export function compileWarningsHeading(warningCount: number): string {
   return `${warningCount} compile ${warningCount === 1 ? "warning" : "warnings"}`;
 }
 
-/** What the compile view's heading says it is doing: making the `.venv` first when the folder had none, then compiling. */
+/** What the compile view says it is doing: setting up the folder's Python first when it had none, then compiling. */
 export function compilingHeadingVerb(makesThePythonEnvironmentFirst: boolean): string {
-  return makesThePythonEnvironmentFirst ? "Making the .venv, then compiling" : "Compiling";
+  return makesThePythonEnvironmentFirst ? "Setting up Python, then compiling" : "Compiling";
 }
 
-/** The compile output's line for making the folder's `.venv`: the app's uv sync, and the Python it makes it from. */
+/** The compile output's line for setting up the folder's Python: the app's uv sync, and the Python it sets it up from. */
 export function pythonEnvironmentSyncWords(pythonForNewEnvironments: PythonForNewEnvironments): string {
-  return `uv sync  python=${pythonForNewEnvironments.kind === "chosen" ? pythonForNewEnvironments.interpreter : pythonForNewEnvironmentsWords(pythonForNewEnvironments)}`;
+  return `uv sync  python=${pythonForNewEnvironmentsWords(pythonForNewEnvironments)}`;
 }
 
 /** What the compile output says it waits on, with the seconds so far: uv then the runtime, or the runtime alone. */
@@ -344,14 +345,14 @@ export function terminalRunRequestOf(form: AddStreamForm): AddStreamRunRequest |
  */
 export function addStreamPageSection(state: AddStreamFlowState): string {
   const folder = folderToRun(state.form);
-  return [state.step, state.form.source, state.form.hasCreatedTheNewProject ? "created" : "", folder?.python_environment.kind ?? "no_folder"].join(":");
+  return [state.step, state.form.source, state.form.hasCreatedTheNewProject ? "created" : "", folder === null ? "no_folder" : "folder"].join(":");
 }
 
 /**
  * What the page's status line says, for a screen reader, of a milestone a focus move alone does not say: a folder ready
  * to compile only while Compile and run can be pressed. Refusals speak through their own alert.
  */
-export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntimeRunning: boolean): string {
+export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string {
   switch (state.step) {
     case "compiling":
     case "running":
@@ -359,11 +360,8 @@ export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntim
     case "form": {
       const folder = folderToRun(state.form);
       if (folder === null) return "";
-      if (compileAndRunUnavailableBecause(state.form, isTheRuntimeRunning) !== null) return "";
-      if (folder.python_environment.kind === "present") return `${folder.folder} has its .venv. Compile and run is ready.`;
-      return state.form.source === "new_project"
-        ? `tatolab new wrote ${folder.folder}. Compile and run makes its .venv, then runs it.`
-        : `${folder.folder} has no .venv yet. Compile and run makes it, then runs it.`;
+      if (compileAndRunUnavailableBecause(state.form, isTheRuntimeRunning, pythonForNewEnvironments) !== null) return "";
+      return state.form.source === "new_project" ? `tatolab new wrote ${folder.folder}. Compile and run is ready.` : `${folder.folder} is ready. Compile and run is ready.`;
     }
   }
 }
@@ -380,7 +378,8 @@ export function addStreamRunNoticeOf(state: AddStreamFlowState): AddStreamRunNot
   if (state.step !== "form") return null;
   if (state.form.nameTaken !== null) return { kind: "refused", source, title: "Compile and run was refused", words: state.form.nameTaken.refusal };
   if (state.form.refusal === null) return null;
-  return { kind: "refused", source, title: state.form.refusal.lead.replace(/:$/, ""), words: state.form.refusal.words };
+  const title = RUN_REFUSAL_NOTICE_TITLES[state.form.refusal.lead];
+  return title === undefined ? null : { kind: "refused", source, title, words: state.form.refusal.words };
 }
 
 /** How bad a notice's news is: plain, a warning to read, or a failure. */

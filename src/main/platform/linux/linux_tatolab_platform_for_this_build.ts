@@ -16,6 +16,7 @@ import { tatolabMachinePathsOnLinuxForThisBuild } from "./tatolab_machine_paths.
 import { LINUX_TATOLAB_UNINSTALL } from "./tatolab_uninstall_refused_on_linux.js";
 import { XTerminalEmulatorOnThePath } from "./x_terminal_emulator_on_the_path.js";
 import { builtInPythonCopiesFolderOnLinux, pythonToolchainInTheAppResources } from "./python_toolchain_in_the_app_resources.js";
+import { bundledPythonToolchainAsTheLogNamesIt } from "../bundled_python_toolchain.js";
 
 /** The installer's systemd user unit, the command as the installer linked it, how this package updates, and the uv and Python the package carries; the installer installs the runtime, so the app restarts none. */
 export async function linuxTatolabPlatformForThisBuild(
@@ -30,7 +31,7 @@ export async function linuxTatolabPlatformForThisBuild(
   );
   tatolabAppLog.info("Tatolab app paths", {
     local_api_socket: machinePaths.localApiSocket,
-    bundled_python_toolchain: bundledPythonToolchain.kind === "in_the_app" ? bundledPythonToolchain.builtInPythonInTheApp : bundledPythonToolchain.reason,
+    bundled_python_toolchain: bundledPythonToolchainAsTheLogNamesIt(bundledPythonToolchain),
     command_line_tool_link: machinePaths.commandLineToolLink,
     local_proof_test_machine_root: machinePaths.localProofTestMachineRoot,
     runtime_systemd_user_unit: RUNTIME_SYSTEMD_USER_UNIT_NAME,

@@ -18,8 +18,9 @@ import {
   compilingStreamWords,
   functionsOwnNameOf,
   newProjectCommand,
-  pythonEnvironmentCheckDetail,
   pythonEnvironmentSyncWords,
+  pythonForNewEnvironmentsWords,
+  folderToRun,
   runRequestWords,
   streamFileCheckDetail,
   streamRunAnswerLines,
@@ -119,42 +120,34 @@ function ProjectFolderChooserRow({ folder, isChoosing, onChoose }: { folder: str
   );
 }
 
-/** What a check found in the folder: the thing there, missing, or not there yet but made by Compile and run. */
-type ProjectFolderCheckFinding = "found" | "missing" | "made_by_compile_and_run";
-
-function ProjectFolderCheckRow({ icon: CheckIcon, name, finding, detail }: { icon: LucideIcon; name: string; finding: ProjectFolderCheckFinding; detail: ReactNode }) {
+function ProjectFolderCheckRow({ icon: CheckIcon, name, isFound, detail }: { icon: LucideIcon; name: string; isFound: boolean; detail: ReactNode }) {
   return (
-    <div className="border-b px-3 py-2.5 last:border-b-0" data-add-stream-check={name} data-add-stream-check-found={finding === "found" ? "true" : "false"}>
+    <div className="border-b px-3 py-2.5 last:border-b-0" data-add-stream-check={name} data-add-stream-check-found={isFound ? "true" : "false"}>
       <div className="flex items-center gap-3">
         <CheckIcon className="size-4 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
         <span className="w-24 shrink-0 font-mono text-sm text-fg">{name}</span>
         <span className="min-w-0 flex-1 truncate text-xs text-fg-3">{detail}</span>
-        {finding === "found" && (
+        {isFound ? (
           <span className="inline-flex items-center gap-1.5 text-fg-2">
             <Check className="size-3.5" strokeWidth={2} aria-hidden />
             Found
           </span>
-        )}
-        {finding === "missing" && (
+        ) : (
           <span className="inline-flex items-center gap-1.5 text-warn-text">
             <TriangleAlert className="size-3.5 text-warn" strokeWidth={1.75} aria-hidden />
             Missing
           </span>
         )}
-        {finding === "made_by_compile_and_run" && <span className="text-fg-2">Made on run</span>}
       </div>
     </div>
   );
 }
 
-/** What the folder holds that `run_stream` needs: its `stream.py`, and its `.venv`, which Compile and run makes when the app can. */
-function ProjectFolderChecks({ report, pythonForNewEnvironments }: { report: StreamProjectFolderReport; pythonForNewEnvironments: PythonForNewEnvironments }) {
-  const pythonEnvironmentFinding: ProjectFolderCheckFinding =
-    report.python_environment.kind === "present" ? "found" : pythonForNewEnvironments.kind === "built_in_not_offered" ? "missing" : "made_by_compile_and_run";
+/** What the folder holds that `run_stream` needs: its `stream.py`. The app sets up its Python itself. */
+function ProjectFolderChecks({ report }: { report: StreamProjectFolderReport }) {
   return (
     <div className="overflow-hidden rounded-lg border" data-add-stream-checks="">
-      <ProjectFolderCheckRow icon={FileCode2} name="stream.py" finding={report.stream_file_present ? "found" : "missing"} detail={streamFileCheckDetail(report)} />
-      <ProjectFolderCheckRow icon={Package} name=".venv" finding={pythonEnvironmentFinding} detail={pythonEnvironmentCheckDetail(report, pythonForNewEnvironments)} />
+      <ProjectFolderCheckRow icon={FileCode2} name="stream.py" isFound={report.stream_file_present} detail={streamFileCheckDetail(report)} />
     </div>
   );
 }
@@ -228,7 +221,7 @@ function StreamFunctionRow({ report, chosenStreamFunction, onChosen }: { report:
 const SAMPLE_PROJECT_FILES: readonly { icon: LucideIcon; name: string; description: string }[] = [
   { icon: FileCode2, name: "stream.py", description: "The stream function, main: Tatolab's sample animation through a halftone lens, encoded and shared." },
   { icon: Folder, name: "nodes/", description: "Your Python nodes, one file each: the halftone lens and a brightness meter. Each runs in its own process." },
-  { icon: Package, name: "pyproject.toml", description: "Its dependencies, tatolab-stream and numpy, which Tatolab installs into the project's .venv when it first runs." },
+  { icon: Package, name: "pyproject.toml", description: "Its dependencies, tatolab-stream and numpy, which Tatolab installs before it first runs." },
 ];
 
 function SampleProjectContents() {
@@ -287,12 +280,11 @@ function CompilingView({
         lead={
           makesThePythonEnvironmentFirst ? (
             <>
-              Tatolab makes the project's .venv with uv, installing what pyproject.toml names. Then the runtime compiles stream.py in{" "}
-              <MachineWords>{request.folder}/.venv/bin/python</MachineWords>, loads and starts it.
+              Tatolab installs what pyproject.toml names with {pythonForNewEnvironmentsWords(pythonForNewEnvironments)}. Then the runtime compiles stream.py, loads and starts it.
             </>
           ) : (
             <>
-              The runtime compiles stream.py in <MachineWords>{request.folder}/.venv/bin/python</MachineWords>, then loads and starts it.
+              The runtime compiles stream.py, then loads and starts it.
             </>
           )
         }
@@ -389,13 +381,11 @@ function StreamRunningView({ request, answer }: { request: AddStreamRunRequest; 
 
 function ProjectFolderForm({
   form,
-  pythonForNewEnvironments,
   onChooseFolder,
   dispatch,
   onUseFreeName,
 }: {
   form: AddStreamForm;
-  pythonForNewEnvironments: PythonForNewEnvironments;
   onChooseFolder: () => void;
   dispatch: (event: AddStreamFlowEvent) => void;
   onUseFreeName: (freeName: string) => void;
@@ -405,11 +395,11 @@ function ProjectFolderForm({
     <div data-add-stream-step="project_folder">
       <AddStreamSectionHeading
         title="Run a project folder"
-        lead="A folder with a stream.py. Tatolab makes its .venv when it has none, then the runtime compiles it there, loads and starts it."
+        lead="A folder with a stream.py. Tatolab installs what it needs, then the runtime compiles it, loads and starts it."
       />
       <div className="flex flex-col gap-3">
         <ProjectFolderChooserRow folder={report?.folder ?? null} isChoosing={form.workUnderWay === "choosing_a_folder"} onChoose={onChooseFolder} />
-        {report !== null && <ProjectFolderChecks report={report} pythonForNewEnvironments={pythonForNewEnvironments} />}
+        {report !== null && <ProjectFolderChecks report={report} />}
       </div>
       {report !== null && (
         <section className="mt-8" aria-label="Configuration">
@@ -439,13 +429,11 @@ function ProjectFolderForm({
 
 function NewProjectForm({
   form,
-  pythonForNewEnvironments,
   onChooseDirectory,
   dispatch,
   onUseFreeName,
 }: {
   form: AddStreamForm;
-  pythonForNewEnvironments: PythonForNewEnvironments;
   onChooseDirectory: () => void;
   dispatch: (event: AddStreamFlowEvent) => void;
   onUseFreeName: (freeName: string) => void;
@@ -458,11 +446,11 @@ function NewProjectForm({
           title="Create a new project"
           lead={
             <>
-              <MachineWords>tatolab new</MachineWords> wrote the sample stream into <MachineWords>{report.folder}</MachineWords>. Compile and run makes its .venv, then runs it.
+              <MachineWords>tatolab new</MachineWords> wrote the sample stream into <MachineWords>{report.folder}</MachineWords>. Compile and run it.
             </>
           }
         />
-        <ProjectFolderChecks report={report} pythonForNewEnvironments={pythonForNewEnvironments} />
+        <ProjectFolderChecks report={report} />
         <section className="mt-8" aria-label="Configuration">
           <h3 className="label-caps mb-1">Configuration</h3>
           <div className="divide-y border-y">
@@ -484,7 +472,7 @@ function NewProjectForm({
         title="Create a new project"
         lead={
           <>
-            <MachineWords>tatolab new</MachineWords> writes the sample stream into a new folder, Tatolab makes its .venv, and the app runs it {STREAM_RUN_MODE_LABELS.always_on}.
+            <MachineWords>tatolab new</MachineWords> writes the sample stream into a new folder, and the app runs it {STREAM_RUN_MODE_LABELS.always_on}.
           </>
         }
       />
@@ -502,7 +490,7 @@ function NewProjectForm({
           <ProjectFolderChooserRow folder={report?.folder ?? null} isChoosing={form.workUnderWay === "choosing_a_folder"} onChoose={onChooseDirectory} />
         </AddStreamFormRow>
         {report !== null && (
-          <AddStreamFormRow label="Runs" hint="The app runs this for you. Then Compile and run makes the project's .venv and runs it.">
+          <AddStreamFormRow label="Runs" hint="The app runs this for you, then compiles and runs the project.">
             <CommandWithCopyButton command={newProjectCommand(report.folder)} />
           </AddStreamFormRow>
         )}
@@ -521,7 +509,7 @@ function AddStreamFooter({ children }: { children: ReactNode }) {
   return <footer className="flex min-h-14 shrink-0 items-center gap-3 border-t bg-chrome px-5 py-2.5">{children}</footer>;
 }
 
-/** The Add stream page: run a project folder kept, or create one with `tatolab new` and run it, the app making its `.venv` first. */
+/** The Add stream page: run a project folder kept, or create one with `tatolab new` and run it, the app setting up its Python first. */
 export function AddStreamPageView({ source }: { source: AddStreamSource }) {
   const { platform, addStreamFlow } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
@@ -559,7 +547,7 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
 
   const chooseSource = (chosenSource: AddStreamSource) => navigate(addStreamPagePath(chosenSource), { replace: true });
 
-  const compileAndRunUnavailableReason = compileAndRunUnavailableBecause(form, isTheRuntimeRunning);
+  const compileAndRunUnavailableReason = compileAndRunUnavailableBecause(form, isTheRuntimeRunning, status.python_for_new_environments);
   const isCreatingTheNewProjectNext = form.source === "new_project" && !form.hasCreatedTheNewProject;
 
   const pageContent = useRef<HTMLDivElement>(null);
@@ -604,7 +592,7 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
 
         <div className="min-w-0 flex-1" ref={pageContent}>
           <p role="status" className="sr-only">
-            {addStreamStepAnnouncement(flowState, isTheRuntimeRunning)}
+            {addStreamStepAnnouncement(flowState, isTheRuntimeRunning, status.python_for_new_environments)}
           </p>
           {form.refusal !== null && flowState.step === "form" && (
             <div data-add-stream-refusal="">
@@ -624,7 +612,6 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
             {flowState.step === "form" && form.source === "project_folder" && (
               <ProjectFolderForm
                 form={form}
-                pythonForNewEnvironments={status.python_for_new_environments}
                 onChooseFolder={() => addStreamFlow.chooseFolder()}
                 dispatch={dispatch}
                 onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
@@ -633,7 +620,6 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
             {flowState.step === "form" && form.source === "new_project" && (
               <NewProjectForm
                 form={form}
-                pythonForNewEnvironments={status.python_for_new_environments}
                 onChooseDirectory={() => addStreamFlow.chooseFolder()}
                 dispatch={dispatch}
                 onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
@@ -662,7 +648,9 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
               ) : terminalRunRequest !== null ? (
                 <>
                   <div className="max-w-[620px] min-w-0 flex-1">
-                    <CommandWithCopyButton command={terminalCommandForTheRun(terminalRunRequest, functionsOwnNameOf(form))} />
+                    <CommandWithCopyButton
+                      command={terminalCommandForTheRun(terminalRunRequest, functionsOwnNameOf(form), folderToRun(form)?.python_environment.kind === "missing")}
+                    />
                   </div>
                   <span className="shrink-0 text-xs text-fg-3">the same, from a terminal</span>
                 </>
@@ -695,7 +683,7 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
         {flowState.step === "compiling" && (
           <span className="inline-flex items-center gap-2 text-fg-2">
             <LoaderCircle className="size-3.5 animate-spin text-fg-3" strokeWidth={1.75} aria-hidden />
-            {flowState.makesThePythonEnvironmentFirst ? "Making the .venv, then compiling…" : "Compiling…"}
+            {compilingHeadingVerb(flowState.makesThePythonEnvironmentFirst)}…
           </span>
         )}
         {flowState.step === "running" && (

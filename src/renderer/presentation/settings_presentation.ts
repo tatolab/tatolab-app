@@ -169,7 +169,8 @@ export interface OpenAtLoginPresentation {
 export interface PythonForNewEnvironmentsPresentation {
   description: string;
   chosenInterpreter: string | null;
-  offersYourOwnPython: boolean;
+  /** The label of the button that picks the person's own Python in the file dialog; `null` where the build offers none. */
+  chooseYourOwnPythonLabel: string | null;
   offersTatolabsPython: boolean;
 }
 
@@ -178,15 +179,20 @@ export function presentPythonForNewEnvironments(pythonForNewEnvironments: Python
   switch (pythonForNewEnvironments.kind) {
     case "built_in":
       return {
-        description: `Tatolab's own Python ${pythonForNewEnvironments.python_version}, which makes a project's .venv when it has none.`,
+        description: `Tatolab's own Python ${pythonForNewEnvironments.python_version}, which sets up a project's Python when it has none.`,
         chosenInterpreter: null,
-        offersYourOwnPython: true,
+        chooseYourOwnPythonLabel: "Choose Your Own…",
         offersTatolabsPython: false,
       };
     case "built_in_not_offered":
-      return { description: pythonForNewEnvironments.reason, chosenInterpreter: null, offersYourOwnPython: false, offersTatolabsPython: false };
+      return { description: pythonForNewEnvironments.reason, chosenInterpreter: null, chooseYourOwnPythonLabel: null, offersTatolabsPython: false };
     case "chosen":
-      return { description: "Your own Python, which makes a project's .venv when it has none.", chosenInterpreter: pythonForNewEnvironments.interpreter, offersYourOwnPython: true, offersTatolabsPython: true };
+      return {
+        description: "Your own Python, which sets up a project's Python when it has none.",
+        chosenInterpreter: pythonForNewEnvironments.interpreter,
+        chooseYourOwnPythonLabel: "Choose Another…",
+        offersTatolabsPython: true,
+      };
   }
 }
 

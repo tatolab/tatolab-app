@@ -224,23 +224,23 @@ describe("Command line › Link in /usr/local/bin", () => {
 });
 
 describe("Runtime › Python", () => {
-  it("says what a project's .venv is made from, shows a chosen interpreter's path, and offers the other choice", () => {
+  it("says what a project's Python is set up from, shows a chosen interpreter's path, and offers the other choice", () => {
     expect(presentPythonForNewEnvironments({ kind: "built_in", python_version: "3.12.12" })).toEqual({
-      description: "Tatolab's own Python 3.12.12, which makes a project's .venv when it has none.",
+      description: "Tatolab's own Python 3.12.12, which sets up a project's Python when it has none.",
       chosenInterpreter: null,
-      offersYourOwnPython: true,
+      chooseYourOwnPythonLabel: "Choose Your Own…",
       offersTatolabsPython: false,
     });
     expect(presentPythonForNewEnvironments({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" })).toEqual({
-      description: "Your own Python, which makes a project's .venv when it has none.",
+      description: "Your own Python, which sets up a project's Python when it has none.",
       chosenInterpreter: "/opt/homebrew/bin/python3.12",
-      offersYourOwnPython: true,
+      chooseYourOwnPythonLabel: "Choose Another…",
       offersTatolabsPython: true,
     });
     expect(presentPythonForNewEnvironments({ kind: "built_in_not_offered", reason: "No uv here." })).toEqual({
       description: "No uv here.",
       chosenInterpreter: null,
-      offersYourOwnPython: false,
+      chooseYourOwnPythonLabel: null,
       offersTatolabsPython: false,
     });
   });

@@ -16,7 +16,7 @@ import type {
 import type { LocalApiRequestFailure, StreamRunRequest } from "./local_api_client.js";
 import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
 import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_tool.js";
-import { describeHowTheProgramEnded, programSucceeded, type ProgramRunner } from "./platform/run_program_to_completion.js";
+import { programsOwnWordsOrHowItEnded, programSucceeded, type ProgramRunner } from "./platform/run_program_to_completion.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { inspectStreamProjectFolder } from "./stream_project_folder_inspection.js";
 
@@ -88,14 +88,7 @@ export class StreamProjectAdding {
     if (tatolabCommandLineTool.kind === "not_offered") return failedWith(tatolabCommandLineTool.reason);
     const scaffolding = await this.sources.runProgramToCompletion(tatolabCommandLineTool.path, ["new", projectFolder.value]);
     if (!scaffolding.ok) return scaffolding;
-    if (!programSucceeded(scaffolding.value)) {
-      const commandLineToolsOwnWords = scaffolding.value.standardError.trim();
-      return failedWith(
-        commandLineToolsOwnWords === ""
-          ? `tatolab new ended with ${describeHowTheProgramEnded(scaffolding.value)}`
-          : commandLineToolsOwnWords,
-      );
-    }
+    if (!programSucceeded(scaffolding.value)) return failedWith(programsOwnWordsOrHowItEnded("tatolab new", scaffolding.value));
     return succeeded(await inspectStreamProjectFolder(projectFolder.value));
   }
 

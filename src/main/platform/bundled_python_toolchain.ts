@@ -3,13 +3,27 @@
 // interpreter's absolute path, and an update replaces the app (an AppImage mounts somewhere new on
 // every launch), so it is copied out into a folder of its own first.
 
-import { readdir, stat } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
+import { isAFileOnThisMachine, isAMissingFileFailure } from "../file_system_entries_on_this_machine.js";
+import { describeCaughtFailure } from "../result.js";
 
-/** The app's own uv and built-in Python: uv's path, the built-in Python's folder inside the app and its name, and the folder its copies are made in; `not_offered` with why in a build that carries none. */
-export type BundledPythonToolchain =
-  | { kind: "in_the_app"; uvPath: string; builtInPythonInTheApp: string; builtInPythonFolderName: string; builtInPythonCopiesFolder: string }
-  | { kind: "not_offered"; reason: string };
+/** The app's own uv and built-in Python, or `not_offered` with why in a build that carries none. */
+export type BundledPythonToolchain = BundledPythonToolchainInTheApp | { kind: "not_offered"; reason: string };
+
+/** The toolchain in a build that carries one: uv's path, the built-in Python's folder inside the app and its name, and the folder its copies are made in. */
+export interface BundledPythonToolchainInTheApp {
+  kind: "in_the_app";
+  uvPath: string;
+  builtInPythonInTheApp: string;
+  builtInPythonFolderName: string;
+  builtInPythonCopiesFolder: string;
+}
+
+/** The toolchain as the app's log names it: the built-in Python inside the app, or why the build offers none. */
+export function bundledPythonToolchainAsTheLogNamesIt(bundledPythonToolchain: BundledPythonToolchain): string {
+  return bundledPythonToolchain.kind === "in_the_app" ? bundledPythonToolchain.builtInPythonInTheApp : bundledPythonToolchain.reason;
+}
 
 /** Why a build without the toolchain cannot make a project's environment. */
 export const NO_BUNDLED_PYTHON_TOOLCHAIN_REFUSAL = "This build of Tatolab carries no uv or Python of its own, so it cannot make a project's .venv. Run uv sync in the project's folder instead.";
@@ -40,15 +54,17 @@ export async function bundledPythonToolchainFoundAt(
   builtInPythonParentInTheApp: string,
   builtInPythonCopiesFolder: string,
 ): Promise<BundledPythonToolchain> {
-  const uvIsAFile = await stat(uvPath).then(
-    (uvMetadata) => uvMetadata.isFile(),
-    () => false,
-  );
-  if (!uvIsAFile) return { kind: "not_offered", reason: `${NO_BUNDLED_PYTHON_TOOLCHAIN_REFUSAL} (no uv at ${uvPath})` };
-  const builtInPythonFolderNames = await readdir(builtInPythonParentInTheApp, { withFileTypes: true }).then(
-    (entries) => entries.filter((entry) => entry.isDirectory() && entry.name.startsWith(BUILT_IN_PYTHON_FOLDER_NAME_PREFIX)).map((entry) => entry.name),
-    () => [],
-  );
+  if (!(await isAFileOnThisMachine(uvPath))) return { kind: "not_offered", reason: `${NO_BUNDLED_PYTHON_TOOLCHAIN_REFUSAL} (no uv at ${uvPath})` };
+  let builtInPythonFolderNames: string[];
+  try {
+    const entries = await readdir(builtInPythonParentInTheApp, { withFileTypes: true });
+    builtInPythonFolderNames = entries.filter((entry) => entry.isDirectory() && entry.name.startsWith(BUILT_IN_PYTHON_FOLDER_NAME_PREFIX)).map((entry) => entry.name);
+  } catch (readFailure) {
+    if (!isAMissingFileFailure(readFailure)) {
+      return { kind: "not_offered", reason: `${NO_BUNDLED_PYTHON_TOOLCHAIN_REFUSAL} (${builtInPythonParentInTheApp} could not be read: ${describeCaughtFailure(readFailure)})` };
+    }
+    builtInPythonFolderNames = [];
+  }
   const [builtInPythonFolderName, ...otherBuiltInPythonFolderNames] = builtInPythonFolderNames;
   if (builtInPythonFolderName === undefined || otherBuiltInPythonFolderNames.length > 0) {
     return {
