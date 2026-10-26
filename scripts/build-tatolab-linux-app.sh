@@ -6,13 +6,15 @@
 # and the update feed's manifest listing both, build/linux/latest-linux.yml.
 #
 # Usage: build-tatolab-linux-app.sh [--app-version X.Y.Z] [--local-proof-test-root]
-#                                   [--app-update-feed-url URL]
+#                                   [--app-update-feed-url URL] [--release]
 #   --app-version X.Y.Z      the packages' version (default: package.json's); a release passes
 #                            the streamlib release they go beside
 #   --local-proof-test-root  read the runtime under TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof;
 #                            for proving on a development machine, never shipped
 #   --app-update-feed-url URL  the feed the app checks for updates (default: get.tatolab.com's);
 #                            only with --local-proof-test-root, for proving an update locally
+#   --release                a build the release workflow makes: About reads `-release` after the
+#                            commit; every other build reads `-dev`
 set -euo pipefail
 
 usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$0" >&2; exit 2; }
@@ -20,16 +22,23 @@ repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 app_version=""
 local_proof_test_root=false
 app_update_feed_url=""
+release_build=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --app-version) [ $# -ge 2 ] || usage; app_version="${2#v}"; shift ;;
     --local-proof-test-root) local_proof_test_root=true ;;
     --app-update-feed-url) [ $# -ge 2 ] || usage; app_update_feed_url="$2"; shift ;;
+    --release) release_build=true ;;
     -h|--help) usage ;;
     *) usage ;;
   esac
   shift
 done
+
+if $release_build && $local_proof_test_root; then
+  echo "--release and --local-proof-test-root together: a local-proof build is a dev build" >&2
+  exit 1
+fi
 
 [ "$(uname -s)" = Linux ] || { echo "this builds the Linux app on Linux; on macOS, scripts/build-tatolab-app.sh builds Tatolab.app" >&2; exit 1; }
 case "$(uname -m)" in
@@ -67,6 +76,8 @@ if $local_proof_test_root; then
 fi
 app_update_feed_arguments=()
 [ -n "$app_update_feed_url" ] && app_update_feed_arguments=(--app-update-feed-url "$app_update_feed_url")
+release_build_arguments=()
+$release_build && release_build_arguments=(--release)
 
 cd "$repository_root"
 if [ -z "$app_version" ]; then
@@ -83,7 +94,8 @@ mkdir -p "$linux_build_directory" "$output_directory"
 
 echo "==> Electron app"
 npm ci
-npm run build -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"}
+npm run build -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} \
+  ${release_build_arguments[@]+"${release_build_arguments[@]}"}
 packaged_app_directory="$(node scripts/package_tatolab_electron_app.mjs linux "$app_version" "$linux_build_directory/packaged" | tail -1)"
 [ -x "$packaged_app_directory/Tatolab" ] || { echo "packaging left no $packaged_app_directory/Tatolab" >&2; exit 1; }
 [ -f "$packaged_app_directory/chrome-sandbox" ] || { echo "packaging left no $packaged_app_directory/chrome-sandbox" >&2; exit 1; }
@@ -94,8 +106,10 @@ for required_electron_fuse_state in "RunAsNode is Disabled" "EnableNodeOptionsEn
   grep -qF "$required_electron_fuse_state" <<<"$electron_fuse_states" \
     || { echo "the packaged app's Electron fuse is not '$required_electron_fuse_state'" >&2; exit 1; }
 done
+packaged_build_features="$(node scripts/tatolab_app_build_features.mjs read "$packaged_app_directory/resources/app.asar")" \
+  || { echo "the packaged app's build features are unreadable or carry no build id" >&2; exit 1; }
+echo "    built at tatolab-app $(sed -n 's/^tatolabAppCommit=//p' <<<"$packaged_build_features"), $(sed -n 's/^buildKind=//p' <<<"$packaged_build_features")"
 if $local_proof_test_root; then
-  packaged_build_features="$(node scripts/tatolab_app_build_features.mjs read "$packaged_app_directory/resources/app.asar")"
   expected_app_update_feed_url="${app_update_feed_url:-$(node -p 'require("./src/main/tatolab_app_build_features.json").appUpdateFeedUrl')}"
   grep -qx "machineDirectoriesUnderATestRoot=true" <<<"$packaged_build_features" \
     || { echo "the packaged app was not built with machineDirectoriesUnderATestRoot: $packaged_build_features" >&2; exit 1; }

@@ -215,7 +215,8 @@ bundle carries it in `Contents/Resources/streamlib-commit`, and the app's versio
 of the `tatolabd` it bundles. When the build finishes it checks `main` again: if `main` moved on
 while it ran, the build fails and says to build again (a `--streamlib-ref` build only notes it,
 and an unreachable GitHub is noted, not fatal). Then the Electron app: `npm run build` (electron-vite bundles the main process into `out/main/`,
-the preload into `out/preload/` and the window into `out/renderer/`, then writes the build features),
+the preload into `out/preload/` and the window into `out/renderer/`, then writes the build features, with the
+tatolab-app commit the checkout is at, which Settings › About shows as `Build 22b07a1-dev`),
 the arm64 Service Management addon, and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
 `@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
 branded `.dmg` and checks the result. The output is `build/Tatolab.app`,
@@ -229,6 +230,7 @@ manifest `build/latest-mac.yml`.
 | `--notarize` | notarize and staple, for a release; needs `APPLE_API_KEY_PATH`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` |
 | `--local-proof-test-root` | local proof build, below |
 | `--app-update-feed-url URL` | the update feed the app checks, in place of get.tatolab.com's; only with `--local-proof-test-root` |
+| `--release` | a build the release workflow makes, which About shows as `-release`; every other build is `-dev`; not with `--local-proof-test-root` |
 
 **Local proof build** (`--local-proof-test-root`). The runtime unit is built with the
 `machine-directories-under-a-test-root` feature, and the app with
@@ -253,8 +255,8 @@ The individual steps are separate scripts in `scripts/`:
 |---|---|
 | `fetch-streamlib-for-the-app-build.sh <dir> [--streamlib-ref REF] [--resolve-only] [--expect-commit SHA]` | resolves streamlib's `main` (or REF) to a commit and fetches exactly that commit into `<dir>`; `--expect-commit` fails when REF has moved off SHA |
 | `build-tatolab-runtime-unit.sh <streamlib> [--local-proof-test-root]` | builds the runtime unit in a clean streamlib checkout and records its commit in the unit's `streamlib-commit` |
-| `tatolab_app_build_features.mjs write <features.json> [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features; `npm run build -- <flags>` runs it last |
-| `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features a packaged app carries; `--shipping` refuses the test root or any feed but get.tatolab.com's |
+| `tatolab_app_build_features.mjs write <features.json> [--release] [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features and the build id (the commit this checkout is at, dev or release, and whether it has uncommitted changes); `npm run build -- <flags>` runs it last, and refuses outside a git checkout |
+| `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features and the build id a packaged app carries, and refuses one with no build id; `--shipping` refuses the test root or any feed but get.tatolab.com's |
 | `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
 | `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/moq-relay`, `lib/tatolab/lend` or `lib/tatolab/watch`, or ships anything else in `bin/` or `lib/tatolab/` |
 | `sign-tatolab-app-bundle.sh <Tatolab.app> <identity>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) with the hardened runtime; refuses any identity but a `Developer ID Application` |
@@ -288,7 +290,8 @@ the script), checks the fuses, the build features, the `.deb`'s members, sandbox
 X.Y.Z` sets the packages' version; `--local-proof-test-root` builds with
 `machineDirectoriesUnderATestRoot` on, so the app reads the runtime under
 `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, and names both packages `-local-proof`;
-`--app-update-feed-url URL`, only with it, points the app at a local update feed.
+`--app-update-feed-url URL`, only with it, points the app at a local update feed; `--release`, which
+the release workflow passes, makes About read `-release`.
 
 ## Working on the window
 

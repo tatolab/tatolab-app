@@ -80,7 +80,7 @@ const [packagedDirectory] = await packager({
   buildVersion: appVersion,
   appBundleId: "com.tatolab.tatolab",
   appCategoryType: "public.app-category.developer-tools",
-  appCopyright: "Copyright (c) 2025 Jonathan Fontanez",
+  appCopyright: `Copyright (c) ${new Date().getFullYear()} Jonathan Fontanez`,
   extendInfo: path.join(repositoryRoot, "packaging", "macos", "Info.plist"),
   icon: path.join(repositoryRoot, "packaging", "icons", "icon.icns"),
   asar: true,
