@@ -6,6 +6,7 @@ import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { writeTextToClipboard } from "../clipboard";
 import { EmptyState } from "../design_system/empty_state";
 import { IconButton } from "../design_system/icon_button";
+import { ListRowButton } from "../design_system/list_row_button";
 import { FieldMenu, MenuItem, MenuSeparator, MenuSingleChoiceGroup, MoreActionsMenu } from "../design_system/menus";
 import { PageBody, PageFrame } from "../design_system/page_frame";
 import { PageHeader } from "../design_system/page_header";
@@ -39,7 +40,7 @@ import {
   type StreamActionOutcomeWords,
 } from "./stream_action_controls";
 import { streamPagePath } from "./stream_page_path";
-import { addStreamPagePath } from "./add_stream_page_path";
+import type { AddStreamSource } from "../presentation/add_stream_flow";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 function StreamRowActions({
@@ -139,9 +140,15 @@ function StreamsListRow({
   );
 }
 
-function FirstStreamChoice({ icon: ChoiceIcon, title, explanation, to }: { icon: LucideIcon; title: string; explanation: string; to: string }) {
+function FirstStreamChoice({ icon: ChoiceIcon, title, explanation, source }: { icon: LucideIcon; title: string; explanation: string; source: AddStreamSource }) {
+  const { addStreamFlow } = useTatolabWindowEnvironment();
   return (
-    <Link to={to} className="flex h-16 w-full cursor-default items-center gap-3.5 border-b px-4 text-left transition-colors last:border-b-0 hover:bg-hover">
+    <ListRowButton
+      onPressed={() => addStreamFlow.openDialog(source, false)}
+      trailing={<ChevronRight className="size-4 shrink-0 text-fg-4" strokeWidth={1.75} aria-hidden />}
+      className="h-16 gap-3.5 rounded-none border-b px-4 text-fg last:border-b-0"
+      data-first-stream-choice={source}
+    >
       <span className="grid size-9 shrink-0 place-items-center rounded-md border bg-raised">
         <ChoiceIcon className="size-4 text-fg-2" strokeWidth={1.75} aria-hidden />
       </span>
@@ -149,8 +156,7 @@ function FirstStreamChoice({ icon: ChoiceIcon, title, explanation, to }: { icon:
         <span className="block text-fg">{title}</span>
         <span className="block truncate text-xs text-fg-3">{explanation}</span>
       </span>
-      <ChevronRight className="size-4 text-fg-4" strokeWidth={1.75} aria-hidden />
-    </Link>
+    </ListRowButton>
   );
 }
 
@@ -162,8 +168,8 @@ function NoStreamsYet({ machineWords }: { machineWords: string }) {
         <h2 className="mt-4 text-lg font-semibold">No streams on {machineWords} yet</h2>
         <p className="mt-1 max-w-md text-fg-3">A stream is a Python project with a stream.py. The runtime compiles it, loads its graph and keeps it running.</p>
         <div className="mt-6 w-full overflow-hidden rounded-lg border text-left">
-          <FirstStreamChoice icon={Sparkles} title="Create the sample stream" explanation="A sample stream you can edit, made with tatolab new." to={addStreamPagePath("new_project")} />
-          <FirstStreamChoice icon={FolderOpen} title="Run a project folder" explanation="Any folder with a stream.py." to={addStreamPagePath("project_folder")} />
+          <FirstStreamChoice icon={Sparkles} title="Create the sample stream" explanation="A sample stream you can edit, made with tatolab new." source="new_project" />
+          <FirstStreamChoice icon={FolderOpen} title="Run a project folder" explanation="Any folder with a stream.py." source="project_folder" />
         </div>
         <div className="mt-6 w-full text-left">
           <div className="mb-1.5 text-xs text-fg-3">Or in a terminal, from a project folder, to reload on every save:</div>

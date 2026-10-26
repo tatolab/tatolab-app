@@ -1,11 +1,10 @@
 import { cn } from "cn";
 import { Check, FileCode2, Folder, FolderOpen, LoaderCircle, type LucideIcon, Package, TriangleAlert, Workflow } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import type { PythonForNewEnvironments, StreamGraphExposedPort, StreamProjectFolderReport, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
-import { PageBody, PageFrame } from "../design_system/page_frame";
-import { PageHeader } from "../design_system/page_header";
+import { FormDialog } from "../design_system/form_dialog";
 import { RefusalLine } from "../design_system/refusal_line";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
 import { TextField } from "../design_system/text_field";
@@ -35,20 +34,29 @@ import {
   type AddStreamRunRequest,
   type AddStreamSource,
 } from "../presentation/add_stream_flow";
-import { windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import { choosePreviewedOutput, exposedOutputAddress } from "../presentation/stream_overview_presentation";
 import { STREAM_RUN_MODE_LABELS } from "../presentation/stream_presentation";
-import { addStreamPagePath, isOpenedFromARunNoticeIn } from "./add_stream_page_path";
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
 import { CommandWithCopyButton } from "./stream_action_controls";
-import { streamPagePath } from "./stream_page_path";
-import { useAddStreamFlowState, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
+import { streamPagePath, type StreamPageTab } from "./stream_page_path";
+import { useAddStreamFlowState, useOpenAddStreamDialog, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
-const ADD_STREAM_SOURCES: readonly { source: AddStreamSource; label: string }[] = [
-  { source: "project_folder", label: "Import project" },
-  { source: "new_project", label: "New project" },
-];
+/** The dialog's title and what it does, for each source it opens on. */
+const ADD_STREAM_DIALOG_WORDS: Record<AddStreamSource, { title: string; description: ReactNode }> = {
+  project_folder: {
+    title: "Import project",
+    description: "A folder with a stream.py. Tatolab installs what it needs, then the runtime compiles it, loads and starts it.",
+  },
+  new_project: {
+    title: "New project",
+    description: (
+      <>
+        <span className="font-mono text-xs">tatolab new</span> writes the sample stream into a new folder, and the app runs it {STREAM_RUN_MODE_LABELS.always_on}.
+      </>
+    ),
+  },
+};
 
 /** How often the compile view counts the seconds a run has taken. */
 const COMPILING_CLOCK_TICK_MILLISECONDS = 1000;
@@ -93,7 +101,7 @@ function MachineWords({ children }: { children: ReactNode }) {
   return <span className="font-mono text-xs select-text">{children}</span>;
 }
 
-/** A step's heading, which takes focus when the page moves to that step. */
+/** A step's heading, which takes focus when the dialog moves to that step. */
 function AddStreamSectionHeading({ title, lead }: { title: ReactNode; lead: ReactNode }) {
   return (
     <div className="mb-4">
@@ -395,10 +403,6 @@ function ProjectFolderForm({
   const report = form.projectFolder;
   return (
     <div data-add-stream-step="project_folder">
-      <AddStreamSectionHeading
-        title="Run a project folder"
-        lead="A folder with a stream.py. Tatolab installs what it needs, then the runtime compiles it, loads and starts it."
-      />
       <div className="flex flex-col gap-3">
         <ProjectFolderChooserRow folder={report?.folder ?? null} isChoosing={form.workUnderWay === "choosing_a_folder"} onChoose={onChooseFolder} />
         {report !== null && <ProjectFolderChecks report={report} />}
@@ -445,7 +449,7 @@ function NewProjectForm({
     return (
       <div data-add-stream-step="new_project_created">
         <AddStreamSectionHeading
-          title="Create a new project"
+          title="Project created"
           lead={
             <>
               <MachineWords>tatolab new</MachineWords> wrote the sample stream into <MachineWords>{report.folder}</MachineWords>. Add runs it{" "}
@@ -471,14 +475,6 @@ function NewProjectForm({
   }
   return (
     <div data-add-stream-step="new_project">
-      <AddStreamSectionHeading
-        title="Create a new project"
-        lead={
-          <>
-            <MachineWords>tatolab new</MachineWords> writes the sample stream into a new folder, and the app runs it {STREAM_RUN_MODE_LABELS.always_on}.
-          </>
-        }
-      />
       <div className="divide-y border-y">
         <AddStreamFormRow
           label="Directory"
@@ -514,45 +510,43 @@ function AddStreamFooter({ children }: { children: ReactNode }) {
   return <footer className="flex min-h-14 shrink-0 items-center gap-3 border-t bg-chrome px-(--page-x) py-2.5">{children}</footer>;
 }
 
-/** The Add stream page: run a project folder kept, or create one with `tatolab new` and run it, the app setting up its Python first. */
-export function AddStreamPageView({ source }: { source: AddStreamSource }) {
-  const { platform, addStreamFlow } = useTatolabWindowEnvironment();
+/** New project or Import project, over the window while the flow's dialog is open: run a project folder kept, or create one with `tatolab new` and run it, the app setting up its Python first. */
+export function AddStreamDialogView() {
+  const { addStreamFlow } = useTatolabWindowEnvironment();
+  const openDialog = useOpenAddStreamDialog();
+  return (
+    <FormDialog
+      isOpen={openDialog !== null}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) addStreamFlow.closeDialog();
+      }}
+      title={ADD_STREAM_DIALOG_WORDS[openDialog?.source ?? "project_folder"].title}
+      description={ADD_STREAM_DIALOG_WORDS[openDialog?.source ?? "project_folder"].description}
+      footer={openDialog !== null && <AddStreamDialogFooter />}
+      data-add-stream-page={openDialog?.source}
+    >
+      {openDialog !== null && <AddStreamDialogBody source={openDialog.source} />}
+    </FormDialog>
+  );
+}
+
+function AddStreamDialogBody({ source }: { source: AddStreamSource }) {
+  const { addStreamFlow } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
-  const navigate = useNavigate();
   const flowState = useAddStreamFlowState();
   const dispatch = (event: AddStreamFlowEvent) => addStreamFlow.dispatch(event);
   const form = flowState.form;
   const isTheRuntimeRunning = presentRuntimeStatus(status).displayState === "running";
-  const location = useLocation();
 
-  const isOpenedFromARunNotice = isOpenedFromARunNoticeIn(location.state);
-  useEffect(() => {
-    addStreamFlow.showPage(source, isOpenedFromARunNotice);
-    return () => addStreamFlow.leavePage();
-    // Once per showing of the page: the path's source and how it was opened are read as it opens.
-  }, [addStreamFlow]);
-
-  // A navigation here while a run compiles is ignored by the flow; once the run answers, the page catches up to the path.
+  // An opening while a run compiles is ignored by the flow; once the run answers, the dialog catches up to its source.
   useEffect(() => {
     if (form.source !== source) addStreamFlow.dispatch({ kind: "source_chosen", source });
   }, [addStreamFlow, form.source, source, flowState.step]);
-  // Add stream pressed again on this page's own path starts afresh from the running view.
-  const navigationKeyShownBefore = useRef(location.key);
-  useEffect(() => {
-    if (navigationKeyShownBefore.current === location.key) return;
-    navigationKeyShownBefore.current = location.key;
-    addStreamFlow.dispatch({ kind: "source_chosen", source });
-  }, [addStreamFlow, location.key, source]);
 
   const needsANewProjectProposal = form.source === "new_project" && form.newProjectFolder === null && form.workUnderWay === null && form.refusal === null;
   useEffect(() => {
     if (needsANewProjectProposal) addStreamFlow.proposeNewProjectFolder();
   }, [addStreamFlow, needsANewProjectProposal]);
-
-  const chooseSource = (chosenSource: AddStreamSource) => navigate(addStreamPagePath(chosenSource), { replace: true });
-
-  const addStreamAction = addStreamActionOf(form);
-  const addStreamActionUnavailableReason = addStreamActionUnavailableBecause(form, isTheRuntimeRunning, status.python_for_new_environments);
 
   const pageContent = useRef<HTMLDivElement>(null);
   const pageSection = addStreamPageSection(flowState);
@@ -564,8 +558,62 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
     const focusWasLost = document.activeElement === null || document.activeElement === document.body;
     if (shownBefore.step !== flowState.step || focusWasLost) pageContent.current?.querySelector<HTMLElement>("[data-add-stream-step-heading]")?.focus();
   }, [pageSection, flowState.step]);
+
+  return (
+    <div ref={pageContent}>
+      <p role="status" className="sr-only">
+        {addStreamStepAnnouncement(flowState, isTheRuntimeRunning, status.python_for_new_environments)}
+      </p>
+      {form.refusal !== null && flowState.step === "form" && (
+        <div className="mb-4" data-add-stream-refusal="">
+          <RefusalLine lead={form.refusal.lead} words={form.refusal.words} />
+        </div>
+      )}
+      {flowState.step === "compiling" && (
+        <CompilingView
+          request={flowState.request}
+          startedAtMs={flowState.startedAtMs}
+          makesThePythonEnvironmentFirst={flowState.makesThePythonEnvironmentFirst}
+          pythonForNewEnvironments={status.python_for_new_environments}
+        />
+      )}
+      {flowState.step === "running" && <StreamRunningView request={flowState.request} answer={flowState.answer} />}
+      {flowState.step === "form" && form.source === "project_folder" && (
+        <ProjectFolderForm
+          form={form}
+          onChooseFolder={() => addStreamFlow.chooseFolder()}
+          dispatch={dispatch}
+          onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
+        />
+      )}
+      {flowState.step === "form" && form.source === "new_project" && (
+        <NewProjectForm
+          form={form}
+          onChooseDirectory={() => addStreamFlow.chooseFolder()}
+          dispatch={dispatch}
+          onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** The dialog's actions for the step it is on: Cancel and Add or Create on the form, the compile's progress, or what to open once it runs. */
+function AddStreamDialogFooter() {
+  const { addStreamFlow } = useTatolabWindowEnvironment();
+  const status = useTatolabStatus();
+  const navigate = useNavigate();
+  const flowState = useAddStreamFlowState();
+  const form = flowState.form;
+  const isTheRuntimeRunning = presentRuntimeStatus(status).displayState === "running";
+  const addStreamAction = addStreamActionOf(form);
+  const addStreamActionUnavailableReason = addStreamActionUnavailableBecause(form, isTheRuntimeRunning, status.python_for_new_environments);
   const terminalRunRequest = terminalRunRequestOf(form);
-  const addStreamFooter = (
+  const openTheStream = (streamName: string, tab?: StreamPageTab) => {
+    addStreamFlow.closeDialog();
+    void navigate(streamPagePath(streamName, tab));
+  };
+  return (
     <AddStreamFooter>
       {flowState.step === "form" && (
         <>
@@ -585,7 +633,7 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
               </>
             ) : null}
           </div>
-          <ActionButton onPressed={() => navigate(-1)} data-add-stream-action="cancel">
+          <ActionButton onPressed={() => addStreamFlow.closeDialog()} data-add-stream-action="cancel">
             Cancel
           </ActionButton>
           <ActionButton
@@ -606,85 +654,20 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
       )}
       {flowState.step === "running" && (
         <>
-          <ActionButton appearance="quiet" onPressed={() => dispatch({ kind: "add_another" })} data-add-stream-action="add_another">
+          <ActionButton appearance="quiet" onPressed={() => addStreamFlow.dispatch({ kind: "add_another" })} data-add-stream-action="add_another">
             Add another
           </ActionButton>
           <div className="ml-auto flex gap-2">
-            <ActionButton icon={Workflow} onPressed={() => navigate(streamPagePath(flowState.answer.stream, "graph"))} data-add-stream-action="open_graph">
+            <ActionButton icon={Workflow} onPressed={() => openTheStream(flowState.answer.stream, "graph")} data-add-stream-action="open_graph">
               Open graph
             </ActionButton>
-            <ActionButton appearance="primary" onPressed={() => navigate(streamPagePath(flowState.answer.stream))} data-add-stream-action="open_stream">
+            <ActionButton appearance="primary" onPressed={() => openTheStream(flowState.answer.stream)} data-add-stream-action="open_stream">
               Open stream
             </ActionButton>
           </div>
         </>
       )}
     </AddStreamFooter>
-  );
-
-  return (
-    <PageFrame
-      header={
-        <PageHeader
-          title="Add stream"
-          tabs={
-            <div className="flex items-center">
-              <SegmentedChoiceControl
-                label="Start from"
-                choices={ADD_STREAM_SOURCES.map(({ source: addStreamSource, label }) => ({
-                  choice: addStreamSource,
-                  label,
-                  unavailableBecause: flowState.step === "compiling" && addStreamSource !== form.source ? "Not while the stream compiles" : undefined,
-                }))}
-                chosen={form.source}
-                onChosen={chooseSource}
-                dataAttributeOfEachSegment="data-add-stream-source"
-              />
-            </div>
-          }
-          windowDragRegion={windowDragRegionAttribute(platform, "deep")}
-        />
-      }
-      data-add-stream-page={form.source}
-    >
-      <p role="status" className="sr-only">
-        {addStreamStepAnnouncement(flowState, isTheRuntimeRunning, status.python_for_new_environments)}
-      </p>
-      {form.refusal !== null && flowState.step === "form" && (
-        <div data-add-stream-refusal="">
-          <RefusalLine layout="bar" lead={form.refusal.lead} words={form.refusal.words} />
-        </div>
-      )}
-      <PageBody width="readable" footer={addStreamFooter}>
-        <div ref={pageContent}>
-          {flowState.step === "compiling" && (
-            <CompilingView
-              request={flowState.request}
-              startedAtMs={flowState.startedAtMs}
-              makesThePythonEnvironmentFirst={flowState.makesThePythonEnvironmentFirst}
-              pythonForNewEnvironments={status.python_for_new_environments}
-            />
-          )}
-          {flowState.step === "running" && <StreamRunningView request={flowState.request} answer={flowState.answer} />}
-          {flowState.step === "form" && form.source === "project_folder" && (
-            <ProjectFolderForm
-              form={form}
-              onChooseFolder={() => addStreamFlow.chooseFolder()}
-              dispatch={dispatch}
-              onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
-            />
-          )}
-          {flowState.step === "form" && form.source === "new_project" && (
-            <NewProjectForm
-              form={form}
-              onChooseDirectory={() => addStreamFlow.chooseFolder()}
-              dispatch={dispatch}
-              onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
-            />
-          )}
-        </div>
-      </PageBody>
-    </PageFrame>
   );
 }
 

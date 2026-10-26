@@ -13,8 +13,7 @@ import { IconButtonMenu, MenuItem } from "../design_system/menus";
 import { PageFrame } from "../design_system/page_frame";
 import { PageHeader } from "../design_system/page_header";
 import { StreamStateIcon } from "../design_system/stream_state_words";
-import { addStreamPagePath } from "./add_stream_page_path";
-import { AddStreamPageView } from "./add_stream_page_view";
+import { AddStreamDialogView } from "./add_stream_dialog_view";
 import { AddStreamRunNoticeView } from "./add_stream_run_notice_view";
 import { FirstRunFinishingRefusalNoticeView } from "./first_run_finishing_refusal_notice_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
@@ -121,6 +120,7 @@ function StreamProjectFolderSidebarRows({ projectFolder }: { projectFolder: Stre
 }
 
 function StreamsSidebarNavigation() {
+  const { addStreamFlow } = useTatolabWindowEnvironment();
   const listedStreams = useListedStreamsWhileTheRuntimeRuns();
   const navigate = useNavigate();
   return (
@@ -137,10 +137,10 @@ function StreamsSidebarNavigation() {
                 data-window-navigation="streams"
               />
               <IconButtonMenu icon={Plus} label="New or import a project" size="compact" menuAlignment="start" data-window-navigation="add-project-menu">
-                <MenuItem icon={FolderPlus} onChosen={() => navigate(addStreamPagePath("new_project"))} data-window-navigation="new-project">
+                <MenuItem icon={FolderPlus} onChosen={() => addStreamFlow.openDialog("new_project", false)} data-window-navigation="new-project">
                   New project
                 </MenuItem>
-                <MenuItem icon={FolderInput} onChosen={() => navigate(addStreamPagePath("project_folder"))} data-window-navigation="add-stream">
+                <MenuItem icon={FolderInput} onChosen={() => addStreamFlow.openDialog("project_folder", false)} data-window-navigation="add-stream">
                   Import project
                 </MenuItem>
               </IconButtonMenu>
@@ -189,6 +189,7 @@ function TatolabWindowShell() {
       <WindowSidebar />
       <main className="relative flex min-w-0 flex-1 flex-col">
         <Outlet />
+        <AddStreamDialogView />
         <div className="pointer-events-none absolute right-4 bottom-4 z-40 flex flex-col-reverse gap-2">
           <AddStreamRunNoticeView />
           <FirstRunFinishingRefusalNoticeView />
@@ -235,8 +236,6 @@ export const TATOLAB_WINDOW_ROUTES: RouteObject[] = [
       { index: true, element: <StreamsRoute /> },
       { path: "streams/:streamName/:streamTab?", element: <StreamRoute /> },
       { path: "settings/:settingsSection?", element: <SettingsPageView /> },
-      { path: "add-stream", element: <AddStreamPageView source="project_folder" /> },
-      { path: "add-stream/new-project", element: <AddStreamPageView source="new_project" /> },
     ],
   },
 ];

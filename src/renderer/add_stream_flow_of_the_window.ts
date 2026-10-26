@@ -22,14 +22,20 @@ export type AddStreamBackend = Pick<
   | "runStreamProject"
 >;
 
+/** Which source the open New project or Import project dialog starts from, and whether a run's notice opened it. */
+export interface OpenAddStreamDialog {
+  source: AddStreamSource;
+  isOpenedFromARunNotice: boolean;
+}
+
 /**
- * The Add stream page's flow, held by the window rather than the page: a run outlives the page that started it, and
- * one that answers while the page is not shown leaves a notice saying what it came to, wherever the person is.
+ * The flow of adding a stream, held by the window rather than its dialog: a run outlives the dialog that started it,
+ * and one that answers while the dialog is closed leaves a notice saying what it came to, wherever the person is.
  */
 export class AddStreamFlowOfTheWindow {
   private flowState: AddStreamFlowState = initialAddStreamFlowState("project_folder");
   private runNotice: AddStreamRunNotice | null = null;
-  private isPageShown = false;
+  private openDialogState: OpenAddStreamDialog | null = null;
   private readonly flowListeners = new Set<() => void>();
 
   constructor(
@@ -39,8 +45,11 @@ export class AddStreamFlowOfTheWindow {
 
   readonly readFlowState = (): AddStreamFlowState => this.flowState;
 
-  /** What the last run that answered while the page was not shown came to; `null` once the page shows or the notice is dismissed. */
+  /** What the last run that answered while the dialog was closed came to; `null` once the dialog opens or the notice is dismissed. */
   readonly readRunNotice = (): AddStreamRunNotice | null => this.runNotice;
+
+  /** The dialog while it is open; `null` while it is closed. */
+  readonly readOpenDialog = (): OpenAddStreamDialog | null => this.openDialogState;
 
   /** Calls `flowListener` after each change to the flow or the notice; the returned function stops it. */
   readonly subscribeToFlow = (flowListener: () => void): (() => void) => {
@@ -52,24 +61,26 @@ export class AddStreamFlowOfTheWindow {
     const wasCompiling = this.flowState.step === "compiling";
     this.flowState = advanceAddStreamFlow(this.flowState, event);
     const isARunsAnswer = event.kind === "run_answered" || event.kind === "run_refused";
-    if (isARunsAnswer && wasCompiling && !this.isPageShown) this.runNotice = addStreamRunNoticeOf(this.flowState);
+    if (isARunsAnswer && wasCompiling && this.openDialogState === null) this.runNotice = addStreamRunNoticeOf(this.flowState);
     this.notifyFlowListeners();
   }
 
   /**
-   * The page shows, for `source`. It says what a run came to itself, so the notice of it goes. Opened afresh rather than
-   * from that notice, it starts a new form, unless a run is still compiling, which it shows again.
+   * The dialog opens, for `source`. It says what a run came to itself, so the notice of it goes. Opened afresh rather
+   * than from that notice, it starts a new form, unless a run is still compiling, which it shows again.
    */
-  showPage(source: AddStreamSource, isOpenedFromARunNotice: boolean): void {
-    this.isPageShown = true;
+  openDialog(source: AddStreamSource, isOpenedFromARunNotice: boolean): void {
+    this.openDialogState = { source, isOpenedFromARunNotice };
     this.runNotice = null;
     if (!isOpenedFromARunNotice && this.flowState.step !== "compiling") this.flowState = initialAddStreamFlowState(source);
     this.notifyFlowListeners();
   }
 
-  /** The page leaves; a run that answers from now on leaves a notice. */
-  leavePage(): void {
-    this.isPageShown = false;
+  /** The dialog closes; a run that answers from now on leaves a notice. */
+  closeDialog(): void {
+    if (this.openDialogState === null) return;
+    this.openDialogState = null;
+    this.notifyFlowListeners();
   }
 
   dismissRunNotice(): void {
@@ -95,7 +106,7 @@ export class AddStreamFlowOfTheWindow {
     );
   }
 
-  /** The page's action: Create writes the new project with `tatolab new`, then adds it; Add adds the folder the form names. */
+  /** The dialog's action: Create writes the new project with `tatolab new`, then adds it; Add adds the folder the form names. */
   performTheAction(): void {
     if (addStreamActionOf(this.flowState.form) === "create") this.createTheNewProjectThenAddIt();
     else this.addTheStream();

@@ -1,5 +1,5 @@
 import { createContext, useContext, useSyncExternalStore } from "react";
-import type { AddStreamFlowOfTheWindow } from "../add_stream_flow_of_the_window";
+import type { AddStreamFlowOfTheWindow, OpenAddStreamDialog } from "../add_stream_flow_of_the_window";
 import type { TatolabBackend } from "../backend/tatolab_backend";
 import type { TatolabPlatform, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type { AddStreamFlowState, AddStreamRunNotice } from "../presentation/add_stream_flow";
@@ -115,7 +115,13 @@ export function useAddStreamFlowState(): AddStreamFlowState {
   return useSyncExternalStore(addStreamFlow.subscribeToFlow, addStreamFlow.readFlowState);
 }
 
-/** What the last run that answered away from the Add stream page came to, re-rendering the caller on each change. */
+/** The New project or Import project dialog while it is open, `null` while closed, re-rendering the caller on each change. */
+export function useOpenAddStreamDialog(): OpenAddStreamDialog | null {
+  const { addStreamFlow } = useTatolabWindowEnvironment();
+  return useSyncExternalStore(addStreamFlow.subscribeToFlow, addStreamFlow.readOpenDialog);
+}
+
+/** What the last run that answered while the add-stream dialog was closed came to, re-rendering the caller on each change. */
 export function useAddStreamRunNotice(): AddStreamRunNotice | null {
   const { addStreamFlow } = useTatolabWindowEnvironment();
   return useSyncExternalStore(addStreamFlow.subscribeToFlow, addStreamFlow.readRunNotice);
