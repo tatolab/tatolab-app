@@ -14,7 +14,10 @@
 #   Contents/Library/LaunchAgents/com.tatolab.tatolabd.plist
 #   Contents/Resources/streamlib-commit                   the streamlib commit the runtime was built from
 #   Contents/MacOS/uv                                     the uv the app makes a project's .venv with
-#   Contents/Frameworks/tatolab-python/<cpython-…>/<path> every Mach-O of the built-in Python
+#   Contents/Frameworks/tatolab-python/<flat name>        every Mach-O of the built-in Python, its path
+#                                                         under Resources/python with / as __: codesign
+#                                                         takes a folder in Frameworks/ whose name holds a
+#                                                         dot (cpython-3.12…, lib/python3.12) for a bundle
 #   Contents/Resources/python/<cpython-…>/                the built-in Python, each Mach-O a relative
 #                                                         symlink into Frameworks/tatolab-python
 # Code signing requires code under MacOS/ or Frameworks/; the lend and the built-in Python keep
@@ -182,11 +185,11 @@ relocated_python_mach_o_count=0
 while IFS= read -r -d '' built_in_python_file; do
   is_mach_o "$built_in_python_file" || continue
   path_in_the_python="${built_in_python_file#"$contents/Resources/python/"}"
-  framework_copy="$contents/Frameworks/tatolab-python/$path_in_the_python"
-  mkdir -p "$(dirname "$framework_copy")"
+  flat_name_in_frameworks="${path_in_the_python//\//__}"
+  framework_copy="$contents/Frameworks/tatolab-python/$flat_name_in_frameworks"
   mv "$built_in_python_file" "$framework_copy"
   ln -s "$(relative_path_from_contents_link "Resources/python/$path_in_the_python" \
-    "Frameworks/tatolab-python/$path_in_the_python")" "$built_in_python_file"
+    "Frameworks/tatolab-python/$flat_name_in_frameworks")" "$built_in_python_file"
   [ -f "$built_in_python_file" ] || { echo "the link at $built_in_python_file does not resolve" >&2; exit 1; }
   relocated_python_mach_o_count=$((relocated_python_mach_o_count + 1))
 done < <(find "$contents/Resources/python/$built_in_python_folder_name" -type f -print0)
