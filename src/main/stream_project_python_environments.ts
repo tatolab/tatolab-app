@@ -129,7 +129,7 @@ export class StreamProjectPythonEnvironments {
     const interpreter = this.chosenPythonInterpreter === null ? await this.builtInPythonInterpreter(toolchain) : succeeded(this.chosenPythonInterpreter);
     if (!interpreter.ok) return interpreter;
     const markedUnfinished = await replaceFileWhole(unfinishedSyncFile, projectFolder);
-    if (!markedUnfinished.ok) return failedWith(`Tatolab could not note that it is making ${projectFolder}'s .venv: ${markedUnfinished.failure}`);
+    if (!markedUnfinished.ok) return failedWith(`Tatolab could not note that it is setting up ${projectFolder}'s Python: ${markedUnfinished.failure}`);
     this.sources.tatolabAppLog.info("making a stream project's .venv with uv sync", {
       project_folder: projectFolder,
       python_interpreter: interpreter.value,
@@ -142,14 +142,14 @@ export class StreamProjectPythonEnvironments {
     );
     const syncRefusal = !sync.ok ? sync.failure : programSucceeded(sync.value) ? null : programsOwnWordsOrHowItEnded("uv sync", sync.value);
     if (syncRefusal !== null) {
-      await this.removeAFolderLeftHalfMade(path.join(projectFolder, PROJECT_PYTHON_ENVIRONMENT_FOLDER_NAME), "a .venv uv sync left half-made");
-      await this.removeAFolderLeftHalfMade(unfinishedSyncFile, "the note of an unfinished uv sync");
+      await this.removeWithAWarningWhenItCannotBe(path.join(projectFolder, PROJECT_PYTHON_ENVIRONMENT_FOLDER_NAME), "a .venv uv sync left half-made");
+      await this.removeWithAWarningWhenItCannotBe(unfinishedSyncFile, "the note of an unfinished uv sync");
       this.sources.tatolabAppLog.warn("uv sync could not make a stream project's .venv", { project_folder: projectFolder, failure: syncRefusal });
       return failedWith(syncRefusal);
     }
-    await this.removeAFolderLeftHalfMade(unfinishedSyncFile, "the note of a finished uv sync");
+    await this.removeWithAWarningWhenItCannotBe(unfinishedSyncFile, "the note of a finished uv sync");
     if (!(await this.pythonInterpreterRuns(projectInterpreter))) {
-      return failedWith(`uv sync finished, but ${projectInterpreter} does not run.`);
+      return failedWith(`uv sync finished, but the Python it set up in ${projectFolder} does not run.`);
     }
     return succeeded(undefined);
   }
@@ -165,8 +165,8 @@ export class StreamProjectPythonEnvironments {
     return ran.ok && programSucceeded(ran.value);
   }
 
-  /** Remove `leftHalfMade`, `whatItIs` in the log when it cannot be. */
-  private async removeAFolderLeftHalfMade(leftHalfMade: string, whatItIs: string): Promise<void> {
+  /** Remove `leftHalfMade`, a file or folder, naming it `whatItIs` in a warning when it cannot be removed. */
+  private async removeWithAWarningWhenItCannotBe(leftHalfMade: string, whatItIs: string): Promise<void> {
     await rm(leftHalfMade, { recursive: true, force: true }).catch((removalFailure: unknown) => {
       this.sources.tatolabAppLog.warn(`${whatItIs} could not be removed`, { path: leftHalfMade, failure: describeCaughtFailure(removalFailure) });
     });
@@ -201,13 +201,13 @@ export class StreamProjectPythonEnvironments {
       }
       await cp(builtInPythonInTheApp, partialCopy, { recursive: true, dereference: true });
     } catch (copyFailure) {
-      await this.removeAFolderLeftHalfMade(partialCopy, "a half-made copy of Tatolab's Python");
+      await this.removeWithAWarningWhenItCannotBe(partialCopy, "a half-made copy of Tatolab's Python");
       return failedWith(`Tatolab could not copy its Python into ${builtInPythonCopiesFolder}: ${describeCaughtFailure(copyFailure)}`);
     }
     const partialInterpreter = pythonInterpreterInsideThePythonFolder(partialCopy);
     const ran = await this.sources.runProgramToCompletion(partialInterpreter, PYTHON_INTERPRETER_RUNS_ARGUMENTS);
     if (!ran.ok || !programSucceeded(ran.value)) {
-      await this.removeAFolderLeftHalfMade(partialCopy, "a copy of Tatolab's Python that does not run");
+      await this.removeWithAWarningWhenItCannotBe(partialCopy, "a copy of Tatolab's Python that does not run");
       return failedWith(
         `Tatolab's Python, copied into ${builtInPythonCopiesFolder}, does not run: ${ran.ok ? programsOwnWordsOrHowItEnded(partialInterpreter, ran.value) : ran.failure}`,
       );
@@ -215,7 +215,7 @@ export class StreamProjectPythonEnvironments {
     try {
       await rename(partialCopy, copiedPythonFolder);
     } catch (renameFailure) {
-      await this.removeAFolderLeftHalfMade(partialCopy, "a copy of Tatolab's Python another copy beat into place");
+      await this.removeWithAWarningWhenItCannotBe(partialCopy, "a copy of Tatolab's Python another copy beat into place");
       if (!(await isAFileOnThisMachine(copiedInterpreter))) {
         return failedWith(`Tatolab could not put its Python in ${copiedPythonFolder}: ${describeCaughtFailure(renameFailure)}`);
       }

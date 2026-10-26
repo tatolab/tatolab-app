@@ -22,7 +22,6 @@ import {
   newProjectCommand,
   pythonEnvironmentSyncWords,
   pythonForNewEnvironmentsWords,
-  folderToRun,
   runRequestWords,
   streamFileCheckDetail,
   streamRunAnswerLines,
@@ -647,9 +646,7 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
               ) : terminalRunRequest !== null ? (
                 <>
                   <div className="max-w-[620px] min-w-0 flex-1">
-                    <CommandWithCopyButton
-                      command={terminalCommandForTheRun(terminalRunRequest, functionsOwnNameOf(form), folderToRun(form)?.python_environment.kind === "missing")}
-                    />
+                    <CommandWithCopyButton command={terminalCommandForTheRun(terminalRunRequest, functionsOwnNameOf(form))} />
                   </div>
                   <span className="shrink-0 text-xs text-fg-3">the same, from a terminal</span>
                 </>

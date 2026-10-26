@@ -1,5 +1,5 @@
-// Linux: the app's uv and built-in Python in the package's resources folder — under /opt for the
-// .deb, inside the AppImage's mount, which moves on every launch. Copies go to the XDG data folder,
+// Linux: the app's uv and built-in Python in the package's resources folder — under
+// /usr/lib/tatolab for the .deb, inside the AppImage's mount, which moves on every launch. Copies go to the XDG data folder,
 // since the app's config folder is no place for an interpreter.
 
 import path from "node:path";

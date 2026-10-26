@@ -157,7 +157,7 @@ function mockPythonForNewEnvironments(pythonInTheQuery: string | null): PythonFo
     case "not_offered":
       return {
         kind: "built_in_not_offered",
-        reason: "This build of Tatolab carries no uv or Python of its own, so it cannot make a project's .venv. Run uv sync in the project's folder instead.",
+        reason: "This build of Tatolab carries no uv or Python of its own, so it cannot set up a project's Python. Run uv sync in the project's folder instead.",
       };
     default:
       return { kind: "built_in", python_version: MOCK_BUILT_IN_PYTHON_VERSION };

@@ -193,9 +193,9 @@ export function shellWord(word: string): string {
   return /^[A-Za-z0-9_./~@%+=:,-]+$/.test(word) ? word : `'${word.replaceAll("'", `'"'"'`)}'`;
 }
 
-/** The terminal command that does what Add does: `uv sync` first when the folder has no `.venv`, then `tatolab run -d` in the folder, with the function and name the form gives. */
-export function terminalCommandForTheRun(request: AddStreamRunRequest, functionsOwnName: string | null, setsUpThePythonEnvironmentFirst: boolean): string {
-  const commandWords = ["cd", shellWord(request.folder), "&&", ...(setsUpThePythonEnvironmentFirst ? ["uv", "sync", "&&"] : []), "tatolab", "run", "-d"];
+/** The terminal command that does what Add does for a folder whose Python is set up: `tatolab run -d` in the folder, with the function and name the form gives. */
+export function terminalCommandForTheRun(request: AddStreamRunRequest, functionsOwnName: string | null): string {
+  const commandWords = ["cd", shellWord(request.folder), "&&", "tatolab", "run", "-d"];
   if (request.streamFunction !== null) commandWords.push(shellWord(request.streamFunction));
   if (request.streamName !== null && request.streamName !== functionsOwnName) commandWords.push("--name", shellWord(request.streamName));
   return commandWords.join(" ");
@@ -345,8 +345,9 @@ export function streamRunAnswerLines(answer: StreamRunAnswer): readonly string[]
   ];
 }
 
-/** The terminal run the footer offers: the form's, under the free name while the asked one is refused as taken. */
+/** The terminal run the footer offers: the form's, under the free name while the asked one is refused as taken; none for a folder whose Python the app sets up first, which has no one-command equivalent. */
 export function terminalRunRequestOf(form: AddStreamForm): AddStreamRunRequest | null {
+  if (folderToRun(form)?.python_environment.kind === "missing") return null;
   const runRequest = runRequestOf(form);
   if (runRequest === null || form.nameTaken === null) return runRequest;
   return { ...runRequest, streamName: form.nameTaken.freeName };

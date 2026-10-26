@@ -254,13 +254,10 @@ describe("events that arrive outside the form", () => {
 
 describe("the commands and words the page shows", () => {
   it("spells the terminal commands as a shell reads them, quoting a folder with a space", () => {
-    expect(terminalCommandForTheRun({ folder: "/Users/someone/code/heat-map", streamFunction: null, streamName: "heat_map" }, "heat_map", false)).toBe(
+    expect(terminalCommandForTheRun({ folder: "/Users/someone/code/heat-map", streamFunction: null, streamName: "heat_map" }, "heat_map")).toBe(
       "cd /Users/someone/code/heat-map && tatolab run -d",
     );
-    expect(terminalCommandForTheRun({ folder: "/Users/someone/code/heat-map", streamFunction: null, streamName: "heat_map" }, "heat_map", true)).toBe(
-      "cd /Users/someone/code/heat-map && uv sync && tatolab run -d",
-    );
-    expect(terminalCommandForTheRun({ folder: "/Users/someone/My Streams/doors", streamFunction: "stream.py:back_door", streamName: "back-door" }, "back_door", false)).toBe(
+    expect(terminalCommandForTheRun({ folder: "/Users/someone/My Streams/doors", streamFunction: "stream.py:back_door", streamName: "back-door" }, "back_door")).toBe(
       "cd '/Users/someone/My Streams/doors' && tatolab run -d stream.py:back_door --name back-door",
     );
     expect(newProjectCommand("/Users/someone/streams/hello")).toBe("tatolab new /Users/someone/streams/hello");
@@ -299,6 +296,10 @@ describe("the commands and words the page shows", () => {
       { kind: "run_answered", outcome: { kind: "name_taken", refusal: "held", free_name: "main-2" } },
     ]);
     expect(terminalRunRequestOf(taken.form)).toEqual({ folder: "/Users/someone/code/main-v2", streamFunction: null, streamName: "main-2" });
+    const withNoVenv = afterEvents(initialAddStreamFlowState("project_folder"), [
+      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map", { python_environment: { kind: "missing" } }) },
+    ]);
+    expect(terminalRunRequestOf(withNoVenv.form)).toBeNull();
     expect(addStreamActionUnavailableBecause({ ...taken.form, workUnderWay: "creating_the_project" }, true, TATOLABS_OWN_PYTHON)).toBe("Wait for tatolab new to write the project.");
   });
 

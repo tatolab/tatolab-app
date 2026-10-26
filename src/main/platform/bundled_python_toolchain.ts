@@ -26,7 +26,7 @@ export function bundledPythonToolchainAsTheLogNamesIt(bundledPythonToolchain: Bu
 }
 
 /** Why a build without the toolchain cannot make a project's environment. */
-export const NO_BUNDLED_PYTHON_TOOLCHAIN_REFUSAL = "This build of Tatolab carries no uv or Python of its own, so it cannot make a project's .venv. Run uv sync in the project's folder instead.";
+export const NO_BUNDLED_PYTHON_TOOLCHAIN_REFUSAL = "This build of Tatolab carries no uv or Python of its own, so it cannot set up a project's Python. Run uv sync in the project's folder instead.";
 
 /** The folder the built-in Python's one version folder sits in, inside the app's resources. */
 export const BUILT_IN_PYTHON_FOLDER_IN_THE_APP_RESOURCES = "python";
