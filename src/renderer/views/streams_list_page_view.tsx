@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { ChevronRight, Copy, FolderOpen, type LucideIcon, Play, Sparkles, Square, Trash2, Workflow } from "lucide-react";
+import { ChevronRight, Copy, FolderOpen, type LucideIcon, Play, Sparkles, Square, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import mascotImageUrl from "../assets/tato_mascot_3d.png";
@@ -7,26 +7,19 @@ import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { writeTextToClipboard } from "../clipboard";
 import { EmptyState } from "../design_system/empty_state";
 import { IconButton } from "../design_system/icon_button";
-import { MenuItem, MenuSeparator, MoreActionsMenu } from "../design_system/menus";
+import { FieldMenu, MenuItem, MenuSeparator, MenuSingleChoiceGroup, MoreActionsMenu } from "../design_system/menus";
 import { PageHeader } from "../design_system/page_header";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { SearchField } from "../design_system/search_field";
-import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
-import { StreamRunModeWords } from "../design_system/stream_run_mode_words";
-import { StreamStateWords } from "../design_system/stream_state_words";
+import { StreamStateIcon, StreamStateWords } from "../design_system/stream_state_words";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
-import {
-  abbreviateHomeDirectory,
-  isStreamLoaded,
-  presentStreamPrimaryAction,
-  streamActionPendingWords,
-  streamStepCountLabel,
-  type StreamPrimaryActionPresentation,
-} from "../presentation/stream_presentation";
+import { presentStreamPrimaryAction, streamActionPendingWords, type StreamPrimaryActionPresentation } from "../presentation/stream_presentation";
 import {
   STREAMS_LIST_FILTERS,
   streamMatchesFilterText,
   streamMatchesListFilter,
+  streamProjectFolderName,
+  streamsListFilterWords,
   type StreamActionUnderWay,
   type StreamsListFilter,
 } from "../presentation/streams_list_presentation";
@@ -52,7 +45,6 @@ function StreamRowActions({
   onPrimaryAction: (primaryAction: StreamPrimaryActionPresentation) => void;
   onRemoveAsked: () => void;
 }) {
-  const navigate = useNavigate();
   const primaryAction = presentStreamPrimaryAction(stream);
   if (actionUnderWay !== undefined) return <PendingActionWords words={streamActionPendingWords(actionUnderWay.streamAction)} />;
   return (
@@ -66,13 +58,6 @@ function StreamRowActions({
           data-stream-action={primaryAction.streamAction}
         />
       )}
-      <IconButton
-        icon={Workflow}
-        label="Open graph"
-        disabledReason={isStreamLoaded(stream) ? null : "No graph: the stream is not loaded"}
-        onPressed={() => navigate(streamPagePath(stream.name))}
-        data-stream-action="open_graph"
-      />
       <MoreActionsMenu label={`More for ${stream.name}`} data-stream-action="more">
         <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(stream.project_directory)}>
           Copy project folder path
@@ -86,14 +71,10 @@ function StreamRowActions({
   );
 }
 
-/** A project path cut at its start, so the folder that tells streams apart stays in view. */
-function ProjectPathCutAtItsStart({ projectDirectory }: { projectDirectory: string }) {
-  return (
-    <div className="truncate text-left font-mono text-xs text-fg-3 [direction:rtl]" title={projectDirectory}>
-      <bdi>{abbreviateHomeDirectory(projectDirectory)}</bdi>
-    </div>
-  );
-}
+const ROW_ACTIONS_SHOWN_CLASS_NAMES = {
+  stateWhileShown: "group-hover:hidden group-focus-within:hidden group-has-[[aria-expanded=true]]:hidden",
+  actionsUntilShown: "hidden group-hover:block group-focus-within:block group-has-[[aria-expanded=true]]:block",
+};
 
 function StreamsListRow({
   stream,
@@ -109,48 +90,44 @@ function StreamsListRow({
   onRemoveAsked: () => void;
 }) {
   const navigate = useNavigate();
-  const isLoaded = isStreamLoaded(stream);
   return (
-    <tr
+    <li
       data-stream-row={stream.name}
       onClick={() => {
         // A drag that selects the runtime's words to copy them ends in a click too; it stays on the list.
         if (window.getSelection()?.isCollapsed === false) return;
         navigate(streamPagePath(stream.name));
       }}
-      className="group cursor-default border-b transition-colors last:border-b-0 hover:bg-hover"
+      className="group cursor-default border-b px-5 py-2.5 transition-colors hover:bg-hover"
     >
-      <td className="py-2 pr-3 pl-5 align-top">
-        <Link
-          to={streamPagePath(stream.name)}
-          onClick={(clickEvent) => clickEvent.stopPropagation()}
-          className={cn("block cursor-default truncate rounded-sm font-medium", isLoaded ? "text-fg" : "text-fg-2")}
-        >
+      <div className="flex h-7 min-w-0 items-center gap-3">
+        <StreamStateIcon stream={stream} />
+        <Link to={streamPagePath(stream.name)} onClick={(clickEvent) => clickEvent.stopPropagation()} className="min-w-0 shrink truncate rounded-sm text-fg">
           {stream.name}
         </Link>
-        <ProjectPathCutAtItsStart projectDirectory={stream.project_directory} />
-      </td>
-      <td className="px-3 py-2 align-top">
-        <div className="flex h-[18px] items-center">
+        <span className="min-w-0 flex-1 truncate text-fg-3" title={stream.project_directory}>
+          {streamProjectFolderName(stream)}
+        </span>
+        {/* The actions take the state's place while the row is pointed at, holds focus or has its menu open, and stay while one runs. */}
+        <span className={cn("shrink-0", actionUnderWay === undefined && ROW_ACTIONS_SHOWN_CLASS_NAMES.stateWhileShown)}>
           <StreamStateWords stream={stream} isAfterAStopNotRecorded={outcome?.kind === "notice"} />
+        </span>
+        {/* The row navigates on click, and React carries a click in the actions' portalled menu up to it. */}
+        <div className={cn("shrink-0", actionUnderWay === undefined && ROW_ACTIONS_SHOWN_CLASS_NAMES.actionsUntilShown)} onClick={(clickEvent) => clickEvent.stopPropagation()}>
+          <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} onPrimaryAction={onPrimaryAction} onRemoveAsked={onRemoveAsked} />
         </div>
-        {stream.state === "failed" && stream.failed_because !== null && (
-          <p className="line-clamp-2 max-w-[440px] pl-5 text-xs text-fg-2 select-text" title={stream.failed_because}>
-            {stream.failed_because}
-          </p>
-        )}
-        {outcome !== undefined && <StreamActionOutcomeLine outcome={outcome} />}
-      </td>
-      {/* The run mode's tooltip button takes Enter and Space, which click it; the click stays out of the row's. */}
-      <td className="px-3 py-2 align-top" onClick={(clickEvent) => clickEvent.stopPropagation()}>
-        <StreamRunModeWords stream={stream} />
-      </td>
-      <td className={cn("px-3 py-2 text-right align-top tabular", isLoaded ? "text-fg-2" : "text-fg-3")}>{streamStepCountLabel(stream)}</td>
-      {/* The row navigates on click, and React carries a click in the actions' portalled menu up to it. */}
-      <td className="py-1 pr-4 pl-3 align-top" onClick={(clickEvent) => clickEvent.stopPropagation()}>
-        <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} onPrimaryAction={onPrimaryAction} onRemoveAsked={onRemoveAsked} />
-      </td>
-    </tr>
+      </div>
+      {stream.state === "failed" && stream.failed_because !== null && (
+        <p className="truncate pl-7 text-xs text-fg-2 select-text" title={stream.failed_because}>
+          {stream.failed_because}
+        </p>
+      )}
+      {outcome !== undefined && (
+        <div className="pl-7">
+          <StreamActionOutcomeLine outcome={outcome} />
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -189,7 +166,7 @@ function NoStreamsYet({ machineWords }: { machineWords: string }) {
   );
 }
 
-function StreamsListFilterControl({
+function StreamsListStateFilterMenu({
   chosenFilter,
   onFilterChosen,
   listedStreams,
@@ -198,21 +175,28 @@ function StreamsListFilterControl({
   onFilterChosen: (filter: StreamsListFilter) => void;
   listedStreams: readonly ListedStream[];
 }) {
+  const chosenWords = streamsListFilterWords(chosenFilter);
   return (
-    <SegmentedChoiceControl
-      label="Show streams"
-      choices={STREAMS_LIST_FILTERS.map(({ filter, label }) => ({
-        choice: filter,
-        label,
-        count: listedStreams.filter((stream) => streamMatchesListFilter(stream, filter)).length,
-      }))}
-      chosen={chosenFilter}
-      onChosen={onFilterChosen}
-    />
+    <FieldMenu label={`States shown: ${chosenWords}`} words={chosenWords} isNarrowing={chosenFilter !== "all"} data-streams-list-state-filter="">
+      <MenuSingleChoiceGroup
+        choices={STREAMS_LIST_FILTERS.map(({ filter }) => ({
+          choice: filter,
+          label: (
+            <span className="flex w-full items-center gap-6">
+              {streamsListFilterWords(filter)}
+              <span className="ml-auto text-fg-3 tabular">{listedStreams.filter((stream) => streamMatchesListFilter(stream, filter)).length}</span>
+            </span>
+          ),
+        }))}
+        chosen={chosenFilter}
+        onChosen={onFilterChosen}
+        dataAttributeOfEachChoice="data-streams-list-state-choice"
+      />
+    </FieldMenu>
   );
 }
 
-/** The Streams page: every stream `list_streams` reports, each with its state, run mode, steps and actions; or the ways to add a first one when there are none. */
+/** The All streams page: every stream `list_streams` reports, one line each with its state, folder and actions; or the ways to add a first one when there are none. */
 export function StreamsListPageView({ listedStreams }: { listedStreams: readonly ListedStream[] }) {
   const { platform } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
@@ -230,7 +214,7 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
         actions={
           listedStreams.length > 0 ? (
             <>
-              <StreamsListFilterControl chosenFilter={chosenFilter} onFilterChosen={setChosenFilter} listedStreams={listedStreams} />
+              <StreamsListStateFilterMenu chosenFilter={chosenFilter} onFilterChosen={setChosenFilter} listedStreams={listedStreams} />
               <SearchField label="Filter streams" placeholder="Filter" text={filterText} onTextChanged={setFilterText} />
             </>
           ) : undefined
@@ -242,36 +226,19 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
         <NoStreamsYet machineWords={machineWords} />
       ) : (
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-          <table className="w-full table-fixed border-collapse text-left">
-            <thead className="sticky top-0 z-10 bg-window">
-              <tr className="border-b text-xs text-fg-3">
-                <th className="h-8 w-[34%] pr-3 pl-5 font-normal">Name</th>
-                <th className="px-3 font-normal">Status</th>
-                <th className="w-[150px] px-3 font-normal">Run mode</th>
-                <th className="w-[72px] px-3 text-right font-normal">Steps</th>
-                <th className="w-[132px] pr-4 pl-3 font-normal">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {shownStreams.map((stream) => (
-                <StreamsListRow
-                  key={stream.name}
-                  stream={stream}
-                  actionUnderWay={actionsUnderWay.get(stream.name)}
-                  outcome={outcomeWords.get(stream.name)}
-                  onPrimaryAction={(primaryAction) => runStreamAction(primaryAction.streamAction, primaryAction.label, stream)}
-                  onRemoveAsked={() => askToRemove(stream)}
-                />
-              ))}
-            </tbody>
-          </table>
-          {shownStreams.length === 0 && (
-            <div className="border-t">
-              <EmptyState title="No streams match." />
-            </div>
-          )}
+          <ul aria-label="Streams">
+            {shownStreams.map((stream) => (
+              <StreamsListRow
+                key={stream.name}
+                stream={stream}
+                actionUnderWay={actionsUnderWay.get(stream.name)}
+                outcome={outcomeWords.get(stream.name)}
+                onPrimaryAction={(primaryAction) => runStreamAction(primaryAction.streamAction, primaryAction.label, stream)}
+                onRemoveAsked={() => askToRemove(stream)}
+              />
+            ))}
+          </ul>
+          {shownStreams.length === 0 && <EmptyState title="No streams match." />}
         </div>
       )}
       {removalDialog}

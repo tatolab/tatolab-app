@@ -45,17 +45,28 @@ function rowOf(streamName: string): HTMLElement {
 }
 
 describe("the Streams list", () => {
-  it("words each stream's state, run mode and steps as the runtime lists it", async () => {
+  it("gives each stream one line with its state and folder, a failure's reason in the runtime's words under it", async () => {
     await mountedWindowOverTheMock("state=running");
 
     const mainRow = within(rowOf("main"));
     expect(mainRow.getByText("Running")).toBeTruthy();
-    expect(mainRow.getByText("Always on")).toBeTruthy();
-    expect(mainRow.getByText("4")).toBeTruthy();
-    expect(within(rowOf("attached-demo")).getByText("Dev session")).toBeTruthy();
+    expect(mainRow.getByText("pattern")).toBeTruthy();
+    expect(mainRow.queryByText("Always on")).toBeNull();
     expect(within(rowOf("pattern-two")).getByText("Stopped")).toBeTruthy();
-    expect(within(rowOf("pattern-two")).getByText("—")).toBeTruthy();
     expect(within(rowOf("lobby-recorder")).getByText("Failed")).toBeTruthy();
+    expect(rowOf("lobby-recorder").textContent).toContain("camera access is denied for Tatolab");
+  });
+
+  it("shows only the streams in the state chosen from the state menu, counting each state", async () => {
+    await mountedWindowOverTheMock("state=running");
+
+    fireEvent.click(document.querySelector<HTMLElement>("[data-streams-list-state-filter]") ?? expect.unreachable("no state menu"));
+    const failedChoice = await waitFor(() => document.querySelector<HTMLElement>('[data-streams-list-state-choice="failed"]') ?? expect.unreachable("no Failed choice"));
+    expect(document.querySelector('[data-streams-list-state-choice="running"]')?.textContent).toBe("Running3");
+    fireEvent.click(failedChoice);
+
+    await waitFor(() => expect([...document.querySelectorAll("[data-stream-row]")].map((row) => row.getAttribute("data-stream-row"))).toEqual(["lobby-recorder"]));
+    expect(screen.getByRole("button", { name: "States shown: Failed" })).toBeTruthy();
   });
 
   it("stops a stream through the backend, shows it pending, then shows the runtime's new listing", async () => {

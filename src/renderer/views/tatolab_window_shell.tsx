@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Folder, FolderOpen, List, Plus, Settings, Workflow } from "lucide-react";
+import { Folder, FolderOpen, List, Plus, Settings } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
@@ -10,7 +10,7 @@ import { streamProjectFoldersOf, type StreamProjectFolder } from "../presentatio
 import { IconButton } from "../design_system/icon_button";
 import { ListRowButton } from "../design_system/list_row_button";
 import { PageHeader } from "../design_system/page_header";
-import type { StateWordsEmphasis } from "../design_system/stream_state_words";
+import { StreamStateIcon } from "../design_system/stream_state_words";
 import { addStreamPagePath } from "./add_stream_page_path";
 import { AddStreamPageView } from "./add_stream_page_view";
 import { AddStreamRunNoticeView } from "./add_stream_run_notice_view";
@@ -81,19 +81,6 @@ function SidebarSectionHeading({ children, trailing }: { children: ReactNode; tr
 }
 
 const SIDEBAR_ICON_CLASS_NAMES = "size-4 shrink-0 text-fg-3";
-
-/** The colour a stream's icon takes for its state: blue while it runs, red once it failed, grey otherwise. */
-const STREAM_STATE_ICON_CLASS_NAMES: Record<StateWordsEmphasis, string> = {
-  plain: "text-brand-text",
-  starting: "text-fg-3",
-  quiet: "text-fg-3",
-  failure: "text-danger",
-};
-
-/** A stream's icon in its state's colour; its row says the state's word to a screen reader. */
-function StreamStateIcon({ stream }: { stream: ListedStream }) {
-  return <Workflow className={cn("size-4 shrink-0", STREAM_STATE_ICON_CLASS_NAMES[presentStreamState(stream).emphasis])} strokeWidth={1.75} aria-hidden />;
-}
 
 /** A project folder's row, opening and closing the list of the streams added from it; a closed folder holding a failed stream says so. */
 function StreamProjectFolderSidebarRows({ projectFolder }: { projectFolder: StreamProjectFolder }) {

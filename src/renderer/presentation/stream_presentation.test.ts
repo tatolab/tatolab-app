@@ -11,7 +11,6 @@ import {
   streamActionPendingWords,
   streamActionRefusalLead,
   streamNotLoadedReason,
-  streamStepCountLabel,
 } from "./stream_presentation";
 
 function listedStream(name: string, state: string, nodeCount: number | null): ListedStream {
@@ -61,13 +60,6 @@ describe("presentStreamRunMode", () => {
 
   it("has no run mode for a state newer than this app", () => {
     expect(presentStreamRunMode(listedStream("main", "awaiting_restart", 2))).toBeNull();
-  });
-});
-
-describe("streamStepCountLabel", () => {
-  it("counts a loaded graph's steps and dashes a stream that is not loaded", () => {
-    expect(streamStepCountLabel(listedStream("main", "kept", 4))).toBe("4");
-    expect(streamStepCountLabel(listedStream("main", "stopped", null))).toBe("—");
   });
 });
 

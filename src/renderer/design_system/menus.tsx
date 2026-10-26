@@ -9,10 +9,12 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { ControlDataAttributes } from "./control_data_attributes";
+import type { ControlDataAttributeName, ControlDataAttributes } from "./control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
 import { ICON_BUTTON_CLASS_NAMES } from "./icon_button";
 
@@ -132,6 +134,42 @@ export function MenuCheckboxItem({
     <DropdownMenuCheckboxItem checked={isChecked} onCheckedChange={onCheckedChange} className="pl-2" {...controlDataAttributes}>
       {children}
     </DropdownMenuCheckboxItem>
+  );
+}
+
+/** One of a menu's single choices: what choosing it chooses, and its words. */
+export interface MenuSingleChoice<Choice extends string> {
+  choice: Choice;
+  label: ReactNode;
+}
+
+/** A menu's choices of which exactly one is chosen, the chosen one marked. */
+export function MenuSingleChoiceGroup<Choice extends string>({
+  choices,
+  chosen,
+  onChosen,
+  dataAttributeOfEachChoice,
+}: {
+  choices: readonly MenuSingleChoice<Choice>[];
+  chosen: Choice;
+  onChosen: (choice: Choice) => void;
+  /** Set on each choice to its value, as `data-streams-list-state-choice="failed"`. */
+  dataAttributeOfEachChoice?: ControlDataAttributeName;
+}) {
+  return (
+    <DropdownMenuRadioGroup
+      value={chosen}
+      onValueChange={(value: string) => {
+        const chosenChoice = choices.find((menuChoice) => menuChoice.choice === value);
+        if (chosenChoice !== undefined) onChosen(chosenChoice.choice);
+      }}
+    >
+      {choices.map(({ choice, label }) => (
+        <DropdownMenuRadioItem key={choice} value={choice} className="pl-2" {...(dataAttributeOfEachChoice === undefined ? {} : { [dataAttributeOfEachChoice]: choice })}>
+          {label}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
   );
 }
 

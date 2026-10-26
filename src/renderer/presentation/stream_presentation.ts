@@ -89,11 +89,6 @@ export function presentStreamRunMode(stream: ListedStream): StreamRunModePresent
   }
 }
 
-/** The steps of a stream's loaded graph, or a dash while it is not loaded. */
-export function streamStepCountLabel(stream: ListedStream): string {
-  return stream.node_count === null ? "—" : String(stream.node_count);
-}
-
 /** The one action a stream's row leads with: what it asks of the runtime, its word, and what it does. */
 export interface StreamPrimaryActionPresentation {
   streamAction: Extract<TatolabStreamActionName, "stop_stream" | "start_stream">;
