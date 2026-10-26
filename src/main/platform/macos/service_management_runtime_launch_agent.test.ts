@@ -240,9 +240,9 @@ const LAUNCHCTL_PRINT_OF_THE_RUNNING_AGENT = [
   "",
 ].join("\n");
 
-/** The same job not running, its last spawn as `lastExitLines` describe it. */
-function launchctlPrintOfTheAgentNotRunning(lastExitLines: readonly string[]): string {
-  return LAUNCHCTL_PRINT_OF_THE_RUNNING_AGENT.replace("\tstate = running", "\tstate = not running")
+/** The same job not running, in `jobState`, its last spawn as `lastExitLines` describe it. */
+function launchctlPrintOfTheAgentNotRunning(lastExitLines: readonly string[], jobState = "not running"): string {
+  return LAUNCHCTL_PRINT_OF_THE_RUNNING_AGENT.replace("\tstate = running", `\tstate = ${jobState}`)
     .replace("\tpid = 5242\n", "")
     .replace("\tlast exit code = 0", lastExitLines.join("\n"));
 }
@@ -263,7 +263,7 @@ test("launchd_gave_up_only_on_a_job_not_running_whose_spawn_was_refused_or_kille
   });
   expect(
     whyLaunchdGaveUpOnTheJob(
-      launchctlPrintOfTheAgentNotRunning(["\tlast exit reason = OS_REASON_CODESIGNING"]).replace("\tstate = not running", "\tstate = spawn scheduled"),
+      launchctlPrintOfTheAgentNotRunning(["\tlast exit reason = OS_REASON_CODESIGNING"], "spawn scheduled"),
     ),
     "launchd's first spawn after another copy of the app registered the agent, as a handover printed it",
   ).toEqual({ serviceManagerWords: "launchd: last exit reason = OS_REASON_CODESIGNING", registeringAgainWaitsForTheNextSpawn: true });
