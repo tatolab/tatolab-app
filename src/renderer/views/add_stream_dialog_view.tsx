@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Check, FileCode2, Folder, FolderOpen, LoaderCircle, type LucideIcon, Package, TriangleAlert, Workflow } from "lucide-react";
+import { FileCode2, Folder, FolderOpen, LoaderCircle, type LucideIcon, Package, TriangleAlert, Workflow } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import type { PythonForNewEnvironments, StreamGraphExposedPort, StreamProjectFolderReport, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
@@ -33,6 +33,7 @@ import {
   type AddStreamForm,
   type AddStreamRunRequest,
   type AddStreamSource,
+  type StreamFunctionCheck,
 } from "../presentation/add_stream_flow";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import { choosePreviewedOutput, exposedOutputAddress } from "../presentation/stream_overview_presentation";
@@ -105,7 +106,7 @@ function MachineWords({ children }: { children: ReactNode }) {
 function AddStreamSectionHeading({ title, lead }: { title: ReactNode; lead: ReactNode }) {
   return (
     <div className="mb-4">
-      <h2 className="text-lg font-semibold outline-none" tabIndex={-1} data-add-stream-step-heading="">
+      <h2 className="text-lg font-semibold focus-visible:shadow-none" tabIndex={-1} data-add-stream-step-heading="">
         {title}
       </h2>
       <p className="text-fg-3">{lead}</p>
@@ -130,37 +131,29 @@ function ProjectFolderChooserRow({ folder, isChoosing, onChoose }: { folder: str
   );
 }
 
-function ProjectFolderCheckRow({ icon: CheckIcon, name, isFound, detail }: { icon: LucideIcon; name: string; isFound: boolean; detail: ReactNode | null }) {
+/** One branch of the folder's tree: a stream found in it by its name alone, or `stream.py` with why it stands in. */
+function ProjectFolderTreeRow({ check }: { check: StreamFunctionCheck }) {
+  const RowIcon = check.checked === "stream_function" ? Workflow : check.isFound ? FileCode2 : TriangleAlert;
   return (
-    <div className="border-b px-3 py-2.5 last:border-b-0" data-add-stream-check={name} data-add-stream-check-found={isFound ? "true" : "false"}>
-      <div className="flex items-center gap-3">
-        <CheckIcon className="size-4 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
-        <span className="min-w-0 shrink truncate font-mono text-sm text-fg">{name}</span>
-        <span className="min-w-0 flex-1 truncate text-xs text-fg-3">{detail}</span>
-        {isFound ? (
-          <span className="inline-flex items-center gap-1.5 text-fg-2">
-            <Check className="size-3.5" strokeWidth={2} aria-hidden />
-            Found
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 text-warn-text">
-            <TriangleAlert className="size-3.5 text-warn" strokeWidth={1.75} aria-hidden />
-            Missing
-          </span>
-        )}
-      </div>
-    </div>
+    <li className="flex min-h-8 items-center gap-2 py-1 pl-4" data-add-stream-check={check.name} data-add-stream-check-found={check.isFound ? "true" : "false"}>
+      <RowIcon className={cn("size-4 shrink-0", check.isFound ? "text-fg-3" : "text-warn")} strokeWidth={1.75} aria-hidden />
+      <span className="shrink-0 font-mono text-sm text-fg">{check.name}</span>
+      {check.detail !== null && <span className={cn("min-w-0 text-xs", check.isFound ? "text-fg-3" : "text-warn-text")}>{check.detail}</span>}
+    </li>
   );
 }
 
-/** What the folder holds that `run_stream` needs: the `@stream` functions of its `stream.py`. The app sets up its Python itself. */
+/**
+ * What the folder holds that `run_stream` needs, as a tree hanging from the folder above it: the `@stream` functions of
+ * its `stream.py`. The app sets up its Python itself.
+ */
 function ProjectFolderChecks({ report }: { report: StreamProjectFolderReport }) {
   return (
-    <div className="overflow-hidden rounded-lg border" data-add-stream-checks="">
+    <ul aria-label="Streams found in the folder" className="ml-5 border-l" data-add-stream-checks="">
       {presentStreamFunctionChecks(report).map((check) => (
-        <ProjectFolderCheckRow key={check.name} icon={check.checked === "stream_function" ? Workflow : FileCode2} name={check.name} isFound={check.isFound} detail={check.detail} />
+        <ProjectFolderTreeRow key={check.name} check={check} />
       ))}
-    </div>
+    </ul>
   );
 }
 
@@ -366,7 +359,7 @@ function StreamRunningView({ request, answer }: { request: AddStreamRunRequest; 
           </div>
         )}
         <div className="min-w-0 pt-1">
-          <h2 className="title-lg outline-none" tabIndex={-1} data-add-stream-step-heading="">
+          <h2 className="title-lg focus-visible:shadow-none" tabIndex={-1} data-add-stream-step-heading="">
             <span className="font-mono">{answer.stream}</span> is running
           </h2>
           <p className="mt-1 text-fg-3">
@@ -405,7 +398,7 @@ function ProjectFolderForm({
   const report = form.projectFolder;
   return (
     <div data-add-stream-step="project_folder">
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col">
         <ProjectFolderChooserRow folder={report?.folder ?? null} isChoosing={form.workUnderWay === "choosing_a_folder"} onChoose={onChooseFolder} />
         {report !== null && <ProjectFolderChecks report={report} />}
       </div>
