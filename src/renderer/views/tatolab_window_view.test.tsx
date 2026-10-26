@@ -1028,7 +1028,7 @@ describe("first run on macOS", () => {
     await mountedWindowOverTheMock("state=blocked&first_run=unfinished");
     fireEvent.click(gettingStartedControl("continue"));
     expect(textOf('[data-getting-started-step="unblock_the_runtime"]')).toContain("Blocked by macOS");
-    expect(textOf('[data-getting-started-step="unblock_the_runtime"]')).toContain("Tatolab keeps trying");
+    expect(textOf('[data-getting-started-step="unblock_the_runtime"]')).toContain("Tatolab keeps asking macOS to start it.");
     expect(document.querySelector("[data-getting-started-step-action]")).toBeNull();
   });
 

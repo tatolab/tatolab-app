@@ -467,7 +467,6 @@ test("the_app_registers_the_agent_afresh_by_itself_less_often_each_time_until_th
 });
 
 test("the_wait_between_fresh_registrations_doubles_from_thirty_seconds_up_to_thirty_minutes", () => {
-  expect(runtimeAgentRecoveryIntervalMs(0)).toBe(0);
   expect(runtimeAgentRecoveryIntervalMs(1)).toBe(RUNTIME_AGENT_RECOVERY_FIRST_INTERVAL_MS);
   expect(runtimeAgentRecoveryIntervalMs(2)).toBe(60_000);
   expect(runtimeAgentRecoveryIntervalMs(3)).toBe(120_000);
@@ -497,25 +496,25 @@ test("a_round_that_catches_the_job_running_between_refused_spawns_neither_starts
   underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(null);
   await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", 11_000);
   expect(underTest.serviceManagement.calls, "the give-up holds, so the poller starts nothing").toEqual([]);
-  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeWasLastStartedAfresh()).toEqual(LAUNCHD_KILLED_THE_JOB_FOR_ITS_CODE_SIGNATURE);
+  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeLastAnsweredOrWasStartedAfresh()).toEqual(LAUNCHD_KILLED_THE_JOB_FOR_ITS_CODE_SIGNATURE);
 
   await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", RUNTIME_AGENT_TAKEOVER_WAIT_MS);
   expect(underTest.serviceManagement.calls, "the wait counts from the registration").toEqual(ONE_FRESH_REGISTRATION);
-  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeWasLastStartedAfresh(), "a fresh start forgets the give-up").toBeNull();
+  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeLastAnsweredOrWasStartedAfresh(), "a fresh start forgets the give-up").toBeNull();
 });
 
 test("a_give_up_holds_until_the_runtime_answers_or_is_started_afresh", async () => {
   const underTest = await switchWith("enabled", true);
   underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
   underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(null);
-  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeWasLastStartedAfresh()).toEqual(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
+  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeLastAnsweredOrWasStartedAfresh()).toEqual(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
 
   underTest.runTatolabSwitch.noteRuntimeHealthy(1_000);
-  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeWasLastStartedAfresh()).toBeNull();
+  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeLastAnsweredOrWasStartedAfresh()).toBeNull();
 
   underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
   await underTest.runTatolabSwitch.restartTheRuntimeOnRequest(clockAt(2_000).readMonotonicClockMs);
-  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeWasLastStartedAfresh()).toBeNull();
+  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeLastAnsweredOrWasStartedAfresh()).toBeNull();
 });
 
 test("a_give_up_that_waits_for_the_next_spawn_holds_the_fresh_registration_no_longer_than_the_takeover_wait", async () => {

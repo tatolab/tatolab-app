@@ -51,7 +51,7 @@ describe("presentGettingStarted", () => {
     expect(blocked.steps[1]).toMatchObject({
       step: "unblock_the_runtime",
       title: "Blocked by macOS",
-      progressWords: "Tatolab keeps trying",
+      progressWords: "Retrying",
       progress: "failed",
       action: null,
     });

@@ -307,8 +307,7 @@ export class TatolabAppController {
               runTatolab: runTatolabNow,
               runtimeAgent: runtimeAgentNow,
               runtimeHealth,
-              serviceManagerGaveUpOnTheRuntime:
-                runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeWasLastStartedAfresh() !== null && runTatolabSwitch.hasRegisteredAfreshSinceTheRuntimeLastAnswered(),
+              serviceManagerGaveUpOnTheRuntime: runTatolabSwitch.serviceManagerStillGivesUpAfterTheAppsOwnFreshRegistration(),
               runtimeAnsweredSinceItWasLastStarted: runTatolabSwitch.runtimeAnsweredSinceItWasLastStarted(),
               timeSinceTheRuntimeWasExpectedUpMs: runTatolabSwitch.timeSinceTheRuntimeWasExpectedUpMs(nowMs),
             }),

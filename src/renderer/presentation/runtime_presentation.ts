@@ -17,7 +17,7 @@ export type RuntimeDisplayState =
   | "not_registered"
   | "runtime_not_installed";
 
-/** What a runtime state offers the person to bring the runtime back: turn the switch on, or approve it in Login Items. Every other state the app recovers by itself. */
+/** What a runtime state offers the person to bring the runtime back: turn the switch on, or approve it in Login Items. */
 export type RuntimeBannerAction = "turn_on_run_tatolab" | "open_login_items";
 
 /** The words on the button of each action that brings the runtime back. */
@@ -128,12 +128,12 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         banner: isLinux
           ? {
               title: "systemd stopped the runtime",
-              explanation: "tatolabd.service kept failing, so systemd stopped starting it. Tatolab starts it afresh by itself and keeps trying.",
+              explanation: "tatolabd.service kept failing, so systemd stopped starting it. Tatolab keeps starting it again.",
               action: null,
             }
           : {
               title: "Blocked by macOS",
-              explanation: "macOS stopped the runtime from starting. Tatolab hands it to macOS afresh by itself and keeps trying.",
+              explanation: "macOS stopped the runtime from starting. Tatolab keeps asking macOS to start it.",
               action: null,
             },
       };
@@ -179,7 +179,7 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         shortLabel: "Not running",
         banner: {
           title: "The runtime isn't registered",
-          explanation: "Run Tatolab is on, but macOS hasn't registered the runtime. Tatolab registers it again by itself.",
+          explanation: "Run Tatolab is on, but macOS hasn't registered the runtime. Tatolab registers it by itself.",
           action: null,
         },
       };

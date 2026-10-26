@@ -106,8 +106,7 @@ export class SystemdUserRuntimeService implements RuntimeAgentRegistration {
     if (!isFailedAnswer.ok || isFailedAnswer.value.exitCode !== 0 || isFailedAnswer.value.stdout.trim() !== "failed") return null;
     const unitResult = await this.systemctl.runSystemctlUser(["show", "--property=Result", "--value", RUNTIME_SYSTEMD_USER_UNIT_NAME]);
     const unitResultWords = unitResult.ok && unitResult.value.exitCode === 0 ? unitResult.value.stdout.trim() : "";
-    const serviceManagerWords =
-      unitResultWords === "" ? `systemd: ${RUNTIME_SYSTEMD_USER_UNIT_NAME} failed` : `systemd: ${RUNTIME_SYSTEMD_USER_UNIT_NAME} failed (${unitResultWords})`;
+    const serviceManagerWords = `systemd: ${RUNTIME_SYSTEMD_USER_UNIT_NAME} failed${unitResultWords === "" ? "" : ` (${unitResultWords})`}`;
     return { serviceManagerWords, registeringAgainWaitsForTheNextSpawn: false };
   }
 
