@@ -17,6 +17,6 @@ shorter name; suggest a more explicit one.** Explicit beats short, always.
 - CSS classes name what the element is in the window, not how it looks.
 
 Validated examples from this tree (do not shorten): `TatolabStatusPublisher`,
-`RuntimeAgentRegistration`, `TatolabMachineSetup`, `lock_ignoring_poison`,
-`ConditionOnsetLatch`, `stream_log_records_page_from_the_logs_tool_result`,
+`RuntimeAgentRegistration`, `CommandLineToolLinksOnThisMac`, `whyTheServiceManagerGaveUpOnTheRuntime`,
+`ConditionOnsetLatch`, `streamLogRecordsPageFromTheLogsToolResult`,
 `readTatolabFrontendFeatureFlags`, `driveMockWindowToPreset`. A 50-character name is fine.

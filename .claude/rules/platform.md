@@ -11,7 +11,7 @@ paths:
 # Platform layer
 
 - **Everything that differs by platform sits in `src/main/platform/`**, behind the
-  interfaces the rest of the app uses (`RuntimeAgentRegistration`, `TatolabMachineSetup`,
+  interfaces the rest of the app uses (`RuntimeAgentRegistration`, `TatolabCommandLineToolLinks`,
   `TatolabUninstall`) and the `TatolabPlatformForThisBuild` each platform module builds. Where a
   platform has nothing to do, its item is `null` or `not_offered` with the reason, and says so in
   its doc. No `process.platform` or `os.platform()` outside `platform/` —

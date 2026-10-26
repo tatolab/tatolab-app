@@ -14,7 +14,7 @@ maintainers get), **leverage** (what callers get). Never "component", "service",
 Procedure:
 
 1. **Search first.** Prove nothing already covers the concern: the platform interfaces
-   (`RuntimeAgentRegistration`, `TatolabMachineSetup`) and items in `platform/`, `LocalApiClient`,
+   (`RuntimeAgentRegistration`, `TatolabCommandLineToolLinks`) and items in `platform/`, `LocalApiClient`,
    `TatolabStatusPublisher` and the status model, the commands in `tatolab_commands.ts`, the
    `TatolabBackend` contract and its two implementations, the presentation functions. Extending
    beats parallel — always.
