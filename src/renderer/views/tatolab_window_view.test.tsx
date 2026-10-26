@@ -860,15 +860,18 @@ function settingsRow(rowName: string): HTMLElement {
 }
 
 describe("Settings", () => {
-  it("opens on General, the sidebar listing every section under its group and the way back to the streams", async () => {
+  it("opens on General, listing every section under its group beside it and leaving the sidebar as it was", async () => {
     await mountedWindowOverTheMock("state=running");
     fireEvent.click(document.querySelector<HTMLElement>(`[data-window-navigation="settings"]`) ?? expect.unreachable("no Settings"));
 
     await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
     const sectionList = within(screen.getByRole("navigation", { name: "Settings" }));
     expect(sectionList.getByRole("link", { name: "General" }).getAttribute("aria-current")).toBe("page");
-    expect(sectionList.getAllByRole("link").map((sectionLink) => sectionLink.textContent)).toEqual(["Back to streams", "General", "Appearance", "Runtime", "Command line", "About"]);
+    expect(sectionList.getAllByRole("link").map((sectionLink) => sectionLink.textContent)).toEqual(["General", "Appearance", "Runtime", "Command line", "About"]);
     expect(sectionList.getByText("This machine")).toBeTruthy();
+    const sidebar = within(screen.getByRole("navigation", { name: "Tatolab" }));
+    expect(sidebar.getByRole("link", { name: "Settings" }).getAttribute("aria-current")).toBe("page");
+    expect(sidebar.getByRole("link", { name: "camera" })).toBeTruthy();
   });
 
   it("switches the window light, dark or to the system's look live, and keeps the choice", async () => {

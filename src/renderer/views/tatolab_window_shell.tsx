@@ -1,11 +1,10 @@
 import { cn } from "cn";
-import { Boxes, ChevronLeft, Plus, Settings, SquareX, Workflow } from "lucide-react";
+import { Boxes, Plus, Settings, SquareX, Workflow } from "lucide-react";
 import type { ReactNode } from "react";
-import { Navigate, NavLink, Outlet, useMatch, useNavigate, useParams, type RouteObject } from "react-router";
+import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
-import { SETTINGS_SECTION_GROUPS, settingsSectionPath } from "../presentation/settings_presentation";
 import { isStreamLoaded } from "../presentation/stream_presentation";
 import { IconButton } from "../design_system/icon_button";
 import { PageHeader } from "../design_system/page_header";
@@ -17,7 +16,7 @@ import { HostedDomPageView } from "./hosted_dom_page_view";
 import { StreamPageView } from "./stream_page_view";
 import { streamPagePath, streamPageTabNamed } from "./stream_page_path";
 import { StreamsListPageView } from "./streams_list_page_view";
-import { SETTINGS_SECTION_ICONS, SettingsPageView } from "./settings_page_view";
+import { SettingsPageView } from "./settings_page_view";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 /** The streams `list_streams` gave while the runtime runs; `null` while it is down or the listing failed. */
@@ -33,7 +32,6 @@ function SidebarNavigationRow({
   label,
   trailing,
   windowNavigationName,
-  dataSettingsSection,
   isQuiet,
 }: {
   to: string;
@@ -42,7 +40,6 @@ function SidebarNavigationRow({
   label: string;
   trailing?: ReactNode;
   windowNavigationName?: string;
-  dataSettingsSection?: string;
   isQuiet?: boolean;
 }) {
   return (
@@ -50,7 +47,6 @@ function SidebarNavigationRow({
       to={to}
       end={end}
       data-window-navigation={windowNavigationName}
-      data-settings-section={dataSettingsSection}
       title={label}
       className={({ isActive }) =>
         cn(
@@ -132,45 +128,13 @@ function StreamsSidebarNavigation() {
   );
 }
 
-function SettingsSidebarNavigation() {
-  return (
-    <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pt-1">
-      <SidebarNavigationRow
-        to="/"
-        end
-        windowNavigationName="back-to-streams"
-        icon={<ChevronLeft className={SIDEBAR_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
-        label="Back to streams"
-      />
-      {SETTINGS_SECTION_GROUPS.map(({ groupLabel, sections }) => (
-        <section key={groupLabel}>
-          <SidebarSectionHeading>{groupLabel}</SidebarSectionHeading>
-          {sections.map(({ section, label }) => {
-            const SectionIcon = SETTINGS_SECTION_ICONS[section];
-            return (
-              <SidebarNavigationRow
-                key={section}
-                to={settingsSectionPath(section)}
-                icon={<SectionIcon className={SIDEBAR_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
-                label={label}
-                dataSettingsSection={section}
-              />
-            );
-          })}
-        </section>
-      ))}
-    </div>
-  );
-}
-
-/** The sidebar down the window's left edge: the streams to go to, or Settings' sections while Settings is open. */
+/** The sidebar down the window's left edge: all streams, each stream, and Settings. */
 function WindowSidebar() {
   const { platform } = useTatolabWindowEnvironment();
-  const isSettingsOpen = useMatch("/settings/*") !== null;
   return (
-    <nav aria-label={isSettingsOpen ? "Settings" : "Tatolab"} className="flex w-(--sidebar-width) shrink-0 flex-col border-r bg-chrome">
+    <nav aria-label="Tatolab" className="flex w-(--sidebar-width) shrink-0 flex-col border-r bg-chrome">
       <div className="h-(--traffic-light-strip-height) shrink-0" data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined} />
-      {isSettingsOpen ? <SettingsSidebarNavigation /> : <StreamsSidebarNavigation />}
+      <StreamsSidebarNavigation />
     </nav>
   );
 }

@@ -10,6 +10,7 @@ import { CopyIconButton } from "../design_system/copy_icon_button";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
 import { PageHeader } from "../design_system/page_header";
+import { SectionNavigationList } from "../design_system/section_navigation_list";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
 import { SettingsGroup, SettingsRow } from "../design_system/settings_rows";
 import { ToggleSwitch } from "../design_system/toggle_switch";
@@ -47,8 +48,7 @@ import {
   useWindowAppearance,
 } from "./tatolab_window_context";
 
-/** The icon beside each Settings section in the sidebar. */
-export const SETTINGS_SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
+const SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   general: SlidersHorizontal,
   appearance: Paintbrush,
   runtime: Cpu,
@@ -526,7 +526,7 @@ const SECTION_VIEWS: Record<SettingsSection, () => ReactNode> = {
   about: AboutSection,
 };
 
-/** Settings on the section its path names, under a bar naming it; the sidebar lists the sections. */
+/** Settings: a bar naming the section shown, over Settings' own list of its sections and the section its path names. */
 export function SettingsPageView() {
   const { platform } = useTatolabWindowEnvironment();
   const { settingsSection } = useParams();
@@ -537,9 +537,19 @@ export function SettingsPageView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-settings-page={shownSection}>
       <PageHeader breadcrumb={{ parentLabel: "Settings", parentPath: "/settings" }} title={shownSectionLabel} windowDragRegion={windowDragRegionAttribute(platform, "deep")} />
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-[680px] flex-col gap-6 px-8 pt-6 pb-12">
-          <ShownSectionView />
+      <div className="flex min-h-0 flex-1">
+        <SectionNavigationList
+          label="Settings"
+          dataAttributeOfEachSection="data-settings-section"
+          sectionGroups={SETTINGS_SECTION_GROUPS.map(({ groupLabel, sections }) => ({
+            groupLabel,
+            sections: sections.map(({ section, label }) => ({ path: settingsSectionPath(section), label, icon: SECTION_ICONS[section], dataValue: section })),
+          }))}
+        />
+        <div className="scrollbar-thin min-w-0 flex-1 overflow-y-auto">
+          <div className="mx-auto flex max-w-[680px] flex-col gap-6 px-8 pt-6 pb-12">
+            <ShownSectionView />
+          </div>
         </div>
       </div>
     </div>
