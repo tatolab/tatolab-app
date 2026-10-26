@@ -1,8 +1,9 @@
 // Adding a stream from the window: choosing a project folder or a new project's directory,
 // checking what the folder holds, writing the sample project with `tatolab new`, and running a
-// folder kept through the runtime's `run_stream`. A command naming a folder acts only on one this
-// module handed the window, from the app's own folder dialog or its proposal, so a page can never
-// have the app read, write, run or open a path of its choosing.
+// folder kept through the runtime's `run_stream`, its `.venv` made first when it has none that
+// runs. A command naming a folder acts only on one this module handed the window, from the app's
+// own folder dialog or its proposal, so a page can never have the app read, write or run a path of
+// its choosing.
 
 import path from "node:path";
 import type {
@@ -13,10 +14,9 @@ import type {
   StreamRunAnswer,
 } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure, StreamRunRequest } from "./local_api_client.js";
-import { isAnExistingFolderOnThisMachine, realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
+import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
 import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_tool.js";
-import type { TerminalOpenedInAFolder } from "./platform/terminal_opened_in_a_folder.js";
-import { describeHowTheProgramEnded, programSucceeded, type ProgramRunner } from "./platform/run_program_to_completion.js";
+import { programsOwnWordsOrHowItEnded, programSucceeded, type ProgramRunner } from "./platform/run_program_to_completion.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { inspectStreamProjectFolder } from "./stream_project_folder_inspection.js";
 
@@ -38,13 +38,14 @@ export interface StreamRunsOnTheRuntime {
   listStreams(): Promise<Result<ListedStream[], LocalApiRequestFailure>>;
 }
 
-/** What adding a stream reaches: the person's home, the dialog, the desktop's terminal, the `tatolab` CLI and how programs run, and the runtime. */
+/** What adding a stream reaches: the person's home, the dialog, the `tatolab` CLI and how programs run, the app's making of a project's `.venv`, and the runtime. */
 export interface StreamProjectAddingSources {
   homeDirectory: string;
   streamProjectFolderDialog: StreamProjectFolderDialog;
-  terminalOpenedInAFolder: TerminalOpenedInAFolder;
   tatolabCommandLineTool: TatolabCommandLineTool;
   runProgramToCompletion: ProgramRunner;
+  /** Leaves a project's `.venv` that runs as it is, else makes one; refused in uv's own words. */
+  makePythonEnvironmentUnlessOneWorks: (projectFolder: string) => Promise<Result<void, string>>;
   streamRunsOnTheRuntime: StreamRunsOnTheRuntime;
 }
 
@@ -79,20 +80,6 @@ export class StreamProjectAdding {
     return this.handToTheWindow(await this.firstFreeNewStreamProjectFolder());
   }
 
-  /** What `folder` holds now; refused for a folder the app never handed the window. */
-  async checkStreamProjectFolder(folder: string): Promise<Result<StreamProjectFolderReport, string>> {
-    const projectFolder = this.folderHandedToTheWindow(folder);
-    return projectFolder.ok ? succeeded(await inspectStreamProjectFolder(projectFolder.value)) : projectFolder;
-  }
-
-  /** A terminal whose shell starts in `folder`; refused naming why, or for a folder the app never handed the window. */
-  async openTerminalInStreamProjectFolder(folder: string): Promise<Result<void, string>> {
-    const projectFolder = this.folderHandedToTheWindow(folder);
-    if (!projectFolder.ok) return projectFolder;
-    if (!(await isAnExistingFolderOnThisMachine(projectFolder.value))) return failedWith(`${projectFolder.value} is not a folder on this machine.`);
-    return this.sources.terminalOpenedInAFolder.openTerminalIn(projectFolder.value);
-  }
-
   /** `tatolab new <folder>`, which writes the sample project, then what the folder holds; refused in the CLI's own words, or for a folder the app never handed the window. */
   async createStreamProject(folder: string): Promise<Result<StreamProjectFolderReport, string>> {
     const projectFolder = this.folderHandedToTheWindow(folder);
@@ -101,26 +88,23 @@ export class StreamProjectAdding {
     if (tatolabCommandLineTool.kind === "not_offered") return failedWith(tatolabCommandLineTool.reason);
     const scaffolding = await this.sources.runProgramToCompletion(tatolabCommandLineTool.path, ["new", projectFolder.value]);
     if (!scaffolding.ok) return scaffolding;
-    if (!programSucceeded(scaffolding.value)) {
-      const commandLineToolsOwnWords = scaffolding.value.standardError.trim();
-      return failedWith(
-        commandLineToolsOwnWords === ""
-          ? `tatolab new ended with ${describeHowTheProgramEnded(scaffolding.value)}`
-          : commandLineToolsOwnWords,
-      );
-    }
+    if (!programSucceeded(scaffolding.value)) return failedWith(programsOwnWordsOrHowItEnded("tatolab new", scaffolding.value));
     return succeeded(await inspectStreamProjectFolder(projectFolder.value));
   }
 
   /**
-   * Run `folder` kept through `run_stream`. A refusal is answered in the runtime's own words; one of a `streamName` a
-   * listed stream from another folder holds is `name_taken`, with the first `<name>-<n>` no listed stream holds. The
-   * runtime compiles before it reads the name and replaces a stream of the same folder and function, so a refusal while
-   * this folder's own stream holds the name is answered as it is: the listing names no function to tell the two apart.
+   * Run `folder` kept through `run_stream`, making its `.venv` first when it has none that runs; uv failing to is
+   * `python_environment_not_made`, in uv's own words. A refusal is answered in the runtime's own words; one of a
+   * `streamName` a listed stream from another folder holds is `name_taken`, with the first `<name>-<n>` no listed stream
+   * holds. The runtime compiles before it reads the name and replaces a stream of the same folder and function, so a
+   * refusal while this folder's own stream holds the name is answered as it is: the listing names no function to tell
+   * the two apart.
    */
   async runStreamProject(folder: string, streamFunction: string | null, streamName: string | null): Promise<Result<StreamProjectRunOutcome, string>> {
     const projectFolder = this.folderHandedToTheWindow(folder);
     if (!projectFolder.ok) return projectFolder;
+    const pythonEnvironment = await this.sources.makePythonEnvironmentUnlessOneWorks(projectFolder.value);
+    if (!pythonEnvironment.ok) return succeeded({ kind: "python_environment_not_made", words: pythonEnvironment.failure });
     const streamRuns = this.sources.streamRunsOnTheRuntime;
     const run = await streamRuns.runStream({ projectDirectory: projectFolder.value, streamFunction, streamName });
     if (run.ok) return succeeded({ kind: "running", answer: run.value });

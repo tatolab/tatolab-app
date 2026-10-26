@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { StreamProjectFolderReport, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
+import type { PythonForNewEnvironments, StreamProjectFolderReport, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
 import {
+  addStreamActionOf,
   addStreamRunNoticeOf,
   presentAddStreamRunNotice,
   addStreamPageSection,
@@ -11,14 +12,15 @@ import {
   terminalRunRequestOf,
   advanceAddStreamFlow,
   compileWarningsHeading,
-  pythonEnvironmentCheckDetail,
   runRequestWords,
   streamFileCheckDetail,
-  compileAndRunUnavailableBecause,
+  addStreamActionUnavailableBecause,
   compilingForWords,
   initialAddStreamFlowState,
   newProjectCommand,
-  pythonEnvironmentSyncCommand,
+  pythonEnvironmentSyncWords,
+  compilingHeadingVerb,
+  compileWaitingWords,
   runRequestOf,
   streamRunningSummary,
   terminalCommandForTheRun,
@@ -36,6 +38,8 @@ function folderReport(folder: string, changes: Partial<StreamProjectFolderReport
     ...changes,
   };
 }
+
+const TATOLABS_OWN_PYTHON: PythonForNewEnvironments = { kind: "built_in", python_version: "3.12.12" };
 
 const HEAT_MAP_ANSWER: StreamRunAnswer = {
   stream: "heat_map",
@@ -58,7 +62,7 @@ describe("running a project folder", () => {
       { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map") },
     ]);
     expect(chosen.form.streamName).toBe("heat_map");
-    expect(compileAndRunUnavailableBecause(chosen.form, true)).toBeNull();
+    expect(addStreamActionUnavailableBecause(chosen.form, true, TATOLABS_OWN_PYTHON)).toBeNull();
     const request = runRequestOf(chosen.form);
     expect(request).toEqual({ folder: "/Users/someone/code/heat-map", streamFunction: null, streamName: "heat_map" });
 
@@ -79,21 +83,44 @@ describe("running a project folder", () => {
     expect(runRequestOf(chosen.form)).toEqual({ folder: "/Users/someone/code/doorways", streamFunction: "stream.py:back_door", streamName: "back_door" });
   });
 
-  it("keeps the person's name and function across Check again of the same folder, and starts afresh for another folder", () => {
-    const renamedBeforeTheSync = afterEvents(initialAddStreamFlowState("project_folder"), [
+  it("keeps the person's name and function across a new answer for the same folder, and starts afresh for another folder", () => {
+    const renamed = afterEvents(initialAddStreamFlowState("project_folder"), [
       { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map", { python_environment: { kind: "missing" } }) },
       { kind: "stream_name_edited", streamName: "lobby-heat" },
-    ]);
-    expect(compileAndRunUnavailableBecause(renamedBeforeTheSync.form, true)).toBe("Sync the project's .venv with uv sync, then check again.");
-    const renamed = afterEvents(renamedBeforeTheSync, [
-      { kind: "work_started", work: "checking_the_folder" },
+      { kind: "work_started", work: "choosing_a_folder" },
       { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map") },
     ]);
     expect(renamed.form).toMatchObject({ streamName: "lobby-heat", workUnderWay: null, projectFolder: { python_environment: { kind: "present" } } });
-    expect(compileAndRunUnavailableBecause(renamed.form, true)).toBeNull();
+    expect(addStreamActionUnavailableBecause(renamed.form, true, TATOLABS_OWN_PYTHON)).toBeNull();
 
     const another = advanceAddStreamFlow(renamed, { kind: "project_folder_answered", report: folderReport("/Users/someone/code/doorways", { stream_functions: ["front_door"] }) });
     expect(another.form.streamName).toBe("front_door");
+  });
+
+  it("lets a folder with no .venv compile and run, which sets up its Python first, and returns uv's refusal to the form under its own lead", () => {
+    const withNoVenv = afterEvents(initialAddStreamFlowState("project_folder"), [
+      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map", { python_environment: { kind: "missing" } }) },
+    ]);
+    expect(addStreamActionUnavailableBecause(withNoVenv.form, true, TATOLABS_OWN_PYTHON)).toBeNull();
+    const compiling = advanceAddStreamFlow(withNoVenv, { kind: "run_started", request: { folder: "/Users/someone/code/heat-map", streamFunction: null, streamName: "heat_map" }, nowMs: 0 });
+    expect(compiling).toMatchObject({ step: "compiling", makesThePythonEnvironmentFirst: true });
+    const refused = advanceAddStreamFlow(compiling, { kind: "run_answered", outcome: { kind: "python_environment_not_made", words: "error: No interpreter found" } });
+    expect(refused).toMatchObject({ step: "form", form: { refusal: { lead: "Tatolab couldn't set up the project's Python:", words: "error: No interpreter found" } } });
+    expect(addStreamRunNoticeOf(refused)).toEqual({
+      kind: "refused",
+      source: "project_folder",
+      title: "Tatolab couldn't set up the project's Python",
+      words: "error: No interpreter found",
+    });
+    expect(addStreamActionUnavailableBecause(withNoVenv.form, true, { kind: "built_in_not_offered", reason: "No uv here." })).toBe(
+      "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.",
+    );
+    expect(addStreamActionUnavailableBecause(withNoVenv.form, true, { kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" })).toBeNull();
+
+    const withAVenv = afterEvents(initialAddStreamFlowState("project_folder"), [{ kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map") }]);
+    expect(advanceAddStreamFlow(withAVenv, { kind: "run_started", request: { folder: "/Users/someone/code/heat-map", streamFunction: null, streamName: "heat_map" }, nowMs: 0 })).toMatchObject({
+      makesThePythonEnvironmentFirst: false,
+    });
   });
 
   it("returns a taken name to the form with the runtime's words and the free name, which a second run uses", () => {
@@ -103,7 +130,7 @@ describe("running a project folder", () => {
       { kind: "run_answered", outcome: { kind: "name_taken", refusal: "the stream name `front_door` is held by a kept stream from /x", free_name: "front_door-2" } },
     ]);
     expect(chosen).toMatchObject({ step: "form", form: { nameTaken: { refusal: "the stream name `front_door` is held by a kept stream from /x", freeName: "front_door-2" } } });
-    expect(compileAndRunUnavailableBecause(chosen.form, true)).toBe("Choose another name, or use the one offered.");
+    expect(addStreamActionUnavailableBecause(chosen.form, true, TATOLABS_OWN_PYTHON)).toBe("Choose another name, or use the one offered.");
 
     const retried = advanceAddStreamFlow(chosen, {
       kind: "run_started",
@@ -121,24 +148,29 @@ describe("running a project folder", () => {
     ]);
     expect(refused).toMatchObject({
       step: "form",
-      form: { refusal: { lead: "Compile and run was refused:", words: "Invalid configuration: the stream function in /Users/someone/code/heat-map failed to compile" } },
+      form: { refusal: { lead: "Adding the stream was refused:", words: "Invalid configuration: the stream function in /Users/someone/code/heat-map failed to compile" } },
     });
   });
 
   it("can't compile and run before a folder is chosen, or while the runtime is down", () => {
     const empty = initialAddStreamFlowState("project_folder").form;
-    expect(compileAndRunUnavailableBecause(empty, true)).toBe("Choose a project folder first.");
-    expect(compileAndRunUnavailableBecause(empty, false)).toBe("The runtime isn't running, so it can't compile a stream.");
+    expect(addStreamActionUnavailableBecause(empty, true, TATOLABS_OWN_PYTHON)).toBe("Choose a project folder first.");
+    expect(addStreamActionUnavailableBecause(empty, false, TATOLABS_OWN_PYTHON)).toBe("The runtime isn't running, so it can't add a stream.");
   });
 });
 
 describe("creating a new project", () => {
-  it("names the stream after the directory, runs only once tatolab new wrote it, and keeps the name across the venv's Check again", () => {
+  it("names the stream after the directory, offers Create until tatolab new wrote it and Add after, and keeps the name when the folder is answered again", () => {
     const proposed = afterEvents(initialAddStreamFlowState("new_project"), [
       { kind: "new_project_folder_answered", report: folderReport("/Users/someone/streams/hello", { folder_exists: false, stream_file_present: false, stream_functions: [], python_environment: { kind: "missing" } }) },
     ]);
     expect(proposed.form.streamName).toBe("hello");
-    expect(compileAndRunUnavailableBecause(proposed.form, true)).toBe("Create the project first.");
+    expect(addStreamActionOf(proposed.form)).toBe("create");
+    expect(addStreamActionUnavailableBecause(proposed.form, true, TATOLABS_OWN_PYTHON)).toBeNull();
+    expect(addStreamActionUnavailableBecause(initialAddStreamFlowState("new_project").form, true, TATOLABS_OWN_PYTHON)).toBe("Choose a directory for the new project.");
+    expect(addStreamActionUnavailableBecause(proposed.form, true, { kind: "built_in_not_offered", reason: "No uv here." })).toBe(
+      "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.",
+    );
     expect(runRequestOf(proposed.form)).toBeNull();
 
     const created = afterEvents(proposed, [
@@ -148,6 +180,7 @@ describe("creating a new project", () => {
     ]);
     expect(created.form).toMatchObject({ hasCreatedTheNewProject: true, streamName: "hello" });
     expect(runRequestOf(created.form)).toEqual({ folder: "/Users/someone/streams/hello", streamFunction: null, streamName: "hello" });
+    expect(addStreamActionOf(created.form)).toBe("add");
   });
 
   it("choosing another directory before creating renames the stream after it", () => {
@@ -192,25 +225,30 @@ describe("events that arrive outside the form", () => {
   });
 
   it("announces the form's milestones a focus move does not say, and leaves refusals to their own alert", () => {
-    expect(addStreamStepAnnouncement(running, true)).toBe("");
-    expect(addStreamStepAnnouncement(initialAddStreamFlowState("project_folder"), true)).toBe("");
+    expect(addStreamStepAnnouncement(running, true, TATOLABS_OWN_PYTHON)).toBe("");
+    expect(addStreamStepAnnouncement(initialAddStreamFlowState("project_folder"), true, TATOLABS_OWN_PYTHON)).toBe("");
     const created = afterEvents(initialAddStreamFlowState("new_project"), [
       { kind: "new_project_created", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"], python_environment: { kind: "missing" } }) },
     ]);
-    expect(addStreamStepAnnouncement(created, true)).toBe("tatolab new wrote /Users/someone/streams/hello. Sync its .venv with uv sync, then check again.");
+    expect(addStreamStepAnnouncement(created, true, TATOLABS_OWN_PYTHON)).toBe("tatolab new wrote /Users/someone/streams/hello. Add is ready.");
+    expect(addStreamStepAnnouncement(created, false, TATOLABS_OWN_PYTHON)).toBe("");
+    const chosenWithNoVenv = afterEvents(initialAddStreamFlowState("project_folder"), [
+      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map", { python_environment: { kind: "missing" } }) },
+    ]);
+    expect(addStreamStepAnnouncement(chosenWithNoVenv, true, TATOLABS_OWN_PYTHON)).toBe("/Users/someone/code/heat-map is ready to add.");
     const synced = advanceAddStreamFlow(created, { kind: "new_project_folder_answered", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"] }) });
-    expect(addStreamStepAnnouncement(synced, true)).toBe("/Users/someone/streams/hello has its .venv. Compile and run is ready.");
-    expect(addStreamStepAnnouncement(synced, false)).toBe("");
+    expect(addStreamStepAnnouncement(synced, true, TATOLABS_OWN_PYTHON)).toBe("tatolab new wrote /Users/someone/streams/hello. Add is ready.");
+    expect(addStreamStepAnnouncement(synced, false, TATOLABS_OWN_PYTHON)).toBe("");
     const refusedAsTaken = afterEvents(synced, [
       { kind: "run_started", request: { folder: "/Users/someone/streams/hello", streamFunction: null, streamName: "hello" }, nowMs: 0 },
       { kind: "run_answered", outcome: { kind: "name_taken", refusal: "held", free_name: "hello-2" } },
     ]);
-    expect(addStreamStepAnnouncement(refusedAsTaken, true)).toBe("");
-    expect(addStreamStepAnnouncement(advanceAddStreamFlow(synced, { kind: "work_refused", lead: "Check again was refused:", words: "gone" }), true)).toBe(
-      "/Users/someone/streams/hello has its .venv. Compile and run is ready.",
+    expect(addStreamStepAnnouncement(refusedAsTaken, true, TATOLABS_OWN_PYTHON)).toBe("");
+    expect(addStreamStepAnnouncement(advanceAddStreamFlow(synced, { kind: "work_refused", lead: "The folder dialog was refused:", words: "gone" }), true, TATOLABS_OWN_PYTHON)).toBe(
+      "tatolab new wrote /Users/someone/streams/hello. Add is ready.",
     );
-    expect(addStreamPageSection(created)).not.toBe(addStreamPageSection(synced));
-    expect(addStreamPageSection(synced)).toBe("form:new_project:created:present");
+    expect(addStreamPageSection(created)).toBe(addStreamPageSection(synced));
+    expect(addStreamPageSection(synced)).toBe("form:new_project:created:folder");
   });
 });
 
@@ -222,7 +260,6 @@ describe("the commands and words the page shows", () => {
     expect(terminalCommandForTheRun({ folder: "/Users/someone/My Streams/doors", streamFunction: "stream.py:back_door", streamName: "back-door" }, "back_door")).toBe(
       "cd '/Users/someone/My Streams/doors' && tatolab run -d stream.py:back_door --name back-door",
     );
-    expect(pythonEnvironmentSyncCommand("/Users/someone/it's here")).toBe(`cd '/Users/someone/it'"'"'s here' && uv sync`);
     expect(newProjectCommand("/Users/someone/streams/hello")).toBe("tatolab new /Users/someone/streams/hello");
   });
 
@@ -231,8 +268,14 @@ describe("the commands and words the page shows", () => {
     expect(streamFileCheckDetail(folderReport("/x", { stream_functions: ["a", "b"] }))).toBe("Stream functions a(), b()");
     expect(streamFileCheckDetail(folderReport("/x", { stream_functions: [] }))).toBe("No @stream function found by reading it; the runtime decides when it compiles.");
     expect(streamFileCheckDetail(folderReport("/x", { stream_file_present: false, stream_functions: [] }))).toBe("The stream function the runtime compiles lives in stream.py.");
-    expect(pythonEnvironmentCheckDetail(folderReport("/x"))).toBe("Python 3.12.10 · tatolab-stream 0.55.0");
-    expect(pythonEnvironmentCheckDetail(folderReport("/x", { python_environment: { kind: "present", python_version: null, tatolab_stream_version: null } }))).toBe("Python");
+    const builtIn = TATOLABS_OWN_PYTHON;
+    expect(pythonEnvironmentSyncWords(builtIn)).toBe("uv sync  python=Tatolab's Python 3.12.12");
+    expect(pythonEnvironmentSyncWords({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" })).toBe("uv sync  python=/opt/homebrew/bin/python3.12");
+    expect([compilingHeadingVerb(true), compilingHeadingVerb(false)]).toEqual(["Setting up Python, then compiling", "Compiling"]);
+    expect([compileWaitingWords(true, 0, 14_200), compileWaitingWords(false, 0, 3_000)]).toEqual([
+      "waiting for uv and the runtime · 14s",
+      "waiting for the runtime's answer · 3s",
+    ]);
     expect(runRequestWords({ folder: "/x", streamFunction: "stream.py:a", streamName: "a" })).toBe("run_stream  /x  stream_function=stream.py:a  name=a  keep=true");
     expect([compileWarningsHeading(1), compileWarningsHeading(2)]).toEqual(["1 compile warning", "2 compile warnings"]);
   });
@@ -253,7 +296,11 @@ describe("the commands and words the page shows", () => {
       { kind: "run_answered", outcome: { kind: "name_taken", refusal: "held", free_name: "main-2" } },
     ]);
     expect(terminalRunRequestOf(taken.form)).toEqual({ folder: "/Users/someone/code/main-v2", streamFunction: null, streamName: "main-2" });
-    expect(compileAndRunUnavailableBecause({ ...taken.form, workUnderWay: "opening_a_terminal" }, true)).toBe("Wait for the terminal to open.");
+    const withNoVenv = afterEvents(initialAddStreamFlowState("project_folder"), [
+      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map", { python_environment: { kind: "missing" } }) },
+    ]);
+    expect(terminalRunRequestOf(withNoVenv.form)).toBeNull();
+    expect(addStreamActionUnavailableBecause({ ...taken.form, workUnderWay: "creating_the_project" }, true, TATOLABS_OWN_PYTHON)).toBe("Wait for tatolab new to write the project.");
   });
 
   it("says whether the stream compiled cleanly, with warnings, or replaced the project's kept stream", () => {
@@ -290,8 +337,12 @@ describe("the notice of a run that answered away from the page", () => {
       { kind: "run_started", request: { folder: "/Users/someone/code/main-v2", streamFunction: null, streamName: "main" }, nowMs: 0 },
       { kind: "run_answered", outcome: { kind: "name_taken", refusal: "the stream name `main` is held", free_name: "main-2" } },
     ]);
-    expect(addStreamRunNoticeOf(taken)).toEqual({ kind: "refused", source: "project_folder", words: "the stream name `main` is held" });
-    expect(presentAddStreamRunNotice({ kind: "refused", source: "project_folder", words: "held" })).toEqual({ title: "Compile and run was refused", detail: "held", tone: "failure" });
+    expect(addStreamRunNoticeOf(taken)).toEqual({ kind: "refused", source: "project_folder", title: "Adding the stream was refused", words: "the stream name `main` is held" });
+    expect(presentAddStreamRunNotice({ kind: "refused", source: "project_folder", title: "Adding the stream was refused", words: "held" })).toEqual({
+      title: "Adding the stream was refused",
+      detail: "held",
+      tone: "failure",
+    });
     expect(addStreamRunNoticeOf(initialAddStreamFlowState("project_folder"))).toBeNull();
   });
 });

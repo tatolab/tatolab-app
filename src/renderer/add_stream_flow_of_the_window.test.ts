@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AddStreamFlowOfTheWindow, type AddStreamBackend } from "./add_stream_flow_of_the_window";
+import { addStreamActionOf } from "./presentation/add_stream_flow";
 import type { StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../shared/tatolab_backend_contract";
 
 const HEAT_MAP_FOLDER: StreamProjectFolderReport = {
@@ -28,9 +29,7 @@ function backendWithAPendingRun() {
   const backend: AddStreamBackend = {
     chooseStreamProjectFolder: async () => HEAT_MAP_FOLDER,
     proposeNewStreamProjectFolder: async () => HEAT_MAP_FOLDER,
-    checkStreamProjectFolder: async () => HEAT_MAP_FOLDER,
     createStreamProject: async () => HEAT_MAP_FOLDER,
-    openTerminalAtChosenProjectFolder: async () => {},
     runStreamProject: () =>
       new Promise((resolve, reject) => {
         settleTheRun = { answer: resolve, refuse: reject };
@@ -62,7 +61,7 @@ async function flowWithAFolderChosen() {
 describe("the window's Add stream flow", () => {
   it("shows a run that answers while the page is shown on the page, with no notice", async () => {
     const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
-    addStreamFlow.compileAndRun();
+    addStreamFlow.performTheAction();
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "compiling", startedAtMs: 1000, request: { streamName: "heat_map" } });
 
     await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
@@ -73,7 +72,7 @@ describe("the window's Add stream flow", () => {
 
   it("keeps a run that answers after the page left, and leaves a notice of it until the page shows again", async () => {
     const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
-    addStreamFlow.compileAndRun();
+    addStreamFlow.performTheAction();
     addStreamFlow.leavePage();
 
     await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
@@ -89,7 +88,7 @@ describe("the window's Add stream flow", () => {
     const { addStreamFlow, refuseTheRun } = await flowWithAFolderChosen();
     const listenedChanges: number[] = [];
     addStreamFlow.subscribeToFlow(() => listenedChanges.push(1));
-    addStreamFlow.compileAndRun();
+    addStreamFlow.performTheAction();
     addStreamFlow.leavePage();
 
     await refuseTheRun("Runtime error: the stream function in /Users/someone/code/heat-map failed to compile");
@@ -97,6 +96,7 @@ describe("the window's Add stream flow", () => {
     expect(addStreamFlow.readRunNotice()).toEqual({
       kind: "refused",
       source: "project_folder",
+      title: "Adding the stream was refused",
       words: "Runtime error: the stream function in /Users/someone/code/heat-map failed to compile",
     });
     addStreamFlow.dismissRunNotice();
@@ -104,17 +104,50 @@ describe("the window's Add stream flow", () => {
     expect(listenedChanges.length).toBeGreaterThan(2);
   });
 
+  it("leaves a notice of uv failing to set up the folder's Python, titled so and in uv's own words", async () => {
+    const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
+    addStreamFlow.performTheAction();
+    addStreamFlow.leavePage();
+
+    await answerTheRun({ kind: "python_environment_not_made", words: "error: Failed to fetch: `https://pypi.org/simple/tatolab-stream/`" });
+
+    expect(addStreamFlow.readRunNotice()).toEqual({
+      kind: "refused",
+      source: "project_folder",
+      title: "Tatolab couldn't set up the project's Python",
+      words: "error: Failed to fetch: `https://pypi.org/simple/tatolab-stream/`",
+    });
+  });
+
+  it("Create writes the new project and adds it with no second press, and a refused add leaves Add as the page's action", async () => {
+    const pendingRun = backendWithAPendingRun();
+    const addStreamFlow = new AddStreamFlowOfTheWindow(pendingRun.backend, () => 1000);
+    addStreamFlow.showPage("new_project", false);
+    addStreamFlow.proposeNewProjectFolder();
+    await Promise.resolve();
+    expect(addStreamActionOf(addStreamFlow.readFlowState().form)).toBe("create");
+
+    addStreamFlow.performTheAction();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "compiling", form: { hasCreatedTheNewProject: true } });
+
+    await pendingRun.refuseTheRun("Runtime error: the stream function failed to compile");
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "form", form: { refusal: { lead: "Adding the stream was refused:" } } });
+    expect(addStreamActionOf(addStreamFlow.readFlowState().form)).toBe("add");
+  });
+
   it("leaves no notice for work other than a run that finishes away from the page", async () => {
     const { addStreamFlow } = await flowWithAFolderChosen();
     addStreamFlow.leavePage();
-    addStreamFlow.checkTheFolderAgain();
+    addStreamFlow.chooseFolder();
     await Promise.resolve();
     expect(addStreamFlow.readRunNotice()).toBeNull();
   });
 
   it("opened afresh, the page starts a new form unless a run is still compiling", async () => {
     const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
-    addStreamFlow.compileAndRun();
+    addStreamFlow.performTheAction();
     addStreamFlow.leavePage();
     addStreamFlow.showPage("new_project", false);
     expect(addStreamFlow.readFlowState().step).toBe("compiling");

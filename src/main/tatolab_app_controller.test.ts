@@ -64,6 +64,7 @@ async function controllerOverFakes(
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
+    readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   return { controller, runtimeAgent, commandLineToolLinks, localApiServer, appConfigDirectory };
@@ -86,7 +87,8 @@ test("a healthy runtime's status names its streams and machine, read as the wind
       '"app_update":{"kind":"not_checked"},' +
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
-      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
+      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"},' +
+      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"}}',
   );
 });
 
@@ -229,6 +231,7 @@ test("a tray toggle and a window request run in turn, never interleaved", async 
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
+    readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
 
@@ -266,6 +269,7 @@ async function controllerAtAppVersion(appVersion: string, appConfigDirectory: st
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
+    readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
 }
@@ -310,6 +314,7 @@ test("the restarted runtime gets the starting grace again", async () => {
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
+    readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   nowMs = 60_000;
@@ -360,6 +365,7 @@ test("each status carries where updates stand", async () => {
     readTheAppUpdateState: () => ({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
+    readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   expect((await controller.composeStatus(0)).app_update).toEqual({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" });

@@ -115,6 +115,7 @@ export interface TatolabStatus {
   stream_failure_notifications: StreamFailureNotificationsState;
   open_at_login: TatolabAppOpenAtLogin;
   command_line_tool_version: TatolabCommandLineToolVersion;
+  python_for_new_environments: PythonForNewEnvironments;
 }
 
 /** What `describe_runtime` answers: the running runtime's version and build, how long it has been up, and the folder of its own log. */
@@ -219,7 +220,7 @@ export interface StreamGraphSummary {
 /** What a project folder is chosen for in the app's folder dialog: a project to run, or the directory `tatolab new` creates. */
 export type StreamProjectFolderChosenFor = "project_to_run" | "new_project_directory";
 
-/** A project's `.venv` as the app found it: its interpreter present, with the Python and `tatolab-stream` versions it names when it names them; or missing, which `uv sync` in the project creates. */
+/** A project's `.venv` as the app found it: its interpreter present, with the Python and `tatolab-stream` versions it names when it names them; or missing, which the app makes with its own uv when the project runs. */
 export type StreamProjectPythonEnvironment =
   | { kind: "present"; python_version: string | null; tatolab_stream_version: string | null }
   | { kind: "missing" };
@@ -249,7 +250,21 @@ export interface StreamRunAnswer {
   compile_warnings: string[];
 }
 
-/** What running a project folder came to: the stream running, or the runtime's refusal of a name a listed stream holds, with the first name no listed stream holds. Any other refusal is the command's refusal. */
+/**
+ * What running a project folder came to: the stream running; the runtime's refusal of a name a listed stream holds, with the
+ * first name no listed stream holds; or the app's uv failing to make the project's `.venv` first, in uv's own words. Any
+ * other refusal is the command's refusal.
+ */
 export type StreamProjectRunOutcome =
   | { kind: "running"; answer: StreamRunAnswer }
-  | { kind: "name_taken"; refusal: string; free_name: string };
+  | { kind: "name_taken"; refusal: string; free_name: string }
+  | { kind: "python_environment_not_made"; words: string };
+
+/** The Python the app makes a project's `.venv` from: Tatolab's own, with its version; Tatolab's own in a build that carries none, with why; or the interpreter the person chose in Settings. */
+export type PythonForNewEnvironments =
+  | { kind: "built_in"; python_version: string }
+  | { kind: "built_in_not_offered"; reason: string }
+  | { kind: "chosen"; interpreter: string };
+
+/** What Settings asks the Python for new environments to be: Tatolab's own, or one the person picks in the app's own file dialog, so the window never names a program for the app to run. */
+export type PythonForNewEnvironmentsChoice = "built_in" | "chosen_in_a_file_dialog";

@@ -8,7 +8,6 @@ import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_too
 import { failedWith, succeeded, type Result } from "./result.js";
 import type { ProgramRunner } from "./platform/run_program_to_completion.js";
 import { firstFreeSuffixedName, StreamProjectAdding, type StreamRunsOnTheRuntime } from "./stream_project_adding.js";
-import { FakeTerminalOpenedInAFolder } from "./fake_tatolab_platform_for_this_build.js";
 
 const temporaryHomes: string[] = [];
 
@@ -51,28 +50,29 @@ interface StreamProjectAddingOverFakes {
   homeDirectory: string;
   dialogAsked: { chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }[];
   programsRun: { programPath: string; programArguments: readonly string[] }[];
+  pythonEnvironmentsMade: string[];
   streamRuns: FakeStreamRunsOnTheRuntime;
-  terminal: FakeTerminalOpenedInAFolder;
 }
 
 async function streamProjectAddingOverFakes({
   dialogAnswer = succeeded(null),
   tatolabCommandLineTool = { kind: "at", path: "/Applications/Tatolab.app/Contents/MacOS/tatolab-cli" },
   runProgram = async () => succeeded({ exitStatus: 0, endingSignal: null, standardOutput: "", standardError: "" }),
+  pythonEnvironmentAnswer = succeeded(undefined),
 }: {
   dialogAnswer?: Result<string | null, string>;
   tatolabCommandLineTool?: TatolabCommandLineTool;
   runProgram?: ProgramRunner;
+  pythonEnvironmentAnswer?: Result<void, string>;
 } = {}): Promise<StreamProjectAddingOverFakes> {
   const homeDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-home-"));
   temporaryHomes.push(homeDirectory);
   const dialogAsked: StreamProjectAddingOverFakes["dialogAsked"] = [];
   const programsRun: StreamProjectAddingOverFakes["programsRun"] = [];
+  const pythonEnvironmentsMade: string[] = [];
   const streamRuns = new FakeStreamRunsOnTheRuntime();
-  const terminal = new FakeTerminalOpenedInAFolder();
   const streamProjectAdding = new StreamProjectAdding({
     homeDirectory,
-    terminalOpenedInAFolder: terminal,
     streamProjectFolderDialog: async (chosenFor, defaultFolder) => {
       dialogAsked.push({ chosenFor, defaultFolder });
       return dialogAnswer;
@@ -82,9 +82,13 @@ async function streamProjectAddingOverFakes({
       programsRun.push({ programPath, programArguments });
       return runProgram(programPath, programArguments);
     },
+    makePythonEnvironmentUnlessOneWorks: async (projectFolder) => {
+      pythonEnvironmentsMade.push(projectFolder);
+      return pythonEnvironmentAnswer;
+    },
     streamRunsOnTheRuntime: streamRuns,
   });
-  return { streamProjectAdding, homeDirectory, dialogAsked, programsRun, streamRuns, terminal };
+  return { streamProjectAdding, homeDirectory, dialogAsked, programsRun, pythonEnvironmentsMade, streamRuns };
 }
 
 test("the first free name is the name itself, then -2, then the next number nothing holds", async () => {
@@ -99,7 +103,7 @@ test("a folder chosen in the dialog is handed to the window with what it holds; 
   const chosen = await streamProjectAdding.chooseStreamProjectFolder("project_to_run");
   expect(chosen.ok && chosen.value?.folder).toBe("/tmp/heat-map");
   expect(dialogAsked).toEqual([{ chosenFor: "project_to_run", defaultFolder: homeDirectory }]);
-  expect((await streamProjectAdding.checkStreamProjectFolder("/tmp/heat-map")).ok).toBe(true);
+  expect((await streamProjectAdding.runStreamProject("/tmp/heat-map", null, null)).ok).toBe(true);
 
   const cancelled = await (await streamProjectAddingOverFakes()).streamProjectAdding.chooseStreamProjectFolder("project_to_run");
   expect(cancelled).toEqual(succeeded(null));
@@ -123,21 +127,19 @@ test("a new project is proposed at the first free ~/streams/hello, and its dialo
     stream_functions: [],
     python_environment: { kind: "missing" },
   });
-  expect((await streamProjectAdding.checkStreamProjectFolder(proposal.folder)).ok).toBe(true);
+  expect((await streamProjectAdding.createStreamProject(proposal.folder)).ok).toBe(true);
 
   await streamProjectAdding.chooseStreamProjectFolder("new_project_directory");
   expect(dialogAsked).toEqual([{ chosenFor: "new_project_directory", defaultFolder: path.join(homeDirectory, "streams", "hello-3") }]);
 });
 
 test("every command naming a folder refuses one the app never handed the window, and touches nothing", async () => {
-  const { streamProjectAdding, programsRun, streamRuns, terminal } = await streamProjectAddingOverFakes();
+  const { streamProjectAdding, programsRun, pythonEnvironmentsMade, streamRuns } = await streamProjectAddingOverFakes();
   const refusal = failedWith("Tatolab acts only on a folder chosen in its window. Choose /etc again.");
-  expect(await streamProjectAdding.checkStreamProjectFolder("/etc")).toEqual(refusal);
-  expect(await streamProjectAdding.openTerminalInStreamProjectFolder("/etc")).toEqual(refusal);
-  expect(terminal.openedInFolders).toEqual([]);
   expect(await streamProjectAdding.createStreamProject("/etc")).toEqual(refusal);
   expect(await streamProjectAdding.runStreamProject("/etc", null, "etc")).toEqual(refusal);
   expect(programsRun).toEqual([]);
+  expect(pythonEnvironmentsMade).toEqual([]);
   expect(streamRuns.runsAsked).toEqual([]);
 });
 
@@ -200,6 +202,21 @@ test("a run that loads answers run_stream's reply, asking for the function and n
   expect(streamRuns.runsAsked).toEqual([{ projectDirectory: "/tmp/heat-map", streamFunction: "stream.py:heat_map", streamName: "heat_map" }]);
 });
 
+test("a run makes the folder's .venv before run_stream, and uv's refusal is python_environment_not_made with no run asked", async () => {
+  const made = await streamProjectAddingOverFakes({ dialogAnswer: succeeded("/tmp/heat-map") });
+  await made.streamProjectAdding.chooseStreamProjectFolder("project_to_run");
+  await made.streamProjectAdding.runStreamProject("/tmp/heat-map", null, "heat_map");
+  expect(made.pythonEnvironmentsMade).toEqual(["/tmp/heat-map"]);
+
+  const uvsOwnWords = "error: No interpreter found at path `/opt/homebrew/bin/python3.11`";
+  const notMade = await streamProjectAddingOverFakes({ dialogAnswer: succeeded("/tmp/heat-map"), pythonEnvironmentAnswer: failedWith(uvsOwnWords) });
+  await notMade.streamProjectAdding.chooseStreamProjectFolder("project_to_run");
+  expect(await notMade.streamProjectAdding.runStreamProject("/tmp/heat-map", null, "heat_map")).toEqual(
+    succeeded({ kind: "python_environment_not_made", words: uvsOwnWords }),
+  );
+  expect(notMade.streamRuns.runsAsked).toEqual([]);
+});
+
 test("a refused name a listed stream holds is name_taken with the first free name; any other failure is the refusal itself", async () => {
   const runtimesRefusal = "the stream name `front-door` is held by a kept stream from /home/someone/streams/front-door; run this one under another name";
   const { streamProjectAdding, streamRuns } = await streamProjectAddingOverFakes({ dialogAnswer: succeeded("/tmp/front-door-v2") });
@@ -216,18 +233,6 @@ test("a refused name a listed stream holds is name_taken with the first free nam
   streamRuns.listAnswer = succeeded([listedStreamNamed("front-door")]);
   streamRuns.runAnswer = failedWith({ failureDescription: "POST /mcp did not answer within 360s", isTheRuntimesRefusal: false });
   expect(await streamProjectAdding.runStreamProject("/tmp/front-door-v2", null, "front-door")).toEqual(failedWith("POST /mcp did not answer within 360s"));
-});
-
-test("a terminal opens in a chosen folder while it exists, and is refused once it is gone", async () => {
-  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "tl-app-project-"));
-  temporaryHomes.push(projectFolder);
-  const { streamProjectAdding, terminal } = await streamProjectAddingOverFakes({ dialogAnswer: succeeded(projectFolder) });
-  await streamProjectAdding.chooseStreamProjectFolder("project_to_run");
-
-  expect(await streamProjectAdding.openTerminalInStreamProjectFolder(projectFolder)).toEqual(succeeded(undefined));
-  await rm(projectFolder, { recursive: true, force: true });
-  expect(await streamProjectAdding.openTerminalInStreamProjectFolder(projectFolder)).toEqual(failedWith(`${projectFolder} is not a folder on this machine.`));
-  expect(terminal.openedInFolders).toEqual([projectFolder]);
 });
 
 test("a refusal while this same folder's kept stream holds the name is the compile's, answered in the runtime's own words", async () => {

@@ -1,9 +1,9 @@
 import { describeBackendRejection, type TatolabBackend } from "./backend/tatolab_backend";
 import type { StreamProjectFolderReport } from "../shared/tatolab_backend_contract";
 import {
+  addStreamActionOf,
   addStreamRunNoticeOf,
   advanceAddStreamFlow,
-  folderToRun,
   initialAddStreamFlowState,
   runRequestOf,
   type AddStreamFlowEvent,
@@ -18,10 +18,8 @@ export type AddStreamBackend = Pick<
   TatolabBackend,
   | "chooseStreamProjectFolder"
   | "proposeNewStreamProjectFolder"
-  | "checkStreamProjectFolder"
   | "createStreamProject"
   | "runStreamProject"
-  | "openTerminalAtChosenProjectFolder"
 >;
 
 /**
@@ -97,39 +95,26 @@ export class AddStreamFlowOfTheWindow {
     );
   }
 
-  checkTheFolderAgain(): void {
-    const form = this.flowState.form;
-    const folder = folderToRun(form);
-    if (folder === null) return;
-    this.dispatch({ kind: "work_started", work: "checking_the_folder" });
-    this.backend.checkStreamProjectFolder(folder.folder).then(
-      (report) => this.dispatch(folderAnsweredEvent(form.source, report)),
-      (rejection: unknown) => this.dispatch({ kind: "work_refused", lead: "Check again was refused:", words: describeBackendRejection(rejection) }),
-    );
+  /** The page's action: Create writes the new project with `tatolab new`, then adds it; Add adds the folder the form names. */
+  performTheAction(): void {
+    if (addStreamActionOf(this.flowState.form) === "create") this.createTheNewProjectThenAddIt();
+    else this.addTheStream();
   }
 
-  openATerminalInTheFolder(): void {
-    const folder = folderToRun(this.flowState.form);
-    if (folder === null) return;
-    this.dispatch({ kind: "work_started", work: "opening_a_terminal" });
-    this.backend.openTerminalAtChosenProjectFolder(folder.folder).then(
-      () => this.dispatch({ kind: "terminal_opened" }),
-      (rejection: unknown) => this.dispatch({ kind: "work_refused", lead: "No terminal opened:", words: describeBackendRejection(rejection) }),
-    );
-  }
-
-  createTheNewProject(): void {
+  private createTheNewProjectThenAddIt(): void {
     const newProjectFolder = this.flowState.form.newProjectFolder;
     if (newProjectFolder === null) return;
     this.dispatch({ kind: "work_started", work: "creating_the_project" });
     this.backend.createStreamProject(newProjectFolder.folder).then(
-      (report) => this.dispatch({ kind: "new_project_created", report }),
+      (report) => {
+        this.dispatch({ kind: "new_project_created", report });
+        this.addTheStream();
+      },
       (rejection: unknown) => this.dispatch({ kind: "work_refused", lead: "Create was refused:", words: describeBackendRejection(rejection) }),
     );
   }
 
-  /** Compile and run what the form asks for. */
-  compileAndRun(): void {
+  private addTheStream(): void {
     const runRequest = runRequestOf(this.flowState.form);
     if (runRequest !== null) this.run(runRequest);
   }

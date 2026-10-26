@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./mock_tatolab_backend";
-import type { ListedStream } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, TatolabStatus } from "../../shared/tatolab_backend_contract";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -151,7 +151,7 @@ describe("the mock backend's Add stream", () => {
     });
   });
 
-  it("creates a project whose .venv a later Check again finds synced, and refuses running it before", async () => {
+  it("creates a project, then makes its .venv with the Python for new environments as it runs it", async () => {
     vi.useFakeTimers();
     const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
     const proposal = await settled(() => backend.proposeNewStreamProjectFolder());
@@ -160,13 +160,37 @@ describe("the mock backend's Add stream", () => {
 
     const created = await settled(() => backend.createStreamProject(folder));
     expect(created).toEqual({ answer: expect.objectContaining({ stream_functions: ["main"], python_environment: { kind: "missing" } }) });
-    expect(await settled(() => backend.runStreamProject(folder, null, "hello"))).toEqual({
-      refusal: `Invalid configuration: ${folder} has no .venv/bin/python; run \`uv sync\` in ${folder}`,
+    expect(await settled(() => backend.runStreamProject(folder, null, "hello"), 7000)).toEqual({ answer: expect.objectContaining({ kind: "running" }) });
+  });
+
+  it("answers uv's refusal as python_environment_not_made with ?add_venv=refused, and a build with no Python with its reason", async () => {
+    vi.useFakeTimers();
+    for (const [query, words] of [
+      ["add_venv=refused&add_folder=no-venv", expect.stringMatching(/^error: Failed to fetch: `https:\/\/pypi.org\/simple\/tatolab-stream\/`/)],
+      ["python=not_offered&add_folder=no-venv", expect.stringMatching(/^This build of Tatolab carries no uv or Python of its own/)],
+    ] as const) {
+      const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams(query)));
+      const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
+      const folder = "answer" in chosen && chosen.answer !== null ? chosen.answer.folder : "";
+      expect(await settled(() => backend.runStreamProject(folder, null, "heat_map"), 4000)).toEqual({ answer: { kind: "python_environment_not_made", words } });
+    }
+  });
+
+  it("chooses the Python for new environments: one the file dialog picks, Tatolab's again, and a pick that is no Python refused", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
+    const statuses: TatolabStatus[] = [];
+    await backend.onTatolabStatusChanged((status) => statuses.push(status));
+
+    await settled(() => backend.choosePythonForNewEnvironments("chosen_in_a_file_dialog"));
+    expect(statuses.at(-1)?.python_for_new_environments).toEqual({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" });
+    await settled(() => backend.choosePythonForNewEnvironments("built_in"));
+    expect(statuses.at(-1)?.python_for_new_environments).toEqual({ kind: "built_in", python_version: "3.12.12" });
+
+    const notAPython = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("python_pick=not_python")));
+    expect(await settled(() => notAPython.choosePythonForNewEnvironments("chosen_in_a_file_dialog"))).toEqual({
+      refusal: "/usr/bin/ruby is not a Python interpreter: ruby 3.3.0",
     });
-    expect(await settled(() => backend.checkStreamProjectFolder(folder))).toEqual({
-      answer: expect.objectContaining({ python_environment: { kind: "present", python_version: "3.12.10", tatolab_stream_version: "0.55.0" } }),
-    });
-    expect(await settled(() => backend.runStreamProject(folder, null, "hello"))).toEqual({ answer: expect.objectContaining({ kind: "running" }) });
   });
 
   it("refuses creating a project in a build with no tatolab command, and answers a cancelled dialog with null", async () => {
