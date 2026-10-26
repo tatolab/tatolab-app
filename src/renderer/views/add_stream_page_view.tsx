@@ -46,7 +46,7 @@ import { streamPagePath } from "./stream_page_path";
 import { useAddStreamFlowState, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 const ADD_STREAM_SOURCES: readonly { source: AddStreamSource; label: string }[] = [
-  { source: "project_folder", label: "Project folder" },
+  { source: "project_folder", label: "Import project" },
   { source: "new_project", label: "New project" },
 ];
 

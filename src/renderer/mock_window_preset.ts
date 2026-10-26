@@ -139,7 +139,11 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   }
   if (pageQuery.get("step_menu") === "open" && document.querySelector('[data-slot="dropdown-menu-content"]') === null) await clickWhenShown("[data-stream-log-step-filter]");
   const page = pageQuery.get("page");
-  if (page === "settings" || page === "add-stream") await clickWhenShown(`[data-window-navigation="${page}"]`);
+  if (page === "settings") await clickWhenShown(`[data-window-navigation="settings"]`);
+  if (page === "add-stream") {
+    await clickWhenShown(`[data-window-navigation="add-project-menu"]`);
+    await clickWhenShown(`[data-window-navigation="add-stream"]`);
+  }
   if (page === "add-stream") await driveAddStreamToPreset(pageQuery.get("add"));
   const settingsSection = pageQuery.get("section");
   if (page === "settings" && settingsSection !== null) await clickWhenShown(`[data-settings-section="${CSS.escape(settingsSection)}"]`);

@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Folder, FolderOpen, List, Plus, Settings } from "lucide-react";
+import { Folder, FolderInput, FolderOpen, FolderPlus, List, Plus, Settings } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
@@ -9,6 +9,7 @@ import { presentStreamState } from "../presentation/stream_presentation";
 import { streamProjectFoldersOf, type StreamProjectFolder } from "../presentation/streams_list_presentation";
 import { IconButton } from "../design_system/icon_button";
 import { ListRowButton } from "../design_system/list_row_button";
+import { IconButtonMenu, MenuItem } from "../design_system/menus";
 import { PageFrame } from "../design_system/page_frame";
 import { PageHeader } from "../design_system/page_header";
 import { StreamStateIcon } from "../design_system/stream_state_words";
@@ -135,14 +136,21 @@ function StreamsSidebarNavigation() {
                 onPressed={() => navigate("/")}
                 data-window-navigation="streams"
               />
-              <IconButton icon={Plus} label="Add stream" size="compact" onPressed={() => navigate(addStreamPagePath("project_folder"))} data-window-navigation="add-stream" />
+              <IconButtonMenu icon={Plus} label="New or import a project" size="compact" menuAlignment="start" data-window-navigation="add-project-menu">
+                <MenuItem icon={FolderPlus} onChosen={() => navigate(addStreamPagePath("new_project"))} data-window-navigation="new-project">
+                  New project
+                </MenuItem>
+                <MenuItem icon={FolderInput} onChosen={() => navigate(addStreamPagePath("project_folder"))} data-window-navigation="add-stream">
+                  Import project
+                </MenuItem>
+              </IconButtonMenu>
             </div>
           }
         >
-          Streams
+          Projects
         </SidebarSectionHeading>
         {listedStreams === null ? (
-          <p className="px-2 text-xs text-fg-3">Streams show here while the runtime runs.</p>
+          <p className="px-2 text-xs text-fg-3">Projects show here while the runtime runs.</p>
         ) : (
           <ul aria-label="Project folders" className="flex flex-col gap-2">
             {streamProjectFoldersOf(listedStreams).map((projectFolder) => (

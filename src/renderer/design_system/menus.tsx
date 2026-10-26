@@ -16,24 +16,47 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ControlDataAttributeName, ControlDataAttributes } from "./control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
-import { ICON_BUTTON_CLASS_NAMES } from "./icon_button";
+import { ICON_BUTTON_CLASS_NAMES, STOCK_ICON_BUTTON_SIZE, type IconButtonSize } from "./icon_button";
 
 /** How wide an open menu is: as wide as its words, or a fixed width for choices that read better aligned. */
 export type MenuWidth = "fit" | "wide";
 
 const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-56", wide: "w-[288px] max-h-96" };
 
-/** The ⋯ button that opens a row's or a page's other actions. */
-export function MoreActionsMenu({ label, children, ...controlDataAttributes }: { label: string; children: ReactNode } & ControlDataAttributes) {
+/** An icon button that opens a menu of its choices: regular in rows and bars, compact beside a heading. */
+export function IconButtonMenu({
+  icon: TriggerIcon,
+  label,
+  size = "regular",
+  menuAlignment = "end",
+  children,
+  ...controlDataAttributes
+}: {
+  icon: LucideIcon;
+  label: string;
+  size?: IconButtonSize;
+  /** Which edge of the button the open menu lines up with. */
+  menuAlignment?: "start" | "end";
+  children: ReactNode;
+} & ControlDataAttributes) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className={ICON_BUTTON_CLASS_NAMES} />} aria-label={label} {...controlDataAttributes}>
-        <Ellipsis className="size-4" strokeWidth={1.75} aria-hidden />
+      <DropdownMenuTrigger render={<Button variant="ghost" size={STOCK_ICON_BUTTON_SIZE[size]} className={ICON_BUTTON_CLASS_NAMES} />} aria-label={label} {...controlDataAttributes}>
+        <TriggerIcon className="size-4" strokeWidth={1.75} aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className={MENU_WIDTH_CLASS_NAMES.fit}>
+      <DropdownMenuContent align={menuAlignment} className={MENU_WIDTH_CLASS_NAMES.fit}>
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** The ⋯ button that opens a row's or a page's other actions. */
+export function MoreActionsMenu({ label, children, ...controlDataAttributes }: { label: string; children: ReactNode } & ControlDataAttributes) {
+  return (
+    <IconButtonMenu icon={Ellipsis} label={label} {...controlDataAttributes}>
+      {children}
+    </IconButtonMenu>
   );
 }
 

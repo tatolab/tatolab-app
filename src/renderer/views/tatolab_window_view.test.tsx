@@ -168,7 +168,7 @@ describe("the window's shell", () => {
     await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("lobby-recorder"));
   });
 
-  it("shows no sidebar header, title bar controls or status bar, leaving one way to add a stream", async () => {
+  it("shows no sidebar header, title bar controls or status bar, leaving the sidebar's + menu the one way to add a project", async () => {
     await mountedWindowOverTheMock("state=running");
 
     const sidebar = within(screen.getByRole("navigation", { name: "Tatolab" }));
@@ -179,7 +179,8 @@ describe("the window's shell", () => {
     }
     expect(screen.queryByText("Runtime running")).toBeNull();
     expect(screen.queryByText("Tatolab 0.45.0")).toBeNull();
-    expect(screen.getAllByRole("button", { name: /Add stream/ }).map((addStreamButton) => addStreamButton.getAttribute("data-window-navigation"))).toEqual(["add-stream"]);
+    expect(screen.queryAllByRole("button", { name: /Add stream/ })).toEqual([]);
+    expect(screen.getByRole("button", { name: "New or import a project" }).getAttribute("data-window-navigation")).toBe("add-project-menu");
   });
 });
 
@@ -710,8 +711,10 @@ async function addStreamControl(action: string): Promise<HTMLElement> {
 }
 
 /** The sidebar's Add stream. */
-function openAddStream(): void {
-  fireEvent.click(document.querySelector<HTMLElement>('[data-window-navigation="add-stream"]') ?? expect.unreachable("no Add stream in the sidebar"));
+/** Add stream opened from the sidebar's + menu, by Import project. */
+async function openAddStream(): Promise<void> {
+  fireEvent.click(document.querySelector<HTMLElement>('[data-window-navigation="add-project-menu"]') ?? expect.unreachable("no + menu in the sidebar"));
+  fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-window-navigation="add-stream"]') ?? expect.unreachable("no Import project in the + menu")));
 }
 
 /** Long enough for the mock runtime to compile, load and start a project. */
@@ -722,7 +725,7 @@ const MOCK_RUN_AFTER_MAKING_THE_VENV_WAIT = { timeout: 9000 };
 describe("Add stream", () => {
   it("runs a chosen project folder kept, listing its compile warning, and opens the stream it loaded", { timeout: 15_000 }, async () => {
     await mountedWindowOverTheMock("state=running&add_run=warning");
-    openAddStream();
+    await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
 
     await waitFor(() => expect(document.querySelector('[data-add-stream-check="stream.py"]')?.textContent).toContain("Stream function heat_map()"));
@@ -744,7 +747,7 @@ describe("Add stream", () => {
 
   it("shows the runtime's refusal of a taken name in its own words, and Run as <name>-2 runs it under that name", { timeout: 15_000 }, async () => {
     await mountedWindowOverTheMock("state=running&add_folder=taken");
-    openAddStream();
+    await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "main"));
     fireEvent.click(await addStreamControl("add"));
@@ -777,7 +780,7 @@ describe("Add stream", () => {
 
   it("shows uv's refusal to set up the project's Python in its own words, under its own lead", { timeout: 15_000 }, async () => {
     await mountedWindowOverTheMock("state=running&add_folder=no-venv&add_venv=refused");
-    openAddStream();
+    await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
     await waitFor(() => expect(document.querySelector("[data-add-stream-checks]")).not.toBeNull());
     fireEvent.click(await addStreamControl("add"));
@@ -790,7 +793,7 @@ describe("Add stream", () => {
 
   it("shows tatolab new's refusal in its own words when this build has no tatolab command", async () => {
     await mountedWindowOverTheMock("state=running&add_cli=missing");
-    openAddStream();
+    await openAddStream();
     fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-add-stream-source="new_project"]') ?? expect.unreachable("no source list yet")));
     await waitFor(() => expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("/Users/jonathanf/streams/hello"));
 
@@ -805,7 +808,7 @@ describe("Add stream", () => {
 
   it("says in the footer why Compile and run can't be pressed while the runtime is down", async () => {
     const { backend, showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=running");
-    openAddStream();
+    await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
     await waitFor(() => expect(document.querySelector("[data-add-stream-checks]")).not.toBeNull());
     const statusBefore = await backend.getTatolabStatus();
@@ -818,13 +821,13 @@ describe("Add stream", () => {
 
   it("catches the page up to the source the path names once a run that was compiling answers", { timeout: 15_000 }, async () => {
     await mountedWindowOverTheMock("state=running");
-    openAddStream();
+    await openAddStream();
     fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-add-stream-source="new_project"]') ?? expect.unreachable("no source list yet")));
     await waitFor(() => expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("/Users/jonathanf/streams/hello"));
     fireEvent.click(await addStreamControl("create"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')).not.toBeNull());
 
-    openAddStream();
+    await openAddStream();
 
     await waitFor(() => expect(document.querySelector("[data-add-stream-page]")?.getAttribute("data-add-stream-page")).toBe("project_folder"), MOCK_RUN_AFTER_MAKING_THE_VENV_WAIT);
     expect(document.querySelector('[data-add-stream-source="project_folder"]')?.getAttribute("aria-pressed")).toBe("true");
@@ -832,7 +835,7 @@ describe("Add stream", () => {
 
   it("keeps a run that answers after you left the page, says so in a notice, and View shows what it came to", { timeout: 15_000 }, async () => {
     await mountedWindowOverTheMock("state=running&add_run=warning");
-    openAddStream();
+    await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
     await waitFor(() => expect(document.querySelector("[data-add-stream-checks]")).not.toBeNull());
     fireEvent.click(await addStreamControl("add"));
@@ -851,7 +854,7 @@ describe("Add stream", () => {
     expect(document.querySelector("[data-add-stream-run-notice]")).toBeNull();
 
     fireEvent.click(document.querySelector<HTMLElement>('[data-window-navigation="streams"]') ?? expect.unreachable("no Streams in the sidebar"));
-    openAddStream();
+    await openAddStream();
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="project_folder"]')).not.toBeNull());
     expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("");
   });
