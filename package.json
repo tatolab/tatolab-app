@@ -10,7 +10,7 @@
     "typecheck": "tsc -b",
     "build:service-management-addon": "node-gyp rebuild --directory native/service_management_agent_services",
     "test": "vitest run",
-    "lint": "eslint . && stylelint \"src/renderer/**/*.css\" && scripts/check-license-headers.sh"
+    "lint": "eslint . && stylelint \"src/renderer/**/*.css\""
   },
   "dependencies": {
     "electron-updater": "6.8.9"

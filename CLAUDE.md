@@ -2,16 +2,11 @@
 
 ## Licensing (load-bearing — do not modify)
 
-Tatolab.app is proprietary (`LICENSE`). Never suggest an open-source licence for it. Every new
-Rust, TypeScript and shell source file carries, on its first two lines (after a `#!` line, if any):
-
-    // Copyright (c) 2025 Jonathan Fontanez
-    // SPDX-License-Identifier: LicenseRef-Tatolab-Proprietary
-
-(`#` in place of `//` for shell). shadcn's generated components (`src/renderer/components/ui/`) keep their
-MIT form and carry no Tatolab header. The runtime the app bundles is streamlib's, BUSL-1.1, and
-keeps its own licence. Do not modify `LICENSE` without explicit approval.
-`scripts/check-license-headers.sh` enforces the header in PR CI.
+Tatolab.app is proprietary (`LICENSE`), and `LICENSE` covers every file in the repository, so a
+source file carries no licence header of its own. Never suggest an open-source licence for it.
+shadcn's generated components (`src/renderer/components/ui/`) keep their MIT form. The runtime the
+app bundles is streamlib's, BUSL-1.1, and keeps its own licence. Do not modify `LICENSE` without
+explicit approval.
 
 ---
 
