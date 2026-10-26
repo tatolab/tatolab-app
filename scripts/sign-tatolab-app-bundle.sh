@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
-# Signs an assembled Tatolab.app inside-out with the hardened runtime: every loose Mach-O in
-# Contents/Frameworks (the runtime's dylibs, the app's Service Management addon, Electron's
-# libraries), each framework, each Electron helper app, Contents/MacOS/tatolabd,
-# Contents/MacOS/tatolab-cli and Contents/MacOS/moq-relay, then the app. Ad-hoc ("-") signatures
-# carry no hardened runtime.
+# Signs an assembled Tatolab.app inside-out with the Developer ID, the hardened runtime and a secure
+# timestamp: every loose Mach-O in Contents/Frameworks (the runtime's dylibs, the app's Service
+# Management addon, Electron's libraries), each framework, each Electron helper app,
+# Contents/MacOS/tatolabd, Contents/MacOS/tatolab-cli and Contents/MacOS/moq-relay, then the app.
 #
 # Usage: sign-tatolab-app-bundle.sh <Tatolab.app> <identity>
-#   identity  "-" (ad-hoc), an "Apple Development: …" identity, or a "Developer ID Application: …"
-#             identity; only Developer ID gets a secure timestamp, which notarization requires
+#   identity  the "Developer ID Application: … (TEAMID)" identity from Infisical, in a keychain
+#             build-tatolab-app.sh imported it into; the script refuses any other
 set -euo pipefail
 
 usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$0" >&2; exit 2; }
 [ $# -eq 2 ] || usage
-app_bundle="$(cd "$1" && pwd)"
 signing_identity="$2"
+case "$signing_identity" in
+  "Developer ID Application: "*) ;;
+  *) echo "'$signing_identity' is not a 'Developer ID Application: …' identity: Tatolab.app is signed with the Developer ID and nothing else" >&2; exit 1 ;;
+esac
+app_bundle="$(cd "$1" && pwd)"
 contents="$app_bundle/Contents"
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 app_entitlements="$repository_root/packaging/entitlements/tatolab-app.entitlements"
@@ -25,18 +28,7 @@ for required in MacOS/Tatolab MacOS/tatolabd MacOS/tatolab-cli MacOS/moq-relay F
   [ -e "$contents/$required" ] || { echo "$app_bundle is not assembled: Contents/$required is missing" >&2; exit 1; }
 done
 
-case "$signing_identity" in
-  "Developer ID Application"*) timestamp_argument="--timestamp" ;;
-  *) timestamp_argument="--timestamp=none" ;;
-esac
-# Ad-hoc code has no Team ID, so the hardened runtime's library validation would refuse the
-# Frameworks dylibs (dyld: "different Team IDs"); an ad-hoc build is never notarized, so it skips it.
-if [ "$signing_identity" = "-" ]; then
-  hardened_runtime_arguments=()
-else
-  hardened_runtime_arguments=(--options runtime)
-fi
-codesign_common_arguments=(--force ${hardened_runtime_arguments[@]+"${hardened_runtime_arguments[@]}"} "$timestamp_argument" --sign "$signing_identity")
+codesign_common_arguments=(--force --options runtime --timestamp --sign "$signing_identity")
 
 is_mach_o() { [[ "$(file -b "$1")" == Mach-O* ]]; }
 
@@ -71,4 +63,4 @@ codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.moq-relay "$
 codesign "${codesign_common_arguments[@]}" --entitlements "$app_entitlements" "$app_bundle"
 
 codesign --verify --deep --strict "$app_bundle"
-echo "signed $app_bundle with '$signing_identity': $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count helper apps, tatolabd, tatolab-cli, moq-relay, the app"
+echo "signed $app_bundle with the Developer ID: $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count helper apps, tatolabd, tatolab-cli, moq-relay, the app"

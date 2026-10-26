@@ -94,7 +94,6 @@ const packagedApp = targetPlatform === "darwin" ? path.join(packagedDirectory, "
 // flipFuses takes the bundle on macOS and the executable on Linux.
 await flipFuses(targetPlatform === "darwin" ? packagedApp : path.join(packagedApp, "Tatolab"), {
   version: FuseVersion.V1,
-  resetAdHocDarwinSignature: targetPlatform === "darwin",
   [FuseV1Options.RunAsNode]: false,
   [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
   [FuseV1Options.EnableNodeCliInspectArguments]: false,

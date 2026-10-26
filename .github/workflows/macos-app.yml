@@ -2,9 +2,9 @@ name: Tatolab app (macOS and Linux)
 
 # Builds Tatolab.app and Tatolab-<version>-arm64.dmg around a streamlib runtime unit, and the Linux
 # Tatolab-<version>-amd64.deb and Tatolab-<version>-x86_64.AppImage, which carry no runtime: on
-# Linux the installer installs it. With the Developer ID secrets present the app and the image are
-# signed, notarized and stapled; without them the build is ad-hoc signed, never notarized, and
-# nothing is published. Publishing uploads the image and the Linux packages to the streamlib
+# Linux the installer installs it. The app and the image are signed with the Developer ID, and the
+# macOS build fails without its secrets; with the App Store Connect API key they are also notarized
+# and stapled, and only a notarized build is published. Publishing uploads the image and the Linux packages to the streamlib
 # release the image bundles and bumps the tatolab cask in tatolab/homebrew-tap.
 on:
   push:
@@ -123,40 +123,24 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
-      - name: Import the Developer ID certificate (when configured)
+      - name: Write the App Store Connect API key for notarization (when configured)
         env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
         run: |
-          if [ -z "$APPLE_CERTIFICATE" ] || [ -z "$APPLE_SIGNING_IDENTITY" ]; then
-            echo "No Developer ID certificate: the build will be ad-hoc signed and not notarized."
-            exit 0
-          fi
-          keychain="$RUNNER_TEMP/signing.keychain-db"; keychain_password="$(openssl rand -hex 16)"
-          security create-keychain -p "$keychain_password" "$keychain"
-          security set-keychain-settings -lut 21600 "$keychain"
-          security unlock-keychain -p "$keychain_password" "$keychain"
-          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
-          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-          rm -f "$RUNNER_TEMP/developer-id.p12"
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
-          # shellcheck disable=SC2046
-          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
-          echo "DEVELOPER_ID_READY=1" >> "$GITHUB_ENV"
           if [ -n "$APPLE_API_KEY_P8_BASE64" ] && [ -n "$APPLE_API_KEY_ID" ] && [ -n "$APPLE_API_ISSUER" ]; then
-            echo "$APPLE_API_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+            (umask 077 && echo "$APPLE_API_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8")
             echo "NOTARIZATION_READY=1" >> "$GITHUB_ENV"
           else
-            echo "::warning::Developer ID present but the App Store Connect API key is not: signed, not notarized."
+            echo "::warning::No App Store Connect API key: signed with the Developer ID, not notarized."
           fi
 
       - name: Build, sign, package and verify
         id: build
         env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
@@ -165,13 +149,10 @@ jobs:
         run: |
           build_arguments=(--streamlib-ref "$STREAMLIB_REF")
           notarized=false
-          if [ "${DEVELOPER_ID_READY:-0}" = 1 ]; then
-            build_arguments+=(--sign-identity "$APPLE_SIGNING_IDENTITY")
-            if [ "${NOTARIZATION_READY:-0}" = 1 ]; then
-              export APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
-              build_arguments+=(--notarize)
-              notarized=true
-            fi
+          if [ "${NOTARIZATION_READY:-0}" = 1 ]; then
+            export APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+            build_arguments+=(--notarize)
+            notarized=true
           fi
           scripts/build-tatolab-app.sh "${build_arguments[@]}"
           dmg_path="$(ls build/Tatolab-*-arm64.dmg)"
@@ -184,7 +165,6 @@ jobs:
             echo "### Tatolab.app"
             echo "- streamlib: \`$STREAMLIB_REF\` at \`$(cat build/Tatolab.app/Contents/Resources/streamlib-commit)\`"
             echo "- image: \`$(basename "$dmg_path")\` ($(du -h "$dmg_path" | cut -f1))"
-            echo "- signed: $([ "${DEVELOPER_ID_READY:-0}" = 1 ] && echo 'Developer ID' || echo 'ad-hoc')"
             echo "- notarized: $notarized"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -195,11 +175,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Remove the signing keychain and API key
+      - name: Remove the App Store Connect API key
         if: always()
-        run: |
-          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
-          rm -f "$RUNNER_TEMP/AuthKey.p8"
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"
 
   linux:
     name: Build Tatolab for Linux (x86_64 .deb and AppImage)
@@ -260,7 +238,7 @@ jobs:
       - name: Refuse to publish an image Gatekeeper would refuse
         if: needs.build.outputs.notarized != 'true'
         run: |
-          echo "::error::the build was not notarized (Developer ID or API key secrets missing): nothing is published"
+          echo "::error::the build was not notarized (the App Store Connect API key secrets are missing): nothing is published"
           exit 1
 
       - uses: actions/checkout@v4
