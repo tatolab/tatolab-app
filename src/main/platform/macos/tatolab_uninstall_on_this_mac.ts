@@ -12,7 +12,7 @@ import path from "node:path";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../../result.js";
 import type { RunTatolabReconciliation } from "../../run_tatolab_switch.js";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import type { RunTatolabSwitchToTurnOff, TatolabUninstall } from "../mod.js";
+import type { RunTatolabSwitchToTurnOff, TatolabUninstall } from "../tatolab_uninstall.js";
 import { shellWordForPath, type AdministratorPrompt, type AdministratorPromptFailure } from "./administrator_prompt.js";
 import { appBundleOfTheExecutable, type TatolabMachinePathsOnMacos } from "./tatolab_machine_paths.js";
 

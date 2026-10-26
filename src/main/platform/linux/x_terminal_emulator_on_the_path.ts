@@ -1,5 +1,5 @@
 import { failedWith, type Result } from "../../result.js";
-import type { TerminalOpenedInAFolder } from "../mod.js";
+import type { TerminalOpenedInAFolder } from "../terminal_opened_in_a_folder.js";
 import { startADetachedProgramOnThePath, type DetachedProgramStart } from "./start_a_detached_program.js";
 
 /** The Debian alternative naming the desktop's terminal, which Ubuntu installs with every terminal. */

@@ -5,7 +5,7 @@
 
 import { shell } from "electron";
 import electronUpdater, { type AppUpdater, type Logger, type UpdateCheckResult } from "electron-updater";
-import type { TatolabAppUpdatePackaging } from "../platform/mod.js";
+import type { TatolabAppUpdatePackaging } from "../platform/tatolab_app_update_packaging.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
 import type { TatolabAppUpdateFeed, TatolabAppUpdateFeedForThisBuild, TatolabAppUpdateProgress } from "../tatolab_app_updater.js";

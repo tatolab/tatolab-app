@@ -1,39 +1,22 @@
 // macOS: Service Management registers the runtime's launch agent, the app links the CLI in the
 // home folder with no prompt and in `/usr/local/bin` behind the administrator prompt when asked,
-// "Uninstall Tatolab…" removes them, Terminal.app opens a stream's project, the window draws
-// under a hidden title bar with the Dock icon following it, and the tray's mark is a template
-// image.
+// "Uninstall Tatolab…" removes them, and Terminal.app opens a stream's project.
 
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import {
-  currentProcessUid,
-  tatolabCommandLineToolAt,
-  TATOLAB_APP_IDENTIFIER,
-  UNPACKAGED_APP_UPDATE_REFUSAL,
-  type TatolabAppUpdatePackaging,
-  type TatolabPlatformForThisBuild,
-  type TatolabPlatformHostServices,
-  type TrayIconImage,
-} from "../mod.js";
+import { currentProcessUid } from "../current_process_uid.js";
+import { TATOLAB_APP_IDENTIFIER } from "../tatolab_app_identifier.js";
+import { tatolabCommandLineToolAt } from "../tatolab_command_line_tool.js";
+import type { TatolabPlatformForThisBuild, TatolabPlatformHostServices } from "../tatolab_platform_for_this_build.js";
+import { tatolabAppNotOpenedAtLogin, UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL } from "../tatolab_app_opened_at_login.js";
 import { OSASCRIPT_AT_ITS_SYSTEM_PATH, OsascriptAdministratorPrompt } from "./administrator_prompt.js";
 import { CommandLineToolLinksOnThisMac } from "./command_line_tool_links_on_this_mac.js";
 import { loadServiceManagementAddon, serviceManagementAddonBuiltUnder, serviceManagementAddonInTheAppBundle } from "./service_management_addon.js";
 import { LAUNCHCTL_AT_ITS_SYSTEM_PATH, ServiceManagementRuntimeLaunchAgent } from "./service_management_runtime_launch_agent.js";
 import { appBundleContaining, bundledCommandLineToolPath, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
 import { TerminalAppOpenedByOpen } from "./terminal_app_opened_by_open.js";
-import { TatolabUninstallOnThisMac } from "./tatolab_uninstall.js";
+import { TatolabUninstallOnThisMac } from "./tatolab_uninstall_on_this_mac.js";
 import { LoginItemOfTheAppBundle } from "./login_item_of_the_app_bundle.js";
-import { tatolabAppNotOpenedAtLogin, UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL } from "../tatolab_app_opened_at_login.js";
-
-export { MACOS_MAIN_WINDOW_CHROME, setMacosDockIconVisible } from "./main_window_chrome.js";
-
-/** The tray's mark, shown at 18pt in the menu bar from its @2x file and tinted to it as a template image. */
-export const MACOS_TRAY_ICON_IMAGE: TrayIconImage = { pngFileName: "tray-template.png", isATemplate: true };
-
-/** Squirrel.Mac replaces a packaged app's bundle from a signed `.zip`; an unpackaged app runs from Electron's bundle, which it never replaces. */
-export function tatolabAppUpdatePackagingOnMacos(appIsPackaged: boolean): TatolabAppUpdatePackaging {
-  return appIsPackaged ? { kind: "squirrel_mac_zip" } : { kind: "not_offered", reason: UNPACKAGED_APP_UPDATE_REFUSAL };
-}
+import { tatolabAppUpdatePackagingOnMacos } from "./tatolab_app_update_packaging_on_macos.js";
 
 /** The bundle's launch agent through the Service Management addon, the links of the CLI in the bundle the app binary runs from, and uninstalling them. */
 export async function macosTatolabPlatformForThisBuild(

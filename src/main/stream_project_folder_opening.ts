@@ -5,7 +5,7 @@
 
 import path from "node:path";
 import { STREAM_LOG_FOLDER_IN_THE_PROJECT, type ListedStream } from "../shared/tatolab_backend_contract.js";
-import type { TerminalOpenedInAFolder } from "./platform/mod.js";
+import type { TerminalOpenedInAFolder } from "./platform/terminal_opened_in_a_folder.js";
 import { failedWith, type Result } from "./result.js";
 
 /** What of a stream's project opens, and where: the project folder in the desktop's file manager or in a terminal whose shell starts in it, or its log folder in the file manager. */

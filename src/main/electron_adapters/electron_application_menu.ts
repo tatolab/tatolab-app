@@ -1,5 +1,5 @@
 import { Menu } from "electron";
-import type { ApplicationMenu } from "../platform/mod.js";
+import type { ApplicationMenu } from "../platform/application_menu.js";
 
 /** The Electron menu for `applicationMenu`: macOS's app, File, Edit, View (full screen only) and Window menus, or none. */
 export function electronApplicationMenu(applicationMenu: ApplicationMenu): Menu | null {

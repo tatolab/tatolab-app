@@ -7,7 +7,9 @@ import { startTatolabApp, type TatolabElectronAppShell, type TatolabRunningApp }
 import { describeCaughtFailure } from "../result.js";
 import { createTatolabAppLogToStandardError } from "../tatolab_app_log.js";
 import { TATOLAB_APP_BUILD_FEATURES } from "../tatolab_app_build_features.js";
-import { TATOLAB_APP_IDENTIFIER, tatolabPlatformItemsForThisBuild, type TatolabPlatformHostServices } from "../platform/mod.js";
+import { TATOLAB_APP_IDENTIFIER } from "../platform/tatolab_app_identifier.js";
+import { tatolabPlatformItemsForThisBuild } from "../platform/tatolab_platform_items.js";
+import type { TatolabPlatformHostServices } from "../platform/tatolab_platform_for_this_build.js";
 import { TATOLAB_WINDOW_PAGE_URL } from "../tatolab_window_page_source.js";
 import { runtimeLoopbackHttpOriginForThisBuild } from "../runtime_loopback_watch_page.js";
 import { electronApplicationMenu } from "./electron_application_menu.js";

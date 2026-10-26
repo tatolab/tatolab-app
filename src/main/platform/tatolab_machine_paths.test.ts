@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { LOCAL_API_SOCKET_FILE_NAME, localApiSocketUnderALocalProofTestRoot, perUserStreamlibRuntimeDirectoryUnderTmp } from "./mod.js";
+import { LOCAL_API_SOCKET_FILE_NAME, localApiSocketUnderALocalProofTestRoot, perUserStreamlibRuntimeDirectoryUnderTmp } from "./tatolab_machine_paths.js";
 import path from "node:path";
 
 test("the_local_api_socket_sits_where_the_runtime_serves_it", () => {

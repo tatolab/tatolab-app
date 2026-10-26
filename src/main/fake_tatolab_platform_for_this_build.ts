@@ -7,7 +7,11 @@ import type {
   TatolabAppOpenAtLogin,
 } from "../shared/tatolab_backend_contract.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
-import type { TatolabAppUpdatePackaging, TatolabCommandLineTool, TatolabPlatformForThisBuild, TatolabUninstall, TerminalOpenedInAFolder } from "./platform/mod.js";
+import type { TatolabAppUpdatePackaging } from "./platform/tatolab_app_update_packaging.js";
+import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_tool.js";
+import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
+import type { TatolabUninstall } from "./platform/tatolab_uninstall.js";
+import type { TerminalOpenedInAFolder } from "./platform/terminal_opened_in_a_folder.js";
 import type { BundledRuntimeRestart, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import type { CommandLineToolLinkRefusal, CommandLineToolLinksObservation, TatolabCommandLineToolLinks } from "./platform/tatolab_command_line_tool_links.js";
 import { failedWith, succeeded, type Result } from "./result.js";
