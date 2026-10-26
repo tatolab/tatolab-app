@@ -172,19 +172,9 @@ export class RunTatolabSwitch {
     if (serviceManagerGiveUp !== null) this.serviceManagerGiveUpHeldUntilTheRuntimeAnswersOrIsStartedAfresh = serviceManagerGiveUp;
   }
 
-  /** The service manager's latest give-up since the runtime last answered or was started afresh; `null` with none. */
-  serviceManagerGiveUpSinceTheRuntimeLastAnsweredOrWasStartedAfresh(): RuntimeAgentGiveUp | null {
-    return this.serviceManagerGiveUpHeldUntilTheRuntimeAnswersOrIsStartedAfresh;
-  }
-
-  /** Whether the app has registered the agent afresh by itself since the runtime last answered. */
-  hasRegisteredAfreshSinceTheRuntimeLastAnswered(): boolean {
-    return this.freshRegistrationsSinceTheRuntimeLastAnswered !== null;
-  }
-
-  /** Whether the service manager still gives up on the runtime after the app registered its agent afresh by itself, which reads as blocked. */
+  /** Whether the service manager still gives up on the runtime after the app registered its agent afresh by itself since the runtime last answered, which reads as blocked. */
   serviceManagerStillGivesUpAfterTheAppsOwnFreshRegistration(): boolean {
-    return this.serviceManagerGiveUpHeldUntilTheRuntimeAnswersOrIsStartedAfresh !== null && this.hasRegisteredAfreshSinceTheRuntimeLastAnswered();
+    return this.serviceManagerGiveUpHeldUntilTheRuntimeAnswersOrIsStartedAfresh !== null && this.freshRegistrationsSinceTheRuntimeLastAnswered !== null;
   }
 
   /** Whether the runtime has answered since the app launched or last registered, restarted or registered it again. */
@@ -375,8 +365,11 @@ export class RunTatolabSwitch {
         if (serviceManagerGiveUp !== null || runtimeState === "never_answered") {
           if (this.aFreshRegistrationIsDue(serviceManagerGiveUp, serviceManagerGiveUp === null, nowMs)) {
             await this.registerTheAgentAfreshByItself(runtimeAgent, runtimeState, serviceManagerGiveUp, nowMs);
+            return;
           }
-          return;
+          // A runtime the service manager gave up on is left to the next fresh registration; one that never answered
+          // is still started, which catches a spawn launchd left pended.
+          if (serviceManagerGiveUp !== null) return;
         }
         break;
       case "requires_approval":

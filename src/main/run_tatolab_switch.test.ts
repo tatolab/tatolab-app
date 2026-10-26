@@ -445,7 +445,8 @@ test("the_app_registers_the_agent_afresh_by_itself_less_often_each_time_until_th
 
   await pollFindingAGiveUp(1_000);
   expect(underTest.serviceManagement.calls, "a give-up is answered at once").toEqual(ONE_FRESH_REGISTRATION);
-  expect(underTest.runTatolabSwitch.hasRegisteredAfreshSinceTheRuntimeLastAnswered()).toBe(true);
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
+  expect(underTest.runTatolabSwitch.serviceManagerStillGivesUpAfterTheAppsOwnFreshRegistration(), "a give-up after the app's own registration reads blocked").toBe(true);
 
   const cases: [number, number][] = [
     [30_999, 1],
@@ -461,7 +462,8 @@ test("the_app_registers_the_agent_afresh_by_itself_less_often_each_time_until_th
   }
 
   underTest.runTatolabSwitch.noteRuntimeHealthy(300_000);
-  expect(underTest.runTatolabSwitch.hasRegisteredAfreshSinceTheRuntimeLastAnswered()).toBe(false);
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
+  expect(underTest.runTatolabSwitch.serviceManagerStillGivesUpAfterTheAppsOwnFreshRegistration(), "an answer forgets the app's registrations").toBe(false);
   await pollFindingAGiveUp(300_500);
   expect(freshRegistrations(), "an answer starts the backoff over").toBe(5);
 });
@@ -482,7 +484,7 @@ test("a_give_up_that_waits_for_the_next_spawn_holds_the_fresh_registration_until
   await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", 2_000);
   await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", 8_000);
   expect(underTest.serviceManagement.calls, "registering before launchd's next spawn is refused the same way").toEqual([]);
-  expect(underTest.runTatolabSwitch.hasRegisteredAfreshSinceTheRuntimeLastAnswered()).toBe(false);
+  expect(underTest.runTatolabSwitch.serviceManagerStillGivesUpAfterTheAppsOwnFreshRegistration(), "a held give-up reads as starting").toBe(false);
 
   underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
   await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", 12_000);
@@ -496,25 +498,39 @@ test("a_round_that_catches_the_job_running_between_refused_spawns_neither_starts
   underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(null);
   await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", 11_000);
   expect(underTest.serviceManagement.calls, "the give-up holds, so the poller starts nothing").toEqual([]);
-  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeLastAnsweredOrWasStartedAfresh()).toEqual(LAUNCHD_KILLED_THE_JOB_FOR_ITS_CODE_SIGNATURE);
 
   await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", RUNTIME_AGENT_TAKEOVER_WAIT_MS);
   expect(underTest.serviceManagement.calls, "the wait counts from the registration").toEqual(ONE_FRESH_REGISTRATION);
-  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeLastAnsweredOrWasStartedAfresh(), "a fresh start forgets the give-up").toBeNull();
+
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(null);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", RUNTIME_AGENT_TAKEOVER_WAIT_MS + RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS);
+  expect(underTest.serviceManagement.calls, "a fresh start forgets the give-up, so the poller starts the runtime again").toEqual([...ONE_FRESH_REGISTRATION, "start_if_not_running"]);
 });
 
 test("a_give_up_holds_until_the_runtime_answers_or_is_started_afresh", async () => {
-  const underTest = await switchWith("enabled", true);
-  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
-  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(null);
-  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeLastAnsweredOrWasStartedAfresh()).toEqual(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
+  const kickstartsOnAnUnreachableRound = async (underTest: Awaited<ReturnType<typeof switchWith>>, nowMs: number) => {
+    underTest.serviceManagement.calls.length = 0;
+    underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(null);
+    await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "unreachable", nowMs);
+    return underTest.serviceManagement.calls.includes("start_if_not_running");
+  };
 
-  underTest.runTatolabSwitch.noteRuntimeHealthy(1_000);
-  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeLastAnsweredOrWasStartedAfresh()).toBeNull();
+  const answered = await switchWith("enabled", true);
+  answered.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_KILLED_THE_JOB_FOR_ITS_CODE_SIGNATURE);
+  expect(await kickstartsOnAnUnreachableRound(answered, 1_000), "a held give-up starts nothing").toBe(false);
+  answered.runTatolabSwitch.noteRuntimeHealthy(2_000);
+  expect(await kickstartsOnAnUnreachableRound(answered, 3_000), "an answer forgets it").toBe(true);
 
-  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
-  await underTest.runTatolabSwitch.restartTheRuntimeOnRequest(clockAt(2_000).readMonotonicClockMs);
-  expect(underTest.runTatolabSwitch.serviceManagerGiveUpSinceTheRuntimeLastAnsweredOrWasStartedAfresh()).toBeNull();
+  const restarted = await switchWith("enabled", true);
+  restarted.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_KILLED_THE_JOB_FOR_ITS_CODE_SIGNATURE);
+  await restarted.runTatolabSwitch.restartTheRuntimeOnRequest(clockAt(1_000).readMonotonicClockMs);
+  expect(await kickstartsOnAnUnreachableRound(restarted, 1_000 + RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS), "a restart forgets it").toBe(true);
+});
+
+test("a_runtime_that_never_answered_is_still_started_between_fresh_registrations", async () => {
+  const underTest = await switchRegisteredAt(0);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "never_answered", 30_000);
+  expect(underTest.serviceManagement.calls, "a spawn launchd left pended is caught before the fresh registration is due").toEqual(["start_if_not_running"]);
 });
 
 test("a_give_up_that_waits_for_the_next_spawn_holds_the_fresh_registration_no_longer_than_the_takeover_wait", async () => {
