@@ -12,6 +12,7 @@ import type {
   StreamGraphSummary,
   StreamLogRecordsPage,
   StreamRunAnswer,
+  TatolabAppBuild,
   TatolabAppUpdateState,
   TatolabPlatform,
   TatolabStatus,
@@ -60,6 +61,8 @@ export interface TatolabAppControllerSources {
   appConfigDirectory: string;
   appLaunchedAtMs: number;
   appVersion: string;
+  /** Which build of the app this is, which each status carries. */
+  appBuild: TatolabAppBuild | null;
   /** Where the runtime this build reads serves its loopback HTTP, under which each readable output has its preview page. */
   runtimeLoopbackHttpOrigin: string;
   /** The monotonic clock every `nowMs` is read from: `performance.now()` in the app. */
@@ -83,6 +86,7 @@ export class TatolabAppController {
 
   private constructor(
     private readonly appVersion: string,
+    private readonly appBuild: TatolabAppBuild | null,
     private readonly platform: TatolabPlatform,
     private readonly runTatolabSwitch: RunTatolabSwitch,
     private readonly commandLineToolLinks: TatolabCommandLineToolLinks,
@@ -112,6 +116,7 @@ export class TatolabAppController {
     const firstRunFinishedFile = RememberedSwitchFile.firstRunFinishedInAppConfigDirectory(sources.appConfigDirectory, sources.tatolabAppLog);
     return new TatolabAppController(
       sources.appVersion,
+      sources.appBuild,
       sources.platform,
       runTatolabSwitch,
       sources.platformForThisBuild.commandLineToolLinks,
@@ -325,6 +330,7 @@ export class TatolabAppController {
 
     return {
       app_version: this.appVersion,
+      app_build: this.appBuild,
       platform: this.platform,
       run_tatolab: runTatolab,
       runtime_agent: runtimeAgent,

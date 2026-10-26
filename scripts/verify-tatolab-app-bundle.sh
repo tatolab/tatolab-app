@@ -6,7 +6,8 @@
 # agent plist, the Info.plist usage strings, the bundled runtime's version against the app's and
 # the streamlib commit it was built from, the lend's CPython 3.10-3.14 bytecode, the runtime's
 # preview page, the entitlements of tatolabd, moq-relay, the app and Electron's helpers, Electron's
-# fuses, the build features the app was built with, and the Service Management addon. Reading the
+# fuses, the build features the app was built with and the tatolab-app commit they name, and the
+# Service Management addon. Reading the
 # fuses and the build features needs this checkout's node_modules (npm ci).
 # A stapled target must also pass Gatekeeper.
 #

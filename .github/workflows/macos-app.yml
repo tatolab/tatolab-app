@@ -147,7 +147,7 @@ jobs:
           APP_VERSION: ${{ needs.release.outputs.app_version }}
           STREAMLIB_REF: ${{ needs.release.outputs.streamlib_ref }}
         run: |
-          build_arguments=(--streamlib-ref "$STREAMLIB_REF")
+          build_arguments=(--streamlib-ref "$STREAMLIB_REF" --release)
           notarized=false
           if [ "${NOTARIZATION_READY:-0}" = 1 ]; then
             export APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
@@ -209,7 +209,7 @@ jobs:
         env:
           APP_VERSION: ${{ needs.release.outputs.app_version }}
         run: |
-          build_arguments=()
+          build_arguments=(--release)
           [ -z "$APP_VERSION" ] || build_arguments+=(--app-version "$APP_VERSION")
           scripts/build-tatolab-linux-app.sh ${build_arguments[@]+"${build_arguments[@]}"}
           {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeDescription, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import {
+  presentAboutBuild,
+  presentAboutCopyright,
   presentAboutVersions,
   presentCommandLineToolVersion,
   presentLoginItemsRow,
@@ -18,6 +20,7 @@ import {
 function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
   return {
     app_version: "0.45.0",
+    app_build: null,
     platform: "macos",
     run_tatolab: true,
     runtime_agent: "enabled",
@@ -159,6 +162,19 @@ describe("About and Login Items", () => {
     expect(presentAboutVersions(statusWith({}), describedAs({}))).toBe("Version 0.45.0 · tatolabd 0.55.2");
     expect(presentAboutVersions(statusWith({ runtime_state: "stopped" }), describedAs({}))).toBe("Version 0.45.0");
     expect(presentAboutVersions(statusWith({}), { kind: "not_read" })).toBe("Version 0.45.0");
+  });
+
+  it("names the short tatolab-app commit the build was built at, dev or release, and whether it was built with uncommitted changes", () => {
+    const builtAt = { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", built_with_uncommitted_changes: false };
+    expect(presentAboutBuild({ ...builtAt, build_kind: "release" })).toBe("Build 22b07a1-release");
+    expect(presentAboutBuild({ ...builtAt, build_kind: "dev" })).toBe("Build 22b07a1-dev");
+    expect(presentAboutBuild({ ...builtAt, build_kind: "dev", built_with_uncommitted_changes: true })).toBe("Build 22b07a1-dev (modified)");
+    expect(presentAboutBuild(null)).toBe("Build not recorded");
+  });
+
+  it("dates the copyright in the year the clock reads as About is shown", () => {
+    expect(presentAboutCopyright(new Date(2026, 9, 26, 13, 0))).toBe("© 2026 Jonathan Fontanez");
+    expect(presentAboutCopyright(new Date(2027, 0, 1, 0, 0))).toBe("© 2027 Jonathan Fontanez");
   });
 
   it("says what Service Management reports of the runtime's entry: listed, waiting for approval, or not listed", () => {

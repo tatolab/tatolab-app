@@ -106,7 +106,13 @@ describe("the app on macOS", () => {
 
   test("the first status round shows in the tray and reaches the window, and showing the window again sends it the status again", async () => {
     const firstStatus = await theFirstPublishedStatus(tatolabRunningApp);
-    expect(firstStatus).toMatchObject({ app_version: "0.45.0", platform: "macos", run_tatolab: true, runtime_agent: "enabled" });
+    expect(firstStatus).toMatchObject({
+      app_version: "0.45.0",
+      app_build: { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", build_kind: "release", built_with_uncommitted_changes: false },
+      platform: "macos",
+      run_tatolab: true,
+      runtime_agent: "enabled",
+    });
     expect(fakeShell.records).toContainEqual({ asked: "send_window_event", eventChannel: "tatolab-status-changed", eventPayload: firstStatus });
     expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "show_tray_menu").at(-1)).toMatchObject({
       trayMenuItems: [{ id: "tray_status_line", label: "Starting…" }, { id: "open_tatolab" }, { id: "run_tatolab", checked: true }, { kind: "separator" }, { id: "quit_tatolab" }],

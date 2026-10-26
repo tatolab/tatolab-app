@@ -11,7 +11,7 @@
 # that is deleted when the build ends; without it the build stops before doing anything.
 #
 # Usage: build-tatolab-app.sh [--streamlib-ref REF] [--runtime-unit DIR] [--local-proof-test-root]
-#                             [--notarize] [--app-update-feed-url URL]
+#                             [--notarize] [--app-update-feed-url URL] [--release]
 #   APPLE_CERTIFICATE           base64 of the Developer ID Application .p12 (Infisical)
 #   APPLE_CERTIFICATE_PASSWORD  its password (Infisical)
 #   APPLE_SIGNING_IDENTITY      "Developer ID Application: … (TEAMID)" (Infisical)
@@ -26,6 +26,8 @@
 #                            APPLE_API_KEY_PATH, APPLE_API_KEY_ID, APPLE_API_ISSUER)
 #   --app-update-feed-url URL  the feed the app checks for updates (default: get.tatolab.com's);
 #                            only with --local-proof-test-root, for proving an update locally
+#   --release                a build the release workflow makes: About reads `-release` after the
+#                            commit; every other build reads `-dev`
 set -euo pipefail
 
 usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$0" >&2; exit 2; }
@@ -36,6 +38,7 @@ prebuilt_runtime_unit=""
 local_proof_test_root=false
 notarize=false
 app_update_feed_url=""
+release_build=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --streamlib-ref) [ $# -ge 2 ] || usage; streamlib_ref="$2"; shift ;;
@@ -43,6 +46,7 @@ while [ $# -gt 0 ]; do
     --local-proof-test-root) local_proof_test_root=true ;;
     --notarize) notarize=true ;;
     --app-update-feed-url) [ $# -ge 2 ] || usage; app_update_feed_url="$2"; shift ;;
+    --release) release_build=true ;;
     -h|--help) usage ;;
     *) usage ;;
   esac
@@ -51,6 +55,10 @@ done
 
 if $notarize && $local_proof_test_root; then
   echo "--notarize and --local-proof-test-root together: a local-proof build is never distributed" >&2
+  exit 1
+fi
+if $release_build && $local_proof_test_root; then
+  echo "--release and --local-proof-test-root together: a local-proof build is a dev build" >&2
   exit 1
 fi
 
@@ -104,6 +112,8 @@ local_proof_arguments=()
 $local_proof_test_root && local_proof_arguments=(--local-proof-test-root)
 app_update_feed_arguments=()
 [ -n "$app_update_feed_url" ] && app_update_feed_arguments=(--app-update-feed-url "$app_update_feed_url")
+release_build_arguments=()
+$release_build && release_build_arguments=(--release)
 
 build_directory="$repository_root/build"
 mkdir -p "$build_directory"
@@ -134,7 +144,8 @@ output_update_manifest="$build_directory/latest-mac.yml"
 echo "==> Electron app"
 cd "$repository_root"
 npm ci
-npm run build -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"}
+npm run build -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} \
+  ${release_build_arguments[@]+"${release_build_arguments[@]}"}
 npm run build:service-management-addon -- --arch=arm64
 built_service_management_addon="$repository_root/native/service_management_agent_services/build/Release/service_management_agent_services.node"
 [ "$(lipo -archs "$built_service_management_addon")" = arm64 ] || { echo "$built_service_management_addon is not arm64-only" >&2; exit 1; }

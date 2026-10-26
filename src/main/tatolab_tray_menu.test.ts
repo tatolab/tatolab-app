@@ -36,6 +36,7 @@ function statusWith(
 ): TatolabStatus {
   return {
     app_version: "0.45.0",
+    app_build: null,
     platform: "macos",
     run_tatolab: runTatolab,
     runtime_agent: runtimeAgent,

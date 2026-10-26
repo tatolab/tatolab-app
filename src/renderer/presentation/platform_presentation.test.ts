@@ -13,6 +13,7 @@ import {
 function statusOn(platform: unknown): TatolabStatus {
   return {
     app_version: "0.45.0",
+    app_build: null,
     platform: platform as TatolabPlatform,
     run_tatolab: true,
     runtime_agent: "enabled",

@@ -5,6 +5,7 @@
 // runtime left running from the bundle before an update, and starts checking for updates on its
 // own.
 
+import type { TatolabAppBuild } from "../shared/tatolab_backend_contract.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
@@ -62,6 +63,8 @@ export interface TatolabElectronAppShell {
   /** The app's own config directory, where "Run Tatolab" is remembered. */
   appConfigDirectory: string;
   appVersion: string;
+  /** Which build of the app this is: its build features' build id, as the window's status carries it. */
+  appBuild: TatolabAppBuild | null;
   /** Where the runtime this build reads serves its loopback HTTP: the window's content security policy frames it, and the graph's preview pages sit under it. */
   runtimeLoopbackHttpOrigin: string;
   readMonotonicClockMs(): number;
@@ -146,6 +149,7 @@ export async function startTatolabApp(
     appConfigDirectory: tatolabElectronAppShell.appConfigDirectory,
     appLaunchedAtMs,
     appVersion: tatolabElectronAppShell.appVersion,
+    appBuild: tatolabElectronAppShell.appBuild,
     runtimeLoopbackHttpOrigin: tatolabElectronAppShell.runtimeLoopbackHttpOrigin,
     readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     readTheAppUpdateState: () => tatolabAppUpdater.state(),
