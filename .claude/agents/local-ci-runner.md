@@ -13,7 +13,7 @@ The same gates `.github/workflows/pull-request-checks.yml` runs on the PR, on th
 1. `npm ci` only when `node_modules/` is missing or `package-lock.json` changed against `origin/main`.
 2. `npm run lint` (ESLint, Stylelint and the licence-header check).
 3. On macOS only: `npm run build:service-management-addon`.
-4. `npm run build` (tsc over the window and the main process, then vite) and `npm run build:electron`.
+4. `npm run build` (`tsc -b` over the window and the main process, then `electron-vite build`).
 5. `npm test`.
 6. When the change touches `scripts/` or `.claude/hooks/`: `scripts/tests/license_header_check_fails_on_a_violation.test.sh` and `.claude/scripts/tests/machine-brake.test.sh`.
 

@@ -37,8 +37,8 @@ Evidence counts only when it was shot on what would ship now:
 ## Pick the lowest rung that proves the claim
 
 1. **Mock (browser).** Pure window changes — layout, copy, a new state's presentation, light/dark.
-   Start `npm run dev` in the background (stop it at the end), then drive the page with Playwright
-   at `http://localhost:1420/` with the presets `index.html`, `src/renderer/feature_flags.ts`,
+   Start `node scripts/serve_the_mock_window_in_a_browser.mjs` in the background (stop it at the
+   end), then drive the page with Playwright at the URL it prints with the presets `index.html`, `src/renderer/feature_flags.ts`,
    `src/renderer/backend/mock_tatolab_backend.ts` and `src/renderer/mock_window_preset.ts` read:
    `?theme=light|dark`, `?platform=linux`, `?state=` (running, empty, loading, node-error,
    not-listed, starting, stopped, unreachable, setup; macOS-only approval, missing,
@@ -76,7 +76,7 @@ Evidence counts only when it was shot on what would ship now:
      `TATOLAB_TEST_LOOPBACK_HTTP_PORT=14446` and the two `TATOLAB_TEST_LOCAL_RELAY_*_PORT`s. The
      preview page reads the relay only at 4443, so a preview plays only when the test relay takes
      4443 and 4445; check they are free first.
-   - `npm run build && npm run build:electron -- --local-proof-test-root` (it writes
+   - `npm run build -- --local-proof-test-root` (it writes
      `machineDirectoriesUnderATestRoot: true` into `out/main/tatolab_app_build_features.json`;
      never edit the built `.js`), and run `npx electron . --remote-debugging-port=<port>` with `TATOLAB_TEST_MACHINE_ROOT` and `CFFIXED_USER_HOME` (a
      scratch home) set. Drive it with Playwright over the DevTools protocol; Electron answers no
@@ -87,8 +87,7 @@ Evidence counts only when it was shot on what would ship now:
      `launchctl print gui/$(id -u)/com.tatolab.tatolabd` and the runtime's pid before, and show
      both unchanged after.
    - After: quit the app, stop the unit's `tatolabd`, `rm -rf /tmp/tatolab-proof`, and run
-     `npm run build:electron` again so `out/` holds the shipping
-     features.
+     `npm run build` again so `out/` holds the shipping features.
 
    A change to what the app reads from the local API also runs the live contract test against
    that runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=/tmp/tatolab-proof/run/local-api.sock npx vitest
@@ -100,7 +99,7 @@ Evidence counts only when it was shot on what would ship now:
    **Live**.
 4. **Linux.** On x86_64 Linux: `scripts/build-tatolab-linux-app.sh [--local-proof-test-root]`,
    then run the AppImage or `.deb`. On the Mac (arm64, which that script refuses): in an
-   `ubuntu:22.04` container, build and run the unpackaged app (`npm ci && npm run build && npm run build:electron`,
+   `ubuntu:22.04` container, build and run the unpackaged app (`npm ci && npm run build`,
    then `npx electron .`) with a container volume over `node_modules/`, so Linux's Electron never
    lands in the host's; run it under Xvfb with a StatusNotifier host and capture with
    `import -window root`. Packaging itself (`.deb` Depends, desktop entry, AppImage) is proven only
