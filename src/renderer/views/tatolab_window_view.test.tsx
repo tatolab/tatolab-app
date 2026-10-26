@@ -45,15 +45,15 @@ function rowOf(streamName: string): HTMLElement {
 }
 
 describe("the Streams list", () => {
-  it("gives each stream one line with its state and folder, a failure's reason in the runtime's words under it", async () => {
+  it("lists each stream under its project folder, its state in its name, a failure's reason in the runtime's words under it", async () => {
     await mountedWindowOverTheMock("state=running");
 
-    const mainRow = within(rowOf("main"));
-    expect(mainRow.getByText("Running")).toBeTruthy();
-    expect(mainRow.getByText("pattern")).toBeTruthy();
-    expect(mainRow.queryByText("Always on")).toBeNull();
-    expect(within(rowOf("pattern-two")).getByText("Stopped")).toBeTruthy();
-    expect(within(rowOf("lobby-recorder")).getByText("Failed")).toBeTruthy();
+    const patternFolder = within(document.querySelector<HTMLElement>('[data-streams-list-project-folder="/Users/jonathanf/streams/pattern"]') ?? expect.unreachable("no pattern folder"));
+    expect(patternFolder.getAllByRole("listitem").map((row) => row.getAttribute("data-stream-row"))).toEqual(["main", "attached-demo", "pattern-two"]);
+    expect(within(rowOf("main")).getByRole("link", { name: "main, Running" })).toBeTruthy();
+    expect(within(rowOf("main")).queryByText("Always on")).toBeNull();
+    expect(within(rowOf("pattern-two")).getByRole("link", { name: "pattern-two, Stopped" })).toBeTruthy();
+    expect(within(rowOf("lobby-recorder")).getByRole("link", { name: "lobby-recorder, Failed" })).toBeTruthy();
     expect(rowOf("lobby-recorder").textContent).toContain("camera access is denied for Tatolab");
   });
 
@@ -75,7 +75,7 @@ describe("the Streams list", () => {
     fireEvent.click(within(rowOf("camera")).getByRole("button", { name: "Stop: unloads it and remembers it stopped" }));
 
     expect(within(rowOf("camera")).getByRole("status").textContent).toBe("Stopping…");
-    await waitFor(() => expect(within(rowOf("camera")).getByText("Stopped")).toBeTruthy());
+    await waitFor(() => expect(within(rowOf("camera")).getByRole("link", { name: "camera, Stopped" })).toBeTruthy());
     expect(within(rowOf("camera")).queryByRole("status")).toBeNull();
     expect(within(rowOf("camera")).getByRole("button", { name: "Start: loads it again from its record" })).toBeTruthy();
   });
@@ -112,8 +112,7 @@ describe("the Streams list", () => {
         "Stopped, but not recorded, so it loads again when the runtime restarts: Runtime error: the kept record of `camera` could not be written: Permission denied (os error 13)",
       ),
     );
-    expect(within(rowOf("camera")).getByText("Stopped")).toBeTruthy();
-    expect(within(rowOf("camera")).queryByText("Starting")).toBeNull();
+    expect(within(rowOf("camera")).getByRole("link", { name: "camera, Stopped" })).toBeTruthy();
   });
 
   it("asks before removing a stream, and removes it only when told to", async () => {

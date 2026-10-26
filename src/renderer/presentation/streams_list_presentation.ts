@@ -17,11 +17,6 @@ export function streamsListFilterWords(filter: StreamsListFilter): string {
   return filter === "all" ? "Any state" : (STREAMS_LIST_FILTERS.find((listFilter) => listFilter.filter === filter)?.label ?? "Any state");
 }
 
-/** The last folder of the project `stream` was added from, as the sidebar names it. */
-export function streamProjectFolderName(stream: ListedStream): string {
-  return stream.project_directory.split("/").filter((segment) => segment !== "").at(-1) ?? stream.project_directory;
-}
-
 /** Whether `stream` is one `filter` shows: kept and attached streams count as Running. */
 export function streamMatchesListFilter(stream: ListedStream, filter: StreamsListFilter): boolean {
   switch (filter) {

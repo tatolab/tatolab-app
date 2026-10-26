@@ -9,6 +9,7 @@ import { presentStreamState } from "../presentation/stream_presentation";
 import { streamProjectFoldersOf, type StreamProjectFolder } from "../presentation/streams_list_presentation";
 import { IconButton } from "../design_system/icon_button";
 import { ListRowButton } from "../design_system/list_row_button";
+import { PageFrame } from "../design_system/page_frame";
 import { PageHeader } from "../design_system/page_header";
 import { StreamStateIcon } from "../design_system/stream_state_words";
 import { addStreamPagePath } from "./add_stream_page_path";
@@ -150,7 +151,7 @@ function StreamsSidebarNavigation() {
           </ul>
         )}
       </section>
-      <div className="px-2 py-2">
+      <div className="border-t px-2 py-2">
         <SidebarNavigationRow
           to="/settings"
           windowNavigationName="settings"
@@ -193,10 +194,9 @@ function TatolabWindowShell() {
 function StreamsPageWhileTheRuntimeListsNone() {
   const { hostedPages, platform } = useTatolabWindowEnvironment();
   return (
-    <>
-      <PageHeader title="Streams" windowDragRegion={windowDragRegionAttribute(platform, "deep")} />
+    <PageFrame header={<PageHeader title="Streams" windowDragRegion={windowDragRegionAttribute(platform, "deep")} />}>
       <HostedDomPageView hostedPage={hostedPages.streamsPage} className="scrollbar-thin overflow-y-auto" />
-    </>
+    </PageFrame>
   );
 }
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import type { PythonForNewEnvironments, StreamGraphExposedPort, StreamProjectFolderReport, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
+import { PageBody, PageFrame } from "../design_system/page_frame";
 import { PageHeader } from "../design_system/page_header";
 import { RefusalLine } from "../design_system/refusal_line";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
@@ -510,7 +511,7 @@ function NewProjectForm({
 
 /** The bar under the page: the terminal command or what pressing does, and the page's actions for its step. */
 function AddStreamFooter({ children }: { children: ReactNode }) {
-  return <footer className="flex min-h-14 shrink-0 items-center gap-3 border-t bg-chrome px-5 py-2.5">{children}</footer>;
+  return <footer className="flex min-h-14 shrink-0 items-center gap-3 border-t bg-chrome px-(--page-x) py-2.5">{children}</footer>;
 }
 
 /** The Add stream page: run a project folder kept, or create one with `tatolab new` and run it, the app setting up its Python first. */
@@ -564,122 +565,127 @@ export function AddStreamPageView({ source }: { source: AddStreamSource }) {
     if (shownBefore.step !== flowState.step || focusWasLost) pageContent.current?.querySelector<HTMLElement>("[data-add-stream-step-heading]")?.focus();
   }, [pageSection, flowState.step]);
   const terminalRunRequest = terminalRunRequestOf(form);
+  const addStreamFooter = (
+    <AddStreamFooter>
+      {flowState.step === "form" && (
+        <>
+          <div className="flex min-w-0 flex-1 items-center gap-3" data-add-stream-footer-words="">
+            {addStreamActionUnavailableReason !== null && form.nameTaken === null ? (
+              <span className="truncate text-fg-3">{addStreamActionUnavailableReason}</span>
+            ) : addStreamAction === "create" && form.newProjectFolder !== null ? (
+              <span className="truncate text-fg-3">
+                Creates <MachineWords>{form.newProjectFolder.folder}</MachineWords> with <MachineWords>tatolab new</MachineWords>, then adds it.
+              </span>
+            ) : terminalRunRequest !== null ? (
+              <>
+                <div className="max-w-[620px] min-w-0 flex-1">
+                  <CommandWithCopyButton command={terminalCommandForTheRun(terminalRunRequest, functionsOwnNameOf(form))} />
+                </div>
+                <span className="shrink-0 text-xs text-fg-3">the same, from a terminal</span>
+              </>
+            ) : null}
+          </div>
+          <ActionButton onPressed={() => navigate(-1)} data-add-stream-action="cancel">
+            Cancel
+          </ActionButton>
+          <ActionButton
+            appearance="primary"
+            isDisabled={addStreamActionUnavailableReason !== null}
+            onPressed={() => addStreamFlow.performTheAction()}
+            data-add-stream-action={addStreamAction}
+          >
+            {form.workUnderWay === "creating_the_project" ? "Creating…" : ADD_STREAM_ACTION_LABELS[addStreamAction]}
+          </ActionButton>
+        </>
+      )}
+      {flowState.step === "compiling" && (
+        <span className="inline-flex items-center gap-2 text-fg-2">
+          <LoaderCircle className="size-3.5 animate-spin text-fg-3" strokeWidth={1.75} aria-hidden />
+          {compilingHeadingVerb(flowState.makesThePythonEnvironmentFirst)}…
+        </span>
+      )}
+      {flowState.step === "running" && (
+        <>
+          <ActionButton appearance="quiet" onPressed={() => dispatch({ kind: "add_another" })} data-add-stream-action="add_another">
+            Add another
+          </ActionButton>
+          <div className="ml-auto flex gap-2">
+            <ActionButton icon={Workflow} onPressed={() => navigate(streamPagePath(flowState.answer.stream, "graph"))} data-add-stream-action="open_graph">
+              Open graph
+            </ActionButton>
+            <ActionButton appearance="primary" onPressed={() => navigate(streamPagePath(flowState.answer.stream))} data-add-stream-action="open_stream">
+              Open stream
+            </ActionButton>
+          </div>
+        </>
+      )}
+    </AddStreamFooter>
+  );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-add-stream-page={form.source}>
-      <PageHeader
-        title="Add stream"
-        tabs={
-          <div className="flex items-center">
-            <SegmentedChoiceControl
-              label="Start from"
-              choices={ADD_STREAM_SOURCES.map(({ source: addStreamSource, label }) => ({
-                choice: addStreamSource,
-                label,
-                unavailableBecause: flowState.step === "compiling" && addStreamSource !== form.source ? "Not while the stream compiles" : undefined,
-              }))}
-              chosen={form.source}
-              onChosen={chooseSource}
-              dataAttributeOfEachSegment="data-add-stream-source"
-            />
-          </div>
-        }
-        windowDragRegion={windowDragRegionAttribute(platform, "deep")}
-      />
-      <div className="scrollbar-thin flex min-h-0 flex-1 overflow-y-auto">
-        <div className="min-w-0 flex-1" ref={pageContent}>
-          <p role="status" className="sr-only">
-            {addStreamStepAnnouncement(flowState, isTheRuntimeRunning, status.python_for_new_environments)}
-          </p>
-          {form.refusal !== null && flowState.step === "form" && (
-            <div data-add-stream-refusal="">
-              <RefusalLine layout="bar" lead={form.refusal.lead} words={form.refusal.words} />
+    <PageFrame
+      header={
+        <PageHeader
+          title="Add stream"
+          tabs={
+            <div className="flex items-center">
+              <SegmentedChoiceControl
+                label="Start from"
+                choices={ADD_STREAM_SOURCES.map(({ source: addStreamSource, label }) => ({
+                  choice: addStreamSource,
+                  label,
+                  unavailableBecause: flowState.step === "compiling" && addStreamSource !== form.source ? "Not while the stream compiles" : undefined,
+                }))}
+                chosen={form.source}
+                onChosen={chooseSource}
+                dataAttributeOfEachSegment="data-add-stream-source"
+              />
             </div>
-          )}
-          <div className="mx-auto max-w-[760px] px-8 pt-5 pb-10">
-            {flowState.step === "compiling" && (
-              <CompilingView
-                request={flowState.request}
-                startedAtMs={flowState.startedAtMs}
-                makesThePythonEnvironmentFirst={flowState.makesThePythonEnvironmentFirst}
-                pythonForNewEnvironments={status.python_for_new_environments}
-              />
-            )}
-            {flowState.step === "running" && <StreamRunningView request={flowState.request} answer={flowState.answer} />}
-            {flowState.step === "form" && form.source === "project_folder" && (
-              <ProjectFolderForm
-                form={form}
-                onChooseFolder={() => addStreamFlow.chooseFolder()}
-                dispatch={dispatch}
-                onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
-              />
-            )}
-            {flowState.step === "form" && form.source === "new_project" && (
-              <NewProjectForm
-                form={form}
-                onChooseDirectory={() => addStreamFlow.chooseFolder()}
-                dispatch={dispatch}
-                onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
-              />
-            )}
-          </div>
+          }
+          windowDragRegion={windowDragRegionAttribute(platform, "deep")}
+        />
+      }
+      data-add-stream-page={form.source}
+    >
+      <p role="status" className="sr-only">
+        {addStreamStepAnnouncement(flowState, isTheRuntimeRunning, status.python_for_new_environments)}
+      </p>
+      {form.refusal !== null && flowState.step === "form" && (
+        <div data-add-stream-refusal="">
+          <RefusalLine layout="bar" lead={form.refusal.lead} words={form.refusal.words} />
         </div>
-      </div>
-
-      <AddStreamFooter>
-        {flowState.step === "form" && (
-          <>
-            <div className="flex min-w-0 flex-1 items-center gap-3" data-add-stream-footer-words="">
-              {addStreamActionUnavailableReason !== null && form.nameTaken === null ? (
-                <span className="truncate text-fg-3">{addStreamActionUnavailableReason}</span>
-              ) : addStreamAction === "create" && form.newProjectFolder !== null ? (
-                <span className="truncate text-fg-3">
-                  Creates <MachineWords>{form.newProjectFolder.folder}</MachineWords> with <MachineWords>tatolab new</MachineWords>, then adds it.
-                </span>
-              ) : terminalRunRequest !== null ? (
-                <>
-                  <div className="max-w-[620px] min-w-0 flex-1">
-                    <CommandWithCopyButton command={terminalCommandForTheRun(terminalRunRequest, functionsOwnNameOf(form))} />
-                  </div>
-                  <span className="shrink-0 text-xs text-fg-3">the same, from a terminal</span>
-                </>
-              ) : null}
-            </div>
-            <ActionButton onPressed={() => navigate(-1)} data-add-stream-action="cancel">
-              Cancel
-            </ActionButton>
-            <ActionButton
-              appearance="primary"
-              isDisabled={addStreamActionUnavailableReason !== null}
-              onPressed={() => addStreamFlow.performTheAction()}
-              data-add-stream-action={addStreamAction}
-            >
-              {form.workUnderWay === "creating_the_project" ? "Creating…" : ADD_STREAM_ACTION_LABELS[addStreamAction]}
-            </ActionButton>
-          </>
-        )}
-        {flowState.step === "compiling" && (
-          <span className="inline-flex items-center gap-2 text-fg-2">
-            <LoaderCircle className="size-3.5 animate-spin text-fg-3" strokeWidth={1.75} aria-hidden />
-            {compilingHeadingVerb(flowState.makesThePythonEnvironmentFirst)}…
-          </span>
-        )}
-        {flowState.step === "running" && (
-          <>
-            <ActionButton appearance="quiet" onPressed={() => dispatch({ kind: "add_another" })} data-add-stream-action="add_another">
-              Add another
-            </ActionButton>
-            <div className="ml-auto flex gap-2">
-              <ActionButton icon={Workflow} onPressed={() => navigate(streamPagePath(flowState.answer.stream, "graph"))} data-add-stream-action="open_graph">
-                Open graph
-              </ActionButton>
-              <ActionButton appearance="primary" onPressed={() => navigate(streamPagePath(flowState.answer.stream))} data-add-stream-action="open_stream">
-                Open stream
-              </ActionButton>
-            </div>
-          </>
-        )}
-      </AddStreamFooter>
-    </div>
+      )}
+      <PageBody width="readable" footer={addStreamFooter}>
+        <div ref={pageContent}>
+          {flowState.step === "compiling" && (
+            <CompilingView
+              request={flowState.request}
+              startedAtMs={flowState.startedAtMs}
+              makesThePythonEnvironmentFirst={flowState.makesThePythonEnvironmentFirst}
+              pythonForNewEnvironments={status.python_for_new_environments}
+            />
+          )}
+          {flowState.step === "running" && <StreamRunningView request={flowState.request} answer={flowState.answer} />}
+          {flowState.step === "form" && form.source === "project_folder" && (
+            <ProjectFolderForm
+              form={form}
+              onChooseFolder={() => addStreamFlow.chooseFolder()}
+              dispatch={dispatch}
+              onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
+            />
+          )}
+          {flowState.step === "form" && form.source === "new_project" && (
+            <NewProjectForm
+              form={form}
+              onChooseDirectory={() => addStreamFlow.chooseFolder()}
+              dispatch={dispatch}
+              onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
+            />
+          )}
+        </div>
+      </PageBody>
+    </PageFrame>
   );
 }
+
+

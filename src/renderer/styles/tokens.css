@@ -69,8 +69,10 @@
 :root {
   --title-bar-height: 44px;
   --sidebar-width: 256px;
-  --page-x: 20px;
+  --page-x: 24px;
   --page-top: 20px;
+  --page-bottom: 40px;
+  --page-readable-width: 720px;
   --radius: 6px;
   --ease: cubic-bezier(.2, .7, .2, 1);
 

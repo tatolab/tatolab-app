@@ -9,6 +9,7 @@ import { CodeBlock, CommandLine } from "../design_system/code_block";
 import { CopyIconButton } from "../design_system/copy_icon_button";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
+import { PageBody, PageFrame } from "../design_system/page_frame";
 import { PageHeader } from "../design_system/page_header";
 import { SectionNavigationList } from "../design_system/section_navigation_list";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
@@ -535,8 +536,10 @@ export function SettingsPageView() {
   const ShownSectionView = SECTION_VIEWS[shownSection];
   const shownSectionLabel = SETTINGS_SECTION_GROUPS.flatMap(({ sections }) => sections).find(({ section }) => section === shownSection)?.label ?? "Settings";
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-settings-page={shownSection}>
-      <PageHeader breadcrumb={{ parentLabel: "Settings", parentPath: "/settings" }} title={shownSectionLabel} windowDragRegion={windowDragRegionAttribute(platform, "deep")} />
+    <PageFrame
+      header={<PageHeader breadcrumb={{ parentLabel: "Settings", parentPath: "/settings" }} title={shownSectionLabel} windowDragRegion={windowDragRegionAttribute(platform, "deep")} />}
+      data-settings-page={shownSection}
+    >
       <div className="flex min-h-0 flex-1">
         <SectionNavigationList
           label="Settings"
@@ -546,12 +549,14 @@ export function SettingsPageView() {
             sections: sections.map(({ section, label }) => ({ path: settingsSectionPath(section), label, icon: SECTION_ICONS[section], dataValue: section })),
           }))}
         />
-        <div className="scrollbar-thin min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex max-w-[680px] flex-col gap-6 px-8 pt-6 pb-12">
-            <ShownSectionView />
-          </div>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <PageBody width="readable">
+            <div className="flex flex-col gap-6">
+              <ShownSectionView />
+            </div>
+          </PageBody>
         </div>
       </div>
-    </div>
+    </PageFrame>
   );
 }

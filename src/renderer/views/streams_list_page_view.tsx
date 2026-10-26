@@ -1,4 +1,3 @@
-import { cn } from "cn";
 import { ChevronRight, Copy, FolderOpen, type LucideIcon, Play, Sparkles, Square, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -8,17 +7,26 @@ import { writeTextToClipboard } from "../clipboard";
 import { EmptyState } from "../design_system/empty_state";
 import { IconButton } from "../design_system/icon_button";
 import { FieldMenu, MenuItem, MenuSeparator, MenuSingleChoiceGroup, MoreActionsMenu } from "../design_system/menus";
+import { PageBody, PageFrame } from "../design_system/page_frame";
 import { PageHeader } from "../design_system/page_header";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { SearchField } from "../design_system/search_field";
-import { StreamStateIcon, StreamStateWords } from "../design_system/stream_state_words";
+import { StreamStateIcon } from "../design_system/stream_state_words";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
-import { presentStreamPrimaryAction, streamActionPendingWords, type StreamPrimaryActionPresentation } from "../presentation/stream_presentation";
+import {
+  abbreviateHomeDirectory,
+  presentStreamPrimaryAction,
+  presentStreamState,
+  presentStreamStateAfterAStopNotRecorded,
+  streamActionPendingWords,
+  type StreamPrimaryActionPresentation,
+  type StreamStatePresentation,
+} from "../presentation/stream_presentation";
 import {
   STREAMS_LIST_FILTERS,
   streamMatchesFilterText,
   streamMatchesListFilter,
-  streamProjectFolderName,
+  streamProjectFoldersOf,
   streamsListFilterWords,
   type StreamActionUnderWay,
   type StreamsListFilter,
@@ -71,10 +79,10 @@ function StreamRowActions({
   );
 }
 
-const ROW_ACTIONS_SHOWN_CLASS_NAMES = {
-  stateWhileShown: "group-hover:hidden group-focus-within:hidden group-has-[[aria-expanded=true]]:hidden",
-  actionsUntilShown: "hidden group-hover:block group-focus-within:block group-has-[[aria-expanded=true]]:block",
-};
+/** The state a row's name says to a screen reader and its tooltip: the listing's, or a stop the runtime could not record. */
+function presentStreamStateAfterTheLastAction(stream: ListedStream, outcome: StreamActionOutcomeWords | undefined): StreamStatePresentation {
+  return outcome?.kind === "notice" ? presentStreamStateAfterAStopNotRecorded(stream) : presentStreamState(stream);
+}
 
 function StreamsListRow({
   stream,
@@ -98,22 +106,22 @@ function StreamsListRow({
         if (window.getSelection()?.isCollapsed === false) return;
         navigate(streamPagePath(stream.name));
       }}
-      className="group cursor-default border-b px-5 py-2.5 transition-colors hover:bg-hover"
+      className="group cursor-default rounded-md py-1.5 pr-1 pl-8 transition-colors hover:bg-hover"
     >
       <div className="flex h-7 min-w-0 items-center gap-3">
         <StreamStateIcon stream={stream} />
-        <Link to={streamPagePath(stream.name)} onClick={(clickEvent) => clickEvent.stopPropagation()} className="min-w-0 shrink truncate rounded-sm text-fg">
+        <Link
+          to={streamPagePath(stream.name)}
+          onClick={(clickEvent) => clickEvent.stopPropagation()}
+          aria-label={`${stream.name}, ${presentStreamStateAfterTheLastAction(stream, outcome).label}`}
+          title={presentStreamStateAfterTheLastAction(stream, outcome).meaning}
+          className="min-w-0 shrink truncate rounded-sm text-fg"
+        >
           {stream.name}
         </Link>
-        <span className="min-w-0 flex-1 truncate text-fg-3" title={stream.project_directory}>
-          {streamProjectFolderName(stream)}
-        </span>
-        {/* The actions take the state's place while the row is pointed at, holds focus or has its menu open, and stay while one runs. */}
-        <span className={cn("shrink-0", actionUnderWay === undefined && ROW_ACTIONS_SHOWN_CLASS_NAMES.stateWhileShown)}>
-          <StreamStateWords stream={stream} isAfterAStopNotRecorded={outcome?.kind === "notice"} />
-        </span>
+        <span className="flex-1" />
         {/* The row navigates on click, and React carries a click in the actions' portalled menu up to it. */}
-        <div className={cn("shrink-0", actionUnderWay === undefined && ROW_ACTIONS_SHOWN_CLASS_NAMES.actionsUntilShown)} onClick={(clickEvent) => clickEvent.stopPropagation()}>
+        <div className="shrink-0" onClick={(clickEvent) => clickEvent.stopPropagation()}>
           <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} onPrimaryAction={onPrimaryAction} onRemoveAsked={onRemoveAsked} />
         </div>
       </div>
@@ -148,7 +156,7 @@ function FirstStreamChoice({ icon: ChoiceIcon, title, explanation, to }: { icon:
 
 function NoStreamsYet({ machineWords }: { machineWords: string }) {
   return (
-    <div className="scrollbar-thin flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-5 pt-[9vh] pb-16" data-streams-list-empty="">
+    <div className="flex justify-center pt-[9vh]" data-streams-list-empty="">
       <div className="flex w-[480px] flex-col items-center text-center">
         <img src={mascotImageUrl} alt="" draggable={false} className="size-[120px] object-contain select-none" />
         <h2 className="mt-4 text-lg font-semibold">No streams on {machineWords} yet</h2>
@@ -196,7 +204,7 @@ function StreamsListStateFilterMenu({
   );
 }
 
-/** The All streams page: every stream `list_streams` reports, one line each with its state, folder and actions; or the ways to add a first one when there are none. */
+/** The All streams page: every stream `list_streams` reports under the project folder it came from, one line each with its state and actions; or the ways to add a first one when there are none. */
 export function StreamsListPageView({ listedStreams }: { listedStreams: readonly ListedStream[] }) {
   const { platform } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
@@ -208,40 +216,54 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
   const machineWords = status.machine_name ?? presentPlatform(platform).thisMachineMidSentence;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-streams-list-page="">
-      <PageHeader
-        title="All streams"
-        actions={
-          listedStreams.length > 0 ? (
-            <>
-              <StreamsListStateFilterMenu chosenFilter={chosenFilter} onFilterChosen={setChosenFilter} listedStreams={listedStreams} />
-              <SearchField label="Filter streams" placeholder="Filter" text={filterText} onTextChanged={setFilterText} />
-            </>
-          ) : undefined
-        }
-        windowDragRegion={windowDragRegionAttribute(platform, "deep")}
-      />
-
-      {listedStreams.length === 0 ? (
-        <NoStreamsYet machineWords={machineWords} />
-      ) : (
-        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-          <ul aria-label="Streams">
-            {shownStreams.map((stream) => (
-              <StreamsListRow
-                key={stream.name}
-                stream={stream}
-                actionUnderWay={actionsUnderWay.get(stream.name)}
-                outcome={outcomeWords.get(stream.name)}
-                onPrimaryAction={(primaryAction) => runStreamAction(primaryAction.streamAction, primaryAction.label, stream)}
-                onRemoveAsked={() => askToRemove(stream)}
-              />
+    <PageFrame
+      header={
+        <PageHeader
+          title="All streams"
+          actions={
+            listedStreams.length > 0 ? (
+              <>
+                <StreamsListStateFilterMenu chosenFilter={chosenFilter} onFilterChosen={setChosenFilter} listedStreams={listedStreams} />
+                <SearchField label="Filter streams" placeholder="Filter" text={filterText} onTextChanged={setFilterText} />
+              </>
+            ) : undefined
+          }
+          windowDragRegion={windowDragRegionAttribute(platform, "deep")}
+        />
+      }
+      data-streams-list-page=""
+    >
+      <PageBody>
+        {listedStreams.length === 0 ? (
+          <NoStreamsYet machineWords={machineWords} />
+        ) : (
+          <div className="flex flex-col gap-6">
+            {streamProjectFoldersOf(shownStreams).map((projectFolder) => (
+              <section key={projectFolder.projectDirectory} aria-label={projectFolder.folderName} data-streams-list-project-folder={projectFolder.projectDirectory}>
+                <h2 className="flex h-8 items-center gap-2 px-2 font-normal">
+                  <FolderOpen className="size-4 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
+                  <span className="truncate text-fg-2">{projectFolder.folderName}</span>
+                  <span className="min-w-0 truncate font-mono text-xs text-fg-3 select-text">{abbreviateHomeDirectory(projectFolder.projectDirectory)}</span>
+                </h2>
+                <ul aria-label={`Streams added from ${projectFolder.folderName}`} className="flex flex-col gap-0.5">
+                  {projectFolder.streams.map((stream) => (
+                    <StreamsListRow
+                      key={stream.name}
+                      stream={stream}
+                      actionUnderWay={actionsUnderWay.get(stream.name)}
+                      outcome={outcomeWords.get(stream.name)}
+                      onPrimaryAction={(primaryAction) => runStreamAction(primaryAction.streamAction, primaryAction.label, stream)}
+                      onRemoveAsked={() => askToRemove(stream)}
+                    />
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
-          {shownStreams.length === 0 && <EmptyState title="No streams match." />}
-        </div>
-      )}
+            {shownStreams.length === 0 && <EmptyState title="No streams match." />}
+          </div>
+        )}
+      </PageBody>
       {removalDialog}
-    </div>
+    </PageFrame>
   );
 }

@@ -36,7 +36,7 @@ export function PageHeader({
 } & ControlDataAttributes) {
   return (
     <header className="shrink-0" {...controlDataAttributes}>
-      <div className="flex h-(--title-bar-height) min-w-0 items-center gap-5 border-b pr-3 pl-5" data-window-drag-region={windowDragRegion ?? undefined}>
+      <div className="flex h-(--title-bar-height) min-w-0 items-center gap-5 border-b pr-3 pl-(--page-x)" data-window-drag-region={windowDragRegion ?? undefined}>
         <div className="flex min-w-0 shrink items-center gap-1.5">
           {breadcrumb !== undefined && (
             <>
@@ -46,13 +46,13 @@ export function PageHeader({
               <ChevronRight className="size-3.5 shrink-0 text-fg-4" strokeWidth={1.75} aria-hidden />
             </>
           )}
-          <h1 className="truncate font-medium select-text">{title}</h1>
+          <h1 className="truncate font-normal text-fg-2 select-text">{title}</h1>
           {facts !== undefined && <div className="ml-1.5 flex min-w-0 items-center gap-3 whitespace-nowrap">{facts}</div>}
         </div>
         {tabs !== undefined && <div className="flex h-full min-w-0 shrink-0 items-stretch">{tabs}</div>}
         {actions !== undefined && <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1">{actions}</div>}
       </div>
-      {notices !== undefined && <div className="px-5">{notices}</div>}
+      {notices !== undefined && <div className="px-(--page-x)">{notices}</div>}
     </header>
   );
 }

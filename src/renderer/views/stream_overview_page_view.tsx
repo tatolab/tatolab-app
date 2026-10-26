@@ -24,6 +24,7 @@ import { FailureBanner } from "../design_system/failure_banner";
 import { InlineLink } from "../design_system/inline_link";
 import { KeyValueRows, type KeyValueRow } from "../design_system/key_value_rows";
 import { FieldMenu, MenuItem } from "../design_system/menus";
+import { PageBody } from "../design_system/page_frame";
 import { PanelSection } from "../design_system/panel_section";
 import { StateWords } from "../design_system/stream_state_words";
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
@@ -345,15 +346,11 @@ export function StreamOverviewPageView({ stream, streamPageActions }: { stream: 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-stream-overview="">
       {stream.state === "failed" && <FailedStreamBanner stream={stream} />}
-      {/* Below 1280 px the details sit under the Overview in one scroll, so the steps table keeps room for its columns. */}
-      <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto xl:flex-row xl:overflow-hidden">
-        <div className="scrollbar-thin min-w-0 flex-1 px-5 pt-5 pb-8 xl:overflow-y-auto">
-          <DroppingLinkLines stream={stream} reading={reading} />
-          <StreamOutputPreview stream={stream} reading={reading} machineName={status.machine_name} streamPageActions={streamPageActions} />
-          <StreamStepsSection stream={stream} reading={reading} />
-        </div>
-        <StreamDetailsPanel stream={stream} reading={reading} />
-      </div>
+      <PageBody sidePanel={<StreamDetailsPanel stream={stream} reading={reading} />}>
+        <DroppingLinkLines stream={stream} reading={reading} />
+        <StreamOutputPreview stream={stream} reading={reading} machineName={status.machine_name} streamPageActions={streamPageActions} />
+        <StreamStepsSection stream={stream} reading={reading} />
+      </PageBody>
     </div>
   );
 }
