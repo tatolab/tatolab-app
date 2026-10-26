@@ -281,7 +281,7 @@ export function presentStreamLog(records: readonly StreamLogRecord[], graph: Str
     stepFilterWords: {
       words:
         filters.shownStepKeys.size === 0
-          ? "All steps"
+          ? "All nodes"
           : onlyStepChosen !== undefined
             ? onlyStepChosen.stepName
             : `${filters.shownStepKeys.size} of ${stepChoices.length}`,

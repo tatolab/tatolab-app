@@ -44,7 +44,7 @@ export function previewedOutputOf(output: StreamGraphStepOutputPort): StreamGrap
 }
 
 /** What a screen reader hears on a step card with keyboard focus, after its name: the keys the canvas answers there. */
-export const STREAM_GRAPH_STEP_CARD_KEYBOARD_DESCRIPTION = "Press Enter or Space to inspect this step. Escape selects nothing.";
+export const STREAM_GRAPH_STEP_CARD_KEYBOARD_DESCRIPTION = "Press Enter or Space to inspect this node. Escape selects nothing.";
 
 /** One step as its card on the canvas shows it. */
 export interface StreamGraphStepCard {

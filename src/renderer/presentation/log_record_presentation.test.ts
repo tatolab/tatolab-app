@@ -146,7 +146,7 @@ describe("presentStreamLog", () => {
   it("words the step filter as every step, the one chosen, or how many of how many", () => {
     const stepFilterWordsFor = (shownStepKeys: string[]) => presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, shownStepKeys: new Set(shownStepKeys) }).stepFilterWords;
 
-    expect(stepFilterWordsFor([])).toEqual({ words: "All steps", isOneStepChosen: false });
+    expect(stepFilterWordsFor([])).toEqual({ words: "All nodes", isOneStepChosen: false });
     expect(stepFilterWordsFor(["Pcam", ""])).toEqual({ words: "2 of 4", isOneStepChosen: false });
   });
 

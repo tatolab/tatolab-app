@@ -268,7 +268,7 @@ export function StreamGraphPageView({ stream }: { stream: ListedStream }) {
     );
   }
   if (canvas.steps.length === 0) {
-    return <GraphTabMessage title={`${stream.name} has no steps yet`} detail={`${streamGraphDocumentCommand(stream.name)} prints the graph the runtime holds.`} />;
+    return <GraphTabMessage title={`${stream.name} has no nodes yet`} detail={`${streamGraphDocumentCommand(stream.name)} prints the graph the runtime holds.`} />;
   }
   return (
     <StreamGraphCanvasProvider key={stream.name}>

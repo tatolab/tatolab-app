@@ -92,7 +92,7 @@ describe("presentStreamGraphInspection", () => {
     expect(inspection.kind === "step" && [inspection.processWords, inspection.configRows, inspection.previewAbsenceWords]).toEqual([
       "In the runtime",
       null,
-      "No output of this step is exposed. An internal output has no preview until it is exposed to this machine or publicly.",
+      "No output of this node is exposed. An internal output has no preview until it is exposed to this machine or publicly.",
     ]);
     expect(configRowsOfStep(graphDocument, "camera")).toEqual([]);
   });

@@ -260,7 +260,7 @@ describe("a stream's page", () => {
     const banner = document.querySelector<HTMLElement>("[data-failed-stream-banner]");
     expect(banner?.textContent).toContain("Failed — the stream's CameraSource could not open camera 0x1420000");
     expect(textOf("[data-nothing-to-preview]")).toContain("Not loaded, so nothing to preview");
-    expect(textOf("[data-stream-steps]")).toContain("Its steps show here once it is loaded.");
+    expect(textOf("[data-stream-steps]")).toContain("Its nodes show here once it is loaded.");
 
     expect(within(banner ?? document.body).queryByRole("button")).toBeNull();
     fireEvent.click(document.querySelector<HTMLElement>('[data-stream-page-header] [data-stream-action="start_stream"]') ?? expect.unreachable("no Retry in the bar"));
@@ -403,7 +403,7 @@ describe("a stream's Logs tab", () => {
     fireEvent.mouseDown(await waitFor(() => logRowOf("mean=127.5")));
     fireEvent.click(screen.getByRole("button", { name: "Only lines from brightnessmeter" }));
     expect(shownLogMessages().every((row) => row.includes("brightnessmeter"))).toBe(true);
-    expect(screen.getByRole("button", { name: "Steps shown: brightnessmeter" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Nodes shown: brightnessmeter" })).toBeTruthy();
 
     fireEvent.change(screen.getByRole("textbox", { name: "Search main logs" }), { target: { value: "MEAN=127" } });
     expect(shownLogMessages().length).toBeGreaterThan(0);
@@ -476,12 +476,12 @@ describe("a stream's Logs tab", () => {
     fireEvent.mouseDown(await waitFor(() => logRowOf("mean=127.5")));
     fireEvent.click(screen.getByRole("button", { name: "Only lines from brightnessmeter" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Steps shown: brightnessmeter" }));
-    const showAllSteps = await waitFor(() => screen.getByRole("menuitem", { name: "Show all steps" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nodes shown: brightnessmeter" }));
+    const showAllSteps = await waitFor(() => screen.getByRole("menuitem", { name: "Show all nodes" }));
     expect(showAllSteps.hasAttribute("data-disabled")).toBe(false);
     fireEvent.click(showAllSteps);
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Steps shown: All steps" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Nodes shown: All nodes" })).toBeTruthy());
     expect(shownLogMessages().some((row) => row.includes("runtime"))).toBe(true);
   });
 
@@ -675,7 +675,7 @@ describe("a stream's Graph tab", () => {
     });
     expect(cardsNode.getAttribute("aria-label")).toBe("testpatternsource, Running, Built-in");
     const cardsDescription = document.getElementById(cardsNode.getAttribute("aria-describedby") ?? "");
-    expect(cardsDescription?.textContent).toBe("Press Enter or Space to inspect this step. Escape selects nothing.");
+    expect(cardsDescription?.textContent).toBe("Press Enter or Space to inspect this node. Escape selects nothing.");
 
     cardsNode.focus();
     fireEvent.keyDown(cardsNode, { key: "Enter" });

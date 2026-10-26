@@ -70,7 +70,7 @@ export function StreamLogRecordDetailsView({
               rows={[
                 ["Time", <span className="font-mono text-xs tabular select-text">{details.dateAndTimeText}</span>],
                 ["Stream", <span className="select-text">{streamName}</span>],
-                ["Step", <span className="font-mono text-xs select-text">{details.step.stepName}</span>],
+                ["Node", <span className="font-mono text-xs select-text">{details.step.stepName}</span>],
                 ["Process", <span className="select-text">{details.processWords}</span>],
               ]}
             />

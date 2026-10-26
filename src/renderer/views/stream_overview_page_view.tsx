@@ -197,7 +197,7 @@ function StreamStepsSection({ stream, reading }: { stream: ListedStream; reading
   return (
     <section className="mt-7 max-w-[920px]" data-stream-steps="">
       <div className="mb-1 flex items-center gap-2">
-        <h2 className="font-medium">Steps</h2>
+        <h2 className="font-medium">Nodes</h2>
         {graph !== null && <span className="text-fg-3 tabular">{steps.length}</span>}
         {graph !== null && <span className="text-xs text-fg-3">{reading.graphSource === "loaded" ? "in pipeline order" : "as of the last load"}</span>}
         {isLoaded && (
@@ -209,7 +209,7 @@ function StreamStepsSection({ stream, reading }: { stream: ListedStream; reading
         )}
       </div>
       {graph === null ? (
-        <p className="border-t py-3 text-fg-3">{isLoaded ? "Its steps show once its graph is read." : "Its steps show here once it is loaded."}</p>
+        <p className="border-t py-3 text-fg-3">{isLoaded ? "Its nodes show once its graph is read." : "Its nodes show here once it is loaded."}</p>
       ) : (
         <table className="w-full table-fixed border-collapse text-left">
           <colgroup>
@@ -222,7 +222,7 @@ function StreamStepsSection({ stream, reading }: { stream: ListedStream; reading
           </colgroup>
           <thead>
             <tr className="border-b text-xs text-fg-3">
-              <th className="h-7 pr-3 font-normal">Step</th>
+              <th className="h-7 pr-3 font-normal">Node</th>
               <th className="px-3 font-normal">Type</th>
               <th className="px-3 font-normal">Origin</th>
               <th className="px-3 font-normal">State</th>
@@ -282,7 +282,7 @@ function StreamDetailsPanel({ stream, reading }: { stream: ListedStream; reading
   const readableOutputs = graph === null ? [] : readableExposedPorts(graph);
   const isFromTheLastLoad = graph !== null && reading.graphSource !== "loaded";
   detailRows.push([
-    "Steps",
+    "Nodes",
     <span className="tabular">
       {streamStepsCountLabel(graph, stream)}
       {isFromTheLastLoad && <span className="text-fg-3"> · last load</span>}

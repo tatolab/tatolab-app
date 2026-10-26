@@ -14,7 +14,7 @@ export interface ExposureLevelPresentation {
 export function presentExposureLevel(level: string): ExposureLevelPresentation {
   switch (level) {
     case "internal":
-      return { label: "Internal", meaning: "Only this stream's own steps can read it.", icon: "internal" };
+      return { label: "Internal", meaning: "Only this stream's own nodes can read it.", icon: "internal" };
     case "private":
       return { label: "This machine", meaning: "Any stream or app on this machine can read it.", icon: "this_machine" };
     case "public":

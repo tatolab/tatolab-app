@@ -118,7 +118,7 @@ function StepInspectorView({
         </FailureBanner>
       )}
       <StepOutputPreview inspection={inspection} outputPlace={outputPlace} pinnedOutputKeys={pinnedOutputKeys} onOutputPinToggled={actions.onOutputPinToggled} />
-      <PanelSection title="Step" isDivided>
+      <PanelSection title="Node" isDivided>
         <KeyValueRows
           rows={[
             ["Name", <span className="font-mono text-xs text-fg select-text">{step.name}</span>],
@@ -135,7 +135,7 @@ function StepInspectorView({
       </PanelSection>
       <PanelSection title="Config" aside="Set when it was added" isDivided>
         {inspection.configRows === null ? (
-          <p className="text-xs text-fg-3">The graph gives no config for this step.</p>
+          <p className="text-xs text-fg-3">The graph gives no config for this node.</p>
         ) : inspection.configRows.length === 0 ? (
           <p className="text-xs text-fg-3">None</p>
         ) : (
@@ -188,7 +188,7 @@ function StreamSummaryInspectorView({
       <PanelSection title="Summary" isDivided>
         <KeyValueRows
           rows={[
-            ["Steps", inspection.stepCountWords],
+            ["Nodes", inspection.stepCountWords],
             [
               "Links",
               <>

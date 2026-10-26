@@ -119,8 +119,8 @@ export function presentStreamGraphInspection(
       previewableOutputs.length > 0
         ? null
         : selectedStep.outputPorts.length === 0
-          ? "This step has no outputs."
-          : "No output of this step is exposed. An internal output has no preview until it is exposed to this machine or publicly.",
+          ? "This node has no outputs."
+          : "No output of this node is exposed. An internal output has no preview until it is exposed to this machine or publicly.",
     linkCountWords: `${linksIn.length} ${linksIn.length === 1 ? "link" : "links"} in · ${linksOutCount} out`,
     configRows: configRowsOfStep(graphDocument, selectedStep.name),
     counterRows: [

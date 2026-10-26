@@ -248,7 +248,7 @@ export function streamRunningSummary(answer: StreamRunAnswer): string {
 
 /** How many steps a stream has, in words. */
 export function stepCountWords(stepCount: number): string {
-  return `${stepCount} ${stepCount === 1 ? "step" : "steps"}`;
+  return `${stepCount} ${stepCount === 1 ? "node" : "nodes"}`;
 }
 
 /** One row of a folder's check: a `@stream` function found in its `stream.py`, or `stream.py` itself when it holds none or is missing. */

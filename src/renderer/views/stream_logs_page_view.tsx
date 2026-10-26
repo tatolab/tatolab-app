@@ -177,16 +177,16 @@ function StreamLogStepFilterControl({
   const { stepChoices, stepFilterWords } = streamLog;
   return (
     <FieldMenu
-      label={`Steps shown: ${stepFilterWords.words}`}
+      label={`Nodes shown: ${stepFilterWords.words}`}
       leading={<ListFilter className="size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />}
       words={<span className={cn("max-w-36 truncate", stepFilterWords.isOneStepChosen && "font-mono text-xs")}>{stepFilterWords.words}</span>}
       isNarrowing={shownStepKeys.size > 0}
       menuWidth="wide"
       data-stream-log-step-filter=""
     >
-      <MenuGroup label="Steps">
+      <MenuGroup label="Nodes">
         <MenuItem keepsTheMenuOpen isDisabled={shownStepKeys.size === 0} onChosen={() => onShownStepKeysChosen(new Set())} data-stream-log-step-choice-all="">
-          Show all steps
+          Show all nodes
         </MenuItem>
         <MenuSeparator />
         {stepChoices.map((stepChoice) => (
