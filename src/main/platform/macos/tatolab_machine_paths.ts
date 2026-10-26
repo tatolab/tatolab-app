@@ -12,7 +12,7 @@ import {
   LOCAL_PROOF_TEST_MACHINE_ROOT,
   localApiSocketUnderALocalProofTestRoot,
   perUserStreamlibRuntimeDirectoryUnderTmp,
-} from "../local_api_socket_paths.js";
+} from "../tatolab_machine_paths.js";
 
 /** Where the app links the `tatolab` CLI with no prompt, relative to the home folder: the folder the Linux installer links it in too. */
 const COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER = ".local/bin/tatolab";

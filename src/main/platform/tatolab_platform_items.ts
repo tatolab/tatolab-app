@@ -5,7 +5,8 @@
 
 import type { TatolabPlatform } from "../../shared/tatolab_backend_contract.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
-import type { ApplicationMenu, DockIconHost, MainWindowChrome } from "./main_window_platform_looks.js";
+import type { ApplicationMenu } from "./application_menu.js";
+import type { DockIconHost, MainWindowChrome } from "./main_window_chrome.js";
 import type { TatolabPlatformForThisBuild, TatolabPlatformHostServices } from "./tatolab_platform_for_this_build.js";
 import type { TrayIconImage } from "./tray_icon_image.js";
 import { MACOS_MAIN_WINDOW_CHROME, setMacosDockIconVisible } from "./macos/main_window_chrome.js";

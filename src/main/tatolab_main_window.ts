@@ -10,7 +10,7 @@ import {
 } from "../shared/tatolab_electron_bridge_contract.js";
 import type { Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import type { DockIconHost, MainWindowChrome } from "./platform/main_window_platform_looks.js";
+import type { DockIconHost, MainWindowChrome } from "./platform/main_window_chrome.js";
 import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js";
 
 /** The main window's title, sizes and title bar. */

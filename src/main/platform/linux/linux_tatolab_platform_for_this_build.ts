@@ -5,7 +5,7 @@
 
 import os from "node:os";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import { currentProcessUid } from "../local_api_socket_paths.js";
+import { currentProcessUid } from "../current_process_uid.js";
 import { tatolabCommandLineToolAt } from "../tatolab_command_line_tool.js";
 import type { TatolabPlatformForThisBuild, TatolabPlatformHostServices } from "../tatolab_platform_for_this_build.js";
 import { CommandLineToolLinkedByTheInstaller } from "./command_line_tool_linked_by_the_installer.js";

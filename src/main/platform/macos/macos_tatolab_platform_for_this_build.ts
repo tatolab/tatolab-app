@@ -3,7 +3,7 @@
 // "Uninstall Tatolab…" removes them, and Terminal.app opens a stream's project.
 
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import { currentProcessUid } from "../local_api_socket_paths.js";
+import { currentProcessUid } from "../current_process_uid.js";
 import { TATOLAB_APP_IDENTIFIER } from "../tatolab_app_identifier.js";
 import { tatolabCommandLineToolAt } from "../tatolab_command_line_tool.js";
 import type { TatolabPlatformForThisBuild, TatolabPlatformHostServices } from "../tatolab_platform_for_this_build.js";
