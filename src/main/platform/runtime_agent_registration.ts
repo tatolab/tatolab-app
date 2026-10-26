@@ -13,6 +13,15 @@ import type { Result } from "../result.js";
  */
 export type RuntimeAgentStartFailure = { kind: "no_job_for_the_registered_agent" } | { kind: "refused"; refusal: string };
 
+/**
+ * The service manager having given up starting the agent's runtime, in its words. `registeringAgainWaitsForTheNextSpawn`:
+ * registering the agent now is refused the same way until the service manager spawns the job again; only macOS reports it.
+ */
+export interface RuntimeAgentGiveUp {
+  readonly serviceManagerWords: string;
+  readonly registeringAgainWaitsForTheNextSpawn: boolean;
+}
+
 /** Restarts the runtime the app's own bundle carries, so a runtime still running from the bundle before an update runs from the bundle as it is now. */
 export interface BundledRuntimeRestart {
   /** Restart the agent's runtime, starting it if it was not running; refused in the service manager's words. */
@@ -28,11 +37,11 @@ export interface RuntimeAgentRegistration {
   registerRuntimeAgent(): Promise<Result<void, string>>;
 
   /**
-   * The service manager's words for having given up starting the agent's runtime — launchd refusing to spawn it (exit
-   * 78, EX_CONFIG) or killing it for its code signature, systemd holding the unit failed — or `null` while it has not or
-   * could not be asked. Reads only.
+   * The service manager having given up starting the agent's runtime — launchd refusing to spawn it (exit 78, EX_CONFIG)
+   * or killing it for its code signature, systemd holding the unit failed — or `null` while it has not or could not be
+   * asked. Reads only.
    */
-  whyTheServiceManagerGaveUpOnTheRuntime(): Promise<string | null>;
+  whyTheServiceManagerGaveUpOnTheRuntime(): Promise<RuntimeAgentGiveUp | null>;
 
   /**
    * Start the registered agent's runtime unless it is already running. Service Management loads a newly

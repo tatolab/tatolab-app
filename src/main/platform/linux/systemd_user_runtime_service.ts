@@ -10,7 +10,7 @@ import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from 
 import { ConditionOnsetLatch } from "../../condition_onset_latch.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../../result.js";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import type { RuntimeAgentRegistration, RuntimeAgentStartFailure } from "../runtime_agent_registration.js";
+import type { RuntimeAgentGiveUp, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "../runtime_agent_registration.js";
 
 /** The installer's systemd user unit that runs `tatolabd`. */
 export const RUNTIME_SYSTEMD_USER_UNIT_NAME = "tatolabd.service";
@@ -101,12 +101,13 @@ export class SystemdUserRuntimeService implements RuntimeAgentRegistration {
     return this.runSystemctlUserExpectingSuccess(["enable", "--now", RUNTIME_SYSTEMD_USER_UNIT_NAME]);
   }
 
-  async whyTheServiceManagerGaveUpOnTheRuntime(): Promise<string | null> {
+  async whyTheServiceManagerGaveUpOnTheRuntime(): Promise<RuntimeAgentGiveUp | null> {
     const isFailedAnswer = await this.systemctl.runSystemctlUser(["is-failed", RUNTIME_SYSTEMD_USER_UNIT_NAME]);
     if (!isFailedAnswer.ok || isFailedAnswer.value.exitCode !== 0 || isFailedAnswer.value.stdout.trim() !== "failed") return null;
     const unitResult = await this.systemctl.runSystemctlUser(["show", "--property=Result", "--value", RUNTIME_SYSTEMD_USER_UNIT_NAME]);
     const unitResultWords = unitResult.ok && unitResult.value.exitCode === 0 ? unitResult.value.stdout.trim() : "";
-    return unitResultWords === "" ? `systemd: ${RUNTIME_SYSTEMD_USER_UNIT_NAME} failed` : `systemd: ${RUNTIME_SYSTEMD_USER_UNIT_NAME} failed (${unitResultWords})`;
+    const serviceManagerWords = `systemd: ${RUNTIME_SYSTEMD_USER_UNIT_NAME} failed${unitResultWords === "" ? "" : ` (${unitResultWords})`}`;
+    return { serviceManagerWords, registeringAgainWaitsForTheNextSpawn: false };
   }
 
   async startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {

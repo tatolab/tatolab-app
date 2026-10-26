@@ -3,18 +3,23 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../shared/tatolab_backend_contract.js";
-import type { RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
+import type { RuntimeAgentGiveUp, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import {
-  REGISTER_AGAIN_WITH_RUN_TATOLAB_OFF_REFUSAL,
   RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL,
   RESTART_WITH_THE_AGENT_NOT_ENABLED_REFUSAL,
+  RUNTIME_AGENT_RECOVERY_FIRST_INTERVAL_MS,
+  RUNTIME_AGENT_RECOVERY_LONGEST_INTERVAL_MS,
   RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS,
+  RUNTIME_AGENT_TAKEOVER_WAIT_MS,
+  RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS,
   RunTatolabSwitch,
+  runtimeAgentRecoveryIntervalMs,
   theRuntimeAgentShouldBeStartedNow,
 } from "./run_tatolab_switch.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
+import { RUNTIME_STARTING_GRACE_PERIOD_MS } from "./tatolab_status.js";
 
 type FakeServiceManagementCall = "register" | "start_if_not_running" | "restart" | "unregister" | "open_login_items_settings";
 
@@ -72,7 +77,7 @@ class FakeServiceManagement implements RuntimeAgentRegistration {
     return succeeded(undefined);
   }
 
-  async whyTheServiceManagerGaveUpOnTheRuntime(): Promise<string | null> {
+  async whyTheServiceManagerGaveUpOnTheRuntime(): Promise<RuntimeAgentGiveUp | null> {
     return null;
   }
 }
@@ -305,7 +310,7 @@ test("a_runtime_found_down_is_started_ten_seconds_after_the_last_start_attempt",
     [20, 3],
   ];
   for (const [secondsAfterOpening, expectedStartCalls] of cases) {
-    await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "failing", false, openedAtMs + secondsAfterOpening * 1_000);
+    await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", openedAtMs + secondsAfterOpening * 1_000);
     expect(startCalls(), `${secondsAfterOpening} s after opening`).toBe(expectedStartCalls);
   }
 });
@@ -313,11 +318,11 @@ test("a_runtime_found_down_is_started_ten_seconds_after_the_last_start_attempt",
 test("a_runtime_found_down_with_the_switch_off_or_healthy_is_left_alone", async () => {
   const laterMs = 60_000;
   const switchedOff = await switchWith("enabled", false);
-  await switchedOff.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "failing", false, laterMs);
+  await switchedOff.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "unreachable", laterMs);
   expect(switchedOff.serviceManagement.calls).toEqual([]);
 
   const healthy = await switchWith("enabled", null);
-  await healthy.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "healthy", false, laterMs);
+  await healthy.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "running", laterMs);
   expect(healthy.serviceManagement.calls).toEqual([]);
 });
 
@@ -395,48 +400,194 @@ test("the_runtime_has_not_answered_until_a_healthy_round_and_registering_or_rest
   underTest.runTatolabSwitch.noteRuntimeHealthy(2_000);
   expect(underTest.runTatolabSwitch.runtimeAnsweredSinceItWasLastStarted()).toBe(true);
 
-  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "failing", false, 30_000);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "unreachable", 30_000);
   expect(underTest.runTatolabSwitch.runtimeAnsweredSinceItWasLastStarted(), "the app starting a runtime that went down is not a fresh start").toBe(true);
 
   await underTest.runTatolabSwitch.restartTheRuntimeOnRequest(clockAt(40_000).readMonotonicClockMs);
   expect(underTest.runTatolabSwitch.runtimeAnsweredSinceItWasLastStarted()).toBe(false);
   underTest.runTatolabSwitch.noteRuntimeHealthy(41_000);
 
-  await underTest.runTatolabSwitch.registerTheRuntimeAgainOnRequest(50_000);
-  expect(underTest.runTatolabSwitch.runtimeAnsweredSinceItWasLastStarted()).toBe(false);
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", 50_000);
+  expect(underTest.runTatolabSwitch.runtimeAnsweredSinceItWasLastStarted(), "the app registering the agent afresh is a fresh start").toBe(false);
   expect(underTest.runTatolabSwitch.timeSinceTheRuntimeWasExpectedUpMs(55_000)).toBe(5_000);
 });
 
-test("try_again_registers_the_agent_again_and_starts_it", async () => {
-  const underTest = await switchWith("enabled", true);
+/** launchd refusing to spawn the job, which registering the agent again clears. */
+const LAUNCHD_REFUSED_TO_SPAWN_THE_JOB: RuntimeAgentGiveUp = {
+  serviceManagerWords: "launchd: last exit code = 78: EX_CONFIG",
+  registeringAgainWaitsForTheNextSpawn: false,
+};
 
-  expect(await underTest.runTatolabSwitch.registerTheRuntimeAgainOnRequest(5_000)).toEqual(succeeded(undefined));
-  expect(underTest.serviceManagement.calls).toEqual(["unregister", "register", "start_if_not_running"]);
+/** launchd killing the job for its code signature, as its first spawn after another copy of the app registered the agent is. */
+const LAUNCHD_KILLED_THE_JOB_FOR_ITS_CODE_SIGNATURE: RuntimeAgentGiveUp = {
+  serviceManagerWords: "launchd: last exit reason = OS_REASON_CODESIGNING",
+  registeringAgainWaitsForTheNextSpawn: true,
+};
+
+/** The switch on with its agent enabled, registered at `registeredAtMs` by opening the app over an unregistered agent, with the calls that made forgotten. */
+async function switchRegisteredAt(registeredAtMs: number) {
+  const underTest = await switchWith("not_registered", true, 0);
+  await underTest.runTatolabSwitch.reconcileTheAgentWithTheRunTatolabSwitch(registeredAtMs);
+  underTest.serviceManagement.calls.length = 0;
+  return underTest;
+}
+
+const ONE_FRESH_REGISTRATION = ["unregister", "register", "start_if_not_running"];
+
+test("the_app_registers_the_agent_afresh_by_itself_less_often_each_time_until_the_runtime_answers", async () => {
+  const underTest = await switchRegisteredAt(0);
+  const freshRegistrations = () => underTest.serviceManagement.calls.filter((call) => call === "unregister").length;
+  const pollFindingAGiveUp = async (nowMs: number) => {
+    underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
+    await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "blocked_by_the_service_manager", nowMs);
+  };
+
+  await pollFindingAGiveUp(1_000);
+  expect(underTest.serviceManagement.calls, "a give-up is answered at once").toEqual(ONE_FRESH_REGISTRATION);
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
+  expect(underTest.runTatolabSwitch.serviceManagerStillGivesUpAfterTheAppsOwnFreshRegistration(), "a give-up after the app's own registration reads blocked").toBe(true);
+
+  const cases: [number, number][] = [
+    [30_999, 1],
+    [31_000, 2],
+    [90_999, 2],
+    [91_000, 3],
+    [210_999, 3],
+    [211_000, 4],
+  ];
+  for (const [nowMs, expectedFreshRegistrations] of cases) {
+    await pollFindingAGiveUp(nowMs);
+    expect(freshRegistrations(), `${nowMs} ms`).toBe(expectedFreshRegistrations);
+  }
+
+  underTest.runTatolabSwitch.noteRuntimeHealthy(300_000);
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
+  expect(underTest.runTatolabSwitch.serviceManagerStillGivesUpAfterTheAppsOwnFreshRegistration(), "an answer forgets the app's registrations").toBe(false);
+  await pollFindingAGiveUp(300_500);
+  expect(freshRegistrations(), "an answer starts the backoff over").toBe(5);
 });
 
-test("try_again_with_the_switch_off_is_refused_and_registers_nothing", async () => {
-  const underTest = await switchWith("not_registered", false);
-
-  expect(await underTest.runTatolabSwitch.registerTheRuntimeAgainOnRequest(5_000)).toEqual(failedWith(REGISTER_AGAIN_WITH_RUN_TATOLAB_OFF_REFUSAL));
-  expect(underTest.serviceManagement.calls).toEqual([]);
+test("the_wait_between_fresh_registrations_doubles_from_thirty_seconds_up_to_thirty_minutes", () => {
+  expect(runtimeAgentRecoveryIntervalMs(1)).toBe(RUNTIME_AGENT_RECOVERY_FIRST_INTERVAL_MS);
+  expect(runtimeAgentRecoveryIntervalMs(2)).toBe(60_000);
+  expect(runtimeAgentRecoveryIntervalMs(3)).toBe(120_000);
+  expect(runtimeAgentRecoveryIntervalMs(6)).toBe(960_000);
+  expect(runtimeAgentRecoveryIntervalMs(7)).toBe(RUNTIME_AGENT_RECOVERY_LONGEST_INTERVAL_MS);
+  expect(runtimeAgentRecoveryIntervalMs(40)).toBe(RUNTIME_AGENT_RECOVERY_LONGEST_INTERVAL_MS);
 });
 
-test("the_first_give_up_registers_the_agent_afresh_once_and_an_answer_lets_a_later_give_up_do_it_again", async () => {
-  const underTest = await switchWith("enabled", true);
+test("a_give_up_that_waits_for_the_next_spawn_holds_the_fresh_registration_until_launchd_spawns_the_job_again", async () => {
+  const underTest = await switchRegisteredAt(0);
 
-  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "failing", true, 1_000);
-  expect(underTest.serviceManagement.calls).toEqual(["unregister", "register", "start_if_not_running"]);
-  expect(underTest.runTatolabSwitch.hasRegisteredAfreshAfterAGiveUp()).toBe(true);
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_KILLED_THE_JOB_FOR_ITS_CODE_SIGNATURE);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", 2_000);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", 8_000);
+  expect(underTest.serviceManagement.calls, "registering before launchd's next spawn is refused the same way").toEqual([]);
+  expect(underTest.runTatolabSwitch.serviceManagerStillGivesUpAfterTheAppsOwnFreshRegistration(), "a held give-up reads as starting").toBe(false);
 
-  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "failing", true, 60_000);
-  expect(underTest.serviceManagement.calls, "a second give-up is the person's to retry").toHaveLength(3);
-
-  underTest.runTatolabSwitch.noteRuntimeHealthy(70_000);
-  expect(underTest.runTatolabSwitch.hasRegisteredAfreshAfterAGiveUp()).toBe(false);
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", 12_000);
+  expect(underTest.serviceManagement.calls).toEqual(ONE_FRESH_REGISTRATION);
 });
 
-test("a_give_up_with_the_switch_off_registers_nothing", async () => {
+test("a_round_that_catches_the_job_running_between_refused_spawns_neither_starts_it_nor_puts_off_the_fresh_registration", async () => {
+  const underTest = await switchRegisteredAt(0);
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_KILLED_THE_JOB_FOR_ITS_CODE_SIGNATURE);
+
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(null);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", 11_000);
+  expect(underTest.serviceManagement.calls, "the give-up holds, so the poller starts nothing").toEqual([]);
+
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", RUNTIME_AGENT_TAKEOVER_WAIT_MS);
+  expect(underTest.serviceManagement.calls, "the wait counts from the registration").toEqual(ONE_FRESH_REGISTRATION);
+
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(null);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", RUNTIME_AGENT_TAKEOVER_WAIT_MS + RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS);
+  expect(underTest.serviceManagement.calls, "a fresh start forgets the give-up, so the poller starts the runtime again").toEqual([...ONE_FRESH_REGISTRATION, "start_if_not_running"]);
+});
+
+test("a_give_up_holds_until_the_runtime_answers_or_is_started_afresh", async () => {
+  const kickstartsOnAnUnreachableRound = async (underTest: Awaited<ReturnType<typeof switchWith>>, nowMs: number) => {
+    underTest.serviceManagement.calls.length = 0;
+    underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(null);
+    await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "unreachable", nowMs);
+    return underTest.serviceManagement.calls.includes("start_if_not_running");
+  };
+
+  const answered = await switchWith("enabled", true);
+  answered.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_KILLED_THE_JOB_FOR_ITS_CODE_SIGNATURE);
+  expect(await kickstartsOnAnUnreachableRound(answered, 1_000), "a held give-up starts nothing").toBe(false);
+  answered.runTatolabSwitch.noteRuntimeHealthy(2_000);
+  expect(await kickstartsOnAnUnreachableRound(answered, 3_000), "an answer forgets it").toBe(true);
+
+  const restarted = await switchWith("enabled", true);
+  restarted.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_KILLED_THE_JOB_FOR_ITS_CODE_SIGNATURE);
+  await restarted.runTatolabSwitch.restartTheRuntimeOnRequest(clockAt(1_000).readMonotonicClockMs);
+  expect(await kickstartsOnAnUnreachableRound(restarted, 1_000 + RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS), "a restart forgets it").toBe(true);
+});
+
+test("a_runtime_that_never_answered_is_still_started_between_fresh_registrations", async () => {
+  const underTest = await switchRegisteredAt(0);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "never_answered", 30_000);
+  expect(underTest.serviceManagement.calls, "a spawn launchd left pended is caught before the fresh registration is due").toEqual(["start_if_not_running"]);
+});
+
+test("a_give_up_that_waits_for_the_next_spawn_holds_the_fresh_registration_no_longer_than_the_takeover_wait", async () => {
+  const underTest = await switchWith("enabled", true, 0);
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_KILLED_THE_JOB_FOR_ITS_CODE_SIGNATURE);
+
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", RUNTIME_AGENT_TAKEOVER_WAIT_MS - 1);
+  expect(underTest.serviceManagement.calls, "measured from the launch when this launch has started nothing").toEqual([]);
+
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "starting", RUNTIME_AGENT_TAKEOVER_WAIT_MS);
+  expect(underTest.serviceManagement.calls).toEqual(ONE_FRESH_REGISTRATION);
+});
+
+test("the_takeover_wait_reads_as_starting", () => {
+  expect(RUNTIME_AGENT_TAKEOVER_WAIT_MS).toBeGreaterThan(RUNTIME_AGENT_START_MINIMUM_INTERVAL_MS);
+  expect(RUNTIME_AGENT_TAKEOVER_WAIT_MS).toBeLessThan(RUNTIME_STARTING_GRACE_PERIOD_MS);
+});
+
+test("a_runtime_that_never_answered_is_registered_afresh_no_sooner_than_a_minute_after_each_start", async () => {
+  const underTest = await switchRegisteredAt(0);
+  const freshRegistrations = () => underTest.serviceManagement.calls.filter((call) => call === "unregister").length;
+
+  const cases: [number, number][] = [
+    [RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS - 1, 0],
+    [RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS, 1],
+    [RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS + RUNTIME_AGENT_RECOVERY_FIRST_INTERVAL_MS, 1],
+    [2 * RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS - 1, 1],
+    [2 * RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS, 2],
+    [3 * RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS, 3],
+    [3 * RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS + 119_999, 3],
+    [3 * RUNTIME_NEVER_ANSWERED_RECOVERY_AFTER_MS + 120_000, 4],
+  ];
+  for (const [nowMs, expectedFreshRegistrations] of cases) {
+    await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "never_answered", nowMs);
+    expect(freshRegistrations(), `${nowMs} ms, a slow start is never cut short sooner than a minute`).toBe(expectedFreshRegistrations);
+  }
+});
+
+test("an_agent_not_registered_with_the_switch_on_is_registered_by_the_app_itself_then_less_often", async () => {
+  const underTest = await switchWith("not_registered", true);
+  underTest.serviceManagement.answerRegisterWith(failedWith("Operation not permitted"));
+
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("not_registered", "stopped", 1_000);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("not_registered", "stopped", 3_000);
+  expect(underTest.serviceManagement.calls).toEqual(["register"]);
+
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("not_registered", "stopped", 1_000 + RUNTIME_AGENT_RECOVERY_FIRST_INTERVAL_MS);
+  expect(underTest.serviceManagement.calls).toEqual(["register", "register"]);
+});
+
+test("the_app_recovers_nothing_with_the_switch_off", async () => {
   const underTest = await switchWith("enabled", false);
-  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "failing", true, 1_000);
-  expect(underTest.serviceManagement.calls).toEqual([]);
+  underTest.runTatolabSwitch.noteTheServiceManagersGiveUp(LAUNCHD_REFUSED_TO_SPAWN_THE_JOB);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "blocked_by_the_service_manager", 1_000);
+  await underTest.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("enabled", "never_answered", 120_000);
+
+  const unregistered = await switchWith("not_registered", false);
+  await unregistered.runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown("not_registered", "stopped", 1_000);
+  expect([...underTest.serviceManagement.calls, ...unregistered.serviceManagement.calls]).toEqual([]);
 });

@@ -1,8 +1,7 @@
 // The tray item, in macOS's menu bar or a Linux panel: the Tatolab mark in this platform's tray
 // image, and a native menu on either click — a disabled status line, "Open Tatolab", the
-// "Run Tatolab" check, "Open Login Items…" while macOS waits for the person's approval, "Try
-// Again" once the runtime never answered or the service manager gave up on it, "Check for
-// Updates…" in a packaged app, and "Quit Tatolab".
+// "Run Tatolab" check, "Open Login Items…" while macOS waits for the person's approval, "Check
+// for Updates…" in a packaged app, and "Quit Tatolab".
 
 import type { TatolabAppUpdateState, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import type { TrayIconImage } from "./platform/tray_icon_image.js";
@@ -14,7 +13,6 @@ export type TrayMenuItemId =
   | "open_tatolab"
   | "run_tatolab"
   | "open_login_items_settings"
-  | "register_the_runtime_again"
   | "check_for_app_updates"
   | "quit_tatolab";
 
@@ -39,7 +37,6 @@ export type TrayMenuChoice =
   | "open_tatolab"
   | "toggle_run_tatolab_switch"
   | "open_login_items_settings"
-  | "register_the_runtime_again"
   | "check_for_app_updates"
   | "quit_the_app";
 
@@ -48,8 +45,6 @@ function trayRuntimeRemedyMenuItem(remedy: TrayRuntimeRemedy): TrayMenuItemDescr
   switch (remedy) {
     case "open_login_items":
       return { kind: "item", id: "open_login_items_settings", label: "Open Login Items…", enabled: true };
-    case "register_the_runtime_again":
-      return { kind: "item", id: "register_the_runtime_again", label: "Try Again", enabled: true };
     case null:
       return null;
   }
@@ -80,7 +75,6 @@ const TRAY_MENU_CHOICES_BY_ITEM_ID: Readonly<Record<TrayMenuItemId, TrayMenuChoi
   open_tatolab: "open_tatolab",
   run_tatolab: "toggle_run_tatolab_switch",
   open_login_items_settings: "open_login_items_settings",
-  register_the_runtime_again: "register_the_runtime_again",
   check_for_app_updates: "check_for_app_updates",
   quit_tatolab: "quit_the_app",
 };

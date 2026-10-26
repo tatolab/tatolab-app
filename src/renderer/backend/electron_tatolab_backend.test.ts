@@ -47,7 +47,6 @@ describe("createElectronTatolabBackend", () => {
       set_run_tatolab: { ok: true, value: null },
       open_login_items_settings: { ok: true, value: null },
       remember_first_run_finished: { ok: true, value: null },
-      register_the_runtime_again: { ok: true, value: null },
       link_command_line_tool_in_usr_local_bin: { ok: true, value: null },
       quit_tatolab_app: { ok: true, value: null },
       uninstall_tatolab: { ok: true, value: null },
@@ -62,7 +61,6 @@ describe("createElectronTatolabBackend", () => {
     await backend.setRunTatolab(false);
     await backend.openLoginItemsSettings();
     await backend.rememberFirstRunFinished();
-    await backend.registerTheRuntimeAgain();
     await backend.linkCommandLineToolInUsrLocalBin();
     await backend.quitTatolabApp();
     await backend.uninstallTatolab();
@@ -76,7 +74,6 @@ describe("createElectronTatolabBackend", () => {
       ["set_run_tatolab", { enabled: false }],
       ["open_login_items_settings", undefined],
       ["remember_first_run_finished", undefined],
-      ["register_the_runtime_again", undefined],
       ["link_command_line_tool_in_usr_local_bin", undefined],
       ["quit_tatolab_app", undefined],
       ["uninstall_tatolab", undefined],

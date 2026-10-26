@@ -120,12 +120,10 @@ test("the_tray_line_names_the_runtime_state_and_stream_count", () => {
   expect(trayStatusLine({ ...statusWith("blocked_by_the_service_manager", "enabled", null), platform: "linux" })).toBe("Runtime stopped by systemd");
 });
 
-test("the_tray_offers_login_items_for_approval_and_try_again_once_the_runtime_never_answered_or_was_blocked", () => {
+test("the_tray_offers_login_items_for_approval_and_nothing_for_a_runtime_the_app_recovers_itself", () => {
   expect(trayRuntimeRemedy(statusWith("stopped", "requires_approval", null))).toBe("open_login_items");
   expect(trayRuntimeRemedy({ ...statusWith("stopped", "requires_approval", null), run_tatolab: false })).toBeNull();
-  expect(trayRuntimeRemedy(statusWith("never_answered", "enabled", null))).toBe("register_the_runtime_again");
-  expect(trayRuntimeRemedy(statusWith("blocked_by_the_service_manager", "enabled", null))).toBe("register_the_runtime_again");
-  for (const runtimeState of ["running", "starting", "unreachable"] as const) {
+  for (const runtimeState of ["running", "starting", "unreachable", "never_answered", "blocked_by_the_service_manager"] as const) {
     expect(trayRuntimeRemedy(statusWith(runtimeState, "enabled", null)), runtimeState).toBeNull();
   }
 });

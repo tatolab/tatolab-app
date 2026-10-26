@@ -1,12 +1,11 @@
 import type { TatolabStatus } from "../../shared/tatolab_backend_contract";
-import { platformOf } from "./platform_presentation";
 import { presentRuntimeStatus, type RuntimeBannerAction, type RuntimeBannerPresentation } from "./runtime_presentation";
 
 /** Where a getting-started step stands, as the checklist shows it: not yet its turn, under way, done, waiting on the person, or failed. */
 export type GettingStartedStepProgress = "waiting" | "in_progress" | "done" | "needs_you" | "failed";
 
-/** A step of Getting set up: starting the runtime, and the ones that appear only when macOS or systemd needs the person. */
-export type GettingStartedStepName = "start_the_runtime" | "approve_in_login_items" | "unblock_the_runtime";
+/** A step of Getting set up: starting the runtime, and approving it in Login Items when macOS needs the person. */
+export type GettingStartedStepName = "start_the_runtime" | "approve_in_login_items";
 
 /** One row of the Getting set up checklist. */
 export interface GettingStartedStepPresentation {
@@ -32,11 +31,10 @@ export interface GettingStartedPresentation {
 
 const START_THE_RUNTIME = "Start the runtime";
 
-/** The checklist for `status`: "Start the runtime" alone while all goes well, and a step of its own when the person's approval or a blocked runtime holds it up. */
+/** The checklist for `status`: "Start the runtime" alone, retrying while the runtime is blocked or hasn't answered, and a step of its own when macOS needs the person's approval. */
 export function presentGettingStarted(status: TatolabStatus): GettingStartedPresentation {
   const runtimePresentation = presentRuntimeStatus(status);
-  const serviceManagerName = platformOf(status) === "linux" ? "systemd" : "macOS";
-  const stepThatNeedsThePerson = (
+  const checklistStepFromTheRuntimeBanner = (
     step: GettingStartedStepName,
     banner: RuntimeBannerPresentation | null,
     progressWords: string,
@@ -62,19 +60,20 @@ export function presentGettingStarted(status: TatolabStatus): GettingStartedPres
     case "needs_login_items_approval":
       return waitingOnTheRuntime([
         { step: "start_the_runtime", title: START_THE_RUNTIME, progressWords: "Starts once you approve it", explanation: null, progress: "waiting", action: null },
-        ...stepThatNeedsThePerson("approve_in_login_items", runtimePresentation.banner, "Waiting for you", "needs_you"),
+        ...checklistStepFromTheRuntimeBanner("approve_in_login_items", runtimePresentation.banner, "Waiting for you", "needs_you"),
       ]);
     case "blocked_by_the_service_manager":
+    case "never_answered":
+    case "not_registered":
       return waitingOnTheRuntime([
         {
           step: "start_the_runtime",
           title: START_THE_RUNTIME,
-          progressWords: `Starts once ${serviceManagerName} lets it`,
-          explanation: null,
-          progress: "waiting",
+          progressWords: "Retrying…",
+          explanation: runtimePresentation.banner?.title ?? null,
+          progress: "in_progress",
           action: null,
         },
-        ...stepThatNeedsThePerson("unblock_the_runtime", runtimePresentation.banner, "Stopped", "failed"),
       ]);
     default:
       return waitingOnTheRuntime([

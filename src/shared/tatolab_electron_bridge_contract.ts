@@ -22,7 +22,6 @@ export const TATOLAB_COMMAND_NAMES = [
   "set_run_tatolab",
   "open_login_items_settings",
   "remember_first_run_finished",
-  "register_the_runtime_again",
   "link_command_line_tool_in_usr_local_bin",
   "uninstall_tatolab",
   "quit_tatolab_app",
@@ -86,8 +85,6 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   open_login_items_settings: { commandArguments: undefined; answer: null };
   /** Refused when it could not be remembered, though first run stays finished until the app quits. */
   remember_first_run_finished: { commandArguments: undefined; answer: null };
-  /** Answers once the service manager has; refused while Run Tatolab is off, and in its words. */
-  register_the_runtime_again: { commandArguments: undefined; answer: null };
   /** Answers once the administrator prompt closes; refused in words when cancelled or not offered. */
   link_command_line_tool_in_usr_local_bin: { commandArguments: undefined; answer: null };
   uninstall_tatolab: { commandArguments: undefined; answer: null };

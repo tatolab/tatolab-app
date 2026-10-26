@@ -12,7 +12,7 @@ import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_too
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { TatolabUninstall } from "./platform/tatolab_uninstall.js";
 import type { TerminalOpenedInAFolder } from "./platform/terminal_opened_in_a_folder.js";
-import type { BundledRuntimeRestart, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
+import type { BundledRuntimeRestart, RuntimeAgentGiveUp, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import type { CommandLineToolLinkRefusal, CommandLineToolLinksObservation, TatolabCommandLineToolLinks } from "./platform/tatolab_command_line_tool_links.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
@@ -30,8 +30,8 @@ export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, B
   readonly calls: FakeRuntimeAgentCall[] = [];
   restartingTheBundledRuntime: Result<void, string> = succeeded(undefined);
   restartingTheAgentsRuntime: Result<void, RuntimeAgentStartFailure> = succeeded(undefined);
-  /** The service manager's words for having given up on the runtime, until registering the agent clears them; `null` while it has not. */
-  whyTheServiceManagerGaveUp: string | null = null;
+  /** The service manager having given up on the runtime, until registering the agent clears it; `null` while it has not. */
+  whyTheServiceManagerGaveUp: RuntimeAgentGiveUp | null = null;
   /** Whether the service manager gives up again however often the agent is registered, as a code-signing refusal does. */
   givesUpWhateverTheRegistration = false;
 
@@ -48,7 +48,7 @@ export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, B
     return succeeded(undefined);
   }
 
-  async whyTheServiceManagerGaveUpOnTheRuntime(): Promise<string | null> {
+  async whyTheServiceManagerGaveUpOnTheRuntime(): Promise<RuntimeAgentGiveUp | null> {
     return this.whyTheServiceManagerGaveUp;
   }
 

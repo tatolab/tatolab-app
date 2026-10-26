@@ -1018,7 +1018,7 @@ describe("first run on macOS", () => {
     expect(document.querySelector("[data-window-navigation]")).not.toBeNull();
   });
 
-  it("shows a step for macOS's approval with Open Login Items, and one for a blocked runtime with Try Again", async () => {
+  it("shows a step for macOS's approval with Open Login Items, and a blocked runtime as the start step retrying with nothing to press", async () => {
     await mountedWindowOverTheMock("state=approval&first_run=unfinished");
     fireEvent.click(gettingStartedControl("continue"));
     expect(textOf('[data-getting-started-step="approve_in_login_items"]')).toContain("Allow in the Background");
@@ -1027,9 +1027,9 @@ describe("first run on macOS", () => {
 
     await mountedWindowOverTheMock("state=blocked&first_run=unfinished");
     fireEvent.click(gettingStartedControl("continue"));
-    expect(textOf('[data-getting-started-step="unblock_the_runtime"]')).toContain("Blocked by macOS");
-    fireEvent.click(document.querySelector<HTMLElement>('[data-getting-started-step-action="register_the_runtime_again"]') ?? expect.unreachable("no Try Again"));
-    await waitFor(() => expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Starting…"));
+    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Retrying…");
+    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Blocked by macOS");
+    expect(document.querySelector("[data-getting-started-step-action]")).toBeNull();
   });
 
   it("moves keyboard focus to Getting set up as Continue goes", async () => {
@@ -1039,12 +1039,12 @@ describe("first run on macOS", () => {
   });
 
   it("drops a step's refusal once the step has moved on", async () => {
-    const { showStatusAsTheBackendWould, backend } = await mountedWindowOverTheMock("state=never-answered&first_run=unfinished", {
-      registerTheRuntimeAgain: () => Promise.reject("the service manager refused it"),
+    const { showStatusAsTheBackendWould, backend } = await mountedWindowOverTheMock("state=stopped&first_run=unfinished", {
+      setRunTatolab: () => Promise.reject("the service manager refused it"),
     });
     fireEvent.click(gettingStartedControl("continue"));
-    fireEvent.click(document.querySelector<HTMLElement>('[data-getting-started-step-action="register_the_runtime_again"]') ?? expect.unreachable("no Try Again"));
-    await waitFor(() => expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Couldn't start the runtime again: the service manager refused it"));
+    fireEvent.click(document.querySelector<HTMLElement>('[data-getting-started-step-action="turn_on_run_tatolab"]') ?? expect.unreachable("no Turn On Tatolab"));
+    await waitFor(() => expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Couldn't turn Tatolab on: the service manager refused it"));
 
     await showStatusAsTheBackendWould({ ...(await backend.getTatolabStatus()), runtime_state: "running", streams: [] });
     expect(textOf('[data-getting-started-step="start_the_runtime"]')).not.toContain("refused");

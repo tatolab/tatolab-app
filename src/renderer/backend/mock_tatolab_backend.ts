@@ -168,8 +168,6 @@ export interface MockTatolabOptions {
   usrLocalBinLinkScenario: "not_linked" | "linked" | "cancel";
   /** `?first_run_remember=refused`: Get Started ends first run but its file cannot be written, as when the app's config folder refuses it. */
   isRememberingFirstRunRefused: boolean;
-  /** `?register_again=refused`: the service manager refuses Try Again. */
-  isRegisteringTheRuntimeAgainRefused: boolean;
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -235,7 +233,6 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isFirstRunUnfinished: pageQuery.get("first_run") === "unfinished",
     usrLocalBinLinkScenario: pageQuery.get("usr_local_bin") === "linked" ? "linked" : pageQuery.get("usr_local_bin") === "cancel" ? "cancel" : "not_linked",
     isRememberingFirstRunRefused: pageQuery.get("first_run_remember") === "refused",
-    isRegisteringTheRuntimeAgainRefused: pageQuery.get("register_again") === "refused",
   };
 }
 
@@ -368,7 +365,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     streamPageRequestedByANotification,
     usrLocalBinLinkScenario,
     isRememberingFirstRunRefused,
-    isRegisteringTheRuntimeAgainRefused,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -770,14 +766,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (isRememberingFirstRunRefused) {
         throw "EACCES: permission denied, open '/Users/jonathanf/Library/Application Support/com.tatolab.tatolab/first-run-finished.json'";
       }
-    },
-    registerTheRuntimeAgain: async () => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (!mockStatus.run_tatolab) throw "Run Tatolab is off, so the runtime isn't started. Turn Run Tatolab on to start it.";
-      if (isRegisteringTheRuntimeAgainRefused) {
-        throw "Service Management could not register the runtime's agent: Operation not permitted";
-      }
-      startRuntime();
     },
     linkCommandLineToolInUsrLocalBin: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

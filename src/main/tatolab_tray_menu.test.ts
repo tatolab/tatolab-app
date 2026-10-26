@@ -67,7 +67,7 @@ test("the tray menu is the status line, Open Tatolab, the Run Tatolab check and 
   ]);
 });
 
-test("each status shows in the status line and the check, with what brings the runtime back after the check", () => {
+test("each status shows in the status line and the check, with login items after the check while macOS waits for approval and nothing to press while the app recovers the runtime", () => {
   const { tatolabTrayMenu, shownMenus } = buildTrayMenuOnAFakeTrayIconHost();
   tatolabTrayMenu.showStatus(statusWith(true, "stopped", undefined, "requires_approval"));
   tatolabTrayMenu.showStatus(statusWith(true, "blocked_by_the_service_manager"));
@@ -86,7 +86,6 @@ test("each status shows in the status line and the check, with what brings the r
       { kind: "item", id: "tray_status_line", label: "Runtime blocked by macOS", enabled: false },
       { kind: "item", id: "open_tatolab", label: "Open Tatolab", enabled: true },
       { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
-      { kind: "item", id: "register_the_runtime_again", label: "Try Again", enabled: true },
       { kind: "separator" },
       { kind: "item", id: "quit_tatolab", label: "Quit Tatolab", enabled: true },
     ],
@@ -94,7 +93,6 @@ test("each status shows in the status line and the check, with what brings the r
       { kind: "item", id: "tray_status_line", label: "Runtime didn't start", enabled: false },
       { kind: "item", id: "open_tatolab", label: "Open Tatolab", enabled: true },
       { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
-      { kind: "item", id: "register_the_runtime_again", label: "Try Again", enabled: true },
       { kind: "separator" },
       { kind: "item", id: "quit_tatolab", label: "Quit Tatolab", enabled: true },
     ],
@@ -114,14 +112,12 @@ test("a click on an item is that item's choice, and the status line chooses noth
   trayMenu.clickTrayMenuItem("open_tatolab");
   trayMenu.clickTrayMenuItem("run_tatolab");
   trayMenu.clickTrayMenuItem("open_login_items_settings");
-  trayMenu.clickTrayMenuItem("register_the_runtime_again");
   trayMenu.clickTrayMenuItem("check_for_app_updates");
   trayMenu.clickTrayMenuItem("quit_tatolab");
   expect(trayMenu.trayMenuChoices).toEqual([
     "open_tatolab",
     "toggle_run_tatolab_switch",
     "open_login_items_settings",
-    "register_the_runtime_again",
     "check_for_app_updates",
     "quit_the_app",
   ]);
