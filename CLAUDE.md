@@ -126,6 +126,12 @@ attention spent on settled things is unavailable for real forks.
   and injected prompts — never a real runtime, a real administrator prompt, or a real `launchctl`
   or `systemctl`.
 - Tests are always in scope and never need approval. Code drives tests, never the reverse.
+- **One signing identity, one way.** Every Tatolab.app bundle, a release and a local proof build
+  alike, is signed by the one signing path with the Developer ID from Infisical. A build that
+  cannot sign that way fails. Ad-hoc signing never appears in the app, its scripts or its
+  workflows: no other identity, no fallback, no flag that signs differently. Any platform's code
+  signing, now or later, follows the same rule. Notarization is a release step only; it does not
+  change the signature.
 - **Secrets come from Infisical, never the tree.** `.infisical.json` stays untracked; signing
   certificates, API keys and tokens never appear in a commit, a log, a PR body or an evidence image.
 - **The version is never hand-edited**: a release builds the app at the streamlib version it
