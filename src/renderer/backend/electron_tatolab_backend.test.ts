@@ -135,27 +135,21 @@ describe("createElectronTatolabBackend", () => {
     const fakeBridge = fakeTatolabElectronBridge({
       choose_stream_project_folder: { ok: true, value: null },
       propose_new_stream_project_folder: { ok: true, value: report },
-      check_stream_project_folder: { ok: true, value: report },
       create_stream_project: { ok: true, value: report },
       run_stream_project: { ok: true, value: outcome },
-      open_terminal_at_stream_project: { ok: true, value: null },
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
 
     expect(await backend.chooseStreamProjectFolder("project_to_run")).toBeNull();
     expect(await backend.proposeNewStreamProjectFolder()).toEqual(report);
-    expect(await backend.checkStreamProjectFolder(report.folder)).toEqual(report);
     expect(await backend.createStreamProject(report.folder)).toEqual(report);
     expect(await backend.runStreamProject(report.folder, null, "heat_map")).toEqual(outcome);
-    await backend.openTerminalAtChosenProjectFolder(report.folder);
 
     expect(fakeBridge.invokedCommands).toEqual([
       ["choose_stream_project_folder", { chosen_for: "project_to_run" }],
       ["propose_new_stream_project_folder", undefined],
-      ["check_stream_project_folder", { folder: report.folder }],
       ["create_stream_project", { folder: report.folder }],
       ["run_stream_project", { folder: report.folder, stream_function: null, name: "heat_map" }],
-      ["open_terminal_at_stream_project", { folder: report.folder }],
     ]);
   });
 
@@ -194,16 +188,18 @@ describe("createElectronTatolabBackend", () => {
     expect(heardStatuses).toEqual([tatolabStatus]);
   });
 
-  it("sends the stream-failure notifications and open-at-login switches, and hands each stream page request to the listener until it stops listening", async () => {
+  it("sends the stream-failure notifications and open-at-login switches and the Python choice, and hands each stream page request to the listener until it stops listening", async () => {
     const fakeBridge = fakeTatolabElectronBridge({
       set_stream_failure_notifications: { ok: true, value: null },
       set_open_tatolab_at_login: { ok: true, value: null },
+      choose_python_for_new_environments: { ok: true, value: null },
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
     const requestedStreams: string[] = [];
 
     await backend.setStreamFailureNotifications(false);
     await backend.setOpenTatolabAtLogin(true);
+    await backend.choosePythonForNewEnvironments("chosen_in_a_file_dialog");
     const stopListening = backend.onStreamPageRequested((streamName) => requestedStreams.push(streamName));
     fakeBridge.streamPageRequestListeners.forEach((streamPageRequestListener) => streamPageRequestListener("camera"));
     stopListening();
@@ -212,6 +208,7 @@ describe("createElectronTatolabBackend", () => {
     expect(fakeBridge.invokedCommands).toEqual([
       ["set_stream_failure_notifications", { enabled: false }],
       ["set_open_tatolab_at_login", { enabled: true }],
+      ["choose_python_for_new_environments", { python: "chosen_in_a_file_dialog" }],
     ]);
     expect(requestedStreams).toEqual(["camera"]);
   });

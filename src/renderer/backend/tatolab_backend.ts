@@ -1,4 +1,5 @@
 import type {
+  PythonForNewEnvironmentsChoice,
   RuntimeDescription,
   StreamGraphSummary,
   StreamLogRecordsPage,
@@ -45,14 +46,14 @@ export interface TatolabBackend {
   chooseStreamProjectFolder(chosenFor: StreamProjectFolderChosenFor): Promise<StreamProjectFolderReport | null>;
   /** The first free `~/streams/hello[-N]` for a new project, which the window may name. */
   proposeNewStreamProjectFolder(): Promise<StreamProjectFolderReport>;
-  /** What `folder` holds now, rejecting for a folder the app never handed the window. */
-  checkStreamProjectFolder(folder: string): Promise<StreamProjectFolderReport>;
   /** Run `tatolab new` in `folder`, then resolve with what it holds; rejects in the CLI's own words. */
   createStreamProject(folder: string): Promise<StreamProjectFolderReport>;
-  /** Compile `folder` and load it kept, resolving once the runtime answers; rejects with its refusal in its own words, except a refused name a listed stream holds, which resolves `name_taken`. */
+  /**
+   * Make `folder`'s `.venv` with the app's uv when it has none that runs, then compile it and load it kept, resolving once the
+   * runtime answers; rejects with its refusal in its own words, except a refused name a listed stream holds, which resolves
+   * `name_taken`, and uv failing to make the `.venv`, which resolves `python_environment_not_made` in uv's own words.
+   */
   runStreamProject(folder: string, streamFunction: string | null, streamName: string | null): Promise<StreamProjectRunOutcome>;
-  /** Open a terminal in `folder`, a folder the app handed the window, rejecting with why it could not. */
-  openTerminalAtChosenProjectFolder(folder: string): Promise<void>;
   /** How the running runtime describes itself, rejecting in its own words when it does not answer. */
   describeRuntime(): Promise<RuntimeDescription>;
   /** Stop the runtime and start it again through the service manager, resolving once the service manager has answered and rejecting in its words; the state that follows arrives as the next statuses. */
@@ -63,6 +64,8 @@ export interface TatolabBackend {
   setStreamFailureNotifications(enabled: boolean): Promise<void>;
   /** Have the desktop open Tatolab at login, or stop, resolving once it has and rejecting in its words; what it reports arrives as the next status. */
   setOpenTatolabAtLogin(enabled: boolean): Promise<void>;
+  /** Make new environments from Tatolab's built-in Python, or from one the person picks in the app's file dialog, resolving once it is remembered or the dialog is cancelled and rejecting with why; the choice arrives as the next status. */
+  choosePythonForNewEnvironments(python: PythonForNewEnvironmentsChoice): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
   /** Calls `listener` with the stream each request from the app to show a stream's page names; the returned function stops it. */
   onStreamPageRequested(listener: (streamName: string) => void): () => void;

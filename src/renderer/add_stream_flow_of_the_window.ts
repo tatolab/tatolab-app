@@ -3,7 +3,6 @@ import type { StreamProjectFolderReport } from "../shared/tatolab_backend_contra
 import {
   addStreamRunNoticeOf,
   advanceAddStreamFlow,
-  folderToRun,
   initialAddStreamFlowState,
   runRequestOf,
   type AddStreamFlowEvent,
@@ -18,10 +17,8 @@ export type AddStreamBackend = Pick<
   TatolabBackend,
   | "chooseStreamProjectFolder"
   | "proposeNewStreamProjectFolder"
-  | "checkStreamProjectFolder"
   | "createStreamProject"
   | "runStreamProject"
-  | "openTerminalAtChosenProjectFolder"
 >;
 
 /**
@@ -94,27 +91,6 @@ export class AddStreamFlowOfTheWindow {
     this.backend.chooseStreamProjectFolder(source === "project_folder" ? "project_to_run" : "new_project_directory").then(
       (report) => this.dispatch(report === null ? { kind: "folder_dialog_cancelled" } : folderAnsweredEvent(source, report)),
       (rejection: unknown) => this.dispatch({ kind: "work_refused", lead: "The folder dialog was refused:", words: describeBackendRejection(rejection) }),
-    );
-  }
-
-  checkTheFolderAgain(): void {
-    const form = this.flowState.form;
-    const folder = folderToRun(form);
-    if (folder === null) return;
-    this.dispatch({ kind: "work_started", work: "checking_the_folder" });
-    this.backend.checkStreamProjectFolder(folder.folder).then(
-      (report) => this.dispatch(folderAnsweredEvent(form.source, report)),
-      (rejection: unknown) => this.dispatch({ kind: "work_refused", lead: "Check again was refused:", words: describeBackendRejection(rejection) }),
-    );
-  }
-
-  openATerminalInTheFolder(): void {
-    const folder = folderToRun(this.flowState.form);
-    if (folder === null) return;
-    this.dispatch({ kind: "work_started", work: "opening_a_terminal" });
-    this.backend.openTerminalAtChosenProjectFolder(folder.folder).then(
-      () => this.dispatch({ kind: "terminal_opened" }),
-      (rejection: unknown) => this.dispatch({ kind: "work_refused", lead: "No terminal opened:", words: describeBackendRejection(rejection) }),
     );
   }
 

@@ -51,6 +51,7 @@ function statusWith(
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
+    python_for_new_environments: { kind: "built_in", python_version: "3.12.12" },
   };
 }
 

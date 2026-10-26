@@ -4,6 +4,7 @@
 // its answer or a refusal in words, never a thrown error.
 
 import type {
+  PythonForNewEnvironmentsChoice,
   RuntimeDescription,
   StreamGraphSummary,
   StreamLogRecordsPage,
@@ -136,11 +137,6 @@ export function openStreamProjectFolderOnRequest(
   );
 }
 
-/** `open_terminal_at_stream_project { folder }`: a terminal in `folder`, a folder the app handed the window; refused naming why. */
-export function openTerminalAtChosenProjectFolder(sharedState: TatolabAppSharedState, folder: string): Promise<Result<void, string>> {
-  return answerTheWindow("open_terminal_at_stream_project", () => sharedState.streamProjectAdding.openTerminalInStreamProjectFolder(folder));
-}
-
 /** `choose_stream_project_folder { chosen_for }`: the app's folder dialog, then what the chosen folder holds; `null` when the person cancels. */
 export function chooseStreamProjectFolder(sharedState: TatolabAppSharedState, chosenFor: StreamProjectFolderChosenFor): Promise<Result<StreamProjectFolderReport | null, string>> {
   return answerTheWindow("choose_stream_project_folder", () => sharedState.streamProjectAdding.chooseStreamProjectFolder(chosenFor));
@@ -149,11 +145,6 @@ export function chooseStreamProjectFolder(sharedState: TatolabAppSharedState, ch
 /** `propose_new_stream_project_folder`: the first free `~/streams/hello[-N]` for a new project. */
 export function proposeNewStreamProjectFolder(sharedState: TatolabAppSharedState): Promise<Result<StreamProjectFolderReport, string>> {
   return answerTheWindow("propose_new_stream_project_folder", async () => succeeded(await sharedState.streamProjectAdding.proposeNewStreamProjectFolder()));
-}
-
-/** `check_stream_project_folder { folder }`: what `folder` holds now. */
-export function checkStreamProjectFolder(sharedState: TatolabAppSharedState, folder: string): Promise<Result<StreamProjectFolderReport, string>> {
-  return answerTheWindow("check_stream_project_folder", () => sharedState.streamProjectAdding.checkStreamProjectFolder(folder));
 }
 
 /** `create_stream_project { folder }`: `tatolab new <folder>`, then what the folder holds; refused in the CLI's own words. */
@@ -217,6 +208,22 @@ export function setOpenTatolabAtLogin(sharedState: TatolabAppSharedState, enable
   });
 }
 
+/** `choose_python_for_new_environments { python }`: make new environments from Tatolab's built-in Python, or from one the person picks in the app's file dialog, then a status round; refused naming why, the choice unchanged. */
+export function choosePythonForNewEnvironments(sharedState: TatolabAppSharedState, python: PythonForNewEnvironmentsChoice): Promise<Result<void, string>> {
+  return answerTheWindowThenRefreshTheStatus(sharedState, "choose_python_for_new_environments", () =>
+    sharedState.streamProjectPythonEnvironments.choosePythonForNewEnvironments(python),
+  );
+}
+
+/** `choose_python_for_new_environments`'s arguments as the window sends them, or why they are not. */
+export function choosePythonForNewEnvironmentsArgumentsFrom(commandArguments: unknown): Result<{ python: PythonForNewEnvironmentsChoice }, string> {
+  const python = isAJsonObject(commandArguments) ? commandArguments["python"] : undefined;
+  if (python !== "built_in" && python !== "chosen_in_a_file_dialog") {
+    return failedWith("choose_python_for_new_environments needs `python`, built_in or chosen_in_a_file_dialog");
+  }
+  return succeeded({ python });
+}
+
 /** The `{ enabled }` arguments of the command `commandName` as the window sends them, or why they are not. */
 export function enabledArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ enabled: boolean }, string> {
   if (!isAJsonObject(commandArguments) || typeof commandArguments["enabled"] !== "boolean") {
@@ -243,16 +250,6 @@ export function streamArgumentsFrom(commandName: TatolabCommandName, commandArgu
 function oneTextArgumentFrom(commandName: TatolabCommandName, commandArguments: unknown, argumentName: string, whatItIs: string): Result<string, string> {
   const argument = isAJsonObject(commandArguments) ? commandArguments[argumentName] : undefined;
   return typeof argument === "string" ? succeeded(argument) : failedWith(`${commandName} needs \`${argumentName}\`, ${whatItIs}`);
-}
-
-/** `open_terminal_at_stream_project`'s arguments as the window sends them: a listed stream or a folder, or why they are neither. */
-export function streamOrFolderArgumentsFrom(commandArguments: unknown): Result<{ stream: string } | { folder: string }, string> {
-  const refusal = failedWith("open_terminal_at_stream_project needs `stream`, a stream's name, or `folder`, a folder chosen in the window");
-  if (!isAJsonObject(commandArguments)) return refusal;
-  const stream = commandArguments["stream"];
-  if (typeof stream === "string") return succeeded({ stream });
-  const folder = commandArguments["folder"];
-  return typeof folder === "string" ? succeeded({ folder }) : refusal;
 }
 
 /** The `{ folder }` arguments of the command `commandName` as the window sends them, or why they are not. */
@@ -340,16 +337,8 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     remove_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "remove_stream", commandArguments)),
     open_stream_project_folder: async (commandArguments) =>
       commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_project_folder", commandArguments)),
-    open_terminal_at_stream_project: async (commandArguments) => {
-      const streamOrFolderArguments = streamOrFolderArgumentsFrom(commandArguments);
-      if (!streamOrFolderArguments.ok) return { ok: false, refusal: streamOrFolderArguments.failure };
-      const streamOrFolder = streamOrFolderArguments.value;
-      return commandAnswerOfNothingFrom(
-        "stream" in streamOrFolder
-          ? await openStreamProjectFolderOnRequest(sharedState, "open_terminal_at_stream_project", streamOrFolder.stream)
-          : await openTerminalAtChosenProjectFolder(sharedState, streamOrFolder.folder),
-      );
-    },
+    open_terminal_at_stream_project: async (commandArguments) =>
+      commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_terminal_at_stream_project", commandArguments)),
     open_stream_log_folder: async (commandArguments) =>
       commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_log_folder", commandArguments)),
     choose_stream_project_folder: async (commandArguments) => {
@@ -358,11 +347,6 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       return commandAnswerFrom(await chooseStreamProjectFolder(sharedState, chooseArguments.value.chosen_for));
     },
     propose_new_stream_project_folder: async () => commandAnswerFrom(await proposeNewStreamProjectFolder(sharedState)),
-    check_stream_project_folder: async (commandArguments) => {
-      const folderArguments = folderArgumentsFrom("check_stream_project_folder", commandArguments);
-      if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
-      return commandAnswerFrom(await checkStreamProjectFolder(sharedState, folderArguments.value.folder));
-    },
     create_stream_project: async (commandArguments) => {
       const folderArguments = folderArgumentsFrom("create_stream_project", commandArguments);
       if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
@@ -386,6 +370,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const enabledArguments = enabledArgumentsFrom("set_open_tatolab_at_login", commandArguments);
       if (!enabledArguments.ok) return { ok: false, refusal: enabledArguments.failure };
       return commandAnswerOfNothingFrom(await setOpenTatolabAtLogin(sharedState, enabledArguments.value.enabled));
+    },
+    choose_python_for_new_environments: async (commandArguments) => {
+      const pythonArguments = choosePythonForNewEnvironmentsArgumentsFrom(commandArguments);
+      if (!pythonArguments.ok) return { ok: false, refusal: pythonArguments.failure };
+      return commandAnswerOfNothingFrom(await choosePythonForNewEnvironments(sharedState, pythonArguments.value.python));
     },
   };
 }

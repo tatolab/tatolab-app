@@ -1,5 +1,6 @@
 import type {
   CommandLineToolUsrLocalBinLink,
+  PythonForNewEnvironments,
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabAppBuild,
@@ -162,6 +163,32 @@ export interface OpenAtLoginPresentation {
   isSwitchedOn: boolean | null;
   description: string;
   needsApprovalInLoginItems: boolean;
+}
+
+/** Runtime › Python: what a project's `.venv` is made from, the chosen interpreter's path under it, and which choices it offers. */
+export interface PythonForNewEnvironmentsPresentation {
+  description: string;
+  chosenInterpreter: string | null;
+  offersYourOwnPython: boolean;
+  offersTatolabsPython: boolean;
+}
+
+/** What the app makes a project's `.venv` from, the person's own Python or Tatolab's, as the Python row says it. */
+export function presentPythonForNewEnvironments(pythonForNewEnvironments: PythonForNewEnvironments): PythonForNewEnvironmentsPresentation {
+  const whenItIsUsed = "Tatolab makes a project's .venv with it when the project has none; a project with its own .venv keeps it.";
+  switch (pythonForNewEnvironments.kind) {
+    case "built_in":
+      return {
+        description: `Tatolab's own Python ${pythonForNewEnvironments.python_version}. ${whenItIsUsed}`,
+        chosenInterpreter: null,
+        offersYourOwnPython: true,
+        offersTatolabsPython: false,
+      };
+    case "built_in_not_offered":
+      return { description: pythonForNewEnvironments.reason, chosenInterpreter: null, offersYourOwnPython: false, offersTatolabsPython: false };
+    case "chosen":
+      return { description: `Your own Python. ${whenItIsUsed}`, chosenInterpreter: pythonForNewEnvironments.interpreter, offersYourOwnPython: true, offersTatolabsPython: true };
+  }
 }
 
 /** General › Open Tatolab at login for what the desktop reports on `platform`. */

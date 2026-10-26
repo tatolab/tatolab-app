@@ -25,19 +25,35 @@ export function describeHowTheProgramEnded(programCompletion: ProgramCompletion)
   return endingSignalNumber === undefined ? `signal: ${endingSignal}` : `signal: ${endingSignalNumber} (${endingSignal})`;
 }
 
+/** How a program runs beyond its arguments: the app's own environment variables it is started without. */
+export interface ProgramRunOptions {
+  environmentVariablesLeftOut: readonly string[];
+}
+
 /** Runs a program to its end, as `runProgramToCompletion` does; a test's fake answers as the program would. */
-export type ProgramRunner = (programPath: string, programArguments: readonly string[]) => Promise<Result<ProgramCompletion, string>>;
+export type ProgramRunner = (
+  programPath: string,
+  programArguments: readonly string[],
+  programRunOptions?: ProgramRunOptions,
+) => Promise<Result<ProgramCompletion, string>>;
+
+/** The app's environment without `environmentVariablesLeftOut`. */
+function environmentWithout(environmentVariablesLeftOut: readonly string[]): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(process.env).filter(([variableName]) => !environmentVariablesLeftOut.includes(variableName)));
+}
 
 /** Run `programPath` with `programArguments`, never through a shell, until it ends; refused only when it could not be started or run to its end. */
 export function runProgramToCompletion(
   programPath: string,
   programArguments: readonly string[],
+  programRunOptions: ProgramRunOptions = { environmentVariablesLeftOut: [] },
 ): Promise<Result<ProgramCompletion, string>> {
   return new Promise((settle) => {
     // execFile throws at once for arguments it refuses, such as one holding a NUL byte, and for a
     // spawn failure outside the few it reports through the callback.
     try {
-      execFile(programPath, programArguments, { encoding: "utf8" }, (executionFailure, standardOutput, standardError) => {
+      const environment = environmentWithout(programRunOptions.environmentVariablesLeftOut);
+      execFile(programPath, programArguments, { encoding: "utf8", env: environment }, (executionFailure, standardOutput, standardError) => {
         if (executionFailure === null) {
           settle(succeeded({ exitStatus: 0, endingSignal: null, standardOutput, standardError }));
           return;

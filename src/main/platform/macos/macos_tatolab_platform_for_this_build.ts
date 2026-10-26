@@ -17,6 +17,7 @@ import { TerminalAppOpenedByOpen } from "./terminal_app_opened_by_open.js";
 import { TatolabUninstallOnThisMac } from "./tatolab_uninstall_on_this_mac.js";
 import { LoginItemOfTheAppBundle } from "./login_item_of_the_app_bundle.js";
 import { tatolabAppUpdatePackagingOnMacos } from "./tatolab_app_update_packaging_on_macos.js";
+import { pythonToolchainInTheAppBundle } from "./python_toolchain_in_the_app_bundle.js";
 
 /** The bundle's launch agent through the Service Management addon, the links of the CLI in the bundle the app binary runs from, and uninstalling them. */
 export async function macosTatolabPlatformForThisBuild(
@@ -26,10 +27,12 @@ export async function macosTatolabPlatformForThisBuild(
   const uid = currentProcessUid();
   const machinePaths = tatolabMachinePathsOnMacosForThisBuild(uid, homeDirectory);
   const bundledCommandLineTool = await bundledCommandLineToolPath(appExecutable);
+  const bundledPythonToolchain = await pythonToolchainInTheAppBundle(appExecutable, appIsPackaged, appConfigDirectory);
   tatolabAppLog.info("Tatolab app paths", {
     local_api_socket: machinePaths.localApiSocket,
     command_line_tool_home_folder_link: machinePaths.commandLineToolHomeFolderLink,
     bundled_command_line_tool: bundledCommandLineTool,
+    bundled_python_toolchain: bundledPythonToolchain.kind === "in_the_app" ? bundledPythonToolchain.builtInPythonInTheApp : bundledPythonToolchain.reason,
     local_proof_test_machine_root: machinePaths.localProofTestMachineRoot,
   });
   const administratorPrompt = new OsascriptAdministratorPrompt(OSASCRIPT_AT_ITS_SYSTEM_PATH);
@@ -60,5 +63,6 @@ export async function macosTatolabPlatformForThisBuild(
     tatolabAppOpenedAtLogin: appIsPackaged
       ? new LoginItemOfTheAppBundle(appLoginItemSettings)
       : tatolabAppNotOpenedAtLogin(UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL),
+    bundledPythonToolchain,
   };
 }

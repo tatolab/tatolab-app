@@ -3,6 +3,7 @@
 // command answers.
 
 import type {
+  PythonForNewEnvironmentsChoice,
   RuntimeDescription,
   StreamGraphSummary,
   StreamLogRecordsPage,
@@ -36,7 +37,6 @@ export const TATOLAB_COMMAND_NAMES = [
   "open_stream_log_folder",
   "choose_stream_project_folder",
   "propose_new_stream_project_folder",
-  "check_stream_project_folder",
   "create_stream_project",
   "run_stream_project",
   "describe_runtime",
@@ -44,13 +44,14 @@ export const TATOLAB_COMMAND_NAMES = [
   "open_runtime_log_folder",
   "set_stream_failure_notifications",
   "set_open_tatolab_at_login",
+  "choose_python_for_new_environments",
 ] as const;
 
 /**
  * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`,
- * `start_stream`, `remove_stream`, `open_stream_project_folder` and `open_stream_log_folder` `{ stream }`, `open_terminal_at_stream_project` `{ stream }` or
- * `{ folder }`, `choose_stream_project_folder` `{ chosen_for }`, `check_stream_project_folder` and `create_stream_project` `{ folder }`, `run_stream_project`
- * `{ folder, stream_function, name }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * `start_stream`, `remove_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`,
+ * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` `{ folder }`, `run_stream_project` `{ folder, stream_function, name }`,
+ * `choose_python_for_new_environments` `{ python }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window, from its folder dialog or its proposal. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
  * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
@@ -96,12 +97,11 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   start_stream: { commandArguments: { stream: string }; answer: null };
   remove_stream: { commandArguments: { stream: string }; answer: null };
   open_stream_project_folder: { commandArguments: { stream: string }; answer: null };
-  open_terminal_at_stream_project: { commandArguments: { stream: string } | { folder: string }; answer: null };
+  open_terminal_at_stream_project: { commandArguments: { stream: string }; answer: null };
   open_stream_log_folder: { commandArguments: { stream: string }; answer: null };
   /** `null` when the person cancels the dialog. */
   choose_stream_project_folder: { commandArguments: { chosen_for: StreamProjectFolderChosenFor }; answer: StreamProjectFolderReport | null };
   propose_new_stream_project_folder: { commandArguments: undefined; answer: StreamProjectFolderReport };
-  check_stream_project_folder: { commandArguments: { folder: string }; answer: StreamProjectFolderReport };
   create_stream_project: { commandArguments: { folder: string }; answer: StreamProjectFolderReport };
   /** `stream_function` as `tatolab run` takes it, `null` for the project's sole `@stream`; `name` in place of the function's own, or `null`. */
   run_stream_project: { commandArguments: { folder: string; stream_function: string | null; name: string | null }; answer: StreamProjectRunOutcome };
@@ -112,6 +112,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   set_stream_failure_notifications: { commandArguments: { enabled: boolean }; answer: null };
   /** Answers once the desktop has; refused in its words, or with why this build does not offer it. */
   set_open_tatolab_at_login: { commandArguments: { enabled: boolean }; answer: null };
+  /** `chosen_in_a_file_dialog` opens the app's own file dialog and answers once the person picks or cancels; refused naming why, the choice unchanged. */
+  choose_python_for_new_environments: { commandArguments: { python: PythonForNewEnvironmentsChoice }; answer: null };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */

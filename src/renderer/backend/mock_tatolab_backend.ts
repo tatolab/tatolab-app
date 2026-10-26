@@ -12,6 +12,7 @@ import type { TatolabBackend } from "./tatolab_backend";
 import {
   STREAM_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
+  type PythonForNewEnvironments,
   type RuntimeDescription,
   type TatolabAppBuild,
   type TatolabAppOpenAtLogin,
@@ -20,6 +21,7 @@ import {
   type StreamLogRecord,
   type StreamLogRecordsPage,
   type StreamProjectFolderReport,
+  type StreamProjectPythonEnvironment,
   type StreamProjectRunOutcome,
   type StreamRunAnswer,
   type TatolabAppUpdateState,
@@ -104,9 +106,9 @@ const MOCK_UPDATE_DOWNLOAD_STEP_MILLISECONDS = 250;
 const MOCK_UPDATE_DOWNLOAD_STEP_PERCENT = 7;
 
 /**
- * The project folder the mock's folder dialog chooses, picked with `?add_folder=`: one ready to run (the default), one whose
- * `.venv` is not synced yet, one with several `@stream` functions, one whose function's name a listed stream holds, one with
- * no `stream.py`, or none, the person cancelling.
+ * The project folder the mock's folder dialog chooses, picked with `?add_folder=`: one ready to run (the default), one with no
+ * `.venv` yet, which a run makes first, one with several `@stream` functions, one whose function's name a listed stream holds,
+ * one with no `stream.py`, or none, the person cancelling.
  */
 export type MockChosenProjectFolder = "ready" | "no-venv" | "several" | "taken" | "no-stream-file" | "cancel";
 
@@ -126,6 +128,39 @@ const MOCK_RUNTIME_RESTART_MILLISECONDS = 700;
 const MOCK_RUN_STREAM_MILLISECONDS = 2600;
 /** How long the mock `tatolab new` takes. */
 const MOCK_TATOLAB_NEW_MILLISECONDS = 400;
+/** How long the app's uv takes to make a project's `.venv` in the mock, before the runtime compiles it. */
+const MOCK_PYTHON_ENVIRONMENT_MILLISECONDS = 3200;
+
+/** Tatolab's built-in Python in the mock, as python-build-standalone names its version. */
+const MOCK_BUILT_IN_PYTHON_VERSION = "3.12.12";
+/** The interpreter the mock's file dialog picks in Settings. */
+const MOCK_PICKED_PYTHON_INTERPRETER = "/opt/homebrew/bin/python3.12";
+
+/** What uv says in the mock when `?add_venv=refused` has it fail to make a project's `.venv`: the package index out of reach. */
+const MOCK_UV_SYNC_REFUSAL = [
+  "error: Failed to fetch: `https://pypi.org/simple/tatolab-stream/`",
+  "  Caused by: Request failed after 3 retries",
+  "  Caused by: error sending request for url (https://pypi.org/simple/tatolab-stream/)",
+  "  Caused by: dns error: failed to lookup address information: nodename nor servname provided, or not known",
+].join("\n");
+
+/** What the mock's file dialog does when Settings asks for a Python, picked with `?python_pick=`: picks an interpreter (the default), is cancelled, or picks a file that is no Python. */
+export type MockPythonInterpreterPick = "picked" | "cancel" | "not_python";
+
+/** What `?python=` names: Tatolab's built-in Python (the default), an interpreter already chosen, or a build that carries no Python. */
+function mockPythonForNewEnvironments(pythonInTheQuery: string | null): PythonForNewEnvironments {
+  switch (pythonInTheQuery) {
+    case "chosen":
+      return { kind: "chosen", interpreter: MOCK_PICKED_PYTHON_INTERPRETER };
+    case "not_offered":
+      return {
+        kind: "built_in_not_offered",
+        reason: "This build of Tatolab carries no uv or Python of its own, so it cannot make a project's .venv. Run uv sync in the project's folder instead.",
+      };
+    default:
+      return { kind: "built_in", python_version: MOCK_BUILT_IN_PYTHON_VERSION };
+  }
+}
 
 /** The lines the mock compile writes to its standard error with `?add_run=warning`, as StreamLib's cross-floor check words them. */
 const MOCK_COMPILE_WARNINGS = ["tatolab: the cross-floor check found 1 thing binding this app to one floor.", "  nodes/heat_render.py:4: imports `cupy`"];
@@ -171,6 +206,12 @@ export interface MockTatolabOptions {
   isRememberingFirstRunRefused: boolean;
   /** `?app_build=release|modified|none`: a release build, a dev build with uncommitted changes, or one that recorded none; a dev build by default. */
   appBuild: TatolabAppBuild | null;
+  /** `?python=chosen|not_offered`: the Python new environments are made from; Tatolab's built-in by default. */
+  pythonForNewEnvironments: PythonForNewEnvironments;
+  /** `?python_pick=cancel|not_python`: what the file dialog Settings opens for a Python does. */
+  pythonInterpreterPick: MockPythonInterpreterPick;
+  /** `?add_venv=refused`: the app's uv fails to make a project's `.venv`, as with the package index out of reach. */
+  isMakingThePythonEnvironmentRefused: boolean;
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -252,6 +293,9 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     usrLocalBinLinkScenario: pageQuery.get("usr_local_bin") === "linked" ? "linked" : pageQuery.get("usr_local_bin") === "cancel" ? "cancel" : "not_linked",
     isRememberingFirstRunRefused: pageQuery.get("first_run_remember") === "refused",
     appBuild: mockAppBuild(pageQuery.get("app_build")),
+    pythonForNewEnvironments: mockPythonForNewEnvironments(pageQuery.get("python")),
+    pythonInterpreterPick: pageQuery.get("python_pick") === "cancel" ? "cancel" : pageQuery.get("python_pick") === "not_python" ? "not_python" : "picked",
+    isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
   };
 }
 
@@ -290,7 +334,16 @@ function initialMockStatus(
   scenario: MockTatolabScenario,
   platform: TatolabPlatform,
   machine: MockMachine,
-  { appUpdateScenario, openAtLogin, doesTheDesktopShowNoNotifications, commandLineToolVersion, isFirstRunUnfinished, usrLocalBinLinkScenario, appBuild }: MockTatolabOptions,
+  {
+    appUpdateScenario,
+    openAtLogin,
+    doesTheDesktopShowNoNotifications,
+    commandLineToolVersion,
+    isFirstRunUnfinished,
+    usrLocalBinLinkScenario,
+    appBuild,
+    pythonForNewEnvironments,
+  }: MockTatolabOptions,
 ): TatolabStatus {
   const runningStatus: TatolabStatus = {
     app_version: "0.45.0",
@@ -314,6 +367,7 @@ function initialMockStatus(
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: !doesTheDesktopShowNoNotifications },
     open_at_login: openAtLogin,
     command_line_tool_version: commandLineToolVersion,
+    python_for_new_environments: pythonForNewEnvironments,
   };
   switch (scenario) {
     case "running":
@@ -385,6 +439,8 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     streamPageRequestedByANotification,
     usrLocalBinLinkScenario,
     isRememberingFirstRunRefused,
+    pythonInterpreterPick,
+    isMakingThePythonEnvironmentRefused,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -407,6 +463,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   /** Whether the attached demo was stopped or removed, which ends its `tatolab dev` session for good. */
   let hasTheAttachedDemoSessionEnded = false;
   let mockStatus = initialMockStatus(scenario, platform, fixtures.machine, mockTatolabOptions);
+  /** Tatolab's own Python as this build has it, which choosing it again goes back to. */
+  const initialPythonForNewEnvironmentsBuiltIn: PythonForNewEnvironments =
+    mockTatolabOptions.pythonForNewEnvironments.kind === "chosen"
+      ? { kind: "built_in", python_version: MOCK_BUILT_IN_PYTHON_VERSION }
+      : mockTatolabOptions.pythonForNewEnvironments;
   let isLoginItemsApproved = scenario !== "approval";
   let runtimeUpSinceMilliseconds: number | null = null;
   /** When the mock runtime's engine started, which its uptime counts from: long before the page opened, until a restart. */
@@ -430,11 +491,17 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
 
   /** Each project folder the mock knows, by path, as the window would be told it holds it; a folder not here does not exist. */
   const projectFolders = new Map<string, StreamProjectFolderReport>();
-  /** The folders whose `.venv` a Check again finds synced, as if the person ran `uv sync` in a terminal meanwhile. */
-  const foldersSyncedOnTheNextCheck = new Set<string>();
   const foldersHandedToTheWindow = new Set<string>();
   const projectsFolder = `${fixtures.machine.homeDirectory}/code`;
   const syncedPythonEnvironment = { kind: "present", python_version: "3.12.10", tatolab_stream_version: "0.55.0" } as const;
+  /** A `.venv` as the app's uv makes it from the Python for new environments, or uv's words when it cannot. */
+  const pythonEnvironmentTheAppMakes = (): { made: StreamProjectPythonEnvironment } | { refusal: string } => {
+    const pythonForNewEnvironments = mockStatus.python_for_new_environments;
+    if (pythonForNewEnvironments.kind === "built_in_not_offered") return { refusal: pythonForNewEnvironments.reason };
+    if (isMakingThePythonEnvironmentRefused) return { refusal: MOCK_UV_SYNC_REFUSAL };
+    const pythonVersion = pythonForNewEnvironments.kind === "built_in" ? pythonForNewEnvironments.python_version : "3.12.7";
+    return { made: { kind: "present", python_version: pythonVersion, tatolab_stream_version: "0.55.0" } };
+  };
   const projectFolderReport = (folder: string, streamFunctions: string[], isSynced: boolean): StreamProjectFolderReport => ({
     folder,
     folder_exists: true,
@@ -460,7 +527,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   };
   const handToTheWindow = (report: StreamProjectFolderReport): StreamProjectFolderReport => {
     foldersHandedToTheWindow.add(report.folder);
-    if (report.folder_exists && report.python_environment.kind === "missing") foldersSyncedOnTheNextCheck.add(report.folder);
     if (report.folder_exists) projectFolders.set(report.folder, report);
     return structuredClone(report);
   };
@@ -870,14 +936,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return handToTheWindow(newProjectFolderReport(firstFreeNewStreamProjectFolder()));
     },
-    checkStreamProjectFolder: async (folder) => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      refuseAFolderNotHandedToTheWindow(folder);
-      const project = projectFolders.get(folder);
-      if (project === undefined) return newProjectFolderReport(folder);
-      if (foldersSyncedOnTheNextCheck.delete(folder)) projectFolders.set(folder, { ...project, python_environment: syncedPythonEnvironment });
-      return structuredClone(projectFolders.get(folder) ?? project);
-    },
     createStreamProject: async (folder) => {
       await sleep(MOCK_TATOLAB_NEW_MILLISECONDS);
       refuseAFolderNotHandedToTheWindow(folder);
@@ -886,18 +944,17 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       return handToTheWindow(projectFolderReport(folder, ["main"], false));
     },
     runStreamProject: async (folder, streamFunction, streamName) => {
+      refuseAFolderNotHandedToTheWindow(folder);
+      const project = projectFolders.get(folder);
+      if (project !== undefined && project.python_environment.kind === "missing") {
+        await sleep(MOCK_PYTHON_ENVIRONMENT_MILLISECONDS);
+        const pythonEnvironment = pythonEnvironmentTheAppMakes();
+        if ("refusal" in pythonEnvironment) return { kind: "python_environment_not_made", words: pythonEnvironment.refusal };
+        projectFolders.set(folder, { ...project, python_environment: pythonEnvironment.made });
+      }
       await sleep(MOCK_RUN_STREAM_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer run_stream`;
-      refuseAFolderNotHandedToTheWindow(folder);
       return runMockStreamProject(folder, streamFunction, streamName);
-    },
-    openTerminalAtChosenProjectFolder: async (folder) => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      refuseAFolderNotHandedToTheWindow(folder);
-      if (!projectFolders.has(folder)) throw `${folder} is not a folder on this machine.`;
-      if (isTheTerminalMissing) {
-        throw "No terminal opened: x-terminal-emulator is not on the PATH. Install a terminal, or choose one with sudo update-alternatives --config x-terminal-emulator.";
-      }
     },
     describeRuntime: async (): Promise<RuntimeDescription> => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -932,6 +989,19 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     setOpenTatolabAtLogin: async (enabled) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       publishStatus({ open_at_login: enabled ? { kind: "on" } : { kind: "off" } });
+    },
+    choosePythonForNewEnvironments: async (python) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      switch (python) {
+        case "built_in":
+          publishStatus({ python_for_new_environments: initialPythonForNewEnvironmentsBuiltIn });
+          return;
+        case "chosen_in_a_file_dialog":
+          if (pythonInterpreterPick === "cancel") return;
+          if (pythonInterpreterPick === "not_python") throw "/usr/bin/ruby is not a Python interpreter: ruby 3.3.0";
+          publishStatus({ python_for_new_environments: { kind: "chosen", interpreter: MOCK_PICKED_PYTHON_INTERPRETER } });
+          return;
+      }
     },
     onStreamPageRequested: (streamPageRequestListener) => {
       if (streamPageRequestedByANotification === null) return () => {};

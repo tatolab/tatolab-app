@@ -694,6 +694,8 @@ function openAddStream(): void {
 
 /** Long enough for the mock runtime to compile, load and start a project. */
 const MOCK_RUN_WAIT = { timeout: 5000 };
+/** Long enough for the mock's uv to make a project's `.venv`, then for its runtime to compile and load it. */
+const MOCK_RUN_AFTER_MAKING_THE_VENV_WAIT = { timeout: 9000 };
 
 describe("Add stream", () => {
   it("runs a chosen project folder kept, listing its compile warning, and opens the stream it loaded", { timeout: 15_000 }, async () => {
@@ -735,21 +737,35 @@ describe("Add stream", () => {
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"] h2')?.textContent).toBe("main-2 is running"), MOCK_RUN_WAIT);
   });
 
-  it("creates the sample project with tatolab new, asks for uv sync, and compiles it once Check again finds its .venv", { timeout: 15_000 }, async () => {
+  it("creates the sample project with tatolab new, then Compile and run makes its .venv and runs it, with no command to run", { timeout: 20_000 }, async () => {
     await mountedWindowOverTheMock("state=empty");
     fireEvent.click(screen.getByRole("link", { name: /Create the sample stream/ }));
     await waitFor(() => expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("/Users/jonathanf/streams/hello"));
     expect(screen.getByText("tatolab new /Users/jonathanf/streams/hello")).toBeTruthy();
 
     fireEvent.click(await addStreamControl("create"));
-    await waitFor(() => expect(document.querySelector('[data-add-stream-check=".venv"]')?.getAttribute("data-add-stream-check-found")).toBe("false"));
-    expect(screen.getByText("cd /Users/jonathanf/streams/hello && uv sync")).toBeTruthy();
+    await waitFor(() => expect(document.querySelector('[data-add-stream-check=".venv"]')?.textContent).toContain("Made on run"));
+    expect(document.querySelector('[data-add-stream-check=".venv"]')?.textContent).toContain("Compile and run makes it first, with Tatolab's Python 3.12.12.");
+    expect(screen.queryByText(/uv sync/)).toBeNull();
     expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "hello");
 
-    fireEvent.click(await addStreamControl("check_again"));
-    await waitFor(() => expect(document.querySelector('[data-add-stream-check=".venv"]')?.getAttribute("data-add-stream-check-found")).toBe("true"));
     fireEvent.click(await addStreamControl("compile_and_run"));
-    await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"] h2')?.textContent).toBe("hello is running"), MOCK_RUN_WAIT);
+    await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')?.getAttribute("data-add-stream-makes-the-python-environment")).toBe("true"));
+    expect(document.querySelector('[data-add-stream-step="compiling"] h2')?.textContent).toBe("Making the .venv, then compiling hello");
+    await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"] h2')?.textContent).toBe("hello is running"), MOCK_RUN_AFTER_MAKING_THE_VENV_WAIT);
+  });
+
+  it("shows uv's refusal to make the .venv in its own words, under its own lead", { timeout: 15_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&add_folder=no-venv&add_venv=refused");
+    openAddStream();
+    fireEvent.click(await addStreamControl("choose_folder"));
+    await waitFor(() => expect(document.querySelector("[data-add-stream-checks]")).not.toBeNull());
+    fireEvent.click(await addStreamControl("compile_and_run"));
+
+    await waitFor(
+      () => expect(document.querySelector("[data-add-stream-refusal]")?.textContent).toMatch(/^Tatolab couldn't make the project's \.venv: error: Failed to fetch/),
+      MOCK_RUN_WAIT,
+    );
   });
 
   it("shows tatolab new's refusal in its own words when this build has no tatolab command", async () => {
@@ -786,14 +802,13 @@ describe("Add stream", () => {
     fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-add-stream-source="new_project"]') ?? expect.unreachable("no source list yet")));
     await waitFor(() => expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("/Users/jonathanf/streams/hello"));
     fireEvent.click(await addStreamControl("create"));
-    fireEvent.click(await addStreamControl("check_again"));
-    await waitFor(() => expect(document.querySelector('[data-add-stream-check=".venv"]')?.getAttribute("data-add-stream-check-found")).toBe("true"));
+    await waitFor(() => expect(document.querySelector('[data-add-stream-check=".venv"]')).not.toBeNull());
     fireEvent.click(await addStreamControl("compile_and_run"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')).not.toBeNull());
 
     openAddStream();
 
-    await waitFor(() => expect(document.querySelector("[data-add-stream-page]")?.getAttribute("data-add-stream-page")).toBe("project_folder"), MOCK_RUN_WAIT);
+    await waitFor(() => expect(document.querySelector("[data-add-stream-page]")?.getAttribute("data-add-stream-page")).toBe("project_folder"), MOCK_RUN_AFTER_MAKING_THE_VENV_WAIT);
     expect(document.querySelector('[data-add-stream-source="project_folder"]')?.getAttribute("aria-current")).toBe("page");
   });
 
@@ -878,6 +893,30 @@ describe("Settings", () => {
     expect(within(settingsRow("runtime-status")).getByRole("button", { name: "Restarting…" })).toBeTruthy();
     await waitFor(() => expect(textOf("[data-runtime-status-words]")).toBe("Starting"), { timeout: 3_000 });
     await waitFor(() => expect(textOf("[data-runtime-status-words]")).toBe("Running · tatolabd 0.55.2 · up less than a minute"), { timeout: 5_000 });
+  });
+
+  it("makes projects' .venvs with Tatolab's Python until you choose your own in the file dialog, and goes back to Tatolab's", { timeout: 5_000 }, async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openSettingsOn("runtime");
+
+    expect(settingsRow("python-for-new-environments").textContent).toContain("Tatolab's own Python 3.12.12.");
+    expect(within(settingsRow("python-for-new-environments")).queryByRole("button", { name: "Use Tatolab's Python" })).toBeNull();
+    fireEvent.click(within(settingsRow("python-for-new-environments")).getByRole("button", { name: "Choose Your Own…" }));
+    await waitFor(() => expect(within(settingsRow("python-for-new-environments")).getByText("/opt/homebrew/bin/python3.12")).toBeTruthy());
+    expect(settingsRow("python-for-new-environments").textContent).toContain("Your own Python.");
+
+    fireEvent.click(within(settingsRow("python-for-new-environments")).getByRole("button", { name: "Use Tatolab's Python" }));
+    await waitFor(() => expect(settingsRow("python-for-new-environments").textContent).toContain("Tatolab's own Python 3.12.12."));
+  });
+
+  it("shows a picked file that is no Python refused in the app's words, the choice unchanged", { timeout: 5_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&python_pick=not_python");
+    await openSettingsOn("runtime");
+
+    fireEvent.click(within(settingsRow("python-for-new-environments")).getByRole("button", { name: "Choose Your Own…" }));
+
+    await waitFor(() => expect(settingsRow("python-for-new-environments").textContent).toContain("Couldn't use that Python: /usr/bin/ruby is not a Python interpreter: ruby 3.3.0"));
+    expect(settingsRow("python-for-new-environments").textContent).toContain("Tatolab's own Python 3.12.12.");
   });
 
   it("shows a refused restart in the service manager's words, and offers none while Run Tatolab is off", { timeout: 5_000 }, async () => {

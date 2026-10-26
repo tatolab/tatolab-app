@@ -31,6 +31,7 @@ import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "
 import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
+import { StreamProjectPythonEnvironments, type PythonInterpreterFileDialog } from "./stream_project_python_environments.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
 
 /** The Electron app as the lifecycle drives it. */
@@ -52,6 +53,8 @@ export interface TatolabElectronAppShell {
   openAFolderInTheFileManager(folder: string): Promise<Result<void, string>>;
   /** The desktop's folder dialog over the window, which the window's Add stream asks through. */
   askThePersonForAStreamProjectFolder: StreamProjectFolderDialog;
+  /** The desktop's file dialog over the window, which Settings picks a Python interpreter through. */
+  askThePersonForAPythonInterpreter: PythonInterpreterFileDialog;
   /** The person's home directory, under which new projects are proposed. */
   homeDirectory: string;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
@@ -143,6 +146,13 @@ export async function startTatolabApp(
     runProgramToCompletion,
     tatolabAppLog,
   );
+  const streamProjectPythonEnvironments = await StreamProjectPythonEnvironments.load({
+    bundledPythonToolchain: platformForThisBuild.bundledPythonToolchain,
+    appConfigDirectory: tatolabElectronAppShell.appConfigDirectory,
+    pythonInterpreterFileDialog: tatolabElectronAppShell.askThePersonForAPythonInterpreter,
+    runProgramToCompletion,
+    tatolabAppLog,
+  });
   const controller = await TatolabAppController.create({
     platform: platformItems.platform,
     platformForThisBuild,
@@ -155,6 +165,7 @@ export async function startTatolabApp(
     readTheAppUpdateState: () => tatolabAppUpdater.state(),
     readStreamFailureNotifications: () => streamFailureNotifications.stateNow(),
     readTheCommandLineToolVersion: () => tatolabCommandLineToolVersion.versionNow(),
+    readPythonForNewEnvironments: () => streamProjectPythonEnvironments.pythonForNewEnvironmentsNow(),
     tatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(
@@ -179,11 +190,12 @@ export async function startTatolabApp(
     streamProjectAdding: new StreamProjectAdding({
       homeDirectory: tatolabElectronAppShell.homeDirectory,
       streamProjectFolderDialog: tatolabElectronAppShell.askThePersonForAStreamProjectFolder,
-      terminalOpenedInAFolder: platformForThisBuild.terminalOpenedInAFolder,
       tatolabCommandLineTool: platformForThisBuild.tatolabCommandLineTool,
       runProgramToCompletion,
+      makePythonEnvironmentUnlessOneWorks: (projectFolder) => streamProjectPythonEnvironments.makePythonEnvironmentUnlessOneWorks(projectFolder),
       streamRunsOnTheRuntime: controller,
     }),
+    streamProjectPythonEnvironments,
     streamFailureNotifications,
     tatolabAppLog,
   };

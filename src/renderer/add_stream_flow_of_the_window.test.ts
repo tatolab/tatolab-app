@@ -28,9 +28,7 @@ function backendWithAPendingRun() {
   const backend: AddStreamBackend = {
     chooseStreamProjectFolder: async () => HEAT_MAP_FOLDER,
     proposeNewStreamProjectFolder: async () => HEAT_MAP_FOLDER,
-    checkStreamProjectFolder: async () => HEAT_MAP_FOLDER,
     createStreamProject: async () => HEAT_MAP_FOLDER,
-    openTerminalAtChosenProjectFolder: async () => {},
     runStreamProject: () =>
       new Promise((resolve, reject) => {
         settleTheRun = { answer: resolve, refuse: reject };
@@ -97,6 +95,7 @@ describe("the window's Add stream flow", () => {
     expect(addStreamFlow.readRunNotice()).toEqual({
       kind: "refused",
       source: "project_folder",
+      title: "Compile and run was refused",
       words: "Runtime error: the stream function in /Users/someone/code/heat-map failed to compile",
     });
     addStreamFlow.dismissRunNotice();
@@ -104,10 +103,25 @@ describe("the window's Add stream flow", () => {
     expect(listenedChanges.length).toBeGreaterThan(2);
   });
 
+  it("leaves a notice of uv failing to make the folder's .venv, titled so and in uv's own words", async () => {
+    const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
+    addStreamFlow.compileAndRun();
+    addStreamFlow.leavePage();
+
+    await answerTheRun({ kind: "python_environment_not_made", words: "error: Failed to fetch: `https://pypi.org/simple/tatolab-stream/`" });
+
+    expect(addStreamFlow.readRunNotice()).toEqual({
+      kind: "refused",
+      source: "project_folder",
+      title: "Tatolab couldn't make the project's .venv",
+      words: "error: Failed to fetch: `https://pypi.org/simple/tatolab-stream/`",
+    });
+  });
+
   it("leaves no notice for work other than a run that finishes away from the page", async () => {
     const { addStreamFlow } = await flowWithAFolderChosen();
     addStreamFlow.leavePage();
-    addStreamFlow.checkTheFolderAgain();
+    addStreamFlow.chooseFolder();
     await Promise.resolve();
     expect(addStreamFlow.readRunNotice()).toBeNull();
   });

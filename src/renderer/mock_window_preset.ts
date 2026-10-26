@@ -62,12 +62,13 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * `?stream_page_action=<action>` (a header button of the stream's page, once its steps show: `stop_stream` there gives
  * the steps as of the last load), `?inspect=tree`,
  * `?page=settings|add-stream`, on Settings `?section=general|appearance|runtime|command-line|about` and on its Runtime
- * `?restart=pressed` (Restart runtime pressed: Starting, then Running up 0m) or `?restart=refused` (the service manager refusing it), with the
+ * `?restart=pressed` (Restart runtime pressed: Starting, then Running up 0m) or `?restart=refused` (the service manager refusing it),
+ * `?choose_python=pressed` (Choose Your Own… pressed, with the backend's `?python=chosen|not_offered` and `?python_pick=cancel|not_python`), with the
  * backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream>` (a
  * click on that stream's failure notification), on Add stream `?add=folder|compiling|done|away` (a folder chosen, compiling, the stream running, or
  * Streams opened while it compiled and the run's notice shown once it answers) or
- * `?add=new|created` (a new project proposed, then written by `tatolab new`), with the backend's `?add_folder=`, `?add_run=warning` and
- * `?add_cli=missing`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
+ * `?add=new|created` (a new project proposed, then written by `tatolab new`), with the backend's `?add_folder=` (`no-venv` for a run that
+ * makes the `.venv` first), `?add_venv=refused` (uv refusing to make it), `?add_run=warning` and `?add_cli=missing`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
  * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),
  * `?sheet=uninstall|uninstalling|uninstalled`, on first run `?setup=getting_set_up` (Continue pressed on Welcome) or `?setup=get_started` (then
  * Get Started once the runtime answers) and `?setup_step_action=<action>` (a step's action pressed), with the backend's `?state=setup`, or
@@ -143,6 +144,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   const settingsSection = pageQuery.get("section");
   if (page === "settings" && settingsSection !== null) await clickWhenShown(`[data-settings-section="${CSS.escape(settingsSection)}"]`);
   if (pageQuery.get("restart") === "pressed" || pageQuery.get("restart") === "refused") await clickWhenShown(`[data-runtime-action="restart"]:not([disabled])`);
+  if (pageQuery.get("choose_python") === "pressed") await clickWhenShown(`[data-settings-action="choose-your-own-python"]:not([disabled])`);
   const sheet = pageQuery.get("sheet");
   if (sheet === "uninstall" || sheet === "uninstalling" || sheet === "uninstalled") {
     if (page !== "settings") await clickWhenShown(`[data-window-navigation="settings"]`);

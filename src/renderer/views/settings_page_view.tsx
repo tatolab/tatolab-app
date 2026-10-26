@@ -23,6 +23,7 @@ import {
   presentCommandLineToolVersion,
   presentLoginItemsRow,
   presentOpenAtLogin,
+  presentPythonForNewEnvironments,
   presentRuntimeLogFolder,
   presentRuntimeStatusRow,
   presentStreamFailureNotifications,
@@ -254,6 +255,9 @@ function RuntimeSection() {
     (isOn) => `Couldn't turn Run Tatolab ${isOn ? "on" : "off"}:`,
   );
   const streamRecordsDirectory = platformPresentation.streamRecordsDirectory;
+  const pythonForNewEnvironments = presentPythonForNewEnvironments(status.python_for_new_environments);
+  const chooseYourOwnPython = useActionThroughTheBackend(() => backend.choosePythonForNewEnvironments("chosen_in_a_file_dialog"), "Couldn't use that Python:");
+  const useTatolabsPython = useActionThroughTheBackend(() => backend.choosePythonForNewEnvironments("built_in"), "Couldn't go back to Tatolab's Python:");
   return (
     <>
       <SectionPageTitle
@@ -319,6 +323,33 @@ function RuntimeSection() {
           label="Local API socket"
           description={<MachineWords>{status.local_api_socket}</MachineWords>}
           control={() => <CopyIconButton label="Copy the local API socket's path" readTextToCopy={() => status.local_api_socket} />}
+        />
+      </SettingsGroup>
+      <SettingsGroup title="Python">
+        <SettingsRow
+          label="Python for projects"
+          description={
+            <>
+              {pythonForNewEnvironments.description}
+              {pythonForNewEnvironments.chosenInterpreter !== null && <PathUnderTheWords>{pythonForNewEnvironments.chosenInterpreter}</PathUnderTheWords>}
+            </>
+          }
+          refusal={chooseYourOwnPython.refusal ?? useTatolabsPython.refusal}
+          data-settings-row="python-for-new-environments"
+          control={() => (
+            <>
+              {pythonForNewEnvironments.offersTatolabsPython && (
+                <ActionButton isDisabled={useTatolabsPython.isPending || chooseYourOwnPython.isPending} onPressed={useTatolabsPython.run} data-settings-action="use-tatolabs-python">
+                  Use Tatolab's Python
+                </ActionButton>
+              )}
+              {pythonForNewEnvironments.offersYourOwnPython && (
+                <ActionButton isDisabled={useTatolabsPython.isPending || chooseYourOwnPython.isPending} onPressed={chooseYourOwnPython.run} data-settings-action="choose-your-own-python">
+                  {pythonForNewEnvironments.offersTatolabsPython ? "Choose Another…" : "Choose Your Own…"}
+                </ActionButton>
+              )}
+            </>
+          )}
         />
       </SettingsGroup>
       <SettingsGroup title="Logs">
