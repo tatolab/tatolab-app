@@ -15,4 +15,4 @@ A correction that only fixes the conversation evaporates at session end. This sk
    session. List every occurrence found.
 3. **Propose the fix batch**: place / current wrong text / corrected text, one table. The owner
    approves as a list and may strike lines.
-4. **Apply the approved batch**: docs and code comments through the normal PR path; rule, agent and skill text in a dedicated operating-model PR (`flow.md`).
+4. **Apply the approved batch**: docs and code comments through the normal PR path; rule, agent and skill text in the PR that carries the correction (`flow.md`).

@@ -7,10 +7,13 @@ paths:
 
 # Flow (operating model)
 
-- **Operating-model changes are their own PR, with rationale.** Anything under `.claude/` (rules,
-  agents, skills, hooks, settings), `CLAUDE.md`, or the issue forms changes in a dedicated PR that
-  explains why — never mixed into feature work. A session never edits the agents, rules, or
-  skills it is itself using.
+- **Operating-model text moves with the work that changes it.** When a change makes a skill's
+  steps, an agent's checks, a hook's patterns or `CLAUDE.md` wrong, or needs them to do its work,
+  that edit lands in the same PR, named in its body with why. A session edits the skills, agents
+  and hooks it is using when its own work changes what they say; it never leaves them describing
+  a tree it has just changed. An operating-model change no work in flight needs — a new rule, a
+  reshaped skill — is its own `chore(claude)` PR with its rationale. Rules still change only
+  through `/propose-rule`.
 - **Path guards ask; they never deny.** `permissions.deny` and a hook's `"deny"` decision are both
   banned — use `ask` and let the owner resolve it at the prompt. A hard wall outlives its reason
   and teaches the session to route around it.

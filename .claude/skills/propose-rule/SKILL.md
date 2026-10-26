@@ -19,5 +19,5 @@ Rules are invariants born from evidence — never from one annoyance.
    `.claude/rules/<file>.md` with a `paths:` scope otherwise), and the incident it would have
    prevented.
 4. **The owner approves the draft in their own words.** Hard stop.
-5. Land it in a **dedicated operating-model PR** (per `flow.md` — never mixed into feature work).
-   A session never lands a rule it is itself subject to mid-task.
+5. Land it in the PR of the work that needs it, or in its own `chore(claude)` PR when no work in
+   flight does (`flow.md`).
