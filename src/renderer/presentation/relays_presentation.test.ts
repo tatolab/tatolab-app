@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { ListedRelay, RelayAdapter, RelaysDescription } from "../../shared/tatolab_backend_contract";
-import { presentRelayConnectionState, presentRelaysSection, relaySettingsDialogSubjectOf, runtimeWordsSegmentsOf } from "./relays_presentation";
+import {
+  presentRelayAdapterNaming,
+  presentRelayConnectionState,
+  presentRelaysSection,
+  relaySettingsDialogSubjectOf,
+  runtimeWordsSegmentsOf,
+} from "./relays_presentation";
 
 const LOCAL_ADAPTER: RelayAdapter = {
   kind: "local",
+  display_name: "Local relay",
+  display_icon_data_uri: "data:image/svg+xml;base64,TE9DQUw=",
   doc: "The machine's own relay, built in.",
   setting_fields: [
     { name: "port", description: null, is_required: false, is_secret: false, value_kind: { kind: "whole_number", minimum: 0, maximum: 65535 }, accepts_null: true },
@@ -11,11 +19,15 @@ const LOCAL_ADAPTER: RelayAdapter = {
 };
 const CLOUDFLARE_ADAPTER: RelayAdapter = {
   kind: "cloudflare",
+  display_name: "Cloudflare",
+  display_icon_data_uri: "data:image/svg+xml;base64,Q0xPVUQ=",
   doc: "A relay Cloudflare provisioned.",
   setting_fields: [{ name: "relay_url", description: null, is_required: true, is_secret: true, value_kind: { kind: "text" }, accepts_null: false }],
 };
 const RED5_ADAPTER: RelayAdapter = {
   kind: "red5",
+  display_name: null,
+  display_icon_data_uri: null,
   doc: "A Red5 relay.",
   setting_fields: [
     { name: "regions", description: null, is_required: true, is_secret: false, value_kind: { kind: "not_drawable", schema_type_words: "array" }, accepts_null: false },
@@ -24,6 +36,14 @@ const RED5_ADAPTER: RelayAdapter = {
 
 const LOOPBACK: ListedRelay = { relay_id: "local-loopback", adapter: "local", built_in: true, settings: { port: 4443 }, secrets: {}, connection_state: { state: "joined" } };
 const EVERY_INTERFACE: ListedRelay = { ...LOOPBACK, relay_id: "local-every-interface", settings: { port: 4445 } };
+const MOQPRO_ADAPTER: RelayAdapter = {
+  kind: "moqpro",
+  display_name: "moq.pro",
+  display_icon_data_uri: "data:image/svg+xml;base64,TU9RUFJP",
+  doc: "A moq.pro project.",
+  setting_fields: [{ name: "project_id", description: null, is_required: true, is_secret: false, value_kind: { kind: "text" }, accepts_null: false }],
+};
+
 const MOQPRO: ListedRelay = {
   relay_id: "moqpro-1",
   adapter: "moqpro",
@@ -87,8 +107,8 @@ describe("the Relays section", () => {
 
     if (section.kind !== "listed") return expect.unreachable(section.kind);
     expect(section.adapterChoices).toEqual([
-      { adapter: CLOUDFLARE_ADAPTER, unavailableBecause: null },
-      { adapter: RED5_ADAPTER, unavailableBecause: "Tatolab can't show the setting regions (array) in a form yet." },
+      { adapter: CLOUDFLARE_ADAPTER, adapterNaming: presentRelayAdapterNaming(CLOUDFLARE_ADAPTER), unavailableBecause: null },
+      { adapter: RED5_ADAPTER, adapterNaming: presentRelayAdapterNaming(RED5_ADAPTER), unavailableBecause: "Tatolab can't show the setting regions (array) in a form yet." },
     ]);
   });
 
@@ -108,6 +128,37 @@ describe("the Relays section", () => {
 
     if (section.kind !== "listed") return expect.unreachable(section.kind);
     expect(section.localRelayListenerRows.map((row) => [row.label, row.servesWords, row.portWords])).toEqual([["local-tailnet", null, "Default port"]]);
+  });
+});
+
+describe("an adapter's naming", () => {
+  it("is the name and icon the catalog serves", () => {
+    expect(presentRelayAdapterNaming(CLOUDFLARE_ADAPTER)).toEqual({ words: "Cloudflare", isTheAdapterKind: false, iconDataUri: "data:image/svg+xml;base64,Q0xPVUQ=" });
+  });
+
+  it("falls back to the kind, with no icon, from a runtime that serves neither, or an empty name", () => {
+    expect(presentRelayAdapterNaming(RED5_ADAPTER)).toEqual({ words: "red5", isTheAdapterKind: true, iconDataUri: null });
+    expect(presentRelayAdapterNaming({ ...CLOUDFLARE_ADAPTER, display_name: " ", display_icon_data_uri: null })).toEqual({
+      words: "cloudflare",
+      isTheAdapterKind: true,
+      iconDataUri: null,
+    });
+  });
+
+  it("names every row and Add relay choice by its adapter, and a relay whose adapter the catalog does not name by the kind it lists", () => {
+    const section = presentRelaysSection(true, {
+      kind: "read",
+      description: { relays: [LOOPBACK, MOQPRO, { ...MOQPRO, relay_id: "red5-1", adapter: "red5" }, { ...MOQPRO, relay_id: "srt-1", adapter: "srt" }], adapters: [LOCAL_ADAPTER, MOQPRO_ADAPTER, CLOUDFLARE_ADAPTER, RED5_ADAPTER] },
+    });
+
+    if (section.kind !== "listed") return expect.unreachable(section.kind);
+    expect(section.localRelayListenerRows.map((row) => row.adapterNaming)).toEqual([{ words: "Local relay", isTheAdapterKind: false, iconDataUri: "data:image/svg+xml;base64,TE9DQUw=" }]);
+    expect(section.hostedRelayRows.map((row) => [row.relay.relay_id, row.adapterNaming.words, row.adapterNaming.isTheAdapterKind, row.adapterNaming.iconDataUri])).toEqual([
+      ["moqpro-1", "moq.pro", false, "data:image/svg+xml;base64,TU9RUFJP"],
+      ["red5-1", "red5", true, null],
+      ["srt-1", "srt", true, null],
+    ]);
+    expect(section.adapterChoices.map((choice) => choice.adapterNaming.words)).toEqual(["moq.pro", "Cloudflare", "red5"]);
   });
 });
 

@@ -322,9 +322,13 @@ export interface RelaySettingField {
   accepts_null: boolean;
 }
 
-/** One adapter of the runtime's relay-adapter catalog: its kind, as `add_relay` takes it, what it joins, and the settings it takes, in its schema's order. */
+/** One adapter of the runtime's relay-adapter catalog: its kind, as `add_relay` takes it, the name and icon people see it by, what it joins, and the settings it takes, in its schema's order. */
 export interface RelayAdapter {
   kind: string;
+  /** The name people know it by (`"moq.pro"`); `null` from a runtime that serves none. */
+  display_name: string | null;
+  /** The provider's own logo, a `data:image/…` URI the runtime carries on a square canvas; `null` when it serves none, or one that is not `data:image/`. */
+  display_icon_data_uri: string | null;
   doc: string;
   setting_fields: RelaySettingField[];
 }

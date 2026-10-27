@@ -13,6 +13,8 @@ import {
 
 const MOQPRO_ADAPTER: RelayAdapter = {
   kind: "moqpro",
+  display_name: "moq.pro",
+  display_icon_data_uri: null,
   doc: "A moq.pro project.",
   setting_fields: [
     { name: "project_id", description: "The project's id.", is_required: true, is_secret: false, value_kind: { kind: "text" }, accepts_null: false },
@@ -22,6 +24,8 @@ const MOQPRO_ADAPTER: RelayAdapter = {
 };
 const LOCAL_ADAPTER: RelayAdapter = {
   kind: "local",
+  display_name: "Local relay",
+  display_icon_data_uri: null,
   doc: "The machine's own relay.",
   setting_fields: [
     { name: "port", description: "The port.", is_required: false, is_secret: false, value_kind: { kind: "whole_number", minimum: 0, maximum: 65535 }, accepts_null: true },

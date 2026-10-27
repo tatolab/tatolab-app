@@ -45,6 +45,7 @@ export function SettingsGroup({
  * change was refused. The control is labelled by the name and described by the words beside it.
  */
 export function SettingsRow({
+  leading,
   label,
   description,
   control,
@@ -52,6 +53,8 @@ export function SettingsRow({
   children,
   ...controlDataAttributes
 }: {
+  /** What stands before the name and its description, centred beside them, such as a served logo. */
+  leading?: ReactNode;
   label: ReactNode;
   description?: ReactNode;
   /** Given the ids of the name and the description, for the control to be labelled and described by. */
@@ -66,6 +69,7 @@ export function SettingsRow({
   return (
     <div className="flex flex-col gap-2 px-4 py-3" {...controlDataAttributes}>
       <div className="flex min-h-7 items-center gap-5">
+        {leading !== undefined && <div className="-mr-2 flex shrink-0 items-center">{leading}</div>}
         <div className="min-w-0 flex-1">
           <p id={labelId}>{label}</p>
           {description !== undefined && (

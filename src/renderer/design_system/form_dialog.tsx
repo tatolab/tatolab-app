@@ -13,6 +13,7 @@ export function FormDialog({
   isOpen,
   onOpenChange,
   title,
+  titleLeading,
   description,
   icon: TaskIcon,
   footer,
@@ -22,6 +23,8 @@ export function FormDialog({
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   title: string;
+  /** What stands before the title, on its line, such as a served logo. */
+  titleLeading?: ReactNode;
   description: ReactNode;
   /** Drawn large above the body, the task's picture. */
   icon?: LucideIcon;
@@ -40,7 +43,14 @@ export function FormDialog({
       >
         <div className="flex shrink-0 items-start gap-3 px-6 pt-5 pb-4">
           <div className="min-w-0 flex-1">
-            <DialogTitle className="text-lg leading-6 font-medium">{title}</DialogTitle>
+            {titleLeading === undefined ? (
+              <DialogTitle className="text-lg leading-6 font-medium">{title}</DialogTitle>
+            ) : (
+              <div className="flex items-center gap-2.5">
+                {titleLeading}
+                <DialogTitle className="text-lg leading-6 font-medium">{title}</DialogTitle>
+              </div>
+            )}
             <DialogDescription className="mt-0.5 text-sm text-fg-3">{description}</DialogDescription>
           </div>
           <DialogClose render={<Button variant="ghost" size="icon-sm" className={ICON_BUTTON_CLASS_NAMES} />} aria-label="Close" data-form-dialog-close="">

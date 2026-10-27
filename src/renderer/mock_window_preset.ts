@@ -67,7 +67,10 @@ function typeIntoAField(field: HTMLInputElement, text: string): void {
 /** Settings › Relays driven to `?relay=add:<kind>|configure:<relay_id>|remove:<relay_id>`, then each `?relay_fill=<setting>:<text>` typed and `?relay_submit=pressed`. */
 async function driveRelaysToPreset(pageQuery: URLSearchParams): Promise<void> {
   const [relayDialog = "", relayDialogSubject = ""] = (pageQuery.get("relay") ?? "").split(":");
-  if (relayDialog === "add") {
+  if (relayDialog === "add-menu") {
+    await clickWhenShown(`[data-relay-action="add-menu"]`);
+    return;
+  } else if (relayDialog === "add") {
     await clickWhenShown(`[data-relay-action="add-menu"]`);
     await clickWhenShown(`[data-relay-adapter-choice="${CSS.escape(relayDialogSubject)}"]`);
   } else if (relayDialog === "configure") {
@@ -104,8 +107,9 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * `?stream_page_action=<action>` (a header or menu action of the stream's page, once its graph shows: `stop_stream` there gives
  * the steps as of the last load), `?inspect=tree`,
  * `?page=settings|add-stream` (the add-stream dialog, on Import project), on Settings `?section=general|appearance|runtime|relays|command-line|about`, on its Relays
- * `?relay=add:<adapter>|configure:<relay_id>|remove:<relay_id>` (that dialog open) with each `?relay_fill=<setting>:<text>` typed into it and `?relay_submit=pressed`
- * (Add relay or Save pressed), with the backend's `?relays=local`, and on its Runtime
+ * `?relay=add-menu` (the + menu of adapters open) or `?relay=add:<adapter>|configure:<relay_id>|remove:<relay_id>` (that dialog open) with each
+ * `?relay_fill=<setting>:<text>` typed into it and `?relay_submit=pressed` (Add relay or Save pressed), with the backend's `?relays=local` and
+ * `?adapter_names=none`, and on its Runtime
  * `?restart=pressed` (Restart runtime pressed: Starting, then Running up 0m) or `?restart=refused` (the service manager refusing it),
  * `?choose_python=pressed` (Choose Your Own… pressed, with the backend's `?python=chosen|not_offered` and `?python_pick=cancel|not_python`), with the
  * backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream>` (a

@@ -1,8 +1,9 @@
 // The runtime's relays as the window reads them: `list_relays`' instances, and the relay-adapter
-// catalog `GET /api/relay-adapters` serves, each adapter's settings schema (JSON Schema, as
-// `schemars` derives it from the adapter's settings type) read narrowly into the settings its
-// form draws. A secret setting is `writeOnly` in the schema and listed by `list_relays` only as
-// `set` or `unset`.
+// catalog `GET /api/relay-adapters` serves: each adapter's name and icon as people see it, the icon
+// a `data:image/` URI the runtime carries, so the window's `img-src 'self' data:` draws it and
+// nothing is fetched; and its settings schema (JSON Schema, as `schemars` derives it from the
+// adapter's settings type) read narrowly into the settings its form draws. A secret setting is
+// `writeOnly` in the schema and listed by `list_relays` only as `set` or `unset`.
 
 import type {
   ListedRelay,
@@ -154,13 +155,23 @@ function relayAdapterOnTheWire(adapterValue: unknown): Result<RelayAdapter, stri
   if (!adapter.ok) return adapter;
   const kind = requiredText(adapter.value, "kind");
   if (!kind.ok) return kind;
+  const displayName = optionalText(adapter.value, "display_name");
+  if (!displayName.ok) return displayName;
+  const displayIconDataUri = optionalText(adapter.value, "display_icon_data_uri");
+  if (!displayIconDataUri.ok) return displayIconDataUri;
   const doc = requiredText(adapter.value, "doc");
   if (!doc.ok) return doc;
   const settingsSchema = jsonObject(adapter.value["settings_schema"], `the settings schema of \`${kind.value}\``);
   if (!settingsSchema.ok) return settingsSchema;
   const settingFields = relaySettingFieldsOfTheSchema(settingsSchema.value);
   if (!settingFields.ok) return failedWith(`the settings schema of \`${kind.value}\`: ${settingFields.failure}`);
-  return succeeded({ kind: kind.value, doc: doc.value, setting_fields: settingFields.value });
+  return succeeded({
+    kind: kind.value,
+    display_name: displayName.value,
+    display_icon_data_uri: displayIconDataUri.value?.startsWith("data:image/") === true ? displayIconDataUri.value : null,
+    doc: doc.value,
+    setting_fields: settingFields.value,
+  });
 }
 
 function relaySettingFieldsOfTheSchema(settingsSchema: JsonObjectOnTheWire): Result<RelaySettingField[], string> {

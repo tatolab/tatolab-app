@@ -116,6 +116,7 @@ export function FieldMenu({
 /** One choice of a menu; a destructive one reads red. */
 export function MenuItem({
   icon: ItemIcon,
+  leading,
   isDestructive = false,
   keepsTheMenuOpen = false,
   isDisabled = false,
@@ -124,6 +125,8 @@ export function MenuItem({
   ...controlDataAttributes
 }: {
   icon?: LucideIcon;
+  /** What stands before the item's words in place of an icon, such as a served logo. */
+  leading?: ReactNode;
   isDestructive?: boolean;
   /** For a choice whose effect is shown in the menu itself. */
   keepsTheMenuOpen?: boolean;
@@ -141,6 +144,7 @@ export function MenuItem({
       {...controlDataAttributes}
     >
       {ItemIcon !== undefined && <ItemIcon className={cn("size-4", isDestructive ? "text-danger" : "text-fg-3")} strokeWidth={1.75} aria-hidden />}
+      {leading}
       {children}
     </DropdownMenuItem>
   );

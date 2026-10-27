@@ -511,6 +511,10 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
   const relaysDescription = answerOf(await client.describeRelays());
   expect(relaysDescription.relays.filter((relay) => relay.built_in).map((relay) => relay.relay_id)).toEqual(["local-loopback", "local-every-interface"]);
   expect(relaysDescription.adapters.map((adapter) => adapter.kind)).toEqual(expect.arrayContaining(["local", "cloudflare", "moqpro"]));
+  for (const adapter of relaysDescription.adapters) {
+    expect(adapter.display_name).not.toBeNull();
+    expect(adapter.display_icon_data_uri?.startsWith("data:image/")).toBe(true);
+  }
   expect(failureOf(await client.removeRelay("local-loopback"))).toEqual({
     failureDescription: "the relay `local-loopback` is built in and is never removed",
     isTheRuntimesRefusal: true,
