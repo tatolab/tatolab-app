@@ -5,7 +5,6 @@ import {
   droppingLinksOf,
   exposedOutputAddress,
   presentExposureLevel,
-  presentNodeKind,
   presentStreamSteps,
   previewableOutputsOf,
   readableExposedPorts,
@@ -68,14 +67,6 @@ describe("readableExposedPorts", () => {
   });
 });
 
-describe("node types", () => {
-  it("calls tatolab.stream types built-in, any other module:Class type Python, and a type with no colon nothing", () => {
-    expect(presentNodeKind("tatolab.stream:TestPatternSource")).toBe("Built-in");
-    expect(presentNodeKind("nodes.inverting_effect:InvertingEffect")).toBe("Python");
-    expect(presentNodeKind("SomethingNew")).toBeNull();
-  });
-
-});
 
 function stepNode(name: string, nodeType: string, state: string | null, counters: Partial<Pick<StreamGraphNode, "dropped_bags_by_link" | "refused_bags_by_output_port">> = {}): StreamGraphNode {
   return { id: "", name, type: nodeType, state, input_ports: [], output_ports: [], dropped_bags_by_link: counters.dropped_bags_by_link ?? {}, refused_bags_by_output_port: counters.refused_bags_by_output_port ?? {} };
@@ -109,14 +100,12 @@ const DROPPING_GRAPH: StreamGraphSummary = {
 const PIPELINE_ORDER = ["testpatternsource", "halftonelenseffect", "brightnessmeter", "h264encoder"];
 
 describe("presentStreamSteps", () => {
-  it("lists each step in pipeline order with its origin, state, process and the counters above zero", () => {
+  it("lists each node in pipeline order with its state and the counters above zero", () => {
     expect(presentStreamSteps(DROPPING_GRAPH, PIPELINE_ORDER, "loaded", true)).toEqual([
-      { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", origin: "Built-in", process: "in runtime", stateWord: "Running", stateEmphasis: "plain", counters: [] },
+      { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", stateWord: "Running", stateEmphasis: "plain", counters: [] },
       {
         name: "halftonelenseffect",
         type: "nodes.halftone_lens_effect:HalftoneLensEffect",
-        origin: "Python",
-        process: "own process",
         stateWord: "Running",
         stateEmphasis: "plain",
         counters: [{ countText: "212", word: "refused" }],
@@ -124,13 +113,11 @@ describe("presentStreamSteps", () => {
       {
         name: "brightnessmeter",
         type: "nodes.brightness_meter:BrightnessMeter",
-        origin: "Python",
-        process: "own process",
         stateWord: "Running",
         stateEmphasis: "plain",
         counters: [{ countText: "1,840", word: "dropped" }],
       },
-      { name: "h264encoder", type: "tatolab.stream:H264Encoder", origin: "Built-in", process: "in runtime", stateWord: "Starting", stateEmphasis: "starting", counters: [{ countText: "12", word: "dropped" }] },
+      { name: "h264encoder", type: "tatolab.stream:H264Encoder", stateWord: "Starting", stateEmphasis: "starting", counters: [{ countText: "12", word: "dropped" }] },
     ]);
   });
 
@@ -143,10 +130,10 @@ describe("presentStreamSteps", () => {
 
   it("words an errored step as in error, a newer state as the runtime spells it, and a step the order misses last", () => {
     const graph = { ...DROPPING_GRAPH, nodes: [stepNode("a", "nodes.a:A", "Error"), stepNode("b", "weird", "Rewiring"), stepNode("c", "tatolab.stream:C", null)] };
-    expect(presentStreamSteps(graph, ["b", "a"], "loaded", true).map((step) => [step.name, step.stateWord, step.stateEmphasis, step.origin, step.process])).toEqual([
-      ["b", "Rewiring", "plain", null, null],
-      ["a", "In error", "failure", "Python", "own process"],
-      ["c", "Running", "plain", "Built-in", "in runtime"],
+    expect(presentStreamSteps(graph, ["b", "a"], "loaded", true).map((step) => [step.name, step.stateWord, step.stateEmphasis])).toEqual([
+      ["b", "Rewiring", "plain"],
+      ["a", "In error", "failure"],
+      ["c", "Running", "plain"],
     ]);
   });
 });

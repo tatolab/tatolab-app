@@ -1,6 +1,6 @@
 import type { StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 import { presentGraphLinkState, type GraphLinkLook } from "./stream_graph_presentation";
-import { presentNodeKind, presentStepState, totalOfCounts, type StreamStepStateEmphasis } from "./stream_overview_presentation";
+import { presentStepState, totalOfCounts, type StreamStepStateEmphasis } from "./stream_overview_presentation";
 
 /** What a port carries as its icon shows it: video or audio when the runtime's catalog section says so, otherwise data. */
 export type StreamGraphPortDataKind = "video" | "audio" | "data";
@@ -49,10 +49,9 @@ export const STREAM_GRAPH_STEP_CARD_KEYBOARD_DESCRIPTION = "Press Enter or Space
 /** One step as its card on the canvas shows it. */
 export interface StreamGraphStepCard {
   name: string;
-  /** `testpatternsource, Running, Built-in`, or `main/invertingeffect, in another stream`: the card's name for a screen reader. */
+  /** `testpatternsource, Running`, or `main/invertingeffect, in another stream`: the card's name for a screen reader. */
   accessibleName: string;
   type: string;
-  origin: "Built-in" | "Python" | null;
   /** A link's source in another stream on this machine, named `<stream>/<node>`, which this graph gives no state or counters for. */
   isInAnotherStream: boolean;
   stateWord: string;
@@ -157,13 +156,11 @@ export function presentStreamGraphCanvas(graph: StreamGraphSummary): StreamGraph
       };
     });
 
-    const origin = presentNodeKind(node.type);
     const stepState = isInAnotherStream ? { stateWord: "In another stream", stateEmphasis: "quiet" as const } : presentStepState(node.state);
     return {
       name: node.name,
-      accessibleName: isInAnotherStream ? `${node.name}, in another stream` : [node.name, stepState.stateWord, origin].filter((part) => part !== null).join(", "),
+      accessibleName: isInAnotherStream ? `${node.name}, in another stream` : `${node.name}, ${stepState.stateWord}`,
       type: node.type,
-      origin,
       isInAnotherStream,
       ...stepState,
       inputPorts,

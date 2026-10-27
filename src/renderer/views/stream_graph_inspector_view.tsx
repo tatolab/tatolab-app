@@ -2,7 +2,7 @@ import { cn } from "cn";
 import { Pin, PinOff } from "lucide-react";
 import { useState } from "react";
 import { ActionButton } from "../design_system/action_button";
-import { ExposureLevelWords } from "../design_system/exposure_level_words";
+import { PublicExposureTag } from "../design_system/public_exposure_tag";
 import { FailureBanner } from "../design_system/failure_banner";
 import { KeyValueRows } from "../design_system/key_value_rows";
 import { FieldMenu, MenuItem } from "../design_system/menus";
@@ -126,8 +126,6 @@ function StepInspectorView({
                 {step.type}
               </span>,
             ],
-            ["Origin", step.origin ?? "—"],
-            ["Process", inspection.processWords ?? "—"],
           ]}
         />
       </PanelSection>
@@ -148,7 +146,7 @@ function StepInspectorView({
               <span className="min-w-0 truncate font-mono text-xs text-fg">{output.name}</span>
               {output.exposureLevel !== null && (
                 <span className="ml-auto">
-                  <ExposureLevelWords level={output.exposureLevel} />
+                  <PublicExposureTag level={output.exposureLevel} />
                 </span>
               )}
             </div>

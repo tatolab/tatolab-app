@@ -49,12 +49,6 @@ export function readableExposedPorts(graph: Pick<StreamGraphSummary, "exposed">)
   return graph.exposed.filter((exposedPort) => exposedPort.level !== "internal");
 }
 
-/** `Built-in` for a node type from `tatolab.stream`, `Python` for any other `module:Class` type, else nothing. */
-export function presentNodeKind(nodeType: string): "Built-in" | "Python" | null {
-  if (nodeType.startsWith("tatolab.stream:")) return "Built-in";
-  return nodeType.includes(":") ? "Python" : null;
-}
-
 /** Whether the Overview's steps are the loaded graph's, or the last graph this window read of a stream no longer loaded. */
 export type StreamStepsSource = "loaded" | "as_of_the_last_load";
 
@@ -71,23 +65,11 @@ export interface StreamStepCounter {
 export interface StreamStepRow {
   name: string;
   type: string;
-  origin: "Built-in" | "Python" | null;
-  process: "in runtime" | "own process" | null;
   stateWord: string;
   stateEmphasis: StreamStepStateEmphasis;
   /** Only counters above zero, and none for a graph from the last load. */
   counters: StreamStepCounter[];
 }
-
-/** Where a step runs: a built-in in the runtime, a Python node in its own processor interpreter. */
-export type StreamStepProcess = "in_the_runtime" | "own_process";
-
-/** Where a step of `origin` runs; `null` for an origin this app cannot place. */
-export function stepProcessOf(origin: "Built-in" | "Python" | null): StreamStepProcess | null {
-  return origin === "Built-in" ? "in_the_runtime" : origin === "Python" ? "own_process" : null;
-}
-
-const STEPS_TABLE_PROCESS_WORDS = { in_the_runtime: "in runtime", own_process: "own process" } as const;
 
 /** The total of a `{ name: count }` counter object, such as a node's `dropped_bags_by_link`. */
 export function totalOfCounts(countsByName: Record<string, number>): number {
@@ -127,8 +109,6 @@ export function presentStreamSteps(
   return [...graph.nodes]
     .sort((first, second) => pipelinePlace(first.name) - pipelinePlace(second.name))
     .map((node) => {
-      const origin = presentNodeKind(node.type);
-      const stepProcess = stepProcessOf(origin);
       const counters: StreamStepCounter[] =
         stepsSource === "loaded"
           ? [
@@ -141,8 +121,6 @@ export function presentStreamSteps(
       return {
         name: node.name,
         type: node.type,
-        origin,
-        process: stepProcess === null ? null : STEPS_TABLE_PROCESS_WORDS[stepProcess],
         ...(stepsSource === "loaded"
           ? presentStepState(node.state)
           : isLoadedNow

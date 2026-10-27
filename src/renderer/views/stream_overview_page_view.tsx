@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Box, Boxes, FileCode2, FolderOpen, Play, Radio, TriangleAlert } from "lucide-react";
+import { Box, Boxes, FolderOpen, Play, Radio, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useLocation } from "react-router";
 import type { ListedStream, StreamGraphExposedPort } from "../../shared/tatolab_backend_contract";
@@ -16,7 +16,7 @@ import type { StreamGraphReading } from "../stream_graph_readings";
 import { ActionButton } from "../design_system/action_button";
 import { CopyIconButton } from "../design_system/copy_icon_button";
 import { EmptyState } from "../design_system/empty_state";
-import { ExposureLevelWords } from "../design_system/exposure_level_words";
+import { PublicExposureTag } from "../design_system/public_exposure_tag";
 import { FailureBanner } from "../design_system/failure_banner";
 import { InlineLink } from "../design_system/inline_link";
 import { PageBody } from "../design_system/page_frame";
@@ -94,7 +94,7 @@ function ExposedOutputTile({ stream, output, machineName, isAsked }: { stream: L
           {output.node}/{output.port}
         </span>
         <span className="shrink-0 text-xs">
-          <ExposureLevelWords level={output.level} />
+          <PublicExposureTag level={output.level} />
         </span>
         <span className="ml-auto shrink-0">
           <CopyIconButton label="Copy preview link" size="compact" readTextToCopy={() => watchPageUrl} data-stream-output-action="copy_preview_link" />
@@ -178,7 +178,7 @@ function StreamOutputPreviews({
   );
 }
 
-/** The stream's nodes in pipeline order: each one's name, where it runs, its state where nodes differ, and its counters above zero. */
+/** The stream's nodes in pipeline order: each one's name, its state where nodes differ, and its counters above zero. */
 function StreamNodeRows({ stream, reading }: { stream: ListedStream; reading: StreamGraphReading }) {
   const graph = reading.graph;
   const nodeNamesInPipelineOrder = useMemo(() => (graph === null ? [] : stepNamesInFlowOrder(presentStreamGraphCanvas(graph))), [graph]);
@@ -191,19 +191,17 @@ function StreamNodeRows({ stream, reading }: { stream: ListedStream; reading: St
       {nodes.map((node) => (
         <PanelListRow
           key={node.name}
-          icon={node.origin === "Python" ? <FileCode2 className="size-4 text-fg-3" strokeWidth={1.75} aria-hidden /> : <Box className="size-4 text-fg-3" strokeWidth={1.75} aria-hidden />}
+          icon={<Box className="size-4 text-fg-3" strokeWidth={1.75} aria-hidden />}
           name={
             <span className="font-mono text-xs" title={node.type}>
               {node.name}
             </span>
           }
-          trailing={isEachNodesStateShown ? <StateWords emphasis={node.stateEmphasis} words={node.stateWord} /> : node.process ?? undefined}
+          trailing={isEachNodesStateShown ? <StateWords emphasis={node.stateEmphasis} words={node.stateWord} /> : undefined}
           detail={
             node.counters.length > 0 ? (
               <span className="font-mono text-warn-text tabular">{node.counters.map((counter) => `${counter.countText} ${counter.word}`).join(" · ")}</span>
-            ) : (
-              [node.origin, isEachNodesStateShown ? node.process : null].filter((words) => words !== null).join(" · ") || undefined
-            )
+            ) : undefined
           }
           data-stream-step={node.name}
         />
@@ -251,7 +249,7 @@ function StreamDetailsSidePanel({ stream, reading }: { stream: ListedStream; rea
                   key={outputKey}
                   icon={<PortDataKindIcon dataKind={dataKindOfEachOutput.get(outputKey) ?? "data"} className="size-4" />}
                   name={<span className="font-mono text-xs">{outputKey}</span>}
-                  trailing={<ExposureLevelWords level={output.level} />}
+                  trailing={<PublicExposureTag level={output.level} />}
                   detail={
                     output.watch_page_url === null ? undefined : (
                       <span className="font-mono text-[11px] select-text" title={output.watch_page_url} data-stream-output-preview-link="">

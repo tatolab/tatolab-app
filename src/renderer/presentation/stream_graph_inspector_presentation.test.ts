@@ -55,11 +55,11 @@ describe("presentStreamGraphInspection", () => {
     expect(presentStreamGraphInspection(canvas, graphDocument, null)).toBeNull();
   });
 
-  it("a selected node shows its links, process, previewable outputs, config and counters", () => {
+  it("a selected node shows its links, previewable outputs, config and counters", () => {
     const inspection = presentStreamGraphInspection(canvas, graphDocument, "persondetector");
 
     if (inspection === null) return expect.unreachable("no inspection of persondetector");
-    expect([inspection.linksInCount, inspection.linksOutCount, inspection.processWords]).toEqual([1, 0, "Own process"]);
+    expect([inspection.linksInCount, inspection.linksOutCount]).toEqual([1, 0]);
     expect(inspection.previewableOutputs.map((previewable) => previewable.output.name)).toEqual(["detections"]);
     expect([inspection.linkCountWords, inspection.previewAbsenceWords]).toEqual(["1 link in · 0 out", null]);
     expect(inspection.configRows).toEqual([
@@ -75,11 +75,10 @@ describe("presentStreamGraphInspection", () => {
     ]);
   });
 
-  it("a built-in runs in the runtime, and a node the document gives no config has none", () => {
+  it("a node the document gives no config has none, and one with nothing exposed previews nothing", () => {
     const inspection = presentStreamGraphInspection(canvas, null, "camera");
 
-    expect(inspection !== null && [inspection.processWords, inspection.configRows, inspection.previewAbsenceWords]).toEqual([
-      "In the runtime",
+    expect(inspection !== null && [inspection.configRows, inspection.previewAbsenceWords]).toEqual([
       null,
       "No output of this node is exposed. An internal output has no preview until it is exposed to this machine or publicly.",
     ]);

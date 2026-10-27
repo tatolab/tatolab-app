@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { AudioLines, Braces, Globe, Laptop, LoaderCircle, SquareX, Video } from "lucide-react";
+import { AudioLines, Braces, Globe, LoaderCircle, SquareX, Video } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   stepCardCounterWords,
@@ -52,7 +52,7 @@ function StepStateMark({ step }: { step: StreamGraphStepCard }) {
 function OutputPortRow({ output, surroundings }: { output: StreamGraphStepOutputPort; surroundings: StreamGraphStepCardSurroundings }) {
   const isPinned = surroundings.pinnedOutputKeys.has(outputPinKey(output));
   const isPreviewable = output.preview.kind === "watch_page";
-  const ExposureIcon = output.exposureLevel === "public" ? Globe : output.exposureLevel === "private" ? Laptop : null;
+  const ExposureIcon = output.exposureLevel === "public" ? Globe : null;
   return (
     <div className="relative">
       {/* A press on the port pins its preview; it stays out of the card's, which selects the step. */}
@@ -113,7 +113,7 @@ export function StreamGraphStepCardView({ step, surroundings }: { step: StreamGr
           {step.name}
         </span>
         <StepStateMark step={step} />
-        <span className="ml-auto shrink-0 text-xs text-fg-3">{step.isInAnotherStream ? "Another stream" : (step.origin ?? "")}</span>
+        {step.isInAnotherStream && <span className="ml-auto shrink-0 text-xs text-fg-3">Another stream</span>}
       </div>
       {cardPreview !== null && (
         <div className="px-2 pb-2">

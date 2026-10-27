@@ -64,7 +64,6 @@ export function StreamLogRecordDetailsView({
               ["Time", <span className="font-mono text-xs tabular select-text">{details.dateAndTimeText}</span>],
               ["Stream", <span className="select-text">{streamName}</span>],
               ["Node", <span className="font-mono text-xs select-text">{details.step.stepName}</span>],
-              ["Process", <span className="select-text">{details.processWords}</span>],
             ]}
           />
         </PanelSection>

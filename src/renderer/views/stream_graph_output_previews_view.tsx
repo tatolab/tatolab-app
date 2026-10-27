@@ -4,7 +4,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { outputPreviewAbsenceWords, type StreamGraphPreviewedOutput, type StreamGraphStepOutputPort } from "../presentation/stream_graph_canvas_presentation";
 import { exposedOutputAddress } from "../presentation/stream_overview_presentation";
-import { ExposureLevelWords } from "../design_system/exposure_level_words";
+import { PublicExposureTag } from "../design_system/public_exposure_tag";
 import { IconButton } from "../design_system/icon_button";
 import { ToggleIconButton } from "../design_system/toggle_icon_button";
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
@@ -98,12 +98,12 @@ export function StreamGraphOutputHoverPreview({
               </div>
               {output.exposureLevel !== null && (
                 <span className="sr-only">
-                  <ExposureLevelWords level={output.exposureLevel} />
+                  <PublicExposureTag level={output.exposureLevel} />
                 </span>
               )}
             </div>
             <div className="mt-1 flex items-center gap-3 text-xs text-fg-3" aria-hidden>
-              {output.exposureLevel !== null && <ExposureLevelWords level={output.exposureLevel} isQuiet />}
+              {output.exposureLevel !== null && <PublicExposureTag level={output.exposureLevel} isQuiet />}
               <span className="ml-auto">{isPinned ? "Pinned" : "Click the port to pin"}</span>
             </div>
           </div>

@@ -208,7 +208,7 @@ describe("a stream's page", () => {
       return previewFrame;
     });
     expect(preview.getAttribute("src")?.startsWith("data:text/html")).toBe(true);
-    expect(textOf('[data-stream-output-preview="invertingeffect/video_to_downstream"]')).toContain("This machine");
+    expect(textOf('[data-stream-output-preview="invertingeffect/video_to_downstream"]'), "a private output carries no exposure word").not.toContain("This machine");
     expect(document.querySelector("[data-stream-details]"), "Details stays closed until asked").toBeNull();
     expect(document.querySelector("[data-dropping-links]")).toBeNull();
 
@@ -219,10 +219,7 @@ describe("a stream's page", () => {
     expect(document.querySelector('[data-stream-details] [data-stream-output="invertingeffect/video_to_downstream"] [data-stream-output-preview-link]')?.textContent).toBe(preview.getAttribute("src"));
     const stepRows = [...document.querySelectorAll<HTMLElement>("[data-stream-step]")];
     expect(stepRows.map((stepRow) => stepRow.dataset.streamStep)).toEqual(["testpatternsource", "invertingeffect", "displaywindow", "brightnessmeter"]);
-    expect(stepRows[1].textContent).toContain("own process");
-    expect(stepRows[1].textContent).toContain("Python");
-    expect(stepRows[0].textContent).toContain("in runtime");
-    expect(stepRows[0].textContent).toContain("Built-in");
+    expect(stepRows[1].textContent, "no origin or process words").not.toMatch(/own process|Python|in runtime|Built-in/);
     expect(within(stepRows[0]).queryByText("Running"), "every node runs, so no state beside them").toBeNull();
     expect(details.queryByText("Instance")).toBeNull();
   });
@@ -410,7 +407,6 @@ describe("a stream's Logs tab", () => {
     fireEvent.mouseDown(brightnessRow);
 
     const details = within(screen.getByRole("complementary", { name: "Selected record" }));
-    expect(details.getByText("own process")).toBeTruthy();
     expect(textOf("[data-stream-log-details-record]")).toContain('"processor_id": "P');
     expect(textOf("[data-stream-log-details-record]")).toContain('"message": "brightness"');
     expect(brightnessRow.getAttribute("aria-selected")).toBe("true");
@@ -581,8 +577,7 @@ describe("a stream's Graph tab", () => {
     expect(stepNames).toEqual(["testpatternsource", "invertingeffect", "displaywindow", "brightnessmeter"]);
     expect(stepCardOf("invertingeffect").querySelector("[data-step-input-port='video_from_upstream']")).not.toBeNull();
     expect(outputPortOf("invertingeffect", "video_to_downstream")).toBeTruthy();
-    expect(within(stepCardOf("invertingeffect")).getByText("Python")).toBeTruthy();
-    expect(within(stepCardOf("testpatternsource")).getByText("Built-in")).toBeTruthy();
+    expect(within(stepCardOf("testpatternsource")).queryByText("Built-in")).toBeNull();
     expect(document.querySelector("[data-stream-graph-page]")?.textContent).not.toMatch(/dropped|refused/);
   });
 
@@ -615,7 +610,7 @@ describe("a stream's Graph tab", () => {
     expect(hoverPreview.querySelector("iframe")).not.toBeNull();
     expect(hoverPreview.textContent).toContain("jonathanf-macbook/main/invertingeffect/video_to_downstream");
     const describedHoveredPort = () => document.getElementById(outputPortOf("invertingeffect", "video_to_downstream").getAttribute("aria-describedby") ?? "");
-    expect(describedHoveredPort()?.textContent).toBe("jonathanf-macbook/main/invertingeffect/video_to_downstreamThis machine");
+    expect(describedHoveredPort()?.textContent).toBe("jonathanf-macbook/main/invertingeffect/video_to_downstream");
 
     fireEvent.click(outputPortOf("invertingeffect", "video_to_downstream"));
 
@@ -637,7 +632,7 @@ describe("a stream's Graph tab", () => {
     expect(stepCardOf("invertingeffect").querySelector("iframe")).toBeNull();
   });
 
-  it("shows the selected node's type, origin, process, config and outputs, and no inspector with nothing selected", async () => {
+  it("shows the selected node's type, config and outputs, and no inspector with nothing selected", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheGraphOf("main");
     await waitFor(() => stepCardOf("testpatternsource"));
@@ -648,10 +643,10 @@ describe("a stream's Graph tab", () => {
     await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector='step']")).not.toBeNull());
     const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
     expect(inspector.getByText("tatolab.stream:TestPatternSource")).toBeTruthy();
-    expect(inspector.getByText("Built-in")).toBeTruthy();
-    expect(inspector.getByText("In the runtime")).toBeTruthy();
+    expect(inspector.queryByText("Built-in")).toBeNull();
+    expect(inspector.queryByText("In the runtime")).toBeNull();
     expect(textOf("[data-stream-graph-step-config]")).toBe("width1280height720fps30");
-    expect(textOf("[data-stream-graph-output-exposure='video']")).toContain("Internal");
+    expect(textOf("[data-stream-graph-output-exposure='video']"), "an internal output carries no exposure word").toBe("video");
     expect(stepCardOf("testpatternsource").dataset.selected).toBe("true");
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -703,7 +698,7 @@ describe("a stream's Graph tab", () => {
       if (flowNode === null) throw new Error("no flow node yet");
       return flowNode;
     });
-    expect(cardsNode.getAttribute("aria-label")).toBe("testpatternsource, Running, Built-in");
+    expect(cardsNode.getAttribute("aria-label")).toBe("testpatternsource, Running");
     const cardsDescription = document.getElementById(cardsNode.getAttribute("aria-describedby") ?? "");
     expect(cardsDescription?.textContent).toBe("Press Enter or Space to inspect this node. Escape selects nothing.");
 

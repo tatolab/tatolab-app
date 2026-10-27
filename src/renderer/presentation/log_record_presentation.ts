@@ -301,8 +301,6 @@ export interface StreamLogRecordDetails {
   message: string;
   dateAndTimeText: string;
   step: StreamLogRecordStep;
-  /** Which process wrote it: the runtime's own, or the step's own helper process. */
-  processWords: "runtime" | "own process";
   fields: StreamLogRecordField[];
   /** The fields as the row writes them, `key=value` two spaces apart, for Copy fields. */
   fieldsTextToCopy: string;
@@ -322,7 +320,6 @@ export function presentStreamLogRecordDetails(record: StreamLogRecord, graph: St
     message: record.message,
     dateAndTimeText: formatLogRecordDateAndTime(record.host_ts_ns),
     step: stepOfLogRecord(record, stepNamesByProcessorId),
-    processWords: record.sent_by_its_own_process ? "own process" : "runtime",
     fields: fieldsOfTheRecord,
     fieldsTextToCopy: fieldsOfTheRecord.map((field) => `${field.key}=${field.valueText}`).join("  "),
     recordJsonLines: prettyJsonLinesOf(record.jsonl_line),
