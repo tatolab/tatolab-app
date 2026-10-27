@@ -1285,7 +1285,7 @@ describe("Settings › Relays", () => {
     expect(relayRowOf("local-every-interface").textContent).toContain("Port 4445");
     expect(document.querySelector('[data-relays-group="local"] [data-relay-action="more"]')).toBeNull();
     expect(relayRowOf("moqpro-1").textContent).toContain("Project ID pb1studio · Signing key set");
-    expect(within(relayRowOf("moqpro-1")).getByRole("status").textContent).toBe("Lost: the relay closed the session: unauthorized");
+    expect(within(relayRowOf("moqpro-1")).getByRole("status").textContent).toBe("Why: the relay closed the session: unauthorized");
     expect(relayRowOf("cloudflare-1").textContent).toContain("Relay URL set");
   });
 
@@ -1341,14 +1341,14 @@ describe("Settings › Relays", () => {
     await openSettingsOn("relays");
     await waitFor(() => expect(relayRowOf("local-every-interface")).toBeTruthy());
 
-    fireEvent.click(within(relayRowOf("local-every-interface")).getByRole("button", { name: "Configure…" }));
+    fireEvent.click(within(relayRowOf("local-every-interface")).getByRole("button", { name: "Configure Every interface" }));
     await waitFor(() => expect(openRelayDialog().getAttribute("data-relay-dialog")).toBe("configure:local-every-interface"));
     expect(openRelayDialog().querySelector<HTMLInputElement>('[data-relay-setting-field="port"]')?.value).toBe("4445");
     typeIntoTheRelaySetting("port", "14447");
     fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-action="save"]') ?? expect.unreachable("no Save"));
     await waitFor(() => expect(relayRowOf("local-every-interface").textContent).toContain("Port 14447"), { timeout: 3_000 });
 
-    fireEvent.click(within(relayRowOf("local-every-interface")).getByRole("button", { name: "Configure…" }));
+    fireEvent.click(within(relayRowOf("local-every-interface")).getByRole("button", { name: "Configure Every interface" }));
     await waitFor(() => expect(openRelayDialog()).toBeTruthy());
     fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-action="use-default"]') ?? expect.unreachable("no Use default"));
     fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-action="save"]') ?? expect.unreachable("no Save"));
@@ -1367,7 +1367,7 @@ describe("Settings › Relays", () => {
     await openSettingsOn("relays");
     await waitFor(() => expect(relayRowOf("moqpro-1")).toBeTruthy());
 
-    fireEvent.click(within(relayRowOf("moqpro-1")).getByRole("button", { name: "Configure…" }));
+    fireEvent.click(within(relayRowOf("moqpro-1")).getByRole("button", { name: "Configure moqpro-1" }));
     await waitFor(() => expect(openRelayDialog()).toBeTruthy());
     expect(openRelayDialog().querySelector('[data-relay-secret-presence="set"]')?.textContent).toBe("Set");
     expect(openRelayDialog().querySelector('[data-relay-setting-field="signing_key"]')).toBeNull();

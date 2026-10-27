@@ -130,8 +130,68 @@ export function relaySettingsToSendToConfigure(adapter: RelayAdapter, relay: Lis
       if (formField.input === "secret" || String(typed.value) !== relaySettingShownText(relay, formField.name)) settings[formField.name] = typed.value;
     } else if (formField.input !== "secret" && relaySettingShownText(relay, formField.name) !== "") {
       if (formField.isRequired) problems.push({ name: formField.name, problem: REQUIRED_PROBLEM, sentence: `${formField.label} is required.` });
+      else if (!formField.settingField.accepts_null) problems.push({ name: formField.name, problem: "Can't be left empty", sentence: `${formField.label} can't be left empty.` });
       else settings[formField.name] = null;
     }
   }
   return settingsToSendFrom(settings, problems, { kind: "no_change" });
+}
+
+/** Why a form cannot send yet, as the disabled Add relay or Save says it; `null` when it can. */
+export function relaySettingsSendUnavailableBecause(settingsToSend: RelaySettingsToSend): string | null {
+  switch (settingsToSend.kind) {
+    case "ready":
+      return null;
+    case "no_change":
+      return "Nothing has changed.";
+    case "incomplete":
+      return settingsToSend.firstProblem;
+  }
+}
+
+/** `draft` with every secret typed into it forgotten, as a form leaves it once the runtime has answered. */
+export function relaySettingsDraftWithoutTypedSecrets(adapter: RelayAdapter, draft: RelaySettingsDraft): RelaySettingsDraft {
+  const secretNames = new Set(adapter.setting_fields.filter((settingField) => settingField.is_secret).map((settingField) => settingField.name));
+  return Object.fromEntries(Object.entries(draft).filter(([settingName]) => !secretNames.has(settingName)));
+}
+
+/** One setting's row in an add or configure form, as the form draws it now. */
+export interface RelaySettingFormRow {
+  formField: RelaySettingFormField;
+  /** What its field holds: what was typed, or the relay's value before any edit; never a secret's. */
+  shownText: string;
+  /** A secret the relay already holds, shown as set or not set with Replace… in place of its field until Replace… is pressed; `null` while adding, or for a setting that is no secret. */
+  heldSecret: "set" | "unset" | null;
+  showsTheField: boolean;
+  /** Configure offers Use default for an optional setting not at its default already. */
+  offersUseDefault: boolean;
+  /** What is wrong with what was typed, once something was. */
+  problem: string | null;
+  /** Replace…'s accessible name, naming the secret. */
+  replaceLabel: string;
+}
+
+/** Each row of the form adding a relay of `adapter`, or configuring `relay`, from `draft`, with the secrets the person chose to replace. */
+export function relaySettingsFormRows(
+  adapter: RelayAdapter,
+  relay: ListedRelay | null,
+  draft: RelaySettingsDraft,
+  secretsBeingReplaced: ReadonlySet<string>,
+): RelaySettingFormRow[] {
+  const settingsToSend = relay === null ? relaySettingsToSendToAdd(adapter, draft) : relaySettingsToSendToConfigure(adapter, relay, draft);
+  return relaySettingsFormFields(adapter).map((formField) => {
+    const edit = draft[formField.name];
+    const heldSecret = relay === null || formField.input !== "secret" ? null : (relay.secrets[formField.name] ?? "unset");
+    const textBeforeAnEdit = relay === null || formField.input === "secret" ? "" : relaySettingShownText(relay, formField.name);
+    const isAtItsDefault = edit?.kind === "use_default" || (edit === undefined && textBeforeAnEdit === "" && formField.input !== "secret");
+    return {
+      formField,
+      shownText: edit === undefined ? textBeforeAnEdit : edit.kind === "typed" ? edit.text : "",
+      heldSecret,
+      showsTheField: heldSecret === null || secretsBeingReplaced.has(formField.name),
+      offersUseDefault: relay !== null && formField.offersItsDefault && !isAtItsDefault,
+      problem: edit !== undefined && settingsToSend.kind === "incomplete" ? (settingsToSend.problems[formField.name] ?? null) : null,
+      replaceLabel: `${heldSecret === "set" ? "Replace" : "Set"} ${formField.label}`,
+    };
+  });
 }

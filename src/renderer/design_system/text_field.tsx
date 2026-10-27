@@ -13,6 +13,7 @@ export function TextField({
   isSecret = false,
   isRefused = false,
   placeholder,
+  inputMode,
   describedBy,
   className,
   ...controlDataAttributes
@@ -29,6 +30,8 @@ export function TextField({
   isRefused?: boolean;
   /** Shown while it holds nothing, as "Default". */
   placeholder?: string;
+  /** The keyboard a touch screen offers for it, `numeric` for a whole number. */
+  inputMode?: "text" | "numeric";
   /** The id of what explains the field or its refusal. */
   describedBy?: string;
   /** A one-off adjustment where the field is used. */
@@ -41,6 +44,7 @@ export function TextField({
       onChange={(changeEvent) => onTextChanged(changeEvent.target.value)}
       type={isSecret ? "password" : "text"}
       placeholder={placeholder}
+      inputMode={inputMode}
       aria-label={label}
       aria-invalid={isRefused || undefined}
       aria-describedby={describedBy}

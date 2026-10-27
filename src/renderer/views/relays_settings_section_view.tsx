@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
-import { useState, type ReactNode } from "react";
-import type { ListedRelay, RelayAdapter, RelaysDescription } from "../../shared/tatolab_backend_contract";
+import { useEffect, useState } from "react";
+import type { ListedRelay, RelayAdapter } from "../../shared/tatolab_backend_contract";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
 import { ConfirmationDialog } from "../design_system/confirmation_dialog";
@@ -8,18 +8,27 @@ import { FormDialog, FormDialogFooter, FormDialogRow, FormDialogRows } from "../
 import { IconButtonMenu, MenuItem, MoreActionsMenu } from "../design_system/menus";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
-import { SettingsGroup, SettingsRow } from "../design_system/settings_rows";
+import { SettingsGroup, SettingsMachineWords, SettingsRow, SettingsSectionExplanation } from "../design_system/settings_rows";
 import { StateWords, type StateWordsEmphasis } from "../design_system/stream_state_words";
 import { TextField } from "../design_system/text_field";
 import {
-  relaySettingShownText,
-  relaySettingsFormFields,
+  relaySettingsDraftWithoutTypedSecrets,
+  relaySettingsFormRows,
+  relaySettingsSendUnavailableBecause,
   relaySettingsToSendToAdd,
   relaySettingsToSendToConfigure,
-  type RelaySettingFormField,
+  type RelaySettingFormRow,
   type RelaySettingsDraft,
 } from "../presentation/relay_settings_form";
-import { presentRelaysSection, type RelayConnectionPresentation, type RelaysReading } from "../presentation/relays_presentation";
+import {
+  presentRelayRemovalConfirmation,
+  presentRelaysSection,
+  relaysDescriptionOfTheReading,
+  runtimeWordsSegmentsOf,
+  type HostedRelayRow,
+  type LocalRelayListenerRow,
+  type RelayConnectionPresentation,
+} from "../presentation/relays_presentation";
 import { presentRuntimeStatus, type StatusTone } from "../presentation/runtime_presentation";
 import type { BackendActionRefusal } from "./action_through_the_backend";
 import { useRelaysReading, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
@@ -33,11 +42,20 @@ const STATE_WORDS_EMPHASIS_OF_THE_TONE: Record<StatusTone, StateWordsEmphasis> =
   error: "failure",
 };
 
-/** The dialog Settings › Relays has open: adding a relay of one adapter, configuring one relay, or asking before removing one. */
-type RelayDialog = { kind: "add"; adapter: RelayAdapter } | { kind: "configure"; relayId: string } | { kind: "remove"; relayId: string };
+/** The dialog Settings › Relays has open: adding a relay of one adapter, or configuring one relay. */
+type RelaySettingsDialogOpen = { kind: "add"; adapter: RelayAdapter } | { kind: "configure"; relayId: string };
 
-function MachineWords({ children }: { children: ReactNode }) {
-  return <code className="font-mono text-xs text-fg-2 select-text">{children}</code>;
+/** The runtime's words with each of its backtick code spans typeset as code; every word goes in as text. */
+function RuntimeWords({ words }: { words: string }) {
+  return runtimeWordsSegmentsOf(words).map((segment, segmentIndex) =>
+    segment.kind === "code" ? (
+      <code key={segmentIndex} className="font-mono text-xs">
+        {segment.words}
+      </code>
+    ) : (
+      segment.words
+    ),
+  );
 }
 
 function RelayConnectionWords({ connection, relay }: { connection: RelayConnectionPresentation; relay: ListedRelay }) {
@@ -50,66 +68,67 @@ function RelayConnectionWords({ connection, relay }: { connection: RelayConnecti
 
 /** The runtime's reason beside a relay's state, in its own words. */
 function RelayConnectionReason({ connection }: { connection: RelayConnectionPresentation }) {
-  return connection.reason === null ? null : <RefusalLine lead={connection.reason.lead} words={connection.reason.words} tone="warning" />;
+  return connection.why === null ? null : <RefusalLine lead="Why:" words={connection.why} tone="warning" />;
 }
 
-/** The latest relays the window read, the last ones before a refused read included; `null` before any. */
-function relaysDescriptionOf(reading: RelaysReading): RelaysDescription | null {
-  if (reading.kind === "read") return reading.description;
-  return reading.kind === "refused" ? reading.lastDescription : null;
+function ConfigureRelayButton({ row, onPressed }: { row: LocalRelayListenerRow | HostedRelayRow; onPressed: () => void }) {
+  return (
+    <ActionButton
+      label={row.configureLabel}
+      isDisabled={row.configureUnavailableBecause !== null}
+      tooltip={row.configureUnavailableBecause ?? undefined}
+      onPressed={onPressed}
+      data-relay-action="configure"
+    >
+      Configure…
+    </ActionButton>
+  );
 }
 
 /** One setting's field in a relay's form: its value, or for a held secret whether it is set and Replace…; Use default for an optional one. */
 function RelaySettingRow({
-  formField,
-  shownText,
-  heldSecret,
-  isReplacingTheSecret,
-  isAtItsDefault,
-  problem,
+  row,
   onTyped,
   onReplaceTheSecret,
   onUseItsDefault,
 }: {
-  formField: RelaySettingFormField;
-  shownText: string;
-  /** A secret the relay already holds, `set` or `unset`; `null` while adding, or for a setting that is no secret. */
-  heldSecret: "set" | "unset" | null;
-  isReplacingTheSecret: boolean;
-  isAtItsDefault: boolean;
-  problem: string | null;
+  row: RelaySettingFormRow;
   onTyped: (text: string) => void;
   onReplaceTheSecret: () => void;
-  onUseItsDefault: (() => void) | null;
+  onUseItsDefault: () => void;
 }) {
+  const { formField } = row;
   const fieldId = `relay-setting-${formField.name}`;
   const describedById = `${fieldId}-description`;
-  const showsTheField = heldSecret === null || isReplacingTheSecret;
   return (
     <FormDialogRow
       label={formField.label}
-      labelFor={showsTheField ? fieldId : undefined}
+      labelFor={row.showsTheField ? fieldId : undefined}
       data-relay-setting={formField.name}
       below={
         <div id={describedById} className="mt-1 flex flex-col gap-1 text-xs text-fg-3">
-          {formField.description !== null && <p className="select-text">{formField.description}</p>}
+          {formField.description !== null && (
+            <p className="select-text">
+              <RuntimeWords words={formField.description} />
+            </p>
+          )}
           {formField.input === "secret" && <p>Kept by the runtime and never shown again.</p>}
-          {problem !== null && <p className="text-danger-text">{problem}</p>}
+          {row.problem !== null && <p className="text-danger-text">{row.problem}</p>}
         </div>
       }
     >
-      {!showsTheField ? (
+      {!row.showsTheField ? (
         <>
-          <span className="text-fg-2" data-relay-secret-presence={heldSecret}>
-            {heldSecret === "set" ? "Set" : "Not set"}
+          <span className="text-fg-2" data-relay-secret-presence={row.heldSecret ?? undefined}>
+            {row.heldSecret === "set" ? "Set" : "Not set"}
           </span>
-          <ActionButton appearance="quiet" onPressed={onReplaceTheSecret} data-relay-action="replace-secret">
-            {heldSecret === "set" ? "Replace…" : "Set…"}
+          <ActionButton appearance="quiet" label={row.replaceLabel} onPressed={onReplaceTheSecret} data-relay-action="replace-secret">
+            {row.heldSecret === "set" ? "Replace…" : "Set…"}
           </ActionButton>
         </>
       ) : (
         <>
-          {onUseItsDefault !== null && !isAtItsDefault && (
+          {row.offersUseDefault && (
             <ActionButton appearance="quiet" onPressed={onUseItsDefault} data-relay-action="use-default">
               Use default
             </ActionButton>
@@ -117,14 +136,15 @@ function RelaySettingRow({
           <TextField
             id={fieldId}
             label={formField.label}
-            text={shownText}
+            text={row.shownText}
             onTextChanged={onTyped}
             isMachineWord
             isSecret={formField.input === "secret"}
-            isRefused={problem !== null}
+            isRefused={row.problem !== null}
             placeholder={formField.isRequired ? undefined : "Default"}
+            inputMode={formField.input === "whole_number" ? "numeric" : "text"}
             describedBy={describedById}
-            className="w-72"
+            className="w-64"
             data-relay-setting-field={formField.name}
           />
         </>
@@ -135,7 +155,7 @@ function RelaySettingRow({
 
 /**
  * Adding a relay of one adapter, or configuring one relay: a field for each setting its adapter's schema names, the
- * runtime's refusal in its own words, and every secret typed cleared once the runtime has answered, whatever it answered.
+ * runtime's refusal in its own words, and every secret typed forgotten once the runtime has answered, whatever it answered.
  */
 function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapter; relay: ListedRelay | null; onClose: () => void }) {
   const { relayReadings } = useTatolabWindowEnvironment();
@@ -143,10 +163,10 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
   const [secretsBeingReplaced, setSecretsBeingReplaced] = useState<ReadonlySet<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
   const [refusal, setRefusal] = useState<BackendActionRefusal | null>(null);
-  const formFields = relaySettingsFormFields(adapter);
   const settingsToSend = relay === null ? relaySettingsToSendToAdd(adapter, draft) : relaySettingsToSendToConfigure(adapter, relay, draft);
+  const sendUnavailableBecause = relaySettingsSendUnavailableBecause(settingsToSend);
   const forgetEverySecretTyped = () => {
-    setDraft((draftNow) => Object.fromEntries(Object.entries(draftNow).filter(([settingName]) => !formFields.some((formField) => formField.name === settingName && formField.input === "secret"))));
+    setDraft((draftNow) => relaySettingsDraftWithoutTypedSecrets(adapter, draftNow));
     setSecretsBeingReplaced(new Set());
   };
   const send = () => {
@@ -167,8 +187,7 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
       },
     );
   };
-  const sendUnavailableBecause =
-    settingsToSend.kind === "incomplete" ? settingsToSend.firstProblem : settingsToSend.kind === "no_change" ? "Nothing has changed." : null;
+  const formRows = relaySettingsFormRows(adapter, relay, draft, secretsBeingReplaced);
   return (
     <FormDialog
       isOpen
@@ -178,7 +197,7 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
       title={relay === null ? "Add relay" : "Configure relay"}
       description={
         <>
-          <MachineWords>{relay === null ? adapter.kind : relay.relay_id}</MachineWords> · {adapter.doc}
+          <SettingsMachineWords>{relay === null ? adapter.kind : relay.relay_id}</SettingsMachineWords> · <RuntimeWords words={adapter.doc} />
         </>
       }
       data-relay-dialog={relay === null ? `add:${adapter.kind}` : `configure:${relay.relay_id}`}
@@ -205,32 +224,19 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
         </FormDialogFooter>
       }
     >
-      {formFields.length === 0 ? (
+      {formRows.length === 0 ? (
         <p className="text-fg-3">This adapter takes no settings.</p>
       ) : (
         <FormDialogRows>
-          {formFields.map((formField) => {
-            const edit = draft[formField.name];
-            const heldSecret = relay === null || formField.input !== "secret" ? null : (relay.secrets[formField.name] ?? "unset");
-            const textBeforeAnEdit = relay === null || formField.input === "secret" ? "" : relaySettingShownText(relay, formField.name);
-            const isAtItsDefault = edit?.kind === "use_default" || (edit === undefined && textBeforeAnEdit === "" && formField.input !== "secret");
-            return (
-              <RelaySettingRow
-                key={formField.name}
-                formField={formField}
-                shownText={edit === undefined ? textBeforeAnEdit : edit.kind === "typed" ? edit.text : ""}
-                heldSecret={heldSecret}
-                isReplacingTheSecret={secretsBeingReplaced.has(formField.name)}
-                isAtItsDefault={isAtItsDefault}
-                problem={edit !== undefined && settingsToSend.kind === "incomplete" ? (settingsToSend.problems[formField.name] ?? null) : null}
-                onTyped={(text) => setDraft((draftNow) => ({ ...draftNow, [formField.name]: { kind: "typed", text } }))}
-                onReplaceTheSecret={() => setSecretsBeingReplaced((replacedNow) => new Set([...replacedNow, formField.name]))}
-                onUseItsDefault={
-                  relay !== null && formField.offersItsDefault ? () => setDraft((draftNow) => ({ ...draftNow, [formField.name]: { kind: "use_default" } })) : null
-                }
-              />
-            );
-          })}
+          {formRows.map((row) => (
+            <RelaySettingRow
+              key={row.formField.name}
+              row={row}
+              onTyped={(text) => setDraft((draftNow) => ({ ...draftNow, [row.formField.name]: { kind: "typed", text } }))}
+              onReplaceTheSecret={() => setSecretsBeingReplaced((replacedNow) => new Set([...replacedNow, row.formField.name]))}
+              onUseItsDefault={() => setDraft((draftNow) => ({ ...draftNow, [row.formField.name]: { kind: "use_default" } }))}
+            />
+          ))}
         </FormDialogRows>
       )}
       {refusal !== null && (
@@ -242,68 +248,56 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
   );
 }
 
+const RELAYS_SECTION_EXPLANATION =
+  "Where this machine serves its exposed outputs. A private output reaches only the loopback listener; a public one reaches every relay here.";
+
 /** Settings › Relays: the local relay's listeners, every relay added beside them, and adding, configuring and removing one. */
 export function RelaysSettingsSection() {
   const { relayReadings } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
   const reading = useRelaysReading();
   const section = presentRelaysSection(presentRuntimeStatus(status).displayState === "running", reading);
-  const [openDialog, setOpenDialog] = useState<RelayDialog | null>(null);
-  const [relayBeingRemoved, setRelayBeingRemoved] = useState<string | null>(null);
+  const [settingsDialog, setSettingsDialog] = useState<RelaySettingsDialogOpen | null>(null);
+  const [isTheRemoveQuestionOpen, setIsTheRemoveQuestionOpen] = useState(false);
   /** The relay the remove question names, kept until the question has finished closing so its words stay through the animation. */
   const [relayTheRemoveQuestionNames, setRelayTheRemoveQuestionNames] = useState<string | null>(null);
+  const [relayBeingRemoved, setRelayBeingRemoved] = useState<string | null>(null);
   const [removeRefusal, setRemoveRefusal] = useState<{ relayId: string; words: string } | null>(null);
-  const description = relaysDescriptionOf(reading);
-  const adapterOf = (relay: ListedRelay): RelayAdapter | null => description?.adapters.find((adapter) => adapter.kind === relay.adapter) ?? null;
-  const relayNamed = (relayId: string): ListedRelay | null => description?.relays.find((relay) => relay.relay_id === relayId) ?? null;
+  const isListed = section.kind === "listed";
+  useEffect(() => {
+    if (isListed) return;
+    setSettingsDialog(null);
+    setIsTheRemoveQuestionOpen(false);
+  }, [isListed]);
 
-  const explanation = (
-    <p className="text-fg-3">Where this machine serves its exposed outputs. A private output reaches only the loopback listener; a public one reaches every relay here.</p>
-  );
-  if (section.kind === "runtime_not_running") {
+  if (section.kind !== "listed") {
     return (
       <>
-        {explanation}
-        <p className="text-fg-2" data-relays-section="runtime-not-running">
-          {section.words}
-        </p>
-      </>
-    );
-  }
-  if (section.kind === "reading") {
-    return (
-      <>
-        {explanation}
-        <PendingActionWords words="Reading the relays…" />
-      </>
-    );
-  }
-  if (section.kind === "not_listed") {
-    return (
-      <>
-        {explanation}
-        <RefusalLine lead="The runtime didn't list its relays:" words={section.refusal} />
+        <SettingsSectionExplanation>{RELAYS_SECTION_EXPLANATION}</SettingsSectionExplanation>
+        {section.kind === "runtime_not_running" ? (
+          <p className="text-fg-2" data-relays-section="runtime-not-running">
+            {section.words}
+          </p>
+        ) : section.kind === "reading" ? (
+          <PendingActionWords words="Reading the relays…" />
+        ) : (
+          <RefusalLine lead="The runtime didn't list its relays:" words={section.refusal} />
+        )}
       </>
     );
   }
 
-  const configureButton = (relay: ListedRelay) => {
-    const adapter = adapterOf(relay);
-    return (
-      <ActionButton
-        isDisabled={adapter === null}
-        tooltip={adapter === null ? `The runtime's catalog names no adapter ${relay.adapter}.` : undefined}
-        onPressed={() => setOpenDialog({ kind: "configure", relayId: relay.relay_id })}
-        data-relay-action="configure"
-      >
-        Configure…
-      </ActionButton>
-    );
+  const description = relaysDescriptionOfTheReading(reading);
+  const dialogRelay = settingsDialog?.kind === "configure" ? (description?.relays.find((relay) => relay.relay_id === settingsDialog.relayId) ?? null) : null;
+  const dialogAdapter =
+    settingsDialog?.kind === "add" ? settingsDialog.adapter : dialogRelay === null ? null : (description?.adapters.find((adapter) => adapter.kind === dialogRelay.adapter) ?? null);
+  const removalConfirmation = relayTheRemoveQuestionNames === null ? null : presentRelayRemovalConfirmation(relayTheRemoveQuestionNames);
+  const askToRemove = (relayId: string) => {
+    setRelayTheRemoveQuestionNames(relayId);
+    setIsTheRemoveQuestionOpen(true);
   };
-  const dialogRelay = openDialog !== null && openDialog.kind !== "add" ? relayNamed(openDialog.relayId) : null;
-  const dialogAdapter = openDialog?.kind === "add" ? openDialog.adapter : dialogRelay === null ? null : adapterOf(dialogRelay);
   const removeTheRelay = (relayId: string) => {
-    setOpenDialog(null);
+    setIsTheRemoveQuestionOpen(false);
     setRemoveRefusal(null);
     setRelayBeingRemoved(relayId);
     relayReadings
@@ -314,7 +308,7 @@ export function RelaysSettingsSection() {
 
   return (
     <>
-      {explanation}
+      <SettingsSectionExplanation>{RELAYS_SECTION_EXPLANATION}</SettingsSectionExplanation>
       {section.lastReadingRefusal !== null && <RefusalLine lead="The runtime didn't list its relays just now:" words={section.lastReadingRefusal} tone="warning" />}
       <SettingsGroup title="Local relay" description="Built into the runtime and always joined. Only its ports change." data-relays-group="local">
         {section.localRelayListenerRows.map((row) => (
@@ -333,7 +327,7 @@ export function RelaysSettingsSection() {
             control={() => (
               <>
                 <RelayConnectionWords connection={row.connection} relay={row.relay} />
-                {configureButton(row.relay)}
+                <ConfigureRelayButton row={row} onPressed={() => setSettingsDialog({ kind: "configure", relayId: row.relay.relay_id })} />
               </>
             )}
           >
@@ -352,7 +346,7 @@ export function RelaysSettingsSection() {
                 <MenuItem
                   key={choice.adapter.kind}
                   isDisabled={choice.unavailableBecause !== null}
-                  onChosen={() => setOpenDialog({ kind: "add", adapter: choice.adapter })}
+                  onChosen={() => setSettingsDialog({ kind: "add", adapter: choice.adapter })}
                   data-relay-adapter-choice={choice.adapter.kind}
                 >
                   <span className="flex flex-col">
@@ -366,20 +360,12 @@ export function RelaysSettingsSection() {
         }
       >
         {section.hostedRelayRows.length === 0 ? (
-          <SettingsRow
-            label="No relays added"
-            description={
-              section.adapterChoices.length === 0
-                ? "The runtime offers no relay adapter to add one through."
-                : "Add one with + to serve public outputs beyond this machine's own network."
-            }
-            data-relay-row=""
-          />
+          <SettingsRow label="No relays added" description={section.noAddedRelayWords} data-relay-row="" />
         ) : (
           section.hostedRelayRows.map((row) => (
             <SettingsRow
               key={row.relay.relay_id}
-              label={<MachineWords>{row.relay.relay_id}</MachineWords>}
+              label={<SettingsMachineWords>{row.relay.relay_id}</SettingsMachineWords>}
               description={row.settingsWords.length === 0 ? undefined : row.settingsWords.join(" · ")}
               refusal={removeRefusal?.relayId === row.relay.relay_id ? { lead: "Remove was refused:", words: removeRefusal.words } : null}
               data-relay-row={row.relay.relay_id}
@@ -389,17 +375,9 @@ export function RelaysSettingsSection() {
                 ) : (
                   <>
                     <RelayConnectionWords connection={row.connection} relay={row.relay} />
-                    {configureButton(row.relay)}
+                    <ConfigureRelayButton row={row} onPressed={() => setSettingsDialog({ kind: "configure", relayId: row.relay.relay_id })} />
                     <MoreActionsMenu label={`More for ${row.relay.relay_id}`} data-relay-action="more">
-                      <MenuItem
-                        icon={Trash2}
-                        isDestructive
-                        onChosen={() => {
-                          setRelayTheRemoveQuestionNames(row.relay.relay_id);
-                          setOpenDialog({ kind: "remove", relayId: row.relay.relay_id });
-                        }}
-                        data-relay-action="remove"
-                      >
+                      <MenuItem icon={Trash2} isDestructive onChosen={() => askToRemove(row.relay.relay_id)} data-relay-action="remove">
                         Remove relay…
                       </MenuItem>
                     </MoreActionsMenu>
@@ -412,32 +390,22 @@ export function RelaysSettingsSection() {
           ))
         )}
       </SettingsGroup>
-      {openDialog !== null && openDialog.kind !== "remove" && dialogAdapter !== null && (
+      {settingsDialog !== null && dialogAdapter !== null && (
         <RelaySettingsDialog
-          key={openDialog.kind === "add" ? `add:${openDialog.adapter.kind}` : `configure:${openDialog.relayId}`}
+          key={settingsDialog.kind === "add" ? `add:${settingsDialog.adapter.kind}` : `configure:${settingsDialog.relayId}`}
           adapter={dialogAdapter}
-          relay={openDialog.kind === "configure" ? dialogRelay : null}
-          onClose={() => setOpenDialog(null)}
+          relay={dialogRelay}
+          onClose={() => setSettingsDialog(null)}
         />
       )}
       <ConfirmationDialog
-        isOpen={openDialog?.kind === "remove"}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) setOpenDialog(null);
-        }}
+        isOpen={isTheRemoveQuestionOpen}
+        onOpenChange={setIsTheRemoveQuestionOpen}
         onClosedCompletely={() => setRelayTheRemoveQuestionNames(null)}
-        question={
-          relayTheRemoveQuestionNames !== null
-            ? {
-                title: `Remove ${relayTheRemoveQuestionNames}?`,
-                explanation: "The runtime leaves this relay and forgets it and its secrets. Public outputs stop reaching it.",
-                confirmWords: "Remove relay",
-              }
-            : null
-        }
+        question={removalConfirmation === null ? null : { ...removalConfirmation, confirmWords: "Remove relay" }}
         isDestructive
         onConfirmed={() => {
-          if (openDialog?.kind === "remove") removeTheRelay(openDialog.relayId);
+          if (relayTheRemoveQuestionNames !== null) removeTheRelay(relayTheRemoveQuestionNames);
         }}
         data-relay-dialog="remove"
         confirmDataAttributes={{ "data-relay-action": "confirm-remove" }}

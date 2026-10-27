@@ -1,6 +1,6 @@
 import type { RelaySettingsByName } from "../shared/tatolab_backend_contract";
 import { describeBackendRejection, type TatolabBackend } from "./backend/tatolab_backend";
-import type { RelaysReading } from "./presentation/relays_presentation";
+import { relaysDescriptionOfTheReading, type RelaysReading } from "./presentation/relays_presentation";
 import { RepeatingBackendPoll } from "./repeating_backend_poll";
 
 /** How often the relays are read while Settings › Relays shows them, so a relay joining or lost reads as it changes. */
@@ -86,9 +86,7 @@ export class RelayReadings {
     try {
       reading = { kind: "read", description: await this.backend.describeRelays() };
     } catch (rejection) {
-      const lastReading = this.latestReading;
-      const lastDescription = lastReading.kind === "read" ? lastReading.description : lastReading.kind === "refused" ? lastReading.lastDescription : null;
-      reading = { kind: "refused", refusal: describeBackendRejection(rejection), lastDescription };
+      reading = { kind: "refused", refusal: describeBackendRejection(rejection), lastDescription: relaysDescriptionOfTheReading(this.latestReading) };
     }
     if (runtimeStateChangesSeenAtTheRead === this.runtimeStateChangesSeen) this.showReading(reading);
   }

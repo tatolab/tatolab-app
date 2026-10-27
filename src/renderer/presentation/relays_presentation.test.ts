@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ListedRelay, RelayAdapter, RelaysDescription } from "../../shared/tatolab_backend_contract";
-import { presentRelayConnectionState, presentRelaysSection } from "./relays_presentation";
+import { presentRelayConnectionState, presentRelaysSection, runtimeWordsSegmentsOf } from "./relays_presentation";
 
 const LOCAL_ADAPTER: RelayAdapter = {
   kind: "local",
@@ -64,6 +64,24 @@ describe("the Relays section", () => {
     expect(section.lastReadingRefusal).toBeNull();
   });
 
+  it("names each Configure… by its relay, and makes it unavailable naming why for an adapter whose settings the form cannot draw or the catalog does not name", () => {
+    const section = presentRelaysSection(true, {
+      kind: "read",
+      description: {
+        relays: [LOOPBACK, { ...MOQPRO, adapter: "red5", relay_id: "red5-1" }, MOQPRO],
+        adapters: [LOCAL_ADAPTER, RED5_ADAPTER],
+      },
+    });
+
+    if (section.kind !== "listed") return expect.unreachable(section.kind);
+    expect(section.localRelayListenerRows.map((row) => [row.configureLabel, row.configureUnavailableBecause])).toEqual([["Configure Loopback", null]]);
+    expect(section.hostedRelayRows.map((row) => [row.configureLabel, row.configureUnavailableBecause])).toEqual([
+      ["Configure red5-1", "Tatolab can't show the setting regions (array) in a form yet."],
+      ["Configure moqpro-1", "The runtime's catalog names no adapter moqpro."],
+    ]);
+    expect(section.noAddedRelayWords).toBe("Add one with + to serve public outputs beyond this machine's own network.");
+  });
+
   it("offers every adapter that backs no built-in relay, and one whose settings the form cannot draw as unavailable naming why", () => {
     const section = presentRelaysSection(true, { kind: "read", description: DESCRIBED });
 
@@ -95,19 +113,28 @@ describe("the Relays section", () => {
 
 describe("a relay's connection state", () => {
   it("is a word, toned for a problem, with the runtime's reason beside it", () => {
-    expect(presentRelayConnectionState({ state: "joined" })).toEqual({ words: "Joined", tone: "ok", reason: null });
-    expect(presentRelayConnectionState({ state: "joining" })).toEqual({ words: "Joining…", tone: "progress", reason: null });
-    expect(presentRelayConnectionState({ state: "not_joined", why: null })).toEqual({ words: "Not joined", tone: "warning", reason: null });
-    expect(presentRelayConnectionState({ state: "not_joined", why: "no local relay runs" })).toEqual({
-      words: "Not joined",
-      tone: "warning",
-      reason: { lead: "Not joined:", words: "no local relay runs" },
-    });
-    expect(presentRelayConnectionState({ state: "lost", why: "refused", rejoining_after_ms: 4000 })).toEqual({
-      words: "Lost · joining again in 4s",
-      tone: "warning",
-      reason: { lead: "Lost:", words: "refused" },
-    });
-    expect(presentRelayConnectionState({ state: "newer_than_this_app", spelled_as: "paused" })).toEqual({ words: "paused", tone: "idle", reason: null });
+    expect(presentRelayConnectionState({ state: "joined" })).toEqual({ words: "Joined", tone: "ok", why: null });
+    expect(presentRelayConnectionState({ state: "joining" })).toEqual({ words: "Joining…", tone: "progress", why: null });
+    expect(presentRelayConnectionState({ state: "not_joined", why: null })).toEqual({ words: "Not joined", tone: "warning", why: null });
+    expect(presentRelayConnectionState({ state: "not_joined", why: "no local relay runs" })).toEqual({ words: "Not joined", tone: "warning", why: "no local relay runs" });
+    expect(presentRelayConnectionState({ state: "lost", why: "refused", rejoining_after_ms: 4000 })).toEqual({ words: "Lost · joining again in 4s", tone: "warning", why: "refused" });
+    expect(presentRelayConnectionState({ state: "lost", why: "refused", rejoining_after_ms: 0 })).toEqual({ words: "Lost · joining again now", tone: "warning", why: "refused" });
+    expect(presentRelayConnectionState({ state: "newer_than_this_app", spelled_as: "paused" })).toEqual({ words: "paused", tone: "idle", why: null });
+  });
+});
+
+describe("the runtime's words", () => {
+  it("are cut at their backtick code spans, a lone backtick kept as text", () => {
+    expect(runtimeWordsSegmentsOf("The relays the project is served at; absent, `https://cdn.moq.dev`.")).toEqual([
+      { kind: "text", words: "The relays the project is served at; absent, " },
+      { kind: "code", words: "https://cdn.moq.dev" },
+      { kind: "text", words: "." },
+    ]);
+    expect(runtimeWordsSegmentsOf("`local-loopback` and `local-every-interface`")).toEqual([
+      { kind: "code", words: "local-loopback" },
+      { kind: "text", words: " and " },
+      { kind: "code", words: "local-every-interface" },
+    ]);
+    expect(runtimeWordsSegmentsOf("a lone ` backtick")).toEqual([{ kind: "text", words: "a lone ` backtick" }]);
   });
 });

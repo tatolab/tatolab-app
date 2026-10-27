@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { ListedRelay, RelayAdapter } from "../../shared/tatolab_backend_contract";
-import { relaySettingLabel, relaySettingsFormFields, relaySettingsToSendToAdd, relaySettingsToSendToConfigure } from "./relay_settings_form";
+import {
+  relaySettingLabel,
+  relaySettingsDraftWithoutTypedSecrets,
+  relaySettingsFormFields,
+  relaySettingsFormRows,
+  relaySettingsSendUnavailableBecause,
+  relaySettingsToSendToAdd,
+  relaySettingsToSendToConfigure,
+} from "./relay_settings_form";
 
 const MOQPRO_ADAPTER: RelayAdapter = {
   kind: "moqpro",
@@ -117,5 +125,55 @@ describe("the settings a configure sends", () => {
     expect(relaySettingsToSendToConfigure(LOCAL_ADAPTER, EVERY_INTERFACE, { port: { kind: "typed", text: "14447" } })).toEqual({ kind: "ready", settings: { port: 14447 } });
     expect(relaySettingsToSendToConfigure(LOCAL_ADAPTER, EVERY_INTERFACE, { port: { kind: "use_default" } })).toEqual({ kind: "ready", settings: { port: null } });
     expect(relaySettingsToSendToConfigure(LOCAL_ADAPTER, EVERY_INTERFACE, { port: { kind: "typed", text: "4445" } })).toEqual({ kind: "no_change" });
+  });
+});
+
+describe("an optional setting that takes no null", () => {
+  it("cannot be emptied, as the runtime has no default to return it to", () => {
+    const labelledAdapter: RelayAdapter = {
+      ...MOQPRO_ADAPTER,
+      setting_fields: [{ name: "label", description: null, is_required: false, is_secret: false, value_kind: { kind: "text" }, accepts_null: false }],
+    };
+    const labelledRelay: ListedRelay = { ...MOQPRO_RELAY, settings: { label: "desk" } };
+
+    expect(relaySettingsToSendToConfigure(labelledAdapter, labelledRelay, { label: { kind: "typed", text: "" } })).toEqual({
+      kind: "incomplete",
+      problems: { label: "Can't be left empty" },
+      firstProblem: "Label can't be left empty.",
+    });
+  });
+});
+
+describe("the form's rows", () => {
+  it("show a held secret as set with Replace… until it is replaced, the relay's values before an edit, and Use default only off the default", () => {
+    const rows = relaySettingsFormRows(MOQPRO_ADAPTER, MOQPRO_RELAY, {}, new Set());
+
+    expect(rows.map((row) => [row.formField.name, row.shownText, row.heldSecret, row.showsTheField, row.offersUseDefault, row.replaceLabel])).toEqual([
+      ["project_id", "pb1studio", null, true, false, "Set Project ID"],
+      ["signing_key", "", "set", false, false, "Replace Signing key"],
+      ["relay_url", "", null, true, false, "Set Relay URL"],
+    ]);
+    expect(relaySettingsFormRows(MOQPRO_ADAPTER, MOQPRO_RELAY, { relay_url: { kind: "typed", text: "https://relay.example" } }, new Set(["signing_key"])).map((row) => [row.formField.name, row.showsTheField, row.offersUseDefault])).toEqual([
+      ["project_id", true, false],
+      ["signing_key", true, false],
+      ["relay_url", true, true],
+    ]);
+  });
+
+  it("name what is wrong only with a setting the person has typed into", () => {
+    const rows = relaySettingsFormRows(LOCAL_ADAPTER, null, { port: { kind: "typed", text: "70000" } }, new Set());
+    expect(rows[0]?.problem).toBe("A whole number from 0 to 65535");
+    expect(relaySettingsFormRows(MOQPRO_ADAPTER, null, {}, new Set()).map((row) => row.problem)).toEqual([null, null, null]);
+  });
+});
+
+describe("sending a form", () => {
+  it("is unavailable naming why, and forgets every secret typed once the runtime answers", () => {
+    expect(relaySettingsSendUnavailableBecause({ kind: "no_change" })).toBe("Nothing has changed.");
+    expect(relaySettingsSendUnavailableBecause({ kind: "incomplete", problems: {}, firstProblem: "Signing key is required." })).toBe("Signing key is required.");
+    expect(relaySettingsSendUnavailableBecause({ kind: "ready", settings: {} })).toBeNull();
+    expect(
+      relaySettingsDraftWithoutTypedSecrets(MOQPRO_ADAPTER, { project_id: { kind: "typed", text: "desk" }, signing_key: { kind: "typed", text: "typed-in-the-test" } }),
+    ).toEqual({ project_id: { kind: "typed", text: "desk" } });
   });
 });

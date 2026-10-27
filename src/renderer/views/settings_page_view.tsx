@@ -13,7 +13,7 @@ import { PageBody, PageFrame } from "../design_system/page_frame";
 import { PageHeader } from "../design_system/page_header";
 import { SectionNavigationList } from "../design_system/section_navigation_list";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
-import { SettingsGroup, SettingsRow } from "../design_system/settings_rows";
+import { SettingsGroup, SettingsMachineWords, SettingsRow, SettingsSectionExplanation } from "../design_system/settings_rows";
 import { ToggleSwitch } from "../design_system/toggle_switch";
 import { presentTatolabAppUpdate } from "../presentation/app_update_presentation";
 import { presentCommandLineTool, presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
@@ -108,19 +108,11 @@ const STATUS_WORDS_TONE_CLASS_NAMES: Record<StatusTone, string | undefined> = {
   error: "text-danger-text",
 };
 
-function SectionExplanation({ children }: { children: ReactNode }) {
-  return <p className="text-fg-3">{children}</p>;
-}
-
-function MachineWords({ children }: { children: ReactNode }) {
-  return <code className="font-mono text-xs text-fg-2 select-text">{children}</code>;
-}
-
 /** A path on its own line under a row's words, so it never breaks after them. */
 function PathUnderTheWords({ children }: { children: ReactNode }) {
   return (
     <span className="block break-all">
-      <MachineWords>{children}</MachineWords>
+      <SettingsMachineWords>{children}</SettingsMachineWords>
     </span>
   );
 }
@@ -262,10 +254,10 @@ function RuntimeSection() {
   const isAPythonChoicePending = chooseYourOwnPython.isPending || useTatolabsPython.isPending;
   return (
     <>
-      <SectionExplanation>
+      <SettingsSectionExplanation>
         The tatolabd process that runs your streams on{" "}
-        {status.machine_name === null ? platformPresentation.thisMachineMidSentence : <MachineWords>{status.machine_name}</MachineWords>}.
-      </SectionExplanation>
+        {status.machine_name === null ? platformPresentation.thisMachineMidSentence : <SettingsMachineWords>{status.machine_name}</SettingsMachineWords>}.
+      </SettingsSectionExplanation>
       <SettingsGroup>
         <SettingsRow
           label="Status"
@@ -318,7 +310,7 @@ function RuntimeSection() {
         )}
         <SettingsRow
           label="Local API socket"
-          description={<MachineWords>{status.local_api_socket}</MachineWords>}
+          description={<SettingsMachineWords>{status.local_api_socket}</SettingsMachineWords>}
           control={() => <CopyIconButton label="Copy the local API socket's path" readTextToCopy={() => status.local_api_socket} />}
         />
       </SettingsGroup>
@@ -411,15 +403,15 @@ function CommandLineSection() {
   const linkInUsrLocalBin = useActionThroughTheBackend(() => backend.linkCommandLineToolInUsrLocalBin(), "tatolab wasn't linked:");
   return (
     <>
-      <SectionExplanation>Everything in this app is also a tatolab command.</SectionExplanation>
+      <SettingsSectionExplanation>Everything in this app is also a tatolab command.</SettingsSectionExplanation>
       <SettingsGroup>
         <SettingsRow
-          label={<MachineWords>tatolab</MachineWords>}
+          label={<SettingsMachineWords>tatolab</SettingsMachineWords>}
           description={
             <>
               {commandLineTool.isLinked ? (
                 <span className="block" title={linkedAt ?? undefined}>
-                  <MachineWords>{commandLineTool.shownValue}</MachineWords>
+                  <SettingsMachineWords>{commandLineTool.shownValue}</SettingsMachineWords>
                 </span>
               ) : (
                 <span className="block text-fg-2">{commandLineTool.shownValue}</span>

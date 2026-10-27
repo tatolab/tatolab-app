@@ -299,10 +299,11 @@ export class LocalApiClient {
 
   /** Every relay the runtime holds, from its `list_relays` tool, and every adapter it can join one through, from `GET /api/relay-adapters`. */
   async describeRelays(): Promise<Result<RelaysDescription, LocalApiRequestFailure>> {
-    const [catalogBody, toolResultText] = await Promise.all([this.getBodyOfAnOkAnswer("/api/relay-adapters"), this.callMcpTool("list_relays", {})]);
+    const catalogBody = await this.getBodyOfAnOkAnswer("/api/relay-adapters");
     if (!catalogBody.ok) return catalogBody;
     const adapters = relayAdaptersFromTheRelayAdaptersAnswer(catalogBody.value.toString("utf8"));
     if (!adapters.ok) return localApiRequestFailure(adapters.failure);
+    const toolResultText = await this.callMcpTool("list_relays", {});
     if (!toolResultText.ok) return toolResultText;
     const relays = listedRelaysFromTheListRelaysToolResult(toolResultText.value);
     return relays.ok ? succeeded({ relays: relays.value, adapters: adapters.value }) : localApiRequestFailure(relays.failure);

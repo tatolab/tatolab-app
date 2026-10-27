@@ -105,7 +105,7 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * the steps as of the last load), `?inspect=tree`,
  * `?page=settings|add-stream` (the add-stream dialog, on Import project), on Settings `?section=general|appearance|runtime|relays|command-line|about`, on its Relays
  * `?relay=add:<adapter>|configure:<relay_id>|remove:<relay_id>` (that dialog open) with each `?relay_fill=<setting>:<text>` typed into it and `?relay_submit=pressed`
- * (Add relay or Save pressed), with the backend's `?relays=local` and `?relay_add=refused`, and on its Runtime
+ * (Add relay or Save pressed), with the backend's `?relays=local`, and on its Runtime
  * `?restart=pressed` (Restart runtime pressed: Starting, then Running up 0m) or `?restart=refused` (the service manager refusing it),
  * `?choose_python=pressed` (Choose Your Own… pressed, with the backend's `?python=chosen|not_offered` and `?python_pick=cancel|not_python`), with the
  * backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream>` (a

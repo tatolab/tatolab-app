@@ -3,6 +3,16 @@ import { useId, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./control_data_attributes";
 import { RefusalLine } from "./refusal_line";
 
+/** What a Settings section is about, in a quiet line above its groups. */
+export function SettingsSectionExplanation({ children }: { children: ReactNode }) {
+  return <p className="text-fg-3">{children}</p>;
+}
+
+/** A path, a command or an id in running Settings words, in Geist Mono. */
+export function SettingsMachineWords({ children }: { children: ReactNode }) {
+  return <code className="font-mono text-xs text-fg-2 select-text">{children}</code>;
+}
+
 /** A group of settings rows in one frame, hairlines between them, under a title, a line saying what they are and the actions on the whole group, when it has them. */
 export function SettingsGroup({
   title,

@@ -119,8 +119,6 @@ export interface MockRelays {
 /** What the mock relays are built from: what the page asks, and whether the mock runtime answers now and its words when it does not. */
 export interface MockRelaysSources {
   scenario: MockRelaysScenario;
-  /** `?relay_add=refused`: every add is refused as one that could not be joined. */
-  isEveryAddRefused: boolean;
   isTheRuntimeRunning: () => boolean;
   noRuntimeAnswersRefusal: () => string;
 }
@@ -195,7 +193,6 @@ export function createMockRelays(sources: MockRelaysSources): MockRelays {
       let instanceNumber = 1;
       while (relays.some((listedRelay) => listedRelay.relay_id === `${adapter.kind}-${instanceNumber}`)) instanceNumber += 1;
       const relayId = `${adapter.kind}-${instanceNumber}`;
-      if (sources.isEveryAddRefused) throw `the relay \`${relayId}\` could not be joined: the relay answered 401 Unauthorized`;
       const secretNames = adapter.setting_fields.filter((settingField) => settingField.is_secret).map((settingField) => settingField.name);
       const relay: ListedRelay = {
         relay_id: relayId,

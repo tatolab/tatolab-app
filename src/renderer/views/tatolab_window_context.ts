@@ -78,7 +78,7 @@ export interface TatolabWindowEnvironment {
   relayReadings: RelayReadings;
   /** Open the sheet "Uninstall Tatolab…" asks to confirm in. */
   openUninstallSheet(): void;
-    /** Why the last uninstall was refused, which Settings shows under Uninstall Tatolab…, until the sheet opens again. */
+  /** Why the last uninstall was refused, which Settings shows under Uninstall Tatolab…, until the sheet opens again. */
   uninstallTatolabRefusal: RefusalKeptForTheWindow;
   /** Why Get Started could not be remembered, which a notice shows over the Streams list once first run is over. */
   firstRunFinishingRefusal: RefusalKeptForTheWindow;
