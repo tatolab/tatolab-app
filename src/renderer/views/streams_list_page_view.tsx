@@ -91,6 +91,7 @@ function StreamsListRow({
   onRemoveAsked: () => void;
 }) {
   const navigate = useNavigate();
+  const statePresentation = presentStreamStateAfterTheLastAction(stream, outcome?.kind === "notice");
   return (
     <li
       data-stream-row={stream.name}
@@ -106,8 +107,8 @@ function StreamsListRow({
         <Link
           to={streamPagePath(stream.name)}
           onClick={(clickEvent) => clickEvent.stopPropagation()}
-          aria-label={`${stream.name}, ${presentStreamStateAfterTheLastAction(stream, outcome?.kind === "notice").label}`}
-          title={presentStreamStateAfterTheLastAction(stream, outcome?.kind === "notice").meaning}
+          aria-label={`${stream.name}, ${statePresentation.label}`}
+          title={statePresentation.meaning}
           className="min-w-0 shrink truncate rounded-sm text-fg"
         >
           {stream.name}
