@@ -1289,6 +1289,48 @@ describe("Settings › Relays", () => {
     expect(relayRowOf("cloudflare-1").textContent).toContain("Relay URL set");
   });
 
+  it("names every relay's adapter by the name its catalog serves, its logo in one square slot, in the rows, the + menu and the form's heading", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openSettingsOn("relays");
+    await waitFor(() => expect(relayRowOf("moqpro-1")).toBeTruthy());
+
+    expect(relayRowOf("moqpro-1").querySelector("[data-relay-adapter-name]")?.textContent).toBe("moq.pro");
+    expect(relayRowOf("cloudflare-1").querySelector("[data-relay-adapter-name]")?.textContent).toBe("Cloudflare");
+    expect(relayRowOf("cloudflare-1").textContent).toContain("cloudflare-1");
+    const logoSlotsOfTheRows = ["local-loopback", "local-every-interface", "cloudflare-1", "moqpro-1"].map(
+      (relayId) => relayRowOf(relayId).querySelector('[data-served-logo-slot="in_a_row"]') ?? expect.unreachable(`no logo slot in ${relayId}`),
+    );
+    for (const logoSlot of logoSlotsOfTheRows) {
+      expect(logoSlot.querySelector("img")?.getAttribute("src")?.startsWith("data:image/svg+xml;base64,")).toBe(true);
+      expect(logoSlot.querySelector("img")?.getAttribute("alt")).toBe("");
+      expect(logoSlot.querySelector("svg")).toBeNull();
+    }
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-relay-action="add-menu"]') ?? expect.unreachable("no + menu"));
+    await waitFor(() => expect(document.querySelector('[data-relay-adapter-choice="moqpro"]')).not.toBeNull());
+    expect([...document.querySelectorAll("[data-relay-adapter-choice]")].map((choice) => choice.textContent)).toEqual(["Cloudflare", "moq.pro"]);
+    expect(document.querySelectorAll('[data-relay-adapter-choice] [data-served-logo-slot="in_a_menu"] img')).toHaveLength(2);
+    fireEvent.click(document.querySelector<HTMLElement>('[data-relay-adapter-choice="cloudflare"]') ?? expect.unreachable("no cloudflare choice"));
+    const dialog = await waitFor(() => document.querySelector<HTMLElement>('[data-relay-dialog="add:cloudflare"]') ?? expect.unreachable("no add dialog"));
+
+    expect(dialog.querySelector("[data-relay-dialog-adapter-name]")?.textContent).toBe("Cloudflare");
+    expect(dialog.querySelector('[data-served-logo-slot="in_a_row"] img')).not.toBeNull();
+  });
+
+  it("names every adapter by its kind and every added relay by its id alone, with no logo slot, over a runtime whose catalog serves no names or logos", async () => {
+    await mountedWindowOverTheMock("state=running&adapter_names=none");
+    await openSettingsOn("relays");
+    await waitFor(() => expect(relayRowOf("moqpro-1")).toBeTruthy());
+
+    expect(relayRowOf("moqpro-1").querySelector("[data-relay-adapter-name]")).toBeNull();
+    expect(relayRowOf("moqpro-1").querySelector("code")?.textContent).toBe("moqpro-1");
+    expect(document.querySelector("[data-served-logo-slot]")).toBeNull();
+    fireEvent.click(document.querySelector<HTMLElement>('[data-relay-action="add-menu"]') ?? expect.unreachable("no + menu"));
+    await waitFor(() => expect(document.querySelector('[data-relay-adapter-choice="moqpro"]')).not.toBeNull());
+    expect([...document.querySelectorAll("[data-relay-adapter-choice]")].map((choice) => choice.textContent)).toEqual(["cloudflare", "moqpro"]);
+    expect(document.querySelector("[data-served-logo-slot]")).toBeNull();
+  });
+
   it("offers to add every adapter but the local relay's, through a form built from its settings, and lists the relay added with its secret set", { timeout: 6_000 }, async () => {
     await mountedWindowOverTheMock("state=running&relays=local");
     await openSettingsOn("relays");

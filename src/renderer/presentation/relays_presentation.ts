@@ -46,11 +46,35 @@ const LOCAL_RELAY_LISTENER_WORDS: Readonly<Record<string, { label: string; serve
   "local-every-interface": { label: "Every interface", servesWords: "Public ports, to any machine that reaches it" },
 };
 
+/** How the window names an adapter: by the name and icon its catalog serves, or by its kind, in machine words, from a runtime that serves no name. */
+export interface RelayAdapterNaming {
+  words: string;
+  /** Whether `words` is the adapter's kind, drawn as machine words, for want of a name. */
+  isTheAdapterKind: boolean;
+  /** The provider's logo, a `data:image/` URI; `null` when the catalog serves none, so no slot is drawn. */
+  iconDataUri: string | null;
+}
+
+/** An adapter named by its kind alone, with the icon its catalog serves, if any. */
+function relayAdapterNamingByItsKind(kind: string, iconDataUri: string | null): RelayAdapterNaming {
+  return { words: kind, isTheAdapterKind: true, iconDataUri };
+}
+
+/** `adapter` as the window names it. */
+export function presentRelayAdapterNaming(adapter: RelayAdapter): RelayAdapterNaming {
+  const displayName = adapter.display_name?.trim() ?? "";
+  return displayName === ""
+    ? relayAdapterNamingByItsKind(adapter.kind, adapter.display_icon_data_uri)
+    : { words: displayName, isTheAdapterKind: false, iconDataUri: adapter.display_icon_data_uri };
+}
+
 /** What every relay's row shows, a listener's and an added relay's alike. */
 interface RelayRow {
   relay: ListedRelay;
   /** Its adapter in the runtime's catalog, whose settings Configure draws; `null` when the catalog names none. */
   adapter: RelayAdapter | null;
+  /** Its adapter's name and icon; the kind the relay lists, with no icon, when the catalog names no such adapter. */
+  adapterNaming: RelayAdapterNaming;
   connection: RelayConnectionPresentation;
   /** Configure…'s accessible name, naming the relay. */
   configureLabel: string;
@@ -67,6 +91,8 @@ export interface LocalRelayListenerRow extends RelayRow {
 
 /** One relay someone added: its settings and each secret as set or not. */
 export interface HostedRelayRow extends RelayRow {
+  /** Its adapter's served name, shown beside its id; `null` when the catalog serves none, so the id stands alone, the kind already in it. */
+  adapterNameBesideTheId: string | null;
   /** Each setting as "Project ID pb1studio", then each secret as "Signing key set", joined; `null` for a relay that lists neither. */
   settingsWords: string | null;
 }
@@ -74,6 +100,7 @@ export interface HostedRelayRow extends RelayRow {
 /** An adapter Add relay offers, or offers greyed out with why. */
 export interface RelayAdapterChoice {
   adapter: RelayAdapter;
+  adapterNaming: RelayAdapterNaming;
   unavailableBecause: string | null;
 }
 
@@ -108,6 +135,7 @@ function relayRow(relay: ListedRelay, adapters: readonly RelayAdapter[], shownNa
   return {
     relay,
     adapter,
+    adapterNaming: adapter === null ? relayAdapterNamingByItsKind(relay.adapter, null) : presentRelayAdapterNaming(adapter),
     connection: presentRelayConnectionState(relay.connection_state),
     configureLabel: `Configure ${shownName}`,
     configureUnavailableBecause: adapter === null ? `The runtime's catalog names no adapter ${relay.adapter}.` : whyTheFormCannotDrawTheAdaptersSettings(adapter),
@@ -132,7 +160,12 @@ function hostedRelayRow(relay: ListedRelay, adapters: readonly RelayAdapter[]): 
     .map(([settingName, settingValue]) => `${relaySettingLabel(settingName)} ${String(settingValue)}`);
   const secretWords = Object.entries(relay.secrets).map(([secretName, presence]) => `${relaySettingLabel(secretName)} ${presence === "set" ? "set" : "not set"}`);
   const allWords = [...settingWords, ...secretWords];
-  return { ...relayRow(relay, adapters, relay.relay_id), settingsWords: allWords.length === 0 ? null : allWords.join(" · ") };
+  const row = relayRow(relay, adapters, relay.relay_id);
+  return {
+    ...row,
+    adapterNameBesideTheId: row.adapterNaming.isTheAdapterKind ? null : row.adapterNaming.words,
+    settingsWords: allWords.length === 0 ? null : allWords.join(" · "),
+  };
 }
 
 /**
@@ -156,7 +189,7 @@ export function presentRelaysSection(isTheRuntimeRunning: boolean, reading: Rela
   const adaptersBackingABuiltInRelay = new Set(description.relays.filter((relay) => relay.built_in).map((relay) => relay.adapter));
   const adapterChoices = description.adapters
     .filter((adapter) => !adaptersBackingABuiltInRelay.has(adapter.kind))
-    .map((adapter) => ({ adapter, unavailableBecause: whyTheFormCannotDrawTheAdaptersSettings(adapter) }));
+    .map((adapter) => ({ adapter, adapterNaming: presentRelayAdapterNaming(adapter), unavailableBecause: whyTheFormCannotDrawTheAdaptersSettings(adapter) }));
   return {
     kind: "listed",
     localRelayListenerRows: description.relays.filter((relay) => relay.built_in).map((relay) => localRelayListenerRow(relay, description.adapters)),

@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { ListedRelay, RelayAdapter } from "../../shared/tatolab_backend_contract";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
@@ -8,6 +8,7 @@ import { FormDialog, FormDialogFooter, FormDialogRow, FormDialogRows, FormDialog
 import { IconButtonMenu, MenuItem, MoreActionsMenu } from "../design_system/menus";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
+import { ServedLogoSlot, type ServedLogoSlotSize } from "../design_system/served_logo_slot";
 import { SettingsGroup, SettingsMachineWords, SettingsRow, SettingsSectionExplanation } from "../design_system/settings_rows";
 import { StateWords, type StateWordsEmphasis } from "../design_system/stream_state_words";
 import { TextField } from "../design_system/text_field";
@@ -18,12 +19,14 @@ import {
   type RelaySettingsDraft,
 } from "../presentation/relay_settings_form";
 import {
+  presentRelayAdapterNaming,
   presentRelayRemovalConfirmation,
   presentRelaysSection,
   relaySettingsDialogSubjectOf,
   runtimeWordsSegmentsOf,
   type HostedRelayRow,
   type LocalRelayListenerRow,
+  type RelayAdapterNaming,
   type RelayConnectionPresentation,
 } from "../presentation/relays_presentation";
 import { presentRuntimeStatus, type StatusTone } from "../presentation/runtime_presentation";
@@ -53,6 +56,16 @@ function RuntimeWords({ words }: { words: string }) {
       segment.words
     ),
   );
+}
+
+/** An adapter's name as its catalog serves it, or its kind in machine words from a runtime that serves none. */
+function RelayAdapterName({ adapterNaming }: { adapterNaming: RelayAdapterNaming }) {
+  return adapterNaming.isTheAdapterKind ? <SettingsMachineWords tone="of_the_words_around_it">{adapterNaming.words}</SettingsMachineWords> : adapterNaming.words;
+}
+
+/** An adapter's logo in its square slot, for a leading slot; nothing when its catalog serves none, so no slot is drawn. */
+function relayAdapterLogoOf(adapterNaming: RelayAdapterNaming, size: ServedLogoSlotSize): ReactNode {
+  return adapterNaming.iconDataUri === null ? undefined : <ServedLogoSlot logoDataUri={adapterNaming.iconDataUri} size={size} />;
 }
 
 function RelayConnectionWords({ connection, relay }: { connection: RelayConnectionPresentation; relay: ListedRelay }) {
@@ -151,6 +164,7 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
   const [isSending, setIsSending] = useState(false);
   const [refusal, setRefusal] = useState<BackendActionRefusal | null>(null);
   const { dialogWords, requiredRows, additionalOptionRows, settingsToSend, sendUnavailableBecause } = presentRelaySettingsForm(adapter, relay, draft);
+  const adapterNaming = presentRelayAdapterNaming(adapter);
   const forgetEverySecretTyped = () => setDraft((draftNow) => relaySettingsDraftWithoutTypedSecrets(adapter, draftNow));
   const relaySettingRowOf = (row: RelaySettingFormRow) => (
     <RelaySettingRow
@@ -187,7 +201,14 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
       title={dialogWords.title}
       description={
         <>
-          <SettingsMachineWords>{relay === null ? adapter.kind : relay.relay_id}</SettingsMachineWords> · <RuntimeWords words={adapter.doc} />
+          <span className="mt-1.5 mb-1 flex items-center gap-2">
+            {relayAdapterLogoOf(adapterNaming, "in_a_row")}
+            <span className="text-fg" data-relay-dialog-adapter-name="">
+              <RelayAdapterName adapterNaming={adapterNaming} />
+            </span>
+            {relay !== null && <SettingsMachineWords>{relay.relay_id}</SettingsMachineWords>}
+          </span>
+          <RuntimeWords words={adapter.doc} />
         </>
       }
       data-relay-dialog={relay === null ? `add:${adapter.kind}` : `configure:${relay.relay_id}`}
@@ -302,6 +323,7 @@ export function RelaysSettingsSection() {
         {section.localRelayListenerRows.map((row) => (
           <SettingsRow
             key={row.relay.relay_id}
+            leading={relayAdapterLogoOf(row.adapterNaming, "in_a_row")}
             label={row.label}
             description={
               <>
@@ -335,10 +357,13 @@ export function RelaysSettingsSection() {
                   key={choice.adapter.kind}
                   isDisabled={choice.unavailableBecause !== null}
                   onChosen={() => setSettingsDialog({ kind: "add", adapter: choice.adapter })}
+                  leading={relayAdapterLogoOf(choice.adapterNaming, "in_a_menu")}
                   data-relay-adapter-choice={choice.adapter.kind}
                 >
                   <span className="flex flex-col">
-                    <SettingsMachineWords tone="of_the_words_around_it">{choice.adapter.kind}</SettingsMachineWords>
+                    <span>
+                      <RelayAdapterName adapterNaming={choice.adapterNaming} />
+                    </span>
                     {choice.unavailableBecause !== null && <span className="text-xs text-fg-3">{choice.unavailableBecause}</span>}
                   </span>
                 </MenuItem>
@@ -353,7 +378,17 @@ export function RelaysSettingsSection() {
           section.hostedRelayRows.map((row) => (
             <SettingsRow
               key={row.relay.relay_id}
-              label={<SettingsMachineWords>{row.relay.relay_id}</SettingsMachineWords>}
+              leading={relayAdapterLogoOf(row.adapterNaming, "in_a_row")}
+              label={
+                row.adapterNameBesideTheId === null ? (
+                  <SettingsMachineWords>{row.relay.relay_id}</SettingsMachineWords>
+                ) : (
+                  <span className="flex items-baseline gap-2">
+                    <span data-relay-adapter-name="">{row.adapterNameBesideTheId}</span>
+                    <SettingsMachineWords>{row.relay.relay_id}</SettingsMachineWords>
+                  </span>
+                )
+              }
               description={row.settingsWords ?? undefined}
               refusal={removeRefusal?.relayId === row.relay.relay_id ? { lead: "Remove was refused:", words: removeRefusal.words } : null}
               data-relay-row={row.relay.relay_id}

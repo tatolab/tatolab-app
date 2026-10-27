@@ -45,6 +45,7 @@ export function SettingsGroup({
  * change was refused. The control is labelled by the name and described by the words beside it.
  */
 export function SettingsRow({
+  leading,
   label,
   description,
   control,
@@ -52,6 +53,8 @@ export function SettingsRow({
   children,
   ...controlDataAttributes
 }: {
+  /** What stands before the name and its description, centred beside them, such as a served logo. */
+  leading?: ReactNode;
   label: ReactNode;
   description?: ReactNode;
   /** Given the ids of the name and the description, for the control to be labelled and described by. */
@@ -66,13 +69,16 @@ export function SettingsRow({
   return (
     <div className="flex flex-col gap-2 px-4 py-3" {...controlDataAttributes}>
       <div className="flex min-h-7 items-center gap-5">
-        <div className="min-w-0 flex-1">
-          <p id={labelId}>{label}</p>
-          {description !== undefined && (
-            <div id={descriptionId} className={cn("text-xs text-fg-3 select-text", "[&_code]:font-mono [&_code]:text-fg-2")}>
-              {description}
-            </div>
-          )}
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          {leading !== undefined && <div className="flex shrink-0 items-center">{leading}</div>}
+          <div className="min-w-0 flex-1">
+            <p id={labelId}>{label}</p>
+            {description !== undefined && (
+              <div id={descriptionId} className={cn("text-xs text-fg-3 select-text", "[&_code]:font-mono [&_code]:text-fg-2")}>
+                {description}
+              </div>
+            )}
+          </div>
         </div>
         {control !== undefined && (
           <div className="flex shrink-0 items-center gap-1.5">{control({ labelId, descriptionId: description === undefined ? undefined : descriptionId })}</div>

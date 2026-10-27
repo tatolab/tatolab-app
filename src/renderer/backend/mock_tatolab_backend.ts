@@ -217,6 +217,8 @@ export interface MockTatolabOptions {
   isMakingThePythonEnvironmentRefused: boolean;
   /** `?relays=local`: the runtime holds only the local relay's two listeners; a joined Cloudflare relay and a lost moq.pro one beside them by default. */
   relaysScenario: MockRelaysScenario;
+  /** `?adapter_names=none`: the relay-adapter catalog of a runtime older than adapter names and logos, which serves neither. */
+  doesTheRelayAdapterCatalogServeNoNamesOrLogos: boolean;
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -302,6 +304,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     pythonInterpreterPick: pageQuery.get("python_pick") === "cancel" ? "cancel" : pageQuery.get("python_pick") === "not_python" ? "not_python" : "picked",
     isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
     relaysScenario: mockRelaysScenarioNamed(pageQuery.get("relays")),
+    doesTheRelayAdapterCatalogServeNoNamesOrLogos: pageQuery.get("adapter_names") === "none",
   };
 }
 
@@ -448,6 +451,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     pythonInterpreterPick,
     isMakingThePythonEnvironmentRefused,
     relaysScenario,
+    doesTheRelayAdapterCatalogServeNoNamesOrLogos,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -702,6 +706,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const noRuntimeAnswersRefusal = (): string => `no runtime answers at ${mockStatus.local_api_socket}: connect ENOENT ${mockStatus.local_api_socket}`;
   const mockRelays = createMockRelays({
     scenario: relaysScenario,
+    doesTheCatalogServeNoNamesOrLogos: doesTheRelayAdapterCatalogServeNoNamesOrLogos,
     isTheRuntimeRunning: () => mockStatus.runtime_state === "running",
     noRuntimeAnswersRefusal,
   });

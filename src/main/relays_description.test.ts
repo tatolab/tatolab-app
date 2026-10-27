@@ -117,6 +117,18 @@ test("the_real_relay_adapter_catalog_reads_each_adapter_with_its_settings_in_sch
   ]);
 });
 
+test("the_real_relay_adapter_catalog_names_each_adapter_with_its_logo_as_a_data_image_uri", async () => {
+  const adapters = answerOf(relayAdaptersFromTheRelayAdaptersAnswer(await recordedResponseBody("local-api-relay-adapters-answer-of-a-test-root-runtime.json")));
+
+  expect(adapters.map((adapter) => [adapter.kind, adapter.display_name])).toEqual([
+    ["local", "Local relay"],
+    ["cloudflare", "Cloudflare"],
+    ["moqpro", "moq.pro"],
+    ["test-secret-holder", "Secret-holding test relay"],
+  ]);
+  for (const adapter of adapters) expect(adapter.display_icon_data_uri?.startsWith("data:image/svg+xml;base64,")).toBe(true);
+});
+
 test("a_port_reads_as_a_whole_number_bounded_by_its_format", async () => {
   const adapters = answerOf(relayAdaptersFromTheRelayAdaptersAnswer(await recordedResponseBody("local-api-relay-adapters-answer-of-a-test-root-runtime.json")));
 
@@ -149,6 +161,59 @@ test("a_setting_whose_type_the_form_cannot_draw_is_kept_naming_its_type", () => 
     { kind: "not_drawable", schema_type_words: "array" },
     { kind: "not_drawable", schema_type_words: "no type" },
   ]);
+});
+
+test("an_adapter_serving_its_name_and_icon_is_read_with_both", () => {
+  const catalog = JSON.stringify({
+    adapters: [
+      {
+        kind: "moqpro",
+        display_name: "moq.pro",
+        display_icon_data_uri: "data:image/svg+xml;base64,PHN2Zy8+",
+        doc: "A moq.pro project.",
+        settings_schema: { type: "object", properties: {} },
+      },
+    ],
+  });
+
+  const adapter = answerOf(relayAdaptersFromTheRelayAdaptersAnswer(catalog))[0];
+
+  expect(adapter?.display_name).toBe("moq.pro");
+  expect(adapter?.display_icon_data_uri).toBe("data:image/svg+xml;base64,PHN2Zy8+");
+});
+
+test("an_adapter_serving_neither_its_name_nor_its_icon_reads_both_as_null_and_keeps_its_kind", () => {
+  const catalog = JSON.stringify({ adapters: [{ kind: "moqpro", doc: "A moq.pro project.", settings_schema: { type: "object", properties: {} } }] });
+
+  const adapter = answerOf(relayAdaptersFromTheRelayAdaptersAnswer(catalog))[0];
+
+  expect(adapter).toMatchObject({ kind: "moqpro", display_name: null, display_icon_data_uri: null });
+});
+
+test("an_icon_that_is_not_a_data_image_uri_is_dropped_and_the_adapter_kept", () => {
+  const iconsNotDataImages = ["https://moq.pro/logo.svg", "data:text/html;base64,PHNjcmlwdD4=", "javascript:alert(1)", "DATA:IMAGE/PNG;base64,AA=="];
+  const catalog = JSON.stringify({
+    adapters: iconsNotDataImages.map((icon, iconIndex) => ({
+      kind: `adapter-${iconIndex}`,
+      display_name: "An adapter",
+      display_icon_data_uri: icon,
+      doc: "An adapter.",
+      settings_schema: { type: "object", properties: {} },
+    })),
+  });
+
+  const adapters = answerOf(relayAdaptersFromTheRelayAdaptersAnswer(catalog));
+
+  expect(adapters.map((adapter) => adapter.display_icon_data_uri)).toEqual([null, null, null, null]);
+  expect(adapters.map((adapter) => adapter.display_name)).toEqual(["An adapter", "An adapter", "An adapter", "An adapter"]);
+});
+
+test("a_display_name_or_icon_that_is_not_text_is_refused_naming_the_field", () => {
+  const catalogWith = (fields: Record<string, unknown>) =>
+    JSON.stringify({ adapters: [{ kind: "moqpro", ...fields, doc: "A moq.pro project.", settings_schema: { type: "object", properties: {} } }] });
+
+  expect(failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalogWith({ display_name: 7 })))).toContain("`display_name`");
+  expect(failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalogWith({ display_icon_data_uri: { svg: "<svg/>" } })))).toContain("`display_icon_data_uri`");
 });
 
 test("a_catalog_without_adapters_is_refused_naming_the_route", () => {
