@@ -15,9 +15,9 @@ it answers. The window reads
 everything from the runtime's local API: `list_streams`, `logs` and `graph` over MCP, and
 `GET /api/graph` for the machine's name. It stops, starts (or retries) and removes a stream with
 the MCP tools `stop_stream`, `start_stream` and `remove_stream`; loading a new stream is the
-`tatolab` CLI's. A stream's Overview plays each of its exposed outputs in a frame of the runtime's
-preview page, `http://127.0.0.1:4446/watch/…`, the one origin the window's content security policy
-frames. "Open project" and "Open a terminal in the project" open the folder the runtime lists for
+`tatolab` CLI's. A stream's Overview plays each output it exposes beyond itself that the runtime
+gives a preview page, in a frame of `http://127.0.0.1:4446/watch/…`, the one origin the window's
+content security policy frames. "Open project" and "Open a terminal in the project" open the folder the runtime lists for
 the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-emulator`.
 
 |  | macOS | Linux |

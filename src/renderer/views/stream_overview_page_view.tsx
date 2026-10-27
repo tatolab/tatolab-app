@@ -187,7 +187,6 @@ function StreamNodeRows({ stream, reading }: { stream: ListedStream; reading: St
   const isLoaded = isStreamLoaded(stream);
   if (graph === null) return <p className="py-1.5 text-xs text-fg-3">{isLoaded ? "Its nodes show once its graph is read." : "Its nodes show here once it is loaded."}</p>;
   const nodes = presentStreamSteps(graph, nodeNamesInPipelineOrder, reading.graphSource, isLoaded);
-  const isEachNodesStateShown = isEachNodeStateShown(nodes);
   return (
     <ul className="flex flex-col" data-stream-steps="">
       {nodes.map((node) => (
@@ -199,7 +198,7 @@ function StreamNodeRows({ stream, reading }: { stream: ListedStream; reading: St
               {node.name}
             </span>
           }
-          trailing={isEachNodesStateShown ? <StateWords emphasis={node.stateEmphasis} words={node.stateWord} /> : undefined}
+          trailing={isEachNodeStateShown(nodes) ? <StateWords emphasis={node.stateEmphasis} words={node.stateWord} /> : undefined}
           detail={
             node.counters.length > 0 ? (
               <span className="font-mono text-warn-text tabular">{node.counters.map((counter) => `${counter.countText} ${counter.word}`).join(" · ")}</span>
