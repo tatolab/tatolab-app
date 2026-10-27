@@ -6,21 +6,19 @@ export interface ExposureLevelPresentation {
   label: string;
   /** `null` for a level newer than this app, which shows its word alone. */
   meaning: string | null;
-  /** Which icon stands beside the words: a lock, a laptop, a globe, or none for a level newer than this app. */
-  icon: "internal" | "this_machine" | "public" | null;
 }
 
 /** `private` reads This machine and `public` reads Public, as the design's vocabulary words them; a newer level keeps its own word. */
 export function presentExposureLevel(level: string): ExposureLevelPresentation {
   switch (level) {
     case "internal":
-      return { label: "Internal", meaning: "Only this stream's own nodes can read it.", icon: "internal" };
+      return { label: "Internal", meaning: "Only this stream's own nodes can read it." };
     case "private":
-      return { label: "This machine", meaning: "Any stream or app on this machine can read it.", icon: "this_machine" };
+      return { label: "This machine", meaning: "Any stream or app on this machine can read it." };
     case "public":
-      return { label: "Public", meaning: "Readable on this machine now; other machines read it through the relays this machine joins.", icon: "public" };
+      return { label: "Public", meaning: "Readable on this machine now; other machines read it through the relays this machine joins." };
     default:
-      return { label: labelUnknownStreamState(level), meaning: null, icon: null };
+      return { label: labelUnknownStreamState(level), meaning: null };
   }
 }
 
@@ -131,6 +129,11 @@ export function presentStreamSteps(
     });
 }
 
+/** Whether the Overview shows each node's state: only once they differ, or one is in error, since a row of the same word says nothing. */
+export function isEachNodeStateShown(rows: readonly Pick<StreamStepRow, "stateWord" | "stateEmphasis">[]): boolean {
+  return rows.some((row) => row.stateWord !== rows[0]?.stateWord || row.stateEmphasis === "failure");
+}
+
 /** A link whose target dropped messages arriving on it, which the Overview names in one amber line. */
 export interface DroppingLinkPresentation {
   linkId: string;
@@ -164,9 +167,9 @@ export function droppingLinksOf(graph: StreamGraphSummary): DroppingLinkPresenta
   });
 }
 
-/** The exposed outputs the runtime's preview page plays: every one it gives a preview page, so never an internal one. */
+/** The exposed outputs the runtime's preview page plays: every readable one it gives a preview page. */
 export function previewableOutputsOf(graph: Pick<StreamGraphSummary, "exposed">): StreamGraphExposedPort[] {
-  return graph.exposed.filter((exposedPort) => exposedPort.watch_page_url !== null);
+  return readableExposedPorts(graph).filter((exposedPort) => exposedPort.watch_page_url !== null);
 }
 
 /** The output the Overview previews: the one chosen while it is still previewable, else the first previewable one; `null` when there is none. */

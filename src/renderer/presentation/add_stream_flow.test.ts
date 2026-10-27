@@ -4,7 +4,7 @@ import {
   addStreamActionOf,
   addStreamRunNoticeOf,
   presentAddStreamRunNotice,
-  addStreamPageSection,
+  addStreamDialogSection,
   addStreamStepAnnouncement,
   compilingStreamWords,
   streamRunAnswerLines,
@@ -260,8 +260,8 @@ describe("events that arrive outside the form", () => {
     expect(addStreamStepAnnouncement(advanceAddStreamFlow(synced, { kind: "work_refused", lead: "The folder dialog was refused:", words: "gone" }), true, TATOLABS_OWN_PYTHON)).toBe(
       "tatolab new wrote /Users/someone/streams/hello. Add is ready.",
     );
-    expect(addStreamPageSection(created)).toBe(addStreamPageSection(synced));
-    expect(addStreamPageSection(synced)).toBe("form:new_project:created:folder");
+    expect(addStreamDialogSection(created)).toBe(addStreamDialogSection(synced));
+    expect(addStreamDialogSection(synced)).toBe("form:new_project:created:folder");
   });
 });
 

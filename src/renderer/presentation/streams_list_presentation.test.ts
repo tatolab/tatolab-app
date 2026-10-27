@@ -56,6 +56,18 @@ describe("streamProjectFoldersOf", () => {
     expect(folders[0]?.projectDirectory).toBe("/Users/ada/streams/pattern");
   });
 
+  it("marks a folder that holds a failed stream", () => {
+    const folders = streamProjectFoldersOf([
+      streamIn("main", "/Users/ada/streams/pattern"),
+      { ...streamIn("lobby", "/Users/ada/streams/lobby"), state: "failed", node_count: null },
+    ]);
+
+    expect(folders.map(({ folderName, holdsAFailedStream }) => [folderName, holdsAFailedStream])).toEqual([
+      ["pattern", false],
+      ["lobby", true],
+    ]);
+  });
+
   it("names two folders that share a name by their parent too", () => {
     const folders = streamProjectFoldersOf([streamIn("a", "/Users/ada/work/demo"), streamIn("b", "/Users/ada/play/demo/"), streamIn("c", "/Users/ada/camera")]);
 

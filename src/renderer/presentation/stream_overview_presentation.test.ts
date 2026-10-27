@@ -4,6 +4,7 @@ import {
   choosePreviewedOutput,
   droppingLinksOf,
   exposedOutputAddress,
+  isEachNodeStateShown,
   presentExposureLevel,
   presentStreamSteps,
   previewableOutputsOf,
@@ -39,7 +40,7 @@ describe("presentExposureLevel", () => {
       "Public",
       "On the mesh",
     ]);
-    expect(presentExposureLevel("on_the_mesh")).toEqual({ label: "On the mesh", meaning: null, icon: null });
+    expect(presentExposureLevel("on_the_mesh")).toEqual({ label: "On the mesh", meaning: null });
   });
 });
 
@@ -138,6 +139,15 @@ describe("presentStreamSteps", () => {
   });
 });
 
+describe("isEachNodeStateShown", () => {
+  it("shows the nodes' states only once they differ or one is in error", () => {
+    expect(isEachNodeStateShown(presentStreamSteps(TEST_PATTERN_GRAPH, [], "loaded", true))).toBe(false);
+    expect(isEachNodeStateShown(presentStreamSteps(DROPPING_GRAPH, PIPELINE_ORDER, "loaded", true))).toBe(true);
+    expect(isEachNodeStateShown([{ stateWord: "In error", stateEmphasis: "failure" }])).toBe(true);
+    expect(isEachNodeStateShown([])).toBe(false);
+  });
+});
+
 describe("droppingLinksOf", () => {
   it("names each link whose target dropped messages, most first, and none when nothing dropped", () => {
     expect(droppingLinksOf(DROPPING_GRAPH)).toEqual([
@@ -164,7 +174,9 @@ describe("droppingLinksOf", () => {
 });
 
 describe("previewable outputs", () => {
-  it("lists the private and public outputs, never an internal one, and previews the first unless another is chosen", () => {
+  it("lists the private and public outputs, never an internal one even with a preview page, and previews the first unless another is chosen", () => {
+    const graphWithAnInternalPreviewPage = { ...DROPPING_GRAPH, exposed: DROPPING_GRAPH.exposed.map((output) => ({ ...output, watch_page_url: "http://127.0.0.1:4446/watch/x" })) };
+    expect(previewableOutputsOf(graphWithAnInternalPreviewPage).map((output) => output.port)).toEqual(["encoded_video", "levels"]);
     expect(previewableOutputsOf(DROPPING_GRAPH).map((output) => output.port)).toEqual(["encoded_video", "levels"]);
     expect(choosePreviewedOutput(DROPPING_GRAPH, null)?.port).toBe("encoded_video");
     expect(choosePreviewedOutput(DROPPING_GRAPH, { node: "brightnessmeter", port: "levels" })?.port).toBe("levels");

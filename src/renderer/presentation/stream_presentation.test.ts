@@ -7,6 +7,7 @@ import {
   presentStreamPrimaryAction,
   presentStreamState,
   presentStreamStateAfterAStopNotRecorded,
+  presentStreamStateAfterTheLastAction,
   streamActionPendingWords,
   streamActionRefusalLead,
   streamNotLoadedReason,
@@ -32,10 +33,19 @@ describe("presentStreamState", () => {
     expect(presentStreamState(failed).meaning).toBe("camera access is denied");
   });
 
-  it("labels a state newer than this app plainly instead of failing", () => {
+  it("tones a stream's icon running only while loaded, failed once failed, and idle otherwise", () => {
+    expect(
+      [listedStream("a", "kept", 4), listedStream("b", "attached", 2), listedStream("c", "kept", null), listedStream("d", "stopped", null), listedStream("e", "failed", null)].map(
+        (stream) => presentStreamState(stream).iconTone,
+      ),
+    ).toEqual(["running", "running", "idle", "idle", "failed"]);
+  });
+
+  it("labels a state newer than this app plainly instead of failing, its icon never toned as running", () => {
     expect(presentStreamState(listedStream("main", "awaiting_restart", 2))).toMatchObject({
       label: "Awaiting restart",
       emphasis: "plain",
+      iconTone: "idle",
     });
     expect(presentStreamState(listedStream("main", "", null)).label).toBe("Unknown");
   });
@@ -46,6 +56,13 @@ describe("presentStreamStateAfterAStopNotRecorded", () => {
     expect(presentStreamStateAfterAStopNotRecorded(listedStream("camera", "kept", null))).toMatchObject({ label: "Stopped", emphasis: "quiet" });
     expect(presentStreamStateAfterAStopNotRecorded(listedStream("camera", "kept", 4))).toMatchObject({ label: "Running" });
     expect(presentStreamStateAfterAStopNotRecorded(listedStream("camera", "stopped", null))).toMatchObject({ label: "Stopped" });
+  });
+});
+
+describe("presentStreamStateAfterTheLastAction", () => {
+  it("reads the listing's state, or Stopped once the last action was a stop the runtime could not record", () => {
+    expect(presentStreamStateAfterTheLastAction(listedStream("camera", "kept", null), false).label).toBe("Starting");
+    expect(presentStreamStateAfterTheLastAction(listedStream("camera", "kept", null), true).label).toBe("Stopped");
   });
 });
 

@@ -31,13 +31,13 @@ export interface AddStreamForm {
   workUnderWay: AddStreamWorkUnderWay | null;
 }
 
-/** The Add stream page: the form, a run compiling since `startedAtMs` (the app setting up the folder's Python first when it had none), or the stream running. */
+/** The add-stream dialog: the form, a run compiling since `startedAtMs` (the app setting up the folder's Python first when it had none), or the stream running. */
 export type AddStreamFlowState =
   | { step: "form"; form: AddStreamForm }
   | { step: "compiling"; form: AddStreamForm; request: AddStreamRunRequest; startedAtMs: number; makesThePythonEnvironmentFirst: boolean }
   | { step: "running"; form: AddStreamForm; request: AddStreamRunRequest; answer: StreamRunAnswer };
 
-/** What happened on the page, from the person or from the backend's answer. */
+/** What happened in the dialog, from the person or from the backend's answer. */
 export type AddStreamFlowEvent =
   | { kind: "source_chosen"; source: AddStreamSource }
   | { kind: "work_started"; work: AddStreamWorkUnderWay }
@@ -68,7 +68,7 @@ export function emptyAddStreamForm(source: AddStreamSource): AddStreamForm {
   };
 }
 
-/** The page as it first shows for `source`. */
+/** The dialog as it first shows for `source`. */
 export function initialAddStreamFlowState(source: AddStreamSource): AddStreamFlowState {
   return { step: "form", form: emptyAddStreamForm(source) };
 }
@@ -111,7 +111,7 @@ function streamFunctionsChoiceAfter(previous: StreamProjectFolderReport | null, 
   return { chosenStreamFunction: firstStreamFunction, streamName: isTheSameFolder && form.streamName !== "" ? form.streamName : (firstStreamFunction ?? "") };
 }
 
-/** The page after `event`. An event of the form changes only the form step: one that arrives while a run compiles or once it runs is about a form no longer shown. */
+/** The dialog after `event`. An event of the form changes only the form step: one that arrives while a run compiles or once it runs is about a form no longer shown. */
 export function advanceAddStreamFlow(state: AddStreamFlowState, event: AddStreamFlowEvent): AddStreamFlowState {
   const form = state.form;
   switch (event.kind) {
@@ -187,7 +187,7 @@ function advanceTheForm(state: AddStreamFlowState, event: AddStreamFlowEvent): A
   }
 }
 
-/** The page's one action: Create, for a new project `tatolab new` has not written yet, which writes it and then adds it; Add, for a folder that holds a project. */
+/** The dialog's one action: Create, for a new project `tatolab new` has not written yet, which writes it and then adds it; Add, for a folder that holds a project. */
 export type AddStreamAction = "create" | "add";
 
 /** Each action's button label. */
@@ -246,9 +246,9 @@ export function streamRunningSummary(answer: StreamRunAnswer): string {
   return `${replaced}It compiled cleanly.`;
 }
 
-/** How many steps a stream has, in words. */
-export function stepCountWords(stepCount: number): string {
-  return `${stepCount} ${stepCount === 1 ? "node" : "nodes"}`;
+/** How many nodes a stream has, in words. */
+export function nodeCountWords(nodeCount: number): string {
+  return `${nodeCount} ${nodeCount === 1 ? "node" : "nodes"}`;
 }
 
 /** One row of a folder's check: a `@stream` function found in its `stream.py`, or `stream.py` itself when it holds none or is missing. */
@@ -275,7 +275,7 @@ export const ADDING_THE_STREAM_REFUSED_LEAD = "Adding the stream was refused:";
 /** The lead of the app's uv failing to set up a folder's Python, before uv's own words. */
 export const PYTHON_ENVIRONMENT_NOT_MADE_LEAD = "Tatolab couldn't set up the project's Python:";
 
-/** The title a run's refusal gets in the notice of a run that answered away from the page, by the lead it was given. */
+/** The title a run's refusal gets in the notice of a run that answered away from the dialog, by the lead it was given. */
 const RUN_REFUSAL_NOTICE_TITLES: Record<string, string> = {
   [ADDING_THE_STREAM_REFUSED_LEAD]: "Adding the stream was refused",
   [PYTHON_ENVIRONMENT_NOT_MADE_LEAD]: "Tatolab couldn't set up the project's Python",
@@ -327,31 +327,31 @@ export function compilingStreamWords(request: AddStreamRunRequest): string {
   return request.streamName ?? "the stream";
 }
 
-/** The facts beside a running stream's name: its steps. */
+/** The facts beside a running stream's name: its nodes. */
 export function streamRunningFactsWords(answer: StreamRunAnswer): string {
-  return stepCountWords(answer.node_count);
+  return nodeCountWords(answer.node_count);
 }
 
 /** What the compile output says the runtime did, after the request and its warnings: the load, and that it is kept. */
 export function streamRunAnswerLines(answer: StreamRunAnswer): readonly string[] {
   const replaced = answer.replaced_the_kept_record ? ", in place of the stream this project kept" : "";
   return [
-    `loaded ${answer.stream}: ${stepCountWords(answer.node_count)}${replaced}`,
+    `loaded ${answer.stream}: ${nodeCountWords(answer.node_count)}${replaced}`,
     `${answer.stream} is running; kept, so it loads again whenever the runtime starts`,
   ];
 }
 
 /**
- * Which part of the page shows: a step, and within the form its source and what the folder to run holds. Focus moves to
+ * Which part of the dialog shows: a step, and within the form its source and what the folder to run holds. Focus moves to
  * the part's heading when it changes and the control that held focus is gone.
  */
-export function addStreamPageSection(state: AddStreamFlowState): string {
+export function addStreamDialogSection(state: AddStreamFlowState): string {
   const folder = folderToRun(state.form);
   return [state.step, state.form.source, state.form.hasCreatedTheNewProject ? "created" : "", folder === null ? "no_folder" : "folder"].join(":");
 }
 
 /**
- * What the page's status line says, for a screen reader, of a milestone a focus move alone does not say: a folder ready
+ * What the dialog's status line says, for a screen reader, of a milestone a focus move alone does not say: a folder ready
  * to compile only while Add can be pressed. Refusals speak through their own alert.
  */
 export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string {
@@ -368,12 +368,12 @@ export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntim
   }
 }
 
-/** What a run that landed while the Add stream page was not shown came to, for the notice that says so. */
+/** What a run that landed while the add-stream dialog was not shown came to, for the notice that says so. */
 export type AddStreamRunNotice =
   | { kind: "running"; source: AddStreamSource; answer: StreamRunAnswer }
   | { kind: "refused"; source: AddStreamSource; title: string; words: string };
 
-/** The notice for the page as a run's answer left it: the stream running, or the refusal, titled by what refused it, in its refuser's own words; `null` for a page no run left. */
+/** The notice for the dialog as a run's answer left it: the stream running, or the refusal, titled by what refused it, in its refuser's own words; `null` for a dialog no run left. */
 export function addStreamRunNoticeOf(state: AddStreamFlowState): AddStreamRunNotice | null {
   const source = state.form.source;
   if (state.step === "running") return { kind: "running", source, answer: state.answer };

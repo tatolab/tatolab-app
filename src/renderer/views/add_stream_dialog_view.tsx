@@ -4,12 +4,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import type { PythonForNewEnvironments, StreamGraphExposedPort, StreamProjectFolderReport, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
-import { FormDialog, FormDialogRow, FormDialogRows } from "../design_system/form_dialog";
+import { FormDialog, FormDialogFooter, FormDialogRow, FormDialogRows } from "../design_system/form_dialog";
 import { FieldMenu, MenuSingleChoiceGroup } from "../design_system/menus";
 import { RefusalLine } from "../design_system/refusal_line";
 import { TextField } from "../design_system/text_field";
 import {
-  addStreamPageSection,
+  addStreamDialogSection,
   addStreamStepAnnouncement,
   ADD_STREAM_ACTION_LABELS,
   addStreamActionOf,
@@ -380,11 +380,6 @@ function NewProjectForm({
   );
 }
 
-/** The bar under the dialog's body: its actions for the step it is on. */
-function AddStreamFooter({ children }: { children: ReactNode }) {
-  return <footer className="flex min-h-14 shrink-0 items-center gap-3 border-t px-6 py-3">{children}</footer>;
-}
-
 /** New project or Import project, over the window while the flow's dialog is open: run a project folder kept, or create one with `tatolab new` and run it, the app setting up its Python first. */
 export function AddStreamDialogView() {
   const { addStreamFlow } = useTatolabWindowEnvironment();
@@ -400,7 +395,7 @@ export function AddStreamDialogView() {
       description={ADD_STREAM_DIALOG_WORDS[openDialog?.source ?? "project_folder"].description}
       icon={openDialog !== null && flowState.step === "form" ? ADD_STREAM_DIALOG_WORDS[openDialog.source].icon : undefined}
       footer={openDialog !== null && <AddStreamDialogFooter />}
-      data-add-stream-page={openDialog?.source}
+      data-add-stream-dialog={openDialog?.source}
     >
       {openDialog !== null && <AddStreamDialogBody source={openDialog.source} />}
     </FormDialog>
@@ -426,19 +421,19 @@ function AddStreamDialogBody({ source }: { source: AddStreamSource }) {
     if (needsANewProjectProposal) addStreamFlow.proposeNewProjectFolder();
   }, [addStreamFlow, needsANewProjectProposal]);
 
-  const pageContent = useRef<HTMLDivElement>(null);
-  const pageSection = addStreamPageSection(flowState);
-  const pageSectionShownBefore = useRef({ pageSection, step: flowState.step });
+  const dialogContent = useRef<HTMLDivElement>(null);
+  const dialogSection = addStreamDialogSection(flowState);
+  const dialogSectionShownBefore = useRef({ dialogSection, step: flowState.step });
   useEffect(() => {
-    const shownBefore = pageSectionShownBefore.current;
-    if (shownBefore.pageSection === pageSection) return;
-    pageSectionShownBefore.current = { pageSection, step: flowState.step };
+    const shownBefore = dialogSectionShownBefore.current;
+    if (shownBefore.dialogSection === dialogSection) return;
+    dialogSectionShownBefore.current = { dialogSection, step: flowState.step };
     const focusWasLost = document.activeElement === null || document.activeElement === document.body;
-    if (shownBefore.step !== flowState.step || focusWasLost) pageContent.current?.querySelector<HTMLElement>("[data-add-stream-step-heading]")?.focus();
-  }, [pageSection, flowState.step]);
+    if (shownBefore.step !== flowState.step || focusWasLost) dialogContent.current?.querySelector<HTMLElement>("[data-add-stream-step-heading]")?.focus();
+  }, [dialogSection, flowState.step]);
 
   return (
-    <div ref={pageContent}>
+    <div ref={dialogContent}>
       <p role="status" className="sr-only">
         {addStreamStepAnnouncement(flowState, isTheRuntimeRunning, status.python_for_new_environments)}
       </p>
@@ -496,7 +491,7 @@ function AddStreamDialogFooter() {
     void navigate(streamPagePath(streamName, tab));
   };
   return (
-    <AddStreamFooter>
+    <FormDialogFooter>
       {flowState.step === "form" && (
         <>
           <div className="flex-1" />
@@ -534,7 +529,7 @@ function AddStreamDialogFooter() {
           </div>
         </>
       )}
-    </AddStreamFooter>
+    </FormDialogFooter>
   );
 }
 

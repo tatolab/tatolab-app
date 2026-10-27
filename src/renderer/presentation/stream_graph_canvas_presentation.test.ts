@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 import {
+  dataKindOfEachOutputPort,
   outputPreviewAbsenceWords,
   streamGraphLinkLabelClauses,
   presentStreamGraphCanvas,
@@ -146,6 +147,16 @@ describe("presentStreamGraphCanvas", () => {
     const graph = { ...FRONT_DOOR_GRAPH, nodes: FRONT_DOOR_GRAPH.nodes.map((node) => (node.name === "h264encoder" ? { ...node, state: "Error" } : node)) };
 
     expect(stepOf(graph, "h264encoder")).toMatchObject({ stateWord: "In error", stateEmphasis: "failure" });
+  });
+});
+
+describe("dataKindOfEachOutputPort", () => {
+  it("keys each output port's data kind by node and port, as its card draws it", () => {
+    expect([...dataKindOfEachOutputPort(FRONT_DOOR_GRAPH)]).toEqual([
+      ["testpatternsource/video", "data"],
+      ["halftonelenseffect/video_to_downstream", "data"],
+      ["h264encoder/encoded_video", "video"],
+    ]);
   });
 });
 

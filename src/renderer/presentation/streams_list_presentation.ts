@@ -41,6 +41,8 @@ export interface StreamProjectFolder {
   projectDirectory: string;
   folderName: string;
   streams: readonly ListedStream[];
+  /** Whether a stream added from it failed, which its row says while it is closed. */
+  holdsAFailedStream: boolean;
 }
 
 function lastPathSegments(absolutePath: string, segmentCount: number): string {
@@ -66,10 +68,12 @@ export function streamProjectFoldersOf(streams: readonly ListedStream[]): Stream
   }
   return directories.map((directory) => {
     const name = lastPathSegments(directory, 1);
+    const streamsOfThisDirectory = streamsOfEachDirectory.get(directory) ?? [];
     return {
       projectDirectory: directory,
       folderName: (directoryCountOfEachName.get(name) ?? 0) > 1 ? lastPathSegments(directory, 2) : name,
-      streams: streamsOfEachDirectory.get(directory) ?? [],
+      streams: streamsOfThisDirectory,
+      holdsAFailedStream: streamsOfThisDirectory.some((stream) => stream.state === "failed"),
     };
   });
 }

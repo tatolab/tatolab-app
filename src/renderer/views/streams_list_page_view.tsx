@@ -17,11 +17,9 @@ import { presentPlatform, windowDragRegionAttribute } from "../presentation/plat
 import {
   abbreviateHomeDirectory,
   presentStreamPrimaryAction,
-  presentStreamState,
-  presentStreamStateAfterAStopNotRecorded,
+  presentStreamStateAfterTheLastAction,
   streamActionPendingWords,
   type StreamPrimaryActionPresentation,
-  type StreamStatePresentation,
 } from "../presentation/stream_presentation";
 import {
   STREAMS_LIST_FILTERS,
@@ -79,11 +77,6 @@ function StreamRowActions({
   );
 }
 
-/** The state a row's name says to a screen reader and its tooltip: the listing's, or a stop the runtime could not record. */
-function presentStreamStateAfterTheLastAction(stream: ListedStream, outcome: StreamActionOutcomeWords | undefined): StreamStatePresentation {
-  return outcome?.kind === "notice" ? presentStreamStateAfterAStopNotRecorded(stream) : presentStreamState(stream);
-}
-
 function StreamsListRow({
   stream,
   actionUnderWay,
@@ -113,8 +106,8 @@ function StreamsListRow({
         <Link
           to={streamPagePath(stream.name)}
           onClick={(clickEvent) => clickEvent.stopPropagation()}
-          aria-label={`${stream.name}, ${presentStreamStateAfterTheLastAction(stream, outcome).label}`}
-          title={presentStreamStateAfterTheLastAction(stream, outcome).meaning}
+          aria-label={`${stream.name}, ${presentStreamStateAfterTheLastAction(stream, outcome?.kind === "notice").label}`}
+          title={presentStreamStateAfterTheLastAction(stream, outcome?.kind === "notice").meaning}
           className="min-w-0 shrink truncate rounded-sm text-fg"
         >
           {stream.name}

@@ -74,7 +74,7 @@ export function FieldMenu({
   children,
   ...controlDataAttributes
 }: {
-  /** The field's accessible name, saying what is chosen now, as "Steps shown: All steps". */
+  /** The field's accessible name, saying what is chosen now, as "Function: camera_stream". */
   label: string;
   /** An icon or a quiet word before the chosen words. */
   leading?: ReactNode;

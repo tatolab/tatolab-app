@@ -63,6 +63,11 @@ export function FormDialog({
   );
 }
 
+/** A form dialog's footer: only its actions, in a row under a hairline. */
+export function FormDialogFooter({ children }: { children: ReactNode }) {
+  return <footer className="flex min-h-14 shrink-0 items-center gap-3 border-t px-6 py-3">{children}</footer>;
+}
+
 /** A form dialog's rows, hairlines between them, each a label on the left and its value or control on the right. */
 export function FormDialogRows({ children }: { children: ReactNode }) {
   return <div className="divide-y border-y">{children}</div>;

@@ -1,8 +1,6 @@
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Separator } from "@/components/ui/separator";
-import type { ControlDataAttributes } from "./control_data_attributes";
-import { WithControlTooltip } from "./control_tooltip";
 
 /** A tab's toolbar under its header: its controls in groups on one line, wrapping onto a second in a narrow window rather than cutting a control short. */
 export function Toolbar({ label, children }: { label: string; children: ReactNode }) {
@@ -25,30 +23,4 @@ export function ToolbarGroup({ isAtTheEnd = false, children }: { isAtTheEnd?: bo
 /** A hairline between two groups of a toolbar's buttons. */
 export function ToolbarDivider() {
   return <Separator orientation="vertical" className="mx-1 data-vertical:h-4 data-vertical:self-center" />;
-}
-
-/**
- * Quiet words in a toolbar, as a count of the lines shown, with what they mean in a tooltip when there is more to say;
- * words that only add to what the toolbar shows elsewhere leave the view while it is narrower than 960 px, and stay
- * read by a screen reader.
- */
-export function ToolbarWords({
-  explanation,
-  isDroppedWhenNarrow = false,
-  children,
-  ...controlDataAttributes
-}: { explanation?: ReactNode; isDroppedWhenNarrow?: boolean; children: ReactNode } & ControlDataAttributes) {
-  return (
-    <WithControlTooltip
-      tooltip={explanation}
-      control={
-        <span
-          className={cn("mr-2 cursor-default text-xs whitespace-nowrap text-fg-3 tabular", isDroppedWhenNarrow && "@max-[960px]:sr-only")}
-          {...controlDataAttributes}
-        >
-          {children}
-        </span>
-      }
-    />
-  );
 }

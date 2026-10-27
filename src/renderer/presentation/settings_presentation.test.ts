@@ -14,6 +14,7 @@ import {
   presentStreamFailureNotifications,
   presentUsrLocalBinLink,
   restartRuntimeUnavailableBecause,
+  settingsSectionLabel,
   settingsSectionNamed,
   settingsSectionPath,
 } from "./settings_presentation";
@@ -61,6 +62,11 @@ describe("Settings' sections", () => {
     expect(settingsSectionNamed(undefined)).toBe("general");
     expect(settingsSectionNamed("permissions")).toBe("general");
     expect(settingsSectionPath("about")).toBe("/settings/about");
+  });
+
+  it("titles a section with the words its list names it by", () => {
+    expect(settingsSectionLabel("command-line")).toBe("Command line");
+    expect(settingsSectionLabel("general")).toBe("General");
   });
 });
 

@@ -189,6 +189,13 @@ export function presentStreamGraphCanvas(graph: StreamGraphSummary): StreamGraph
   };
 }
 
+/** The data kind of each output port of `graph`, keyed `node/port`, as its card draws it. */
+export function dataKindOfEachOutputPort(graph: StreamGraphSummary): Map<string, StreamGraphPortDataKind> {
+  const dataKinds = new Map<string, StreamGraphPortDataKind>();
+  for (const step of presentStreamGraphCanvas(graph).steps) for (const output of step.outputPorts) dataKinds.set(`${step.name}/${output.name}`, output.dataKind);
+  return dataKinds;
+}
+
 /** How a link's line reads: red when the runtime reports it failed, amber with its count when it dropped messages and counters show, blue when it touches the selected step, otherwise neutral. */
 export type StreamGraphLinkTone = "failed" | "dropping" | "selected" | "neutral";
 

@@ -14,7 +14,6 @@ export interface PlatformPresentation {
   showsLoginItems: boolean;
   /** The key the window's shortcuts are held with. */
   windowShortcutModifier: "meta" | "control";
-  thisMachineAtSentenceStart: string;
   thisMachineMidSentence: string;
   runTatolabExplanation: string;
   quitTatolabExplanation: string;
@@ -28,7 +27,6 @@ const PLATFORM_PRESENTATIONS: Record<TatolabPlatform, PlatformPresentation> = {
     hasOverlayTitleBar: true,
     showsLoginItems: true,
     windowShortcutModifier: "meta",
-    thisMachineAtSentenceStart: "This Mac",
     thisMachineMidSentence: "this Mac",
     runTatolabExplanation: "Starts Tatolab at login and keeps the runtime running. Turning it off stops the runtime.",
     quitTatolabExplanation: "Closes this app and its menu bar icon. The runtime and your streams keep running.",
@@ -39,7 +37,6 @@ const PLATFORM_PRESENTATIONS: Record<TatolabPlatform, PlatformPresentation> = {
     hasOverlayTitleBar: false,
     showsLoginItems: false,
     windowShortcutModifier: "control",
-    thisMachineAtSentenceStart: "This computer",
     thisMachineMidSentence: "this computer",
     runTatolabExplanation:
       "Runs tatolabd.service, your systemd user service, at login and keeps the runtime running. Turning it off stops the runtime.",

@@ -3,10 +3,14 @@ import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab
 /** How strongly a stream's state word reads: plain, with a spinner while it loads, dimmed while stopped, or red with an alert icon when failed. */
 export type StreamStateEmphasis = "plain" | "starting" | "quiet" | "failure";
 
-/** How a stream's row and title show its state: a word, its emphasis, and what the word means. */
+/** The colour a stream's icon takes: running, failed, or neither (stopped, starting, or a state newer than this app). */
+export type StreamStateIconTone = "running" | "failed" | "idle";
+
+/** How a stream's row and title show its state: a word, its emphasis, its icon's tone, and what the word means. */
 export interface StreamStatePresentation {
   label: string;
   emphasis: StreamStateEmphasis;
+  iconTone: StreamStateIconTone;
   /** The tooltip on the word; a failed stream's is the runtime's whole reason. */
   meaning: string;
 }
@@ -31,15 +35,15 @@ export function presentStreamState(stream: ListedStream): StreamStatePresentatio
     case "attached":
     case "kept":
       return isStreamLoaded(stream)
-        ? { label: "Running", emphasis: "plain", meaning: "Running: its graph is loaded in the runtime." }
-        : { label: "Starting", emphasis: "starting", meaning: "Starting: the runtime is loading its graph." };
+        ? { label: "Running", emphasis: "plain", iconTone: "running", meaning: "Running: its graph is loaded in the runtime." }
+        : { label: "Starting", emphasis: "starting", iconTone: "idle", meaning: "Starting: the runtime is loading its graph." };
     case "stopped":
-      return { label: "Stopped", emphasis: "quiet", meaning: "Stopped: remembered, not loaded. Start loads it again." };
+      return { label: "Stopped", emphasis: "quiet", iconTone: "idle", meaning: "Stopped: remembered, not loaded. Start loads it again." };
     case "failed":
-      return { label: "Failed", emphasis: "failure", meaning: stream.failed_because ?? "Failed at its last start." };
+      return { label: "Failed", emphasis: "failure", iconTone: "failed", meaning: stream.failed_because ?? "Failed at its last start." };
     default: {
       const label = labelUnknownStreamState(stream.state);
-      return { label, emphasis: "plain", meaning: `${label}: this version of Tatolab doesn't know this state yet.` };
+      return { label, emphasis: "plain", iconTone: "idle", meaning: `${label}: this version of Tatolab doesn't know this state yet.` };
     }
   }
 }
@@ -50,7 +54,12 @@ export function presentStreamState(stream: ListedStream): StreamStatePresentatio
  */
 export function presentStreamStateAfterAStopNotRecorded(stream: ListedStream): StreamStatePresentation {
   if (stream.state !== "kept" || isStreamLoaded(stream)) return presentStreamState(stream);
-  return { label: "Stopped", emphasis: "quiet", meaning: "Stopped: unloaded, but not recorded stopped, so the runtime loads it again when it restarts." };
+  return { label: "Stopped", emphasis: "quiet", iconTone: "idle", meaning: "Stopped: unloaded, but not recorded stopped, so the runtime loads it again when it restarts." };
+}
+
+/** A stream's state as its row says it after the last action on it: the listing's, or Stopped once a stop could not be recorded. */
+export function presentStreamStateAfterTheLastAction(stream: ListedStream, wasTheLastActionAStopNotRecorded: boolean): StreamStatePresentation {
+  return wasTheLastActionAStopNotRecorded ? presentStreamStateAfterAStopNotRecorded(stream) : presentStreamState(stream);
 }
 
 /** The one action a stream's row leads with: what it asks of the runtime, its word, and what it does. */

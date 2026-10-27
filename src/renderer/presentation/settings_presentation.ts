@@ -39,6 +39,12 @@ export function settingsSectionNamed(sectionInThePath: string | undefined): Sett
   return named?.section ?? "general";
 }
 
+/** The words Settings' list names `section` by. */
+export function settingsSectionLabel(section: SettingsSection): string {
+  const named = SETTINGS_SECTION_GROUPS.flatMap((sectionGroup) => sectionGroup.sections).find((listedSection) => listedSection.section === section);
+  return named?.label ?? "Settings";
+}
+
 /** The path that shows `section` of Settings. */
 export function settingsSectionPath(section: SettingsSection): string {
   return `/settings/${section}`;

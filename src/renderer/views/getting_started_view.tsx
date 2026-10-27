@@ -108,7 +108,7 @@ export function GettingStartedView() {
   };
   return (
     <div className="flex h-screen flex-col bg-window text-fg">
-      <div className="h-(--title-bar-height) shrink-0" data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined} />
+      <div className="h-(--page-bar-height) shrink-0" data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined} />
       <main className="scrollbar-thin flex min-h-0 flex-1 overflow-y-auto">
         <div className={screen === "welcome" ? "m-auto w-[560px] max-w-full px-8 py-10" : "mx-auto w-[560px] max-w-full px-8 pt-[8vh] pb-10"}>
           {screen === "welcome" ? <WelcomeScreen /> : <GettingSetUpScreen steps={gettingStarted.steps} />}

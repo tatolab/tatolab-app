@@ -33,6 +33,7 @@ import {
   restartRuntimeUnavailableBecause,
   RUNTIME_LICENCE,
   SETTINGS_SECTION_GROUPS,
+  settingsSectionLabel,
   settingsSectionNamed,
   settingsSectionPath,
   TATOLAB_MCP_COMMAND,
@@ -534,10 +535,9 @@ export function SettingsPageView() {
   const shownSection = settingsSectionNamed(settingsSection);
   if (settingsSection !== shownSection) return <Navigate to={settingsSectionPath(shownSection)} replace />;
   const ShownSectionView = SECTION_VIEWS[shownSection];
-  const shownSectionLabel = SETTINGS_SECTION_GROUPS.flatMap(({ sections }) => sections).find(({ section }) => section === shownSection)?.label ?? "Settings";
   return (
     <PageFrame
-      header={<PageHeader breadcrumb={{ parentLabel: "Settings", parentPath: "/settings" }} title={shownSectionLabel} windowDragRegion={windowDragRegionAttribute(platform, "deep")} />}
+      header={<PageHeader breadcrumb={{ parentLabel: "Settings" }} title={settingsSectionLabel(shownSection)} windowDragRegion={windowDragRegionAttribute(platform, "deep")} />}
       data-settings-page={shownSection}
     >
       <div className="flex min-h-0 flex-1">

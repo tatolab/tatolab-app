@@ -139,6 +139,7 @@ describe("the Streams list", () => {
     expect(document.querySelector("[data-streams-list-page]")).toBeNull();
     expect(document.querySelector("[data-hosted-dom-page] .streams-page")).not.toBeNull();
     expect(screen.getByRole("heading", { level: 1, name: "Streams" })).toBeTruthy();
+    expect(document.querySelector("[data-hosted-dom-page] [role='status']")?.textContent).toBe("Tatolab is off");
   });
 });
 
@@ -908,6 +909,29 @@ async function openSettingsOn(section: string): Promise<void> {
 function settingsRow(rowName: string): HTMLElement {
   return document.querySelector<HTMLElement>(`[data-settings-row="${rowName}"]`) ?? expect.unreachable(`no ${rowName} row`);
 }
+
+describe("the sidebar's project folders", () => {
+  it("closes a folder to hide its streams, saying when it holds a failed one, and opens it again", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const sidebar = within(screen.getByRole("navigation", { name: "Tatolab" }));
+    const folderRow =
+      [...document.querySelectorAll<HTMLElement>("[data-sidebar-project-folder]")].find((row) => row.parentElement?.textContent?.includes("lobby-recorder")) ??
+      expect.unreachable("no folder holds lobby-recorder");
+    expect(folderRow.getAttribute("aria-expanded")).toBe("true");
+    expect(folderRow.textContent).not.toContain("holds a failed stream");
+
+    fireEvent.click(folderRow);
+
+    expect(folderRow.getAttribute("aria-expanded")).toBe("false");
+    expect(sidebar.queryByRole("link", { name: "lobby-recorder, Failed" })).toBeNull();
+    expect(folderRow.textContent).toContain(", holds a failed stream");
+    expect(sidebar.getByRole("link", { name: "camera, Running" })).toBeTruthy();
+
+    fireEvent.click(folderRow);
+
+    expect(sidebar.getByRole("link", { name: "lobby-recorder, Failed" })).toBeTruthy();
+  });
+});
 
 describe("Settings", () => {
   it("opens on General, listing every section under its group beside it and leaving the sidebar as it was", async () => {

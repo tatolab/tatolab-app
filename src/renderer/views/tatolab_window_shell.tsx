@@ -86,19 +86,18 @@ const SIDEBAR_ICON_CLASS_NAMES = "size-4 shrink-0 text-fg-3";
 /** A project folder's row, opening and closing the list of the streams added from it; a closed folder holding a failed stream says so. */
 function StreamProjectFolderSidebarRows({ projectFolder }: { projectFolder: StreamProjectFolder }) {
   const [isOpen, setIsOpen] = useState(true);
-  const holdsAFailedStream = projectFolder.streams.some((stream) => stream.state === "failed");
   return (
     <li>
       <ListRowButton
         icon={isOpen ? FolderOpen : Folder}
-        iconTone={!isOpen && holdsAFailedStream ? "danger" : "quiet"}
+        iconTone={!isOpen && projectFolder.holdsAFailedStream ? "danger" : "quiet"}
         aria-expanded={isOpen}
         onPressed={() => setIsOpen((wasOpen) => !wasOpen)}
         className="h-8 text-fg"
         data-sidebar-project-folder={projectFolder.projectDirectory}
       >
         <span className="min-w-0 flex-1 truncate">{projectFolder.folderName}</span>
-        {!isOpen && holdsAFailedStream && <span className="sr-only">, holds a failed stream</span>}
+        {!isOpen && projectFolder.holdsAFailedStream && <span className="sr-only">, holds a failed stream</span>}
       </ListRowButton>
       {isOpen && (
         <ul aria-label={`Streams added from ${projectFolder.folderName}`} className="mt-0.5 flex flex-col gap-0.5">
@@ -228,7 +227,7 @@ function StreamRoute() {
   return <StreamPageView key={stream.name} stream={stream} shownTab={shownTab} />;
 }
 
-/** The window's routes, in its memory router: the Streams list, a stream, Settings on one of its sections, and adding a stream from a project folder or a new project. */
+/** The window's routes, in its memory router: the Streams list, a stream on one of its tabs, and Settings on one of its sections. */
 export const TATOLAB_WINDOW_ROUTES: RouteObject[] = [
   {
     element: <TatolabWindowShell />,

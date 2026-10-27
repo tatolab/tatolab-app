@@ -67,7 +67,7 @@
 }
 
 :root {
-  --title-bar-height: 44px;
+  --page-bar-height: 44px;
   --sidebar-width: 256px;
   --page-x: 24px;
   --page-top: 20px;

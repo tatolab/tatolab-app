@@ -6,10 +6,12 @@ import type { ListedStream, StreamGraphExposedPort } from "../../shared/tatolab_
 import {
   droppingLinksOf,
   exposedOutputAddress,
+  isEachNodeStateShown,
   presentStreamSteps,
+  previewableOutputsOf,
   readableExposedPorts,
 } from "../presentation/stream_overview_presentation";
-import { presentStreamGraphCanvas, type StreamGraphPortDataKind } from "../presentation/stream_graph_canvas_presentation";
+import { dataKindOfEachOutputPort, presentStreamGraphCanvas, type StreamGraphPortDataKind } from "../presentation/stream_graph_canvas_presentation";
 import { stepNamesInFlowOrder } from "../presentation/stream_graph_step_layout";
 import { abbreviateHomeDirectory, isStreamLoaded, presentStreamPrimaryAction, streamNotLoadedReason } from "../presentation/stream_presentation";
 import type { StreamGraphReading } from "../stream_graph_readings";
@@ -150,7 +152,7 @@ function StreamOutputPreviews({
       />
     );
   }
-  const previewableOutputs = readableExposedPorts(reading.graph).filter((output) => output.watch_page_url !== null);
+  const previewableOutputs = previewableOutputsOf(reading.graph);
   if (previewableOutputs.length === 0) {
     return (
       <NothingToPreview
@@ -185,7 +187,7 @@ function StreamNodeRows({ stream, reading }: { stream: ListedStream; reading: St
   const isLoaded = isStreamLoaded(stream);
   if (graph === null) return <p className="py-1.5 text-xs text-fg-3">{isLoaded ? "Its nodes show once its graph is read." : "Its nodes show here once it is loaded."}</p>;
   const nodes = presentStreamSteps(graph, nodeNamesInPipelineOrder, reading.graphSource, isLoaded);
-  const isEachNodesStateShown = nodes.some((node) => node.stateWord !== nodes[0]?.stateWord || node.stateEmphasis === "failure");
+  const isEachNodesStateShown = isEachNodeStateShown(nodes);
   return (
     <ul className="flex flex-col" data-stream-steps="">
       {nodes.map((node) => (
@@ -215,11 +217,7 @@ function StreamDetailsSidePanel({ stream, reading }: { stream: ListedStream; rea
   const graph = reading.graph;
   const readableOutputs = graph === null ? [] : readableExposedPorts(graph);
   const isFromTheLastLoad = graph !== null && reading.graphSource !== "loaded";
-  const dataKindOfEachOutput = useMemo(() => {
-    const dataKinds = new Map<string, StreamGraphPortDataKind>();
-    if (graph !== null) for (const step of presentStreamGraphCanvas(graph).steps) for (const output of step.outputPorts) dataKinds.set(`${step.name}/${output.name}`, output.dataKind);
-    return dataKinds;
-  }, [graph]);
+  const dataKindOfEachOutput = useMemo(() => (graph === null ? new Map<string, StreamGraphPortDataKind>() : dataKindOfEachOutputPort(graph)), [graph]);
   return (
     <SidePanel label={`${stream.name} details`} title="Details" hiding={null} data-stream-details="">
       <PanelSection appearance="card" icon={FolderOpen} title="Project">
@@ -252,7 +250,7 @@ function StreamDetailsSidePanel({ stream, reading }: { stream: ListedStream; rea
                   trailing={<PublicExposureTag level={output.level} />}
                   detail={
                     output.watch_page_url === null ? undefined : (
-                      <span className="font-mono text-[11px] select-text" title={output.watch_page_url} data-stream-output-preview-link="">
+                      <span className="font-mono text-2xs select-text" title={output.watch_page_url} data-stream-output-preview-link="">
                         {output.watch_page_url}
                       </span>
                     )
