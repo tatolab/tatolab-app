@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Play, TriangleAlert } from "lucide-react";
+import { Box, Boxes, FileCode2, FolderOpen, Play, Radio, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useLocation } from "react-router";
 import type { ListedStream, StreamGraphExposedPort } from "../../shared/tatolab_backend_contract";
@@ -9,7 +9,7 @@ import {
   presentStreamSteps,
   readableExposedPorts,
 } from "../presentation/stream_overview_presentation";
-import { presentStreamGraphCanvas } from "../presentation/stream_graph_canvas_presentation";
+import { presentStreamGraphCanvas, type StreamGraphPortDataKind } from "../presentation/stream_graph_canvas_presentation";
 import { stepNamesInFlowOrder } from "../presentation/stream_graph_step_layout";
 import { abbreviateHomeDirectory, isStreamLoaded, presentStreamPrimaryAction, streamNotLoadedReason } from "../presentation/stream_presentation";
 import type { StreamGraphReading } from "../stream_graph_readings";
@@ -20,10 +20,11 @@ import { ExposureLevelWords } from "../design_system/exposure_level_words";
 import { FailureBanner } from "../design_system/failure_banner";
 import { InlineLink } from "../design_system/inline_link";
 import { PageBody } from "../design_system/page_frame";
-import { PanelSection } from "../design_system/panel_section";
+import { PanelListRow, PanelSection } from "../design_system/panel_section";
 import { SidePanel, WorkAreaWithSidePanel } from "../design_system/side_panel";
 import { StateWords } from "../design_system/stream_state_words";
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
+import { PortDataKindIcon } from "./stream_graph_step_card_view";
 import { previewedOutputAskedBy, streamPagePath, type GraphOutputPortAddress } from "./stream_page_path";
 import type { StreamPageActions } from "./stream_page_header_view";
 import { useStreamGraphReading, useTatolabStatus } from "./tatolab_window_context";
@@ -177,83 +178,100 @@ function StreamOutputPreviews({
   );
 }
 
-/** The stream's nodes in pipeline order, one line each: its name, where it runs, its state where nodes differ, and its counters above zero. */
+/** The stream's nodes in pipeline order: each one's name, where it runs, its state where nodes differ, and its counters above zero. */
 function StreamNodeRows({ stream, reading }: { stream: ListedStream; reading: StreamGraphReading }) {
   const graph = reading.graph;
   const nodeNamesInPipelineOrder = useMemo(() => (graph === null ? [] : stepNamesInFlowOrder(presentStreamGraphCanvas(graph))), [graph]);
   const isLoaded = isStreamLoaded(stream);
-  if (graph === null) return <p className="text-fg-3">{isLoaded ? "Its nodes show once its graph is read." : "Its nodes show here once it is loaded."}</p>;
+  if (graph === null) return <p className="py-1.5 text-xs text-fg-3">{isLoaded ? "Its nodes show once its graph is read." : "Its nodes show here once it is loaded."}</p>;
   const nodes = presentStreamSteps(graph, nodeNamesInPipelineOrder, reading.graphSource, isLoaded);
   const isEachNodesStateShown = nodes.some((node) => node.stateWord !== nodes[0]?.stateWord || node.stateEmphasis === "failure");
   return (
     <ul className="flex flex-col" data-stream-steps="">
       {nodes.map((node) => (
-        <li key={node.name} className="flex min-w-0 flex-col gap-0.5 border-b py-2 last:border-b-0" data-stream-step={node.name}>
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 truncate font-mono text-xs text-fg select-text" title={node.type}>
+        <PanelListRow
+          key={node.name}
+          icon={node.origin === "Python" ? <FileCode2 className="size-4 text-fg-3" strokeWidth={1.75} aria-hidden /> : <Box className="size-4 text-fg-3" strokeWidth={1.75} aria-hidden />}
+          name={
+            <span className="font-mono text-xs" title={node.type}>
               {node.name}
             </span>
-            {isEachNodesStateShown && (
-              <span className="ml-auto shrink-0 text-xs">
-                <StateWords emphasis={node.stateEmphasis} words={node.stateWord} />
-              </span>
-            )}
-          </div>
-          <div className="flex min-w-0 items-center gap-2 text-xs text-fg-3">
-            <span>{[node.origin, node.process].filter((words) => words !== null).join(" · ") || "—"}</span>
-            {node.counters.length > 0 && (
-              <span className="ml-auto truncate font-mono text-warn-text tabular">{node.counters.map((counter) => `${counter.countText} ${counter.word}`).join(" · ")}</span>
-            )}
-          </div>
-        </li>
+          }
+          trailing={isEachNodesStateShown ? <StateWords emphasis={node.stateEmphasis} words={node.stateWord} /> : node.process ?? undefined}
+          detail={
+            node.counters.length > 0 ? (
+              <span className="font-mono text-warn-text tabular">{node.counters.map((counter) => `${counter.countText} ${counter.word}`).join(" · ")}</span>
+            ) : (
+              [node.origin, isEachNodesStateShown ? node.process : null].filter((words) => words !== null).join(" · ") || undefined
+            )
+          }
+          data-stream-step={node.name}
+        />
       ))}
     </ul>
   );
 }
 
-/** The Overview's slide-out: the stream's project, each exposed output with its preview link, and its nodes. */
+/** The Overview's slide-out: the stream's project, each exposed output with its preview link, and its nodes, each a card. */
 function StreamDetailsSidePanel({ stream, reading, onHidden }: { stream: ListedStream; reading: StreamGraphReading; onHidden: () => void }) {
   const graph = reading.graph;
   const readableOutputs = graph === null ? [] : readableExposedPorts(graph);
   const isFromTheLastLoad = graph !== null && reading.graphSource !== "loaded";
+  const dataKindOfEachOutput = useMemo(() => {
+    const dataKinds = new Map<string, StreamGraphPortDataKind>();
+    if (graph !== null) for (const step of presentStreamGraphCanvas(graph).steps) for (const output of step.outputPorts) dataKinds.set(`${step.name}/${output.name}`, output.dataKind);
+    return dataKinds;
+  }, [graph]);
   return (
     <SidePanel label={`${stream.name} details`} title="Details" hideLabel="Hide details" onHidden={onHidden} data-stream-details="">
-      <PanelSection title="Project">
-        <div className="flex min-w-0 items-center gap-1">
-          <span className="min-w-0 flex-1 truncate font-mono text-xs select-text" title={stream.project_directory}>
+      <PanelSection appearance="card" icon={FolderOpen} title="Project">
+        <div className="flex min-w-0 items-center gap-1 py-1">
+          <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg select-text" title={stream.project_directory}>
             {abbreviateHomeDirectory(stream.project_directory)}
           </span>
           <CopyIconButton label="Copy project folder path" size="compact" readTextToCopy={() => stream.project_directory} />
         </div>
       </PanelSection>
-      <PanelSection title={isFromTheLastLoad ? "Outputs as of the last load" : "Outputs"}>
+      <PanelSection
+        appearance="card"
+        icon={Radio}
+        title={isFromTheLastLoad ? "Outputs as of the last load" : "Outputs"}
+        aside={readableOutputs.length > 0 ? <span className="tabular">{readableOutputs.length}</span> : undefined}
+      >
         {graph === null ? (
-          <p className="text-fg-3">{isStreamLoaded(stream) ? "Its outputs show once its graph is read." : "Its outputs show once it is loaded."}</p>
+          <p className="py-1.5 text-xs text-fg-3">{isStreamLoaded(stream) ? "Its outputs show once its graph is read." : "Its outputs show once it is loaded."}</p>
         ) : readableOutputs.length === 0 ? (
-          <p className="text-fg-3">Every output is internal.</p>
+          <p className="py-1.5 text-xs text-fg-3">Every output is internal.</p>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {readableOutputs.map((output) => (
-              <li key={`${output.node}/${output.port}`} className="min-w-0" data-stream-output={`${output.node}/${output.port}`}>
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="min-w-0 truncate font-mono text-xs text-fg">
-                    {output.node}/{output.port}
-                  </span>
-                  <span className="ml-auto shrink-0 text-xs">
-                    <ExposureLevelWords level={output.level} />
-                  </span>
-                </div>
-                {output.watch_page_url !== null && (
-                  <span className="block truncate font-mono text-[11px] text-fg-3 select-text" title={output.watch_page_url} data-stream-output-preview-link="">
-                    {output.watch_page_url}
-                  </span>
-                )}
-              </li>
-            ))}
+          <ul className="flex flex-col">
+            {readableOutputs.map((output) => {
+              const outputKey = `${output.node}/${output.port}`;
+              return (
+                <PanelListRow
+                  key={outputKey}
+                  icon={<PortDataKindIcon dataKind={dataKindOfEachOutput.get(outputKey) ?? "data"} className="size-4" />}
+                  name={<span className="font-mono text-xs">{outputKey}</span>}
+                  trailing={<ExposureLevelWords level={output.level} />}
+                  detail={
+                    output.watch_page_url === null ? undefined : (
+                      <span className="font-mono text-[11px] select-text" title={output.watch_page_url} data-stream-output-preview-link="">
+                        {output.watch_page_url}
+                      </span>
+                    )
+                  }
+                  data-stream-output={outputKey}
+                />
+              );
+            })}
           </ul>
         )}
       </PanelSection>
-      <PanelSection title={isFromTheLastLoad ? "Nodes as of the last load" : "Nodes"}>
+      <PanelSection
+        appearance="card"
+        icon={Boxes}
+        title={isFromTheLastLoad ? "Nodes as of the last load" : "Nodes"}
+        aside={graph !== null ? <span className="tabular">{graph.nodes.length}</span> : undefined}
+      >
         <StreamNodeRows stream={stream} reading={reading} />
       </PanelSection>
     </SidePanel>

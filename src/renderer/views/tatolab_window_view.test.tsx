@@ -219,8 +219,10 @@ describe("a stream's page", () => {
     expect(document.querySelector('[data-stream-details] [data-stream-output="invertingeffect/video_to_downstream"] [data-stream-output-preview-link]')?.textContent).toBe(preview.getAttribute("src"));
     const stepRows = [...document.querySelectorAll<HTMLElement>("[data-stream-step]")];
     expect(stepRows.map((stepRow) => stepRow.dataset.streamStep)).toEqual(["testpatternsource", "invertingeffect", "displaywindow", "brightnessmeter"]);
-    expect(stepRows[1].textContent).toContain("Python · own process");
+    expect(stepRows[1].textContent).toContain("own process");
+    expect(stepRows[1].textContent).toContain("Python");
     expect(stepRows[0].textContent).toContain("in runtime");
+    expect(stepRows[0].textContent).toContain("Built-in");
     expect(within(stepRows[0]).queryByText("Running"), "every node runs, so no state beside them").toBeNull();
     expect(details.queryByText("Instance")).toBeNull();
   });
