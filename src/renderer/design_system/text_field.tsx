@@ -11,6 +11,7 @@ export function TextField({
   onTextChanged,
   isMachineWord = false,
   isSecret = false,
+  isRequired = false,
   isRefused = false,
   placeholder,
   inputMode,
@@ -27,6 +28,8 @@ export function TextField({
   isMachineWord?: boolean;
   /** Masked as it is typed. */
   isSecret?: boolean;
+  /** Announced as required to assistive technology. */
+  isRequired?: boolean;
   isRefused?: boolean;
   /** Shown while it holds nothing, as "Default". */
   placeholder?: string;
@@ -46,6 +49,7 @@ export function TextField({
       placeholder={placeholder}
       inputMode={inputMode}
       aria-label={label}
+      aria-required={isRequired || undefined}
       aria-invalid={isRefused || undefined}
       aria-describedby={describedBy}
       spellCheck={false}

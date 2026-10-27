@@ -1,4 +1,4 @@
-import type { ListedRelay, RelayAdapter, RelaySettingField, RelaySettingsByName } from "../../shared/tatolab_backend_contract";
+import type { ListedRelay, RelayAdapter, RelaySecretPresence, RelaySettingField, RelaySettingsByName } from "../../shared/tatolab_backend_contract";
 
 /** Words that read in capitals inside a setting's name. */
 const INITIALISMS_IN_A_SETTING_NAME = new Set(["api", "id", "jwk", "jwt", "tls", "uri", "url", "http", "https", "quic"]);
@@ -160,38 +160,56 @@ export interface RelaySettingFormRow {
   formField: RelaySettingFormField;
   /** What its field holds: what was typed, or the relay's value before any edit; never a secret's. */
   shownText: string;
-  /** A secret the relay already holds, shown as set or not set with Replace… in place of its field until Replace… is pressed; `null` while adding, or for a setting that is no secret. */
-  heldSecret: "set" | "unset" | null;
+  /** "Set" or "Not set" for a secret the relay already holds, shown with Replace… in place of its field until Replace… is pressed; `null` while adding, or for a setting that is no secret. */
+  heldSecretWords: "Set" | "Not set" | null;
   showsTheField: boolean;
+  /** Replace…'s words, "Replace…" or "Set…", and its accessible name, naming the secret. */
+  replaceWords: "Replace…" | "Set…";
+  replaceLabel: string;
   /** Configure offers Use default for an optional setting not at its default already. */
   offersUseDefault: boolean;
+  /** Said under a setting the runtime requires, so the form says what it waits for before anything is typed. */
+  requiredWords: "Required" | null;
+  /** What its empty field reads, "Default" for an optional setting. */
+  placeholder: string | null;
+  inputMode: "text" | "numeric";
   /** What is wrong with what was typed, once something was. */
   problem: string | null;
-  /** Replace…'s accessible name, naming the secret. */
-  replaceLabel: string;
 }
 
-/** Each row of the form adding a relay of `adapter`, or configuring `relay`, from `draft`, with the secrets the person chose to replace. */
-export function relaySettingsFormRows(
+/** The form adding a relay of `adapter`, or configuring `relay`: its rows, what it would send, and why it cannot send yet. */
+export interface RelaySettingsFormPresentation {
+  rows: RelaySettingFormRow[];
+  settingsToSend: RelaySettingsToSend;
+  sendUnavailableBecause: string | null;
+}
+
+/** The form adding a relay of `adapter` (`relay` `null`) or configuring `relay`, from `draft`, with the secrets the person chose to replace. */
+export function presentRelaySettingsForm(
   adapter: RelayAdapter,
   relay: ListedRelay | null,
   draft: RelaySettingsDraft,
   secretsBeingReplaced: ReadonlySet<string>,
-): RelaySettingFormRow[] {
+): RelaySettingsFormPresentation {
   const settingsToSend = relay === null ? relaySettingsToSendToAdd(adapter, draft) : relaySettingsToSendToConfigure(adapter, relay, draft);
-  return relaySettingsFormFields(adapter).map((formField) => {
+  const rows = relaySettingsFormFields(adapter).map((formField): RelaySettingFormRow => {
     const edit = draft[formField.name];
-    const heldSecret = relay === null || formField.input !== "secret" ? null : (relay.secrets[formField.name] ?? "unset");
+    const heldSecret: RelaySecretPresence | null = relay === null || formField.input !== "secret" ? null : (relay.secrets[formField.name] ?? "unset");
     const textBeforeAnEdit = relay === null || formField.input === "secret" ? "" : relaySettingShownText(relay, formField.name);
     const isAtItsDefault = edit?.kind === "use_default" || (edit === undefined && textBeforeAnEdit === "" && formField.input !== "secret");
     return {
       formField,
       shownText: edit === undefined ? textBeforeAnEdit : edit.kind === "typed" ? edit.text : "",
-      heldSecret,
+      heldSecretWords: heldSecret === null ? null : heldSecret === "set" ? "Set" : "Not set",
       showsTheField: heldSecret === null || secretsBeingReplaced.has(formField.name),
-      offersUseDefault: relay !== null && formField.offersItsDefault && !isAtItsDefault,
-      problem: edit !== undefined && settingsToSend.kind === "incomplete" ? (settingsToSend.problems[formField.name] ?? null) : null,
+      replaceWords: heldSecret === "set" ? "Replace…" : "Set…",
       replaceLabel: `${heldSecret === "set" ? "Replace" : "Set"} ${formField.label}`,
+      offersUseDefault: relay !== null && formField.offersItsDefault && !isAtItsDefault,
+      requiredWords: formField.isRequired ? "Required" : null,
+      placeholder: formField.isRequired ? null : "Default",
+      inputMode: formField.input === "whole_number" ? "numeric" : "text",
+      problem: edit !== undefined && settingsToSend.kind === "incomplete" ? (settingsToSend.problems[formField.name] ?? null) : null,
     };
   });
+  return { rows, settingsToSend, sendUnavailableBecause: relaySettingsSendUnavailableBecause(settingsToSend) };
 }

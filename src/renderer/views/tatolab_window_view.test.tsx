@@ -1369,7 +1369,7 @@ describe("Settings › Relays", () => {
 
     fireEvent.click(within(relayRowOf("moqpro-1")).getByRole("button", { name: "Configure moqpro-1" }));
     await waitFor(() => expect(openRelayDialog()).toBeTruthy());
-    expect(openRelayDialog().querySelector('[data-relay-secret-presence="set"]')?.textContent).toBe("Set");
+    expect(openRelayDialog().querySelector('[data-relay-secret-presence="Set"]')?.textContent).toBe("Set");
     expect(openRelayDialog().querySelector('[data-relay-setting-field="signing_key"]')).toBeNull();
     expect(openRelayDialog().querySelector<HTMLButtonElement>('[data-relay-action="save"]')?.disabled).toBe(true);
     fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-action="replace-secret"]') ?? expect.unreachable("no Replace…"));

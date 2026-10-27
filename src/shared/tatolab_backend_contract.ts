@@ -272,6 +272,9 @@ export type PythonForNewEnvironmentsChoice = "built_in" | "chosen_in_a_file_dial
 /** One value of a relay's settings on the wire: `add_relay` and `configure_relay` take them, `list_relays` lists the non-secret ones, and `null` returns a setting to its default. */
 export type RelaySettingValue = string | number | boolean | null;
 
+/** Whether the runtime holds a value for one secret setting of a relay; never the value. */
+export type RelaySecretPresence = "set" | "unset";
+
 /** A relay's settings by name, as `add_relay` and `configure_relay` take them and `list_relays` lists them. */
 export type RelaySettingsByName = Record<string, RelaySettingValue>;
 
@@ -296,7 +299,7 @@ export interface ListedRelay {
   /** Its settings, every secret left out. */
   settings: RelaySettingsByName;
   /** Each secret setting its adapter takes, by name, and whether the runtime holds a value for it; never the value. */
-  secrets: Record<string, "set" | "unset">;
+  secrets: Record<string, RelaySecretPresence>;
   connection_state: RelayConnectionState;
 }
 

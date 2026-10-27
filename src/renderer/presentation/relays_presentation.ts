@@ -67,8 +67,8 @@ export interface LocalRelayListenerRow extends RelayRow {
 
 /** One relay someone added: its settings and each secret as set or not. */
 export interface HostedRelayRow extends RelayRow {
-  /** Each setting as "Project ID pb1studio", then each secret as "Signing key set". */
-  settingsWords: string[];
+  /** Each setting as "Project ID pb1studio", then each secret as "Signing key set", joined; `null` for a relay that lists neither. */
+  settingsWords: string | null;
 }
 
 /** An adapter Add relay offers, or offers greyed out with why. */
@@ -131,7 +131,8 @@ function hostedRelayRow(relay: ListedRelay, adapters: readonly RelayAdapter[]): 
     .filter(([, settingValue]) => settingValue !== null)
     .map(([settingName, settingValue]) => `${relaySettingLabel(settingName)} ${String(settingValue)}`);
   const secretWords = Object.entries(relay.secrets).map(([secretName, presence]) => `${relaySettingLabel(secretName)} ${presence === "set" ? "set" : "not set"}`);
-  return { ...relayRow(relay, adapters, relay.relay_id), settingsWords: [...settingWords, ...secretWords] };
+  const allWords = [...settingWords, ...secretWords];
+  return { ...relayRow(relay, adapters, relay.relay_id), settingsWords: allWords.length === 0 ? null : allWords.join(" · ") };
 }
 
 /**
@@ -141,8 +142,9 @@ function hostedRelayRow(relay: ListedRelay, adapters: readonly RelayAdapter[]): 
 export function presentRelaysSection(isTheRuntimeRunning: boolean, reading: RelaysReading): RelaysSectionPresentation {
   if (!isTheRuntimeRunning) return { kind: "runtime_not_running", words: "Relays show here while the runtime runs." };
   if (reading.kind === "not_read") return { kind: "reading" };
-  const description = relaysDescriptionOfTheReading(reading);
-  if (description === null) return { kind: "not_listed", refusal: reading.kind === "refused" ? reading.refusal : "" };
+  if (reading.kind === "refused" && reading.lastDescription === null) return { kind: "not_listed", refusal: reading.refusal };
+  const description = reading.kind === "read" ? reading.description : reading.lastDescription;
+  if (description === null) return { kind: "reading" };
   const adaptersBackingABuiltInRelay = new Set(description.relays.filter((relay) => relay.built_in).map((relay) => relay.adapter));
   const adapterChoices = description.adapters
     .filter((adapter) => !adaptersBackingABuiltInRelay.has(adapter.kind))
@@ -158,6 +160,13 @@ export function presentRelaysSection(isTheRuntimeRunning: boolean, reading: Rela
         : "Add one with + to serve public outputs beyond this machine's own network.",
     lastReadingRefusal: reading.kind === "refused" ? reading.refusal : null,
   };
+}
+
+/** The relay `relayId` and its adapter, for its Configure dialog, as Settings › Relays lists them; `null` once it is no longer listed, or its adapter is not in the catalog. */
+export function relaySettingsDialogSubjectOf(section: RelaysSectionPresentation, relayId: string): { relay: ListedRelay; adapter: RelayAdapter } | null {
+  if (section.kind !== "listed") return null;
+  const row = [...section.localRelayListenerRows, ...section.hostedRelayRows].find((listedRow) => listedRow.relay.relay_id === relayId);
+  return row === undefined || row.adapter === null ? null : { relay: row.relay, adapter: row.adapter };
 }
 
 /** What Remove relay… asks before the runtime forgets `relayId`, and what answering yes does. */

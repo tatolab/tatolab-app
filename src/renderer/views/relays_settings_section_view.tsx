@@ -12,18 +12,15 @@ import { SettingsGroup, SettingsMachineWords, SettingsRow, SettingsSectionExplan
 import { StateWords, type StateWordsEmphasis } from "../design_system/stream_state_words";
 import { TextField } from "../design_system/text_field";
 import {
+  presentRelaySettingsForm,
   relaySettingsDraftWithoutTypedSecrets,
-  relaySettingsFormRows,
-  relaySettingsSendUnavailableBecause,
-  relaySettingsToSendToAdd,
-  relaySettingsToSendToConfigure,
   type RelaySettingFormRow,
   type RelaySettingsDraft,
 } from "../presentation/relay_settings_form";
 import {
   presentRelayRemovalConfirmation,
   presentRelaysSection,
-  relaysDescriptionOfTheReading,
+  relaySettingsDialogSubjectOf,
   runtimeWordsSegmentsOf,
   type HostedRelayRow,
   type LocalRelayListenerRow,
@@ -49,9 +46,9 @@ type RelaySettingsDialogOpen = { kind: "add"; adapter: RelayAdapter } | { kind: 
 function RuntimeWords({ words }: { words: string }) {
   return runtimeWordsSegmentsOf(words).map((segment, segmentIndex) =>
     segment.kind === "code" ? (
-      <code key={segmentIndex} className="font-mono text-xs">
+      <SettingsMachineWords key={segmentIndex} tone="of_the_words_around_it">
         {segment.words}
-      </code>
+      </SettingsMachineWords>
     ) : (
       segment.words
     ),
@@ -112,6 +109,7 @@ function RelaySettingRow({
               <RuntimeWords words={formField.description} />
             </p>
           )}
+          {row.requiredWords !== null && <p>{row.requiredWords}</p>}
           {formField.input === "secret" && <p>Kept by the runtime and never shown again.</p>}
           {row.problem !== null && <p className="text-danger-text">{row.problem}</p>}
         </div>
@@ -119,11 +117,11 @@ function RelaySettingRow({
     >
       {!row.showsTheField ? (
         <>
-          <span className="text-fg-2" data-relay-secret-presence={row.heldSecret ?? undefined}>
-            {row.heldSecret === "set" ? "Set" : "Not set"}
+          <span className="text-fg-2" data-relay-secret-presence={row.heldSecretWords ?? undefined}>
+            {row.heldSecretWords}
           </span>
           <ActionButton appearance="quiet" label={row.replaceLabel} onPressed={onReplaceTheSecret} data-relay-action="replace-secret">
-            {row.heldSecret === "set" ? "Replace…" : "Set…"}
+            {row.replaceWords}
           </ActionButton>
         </>
       ) : (
@@ -140,9 +138,10 @@ function RelaySettingRow({
             onTextChanged={onTyped}
             isMachineWord
             isSecret={formField.input === "secret"}
+            isRequired={row.requiredWords !== null}
             isRefused={row.problem !== null}
-            placeholder={formField.isRequired ? undefined : "Default"}
-            inputMode={formField.input === "whole_number" ? "numeric" : "text"}
+            placeholder={row.placeholder ?? undefined}
+            inputMode={row.inputMode}
             describedBy={describedById}
             className="w-64"
             data-relay-setting-field={formField.name}
@@ -163,8 +162,7 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
   const [secretsBeingReplaced, setSecretsBeingReplaced] = useState<ReadonlySet<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
   const [refusal, setRefusal] = useState<BackendActionRefusal | null>(null);
-  const settingsToSend = relay === null ? relaySettingsToSendToAdd(adapter, draft) : relaySettingsToSendToConfigure(adapter, relay, draft);
-  const sendUnavailableBecause = relaySettingsSendUnavailableBecause(settingsToSend);
+  const { rows: formRows, settingsToSend, sendUnavailableBecause } = presentRelaySettingsForm(adapter, relay, draft, secretsBeingReplaced);
   const forgetEverySecretTyped = () => {
     setDraft((draftNow) => relaySettingsDraftWithoutTypedSecrets(adapter, draftNow));
     setSecretsBeingReplaced(new Set());
@@ -187,7 +185,6 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
       },
     );
   };
-  const formRows = relaySettingsFormRows(adapter, relay, draft, secretsBeingReplaced);
   return (
     <FormDialog
       isOpen
@@ -269,6 +266,11 @@ export function RelaysSettingsSection() {
     setSettingsDialog(null);
     setIsTheRemoveQuestionOpen(false);
   }, [isListed]);
+  const configureSubject = settingsDialog?.kind === "configure" ? relaySettingsDialogSubjectOf(section, settingsDialog.relayId) : null;
+  const isConfiguringARelayNoLongerListed = isListed && settingsDialog?.kind === "configure" && configureSubject === null;
+  useEffect(() => {
+    if (isConfiguringARelayNoLongerListed) setSettingsDialog(null);
+  }, [isConfiguringARelayNoLongerListed]);
 
   if (section.kind !== "listed") {
     return (
@@ -287,10 +289,6 @@ export function RelaysSettingsSection() {
     );
   }
 
-  const description = relaysDescriptionOfTheReading(reading);
-  const dialogRelay = settingsDialog?.kind === "configure" ? (description?.relays.find((relay) => relay.relay_id === settingsDialog.relayId) ?? null) : null;
-  const dialogAdapter =
-    settingsDialog?.kind === "add" ? settingsDialog.adapter : dialogRelay === null ? null : (description?.adapters.find((adapter) => adapter.kind === dialogRelay.adapter) ?? null);
   const removalConfirmation = relayTheRemoveQuestionNames === null ? null : presentRelayRemovalConfirmation(relayTheRemoveQuestionNames);
   const askToRemove = (relayId: string) => {
     setRelayTheRemoveQuestionNames(relayId);
@@ -350,7 +348,7 @@ export function RelaysSettingsSection() {
                   data-relay-adapter-choice={choice.adapter.kind}
                 >
                   <span className="flex flex-col">
-                    <span className="font-mono text-xs">{choice.adapter.kind}</span>
+                    <SettingsMachineWords tone="of_the_words_around_it">{choice.adapter.kind}</SettingsMachineWords>
                     {choice.unavailableBecause !== null && <span className="text-xs text-fg-3">{choice.unavailableBecause}</span>}
                   </span>
                 </MenuItem>
@@ -366,7 +364,7 @@ export function RelaysSettingsSection() {
             <SettingsRow
               key={row.relay.relay_id}
               label={<SettingsMachineWords>{row.relay.relay_id}</SettingsMachineWords>}
-              description={row.settingsWords.length === 0 ? undefined : row.settingsWords.join(" · ")}
+              description={row.settingsWords ?? undefined}
               refusal={removeRefusal?.relayId === row.relay.relay_id ? { lead: "Remove was refused:", words: removeRefusal.words } : null}
               data-relay-row={row.relay.relay_id}
               control={() =>
@@ -390,11 +388,14 @@ export function RelaysSettingsSection() {
           ))
         )}
       </SettingsGroup>
-      {settingsDialog !== null && dialogAdapter !== null && (
+      {settingsDialog?.kind === "add" && (
+        <RelaySettingsDialog key={`add:${settingsDialog.adapter.kind}`} adapter={settingsDialog.adapter} relay={null} onClose={() => setSettingsDialog(null)} />
+      )}
+      {configureSubject !== null && (
         <RelaySettingsDialog
-          key={settingsDialog.kind === "add" ? `add:${settingsDialog.adapter.kind}` : `configure:${settingsDialog.relayId}`}
-          adapter={dialogAdapter}
-          relay={dialogRelay}
+          key={`configure:${configureSubject.relay.relay_id}`}
+          adapter={configureSubject.adapter}
+          relay={configureSubject.relay}
           onClose={() => setSettingsDialog(null)}
         />
       )}

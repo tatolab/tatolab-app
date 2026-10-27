@@ -8,6 +8,7 @@ import type {
   ListedRelay,
   RelayAdapter,
   RelayConnectionState,
+  RelaySecretPresence,
   RelaySettingField,
   RelaySettingsByName,
   RelaySettingValue,
@@ -40,7 +41,7 @@ const LARGEST_VALUE_OF_EACH_UNSIGNED_INTEGER_FORMAT: Readonly<Record<string, num
 export type RelayChangeToolName = "add_relay" | "configure_relay" | "remove_relay";
 
 /** Whether `value` is a relay setting's value: text, a finite number, true or false, or `null`, which JSON carries as itself. */
-export function isARelaySettingValue(value: unknown): value is RelaySettingValue {
+function isARelaySettingValue(value: unknown): value is RelaySettingValue {
   return value === null || typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value));
 }
 
@@ -114,10 +115,10 @@ function relaySettingsOnTheWire(listedRelay: JsonObjectOnTheWire): Result<RelayS
 }
 
 /** Each secret's presence; a value that is not `set` or `unset` is refused by the setting's name alone, so no secret is ever carried on. */
-function relaySecretPresencesOnTheWire(listedRelay: JsonObjectOnTheWire): Result<Record<string, "set" | "unset">, string> {
+function relaySecretPresencesOnTheWire(listedRelay: JsonObjectOnTheWire): Result<Record<string, RelaySecretPresence>, string> {
   const secretsOnTheWire = objectOrEmpty(listedRelay, "secrets");
   if (!secretsOnTheWire.ok) return secretsOnTheWire;
-  const secrets: Record<string, "set" | "unset"> = {};
+  const secrets: Record<string, RelaySecretPresence> = {};
   for (const [secretName, presence] of Object.entries(secretsOnTheWire.value)) {
     if (presence !== "set" && presence !== "unset") return failedWith(`the secret \`${secretName}\` is listed as neither set nor unset`);
     secrets[secretName] = presence;

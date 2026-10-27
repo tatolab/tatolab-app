@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ListedRelay, RelayAdapter, RelaysDescription } from "../../shared/tatolab_backend_contract";
-import { presentRelayConnectionState, presentRelaysSection, runtimeWordsSegmentsOf } from "./relays_presentation";
+import { presentRelayConnectionState, presentRelaysSection, relaySettingsDialogSubjectOf, runtimeWordsSegmentsOf } from "./relays_presentation";
 
 const LOCAL_ADAPTER: RelayAdapter = {
   kind: "local",
@@ -60,7 +60,7 @@ describe("the Relays section", () => {
       ["local-every-interface", "Every interface", "Port 4445"],
     ]);
     expect(section.localRelayListenerRows.map((row) => row.servesWords)).toEqual(["Every exposed port, to this machine alone", "Public ports, to any machine that reaches it"]);
-    expect(section.hostedRelayRows.map((row) => [row.relay.relay_id, row.settingsWords])).toEqual([["moqpro-1", ["Project ID pb1studio", "Signing key set"]]]);
+    expect(section.hostedRelayRows.map((row) => [row.relay.relay_id, row.settingsWords])).toEqual([["moqpro-1", "Project ID pb1studio · Signing key set"]]);
     expect(section.lastReadingRefusal).toBeNull();
   });
 
@@ -108,6 +108,17 @@ describe("the Relays section", () => {
 
     if (section.kind !== "listed") return expect.unreachable(section.kind);
     expect(section.localRelayListenerRows.map((row) => [row.label, row.servesWords, row.portWords])).toEqual([["local-tailnet", null, "Default port"]]);
+  });
+});
+
+describe("a Configure dialog's subject", () => {
+  it("is the listed relay and its adapter, and nothing once the relay is no longer listed or its adapter is not in the catalog", () => {
+    const section = presentRelaysSection(true, { kind: "read", description: DESCRIBED });
+
+    expect(relaySettingsDialogSubjectOf(section, "local-every-interface")).toEqual({ relay: EVERY_INTERFACE, adapter: LOCAL_ADAPTER });
+    expect(relaySettingsDialogSubjectOf(section, "moqpro-1")).toBeNull();
+    expect(relaySettingsDialogSubjectOf(section, "cloudflare-9")).toBeNull();
+    expect(relaySettingsDialogSubjectOf(presentRelaysSection(false, { kind: "read", description: DESCRIBED }), "local-loopback")).toBeNull();
   });
 });
 
