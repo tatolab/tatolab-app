@@ -193,8 +193,7 @@ export function StreamGraphInspectorView({
           <span className={inspection.step.stateEmphasis === "failure" ? "text-danger-text" : undefined}>{inspection.step.stateWord}</span> · {inspection.linkCountWords}
         </>
       }
-      hideLabel="Close the node"
-      onHidden={actions.onClosed}
+      hiding={{ hideLabel: "Close the node", onHidden: actions.onClosed }}
       data-stream-graph-inspector="step"
     >
       <StepInspectorView key={inspection.step.name} inspection={inspection} outputPlace={outputPlace} pinnedOutputKeys={pinnedOutputKeys} actions={actions} />

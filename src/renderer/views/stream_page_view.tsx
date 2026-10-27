@@ -59,7 +59,6 @@ export function StreamPageView({ stream, shownTab }: { stream: ListedStream; sho
           stream={stream}
           streamPageActions={streamPageActions}
           isDetailsPanelOpen={isOverviewDetailsPanelOpen}
-          onDetailsPanelHidden={() => setIsOverviewDetailsPanelOpen(false)}
         />
       )}
       {shownTab === "inspect" && <StreamInspectPageView stream={stream} />}

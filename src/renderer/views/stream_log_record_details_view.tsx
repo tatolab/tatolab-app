@@ -48,8 +48,7 @@ export function StreamLogRecordDetailsView({
       label="Selected record"
       title="Line"
       actions={<CopyIconButton readTextToCopy={() => details.jsonlLine} label="Copy as JSON" data-stream-log-details-copy="record" />}
-      hideLabel="Hide details"
-      onHidden={actions.onClosed}
+      hiding={{ hideLabel: "Hide details", onHidden: actions.onClosed }}
       data-stream-log-record-details=""
     >
       <div className="pb-2">

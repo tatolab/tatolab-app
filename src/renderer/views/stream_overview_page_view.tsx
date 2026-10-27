@@ -213,7 +213,7 @@ function StreamNodeRows({ stream, reading }: { stream: ListedStream; reading: St
 }
 
 /** The Overview's slide-out: the stream's project, each exposed output with its preview link, and its nodes, each a card. */
-function StreamDetailsSidePanel({ stream, reading, onHidden }: { stream: ListedStream; reading: StreamGraphReading; onHidden: () => void }) {
+function StreamDetailsSidePanel({ stream, reading }: { stream: ListedStream; reading: StreamGraphReading }) {
   const graph = reading.graph;
   const readableOutputs = graph === null ? [] : readableExposedPorts(graph);
   const isFromTheLastLoad = graph !== null && reading.graphSource !== "loaded";
@@ -223,7 +223,7 @@ function StreamDetailsSidePanel({ stream, reading, onHidden }: { stream: ListedS
     return dataKinds;
   }, [graph]);
   return (
-    <SidePanel label={`${stream.name} details`} title="Details" hideLabel="Hide details" onHidden={onHidden} data-stream-details="">
+    <SidePanel label={`${stream.name} details`} title="Details" hiding={null} data-stream-details="">
       <PanelSection appearance="card" icon={FolderOpen} title="Project">
         <div className="flex min-w-0 items-center gap-1 py-1">
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg select-text" title={stream.project_directory}>
@@ -283,19 +283,17 @@ export function StreamOverviewPageView({
   stream,
   streamPageActions,
   isDetailsPanelOpen,
-  onDetailsPanelHidden,
 }: {
   stream: ListedStream;
   streamPageActions: StreamPageActions;
   isDetailsPanelOpen: boolean;
-  onDetailsPanelHidden: () => void;
 }) {
   const status = useTatolabStatus();
   const reading = useStreamGraphReading(stream.name);
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-stream-overview="">
       {stream.state === "failed" && <FailedStreamBanner stream={stream} />}
-      <WorkAreaWithSidePanel sidePanel={isDetailsPanelOpen ? <StreamDetailsSidePanel stream={stream} reading={reading} onHidden={onDetailsPanelHidden} /> : null}>
+      <WorkAreaWithSidePanel sidePanel={isDetailsPanelOpen ? <StreamDetailsSidePanel stream={stream} reading={reading} /> : null}>
         <PageBody>
           <DroppingLinkLines stream={stream} reading={reading} />
           <StreamOutputPreviews stream={stream} reading={reading} machineName={status.machine_name} streamPageActions={streamPageActions} />
