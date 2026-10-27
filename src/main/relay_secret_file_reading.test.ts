@@ -40,7 +40,14 @@ test("a_file_larger_than_a_secret_or_not_text_is_refused_by_its_name_and_never_b
   const tooLargeRefusal = await readTheRelaySecretFileThePersonChooses(async () => succeeded(tooLarge));
   const notTextRefusal = await readTheRelaySecretFileThePersonChooses(async () => succeeded(notText));
 
-  expect(tooLargeRefusal).toEqual(failedWith(`${tooLarge} is 65537 bytes, larger than a relay secret, which Tatolab reads up to 65536 bytes of.`));
+  expect(tooLargeRefusal).toEqual(failedWith(`${tooLarge} is larger than a relay secret, which Tatolab reads up to 65536 bytes of.`));
   expect(notTextRefusal).toEqual(failedWith(`${notText} is not text, so it holds no secret Tatolab can send.`));
-  expect((await readTheRelaySecretFileThePersonChooses(async () => succeeded("/nowhere/at/all.jwk"))).ok).toBe(false);
+  expect(await readTheRelaySecretFileThePersonChooses(async () => succeeded("/nowhere/at/all.jwk"))).toEqual(failedWith("/nowhere/at/all.jwk could not be read: ENOENT"));
+});
+
+test("only_a_regular_file_is_read_so_a_folder_or_a_device_never_holds_the_answer_up", async () => {
+  const folder = path.dirname(await aFileHolding("anything.txt", "x"));
+
+  expect(await readTheRelaySecretFileThePersonChooses(async () => succeeded(folder))).toEqual(failedWith(`${folder} is not a file, so it holds no secret Tatolab can send.`));
+  expect(await readTheRelaySecretFileThePersonChooses(async () => succeeded("/dev/zero"))).toEqual(failedWith("/dev/zero is not a file, so it holds no secret Tatolab can send."));
 });

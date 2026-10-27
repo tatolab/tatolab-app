@@ -207,7 +207,8 @@ function choicesTheSchemaAllows(propertySchema: JsonObjectOnTheWire): { choices:
   const enumeration = propertySchema["enum"];
   if (Array.isArray(enumeration)) {
     const choices = enumeration.filter((choice): choice is string => typeof choice === "string");
-    return choices.length + (enumeration.includes(null) ? 1 : 0) === enumeration.length ? { choices, allowsNull: enumeration.includes(null) } : null;
+    const allowsNull = enumeration.includes(null);
+    return choices.length + (allowsNull ? 1 : 0) === enumeration.length ? { choices, allowsNull } : null;
   }
   const constant = propertySchema["const"];
   if (typeof constant === "string") return { choices: [constant], allowsNull: false };
@@ -229,16 +230,19 @@ function choicesTheSchemaAllows(propertySchema: JsonObjectOnTheWire): { choices:
 }
 
 /**
- * What one setting's schema, as `schemars` writes it, says it holds and whether `null` is among its values: a `$ref`
- * followed into the schema's definitions, an `anyOf`/`oneOf` with a `null` branch read as its other branch, and a set
- * of texts read as a choice.
+ * What one setting's schema, as `schemars` 0.8 writes it, says it holds and whether `null` is among its values: a `$ref`,
+ * or the one-branch `allOf` a documented field of a referenced type is written as, followed into the schema's
+ * definitions; an `anyOf`/`oneOf` with a `null` branch read as its other branch; and a set of texts read as a choice.
  */
 function relaySettingTypeOf(
   propertySchema: JsonObjectOnTheWire,
   settingsSchema: JsonObjectOnTheWire,
   referencesStillFollowed: number,
 ): { valueKind: RelaySettingValueKind; acceptsNull: boolean } {
-  const reference = propertySchema["$ref"];
+  const allOfBranches = propertySchema["allOf"];
+  const [onlyAllOfBranch] = Array.isArray(allOfBranches) ? allOfBranches : [];
+  const referencedSchema = Array.isArray(allOfBranches) && allOfBranches.length === 1 && isAJsonObject(onlyAllOfBranch) ? onlyAllOfBranch : propertySchema;
+  const reference = referencedSchema["$ref"];
   if (typeof reference === "string") {
     const definition = referencesStillFollowed > 0 ? schemaDefinitionNamed(reference, settingsSchema) : null;
     return definition === null
@@ -254,15 +258,16 @@ function relaySettingTypeOf(
       return { valueKind: relaySettingTypeOf(onlyOtherBranch, settingsSchema, referencesStillFollowed).valueKind, acceptsNull: true };
     }
   }
-  const choices = choicesTheSchemaAllows(propertySchema);
   const schemaTypes = schemaTypesOf(propertySchema);
-  if (choices !== null) return { valueKind: { kind: "one_of", choices: choices.choices }, acceptsNull: choices.allowsNull || schemaTypes.includes("null") };
+  const acceptsNullByItsType = schemaTypes.includes("null");
+  const choices = choicesTheSchemaAllows(propertySchema);
+  if (choices !== null) return { valueKind: { kind: "one_of", choices: choices.choices }, acceptsNull: choices.allowsNull || acceptsNullByItsType };
   return {
     valueKind: relaySettingValueKindOf(
       propertySchema,
       schemaTypes.filter((schemaType) => schemaType !== "null"),
     ),
-    acceptsNull: schemaTypes.includes("null"),
+    acceptsNull: acceptsNullByItsType,
   };
 }
 
@@ -284,8 +289,10 @@ function relaySettingValueKindOf(propertySchema: JsonObjectOnTheWire, typesOther
       return { kind: "true_or_false" };
     case "array": {
       const items = propertySchema["items"];
-      const itemTypes = isAJsonObject(items) ? schemaTypesOf(items) : [];
-      if (itemTypes.length === 1 && itemTypes[0] === "string" && !(isAJsonObject(items) && choicesTheSchemaAllows(items) !== null)) return { kind: "text_list" };
+      if (!isAJsonObject(items)) return { kind: "not_drawable", schema_type_words: "array" };
+      if (choicesTheSchemaAllows(items) !== null) return { kind: "not_drawable", schema_type_words: "array of choices" };
+      const itemTypes = schemaTypesOf(items);
+      if (itemTypes.length === 1 && itemTypes[0] === "string") return { kind: "text_list" };
       return { kind: "not_drawable", schema_type_words: itemTypes.length === 0 ? "array" : `array of ${itemTypes.join(" or ")}` };
     }
     case "integer": {

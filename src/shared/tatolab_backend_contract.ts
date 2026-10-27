@@ -307,7 +307,7 @@ export interface ListedRelay {
 export type RelaySettingValueKind =
   | { kind: "text" }
   | { kind: "whole_number"; minimum: number | null; maximum: number | null }
-  | { kind: "one_of"; choices: string[] }
+  | { kind: "one_of"; choices: readonly string[] }
   | { kind: "true_or_false" }
   | { kind: "text_list" }
   | { kind: "not_drawable"; schema_type_words: string };

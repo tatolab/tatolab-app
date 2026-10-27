@@ -219,7 +219,7 @@ export interface RelaySettingFormRow {
   placeholder: string | null;
   inputMode: "text" | "numeric";
   /** A choice setting's choices, and the one shown chosen: the one picked, the relay's own, or none yet. */
-  choices: string[];
+  choices: readonly string[];
   chosenChoice: string | null;
   /** A switch's position: as switched, as the relay lists it, or off. */
   isSwitchedOn: boolean;

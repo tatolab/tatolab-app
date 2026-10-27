@@ -166,6 +166,7 @@ test("a_choice_of_text_reads_its_choices_from_enum_from_a_oneof_of_consts_and_th
       region: { oneOf: [{ type: "string", const: "us", description: "The US." }, { type: "string", enum: ["eu"] }] },
       tier: { $ref: "#/definitions/RelayTier" },
       edge: { anyOf: [{ $ref: "#/$defs/Edge" }, { type: "null" }], default: null },
+      documented_tier: { description: "The tier, documented.", allOf: [{ $ref: "#/definitions/RelayTier" }] },
     },
     definitions: { RelayTier: { type: "string", enum: ["free", "pro"] } },
     $defs: { Edge: { type: "string", enum: ["nearest", "fixed"] } },
@@ -176,6 +177,7 @@ test("a_choice_of_text_reads_its_choices_from_enum_from_a_oneof_of_consts_and_th
     ["region", { kind: "one_of", choices: ["us", "eu"] }, false],
     ["tier", { kind: "one_of", choices: ["free", "pro"] }, false],
     ["edge", { kind: "one_of", choices: ["nearest", "fixed"] }, true],
+    ["documented_tier", { kind: "one_of", choices: ["free", "pro"] }, false],
   ]);
 });
 
