@@ -9,7 +9,7 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import type {
   ListedStream,
-  RelaySettingValue,
+  RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
   StreamFailureNotificationsState,
@@ -394,7 +394,7 @@ export class TatolabAppController {
   }
 
   /** Add a relay of `adapter` with `settings`, answering the id the runtime gave it; the log names the settings given, never a value. */
-  async addRelay(adapter: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<Result<string, LocalApiRequestFailure>> {
+  async addRelay(adapter: string, settings: Readonly<RelaySettingsByName>): Promise<Result<string, LocalApiRequestFailure>> {
     const added = await this.localApiClient.addRelay(adapter, settings);
     const settingNames = Object.keys(settings).join(",");
     if (added.ok) this.tatolabAppLog.info("a relay was added", { adapter, relay_id: added.value, setting_names: settingNames });
@@ -403,7 +403,7 @@ export class TatolabAppController {
   }
 
   /** Replace the settings named in `settings` on the relay `relayId`; the log names them, never a value. */
-  async configureRelay(relayId: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<Result<void, LocalApiRequestFailure>> {
+  async configureRelay(relayId: string, settings: Readonly<RelaySettingsByName>): Promise<Result<void, LocalApiRequestFailure>> {
     const configured = await this.localApiClient.configureRelay(relayId, settings);
     const settingNames = Object.keys(settings).join(",");
     if (configured.ok) this.tatolabAppLog.info("a relay was configured", { relay_id: relayId, setting_names: settingNames });

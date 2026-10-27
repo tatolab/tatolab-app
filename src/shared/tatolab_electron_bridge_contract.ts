@@ -4,7 +4,7 @@
 
 import type {
   PythonForNewEnvironmentsChoice,
-  RelaySettingValue,
+  RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
   StreamGraphSummary,
@@ -123,9 +123,9 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   /** The runtime's `list_relays` and its relay-adapter catalog, read together; refused in the runtime's own words. */
   describe_relays: { commandArguments: undefined; answer: RelaysDescription };
   /** `settings` as the adapter's settings take them, its secrets among them, sent once and kept by the app nowhere; answers the id the runtime gave the relay. */
-  add_relay: { commandArguments: { adapter: string; settings: Record<string, RelaySettingValue> }; answer: { relay_id: string } };
+  add_relay: { commandArguments: { adapter: string; settings: RelaySettingsByName }; answer: { relay_id: string } };
   /** Only the settings named change; `null` returns one to its default, and a secret named replaces the one held. */
-  configure_relay: { commandArguments: { relay_id: string; settings: Record<string, RelaySettingValue> }; answer: null };
+  configure_relay: { commandArguments: { relay_id: string; settings: RelaySettingsByName }; answer: null };
   /** Refused by the runtime for a built-in relay. */
   remove_relay: { commandArguments: { relay_id: string }; answer: null };
 }>;

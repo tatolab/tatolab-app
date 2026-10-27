@@ -1,4 +1,4 @@
-import type { RelaySettingValue } from "../shared/tatolab_backend_contract";
+import type { RelaySettingsByName } from "../shared/tatolab_backend_contract";
 import { describeBackendRejection, type TatolabBackend } from "./backend/tatolab_backend";
 import type { RelaysReading } from "./presentation/relays_presentation";
 import { RepeatingBackendPoll } from "./repeating_backend_poll";
@@ -57,12 +57,12 @@ export class RelayReadings {
   }
 
   /** Add a relay of `adapter` with `settings`, resolving with the id the runtime gave it; the relays are read again whether it was added or refused. */
-  addRelay(adapter: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<string> {
+  addRelay(adapter: string, settings: Readonly<RelaySettingsByName>): Promise<string> {
     return this.readAgainAfter(this.backend.addRelay(adapter, settings));
   }
 
   /** Replace the settings named in `settings` on `relayId`; the relays are read again whether it was configured or refused. */
-  configureRelay(relayId: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<void> {
+  configureRelay(relayId: string, settings: Readonly<RelaySettingsByName>): Promise<void> {
     return this.readAgainAfter(this.backend.configureRelay(relayId, settings));
   }
 

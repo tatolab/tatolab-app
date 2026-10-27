@@ -1,4 +1,4 @@
-import type { ListedRelay, RelayAdapter, RelaySettingValue, RelaysDescription } from "../../shared/tatolab_backend_contract";
+import type { ListedRelay, RelayAdapter, RelaySettingsByName, RelaysDescription } from "../../shared/tatolab_backend_contract";
 
 /**
  * The relays the mock runtime holds as the page opens, picked with `?relays=`: the local relay's two listeners with a
@@ -111,8 +111,8 @@ function mockHostedRelays(): ListedRelay[] {
 /** The mock runtime's relays, behind the four relay calls of the backend. */
 export interface MockRelays {
   describeRelays(): Promise<RelaysDescription>;
-  addRelay(adapter: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<string>;
-  configureRelay(relayId: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<void>;
+  addRelay(adapter: string, settings: Readonly<RelaySettingsByName>): Promise<string>;
+  configureRelay(relayId: string, settings: Readonly<RelaySettingsByName>): Promise<void>;
   removeRelay(relayId: string): Promise<void>;
 }
 
@@ -149,7 +149,7 @@ export function createMockRelays(sources: MockRelaysSources): MockRelays {
     }, MOCK_RELAY_JOIN_MILLISECONDS);
   };
   /** `settings` laid onto `relay` as the runtime takes them: a secret held as `set` and its value dropped, `null` a setting's default. */
-  const takeTheSettings = (relay: ListedRelay, adapter: RelayAdapter, settings: Readonly<Record<string, RelaySettingValue>>) => {
+  const takeTheSettings = (relay: ListedRelay, adapter: RelayAdapter, settings: Readonly<RelaySettingsByName>) => {
     const settingNames = adapter.setting_fields.map((settingField) => settingField.name);
     const unknownSettingName = Object.keys(settings).find((settingName) => !settingNames.includes(settingName));
     if (unknownSettingName !== undefined) {

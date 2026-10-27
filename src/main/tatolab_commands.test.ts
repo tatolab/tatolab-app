@@ -654,5 +654,9 @@ test("the_relay_commands_read_their_arguments_as_the_window_sends_them_and_never
     refusal: "add_relay needs the setting `relay_url` as text, a number, true or false, or null",
   });
   expect(await commandHandlers.configure_relay({ settings: { port: 1 } })).toEqual({ ok: false, refusal: "configure_relay needs `relay_id`, a relay's id" });
+  expect(await commandHandlers.configure_relay({ relay_id: "local-every-interface", settings: { port: Number.NaN } })).toEqual({
+    ok: false,
+    refusal: "configure_relay needs the setting `port` as text, a number, true or false, or null",
+  });
   expect(await commandHandlers.remove_relay({ relay: "cloudflare-1" })).toEqual({ ok: false, refusal: "remove_relay needs `relay_id`, a relay's id" });
 });

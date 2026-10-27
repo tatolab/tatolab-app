@@ -9,6 +9,7 @@ import type {
   RelayAdapter,
   RelayConnectionState,
   RelaySettingField,
+  RelaySettingsByName,
   RelaySettingValue,
   RelaySettingValueKind,
 } from "../shared/tatolab_backend_contract.js";
@@ -21,6 +22,7 @@ import {
   objectOrEmpty,
   optionalText,
   parseJsonOnTheWire,
+  requiredArray,
   requiredText,
   requiredTrueOrFalse,
   requiredUnsignedInteger,
@@ -33,6 +35,24 @@ const LARGEST_VALUE_OF_EACH_UNSIGNED_INTEGER_FORMAT: Readonly<Record<string, num
   uint16: 65_535,
   uint32: 4_294_967_295,
 };
+
+/** A tool of the runtime that changes a relay, each answering the `relay_id` it changed. */
+export type RelayChangeToolName = "add_relay" | "configure_relay" | "remove_relay";
+
+/** Whether `value` is a relay setting's value: text, a finite number, true or false, or `null`, which JSON carries as itself. */
+export function isARelaySettingValue(value: unknown): value is RelaySettingValue {
+  return value === null || typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value));
+}
+
+/** Each of `settingsObject`'s settings by name, or the refusal `refusalNamingTheSetting` words for the first that is no relay setting's value. */
+export function relaySettingsByNameFrom(settingsObject: JsonObjectOnTheWire, refusalNamingTheSetting: (settingName: string) => string): Result<RelaySettingsByName, string> {
+  const settings: RelaySettingsByName = {};
+  for (const [settingName, settingValue] of Object.entries(settingsObject)) {
+    if (!isARelaySettingValue(settingValue)) return failedWith(refusalNamingTheSetting(settingName));
+    settings[settingName] = settingValue;
+  }
+  return succeeded(settings);
+}
 
 /** Every relay a `list_relays` tool result lists, in its order; unknown fields are ignored. */
 export function listedRelaysFromTheListRelaysToolResult(toolResultText: string): Result<ListedRelay[], string> {
@@ -53,17 +73,11 @@ export function relayAdaptersFromTheRelayAdaptersAnswer(answerText: string): Res
 }
 
 /** The `relay_id` that the `add_relay`, `configure_relay` or `remove_relay` tool result `toolName` answered names. */
-export function relayIdFromTheRelayToolResult(toolName: string, toolResultText: string): Result<string, string> {
+export function relayIdFromTheRelayToolResult(toolName: RelayChangeToolName, toolResultText: string): Result<string, string> {
   const parsedToolResult = parseJsonOnTheWire(toolResultText);
   const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, `the ${toolName} result`) : parsedToolResult;
   const relayId = toolResult.ok ? requiredText(toolResult.value, "relay_id") : toolResult;
   return relayId.ok ? relayId : failedWith(`the runtime's ${toolName} result could not be read: ${relayId.failure}`);
-}
-
-function requiredArray(jsonObjectOnTheWire: JsonObjectOnTheWire, key: string): Result<readonly unknown[], string> {
-  const value = jsonObjectOnTheWire[key];
-  if (value === undefined) return failedWith(`missing field \`${key}\``);
-  return Array.isArray(value) ? succeeded(value) : failedWith(`\`${key}\` is not an array`);
 }
 
 function listedRelayOnTheWire(listedRelayValue: unknown): Result<ListedRelay, string> {
@@ -93,17 +107,10 @@ function listedRelayOnTheWire(listedRelayValue: unknown): Result<ListedRelay, st
   });
 }
 
-function relaySettingsOnTheWire(listedRelay: JsonObjectOnTheWire): Result<Record<string, RelaySettingValue>, string> {
+function relaySettingsOnTheWire(listedRelay: JsonObjectOnTheWire): Result<RelaySettingsByName, string> {
   const settingsOnTheWire = objectOrEmpty(listedRelay, "settings");
   if (!settingsOnTheWire.ok) return settingsOnTheWire;
-  const settings: Record<string, RelaySettingValue> = {};
-  for (const [settingName, settingValue] of Object.entries(settingsOnTheWire.value)) {
-    if (settingValue !== null && typeof settingValue !== "string" && typeof settingValue !== "number" && typeof settingValue !== "boolean") {
-      return failedWith(`the setting \`${settingName}\` is not text, a number, true or false, or null`);
-    }
-    settings[settingName] = settingValue;
-  }
-  return succeeded(settings);
+  return relaySettingsByNameFrom(settingsOnTheWire.value, (settingName) => `the setting \`${settingName}\` is not text, a number, true or false, or null`);
 }
 
 /** Each secret's presence; a value that is not `set` or `unset` is refused by the setting's name alone, so no secret is ever carried on. */
@@ -191,10 +198,11 @@ function relaySettingValueKindOf(propertySchema: JsonObjectOnTheWire, typesOther
   if (onlyType === "string") return { kind: "text" };
   if (onlyType !== "integer") return { kind: "not_drawable", schema_type_words: onlyType };
   const format = propertySchema["format"];
+  const minimum = propertySchema["minimum"];
   const maximum = propertySchema["maximum"];
   return {
     kind: "whole_number",
-    minimum: typeof propertySchema["minimum"] === "number" ? propertySchema["minimum"] : null,
+    minimum: typeof minimum === "number" ? minimum : null,
     maximum: typeof maximum === "number" ? maximum : typeof format === "string" ? (LARGEST_VALUE_OF_EACH_UNSIGNED_INTEGER_FORMAT[format] ?? null) : null,
   };
 }

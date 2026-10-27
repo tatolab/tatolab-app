@@ -16,7 +16,7 @@ import { isUtf8 } from "node:buffer";
 import net from "node:net";
 import type {
   ListedStream,
-  RelaySettingValue,
+  RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
   StreamGraphSummary,
@@ -37,7 +37,12 @@ import {
   requiredUnsignedInteger,
   textOrDefault,
 } from "./json_on_the_wire.js";
-import { listedRelaysFromTheListRelaysToolResult, relayAdaptersFromTheRelayAdaptersAnswer, relayIdFromTheRelayToolResult } from "./relays_description.js";
+import {
+  listedRelaysFromTheListRelaysToolResult,
+  relayAdaptersFromTheRelayAdaptersAnswer,
+  relayIdFromTheRelayToolResult,
+  type RelayChangeToolName,
+} from "./relays_description.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { streamLogRecordsPageFromTheLogsToolResult } from "./stream_log_records_page.js";
@@ -294,23 +299,22 @@ export class LocalApiClient {
 
   /** Every relay the runtime holds, from its `list_relays` tool, and every adapter it can join one through, from `GET /api/relay-adapters`. */
   async describeRelays(): Promise<Result<RelaysDescription, LocalApiRequestFailure>> {
-    const catalogBody = await this.getBodyOfAnOkAnswer("/api/relay-adapters");
+    const [catalogBody, toolResultText] = await Promise.all([this.getBodyOfAnOkAnswer("/api/relay-adapters"), this.callMcpTool("list_relays", {})]);
     if (!catalogBody.ok) return catalogBody;
     const adapters = relayAdaptersFromTheRelayAdaptersAnswer(catalogBody.value.toString("utf8"));
     if (!adapters.ok) return localApiRequestFailure(adapters.failure);
-    const toolResultText = await this.callMcpTool("list_relays", {});
     if (!toolResultText.ok) return toolResultText;
     const relays = listedRelaysFromTheListRelaysToolResult(toolResultText.value);
     return relays.ok ? succeeded({ relays: relays.value, adapters: adapters.value }) : localApiRequestFailure(relays.failure);
   }
 
   /** Add a relay of `adapter` with `settings`, its secrets among them, through the runtime's `add_relay` tool, answering the id it gave the relay; refused in the runtime's own words. */
-  async addRelay(adapter: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<Result<string, LocalApiRequestFailure>> {
+  async addRelay(adapter: string, settings: Readonly<RelaySettingsByName>): Promise<Result<string, LocalApiRequestFailure>> {
     return this.callARelayTool("add_relay", { adapter, settings });
   }
 
   /** Replace the settings named in `settings` on the relay `relayId` through the runtime's `configure_relay` tool; refused in the runtime's own words. */
-  async configureRelay(relayId: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<Result<void, LocalApiRequestFailure>> {
+  async configureRelay(relayId: string, settings: Readonly<RelaySettingsByName>): Promise<Result<void, LocalApiRequestFailure>> {
     const configured = await this.callARelayTool("configure_relay", { relay_id: relayId, settings });
     return configured.ok ? succeeded(undefined) : configured;
   }
@@ -322,7 +326,7 @@ export class LocalApiClient {
   }
 
   /** Call the relay tool `toolName`, answering the `relay_id` its result names. */
-  private async callARelayTool(toolName: "add_relay" | "configure_relay" | "remove_relay", toolArguments: Readonly<Record<string, unknown>>): Promise<Result<string, LocalApiRequestFailure>> {
+  private async callARelayTool(toolName: RelayChangeToolName, toolArguments: Readonly<Record<string, unknown>>): Promise<Result<string, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool(toolName, toolArguments, RELAY_CHANGE_RESPONSE_TIMEOUT_MS);
     if (!toolResultText.ok) return toolResultText;
     const relayId = relayIdFromTheRelayToolResult(toolName, toolResultText.value);

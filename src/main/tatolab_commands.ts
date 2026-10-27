@@ -5,7 +5,7 @@
 
 import type {
   PythonForNewEnvironmentsChoice,
-  RelaySettingValue,
+  RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
   StreamGraphSummary,
@@ -24,6 +24,7 @@ import {
   runInTheBackgroundWithTheController,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
+import { relaySettingsByNameFrom } from "./relays_description.js";
 import { openTheRuntimesLogFolder } from "./runtime_log_folder_opening.js";
 import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 
@@ -226,7 +227,7 @@ export function describeRelays(sharedState: TatolabAppSharedState): Promise<Resu
 }
 
 /** `add_relay { adapter, settings }`: the runtime's `add_relay`, answering the id it gave the relay; refused in the runtime's own words. */
-export function addRelay(sharedState: TatolabAppSharedState, adapter: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<Result<{ relay_id: string }, string>> {
+export function addRelay(sharedState: TatolabAppSharedState, adapter: string, settings: Readonly<RelaySettingsByName>): Promise<Result<{ relay_id: string }, string>> {
   return answerTheWindow("add_relay", async () => {
     const relayId = await sharedState.controller.addRelay(adapter, settings);
     return relayId.ok ? succeeded({ relay_id: relayId.value }) : failedWith(relayId.failure.failureDescription);
@@ -234,7 +235,7 @@ export function addRelay(sharedState: TatolabAppSharedState, adapter: string, se
 }
 
 /** `configure_relay { relay_id, settings }`: the runtime's `configure_relay`; refused in the runtime's own words. */
-export function configureRelay(sharedState: TatolabAppSharedState, relayId: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<Result<void, string>> {
+export function configureRelay(sharedState: TatolabAppSharedState, relayId: string, settings: Readonly<RelaySettingsByName>): Promise<Result<void, string>> {
   return answerTheWindow("configure_relay", async () => {
     const configured = await sharedState.controller.configureRelay(relayId, settings);
     return configured.ok ? configured : failedWith(configured.failure.failureDescription);
@@ -249,22 +250,15 @@ export function removeRelay(sharedState: TatolabAppSharedState, relayId: string)
   });
 }
 
-/** The `settings` of the command `commandName` as the window sends them: each value text, a number, true or false, or null; anything else is refused naming the setting, never its value. */
-function relaySettingsArgumentFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<Record<string, RelaySettingValue>, string> {
+/** The `settings` of the command `commandName` as the window sends them: each value text, a finite number, true or false, or null; anything else is refused naming the setting, never its value. */
+function relaySettingsArgumentFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<RelaySettingsByName, string> {
   const settingsArgument = isAJsonObject(commandArguments) ? commandArguments["settings"] : undefined;
   if (!isAJsonObject(settingsArgument)) return failedWith(`${commandName} needs \`settings\`, each setting by name`);
-  const settings: Record<string, RelaySettingValue> = {};
-  for (const [settingName, settingValue] of Object.entries(settingsArgument)) {
-    if (settingValue !== null && typeof settingValue !== "string" && typeof settingValue !== "number" && typeof settingValue !== "boolean") {
-      return failedWith(`${commandName} needs the setting \`${settingName}\` as text, a number, true or false, or null`);
-    }
-    settings[settingName] = settingValue;
-  }
-  return succeeded(settings);
+  return relaySettingsByNameFrom(settingsArgument, (settingName) => `${commandName} needs the setting \`${settingName}\` as text, a number, true or false, or null`);
 }
 
 /** `add_relay`'s arguments as the window sends them, or why they are not. */
-export function addRelayArgumentsFrom(commandArguments: unknown): Result<{ adapter: string; settings: Record<string, RelaySettingValue> }, string> {
+export function addRelayArgumentsFrom(commandArguments: unknown): Result<{ adapter: string; settings: RelaySettingsByName }, string> {
   const adapter = oneTextArgumentFrom("add_relay", commandArguments, "adapter", "an adapter's kind");
   if (!adapter.ok) return adapter;
   const settings = relaySettingsArgumentFrom("add_relay", commandArguments);
@@ -272,7 +266,7 @@ export function addRelayArgumentsFrom(commandArguments: unknown): Result<{ adapt
 }
 
 /** `configure_relay`'s arguments as the window sends them, or why they are not. */
-export function configureRelayArgumentsFrom(commandArguments: unknown): Result<{ relay_id: string; settings: Record<string, RelaySettingValue> }, string> {
+export function configureRelayArgumentsFrom(commandArguments: unknown): Result<{ relay_id: string; settings: RelaySettingsByName }, string> {
   const relayId = oneTextArgumentFrom("configure_relay", commandArguments, "relay_id", "a relay's id");
   if (!relayId.ok) return relayId;
   const settings = relaySettingsArgumentFrom("configure_relay", commandArguments);

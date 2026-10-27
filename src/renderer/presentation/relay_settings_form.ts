@@ -1,4 +1,4 @@
-import type { ListedRelay, RelayAdapter, RelaySettingField, RelaySettingValue } from "../../shared/tatolab_backend_contract";
+import type { ListedRelay, RelayAdapter, RelaySettingField, RelaySettingsByName } from "../../shared/tatolab_backend_contract";
 
 /** Words that read in capitals inside a setting's name. */
 const INITIALISMS_IN_A_SETTING_NAME = new Set(["api", "id", "jwk", "jwt", "tls", "uri", "url", "http", "https", "quic"]);
@@ -54,7 +54,7 @@ export type RelaySettingsDraft = Readonly<Record<string, RelaySettingEdit>>;
 
 /** What a form would send: the settings, nothing because nothing changed, or why it cannot yet, each setting's problem by name. */
 export type RelaySettingsToSend =
-  | { kind: "ready"; settings: Record<string, RelaySettingValue> }
+  | { kind: "ready"; settings: RelaySettingsByName }
   | { kind: "no_change" }
   | { kind: "incomplete"; problems: Record<string, string>; firstProblem: string };
 
@@ -81,7 +81,7 @@ function typedSettingValue(formField: RelaySettingFormField, text: string): { ki
 
 const REQUIRED_PROBLEM = "Required";
 
-function settingsToSendFrom(settings: Record<string, RelaySettingValue>, problems: { name: string; problem: string; sentence: string }[], ifNothingIsSent: RelaySettingsToSend): RelaySettingsToSend {
+function settingsToSendFrom(settings: RelaySettingsByName, problems: { name: string; problem: string; sentence: string }[], ifNothingIsSent: RelaySettingsToSend): RelaySettingsToSend {
   const [firstProblem] = problems;
   if (firstProblem !== undefined) {
     return { kind: "incomplete", problems: Object.fromEntries(problems.map(({ name, problem }) => [name, problem])), firstProblem: firstProblem.sentence };
@@ -91,7 +91,7 @@ function settingsToSendFrom(settings: Record<string, RelaySettingValue>, problem
 
 /** The settings adding a relay of `adapter` sends from `draft`: every setting typed, an empty optional one left out. */
 export function relaySettingsToSendToAdd(adapter: RelayAdapter, draft: RelaySettingsDraft): RelaySettingsToSend {
-  const settings: Record<string, RelaySettingValue> = {};
+  const settings: RelaySettingsByName = {};
   const problems: { name: string; problem: string; sentence: string }[] = [];
   for (const formField of relaySettingsFormFields(adapter)) {
     const edit = draft[formField.name];
@@ -114,7 +114,7 @@ export function relaySettingShownText(relay: ListedRelay, settingName: string): 
  * secret typed again replacing the one held; a secret whose replacement is left empty keeps the one held.
  */
 export function relaySettingsToSendToConfigure(adapter: RelayAdapter, relay: ListedRelay, draft: RelaySettingsDraft): RelaySettingsToSend {
-  const settings: Record<string, RelaySettingValue> = {};
+  const settings: RelaySettingsByName = {};
   const problems: { name: string; problem: string; sentence: string }[] = [];
   for (const formField of relaySettingsFormFields(adapter)) {
     const edit = draft[formField.name];

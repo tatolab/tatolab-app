@@ -1,6 +1,6 @@
 import type {
   PythonForNewEnvironmentsChoice,
-  RelaySettingValue,
+  RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
   StreamGraphSummary,
@@ -71,9 +71,9 @@ export interface TatolabBackend {
   /** Every relay the runtime holds and every adapter it can join one through, rejecting in the runtime's own words. */
   describeRelays(): Promise<RelaysDescription>;
   /** Add a relay of `adapter` with `settings`, its secrets among them, resolving with the id the runtime gave it and rejecting in the runtime's own words. */
-  addRelay(adapter: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<string>;
+  addRelay(adapter: string, settings: Readonly<RelaySettingsByName>): Promise<string>;
   /** Replace the settings named in `settings` on the relay `relayId`, `null` returning one to its default; rejects in the runtime's own words. */
-  configureRelay(relayId: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<void>;
+  configureRelay(relayId: string, settings: Readonly<RelaySettingsByName>): Promise<void>;
   /** Leave and forget the relay `relayId`, rejecting in the runtime's own words, as it refuses a built-in relay. */
   removeRelay(relayId: string): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
