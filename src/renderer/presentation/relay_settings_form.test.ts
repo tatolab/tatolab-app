@@ -45,7 +45,7 @@ const EVERY_INTERFACE: ListedRelay = {
 
 describe("a relay setting's label", () => {
   it("is its name in words, its initialisms in capitals", () => {
-    expect(["project_id", "relay_url", "signing_key", "port", "api_key", "tls_certificate_path", "jwk"].map(relaySettingLabel)).toEqual([
+    expect(["project_id", "relay_url", "signing_key", "port", "api_key", "tls_certificate_path", "jwk", "fallback_urls"].map(relaySettingLabel)).toEqual([
       "Project ID",
       "Relay URL",
       "Signing key",
@@ -53,6 +53,7 @@ describe("a relay setting's label", () => {
       "API key",
       "TLS certificate path",
       "JWK",
+      "Fallback URLs",
     ]);
   });
 });
@@ -213,5 +214,75 @@ describe("sending a form", () => {
     expect(
       relaySettingsDraftWithoutTypedSecrets(MOQPRO_ADAPTER, { project_id: { kind: "typed", text: "desk" }, signing_key: { kind: "typed", text: "typed-in-the-test" } }),
     ).toEqual({ project_id: { kind: "typed", text: "desk" } });
+  });
+});
+
+const TYPED_ADAPTER: RelayAdapter = {
+  kind: "example",
+  doc: "An example relay with every kind of setting.",
+  setting_fields: [
+    { name: "relay", description: null, is_required: true, is_secret: false, value_kind: { kind: "one_of", choices: ["https://cdn.moq.dev", "https://cdn.moq.pro"] }, accepts_null: false },
+    { name: "prefers_ipv6", description: null, is_required: true, is_secret: false, value_kind: { kind: "true_or_false" }, accepts_null: false },
+    { name: "fallback_urls", description: null, is_required: false, is_secret: false, value_kind: { kind: "text_list" }, accepts_null: true },
+    { name: "edge", description: null, is_required: false, is_secret: false, value_kind: { kind: "one_of", choices: ["nearest", "fixed"] }, accepts_null: true },
+  ],
+};
+const TYPED_RELAY: ListedRelay = {
+  relay_id: "example-1",
+  adapter: "example",
+  built_in: false,
+  settings: { relay: "https://cdn.moq.dev", prefers_ipv6: false, fallback_urls: ["https://a.example", "https://b.example"] },
+  secrets: {},
+  connection_state: { state: "joined" },
+};
+
+describe("a choice, a switch and a list of text", () => {
+  it("are drawn as a choice, a switch and one item per line, the required ones first and the optional ones under Additional options", () => {
+    const form = presentRelaySettingsForm(TYPED_ADAPTER, null, {}, new Set());
+
+    expect(form.rows.map((row) => [row.formField.name, row.formField.input])).toEqual([
+      ["relay", "choice"],
+      ["prefers_ipv6", "true_or_false"],
+      ["fallback_urls", "text_lines"],
+      ["edge", "choice"],
+    ]);
+    expect(form.requiredRows.map((row) => row.formField.name)).toEqual(["relay", "prefers_ipv6"]);
+    expect(form.additionalOptionRows.map((row) => row.formField.name)).toEqual(["fallback_urls", "edge"]);
+    expect(form.rows[0]).toMatchObject({ choices: ["https://cdn.moq.dev", "https://cdn.moq.pro"], chosenChoice: null });
+  });
+
+  it("send what was chosen, switched and listed when adding, a required switch left alone sent off and a required choice waited for", () => {
+    expect(relaySettingsToSendToAdd(TYPED_ADAPTER, {})).toEqual({ kind: "incomplete", problems: { relay: "Required" }, firstProblem: "Relay is required." });
+    expect(
+      relaySettingsToSendToAdd(TYPED_ADAPTER, {
+        relay: { kind: "chosen", choice: "https://cdn.moq.pro" },
+        fallback_urls: { kind: "typed", text: " https://a.example \n\n https://b.example\n" },
+      }),
+    ).toEqual({ kind: "ready", settings: { relay: "https://cdn.moq.pro", prefers_ipv6: false, fallback_urls: ["https://a.example", "https://b.example"] } });
+  });
+
+  it("show the relay's own values when configuring, and send only what differs from them", () => {
+    const rows = presentRelaySettingsForm(TYPED_ADAPTER, TYPED_RELAY, {}, new Set()).rows;
+
+    expect(rows.map((row) => [row.formField.name, row.chosenChoice, row.isSwitchedOn, row.shownText])).toEqual([
+      ["relay", "https://cdn.moq.dev", false, ""],
+      ["prefers_ipv6", null, false, ""],
+      ["fallback_urls", null, false, "https://a.example\nhttps://b.example"],
+      ["edge", null, false, ""],
+    ]);
+    expect(
+      relaySettingsToSendToConfigure(TYPED_ADAPTER, TYPED_RELAY, {
+        relay: { kind: "chosen", choice: "https://cdn.moq.dev" },
+        prefers_ipv6: { kind: "switched", isOn: false },
+        fallback_urls: { kind: "typed", text: "https://a.example\nhttps://b.example" },
+      }),
+    ).toEqual({ kind: "no_change" });
+    expect(
+      relaySettingsToSendToConfigure(TYPED_ADAPTER, TYPED_RELAY, {
+        prefers_ipv6: { kind: "switched", isOn: true },
+        fallback_urls: { kind: "typed", text: "https://c.example" },
+        edge: { kind: "chosen", choice: "fixed" },
+      }),
+    ).toEqual({ kind: "ready", settings: { prefers_ipv6: true, fallback_urls: ["https://c.example"], edge: "fixed" } });
   });
 });

@@ -1409,6 +1409,71 @@ describe("Settings › Relays", () => {
     expect(document.querySelector("[data-relay-dialog]")).toBeNull();
   });
 
+  it("reads a secret from the file chosen in the app's dialog, and puts optional settings under Additional options", { timeout: 8_000 }, async () => {
+    const added: [string, unknown][] = [];
+    const mock = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&relays=local")));
+    await mountedWindowOverTheMock("state=running&relays=local", {
+      describeRelays: () => mock.describeRelays(),
+      addRelay: async (adapter, settings) => {
+        added.push([adapter, settings]);
+        return "moqpro-1";
+      },
+    });
+    await openSettingsOn("relays");
+    const dialog = await openTheAddRelayDialogFor("moqpro");
+
+    const additionalOptions = dialog.querySelector<HTMLElement>("[data-relay-additional-options]") ?? expect.unreachable("no Additional options");
+    expect(additionalOptions.textContent).toContain("Additional options");
+    expect([...additionalOptions.querySelectorAll("[data-relay-setting]")].map((row) => row.getAttribute("data-relay-setting"))).toEqual(["relay_url"]);
+    typeIntoTheRelaySetting("project_id", "pb1studio");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Choose a file holding the Signing key" }));
+    await waitFor(() => expect(dialog.querySelector<HTMLInputElement>('[data-relay-setting-field="signing_key"]')?.value).toContain('"kid":"pb1studio"'));
+    fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-action="add"]') ?? expect.unreachable("no Add relay"));
+
+    await waitFor(() => expect(added).toHaveLength(1));
+    expect(added[0]?.[0]).toBe("moqpro");
+    expect(added[0]?.[1]).toMatchObject({ project_id: "pb1studio", signing_key: expect.stringContaining('"kty":"OKP"') });
+  });
+
+  it("draws a choice, a switch and a list of text from the schema and sends what was chosen, switched and listed", { timeout: 8_000 }, async () => {
+    const added: [string, unknown][] = [];
+    await mountedWindowOverTheMock("state=running&relays=local", {
+      describeRelays: async () => ({
+        relays: [{ relay_id: "local-loopback", adapter: "local", built_in: true, settings: { port: 4443 }, secrets: {}, connection_state: { state: "joined" } }],
+        adapters: [
+          {
+            kind: "example",
+            doc: "An example relay.",
+            setting_fields: [
+              { name: "relay", description: null, is_required: true, is_secret: false, value_kind: { kind: "one_of", choices: ["https://cdn.moq.dev", "https://cdn.moq.pro"] }, accepts_null: false },
+              { name: "prefers_ipv6", description: null, is_required: true, is_secret: false, value_kind: { kind: "true_or_false" }, accepts_null: false },
+              { name: "fallback_urls", description: null, is_required: false, is_secret: false, value_kind: { kind: "text_list" }, accepts_null: true },
+            ],
+          },
+        ],
+      }),
+      addRelay: async (adapter, settings) => {
+        added.push([adapter, settings]);
+        return "example-1";
+      },
+    });
+    await openSettingsOn("relays");
+    await openTheAddRelayDialogFor("example");
+
+    fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-setting-field="relay"]') ?? expect.unreachable("no relay choice"));
+    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-relay-setting-choice="https://cdn.moq.pro"]') ?? expect.unreachable("no cdn.moq.pro choice")));
+    fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-setting-field="prefers_ipv6"]') ?? expect.unreachable("no switch"));
+    fireEvent.change(openRelayDialog().querySelector<HTMLTextAreaElement>('[data-relay-setting-field="fallback_urls"]') ?? expect.unreachable("no list"), {
+      target: { value: "https://a.example\nhttps://b.example" },
+    });
+    await waitFor(() => expect(openRelayDialog().querySelector<HTMLButtonElement>('[data-relay-action="add"]')?.disabled).toBe(false));
+    fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-action="add"]') ?? expect.unreachable("no Add relay"));
+
+    await waitFor(() =>
+      expect(added).toEqual([["example", { relay: "https://cdn.moq.pro", prefers_ipv6: true, fallback_urls: ["https://a.example", "https://b.example"] }]]),
+    );
+  });
+
   it("says the relays show while the runtime runs when it is down", async () => {
     await mountedWindowOverTheMock("state=stopped");
     await openSettingsOn("relays");

@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import type { ControlDataAttributes } from "./control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
 
@@ -61,6 +62,55 @@ export function TextField({
       className={cn(
         "h-7 rounded-md border-line-strong bg-window px-2.5 text-sm text-fg dark:bg-window",
         isMachineWord && "font-mono",
+        isRefused && "border-danger dark:border-danger",
+        FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
+        className,
+      )}
+      {...controlDataAttributes}
+    />
+  );
+}
+
+/** A field the person types several lines into, one item per line, in Geist Mono; red-edged while what it holds was refused. */
+export function TextLinesField({
+  id,
+  label,
+  text,
+  onTextChanged,
+  isRefused = false,
+  placeholder,
+  describedBy,
+  className,
+  ...controlDataAttributes
+}: {
+  /** For the `<label>` beside it that names it. */
+  id?: string;
+  /** The field's accessible name. */
+  label: string;
+  text: string;
+  onTextChanged: (text: string) => void;
+  isRefused?: boolean;
+  /** Shown while it holds nothing, as "Default". */
+  placeholder?: string;
+  /** The id of what explains the field or its refusal. */
+  describedBy?: string;
+  /** A one-off adjustment where the field is used. */
+  className?: string;
+} & ControlDataAttributes) {
+  return (
+    <Textarea
+      id={id}
+      value={text}
+      onChange={(changeEvent) => onTextChanged(changeEvent.target.value)}
+      placeholder={placeholder}
+      aria-label={label}
+      aria-invalid={isRefused || undefined}
+      aria-describedby={describedBy}
+      spellCheck={false}
+      autoComplete="off"
+      rows={3}
+      className={cn(
+        "min-h-16 rounded-md border-line-strong bg-window px-2.5 py-1.5 font-mono text-sm text-fg dark:bg-window",
         isRefused && "border-danger dark:border-danger",
         FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
         className,

@@ -40,8 +40,9 @@ const LARGEST_VALUE_OF_EACH_UNSIGNED_INTEGER_FORMAT: Readonly<Record<string, num
 /** A tool of the runtime that changes a relay, each answering the `relay_id` it changed. */
 export type RelayChangeToolName = "add_relay" | "configure_relay" | "remove_relay";
 
-/** Whether `value` is a relay setting's value: text, a finite number, true or false, or `null`, which JSON carries as itself. */
+/** Whether `value` is a relay setting's value: text, a finite number, true or false, a list of texts, or `null`, which JSON carries as itself. */
 function isARelaySettingValue(value: unknown): value is RelaySettingValue {
+  if (Array.isArray(value)) return value.every((listedText) => typeof listedText === "string");
   return value === null || typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value));
 }
 
@@ -111,7 +112,7 @@ function listedRelayOnTheWire(listedRelayValue: unknown): Result<ListedRelay, st
 function relaySettingsOnTheWire(listedRelay: JsonObjectOnTheWire): Result<RelaySettingsByName, string> {
   const settingsOnTheWire = objectOrEmpty(listedRelay, "settings");
   if (!settingsOnTheWire.ok) return settingsOnTheWire;
-  return relaySettingsByNameFrom(settingsOnTheWire.value, (settingName) => `the setting \`${settingName}\` is not text, a number, true or false, or null`);
+  return relaySettingsByNameFrom(settingsOnTheWire.value, (settingName) => `the setting \`${settingName}\` is not text, a number, true or false, a list of texts, or null`);
 }
 
 /** Each secret's presence; a value that is not `set` or `unset` is refused by the setting's name alone, so no secret is ever carried on. */
@@ -173,16 +174,96 @@ function relaySettingFieldsOfTheSchema(settingsSchema: JsonObjectOnTheWire): Res
     if (!isAJsonObject(propertySchemaValue)) return failedWith(`the setting \`${settingName}\` has no schema`);
     const description = optionalText(propertySchemaValue, "description");
     if (!description.ok) return description;
-    const schemaTypes = schemaTypesOf(propertySchemaValue);
+    const { valueKind, acceptsNull } = relaySettingTypeOf(propertySchemaValue, settingsSchema, SCHEMA_REFERENCES_FOLLOWED_AT_MOST);
     return succeeded({
       name: settingName,
       description: description.value,
       is_required: requiredSettingNames.has(settingName),
       is_secret: propertySchemaValue["writeOnly"] === true,
-      value_kind: relaySettingValueKindOf(propertySchemaValue, schemaTypes.filter((schemaType) => schemaType !== "null")),
-      accepts_null: schemaTypes.includes("null"),
+      value_kind: valueKind,
+      accepts_null: acceptsNull,
     });
   });
+}
+
+/** How many `$ref`s deep a setting's schema is followed into its definitions, so a schema that refers to itself ends. */
+const SCHEMA_REFERENCES_FOLLOWED_AT_MOST = 4;
+
+/** The definition `reference` names, `#/definitions/<name>` or `#/$defs/<name>`, under `settingsSchema`. */
+function schemaDefinitionNamed(reference: string, settingsSchema: JsonObjectOnTheWire): JsonObjectOnTheWire | null {
+  const match = /^#\/(definitions|\$defs)\/([^/]+)$/.exec(reference);
+  if (match === null) return null;
+  const definitions = settingsSchema[match[1] ?? ""];
+  const definition = isAJsonObject(definitions) ? definitions[match[2] ?? ""] : undefined;
+  return isAJsonObject(definition) ? definition : null;
+}
+
+function isTheNullSchema(schema: unknown): boolean {
+  return isAJsonObject(schema) && schema["type"] === "null";
+}
+
+/** The texts a schema allows as its whole set of values: its `enum`, its `const`, or each branch's of its `oneOf`; `null` when it allows any value of its type. */
+function choicesTheSchemaAllows(propertySchema: JsonObjectOnTheWire): { choices: string[]; allowsNull: boolean } | null {
+  const enumeration = propertySchema["enum"];
+  if (Array.isArray(enumeration)) {
+    const choices = enumeration.filter((choice): choice is string => typeof choice === "string");
+    return choices.length + (enumeration.includes(null) ? 1 : 0) === enumeration.length ? { choices, allowsNull: enumeration.includes(null) } : null;
+  }
+  const constant = propertySchema["const"];
+  if (typeof constant === "string") return { choices: [constant], allowsNull: false };
+  const branches = propertySchema["oneOf"];
+  if (!Array.isArray(branches) || branches.length === 0) return null;
+  const choices: string[] = [];
+  let allowsNull = false;
+  for (const branch of branches) {
+    if (isTheNullSchema(branch)) {
+      allowsNull = true;
+      continue;
+    }
+    const branchChoices = isAJsonObject(branch) ? choicesTheSchemaAllows(branch) : null;
+    if (branchChoices === null) return null;
+    choices.push(...branchChoices.choices);
+    allowsNull ||= branchChoices.allowsNull;
+  }
+  return { choices, allowsNull };
+}
+
+/**
+ * What one setting's schema, as `schemars` writes it, says it holds and whether `null` is among its values: a `$ref`
+ * followed into the schema's definitions, an `anyOf`/`oneOf` with a `null` branch read as its other branch, and a set
+ * of texts read as a choice.
+ */
+function relaySettingTypeOf(
+  propertySchema: JsonObjectOnTheWire,
+  settingsSchema: JsonObjectOnTheWire,
+  referencesStillFollowed: number,
+): { valueKind: RelaySettingValueKind; acceptsNull: boolean } {
+  const reference = propertySchema["$ref"];
+  if (typeof reference === "string") {
+    const definition = referencesStillFollowed > 0 ? schemaDefinitionNamed(reference, settingsSchema) : null;
+    return definition === null
+      ? { valueKind: { kind: "not_drawable", schema_type_words: reference }, acceptsNull: false }
+      : relaySettingTypeOf(definition, settingsSchema, referencesStillFollowed - 1);
+  }
+  for (const unionKey of ["anyOf", "oneOf"] as const) {
+    const branches = propertySchema[unionKey];
+    if (!Array.isArray(branches) || !branches.some(isTheNullSchema)) continue;
+    const otherBranches = branches.filter((branch) => !isTheNullSchema(branch));
+    const [onlyOtherBranch] = otherBranches;
+    if (otherBranches.length === 1 && isAJsonObject(onlyOtherBranch)) {
+      return { valueKind: relaySettingTypeOf(onlyOtherBranch, settingsSchema, referencesStillFollowed).valueKind, acceptsNull: true };
+    }
+  }
+  const choices = choicesTheSchemaAllows(propertySchema);
+  const schemaTypes = schemaTypesOf(propertySchema);
+  if (choices !== null) return { valueKind: { kind: "one_of", choices: choices.choices }, acceptsNull: choices.allowsNull || schemaTypes.includes("null") };
+  return {
+    valueKind: relaySettingValueKindOf(
+      propertySchema,
+      schemaTypes.filter((schemaType) => schemaType !== "null"),
+    ),
+    acceptsNull: schemaTypes.includes("null"),
+  };
 }
 
 /** The schema's `type`, one name or several; none when it states none. */
@@ -196,14 +277,28 @@ function relaySettingValueKindOf(propertySchema: JsonObjectOnTheWire, typesOther
   const [onlyType, ...otherTypes] = typesOtherThanNull;
   if (onlyType === undefined) return { kind: "not_drawable", schema_type_words: "no type" };
   if (otherTypes.length > 0) return { kind: "not_drawable", schema_type_words: typesOtherThanNull.join(" or ") };
-  if (onlyType === "string") return { kind: "text" };
-  if (onlyType !== "integer") return { kind: "not_drawable", schema_type_words: onlyType };
-  const format = propertySchema["format"];
-  const minimum = propertySchema["minimum"];
-  const maximum = propertySchema["maximum"];
-  return {
-    kind: "whole_number",
-    minimum: typeof minimum === "number" ? minimum : null,
-    maximum: typeof maximum === "number" ? maximum : typeof format === "string" ? (LARGEST_VALUE_OF_EACH_UNSIGNED_INTEGER_FORMAT[format] ?? null) : null,
-  };
+  switch (onlyType) {
+    case "string":
+      return { kind: "text" };
+    case "boolean":
+      return { kind: "true_or_false" };
+    case "array": {
+      const items = propertySchema["items"];
+      const itemTypes = isAJsonObject(items) ? schemaTypesOf(items) : [];
+      if (itemTypes.length === 1 && itemTypes[0] === "string" && !(isAJsonObject(items) && choicesTheSchemaAllows(items) !== null)) return { kind: "text_list" };
+      return { kind: "not_drawable", schema_type_words: itemTypes.length === 0 ? "array" : `array of ${itemTypes.join(" or ")}` };
+    }
+    case "integer": {
+      const format = propertySchema["format"];
+      const minimum = propertySchema["minimum"];
+      const maximum = propertySchema["maximum"];
+      return {
+        kind: "whole_number",
+        minimum: typeof minimum === "number" ? minimum : null,
+        maximum: typeof maximum === "number" ? maximum : typeof format === "string" ? (LARGEST_VALUE_OF_EACH_UNSIGNED_INTEGER_FORMAT[format] ?? null) : null,
+      };
+    }
+    default:
+      return { kind: "not_drawable", schema_type_words: onlyType };
+  }
 }

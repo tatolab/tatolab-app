@@ -89,6 +89,7 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     removeRelay: async (relayId) => {
       await invokeTatolabCommand("remove_relay", { relay_id: relayId });
     },
+    chooseRelaySecretFile: async () => (await invokeTatolabCommand("choose_relay_secret_file", undefined))?.text ?? null,
     onStreamPageRequested: (listener) => tatolabElectronBridge.onStreamPageRequested(listener),
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
   };

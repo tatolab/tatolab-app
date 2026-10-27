@@ -16,6 +16,7 @@ import { electronApplicationMenu } from "./electron_application_menu.js";
 import { openAFolderInTheFileManagerThroughElectron } from "./electron_folder_in_the_file_manager.js";
 import { askThePersonForAStreamProjectFolderThroughElectron } from "./electron_stream_project_folder_dialog.js";
 import { askThePersonForAPythonInterpreterThroughElectron } from "./electron_python_interpreter_file_dialog.js";
+import { askThePersonForARelaySecretFileThroughElectron } from "./electron_relay_secret_file_dialog.js";
 import { createElectronMainWindowHostFactory } from "./electron_main_window_host.js";
 import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_handlers.js";
 import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
@@ -82,6 +83,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   openAFolderInTheFileManager: openAFolderInTheFileManagerThroughElectron,
   askThePersonForAStreamProjectFolder: askThePersonForAStreamProjectFolderThroughElectron,
   askThePersonForAPythonInterpreter: askThePersonForAPythonInterpreterThroughElectron,
+  askThePersonForARelaySecretFile: askThePersonForARelaySecretFileThroughElectron,
   homeDirectory: app.getPath("home"),
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
   systemNotifications: createElectronSystemNotifications(),

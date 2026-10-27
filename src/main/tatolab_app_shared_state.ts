@@ -2,6 +2,7 @@
 // controller, the status publisher, the updater and uninstalling, and the requests the tray and
 // the window both make.
 
+import type { RelaySecretFileDialog } from "./relay_secret_file_reading.js";
 import type { TatolabUninstall } from "./platform/tatolab_uninstall.js";
 import { describeCaughtFailure } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
@@ -24,6 +25,8 @@ export interface TatolabAppSharedState {
   streamProjectAdding: StreamProjectAdding;
   streamProjectPythonEnvironments: StreamProjectPythonEnvironments;
   streamFailureNotifications: StreamFailureNotifications;
+  /** The app's file dialog Settings › Relays reads a secret's file through. */
+  relaySecretFileDialog: RelaySecretFileDialog;
   tatolabAppLog: TatolabAppLog;
 }
 

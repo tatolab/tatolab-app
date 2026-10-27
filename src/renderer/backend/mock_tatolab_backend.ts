@@ -217,6 +217,8 @@ export interface MockTatolabOptions {
   isMakingThePythonEnvironmentRefused: boolean;
   /** `?relays=local`: the runtime holds only the local relay's two listeners; a joined Cloudflare relay and a lost moq.pro one beside them by default. */
   relaysScenario: MockRelaysScenario;
+  /** `?secret_file=cancel`: the file dialog Settings › Relays opens for a secret is cancelled. */
+  isTheRelaySecretFileDialogCancelled: boolean;
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -302,6 +304,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     pythonInterpreterPick: pageQuery.get("python_pick") === "cancel" ? "cancel" : pageQuery.get("python_pick") === "not_python" ? "not_python" : "picked",
     isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
     relaysScenario: mockRelaysScenarioNamed(pageQuery.get("relays")),
+    isTheRelaySecretFileDialogCancelled: pageQuery.get("secret_file") === "cancel",
   };
 }
 
@@ -448,6 +451,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     pythonInterpreterPick,
     isMakingThePythonEnvironmentRefused,
     relaysScenario,
+    isTheRelaySecretFileDialogCancelled,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -704,6 +708,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     scenario: relaysScenario,
     isTheRuntimeRunning: () => mockStatus.runtime_state === "running",
     noRuntimeAnswersRefusal,
+    isTheSecretFileDialogCancelled: isTheRelaySecretFileDialogCancelled,
   });
 
   const loadedStreamNamed = (streamName: string): MockLoadedStream => {
@@ -1019,6 +1024,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     addRelay: (adapter, settings) => mockRelays.addRelay(adapter, settings),
     configureRelay: (relayId, settings) => mockRelays.configureRelay(relayId, settings),
     removeRelay: (relayId) => mockRelays.removeRelay(relayId),
+    chooseRelaySecretFile: () => mockRelays.chooseRelaySecretFile(),
     onStreamPageRequested: (streamPageRequestListener) => {
       if (streamPageRequestedByANotification === null) return () => {};
       const notificationClickTimer = window.setTimeout(() => streamPageRequestListener(streamPageRequestedByANotification), MOCK_NOTIFICATION_CLICK_MILLISECONDS);

@@ -5,15 +5,17 @@ import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
 import { ConfirmationDialog } from "../design_system/confirmation_dialog";
 import { FormDialog, FormDialogFooter, FormDialogRow, FormDialogRows } from "../design_system/form_dialog";
-import { IconButtonMenu, MenuItem, MoreActionsMenu } from "../design_system/menus";
+import { FieldMenu, IconButtonMenu, MenuItem, MenuSingleChoiceGroup, MoreActionsMenu } from "../design_system/menus";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
 import { SettingsGroup, SettingsMachineWords, SettingsRow, SettingsSectionExplanation } from "../design_system/settings_rows";
 import { StateWords, type StateWordsEmphasis } from "../design_system/stream_state_words";
-import { TextField } from "../design_system/text_field";
+import { TextField, TextLinesField } from "../design_system/text_field";
+import { ToggleSwitch } from "../design_system/toggle_switch";
 import {
   presentRelaySettingsForm,
   relaySettingsDraftWithoutTypedSecrets,
+  type RelaySettingEdit,
   type RelaySettingFormRow,
   type RelaySettingsDraft,
 } from "../presentation/relay_settings_form";
@@ -82,25 +84,123 @@ function ConfigureRelayButton({ row, onPressed }: { row: LocalRelayListenerRow |
   );
 }
 
-/** One setting's field in a relay's form: its value, or for a held secret whether it is set and Replace…; Use default for an optional one. */
-function RelaySettingRow({
+/** The control a setting's row edits it with, as its input draws it: a field, a choice, a switch, or text one item per line. */
+function RelaySettingControl({
   row,
-  onTyped,
-  onReplaceTheSecret,
-  onUseItsDefault,
+  fieldId,
+  labelId,
+  describedById,
+  onEdited,
 }: {
   row: RelaySettingFormRow;
-  onTyped: (text: string) => void;
-  onReplaceTheSecret: () => void;
-  onUseItsDefault: () => void;
+  fieldId: string;
+  labelId: string;
+  describedById: string;
+  onEdited: (edit: RelaySettingEdit) => void;
 }) {
   const { formField } = row;
+  switch (formField.input) {
+    case "choice":
+      return (
+        <FieldMenu
+          label={`${formField.label}: ${row.chosenChoice ?? "none chosen"}`}
+          words={<SettingsMachineWords tone="of_the_words_around_it">{row.chosenChoice ?? row.placeholder ?? "Choose…"}</SettingsMachineWords>}
+          data-relay-setting-field={formField.name}
+        >
+          <MenuSingleChoiceGroup
+            choices={row.choices.map((choice) => ({ choice, label: <SettingsMachineWords tone="of_the_words_around_it">{choice}</SettingsMachineWords> }))}
+            chosen={row.chosenChoice ?? ""}
+            onChosen={(choice) => onEdited({ kind: "chosen", choice })}
+            dataAttributeOfEachChoice="data-relay-setting-choice"
+          />
+        </FieldMenu>
+      );
+    case "true_or_false":
+      return (
+        <ToggleSwitch
+          isOn={row.isSwitchedOn}
+          onSwitched={(isOn) => onEdited({ kind: "switched", isOn })}
+          labelledBy={labelId}
+          describedBy={describedById}
+          data-relay-setting-field={formField.name}
+        />
+      );
+    case "text_lines":
+      return (
+        <TextLinesField
+          id={fieldId}
+          label={formField.label}
+          text={row.shownText}
+          onTextChanged={(text) => onEdited({ kind: "typed", text })}
+          isRefused={row.problem !== null}
+          placeholder={row.placeholder ?? undefined}
+          describedBy={describedById}
+          className="w-64"
+          data-relay-setting-field={formField.name}
+        />
+      );
+    case "text":
+    case "whole_number":
+    case "secret":
+      return (
+        <TextField
+          id={fieldId}
+          label={formField.label}
+          text={row.shownText}
+          onTextChanged={(text) => onEdited({ kind: "typed", text })}
+          isMachineWord
+          isSecret={formField.input === "secret"}
+          isRequired={formField.isRequired}
+          hasFocusOnOpen={row.takesFocusWhenShown}
+          isRefused={row.problem !== null}
+          placeholder={row.placeholder ?? undefined}
+          inputMode={row.inputMode}
+          describedBy={describedById}
+          className="w-64"
+          data-relay-setting-field={formField.name}
+        />
+      );
+  }
+}
+
+/** One setting's row in a relay's form: its control, or for a held secret whether it is set and Replace…; Choose file… beside a secret's field; Use default for an optional one. */
+function RelaySettingRow({
+  row,
+  onEdited,
+  onReplaceTheSecret,
+}: {
+  row: RelaySettingFormRow;
+  onEdited: (edit: RelaySettingEdit) => void;
+  onReplaceTheSecret: () => void;
+}) {
+  const { backend } = useTatolabWindowEnvironment();
+  const { formField } = row;
   const fieldId = `relay-setting-${formField.name}`;
+  const labelId = `${fieldId}-label`;
   const describedById = `${fieldId}-description`;
+  const [isChoosingAFile, setIsChoosingAFile] = useState(false);
+  const [fileRefusal, setFileRefusal] = useState<string | null>(null);
+  const focusTheRowsControl = () => document.querySelector<HTMLElement>(`[data-relay-setting-field="${CSS.escape(formField.name)}"]`)?.focus();
+  const readTheSecretFromAFile = () => {
+    setFileRefusal(null);
+    setIsChoosingAFile(true);
+    backend.chooseRelaySecretFile().then(
+      (fileText) => {
+        setIsChoosingAFile(false);
+        if (fileText !== null) onEdited({ kind: "typed", text: fileText });
+        focusTheRowsControl();
+      },
+      (rejection: unknown) => {
+        setIsChoosingAFile(false);
+        setFileRefusal(describeBackendRejection(rejection));
+      },
+    );
+  };
   return (
     <FormDialogRow
       label={formField.label}
-      labelFor={row.showsTheField ? fieldId : undefined}
+      labelFor={row.showsTheField && formField.input !== "choice" && formField.input !== "true_or_false" ? fieldId : undefined}
+      labelId={labelId}
       data-relay-setting={formField.name}
       below={
         <div id={describedById} className="mt-1 flex flex-col gap-1 text-xs text-fg-3">
@@ -112,6 +212,7 @@ function RelaySettingRow({
           {row.requiredWords !== null && <p>{row.requiredWords}</p>}
           {formField.input === "secret" && <p>Kept by the runtime and never shown again.</p>}
           {row.problem !== null && <p className="text-danger-text">{row.problem}</p>}
+          {fileRefusal !== null && <RefusalLine lead="The file wasn't read:" words={fileRefusal} />}
         </div>
       }
     >
@@ -131,31 +232,24 @@ function RelaySettingRow({
               appearance="quiet"
               label={row.useDefaultLabel}
               onPressed={() => {
-                onUseItsDefault();
-                // The button goes once pressed; focus moves to the field it returned to its default, not to the page.
-                document.getElementById(fieldId)?.focus();
+                onEdited({ kind: "use_default" });
+                // The button goes once pressed; focus moves to the control it returned to its default, not to the page.
+                focusTheRowsControl();
               }}
               data-relay-action="use-default"
             >
               Use default
             </ActionButton>
           )}
-          <TextField
-            id={fieldId}
-            label={formField.label}
-            text={row.shownText}
-            onTextChanged={onTyped}
-            isMachineWord
-            isSecret={formField.input === "secret"}
-            isRequired={formField.isRequired}
-            hasFocusOnOpen={row.takesFocusWhenShown}
-            isRefused={row.problem !== null}
-            placeholder={row.placeholder ?? undefined}
-            inputMode={row.inputMode}
-            describedBy={describedById}
-            className="w-64"
-            data-relay-setting-field={formField.name}
-          />
+          {formField.input === "secret" &&
+            (isChoosingAFile ? (
+              <PendingActionWords words="Choosing…" />
+            ) : (
+              <ActionButton appearance="quiet" label={row.chooseFileLabel} onPressed={readTheSecretFromAFile} data-relay-action="choose-secret-file">
+                Choose file…
+              </ActionButton>
+            ))}
+          <RelaySettingControl row={row} fieldId={fieldId} labelId={labelId} describedById={describedById} onEdited={onEdited} />
         </>
       )}
     </FormDialogRow>
@@ -172,7 +266,15 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
   const [secretsBeingReplaced, setSecretsBeingReplaced] = useState<ReadonlySet<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
   const [refusal, setRefusal] = useState<BackendActionRefusal | null>(null);
-  const { dialogWords, rows: formRows, settingsToSend, sendUnavailableBecause } = presentRelaySettingsForm(adapter, relay, draft, secretsBeingReplaced);
+  const { dialogWords, requiredRows, additionalOptionRows, settingsToSend, sendUnavailableBecause } = presentRelaySettingsForm(adapter, relay, draft, secretsBeingReplaced);
+  const relaySettingRowOf = (row: RelaySettingFormRow) => (
+    <RelaySettingRow
+      key={row.formField.name}
+      row={row}
+      onEdited={(edit) => setDraft((draftNow) => ({ ...draftNow, [row.formField.name]: edit }))}
+      onReplaceTheSecret={() => setSecretsBeingReplaced((replacedNow) => new Set([...replacedNow, row.formField.name]))}
+    />
+  );
   const forgetEverySecretTyped = () => {
     setDraft((draftNow) => relaySettingsDraftWithoutTypedSecrets(adapter, draftNow));
     setSecretsBeingReplaced(new Set());
@@ -231,20 +333,20 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
         </FormDialogFooter>
       }
     >
-      {formRows.length === 0 ? (
+      {requiredRows.length + additionalOptionRows.length === 0 ? (
         <p className="text-fg-3">This adapter takes no settings.</p>
       ) : (
-        <FormDialogRows>
-          {formRows.map((row) => (
-            <RelaySettingRow
-              key={row.formField.name}
-              row={row}
-              onTyped={(text) => setDraft((draftNow) => ({ ...draftNow, [row.formField.name]: { kind: "typed", text } }))}
-              onReplaceTheSecret={() => setSecretsBeingReplaced((replacedNow) => new Set([...replacedNow, row.formField.name]))}
-              onUseItsDefault={() => setDraft((draftNow) => ({ ...draftNow, [row.formField.name]: { kind: "use_default" } }))}
-            />
-          ))}
-        </FormDialogRows>
+        <>
+          {requiredRows.length > 0 && <FormDialogRows>{requiredRows.map(relaySettingRowOf)}</FormDialogRows>}
+          {additionalOptionRows.length > 0 && (
+            <section aria-labelledby="relay-additional-options" className="mt-5" data-relay-additional-options="">
+              <h3 id="relay-additional-options" className="mb-1 font-medium text-fg-2">
+                Additional options
+              </h3>
+              <FormDialogRows>{additionalOptionRows.map(relaySettingRowOf)}</FormDialogRows>
+            </section>
+          )}
+        </>
       )}
       {refusal !== null && (
         <div className="mt-4" data-relay-dialog-refusal="">

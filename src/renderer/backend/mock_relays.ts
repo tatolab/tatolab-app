@@ -12,6 +12,9 @@ export function mockRelaysScenarioNamed(relaysInTheQuery: string | null): MockRe
 }
 
 const MOCK_RELAY_CALL_MILLISECONDS = 30;
+
+/** The text of the signing key file the mock's file dialog picks, a JWK as moq.pro hands one over. */
+const MOCK_SIGNING_KEY_FILE_TEXT = '{"kty":"OKP","crv":"Ed25519","kid":"pb1studio","x":"mock-public-half","d":"mock-private-half"}\n';
 /** How long the mock takes to answer an add or a configure, which the runtime answers once the adapter has taken the settings. */
 const MOCK_RELAY_CHANGE_MILLISECONDS = 600;
 /** How long an added or configured relay stays joining before it reads joined. */
@@ -114,6 +117,7 @@ export interface MockRelays {
   addRelay(adapter: string, settings: Readonly<RelaySettingsByName>): Promise<string>;
   configureRelay(relayId: string, settings: Readonly<RelaySettingsByName>): Promise<void>;
   removeRelay(relayId: string): Promise<void>;
+  chooseRelaySecretFile(): Promise<string | null>;
 }
 
 /** What the mock relays are built from: what the page asks, and whether the mock runtime answers now and its words when it does not. */
@@ -121,6 +125,8 @@ export interface MockRelaysSources {
   scenario: MockRelaysScenario;
   isTheRuntimeRunning: () => boolean;
   noRuntimeAnswersRefusal: () => string;
+  /** `?secret_file=cancel`: the file dialog Settings › Relays opens for a secret is cancelled; otherwise it picks a moq.pro signing key. */
+  isTheSecretFileDialogCancelled: boolean;
 }
 
 const sleep = (milliseconds: number) => new Promise<void>((settle) => window.setTimeout(settle, milliseconds));
@@ -219,6 +225,10 @@ export function createMockRelays(sources: MockRelaysSources): MockRelays {
       takeTheSettings(relayWithTheNewSettings, adapter, settings);
       Object.assign(relay, relayWithTheNewSettings);
       joinAfterAMoment(relay);
+    },
+    chooseRelaySecretFile: async () => {
+      await sleep(MOCK_RELAY_CALL_MILLISECONDS);
+      return sources.isTheSecretFileDialogCancelled ? null : MOCK_SIGNING_KEY_FILE_TEXT;
     },
     removeRelay: async (relayId) => {
       await sleep(MOCK_RELAY_CALL_MILLISECONDS);

@@ -1,4 +1,4 @@
-import type { ListedRelay, RelayAdapter, RelayConnectionState, RelaysDescription } from "../../shared/tatolab_backend_contract";
+import type { ListedRelay, RelayAdapter, RelayConnectionState, RelaySettingValue, RelaysDescription } from "../../shared/tatolab_backend_contract";
 import { relaySettingLabel } from "./relay_settings_form";
 import type { StatusTone } from "./runtime_presentation";
 
@@ -126,10 +126,17 @@ function localRelayListenerRow(relay: ListedRelay, adapters: readonly RelayAdapt
   };
 }
 
+/** A listed setting's value in a relay's row: a list as its items, true or false as on or off. */
+function relaySettingValueWords(settingValue: RelaySettingValue): string {
+  if (Array.isArray(settingValue)) return settingValue.join(", ");
+  if (typeof settingValue === "boolean") return settingValue ? "on" : "off";
+  return String(settingValue);
+}
+
 function hostedRelayRow(relay: ListedRelay, adapters: readonly RelayAdapter[]): HostedRelayRow {
   const settingWords = Object.entries(relay.settings)
     .filter(([, settingValue]) => settingValue !== null)
-    .map(([settingName, settingValue]) => `${relaySettingLabel(settingName)} ${String(settingValue)}`);
+    .map(([settingName, settingValue]) => `${relaySettingLabel(settingName)} ${relaySettingValueWords(settingValue)}`);
   const secretWords = Object.entries(relay.secrets).map(([secretName, presence]) => `${relaySettingLabel(secretName)} ${presence === "set" ? "set" : "not set"}`);
   const allWords = [...settingWords, ...secretWords];
   return { ...relayRow(relay, adapters, relay.relay_id), settingsWords: allWords.length === 0 ? null : allWords.join(" · ") };

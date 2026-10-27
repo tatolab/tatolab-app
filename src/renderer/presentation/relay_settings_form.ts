@@ -1,4 +1,4 @@
-import type { ListedRelay, RelayAdapter, RelaySecretPresence, RelaySettingField, RelaySettingsByName } from "../../shared/tatolab_backend_contract";
+import type { ListedRelay, RelayAdapter, RelaySecretPresence, RelaySettingField, RelaySettingsByName, RelaySettingValue } from "../../shared/tatolab_backend_contract";
 
 /** Words that read in capitals inside a setting's name. */
 const INITIALISMS_IN_A_SETTING_NAME = new Set(["api", "id", "jwk", "jwt", "tls", "uri", "url", "http", "https", "quic"]);
@@ -10,13 +10,32 @@ export function relaySettingLabel(settingName: string): string {
     .filter((word) => word !== "")
     .map((word, wordIndex) => {
       if (INITIALISMS_IN_A_SETTING_NAME.has(word)) return word.toUpperCase();
+      if (word.endsWith("s") && INITIALISMS_IN_A_SETTING_NAME.has(word.slice(0, -1))) return `${word.slice(0, -1).toUpperCase()}s`;
       return wordIndex === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word;
     })
     .join(" ");
 }
 
-/** How the form takes one setting: a line of text, a whole number, or a secret, masked and never filled in. */
-export type RelaySettingInput = "text" | "whole_number" | "secret";
+/** How the form takes one setting: a line of text, a whole number, a secret (masked and never filled in), one of a list of choices, a switch, or text one item per line. */
+export type RelaySettingInput = "text" | "whole_number" | "secret" | "choice" | "true_or_false" | "text_lines";
+
+/** The input that draws a setting whose schema types it `valueKind`, a secret always masked. */
+function relaySettingInputOf(settingField: RelaySettingField): RelaySettingInput {
+  if (settingField.is_secret) return "secret";
+  switch (settingField.value_kind.kind) {
+    case "whole_number":
+      return "whole_number";
+    case "one_of":
+      return "choice";
+    case "true_or_false":
+      return "true_or_false";
+    case "text_list":
+      return "text_lines";
+    case "text":
+    case "not_drawable":
+      return "text";
+  }
+}
 
 /** One setting as the add and configure forms draw it. */
 export interface RelaySettingFormField {
@@ -37,7 +56,7 @@ export function relaySettingsFormFields(adapter: RelayAdapter): RelaySettingForm
       name: settingField.name,
       label: relaySettingLabel(settingField.name),
       description: settingField.description,
-      input: settingField.is_secret ? "secret" : settingField.value_kind.kind === "whole_number" ? "whole_number" : "text",
+      input: relaySettingInputOf(settingField),
       isRequired: settingField.is_required,
       offersItsDefault: !settingField.is_required && settingField.accepts_null,
       settingField,
@@ -46,8 +65,8 @@ export function relaySettingsFormFields(adapter: RelayAdapter): RelaySettingForm
   return [...formFields.filter((formField) => formField.isRequired), ...formFields.filter((formField) => !formField.isRequired)];
 }
 
-/** What the person did to one setting in a form: typed into it, or asked for its default. A setting they left alone is absent. */
-export type RelaySettingEdit = { kind: "typed"; text: string } | { kind: "use_default" };
+/** What the person did to one setting in a form: typed into it, chose one of its choices, switched it, or asked for its default. A setting they left alone is absent. */
+export type RelaySettingEdit = { kind: "typed"; text: string } | { kind: "chosen"; choice: string } | { kind: "switched"; isOn: boolean } | { kind: "use_default" };
 
 /** Every setting the person changed in a form, by name. */
 export type RelaySettingsDraft = Readonly<Record<string, RelaySettingEdit>>;
@@ -58,10 +77,22 @@ export type RelaySettingsToSend =
   | { kind: "no_change" }
   | { kind: "incomplete"; problems: Record<string, string>; firstProblem: string };
 
-/** What `text` typed into `formField` sends, or the problem with it; empty text sends nothing. */
-function typedSettingValue(formField: RelaySettingFormField, text: string): { kind: "value"; value: string | number } | { kind: "empty" } | { kind: "problem"; problem: string; sentence: string } {
+/** What `edit` of `formField` sends, or the problem with it; empty text, or text lines holding no item, sends nothing. */
+function editedSettingValue(
+  formField: RelaySettingFormField,
+  edit: Exclude<RelaySettingEdit, { kind: "use_default" }>,
+): { kind: "value"; value: RelaySettingValue } | { kind: "empty" } | { kind: "problem"; problem: string; sentence: string } {
+  if (edit.kind === "chosen") return { kind: "value", value: edit.choice };
+  if (edit.kind === "switched") return { kind: "value", value: edit.isOn };
   const valueKind = formField.settingField.value_kind;
-  const trimmedText = valueKind.kind === "whole_number" ? text.trim() : text;
+  if (formField.input === "text_lines") {
+    const listedTexts = edit.text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    return listedTexts.length === 0 ? { kind: "empty" } : { kind: "value", value: listedTexts };
+  }
+  const trimmedText = valueKind.kind === "whole_number" ? edit.text.trim() : edit.text;
   if (trimmedText.trim() === "") return { kind: "empty" };
   if (valueKind.kind !== "whole_number") return { kind: "value", value: trimmedText };
   const wholeNumber = /^-?\d+$/.test(trimmedText) ? Number(trimmedText) : Number.NaN;
@@ -89,24 +120,31 @@ function settingsToSendFrom(settings: RelaySettingsByName, problems: { name: str
   return Object.keys(settings).length === 0 ? ifNothingIsSent : { kind: "ready", settings };
 }
 
-/** The settings adding a relay of `adapter` sends from `draft`: every setting typed, an empty optional one left out. */
+/** The settings adding a relay of `adapter` sends from `draft`: every setting typed, chosen or switched, an empty optional one left out, and a required switch left alone sent off. */
 export function relaySettingsToSendToAdd(adapter: RelayAdapter, draft: RelaySettingsDraft): RelaySettingsToSend {
   const settings: RelaySettingsByName = {};
   const problems: { name: string; problem: string; sentence: string }[] = [];
   for (const formField of relaySettingsFormFields(adapter)) {
     const edit = draft[formField.name];
-    const typed = edit?.kind === "typed" ? typedSettingValue(formField, edit.text) : { kind: "empty" as const };
-    if (typed.kind === "value") settings[formField.name] = typed.value;
-    else if (typed.kind === "problem") problems.push({ name: formField.name, problem: typed.problem, sentence: typed.sentence });
+    const edited = edit === undefined || edit.kind === "use_default" ? { kind: "empty" as const } : editedSettingValue(formField, edit);
+    if (edited.kind === "value") settings[formField.name] = edited.value;
+    else if (edited.kind === "problem") problems.push({ name: formField.name, problem: edited.problem, sentence: edited.sentence });
+    else if (formField.isRequired && formField.input === "true_or_false") settings[formField.name] = false;
     else if (formField.isRequired) problems.push({ name: formField.name, problem: REQUIRED_PROBLEM, sentence: `${formField.label} is required.` });
   }
   return settingsToSendFrom(settings, problems, { kind: "ready", settings });
 }
 
-/** A non-secret setting's value as its field shows it, or empty while the relay lists none for it. */
+/** A non-secret setting's value as its field shows it, a list one item per line, or empty while the relay lists none for it. */
 export function relaySettingShownText(relay: ListedRelay, settingName: string): string {
   const settingValue = relay.settings[settingName];
-  return settingValue === undefined || settingValue === null ? "" : String(settingValue);
+  if (settingValue === undefined || settingValue === null) return "";
+  return Array.isArray(settingValue) ? settingValue.join("\n") : String(settingValue);
+}
+
+/** Whether `value` is what `relay` lists for `settingName` already, a list item for item. */
+function isTheValueTheRelayHolds(relay: ListedRelay, settingName: string, value: RelaySettingValue): boolean {
+  return JSON.stringify(relay.settings[settingName] ?? null) === JSON.stringify(value);
 }
 
 /**
@@ -123,11 +161,11 @@ export function relaySettingsToSendToConfigure(adapter: RelayAdapter, relay: Lis
       if (relay.settings[formField.name] !== undefined || formField.input === "secret") settings[formField.name] = null;
       continue;
     }
-    const typed = typedSettingValue(formField, edit.text);
-    if (typed.kind === "problem") {
-      problems.push({ name: formField.name, problem: typed.problem, sentence: typed.sentence });
-    } else if (typed.kind === "value") {
-      if (formField.input === "secret" || String(typed.value) !== relaySettingShownText(relay, formField.name)) settings[formField.name] = typed.value;
+    const edited = editedSettingValue(formField, edit);
+    if (edited.kind === "problem") {
+      problems.push({ name: formField.name, problem: edited.problem, sentence: edited.sentence });
+    } else if (edited.kind === "value") {
+      if (formField.input === "secret" || !isTheValueTheRelayHolds(relay, formField.name, edited.value)) settings[formField.name] = edited.value;
     } else if (formField.input !== "secret" && relaySettingShownText(relay, formField.name) !== "") {
       if (formField.isRequired) problems.push({ name: formField.name, problem: REQUIRED_PROBLEM, sentence: `${formField.label} is required.` });
       else if (!formField.settingField.accepts_null) problems.push({ name: formField.name, problem: "Can't be left empty", sentence: `${formField.label} can't be left empty.` });
@@ -173,11 +211,18 @@ export interface RelaySettingFormRow {
   offersUseDefault: boolean;
   /** Use default's accessible name, naming the setting. */
   useDefaultLabel: string;
+  /** Choose file…'s accessible name, naming the secret it reads from a file. */
+  chooseFileLabel: string;
   /** Said under a setting the runtime requires, so the form says what it waits for before anything is typed; left out while the setting's problem already says it. */
   requiredWords: "Required" | null;
   /** What its empty field reads, "Default" for an optional setting. */
   placeholder: string | null;
   inputMode: "text" | "numeric";
+  /** A choice setting's choices, and the one shown chosen: the one picked, the relay's own, or none yet. */
+  choices: string[];
+  chosenChoice: string | null;
+  /** A switch's position: as switched, as the relay lists it, or off. */
+  isSwitchedOn: boolean;
   /** What is wrong with what was typed, once something was. */
   problem: string | null;
 }
@@ -187,6 +232,10 @@ export interface RelaySettingsFormPresentation {
   /** The dialog's title, its send button's words while ready and while the runtime answers, and the lead of the runtime's refusal. */
   dialogWords: { title: string; sendWords: string; sendingWords: string; refusalLead: string };
   rows: RelaySettingFormRow[];
+  /** The rows of the settings the runtime requires, which the form shows first. */
+  requiredRows: RelaySettingFormRow[];
+  /** The rows of the optional settings, which the form shows under Additional options. */
+  additionalOptionRows: RelaySettingFormRow[];
   settingsToSend: RelaySettingsToSend;
   sendUnavailableBecause: string | null;
 }
@@ -202,13 +251,19 @@ export function presentRelaySettingsForm(
   const rows = relaySettingsFormFields(adapter).map((formField): RelaySettingFormRow => {
     const edit = draft[formField.name];
     const heldSecret: RelaySecretPresence | null = relay === null || formField.input !== "secret" ? null : (relay.secrets[formField.name] ?? "unset");
-    const textBeforeAnEdit = relay === null || formField.input === "secret" ? "" : relaySettingShownText(relay, formField.name);
-    const isAtItsDefault = edit?.kind === "use_default" || (edit === undefined && textBeforeAnEdit === "" && formField.input !== "secret");
+    const isTypedInto = formField.input === "text" || formField.input === "whole_number" || formField.input === "text_lines";
+    const textBeforeAnEdit = relay === null || !isTypedInto ? "" : relaySettingShownText(relay, formField.name);
+    const isAtItsDefault = edit?.kind === "use_default" || (edit === undefined && formField.input !== "secret" && (relay === null || relay.settings[formField.name] === undefined || relay.settings[formField.name] === null));
     const problem = edit !== undefined && settingsToSend.kind === "incomplete" ? (settingsToSend.problems[formField.name] ?? null) : null;
     const isBeingReplaced = heldSecret !== null && secretsBeingReplaced.has(formField.name);
+    const valueTheRelayHolds = relay === null ? undefined : relay.settings[formField.name];
+    const valueKind = formField.settingField.value_kind;
     return {
       formField,
       shownText: edit === undefined ? textBeforeAnEdit : edit.kind === "typed" ? edit.text : "",
+      choices: valueKind.kind === "one_of" ? valueKind.choices : [],
+      chosenChoice: edit?.kind === "chosen" ? edit.choice : edit?.kind === "use_default" ? null : typeof valueTheRelayHolds === "string" ? valueTheRelayHolds : null,
+      isSwitchedOn: edit?.kind === "switched" ? edit.isOn : edit?.kind === "use_default" ? false : valueTheRelayHolds === true,
       heldSecret,
       heldSecretWords: heldSecret === null ? null : heldSecret === "set" ? "Set" : "Not set",
       showsTheField: heldSecret === null || isBeingReplaced,
@@ -217,6 +272,7 @@ export function presentRelaySettingsForm(
       replaceLabel: `${heldSecret === "set" ? "Replace" : "Set"} ${formField.label}`,
       offersUseDefault: relay !== null && formField.offersItsDefault && !isAtItsDefault,
       useDefaultLabel: `Use the default ${formField.label}`,
+      chooseFileLabel: `Choose a file holding the ${formField.label}`,
       requiredWords: formField.isRequired && problem !== REQUIRED_PROBLEM ? "Required" : null,
       placeholder: formField.isRequired ? null : "Default",
       inputMode: formField.input === "whole_number" ? "numeric" : "text",
@@ -227,5 +283,12 @@ export function presentRelaySettingsForm(
     relay === null
       ? { title: "Add relay", sendWords: "Add relay", sendingWords: "Adding…", refusalLead: "The runtime didn't add the relay:" }
       : { title: "Configure relay", sendWords: "Save", sendingWords: "Saving…", refusalLead: "The runtime didn't change the relay:" };
-  return { dialogWords, rows, settingsToSend, sendUnavailableBecause: relaySettingsSendUnavailableBecause(settingsToSend) };
+  return {
+    dialogWords,
+    rows,
+    requiredRows: rows.filter((row) => row.formField.isRequired),
+    additionalOptionRows: rows.filter((row) => !row.formField.isRequired),
+    settingsToSend,
+    sendUnavailableBecause: relaySettingsSendUnavailableBecause(settingsToSend),
+  };
 }

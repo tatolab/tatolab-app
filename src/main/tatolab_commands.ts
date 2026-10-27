@@ -24,6 +24,7 @@ import {
   runInTheBackgroundWithTheController,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
+import { readTheRelaySecretFileThePersonChooses } from "./relay_secret_file_reading.js";
 import { relaySettingsByNameFrom } from "./relays_description.js";
 import { openTheRuntimesLogFolder } from "./runtime_log_folder_opening.js";
 import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
@@ -250,11 +251,11 @@ export function removeRelay(sharedState: TatolabAppSharedState, relayId: string)
   });
 }
 
-/** The `settings` of the command `commandName` as the window sends them: each value text, a finite number, true or false, or null; anything else is refused naming the setting, never its value. */
+/** The `settings` of the command `commandName` as the window sends them: each value text, a finite number, true or false, a list of texts, or null; anything else is refused naming the setting, never its value. */
 function relaySettingsArgumentFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<RelaySettingsByName, string> {
   const settingsArgument = isAJsonObject(commandArguments) ? commandArguments["settings"] : undefined;
   if (!isAJsonObject(settingsArgument)) return failedWith(`${commandName} needs \`settings\`, each setting by name`);
-  return relaySettingsByNameFrom(settingsArgument, (settingName) => `${commandName} needs the setting \`${settingName}\` as text, a number, true or false, or null`);
+  return relaySettingsByNameFrom(settingsArgument, (settingName) => `${commandName} needs the setting \`${settingName}\` as text, a number, true or false, a list of texts, or null`);
 }
 
 /** `add_relay`'s arguments as the window sends them, or why they are not. */
@@ -445,6 +446,8 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!configureRelayArguments.ok) return { ok: false, refusal: configureRelayArguments.failure };
       return commandAnswerOfNothingFrom(await configureRelay(sharedState, configureRelayArguments.value.relay_id, configureRelayArguments.value.settings));
     },
+    choose_relay_secret_file: async () =>
+      commandAnswerFrom(await answerTheWindow("choose_relay_secret_file", () => readTheRelaySecretFileThePersonChooses(sharedState.relaySecretFileDialog))),
     remove_relay: async (commandArguments) => {
       const relayId = oneTextArgumentFrom("remove_relay", commandArguments, "relay_id", "a relay's id");
       if (!relayId.ok) return { ok: false, refusal: relayId.failure };

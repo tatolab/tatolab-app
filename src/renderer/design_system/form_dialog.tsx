@@ -77,6 +77,7 @@ export function FormDialogRows({ children }: { children: ReactNode }) {
 export function FormDialogRow({
   label,
   labelFor,
+  labelId,
   below,
   children,
   ...controlDataAttributes
@@ -84,6 +85,8 @@ export function FormDialogRow({
   label: string;
   /** The control's id, where the value is a field the label names. */
   labelFor?: string;
+  /** The label's own id, for a control such as a switch that is labelled by it. */
+  labelId?: string;
   below?: ReactNode;
   children: ReactNode;
 } & ControlDataAttributes) {
@@ -91,9 +94,9 @@ export function FormDialogRow({
     <div className="py-2" {...controlDataAttributes}>
       <div className="flex min-h-9 items-center justify-between gap-6">
         {labelFor === undefined ? (
-          <span className="shrink-0 text-fg-2">{label}</span>
+          <span id={labelId} className="shrink-0 text-fg-2">{label}</span>
         ) : (
-          <label htmlFor={labelFor} className="shrink-0 text-fg-2">
+          <label id={labelId} htmlFor={labelFor} className="shrink-0 text-fg-2">
             {label}
           </label>
         )}

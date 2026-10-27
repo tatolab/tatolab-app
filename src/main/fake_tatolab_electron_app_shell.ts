@@ -36,7 +36,8 @@ export type FakeShellRecord =
   | { asked: "set_application_menu"; applicationMenu: ApplicationMenu }
   | { asked: "open_folder_in_the_file_manager"; folder: string }
   | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
-  | { asked: "ask_for_a_python_interpreter" };
+  | { asked: "ask_for_a_python_interpreter" }
+  | { asked: "ask_for_a_relay_secret_file" };
 
 /** A fake Electron app shell for the lifecycle's tests. */
 export class FakeTatolabElectronAppShell {
@@ -89,6 +90,10 @@ export class FakeTatolabElectronAppShell {
     },
     askThePersonForAPythonInterpreter: async () => {
       this.records.push({ asked: "ask_for_a_python_interpreter" });
+      return succeeded(null);
+    },
+    askThePersonForARelaySecretFile: async () => {
+      this.records.push({ asked: "ask_for_a_relay_secret_file" });
       return succeeded(null);
     },
     homeDirectory: path.join(this.appConfigDirectory, "home"),
