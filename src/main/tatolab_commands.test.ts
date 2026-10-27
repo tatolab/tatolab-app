@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
@@ -57,7 +57,6 @@ async function sharedStateOverFakes(
   existingFolders: readonly string[] = [],
   folderTheDialogAnswers: string | null = null,
   interpreterTheDialogAnswers: string | null = null,
-  secretFileTheDialogAnswers: string | null = null,
 ): Promise<
   TatolabAppSharedState & {
     commandLineToolLinks: FakeTatolabCommandLineToolLinks;
@@ -156,7 +155,6 @@ async function sharedStateOverFakes(
       streamRunsOnTheRuntime: controller,
     }),
     streamProjectPythonEnvironments,
-    relaySecretFileDialog: async () => succeeded(secretFileTheDialogAnswers),
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLinks,
     runtimeAgent,
@@ -651,27 +649,14 @@ test("the_relay_commands_read_their_arguments_as_the_window_sends_them_and_never
 
   expect(await commandHandlers.add_relay({ settings: {} })).toEqual({ ok: false, refusal: "add_relay needs `adapter`, an adapter's kind" });
   expect(await commandHandlers.add_relay({ adapter: "cloudflare" })).toEqual({ ok: false, refusal: "add_relay needs `settings`, each setting by name" });
-  expect(await commandHandlers.add_relay({ adapter: "cloudflare", settings: { relay_url: [7, "typed-in-the-test"] } })).toEqual({
+  expect(await commandHandlers.add_relay({ adapter: "cloudflare", settings: { relay_url: ["typed-in-the-test"] } })).toEqual({
     ok: false,
-    refusal: "add_relay needs the setting `relay_url` as text, a number, true or false, a list of texts, or null",
+    refusal: "add_relay needs the setting `relay_url` as text, a number, true or false, or null",
   });
   expect(await commandHandlers.configure_relay({ settings: { port: 1 } })).toEqual({ ok: false, refusal: "configure_relay needs `relay_id`, a relay's id" });
   expect(await commandHandlers.configure_relay({ relay_id: "local-every-interface", settings: { port: Number.NaN } })).toEqual({
     ok: false,
-    refusal: "configure_relay needs the setting `port` as text, a number, true or false, a list of texts, or null",
+    refusal: "configure_relay needs the setting `port` as text, a number, true or false, or null",
   });
   expect(await commandHandlers.remove_relay({ relay: "cloudflare-1" })).toEqual({ ok: false, refusal: "remove_relay needs `relay_id`, a relay's id" });
-});
-
-test("choosing_a_relay_secret_file_answers_its_text_in_the_contracts_shape_and_nothing_when_cancelled", async () => {
-  const folder = await mkdtemp(path.join(os.tmpdir(), "tl-relay-secret-"));
-  cleanUps.push(() => rm(folder, { recursive: true, force: true }));
-  const signingKeyFile = path.join(folder, "pb1studio.jwk");
-  await writeFile(signingKeyFile, '{"kty":"OKP","d":"written-for-the-test"}');
-
-  const chosen = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "macos", [], null, null, signingKeyFile), () => {});
-  const cancelled = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "macos"), () => {});
-
-  expect(JSON.stringify(await chosen.choose_relay_secret_file(undefined))).toBe('{"ok":true,"value":{"text":"{\\"kty\\":\\"OKP\\",\\"d\\":\\"written-for-the-test\\"}","file_name":"pb1studio.jwk"}}');
-  expect(await cancelled.choose_relay_secret_file(undefined)).toEqual({ ok: true, value: null });
 });

@@ -138,7 +138,7 @@ test("a_setting_whose_type_the_form_cannot_draw_is_kept_naming_its_type", () => 
       {
         kind: "red5",
         doc: "A Red5 relay.",
-        settings_schema: { type: "object", properties: { limits: { type: "object" }, ratio: { type: "number" }, anything: {} } },
+        settings_schema: { type: "object", properties: { regions: { type: "array", items: { type: "string" } }, region: { enum: ["us", "eu"] } } },
       },
     ],
   });
@@ -146,69 +146,9 @@ test("a_setting_whose_type_the_form_cannot_draw_is_kept_naming_its_type", () => 
   const settingFields = answerOf(relayAdaptersFromTheRelayAdaptersAnswer(catalog))[0]?.setting_fields;
 
   expect(settingFields?.map((settingField) => settingField.value_kind)).toEqual([
-    { kind: "not_drawable", schema_type_words: "object" },
-    { kind: "not_drawable", schema_type_words: "number" },
+    { kind: "not_drawable", schema_type_words: "array" },
     { kind: "not_drawable", schema_type_words: "no type" },
   ]);
-});
-
-/** The setting fields one adapter's `properties` read as, under a schema that may carry `definitions` and `required`. */
-function settingFieldsOf(settingsSchema: Record<string, unknown>) {
-  const catalog = JSON.stringify({ adapters: [{ kind: "example", doc: "An example relay.", settings_schema: { type: "object", ...settingsSchema } }] });
-  return answerOf(relayAdaptersFromTheRelayAdaptersAnswer(catalog))[0]?.setting_fields ?? [];
-}
-
-test("a_choice_of_text_reads_its_choices_from_enum_from_a_oneof_of_consts_and_through_a_ref_to_its_definition", () => {
-  const settingFields = settingFieldsOf({
-    required: ["relay", "region"],
-    properties: {
-      relay: { type: "string", enum: ["https://cdn.moq.dev", "https://cdn.moq.pro"] },
-      region: { oneOf: [{ type: "string", const: "us", description: "The US." }, { type: "string", enum: ["eu"] }] },
-      tier: { $ref: "#/definitions/RelayTier" },
-      edge: { anyOf: [{ $ref: "#/$defs/Edge" }, { type: "null" }], default: null },
-      documented_tier: { description: "The tier, documented.", allOf: [{ $ref: "#/definitions/RelayTier" }] },
-    },
-    definitions: { RelayTier: { type: "string", enum: ["free", "pro"] } },
-    $defs: { Edge: { type: "string", enum: ["nearest", "fixed"] } },
-  });
-
-  expect(settingFields.map((settingField) => [settingField.name, settingField.value_kind, settingField.accepts_null])).toEqual([
-    ["relay", { kind: "one_of", choices: ["https://cdn.moq.dev", "https://cdn.moq.pro"] }, false],
-    ["region", { kind: "one_of", choices: ["us", "eu"] }, false],
-    ["tier", { kind: "one_of", choices: ["free", "pro"] }, false],
-    ["edge", { kind: "one_of", choices: ["nearest", "fixed"] }, true],
-    ["documented_tier", { kind: "one_of", choices: ["free", "pro"] }, false],
-  ]);
-});
-
-test("true_or_false_and_a_list_of_text_read_as_such_and_a_list_of_anything_else_names_its_type", () => {
-  const settingFields = settingFieldsOf({
-    properties: {
-      prefers_ipv6: { type: "boolean", default: true },
-      tolerate_late_joiners: { type: ["boolean", "null"], default: null },
-      nothing_to_choose: { type: "string", enum: [] },
-      fallback_urls: { type: "array", items: { type: "string" } },
-      weights: { type: "array", items: { type: "integer" } },
-    },
-  });
-
-  expect(settingFields.map((settingField) => [settingField.name, settingField.value_kind, settingField.accepts_null])).toEqual([
-    ["prefers_ipv6", { kind: "true_or_false", default_is_on: true }, false],
-    ["tolerate_late_joiners", { kind: "true_or_false", default_is_on: null }, true],
-    ["nothing_to_choose", { kind: "not_drawable", schema_type_words: "a choice of nothing" }, false],
-    ["fallback_urls", { kind: "text_list" }, false],
-    ["weights", { kind: "not_drawable", schema_type_words: "array of integer" }, false],
-  ]);
-});
-
-test("a_list_of_text_is_a_relay_settings_value_and_a_list_of_anything_else_is_refused", () => {
-  const listedWith = (fallbackUrls: unknown) =>
-    JSON.stringify({ relays: [{ relay_id: "example-1", adapter: "example", built_in: false, settings: { fallback_urls: fallbackUrls }, secrets: {}, connection_state: { state: "joined" } }] });
-
-  expect(answerOf(listedRelaysFromTheListRelaysToolResult(listedWith(["https://a.example", "https://b.example"])))[0]?.settings).toEqual({
-    fallback_urls: ["https://a.example", "https://b.example"],
-  });
-  expect(failureOf(listedRelaysFromTheListRelaysToolResult(listedWith([1, 2])))).toContain("`fallback_urls`");
 });
 
 test("a_catalog_without_adapters_is_refused_naming_the_route", () => {

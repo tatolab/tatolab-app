@@ -270,7 +270,7 @@ export type PythonForNewEnvironments =
 export type PythonForNewEnvironmentsChoice = "built_in" | "chosen_in_a_file_dialog";
 
 /** One value of a relay's settings on the wire: `add_relay` and `configure_relay` take them, `list_relays` lists the non-secret ones, and `null` returns a setting to its default. */
-export type RelaySettingValue = string | number | boolean | readonly string[] | null;
+export type RelaySettingValue = string | number | boolean | null;
 
 /** Whether the runtime holds a value for one secret setting of a relay; never the value. */
 export type RelaySecretPresence = "set" | "unset";
@@ -303,13 +303,10 @@ export interface ListedRelay {
   connection_state: RelayConnectionState;
 }
 
-/** What one setting holds, as its adapter's settings schema types it: text, a whole number within its bounds, one of a list of texts, true or false (with the position its schema defaults to, when it says), a list of texts, or a type the app's form cannot draw, named as the schema names it. */
+/** What one setting holds, as its adapter's settings schema types it: text, a whole number within its bounds, or a type the app's form cannot draw, named as the schema names it. */
 export type RelaySettingValueKind =
   | { kind: "text" }
   | { kind: "whole_number"; minimum: number | null; maximum: number | null }
-  | { kind: "one_of"; choices: readonly string[] }
-  | { kind: "true_or_false"; default_is_on: boolean | null }
-  | { kind: "text_list" }
   | { kind: "not_drawable"; schema_type_words: string };
 
 /** One setting an adapter takes, read from its settings schema. */

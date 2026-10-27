@@ -7,7 +7,7 @@ import {
   type MockStreamFixture,
   stampMockLogRecord,
 } from "./mock_stream_fixtures";
-import { createMockRelays, mockRelaySecretFilePickNamed, mockRelaysScenarioNamed, type MockRelaySecretFilePick, type MockRelaysScenario } from "./mock_relays";
+import { createMockRelays, mockRelaysScenarioNamed, type MockRelaysScenario } from "./mock_relays";
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import type { TatolabBackend } from "./tatolab_backend";
 import {
@@ -217,10 +217,6 @@ export interface MockTatolabOptions {
   isMakingThePythonEnvironmentRefused: boolean;
   /** `?relays=local`: the runtime holds only the local relay's two listeners; a joined Cloudflare relay and a lost moq.pro one beside them by default. */
   relaysScenario: MockRelaysScenario;
-  /** `?secret_file=cancel|not_text`: what the file dialog Settings › Relays opens for a secret does. */
-  relaySecretFilePick: MockRelaySecretFilePick;
-  /** `?relay_catalog=every_type`: the relay catalog also offers an adapter with a choice, a switch and a list of text. */
-  doesTheRelayCatalogOfferEveryType: boolean;
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -306,8 +302,6 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     pythonInterpreterPick: pageQuery.get("python_pick") === "cancel" ? "cancel" : pageQuery.get("python_pick") === "not_python" ? "not_python" : "picked",
     isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
     relaysScenario: mockRelaysScenarioNamed(pageQuery.get("relays")),
-    relaySecretFilePick: mockRelaySecretFilePickNamed(pageQuery.get("secret_file")),
-    doesTheRelayCatalogOfferEveryType: pageQuery.get("relay_catalog") === "every_type",
   };
 }
 
@@ -454,8 +448,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     pythonInterpreterPick,
     isMakingThePythonEnvironmentRefused,
     relaysScenario,
-    relaySecretFilePick,
-    doesTheRelayCatalogOfferEveryType,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -712,8 +704,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     scenario: relaysScenario,
     isTheRuntimeRunning: () => mockStatus.runtime_state === "running",
     noRuntimeAnswersRefusal,
-    secretFilePick: relaySecretFilePick,
-    doesTheCatalogOfferEveryType: doesTheRelayCatalogOfferEveryType,
   });
 
   const loadedStreamNamed = (streamName: string): MockLoadedStream => {
@@ -1029,7 +1019,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     addRelay: (adapter, settings) => mockRelays.addRelay(adapter, settings),
     configureRelay: (relayId, settings) => mockRelays.configureRelay(relayId, settings),
     removeRelay: (relayId) => mockRelays.removeRelay(relayId),
-    chooseRelaySecretFile: () => mockRelays.chooseRelaySecretFile(),
     onStreamPageRequested: (streamPageRequestListener) => {
       if (streamPageRequestedByANotification === null) return () => {};
       const notificationClickTimer = window.setTimeout(() => streamPageRequestListener(streamPageRequestedByANotification), MOCK_NOTIFICATION_CLICK_MILLISECONDS);

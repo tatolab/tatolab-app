@@ -76,8 +76,6 @@ export interface TatolabBackend {
   configureRelay(relayId: string, settings: Readonly<RelaySettingsByName>): Promise<void>;
   /** Leave and forget the relay `relayId`, rejecting in the runtime's own words, as it refuses a built-in relay. */
   removeRelay(relayId: string): Promise<void>;
-  /** Ask the person for the file that holds a relay secret in the app's dialog, resolving with the secret and the file's name, or `null` when they cancel; rejects naming a file too large, not text or empty. */
-  chooseRelaySecretFile(): Promise<{ text: string; fileName: string } | null>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
   /** Calls `listener` with the stream each request from the app to show a stream's page names; the returned function stops it. */
   onStreamPageRequested(listener: (streamName: string) => void): () => void;

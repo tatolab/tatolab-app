@@ -51,7 +51,6 @@ export const TATOLAB_COMMAND_NAMES = [
   "add_relay",
   "configure_relay",
   "remove_relay",
-  "choose_relay_secret_file",
 ] as const;
 
 /**
@@ -129,8 +128,6 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   configure_relay: { commandArguments: { relay_id: string; settings: RelaySettingsByName }; answer: null };
   /** Refused by the runtime for a built-in relay. */
   remove_relay: { commandArguments: { relay_id: string }; answer: null };
-  /** The app's file dialog, then the secret the chosen file holds, its one trailing line ending dropped as the CLI's `--from-file` does, and the file's name; `null` when the person cancels; refused naming a file too large, not text or empty. The main process keeps and logs none of it. */
-  choose_relay_secret_file: { commandArguments: undefined; answer: { text: string; file_name: string } | null };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */

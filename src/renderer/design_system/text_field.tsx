@@ -1,24 +1,16 @@
 import { cn } from "cn";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import type { ControlDataAttributes } from "./control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
 
-/** How a field the person types into looks, one line or several: framed on the window, its frame red while what it holds was refused. */
-function typedFieldClassNames(isRefused: boolean): string {
-  return cn("rounded-md border-line-strong bg-window px-2.5 text-sm text-fg dark:bg-window", isRefused && "border-danger dark:border-danger", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES);
-}
-
-/** A one-line field the person types into: in Geist Mono for a machine word, as a stream's name; masked for a secret; red-edged while what it holds was refused. */
+/** A one-line field the person types into: in Geist Mono for a machine word, as a stream's name; red-edged while what it holds was refused. */
 export function TextField({
   id,
   label,
   text,
   onTextChanged,
   isMachineWord = false,
-  isSecret = false,
   isRequired = false,
-  hasFocusOnOpen = false,
   isRefused = false,
   placeholder,
   inputMode,
@@ -33,12 +25,8 @@ export function TextField({
   text: string;
   onTextChanged: (text: string) => void;
   isMachineWord?: boolean;
-  /** Masked as it is typed. */
-  isSecret?: boolean;
   /** Announced as required to assistive technology. */
   isRequired?: boolean;
-  /** Takes keyboard focus as it appears, as a field shown in place of the button that asked for it. */
-  hasFocusOnOpen?: boolean;
   isRefused?: boolean;
   /** Shown while it holds nothing, as "Default". */
   placeholder?: string;
@@ -54,65 +42,21 @@ export function TextField({
       id={id}
       value={text}
       onChange={(changeEvent) => onTextChanged(changeEvent.target.value)}
-      type={isSecret ? "password" : "text"}
       placeholder={placeholder}
       inputMode={inputMode}
       aria-label={label}
       aria-required={isRequired || undefined}
-      autoFocus={hasFocusOnOpen}
       aria-invalid={isRefused || undefined}
       aria-describedby={describedBy}
       spellCheck={false}
       autoComplete="off"
-      className={cn("h-7", typedFieldClassNames(isRefused), isMachineWord && "font-mono", className)}
-      {...controlDataAttributes}
-    />
-  );
-}
-
-/** A field the person types several lines into, one item per line, in Geist Mono; red-edged while what it holds was refused. */
-export function TextLinesField({
-  id,
-  label,
-  text,
-  onTextChanged,
-  isRequired = false,
-  isRefused = false,
-  placeholder,
-  describedBy,
-  className,
-  ...controlDataAttributes
-}: {
-  /** For the `<label>` beside it that names it. */
-  id?: string;
-  /** The field's accessible name. */
-  label: string;
-  text: string;
-  onTextChanged: (text: string) => void;
-  /** Announced as required to assistive technology. */
-  isRequired?: boolean;
-  isRefused?: boolean;
-  /** Shown while it holds nothing, as "Default". */
-  placeholder?: string;
-  /** The id of what explains the field or its refusal. */
-  describedBy?: string;
-  /** A one-off adjustment where the field is used. */
-  className?: string;
-} & ControlDataAttributes) {
-  return (
-    <Textarea
-      id={id}
-      value={text}
-      onChange={(changeEvent) => onTextChanged(changeEvent.target.value)}
-      placeholder={placeholder}
-      aria-label={label}
-      aria-required={isRequired || undefined}
-      aria-invalid={isRefused || undefined}
-      aria-describedby={describedBy}
-      spellCheck={false}
-      autoComplete="off"
-      rows={3}
-      className={cn("min-h-16 py-1.5 font-mono", typedFieldClassNames(isRefused), className)}
+      className={cn(
+        "h-7 rounded-md border-line-strong bg-window px-2.5 text-sm text-fg dark:bg-window",
+        isMachineWord && "font-mono",
+        isRefused && "border-danger dark:border-danger",
+        FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
+        className,
+      )}
       {...controlDataAttributes}
     />
   );

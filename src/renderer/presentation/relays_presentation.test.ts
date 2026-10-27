@@ -149,18 +149,3 @@ describe("the runtime's words", () => {
     expect(runtimeWordsSegmentsOf("a lone ` backtick")).toEqual([{ kind: "text", words: "a lone ` backtick" }]);
   });
 });
-
-describe("an added relay's settings line", () => {
-  it("reads a list as its items and true or false as on or off", () => {
-    const section = presentRelaysSection(true, {
-      kind: "read",
-      description: {
-        relays: [{ ...MOQPRO, settings: { fallback_urls: ["https://a.example", "https://b.example"], prefers_ipv6: true }, secrets: {} }],
-        adapters: [],
-      },
-    });
-
-    if (section.kind !== "listed") return expect.unreachable(section.kind);
-    expect(section.hostedRelayRows[0]?.settingsWords).toBe("Fallback URLs https://a.example, https://b.example · Prefers IPv6 on");
-  });
-});

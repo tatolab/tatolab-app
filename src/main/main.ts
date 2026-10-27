@@ -5,7 +5,6 @@
 // runtime left running from the bundle before an update, and starts checking for updates on its
 // own.
 
-import type { RelaySecretFileDialog } from "./relay_secret_file_reading.js";
 import type { TatolabAppBuild } from "../shared/tatolab_backend_contract.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
@@ -56,8 +55,6 @@ export interface TatolabElectronAppShell {
   askThePersonForAStreamProjectFolder: StreamProjectFolderDialog;
   /** The desktop's file dialog over the window, which Settings picks a Python interpreter through. */
   askThePersonForAPythonInterpreter: PythonInterpreterFileDialog;
-  /** The desktop's file dialog over the window, which Settings › Relays reads a secret's file through. */
-  askThePersonForARelaySecretFile: RelaySecretFileDialog;
   /** The person's home directory, under which new projects are proposed. */
   homeDirectory: string;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
@@ -199,7 +196,6 @@ export async function startTatolabApp(
       streamRunsOnTheRuntime: controller,
     }),
     streamProjectPythonEnvironments,
-    relaySecretFileDialog: tatolabElectronAppShell.askThePersonForARelaySecretFile,
     streamFailureNotifications,
     tatolabAppLog,
   };
