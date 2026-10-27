@@ -43,7 +43,7 @@ const ADD_STREAM_DIALOG_WORDS: Record<AddStreamSource, { title: string; descript
   project_folder: {
     title: "Import project",
     icon: FolderInput,
-    description: "A folder with a stream.py. Tatolab installs what it needs, then the runtime compiles it, loads and starts it.",
+    description: "A folder with a stream.py. Tatolab installs what it needs, then the runtime loads and starts it.",
   },
   new_project: {
     title: "New project",
@@ -220,11 +220,11 @@ function CompilingView({
         lead={
           makesThePythonEnvironmentFirst ? (
             <>
-              Tatolab installs what pyproject.toml names with {pythonForNewEnvironmentsWords(pythonForNewEnvironments)}. Then the runtime compiles stream.py, loads and starts it.
+              Tatolab installs what pyproject.toml names with {pythonForNewEnvironmentsWords(pythonForNewEnvironments)}. Then the runtime loads stream.py and starts it.
             </>
           ) : (
             <>
-              The runtime compiles stream.py, then loads and starts it.
+              The runtime loads stream.py and starts it.
             </>
           )
         }
@@ -242,7 +242,7 @@ function CompilingView({
 function CompileWarningsList({ compileWarnings }: { compileWarnings: readonly string[] }) {
   if (compileWarnings.length === 0) return null;
   return (
-    <section aria-label="Compile warnings" data-add-stream-compile-warnings="">
+    <section aria-label="Warnings" data-add-stream-compile-warnings="">
       <h3 className="label-caps mb-1.5">{compileWarningsHeading(compileWarnings.length)}</h3>
       <div className="overflow-hidden rounded-lg border">
         {compileWarnings.map((compileWarning, warningIndex) => (
@@ -304,7 +304,7 @@ function StreamRunningView({ request, answer }: { request: AddStreamRunRequest; 
         </div>
       </div>
       <CompileWarningsList compileWarnings={answer.compile_warnings} />
-      <CompileOutputWell title="Compile output" isWaiting={false}>
+      <CompileOutputWell title="Output" isWaiting={false}>
         <CompileOutputLine tone="quiet">{runRequestWords(request)}</CompileOutputLine>
         {answer.compile_warnings.map((compileWarning, warningIndex) => (
           <CompileOutputLine key={warningIndex} tone="warning">

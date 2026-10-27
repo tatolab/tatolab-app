@@ -237,13 +237,13 @@ export function compilingForWords(startedAtMs: number, nowMs: number): string {
   return `${Math.max(0, Math.floor((nowMs - startedAtMs) / 1000))}s`;
 }
 
-/** What a running stream's done view says about its load: whether it replaced the project's kept stream, and its warnings to read or that it compiled cleanly. */
+/** What a running stream's done view says about its load: whether it replaced the project's kept stream, and its warnings to read or that it loaded cleanly. */
 export function streamRunningSummary(answer: StreamRunAnswer): string {
   const replaced = answer.replaced_the_kept_record ? "It replaced the stream this project kept before. " : "";
   const warningCount = answer.compile_warnings.length;
-  if (warningCount === 1) return `${replaced}It compiled with a warning. Read it before you rely on this stream.`;
-  if (warningCount > 1) return `${replaced}It compiled with ${warningCount} warnings. Read them before you rely on this stream.`;
-  return `${replaced}It compiled cleanly.`;
+  if (warningCount === 1) return `${replaced}It loaded with a warning. Read it before you rely on this stream.`;
+  if (warningCount > 1) return `${replaced}It loaded with ${warningCount} warnings. Read them before you rely on this stream.`;
+  return `${replaced}It loaded cleanly.`;
 }
 
 /** How many nodes a stream has, in words. */
@@ -262,9 +262,9 @@ export interface StreamFunctionCheck {
 
 /** A row for each `@stream` function `stream.py` holds, in file order; one row for `stream.py` when it is missing or marks none. */
 export function presentStreamFunctionChecks(report: StreamProjectFolderReport): StreamFunctionCheck[] {
-  if (!report.stream_file_present) return [{ checked: "stream_file", name: "stream.py", isFound: false, detail: "The stream function the runtime compiles lives in stream.py." }];
+  if (!report.stream_file_present) return [{ checked: "stream_file", name: "stream.py", isFound: false, detail: "The stream function the runtime loads lives in stream.py." }];
   if (report.stream_functions.length === 0) {
-    return [{ checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it compiles." }];
+    return [{ checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it loads." }];
   }
   return report.stream_functions.map((streamFunction) => ({ checked: "stream_function", name: streamFunction, isFound: true, detail: null }));
 }
@@ -302,14 +302,14 @@ export function runRequestWords(request: AddStreamRunRequest): string {
   return requestWords.join("  ");
 }
 
-/** How many compile warnings a run answered, in words. */
+/** How many warnings the runtime answered a run with, in words. */
 export function compileWarningsHeading(warningCount: number): string {
-  return `${warningCount} compile ${warningCount === 1 ? "warning" : "warnings"}`;
+  return `${warningCount} ${warningCount === 1 ? "warning" : "warnings"}`;
 }
 
-/** What the compile view says it is doing: setting up the folder's Python first when it had none, then compiling. */
+/** What the dialog says it is doing while a run is under way: setting up the folder's Python first when it had none, then starting the stream. */
 export function compilingHeadingVerb(makesThePythonEnvironmentFirst: boolean): string {
-  return makesThePythonEnvironmentFirst ? "Setting up Python, then compiling" : "Compiling";
+  return makesThePythonEnvironmentFirst ? "Setting up Python, then starting" : "Starting";
 }
 
 /** The compile output's line for setting up the folder's Python: the app's uv sync, and the Python it sets it up from. */

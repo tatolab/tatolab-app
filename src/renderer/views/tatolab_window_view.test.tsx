@@ -778,7 +778,7 @@ describe("Add stream", () => {
     expect(document.querySelector("[data-add-stream-compile-output]")?.textContent).toContain("run_stream  /Users/jonathanf/code/heat-map  name=heat_map  keep=true");
 
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"]')).not.toBeNull(), MOCK_RUN_WAIT);
-    expect(screen.getByText("2 compile warnings")).toBeTruthy();
+    expect(screen.getByText("2 warnings")).toBeTruthy();
     expect(document.querySelector("[data-add-stream-compile-warnings]")?.textContent).toContain("tatolab: the cross-floor check found 1 thing binding this app to one floor.");
 
     fireEvent.click(await addStreamControl("open_stream"));
@@ -812,9 +812,12 @@ describe("Add stream", () => {
 
     fireEvent.click(await addStreamControl("create"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')?.getAttribute("data-add-stream-makes-the-python-environment")).toBe("true"));
-    expect(document.querySelector('[data-add-stream-step="compiling"] h2')?.textContent).toBe("Setting up Python, then compiling hello");
+    expect(document.querySelector('[data-add-stream-step="compiling"] h2')?.textContent).toBe("Setting up Python, then starting hello");
     expect(document.querySelector("[data-add-stream-compile-output]")?.textContent).toContain("uv sync  python=Tatolab's Python 3.12.12");
+    expect(document.querySelector("[data-add-stream-dialog]")?.textContent).not.toMatch(/compil/i);
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"] h2')?.textContent).toBe("hello is running"), MOCK_RUN_AFTER_MAKING_THE_VENV_WAIT);
+    expect(document.querySelector("[data-add-stream-dialog]")?.textContent).not.toMatch(/compil|terminal|Check again/i);
+    await waitFor(() => expect(document.querySelector('[data-stream-row="hello"]')).not.toBeNull(), MOCK_RUN_WAIT);
   });
 
   it("shows uv's refusal to set up the project's Python in its own words, under its own lead", { timeout: 15_000 }, async () => {
@@ -883,12 +886,12 @@ describe("Add stream", () => {
 
     const notice = await waitFor(() => document.querySelector<HTMLElement>('[data-add-stream-run-notice="running"]') ?? expect.unreachable("no notice yet"), MOCK_RUN_WAIT);
     expect(notice.textContent).toContain("heat_map is running");
-    expect(notice.textContent).toContain("It compiled with 2 warnings. Read them before you rely on this stream.");
+    expect(notice.textContent).toContain("It loaded with 2 warnings. Read them before you rely on this stream.");
     expect(document.querySelector("[data-streams-list-page]")).not.toBeNull();
 
     fireEvent.click(notice.querySelector<HTMLElement>('[data-window-notice-action="view"]') ?? expect.unreachable("no View"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"]')).not.toBeNull());
-    expect(document.querySelector("[data-add-stream-compile-warnings]")?.textContent).toContain("2 compile warnings");
+    expect(document.querySelector("[data-add-stream-compile-warnings]")?.textContent).toContain("2 warnings");
     expect(document.querySelector("[data-add-stream-run-notice]")).toBeNull();
 
     closeTheAddStreamDialog();

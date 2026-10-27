@@ -270,21 +270,21 @@ describe("the commands and words the page shows", () => {
     expect(presentStreamFunctionChecks(folderReport("/x"))).toEqual([{ checked: "stream_function", name: "heat_map", isFound: true, detail: null }]);
     expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: ["a", "b"] })).map((check) => check.name)).toEqual(["a", "b"]);
     expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: [] }))).toEqual([
-      { checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it compiles." },
+      { checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it loads." },
     ]);
     expect(presentStreamFunctionChecks(folderReport("/x", { stream_file_present: false, stream_functions: [] }))).toEqual([
-      { checked: "stream_file", name: "stream.py", isFound: false, detail: "The stream function the runtime compiles lives in stream.py." },
+      { checked: "stream_file", name: "stream.py", isFound: false, detail: "The stream function the runtime loads lives in stream.py." },
     ]);
     const builtIn = TATOLABS_OWN_PYTHON;
     expect(pythonEnvironmentSyncWords(builtIn)).toBe("uv sync  python=Tatolab's Python 3.12.12");
     expect(pythonEnvironmentSyncWords({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" })).toBe("uv sync  python=/opt/homebrew/bin/python3.12");
-    expect([compilingHeadingVerb(true), compilingHeadingVerb(false)]).toEqual(["Setting up Python, then compiling", "Compiling"]);
+    expect([compilingHeadingVerb(true), compilingHeadingVerb(false)]).toEqual(["Setting up Python, then starting", "Starting"]);
     expect([compileWaitingWords(true, 0, 14_200), compileWaitingWords(false, 0, 3_000)]).toEqual([
       "waiting for uv and the runtime · 14s",
       "waiting for the runtime's answer · 3s",
     ]);
     expect(runRequestWords({ folder: "/x", streamFunction: "stream.py:a", streamName: "a" })).toBe("run_stream  /x  stream_function=stream.py:a  name=a  keep=true");
-    expect([compileWarningsHeading(1), compileWarningsHeading(2)]).toEqual(["1 compile warning", "2 compile warnings"]);
+    expect([compileWarningsHeading(1), compileWarningsHeading(2)]).toEqual(["1 warning", "2 warnings"]);
   });
 
   it("words the compile view's name, the running facts and what the runtime did", () => {
@@ -305,11 +305,11 @@ describe("the commands and words the page shows", () => {
     expect(addStreamActionUnavailableBecause({ ...taken.form, workUnderWay: "creating_the_project" }, true, TATOLABS_OWN_PYTHON)).toBe("Wait for tatolab new to write the project.");
   });
 
-  it("says whether the stream compiled cleanly, with warnings, or replaced the project's kept stream", () => {
-    expect(streamRunningSummary(HEAT_MAP_ANSWER)).toBe("It compiled cleanly.");
-    expect(streamRunningSummary({ ...HEAT_MAP_ANSWER, compile_warnings: ["a"] })).toBe("It compiled with a warning. Read it before you rely on this stream.");
+  it("says whether the stream loaded cleanly, with warnings, or replaced the project's kept stream", () => {
+    expect(streamRunningSummary(HEAT_MAP_ANSWER)).toBe("It loaded cleanly.");
+    expect(streamRunningSummary({ ...HEAT_MAP_ANSWER, compile_warnings: ["a"] })).toBe("It loaded with a warning. Read it before you rely on this stream.");
     expect(streamRunningSummary({ ...HEAT_MAP_ANSWER, compile_warnings: ["a", "b"], replaced_the_kept_record: true })).toBe(
-      "It replaced the stream this project kept before. It compiled with 2 warnings. Read them before you rely on this stream.",
+      "It replaced the stream this project kept before. It loaded with 2 warnings. Read them before you rely on this stream.",
     );
   });
 });
@@ -325,12 +325,12 @@ describe("the notice of a run that answered away from the page", () => {
     expect(runningNotice).toMatchObject({ kind: "running", source: "new_project", answer: { stream: "hello" } });
     expect(runningNotice === null ? null : presentAddStreamRunNotice(runningNotice)).toEqual({
       title: "hello is running",
-      detail: "It compiled with a warning. Read it before you rely on this stream.",
+      detail: "It loaded with a warning. Read it before you rely on this stream.",
       tone: "warning",
     });
     expect(presentAddStreamRunNotice({ kind: "running", source: "project_folder", answer: HEAT_MAP_ANSWER })).toEqual({
       title: "heat_map is running",
-      detail: "It compiled cleanly.",
+      detail: "It loaded cleanly.",
       tone: "plain",
     });
 
