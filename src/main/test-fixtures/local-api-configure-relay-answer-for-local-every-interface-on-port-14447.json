@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"relay_id\": \"local-every-interface\"\n}"}],"isError":false}}

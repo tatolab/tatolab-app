@@ -9,6 +9,8 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import type {
   ListedStream,
+  RelaySettingValue,
+  RelaysDescription,
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
@@ -384,6 +386,37 @@ export class TatolabAppController {
   /** The graph of the loaded stream `stream`, its readable outputs' preview pages at the runtime's loopback HTTP. */
   describeStreamGraph(stream: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
     return this.localApiClient.describeStreamGraph(stream, this.runtimeLoopbackHttpOrigin);
+  }
+
+  /** Every relay the runtime holds and every adapter it can join one through. */
+  describeRelays(): Promise<Result<RelaysDescription, LocalApiRequestFailure>> {
+    return this.localApiClient.describeRelays();
+  }
+
+  /** Add a relay of `adapter` with `settings`, answering the id the runtime gave it; the log names the settings given, never a value. */
+  async addRelay(adapter: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<Result<string, LocalApiRequestFailure>> {
+    const added = await this.localApiClient.addRelay(adapter, settings);
+    const settingNames = Object.keys(settings).join(",");
+    if (added.ok) this.tatolabAppLog.info("a relay was added", { adapter, relay_id: added.value, setting_names: settingNames });
+    else this.tatolabAppLog.warn("a relay was not added", { adapter, setting_names: settingNames, failure: added.failure.failureDescription });
+    return added;
+  }
+
+  /** Replace the settings named in `settings` on the relay `relayId`; the log names them, never a value. */
+  async configureRelay(relayId: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<Result<void, LocalApiRequestFailure>> {
+    const configured = await this.localApiClient.configureRelay(relayId, settings);
+    const settingNames = Object.keys(settings).join(",");
+    if (configured.ok) this.tatolabAppLog.info("a relay was configured", { relay_id: relayId, setting_names: settingNames });
+    else this.tatolabAppLog.warn("a relay was not configured", { relay_id: relayId, setting_names: settingNames, failure: configured.failure.failureDescription });
+    return configured;
+  }
+
+  /** Leave and forget the relay `relayId`. */
+  async removeRelay(relayId: string): Promise<Result<void, LocalApiRequestFailure>> {
+    const removed = await this.localApiClient.removeRelay(relayId);
+    if (removed.ok) this.tatolabAppLog.info("a relay was removed", { relay_id: relayId });
+    else this.tatolabAppLog.warn("a relay was not removed", { relay_id: relayId, failure: removed.failure.failureDescription });
+    return removed;
   }
 
   /** The runtime's streams, or `null` when listing failed, which is logged on the round it starts failing. */

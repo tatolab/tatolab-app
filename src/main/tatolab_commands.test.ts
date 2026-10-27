@@ -601,3 +601,58 @@ test("choosing_the_python_for_new_environments_picks_through_the_apps_dialog_the
   expect(await commandHandlers.choose_python_for_new_environments({ python: "/usr/bin/python3" })).toEqual(refusal);
   expect(await commandHandlers.choose_python_for_new_environments({})).toEqual(refusal);
 });
+
+/** The window's `RelaysDescription` reads exactly this JSON, recorded from a test-root runtime. */
+test("describing_the_relays_answers_the_window_in_the_contracts_shape", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-relay-adapters-answer-of-a-test-root-runtime.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-relays-tool-result-with-a-secret-holder-and-a-joining-cloudflare-relay.json")),
+    ],
+    "macos",
+  );
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  const answer = JSON.stringify(await commandHandlers.describe_relays(undefined));
+
+  expect(answer.startsWith('{"ok":true,"value":{"relays":[{"relay_id":"local-loopback","adapter":"local","built_in":true,"settings":{"port":14443},"secrets":{},"connection_state":{"state":"joined"}},')).toBe(true);
+  expect(answer).toContain('{"relay_id":"cloudflare-1","adapter":"cloudflare","built_in":false,"settings":{},"secrets":{"relay_url":"set"},"connection_state":{"state":"joining"}}');
+  expect(answer).toContain(
+    '"adapters":[{"kind":"local","doc":"The machine\'s own relay, built in: `local-loopback` serves every exposed port to this machine alone, `local-every-interface` serves public ports to any machine that reaches it. Where each listens is never a setting.","setting_fields":[{"name":"port","description":"The port the listener takes for QUIC and HTTP alike; absent, the listener\'s own default (4443 at loopback, 4445 at every interface).","is_required":false,"is_secret":false,"value_kind":{"kind":"whole_number","minimum":0,"maximum":65535},"accepts_null":true}]}',
+  );
+});
+
+test("adding_configuring_and_removing_a_relay_answer_the_window_in_the_contracts_shape_and_refusals_in_the_runtimes_words", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-add-relay-answer-for-a-test-secret-holder.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-configure-relay-answer-for-local-every-interface-on-port-14447.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-relay-refusal-for-the-built-in-local-every-interface.json")),
+    ],
+    "linux",
+  );
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(JSON.stringify(await commandHandlers.add_relay({ adapter: "test-secret-holder", settings: { token: "typed-in-the-test", label: null } }))).toBe(
+    '{"ok":true,"value":{"relay_id":"test-secret-holder-1"}}',
+  );
+  expect(await commandHandlers.configure_relay({ relay_id: "local-every-interface", settings: { port: 14447 } })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.remove_relay({ relay_id: "local-every-interface" })).toEqual({
+    ok: false,
+    refusal: "the relay `local-every-interface` is built in and is never removed",
+  });
+});
+
+test("the_relay_commands_read_their_arguments_as_the_window_sends_them_and_never_name_a_settings_value_refusing_one", async () => {
+  const sharedState = await sharedStateOverFakes([], "macos");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await commandHandlers.add_relay({ settings: {} })).toEqual({ ok: false, refusal: "add_relay needs `adapter`, an adapter's kind" });
+  expect(await commandHandlers.add_relay({ adapter: "cloudflare" })).toEqual({ ok: false, refusal: "add_relay needs `settings`, each setting by name" });
+  expect(await commandHandlers.add_relay({ adapter: "cloudflare", settings: { relay_url: ["typed-in-the-test"] } })).toEqual({
+    ok: false,
+    refusal: "add_relay needs the setting `relay_url` as text, a number, true or false, or null",
+  });
+  expect(await commandHandlers.configure_relay({ settings: { port: 1 } })).toEqual({ ok: false, refusal: "configure_relay needs `relay_id`, a relay's id" });
+  expect(await commandHandlers.remove_relay({ relay: "cloudflare-1" })).toEqual({ ok: false, refusal: "remove_relay needs `relay_id`, a relay's id" });
+});

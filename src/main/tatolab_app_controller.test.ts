@@ -46,6 +46,7 @@ async function controllerOverFakes(
   scriptedLocalApiResponses: readonly Buffer[],
   runtimeAgentStatus: "enabled" | "not_registered",
   readMonotonicClockMs: () => number = () => 0,
+  tatolabAppLog = createTatolabAppLog("error", () => {}),
 ) {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
   const appConfigDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-config-"));
@@ -65,7 +66,7 @@ async function controllerOverFakes(
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
-    tatolabAppLog: createTatolabAppLog("error", () => {}),
+    tatolabAppLog,
   });
   return { controller, runtimeAgent, commandLineToolLinks, localApiServer, appConfigDirectory };
 }
@@ -387,4 +388,34 @@ test("a status composed while the runtime restarts reads Starting until a round 
 
   expect((await controller.composeStatus(150)).runtime_state).toBe("starting");
   expect((await controller.composeStatus(250)).runtime_state).toBe("running");
+});
+
+test("a_relay_change_is_logged_by_its_setting_names_and_never_a_settings_value", async () => {
+  const logLines: string[] = [];
+  const typedSecret = "typed-in-the-test-and-nowhere-else";
+  const { controller } = await controllerOverFakes(
+    [
+      toolResultResponse({ relay_id: "test-secret-holder-1" }),
+      httpResponse(
+        "200 OK",
+        "application/json",
+        JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "the relay `test-secret-holder-1` was not recorded, so nothing changed: disk full" }], isError: true } }),
+      ),
+      toolResultResponse({ relay_id: "test-secret-holder-1" }),
+    ],
+    "enabled",
+    () => 0,
+    createTatolabAppLog("debug", (logLine) => logLines.push(logLine)),
+  );
+
+  expect(await controller.addRelay("test-secret-holder", { token: typedSecret, label: "desk" })).toEqual(succeeded("test-secret-holder-1"));
+  expect((await controller.configureRelay("test-secret-holder-1", { token: typedSecret })).ok).toBe(false);
+  expect(await controller.removeRelay("test-secret-holder-1")).toEqual(succeeded(undefined));
+
+  expect(logLines).toEqual([
+    " INFO a relay was added adapter=test-secret-holder relay_id=test-secret-holder-1 setting_names=token,label",
+    ' WARN a relay was not configured relay_id=test-secret-holder-1 setting_names=token failure="the relay `test-secret-holder-1` was not recorded, so nothing changed: disk full"',
+    " INFO a relay was removed relay_id=test-secret-holder-1",
+  ]);
+  expect(logLines.join("\n")).not.toContain(typedSecret);
 });

@@ -3,7 +3,9 @@
 // version, uptime and log folder, the MCP tools `list_streams`,
 // `logs` and `graph` over `POST /mcp` list its streams, read one's log records and draw one's
 // graph, `run_stream` compiles a project and loads it kept, `stop_stream`, `start_stream` and
-// `remove_stream` act on one, and `GET /api/graph` names the machine.
+// `remove_stream` act on one, and `GET /api/graph` names the machine. `GET /api/relay-adapters`
+// and `list_relays` describe the machine's relays, and `add_relay`, `configure_relay` and
+// `remove_relay` change them.
 //
 // The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
 // `mcp.rs` serves rmcp's stateless Streamable HTTP with per-request protocol metadata
@@ -14,6 +16,8 @@ import { isUtf8 } from "node:buffer";
 import net from "node:net";
 import type {
   ListedStream,
+  RelaySettingValue,
+  RelaysDescription,
   RuntimeDescription,
   StreamGraphSummary,
   StreamLogRecordsPage,
@@ -33,6 +37,7 @@ import {
   requiredUnsignedInteger,
   textOrDefault,
 } from "./json_on_the_wire.js";
+import { listedRelaysFromTheListRelaysToolResult, relayAdaptersFromTheRelayAdaptersAnswer, relayIdFromTheRelayToolResult } from "./relays_description.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { streamLogRecordsPageFromTheLogsToolResult } from "./stream_log_records_page.js";
@@ -48,6 +53,9 @@ const STREAM_ACTION_RESPONSE_TIMEOUT_MS = 120_000;
 
 /** How long `run_stream` may go without a byte: StreamLib's `STREAM_LOAD_TOOL_CALL_TIMEOUT`, which the runtime's compile, describe and teardown bounds fit within. */
 const STREAM_LOAD_RESPONSE_TIMEOUT_MS = 360_000;
+
+/** How long a relay change may go without a byte: a generous bound, as `add_relay` and `configure_relay` answer once the relay's adapter has taken the settings, and the runtime states no bound of its own. */
+const RELAY_CHANGE_RESPONSE_TIMEOUT_MS = 120_000;
 
 /** The most bytes one local API response may carry before the client gives up on it. */
 const LARGEST_LOCAL_API_RESPONSE_BYTES = 8 * 1024 * 1024;
@@ -282,6 +290,43 @@ export class LocalApiClient {
     if (!toolResultText.ok) return toolResultText;
     const summary = streamGraphSummaryFromTheGraphToolResult(stream, toolResultText.value, runtimeLoopbackHttpOrigin);
     return summary.ok ? summary : localApiRequestFailure(summary.failure);
+  }
+
+  /** Every relay the runtime holds, from its `list_relays` tool, and every adapter it can join one through, from `GET /api/relay-adapters`. */
+  async describeRelays(): Promise<Result<RelaysDescription, LocalApiRequestFailure>> {
+    const catalogBody = await this.getBodyOfAnOkAnswer("/api/relay-adapters");
+    if (!catalogBody.ok) return catalogBody;
+    const adapters = relayAdaptersFromTheRelayAdaptersAnswer(catalogBody.value.toString("utf8"));
+    if (!adapters.ok) return localApiRequestFailure(adapters.failure);
+    const toolResultText = await this.callMcpTool("list_relays", {});
+    if (!toolResultText.ok) return toolResultText;
+    const relays = listedRelaysFromTheListRelaysToolResult(toolResultText.value);
+    return relays.ok ? succeeded({ relays: relays.value, adapters: adapters.value }) : localApiRequestFailure(relays.failure);
+  }
+
+  /** Add a relay of `adapter` with `settings`, its secrets among them, through the runtime's `add_relay` tool, answering the id it gave the relay; refused in the runtime's own words. */
+  async addRelay(adapter: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.callARelayTool("add_relay", { adapter, settings });
+  }
+
+  /** Replace the settings named in `settings` on the relay `relayId` through the runtime's `configure_relay` tool; refused in the runtime's own words. */
+  async configureRelay(relayId: string, settings: Readonly<Record<string, RelaySettingValue>>): Promise<Result<void, LocalApiRequestFailure>> {
+    const configured = await this.callARelayTool("configure_relay", { relay_id: relayId, settings });
+    return configured.ok ? succeeded(undefined) : configured;
+  }
+
+  /** Leave and forget the relay `relayId` through the runtime's `remove_relay` tool; refused in the runtime's own words. */
+  async removeRelay(relayId: string): Promise<Result<void, LocalApiRequestFailure>> {
+    const removed = await this.callARelayTool("remove_relay", { relay_id: relayId });
+    return removed.ok ? succeeded(undefined) : removed;
+  }
+
+  /** Call the relay tool `toolName`, answering the `relay_id` its result names. */
+  private async callARelayTool(toolName: "add_relay" | "configure_relay" | "remove_relay", toolArguments: Readonly<Record<string, unknown>>): Promise<Result<string, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool(toolName, toolArguments, RELAY_CHANGE_RESPONSE_TIMEOUT_MS);
+    if (!toolResultText.ok) return toolResultText;
+    const relayId = relayIdFromTheRelayToolResult(toolName, toolResultText.value);
+    return relayId.ok ? relayId : localApiRequestFailure(relayId.failure);
   }
 
   /** `GET requestTarget`, answering the body of a `200`; any other answer is refused in the runtime's own words when its body carries them. */
