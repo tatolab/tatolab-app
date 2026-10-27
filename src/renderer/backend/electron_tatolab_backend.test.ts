@@ -212,4 +212,30 @@ describe("createElectronTatolabBackend", () => {
     ]);
     expect(requestedStreams).toEqual(["camera"]);
   });
+
+  it("sends each relay command under the runtime's tool name and answers what the main process answered", async () => {
+    const relaysDescription = {
+      relays: [{ relay_id: "local-loopback", adapter: "local", built_in: true, settings: { port: 4443 }, secrets: {}, connection_state: { state: "joined" as const } }],
+      adapters: [],
+    };
+    const fakeBridge = fakeTatolabElectronBridge({
+      describe_relays: { ok: true, value: relaysDescription },
+      add_relay: { ok: true, value: { relay_id: "cloudflare-1" } },
+      configure_relay: { ok: true, value: null },
+      remove_relay: { ok: false, refusal: "the relay `local-loopback` is built in and is never removed" },
+    });
+    const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
+
+    expect(await backend.describeRelays()).toEqual(relaysDescription);
+    expect(await backend.addRelay("cloudflare", { relay_url: "typed-in-the-test" })).toBe("cloudflare-1");
+    await backend.configureRelay("local-every-interface", { port: null });
+    await expect(backend.removeRelay("local-loopback")).rejects.toBe("the relay `local-loopback` is built in and is never removed");
+
+    expect(fakeBridge.invokedCommands).toEqual([
+      ["describe_relays", undefined],
+      ["add_relay", { adapter: "cloudflare", settings: { relay_url: "typed-in-the-test" } }],
+      ["configure_relay", { relay_id: "local-every-interface", settings: { port: null } }],
+      ["remove_relay", { relay_id: "local-loopback" }],
+    ]);
+  });
 });

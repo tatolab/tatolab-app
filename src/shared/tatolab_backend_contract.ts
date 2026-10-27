@@ -268,3 +268,69 @@ export type PythonForNewEnvironments =
 
 /** What Settings asks the Python for new environments to be: Tatolab's own, or one the person picks in the app's own file dialog, so the window never names a program for the app to run. */
 export type PythonForNewEnvironmentsChoice = "built_in" | "chosen_in_a_file_dialog";
+
+/** One value of a relay's settings on the wire: `add_relay` and `configure_relay` take them, `list_relays` lists the non-secret ones, and `null` returns a setting to its default. */
+export type RelaySettingValue = string | number | boolean | null;
+
+/** Whether the runtime holds a value for one secret setting of a relay; never the value. */
+export type RelaySecretPresence = "set" | "unset";
+
+/** A relay's settings by name, as `add_relay` and `configure_relay` take them and `list_relays` lists them. */
+export type RelaySettingsByName = Record<string, RelaySettingValue>;
+
+/**
+ * Where a relay stands with its relay, as `list_relays` reports it: `not_joined` with why when the runtime knows,
+ * `joining`, `joined`, or `lost` with why and when it joins again; a state newer than this app is kept as spelled.
+ */
+export type RelayConnectionState =
+  | { state: "not_joined"; why: string | null }
+  | { state: "joining" }
+  | { state: "joined" }
+  | { state: "lost"; why: string; rejoining_after_ms: number }
+  | { state: "newer_than_this_app"; spelled_as: string };
+
+/** One relay the runtime holds, as `list_relays` lists it, the built-in ones first. */
+export interface ListedRelay {
+  relay_id: string;
+  /** The adapter it is joined through, as the relay-adapter catalog names it. */
+  adapter: string;
+  /** Whether it is built in, and so never removed. */
+  built_in: boolean;
+  /** Its settings, every secret left out. */
+  settings: RelaySettingsByName;
+  /** Each secret setting its adapter takes, by name, and whether the runtime holds a value for it; never the value. */
+  secrets: Record<string, RelaySecretPresence>;
+  connection_state: RelayConnectionState;
+}
+
+/** What one setting holds, as its adapter's settings schema types it: text, a whole number within its bounds, or a type the app's form cannot draw, named as the schema names it. */
+export type RelaySettingValueKind =
+  | { kind: "text" }
+  | { kind: "whole_number"; minimum: number | null; maximum: number | null }
+  | { kind: "not_drawable"; schema_type_words: string };
+
+/** One setting an adapter takes, read from its settings schema. */
+export interface RelaySettingField {
+  name: string;
+  /** What the schema says of it; `null` when it says nothing. */
+  description: string | null;
+  is_required: boolean;
+  /** Marked `writeOnly`: the runtime keeps it in the OS secret store and lists it only as set or unset. */
+  is_secret: boolean;
+  value_kind: RelaySettingValueKind;
+  /** Whether `null` is among its types, which returns it to its default. */
+  accepts_null: boolean;
+}
+
+/** One adapter of the runtime's relay-adapter catalog: its kind, as `add_relay` takes it, what it joins, and the settings it takes, in its schema's order. */
+export interface RelayAdapter {
+  kind: string;
+  doc: string;
+  setting_fields: RelaySettingField[];
+}
+
+/** What `describe_relays` answers: every relay the runtime holds and every adapter it can join one through. */
+export interface RelaysDescription {
+  relays: ListedRelay[];
+  adapters: RelayAdapter[];
+}

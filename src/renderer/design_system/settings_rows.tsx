@@ -3,17 +3,36 @@ import { useId, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./control_data_attributes";
 import { RefusalLine } from "./refusal_line";
 
-/** A group of settings rows in one frame, hairlines between them, under a title and a line saying what they are, when it has them. */
-export function SettingsGroup({ title, description, children, ...controlDataAttributes }: { title?: string; description?: ReactNode; children: ReactNode } & ControlDataAttributes) {
+/** What a Settings section is about, in a quiet line above its groups. */
+export function SettingsSectionExplanation({ children }: { children: ReactNode }) {
+  return <p className="text-fg-3">{children}</p>;
+}
+
+/** A path, a command or an id in running Settings words, in Geist Mono: in its own quiet tone, or in the tone of the words around it. */
+export function SettingsMachineWords({ tone = "own", children }: { tone?: "own" | "of_the_words_around_it"; children: ReactNode }) {
+  return <code className={cn("font-mono text-xs select-text", tone === "own" && "text-fg-2")}>{children}</code>;
+}
+
+/** A group of settings rows in one frame, hairlines between them, under a title, a line saying what they are and the actions on the whole group, when it has them. */
+export function SettingsGroup({
+  title,
+  description,
+  actions,
+  children,
+  ...controlDataAttributes
+}: { title?: string; description?: ReactNode; actions?: ReactNode; children: ReactNode } & ControlDataAttributes) {
   const titleId = useId();
   return (
     <section aria-labelledby={title === undefined ? undefined : titleId} className="flex flex-col gap-2" {...controlDataAttributes}>
       {title !== undefined && (
-        <div className="px-1">
-          <h2 id={titleId} className="font-medium">
-            {title}
-          </h2>
-          {description !== undefined && <p className="text-xs text-fg-3">{description}</p>}
+        <div className="flex items-end gap-3 px-1">
+          <div className="min-w-0 flex-1">
+            <h2 id={titleId} className="font-medium">
+              {title}
+            </h2>
+            {description !== undefined && <p className="text-xs text-fg-3">{description}</p>}
+          </div>
+          {actions !== undefined && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>
       )}
       <div className="flex flex-col divide-y rounded-lg border bg-window">{children}</div>

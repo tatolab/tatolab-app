@@ -108,6 +108,13 @@ export function optionalUnsignedInteger(jsonObject: JsonObjectOnTheWire, key: st
   return isAnUnsignedInteger(value) ? succeeded(value) : failedWith(`\`${key}\` is not an unsigned integer`);
 }
 
+/** The required array at `key`. */
+export function requiredArray(jsonObject: JsonObjectOnTheWire, key: string): Result<readonly unknown[], string> {
+  const value = jsonObject[key];
+  if (value === undefined) return failedWith(`missing field \`${key}\``);
+  return Array.isArray(value) ? succeeded(value) : failedWith(`\`${key}\` is not an array`);
+}
+
 /** The array at `key`, or an empty one when it is absent. */
 export function arrayOrEmpty(jsonObject: JsonObjectOnTheWire, key: string): Result<readonly unknown[], string> {
   const value = jsonObject[key];

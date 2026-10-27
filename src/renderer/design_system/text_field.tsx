@@ -10,7 +10,10 @@ export function TextField({
   text,
   onTextChanged,
   isMachineWord = false,
+  isRequired = false,
   isRefused = false,
+  placeholder,
+  inputMode,
   describedBy,
   className,
   ...controlDataAttributes
@@ -22,7 +25,13 @@ export function TextField({
   text: string;
   onTextChanged: (text: string) => void;
   isMachineWord?: boolean;
+  /** Announced as required to assistive technology. */
+  isRequired?: boolean;
   isRefused?: boolean;
+  /** Shown while it holds nothing, as "Default". */
+  placeholder?: string;
+  /** The keyboard a touch screen offers for it, `numeric` for a whole number. */
+  inputMode?: "text" | "numeric";
   /** The id of what explains the field or its refusal. */
   describedBy?: string;
   /** A one-off adjustment where the field is used. */
@@ -33,7 +42,10 @@ export function TextField({
       id={id}
       value={text}
       onChange={(changeEvent) => onTextChanged(changeEvent.target.value)}
+      placeholder={placeholder}
+      inputMode={inputMode}
       aria-label={label}
+      aria-required={isRequired || undefined}
       aria-invalid={isRefused || undefined}
       aria-describedby={describedBy}
       spellCheck={false}

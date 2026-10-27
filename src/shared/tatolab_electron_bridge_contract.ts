@@ -4,6 +4,8 @@
 
 import type {
   PythonForNewEnvironmentsChoice,
+  RelaySettingsByName,
+  RelaysDescription,
   RuntimeDescription,
   StreamGraphSummary,
   StreamLogRecordsPage,
@@ -45,13 +47,17 @@ export const TATOLAB_COMMAND_NAMES = [
   "set_stream_failure_notifications",
   "set_open_tatolab_at_login",
   "choose_python_for_new_environments",
+  "describe_relays",
+  "add_relay",
+  "configure_relay",
+  "remove_relay",
 ] as const;
 
 /**
  * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`,
  * `start_stream`, `remove_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` `{ folder }`, `run_stream_project` `{ folder, stream_function, name }`,
- * `choose_python_for_new_environments` `{ python }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * `choose_python_for_new_environments` `{ python }`, `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window, from its folder dialog or its proposal. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
  * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
@@ -114,6 +120,14 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   set_open_tatolab_at_login: { commandArguments: { enabled: boolean }; answer: null };
   /** `chosen_in_a_file_dialog` opens the app's own file dialog and answers once the person picks or cancels; refused naming why, the choice unchanged. */
   choose_python_for_new_environments: { commandArguments: { python: PythonForNewEnvironmentsChoice }; answer: null };
+  /** The runtime's `list_relays` and its relay-adapter catalog, read together; refused in the runtime's own words. */
+  describe_relays: { commandArguments: undefined; answer: RelaysDescription };
+  /** `settings` as the adapter's settings take them, its secrets among them, sent once and kept by the app nowhere; answers the id the runtime gave the relay. */
+  add_relay: { commandArguments: { adapter: string; settings: RelaySettingsByName }; answer: { relay_id: string } };
+  /** Only the settings named change; `null` returns one to its default, and a secret named replaces the one held. */
+  configure_relay: { commandArguments: { relay_id: string; settings: RelaySettingsByName }; answer: null };
+  /** Refused by the runtime for a built-in relay. */
+  remove_relay: { commandArguments: { relay_id: string }; answer: null };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */

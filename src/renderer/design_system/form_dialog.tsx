@@ -1,5 +1,5 @@
 import { X, type LucideIcon } from "lucide-react";
-import { useRef, type ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { ControlDataAttributes } from "./control_data_attributes";
@@ -71,6 +71,19 @@ export function FormDialogFooter({ children }: { children: ReactNode }) {
 /** A form dialog's rows, hairlines between them, each a label on the left and its value or control on the right. */
 export function FormDialogRows({ children }: { children: ReactNode }) {
   return <div className="divide-y border-y">{children}</div>;
+}
+
+/** A titled group of a form dialog's rows below its first, as the optional settings under Additional options. */
+export function FormDialogRowsSection({ title, children, ...controlDataAttributes }: { title: string; children: ReactNode } & ControlDataAttributes) {
+  const titleId = useId();
+  return (
+    <section aria-labelledby={titleId} className="mt-6" {...controlDataAttributes}>
+      <h3 id={titleId} className="mb-1.5 label-caps">
+        {title}
+      </h3>
+      <FormDialogRows>{children}</FormDialogRows>
+    </section>
+  );
 }
 
 /** One row of a form dialog: what it sets on the left, its value or control on the right, and what was said about it under both. */

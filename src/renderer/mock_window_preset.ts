@@ -58,6 +58,41 @@ async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
   if (addStep === "done") await waitForElement(`[data-add-stream-step="running"], [data-add-stream-name-taken]`, MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS);
 }
 
+/** Types `text` into the controlled field `field` as a person would, so React's onChange sees it. */
+function typeIntoAField(field: HTMLInputElement, text: string): void {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(field, text);
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+/** Settings › Relays driven to `?relay=add:<kind>|configure:<relay_id>|remove:<relay_id>`, then each `?relay_fill=<setting>:<text>` typed and `?relay_submit=pressed`. */
+async function driveRelaysToPreset(pageQuery: URLSearchParams): Promise<void> {
+  const [relayDialog = "", relayDialogSubject = ""] = (pageQuery.get("relay") ?? "").split(":");
+  if (relayDialog === "add") {
+    await clickWhenShown(`[data-relay-action="add-menu"]`);
+    await clickWhenShown(`[data-relay-adapter-choice="${CSS.escape(relayDialogSubject)}"]`);
+  } else if (relayDialog === "configure") {
+    await clickWhenShown(`[data-relay-row="${CSS.escape(relayDialogSubject)}"] [data-relay-action="configure"]`);
+  } else if (relayDialog === "remove") {
+    await clickWhenShown(`[data-relay-row="${CSS.escape(relayDialogSubject)}"] [data-relay-action="more"]`);
+    await clickWhenShown(`[data-relay-action="remove"]`);
+    return;
+  } else {
+    return;
+  }
+  await waitForElement("[data-relay-dialog]");
+  for (const fill of pageQuery.getAll("relay_fill")) {
+    const separator = fill.indexOf(":");
+    const settingName = fill.slice(0, separator);
+    if (separator <= 0) continue;
+    if (document.querySelector(`[data-relay-setting-field="${CSS.escape(settingName)}"]`) === null) {
+      await clickWhenShown(`[data-relay-setting="${CSS.escape(settingName)}"] [data-relay-action="replace-secret"]`);
+    }
+    const field = await waitForElement<HTMLInputElement>(`[data-relay-setting-field="${CSS.escape(settingName)}"]`);
+    if (field !== null) typeIntoAField(field, fill.slice(separator + 1));
+  }
+  if (pageQuery.get("relay_submit") === "pressed") await clickWhenShown(`[data-relay-action="add"]:not([disabled]), [data-relay-action="save"]:not([disabled])`);
+}
+
 async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STEP_TIMEOUT_MILLISECONDS): Promise<boolean> {
   const element = await waitForElement<HTMLElement>(selector, timeoutMilliseconds);
   element?.click();
@@ -68,7 +103,9 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=overview|graph|logs|inspect`,
  * `?stream_page_action=<action>` (a header or menu action of the stream's page, once its graph shows: `stop_stream` there gives
  * the steps as of the last load), `?inspect=tree`,
- * `?page=settings|add-stream` (the add-stream dialog, on Import project), on Settings `?section=general|appearance|runtime|command-line|about` and on its Runtime
+ * `?page=settings|add-stream` (the add-stream dialog, on Import project), on Settings `?section=general|appearance|runtime|relays|command-line|about`, on its Relays
+ * `?relay=add:<adapter>|configure:<relay_id>|remove:<relay_id>` (that dialog open) with each `?relay_fill=<setting>:<text>` typed into it and `?relay_submit=pressed`
+ * (Add relay or Save pressed), with the backend's `?relays=local`, and on its Runtime
  * `?restart=pressed` (Restart runtime pressed: Starting, then Running up 0m) or `?restart=refused` (the service manager refusing it),
  * `?choose_python=pressed` (Choose Your Own… pressed, with the backend's `?python=chosen|not_offered` and `?python_pick=cancel|not_python`), with the
  * backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream>` (a
@@ -151,6 +188,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   if (page === "add-stream") await driveAddStreamToPreset(pageQuery.get("add"));
   const settingsSection = pageQuery.get("section");
   if (page === "settings" && settingsSection !== null) await clickWhenShown(`[data-settings-section="${CSS.escape(settingsSection)}"]`);
+  if (page === "settings" && settingsSection === "relays") await driveRelaysToPreset(pageQuery);
   if (pageQuery.get("restart") === "pressed" || pageQuery.get("restart") === "refused") await clickWhenShown(`[data-runtime-action="restart"]:not([disabled])`);
   if (pageQuery.get("choose_python") === "pressed") await clickWhenShown(`[data-settings-action="choose-your-own-python"]:not([disabled])`);
   const sheet = pageQuery.get("sheet");

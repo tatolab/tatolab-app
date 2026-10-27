@@ -7,6 +7,7 @@ import {
   type MockStreamFixture,
   stampMockLogRecord,
 } from "./mock_stream_fixtures";
+import { createMockRelays, mockRelaysScenarioNamed, type MockRelaysScenario } from "./mock_relays";
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import type { TatolabBackend } from "./tatolab_backend";
 import {
@@ -214,6 +215,8 @@ export interface MockTatolabOptions {
   pythonInterpreterPick: MockPythonInterpreterPick;
   /** `?add_venv=refused`: the app's uv fails to make a project's `.venv`, as with the package index out of reach. */
   isMakingThePythonEnvironmentRefused: boolean;
+  /** `?relays=local`: the runtime holds only the local relay's two listeners; a joined Cloudflare relay and a lost moq.pro one beside them by default. */
+  relaysScenario: MockRelaysScenario;
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -298,6 +301,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     pythonForNewEnvironments: mockPythonForNewEnvironments(pageQuery.get("python")),
     pythonInterpreterPick: pageQuery.get("python_pick") === "cancel" ? "cancel" : pageQuery.get("python_pick") === "not_python" ? "not_python" : "picked",
     isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
+    relaysScenario: mockRelaysScenarioNamed(pageQuery.get("relays")),
   };
 }
 
@@ -443,6 +447,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     isRememberingFirstRunRefused,
     pythonInterpreterPick,
     isMakingThePythonEnvironmentRefused,
+    relaysScenario,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -695,6 +700,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   };
 
   const noRuntimeAnswersRefusal = (): string => `no runtime answers at ${mockStatus.local_api_socket}: connect ENOENT ${mockStatus.local_api_socket}`;
+  const mockRelays = createMockRelays({
+    scenario: relaysScenario,
+    isTheRuntimeRunning: () => mockStatus.runtime_state === "running",
+    noRuntimeAnswersRefusal,
+  });
 
   const loadedStreamNamed = (streamName: string): MockLoadedStream => {
     const loadedStream = loadedStreams.get(streamName);
@@ -1005,6 +1015,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
           return;
       }
     },
+    describeRelays: () => mockRelays.describeRelays(),
+    addRelay: (adapter, settings) => mockRelays.addRelay(adapter, settings),
+    configureRelay: (relayId, settings) => mockRelays.configureRelay(relayId, settings),
+    removeRelay: (relayId) => mockRelays.removeRelay(relayId),
     onStreamPageRequested: (streamPageRequestListener) => {
       if (streamPageRequestedByANotification === null) return () => {};
       const notificationClickTimer = window.setTimeout(() => streamPageRequestListener(streamPageRequestedByANotification), MOCK_NOTIFICATION_CLICK_MILLISECONDS);
