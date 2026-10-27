@@ -158,6 +158,7 @@ describe("an adapter's naming", () => {
       ["red5-1", "red5", true, null],
       ["srt-1", "srt", true, null],
     ]);
+    expect(section.hostedRelayRows.map((row) => row.adapterNameBesideTheId)).toEqual(["moq.pro", null, null]);
     expect(section.adapterChoices.map((choice) => choice.adapterNaming.words)).toEqual(["moq.pro", "Cloudflare", "red5"]);
   });
 });

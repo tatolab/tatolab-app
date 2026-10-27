@@ -150,6 +150,11 @@ function relayConnectionStateOnTheWire(connectionState: JsonObjectOnTheWire): Re
   }
 }
 
+/** `servedIcon` when it is a `data:image/` URI, which the window's `img-src 'self' data:` draws; `null` otherwise. */
+function iconDataUriTheWindowDraws(servedIcon: string | null): string | null {
+  return servedIcon !== null && servedIcon.startsWith("data:image/") ? servedIcon : null;
+}
+
 function relayAdapterOnTheWire(adapterValue: unknown): Result<RelayAdapter, string> {
   const adapter = jsonObject(adapterValue, "an adapter");
   if (!adapter.ok) return adapter;
@@ -168,7 +173,7 @@ function relayAdapterOnTheWire(adapterValue: unknown): Result<RelayAdapter, stri
   return succeeded({
     kind: kind.value,
     display_name: displayName.value,
-    display_icon_data_uri: displayIconDataUri.value?.startsWith("data:image/") === true ? displayIconDataUri.value : null,
+    display_icon_data_uri: iconDataUriTheWindowDraws(displayIconDataUri.value),
     doc: doc.value,
     setting_fields: settingFields.value,
   });

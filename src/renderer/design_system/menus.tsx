@@ -113,6 +113,9 @@ export function FieldMenu({
   );
 }
 
+/** What stands before a menu item's words: an icon, or something in its place such as a served logo; never both. */
+type MenuItemPicture = { icon?: LucideIcon; leading?: never } | { icon?: never; leading?: ReactNode };
+
 /** One choice of a menu; a destructive one reads red. */
 export function MenuItem({
   icon: ItemIcon,
@@ -124,16 +127,14 @@ export function MenuItem({
   children,
   ...controlDataAttributes
 }: {
-  icon?: LucideIcon;
-  /** What stands before the item's words in place of an icon, such as a served logo. */
-  leading?: ReactNode;
   isDestructive?: boolean;
   /** For a choice whose effect is shown in the menu itself. */
   keepsTheMenuOpen?: boolean;
   isDisabled?: boolean;
   onChosen: () => void;
   children: ReactNode;
-} & ControlDataAttributes) {
+} & MenuItemPicture &
+  ControlDataAttributes) {
   return (
     <DropdownMenuItem
       variant={isDestructive ? "destructive" : "default"}

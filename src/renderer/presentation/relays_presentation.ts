@@ -55,11 +55,16 @@ export interface RelayAdapterNaming {
   iconDataUri: string | null;
 }
 
+/** An adapter named by its kind alone, with the icon its catalog serves, if any. */
+function relayAdapterNamingByItsKind(kind: string, iconDataUri: string | null): RelayAdapterNaming {
+  return { words: kind, isTheAdapterKind: true, iconDataUri };
+}
+
 /** `adapter` as the window names it. */
 export function presentRelayAdapterNaming(adapter: RelayAdapter): RelayAdapterNaming {
   const displayName = adapter.display_name?.trim() ?? "";
   return displayName === ""
-    ? { words: adapter.kind, isTheAdapterKind: true, iconDataUri: adapter.display_icon_data_uri }
+    ? relayAdapterNamingByItsKind(adapter.kind, adapter.display_icon_data_uri)
     : { words: displayName, isTheAdapterKind: false, iconDataUri: adapter.display_icon_data_uri };
 }
 
@@ -86,6 +91,8 @@ export interface LocalRelayListenerRow extends RelayRow {
 
 /** One relay someone added: its settings and each secret as set or not. */
 export interface HostedRelayRow extends RelayRow {
+  /** Its adapter's served name, shown beside its id; `null` when the catalog serves none, so the id stands alone, the kind already in it. */
+  adapterNameBesideTheId: string | null;
   /** Each setting as "Project ID pb1studio", then each secret as "Signing key set", joined; `null` for a relay that lists neither. */
   settingsWords: string | null;
 }
@@ -128,7 +135,7 @@ function relayRow(relay: ListedRelay, adapters: readonly RelayAdapter[], shownNa
   return {
     relay,
     adapter,
-    adapterNaming: adapter === null ? { words: relay.adapter, isTheAdapterKind: true, iconDataUri: null } : presentRelayAdapterNaming(adapter),
+    adapterNaming: adapter === null ? relayAdapterNamingByItsKind(relay.adapter, null) : presentRelayAdapterNaming(adapter),
     connection: presentRelayConnectionState(relay.connection_state),
     configureLabel: `Configure ${shownName}`,
     configureUnavailableBecause: adapter === null ? `The runtime's catalog names no adapter ${relay.adapter}.` : whyTheFormCannotDrawTheAdaptersSettings(adapter),
@@ -153,7 +160,12 @@ function hostedRelayRow(relay: ListedRelay, adapters: readonly RelayAdapter[]): 
     .map(([settingName, settingValue]) => `${relaySettingLabel(settingName)} ${String(settingValue)}`);
   const secretWords = Object.entries(relay.secrets).map(([secretName, presence]) => `${relaySettingLabel(secretName)} ${presence === "set" ? "set" : "not set"}`);
   const allWords = [...settingWords, ...secretWords];
-  return { ...relayRow(relay, adapters, relay.relay_id), settingsWords: allWords.length === 0 ? null : allWords.join(" · ") };
+  const row = relayRow(relay, adapters, relay.relay_id);
+  return {
+    ...row,
+    adapterNameBesideTheId: row.adapterNaming.isTheAdapterKind ? null : row.adapterNaming.words,
+    settingsWords: allWords.length === 0 ? null : allWords.join(" · "),
+  };
 }
 
 /**

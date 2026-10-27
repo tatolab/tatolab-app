@@ -208,10 +208,12 @@ test("an_icon_that_is_not_a_data_image_uri_is_dropped_and_the_adapter_kept", () 
   expect(adapters.map((adapter) => adapter.display_name)).toEqual(["An adapter", "An adapter", "An adapter", "An adapter"]);
 });
 
-test("a_display_name_that_is_not_text_is_refused_naming_the_field", () => {
-  const catalog = JSON.stringify({ adapters: [{ kind: "moqpro", display_name: 7, doc: "A moq.pro project.", settings_schema: { type: "object", properties: {} } }] });
+test("a_display_name_or_icon_that_is_not_text_is_refused_naming_the_field", () => {
+  const catalogWith = (fields: Record<string, unknown>) =>
+    JSON.stringify({ adapters: [{ kind: "moqpro", ...fields, doc: "A moq.pro project.", settings_schema: { type: "object", properties: {} } }] });
 
-  expect(failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalog))).toContain("`display_name`");
+  expect(failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalogWith({ display_name: 7 })))).toContain("`display_name`");
+  expect(failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalogWith({ display_icon_data_uri: { svg: "<svg/>" } })))).toContain("`display_icon_data_uri`");
 });
 
 test("a_catalog_without_adapters_is_refused_naming_the_route", () => {

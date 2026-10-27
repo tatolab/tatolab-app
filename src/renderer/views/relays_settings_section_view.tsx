@@ -8,7 +8,7 @@ import { FormDialog, FormDialogFooter, FormDialogRow, FormDialogRows, FormDialog
 import { IconButtonMenu, MenuItem, MoreActionsMenu } from "../design_system/menus";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
-import { ServedLogoSlot } from "../design_system/served_logo_slot";
+import { ServedLogoSlot, type ServedLogoSlotSize } from "../design_system/served_logo_slot";
 import { SettingsGroup, SettingsMachineWords, SettingsRow, SettingsSectionExplanation } from "../design_system/settings_rows";
 import { StateWords, type StateWordsEmphasis } from "../design_system/stream_state_words";
 import { TextField } from "../design_system/text_field";
@@ -64,7 +64,7 @@ function RelayAdapterName({ adapterNaming }: { adapterNaming: RelayAdapterNaming
 }
 
 /** An adapter's logo in its square slot, for a leading slot; nothing when its catalog serves none, so no slot is drawn. */
-function relayAdapterLogoOf(adapterNaming: RelayAdapterNaming, size: "in_a_row" | "in_a_menu"): ReactNode {
+function relayAdapterLogoOf(adapterNaming: RelayAdapterNaming, size: ServedLogoSlotSize): ReactNode {
   return adapterNaming.iconDataUri === null ? undefined : <ServedLogoSlot logoDataUri={adapterNaming.iconDataUri} size={size} />;
 }
 
@@ -199,19 +199,15 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
         if (!isOpen && !isSending) onClose();
       }}
       title={dialogWords.title}
-      titleLeading={relayAdapterLogoOf(adapterNaming, "in_a_row")}
       description={
         <>
-          <span data-relay-dialog-adapter-name="">
-            <RelayAdapterName adapterNaming={adapterNaming} />
+          <span className="mt-1.5 mb-1 flex items-center gap-2">
+            {relayAdapterLogoOf(adapterNaming, "in_a_row")}
+            <span className="text-fg" data-relay-dialog-adapter-name="">
+              <RelayAdapterName adapterNaming={adapterNaming} />
+            </span>
+            {relay !== null && <SettingsMachineWords>{relay.relay_id}</SettingsMachineWords>}
           </span>
-          {relay !== null && (
-            <>
-              {" · "}
-              <SettingsMachineWords>{relay.relay_id}</SettingsMachineWords>
-            </>
-          )}
-          {" · "}
           <RuntimeWords words={adapter.doc} />
         </>
       }
@@ -384,11 +380,11 @@ export function RelaysSettingsSection() {
               key={row.relay.relay_id}
               leading={relayAdapterLogoOf(row.adapterNaming, "in_a_row")}
               label={
-                row.adapterNaming.isTheAdapterKind ? (
+                row.adapterNameBesideTheId === null ? (
                   <SettingsMachineWords>{row.relay.relay_id}</SettingsMachineWords>
                 ) : (
                   <span className="flex items-baseline gap-2">
-                    <span data-relay-adapter-name="">{row.adapterNaming.words}</span>
+                    <span data-relay-adapter-name="">{row.adapterNameBesideTheId}</span>
                     <SettingsMachineWords>{row.relay.relay_id}</SettingsMachineWords>
                   </span>
                 )
