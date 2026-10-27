@@ -160,15 +160,20 @@ export interface RelaySettingFormRow {
   formField: RelaySettingFormField;
   /** What its field holds: what was typed, or the relay's value before any edit; never a secret's. */
   shownText: string;
-  /** "Set" or "Not set" for a secret the relay already holds, shown with Replace… in place of its field until Replace… is pressed; `null` while adding, or for a setting that is no secret. */
+  /** A secret the relay already holds, set or not, shown as `heldSecretWords` with Replace… in place of its field until Replace… is pressed; `null` while adding, or for a setting that is no secret. */
+  heldSecret: RelaySecretPresence | null;
   heldSecretWords: "Set" | "Not set" | null;
   showsTheField: boolean;
+  /** The field of a secret Replace… has just shown takes keyboard focus from the button it replaced. */
+  takesFocusWhenShown: boolean;
   /** Replace…'s words, "Replace…" or "Set…", and its accessible name, naming the secret. */
   replaceWords: "Replace…" | "Set…";
   replaceLabel: string;
   /** Configure offers Use default for an optional setting not at its default already. */
   offersUseDefault: boolean;
-  /** Said under a setting the runtime requires, so the form says what it waits for before anything is typed. */
+  /** Use default's accessible name, naming the setting. */
+  useDefaultLabel: string;
+  /** Said under a setting the runtime requires, so the form says what it waits for before anything is typed; left out while the setting's problem already says it. */
   requiredWords: "Required" | null;
   /** What its empty field reads, "Default" for an optional setting. */
   placeholder: string | null;
@@ -179,6 +184,8 @@ export interface RelaySettingFormRow {
 
 /** The form adding a relay of `adapter`, or configuring `relay`: its rows, what it would send, and why it cannot send yet. */
 export interface RelaySettingsFormPresentation {
+  /** The dialog's title, its send button's words while ready and while the runtime answers, and the lead of the runtime's refusal. */
+  dialogWords: { title: string; sendWords: string; sendingWords: string; refusalLead: string };
   rows: RelaySettingFormRow[];
   settingsToSend: RelaySettingsToSend;
   sendUnavailableBecause: string | null;
@@ -197,19 +204,28 @@ export function presentRelaySettingsForm(
     const heldSecret: RelaySecretPresence | null = relay === null || formField.input !== "secret" ? null : (relay.secrets[formField.name] ?? "unset");
     const textBeforeAnEdit = relay === null || formField.input === "secret" ? "" : relaySettingShownText(relay, formField.name);
     const isAtItsDefault = edit?.kind === "use_default" || (edit === undefined && textBeforeAnEdit === "" && formField.input !== "secret");
+    const problem = edit !== undefined && settingsToSend.kind === "incomplete" ? (settingsToSend.problems[formField.name] ?? null) : null;
+    const isBeingReplaced = heldSecret !== null && secretsBeingReplaced.has(formField.name);
     return {
       formField,
       shownText: edit === undefined ? textBeforeAnEdit : edit.kind === "typed" ? edit.text : "",
+      heldSecret,
       heldSecretWords: heldSecret === null ? null : heldSecret === "set" ? "Set" : "Not set",
-      showsTheField: heldSecret === null || secretsBeingReplaced.has(formField.name),
+      showsTheField: heldSecret === null || isBeingReplaced,
+      takesFocusWhenShown: isBeingReplaced,
       replaceWords: heldSecret === "set" ? "Replace…" : "Set…",
       replaceLabel: `${heldSecret === "set" ? "Replace" : "Set"} ${formField.label}`,
       offersUseDefault: relay !== null && formField.offersItsDefault && !isAtItsDefault,
-      requiredWords: formField.isRequired ? "Required" : null,
+      useDefaultLabel: `Use the default ${formField.label}`,
+      requiredWords: formField.isRequired && problem !== REQUIRED_PROBLEM ? "Required" : null,
       placeholder: formField.isRequired ? null : "Default",
       inputMode: formField.input === "whole_number" ? "numeric" : "text",
-      problem: edit !== undefined && settingsToSend.kind === "incomplete" ? (settingsToSend.problems[formField.name] ?? null) : null,
+      problem,
     };
   });
-  return { rows, settingsToSend, sendUnavailableBecause: relaySettingsSendUnavailableBecause(settingsToSend) };
+  const dialogWords =
+    relay === null
+      ? { title: "Add relay", sendWords: "Add relay", sendingWords: "Adding…", refusalLead: "The runtime didn't add the relay:" }
+      : { title: "Configure relay", sendWords: "Save", sendingWords: "Saving…", refusalLead: "The runtime didn't change the relay:" };
+  return { dialogWords, rows, settingsToSend, sendUnavailableBecause: relaySettingsSendUnavailableBecause(settingsToSend) };
 }

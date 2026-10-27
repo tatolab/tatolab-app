@@ -117,7 +117,7 @@ function RelaySettingRow({
     >
       {!row.showsTheField ? (
         <>
-          <span className="text-fg-2" data-relay-secret-presence={row.heldSecretWords ?? undefined}>
+          <span className="text-fg-2" data-relay-secret-presence={row.heldSecret ?? undefined}>
             {row.heldSecretWords}
           </span>
           <ActionButton appearance="quiet" label={row.replaceLabel} onPressed={onReplaceTheSecret} data-relay-action="replace-secret">
@@ -127,7 +127,16 @@ function RelaySettingRow({
       ) : (
         <>
           {row.offersUseDefault && (
-            <ActionButton appearance="quiet" onPressed={onUseItsDefault} data-relay-action="use-default">
+            <ActionButton
+              appearance="quiet"
+              label={row.useDefaultLabel}
+              onPressed={() => {
+                onUseItsDefault();
+                // The button goes once pressed; focus moves to the field it returned to its default, not to the page.
+                document.getElementById(fieldId)?.focus();
+              }}
+              data-relay-action="use-default"
+            >
               Use default
             </ActionButton>
           )}
@@ -138,7 +147,8 @@ function RelaySettingRow({
             onTextChanged={onTyped}
             isMachineWord
             isSecret={formField.input === "secret"}
-            isRequired={row.requiredWords !== null}
+            isRequired={formField.isRequired}
+            hasFocusOnOpen={row.takesFocusWhenShown}
             isRefused={row.problem !== null}
             placeholder={row.placeholder ?? undefined}
             inputMode={row.inputMode}
@@ -162,7 +172,7 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
   const [secretsBeingReplaced, setSecretsBeingReplaced] = useState<ReadonlySet<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
   const [refusal, setRefusal] = useState<BackendActionRefusal | null>(null);
-  const { rows: formRows, settingsToSend, sendUnavailableBecause } = presentRelaySettingsForm(adapter, relay, draft, secretsBeingReplaced);
+  const { dialogWords, rows: formRows, settingsToSend, sendUnavailableBecause } = presentRelaySettingsForm(adapter, relay, draft, secretsBeingReplaced);
   const forgetEverySecretTyped = () => {
     setDraft((draftNow) => relaySettingsDraftWithoutTypedSecrets(adapter, draftNow));
     setSecretsBeingReplaced(new Set());
@@ -181,7 +191,7 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
       (rejection: unknown) => {
         forgetEverySecretTyped();
         setIsSending(false);
-        setRefusal({ lead: relay === null ? "The runtime didn't add the relay:" : "The runtime didn't change the relay:", words: describeBackendRejection(rejection) });
+        setRefusal({ lead: dialogWords.refusalLead, words: describeBackendRejection(rejection) });
       },
     );
   };
@@ -191,7 +201,7 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
       onOpenChange={(isOpen) => {
         if (!isOpen && !isSending) onClose();
       }}
-      title={relay === null ? "Add relay" : "Configure relay"}
+      title={dialogWords.title}
       description={
         <>
           <SettingsMachineWords>{relay === null ? adapter.kind : relay.relay_id}</SettingsMachineWords> · <RuntimeWords words={adapter.doc} />
@@ -205,7 +215,7 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
               Cancel
             </ActionButton>
             {isSending ? (
-              <PendingActionWords words={relay === null ? "Adding…" : "Saving…"} />
+              <PendingActionWords words={dialogWords.sendingWords} />
             ) : (
               <ActionButton
                 appearance="primary"
@@ -214,7 +224,7 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
                 onPressed={send}
                 data-relay-action={relay === null ? "add" : "save"}
               >
-                {relay === null ? "Add relay" : "Save"}
+                {dialogWords.sendWords}
               </ActionButton>
             )}
           </div>

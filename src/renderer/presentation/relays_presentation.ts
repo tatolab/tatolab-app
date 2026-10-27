@@ -141,10 +141,18 @@ function hostedRelayRow(relay: ListedRelay, adapters: readonly RelayAdapter[]): 
  */
 export function presentRelaysSection(isTheRuntimeRunning: boolean, reading: RelaysReading): RelaysSectionPresentation {
   if (!isTheRuntimeRunning) return { kind: "runtime_not_running", words: "Relays show here while the runtime runs." };
-  if (reading.kind === "not_read") return { kind: "reading" };
-  if (reading.kind === "refused" && reading.lastDescription === null) return { kind: "not_listed", refusal: reading.refusal };
-  const description = reading.kind === "read" ? reading.description : reading.lastDescription;
-  if (description === null) return { kind: "reading" };
+  let description: RelaysDescription;
+  switch (reading.kind) {
+    case "not_read":
+      return { kind: "reading" };
+    case "read":
+      description = reading.description;
+      break;
+    case "refused":
+      if (reading.lastDescription === null) return { kind: "not_listed", refusal: reading.refusal };
+      description = reading.lastDescription;
+      break;
+  }
   const adaptersBackingABuiltInRelay = new Set(description.relays.filter((relay) => relay.built_in).map((relay) => relay.adapter));
   const adapterChoices = description.adapters
     .filter((adapter) => !adaptersBackingABuiltInRelay.has(adapter.kind))

@@ -1369,10 +1369,11 @@ describe("Settings › Relays", () => {
 
     fireEvent.click(within(relayRowOf("moqpro-1")).getByRole("button", { name: "Configure moqpro-1" }));
     await waitFor(() => expect(openRelayDialog()).toBeTruthy());
-    expect(openRelayDialog().querySelector('[data-relay-secret-presence="Set"]')?.textContent).toBe("Set");
+    expect(openRelayDialog().querySelector('[data-relay-secret-presence="set"]')?.textContent).toBe("Set");
     expect(openRelayDialog().querySelector('[data-relay-setting-field="signing_key"]')).toBeNull();
     expect(openRelayDialog().querySelector<HTMLButtonElement>('[data-relay-action="save"]')?.disabled).toBe(true);
     fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-action="replace-secret"]') ?? expect.unreachable("no Replace…"));
+    await waitFor(() => expect(document.activeElement?.getAttribute("data-relay-setting-field")).toBe("signing_key"));
     typeIntoTheRelaySetting("signing_key", "a-new-key");
     fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-action="save"]') ?? expect.unreachable("no Save"));
 
@@ -1391,6 +1392,21 @@ describe("Settings › Relays", () => {
 
     await waitFor(() => expect(document.querySelector('[data-relay-row="cloudflare-1"]')).toBeNull(), { timeout: 3_000 });
     expect(relayRowOf("moqpro-1")).toBeTruthy();
+  });
+
+  it("closes Configure when its relay is no longer listed, so a relay listed again under the same id never reopens it", { timeout: 20_000 }, async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running");
+    await openSettingsOn("relays");
+    await waitFor(() => expect(relayRowOf("moqpro-1")).toBeTruthy());
+    fireEvent.click(within(relayRowOf("moqpro-1")).getByRole("button", { name: "Configure moqpro-1" }));
+    await waitFor(() => expect(openRelayDialog().getAttribute("data-relay-dialog")).toBe("configure:moqpro-1"));
+
+    await backend.removeRelay("moqpro-1");
+    await waitFor(() => expect(document.querySelector('[data-relay-row="moqpro-1"]')).toBeNull(), { timeout: 6_000 });
+    await backend.addRelay("moqpro", { project_id: "pb2studio", signing_key: "typed-in-the-test" });
+    await waitFor(() => expect(relayRowOf("moqpro-1").textContent).toContain("Project ID pb2studio"), { timeout: 6_000 });
+
+    expect(document.querySelector("[data-relay-dialog]")).toBeNull();
   });
 
   it("says the relays show while the runtime runs when it is down", async () => {

@@ -168,6 +168,28 @@ describe("the form's rows", () => {
     expect(presentRelaySettingsForm(MOQPRO_ADAPTER, null, {}, new Set()).rows.map((row) => row.problem)).toEqual([null, null, null]);
   });
 
+  it("say Required once for a required setting typed into and emptied, the problem saying it in place of the quiet line", () => {
+    const { rows } = presentRelaySettingsForm(MOQPRO_ADAPTER, null, { project_id: { kind: "typed", text: "" } }, new Set());
+
+    expect(rows[0]).toMatchObject({ requiredWords: null, problem: "Required" });
+    expect(rows[1]).toMatchObject({ requiredWords: "Required", problem: null });
+    expect(rows[0]?.formField.isRequired).toBe(true);
+  });
+
+  it("move focus to a held secret's field once Replace… shows it, and name each Use default by its setting", () => {
+    const relayOnItsOwnRelayUrl: ListedRelay = { ...MOQPRO_RELAY, settings: { ...MOQPRO_RELAY.settings, relay_url: "https://relay.example" } };
+    const { rows, dialogWords } = presentRelaySettingsForm(MOQPRO_ADAPTER, relayOnItsOwnRelayUrl, {}, new Set(["signing_key"]));
+
+    expect(rows.map((row) => [row.formField.name, row.heldSecret, row.takesFocusWhenShown])).toEqual([
+      ["project_id", null, false],
+      ["signing_key", "set", true],
+      ["relay_url", null, false],
+    ]);
+    expect(rows[2]).toMatchObject({ offersUseDefault: true, useDefaultLabel: "Use the default Relay URL" });
+    expect(dialogWords).toEqual({ title: "Configure relay", sendWords: "Save", sendingWords: "Saving…", refusalLead: "The runtime didn't change the relay:" });
+    expect(presentRelaySettingsForm(MOQPRO_ADAPTER, null, {}, new Set()).dialogWords.title).toBe("Add relay");
+  });
+
   it("say which settings are required before anything is typed, an optional one reading Default, and a whole number asking for digits", () => {
     expect(presentRelaySettingsForm(MOQPRO_ADAPTER, null, {}, new Set()).rows.map((row) => [row.formField.name, row.requiredWords, row.placeholder, row.heldSecretWords])).toEqual([
       ["project_id", "Required", null, null],

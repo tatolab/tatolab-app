@@ -12,6 +12,7 @@ export function TextField({
   isMachineWord = false,
   isSecret = false,
   isRequired = false,
+  hasFocusOnOpen = false,
   isRefused = false,
   placeholder,
   inputMode,
@@ -30,6 +31,8 @@ export function TextField({
   isSecret?: boolean;
   /** Announced as required to assistive technology. */
   isRequired?: boolean;
+  /** Takes keyboard focus as it appears, as a field shown in place of the button that asked for it. */
+  hasFocusOnOpen?: boolean;
   isRefused?: boolean;
   /** Shown while it holds nothing, as "Default". */
   placeholder?: string;
@@ -50,6 +53,7 @@ export function TextField({
       inputMode={inputMode}
       aria-label={label}
       aria-required={isRequired || undefined}
+      autoFocus={hasFocusOnOpen}
       aria-invalid={isRefused || undefined}
       aria-describedby={describedBy}
       spellCheck={false}
