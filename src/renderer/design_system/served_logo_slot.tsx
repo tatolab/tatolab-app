@@ -1,6 +1,6 @@
 import { cn } from "cn";
 
-/** The fixed square a served logo is drawn in, by where it sits: 24 px in a row or a dialog's heading, 32 px in a menu of choices. */
+/** The fixed square a served logo is drawn in, by where it sits: 24 px in a row or beside a dialog's adapter name, 32 px in a menu of choices. */
 const SERVED_LOGO_SLOT_SIZE_CLASS_NAMES = { in_a_row: "size-6", in_a_menu: "size-8" } as const;
 
 /** Where a served logo sits, which sets its slot's size. */
