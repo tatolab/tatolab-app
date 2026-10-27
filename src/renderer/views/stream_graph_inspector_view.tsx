@@ -139,7 +139,7 @@ function StepInspectorView({
         )}
       </PanelSection>
       {step.outputPorts.length > 0 && (
-        <PanelSection title="Exposure" isDivided>
+        <PanelSection title="Outputs" isDivided>
           {step.outputPorts.map((output) => (
             <div key={output.name} className="flex h-7 items-center gap-2" data-stream-graph-output-exposure={output.name}>
               <PortDataKindIcon dataKind={output.dataKind} />
