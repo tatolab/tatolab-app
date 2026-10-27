@@ -4,6 +4,11 @@ import { Textarea } from "@/components/ui/textarea";
 import type { ControlDataAttributes } from "./control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
 
+/** How a field the person types into looks, one line or several: framed on the window, its frame red while what it holds was refused. */
+function typedFieldClassNames(isRefused: boolean): string {
+  return cn("rounded-md border-line-strong bg-window px-2.5 text-sm text-fg dark:bg-window", isRefused && "border-danger dark:border-danger", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES);
+}
+
 /** A one-line field the person types into: in Geist Mono for a machine word, as a stream's name; masked for a secret; red-edged while what it holds was refused. */
 export function TextField({
   id,
@@ -59,13 +64,7 @@ export function TextField({
       aria-describedby={describedBy}
       spellCheck={false}
       autoComplete="off"
-      className={cn(
-        "h-7 rounded-md border-line-strong bg-window px-2.5 text-sm text-fg dark:bg-window",
-        isMachineWord && "font-mono",
-        isRefused && "border-danger dark:border-danger",
-        FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
-        className,
-      )}
+      className={cn("h-7", typedFieldClassNames(isRefused), isMachineWord && "font-mono", className)}
       {...controlDataAttributes}
     />
   );
@@ -77,6 +76,7 @@ export function TextLinesField({
   label,
   text,
   onTextChanged,
+  isRequired = false,
   isRefused = false,
   placeholder,
   describedBy,
@@ -89,6 +89,8 @@ export function TextLinesField({
   label: string;
   text: string;
   onTextChanged: (text: string) => void;
+  /** Announced as required to assistive technology. */
+  isRequired?: boolean;
   isRefused?: boolean;
   /** Shown while it holds nothing, as "Default". */
   placeholder?: string;
@@ -104,17 +106,13 @@ export function TextLinesField({
       onChange={(changeEvent) => onTextChanged(changeEvent.target.value)}
       placeholder={placeholder}
       aria-label={label}
+      aria-required={isRequired || undefined}
       aria-invalid={isRefused || undefined}
       aria-describedby={describedBy}
       spellCheck={false}
       autoComplete="off"
       rows={3}
-      className={cn(
-        "min-h-16 rounded-md border-line-strong bg-window px-2.5 py-1.5 font-mono text-sm text-fg dark:bg-window",
-        isRefused && "border-danger dark:border-danger",
-        FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
-        className,
-      )}
+      className={cn("min-h-16 py-1.5 font-mono", typedFieldClassNames(isRefused), className)}
       {...controlDataAttributes}
     />
   );

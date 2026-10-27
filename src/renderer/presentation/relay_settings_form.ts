@@ -1,5 +1,8 @@
 import type { ListedRelay, RelayAdapter, RelaySecretPresence, RelaySettingField, RelaySettingsByName, RelaySettingValue } from "../../shared/tatolab_backend_contract";
 
+/** Words spelled their own way inside a setting's name. */
+const WORDS_SPELLED_THEIR_OWN_WAY_IN_A_SETTING_NAME: Readonly<Record<string, string>> = { ipv4: "IPv4", ipv6: "IPv6" };
+
 /** Words that read in capitals inside a setting's name. */
 const INITIALISMS_IN_A_SETTING_NAME = new Set(["api", "id", "jwk", "jwt", "tls", "uri", "url", "http", "https", "quic"]);
 
@@ -9,6 +12,8 @@ export function relaySettingLabel(settingName: string): string {
     .split("_")
     .filter((word) => word !== "")
     .map((word, wordIndex) => {
+      const spelledItsOwnWay = WORDS_SPELLED_THEIR_OWN_WAY_IN_A_SETTING_NAME[word];
+      if (spelledItsOwnWay !== undefined) return spelledItsOwnWay;
       if (INITIALISMS_IN_A_SETTING_NAME.has(word)) return word.toUpperCase();
       if (word.endsWith("s") && INITIALISMS_IN_A_SETTING_NAME.has(word.slice(0, -1))) return `${word.slice(0, -1).toUpperCase()}s`;
       return wordIndex === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word;
@@ -19,7 +24,7 @@ export function relaySettingLabel(settingName: string): string {
 /** How the form takes one setting: a line of text, a whole number, a secret (masked and never filled in), one of a list of choices, a switch, or text one item per line. */
 export type RelaySettingInput = "text" | "whole_number" | "secret" | "choice" | "true_or_false" | "text_lines";
 
-/** The input that draws a setting whose schema types it `valueKind`, a secret always masked. */
+/** The input that draws `settingField`, as its schema types it, a secret always masked. */
 function relaySettingInputOf(settingField: RelaySettingField): RelaySettingInput {
   if (settingField.is_secret) return "secret";
   switch (settingField.value_kind.kind) {
@@ -65,8 +70,13 @@ export function relaySettingsFormFields(adapter: RelayAdapter): RelaySettingForm
   return [...formFields.filter((formField) => formField.isRequired), ...formFields.filter((formField) => !formField.isRequired)];
 }
 
-/** What the person did to one setting in a form: typed into it, chose one of its choices, switched it, or asked for its default. A setting they left alone is absent. */
-export type RelaySettingEdit = { kind: "typed"; text: string } | { kind: "chosen"; choice: string } | { kind: "switched"; isOn: boolean } | { kind: "use_default" };
+/** What the person did to one setting in a form: typed into it, read it from a file, chose one of its choices, switched it, or asked for its default. A setting they left alone is absent. */
+export type RelaySettingEdit =
+  | { kind: "typed"; text: string }
+  | { kind: "read_from_a_file"; text: string; fileName: string }
+  | { kind: "chosen"; choice: string }
+  | { kind: "switched"; isOn: boolean }
+  | { kind: "use_default" };
 
 /** Every setting the person changed in a form, by name. */
 export type RelaySettingsDraft = Readonly<Record<string, RelaySettingEdit>>;
@@ -82,6 +92,7 @@ function editedSettingValue(
   formField: RelaySettingFormField,
   edit: Exclude<RelaySettingEdit, { kind: "use_default" }>,
 ): { kind: "value"; value: RelaySettingValue } | { kind: "empty" } | { kind: "problem"; problem: string; sentence: string } {
+  if (edit.kind === "read_from_a_file") return { kind: "value", value: edit.text };
   if (edit.kind === "chosen") return { kind: "value", value: edit.choice };
   if (edit.kind === "switched") return { kind: "value", value: edit.isOn };
   const valueKind = formField.settingField.value_kind;
@@ -218,11 +229,22 @@ export interface RelaySettingFormRow {
   /** What its empty field reads, "Default" for an optional setting. */
   placeholder: string | null;
   inputMode: "text" | "numeric";
-  /** A choice setting's choices, and the one shown chosen: the one picked, the relay's own, or none yet. */
+  /** Whether its label names a text field, which a click on the label focuses; a choice and a switch are labelled by it instead. */
+  isLabelledAsAField: boolean;
+  /** A secret read from a file, as "Read from pb1studio.jwk", shown with Clear in place of its field; `null` otherwise. */
+  readFromAFileWords: string | null;
+  /** Choose file… beside a secret's field, its accessible name naming the secret, and its words while the app's dialog is open. */
+  offersChooseFile: boolean;
+  choosingFileWords: string;
+  /** A choice setting's choices, the one shown chosen (picked, the relay's own, or none yet), its menu's accessible name and its words. */
   choices: readonly string[];
   chosenChoice: string | null;
-  /** A switch's position: as switched, as the relay lists it, or off. */
+  choiceFieldLabel: string;
+  choiceFieldWords: string;
+  /** A switch's position: as switched, as the relay lists it, or its schema's default; off when none of them says. */
   isSwitchedOn: boolean;
+  /** "Default" beside a switch left at a default its schema does not state, so off is not read as what the runtime applies. */
+  switchDefaultWords: "Default" | null;
   /** What is wrong with what was typed, once something was. */
   problem: string | null;
 }
@@ -231,7 +253,6 @@ export interface RelaySettingFormRow {
 export interface RelaySettingsFormPresentation {
   /** The dialog's title, its send button's words while ready and while the runtime answers, and the lead of the runtime's refusal. */
   dialogWords: { title: string; sendWords: string; sendingWords: string; refusalLead: string };
-  rows: RelaySettingFormRow[];
   /** The rows of the settings the runtime requires, which the form shows first. */
   requiredRows: RelaySettingFormRow[];
   /** The rows of the optional settings, which the form shows under Additional options. */
@@ -258,15 +279,27 @@ export function presentRelaySettingsForm(
     const isBeingReplaced = heldSecret !== null && secretsBeingReplaced.has(formField.name);
     const valueTheRelayHolds = relay === null ? undefined : relay.settings[formField.name];
     const valueKind = formField.settingField.value_kind;
+    const chosenChoice = edit?.kind === "chosen" ? edit.choice : edit?.kind === "use_default" ? null : typeof valueTheRelayHolds === "string" ? valueTheRelayHolds : null;
+    const switchedPosition = edit?.kind === "switched" ? edit.isOn : edit?.kind !== "use_default" && typeof valueTheRelayHolds === "boolean" ? valueTheRelayHolds : null;
+    const defaultPosition = valueKind.kind === "true_or_false" ? valueKind.default_is_on : null;
+    const readFromAFile = edit?.kind === "read_from_a_file" ? edit : null;
+    const showsTheField = heldSecret === null || isBeingReplaced;
     return {
       formField,
       shownText: edit === undefined ? textBeforeAnEdit : edit.kind === "typed" ? edit.text : "",
+      isLabelledAsAField: showsTheField && readFromAFile === null && formField.input !== "choice" && formField.input !== "true_or_false",
+      readFromAFileWords: readFromAFile === null ? null : `Read from ${readFromAFile.fileName}`,
+      offersChooseFile: formField.input === "secret" && showsTheField && readFromAFile === null,
+      choosingFileWords: "Choosing…",
       choices: valueKind.kind === "one_of" ? valueKind.choices : [],
-      chosenChoice: edit?.kind === "chosen" ? edit.choice : edit?.kind === "use_default" ? null : typeof valueTheRelayHolds === "string" ? valueTheRelayHolds : null,
-      isSwitchedOn: edit?.kind === "switched" ? edit.isOn : edit?.kind === "use_default" ? false : valueTheRelayHolds === true,
+      chosenChoice,
+      choiceFieldLabel: `${formField.label}: ${chosenChoice ?? (formField.isRequired ? "none chosen" : "the default")}`,
+      choiceFieldWords: chosenChoice ?? (formField.isRequired ? "Choose…" : "Default"),
+      isSwitchedOn: switchedPosition ?? defaultPosition ?? false,
+      switchDefaultWords: formField.input === "true_or_false" && switchedPosition === null && defaultPosition === null && !formField.isRequired ? "Default" : null,
       heldSecret,
       heldSecretWords: heldSecret === null ? null : heldSecret === "set" ? "Set" : "Not set",
-      showsTheField: heldSecret === null || isBeingReplaced,
+      showsTheField,
       takesFocusWhenShown: isBeingReplaced,
       replaceWords: heldSecret === "set" ? "Replace…" : "Set…",
       replaceLabel: `${heldSecret === "set" ? "Replace" : "Set"} ${formField.label}`,
@@ -285,7 +318,6 @@ export function presentRelaySettingsForm(
       : { title: "Configure relay", sendWords: "Save", sendingWords: "Saving…", refusalLead: "The runtime didn't change the relay:" };
   return {
     dialogWords,
-    rows,
     requiredRows: rows.filter((row) => row.formField.isRequired),
     additionalOptionRows: rows.filter((row) => !row.formField.isRequired),
     settingsToSend,

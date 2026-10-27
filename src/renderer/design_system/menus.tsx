@@ -71,11 +71,14 @@ export function FieldMenu({
   isNarrowing = false,
   fillsItsPlace = false,
   menuWidth = "fit",
+  describedBy,
   children,
   ...controlDataAttributes
 }: {
   /** The field's accessible name, saying what is chosen now, as "Function: camera_stream". */
   label: string;
+  /** The id of what explains the field, as the words under a form row. */
+  describedBy?: string;
   /** An icon or a quiet word before the chosen words. */
   leading?: ReactNode;
   words: ReactNode;
@@ -100,6 +103,7 @@ export function FieldMenu({
           />
         }
         aria-label={label}
+        aria-describedby={describedBy}
         {...controlDataAttributes}
       >
         {leading}

@@ -13,8 +13,49 @@ export function mockRelaysScenarioNamed(relaysInTheQuery: string | null): MockRe
 
 const MOCK_RELAY_CALL_MILLISECONDS = 30;
 
-/** The text of the signing key file the mock's file dialog picks, a JWK as moq.pro hands one over. */
-const MOCK_SIGNING_KEY_FILE_TEXT = '{"kty":"OKP","crv":"Ed25519","kid":"pb1studio","x":"mock-public-half","d":"mock-private-half"}\n';
+/** The signing key the mock's file dialog picks, as the main process answers a JWK moq.pro hands over: its trailing line ending dropped. */
+const MOCK_SIGNING_KEY_FILE = { text: '{"kty":"OKP","crv":"Ed25519","kid":"pb1studio","x":"mock-public-half","d":"mock-private-half"}', fileName: "pb1studio.jwk" };
+
+/** What the mock's file dialog for a relay secret does, picked with `?secret_file=`. */
+export type MockRelaySecretFilePick = "picked" | "cancel" | "not_text";
+
+/** What `?secret_file=` names. */
+export function mockRelaySecretFilePickNamed(secretFileInTheQuery: string | null): MockRelaySecretFilePick {
+  return secretFileInTheQuery === "cancel" ? "cancel" : secretFileInTheQuery === "not_text" ? "not_text" : "picked";
+}
+
+/** An adapter offered with `?relay_catalog=every_type`, whose settings are each kind the form draws beyond text and whole numbers. */
+const MOCK_ADAPTER_OF_EVERY_SETTING_TYPE: RelayAdapter = {
+  kind: "example",
+  doc: "An example relay whose settings are a choice, a switch and a list of text, as an adapter's schema may declare them.",
+  setting_fields: [
+    {
+      name: "relay",
+      description: "Which of the provider's relays to dial.",
+      is_required: true,
+      is_secret: false,
+      value_kind: { kind: "one_of", choices: ["https://cdn.moq.dev", "https://cdn.moq.pro"] },
+      accepts_null: false,
+    },
+    { name: "token", description: "The provider's token.", is_required: true, is_secret: true, value_kind: { kind: "text" }, accepts_null: false },
+    {
+      name: "prefers_ipv6",
+      description: "Dial the relay over IPv6 when it offers both.",
+      is_required: false,
+      is_secret: false,
+      value_kind: { kind: "true_or_false", default_is_on: true },
+      accepts_null: true,
+    },
+    {
+      name: "fallback_urls",
+      description: "Relays to dial, in order, when the first does not answer.",
+      is_required: false,
+      is_secret: false,
+      value_kind: { kind: "text_list" },
+      accepts_null: true,
+    },
+  ],
+};
 /** How long the mock takes to answer an add or a configure, which the runtime answers once the adapter has taken the settings. */
 const MOCK_RELAY_CHANGE_MILLISECONDS = 600;
 /** How long an added or configured relay stays joining before it reads joined. */
@@ -117,7 +158,7 @@ export interface MockRelays {
   addRelay(adapter: string, settings: Readonly<RelaySettingsByName>): Promise<string>;
   configureRelay(relayId: string, settings: Readonly<RelaySettingsByName>): Promise<void>;
   removeRelay(relayId: string): Promise<void>;
-  chooseRelaySecretFile(): Promise<string | null>;
+  chooseRelaySecretFile(): Promise<{ text: string; fileName: string } | null>;
 }
 
 /** What the mock relays are built from: what the page asks, and whether the mock runtime answers now and its words when it does not. */
@@ -125,8 +166,10 @@ export interface MockRelaysSources {
   scenario: MockRelaysScenario;
   isTheRuntimeRunning: () => boolean;
   noRuntimeAnswersRefusal: () => string;
-  /** `?secret_file=cancel`: the file dialog Settings › Relays opens for a secret is cancelled; otherwise it picks a moq.pro signing key. */
-  isTheSecretFileDialogCancelled: boolean;
+  /** `?secret_file=cancel|not_text`: the file dialog Settings › Relays opens for a secret is cancelled, or picks a file that is not text; otherwise it picks a moq.pro signing key. */
+  secretFilePick: MockRelaySecretFilePick;
+  /** `?relay_catalog=every_type`: the catalog also offers an adapter whose settings are a choice, a switch and a list of text, which no adapter the runtime carries has yet. */
+  doesTheCatalogOfferEveryType: boolean;
 }
 
 const sleep = (milliseconds: number) => new Promise<void>((settle) => window.setTimeout(settle, milliseconds));
@@ -136,6 +179,7 @@ const sleep = (milliseconds: number) => new Promise<void>((settle) => window.set
  * never kept, a change reads joining and then joined, and each refusal is worded as the runtime words it.
  */
 export function createMockRelays(sources: MockRelaysSources): MockRelays {
+  const catalogAdapters: readonly RelayAdapter[] = sources.doesTheCatalogOfferEveryType ? [...MOCK_RELAY_ADAPTERS, MOCK_ADAPTER_OF_EVERY_SETTING_TYPE] : MOCK_RELAY_ADAPTERS;
   const relays: ListedRelay[] = [...mockBuiltInRelays(), ...(sources.scenario === "hosted" ? mockHostedRelays() : [])];
 
   const refuseUnlessTheRuntimeRuns = () => {
@@ -184,14 +228,14 @@ export function createMockRelays(sources: MockRelaysSources): MockRelays {
     describeRelays: async () => {
       await sleep(MOCK_RELAY_CALL_MILLISECONDS);
       refuseUnlessTheRuntimeRuns();
-      return structuredClone({ relays, adapters: [...MOCK_RELAY_ADAPTERS] });
+      return structuredClone({ relays, adapters: [...catalogAdapters] });
     },
     addRelay: async (adapterKind, settings) => {
       await sleep(MOCK_RELAY_CHANGE_MILLISECONDS);
       refuseUnlessTheRuntimeRuns();
-      const adapter = MOCK_RELAY_ADAPTERS.find((catalogAdapter) => catalogAdapter.kind === adapterKind);
+      const adapter = catalogAdapters.find((catalogAdapter) => catalogAdapter.kind === adapterKind);
       if (adapter === undefined) {
-        throw `no relay adapter is named \`${adapterKind}\`; the adapters are ${MOCK_RELAY_ADAPTERS.map((catalogAdapter) => catalogAdapter.kind).join(", ")}`;
+        throw `no relay adapter is named \`${adapterKind}\`; the adapters are ${catalogAdapters.map((catalogAdapter) => catalogAdapter.kind).join(", ")}`;
       }
       if (adapter.kind === "local") {
         throw "no `local` relay is added: the local relay is built in: its listeners `local-loopback` and `local-every-interface` are on every machine, and where a listener binds is never a setting";
@@ -219,7 +263,7 @@ export function createMockRelays(sources: MockRelaysSources): MockRelays {
       await sleep(MOCK_RELAY_CHANGE_MILLISECONDS);
       refuseUnlessTheRuntimeRuns();
       const relay = relayNamed(relayId);
-      const adapter = MOCK_RELAY_ADAPTERS.find((catalogAdapter) => catalogAdapter.kind === relay.adapter);
+      const adapter = catalogAdapters.find((catalogAdapter) => catalogAdapter.kind === relay.adapter);
       if (adapter === undefined) throw `no relay adapter is named \`${relay.adapter}\``;
       const relayWithTheNewSettings = structuredClone(relay);
       takeTheSettings(relayWithTheNewSettings, adapter, settings);
@@ -228,7 +272,14 @@ export function createMockRelays(sources: MockRelaysSources): MockRelays {
     },
     chooseRelaySecretFile: async () => {
       await sleep(MOCK_RELAY_CALL_MILLISECONDS);
-      return sources.isTheSecretFileDialogCancelled ? null : MOCK_SIGNING_KEY_FILE_TEXT;
+      switch (sources.secretFilePick) {
+        case "cancel":
+          return null;
+        case "not_text":
+          throw "/Users/jonathanf/Downloads/pb1studio.der is not text, so it holds no secret Tatolab can send.";
+        case "picked":
+          return { ...MOCK_SIGNING_KEY_FILE };
+      }
     },
     removeRelay: async (relayId) => {
       await sleep(MOCK_RELAY_CALL_MILLISECONDS);

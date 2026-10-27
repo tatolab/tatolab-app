@@ -1,8 +1,9 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { LARGEST_RELAY_SECRET_FILE_BYTES, readTheRelaySecretFileThePersonChooses } from "./relay_secret_file_reading.js";
+import { LARGEST_RELAY_SECRET_FILE_BYTES, readTheRelaySecretFileThePersonChooses, relaySecretFromTheFilesText } from "./relay_secret_file_reading.js";
 import { failedWith, succeeded } from "./result.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
@@ -19,11 +20,26 @@ async function aFileHolding(fileName: string, contents: string | Buffer): Promis
   return filePath;
 }
 
-test("the_chosen_files_text_is_answered_whole_as_moq_pro_downloads_a_signing_key", async () => {
-  const signingKey = '{"kty":"OKP","crv":"Ed25519","kid":"pb1studio","d":"written-for-the-test"}\n';
-  const filePath = await aFileHolding("pb1studio.jwk", signingKey);
+test("the_chosen_files_text_and_name_are_answered_its_one_trailing_line_ending_dropped_as_the_cli_reads_one", async () => {
+  const signingKey = '{\n  "kty": "OKP",\n  "kid": "pb1studio",\n  "d": "written-for-the-test"\n}';
+  const filePath = await aFileHolding("pb1studio.jwk", `${signingKey}\n`);
 
-  expect(await readTheRelaySecretFileThePersonChooses(async () => succeeded(filePath))).toEqual(succeeded({ text: signingKey }));
+  expect(await readTheRelaySecretFileThePersonChooses(async () => succeeded(filePath))).toEqual(succeeded({ text: signingKey, file_name: "pb1studio.jwk" }));
+  expect(["token\r\n", "token\n", "token", "token\n\n"].map(relaySecretFromTheFilesText)).toEqual(["token", "token", "token", "token\n"]);
+});
+
+test("an_empty_file_is_refused_by_its_name_as_the_cli_refuses_an_empty_secret", async () => {
+  const emptyFile = await aFileHolding("empty.jwk", "\n");
+
+  expect(await readTheRelaySecretFileThePersonChooses(async () => succeeded(emptyFile))).toEqual(failedWith(`${emptyFile} is empty, so it holds no secret Tatolab can send.`));
+});
+
+test("a_fifo_is_refused_without_waiting_for_a_writer", { timeout: 5_000 }, async () => {
+  const fifo = path.join(path.dirname(await aFileHolding("anything.txt", "x")), "secret.fifo");
+  const madeTheFifo = await new Promise<boolean>((settle) => execFile("mkfifo", [fifo], (failure) => settle(failure === null)));
+  if (!madeTheFifo) return;
+
+  expect(await readTheRelaySecretFileThePersonChooses(async () => succeeded(fifo))).toEqual(failedWith(`${fifo} is not a file, so it holds no secret Tatolab can send.`));
 });
 
 test("a_cancelled_dialog_answers_nothing_and_a_dialog_that_did_not_open_is_refused_in_its_words", async () => {

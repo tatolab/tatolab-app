@@ -161,6 +161,6 @@ describe("an added relay's settings line", () => {
     });
 
     if (section.kind !== "listed") return expect.unreachable(section.kind);
-    expect(section.hostedRelayRows[0]?.settingsWords).toBe("Fallback URLs https://a.example, https://b.example · Prefers ipv6 on");
+    expect(section.hostedRelayRows[0]?.settingsWords).toBe("Fallback URLs https://a.example, https://b.example · Prefers IPv6 on");
   });
 });

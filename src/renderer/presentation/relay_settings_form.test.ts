@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ListedRelay, RelayAdapter } from "../../shared/tatolab_backend_contract";
 import {
+  type RelaySettingsFormPresentation,
   relaySettingLabel,
   relaySettingsDraftWithoutTypedSecrets,
   relaySettingsFormFields,
@@ -9,6 +10,11 @@ import {
   relaySettingsToSendToAdd,
   relaySettingsToSendToConfigure,
 } from "./relay_settings_form";
+
+/** Every row of `form`, the required ones first, as the form shows them. */
+function allRowsOf(form: Pick<RelaySettingsFormPresentation, "requiredRows" | "additionalOptionRows">) {
+  return [...form.requiredRows, ...form.additionalOptionRows];
+}
 
 const MOQPRO_ADAPTER: RelayAdapter = {
   kind: "moqpro",
@@ -147,7 +153,7 @@ describe("an optional setting that takes no null", () => {
 
 describe("the form's rows", () => {
   it("show a held secret as set with Replace… until it is replaced, the relay's values before an edit, and Use default only off the default", () => {
-    const { rows } = presentRelaySettingsForm(MOQPRO_ADAPTER, MOQPRO_RELAY, {}, new Set());
+    const rows = allRowsOf(presentRelaySettingsForm(MOQPRO_ADAPTER, MOQPRO_RELAY, {}, new Set()));
 
     expect(rows.map((row) => [row.formField.name, row.shownText, row.heldSecretWords, row.showsTheField, row.offersUseDefault])).toEqual([
       ["project_id", "pb1studio", null, true, false],
@@ -155,7 +161,7 @@ describe("the form's rows", () => {
       ["relay_url", "", null, true, false],
     ]);
     expect(rows[1]).toMatchObject({ replaceWords: "Replace…", replaceLabel: "Replace Signing key" });
-    expect(presentRelaySettingsForm(MOQPRO_ADAPTER, MOQPRO_RELAY, { relay_url: { kind: "typed", text: "https://relay.example" } }, new Set(["signing_key"])).rows.map((row) => [row.formField.name, row.showsTheField, row.offersUseDefault])).toEqual([
+    expect(allRowsOf(presentRelaySettingsForm(MOQPRO_ADAPTER, MOQPRO_RELAY, { relay_url: { kind: "typed", text: "https://relay.example" } }, new Set(["signing_key"]))).map((row) => [row.formField.name, row.showsTheField, row.offersUseDefault])).toEqual([
       ["project_id", true, false],
       ["signing_key", true, false],
       ["relay_url", true, true],
@@ -163,14 +169,16 @@ describe("the form's rows", () => {
   });
 
   it("name what is wrong only with a setting the person has typed into", () => {
-    const { rows, sendUnavailableBecause } = presentRelaySettingsForm(LOCAL_ADAPTER, null, { port: { kind: "typed", text: "70000" } }, new Set());
+    const form = presentRelaySettingsForm(LOCAL_ADAPTER, null, { port: { kind: "typed", text: "70000" } }, new Set());
+    const rows = allRowsOf(form);
+    const { sendUnavailableBecause } = form;
     expect(rows[0]?.problem).toBe("A whole number from 0 to 65535");
     expect(sendUnavailableBecause).toBe("Port must be a whole number from 0 to 65535.");
-    expect(presentRelaySettingsForm(MOQPRO_ADAPTER, null, {}, new Set()).rows.map((row) => row.problem)).toEqual([null, null, null]);
+    expect(allRowsOf(presentRelaySettingsForm(MOQPRO_ADAPTER, null, {}, new Set())).map((row) => row.problem)).toEqual([null, null, null]);
   });
 
   it("say Required once for a required setting typed into and emptied, the problem saying it in place of the quiet line", () => {
-    const { rows } = presentRelaySettingsForm(MOQPRO_ADAPTER, null, { project_id: { kind: "typed", text: "" } }, new Set());
+    const rows = allRowsOf(presentRelaySettingsForm(MOQPRO_ADAPTER, null, { project_id: { kind: "typed", text: "" } }, new Set()));
 
     expect(rows[0]).toMatchObject({ requiredWords: null, problem: "Required" });
     expect(rows[1]).toMatchObject({ requiredWords: "Required", problem: null });
@@ -179,7 +187,9 @@ describe("the form's rows", () => {
 
   it("move focus to a held secret's field once Replace… shows it, and name each Use default by its setting", () => {
     const relayOnItsOwnRelayUrl: ListedRelay = { ...MOQPRO_RELAY, settings: { ...MOQPRO_RELAY.settings, relay_url: "https://relay.example" } };
-    const { rows, dialogWords } = presentRelaySettingsForm(MOQPRO_ADAPTER, relayOnItsOwnRelayUrl, {}, new Set(["signing_key"]));
+    const form = presentRelaySettingsForm(MOQPRO_ADAPTER, relayOnItsOwnRelayUrl, {}, new Set(["signing_key"]));
+    const rows = allRowsOf(form);
+    const { dialogWords } = form;
 
     expect(rows.map((row) => [row.formField.name, row.heldSecret, row.takesFocusWhenShown])).toEqual([
       ["project_id", null, false],
@@ -192,13 +202,13 @@ describe("the form's rows", () => {
   });
 
   it("say which settings are required before anything is typed, an optional one reading Default, and a whole number asking for digits", () => {
-    expect(presentRelaySettingsForm(MOQPRO_ADAPTER, null, {}, new Set()).rows.map((row) => [row.formField.name, row.requiredWords, row.placeholder, row.heldSecretWords])).toEqual([
+    expect(allRowsOf(presentRelaySettingsForm(MOQPRO_ADAPTER, null, {}, new Set())).map((row) => [row.formField.name, row.requiredWords, row.placeholder, row.heldSecretWords])).toEqual([
       ["project_id", "Required", null, null],
       ["signing_key", "Required", null, null],
       ["relay_url", null, "Default", null],
     ]);
-    expect(presentRelaySettingsForm(LOCAL_ADAPTER, null, {}, new Set()).rows[0]?.inputMode).toBe("numeric");
-    expect(presentRelaySettingsForm(MOQPRO_ADAPTER, { ...MOQPRO_RELAY, secrets: { signing_key: "unset" } }, {}, new Set()).rows[1]).toMatchObject({
+    expect(allRowsOf(presentRelaySettingsForm(LOCAL_ADAPTER, null, {}, new Set()))[0]?.inputMode).toBe("numeric");
+    expect(allRowsOf(presentRelaySettingsForm(MOQPRO_ADAPTER, { ...MOQPRO_RELAY, secrets: { signing_key: "unset" } }, {}, new Set()))[1]).toMatchObject({
       heldSecretWords: "Not set",
       replaceWords: "Set…",
       replaceLabel: "Set Signing key",
@@ -222,7 +232,7 @@ const TYPED_ADAPTER: RelayAdapter = {
   doc: "An example relay with every kind of setting.",
   setting_fields: [
     { name: "relay", description: null, is_required: true, is_secret: false, value_kind: { kind: "one_of", choices: ["https://cdn.moq.dev", "https://cdn.moq.pro"] }, accepts_null: false },
-    { name: "prefers_ipv6", description: null, is_required: true, is_secret: false, value_kind: { kind: "true_or_false" }, accepts_null: false },
+    { name: "prefers_ipv6", description: null, is_required: true, is_secret: false, value_kind: { kind: "true_or_false", default_is_on: null }, accepts_null: false },
     { name: "fallback_urls", description: null, is_required: false, is_secret: false, value_kind: { kind: "text_list" }, accepts_null: true },
     { name: "edge", description: null, is_required: false, is_secret: false, value_kind: { kind: "one_of", choices: ["nearest", "fixed"] }, accepts_null: true },
   ],
@@ -240,7 +250,7 @@ describe("a choice, a switch and a list of text", () => {
   it("are drawn as a choice, a switch and one item per line, the required ones first and the optional ones under Additional options", () => {
     const form = presentRelaySettingsForm(TYPED_ADAPTER, null, {}, new Set());
 
-    expect(form.rows.map((row) => [row.formField.name, row.formField.input])).toEqual([
+    expect(allRowsOf(form).map((row) => [row.formField.name, row.formField.input])).toEqual([
       ["relay", "choice"],
       ["prefers_ipv6", "true_or_false"],
       ["fallback_urls", "text_lines"],
@@ -248,7 +258,7 @@ describe("a choice, a switch and a list of text", () => {
     ]);
     expect(form.requiredRows.map((row) => row.formField.name)).toEqual(["relay", "prefers_ipv6"]);
     expect(form.additionalOptionRows.map((row) => row.formField.name)).toEqual(["fallback_urls", "edge"]);
-    expect(form.rows[0]).toMatchObject({ choices: ["https://cdn.moq.dev", "https://cdn.moq.pro"], chosenChoice: null });
+    expect(allRowsOf(form)[0]).toMatchObject({ choices: ["https://cdn.moq.dev", "https://cdn.moq.pro"], chosenChoice: null });
   });
 
   it("send what was chosen, switched and listed when adding, a required switch left alone sent off and a required choice waited for", () => {
@@ -262,7 +272,7 @@ describe("a choice, a switch and a list of text", () => {
   });
 
   it("show the relay's own values when configuring, and send only what differs from them", () => {
-    const rows = presentRelaySettingsForm(TYPED_ADAPTER, TYPED_RELAY, {}, new Set()).rows;
+    const rows = allRowsOf(presentRelaySettingsForm(TYPED_ADAPTER, TYPED_RELAY, {}, new Set()));
 
     expect(rows.map((row) => [row.formField.name, row.chosenChoice, row.isSwitchedOn, row.shownText])).toEqual([
       ["relay", "https://cdn.moq.dev", false, ""],
@@ -284,5 +294,42 @@ describe("a choice, a switch and a list of text", () => {
         edge: { kind: "chosen", choice: "fixed" },
       }),
     ).toEqual({ kind: "ready", settings: { prefers_ipv6: true, fallback_urls: ["https://c.example"], edge: "fixed" } });
+  });
+});
+
+describe("a secret read from a file", () => {
+  it("is shown by the file's name in place of its field, offers no Choose file… again, and is sent as the file held it", () => {
+    const draft = { project_id: { kind: "typed", text: "pb1studio" }, signing_key: { kind: "read_from_a_file", text: '{\n  "kty": "OKP"\n}', fileName: "pb1studio.jwk" } } as const;
+    const signingKeyRow = allRowsOf(presentRelaySettingsForm(MOQPRO_ADAPTER, null, draft, new Set()))[1];
+
+    expect(signingKeyRow).toMatchObject({ readFromAFileWords: "Read from pb1studio.jwk", offersChooseFile: false, isLabelledAsAField: false });
+    expect(relaySettingsToSendToAdd(MOQPRO_ADAPTER, draft)).toEqual({ kind: "ready", settings: { project_id: "pb1studio", signing_key: '{\n  "kty": "OKP"\n}' } });
+    expect(allRowsOf(presentRelaySettingsForm(MOQPRO_ADAPTER, null, {}, new Set()))[1]).toMatchObject({ readFromAFileWords: null, offersChooseFile: true, choosingFileWords: "Choosing…" });
+    expect(relaySettingsDraftWithoutTypedSecrets(MOQPRO_ADAPTER, draft)).toEqual({ project_id: { kind: "typed", text: "pb1studio" } });
+  });
+});
+
+describe("a switch and a choice at their defaults", () => {
+  it("show the schema's default position, say Default where the schema states none, and word an empty choice by whether it is required", () => {
+    const adapterWithDefaults: RelayAdapter = {
+      ...TYPED_ADAPTER,
+      setting_fields: [
+        { name: "prefers_ipv6", description: null, is_required: false, is_secret: false, value_kind: { kind: "true_or_false", default_is_on: true }, accepts_null: true },
+        { name: "tolerates_late_joiners", description: null, is_required: false, is_secret: false, value_kind: { kind: "true_or_false", default_is_on: null }, accepts_null: true },
+        ...TYPED_ADAPTER.setting_fields.filter((settingField) => settingField.value_kind.kind === "one_of"),
+      ],
+    };
+    const rows = allRowsOf(presentRelaySettingsForm(adapterWithDefaults, null, {}, new Set()));
+
+    expect(rows.map((row) => [row.formField.name, row.isSwitchedOn, row.switchDefaultWords, row.choiceFieldWords, row.choiceFieldLabel, row.isLabelledAsAField])).toEqual([
+      ["relay", false, null, "Choose…", "Relay: none chosen", false],
+      ["prefers_ipv6", true, null, "Default", "Prefers IPv6: the default", false],
+      ["tolerates_late_joiners", false, "Default", "Default", "Tolerates late joiners: the default", false],
+      ["edge", false, null, "Default", "Edge: the default", false],
+    ]);
+    expect(allRowsOf(presentRelaySettingsForm(adapterWithDefaults, null, { tolerates_late_joiners: { kind: "switched", isOn: true } }, new Set()))[2]).toMatchObject({
+      isSwitchedOn: true,
+      switchDefaultWords: null,
+    });
   });
 });

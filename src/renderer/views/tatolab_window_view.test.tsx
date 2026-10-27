@@ -1427,12 +1427,54 @@ describe("Settings › Relays", () => {
     expect([...additionalOptions.querySelectorAll("[data-relay-setting]")].map((row) => row.getAttribute("data-relay-setting"))).toEqual(["relay_url"]);
     typeIntoTheRelaySetting("project_id", "pb1studio");
     fireEvent.click(within(dialog).getByRole("button", { name: "Choose a file holding the Signing key" }));
-    await waitFor(() => expect(dialog.querySelector<HTMLInputElement>('[data-relay-setting-field="signing_key"]')?.value).toContain('"kid":"pb1studio"'));
+    await waitFor(() => expect(openRelayDialog().querySelector("[data-relay-secret-read-from-a-file]")?.textContent).toBe("Read from pb1studio.jwk"));
+    expect(openRelayDialog().querySelector('input[data-relay-setting-field="signing_key"]')).toBeNull();
     fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-action="add"]') ?? expect.unreachable("no Add relay"));
 
     await waitFor(() => expect(added).toHaveLength(1));
-    expect(added[0]?.[0]).toBe("moqpro");
-    expect(added[0]?.[1]).toMatchObject({ project_id: "pb1studio", signing_key: expect.stringContaining('"kty":"OKP"') });
+    expect(added[0]).toEqual([
+      "moqpro",
+      { project_id: "pb1studio", signing_key: '{"kty":"OKP","crv":"Ed25519","kid":"pb1studio","x":"mock-public-half","d":"mock-private-half"}' },
+    ]);
+  });
+
+  it("shows a file it could not read in main's words, hands focus back to Choose file…, and forgets the refusal on the next edit", { timeout: 8_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&relays=local&secret_file=not_text");
+    await openSettingsOn("relays");
+    await openTheAddRelayDialogFor("cloudflare");
+
+    fireEvent.click(within(openRelayDialog()).getByRole("button", { name: "Choose a file holding the Relay URL" }));
+    await waitFor(() =>
+      expect(within(openRelayDialog()).getByRole("alert").textContent).toBe(
+        "The file wasn't read: /Users/jonathanf/Downloads/pb1studio.der is not text, so it holds no secret Tatolab can send.",
+      ),
+    );
+    await waitFor(() => expect(document.activeElement?.getAttribute("data-relay-action")).toBe("choose-secret-file"));
+    typeIntoTheRelaySetting("relay_url", "h");
+    expect(within(openRelayDialog()).queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps the secret's field when the file dialog is cancelled, and Clear forgets a file read", { timeout: 8_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&relays=local&secret_file=cancel");
+    await openSettingsOn("relays");
+    await openTheAddRelayDialogFor("cloudflare");
+    fireEvent.click(within(openRelayDialog()).getByRole("button", { name: "Choose a file holding the Relay URL" }));
+    await waitFor(() => expect(document.activeElement?.getAttribute("data-relay-action")).toBe("choose-secret-file"));
+    expect(openRelayDialog().querySelector('input[data-relay-setting-field="relay_url"]')).not.toBeNull();
+  });
+
+  it("forgets a secret read from a file on Clear, showing its field again", { timeout: 8_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&relays=local");
+    await openSettingsOn("relays");
+    await openTheAddRelayDialogFor("cloudflare");
+    fireEvent.click(within(openRelayDialog()).getByRole("button", { name: "Choose a file holding the Relay URL" }));
+    await waitFor(() => expect(openRelayDialog().querySelector("[data-relay-secret-read-from-a-file]")).not.toBeNull());
+
+    fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-action="clear-secret-file"]') ?? expect.unreachable("no Clear"));
+
+    await waitFor(() => expect(document.activeElement?.getAttribute("data-relay-setting-field")).toBe("relay_url"));
+    expect(openRelayDialog().querySelector<HTMLInputElement>('input[data-relay-setting-field="relay_url"]')?.value).toBe("");
+    expect(openRelayDialog().querySelector<HTMLButtonElement>('[data-relay-action="add"]')?.disabled).toBe(true);
   });
 
   it("draws a choice, a switch and a list of text from the schema and sends what was chosen, switched and listed", { timeout: 8_000 }, async () => {
@@ -1446,7 +1488,7 @@ describe("Settings › Relays", () => {
             doc: "An example relay.",
             setting_fields: [
               { name: "relay", description: null, is_required: true, is_secret: false, value_kind: { kind: "one_of", choices: ["https://cdn.moq.dev", "https://cdn.moq.pro"] }, accepts_null: false },
-              { name: "prefers_ipv6", description: null, is_required: true, is_secret: false, value_kind: { kind: "true_or_false" }, accepts_null: false },
+              { name: "prefers_ipv6", description: null, is_required: true, is_secret: false, value_kind: { kind: "true_or_false", default_is_on: null }, accepts_null: false },
               { name: "fallback_urls", description: null, is_required: false, is_secret: false, value_kind: { kind: "text_list" }, accepts_null: true },
             ],
           },

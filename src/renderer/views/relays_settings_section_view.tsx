@@ -1,10 +1,10 @@
 import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ListedRelay, RelayAdapter } from "../../shared/tatolab_backend_contract";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
 import { ConfirmationDialog } from "../design_system/confirmation_dialog";
-import { FormDialog, FormDialogFooter, FormDialogRow, FormDialogRows } from "../design_system/form_dialog";
+import { FormDialog, FormDialogFooter, FormDialogRow, FormDialogRows, FormDialogRowsSection } from "../design_system/form_dialog";
 import { FieldMenu, IconButtonMenu, MenuItem, MenuSingleChoiceGroup, MoreActionsMenu } from "../design_system/menus";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
@@ -103,8 +103,9 @@ function RelaySettingControl({
     case "choice":
       return (
         <FieldMenu
-          label={`${formField.label}: ${row.chosenChoice ?? "none chosen"}`}
-          words={<SettingsMachineWords tone="of_the_words_around_it">{row.chosenChoice ?? row.placeholder ?? "Choose…"}</SettingsMachineWords>}
+          label={row.choiceFieldLabel}
+          words={<SettingsMachineWords tone="of_the_words_around_it">{row.choiceFieldWords}</SettingsMachineWords>}
+          describedBy={describedById}
           data-relay-setting-field={formField.name}
         >
           <MenuSingleChoiceGroup
@@ -117,13 +118,16 @@ function RelaySettingControl({
       );
     case "true_or_false":
       return (
-        <ToggleSwitch
-          isOn={row.isSwitchedOn}
-          onSwitched={(isOn) => onEdited({ kind: "switched", isOn })}
-          labelledBy={labelId}
-          describedBy={describedById}
-          data-relay-setting-field={formField.name}
-        />
+        <>
+          {row.switchDefaultWords !== null && <span className="text-xs text-fg-3">{row.switchDefaultWords}</span>}
+          <ToggleSwitch
+            isOn={row.isSwitchedOn}
+            onSwitched={(isOn) => onEdited({ kind: "switched", isOn })}
+            labelledBy={labelId}
+            describedBy={describedById}
+            data-relay-setting-field={formField.name}
+          />
+        </>
       );
     case "text_lines":
       return (
@@ -132,6 +136,7 @@ function RelaySettingControl({
           label={formField.label}
           text={row.shownText}
           onTextChanged={(text) => onEdited({ kind: "typed", text })}
+          isRequired={formField.isRequired}
           isRefused={row.problem !== null}
           placeholder={row.placeholder ?? undefined}
           describedBy={describedById}
@@ -163,14 +168,20 @@ function RelaySettingControl({
   }
 }
 
-/** One setting's row in a relay's form: its control, or for a held secret whether it is set and Replace…; Choose file… beside a secret's field; Use default for an optional one. */
+/**
+ * One setting's row in a relay's form: its control; for a held secret whether it is set and Replace…; for a secret read
+ * from a file the file's name and Clear; Choose file… beside a secret's field; Use default for an optional one.
+ */
 function RelaySettingRow({
   row,
   onEdited,
+  onEditForgotten,
   onReplaceTheSecret,
 }: {
   row: RelaySettingFormRow;
   onEdited: (edit: RelaySettingEdit) => void;
+  /** The setting's edit forgotten, as Clear forgets a secret read from a file. */
+  onEditForgotten: () => void;
   onReplaceTheSecret: () => void;
 }) {
   const { backend } = useTatolabWindowEnvironment();
@@ -180,79 +191,110 @@ function RelaySettingRow({
   const describedById = `${fieldId}-description`;
   const [isChoosingAFile, setIsChoosingAFile] = useState(false);
   const [fileRefusal, setFileRefusal] = useState<string | null>(null);
-  const focusTheRowsControl = () => document.querySelector<HTMLElement>(`[data-relay-setting-field="${CSS.escape(formField.name)}"]`)?.focus();
+  /** The row's control or button to hand keyboard focus to once it is drawn again, after the one focused went. */
+  const [focusAfterTheNextDraw, setFocusAfterTheNextDraw] = useState<"control" | "field_once_the_file_is_forgotten" | "choose_file" | null>(null);
+  const rowElement = useRef<HTMLDivElement>(null);
+  const isReadFromAFile = row.readFromAFileWords !== null;
+  useEffect(() => {
+    if (focusAfterTheNextDraw === null || (focusAfterTheNextDraw === "field_once_the_file_is_forgotten" && isReadFromAFile)) return;
+    const selector = focusAfterTheNextDraw === "choose_file" ? '[data-relay-action="choose-secret-file"]' : "[data-relay-setting-field]";
+    rowElement.current?.querySelector<HTMLElement>(selector)?.focus();
+    setFocusAfterTheNextDraw(null);
+  }, [focusAfterTheNextDraw, isReadFromAFile]);
+  const edited = (edit: RelaySettingEdit) => {
+    setFileRefusal(null);
+    onEdited(edit);
+  };
   const readTheSecretFromAFile = () => {
     setFileRefusal(null);
     setIsChoosingAFile(true);
     backend.chooseRelaySecretFile().then(
-      (fileText) => {
+      (chosenFile) => {
         setIsChoosingAFile(false);
-        if (fileText !== null) onEdited({ kind: "typed", text: fileText });
-        focusTheRowsControl();
+        if (chosenFile !== null) onEdited({ kind: "read_from_a_file", text: chosenFile.text, fileName: chosenFile.fileName });
+        setFocusAfterTheNextDraw(chosenFile === null ? "choose_file" : "control");
       },
       (rejection: unknown) => {
         setIsChoosingAFile(false);
         setFileRefusal(describeBackendRejection(rejection));
+        setFocusAfterTheNextDraw("choose_file");
       },
     );
   };
   return (
-    <FormDialogRow
-      label={formField.label}
-      labelFor={row.showsTheField && formField.input !== "choice" && formField.input !== "true_or_false" ? fieldId : undefined}
-      labelId={labelId}
-      data-relay-setting={formField.name}
-      below={
-        <div id={describedById} className="mt-1 flex flex-col gap-1 text-xs text-fg-3">
-          {formField.description !== null && (
-            <p className="select-text">
-              <RuntimeWords words={formField.description} />
-            </p>
-          )}
-          {row.requiredWords !== null && <p>{row.requiredWords}</p>}
-          {formField.input === "secret" && <p>Kept by the runtime and never shown again.</p>}
-          {row.problem !== null && <p className="text-danger-text">{row.problem}</p>}
-          {fileRefusal !== null && <RefusalLine lead="The file wasn't read:" words={fileRefusal} />}
-        </div>
-      }
-    >
-      {!row.showsTheField ? (
-        <>
-          <span className="text-fg-2" data-relay-secret-presence={row.heldSecret ?? undefined}>
-            {row.heldSecretWords}
-          </span>
-          <ActionButton appearance="quiet" label={row.replaceLabel} onPressed={onReplaceTheSecret} data-relay-action="replace-secret">
-            {row.replaceWords}
-          </ActionButton>
-        </>
-      ) : (
-        <>
-          {row.offersUseDefault && (
+    <div ref={rowElement}>
+      <FormDialogRow
+        label={formField.label}
+        labelFor={row.isLabelledAsAField ? fieldId : undefined}
+        labelId={labelId}
+        data-relay-setting={formField.name}
+        below={
+          <div id={describedById} className="mt-1 flex flex-col gap-1 text-xs text-fg-3">
+            {formField.description !== null && (
+              <p className="select-text">
+                <RuntimeWords words={formField.description} />
+              </p>
+            )}
+            {row.requiredWords !== null && <p>{row.requiredWords}</p>}
+            {formField.input === "secret" && <p>Kept by the runtime and never shown again.</p>}
+            {row.problem !== null && <p className="text-danger-text">{row.problem}</p>}
+            {fileRefusal !== null && <RefusalLine lead="The file wasn't read:" words={fileRefusal} />}
+          </div>
+        }
+      >
+        {!row.showsTheField ? (
+          <>
+            <span className="text-fg-2" data-relay-secret-presence={row.heldSecret ?? undefined}>
+              {row.heldSecretWords}
+            </span>
+            <ActionButton appearance="quiet" label={row.replaceLabel} onPressed={onReplaceTheSecret} data-relay-action="replace-secret">
+              {row.replaceWords}
+            </ActionButton>
+          </>
+        ) : row.readFromAFileWords !== null ? (
+          <>
+            <span className="truncate text-fg-2" data-relay-secret-read-from-a-file="" data-relay-setting-field={formField.name} tabIndex={-1}>
+              {row.readFromAFileWords}
+            </span>
             <ActionButton
               appearance="quiet"
-              label={row.useDefaultLabel}
               onPressed={() => {
-                onEdited({ kind: "use_default" });
-                // The button goes once pressed; focus moves to the control it returned to its default, not to the page.
-                focusTheRowsControl();
+                onEditForgotten();
+                setFocusAfterTheNextDraw("field_once_the_file_is_forgotten");
               }}
-              data-relay-action="use-default"
+              data-relay-action="clear-secret-file"
             >
-              Use default
+              Clear
             </ActionButton>
-          )}
-          {formField.input === "secret" &&
-            (isChoosingAFile ? (
-              <PendingActionWords words="Choosing…" />
-            ) : (
-              <ActionButton appearance="quiet" label={row.chooseFileLabel} onPressed={readTheSecretFromAFile} data-relay-action="choose-secret-file">
-                Choose file…
+          </>
+        ) : (
+          <>
+            {row.offersUseDefault && (
+              <ActionButton
+                appearance="quiet"
+                label={row.useDefaultLabel}
+                onPressed={() => {
+                  edited({ kind: "use_default" });
+                  setFocusAfterTheNextDraw("control");
+                }}
+                data-relay-action="use-default"
+              >
+                Use default
               </ActionButton>
-            ))}
-          <RelaySettingControl row={row} fieldId={fieldId} labelId={labelId} describedById={describedById} onEdited={onEdited} />
-        </>
-      )}
-    </FormDialogRow>
+            )}
+            {row.offersChooseFile &&
+              (isChoosingAFile ? (
+                <PendingActionWords words={row.choosingFileWords} />
+              ) : (
+                <ActionButton appearance="quiet" label={row.chooseFileLabel} onPressed={readTheSecretFromAFile} data-relay-action="choose-secret-file">
+                  Choose file…
+                </ActionButton>
+              ))}
+            <RelaySettingControl row={row} fieldId={fieldId} labelId={labelId} describedById={describedById} onEdited={edited} />
+          </>
+        )}
+      </FormDialogRow>
+    </div>
   );
 }
 
@@ -272,6 +314,7 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
       key={row.formField.name}
       row={row}
       onEdited={(edit) => setDraft((draftNow) => ({ ...draftNow, [row.formField.name]: edit }))}
+      onEditForgotten={() => setDraft((draftNow) => Object.fromEntries(Object.entries(draftNow).filter(([settingName]) => settingName !== row.formField.name)))}
       onReplaceTheSecret={() => setSecretsBeingReplaced((replacedNow) => new Set([...replacedNow, row.formField.name]))}
     />
   );
@@ -339,12 +382,9 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
         <>
           {requiredRows.length > 0 && <FormDialogRows>{requiredRows.map(relaySettingRowOf)}</FormDialogRows>}
           {additionalOptionRows.length > 0 && (
-            <section aria-labelledby="relay-additional-options" className="mt-5" data-relay-additional-options="">
-              <h3 id="relay-additional-options" className="mb-1 font-medium text-fg-2">
-                Additional options
-              </h3>
-              <FormDialogRows>{additionalOptionRows.map(relaySettingRowOf)}</FormDialogRows>
-            </section>
+            <FormDialogRowsSection title="Additional options" data-relay-additional-options="">
+              {additionalOptionRows.map(relaySettingRowOf)}
+            </FormDialogRowsSection>
           )}
         </>
       )}

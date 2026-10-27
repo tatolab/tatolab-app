@@ -184,16 +184,18 @@ test("a_choice_of_text_reads_its_choices_from_enum_from_a_oneof_of_consts_and_th
 test("true_or_false_and_a_list_of_text_read_as_such_and_a_list_of_anything_else_names_its_type", () => {
   const settingFields = settingFieldsOf({
     properties: {
-      prefers_ipv6: { type: "boolean" },
+      prefers_ipv6: { type: "boolean", default: true },
       tolerate_late_joiners: { type: ["boolean", "null"], default: null },
+      nothing_to_choose: { type: "string", enum: [] },
       fallback_urls: { type: "array", items: { type: "string" } },
       weights: { type: "array", items: { type: "integer" } },
     },
   });
 
   expect(settingFields.map((settingField) => [settingField.name, settingField.value_kind, settingField.accepts_null])).toEqual([
-    ["prefers_ipv6", { kind: "true_or_false" }, false],
-    ["tolerate_late_joiners", { kind: "true_or_false" }, true],
+    ["prefers_ipv6", { kind: "true_or_false", default_is_on: true }, false],
+    ["tolerate_late_joiners", { kind: "true_or_false", default_is_on: null }, true],
+    ["nothing_to_choose", { kind: "not_drawable", schema_type_words: "a choice of nothing" }, false],
     ["fallback_urls", { kind: "text_list" }, false],
     ["weights", { kind: "not_drawable", schema_type_words: "array of integer" }, false],
   ]);

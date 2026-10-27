@@ -672,6 +672,6 @@ test("choosing_a_relay_secret_file_answers_its_text_in_the_contracts_shape_and_n
   const chosen = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "macos", [], null, null, signingKeyFile), () => {});
   const cancelled = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "macos"), () => {});
 
-  expect(JSON.stringify(await chosen.choose_relay_secret_file(undefined))).toBe('{"ok":true,"value":{"text":"{\\"kty\\":\\"OKP\\",\\"d\\":\\"written-for-the-test\\"}"}}');
+  expect(JSON.stringify(await chosen.choose_relay_secret_file(undefined))).toBe('{"ok":true,"value":{"text":"{\\"kty\\":\\"OKP\\",\\"d\\":\\"written-for-the-test\\"}","file_name":"pb1studio.jwk"}}');
   expect(await cancelled.choose_relay_secret_file(undefined)).toEqual({ ok: true, value: null });
 });

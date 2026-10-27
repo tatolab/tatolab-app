@@ -261,7 +261,12 @@ function relaySettingTypeOf(
   const schemaTypes = schemaTypesOf(propertySchema);
   const acceptsNullByItsType = schemaTypes.includes("null");
   const choices = choicesTheSchemaAllows(propertySchema);
-  if (choices !== null) return { valueKind: { kind: "one_of", choices: choices.choices }, acceptsNull: choices.allowsNull || acceptsNullByItsType };
+  if (choices !== null) {
+    return {
+      valueKind: choices.choices.length === 0 ? { kind: "not_drawable", schema_type_words: "a choice of nothing" } : { kind: "one_of", choices: choices.choices },
+      acceptsNull: choices.allowsNull || acceptsNullByItsType,
+    };
+  }
   return {
     valueKind: relaySettingValueKindOf(
       propertySchema,
@@ -285,8 +290,10 @@ function relaySettingValueKindOf(propertySchema: JsonObjectOnTheWire, typesOther
   switch (onlyType) {
     case "string":
       return { kind: "text" };
-    case "boolean":
-      return { kind: "true_or_false" };
+    case "boolean": {
+      const defaultValue = propertySchema["default"];
+      return { kind: "true_or_false", default_is_on: typeof defaultValue === "boolean" ? defaultValue : null };
+    }
     case "array": {
       const items = propertySchema["items"];
       if (!isAJsonObject(items)) return { kind: "not_drawable", schema_type_words: "array" };

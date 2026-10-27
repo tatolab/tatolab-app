@@ -303,12 +303,12 @@ export interface ListedRelay {
   connection_state: RelayConnectionState;
 }
 
-/** What one setting holds, as its adapter's settings schema types it: text, a whole number within its bounds, one of a list of texts, true or false, a list of texts, or a type the app's form cannot draw, named as the schema names it. */
+/** What one setting holds, as its adapter's settings schema types it: text, a whole number within its bounds, one of a list of texts, true or false (with the position its schema defaults to, when it says), a list of texts, or a type the app's form cannot draw, named as the schema names it. */
 export type RelaySettingValueKind =
   | { kind: "text" }
   | { kind: "whole_number"; minimum: number | null; maximum: number | null }
   | { kind: "one_of"; choices: readonly string[] }
-  | { kind: "true_or_false" }
+  | { kind: "true_or_false"; default_is_on: boolean | null }
   | { kind: "text_list" }
   | { kind: "not_drawable"; schema_type_words: string };
 
