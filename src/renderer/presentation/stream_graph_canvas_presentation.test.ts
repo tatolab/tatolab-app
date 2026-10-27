@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 import {
+  dataKindOfEachOutputPort,
   outputPreviewAbsenceWords,
   streamGraphLinkLabelClauses,
   presentStreamGraphCanvas,
@@ -52,14 +53,14 @@ const FRONT_DOOR_GRAPH: StreamGraphSummary = {
 const stepOf = (graph: StreamGraphSummary, stepName: string) => presentStreamGraphCanvas(graph).steps.find((step) => step.name === stepName);
 
 describe("presentStreamGraphCanvas", () => {
-  it("draws every step the graph reports, with its origin and state word", () => {
+  it("draws every node the graph reports, with its state word", () => {
     const steps = presentStreamGraphCanvas(FRONT_DOOR_GRAPH).steps;
 
-    expect(steps.map((step) => [step.name, step.origin, step.stateWord])).toEqual([
-      ["testpatternsource", "Built-in", "Running"],
-      ["halftonelenseffect", "Python", "Running"],
-      ["brightnessmeter", "Python", "Running"],
-      ["h264encoder", "Built-in", "Running"],
+    expect(steps.map((step) => [step.name, step.stateWord])).toEqual([
+      ["testpatternsource", "Running"],
+      ["halftonelenseffect", "Running"],
+      ["brightnessmeter", "Running"],
+      ["h264encoder", "Running"],
     ]);
   });
 
@@ -133,12 +134,12 @@ describe("presentStreamGraphCanvas", () => {
     expect(canvas.links[0]).toMatchObject({ look: "pending", stateSentence: "Waiting for camera/camerasource to be exposed" });
   });
 
-  it("names each card for a screen reader by its name, state and origin", () => {
+  it("names each card for a screen reader by its name and state", () => {
     expect(presentStreamGraphCanvas(FRONT_DOOR_GRAPH).steps.map((step) => step.accessibleName)).toEqual([
-      "testpatternsource, Running, Built-in",
-      "halftonelenseffect, Running, Python",
-      "brightnessmeter, Running, Python",
-      "h264encoder, Running, Built-in",
+      "testpatternsource, Running",
+      "halftonelenseffect, Running",
+      "brightnessmeter, Running",
+      "h264encoder, Running",
     ]);
   });
 
@@ -146,6 +147,16 @@ describe("presentStreamGraphCanvas", () => {
     const graph = { ...FRONT_DOOR_GRAPH, nodes: FRONT_DOOR_GRAPH.nodes.map((node) => (node.name === "h264encoder" ? { ...node, state: "Error" } : node)) };
 
     expect(stepOf(graph, "h264encoder")).toMatchObject({ stateWord: "In error", stateEmphasis: "failure" });
+  });
+});
+
+describe("dataKindOfEachOutputPort", () => {
+  it("keys each output port's data kind by node and port, as its card draws it", () => {
+    expect([...dataKindOfEachOutputPort(FRONT_DOOR_GRAPH)]).toEqual([
+      ["testpatternsource/video", "data"],
+      ["halftonelenseffect/video_to_downstream", "data"],
+      ["h264encoder/encoded_video", "video"],
+    ]);
   });
 });
 

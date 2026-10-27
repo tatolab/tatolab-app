@@ -45,18 +45,27 @@ function rowOf(streamName: string): HTMLElement {
 }
 
 describe("the Streams list", () => {
-  it("words each stream's state, run mode and steps as the runtime lists it", async () => {
+  it("lists each stream under its project folder, its state in its name, a failure's reason in the runtime's words under it", async () => {
     await mountedWindowOverTheMock("state=running");
 
-    const mainRow = within(rowOf("main"));
-    expect(mainRow.getByText("Running")).toBeTruthy();
-    expect(mainRow.getByText("Always on")).toBeTruthy();
-    expect(mainRow.getByText("4")).toBeTruthy();
-    expect(within(rowOf("attached-demo")).getByText("Dev session")).toBeTruthy();
-    expect(within(rowOf("pattern-two")).getByText("Stopped")).toBeTruthy();
-    expect(within(rowOf("pattern-two")).getByText("—")).toBeTruthy();
-    expect(within(rowOf("lobby-recorder")).getByText("Failed")).toBeTruthy();
-    expect(screen.getByText("3 of 5 loaded on jonathanf-macbook")).toBeTruthy();
+    const patternFolder = within(document.querySelector<HTMLElement>('[data-streams-list-project-folder="/Users/jonathanf/streams/pattern"]') ?? expect.unreachable("no pattern folder"));
+    expect(patternFolder.getAllByRole("listitem").map((row) => row.getAttribute("data-stream-row"))).toEqual(["main", "attached-demo", "pattern-two"]);
+    expect(within(rowOf("main")).getByRole("link", { name: "main, Running" })).toBeTruthy();
+    expect(within(rowOf("pattern-two")).getByRole("link", { name: "pattern-two, Stopped" })).toBeTruthy();
+    expect(within(rowOf("lobby-recorder")).getByRole("link", { name: "lobby-recorder, Failed" })).toBeTruthy();
+    expect(rowOf("lobby-recorder").textContent).toContain("camera access is denied for Tatolab");
+  });
+
+  it("shows only the streams in the state chosen from the state menu, counting each state", async () => {
+    await mountedWindowOverTheMock("state=running");
+
+    fireEvent.click(document.querySelector<HTMLElement>("[data-streams-list-state-filter]") ?? expect.unreachable("no state menu"));
+    const failedChoice = await waitFor(() => document.querySelector<HTMLElement>('[data-streams-list-state-choice="failed"]') ?? expect.unreachable("no Failed choice"));
+    expect(document.querySelector('[data-streams-list-state-choice="running"]')?.textContent).toBe("Running3");
+    fireEvent.click(failedChoice);
+
+    await waitFor(() => expect([...document.querySelectorAll("[data-stream-row]")].map((row) => row.getAttribute("data-stream-row"))).toEqual(["lobby-recorder"]));
+    expect(screen.getByRole("button", { name: "States shown: Failed" })).toBeTruthy();
   });
 
   it("stops a stream through the backend, shows it pending, then shows the runtime's new listing", async () => {
@@ -65,7 +74,7 @@ describe("the Streams list", () => {
     fireEvent.click(within(rowOf("camera")).getByRole("button", { name: "Stop: unloads it and remembers it stopped" }));
 
     expect(within(rowOf("camera")).getByRole("status").textContent).toBe("Stopping…");
-    await waitFor(() => expect(within(rowOf("camera")).getByText("Stopped")).toBeTruthy());
+    await waitFor(() => expect(within(rowOf("camera")).getByRole("link", { name: "camera, Stopped" })).toBeTruthy());
     expect(within(rowOf("camera")).queryByRole("status")).toBeNull();
     expect(within(rowOf("camera")).getByRole("button", { name: "Start: loads it again from its record" })).toBeTruthy();
   });
@@ -102,8 +111,7 @@ describe("the Streams list", () => {
         "Stopped, but not recorded, so it loads again when the runtime restarts: Runtime error: the kept record of `camera` could not be written: Permission denied (os error 13)",
       ),
     );
-    expect(within(rowOf("camera")).getByText("Stopped")).toBeTruthy();
-    expect(within(rowOf("camera")).queryByText("Starting")).toBeNull();
+    expect(within(rowOf("camera")).getByRole("link", { name: "camera, Stopped" })).toBeTruthy();
   });
 
   it("asks before removing a stream, and removes it only when told to", async () => {
@@ -122,7 +130,7 @@ describe("the Streams list", () => {
     await mountedWindowOverTheMock("state=empty");
 
     expect(screen.getByText("No streams on jonathanf-macbook yet")).toBeTruthy();
-    expect(screen.getByText("tatolab dev")).toBeTruthy();
+    expect(screen.queryByText("tatolab dev")).toBeNull();
   });
 
   it("shows the page that says why while the runtime is not running", async () => {
@@ -130,7 +138,8 @@ describe("the Streams list", () => {
 
     expect(document.querySelector("[data-streams-list-page]")).toBeNull();
     expect(document.querySelector("[data-hosted-dom-page] .streams-page")).not.toBeNull();
-    expect(screen.getByText("Runtime stopped")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Streams" })).toBeTruthy();
+    expect(document.querySelector("[data-hosted-dom-page] [role='status']")?.textContent).toBe("Tatolab is off");
   });
 });
 
@@ -141,7 +150,7 @@ describe("the window's shell", () => {
     fireEvent.click(rowOf("main"));
 
     await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("main"));
-    expect(document.querySelector("[data-stream-page] [data-stream-details]")).not.toBeNull();
+    expect(document.querySelector("[data-stream-page] [data-stream-overview]")).not.toBeNull();
     expect(document.querySelector("[data-stream-page] [data-hosted-dom-page]")).toBeNull();
   });
 
@@ -159,20 +168,19 @@ describe("the window's shell", () => {
     await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("lobby-recorder"));
   });
 
-  it("keeps the person's theme choice", async () => {
+  it("shows no sidebar header, title bar controls or status bar, leaving the sidebar's + menu the one way to add a project", async () => {
     await mountedWindowOverTheMock("state=running");
 
-    fireEvent.click(screen.getByRole("button", { name: "Use the dark theme" }));
-
-    expect(document.documentElement.classList.contains("dark")).toBe(true);
-    expect(localStorage.getItem("tatolab-window-theme")).toBe("dark");
-  });
-
-  it("names the runtime's state and the app's version in the status bar", async () => {
-    await mountedWindowOverTheMock("state=running");
-
-    expect(screen.getByText("Runtime running")).toBeTruthy();
-    expect(screen.getByText("Tatolab 0.45.0")).toBeTruthy();
+    const sidebar = within(screen.getByRole("navigation", { name: "Tatolab" }));
+    expect(sidebar.queryByText("jonathanf-macbook")).toBeNull();
+    expect(sidebar.queryByText("Tatolab")).toBeNull();
+    for (const removedControl of ["Back", "Forward", "Use the dark theme", "Search streams, outputs and views"]) {
+      expect(screen.queryByRole("button", { name: removedControl }), removedControl).toBeNull();
+    }
+    expect(screen.queryByText("Runtime running")).toBeNull();
+    expect(screen.queryByText("Tatolab 0.45.0")).toBeNull();
+    expect(screen.queryAllByRole("button", { name: /Add stream/ })).toEqual([]);
+    expect(screen.getByRole("button", { name: "New or import a project" }).getAttribute("data-window-navigation")).toBe("add-project-menu");
   });
 });
 
@@ -191,30 +199,42 @@ function textOf(selector: string): string {
 }
 
 describe("a stream's page", () => {
-  it("opens on Overview, playing the first exposed output and listing its steps in pipeline order with their state", async () => {
+  it("opens on Overview playing each exposed output, and lists its project, outputs with their links and nodes in the Details slide-out", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("main");
 
     const preview = await waitFor(() => {
-      const previewFrame = document.querySelector<HTMLIFrameElement>("[data-stream-output-preview] iframe");
+      const previewFrame = document.querySelector<HTMLIFrameElement>('[data-stream-output-preview="invertingeffect/video_to_downstream"] iframe');
       if (previewFrame === null) throw new Error("no preview yet");
       return previewFrame;
     });
     expect(preview.getAttribute("src")?.startsWith("data:text/html")).toBe(true);
-    expect(textOf("[data-stream-output-preview]")).toContain("jonathanf-macbook/main/invertingeffect/video_to_downstream");
-    expect(textOf("[data-stream-output-preview]")).toContain("This machine");
+    expect(textOf('[data-stream-output-preview="invertingeffect/video_to_downstream"]'), "a private output carries no exposure word").not.toContain("This machine");
+    expect(document.querySelector("[data-stream-details]"), "Details stays closed until asked").toBeNull();
+    expect(document.querySelector("[data-dropping-links]")).toBeNull();
+
+    await openTheOverviewDetails();
+
+    const details = within(document.querySelector<HTMLElement>("[data-stream-details]") ?? expect.unreachable("no Details"));
+    expect(details.getByText("~/streams/pattern")).toBeTruthy();
+    expect(document.querySelector('[data-stream-details] [data-stream-output="invertingeffect/video_to_downstream"] [data-stream-output-preview-link]')?.textContent).toBe(preview.getAttribute("src"));
     const stepRows = [...document.querySelectorAll<HTMLElement>("[data-stream-step]")];
     expect(stepRows.map((stepRow) => stepRow.dataset.streamStep)).toEqual(["testpatternsource", "invertingeffect", "displaywindow", "brightnessmeter"]);
-    expect(within(stepRows[1]).getByText("Python")).toBeTruthy();
-    expect(within(stepRows[1]).getByText("own process")).toBeTruthy();
-    expect(within(stepRows[0]).getByText("in runtime")).toBeTruthy();
-    expect(within(stepRows[0]).getByText("Running")).toBeTruthy();
-    expect(textOf("[data-stream-steps]")).toContain("in pipeline order");
-    expect(document.querySelector("[data-dropping-links]")).toBeNull();
-    const details = within(document.querySelector<HTMLElement>("[data-stream-details]") ?? document.body);
-    expect(details.getByText("4 · 2 Python")).toBeTruthy();
-    await waitFor(() => expect(details.getByText("4")).toBeTruthy());
-    expect(details.getByText("tatolab graph --stream main")).toBeTruthy();
+    expect(stepRows[1].textContent, "no origin or process words").not.toMatch(/own process|Python|in runtime|Built-in/);
+    expect(within(stepRows[0]).queryByText("Running"), "every node runs, so no state beside them").toBeNull();
+    expect(details.queryByText("Instance")).toBeNull();
+  });
+
+  it("plays every output a stream exposes in a tile of its own, each named with its exposure", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheStreamPageOf("camera");
+
+    await waitFor(() => expect(document.querySelectorAll("[data-stream-output-previews] iframe")).toHaveLength(2));
+    expect([...document.querySelectorAll<HTMLElement>("[data-stream-output-preview]")].map((tile) => tile.dataset.streamOutputPreview)).toEqual([
+      "camerasource/video",
+      "microphonesource/audio",
+    ]);
+    expect(textOf('[data-stream-output-preview="microphonesource/audio"]')).toContain("Public");
   });
 
   it("names each link that dropped messages, with the counts the graph reports beside its steps", async () => {
@@ -227,6 +247,7 @@ describe("a stream's page", () => {
       return droppingLinks.textContent ?? "";
     });
     expect(droppingLine).toMatch(/^invertingeffect → brightnessmeter has dropped [\d,]+ messages since it was wired/);
+    await openTheOverviewDetails();
     expect(document.querySelector("[data-stream-step='brightnessmeter']")?.textContent).toMatch(/[\d,]+ dropped/);
     expect(document.querySelector("[data-stream-step='invertingeffect']")?.textContent).toMatch(/[\d,]+ refused/);
     expect(document.querySelector("[data-stream-step='testpatternsource']")?.textContent).not.toMatch(/dropped|refused/);
@@ -235,46 +256,74 @@ describe("a stream's page", () => {
   it("keeps the steps of a stream it stopped as of the last load, muted, with Start in place of the preview", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("main");
-    await waitFor(() => expect(document.querySelector("[data-stream-step]")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-stream-output-preview]")).not.toBeNull());
 
     fireEvent.click(within(document.querySelector<HTMLElement>("[data-stream-page-header]") ?? document.body).getByRole("button", { name: /Stop/ }));
 
     await waitFor(() => expect(textOf("[data-nothing-to-preview]")).toContain("Stopped, so nothing to preview"));
     expect(screen.getByRole("button", { name: "Start stream" })).toBeTruthy();
-    expect(textOf("[data-stream-steps]")).toContain("as of the last load");
-    expect([...document.querySelectorAll("[data-stream-step]")].every((stepRow) => stepRow.textContent?.includes("Not loaded"))).toBe(true);
-    expect(within(document.querySelector<HTMLElement>("[data-stream-details]") ?? document.body).getByText("Not loaded")).toBeTruthy();
+    await openTheOverviewDetails();
+    expect(textOf("[data-stream-details]")).toContain("Nodes as of the last load");
   });
 
-  it("shows a failed stream's reason in the runtime's words and retries it from the banner", async () => {
+  it("shows a failed stream's reason in the runtime's words and retries it from the bar, the banner offering no second Retry", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("lobby-recorder");
 
     const banner = document.querySelector<HTMLElement>("[data-failed-stream-banner]");
     expect(banner?.textContent).toContain("Failed — the stream's CameraSource could not open camera 0x1420000");
     expect(textOf("[data-nothing-to-preview]")).toContain("Not loaded, so nothing to preview");
-    expect(textOf("[data-stream-steps]")).toContain("Its steps show here once it is loaded.");
+    await openTheOverviewDetails();
+    expect(textOf("[data-stream-details]")).toContain("Its nodes show here once it is loaded.");
 
-    fireEvent.click(within(banner ?? document.body).getByRole("button", { name: /Retry/ }));
+    expect(within(banner ?? document.body).queryByRole("button")).toBeNull();
+    fireEvent.click(document.querySelector<HTMLElement>('[data-stream-page-header] [data-stream-action="start_stream"]') ?? expect.unreachable("no Retry in the bar"));
 
     await waitFor(() => expect(textOf("[data-stream-page-header] [role=alert]")).toMatch(/^Retry was refused: the stream's CameraSource could not open camera/));
   });
 
-  it("shows the graph document as the runtime wrote it in Inspect, outlined by its top-level keys", async () => {
+  it("shows the graph document as the runtime wrote it in Inspect, raw or as a tree, with no outline beside it", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("main");
     fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Inspect" })));
 
     await waitFor(() => expect(document.querySelector("[data-graph-document-view='raw']")).not.toBeNull());
-    expect(textOf("[data-stream-inspect]")).toContain("tatolab graph --stream main");
     expect(textOf("[data-graph-document-view='raw']")).toContain('"stream": "main"');
-    const outline = within(screen.getByRole("complementary", { name: "Graph document outline" }));
-    expect(outline.getByText("nodes")).toBeTruthy();
-    expect(outline.getByText("jonathanf-macbook")).toBeTruthy();
+    expect(screen.queryByRole("complementary", { name: "Graph document outline" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Tree" }));
 
     expect(document.querySelector("[data-graph-document-view='tree']")?.textContent).toContain("machine:");
+  });
+
+  it("copies each exposed output's preview link, the runtime's loopback preview page for it", async () => {
+    const copiedTexts: string[] = [];
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => void copiedTexts.push(text) } });
+    const { backend } = await mountedWindowOverTheMock("state=running");
+    await openTheStreamPageOf("camera");
+    const servedWatchPageUrl = (await backend.describeStreamGraph("camera")).exposed.find((port) => port.node === "camerasource" && port.port === "video")?.watch_page_url;
+
+    const videoOutput = await waitFor(() => document.querySelector<HTMLElement>('[data-stream-output-preview="camerasource/video"]') ?? expect.unreachable("no video output playing"));
+    fireEvent.click(within(videoOutput).getByRole("button", { name: "Copy preview link" }));
+
+    await waitFor(() => expect(copiedTexts).toHaveLength(1));
+    expect(servedWatchPageUrl).toBeTruthy();
+    expect(copiedTexts).toEqual([servedWatchPageUrl]);
+    Reflect.deleteProperty(navigator, "clipboard");
+  });
+
+  it("asks before removing the stream from its bar's menu, and goes back to the list once it is gone", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const streamPage = await openTheStreamPageOf("pattern-two");
+
+    fireEvent.click(within(streamPage).getByRole("button", { name: "More for pattern-two" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Remove…" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Remove pattern-two?")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(document.querySelector("[data-streams-list-page]")).not.toBeNull());
+    expect(document.querySelector('[data-stream-row="pattern-two"]')).toBeNull();
   });
 
   it("opens the stream's project and a terminal in it, showing what refused either in its own words", async () => {
@@ -286,8 +335,10 @@ describe("a stream's page", () => {
     });
     await openTheStreamPageOf("camera");
 
-    fireEvent.click(screen.getByRole("button", { name: /Open project/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Terminal/ }));
+    fireEvent.click(screen.getByRole("button", { name: "More for camera" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Open project" }));
+    fireEvent.click(screen.getByRole("button", { name: "More for camera" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Open a terminal in the project" }));
 
     await waitFor(() =>
       expect(textOf("[data-stream-page-header] [role=alert]")).toBe(
@@ -300,7 +351,7 @@ describe("a stream's page", () => {
   it("focuses the log search with ⌘F, from Overview by way of Logs, and on Logs where it is", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("main");
-    await waitFor(() => expect(document.querySelector("[data-stream-step]")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-stream-output-preview]")).not.toBeNull());
     const pressCommandF = () => fireEvent.keyDown(document, { key: "f", metaKey: true });
     const focusedLogFilter = () => document.activeElement?.hasAttribute("data-stream-log-search") === true;
 
@@ -343,22 +394,20 @@ describe("a stream's Logs tab", () => {
     const loadingRow = logRowOf("Loading the stream `main`");
     expect(loadingRow.textContent).toMatch(/^\d{2}:\d{2}:\d{2}\.\d{3}INFOruntimeLoading the stream `main`/);
     expect(logRowOf("mean=127.5").textContent).toMatch(/INFObrightnessmeterbrightness {2}height=720 {2}mean=127.5 {2}width=1280$/);
-    expect(textOf("[data-stream-log-load]")).toMatch(/^Load #\d+$/);
     const rowCountBefore = shownLogMessages().length;
 
     await waitFor(() => expect(shownLogMessages().length).toBeGreaterThan(rowCountBefore), { timeout: 4000 });
   });
 
-  it("shows a selected record in full, with its JSON record as the runtime wrote it, and goes to its step on Graph", async () => {
+  it("opens a selected record in full, with its JSON record as the runtime wrote it, and goes to its node on Graph", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheLogsOf("main");
-    await waitFor(() => expect(textOf("[data-stream-log-record-details]")).toContain("No line selected"));
     const brightnessRow = await waitFor(() => logRowOf("mean=127.5"));
+    expect(document.querySelector("[data-stream-log-record-details]"), "no panel until a line is selected").toBeNull();
 
     fireEvent.mouseDown(brightnessRow);
 
     const details = within(screen.getByRole("complementary", { name: "Selected record" }));
-    expect(details.getByText("own process")).toBeTruthy();
     expect(textOf("[data-stream-log-details-record]")).toContain('"processor_id": "P');
     expect(textOf("[data-stream-log-details-record]")).toContain('"message": "brightness"');
     expect(brightnessRow.getAttribute("aria-selected")).toBe("true");
@@ -381,7 +430,7 @@ describe("a stream's Logs tab", () => {
     fireEvent.mouseDown(await waitFor(() => logRowOf("mean=127.5")));
     fireEvent.click(screen.getByRole("button", { name: "Only lines from brightnessmeter" }));
     expect(shownLogMessages().every((row) => row.includes("brightnessmeter"))).toBe(true);
-    expect(screen.getByRole("button", { name: "Steps shown: brightnessmeter" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Nodes shown: brightnessmeter" })).toBeTruthy();
 
     fireEvent.change(screen.getByRole("textbox", { name: "Search main logs" }), { target: { value: "MEAN=127" } });
     expect(shownLogMessages().length).toBeGreaterThan(0);
@@ -454,12 +503,12 @@ describe("a stream's Logs tab", () => {
     fireEvent.mouseDown(await waitFor(() => logRowOf("mean=127.5")));
     fireEvent.click(screen.getByRole("button", { name: "Only lines from brightnessmeter" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Steps shown: brightnessmeter" }));
-    const showAllSteps = await waitFor(() => screen.getByRole("menuitem", { name: "Show all steps" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nodes shown: brightnessmeter" }));
+    const showAllSteps = await waitFor(() => screen.getByRole("menuitem", { name: "Show all nodes" }));
     expect(showAllSteps.hasAttribute("data-disabled")).toBe(false);
     fireEvent.click(showAllSteps);
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Steps shown: All steps" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Nodes shown: All nodes" })).toBeTruthy());
     expect(shownLogMessages().some((row) => row.includes("runtime"))).toBe(true);
   });
 
@@ -529,8 +578,7 @@ describe("a stream's Graph tab", () => {
     expect(stepNames).toEqual(["testpatternsource", "invertingeffect", "displaywindow", "brightnessmeter"]);
     expect(stepCardOf("invertingeffect").querySelector("[data-step-input-port='video_from_upstream']")).not.toBeNull();
     expect(outputPortOf("invertingeffect", "video_to_downstream")).toBeTruthy();
-    expect(within(stepCardOf("invertingeffect")).getByText("Python")).toBeTruthy();
-    expect(within(stepCardOf("testpatternsource")).getByText("Built-in")).toBeTruthy();
+    expect(within(stepCardOf("testpatternsource")).queryByText("Built-in")).toBeNull();
     expect(document.querySelector("[data-stream-graph-page]")?.textContent).not.toMatch(/dropped|refused/);
   });
 
@@ -563,7 +611,7 @@ describe("a stream's Graph tab", () => {
     expect(hoverPreview.querySelector("iframe")).not.toBeNull();
     expect(hoverPreview.textContent).toContain("jonathanf-macbook/main/invertingeffect/video_to_downstream");
     const describedHoveredPort = () => document.getElementById(outputPortOf("invertingeffect", "video_to_downstream").getAttribute("aria-describedby") ?? "");
-    expect(describedHoveredPort()?.textContent).toBe("jonathanf-macbook/main/invertingeffect/video_to_downstreamThis machine");
+    expect(describedHoveredPort()?.textContent).toBe("jonathanf-macbook/main/invertingeffect/video_to_downstream");
 
     fireEvent.click(outputPortOf("invertingeffect", "video_to_downstream"));
 
@@ -585,32 +633,32 @@ describe("a stream's Graph tab", () => {
     expect(stepCardOf("invertingeffect").querySelector("iframe")).toBeNull();
   });
 
-  it("shows the selected step's type, origin, process, config and outputs, and the whole stream with nothing selected", async () => {
+  it("shows the selected node's type, config and outputs, and no inspector with nothing selected", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheGraphOf("main");
-    await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector='stream']")).not.toBeNull());
-    expect(textOf("[data-stream-graph-inspector]")).toContain("Nothing selected");
+    await waitFor(() => stepCardOf("testpatternsource"));
+    expect(document.querySelector("[data-stream-graph-inspector]")).toBeNull();
 
     fireEvent.click(stepCardOf("testpatternsource"));
 
     await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector='step']")).not.toBeNull());
     const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
     expect(inspector.getByText("tatolab.stream:TestPatternSource")).toBeTruthy();
-    expect(inspector.getByText("Built-in")).toBeTruthy();
-    expect(inspector.getByText("In the runtime")).toBeTruthy();
+    expect(inspector.queryByText("Built-in")).toBeNull();
+    expect(inspector.queryByText("In the runtime")).toBeNull();
     expect(textOf("[data-stream-graph-step-config]")).toBe("width1280height720fps30");
-    expect(textOf("[data-stream-graph-output-exposure='video']")).toContain("Internal");
+    expect(textOf("[data-stream-graph-output-exposure='video']"), "an internal output carries no exposure word").toBe("video");
     expect(stepCardOf("testpatternsource").dataset.selected).toBe("true");
 
     fireEvent.keyDown(window, { key: "Escape" });
 
-    await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector='stream']")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-stream-graph-inspector]")).toBeNull());
   });
 
   it("opens with the output Search's Watch asked for pinned, with the Watch flag on", async () => {
     await mountedWindowOverTheMock("state=running", {}, { watchExposedOutput: true });
     await openTheStreamPageOf("main");
-    await waitFor(() => expect(document.querySelector("[data-stream-step]")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-stream-output-preview]")).not.toBeNull());
 
     fireEvent.keyDown(document, { key: "k", metaKey: true });
     const searchInput = await waitFor(() => {
@@ -651,9 +699,9 @@ describe("a stream's Graph tab", () => {
       if (flowNode === null) throw new Error("no flow node yet");
       return flowNode;
     });
-    expect(cardsNode.getAttribute("aria-label")).toBe("testpatternsource, Running, Built-in");
+    expect(cardsNode.getAttribute("aria-label")).toBe("testpatternsource, Running");
     const cardsDescription = document.getElementById(cardsNode.getAttribute("aria-describedby") ?? "");
-    expect(cardsDescription?.textContent).toBe("Press Enter or Space to inspect this step. Escape selects nothing.");
+    expect(cardsDescription?.textContent).toBe("Press Enter or Space to inspect this node. Escape selects nothing.");
 
     cardsNode.focus();
     fireEvent.keyDown(cardsNode, { key: "Enter" });
@@ -673,7 +721,7 @@ describe("a stream's Graph tab", () => {
 
     fireEvent.click(sourceInMain);
 
-    expect(document.querySelector("[data-stream-graph-inspector='stream']")).not.toBeNull();
+    expect(document.querySelector("[data-stream-graph-inspector]")).toBeNull();
   });
 });
 
@@ -687,9 +735,27 @@ async function addStreamControl(action: string): Promise<HTMLElement> {
   });
 }
 
-/** The sidebar's Add stream. */
-function openAddStream(): void {
-  fireEvent.click(document.querySelector<HTMLElement>('[data-window-navigation="add-stream"]') ?? expect.unreachable("no Add stream in the sidebar"));
+/** Overview's Details slide-out, opened from the stream's bar. */
+async function openTheOverviewDetails(): Promise<void> {
+  fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-stream-page-header] [data-stream-action="details"]') ?? expect.unreachable("no Details toggle")));
+  await waitFor(() => expect(document.querySelector("[data-stream-details]")).not.toBeNull());
+}
+
+/** The add-stream dialog opened from the sidebar's + menu on New project. */
+async function openTheAddStreamDialogOnNewProject(): Promise<void> {
+  fireEvent.click(document.querySelector<HTMLElement>('[data-window-navigation="add-project-menu"]') ?? expect.unreachable("no + menu in the sidebar"));
+  fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-window-navigation="new-project"]') ?? expect.unreachable("no New project in the + menu")));
+}
+
+/** The add-stream dialog closed by its close button. */
+function closeTheAddStreamDialog(): void {
+  fireEvent.click(document.querySelector<HTMLElement>("[data-form-dialog-close]") ?? expect.unreachable("no open dialog to close"));
+}
+
+/** The add-stream dialog opened from the sidebar's + menu on Import project. */
+async function openAddStream(): Promise<void> {
+  fireEvent.click(document.querySelector<HTMLElement>('[data-window-navigation="add-project-menu"]') ?? expect.unreachable("no + menu in the sidebar"));
+  fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-window-navigation="add-stream"]') ?? expect.unreachable("no Import project in the + menu")));
 }
 
 /** Long enough for the mock runtime to compile, load and start a project. */
@@ -700,20 +766,19 @@ const MOCK_RUN_AFTER_MAKING_THE_VENV_WAIT = { timeout: 9000 };
 describe("Add stream", () => {
   it("runs a chosen project folder kept, listing its compile warning, and opens the stream it loaded", { timeout: 15_000 }, async () => {
     await mountedWindowOverTheMock("state=running&add_run=warning");
-    openAddStream();
+    await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
 
-    await waitFor(() => expect(document.querySelector('[data-add-stream-check="stream.py"]')?.textContent).toContain("Stream function heat_map()"));
+    await waitFor(() => expect(document.querySelector('[data-add-stream-check="heat_map"]')?.textContent).toBe("heat_map"));
     expect(document.querySelector('[data-add-stream-check=".venv"]')).toBeNull();
     expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "heat_map");
-    expect(screen.getByText("cd /Users/jonathanf/code/heat-map && tatolab run -d")).toBeTruthy();
 
     fireEvent.click(await addStreamControl("add"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')).not.toBeNull());
     expect(document.querySelector("[data-add-stream-compile-output]")?.textContent).toContain("run_stream  /Users/jonathanf/code/heat-map  name=heat_map  keep=true");
 
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"]')).not.toBeNull(), MOCK_RUN_WAIT);
-    expect(screen.getByText("2 compile warnings")).toBeTruthy();
+    expect(screen.getByText("2 warnings")).toBeTruthy();
     expect(document.querySelector("[data-add-stream-compile-warnings]")?.textContent).toContain("tatolab: the cross-floor check found 1 thing binding this app to one floor.");
 
     fireEvent.click(await addStreamControl("open_stream"));
@@ -722,7 +787,7 @@ describe("Add stream", () => {
 
   it("shows the runtime's refusal of a taken name in its own words, and Run as <name>-2 runs it under that name", { timeout: 15_000 }, async () => {
     await mountedWindowOverTheMock("state=running&add_folder=taken");
-    openAddStream();
+    await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "main"));
     fireEvent.click(await addStreamControl("add"));
@@ -739,23 +804,25 @@ describe("Add stream", () => {
 
   it("creates the sample project with Create alone, which writes it, sets up its Python and runs it, with no command to run", { timeout: 20_000 }, async () => {
     await mountedWindowOverTheMock("state=empty");
-    fireEvent.click(screen.getByRole("link", { name: /Create the sample stream/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Create the sample stream/ }));
     await waitFor(() => expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("/Users/jonathanf/streams/hello"));
-    expect(screen.getByText("tatolab new /Users/jonathanf/streams/hello")).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "hello");
     expect(document.querySelector('[data-add-stream-step="new_project"]')?.textContent).not.toMatch(/\.venv|uv sync|Compile and run/);
     expect(document.querySelector('[data-add-stream-action="add"]')).toBeNull();
 
     fireEvent.click(await addStreamControl("create"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')?.getAttribute("data-add-stream-makes-the-python-environment")).toBe("true"));
-    expect(document.querySelector('[data-add-stream-step="compiling"] h2')?.textContent).toBe("Setting up Python, then compiling hello");
+    expect(document.querySelector('[data-add-stream-step="compiling"] h2')?.textContent).toBe("Setting up Python, then starting hello");
     expect(document.querySelector("[data-add-stream-compile-output]")?.textContent).toContain("uv sync  python=Tatolab's Python 3.12.12");
+    expect(document.querySelector("[data-add-stream-dialog]")?.textContent).not.toMatch(/compil/i);
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"] h2')?.textContent).toBe("hello is running"), MOCK_RUN_AFTER_MAKING_THE_VENV_WAIT);
+    expect(document.querySelector("[data-add-stream-dialog]")?.textContent).not.toMatch(/compil|terminal|Check again/i);
+    await waitFor(() => expect(document.querySelector('[data-stream-row="hello"]')).not.toBeNull(), MOCK_RUN_WAIT);
   });
 
   it("shows uv's refusal to set up the project's Python in its own words, under its own lead", { timeout: 15_000 }, async () => {
     await mountedWindowOverTheMock("state=running&add_folder=no-venv&add_venv=refused");
-    openAddStream();
+    await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
     await waitFor(() => expect(document.querySelector("[data-add-stream-checks]")).not.toBeNull());
     fireEvent.click(await addStreamControl("add"));
@@ -768,8 +835,7 @@ describe("Add stream", () => {
 
   it("shows tatolab new's refusal in its own words when this build has no tatolab command", async () => {
     await mountedWindowOverTheMock("state=running&add_cli=missing");
-    openAddStream();
-    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-add-stream-source="new_project"]') ?? expect.unreachable("no source list yet")));
+    await openTheAddStreamDialogOnNewProject();
     await waitFor(() => expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("/Users/jonathanf/streams/hello"));
 
     fireEvent.click(await addStreamControl("create"));
@@ -781,55 +847,55 @@ describe("Add stream", () => {
     );
   });
 
-  it("says in the footer why Compile and run can't be pressed while the runtime is down", async () => {
+  it("says in the dialog why Add can't be pressed while the runtime is down", async () => {
     const { backend, showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=running");
-    openAddStream();
+    await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
     await waitFor(() => expect(document.querySelector("[data-add-stream-checks]")).not.toBeNull());
     const statusBefore = await backend.getTatolabStatus();
 
     await showStatusAsTheBackendWould({ ...statusBefore, runtime_state: "stopped", streams: null });
 
-    await waitFor(() => expect(document.querySelector("[data-add-stream-footer-words]")?.textContent).toBe("The runtime isn't running, so it can't add a stream."));
+    await waitFor(() => expect(document.querySelector("[data-add-stream-blocker]")?.textContent).toBe("The runtime isn't running, so it can't add a stream."));
     expect((await addStreamControl("add")).hasAttribute("disabled")).toBe(true);
   });
 
-  it("catches the page up to the source the path names once a run that was compiling answers", { timeout: 15_000 }, async () => {
+  it("catches the dialog up to the source it was opened on once a run that was compiling answers", { timeout: 15_000 }, async () => {
     await mountedWindowOverTheMock("state=running");
-    openAddStream();
-    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-add-stream-source="new_project"]') ?? expect.unreachable("no source list yet")));
+    await openTheAddStreamDialogOnNewProject();
     await waitFor(() => expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("/Users/jonathanf/streams/hello"));
     fireEvent.click(await addStreamControl("create"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')).not.toBeNull());
+    closeTheAddStreamDialog();
 
-    openAddStream();
+    await openAddStream();
 
-    await waitFor(() => expect(document.querySelector("[data-add-stream-page]")?.getAttribute("data-add-stream-page")).toBe("project_folder"), MOCK_RUN_AFTER_MAKING_THE_VENV_WAIT);
-    expect(document.querySelector('[data-add-stream-source="project_folder"]')?.getAttribute("aria-current")).toBe("page");
+    await waitFor(() => expect(document.querySelector('[data-add-stream-step="project_folder"]')).not.toBeNull(), MOCK_RUN_AFTER_MAKING_THE_VENV_WAIT);
+    expect(screen.getByRole("dialog", { name: "Import project" })).toBeTruthy();
   });
 
-  it("keeps a run that answers after you left the page, says so in a notice, and View shows what it came to", { timeout: 15_000 }, async () => {
+  it("keeps a run that answers after the dialog closed, says so in a notice, and View reopens it on what it came to", { timeout: 15_000 }, async () => {
     await mountedWindowOverTheMock("state=running&add_run=warning");
-    openAddStream();
+    await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
     await waitFor(() => expect(document.querySelector("[data-add-stream-checks]")).not.toBeNull());
     fireEvent.click(await addStreamControl("add"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')).not.toBeNull());
 
-    fireEvent.click(document.querySelector<HTMLElement>('[data-window-navigation="streams"]') ?? expect.unreachable("no Streams in the sidebar"));
+    closeTheAddStreamDialog();
 
     const notice = await waitFor(() => document.querySelector<HTMLElement>('[data-add-stream-run-notice="running"]') ?? expect.unreachable("no notice yet"), MOCK_RUN_WAIT);
     expect(notice.textContent).toContain("heat_map is running");
-    expect(notice.textContent).toContain("It compiled with 2 warnings. Read them before you rely on this stream.");
+    expect(notice.textContent).toContain("It loaded with 2 warnings. Read them before you rely on this stream.");
     expect(document.querySelector("[data-streams-list-page]")).not.toBeNull();
 
     fireEvent.click(notice.querySelector<HTMLElement>('[data-window-notice-action="view"]') ?? expect.unreachable("no View"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"]')).not.toBeNull());
-    expect(document.querySelector("[data-add-stream-compile-warnings]")?.textContent).toContain("2 compile warnings");
+    expect(document.querySelector("[data-add-stream-compile-warnings]")?.textContent).toContain("2 warnings");
     expect(document.querySelector("[data-add-stream-run-notice]")).toBeNull();
 
-    fireEvent.click(document.querySelector<HTMLElement>('[data-window-navigation="streams"]') ?? expect.unreachable("no Streams in the sidebar"));
-    openAddStream();
+    closeTheAddStreamDialog();
+    await openAddStream();
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="project_folder"]')).not.toBeNull());
     expect(document.querySelector("[data-add-stream-folder]")?.getAttribute("data-add-stream-folder")).toBe("");
   });
@@ -847,8 +913,31 @@ function settingsRow(rowName: string): HTMLElement {
   return document.querySelector<HTMLElement>(`[data-settings-row="${rowName}"]`) ?? expect.unreachable(`no ${rowName} row`);
 }
 
+describe("the sidebar's project folders", () => {
+  it("closes a folder to hide its streams, saying when it holds a failed one, and opens it again", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const sidebar = within(screen.getByRole("navigation", { name: "Tatolab" }));
+    const folderRow =
+      [...document.querySelectorAll<HTMLElement>("[data-sidebar-project-folder]")].find((row) => row.parentElement?.textContent?.includes("lobby-recorder")) ??
+      expect.unreachable("no folder holds lobby-recorder");
+    expect(folderRow.getAttribute("aria-expanded")).toBe("true");
+    expect(folderRow.textContent).not.toContain("holds a failed stream");
+
+    fireEvent.click(folderRow);
+
+    expect(folderRow.getAttribute("aria-expanded")).toBe("false");
+    expect(sidebar.queryByRole("link", { name: "lobby-recorder, Failed" })).toBeNull();
+    expect(folderRow.textContent).toContain(", holds a failed stream");
+    expect(sidebar.getByRole("link", { name: "camera, Running" })).toBeTruthy();
+
+    fireEvent.click(folderRow);
+
+    expect(sidebar.getByRole("link", { name: "lobby-recorder, Failed" })).toBeTruthy();
+  });
+});
+
 describe("Settings", () => {
-  it("opens on General, listing every section under its group", async () => {
+  it("opens on General, listing every section under its group beside it and leaving the sidebar as it was", async () => {
     await mountedWindowOverTheMock("state=running");
     fireEvent.click(document.querySelector<HTMLElement>(`[data-window-navigation="settings"]`) ?? expect.unreachable("no Settings"));
 
@@ -857,6 +946,10 @@ describe("Settings", () => {
     expect(sectionList.getByRole("link", { name: "General" }).getAttribute("aria-current")).toBe("page");
     expect(sectionList.getAllByRole("link").map((sectionLink) => sectionLink.textContent)).toEqual(["General", "Appearance", "Runtime", "Command line", "About"]);
     expect(sectionList.getByText("This machine")).toBeTruthy();
+    const sidebar = within(screen.getByRole("navigation", { name: "Tatolab" }));
+    expect(sidebar.getByRole("link", { name: "Settings" }).getAttribute("aria-current")).toBe("page");
+    expect(sidebar.getByRole("link", { name: "camera, Running" })).toBeTruthy();
+    expect(sidebar.getByRole("link", { name: "lobby-recorder, Failed" })).toBeTruthy();
   });
 
   it("switches the window light, dark or to the system's look live, and keeps the choice", async () => {
@@ -866,13 +959,12 @@ describe("Settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dark" }));
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(localStorage.getItem("tatolab-window-theme")).toBe("dark");
-    expect(screen.getByRole("button", { name: "Use the light theme" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "System" }));
     expect(localStorage.getItem("tatolab-window-theme")).toBe("system");
     expect(document.documentElement.classList.contains("dark")).toBe(window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-    fireEvent.click(screen.getByRole("button", { name: "Use the dark theme" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dark" }));
     expect(screen.getByRole("button", { name: "Dark" }).getAttribute("aria-pressed")).toBe("true");
   });
 

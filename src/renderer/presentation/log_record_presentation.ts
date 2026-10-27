@@ -165,8 +165,6 @@ export interface StreamLogPresentation {
   stepChoices: StreamLogStepChoice[];
   /** The step filter's words: `All steps`, the one step chosen, or `2 of 5`. */
   stepFilterWords: { words: string; isOneStepChosen: boolean };
-  /** `113 lines`, or `12 of 113` while a filter hides some. */
-  lineCountWords: string;
   /** Why no row shows; `null` while some do. */
   emptyWords: string | null;
 }
@@ -281,13 +279,12 @@ export function presentStreamLog(records: readonly StreamLogRecord[], graph: Str
     stepFilterWords: {
       words:
         filters.shownStepKeys.size === 0
-          ? "All steps"
+          ? "All nodes"
           : onlyStepChosen !== undefined
             ? onlyStepChosen.stepName
             : `${filters.shownStepKeys.size} of ${stepChoices.length}`,
       isOneStepChosen: onlyStepChosen !== undefined,
     },
-    lineCountWords: rows.length === rowsNotCleared.length ? countLabel(rows.length, "line", "lines") : `${rows.length.toLocaleString("en-US")} of ${rowsNotCleared.length.toLocaleString("en-US")}`,
     emptyWords,
   };
 }
@@ -304,8 +301,6 @@ export interface StreamLogRecordDetails {
   message: string;
   dateAndTimeText: string;
   step: StreamLogRecordStep;
-  /** Which process wrote it: the runtime's own, or the step's own helper process. */
-  processWords: "runtime" | "own process";
   fields: StreamLogRecordField[];
   /** The fields as the row writes them, `key=value` two spaces apart, for Copy fields. */
   fieldsTextToCopy: string;
@@ -325,7 +320,6 @@ export function presentStreamLogRecordDetails(record: StreamLogRecord, graph: St
     message: record.message,
     dateAndTimeText: formatLogRecordDateAndTime(record.host_ts_ns),
     step: stepOfLogRecord(record, stepNamesByProcessorId),
-    processWords: record.sent_by_its_own_process ? "own process" : "runtime",
     fields: fieldsOfTheRecord,
     fieldsTextToCopy: fieldsOfTheRecord.map((field) => `${field.key}=${field.valueText}`).join("  "),
     recordJsonLines: prettyJsonLinesOf(record.jsonl_line),
@@ -391,11 +385,6 @@ export function earlierRecordsNotHeldWords(earlierRecordsNotHeldCount: number): 
 /** The folder the runtime writes a stream's log segments into, under its project, the home folder shortened, for display. */
 export function logFolderPathOfStream(projectDirectory: string): string {
   return `${abbreviateHomeDirectory(projectDirectory)}/${STREAM_LOG_FOLDER_IN_THE_PROJECT}/`;
-}
-
-/** The toolbar's words for which load of the stream the records are from: `Load #5` for a numbered one, else the instance as the runtime names it. */
-export function streamLoadWords(streamInstance: string): string {
-  return /^\d+$/.test(streamInstance) ? `Load #${streamInstance}` : `Load ${streamInstance}`;
 }
 
 /** What the Logs tab of a stream that is not loaded says. */

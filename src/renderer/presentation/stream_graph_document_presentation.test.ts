@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  outlineOfTheGraphDocument,
   readTheGraphDocument,
   syntaxPartsOfAJsonLine,
   type GraphDocumentValue,
@@ -41,19 +40,6 @@ describe("readTheGraphDocument", () => {
 
   it("reads nothing from text that is not JSON", () => {
     expect(readTheGraphDocument("graph failed")).toBeNull();
-  });
-});
-
-describe("outlineOfTheGraphDocument", () => {
-  it("names each top-level key with its value, or its count for a list", () => {
-    const graphDocument = readTheGraphDocument(GRAPH_DOCUMENT_TEXT);
-    expect(graphDocument === null ? null : outlineOfTheGraphDocument(graphDocument)).toEqual([
-      { key: "stream", summary: "front-door" },
-      { key: "nodes", summary: "1" },
-      { key: "links", summary: "0" },
-      { key: "exposed", summary: "1" },
-      { key: "machine", summary: "jonathanf-macbook" },
-    ]);
   });
 });
 

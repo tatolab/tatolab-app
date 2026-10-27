@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
+import { PageFrame } from "../design_system/page_frame";
 import { isStreamLoaded } from "../presentation/stream_presentation";
 import { useStreamActionsUnderWay, useStreamRemovalDialog } from "./stream_action_controls";
 import { StreamGraphPageView } from "./stream_graph_page_view";
@@ -15,6 +16,7 @@ import { useTatolabWindowEnvironment } from "./tatolab_window_context";
 export function StreamPageView({ stream, shownTab }: { stream: ListedStream; shownTab: StreamPageTab }) {
   const { hostedPages, streamGraphReadings, streamLogReadings } = useTatolabWindowEnvironment();
   const isLoaded = isStreamLoaded(stream);
+  const [isOverviewDetailsPanelOpen, setIsOverviewDetailsPanelOpen] = useState(false);
   const thisStreamsListing = useMemo(() => [stream], [stream]);
   const { actionsUnderWay, outcomeWords, runStreamAction } = useStreamActionsUnderWay(thisStreamsListing);
   const { askToRemove, removalDialog } = useStreamRemovalDialog((streamToRemove) => runStreamAction("remove_stream", "Remove", streamToRemove));
@@ -39,13 +41,28 @@ export function StreamPageView({ stream, shownTab }: { stream: ListedStream; sho
 
   if (shownTab === "graph" && !isLoaded) return <Navigate to={streamPagePath(stream.name)} replace />;
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-stream-page={stream.name}>
-      <StreamPageHeaderView stream={stream} shownTab={shownTab} streamPageActions={streamPageActions} />
+    <PageFrame
+      header={
+        <StreamPageHeaderView
+          stream={stream}
+          shownTab={shownTab}
+          streamPageActions={streamPageActions}
+          overviewDetailsPanel={{ isOpen: isOverviewDetailsPanelOpen, onToggled: setIsOverviewDetailsPanelOpen }}
+        />
+      }
+      data-stream-page={stream.name}
+    >
       {shownTab === "graph" && <StreamGraphPageView stream={stream} />}
       {shownTab === "logs" && <StreamLogsPageView stream={stream} streamPageActions={streamPageActions} />}
-      {shownTab === "overview" && <StreamOverviewPageView stream={stream} streamPageActions={streamPageActions} />}
+      {shownTab === "overview" && (
+        <StreamOverviewPageView
+          stream={stream}
+          streamPageActions={streamPageActions}
+          isDetailsPanelOpen={isOverviewDetailsPanelOpen}
+        />
+      )}
       {shownTab === "inspect" && <StreamInspectPageView stream={stream} />}
       {removalDialog}
-    </div>
+    </PageFrame>
   );
 }

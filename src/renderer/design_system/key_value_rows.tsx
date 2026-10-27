@@ -6,7 +6,7 @@ import type { ControlDataAttributes } from "./control_data_attributes";
 export type KeyValueRow = readonly [key: string, value: ReactNode];
 
 /**
- * Named values, a name per row in a quiet column: facts in the window's words (a step's type, a stream's run mode), or
+ * Named values, a name per row in a quiet column: facts in the window's words (a step's type, a stream's project), or
  * fields as the runtime wrote them (a record's fields, a step's config), in mono, each value whole.
  */
 export function KeyValueRows({

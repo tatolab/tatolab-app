@@ -16,7 +16,6 @@ import {
   searchMatchRangesOf,
   STREAM_LOG_LEVEL_FILTERS,
   earlierRecordsNotHeldWords,
-  streamLoadWords,
   type StreamLogFilters,
 } from "./log_record_presentation";
 
@@ -115,7 +114,6 @@ describe("presentStreamLog", () => {
       { text: '"FaceTime HD Camera"', kind: "field_value" },
     ]);
     expect(streamLog.rows.map((row) => row.levelWord)).toEqual(["INFO", "INFO", "WARN", "ERROR", "DEBUG"]);
-    expect(streamLog.lineCountWords).toBe("5 lines");
   });
 
   it("offers each step the records name, in the graph's order, then any the graph does not hold, then the runtime", () => {
@@ -140,13 +138,12 @@ describe("presentStreamLog", () => {
     ]);
     expect(streamLog.stepFilterWords).toEqual({ words: "persondetector", isOneStepChosen: true });
     expect(streamLog.rows.map((row) => row.record.sequence)).toEqual([3]);
-    expect(streamLog.lineCountWords).toBe("1 of 5");
   });
 
   it("words the step filter as every step, the one chosen, or how many of how many", () => {
     const stepFilterWordsFor = (shownStepKeys: string[]) => presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, shownStepKeys: new Set(shownStepKeys) }).stepFilterWords;
 
-    expect(stepFilterWordsFor([])).toEqual({ words: "All steps", isOneStepChosen: false });
+    expect(stepFilterWordsFor([])).toEqual({ words: "All nodes", isOneStepChosen: false });
     expect(stepFilterWordsFor(["Pcam", ""])).toEqual({ words: "2 of 4", isOneStepChosen: false });
   });
 
@@ -171,7 +168,6 @@ describe("presentStreamLog", () => {
 
     const cleared = presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, clearedThroughSequence: 5 });
     expect(cleared.rows).toEqual([]);
-    expect(cleared.lineCountWords).toBe("0 lines");
     expect(cleared.emptyWords).toBe("Cleared. New lines appear here.");
     expect(presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, clearedThroughSequence: 3 }).rows.map((row) => row.record.sequence)).toEqual([4, 5]);
     expect(presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, searchText: "nothing like it" }).emptyWords).toBe("No lines match.");
@@ -210,7 +206,6 @@ describe("presentStreamLogRecordDetails", () => {
     expect(details.levelWord).toBe("ERROR");
     expect(details.levelTone).toBe("error");
     expect(details.step).toEqual({ stepKey: "Pdet", stepName: "persondetector", isAStepOfTheGraph: true });
-    expect(details.processWords).toBe("own process");
     expect(details.fields).toEqual([{ key: "freed_gb", valueText: "12.4" }]);
     expect(presentStreamLogRecordDetails(logRecord(2, { attrs: { device: "FaceTime HD Camera", fps: "30" } }), null).fieldsTextToCopy).toBe('device="FaceTime HD Camera"  fps=30');
     expect(details.recordJsonLines).toEqual([
@@ -224,7 +219,6 @@ describe("presentStreamLogRecordDetails", () => {
       "  }",
       "}",
     ]);
-    expect(presentStreamLogRecordDetails(logRecord(1), null).processWords).toBe("runtime");
   });
 });
 
@@ -260,13 +254,6 @@ describe("the pointer to records not held", () => {
     expect(earlierRecordsNotHeldWords(1)).toBe("1 earlier record is in");
     expect(earlierRecordsNotHeldWords(2312)).toBe("2,312 earlier records are in");
     expect(logFolderPathOfStream("/Users/jonathanf/streams/front-door")).toBe("~/streams/front-door/.streamlib/logs/");
-  });
-});
-
-describe("streamLoadWords", () => {
-  it("numbers a load the runtime numbers, and names any other as the runtime does", () => {
-    expect(streamLoadWords("5")).toBe("Load #5");
-    expect(streamLoadWords("front-door#2")).toBe("Load front-door#2");
   });
 });
 

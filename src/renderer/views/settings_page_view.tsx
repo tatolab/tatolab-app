@@ -9,12 +9,14 @@ import { CodeBlock, CommandLine } from "../design_system/code_block";
 import { CopyIconButton } from "../design_system/copy_icon_button";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
+import { PageBody, PageFrame } from "../design_system/page_frame";
+import { PageHeader } from "../design_system/page_header";
 import { SectionNavigationList } from "../design_system/section_navigation_list";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
 import { SettingsGroup, SettingsRow } from "../design_system/settings_rows";
 import { ToggleSwitch } from "../design_system/toggle_switch";
 import { presentTatolabAppUpdate } from "../presentation/app_update_presentation";
-import { presentCommandLineTool, presentPlatform } from "../presentation/platform_presentation";
+import { presentCommandLineTool, presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import type { StatusTone } from "../presentation/runtime_presentation";
 import {
   presentAboutBuild,
@@ -31,6 +33,7 @@ import {
   restartRuntimeUnavailableBecause,
   RUNTIME_LICENCE,
   SETTINGS_SECTION_GROUPS,
+  settingsSectionLabel,
   settingsSectionNamed,
   settingsSectionPath,
   TATOLAB_MCP_COMMAND,
@@ -103,13 +106,8 @@ const STATUS_WORDS_TONE_CLASS_NAMES: Record<StatusTone, string | undefined> = {
   error: "text-danger-text",
 };
 
-function SectionPageTitle({ title, explanation }: { title: string; explanation?: ReactNode }) {
-  return (
-    <div>
-      <h1 className="title-lg">{title}</h1>
-      {explanation !== undefined && <p className="text-fg-3">{explanation}</p>}
-    </div>
-  );
+function SectionExplanation({ children }: { children: ReactNode }) {
+  return <p className="text-fg-3">{children}</p>;
 }
 
 function MachineWords({ children }: { children: ReactNode }) {
@@ -144,7 +142,6 @@ function GeneralSection() {
   const uninstallRefusalReason = useUninstallTatolabRefusalReason();
   return (
     <>
-      <SectionPageTitle title="General" />
       <SettingsGroup>
         <SettingsRow
           label="Open Tatolab at login"
@@ -219,7 +216,6 @@ function AppearanceSection() {
   const { chosenAppearance, chooseAppearance } = useWindowAppearance();
   return (
     <>
-      <SectionPageTitle title="Appearance" />
       <SettingsGroup>
         <SettingsRow
           label="Theme"
@@ -264,15 +260,10 @@ function RuntimeSection() {
   const isAPythonChoicePending = chooseYourOwnPython.isPending || useTatolabsPython.isPending;
   return (
     <>
-      <SectionPageTitle
-        title="Runtime"
-        explanation={
-          <>
-            The tatolabd process that runs your streams on{" "}
-            {status.machine_name === null ? platformPresentation.thisMachineMidSentence : <MachineWords>{status.machine_name}</MachineWords>}.
-          </>
-        }
-      />
+      <SectionExplanation>
+        The tatolabd process that runs your streams on{" "}
+        {status.machine_name === null ? platformPresentation.thisMachineMidSentence : <MachineWords>{status.machine_name}</MachineWords>}.
+      </SectionExplanation>
       <SettingsGroup>
         <SettingsRow
           label="Status"
@@ -418,7 +409,7 @@ function CommandLineSection() {
   const linkInUsrLocalBin = useActionThroughTheBackend(() => backend.linkCommandLineToolInUsrLocalBin(), "tatolab wasn't linked:");
   return (
     <>
-      <SectionPageTitle title="Command line" explanation="Everything in this app is also a tatolab command." />
+      <SectionExplanation>Everything in this app is also a tatolab command.</SectionExplanation>
       <SettingsGroup>
         <SettingsRow
           label={<MachineWords>tatolab</MachineWords>}
@@ -498,7 +489,7 @@ function AboutSection() {
     <div className="flex flex-col items-center gap-6 pt-6 text-center" data-settings-about="">
       <div className="flex flex-col items-center">
         <img src={mascotImageUrl} alt="" className="size-24" />
-        <h1 className="mt-3 title-lg">Tatolab</h1>
+        <h2 className="mt-3 title-lg">Tatolab</h2>
         <div className="text-fg-3 tabular select-text">
           <p>{versions}</p>
           <p data-about-build="">{presentAboutBuild(status.app_build)}</p>
@@ -537,27 +528,35 @@ const SECTION_VIEWS: Record<SettingsSection, () => ReactNode> = {
   about: AboutSection,
 };
 
-/** Settings: its sections listed on the left, the one its path names on the right. */
+/** Settings: a bar naming the section shown, over Settings' own list of its sections and the section its path names. */
 export function SettingsPageView() {
+  const { platform } = useTatolabWindowEnvironment();
   const { settingsSection } = useParams();
   const shownSection = settingsSectionNamed(settingsSection);
   if (settingsSection !== shownSection) return <Navigate to={settingsSectionPath(shownSection)} replace />;
   const ShownSectionView = SECTION_VIEWS[shownSection];
   return (
-    <div className="flex min-h-0 flex-1" data-settings-page={shownSection}>
-      <SectionNavigationList
-        label="Settings"
-        dataAttributeOfEachSection="data-settings-section"
-        sectionGroups={SETTINGS_SECTION_GROUPS.map(({ groupLabel, sections }) => ({
-          groupLabel,
-          sections: sections.map(({ section, label }) => ({ path: settingsSectionPath(section), label, icon: SECTION_ICONS[section], dataValue: section })),
-        }))}
-      />
-      <div className="scrollbar-thin min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-[680px] flex-col gap-6 px-8 pt-6 pb-12">
-          <ShownSectionView />
+    <PageFrame
+      header={<PageHeader breadcrumb={{ parentLabel: "Settings" }} title={settingsSectionLabel(shownSection)} windowDragRegion={windowDragRegionAttribute(platform, "deep")} />}
+      data-settings-page={shownSection}
+    >
+      <div className="flex min-h-0 flex-1">
+        <SectionNavigationList
+          label="Settings"
+          dataAttributeOfEachSection="data-settings-section"
+          sectionGroups={SETTINGS_SECTION_GROUPS.map(({ groupLabel, sections }) => ({
+            groupLabel,
+            sections: sections.map(({ section, label }) => ({ path: settingsSectionPath(section), label, icon: SECTION_ICONS[section], dataValue: section })),
+          }))}
+        />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <PageBody width="readable">
+            <div className="flex flex-col gap-6">
+              <ShownSectionView />
+            </div>
+          </PageBody>
         </div>
       </div>
-    </div>
+    </PageFrame>
   );
 }

@@ -1,5 +1,4 @@
 import type { PythonForNewEnvironments, StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
-import { STREAM_RUN_MODE_LABELS } from "./stream_presentation";
 
 /** Where a new stream starts from: a project folder the person has, or a new project `tatolab new` writes. */
 export type AddStreamSource = "project_folder" | "new_project";
@@ -32,13 +31,13 @@ export interface AddStreamForm {
   workUnderWay: AddStreamWorkUnderWay | null;
 }
 
-/** The Add stream page: the form, a run compiling since `startedAtMs` (the app setting up the folder's Python first when it had none), or the stream running. */
+/** The add-stream dialog: the form, a run compiling since `startedAtMs` (the app setting up the folder's Python first when it had none), or the stream running. */
 export type AddStreamFlowState =
   | { step: "form"; form: AddStreamForm }
   | { step: "compiling"; form: AddStreamForm; request: AddStreamRunRequest; startedAtMs: number; makesThePythonEnvironmentFirst: boolean }
   | { step: "running"; form: AddStreamForm; request: AddStreamRunRequest; answer: StreamRunAnswer };
 
-/** What happened on the page, from the person or from the backend's answer. */
+/** What happened in the dialog, from the person or from the backend's answer. */
 export type AddStreamFlowEvent =
   | { kind: "source_chosen"; source: AddStreamSource }
   | { kind: "work_started"; work: AddStreamWorkUnderWay }
@@ -69,7 +68,7 @@ export function emptyAddStreamForm(source: AddStreamSource): AddStreamForm {
   };
 }
 
-/** The page as it first shows for `source`. */
+/** The dialog as it first shows for `source`. */
 export function initialAddStreamFlowState(source: AddStreamSource): AddStreamFlowState {
   return { step: "form", form: emptyAddStreamForm(source) };
 }
@@ -112,7 +111,7 @@ function streamFunctionsChoiceAfter(previous: StreamProjectFolderReport | null, 
   return { chosenStreamFunction: firstStreamFunction, streamName: isTheSameFolder && form.streamName !== "" ? form.streamName : (firstStreamFunction ?? "") };
 }
 
-/** The page after `event`. An event of the form changes only the form step: one that arrives while a run compiles or once it runs is about a form no longer shown. */
+/** The dialog after `event`. An event of the form changes only the form step: one that arrives while a run compiles or once it runs is about a form no longer shown. */
 export function advanceAddStreamFlow(state: AddStreamFlowState, event: AddStreamFlowEvent): AddStreamFlowState {
   const form = state.form;
   switch (event.kind) {
@@ -188,25 +187,7 @@ function advanceTheForm(state: AddStreamFlowState, event: AddStreamFlowEvent): A
   }
 }
 
-/** `word` as a POSIX shell reads it back unchanged: as it is when it holds only characters a shell leaves alone, else in single quotes. */
-export function shellWord(word: string): string {
-  return /^[A-Za-z0-9_./~@%+=:,-]+$/.test(word) ? word : `'${word.replaceAll("'", `'"'"'`)}'`;
-}
-
-/** The terminal command that does what Add does for a folder whose Python is set up: `tatolab run -d` in the folder, with the function and name the form gives. */
-export function terminalCommandForTheRun(request: AddStreamRunRequest, functionsOwnName: string | null): string {
-  const commandWords = ["cd", shellWord(request.folder), "&&", "tatolab", "run", "-d"];
-  if (request.streamFunction !== null) commandWords.push(shellWord(request.streamFunction));
-  if (request.streamName !== null && request.streamName !== functionsOwnName) commandWords.push("--name", shellWord(request.streamName));
-  return commandWords.join(" ");
-}
-
-/** `tatolab new` for `folder`, the command Create runs. */
-export function newProjectCommand(folder: string): string {
-  return `tatolab new ${shellWord(folder)}`;
-}
-
-/** The page's one action: Create, for a new project `tatolab new` has not written yet, which writes it and then adds it; Add, for a folder that holds a project. */
+/** The dialog's one action: Create, for a new project `tatolab new` has not written yet, which writes it and then adds it; Add, for a folder that holds a project. */
 export type AddStreamAction = "create" | "add";
 
 /** Each action's button label. */
@@ -217,9 +198,12 @@ export function addStreamActionOf(form: AddStreamForm): AddStreamAction {
   return form.source === "new_project" && !form.hasCreatedTheNewProject ? "create" : "add";
 }
 
-/** Why the page's action cannot be pressed now, or `null` when it can. A folder with no `.venv` can be added while the app has a Python to set it up with. */
+const THE_RUNTIME_IS_NOT_RUNNING = "The runtime isn't running, so it can't add a stream.";
+const NO_PYTHON_TO_SET_UP_A_PROJECT_WITH = "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.";
+
+/** Why the dialog's action cannot be pressed now, or `null` when it can. A folder with no `.venv` can be added while the app has a Python to set it up with. */
 export function addStreamActionUnavailableBecause(form: AddStreamForm, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string | null {
-  if (!isTheRuntimeRunning) return "The runtime isn't running, so it can't add a stream.";
+  if (!isTheRuntimeRunning) return THE_RUNTIME_IS_NOT_RUNNING;
   switch (form.workUnderWay) {
     case "choosing_a_folder":
       return "Choose a folder in the dialog.";
@@ -228,16 +212,24 @@ export function addStreamActionUnavailableBecause(form: AddStreamForm, isTheRunt
     case null:
       break;
   }
-  const noPythonToSetUpAProjectWith = "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.";
   if (addStreamActionOf(form) === "create") {
     if (form.newProjectFolder === null) return "Choose a directory for the new project.";
-    return pythonForNewEnvironments.kind === "built_in_not_offered" ? noPythonToSetUpAProjectWith : null;
+    return pythonForNewEnvironments.kind === "built_in_not_offered" ? NO_PYTHON_TO_SET_UP_A_PROJECT_WITH : null;
   }
   const folder = folderToRun(form);
   if (folder === null) return "Choose a project folder first.";
-  if (folder.python_environment.kind === "missing" && pythonForNewEnvironments.kind === "built_in_not_offered") return noPythonToSetUpAProjectWith;
+  if (folder.python_environment.kind === "missing" && pythonForNewEnvironments.kind === "built_in_not_offered") return NO_PYTHON_TO_SET_UP_A_PROJECT_WITH;
   if (form.nameTaken !== null) return "Choose another name, or use the one offered.";
   return null;
+}
+
+/**
+ * Why Add or Create cannot be pressed, said in the dialog's body where the form does not already show it: the runtime
+ * down, or no Python to set the project up with. A folder or name still to choose shows in the form itself.
+ */
+export function addStreamBlockerTheFormDoesNotShow(form: AddStreamForm, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string | null {
+  const reason = addStreamActionUnavailableBecause(form, isTheRuntimeRunning, pythonForNewEnvironments);
+  return reason === THE_RUNTIME_IS_NOT_RUNNING || reason === NO_PYTHON_TO_SET_UP_A_PROJECT_WITH ? reason : null;
 }
 
 /** Whole seconds a run has been compiling, as the compile view counts them. */
@@ -245,32 +237,36 @@ export function compilingForWords(startedAtMs: number, nowMs: number): string {
   return `${Math.max(0, Math.floor((nowMs - startedAtMs) / 1000))}s`;
 }
 
-/** What a running stream's done view says about its load: whether it replaced the project's kept stream, and its warnings to read or that it compiled cleanly. */
+/** What a running stream's done view says about its load: whether it replaced the project's kept stream, and its warnings to read or that it loaded cleanly. */
 export function streamRunningSummary(answer: StreamRunAnswer): string {
   const replaced = answer.replaced_the_kept_record ? "It replaced the stream this project kept before. " : "";
   const warningCount = answer.compile_warnings.length;
-  if (warningCount === 1) return `${replaced}It compiled with a warning. Read it before you rely on this stream.`;
-  if (warningCount > 1) return `${replaced}It compiled with ${warningCount} warnings. Read them before you rely on this stream.`;
-  return `${replaced}It compiled cleanly.`;
+  if (warningCount === 1) return `${replaced}It loaded with a warning. Read it before you rely on this stream.`;
+  if (warningCount > 1) return `${replaced}It loaded with ${warningCount} warnings. Read them before you rely on this stream.`;
+  return `${replaced}It loaded cleanly.`;
 }
 
-/** How many steps a stream has, in words. */
-export function stepCountWords(stepCount: number): string {
-  return `${stepCount} ${stepCount === 1 ? "step" : "steps"}`;
+/** How many nodes a stream has, in words. */
+export function nodeCountWords(nodeCount: number): string {
+  return `${nodeCount} ${nodeCount === 1 ? "node" : "nodes"}`;
 }
 
-/** The function the stream is named after unless the form names it otherwise: the chosen one, else the folder's first. */
-export function functionsOwnNameOf(form: AddStreamForm): string | null {
-  const folder = folderToRun(form);
-  return folder === null ? null : (form.chosenStreamFunction ?? folder.stream_functions[0] ?? null);
+/** One row of a folder's check: a `@stream` function found in its `stream.py`, or `stream.py` itself when it holds none or is missing. */
+export interface StreamFunctionCheck {
+  checked: "stream_function" | "stream_file";
+  name: string;
+  isFound: boolean;
+  /** Why `stream.py` stands in for its functions; `null` on a function's row, which is its name alone. */
+  detail: string | null;
 }
 
-/** What the `stream.py` check says it found. */
-export function streamFileCheckDetail(report: StreamProjectFolderReport): string {
-  if (!report.stream_file_present) return "The stream function the runtime compiles lives in stream.py.";
-  if (report.stream_functions.length === 0) return "No @stream function found by reading it; the runtime decides when it compiles.";
-  if (report.stream_functions.length === 1) return `Stream function ${report.stream_functions[0]}()`;
-  return `Stream functions ${report.stream_functions.map((streamFunction) => `${streamFunction}()`).join(", ")}`;
+/** A row for each `@stream` function `stream.py` holds, in file order; one row for `stream.py` when it is missing or marks none. */
+export function presentStreamFunctionChecks(report: StreamProjectFolderReport): StreamFunctionCheck[] {
+  if (!report.stream_file_present) return [{ checked: "stream_file", name: "stream.py", isFound: false, detail: "The stream function the runtime loads lives in stream.py." }];
+  if (report.stream_functions.length === 0) {
+    return [{ checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it loads." }];
+  }
+  return report.stream_functions.map((streamFunction) => ({ checked: "stream_function", name: streamFunction, isFound: true, detail: null }));
 }
 
 /** The lead of the runtime's refusal of a run, before its own words. */
@@ -279,7 +275,7 @@ export const ADDING_THE_STREAM_REFUSED_LEAD = "Adding the stream was refused:";
 /** The lead of the app's uv failing to set up a folder's Python, before uv's own words. */
 export const PYTHON_ENVIRONMENT_NOT_MADE_LEAD = "Tatolab couldn't set up the project's Python:";
 
-/** The title a run's refusal gets in the notice of a run that answered away from the page, by the lead it was given. */
+/** The title a run's refusal gets in the notice of a run that answered away from the dialog, by the lead it was given. */
 const RUN_REFUSAL_NOTICE_TITLES: Record<string, string> = {
   [ADDING_THE_STREAM_REFUSED_LEAD]: "Adding the stream was refused",
   [PYTHON_ENVIRONMENT_NOT_MADE_LEAD]: "Tatolab couldn't set up the project's Python",
@@ -306,14 +302,14 @@ export function runRequestWords(request: AddStreamRunRequest): string {
   return requestWords.join("  ");
 }
 
-/** How many compile warnings a run answered, in words. */
+/** How many warnings the runtime answered a run with, in words. */
 export function compileWarningsHeading(warningCount: number): string {
-  return `${warningCount} compile ${warningCount === 1 ? "warning" : "warnings"}`;
+  return `${warningCount} ${warningCount === 1 ? "warning" : "warnings"}`;
 }
 
-/** What the compile view says it is doing: setting up the folder's Python first when it had none, then compiling. */
+/** What the dialog says it is doing while a run is under way: setting up the folder's Python first when it had none, then starting the stream. */
 export function compilingHeadingVerb(makesThePythonEnvironmentFirst: boolean): string {
-  return makesThePythonEnvironmentFirst ? "Setting up Python, then compiling" : "Compiling";
+  return makesThePythonEnvironmentFirst ? "Setting up Python, then starting" : "Starting";
 }
 
 /** The compile output's line for setting up the folder's Python: the app's uv sync, and the Python it sets it up from. */
@@ -331,39 +327,31 @@ export function compilingStreamWords(request: AddStreamRunRequest): string {
   return request.streamName ?? "the stream";
 }
 
-/** The facts beside a running stream's name: its run mode, its steps. */
+/** The facts beside a running stream's name: its nodes. */
 export function streamRunningFactsWords(answer: StreamRunAnswer): string {
-  return `${STREAM_RUN_MODE_LABELS.always_on} · ${stepCountWords(answer.node_count)}`;
+  return nodeCountWords(answer.node_count);
 }
 
 /** What the compile output says the runtime did, after the request and its warnings: the load, and that it is kept. */
 export function streamRunAnswerLines(answer: StreamRunAnswer): readonly string[] {
   const replaced = answer.replaced_the_kept_record ? ", in place of the stream this project kept" : "";
   return [
-    `loaded ${answer.stream} as instance ${answer.stream_instance}: ${stepCountWords(answer.node_count)}${replaced}`,
+    `loaded ${answer.stream}: ${nodeCountWords(answer.node_count)}${replaced}`,
     `${answer.stream} is running; kept, so it loads again whenever the runtime starts`,
   ];
 }
 
-/** The terminal run the footer offers: the form's, under the free name while the asked one is refused as taken; none for a folder whose Python the app sets up first, which has no one-command equivalent. */
-export function terminalRunRequestOf(form: AddStreamForm): AddStreamRunRequest | null {
-  if (folderToRun(form)?.python_environment.kind === "missing") return null;
-  const runRequest = runRequestOf(form);
-  if (runRequest === null || form.nameTaken === null) return runRequest;
-  return { ...runRequest, streamName: form.nameTaken.freeName };
-}
-
 /**
- * Which part of the page shows: a step, and within the form its source and what the folder to run holds. Focus moves to
+ * Which part of the dialog shows: a step, and within the form its source and what the folder to run holds. Focus moves to
  * the part's heading when it changes and the control that held focus is gone.
  */
-export function addStreamPageSection(state: AddStreamFlowState): string {
+export function addStreamDialogSection(state: AddStreamFlowState): string {
   const folder = folderToRun(state.form);
   return [state.step, state.form.source, state.form.hasCreatedTheNewProject ? "created" : "", folder === null ? "no_folder" : "folder"].join(":");
 }
 
 /**
- * What the page's status line says, for a screen reader, of a milestone a focus move alone does not say: a folder ready
+ * What the dialog's status line says, for a screen reader, of a milestone a focus move alone does not say: a folder ready
  * to compile only while Add can be pressed. Refusals speak through their own alert.
  */
 export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string {
@@ -380,12 +368,12 @@ export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntim
   }
 }
 
-/** What a run that landed while the Add stream page was not shown came to, for the notice that says so. */
+/** What a run that landed while the add-stream dialog was not shown came to, for the notice that says so. */
 export type AddStreamRunNotice =
   | { kind: "running"; source: AddStreamSource; answer: StreamRunAnswer }
   | { kind: "refused"; source: AddStreamSource; title: string; words: string };
 
-/** The notice for the page as a run's answer left it: the stream running, or the refusal, titled by what refused it, in its refuser's own words; `null` for a page no run left. */
+/** The notice for the dialog as a run's answer left it: the stream running, or the refusal, titled by what refused it, in its refuser's own words; `null` for a dialog no run left. */
 export function addStreamRunNoticeOf(state: AddStreamFlowState): AddStreamRunNotice | null {
   const source = state.form.source;
   if (state.step === "running") return { kind: "running", source, answer: state.answer };

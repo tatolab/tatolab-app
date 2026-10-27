@@ -51,26 +51,15 @@ describe("presentStreamGraphInspection", () => {
   const canvas = presentStreamGraphCanvas(GRAPH);
   const graphDocument = readTheGraphDocument(GRAPH_DOCUMENT_TEXT);
 
-  it("with nothing selected sums up the stream: its steps, those in their own process, its links, their drops and its exposed outputs", () => {
-    const inspection = presentStreamGraphInspection(canvas, graphDocument, null);
-
-    expect(inspection.kind === "stream" && { ...inspection, exposedOutputs: inspection.exposedOutputs.map((port) => `${port.stepName}/${port.name}`) }).toEqual({
-      kind: "stream",
-      stepCount: 2,
-      ownProcessStepCount: 1,
-      stepCountWords: "2 · 1 in their own process",
-      linkCount: 1,
-      droppedCount: 12,
-      exposedOutputs: ["persondetector/detections"],
-    });
+  it("inspects nothing while nothing is selected, the inspector then closed", () => {
+    expect(presentStreamGraphInspection(canvas, graphDocument, null)).toBeNull();
   });
 
-  it("a selected step shows its links, process, previewable outputs, config and counters", () => {
+  it("a selected node shows its links, previewable outputs, config and counters", () => {
     const inspection = presentStreamGraphInspection(canvas, graphDocument, "persondetector");
 
-    expect(inspection.kind).toBe("step");
-    if (inspection.kind !== "step") return;
-    expect([inspection.linksInCount, inspection.linksOutCount, inspection.processWords]).toEqual([1, 0, "Own process"]);
+    if (inspection === null) return expect.unreachable("no inspection of persondetector");
+    expect([inspection.linksInCount, inspection.linksOutCount]).toEqual([1, 0]);
     expect(inspection.previewableOutputs.map((previewable) => previewable.output.name)).toEqual(["detections"]);
     expect([inspection.linkCountWords, inspection.previewAbsenceWords]).toEqual(["1 link in · 0 out", null]);
     expect(inspection.configRows).toEqual([
@@ -86,18 +75,17 @@ describe("presentStreamGraphInspection", () => {
     ]);
   });
 
-  it("a built-in runs in the runtime, and a step the document gives no config has none", () => {
+  it("a node the document gives no config has none, and one with nothing exposed previews nothing", () => {
     const inspection = presentStreamGraphInspection(canvas, null, "camera");
 
-    expect(inspection.kind === "step" && [inspection.processWords, inspection.configRows, inspection.previewAbsenceWords]).toEqual([
-      "In the runtime",
+    expect(inspection !== null && [inspection.configRows, inspection.previewAbsenceWords]).toEqual([
       null,
-      "No output of this step is exposed. An internal output has no preview until it is exposed to this machine or publicly.",
+      "No output of this node is exposed. An internal output has no preview until it is exposed to this machine or publicly.",
     ]);
     expect(configRowsOfStep(graphDocument, "camera")).toEqual([]);
   });
 
-  it("a name no step of the stream's own has inspects the whole stream", () => {
-    expect(presentStreamGraphInspection(canvas, graphDocument, "gone").kind).toBe("stream");
+  it("a name no node of the stream's own has inspects nothing", () => {
+    expect(presentStreamGraphInspection(canvas, graphDocument, "gone")).toBeNull();
   });
 });

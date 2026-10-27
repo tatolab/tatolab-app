@@ -13,7 +13,7 @@ export interface PageTab<TabKey extends string> {
   disabledReason?: string | null;
 }
 
-/** A page's tabs under its header, each a link to its path; the shown one underlined, one that cannot be shown dimmed with its reason. */
+/** A view's tabs in its bar, each a link to its path; the shown one filled, one that cannot be shown dimmed with its reason. */
 export function PageTabs<TabKey extends string>({
   label,
   tabs,
@@ -27,9 +27,9 @@ export function PageTabs<TabKey extends string>({
   dataAttributeOfEachTab?: ControlDataAttributeName;
 }) {
   return (
-    <nav aria-label={label} className="mt-2 -mb-px flex gap-4">
+    <nav aria-label={label} className="flex items-center gap-1">
       {tabs.map(({ tab, label: tabLabel, path, tooltip, disabledReason }) => {
-        const tabClassNames = "flex h-9 items-center border-b-2 border-transparent";
+        const tabClassNames = "flex h-7 items-center rounded-md px-3";
         if (disabledReason !== undefined && disabledReason !== null) {
           return (
             <span key={tab} aria-disabled title={`${tabLabel}: ${disabledReason}`} className={cn(tabClassNames, "cursor-default text-fg-4")}>
@@ -45,8 +45,8 @@ export function PageTabs<TabKey extends string>({
             title={tooltip ?? tabLabel}
             className={cn(
               tabClassNames,
-              "cursor-default rounded-t-sm outline-none transition-colors",
-              tab === shownTab ? "border-fg text-fg" : "text-fg-3 hover:text-fg",
+              "cursor-default outline-none transition-colors",
+              tab === shownTab ? "bg-selected text-fg" : "text-fg-2 hover:bg-hover hover:text-fg",
               FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
             )}
             {...(dataAttributeOfEachTab === undefined ? {} : { [dataAttributeOfEachTab]: tab })}

@@ -23,7 +23,7 @@ describe("the side panel", () => {
     render(
       <WorkAreaWithSidePanel
         sidePanel={
-          <SidePanel label="Selected record" title="Line" hideLabel="Hide details" onHidden={() => {}}>
+          <SidePanel label="Selected record" title="Line" hiding={null}>
             The record
           </SidePanel>
         }
@@ -31,6 +31,7 @@ describe("the side panel", () => {
         The records
       </WorkAreaWithSidePanel>,
     );
+    expect(screen.queryByRole("button", { name: "Hide details" }), "a panel a toggle elsewhere closes draws no Hide of its own").toBeNull();
     const resizer = screen.getByRole("separator", { name: "Resize the side panel" });
     const widthBefore = resizer.getAttribute("aria-valuenow");
     expect(widthBefore).not.toBeNull();
@@ -51,7 +52,7 @@ describe("the side panel", () => {
     const { rerender } = render(
       <WorkAreaWithSidePanel
         sidePanel={
-          <SidePanel label="Inspector" title="main" subtitle="Nothing selected" hideLabel="Hide inspector" onHidden={onHidden}>
+          <SidePanel label="Inspector" title="main" subtitle="Nothing selected" hiding={{ hideLabel: "Hide inspector", onHidden }}>
             Summary
           </SidePanel>
         }

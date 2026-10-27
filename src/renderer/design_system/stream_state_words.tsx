@@ -1,7 +1,7 @@
 import { cn } from "cn";
-import { LoaderCircle, SquareX } from "lucide-react";
+import { LoaderCircle, SquareX, Workflow } from "lucide-react";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
-import { presentStreamState, presentStreamStateAfterAStopNotRecorded } from "../presentation/stream_presentation";
+import { presentStreamState, type StreamStateIconTone } from "../presentation/stream_presentation";
 
 /** How a state word reads: quiet for stopped, plain for running, a spinner while starting, red with its icon for a failure. */
 export type StateWordsEmphasis = "plain" | "quiet" | "starting" | "failure";
@@ -24,8 +24,14 @@ export function StateWords({ emphasis, words, meaning }: { emphasis: StateWordsE
   );
 }
 
-/** A stream's state in words, red with its icon when failed, the runtime's whole reason in its tooltip. */
-export function StreamStateWords({ stream, isAfterAStopNotRecorded }: { stream: ListedStream; isAfterAStopNotRecorded: boolean }) {
-  const statePresentation = isAfterAStopNotRecorded ? presentStreamStateAfterAStopNotRecorded(stream) : presentStreamState(stream);
-  return <StateWords emphasis={statePresentation.emphasis} words={statePresentation.label} meaning={statePresentation.meaning} />;
+/** The colour a stream's icon takes for its state: blue while it runs, red once it failed, grey otherwise. */
+const STREAM_STATE_ICON_CLASS_NAMES: Record<StreamStateIconTone, string> = {
+  running: "text-brand-text",
+  idle: "text-fg-3",
+  failed: "text-danger",
+};
+
+/** A stream's icon in its state's colour; where it stands alone, the words beside it say the state for a screen reader. */
+export function StreamStateIcon({ stream }: { stream: ListedStream }) {
+  return <Workflow className={cn("size-4 shrink-0", STREAM_STATE_ICON_CLASS_NAMES[presentStreamState(stream).iconTone])} strokeWidth={1.75} aria-hidden />;
 }

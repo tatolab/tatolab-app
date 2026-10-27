@@ -246,15 +246,6 @@ export class TatolabSearchView {
       run: () => this.actions.goToSettings(),
     });
     if (selectedStream !== null) {
-      const followCommand = `tatolab logs --stream ${selectedStream.name} -f`;
-      rows.push({
-        groupLabel: "Copy",
-        iconSvg: TERMINAL_ICON_SVG,
-        matchText: `copy ${followCommand}`,
-        label: [createElement("code", { class: "search-row-address" }, [followCommand])],
-        meta: [],
-        run: () => void writeTextToClipboard(followCommand),
-      });
       rows.push({
         groupLabel: "Copy",
         iconSvg: TERMINAL_ICON_SVG,

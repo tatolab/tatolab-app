@@ -1,4 +1,4 @@
-import type { ListedStream, StreamGraphExposedPort, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type { StreamGraphExposedPort, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 import { labelUnknownStreamState } from "./stream_presentation";
 
 /** An exposure level in the window's words: who may read the output, and what that means. */
@@ -6,21 +6,19 @@ export interface ExposureLevelPresentation {
   label: string;
   /** `null` for a level newer than this app, which shows its word alone. */
   meaning: string | null;
-  /** Which icon stands beside the words: a lock, a laptop, a globe, or none for a level newer than this app. */
-  icon: "internal" | "this_machine" | "public" | null;
 }
 
 /** `private` reads This machine and `public` reads Public, as the design's vocabulary words them; a newer level keeps its own word. */
 export function presentExposureLevel(level: string): ExposureLevelPresentation {
   switch (level) {
     case "internal":
-      return { label: "Internal", meaning: "Only this stream's own steps can read it.", icon: "internal" };
+      return { label: "Internal", meaning: "Only this stream's own nodes can read it." };
     case "private":
-      return { label: "This machine", meaning: "Any stream or app on this machine can read it.", icon: "this_machine" };
+      return { label: "This machine", meaning: "Any stream or app on this machine can read it." };
     case "public":
-      return { label: "Public", meaning: "Readable on this machine now; other machines read it through the relays this machine joins.", icon: "public" };
+      return { label: "Public", meaning: "Readable on this machine now; other machines read it through the relays this machine joins." };
     default:
-      return { label: labelUnknownStreamState(level), meaning: null, icon: null };
+      return { label: labelUnknownStreamState(level), meaning: null };
   }
 }
 
@@ -49,12 +47,6 @@ export function readableExposedPorts(graph: Pick<StreamGraphSummary, "exposed">)
   return graph.exposed.filter((exposedPort) => exposedPort.level !== "internal");
 }
 
-/** `Built-in` for a node type from `tatolab.stream`, `Python` for any other `module:Class` type, else nothing. */
-export function presentNodeKind(nodeType: string): "Built-in" | "Python" | null {
-  if (nodeType.startsWith("tatolab.stream:")) return "Built-in";
-  return nodeType.includes(":") ? "Python" : null;
-}
-
 /** Whether the Overview's steps are the loaded graph's, or the last graph this window read of a stream no longer loaded. */
 export type StreamStepsSource = "loaded" | "as_of_the_last_load";
 
@@ -71,23 +63,11 @@ export interface StreamStepCounter {
 export interface StreamStepRow {
   name: string;
   type: string;
-  origin: "Built-in" | "Python" | null;
-  process: "in runtime" | "own process" | null;
   stateWord: string;
   stateEmphasis: StreamStepStateEmphasis;
   /** Only counters above zero, and none for a graph from the last load. */
   counters: StreamStepCounter[];
 }
-
-/** Where a step runs: a built-in in the runtime, a Python node in its own processor interpreter. */
-export type StreamStepProcess = "in_the_runtime" | "own_process";
-
-/** Where a step of `origin` runs; `null` for an origin this app cannot place. */
-export function stepProcessOf(origin: "Built-in" | "Python" | null): StreamStepProcess | null {
-  return origin === "Built-in" ? "in_the_runtime" : origin === "Python" ? "own_process" : null;
-}
-
-const STEPS_TABLE_PROCESS_WORDS = { in_the_runtime: "in runtime", own_process: "own process" } as const;
 
 /** The total of a `{ name: count }` counter object, such as a node's `dropped_bags_by_link`. */
 export function totalOfCounts(countsByName: Record<string, number>): number {
@@ -127,8 +107,6 @@ export function presentStreamSteps(
   return [...graph.nodes]
     .sort((first, second) => pipelinePlace(first.name) - pipelinePlace(second.name))
     .map((node) => {
-      const origin = presentNodeKind(node.type);
-      const stepProcess = stepProcessOf(origin);
       const counters: StreamStepCounter[] =
         stepsSource === "loaded"
           ? [
@@ -141,8 +119,6 @@ export function presentStreamSteps(
       return {
         name: node.name,
         type: node.type,
-        origin,
-        process: stepProcess === null ? null : STEPS_TABLE_PROCESS_WORDS[stepProcess],
         ...(stepsSource === "loaded"
           ? presentStepState(node.state)
           : isLoadedNow
@@ -151,6 +127,11 @@ export function presentStreamSteps(
         counters,
       };
     });
+}
+
+/** Whether the Overview shows each node's state: only once they differ, or one is in error, since a row of the same word says nothing. */
+export function isEachNodeStateShown(rows: readonly Pick<StreamStepRow, "stateWord" | "stateEmphasis">[]): boolean {
+  return rows.some((row) => row.stateWord !== rows[0]?.stateWord || row.stateEmphasis === "failure");
 }
 
 /** A link whose target dropped messages arriving on it, which the Overview names in one amber line. */
@@ -186,9 +167,9 @@ export function droppingLinksOf(graph: StreamGraphSummary): DroppingLinkPresenta
   });
 }
 
-/** The exposed outputs the runtime's preview page plays: every one it gives a preview page, so never an internal one. */
+/** The exposed outputs the runtime's preview page plays: every readable one it gives a preview page. */
 export function previewableOutputsOf(graph: Pick<StreamGraphSummary, "exposed">): StreamGraphExposedPort[] {
-  return graph.exposed.filter((exposedPort) => exposedPort.watch_page_url !== null);
+  return readableExposedPorts(graph).filter((exposedPort) => exposedPort.watch_page_url !== null);
 }
 
 /** The output the Overview previews: the one chosen while it is still previewable, else the first previewable one; `null` when there is none. */
@@ -201,19 +182,3 @@ export function choosePreviewedOutput(
   return stillPreviewable ?? previewableOutputs[0] ?? null;
 }
 
-/** `6 · 3 Python` from a graph, or the listing's step count while there is none, `—` while it is not loaded. */
-export function streamStepsCountLabel(graph: StreamGraphSummary | null, stream: ListedStream): string {
-  if (graph === null) return stream.node_count === null ? "—" : String(stream.node_count);
-  const pythonStepCount = graph.nodes.filter((node) => presentNodeKind(node.type) === "Python").length;
-  return pythonStepCount === 0 ? String(graph.nodes.length) : `${graph.nodes.length} · ${pythonStepCount} Python`;
-}
-
-/** The command that prints the `graph` document Inspect shows. */
-export function streamGraphDocumentCommand(streamName: string): string {
-  return `tatolab graph --stream ${streamName}`;
-}
-
-/** The `tatolab` commands that watch `streamName` from a terminal: follow its logs, and print the graph Inspect shows. */
-export function streamObservationCommands(streamName: string): string[] {
-  return [`tatolab logs --stream ${streamName} -f`, streamGraphDocumentCommand(streamName)];
-}

@@ -1,6 +1,5 @@
-import type { ListedStream, TatolabPlatform, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";
-import { presentPlatform } from "./platform_presentation";
-import { abbreviateHomeDirectory, isStreamLoaded } from "./stream_presentation";
+import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";
+import { abbreviateHomeDirectory } from "./stream_presentation";
 
 /** Which streams the Streams list shows. */
 export type StreamsListFilter = "all" | "running" | "stopped" | "failed";
@@ -12,6 +11,11 @@ export const STREAMS_LIST_FILTERS: readonly { filter: StreamsListFilter; label: 
   { filter: "stopped", label: "Stopped" },
   { filter: "failed", label: "Failed" },
 ];
+
+/** What the state filter's field says while `filter` is chosen. */
+export function streamsListFilterWords(filter: StreamsListFilter): string {
+  return filter === "all" ? "Any state" : (STREAMS_LIST_FILTERS.find((listFilter) => listFilter.filter === filter)?.label ?? "Any state");
+}
 
 /** Whether `stream` is one `filter` shows: kept and attached streams count as Running. */
 export function streamMatchesListFilter(stream: ListedStream, filter: StreamsListFilter): boolean {
@@ -32,12 +36,46 @@ export function streamMatchesFilterText(stream: ListedStream, filterText: string
   return wantedText === "" || `${stream.name}\n${stream.project_directory}`.toLowerCase().includes(wantedText);
 }
 
-/** `5 of 7 loaded on studio-mac`, `None of 2 …`, or `Nothing loaded on …` with no streams at all. */
-export function streamsListHeadline(streams: readonly ListedStream[], machineName: string | null, platform: TatolabPlatform): string {
-  const machineWords = machineName ?? presentPlatform(platform).thisMachineMidSentence;
-  if (streams.length === 0) return `Nothing loaded on ${machineWords}`;
-  const loadedCount = streams.filter(isStreamLoaded).length;
-  return `${loadedCount === 0 ? "None" : loadedCount} of ${streams.length} loaded on ${machineWords}`;
+/** A project folder in the sidebar: where it is, the name it shows under, and the streams added from it. */
+export interface StreamProjectFolder {
+  projectDirectory: string;
+  folderName: string;
+  streams: readonly ListedStream[];
+  /** Whether a stream added from it failed, which its row says while it is closed. */
+  holdsAFailedStream: boolean;
+}
+
+function lastPathSegments(absolutePath: string, segmentCount: number): string {
+  return absolutePath.split("/").filter((segment) => segment !== "").slice(-segmentCount).join("/");
+}
+
+/**
+ * The listing's streams under the project folders they were added from, in the order the runtime lists them. A folder
+ * shows under its own name, or under its parent's and its own where two folders share a name.
+ */
+export function streamProjectFoldersOf(streams: readonly ListedStream[]): StreamProjectFolder[] {
+  const streamsOfEachDirectory = new Map<string, ListedStream[]>();
+  for (const stream of streams) {
+    const streamsOfThisDirectory = streamsOfEachDirectory.get(stream.project_directory);
+    if (streamsOfThisDirectory === undefined) streamsOfEachDirectory.set(stream.project_directory, [stream]);
+    else streamsOfThisDirectory.push(stream);
+  }
+  const directories = [...streamsOfEachDirectory.keys()];
+  const directoryCountOfEachName = new Map<string, number>();
+  for (const directory of directories) {
+    const name = lastPathSegments(directory, 1);
+    directoryCountOfEachName.set(name, (directoryCountOfEachName.get(name) ?? 0) + 1);
+  }
+  return directories.map((directory) => {
+    const name = lastPathSegments(directory, 1);
+    const streamsOfThisDirectory = streamsOfEachDirectory.get(directory) ?? [];
+    return {
+      projectDirectory: directory,
+      folderName: (directoryCountOfEachName.get(name) ?? 0) > 1 ? lastPathSegments(directory, 2) : name,
+      streams: streamsOfThisDirectory,
+      holdsAFailedStream: streamsOfThisDirectory.some((stream) => stream.state === "failed"),
+    };
+  });
 }
 
 /** What the dialog asking to remove a stream says. */

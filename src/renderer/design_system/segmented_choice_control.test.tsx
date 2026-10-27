@@ -86,24 +86,24 @@ describe("the segmented choice control", () => {
   });
 
   it("never chooses a segment that can't be chosen here, which says why", () => {
-    let chosenRunMode = "kept";
+    let chosenSource = "project_folder";
     render(
       <SegmentedChoiceControl
-        label="Run mode"
+        label="Start from"
         choices={[
-          { choice: "kept", label: "Always on" },
-          { choice: "attached", label: "Dev session", unavailableBecause: "Start one with tatolab dev." },
+          { choice: "project_folder", label: "Import project" },
+          { choice: "new_project", label: "New project", unavailableBecause: "Not while the stream compiles" },
         ]}
-        chosen="kept"
+        chosen="project_folder"
         onChosen={(choice) => {
-          chosenRunMode = choice;
+          chosenSource = choice;
         }}
       />,
     );
 
-    const devSession = screen.getByRole("button", { name: "Dev session" });
-    expect(devSession.getAttribute("aria-disabled")).toBe("true");
-    fireEvent.click(devSession);
-    expect(chosenRunMode).toBe("kept");
+    const newProject = screen.getByRole("button", { name: "New project" });
+    expect(newProject.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(newProject);
+    expect(chosenSource).toBe("project_folder");
   });
 });

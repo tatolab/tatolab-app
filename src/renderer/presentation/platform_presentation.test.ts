@@ -76,8 +76,6 @@ describe("presentPlatform", () => {
   });
 
   it("names the machine, and where the app's icon lives, as each platform does", () => {
-    expect(presentPlatform("macos").thisMachineAtSentenceStart).toBe("This Mac");
-    expect(presentPlatform("linux").thisMachineAtSentenceStart).toBe("This computer");
     expect(presentPlatform("macos").quitTatolabExplanation).toContain("menu bar icon");
     expect(presentPlatform("linux").quitTatolabExplanation).toContain("tray icon");
   });

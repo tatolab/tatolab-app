@@ -1,21 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { ListedStream, StreamGraphExposedPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type { StreamGraphExposedPort, StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 import {
   choosePreviewedOutput,
   droppingLinksOf,
   exposedOutputAddress,
+  isEachNodeStateShown,
   presentExposureLevel,
-  presentNodeKind,
   presentStreamSteps,
   previewableOutputsOf,
   readableExposedPorts,
-  streamObservationCommands,
-  streamStepsCountLabel,
 } from "./stream_overview_presentation";
-
-function listedStream(name: string, state: string, nodeCount: number | null, projectDirectory = "/Users/ada/streams/pattern"): ListedStream {
-  return { name, state, project_directory: projectDirectory, node_count: nodeCount, failed_because: null };
-}
 
 function wiredLink(source: string, sourcePort: string, target: string, targetPort: string, state = "wired"): StreamGraphLink {
   return { id: "L1", source_node: source, source_port: sourcePort, target_node: target, target_port: targetPort, state };
@@ -46,7 +40,7 @@ describe("presentExposureLevel", () => {
       "Public",
       "On the mesh",
     ]);
-    expect(presentExposureLevel("on_the_mesh")).toEqual({ label: "On the mesh", meaning: null, icon: null });
+    expect(presentExposureLevel("on_the_mesh")).toEqual({ label: "On the mesh", meaning: null });
   });
 });
 
@@ -74,14 +68,6 @@ describe("readableExposedPorts", () => {
   });
 });
 
-describe("node types", () => {
-  it("calls tatolab.stream types built-in, any other module:Class type Python, and a type with no colon nothing", () => {
-    expect(presentNodeKind("tatolab.stream:TestPatternSource")).toBe("Built-in");
-    expect(presentNodeKind("nodes.inverting_effect:InvertingEffect")).toBe("Python");
-    expect(presentNodeKind("SomethingNew")).toBeNull();
-  });
-
-});
 
 function stepNode(name: string, nodeType: string, state: string | null, counters: Partial<Pick<StreamGraphNode, "dropped_bags_by_link" | "refused_bags_by_output_port">> = {}): StreamGraphNode {
   return { id: "", name, type: nodeType, state, input_ports: [], output_ports: [], dropped_bags_by_link: counters.dropped_bags_by_link ?? {}, refused_bags_by_output_port: counters.refused_bags_by_output_port ?? {} };
@@ -115,14 +101,12 @@ const DROPPING_GRAPH: StreamGraphSummary = {
 const PIPELINE_ORDER = ["testpatternsource", "halftonelenseffect", "brightnessmeter", "h264encoder"];
 
 describe("presentStreamSteps", () => {
-  it("lists each step in pipeline order with its origin, state, process and the counters above zero", () => {
+  it("lists each node in pipeline order with its state and the counters above zero", () => {
     expect(presentStreamSteps(DROPPING_GRAPH, PIPELINE_ORDER, "loaded", true)).toEqual([
-      { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", origin: "Built-in", process: "in runtime", stateWord: "Running", stateEmphasis: "plain", counters: [] },
+      { name: "testpatternsource", type: "tatolab.stream:TestPatternSource", stateWord: "Running", stateEmphasis: "plain", counters: [] },
       {
         name: "halftonelenseffect",
         type: "nodes.halftone_lens_effect:HalftoneLensEffect",
-        origin: "Python",
-        process: "own process",
         stateWord: "Running",
         stateEmphasis: "plain",
         counters: [{ countText: "212", word: "refused" }],
@@ -130,13 +114,11 @@ describe("presentStreamSteps", () => {
       {
         name: "brightnessmeter",
         type: "nodes.brightness_meter:BrightnessMeter",
-        origin: "Python",
-        process: "own process",
         stateWord: "Running",
         stateEmphasis: "plain",
         counters: [{ countText: "1,840", word: "dropped" }],
       },
-      { name: "h264encoder", type: "tatolab.stream:H264Encoder", origin: "Built-in", process: "in runtime", stateWord: "Starting", stateEmphasis: "starting", counters: [{ countText: "12", word: "dropped" }] },
+      { name: "h264encoder", type: "tatolab.stream:H264Encoder", stateWord: "Starting", stateEmphasis: "starting", counters: [{ countText: "12", word: "dropped" }] },
     ]);
   });
 
@@ -149,11 +131,20 @@ describe("presentStreamSteps", () => {
 
   it("words an errored step as in error, a newer state as the runtime spells it, and a step the order misses last", () => {
     const graph = { ...DROPPING_GRAPH, nodes: [stepNode("a", "nodes.a:A", "Error"), stepNode("b", "weird", "Rewiring"), stepNode("c", "tatolab.stream:C", null)] };
-    expect(presentStreamSteps(graph, ["b", "a"], "loaded", true).map((step) => [step.name, step.stateWord, step.stateEmphasis, step.origin, step.process])).toEqual([
-      ["b", "Rewiring", "plain", null, null],
-      ["a", "In error", "failure", "Python", "own process"],
-      ["c", "Running", "plain", "Built-in", "in runtime"],
+    expect(presentStreamSteps(graph, ["b", "a"], "loaded", true).map((step) => [step.name, step.stateWord, step.stateEmphasis])).toEqual([
+      ["b", "Rewiring", "plain"],
+      ["a", "In error", "failure"],
+      ["c", "Running", "plain"],
     ]);
+  });
+});
+
+describe("isEachNodeStateShown", () => {
+  it("shows the nodes' states only once they differ or one is in error", () => {
+    expect(isEachNodeStateShown(presentStreamSteps(TEST_PATTERN_GRAPH, [], "loaded", true))).toBe(false);
+    expect(isEachNodeStateShown(presentStreamSteps(DROPPING_GRAPH, PIPELINE_ORDER, "loaded", true))).toBe(true);
+    expect(isEachNodeStateShown([{ stateWord: "In error", stateEmphasis: "failure" }])).toBe(true);
+    expect(isEachNodeStateShown([])).toBe(false);
   });
 });
 
@@ -183,7 +174,9 @@ describe("droppingLinksOf", () => {
 });
 
 describe("previewable outputs", () => {
-  it("lists the private and public outputs, never an internal one, and previews the first unless another is chosen", () => {
+  it("lists the private and public outputs, never an internal one even with a preview page, and previews the first unless another is chosen", () => {
+    const graphWithAnInternalPreviewPage = { ...DROPPING_GRAPH, exposed: DROPPING_GRAPH.exposed.map((output) => ({ ...output, watch_page_url: "http://127.0.0.1:4446/watch/x" })) };
+    expect(previewableOutputsOf(graphWithAnInternalPreviewPage).map((output) => output.port)).toEqual(["encoded_video", "levels"]);
     expect(previewableOutputsOf(DROPPING_GRAPH).map((output) => output.port)).toEqual(["encoded_video", "levels"]);
     expect(choosePreviewedOutput(DROPPING_GRAPH, null)?.port).toBe("encoded_video");
     expect(choosePreviewedOutput(DROPPING_GRAPH, { node: "brightnessmeter", port: "levels" })?.port).toBe("levels");
@@ -192,17 +185,3 @@ describe("previewable outputs", () => {
   });
 });
 
-describe("streamStepsCountLabel", () => {
-  it("counts the graph's steps with its Python ones, or the listing's count without a graph", () => {
-    expect(streamStepsCountLabel(DROPPING_GRAPH, listedStream("main", "kept", 4))).toBe("4 · 2 Python");
-    expect(streamStepsCountLabel({ ...DROPPING_GRAPH, nodes: [stepNode("a", "tatolab.stream:A", null)] }, listedStream("main", "kept", 1))).toBe("1");
-    expect(streamStepsCountLabel(null, listedStream("main", "kept", 4))).toBe("4");
-    expect(streamStepsCountLabel(null, listedStream("main", "stopped", null))).toBe("—");
-  });
-});
-
-describe("terminal commands of the details panel", () => {
-  it("follows the stream's logs and prints its graph, as tatolab-cli's verbs spell them", () => {
-    expect(streamObservationCommands("front-door")).toEqual(["tatolab logs --stream front-door -f", "tatolab graph --stream front-door"]);
-  });
-});

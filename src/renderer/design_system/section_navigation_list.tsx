@@ -13,7 +13,7 @@ export interface NavigationSection {
   dataValue: string;
 }
 
-/** A page's own list of its sections, in named groups, on the chrome beside the section shown, the shown one selected. */
+/** A view's own list of its sections, in named groups, down its left side beside the section shown, the shown one selected. */
 export function SectionNavigationList({
   label,
   sectionGroups,
@@ -24,10 +24,10 @@ export function SectionNavigationList({
   dataAttributeOfEachSection: ControlDataAttributeName;
 }) {
   return (
-    <nav aria-label={label} className="scrollbar-thin flex w-60 shrink-0 flex-col gap-3 overflow-y-auto border-r bg-chrome px-2 pt-4 pb-4">
+    <nav aria-label={label} className="scrollbar-thin flex w-52 shrink-0 flex-col gap-5 overflow-y-auto border-r px-2 pt-3 pb-4">
       {sectionGroups.map(({ groupLabel, sections }) => (
         <section key={groupLabel}>
-          <h2 className="label-caps px-2 pb-1">{groupLabel}</h2>
+          <h2 className="label-caps flex h-8 items-center px-2">{groupLabel}</h2>
           {sections.map(({ path, label: sectionLabel, icon: SectionIcon, dataValue }) => (
             <NavLink
               key={path}
@@ -35,7 +35,7 @@ export function SectionNavigationList({
               {...{ [dataAttributeOfEachSection]: dataValue }}
               className={({ isActive }) =>
                 cn(
-                  "flex h-7 items-center gap-2 rounded-md px-2 text-fg outline-none hover:bg-hover",
+                  "flex h-8 items-center gap-2 rounded-md px-2 text-fg outline-none hover:bg-hover",
                   FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
                   isActive && "bg-selected",
                 )

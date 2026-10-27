@@ -11,7 +11,6 @@ import { ListRowButton } from "./list_row_button";
 import { FieldMenu, MenuItem, MoreActionsMenu } from "./menus";
 import { PageTabs } from "./page_tabs";
 import { SearchField } from "./search_field";
-import { SearchOpeningButton } from "./search_opening_button";
 import { SegmentedChoiceControl } from "./segmented_choice_control";
 import { ToggleIconButton } from "./toggle_icon_button";
 
@@ -34,7 +33,6 @@ describe("every design-system control", () => {
         <ListRowButton onPressed={() => {}}>Show in graph</ListRowButton>
         <InlineLink destination={{ onPressed: () => {} }}>Open</InlineLink>
         <InlineLink destination={{ to: "/" }}>Streams</InlineLink>
-        <SearchOpeningButton label="Search" shortcut={{ hint: "⌘K", ariaKeyShortcuts: "Meta+K" }} onPressed={() => {}} />
         <SearchField label="Search main logs" placeholder="Search logs" text="MEAN" onTextChanged={() => {}} />
         <PageTabs label="main views" tabs={[{ tab: "logs", label: "Logs", path: "/logs" }]} shownTab="logs" />
         <MoreActionsMenu label="More for main">
@@ -47,7 +45,7 @@ describe("every design-system control", () => {
     );
     const focusableControls = [...container.querySelectorAll<HTMLElement>("button, a")];
 
-    expect(focusableControls.length).toBeGreaterThanOrEqual(14);
+    expect(focusableControls.length).toBeGreaterThanOrEqual(13);
     for (const control of focusableControls) {
       const focusRingColours = control.className.split(/\s+/).filter((className) => /(^|:)focus-visible:ring-(?!\d|\[)/.test(className));
       // Every theme's focus ring is the ring token at its own strength: no other colour, no opacity, light or dark.

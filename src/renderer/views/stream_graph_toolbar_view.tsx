@@ -1,31 +1,23 @@
-import { Activity, Image, Minus, Network, PanelRight, Plus, Scan } from "lucide-react";
+import { Activity, Image, Minus, Network, Plus, Scan } from "lucide-react";
 import { ActionButton } from "../design_system/action_button";
 import { IconButton } from "../design_system/icon_button";
 import { ToggleIconButton } from "../design_system/toggle_icon_button";
 import { Toolbar, ToolbarDivider, ToolbarGroup } from "../design_system/toolbar";
 import { useStreamGraphViewportCommands, useStreamGraphZoomPercent } from "./stream_graph_react_flow_canvas";
 
-/** The Graph tab's toolbar: zoom, fit, auto-layout, the previews and counters toggles, and the inspector once it is closed. */
+/** The Graph tab's toolbar: zoom, fit, auto-layout, and the previews and counters toggles. */
 export function StreamGraphToolbarView({
-  streamName,
-  selectedStepName,
   arePreviewsShown,
   areCountersShown,
-  isInspectorOpen,
   onAutoLayout,
   onPreviewsToggled,
   onCountersToggled,
-  onInspectorOpened,
 }: {
-  streamName: string;
-  selectedStepName: string | null;
   arePreviewsShown: boolean;
   areCountersShown: boolean;
-  isInspectorOpen: boolean;
   onAutoLayout: () => void;
   onPreviewsToggled: () => void;
   onCountersToggled: () => void;
-  onInspectorOpened: () => void;
 }) {
   const viewport = useStreamGraphViewportCommands();
   const zoomPercent = useStreamGraphZoomPercent();
@@ -65,22 +57,6 @@ export function StreamGraphToolbarView({
           data-stream-graph-toolbar="counters"
         />
       </ToolbarGroup>
-      <div className="pointer-events-none absolute inset-x-0 hidden justify-center @[720px]:flex">
-        <div className="flex items-center gap-1 font-mono text-xs text-fg-3">
-          <span>{streamName}</span>
-          {selectedStepName !== null && (
-            <>
-              <span aria-hidden>/</span>
-              <span className="text-fg-2">{selectedStepName}</span>
-            </>
-          )}
-        </div>
-      </div>
-      {!isInspectorOpen && (
-        <ToolbarGroup isAtTheEnd>
-          <IconButton icon={PanelRight} label="Show inspector" onPressed={onInspectorOpened} data-stream-graph-toolbar="show_inspector" />
-        </ToolbarGroup>
-      )}
     </Toolbar>
   );
 }

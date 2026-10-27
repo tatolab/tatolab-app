@@ -4,26 +4,24 @@ import {
   addStreamActionOf,
   addStreamRunNoticeOf,
   presentAddStreamRunNotice,
-  addStreamPageSection,
+  addStreamDialogSection,
   addStreamStepAnnouncement,
   compilingStreamWords,
   streamRunAnswerLines,
   streamRunningFactsWords,
-  terminalRunRequestOf,
   advanceAddStreamFlow,
   compileWarningsHeading,
   runRequestWords,
-  streamFileCheckDetail,
+  presentStreamFunctionChecks,
   addStreamActionUnavailableBecause,
+  addStreamBlockerTheFormDoesNotShow,
   compilingForWords,
   initialAddStreamFlowState,
-  newProjectCommand,
   pythonEnvironmentSyncWords,
   compilingHeadingVerb,
   compileWaitingWords,
   runRequestOf,
   streamRunningSummary,
-  terminalCommandForTheRun,
   type AddStreamFlowEvent,
   type AddStreamFlowState,
 } from "./add_stream_flow";
@@ -54,6 +52,21 @@ const HEAT_MAP_ANSWER: StreamRunAnswer = {
 function afterEvents(state: AddStreamFlowState, events: AddStreamFlowEvent[]): AddStreamFlowState {
   return events.reduce(advanceAddStreamFlow, state);
 }
+
+describe("addStreamBlockerTheFormDoesNotShow", () => {
+  it("says the runtime is down or there is no Python to set the project up with, and nothing the form already shows", () => {
+    const noFolderYet = initialAddStreamFlowState("project_folder").form;
+    expect(addStreamBlockerTheFormDoesNotShow(noFolderYet, true, TATOLABS_OWN_PYTHON)).toBeNull();
+    expect(addStreamBlockerTheFormDoesNotShow(noFolderYet, false, TATOLABS_OWN_PYTHON)).toBe("The runtime isn't running, so it can't add a stream.");
+
+    const withNoVenv = afterEvents(initialAddStreamFlowState("project_folder"), [
+      { kind: "project_folder_answered", report: folderReport("/x", { python_environment: { kind: "missing" } }) },
+    ]).form;
+    expect(addStreamBlockerTheFormDoesNotShow(withNoVenv, true, { kind: "built_in_not_offered", reason: "No uv here." })).toBe(
+      "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.",
+    );
+  });
+});
 
 describe("running a project folder", () => {
   it("prefills the name from the folder's stream function and runs it kept, then shows the runtime's answer", () => {
@@ -247,67 +260,56 @@ describe("events that arrive outside the form", () => {
     expect(addStreamStepAnnouncement(advanceAddStreamFlow(synced, { kind: "work_refused", lead: "The folder dialog was refused:", words: "gone" }), true, TATOLABS_OWN_PYTHON)).toBe(
       "tatolab new wrote /Users/someone/streams/hello. Add is ready.",
     );
-    expect(addStreamPageSection(created)).toBe(addStreamPageSection(synced));
-    expect(addStreamPageSection(synced)).toBe("form:new_project:created:folder");
+    expect(addStreamDialogSection(created)).toBe(addStreamDialogSection(synced));
+    expect(addStreamDialogSection(synced)).toBe("form:new_project:created:folder");
   });
 });
 
 describe("the commands and words the page shows", () => {
-  it("spells the terminal commands as a shell reads them, quoting a folder with a space", () => {
-    expect(terminalCommandForTheRun({ folder: "/Users/someone/code/heat-map", streamFunction: null, streamName: "heat_map" }, "heat_map")).toBe(
-      "cd /Users/someone/code/heat-map && tatolab run -d",
-    );
-    expect(terminalCommandForTheRun({ folder: "/Users/someone/My Streams/doors", streamFunction: "stream.py:back_door", streamName: "back-door" }, "back_door")).toBe(
-      "cd '/Users/someone/My Streams/doors' && tatolab run -d stream.py:back_door --name back-door",
-    );
-    expect(newProjectCommand("/Users/someone/streams/hello")).toBe("tatolab new /Users/someone/streams/hello");
-  });
-
   it("words each check, the request line and the warning count", () => {
-    expect(streamFileCheckDetail(folderReport("/x"))).toBe("Stream function heat_map()");
-    expect(streamFileCheckDetail(folderReport("/x", { stream_functions: ["a", "b"] }))).toBe("Stream functions a(), b()");
-    expect(streamFileCheckDetail(folderReport("/x", { stream_functions: [] }))).toBe("No @stream function found by reading it; the runtime decides when it compiles.");
-    expect(streamFileCheckDetail(folderReport("/x", { stream_file_present: false, stream_functions: [] }))).toBe("The stream function the runtime compiles lives in stream.py.");
+    expect(presentStreamFunctionChecks(folderReport("/x"))).toEqual([{ checked: "stream_function", name: "heat_map", isFound: true, detail: null }]);
+    expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: ["a", "b"] })).map((check) => check.name)).toEqual(["a", "b"]);
+    expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: [] }))).toEqual([
+      { checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it loads." },
+    ]);
+    expect(presentStreamFunctionChecks(folderReport("/x", { stream_file_present: false, stream_functions: [] }))).toEqual([
+      { checked: "stream_file", name: "stream.py", isFound: false, detail: "The stream function the runtime loads lives in stream.py." },
+    ]);
     const builtIn = TATOLABS_OWN_PYTHON;
     expect(pythonEnvironmentSyncWords(builtIn)).toBe("uv sync  python=Tatolab's Python 3.12.12");
     expect(pythonEnvironmentSyncWords({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" })).toBe("uv sync  python=/opt/homebrew/bin/python3.12");
-    expect([compilingHeadingVerb(true), compilingHeadingVerb(false)]).toEqual(["Setting up Python, then compiling", "Compiling"]);
+    expect([compilingHeadingVerb(true), compilingHeadingVerb(false)]).toEqual(["Setting up Python, then starting", "Starting"]);
     expect([compileWaitingWords(true, 0, 14_200), compileWaitingWords(false, 0, 3_000)]).toEqual([
       "waiting for uv and the runtime · 14s",
       "waiting for the runtime's answer · 3s",
     ]);
     expect(runRequestWords({ folder: "/x", streamFunction: "stream.py:a", streamName: "a" })).toBe("run_stream  /x  stream_function=stream.py:a  name=a  keep=true");
-    expect([compileWarningsHeading(1), compileWarningsHeading(2)]).toEqual(["1 compile warning", "2 compile warnings"]);
+    expect([compileWarningsHeading(1), compileWarningsHeading(2)]).toEqual(["1 warning", "2 warnings"]);
   });
 
   it("words the compile view's name, the running facts and what the runtime did", () => {
     expect(compilingStreamWords({ folder: "/x", streamFunction: null, streamName: null })).toBe("the stream");
-    expect(streamRunningFactsWords(HEAT_MAP_ANSWER)).toBe("Always on · 4 steps");
+    expect(streamRunningFactsWords(HEAT_MAP_ANSWER)).toBe("4 nodes");
     expect(streamRunAnswerLines({ ...HEAT_MAP_ANSWER, replaced_the_kept_record: true })).toEqual([
-      "loaded heat_map as instance 9: 4 steps, in place of the stream this project kept",
+      "loaded heat_map: 4 nodes, in place of the stream this project kept",
       "heat_map is running; kept, so it loads again whenever the runtime starts",
     ]);
   });
 
-  it("offers the terminal run under the free name while the asked one is refused as taken", () => {
+  it("says to wait while tatolab new writes the project", () => {
     const taken = afterEvents(initialAddStreamFlowState("project_folder"), [
       { kind: "project_folder_answered", report: folderReport("/Users/someone/code/main-v2", { stream_functions: ["main"] }) },
       { kind: "run_started", request: { folder: "/Users/someone/code/main-v2", streamFunction: null, streamName: "main" }, nowMs: 0 },
       { kind: "run_answered", outcome: { kind: "name_taken", refusal: "held", free_name: "main-2" } },
     ]);
-    expect(terminalRunRequestOf(taken.form)).toEqual({ folder: "/Users/someone/code/main-v2", streamFunction: null, streamName: "main-2" });
-    const withNoVenv = afterEvents(initialAddStreamFlowState("project_folder"), [
-      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map", { python_environment: { kind: "missing" } }) },
-    ]);
-    expect(terminalRunRequestOf(withNoVenv.form)).toBeNull();
     expect(addStreamActionUnavailableBecause({ ...taken.form, workUnderWay: "creating_the_project" }, true, TATOLABS_OWN_PYTHON)).toBe("Wait for tatolab new to write the project.");
   });
 
-  it("says whether the stream compiled cleanly, with warnings, or replaced the project's kept stream", () => {
-    expect(streamRunningSummary(HEAT_MAP_ANSWER)).toBe("It compiled cleanly.");
-    expect(streamRunningSummary({ ...HEAT_MAP_ANSWER, compile_warnings: ["a"] })).toBe("It compiled with a warning. Read it before you rely on this stream.");
+  it("says whether the stream loaded cleanly, with warnings, or replaced the project's kept stream", () => {
+    expect(streamRunningSummary(HEAT_MAP_ANSWER)).toBe("It loaded cleanly.");
+    expect(streamRunningSummary({ ...HEAT_MAP_ANSWER, compile_warnings: ["a"] })).toBe("It loaded with a warning. Read it before you rely on this stream.");
     expect(streamRunningSummary({ ...HEAT_MAP_ANSWER, compile_warnings: ["a", "b"], replaced_the_kept_record: true })).toBe(
-      "It replaced the stream this project kept before. It compiled with 2 warnings. Read them before you rely on this stream.",
+      "It replaced the stream this project kept before. It loaded with 2 warnings. Read them before you rely on this stream.",
     );
   });
 });
@@ -323,12 +325,12 @@ describe("the notice of a run that answered away from the page", () => {
     expect(runningNotice).toMatchObject({ kind: "running", source: "new_project", answer: { stream: "hello" } });
     expect(runningNotice === null ? null : presentAddStreamRunNotice(runningNotice)).toEqual({
       title: "hello is running",
-      detail: "It compiled with a warning. Read it before you rely on this stream.",
+      detail: "It loaded with a warning. Read it before you rely on this stream.",
       tone: "warning",
     });
     expect(presentAddStreamRunNotice({ kind: "running", source: "project_folder", answer: HEAT_MAP_ANSWER })).toEqual({
       title: "heat_map is running",
-      detail: "It compiled cleanly.",
+      detail: "It loaded cleanly.",
       tone: "plain",
     });
 

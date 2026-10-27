@@ -5,13 +5,12 @@ import {
   abbreviateHomeDirectory,
   countLabel,
   presentStreamPrimaryAction,
-  presentStreamRunMode,
   presentStreamState,
   presentStreamStateAfterAStopNotRecorded,
+  presentStreamStateAfterTheLastAction,
   streamActionPendingWords,
   streamActionRefusalLead,
   streamNotLoadedReason,
-  streamStepCountLabel,
 } from "./stream_presentation";
 
 function listedStream(name: string, state: string, nodeCount: number | null): ListedStream {
@@ -34,10 +33,19 @@ describe("presentStreamState", () => {
     expect(presentStreamState(failed).meaning).toBe("camera access is denied");
   });
 
-  it("labels a state newer than this app plainly instead of failing", () => {
+  it("tones a stream's icon running only while loaded, failed once failed, and idle otherwise", () => {
+    expect(
+      [listedStream("a", "kept", 4), listedStream("b", "attached", 2), listedStream("c", "kept", null), listedStream("d", "stopped", null), listedStream("e", "failed", null)].map(
+        (stream) => presentStreamState(stream).iconTone,
+      ),
+    ).toEqual(["running", "running", "idle", "idle", "failed"]);
+  });
+
+  it("labels a state newer than this app plainly instead of failing, its icon never toned as running", () => {
     expect(presentStreamState(listedStream("main", "awaiting_restart", 2))).toMatchObject({
       label: "Awaiting restart",
       emphasis: "plain",
+      iconTone: "idle",
     });
     expect(presentStreamState(listedStream("main", "", null)).label).toBe("Unknown");
   });
@@ -51,23 +59,10 @@ describe("presentStreamStateAfterAStopNotRecorded", () => {
   });
 });
 
-describe("presentStreamRunMode", () => {
-  it("words a kept, stopped or failed stream Always on and an attached one Dev session, keeping the runtime's term", () => {
-    for (const keptState of ["kept", "stopped", "failed"]) {
-      expect(presentStreamRunMode(listedStream("main", keptState, null))).toMatchObject({ label: "Always on", runtimeTerm: keptState });
-    }
-    expect(presentStreamRunMode(listedStream("main", "attached", 4))).toMatchObject({ label: "Dev session", runtimeTerm: "attached" });
-  });
-
-  it("has no run mode for a state newer than this app", () => {
-    expect(presentStreamRunMode(listedStream("main", "awaiting_restart", 2))).toBeNull();
-  });
-});
-
-describe("streamStepCountLabel", () => {
-  it("counts a loaded graph's steps and dashes a stream that is not loaded", () => {
-    expect(streamStepCountLabel(listedStream("main", "kept", 4))).toBe("4");
-    expect(streamStepCountLabel(listedStream("main", "stopped", null))).toBe("—");
+describe("presentStreamStateAfterTheLastAction", () => {
+  it("reads the listing's state, or Stopped once the last action was a stop the runtime could not record", () => {
+    expect(presentStreamStateAfterTheLastAction(listedStream("camera", "kept", null), false).label).toBe("Starting");
+    expect(presentStreamStateAfterTheLastAction(listedStream("camera", "kept", null), true).label).toBe("Stopped");
   });
 });
 
@@ -78,11 +73,11 @@ describe("presentStreamPrimaryAction", () => {
     expect(presentStreamPrimaryAction(listedStream("main", "failed", null))).toMatchObject({ streamAction: "start_stream", label: "Retry" });
   });
 
-  it("stops an attached stream too, saying it ends the session that runs it", () => {
+  it("stops an attached stream too, saying it ends the terminal command that runs it", () => {
     expect(presentStreamPrimaryAction(listedStream("main", "attached", 4))).toEqual({
       streamAction: "stop_stream",
       label: "Stop",
-      meaning: "Stop: ends the tatolab dev session that runs it",
+      meaning: "Stop: ends the tatolab command in the terminal that runs it",
     });
   });
 

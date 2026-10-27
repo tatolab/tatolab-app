@@ -1,52 +1,40 @@
-import { Play, RotateCw, TriangleAlert, Video, Workflow } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { cn } from "cn";
+import { Box, Boxes, FolderOpen, Play, Radio, TriangleAlert } from "lucide-react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useLocation } from "react-router";
 import type { ListedStream, StreamGraphExposedPort } from "../../shared/tatolab_backend_contract";
 import {
-  choosePreviewedOutput,
   droppingLinksOf,
   exposedOutputAddress,
+  isEachNodeStateShown,
   presentStreamSteps,
   previewableOutputsOf,
   readableExposedPorts,
-  streamObservationCommands,
-  streamStepsCountLabel,
 } from "../presentation/stream_overview_presentation";
-import { presentStreamGraphCanvas } from "../presentation/stream_graph_canvas_presentation";
+import { dataKindOfEachOutputPort, presentStreamGraphCanvas, type StreamGraphPortDataKind } from "../presentation/stream_graph_canvas_presentation";
 import { stepNamesInFlowOrder } from "../presentation/stream_graph_step_layout";
-import { abbreviateHomeDirectory, isStreamLoaded, presentStreamPrimaryAction, presentStreamRunMode, streamNotLoadedReason } from "../presentation/stream_presentation";
+import { abbreviateHomeDirectory, isStreamLoaded, presentStreamPrimaryAction, streamNotLoadedReason } from "../presentation/stream_presentation";
 import type { StreamGraphReading } from "../stream_graph_readings";
 import { ActionButton } from "../design_system/action_button";
 import { CopyIconButton } from "../design_system/copy_icon_button";
 import { EmptyState } from "../design_system/empty_state";
-import { ExposureLevelWords } from "../design_system/exposure_level_words";
+import { PublicExposureTag } from "../design_system/public_exposure_tag";
 import { FailureBanner } from "../design_system/failure_banner";
 import { InlineLink } from "../design_system/inline_link";
-import { KeyValueRows, type KeyValueRow } from "../design_system/key_value_rows";
-import { FieldMenu, MenuItem } from "../design_system/menus";
-import { PanelSection } from "../design_system/panel_section";
+import { PageBody } from "../design_system/page_frame";
+import { PanelListRow, PanelSection } from "../design_system/panel_section";
+import { SidePanel, WorkAreaWithSidePanel } from "../design_system/side_panel";
 import { StateWords } from "../design_system/stream_state_words";
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
+import { PortDataKindIcon } from "./stream_graph_step_card_view";
 import { previewedOutputAskedBy, streamPagePath, type GraphOutputPortAddress } from "./stream_page_path";
 import type { StreamPageActions } from "./stream_page_header_view";
 import { useStreamGraphReading, useTatolabStatus } from "./tatolab_window_context";
 
-/** The red row a failed stream carries: the runtime's reason in its own words, and Retry. */
-function FailedStreamBanner({ stream, streamPageActions }: { stream: ListedStream; streamPageActions: StreamPageActions }) {
-  const retry = presentStreamPrimaryAction(stream);
+/** The red row a failed stream carries: the runtime's reason in its own words; Retry is the bar's. */
+function FailedStreamBanner({ stream }: { stream: ListedStream }) {
   return (
-    <FailureBanner
-      place="page"
-      action={
-        retry !== null &&
-        streamPageActions.actionUnderWay === undefined && (
-          <ActionButton icon={RotateCw} onPressed={() => streamPageActions.runPrimaryAction(retry)} data-stream-action="retry_from_the_banner">
-            {retry.label}
-          </ActionButton>
-        )
-      }
-      data-failed-stream-banner=""
-    >
+    <FailureBanner place="page" data-failed-stream-banner="">
       <span className="text-danger-text">Failed</span> — {stream.failed_because ?? "The runtime gave no reason."}
     </FailureBanner>
   );
@@ -74,36 +62,6 @@ function DroppingLinkLines({ stream, reading }: { stream: ListedStream; reading:
   );
 }
 
-function PreviewedOutputPicker({
-  previewableOutputs,
-  previewedOutput,
-  onOutputChosen,
-}: {
-  previewableOutputs: readonly StreamGraphExposedPort[];
-  previewedOutput: StreamGraphExposedPort;
-  onOutputChosen: (output: GraphOutputPortAddress) => void;
-}) {
-  return (
-    <FieldMenu
-      label="Output to preview"
-      leading={<Video className="size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />}
-      words={
-        <>
-          <span className="truncate text-fg">{previewedOutput.node}</span>
-          <span className="truncate font-mono text-xs text-fg-3">{previewedOutput.port}</span>
-        </>
-      }
-      data-previewed-output-picker=""
-    >
-      {previewableOutputs.map((output) => (
-        <MenuItem key={`${output.node}/${output.port}`} icon={Video} onChosen={() => onOutputChosen({ node: output.node, port: output.port })}>
-          <span className="text-fg">{output.node}</span> <span className="font-mono text-xs text-fg-3">{output.port}</span>
-        </MenuItem>
-      ))}
-    </FieldMenu>
-  );
-}
-
 /** A well in place of the preview, saying why there is none. */
 function NothingToPreview({ title, explanation, action }: { title: string; explanation: ReactNode; action?: ReactNode }) {
   return (
@@ -115,7 +73,41 @@ function NothingToPreview({ title, explanation, action }: { title: string; expla
   );
 }
 
-function StreamOutputPreview({
+/** The output a navigation asked the Overview to show, as Search's "show in Overview" does; `null` for none. */
+function useOutputAskedToShow(): GraphOutputPortAddress | null {
+  const location = useLocation();
+  return previewedOutputAskedBy(location.state);
+}
+
+/** One exposed output playing: its preview, and under it its node and port, its exposure and its preview link to copy. */
+function ExposedOutputTile({ stream, output, machineName, isAsked }: { stream: ListedStream; output: StreamGraphExposedPort; machineName: string | null; isAsked: boolean }) {
+  const tileElement = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (isAsked) tileElement.current?.scrollIntoView?.({ block: "nearest" });
+  }, [isAsked]);
+  const watchPageUrl = output.watch_page_url;
+  if (watchPageUrl === null) return null;
+  const address = exposedOutputAddress(machineName, stream.name, output);
+  return (
+    <figure ref={tileElement} className="min-w-0" data-stream-output-preview={`${output.node}/${output.port}`}>
+      <ExposedOutputWatchPageFrame watchPageUrl={watchPageUrl} fullAddress={address.fullAddress} className={cn("aspect-video w-full rounded-md", isAsked && "ring-2 ring-brand")} />
+      <figcaption className="mt-2 flex h-7 min-w-0 items-center gap-3">
+        <span className="min-w-0 truncate font-mono text-xs text-fg" title={address.fullAddress}>
+          {output.node}/{output.port}
+        </span>
+        <span className="shrink-0 text-xs">
+          <PublicExposureTag level={output.level} />
+        </span>
+        <span className="ml-auto shrink-0">
+          <CopyIconButton label="Copy preview link" size="compact" readTextToCopy={() => watchPageUrl} data-stream-output-action="copy_preview_link" />
+        </span>
+      </figcaption>
+    </figure>
+  );
+}
+
+/** Every output the stream exposes playing side by side, or a well saying why none plays. */
+function StreamOutputPreviews({
   stream,
   reading,
   machineName,
@@ -126,12 +118,7 @@ function StreamOutputPreview({
   machineName: string | null;
   streamPageActions: StreamPageActions;
 }) {
-  const location = useLocation();
-  const [chosenOutput, setChosenOutput] = useState<GraphOutputPortAddress | null>(() => previewedOutputAskedBy(location.state));
-  useEffect(() => {
-    const askedOutput = previewedOutputAskedBy(location.state);
-    if (askedOutput !== null) setChosenOutput(askedOutput);
-  }, [location.state]);
+  const askedOutput = useOutputAskedToShow();
   const notLoadedReason = isStreamLoaded(stream) ? null : streamNotLoadedReason(stream);
 
   if (notLoadedReason === "stopped") {
@@ -152,7 +139,7 @@ function StreamOutputPreview({
     );
   }
   if (notLoadedReason === "loading") {
-    return <NothingToPreview title="Starting…" explanation="Its preview plays here as soon as it runs." />;
+    return <NothingToPreview title="Starting…" explanation="Its previews play here as soon as it runs." />;
   }
   if (notLoadedReason !== null) {
     return <NothingToPreview title="Not loaded, so nothing to preview" explanation="Previews play the exposed outputs of a loaded stream." />;
@@ -161,13 +148,12 @@ function StreamOutputPreview({
     return (
       <NothingToPreview
         title={reading.readRefusal === null ? "Reading its graph…" : "Its graph could not be read"}
-        explanation={reading.readRefusal ?? "The preview plays its first output exposed to this machine or publicly."}
+        explanation={reading.readRefusal ?? "Its outputs exposed to this machine or publicly play here."}
       />
     );
   }
   const previewableOutputs = previewableOutputsOf(reading.graph);
-  const previewedOutput = choosePreviewedOutput(reading.graph, chosenOutput);
-  if (previewedOutput === null || previewedOutput.watch_page_url === null) {
+  if (previewableOutputs.length === 0) {
     return (
       <NothingToPreview
         title="No exposed output to preview"
@@ -179,193 +165,136 @@ function StreamOutputPreview({
       />
     );
   }
-  const address = exposedOutputAddress(machineName, stream.name, previewedOutput);
   return (
-    <div className="w-full max-w-[920px]" data-stream-output-preview="">
-      <div className="mb-2.5 flex items-center gap-3">
-        <PreviewedOutputPicker previewableOutputs={previewableOutputs} previewedOutput={previewedOutput} onOutputChosen={setChosenOutput} />
-        <ExposureLevelWords level={previewedOutput.level} />
-      </div>
-      <ExposedOutputWatchPageFrame
-        watchPageUrl={previewedOutput.watch_page_url}
-        fullAddress={address.fullAddress}
-        className="aspect-video max-h-[52vh] w-full rounded-md"
-      />
-      <div className="mt-1.5 flex h-5 items-center text-xs">
-        <span className="min-w-0 truncate font-mono text-fg-3 select-text" title={address.fullAddress}>
-          {address.fullAddress}
-        </span>
-      </div>
+    <div className={cn("grid max-w-[920px] gap-x-5 gap-y-6", previewableOutputs.length > 1 && "max-w-none lg:grid-cols-2")} data-stream-output-previews="">
+      {previewableOutputs.map((output) => (
+        <ExposedOutputTile
+          key={`${output.node}/${output.port}`}
+          stream={stream}
+          output={output}
+          machineName={machineName}
+          isAsked={askedOutput !== null && askedOutput.node === output.node && askedOutput.port === output.port}
+        />
+      ))}
     </div>
   );
 }
 
-function StreamStepsSection({ stream, reading }: { stream: ListedStream; reading: StreamGraphReading }) {
+/** The stream's nodes in pipeline order: each one's name, its state where nodes differ, and its counters above zero. */
+function StreamNodeRows({ stream, reading }: { stream: ListedStream; reading: StreamGraphReading }) {
   const graph = reading.graph;
   const nodeNamesInPipelineOrder = useMemo(() => (graph === null ? [] : stepNamesInFlowOrder(presentStreamGraphCanvas(graph))), [graph]);
   const isLoaded = isStreamLoaded(stream);
-  const steps = graph === null ? [] : presentStreamSteps(graph, nodeNamesInPipelineOrder, reading.graphSource, isLoaded);
+  if (graph === null) return <p className="py-1.5 text-xs text-fg-3">{isLoaded ? "Its nodes show once its graph is read." : "Its nodes show here once it is loaded."}</p>;
+  const nodes = presentStreamSteps(graph, nodeNamesInPipelineOrder, reading.graphSource, isLoaded);
+  const areTheNodesStatesShown = isEachNodeStateShown(nodes);
   return (
-    <section className="mt-7 max-w-[920px]" data-stream-steps="">
-      <div className="mb-1 flex items-center gap-2">
-        <h2 className="font-medium">Steps</h2>
-        {graph !== null && <span className="text-fg-3 tabular">{steps.length}</span>}
-        {graph !== null && <span className="text-xs text-fg-3">{reading.graphSource === "loaded" ? "in pipeline order" : "as of the last load"}</span>}
-        {isLoaded && (
-          <span className="ml-auto text-xs">
-            <InlineLink destination={{ to: streamPagePath(stream.name, "graph") }} tone="quiet" icon={Workflow}>
-              Open graph
-            </InlineLink>
-          </span>
-        )}
-      </div>
-      {graph === null ? (
-        <p className="border-t py-3 text-fg-3">{isLoaded ? "Its steps show once its graph is read." : "Its steps show here once it is loaded."}</p>
-      ) : (
-        <table className="w-full table-fixed border-collapse text-left">
-          <colgroup>
-            <col className="w-[24%]" />
-            <col />
-            <col className="w-[76px]" />
-            <col className="w-[96px]" />
-            <col className="w-[104px]" />
-            <col className="w-[140px]" />
-          </colgroup>
-          <thead>
-            <tr className="border-b text-xs text-fg-3">
-              <th className="h-7 pr-3 font-normal">Step</th>
-              <th className="px-3 font-normal">Type</th>
-              <th className="px-3 font-normal">Origin</th>
-              <th className="px-3 font-normal">State</th>
-              <th className="px-3 font-normal">Process</th>
-              <th className="pl-3 text-right font-normal">Counters</th>
-            </tr>
-          </thead>
-          <tbody>
-            {steps.map((step) => (
-              <tr key={step.name} className="h-8 border-b" data-stream-step={step.name}>
-                <td className="truncate pr-3 font-mono text-xs text-fg select-text" title={step.name}>
-                  {step.name}
-                </td>
-                <td className="truncate px-3 font-mono text-xs text-fg-3 select-text" title={step.type}>
-                  {step.type}
-                </td>
-                <td className="px-3 text-fg-2">{step.origin ?? "—"}</td>
-                <td className="px-3">
-                  <StateWords emphasis={step.stateEmphasis} words={step.stateWord} />
-                </td>
-                <td className="truncate px-3 text-xs text-fg-3">{step.process ?? "—"}</td>
-                <td className="pl-3 text-right font-mono text-xs text-warn-text tabular">
-                  {step.counters.map((counter) => `${counter.countText} ${counter.word}`).join(" · ")}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </section>
+    <ul className="flex flex-col" data-stream-steps="">
+      {nodes.map((node) => (
+        <PanelListRow
+          key={node.name}
+          icon={<Box className="size-4 text-fg-3" strokeWidth={1.75} aria-hidden />}
+          name={
+            <span className="font-mono text-xs" title={node.type}>
+              {node.name}
+            </span>
+          }
+          trailing={areTheNodesStatesShown ? <StateWords emphasis={node.stateEmphasis} words={node.stateWord} /> : undefined}
+          detail={
+            node.counters.length > 0 ? (
+              <span className="font-mono text-warn-text tabular">{node.counters.map((counter) => `${counter.countText} ${counter.word}`).join(" · ")}</span>
+            ) : undefined
+          }
+          data-stream-step={node.name}
+        />
+      ))}
+    </ul>
   );
 }
 
-function CopyableTerminalCommand({ command }: { command: string }) {
-  return (
-    <div className="flex items-start gap-1.5 py-0.5 font-mono text-xs">
-      <span className="text-fg-3 select-none" aria-hidden>
-        $
-      </span>
-      <span className="min-w-0 flex-1 break-words text-fg select-text">{command}</span>
-      <CopyIconButton label={`Copy ${command}`} readTextToCopy={() => command} size="compact" />
-    </div>
-  );
-}
-
-function StreamDetailsPanel({ stream, reading }: { stream: ListedStream; reading: StreamGraphReading }) {
-  const runMode = presentStreamRunMode(stream);
+/** The Overview's slide-out: the stream's project, each exposed output with its preview link, and its nodes, each a card. */
+function StreamDetailsSidePanel({ stream, reading }: { stream: ListedStream; reading: StreamGraphReading }) {
   const graph = reading.graph;
-  const detailRows: KeyValueRow[] = [
-    [
-      "Project",
-      <span className="block truncate font-mono text-xs select-text" title={stream.project_directory}>
-        {abbreviateHomeDirectory(stream.project_directory)}
-      </span>,
-    ],
-    [
-      "Run mode",
-      runMode === null ? (
-        <span className="text-fg-3">—</span>
-      ) : (
-        <span>
-          {runMode.label} <span className="font-mono text-xs text-fg-3">· {runMode.runtimeTerm}</span>
-        </span>
-      ),
-    ],
-    ["Instance", reading.streamInstance === null ? <span className="text-fg-3">Not loaded</span> : <span className="font-mono text-xs select-text">{reading.streamInstance}</span>],
-  ];
   const readableOutputs = graph === null ? [] : readableExposedPorts(graph);
   const isFromTheLastLoad = graph !== null && reading.graphSource !== "loaded";
-  detailRows.push([
-    "Steps",
-    <span className="tabular">
-      {streamStepsCountLabel(graph, stream)}
-      {isFromTheLastLoad && <span className="text-fg-3"> · last load</span>}
-    </span>,
-  ]);
+  const dataKindOfEachOutput = useMemo(() => (graph === null ? new Map<string, StreamGraphPortDataKind>() : dataKindOfEachOutputPort(graph)), [graph]);
   return (
-    <aside
-      aria-label={`${stream.name} details`}
-      className="grid shrink-0 grid-cols-1 border-t bg-chrome py-1 sm:grid-cols-3 xl:block xl:w-80 xl:border-t-0 xl:border-l"
-      data-stream-details=""
-    >
-      <PanelSection title="Details" isTheTopHeading>
-        <KeyValueRows rows={detailRows} />
+    <SidePanel label={`${stream.name} details`} title="Details" hiding={null} data-stream-details="">
+      <PanelSection appearance="card" icon={FolderOpen} title="Project">
+        <div className="flex min-w-0 items-center gap-1 py-1">
+          <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg select-text" title={stream.project_directory}>
+            {abbreviateHomeDirectory(stream.project_directory)}
+          </span>
+          <CopyIconButton label="Copy project folder path" size="compact" readTextToCopy={() => stream.project_directory} />
+        </div>
       </PanelSection>
-      <PanelSection title={isFromTheLastLoad ? "Outputs as of the last load" : "Outputs"} isTheTopHeading>
+      <PanelSection
+        appearance="card"
+        icon={Radio}
+        title={isFromTheLastLoad ? "Outputs as of the last load" : "Outputs"}
+        aside={readableOutputs.length > 0 ? <span className="tabular">{readableOutputs.length}</span> : undefined}
+      >
         {graph === null ? (
-          <p className="text-fg-3">{isStreamLoaded(stream) ? "Its outputs show once its graph is read." : "Its outputs show once it is loaded."}</p>
+          <p className="py-1.5 text-xs text-fg-3">{isStreamLoaded(stream) ? "Its outputs show once its graph is read." : "Its outputs show once it is loaded."}</p>
         ) : readableOutputs.length === 0 ? (
-          <p className="text-fg-3">Every output is internal.</p>
+          <p className="py-1.5 text-xs text-fg-3">Every output is internal.</p>
         ) : (
-          <ul className="flex flex-col gap-1">
-            {readableOutputs.map((output) => (
-              <li key={`${output.node}/${output.port}`} className="py-1">
-                <div className="truncate font-mono text-xs text-fg select-text">
-                  {output.node}/{output.port}
-                </div>
-                <div className="mt-0.5">
-                  <ExposureLevelWords level={output.level} />
-                </div>
-              </li>
-            ))}
+          <ul className="flex flex-col">
+            {readableOutputs.map((output) => {
+              const outputKey = `${output.node}/${output.port}`;
+              return (
+                <PanelListRow
+                  key={outputKey}
+                  icon={<PortDataKindIcon dataKind={dataKindOfEachOutput.get(outputKey) ?? "data"} className="size-4" />}
+                  name={<span className="font-mono text-xs">{outputKey}</span>}
+                  trailing={<PublicExposureTag level={output.level} />}
+                  detail={
+                    output.watch_page_url === null ? undefined : (
+                      <span className="font-mono text-2xs select-text" title={output.watch_page_url} data-stream-output-preview-link="">
+                        {output.watch_page_url}
+                      </span>
+                    )
+                  }
+                  data-stream-output={outputKey}
+                />
+              );
+            })}
           </ul>
         )}
       </PanelSection>
-      <PanelSection title="From the terminal" isTheTopHeading>
-        <div className="rounded-md border bg-raised px-2 py-1.5">
-          {streamObservationCommands(stream.name).map((command) => (
-            <CopyableTerminalCommand key={command} command={command} />
-          ))}
-        </div>
+      <PanelSection
+        appearance="card"
+        icon={Boxes}
+        title={isFromTheLastLoad ? "Nodes as of the last load" : "Nodes"}
+        aside={graph !== null ? <span className="tabular">{graph.nodes.length}</span> : undefined}
+      >
+        <StreamNodeRows stream={stream} reading={reading} />
       </PanelSection>
-    </aside>
+    </SidePanel>
   );
 }
 
-/** A stream's Overview: why it failed, the links dropping messages, its exposed output playing, its steps, and its details. */
-export function StreamOverviewPageView({ stream, streamPageActions }: { stream: ListedStream; streamPageActions: StreamPageActions }) {
+/** A stream's Overview: why it failed, the links dropping messages and its exposed outputs playing; its project, outputs and nodes in the Details slide-out. */
+export function StreamOverviewPageView({
+  stream,
+  streamPageActions,
+  isDetailsPanelOpen,
+}: {
+  stream: ListedStream;
+  streamPageActions: StreamPageActions;
+  isDetailsPanelOpen: boolean;
+}) {
   const status = useTatolabStatus();
   const reading = useStreamGraphReading(stream.name);
   return (
-    <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto" data-stream-overview="">
-      {stream.state === "failed" && <FailedStreamBanner stream={stream} streamPageActions={streamPageActions} />}
-      {/* Below 1280 px the details sit under the Overview, so the steps table keeps room for its columns. */}
-      <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
-        <div className="min-w-0 flex-1 px-5 pt-5 pb-8">
+    <div className="flex min-h-0 flex-1 flex-col" data-stream-overview="">
+      {stream.state === "failed" && <FailedStreamBanner stream={stream} />}
+      <WorkAreaWithSidePanel sidePanel={isDetailsPanelOpen ? <StreamDetailsSidePanel stream={stream} reading={reading} /> : null}>
+        <PageBody>
           <DroppingLinkLines stream={stream} reading={reading} />
-          <StreamOutputPreview stream={stream} reading={reading} machineName={status.machine_name} streamPageActions={streamPageActions} />
-          <StreamStepsSection stream={stream} reading={reading} />
-        </div>
-        <StreamDetailsPanel stream={stream} reading={reading} />
-      </div>
+          <StreamOutputPreviews stream={stream} reading={reading} machineName={status.machine_name} streamPageActions={streamPageActions} />
+        </PageBody>
+      </WorkAreaWithSidePanel>
     </div>
   );
 }

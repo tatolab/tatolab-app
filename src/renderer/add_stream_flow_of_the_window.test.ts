@@ -52,14 +52,25 @@ function backendWithAPendingRun() {
 async function flowWithAFolderChosen() {
   const pendingRun = backendWithAPendingRun();
   const addStreamFlow = new AddStreamFlowOfTheWindow(pendingRun.backend, () => 1000);
-  addStreamFlow.showPage("project_folder", false);
+  addStreamFlow.openDialog("project_folder", false);
   addStreamFlow.chooseFolder();
   await Promise.resolve();
   return { addStreamFlow, ...pendingRun };
 }
 
 describe("the window's Add stream flow", () => {
-  it("shows a run that answers while the page is shown on the page, with no notice", async () => {
+  it("says which source the dialog is open on, and that it is closed once it closes", () => {
+    const addStreamFlow = new AddStreamFlowOfTheWindow(backendWithAPendingRun().backend);
+    expect(addStreamFlow.readOpenDialog()).toBeNull();
+
+    addStreamFlow.openDialog("new_project", false);
+    expect(addStreamFlow.readOpenDialog()).toEqual({ source: "new_project", isOpenedFromARunNotice: false });
+
+    addStreamFlow.closeDialog();
+    expect(addStreamFlow.readOpenDialog()).toBeNull();
+  });
+
+  it("shows a run that answers while the dialog is open in the dialog, with no notice", async () => {
     const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
     addStreamFlow.performTheAction();
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "compiling", startedAtMs: 1000, request: { streamName: "heat_map" } });
@@ -70,16 +81,16 @@ describe("the window's Add stream flow", () => {
     expect(addStreamFlow.readRunNotice()).toBeNull();
   });
 
-  it("keeps a run that answers after the page left, and leaves a notice of it until the page shows again", async () => {
+  it("keeps a run that answers after the dialog closed, and leaves a notice of it until the dialog opens again", async () => {
     const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
     addStreamFlow.performTheAction();
-    addStreamFlow.leavePage();
+    addStreamFlow.closeDialog();
 
     await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
 
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "running", answer: { stream: "heat_map" } });
     expect(addStreamFlow.readRunNotice()).toEqual({ kind: "running", source: "project_folder", answer: HEAT_MAP_ANSWER_WITH_TWO_WARNINGS });
-    addStreamFlow.showPage("project_folder", true);
+    addStreamFlow.openDialog("project_folder", true);
     expect(addStreamFlow.readRunNotice()).toBeNull();
     expect(addStreamFlow.readFlowState().step).toBe("running");
   });
@@ -89,7 +100,7 @@ describe("the window's Add stream flow", () => {
     const listenedChanges: number[] = [];
     addStreamFlow.subscribeToFlow(() => listenedChanges.push(1));
     addStreamFlow.performTheAction();
-    addStreamFlow.leavePage();
+    addStreamFlow.closeDialog();
 
     await refuseTheRun("Runtime error: the stream function in /Users/someone/code/heat-map failed to compile");
 
@@ -107,7 +118,7 @@ describe("the window's Add stream flow", () => {
   it("leaves a notice of uv failing to set up the folder's Python, titled so and in uv's own words", async () => {
     const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
     addStreamFlow.performTheAction();
-    addStreamFlow.leavePage();
+    addStreamFlow.closeDialog();
 
     await answerTheRun({ kind: "python_environment_not_made", words: "error: Failed to fetch: `https://pypi.org/simple/tatolab-stream/`" });
 
@@ -119,10 +130,10 @@ describe("the window's Add stream flow", () => {
     });
   });
 
-  it("Create writes the new project and adds it with no second press, and a refused add leaves Add as the page's action", async () => {
+  it("Create writes the new project and adds it with no second press, and a refused add leaves Add as the dialog's action", async () => {
     const pendingRun = backendWithAPendingRun();
     const addStreamFlow = new AddStreamFlowOfTheWindow(pendingRun.backend, () => 1000);
-    addStreamFlow.showPage("new_project", false);
+    addStreamFlow.openDialog("new_project", false);
     addStreamFlow.proposeNewProjectFolder();
     await Promise.resolve();
     expect(addStreamActionOf(addStreamFlow.readFlowState().form)).toBe("create");
@@ -137,24 +148,24 @@ describe("the window's Add stream flow", () => {
     expect(addStreamActionOf(addStreamFlow.readFlowState().form)).toBe("add");
   });
 
-  it("leaves no notice for work other than a run that finishes away from the page", async () => {
+  it("leaves no notice for work other than a run that finishes while the dialog is closed", async () => {
     const { addStreamFlow } = await flowWithAFolderChosen();
-    addStreamFlow.leavePage();
+    addStreamFlow.closeDialog();
     addStreamFlow.chooseFolder();
     await Promise.resolve();
     expect(addStreamFlow.readRunNotice()).toBeNull();
   });
 
-  it("opened afresh, the page starts a new form unless a run is still compiling", async () => {
+  it("opened afresh, the dialog starts a new form unless a run is still compiling", async () => {
     const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
     addStreamFlow.performTheAction();
-    addStreamFlow.leavePage();
-    addStreamFlow.showPage("new_project", false);
+    addStreamFlow.closeDialog();
+    addStreamFlow.openDialog("new_project", false);
     expect(addStreamFlow.readFlowState().step).toBe("compiling");
 
     await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
-    addStreamFlow.leavePage();
-    addStreamFlow.showPage("new_project", false);
+    addStreamFlow.closeDialog();
+    addStreamFlow.openDialog("new_project", false);
     expect(addStreamFlow.readFlowState()).toEqual({ step: "form", form: expect.objectContaining({ source: "new_project", projectFolder: null }) });
   });
 });

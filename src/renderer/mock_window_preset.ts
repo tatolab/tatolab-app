@@ -30,13 +30,20 @@ function graphOutputPortSelector(stepDotPort: string): string {
   return `[data-stream-graph-step="${CSS.escape(stepName)}"] [data-step-output-port="${CSS.escape(portName)}"]`;
 }
 
-/** The Add stream page driven to the step `addStep` names, as a person would get there. */
+/** The add-stream dialog opened from the sidebar's + menu on New project or Import project. */
+async function openTheAddStreamDialogOn(menuChoice: "new-project" | "add-stream"): Promise<void> {
+  await clickWhenShown(`[data-window-navigation="add-project-menu"]`);
+  await clickWhenShown(`[data-window-navigation="${menuChoice}"]`);
+}
+
+/** The add-stream dialog driven to the step `addStep` names, as a person would get there. */
 async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
   if (addStep === "new" || addStep === "created") {
-    await clickWhenShown(`[data-add-stream-source="new_project"]`);
+    await openTheAddStreamDialogOn("new-project");
     if (addStep === "created") await clickWhenShown(`[data-add-stream-action="create"]:not([disabled])`);
     return;
   }
+  await openTheAddStreamDialogOn("add-stream");
   if (addStep !== "folder" && addStep !== "compiling" && addStep !== "done" && addStep !== "away") return;
   await clickWhenShown(`[data-add-stream-action="choose_folder"]`);
   if (addStep === "folder") return;
@@ -44,7 +51,7 @@ async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
   await clickWhenShown(`[data-add-stream-action="add"]:not([disabled])`);
   if (addStep === "away") {
     await waitForElement(`[data-add-stream-step="compiling"]`);
-    await clickWhenShown(`[data-window-navigation="streams"]`);
+    await clickWhenShown(`[data-form-dialog-close]`);
     await waitForElement(`[data-add-stream-run-notice]`, MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS);
     return;
   }
@@ -59,15 +66,15 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
 
 /**
  * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=overview|graph|logs|inspect`,
- * `?stream_page_action=<action>` (a header button of the stream's page, once its steps show: `stop_stream` there gives
+ * `?stream_page_action=<action>` (a header or menu action of the stream's page, once its graph shows: `stop_stream` there gives
  * the steps as of the last load), `?inspect=tree`,
- * `?page=settings|add-stream`, on Settings `?section=general|appearance|runtime|command-line|about` and on its Runtime
+ * `?page=settings|add-stream` (the add-stream dialog, on Import project), on Settings `?section=general|appearance|runtime|command-line|about` and on its Runtime
  * `?restart=pressed` (Restart runtime pressed: Starting, then Running up 0m) or `?restart=refused` (the service manager refusing it),
  * `?choose_python=pressed` (Choose Your Own… pressed, with the backend's `?python=chosen|not_offered` and `?python_pick=cancel|not_python`), with the
  * backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream>` (a
- * click on that stream's failure notification), on Add stream `?add=folder|compiling|done|away` (a folder chosen, compiling, the stream running, or
- * Streams opened while it compiled and the run's notice shown once it answers) or
- * `?add=new|created` (a new project proposed, then Create pressed, which writes it with `tatolab new` and adds it), with the backend's `?add_folder=` (`no-venv` for a run that
+ * click on that stream's failure notification), on the add-stream dialog `?add=folder|compiling|done|away` (a folder chosen, compiling, the stream running, or
+ * the dialog closed while it compiled and the run's notice shown once it answers) or
+ * `?add=new|created` (opened on New project, a new project proposed, then Create pressed, which writes it with `tatolab new` and adds it), with the backend's `?add_folder=` (`no-venv` for a run that
  * makes the `.venv` first), `?add_venv=refused` (uv refusing to make it), `?add_run=warning` and `?add_cli=missing`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
  * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),
  * `?sheet=uninstall|uninstalling|uninstalled`, on first run `?setup=getting_set_up` (Continue pressed on Welcome) or `?setup=get_started` (then
@@ -76,8 +83,8 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * on Settings › Command line `?link=pressed` (Link in /usr/local/bin… pressed), on Graph `?step=<step>` (selected), `?focus=<step>` (its card
  * holding keyboard focus), `?pin=<step>.<port>`
  * (its preview pinned), `?hover=<step>.<port>` (its hover preview open), `?previews=off` and `?counters=off`,
- * on Logs `?levels=info|warnings|errors`, `?held_records=<n>` and `?log_folder=missing` (the backend's options for the pointer row and a refused open), `?record=<sequence>` or `?record=problem` (the newest warning or error selected) and
- * `?details=closed`, `?only_step=<step>` (that step alone chosen in the step menu) and `?step_menu=open`, and `?search=<query>` name, so each screen can be shown and pictured from its URL. `?theme=light|dark` is read by the page's first script, before first paint.
+ * on Logs `?levels=info|warnings|errors`, `?held_records=<n>` and `?log_folder=missing` (the backend's options for the pointer row and a refused open), `?record=<sequence>` or `?record=problem` (the newest warning or error selected),
+ * `?only_step=<step>` (that step alone chosen in the step menu) and `?step_menu=open`, and `?search=<query>` name, so each screen can be shown and pictured from its URL. `?theme=light|dark` is read by the page's first script, before first paint.
  */
 export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platform: TatolabPlatform): Promise<void> {
   const streamName = pageQuery.get("stream");
@@ -96,8 +103,10 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   if (tab !== null) await clickWhenShown(`[data-stream-page-header] [data-stream-tab="${CSS.escape(tab)}"]`);
   const streamPageAction = pageQuery.get("stream_page_action");
   if (streamPageAction !== null) {
-    await waitForElement("[data-stream-step]");
-    await clickWhenShown(`[data-stream-page-header] [data-stream-action="${CSS.escape(streamPageAction)}"]`);
+    await waitForElement("[data-stream-output-preview], [data-stream-graph-step]");
+    const headerActionSelector = `[data-stream-page-header] [data-stream-action="${CSS.escape(streamPageAction)}"]`;
+    if (document.querySelector(headerActionSelector) === null) await clickWhenShown(`[data-stream-page-header] [data-stream-action="more"]`);
+    await clickWhenShown(`${headerActionSelector}, [data-stream-action="${CSS.escape(streamPageAction)}"][role="menuitem"]`);
   }
   if (pageQuery.get("inspect") === "tree") await clickWhenShown(`[data-graph-document-view-choice="tree"]`);
   if (pageQuery.get("previews") === "off") await clickWhenShown(`[data-stream-graph-toolbar="previews"]`);
@@ -131,7 +140,6 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     // React's onMouseDown listens for the mousedown a click on the row fires.
     rowToSelect?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
   }
-  if (pageQuery.get("details") === "closed") await clickWhenShown(`[data-stream-log-toolbar="details"]`);
   const onlyStep = pageQuery.get("only_step");
   if (onlyStep !== null) {
     await clickWhenShown("[data-stream-log-step-filter]");
@@ -139,7 +147,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   }
   if (pageQuery.get("step_menu") === "open" && document.querySelector('[data-slot="dropdown-menu-content"]') === null) await clickWhenShown("[data-stream-log-step-filter]");
   const page = pageQuery.get("page");
-  if (page === "settings" || page === "add-stream") await clickWhenShown(`[data-window-navigation="${page}"]`);
+  if (page === "settings") await clickWhenShown(`[data-window-navigation="settings"]`);
   if (page === "add-stream") await driveAddStreamToPreset(pageQuery.get("add"));
   const settingsSection = pageQuery.get("section");
   if (page === "settings" && settingsSection !== null) await clickWhenShown(`[data-settings-section="${CSS.escape(settingsSection)}"]`);

@@ -1,64 +1,53 @@
-import { cn } from "cn";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ControlDataAttributes } from "./control_data_attributes";
-import { InlineLink } from "./inline_link";
 
-/** The page a header's breadcrumb leads back to, and the words for the page shown. */
+/** What a header's title sits under, in quiet words before it; the view's own navigation moves between its parts. */
 export interface PageBreadcrumb {
   parentLabel: string;
-  parentPath: string;
-  currentLabel: string;
 }
 
 /**
- * A page's header: where it sits, its title with the facts beside it and its actions to the right (the actions wrap
- * under the title when a narrow window has no room for both), a line under the title, notices, and the page's tabs.
+ * A view's bar along the top of the content: where it sits and its title, its tabs, and its actions to the right, in
+ * one row; what was said about its last action shows under the bar.
  */
 export function PageHeader({
   breadcrumb,
   title,
-  subtitle,
-  facts,
+  isTitleShown = true,
+  tabs,
   actions,
   notices,
-  tabs,
+  windowDragRegion,
   ...controlDataAttributes
 }: {
   breadcrumb?: PageBreadcrumb;
   title: string;
-  subtitle?: ReactNode;
-  /** Short facts beside the title, as a stream's state and run mode. */
-  facts?: ReactNode;
-  actions?: ReactNode;
-  /** What was said about the page's last action, under the title. */
-  notices?: ReactNode;
+  /** False where the sidebar already shows what the view is of: the title is then said to a screen reader only. */
+  isTitleShown?: boolean;
   tabs?: ReactNode;
+  actions?: ReactNode;
+  /** What was said about the view's last action. */
+  notices?: ReactNode;
+  /** The bar's `data-window-drag-region`, from `windowDragRegionAttribute`: under macOS's overlay title bar the bar drags the window. */
+  windowDragRegion: string | null;
 } & ControlDataAttributes) {
   return (
-    <header
-      className={cn("shrink-0 px-5", tabs === undefined ? "pt-5 pb-4" : "border-b pt-3", breadcrumb === undefined && tabs !== undefined && "pt-5")}
-      {...controlDataAttributes}
-    >
-      {breadcrumb !== undefined && (
-        <div className="mb-1.5 flex items-center gap-1 text-xs text-fg-3">
-          <InlineLink destination={{ to: breadcrumb.parentPath }} tone="quiet">
-            {breadcrumb.parentLabel}
-          </InlineLink>
-          <ChevronRight className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
-          <span className="truncate text-fg-2">{breadcrumb.currentLabel}</span>
+    <header className="shrink-0" {...controlDataAttributes}>
+      <div className="flex h-(--page-bar-height) min-w-0 items-center gap-5 border-b pr-3 pl-(--page-x)" data-window-drag-region={windowDragRegion ?? undefined}>
+        <div className={isTitleShown ? "flex min-w-0 shrink items-center gap-1.5" : "sr-only"}>
+          {breadcrumb !== undefined && (
+            <>
+              <span className="shrink-0 text-fg-3">{breadcrumb.parentLabel}</span>
+              <ChevronRight className="size-3.5 shrink-0 text-fg-4" strokeWidth={1.75} aria-hidden />
+            </>
+          )}
+          <h1 className="truncate font-normal text-fg-2 select-text">{title}</h1>
         </div>
-      )}
-      <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="min-w-0 max-w-full">
-          <h1 className="title-lg truncate select-text">{title}</h1>
-          {subtitle !== undefined && <p className="text-fg-3">{subtitle}</p>}
-        </div>
-        {facts !== undefined && <div className="flex min-w-0 items-center gap-4 whitespace-nowrap">{facts}</div>}
-        {actions !== undefined && <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5">{actions}</div>}
+        {tabs !== undefined && <div className="flex h-full min-w-0 shrink-0 items-stretch">{tabs}</div>}
+        {actions !== undefined && <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1">{actions}</div>}
       </div>
-      {notices}
-      {tabs}
+      {notices !== undefined && <div className="px-(--page-x)">{notices}</div>}
     </header>
   );
 }

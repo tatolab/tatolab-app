@@ -2,17 +2,15 @@ import { cn } from "cn";
 import { Pin, PinOff } from "lucide-react";
 import { useState } from "react";
 import { ActionButton } from "../design_system/action_button";
-import { ExposureLevelWords } from "../design_system/exposure_level_words";
+import { PublicExposureTag } from "../design_system/public_exposure_tag";
 import { FailureBanner } from "../design_system/failure_banner";
 import { KeyValueRows } from "../design_system/key_value_rows";
-import { KeyboardKey } from "../design_system/keyboard_key";
-import { ListRowButton } from "../design_system/list_row_button";
 import { FieldMenu, MenuItem } from "../design_system/menus";
 import { PanelSection } from "../design_system/panel_section";
 import { SidePanel } from "../design_system/side_panel";
 import { ToggleIconButton } from "../design_system/toggle_icon_button";
 import type { StreamGraphStepOutputPort } from "../presentation/stream_graph_canvas_presentation";
-import type { StreamGraphInspection, StreamGraphStepInspection, StreamGraphStreamInspection } from "../presentation/stream_graph_inspector_presentation";
+import type { StreamGraphStepInspection } from "../presentation/stream_graph_inspector_presentation";
 import { exposedOutputAddress } from "../presentation/stream_overview_presentation";
 import { ExposedOutputWatchPageFrame } from "./exposed_output_watch_page_frame";
 import type { StreamGraphOutputPlace } from "./stream_graph_output_previews_view";
@@ -118,7 +116,7 @@ function StepInspectorView({
         </FailureBanner>
       )}
       <StepOutputPreview inspection={inspection} outputPlace={outputPlace} pinnedOutputKeys={pinnedOutputKeys} onOutputPinToggled={actions.onOutputPinToggled} />
-      <PanelSection title="Step" isDivided>
+      <PanelSection title="Node" isDivided>
         <KeyValueRows
           rows={[
             ["Name", <span className="font-mono text-xs text-fg select-text">{step.name}</span>],
@@ -128,14 +126,12 @@ function StepInspectorView({
                 {step.type}
               </span>,
             ],
-            ["Origin", step.origin ?? "—"],
-            ["Process", inspection.processWords ?? "—"],
           ]}
         />
       </PanelSection>
       <PanelSection title="Config" aside="Set when it was added" isDivided>
         {inspection.configRows === null ? (
-          <p className="text-xs text-fg-3">The graph gives no config for this step.</p>
+          <p className="text-xs text-fg-3">The graph gives no config for this node.</p>
         ) : inspection.configRows.length === 0 ? (
           <p className="text-xs text-fg-3">None</p>
         ) : (
@@ -143,14 +139,14 @@ function StepInspectorView({
         )}
       </PanelSection>
       {step.outputPorts.length > 0 && (
-        <PanelSection title="Exposure" isDivided>
+        <PanelSection title="Outputs" isDivided>
           {step.outputPorts.map((output) => (
             <div key={output.name} className="flex h-7 items-center gap-2" data-stream-graph-output-exposure={output.name}>
               <PortDataKindIcon dataKind={output.dataKind} />
               <span className="min-w-0 truncate font-mono text-xs text-fg">{output.name}</span>
               {output.exposureLevel !== null && (
                 <span className="ml-auto">
-                  <ExposureLevelWords level={output.exposureLevel} />
+                  <PublicExposureTag level={output.exposureLevel} />
                 </span>
               )}
             </div>
@@ -174,109 +170,31 @@ function StepInspectorView({
   );
 }
 
-function StreamSummaryInspectorView({
-  inspection,
-  streamInstance,
-  actions,
-}: {
-  inspection: StreamGraphStreamInspection;
-  streamInstance: string | null;
-  actions: StreamGraphInspectorActions;
-}) {
-  return (
-    <>
-      <PanelSection title="Summary" isDivided>
-        <KeyValueRows
-          rows={[
-            ["Steps", inspection.stepCountWords],
-            [
-              "Links",
-              <>
-                {inspection.linkCount}
-                {inspection.droppedCount > 0 && <span className="text-warn-text"> · {inspection.droppedCount.toLocaleString("en-US")} dropped</span>}
-              </>,
-            ],
-            ["Exposed", inspection.exposedOutputs.length],
-            ["Instance", <span className="font-mono text-xs select-text">{streamInstance ?? "—"}</span>],
-          ]}
-        />
-      </PanelSection>
-      {inspection.exposedOutputs.length > 0 && (
-        <PanelSection title="Exposed outputs" isDivided>
-          <div className="-mx-2 flex flex-col gap-px">
-            {inspection.exposedOutputs.map((output) => (
-              <ListRowButton
-                key={outputPinKey(output)}
-                onPressed={() => actions.onStepSelected(output.stepName)}
-                trailing={output.exposureLevel !== null && <ExposureLevelWords level={output.exposureLevel} />}
-              >
-                <PortDataKindIcon dataKind={output.dataKind} />
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg-2">
-                  {output.stepName}/{output.name}
-                </span>
-              </ListRowButton>
-            ))}
-          </div>
-        </PanelSection>
-      )}
-      <PanelSection title="Keyboard" isDivided>
-        <div className="flex h-7 items-center">
-          Fit to view
-          <span className="ml-auto">
-            <KeyboardKey>F</KeyboardKey>
-          </span>
-        </div>
-        <div className="flex h-7 items-center">
-          Select nothing
-          <span className="ml-auto">
-            <KeyboardKey>Esc</KeyboardKey>
-          </span>
-        </div>
-        <p className="mt-2 text-xs text-fg-3">
-          Hover an exposed output to preview it; click it to pin a preview. An internal output has no preview until it is exposed.
-        </p>
-      </PanelSection>
-    </>
-  );
-}
-
-/** The panel beside the canvas: the selected step, or the whole stream while nothing is selected. Viewing only. */
+/** The panel beside the canvas while a node is selected: that node. Viewing only; closing it selects nothing. */
 export function StreamGraphInspectorView({
   inspection,
   outputPlace,
-  streamInstance,
   pinnedOutputKeys,
   actions,
 }: {
-  inspection: StreamGraphInspection;
+  inspection: StreamGraphStepInspection;
   outputPlace: StreamGraphOutputPlace;
-  streamInstance: string | null;
   pinnedOutputKeys: ReadonlySet<string>;
   actions: StreamGraphInspectorActions;
 }) {
-  const isStepInspected = inspection.kind === "step";
   return (
     <SidePanel
       label="Inspector"
-      title={isStepInspected ? <span className="font-mono text-[13px]">{inspection.step.name}</span> : outputPlace.streamName}
+      title={<span className="font-mono text-[13px]">{inspection.step.name}</span>}
       subtitle={
-        isStepInspected ? (
-          <>
-            <span className={inspection.step.stateEmphasis === "failure" ? "text-danger-text" : undefined}>{inspection.step.stateWord}</span> · {inspection.linkCountWords}
-          </>
-        ) : (
-          "Nothing selected · the whole stream"
-        )
+        <>
+          <span className={inspection.step.stateEmphasis === "failure" ? "text-danger-text" : undefined}>{inspection.step.stateWord}</span> · {inspection.linkCountWords}
+        </>
       }
-      hideLabel="Hide inspector"
-      onHidden={actions.onClosed}
-      data-stream-graph-inspector={inspection.kind}
+      hiding={{ hideLabel: "Close inspector", onHidden: actions.onClosed }}
+      data-stream-graph-inspector="step"
     >
-      {inspection.kind === "step" ? (
-        <StepInspectorView key={inspection.step.name} inspection={inspection} outputPlace={outputPlace} pinnedOutputKeys={pinnedOutputKeys} actions={actions} />
-      ) : (
-        <StreamSummaryInspectorView inspection={inspection} streamInstance={streamInstance} actions={actions} />
-      )}
+      <StepInspectorView key={inspection.step.name} inspection={inspection} outputPlace={outputPlace} pinnedOutputKeys={pinnedOutputKeys} actions={actions} />
     </SidePanel>
   );
 }

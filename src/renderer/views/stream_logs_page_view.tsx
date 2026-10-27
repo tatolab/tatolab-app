@@ -1,8 +1,9 @@
 import { cn } from "cn";
-import { ArrowDownToLine, Ban, Clock, FileText, FolderOpen, ListFilter, PanelRight, RotateCw, ScrollText, SquareX, WrapText } from "lucide-react";
+import { ArrowDownToLine, Ban, Copy, FileText, FolderOpen, ListFilter, RotateCw, ScrollText, SquareX } from "lucide-react";
 import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { describeBackendRejection } from "../backend/tatolab_backend";
+import { writeTextToClipboard } from "../clipboard";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import {
   earlierRecordsNotHeldWords,
@@ -13,7 +14,6 @@ import {
   presentStreamLogRecordDetails,
   presentStreamLogsOfAStreamNotLoaded,
   searchMatchRangesOf,
-  streamLoadWords,
   type StreamLogLevelFilter,
   type StreamLogLevelFilterChoice,
   type StreamLogMessageLinePartKind,
@@ -23,17 +23,15 @@ import {
 import { presentWindowShortcut } from "../presentation/platform_presentation";
 import { isStreamLoaded, presentStreamPrimaryAction } from "../presentation/stream_presentation";
 import { ActionButton } from "../design_system/action_button";
-import { CopyIconButton } from "../design_system/copy_icon_button";
 import { EmptyState } from "../design_system/empty_state";
 import { InlineLink } from "../design_system/inline_link";
-import { FieldMenu, MenuCheckboxItem, MenuGroup, MenuItem, MenuSeparator } from "../design_system/menus";
+import { FieldMenu, MenuCheckboxItem, MenuGroup, MenuItem, MenuSeparator, MoreActionsMenu } from "../design_system/menus";
 import { RefusalLine } from "../design_system/refusal_line";
 import { SearchField } from "../design_system/search_field";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
 import { WorkAreaWithSidePanel } from "../design_system/side_panel";
-import { IconButton } from "../design_system/icon_button";
 import { ToggleIconButton } from "../design_system/toggle_icon_button";
-import { Toolbar, ToolbarDivider, ToolbarGroup, ToolbarWords } from "../design_system/toolbar";
+import { Toolbar, ToolbarGroup } from "../design_system/toolbar";
 import { LOG_LEVEL_WORD_TONE_CLASS_NAMES, StreamLogRecordDetailsView } from "./stream_log_record_details_view";
 import type { StreamPageActions } from "./stream_page_header_view";
 import { logViewAskedBy, streamPagePath } from "./stream_page_path";
@@ -177,16 +175,16 @@ function StreamLogStepFilterControl({
   const { stepChoices, stepFilterWords } = streamLog;
   return (
     <FieldMenu
-      label={`Steps shown: ${stepFilterWords.words}`}
+      label={`Nodes shown: ${stepFilterWords.words}`}
       leading={<ListFilter className="size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />}
       words={<span className={cn("max-w-36 truncate", stepFilterWords.isOneStepChosen && "font-mono text-xs")}>{stepFilterWords.words}</span>}
       isNarrowing={shownStepKeys.size > 0}
       menuWidth="wide"
       data-stream-log-step-filter=""
     >
-      <MenuGroup label="Steps">
+      <MenuGroup label="Nodes">
         <MenuItem keepsTheMenuOpen isDisabled={shownStepKeys.size === 0} onChosen={() => onShownStepKeysChosen(new Set())} data-stream-log-step-choice-all="">
-          Show all steps
+          Show all nodes
         </MenuItem>
         <MenuSeparator />
         {stepChoices.map((stepChoice) => (
@@ -248,16 +246,6 @@ function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stre
   );
 }
 
-/** Which load of the stream the rows are from, and that the window holds its records since that load. */
-function StreamLoadExplanation({ streamInstance }: { streamInstance: string }) {
-  return (
-    <span className="block">
-      {streamLoadWords(streamInstance)}: records since this load are held in memory.
-      <span className="mt-1 block font-mono text-2xs opacity-80">stream_instance: {streamInstance}</span>
-    </span>
-  );
-}
-
 /** A loaded stream's records as the runtime holds them, followed live, with the toolbar, the rows and the selected record's details. */
 function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   const { platform } = useTatolabWindowEnvironment();
@@ -274,7 +262,6 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   const [isFollowing, setIsFollowing] = useState(true);
   const [areLinesWrapped, setAreLinesWrapped] = useState(false);
   const [areTimestampsShown, setAreTimestampsShown] = useState(true);
-  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(true);
   const [clearedThroughSequence, setClearedThroughSequence] = useState(0);
   const [selectedSequence, setSelectedSequence] = useState<number | null>(null);
   const [streamInstanceShown, setStreamInstanceShown] = useState(reading.streamInstance);
@@ -310,7 +297,7 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   useLayoutEffect(() => {
     const scroller = recordsScroller.current;
     if (isFollowing && scroller !== null) scroller.scrollTop = scroller.scrollHeight;
-  }, [isFollowing, lastRowSequence, streamLog.rows.length, areLinesWrapped, areTimestampsShown, isDetailsPanelOpen]);
+  }, [isFollowing, lastRowSequence, streamLog.rows.length, areLinesWrapped, areTimestampsShown, selectedRecordDetails !== null]);
 
   useEffect(() => {
     if (selectedSequence !== null) document.getElementById(streamLogRowElementId(selectedSequence))?.scrollIntoView?.({ block: "nearest" });
@@ -341,12 +328,12 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   };
 
   const isShowingEarlierRecordsRow = isEarlierRecordsPointerShown(reading.earlierRecordsNotHeldCount, streamLogFilters);
-  const recordDetailsPanel = isDetailsPanelOpen ? (
+  const recordDetailsPanel = selectedRecordDetails !== null ? (
     <StreamLogRecordDetailsView
       details={selectedRecordDetails}
       streamName={stream.name}
       actions={{
-        onClosed: () => setIsDetailsPanelOpen(false),
+        onClosed: () => setSelectedSequence(null),
         onOnlyStepShown: (stepKey) => {
           setShownStepKeys(new Set([stepKey]));
           setLevelFilter("all");
@@ -381,17 +368,6 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
           />
           <StreamLogStepFilterControl streamLog={streamLog} shownStepKeys={shownStepKeys} onShownStepKeysChosen={setShownStepKeys} />
           <ToolbarGroup isAtTheEnd>
-            {reading.streamInstance !== null && (
-              <ToolbarWords explanation={<StreamLoadExplanation streamInstance={reading.streamInstance} />} isDroppedWhenNarrow data-stream-log-load="">
-                {streamLoadWords(reading.streamInstance)}
-              </ToolbarWords>
-            )}
-            <ToolbarWords
-              explanation={reading.streamInstance === null ? undefined : <StreamLoadExplanation streamInstance={reading.streamInstance} />}
-              data-stream-log-line-count=""
-            >
-              {streamLog.lineCountWords}
-            </ToolbarWords>
             <ToggleIconButton
               icon={ArrowDownToLine}
               label="Follow new lines"
@@ -400,44 +376,28 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
               onToggled={setIsFollowing}
               data-stream-log-toolbar="follow"
             />
-            <ToggleIconButton
-              icon={WrapText}
-              label="Wrap lines"
-              tooltipWhileOn="Don't wrap lines"
-              isOn={areLinesWrapped}
-              onToggled={setAreLinesWrapped}
-              data-stream-log-toolbar="wrap"
-            />
-            <ToggleIconButton
-              icon={Clock}
-              label="Timestamps"
-              tooltipWhileOn="Hide timestamps"
-              tooltipWhileOff="Show timestamps"
-              isOn={areTimestampsShown}
-              onToggled={setAreTimestampsShown}
-              data-stream-log-toolbar="timestamps"
-            />
-            <CopyIconButton readTextToCopy={() => jsonlOfStreamLogRows(streamLog.rows)} label="Copy shown lines as JSONL" data-stream-log-toolbar="copy" />
-            <IconButton
-              icon={Ban}
-              label="Clear"
-              tooltip="Clear the lines shown; new ones still arrive"
-              onPressed={() => {
-                setClearedThroughSequence(reading.records.at(-1)?.sequence ?? 0);
-                setSelectedSequence(null);
-              }}
-              data-stream-log-toolbar="clear"
-            />
-            <ToolbarDivider />
-            <ToggleIconButton
-              icon={PanelRight}
-              label="Details"
-              tooltipWhileOn="Hide details"
-              tooltipWhileOff="Show details"
-              isOn={isDetailsPanelOpen}
-              onToggled={setIsDetailsPanelOpen}
-              data-stream-log-toolbar="details"
-            />
+            <MoreActionsMenu label="More for these logs" data-stream-log-toolbar="more">
+              <MenuCheckboxItem isChecked={areLinesWrapped} onCheckedChange={setAreLinesWrapped} data-stream-log-toolbar="wrap">
+                Wrap lines
+              </MenuCheckboxItem>
+              <MenuCheckboxItem isChecked={areTimestampsShown} onCheckedChange={setAreTimestampsShown} data-stream-log-toolbar="timestamps">
+                Show timestamps
+              </MenuCheckboxItem>
+              <MenuSeparator />
+              <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(jsonlOfStreamLogRows(streamLog.rows))} data-stream-log-toolbar="copy">
+                Copy shown lines as JSONL
+              </MenuItem>
+              <MenuItem
+                icon={Ban}
+                onChosen={() => {
+                  setClearedThroughSequence(reading.records.at(-1)?.sequence ?? 0);
+                  setSelectedSequence(null);
+                }}
+                data-stream-log-toolbar="clear"
+              >
+                Clear the lines shown
+              </MenuItem>
+            </MoreActionsMenu>
           </ToolbarGroup>
         </Toolbar>
         {reading.readRefusal !== null && (

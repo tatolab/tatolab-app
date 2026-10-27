@@ -9,29 +9,54 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { ControlDataAttributes } from "./control_data_attributes";
+import type { ControlDataAttributeName, ControlDataAttributes } from "./control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
-import { ICON_BUTTON_CLASS_NAMES } from "./icon_button";
+import { ICON_BUTTON_CLASS_NAMES, STOCK_ICON_BUTTON_SIZE, type IconButtonSize } from "./icon_button";
 
 /** How wide an open menu is: as wide as its words, or a fixed width for choices that read better aligned. */
 export type MenuWidth = "fit" | "wide";
 
 const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-56", wide: "w-[288px] max-h-96" };
 
-/** The ⋯ button that opens a row's or a page's other actions. */
-export function MoreActionsMenu({ label, children, ...controlDataAttributes }: { label: string; children: ReactNode } & ControlDataAttributes) {
+/** An icon button that opens a menu of its choices: regular in rows and bars, compact beside a heading. */
+export function IconButtonMenu({
+  icon: TriggerIcon,
+  label,
+  size = "regular",
+  menuAlignment = "end",
+  children,
+  ...controlDataAttributes
+}: {
+  icon: LucideIcon;
+  label: string;
+  size?: IconButtonSize;
+  /** Which edge of the button the open menu lines up with. */
+  menuAlignment?: "start" | "end";
+  children: ReactNode;
+} & ControlDataAttributes) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className={ICON_BUTTON_CLASS_NAMES} />} aria-label={label} {...controlDataAttributes}>
-        <Ellipsis className="size-4" strokeWidth={1.75} aria-hidden />
+      <DropdownMenuTrigger render={<Button variant="ghost" size={STOCK_ICON_BUTTON_SIZE[size]} className={ICON_BUTTON_CLASS_NAMES} />} aria-label={label} {...controlDataAttributes}>
+        <TriggerIcon className="size-4" strokeWidth={1.75} aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className={MENU_WIDTH_CLASS_NAMES.fit}>
+      <DropdownMenuContent align={menuAlignment} className={MENU_WIDTH_CLASS_NAMES.fit}>
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** The ⋯ button that opens a row's or a page's other actions. */
+export function MoreActionsMenu({ label, children, ...controlDataAttributes }: { label: string; children: ReactNode } & ControlDataAttributes) {
+  return (
+    <IconButtonMenu icon={Ellipsis} label={label} {...controlDataAttributes}>
+      {children}
+    </IconButtonMenu>
   );
 }
 
@@ -49,7 +74,7 @@ export function FieldMenu({
   children,
   ...controlDataAttributes
 }: {
-  /** The field's accessible name, saying what is chosen now, as "Steps shown: All steps". */
+  /** The field's accessible name, saying what is chosen now, as "Function: camera_stream". */
   label: string;
   /** An icon or a quiet word before the chosen words. */
   leading?: ReactNode;
@@ -132,6 +157,42 @@ export function MenuCheckboxItem({
     <DropdownMenuCheckboxItem checked={isChecked} onCheckedChange={onCheckedChange} className="pl-2" {...controlDataAttributes}>
       {children}
     </DropdownMenuCheckboxItem>
+  );
+}
+
+/** One of a menu's single choices: what choosing it chooses, and its words. */
+export interface MenuSingleChoice<Choice extends string> {
+  choice: Choice;
+  label: ReactNode;
+}
+
+/** A menu's choices of which exactly one is chosen, the chosen one marked. */
+export function MenuSingleChoiceGroup<Choice extends string>({
+  choices,
+  chosen,
+  onChosen,
+  dataAttributeOfEachChoice,
+}: {
+  choices: readonly MenuSingleChoice<Choice>[];
+  chosen: Choice;
+  onChosen: (choice: Choice) => void;
+  /** Set on each choice to its value, as `data-streams-list-state-choice="failed"`. */
+  dataAttributeOfEachChoice?: ControlDataAttributeName;
+}) {
+  return (
+    <DropdownMenuRadioGroup
+      value={chosen}
+      onValueChange={(value: string) => {
+        const chosenChoice = choices.find((menuChoice) => menuChoice.choice === value);
+        if (chosenChoice !== undefined) onChosen(chosenChoice.choice);
+      }}
+    >
+      {choices.map(({ choice, label }) => (
+        <DropdownMenuRadioItem key={choice} value={choice} className="pl-2" {...(dataAttributeOfEachChoice === undefined ? {} : { [dataAttributeOfEachChoice]: choice })}>
+          {label}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
   );
 }
 

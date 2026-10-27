@@ -1,19 +1,17 @@
-import { CodeXml, Copy, Play, Square, SquareTerminal, Trash2 } from "lucide-react";
+import { CodeXml, Copy, PanelRight, Play, Square, SquareTerminal, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { writeTextToClipboard } from "../clipboard";
 import { ActionButton } from "../design_system/action_button";
-import { MenuItem, MoreActionsMenu } from "../design_system/menus";
+import { MenuItem, MenuSeparator, MoreActionsMenu } from "../design_system/menus";
 import { PageHeader } from "../design_system/page_header";
 import { PageTabs } from "../design_system/page_tabs";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
-import { StreamRunModeWords } from "../design_system/stream_run_mode_words";
-import { StreamStateWords } from "../design_system/stream_state_words";
-import { shortcutHint } from "../presentation/platform_presentation";
+import { ToggleIconButton } from "../design_system/toggle_icon_button";
+import { shortcutHint, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import {
-  abbreviateHomeDirectory,
   isStreamLoaded,
   presentStreamPrimaryAction,
   streamActionPendingWords,
@@ -59,9 +57,20 @@ export interface StreamPageActions {
   askToRemove(): void;
 }
 
-/** A stream's header on every tab: where it sits, its name, state, run mode and project, its actions, and its tabs. */
-export function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { stream: ListedStream; shownTab: StreamPageTab; streamPageActions: StreamPageActions }) {
-  const { backend } = useTatolabWindowEnvironment();
+/** A stream's bar on every tab: its tabs, Start or Stop, and every other action in its menu; the sidebar shows its name and state. */
+export function StreamPageHeaderView({
+  stream,
+  shownTab,
+  streamPageActions,
+  overviewDetailsPanel,
+}: {
+  stream: ListedStream;
+  shownTab: StreamPageTab;
+  streamPageActions: StreamPageActions;
+  /** Whether Overview's Details slide-out is open, and how its toggle opens or closes it. */
+  overviewDetailsPanel: { isOpen: boolean; onToggled: (isOpen: boolean) => void };
+}) {
+  const { backend, platform } = useTatolabWindowEnvironment();
   /** Why the project folder or a terminal in it did not open, in the words of what refused it, which name what failed. */
   const [projectOpeningRefusal, setProjectOpeningRefusal] = useState<string | null>(null);
   const { actionUnderWay, outcome, runPrimaryAction, askToRemove } = streamPageActions;
@@ -72,25 +81,11 @@ export function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { 
   };
   return (
     <PageHeader
-      breadcrumb={{ parentLabel: "Streams", parentPath: "/", currentLabel: stream.name }}
       title={stream.name}
-      facts={
-        <>
-          <StreamStateWords stream={stream} isAfterAStopNotRecorded={outcome?.kind === "notice"} />
-          <StreamRunModeWords stream={stream} />
-          <span className="max-w-[280px] truncate font-mono text-xs text-fg-3 select-text" title={stream.project_directory}>
-            {abbreviateHomeDirectory(stream.project_directory)}
-          </span>
-        </>
-      }
+      isTitleShown={false}
+      tabs={<StreamPageTabs stream={stream} shownTab={shownTab} />}
       actions={
         <>
-          <ActionButton icon={CodeXml} onPressed={() => openTheProject(backend.openStreamProjectFolder(stream.name))} data-stream-action="open_stream_project_folder">
-            Open project
-          </ActionButton>
-          <ActionButton icon={SquareTerminal} onPressed={() => openTheProject(backend.openTerminalAtStreamProject(stream.name))} data-stream-action="open_terminal_at_stream_project">
-            Terminal
-          </ActionButton>
           {actionUnderWay !== undefined ? (
             <PendingActionWords words={streamActionPendingWords(actionUnderWay.streamAction)} />
           ) : (
@@ -106,23 +101,44 @@ export function StreamPageHeaderView({ stream, shownTab, streamPageActions }: { 
               </ActionButton>
             )
           )}
-          <ActionButton appearance="quiet" icon={Trash2} isDisabled={actionUnderWay !== undefined} onPressed={askToRemove} data-stream-action="remove_stream">
-            Remove
-          </ActionButton>
-          <MoreActionsMenu label={`More for ${stream.name}`}>
+          {shownTab === "overview" && (
+            <ToggleIconButton
+              icon={PanelRight}
+              label="Details"
+              tooltipWhileOn="Hide details"
+              tooltipWhileOff="Show details"
+              isOn={overviewDetailsPanel.isOpen}
+              onToggled={overviewDetailsPanel.onToggled}
+              data-stream-action="details"
+            />
+          )}
+          <MoreActionsMenu label={`More for ${stream.name}`} data-stream-action="more">
+            <MenuItem icon={CodeXml} onChosen={() => openTheProject(backend.openStreamProjectFolder(stream.name))} data-stream-action="open_stream_project_folder">
+              Open project
+            </MenuItem>
+            <MenuItem icon={SquareTerminal} onChosen={() => openTheProject(backend.openTerminalAtStreamProject(stream.name))} data-stream-action="open_terminal_at_stream_project">
+              Open a terminal in the project
+            </MenuItem>
+            <MenuSeparator />
             <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(stream.project_directory)}>
               Copy project folder path
+            </MenuItem>
+            <MenuSeparator />
+            <MenuItem icon={Trash2} isDestructive isDisabled={actionUnderWay !== undefined} onChosen={askToRemove} data-stream-action="remove_stream">
+              Remove…
             </MenuItem>
           </MoreActionsMenu>
         </>
       }
       notices={
-        <>
-          {outcome !== undefined && <StreamActionOutcomeLine outcome={outcome} />}
-          {projectOpeningRefusal !== null && <RefusalLine words={projectOpeningRefusal} />}
-        </>
+        outcome !== undefined || projectOpeningRefusal !== null ? (
+          <div className="border-b py-2">
+            {outcome !== undefined && <StreamActionOutcomeLine outcome={outcome} />}
+            {projectOpeningRefusal !== null && <RefusalLine words={projectOpeningRefusal} />}
+          </div>
+        ) : undefined
       }
-      tabs={<StreamPageTabs stream={stream} shownTab={shownTab} />}
+      windowDragRegion={windowDragRegionAttribute(platform, "deep")}
       data-stream-page-header=""
     />
   );

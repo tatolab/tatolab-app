@@ -5,7 +5,7 @@ import {
   presentStreamRemovalConfirmation,
   streamMatchesFilterText,
   streamMatchesListFilter,
-  streamsListHeadline,
+  streamProjectFoldersOf,
 } from "./streams_list_presentation";
 
 function listedStream(name: string, state: string, nodeCount: number | null): ListedStream {
@@ -37,11 +37,45 @@ describe("streamMatchesFilterText", () => {
   });
 });
 
-describe("streamsListHeadline", () => {
-  it("counts the loaded streams on the machine, or this machine when it has no name yet", () => {
-    expect(streamsListHeadline(listedStreams, "studio-mac", "macos")).toBe("2 of 4 loaded on studio-mac");
-    expect(streamsListHeadline([listedStream("pattern-two", "stopped", null)], "studio-mac", "macos")).toBe("None of 1 loaded on studio-mac");
-    expect(streamsListHeadline([], null, "linux")).toBe("Nothing loaded on this computer");
+describe("streamProjectFoldersOf", () => {
+  function streamIn(name: string, projectDirectory: string): ListedStream {
+    return { name, state: "kept", project_directory: projectDirectory, node_count: 4, failed_because: null };
+  }
+
+  it("puts each stream under the folder it was added from, in the order the runtime lists them", () => {
+    const folders = streamProjectFoldersOf([
+      streamIn("main", "/Users/ada/streams/pattern"),
+      streamIn("camera", "/Users/ada/streams/camera"),
+      streamIn("attached-demo", "/Users/ada/streams/pattern"),
+    ]);
+
+    expect(folders.map(({ folderName, streams }) => [folderName, streams.map((stream) => stream.name)])).toEqual([
+      ["pattern", ["main", "attached-demo"]],
+      ["camera", ["camera"]],
+    ]);
+    expect(folders[0]?.projectDirectory).toBe("/Users/ada/streams/pattern");
+  });
+
+  it("marks a folder that holds a failed stream", () => {
+    const folders = streamProjectFoldersOf([
+      streamIn("main", "/Users/ada/streams/pattern"),
+      { ...streamIn("lobby", "/Users/ada/streams/lobby"), state: "failed", node_count: null },
+    ]);
+
+    expect(folders.map(({ folderName, holdsAFailedStream }) => [folderName, holdsAFailedStream])).toEqual([
+      ["pattern", false],
+      ["lobby", true],
+    ]);
+  });
+
+  it("names two folders that share a name by their parent too", () => {
+    const folders = streamProjectFoldersOf([streamIn("a", "/Users/ada/work/demo"), streamIn("b", "/Users/ada/play/demo/"), streamIn("c", "/Users/ada/camera")]);
+
+    expect(folders.map((folder) => folder.folderName)).toEqual(["work/demo", "play/demo", "camera"]);
+  });
+
+  it("has no folders when the runtime lists no streams", () => {
+    expect(streamProjectFoldersOf([])).toEqual([]);
   });
 });
 

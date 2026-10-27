@@ -40,14 +40,13 @@ export function WorkAreaWithSidePanel({ sidePanel, children }: { sidePanel: Reac
   );
 }
 
-/** A side panel: its title, what it is about under it, its own actions and Hide, over its sections, which scroll. */
+/** A side panel: its title, what it is about under it, its own actions and Hide, over its sections, which scroll; Hide is left out where something else on the page opens and closes it. */
 export function SidePanel({
   label,
   title,
   subtitle,
   actions,
-  hideLabel,
-  onHidden,
+  hiding,
   children,
   ...controlDataAttributes
 }: {
@@ -56,9 +55,8 @@ export function SidePanel({
   title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
-  /** The Hide button's name, as "Hide details". */
-  hideLabel: string;
-  onHidden: () => void;
+  /** The Hide button and its name, as "Hide details"; `null` where a toggle elsewhere on the page closes the panel. */
+  hiding: { hideLabel: string; onHidden: () => void } | null;
   children: ReactNode;
 } & ControlDataAttributes) {
   return (
@@ -71,7 +69,7 @@ export function SidePanel({
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {actions}
-          <IconButton icon={PanelRightClose} label={hideLabel} onPressed={onHidden} data-side-panel-hide="" />
+          {hiding !== null && <IconButton icon={PanelRightClose} label={hiding.hideLabel} onPressed={hiding.onHidden} data-side-panel-hide="" />}
         </div>
       </div>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">{children}</div>
