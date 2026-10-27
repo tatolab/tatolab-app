@@ -3,17 +3,26 @@ import { useId, type ReactNode } from "react";
 import type { ControlDataAttributes } from "./control_data_attributes";
 import { RefusalLine } from "./refusal_line";
 
-/** A group of settings rows in one frame, hairlines between them, under a title and a line saying what they are, when it has them. */
-export function SettingsGroup({ title, description, children, ...controlDataAttributes }: { title?: string; description?: ReactNode; children: ReactNode } & ControlDataAttributes) {
+/** A group of settings rows in one frame, hairlines between them, under a title, a line saying what they are and the actions on the whole group, when it has them. */
+export function SettingsGroup({
+  title,
+  description,
+  actions,
+  children,
+  ...controlDataAttributes
+}: { title?: string; description?: ReactNode; actions?: ReactNode; children: ReactNode } & ControlDataAttributes) {
   const titleId = useId();
   return (
     <section aria-labelledby={title === undefined ? undefined : titleId} className="flex flex-col gap-2" {...controlDataAttributes}>
       {title !== undefined && (
-        <div className="px-1">
-          <h2 id={titleId} className="font-medium">
-            {title}
-          </h2>
-          {description !== undefined && <p className="text-xs text-fg-3">{description}</p>}
+        <div className="flex items-end gap-3 px-1">
+          <div className="min-w-0 flex-1">
+            <h2 id={titleId} className="font-medium">
+              {title}
+            </h2>
+            {description !== undefined && <p className="text-xs text-fg-3">{description}</p>}
+          </div>
+          {actions !== undefined && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>
       )}
       <div className="flex flex-col divide-y rounded-lg border bg-window">{children}</div>

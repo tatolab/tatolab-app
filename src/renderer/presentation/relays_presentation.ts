@@ -8,26 +8,30 @@ export type RelaysReading =
   | { kind: "read"; description: RelaysDescription }
   | { kind: "refused"; refusal: string; lastDescription: RelaysDescription | null };
 
-/** A relay's connection state in the window: its word, its tone, and the runtime's reason beside it when it gave one. */
+/** A relay's connection state in the window: its word, its tone, and the runtime's reason beside it when it gave one, after a lead naming the state. */
 export interface RelayConnectionPresentation {
   words: string;
   tone: StatusTone;
-  why: string | null;
+  reason: { lead: string; words: string } | null;
 }
 
 /** `connectionState` as the window words it. */
 export function presentRelayConnectionState(connectionState: RelayConnectionState): RelayConnectionPresentation {
   switch (connectionState.state) {
     case "joined":
-      return { words: "Joined", tone: "ok", why: null };
+      return { words: "Joined", tone: "ok", reason: null };
     case "joining":
-      return { words: "Joining…", tone: "progress", why: null };
+      return { words: "Joining…", tone: "progress", reason: null };
     case "not_joined":
-      return { words: "Not joined", tone: "warning", why: connectionState.why };
+      return { words: "Not joined", tone: "warning", reason: connectionState.why === null ? null : { lead: "Not joined:", words: connectionState.why } };
     case "lost":
-      return { words: `Lost · joining again in ${Math.ceil(connectionState.rejoining_after_ms / 1000)}s`, tone: "warning", why: connectionState.why };
+      return {
+        words: `Lost · joining again in ${Math.ceil(connectionState.rejoining_after_ms / 1000)}s`,
+        tone: "warning",
+        reason: { lead: "Lost:", words: connectionState.why },
+      };
     case "newer_than_this_app":
-      return { words: connectionState.spelled_as, tone: "idle", why: null };
+      return { words: connectionState.spelled_as, tone: "idle", reason: null };
   }
 }
 

@@ -1,4 +1,4 @@
-import { Cpu, FolderOpen, Info, Paintbrush, RotateCw, SlidersHorizontal, SquareTerminal, type LucideIcon } from "lucide-react";
+import { Cpu, FolderOpen, Info, Paintbrush, RadioTower, RotateCw, SlidersHorizontal, SquareTerminal, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { useEffect, useState, type ReactNode } from "react";
 import { Navigate, useParams } from "react-router";
@@ -42,6 +42,7 @@ import {
 } from "../presentation/settings_presentation";
 import type { WindowAppearance } from "../window_appearance";
 import { useActionThroughTheBackend, type BackendActionRefusal } from "./action_through_the_backend";
+import { RelaysSettingsSection } from "./relays_settings_section_view";
 import {
   useRuntimeDescriptionReading,
   useTatolabStatus,
@@ -54,6 +55,7 @@ const SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   general: SlidersHorizontal,
   appearance: Paintbrush,
   runtime: Cpu,
+  relays: RadioTower,
   "command-line": SquareTerminal,
   about: Info,
 };
@@ -524,6 +526,7 @@ const SECTION_VIEWS: Record<SettingsSection, () => ReactNode> = {
   general: GeneralSection,
   appearance: AppearanceSection,
   runtime: RuntimeSection,
+  relays: RelaysSettingsSection,
   "command-line": CommandLineSection,
   about: AboutSection,
 };

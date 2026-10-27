@@ -29,6 +29,7 @@ import {
   type TatolabWindowHostedPages,
 } from "./tatolab_window_context";
 import { TATOLAB_WINDOW_ROUTES } from "./tatolab_window_shell";
+import { RelayReadings } from "../relay_readings";
 import { RuntimeDescriptionReadings } from "../runtime_description_reading";
 import { SYSTEM_PREFERS_DARK_MEDIA_QUERY, WindowAppearanceChoice } from "../window_appearance";
 import { UninstallSheetView } from "./uninstall_sheet_view";
@@ -86,13 +87,16 @@ export function mountTatolabWindow(
   const streamGraphReadings = new StreamGraphReadings(backend);
   const streamLogReadings = new StreamLogReadings(backend, (streamName, streamInstance) => streamGraphReadings.rememberStreamInstance(streamName, streamInstance));
   const runtimeDescriptionReadings = new RuntimeDescriptionReadings(backend);
+  const relayReadings = new RelayReadings(backend);
   streamGraphReadings.setPollingAllowed(isTatolabWindowVisible());
   streamLogReadings.setPollingAllowed(isTatolabWindowVisible());
   runtimeDescriptionReadings.setPollingAllowed(isTatolabWindowVisible());
+  relayReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => {
     streamGraphReadings.setPollingAllowed(isVisible);
     streamLogReadings.setPollingAllowed(isVisible);
     runtimeDescriptionReadings.setPollingAllowed(isVisible);
+    relayReadings.setPollingAllowed(isVisible);
   });
   const windowAppearance = new WindowAppearanceChoice(windowLocalStorage(), window.matchMedia(SYSTEM_PREFERS_DARK_MEDIA_QUERY), document.documentElement);
   const uninstallTatolabRefusal = new RefusalKeptForTheWindow();
@@ -188,6 +192,7 @@ export function mountTatolabWindow(
     streamsPage.showStatus(status);
     if (runtimeStateLastShown !== null && status.runtime_state !== runtimeStateLastShown) {
       runtimeDescriptionReadings.forgetAndReadAgainAsTheRuntimesStateChanged();
+      relayReadings.forgetAndReadAgainAsTheRuntimesStateChanged();
     }
     runtimeStateLastShown = status.runtime_state;
   };
@@ -202,6 +207,7 @@ export function mountTatolabWindow(
       hostedPages,
       windowAppearance,
       runtimeDescriptionReadings,
+      relayReadings,
       openUninstallSheet: () => uninstallSheet.open(),
       uninstallTatolabRefusal,
       firstRunFinishingRefusal,

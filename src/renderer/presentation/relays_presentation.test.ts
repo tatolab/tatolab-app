@@ -95,15 +95,19 @@ describe("the Relays section", () => {
 
 describe("a relay's connection state", () => {
   it("is a word, toned for a problem, with the runtime's reason beside it", () => {
-    expect(presentRelayConnectionState({ state: "joined" })).toEqual({ words: "Joined", tone: "ok", why: null });
-    expect(presentRelayConnectionState({ state: "joining" })).toEqual({ words: "Joining…", tone: "progress", why: null });
-    expect(presentRelayConnectionState({ state: "not_joined", why: null })).toEqual({ words: "Not joined", tone: "warning", why: null });
-    expect(presentRelayConnectionState({ state: "not_joined", why: "no local relay runs" })).toEqual({ words: "Not joined", tone: "warning", why: "no local relay runs" });
+    expect(presentRelayConnectionState({ state: "joined" })).toEqual({ words: "Joined", tone: "ok", reason: null });
+    expect(presentRelayConnectionState({ state: "joining" })).toEqual({ words: "Joining…", tone: "progress", reason: null });
+    expect(presentRelayConnectionState({ state: "not_joined", why: null })).toEqual({ words: "Not joined", tone: "warning", reason: null });
+    expect(presentRelayConnectionState({ state: "not_joined", why: "no local relay runs" })).toEqual({
+      words: "Not joined",
+      tone: "warning",
+      reason: { lead: "Not joined:", words: "no local relay runs" },
+    });
     expect(presentRelayConnectionState({ state: "lost", why: "refused", rejoining_after_ms: 4000 })).toEqual({
       words: "Lost · joining again in 4s",
       tone: "warning",
-      why: "refused",
+      reason: { lead: "Lost:", words: "refused" },
     });
-    expect(presentRelayConnectionState({ state: "newer_than_this_app", spelled_as: "paused" })).toEqual({ words: "paused", tone: "idle", why: null });
+    expect(presentRelayConnectionState({ state: "newer_than_this_app", spelled_as: "paused" })).toEqual({ words: "paused", tone: "idle", reason: null });
   });
 });

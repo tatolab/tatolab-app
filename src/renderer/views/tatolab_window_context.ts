@@ -4,6 +4,8 @@ import type { TatolabBackend } from "../backend/tatolab_backend";
 import type { TatolabPlatform, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type { AddStreamFlowState, AddStreamRunNotice } from "../presentation/add_stream_flow";
 import type { RuntimeDescriptionReading } from "../presentation/settings_presentation";
+import type { RelaysReading } from "../presentation/relays_presentation";
+import type { RelayReadings } from "../relay_readings";
 import type { RuntimeDescriptionReadings } from "../runtime_description_reading";
 import type { WindowAppearance, WindowAppearanceChoice, WindowTheme } from "../window_appearance";
 import type { StreamGraphReading, StreamGraphReadings } from "../stream_graph_readings";
@@ -72,9 +74,11 @@ export interface TatolabWindowEnvironment {
   windowAppearance: WindowAppearanceChoice;
   /** The runtime's version, uptime and log folder, read while Settings shows them. */
   runtimeDescriptionReadings: RuntimeDescriptionReadings;
+  /** The runtime's relays and its relay-adapter catalog, read while Settings › Relays shows them, and the changes made to them. */
+  relayReadings: RelayReadings;
   /** Open the sheet "Uninstall Tatolab…" asks to confirm in. */
   openUninstallSheet(): void;
-  /** Why the last uninstall was refused, which Settings shows under Uninstall Tatolab…, until the sheet opens again. */
+    /** Why the last uninstall was refused, which Settings shows under Uninstall Tatolab…, until the sheet opens again. */
   uninstallTatolabRefusal: RefusalKeptForTheWindow;
   /** Why Get Started could not be remembered, which a notice shows over the Streams list once first run is over. */
   firstRunFinishingRefusal: RefusalKeptForTheWindow;
@@ -139,6 +143,12 @@ export function useWindowAppearance(): { chosenAppearance: WindowAppearance; sho
 export function useRuntimeDescriptionReading(): RuntimeDescriptionReading {
   const { runtimeDescriptionReadings } = useTatolabWindowEnvironment();
   return useSyncExternalStore(runtimeDescriptionReadings.subscribeToReading, runtimeDescriptionReadings.readLatestReading);
+}
+
+/** What the window holds of the runtime's relays, re-rendering the caller on each change and reading them while it shows them. */
+export function useRelaysReading(): RelaysReading {
+  const { relayReadings } = useTatolabWindowEnvironment();
+  return useSyncExternalStore(relayReadings.subscribeToReading, relayReadings.readLatestReading);
 }
 
 /** Why the last uninstall was refused, `null` for none, re-rendering the caller on each change. */
