@@ -612,13 +612,15 @@ test("describing_the_relays_answers_the_window_in_the_contracts_shape", async ()
     "macos",
   );
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const recordedCatalog: { adapters: { display_icon_data_uri: string }[] } = JSON.parse(await recordedResponseBody("local-api-relay-adapters-answer-of-a-test-root-runtime.json"));
 
   const answer = JSON.stringify(await commandHandlers.describe_relays(undefined));
 
   expect(answer.startsWith('{"ok":true,"value":{"relays":[{"relay_id":"local-loopback","adapter":"local","built_in":true,"settings":{"port":14443},"secrets":{},"connection_state":{"state":"joined"}},')).toBe(true);
   expect(answer).toContain('{"relay_id":"cloudflare-1","adapter":"cloudflare","built_in":false,"settings":{},"secrets":{"relay_url":"set"},"connection_state":{"state":"joining"}}');
   expect(answer).toContain(
-    '"adapters":[{"kind":"local","doc":"The machine\'s own relay, built in: `local-loopback` serves every exposed port to this machine alone, `local-every-interface` serves public ports to any machine that reaches it. Where each listens is never a setting.","setting_fields":[{"name":"port","description":"The port the listener takes for QUIC and HTTP alike; absent, the listener\'s own default (4443 at loopback, 4445 at every interface).","is_required":false,"is_secret":false,"value_kind":{"kind":"whole_number","minimum":0,"maximum":65535},"accepts_null":true}]}',
+    `"adapters":[{"kind":"local","display_name":"Local relay","display_icon_data_uri":${JSON.stringify(recordedCatalog.adapters[0]?.display_icon_data_uri)},` +
+      '"doc":"The machine\'s own relay, built in: `local-loopback` serves every exposed port to this machine alone, `local-every-interface` serves public ports to any machine that reaches it. Where each listens is never a setting.","setting_fields":[{"name":"port","description":"The port the listener takes for QUIC and HTTP alike; absent, the listener\'s own default (4443 at loopback, 4445 at every interface).","is_required":false,"is_secret":false,"value_kind":{"kind":"whole_number","minimum":0,"maximum":65535},"accepts_null":true}]}',
   );
 });
 
