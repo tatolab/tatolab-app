@@ -177,11 +177,11 @@ function RelaySettingControlOfTheRow({
       return (
         <FieldMenu
           label={`${formField.label}: ${control.chosenWords}`}
-          words={control.isChosenWordsAnOption ? <span className="font-mono">{control.chosenWords}</span> : control.chosenWords}
+          words={control.isChosenWordsAnOption ? <span className="font-mono text-xs">{control.chosenWords}</span> : control.chosenWords}
           data-relay-setting-field={formField.name}
         >
           <MenuSingleChoiceGroup
-            choices={control.choices.map((choice) => ({ choice: choice.choiceKey, label: <span className={choice.option === null ? undefined : "font-mono"}>{choice.words}</span> }))}
+            choices={control.choices.map((choice) => ({ choice: choice.choiceKey, label: <span className={choice.option === null ? undefined : "font-mono text-xs"}>{choice.words}</span> }))}
             chosen={control.chosenChoiceKey}
             onChosen={(choiceKey) => onEdited({ kind: "chosen", option: control.choices.find((choice) => choice.choiceKey === choiceKey)?.option ?? null })}
             dataAttributeOfEachChoice="data-relay-setting-choice"
@@ -255,6 +255,10 @@ function RelaySettingRow({ row, onEdited }: { row: RelaySettingFormRow; onEdited
   const fieldId = `relay-setting-${formField.name}`;
   const labelId = `${fieldId}-label`;
   const describedById = `${fieldId}-description`;
+  const onEditedAndTheUnreadableFileForgotten = (edit: RelaySettingEdit) => {
+    setWhyTheFileIsUnreadable(null);
+    onEdited(edit);
+  };
   const labelsItsControl = row.control.control === "text_field" || row.control.control === "file_text";
   return (
     <FormDialogRow
@@ -290,7 +294,7 @@ function RelaySettingRow({ row, onEdited }: { row: RelaySettingFormRow; onEdited
           appearance="quiet"
           label={row.useDefaultLabel}
           onPressed={() => {
-            onEdited({ kind: "use_default" });
+            onEditedAndTheUnreadableFileForgotten({ kind: "use_default" });
             // The button goes once pressed; focus moves to the control it returned to its default, whatever its type, not to the page.
             document.querySelector<HTMLElement>(`[data-relay-setting-field="${CSS.escape(formField.name)}"]`)?.focus();
           }}
@@ -304,10 +308,7 @@ function RelaySettingRow({ row, onEdited }: { row: RelaySettingFormRow; onEdited
         fieldId={fieldId}
         labelId={labelId}
         describedById={describedById}
-        onEdited={(edit) => {
-          setWhyTheFileIsUnreadable(null);
-          onEdited(edit);
-        }}
+        onEdited={onEditedAndTheUnreadableFileForgotten}
         onFileUnreadable={setWhyTheFileIsUnreadable}
       />
     </FormDialogRow>

@@ -1430,6 +1430,41 @@ describe("Settings › Relays", () => {
     }
   });
 
+  it("moves focus to a value added, to the value before one removed, and to the list once none is left", { timeout: 6_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&relays=every-field-type");
+    await openSettingsOn("relays");
+    await openTheAddRelayDialogFor("every-field-type");
+    const tagsRow = () => openRelayDialog().querySelector<HTMLElement>('[data-relay-setting="tags"]') ?? expect.unreachable("no Tags row");
+    const removeButtons = () => [...tagsRow().querySelectorAll<HTMLElement>('[data-relay-action="remove-value"]')];
+
+    for (const addedIndex of [0, 1]) {
+      fireEvent.click(tagsRow().querySelector<HTMLElement>('[data-relay-action="add-value"]') ?? expect.unreachable("no Add value"));
+      await waitFor(() => expect(document.activeElement?.id).toBe(`relay-setting-tags-${addedIndex}`));
+    }
+    fireEvent.click(removeButtons()[1] ?? expect.unreachable("no second remove"));
+    await waitFor(() => expect(document.activeElement?.id).toBe("relay-setting-tags-0"));
+    fireEvent.click(removeButtons()[0] ?? expect.unreachable("no first remove"));
+    await waitFor(() => expect(document.activeElement?.id).toBe("relay-setting-tags"));
+  });
+
+  it("forgets a file it could not read once the setting is edited", { timeout: 6_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&relays=every-field-type");
+    await openSettingsOn("relays");
+    fireEvent.click(await waitFor(() => relayRowOf("every-field-type-1").querySelector<HTMLElement>('[data-relay-action="configure"]') ?? expect.unreachable("no Configure…")));
+    await waitFor(() => expect(document.querySelector('[data-relay-dialog="configure:every-field-type-1"]')).not.toBeNull());
+    const certificateRow = () => openRelayDialog().querySelector<HTMLElement>('[data-relay-setting="certificate"]') ?? expect.unreachable("no Certificate row");
+    const fileInput = certificateRow().querySelector<HTMLInputElement>('input[type="file"]') ?? expect.unreachable("no file input");
+    const unreadableFile = new File(["unread"], "moved.pem");
+    Object.defineProperty(unreadableFile, "text", { value: () => Promise.reject(new Error("the file was moved")) });
+    Object.defineProperty(fileInput, "files", { value: [unreadableFile], configurable: true });
+
+    fireEvent.change(fileInput);
+    await waitFor(() => expect(certificateRow().textContent).toContain("The file couldn't be read: the file was moved"));
+    typeIntoTheRelaySetting("certificate", "-----BEGIN CERTIFICATE-----");
+
+    expect(certificateRow().textContent).not.toContain("couldn't be read");
+  });
+
   it("keeps a secret file's line breaks whole in its masked field", { timeout: 6_000 }, async () => {
     await mountedWindowOverTheMock("state=running&relays=local");
     await openSettingsOn("relays");

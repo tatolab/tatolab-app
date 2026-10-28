@@ -25,7 +25,7 @@ export function MultiLineTextField({
   text: string;
   onTextChanged: (text: string) => void;
   isMachineWord?: boolean;
-  /** Shows a secret as dots, keeping its line breaks, which a one-line password field would strip. */
+  /** Shows a secret as dots, keeping its line breaks, which a one-line password field would strip; its text is never copied or cut out, as a password field's is not. */
   isMasked?: boolean;
   /** Announced as required to assistive technology. */
   isRequired?: boolean;
@@ -42,6 +42,9 @@ export function MultiLineTextField({
       id={id}
       value={text}
       onChange={(changeEvent) => onTextChanged(changeEvent.target.value)}
+      // Chromium guards copy and cut only for `<input type=password>`; `-webkit-text-security` masks the text and nothing more.
+      onCopy={isMasked ? (clipboardEvent) => clipboardEvent.preventDefault() : undefined}
+      onCut={isMasked ? (clipboardEvent) => clipboardEvent.preventDefault() : undefined}
       placeholder={placeholder}
       aria-label={label}
       aria-required={isRequired || undefined}
