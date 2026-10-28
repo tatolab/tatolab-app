@@ -1465,6 +1465,52 @@ describe("Settings › Relays", () => {
     expect(certificateRow().textContent).not.toContain("couldn't be read");
   });
 
+  it("forgets a file it could not read once Use default returns the setting to its default", { timeout: 6_000 }, async () => {
+    const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running&relays=every-field-type")));
+    await mountedWindowOverTheMock("state=running&relays=every-field-type", {
+      describeRelays: async () => {
+        const described = await mockBackend.describeRelays();
+        return {
+          ...described,
+          relays: described.relays.map((relay) =>
+            relay.relay_id === "every-field-type-1" ? { ...relay, settings: { ...relay.settings, certificate: "-----BEGIN CERTIFICATE-----" } } : relay,
+          ),
+        };
+      },
+    });
+    await openSettingsOn("relays");
+    fireEvent.click(await waitFor(() => relayRowOf("every-field-type-1").querySelector<HTMLElement>('[data-relay-action="configure"]') ?? expect.unreachable("no Configure…")));
+    await waitFor(() => expect(document.querySelector('[data-relay-dialog="configure:every-field-type-1"]')).not.toBeNull());
+    const certificateRow = () => openRelayDialog().querySelector<HTMLElement>('[data-relay-setting="certificate"]') ?? expect.unreachable("no Certificate row");
+    const fileInput = certificateRow().querySelector<HTMLInputElement>('input[type="file"]') ?? expect.unreachable("no file input");
+    const unreadableFile = new File(["unread"], "moved.pem");
+    Object.defineProperty(unreadableFile, "text", { value: () => Promise.reject(new Error("the file was moved")) });
+    Object.defineProperty(fileInput, "files", { value: [unreadableFile], configurable: true });
+
+    fireEvent.change(fileInput);
+    await waitFor(() => expect(certificateRow().textContent).toContain("The file couldn't be read: the file was moved"));
+    fireEvent.click(certificateRow().querySelector<HTMLElement>('[data-relay-action="use-default"]') ?? expect.unreachable("no Use default"));
+
+    expect(certificateRow().textContent).not.toContain("couldn't be read");
+  });
+
+  it("refuses copying or cutting a masked file's text out of its field, and allows it from an unmasked one", { timeout: 6_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&relays=every-field-type");
+    await openSettingsOn("relays");
+    await openTheAddRelayDialogFor("every-field-type");
+    const unmaskedField = openRelayDialog().querySelector<HTMLTextAreaElement>('[data-relay-setting-field="certificate"]') ?? expect.unreachable("no certificate field");
+    expect(fireEvent.copy(unmaskedField)).toBe(true);
+    expect(fireEvent.cut(unmaskedField)).toBe(true);
+    fireEvent.click(document.querySelector<HTMLElement>('[data-relay-dialog] button[aria-label="Close"], [data-relay-dialog] [data-slot="dialog-close"]') ?? expect.unreachable("no close"));
+    await waitFor(() => expect(document.querySelector("[data-relay-dialog]")).toBeNull());
+    await openTheAddRelayDialogFor("moqpro");
+    const maskedField = openRelayDialog().querySelector<HTMLTextAreaElement>('[data-relay-setting-field="signing_key"]') ?? expect.unreachable("no signing key field");
+    typeIntoTheRelaySetting("signing_key", "typed-in-the-test");
+
+    expect(fireEvent.copy(maskedField)).toBe(false);
+    expect(fireEvent.cut(maskedField)).toBe(false);
+  });
+
   it("keeps a secret file's line breaks whole in its masked field", { timeout: 6_000 }, async () => {
     await mountedWindowOverTheMock("state=running&relays=local");
     await openSettingsOn("relays");
