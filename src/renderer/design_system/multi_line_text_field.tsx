@@ -3,13 +3,14 @@ import { Textarea } from "@/components/ui/textarea";
 import type { ControlDataAttributes } from "./control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
 
-/** A field that holds text over several lines, as a pasted file's: in Geist Mono for machine words; red-edged while what it holds was refused. */
+/** A field that holds text over several lines, as a pasted file's: in Geist Mono for machine words; dots for a secret; red-edged while what it holds was refused. */
 export function MultiLineTextField({
   id,
   label,
   text,
   onTextChanged,
   isMachineWord = false,
+  isMasked = false,
   isRequired = false,
   isRefused = false,
   placeholder,
@@ -24,6 +25,8 @@ export function MultiLineTextField({
   text: string;
   onTextChanged: (text: string) => void;
   isMachineWord?: boolean;
+  /** Shows a secret as dots, keeping its line breaks, which a one-line password field would strip. */
+  isMasked?: boolean;
   /** Announced as required to assistive technology. */
   isRequired?: boolean;
   isRefused?: boolean;
@@ -50,6 +53,7 @@ export function MultiLineTextField({
       className={cn(
         "max-h-40 min-h-16 rounded-md border-line-strong bg-window px-2.5 py-1.5 text-sm text-fg dark:bg-window",
         isMachineWord && "font-mono",
+        isMasked && "[-webkit-text-security:disc]",
         isRefused && "border-danger dark:border-danger",
         FULL_STRENGTH_FOCUS_RING_CLASS_NAMES,
         className,

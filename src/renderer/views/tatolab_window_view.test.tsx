@@ -1344,7 +1344,8 @@ describe("Settings › Relays", () => {
 
     expect([...dialog.querySelectorAll("[data-relay-setting]")].map((row) => row.getAttribute("data-relay-setting"))).toEqual(["project_id", "signing_key"]);
     expect(dialog.querySelector<HTMLInputElement>('[data-relay-setting-field="project_id"]')?.type).toBe("text");
-    expect(dialog.querySelector<HTMLInputElement>('[data-relay-setting-field="signing_key"]')?.type).toBe("password");
+    expect(dialog.querySelector('[data-relay-setting-field="signing_key"]')?.tagName).toBe("TEXTAREA");
+    expect(dialog.querySelector('[data-relay-setting-field="signing_key"]')?.className).toContain("[-webkit-text-security:disc]");
     expect(dialog.querySelector('[data-relay-setting="signing_key"] [data-relay-action="choose-file"]')?.textContent).toBe("Choose file…");
     expect(dialog.querySelector("[data-relay-additional-options]")).toBeNull();
     const addButton = () => openRelayDialog().querySelector<HTMLButtonElement>('[data-relay-action="add"]') ?? expect.unreachable("no Add relay");
@@ -1373,7 +1374,7 @@ describe("Settings › Relays", () => {
 
     await waitFor(() => expect(openRelayDialog().querySelector("[data-relay-chosen-file]")?.textContent).toBe("From pb2studio.jwk"));
     expect(fileInput.value).toBe("");
-    expect(openRelayDialog().querySelector<HTMLInputElement>('[data-relay-setting-field="signing_key"]')?.type).toBe("password");
+    expect(openRelayDialog().querySelector<HTMLTextAreaElement>('[data-relay-setting-field="signing_key"]')?.value).toBe('{"kty":"OKP","d":"chosen-in-the-test"}');
     fireEvent.click(openRelayDialog().querySelector<HTMLElement>('[data-relay-action="add"]') ?? expect.unreachable("no Add relay"));
 
     await waitFor(() => expect(document.querySelector("[data-relay-dialog]")).toBeNull(), { timeout: 3_000 });
@@ -1413,6 +1414,30 @@ describe("Settings › Relays", () => {
 
     await waitFor(() => expect(document.querySelector("[data-relay-dialog]")).toBeNull(), { timeout: 3_000 });
     await waitFor(() => expect(relayRowOf("every-field-type-2").textContent).toContain("Records true · Region eu · Relay URL https://relay.example · Tags studio"));
+  });
+
+  it("moves focus to the switch, the menu or the list Use default returns to its default", { timeout: 6_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&relays=every-field-type");
+    await openSettingsOn("relays");
+    fireEvent.click(await waitFor(() => relayRowOf("every-field-type-1").querySelector<HTMLElement>('[data-relay-action="configure"]') ?? expect.unreachable("no Configure…")));
+    await waitFor(() => expect(document.querySelector('[data-relay-dialog="configure:every-field-type-1"]')).not.toBeNull());
+    const useDefaultOf = (settingName: string) =>
+      openRelayDialog().querySelector<HTMLElement>(`[data-relay-setting="${settingName}"] [data-relay-action="use-default"]`) ?? expect.unreachable(`no Use default for ${settingName}`);
+
+    for (const settingName of ["records", "fallback_region", "tags"]) {
+      fireEvent.click(useDefaultOf(settingName));
+      expect(document.activeElement?.getAttribute("data-relay-setting-field")).toBe(settingName);
+    }
+  });
+
+  it("keeps a secret file's line breaks whole in its masked field", { timeout: 6_000 }, async () => {
+    await mountedWindowOverTheMock("state=running&relays=local");
+    await openSettingsOn("relays");
+    await openTheAddRelayDialogFor("moqpro");
+
+    typeIntoTheRelaySetting("signing_key", "-----BEGIN PRIVATE KEY-----\nline\n-----END PRIVATE KEY-----\n");
+
+    expect(openRelayDialog().querySelector<HTMLTextAreaElement>('[data-relay-setting-field="signing_key"]')?.value).toBe("-----BEGIN PRIVATE KEY-----\nline\n-----END PRIVATE KEY-----\n");
   });
 
   it("shows an add the runtime refuses inside the form in its own words, adds nothing, and clears the secret typed", { timeout: 6_000 }, async () => {

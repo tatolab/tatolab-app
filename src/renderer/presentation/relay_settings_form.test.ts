@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ListedRelay, RelayAdapter, RelaySettingField } from "../../shared/tatolab_backend_contract";
 import {
+  relaySettingFileUnreadableSentence,
   relaySettingLabel,
   relaySettingValueWords,
-  relaySettingsDraftWithoutTypedSecrets,
+  relaySettingsDraftWithoutEnteredSecrets,
   relaySettingsFormFields,
   presentRelaySettingsForm,
   type RelaySettingFormRow,
@@ -137,6 +138,7 @@ describe("the settings form", () => {
         ],
         chosenChoiceKey: "",
         chosenWords: "Choose…",
+        isChosenWordsAnOption: false,
       },
       verifies: { control: "switch", isOn: false },
       api_key: { control: "text_field", text: "", isMasked: true, inputMode: "text", placeholder: "Default" },
@@ -149,10 +151,11 @@ describe("the settings form", () => {
         ],
         chosenChoiceKey: "none",
         chosenWords: "None",
+        isChosenWordsAnOption: false,
       },
       records: { control: "switch", isOn: false },
       relay_url: { control: "text_field", text: "https://relay.example", isMasked: false, inputMode: "url", placeholder: "Default" },
-      tags: { control: "list_of_text_fields", values: [], isMasked: false },
+      tags: { control: "list_of_text_fields", listedValues: [], isMasked: false, addValueLabel: "Add value to Tags" },
     });
     expect(allRowsOf(presentRelaySettingsForm(LOCAL_ADAPTER, null, {}))[0]?.control).toEqual({
       control: "text_field",
@@ -166,7 +169,8 @@ describe("the settings form", () => {
       text: "",
       isMasked: true,
       chosenFileName: null,
-      placeholder: null,
+      placeholder: "Paste, or choose a file",
+      chooseFileLabel: "Choose file… for Signing key",
     });
     expect(allRowsOf(presentRelaySettingsForm(CLOUDFLARE_ADAPTER, null, {}))[0]?.control).toMatchObject({ control: "text_field", isMasked: true, inputMode: "url" });
   });
@@ -307,23 +311,35 @@ describe("the form's rows", () => {
       ["tags", null, true],
     ]);
     expect(rows.map((row) => row.control)).toMatchObject([
-      { chosenWords: "us" },
+      { chosenWords: "us", isChosenWordsAnOption: true },
       { isOn: false },
       { text: "", isMasked: true },
-      { chosenWords: "eu" },
+      { chosenWords: "eu", isChosenWordsAnOption: true },
       { isOn: true },
       { text: "https://relay.example" },
-      { values: ["studio", "desk"] },
+      {
+        listedValues: [
+          { text: "studio", label: "Tags 1", removeLabel: "Remove Tags 1" },
+          { text: "desk", label: "Tags 2", removeLabel: "Remove Tags 2" },
+        ],
+      },
     ]);
     expect(allRowsOf(presentRelaySettingsForm(MOQPRO_ADAPTER, { ...MOQPRO_RELAY, secrets: { signing_key: "unset" } }, {}))[1]?.heldSecretWords).toBe("Not set");
     expect(allRowsOf(presentRelaySettingsForm(LOCAL_ADAPTER, EVERY_INTERFACE, {}))[0]).toMatchObject({ offersUseDefault: true, useDefaultLabel: "Use the default Port" });
+  });
+
+  it("offer no Use default for a setting the relay lists at the catalog's default", () => {
+    const relayAtItsDefaults: ListedRelay = { ...EVERY_FIELD_TYPE_RELAY, settings: { ...EVERY_FIELD_TYPE_RELAY.settings, records: false, tags: [], relay_url: "https://relay.example" } };
+    const rows = allRowsOf(presentRelaySettingsForm(EVERY_FIELD_TYPE_ADAPTER, relayAtItsDefaults, {}));
+
+    expect(rows.filter((row) => ["records", "tags", "relay_url"].includes(row.formField.name)).map((row) => row.offersUseDefault)).toEqual([false, false, false]);
   });
 
   it("show a setting's default once Use default is pressed", () => {
     const rows = allRowsOf(presentRelaySettingsForm(EVERY_FIELD_TYPE_ADAPTER, EVERY_FIELD_TYPE_RELAY, { records: { kind: "use_default" }, tags: { kind: "use_default" } }));
 
     expect(rows.find((row) => row.formField.name === "records")).toMatchObject({ control: { isOn: false }, offersUseDefault: false });
-    expect(rows.find((row) => row.formField.name === "tags")).toMatchObject({ control: { values: [] }, offersUseDefault: false });
+    expect(rows.find((row) => row.formField.name === "tags")).toMatchObject({ control: { listedValues: [] }, offersUseDefault: false });
   });
 
   it("name what is wrong only with a setting the person has entered something into, saying Required once", () => {
@@ -345,13 +361,19 @@ describe("the form's rows", () => {
   });
 });
 
+describe("a chosen file that could not be read", () => {
+  it("is said in the browser's words", () => {
+    expect(relaySettingFileUnreadableSentence("NotReadableError: the file was moved")).toBe("The file couldn't be read: NotReadableError: the file was moved");
+  });
+});
+
 describe("sending a form", () => {
   it("is unavailable naming why, and forgets every secret entered, a chosen file's text with it, once the runtime answers", () => {
     expect(relaySettingsSendUnavailableBecause({ kind: "no_change" })).toBe("Nothing has changed.");
     expect(relaySettingsSendUnavailableBecause({ kind: "incomplete", problems: {}, firstProblem: "Signing key is required." })).toBe("Signing key is required.");
     expect(relaySettingsSendUnavailableBecause({ kind: "ready", settings: {} })).toBeNull();
     expect(
-      relaySettingsDraftWithoutTypedSecrets(MOQPRO_ADAPTER, {
+      relaySettingsDraftWithoutEnteredSecrets(MOQPRO_ADAPTER, {
         project_id: { kind: "typed", text: "desk" },
         signing_key: { kind: "file_chosen", fileName: "pb1studio.jwk", text: "typed-in-the-test" },
       }),

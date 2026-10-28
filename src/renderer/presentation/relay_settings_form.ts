@@ -18,7 +18,7 @@ export function relaySettingLabel(settingName: string): string {
 /** A setting's value in words: a list of text joined by commas, a number or true or false as JSON writes it, nothing for `null`. */
 export function relaySettingValueWords(settingValue: RelaySettingValue): string {
   if (settingValue === null) return "";
-  if (typeof settingValue === "object") return settingValue.join(", ");
+  if (Array.isArray(settingValue)) return settingValue.join(", ");
   return String(settingValue);
 }
 
@@ -71,8 +71,8 @@ export type RelaySettingsToSend =
   | { kind: "no_change" }
   | { kind: "incomplete"; problems: Record<string, string>; firstProblem: string };
 
-/** A number as JSON writes one, which the runtime takes as a number, not as text. */
-const A_NUMBER_AS_JSON_WRITES_IT = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
+/** A decimal number as a person types one, `.5` and `1.` among them, which the runtime takes as a number, not as text. */
+const A_TYPED_DECIMAL_NUMBER = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
 
 type EditedSettingValue = { kind: "value"; value: Exclude<RelaySettingValue, null> } | { kind: "empty" } | { kind: "problem"; problem: string; sentence: string };
 
@@ -84,7 +84,7 @@ function editedSettingValue(formField: RelaySettingFormField, edit: Exclude<Rela
       if (edit.text.trim() === "") return { kind: "empty" };
       if (formField.fieldType.type !== "number") return { kind: "value", value: edit.text };
       const typedNumber = edit.text.trim();
-      if (A_NUMBER_AS_JSON_WRITES_IT.test(typedNumber) && Number.isFinite(Number(typedNumber))) return { kind: "value", value: Number(typedNumber) };
+      if (A_TYPED_DECIMAL_NUMBER.test(typedNumber) && Number.isFinite(Number(typedNumber))) return { kind: "value", value: Number(typedNumber) };
       return { kind: "problem", problem: "A number", sentence: `${formField.label} must be a number.` };
     }
     case "switched":
@@ -193,9 +193,21 @@ export function relaySettingsSendUnavailableBecause(settingsToSend: RelaySetting
 }
 
 /** `draft` with every secret entered into it forgotten, a chosen file's text with it, as a form leaves it once the runtime has answered. */
-export function relaySettingsDraftWithoutTypedSecrets(adapter: RelayAdapter, draft: RelaySettingsDraft): RelaySettingsDraft {
+export function relaySettingsDraftWithoutEnteredSecrets(adapter: RelayAdapter, draft: RelaySettingsDraft): RelaySettingsDraft {
   const secretNames = new Set(adapter.setting_fields.filter((settingField) => settingField.is_secret).map((settingField) => settingField.name));
   return Object.fromEntries(Object.entries(draft).filter(([settingName]) => !secretNames.has(settingName)));
+}
+
+/** Why a chosen file was not taken, said under its setting, in the browser's words. */
+export function relaySettingFileUnreadableSentence(whyUnreadable: string): string {
+  return `The file couldn't be read: ${whyUnreadable}`;
+}
+
+/** One value of a `string_list` setting's fields: its text, its field's accessible name, and its remove button's. */
+export interface RelaySettingListedValue {
+  text: string;
+  label: string;
+  removeLabel: string;
 }
 
 /** One option of a `select` setting's menu, or the "None" the form offers for an optional one. */
@@ -217,10 +229,17 @@ function menuChoiceKeyOf(option: string | null): string {
  */
 export type RelaySettingControl =
   | { control: "text_field"; text: string; isMasked: boolean; inputMode: "text" | "decimal" | "url"; placeholder: string | null }
-  | { control: "file_text"; text: string; isMasked: boolean; chosenFileName: string | null; placeholder: string | null }
+  | { control: "file_text"; text: string; isMasked: boolean; chosenFileName: string | null; placeholder: string | null; chooseFileLabel: string }
   | { control: "switch"; isOn: boolean }
-  | { control: "menu"; choices: RelaySettingMenuChoice[]; chosenChoiceKey: string; chosenWords: string }
-  | { control: "list_of_text_fields"; values: readonly string[]; isMasked: boolean };
+  | {
+      control: "menu";
+      choices: readonly RelaySettingMenuChoice[];
+      chosenChoiceKey: string;
+      chosenWords: string;
+      /** Whether the chosen words are an option, set in Geist Mono, or the form's own "Choose…" or "None". */
+      isChosenWordsAnOption: boolean;
+    }
+  | { control: "list_of_text_fields"; listedValues: readonly RelaySettingListedValue[]; isMasked: boolean; addValueLabel: string };
 
 /** What `formField`'s control shows: `edit`, or what the setting holds before one, its default after Use default. */
 function relaySettingControlOf(formField: RelaySettingFormField, edit: RelaySettingEdit | undefined, valueBeforeAnEdit: RelaySettingValue): RelaySettingControl {
@@ -244,7 +263,8 @@ function relaySettingControlOf(formField: RelaySettingFormField, edit: RelaySett
         text: edit?.kind === "typed" || edit?.kind === "file_chosen" ? edit.text : relaySettingValueWords(shownValue),
         isMasked: formField.isSecret,
         chosenFileName: edit?.kind === "file_chosen" ? edit.fileName : null,
-        placeholder,
+        placeholder: placeholder ?? "Paste, or choose a file",
+        chooseFileLabel: `Choose file… for ${formField.label}`,
       };
     case "boolean":
       return { control: "switch", isOn: edit?.kind === "switched" ? edit.isOn : shownValue === true };
@@ -257,14 +277,18 @@ function relaySettingControlOf(formField: RelaySettingFormField, edit: RelaySett
         choices,
         chosenChoiceKey: chosenOption === null && formField.isRequired ? "" : menuChoiceKeyOf(chosenOption),
         chosenWords: chosenOption ?? (formField.isRequired ? "Choose…" : "None"),
+        isChosenWordsAnOption: chosenOption !== null,
       };
     }
-    case "string_list":
+    case "string_list": {
+      const values = edit?.kind === "listed" ? edit.values : Array.isArray(shownValue) ? shownValue : [];
       return {
         control: "list_of_text_fields",
-        values: edit?.kind === "listed" ? edit.values : shownValue !== null && typeof shownValue === "object" ? shownValue : [],
+        listedValues: values.map((text, valueIndex) => ({ text, label: `${formField.label} ${valueIndex + 1}`, removeLabel: `Remove ${formField.label} ${valueIndex + 1}` })),
         isMasked: formField.isSecret,
+        addValueLabel: `Add value to ${formField.label}`,
       };
+    }
   }
 }
 
@@ -274,7 +298,7 @@ export interface RelaySettingFormRow {
   control: RelaySettingControl;
   /** "Set" or "Not set" beside a secret the relay holds, as `list_relays` reports it; `null` while adding, or for a setting that is no secret. */
   heldSecretWords: "Set" | "Not set" | null;
-  /** Configure offers Use default for an optional setting not at its default already. */
+  /** Configure offers Use default for an optional setting not at its default already: one the relay lists no value for, or lists the catalog's default for. */
   offersUseDefault: boolean;
   /** Use default's accessible name, naming the setting. */
   useDefaultLabel: string;
@@ -302,8 +326,9 @@ export function presentRelaySettingsForm(adapter: RelayAdapter, relay: ListedRel
   const rows = relaySettingsFormFields(adapter).map((formField): RelaySettingFormRow => {
     const edit = draft[formField.name];
     const heldSecret = relay === null ? undefined : relay.secrets[formField.name];
-    const relayListsAValue = relay !== null && listedSettingValue(relay, formField.name) !== null;
-    const isAtItsDefault = edit?.kind === "use_default" || (edit === undefined && !relayListsAValue && heldSecret === undefined);
+    const listedValue = relay === null ? null : listedSettingValue(relay, formField.name);
+    const listsItsDefault = listedValue === null || isTheSameSettingValue(listedValue, formField.settingField.default_value);
+    const isAtItsDefault = edit?.kind === "use_default" || (edit === undefined && listsItsDefault && heldSecret === undefined);
     const problem = edit !== undefined && settingsToSend.kind === "incomplete" ? (settingsToSend.problems[formField.name] ?? null) : null;
     return {
       formField,

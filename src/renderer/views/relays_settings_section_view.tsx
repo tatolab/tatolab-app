@@ -18,7 +18,8 @@ import { TextField } from "../design_system/text_field";
 import { ToggleSwitch } from "../design_system/toggle_switch";
 import {
   presentRelaySettingsForm,
-  relaySettingsDraftWithoutTypedSecrets,
+  relaySettingFileUnreadableSentence,
+  relaySettingsDraftWithoutEnteredSecrets,
   type RelaySettingEdit,
   type RelaySettingFormRow,
   type RelaySettingsDraft,
@@ -140,38 +141,22 @@ function RelaySettingControlOfTheRow({
     case "file_text":
       return (
         <div className="flex flex-col items-end gap-1.5">
-          {control.isMasked ? (
-            <TextField
-              id={fieldId}
-              label={formField.label}
-              text={control.text}
-              onTextChanged={(text) => onEdited({ kind: "typed", text })}
-              isMachineWord
-              isMasked
-              isRequired={formField.isRequired}
-              isRefused={isRefused}
-              placeholder={control.placeholder ?? "Paste, or choose a file"}
-              describedBy={describedById}
-              className="w-64"
-              data-relay-setting-field={formField.name}
-            />
-          ) : (
-            <MultiLineTextField
-              id={fieldId}
-              label={formField.label}
-              text={control.text}
-              onTextChanged={(text) => onEdited({ kind: "typed", text })}
-              isMachineWord
-              isRequired={formField.isRequired}
-              isRefused={isRefused}
-              placeholder={control.placeholder ?? "Paste, or choose a file"}
-              describedBy={describedById}
-              className="w-64"
-              data-relay-setting-field={formField.name}
-            />
-          )}
+          <MultiLineTextField
+            id={fieldId}
+            label={formField.label}
+            text={control.text}
+            onTextChanged={(text) => onEdited({ kind: "typed", text })}
+            isMachineWord
+            isMasked={control.isMasked}
+            isRequired={formField.isRequired}
+            isRefused={isRefused}
+            placeholder={control.placeholder ?? undefined}
+            describedBy={describedById}
+            className="w-64"
+            data-relay-setting-field={formField.name}
+          />
           <FileTextChooserButton
-            label={`Choose the ${formField.label} file`}
+            label={control.chooseFileLabel}
             onFileTextChosen={(fileName, text) => onEdited({ kind: "file_chosen", fileName, text })}
             onFileUnreadable={onFileUnreadable}
             data-relay-action="choose-file"
@@ -190,7 +175,11 @@ function RelaySettingControlOfTheRow({
       );
     case "menu":
       return (
-        <FieldMenu label={`${formField.label}: ${control.chosenWords}`} words={<span className="font-mono">{control.chosenWords}</span>} data-relay-setting-field={formField.name}>
+        <FieldMenu
+          label={`${formField.label}: ${control.chosenWords}`}
+          words={control.isChosenWordsAnOption ? <span className="font-mono">{control.chosenWords}</span> : control.chosenWords}
+          data-relay-setting-field={formField.name}
+        >
           <MenuSingleChoiceGroup
             choices={control.choices.map((choice) => ({ choice: choice.choiceKey, label: <span className={choice.option === null ? undefined : "font-mono"}>{choice.words}</span> }))}
             chosen={control.chosenChoiceKey}
@@ -201,16 +190,27 @@ function RelaySettingControlOfTheRow({
       );
     case "list_of_text_fields": {
       const valueFieldId = (valueIndex: number) => `${fieldId}-${valueIndex}`;
+      const listedTexts = control.listedValues.map((listedValue) => listedValue.text);
       const listWith = (values: readonly string[]) => onEdited({ kind: "listed", values });
+      // A field added or removed is drawn on the next frame; focus moves to the field it names, or to the list while none is left, not to the page.
+      const focusOnTheNextFrame = (elementId: string) => requestAnimationFrame(() => (document.getElementById(elementId) ?? document.getElementById(fieldId))?.focus());
       return (
-        <div className="flex flex-col items-end gap-1.5" data-relay-setting-field={formField.name}>
-          {control.values.map((listedValue, valueIndex) => (
+        <div
+          id={fieldId}
+          role="group"
+          aria-labelledby={labelId}
+          aria-describedby={describedById}
+          tabIndex={-1}
+          className="flex flex-col items-end gap-1.5 outline-none"
+          data-relay-setting-field={formField.name}
+        >
+          {control.listedValues.map((listedValue, valueIndex) => (
             <div key={valueIndex} className="flex items-center gap-1">
               <TextField
                 id={valueFieldId(valueIndex)}
-                label={`${formField.label} ${valueIndex + 1}`}
-                text={listedValue}
-                onTextChanged={(text) => listWith(control.values.map((otherValue, otherIndex) => (otherIndex === valueIndex ? text : otherValue)))}
+                label={listedValue.label}
+                text={listedValue.text}
+                onTextChanged={(text) => listWith(listedTexts.map((otherText, otherIndex) => (otherIndex === valueIndex ? text : otherText)))}
                 isMachineWord
                 isMasked={control.isMasked}
                 isRefused={isRefused}
@@ -219,9 +219,12 @@ function RelaySettingControlOfTheRow({
               />
               <IconButton
                 icon={X}
-                label={`Remove ${formField.label} ${valueIndex + 1}`}
+                label={listedValue.removeLabel}
                 size="compact"
-                onPressed={() => listWith(control.values.filter((_, otherIndex) => otherIndex !== valueIndex))}
+                onPressed={() => {
+                  listWith(listedTexts.filter((_, otherIndex) => otherIndex !== valueIndex));
+                  focusOnTheNextFrame(valueFieldId(Math.max(valueIndex - 1, 0)));
+                }}
                 data-relay-action="remove-value"
               />
             </div>
@@ -230,11 +233,10 @@ function RelaySettingControlOfTheRow({
             appearance="quiet"
             size="small"
             icon={Plus}
-            label={`Add a ${formField.label} value`}
+            label={control.addValueLabel}
             onPressed={() => {
-              listWith([...control.values, ""]);
-              // The new field is drawn on the next frame; focus moves into it, not to the page.
-              requestAnimationFrame(() => document.getElementById(valueFieldId(control.values.length))?.focus());
+              listWith([...listedTexts, ""]);
+              focusOnTheNextFrame(valueFieldId(listedTexts.length));
             }}
             data-relay-action="add-value"
           >
@@ -274,7 +276,7 @@ function RelaySettingRow({ row, onEdited }: { row: RelaySettingFormRow; onEdited
           )}
           {row.requiredWords !== null && <p>{row.requiredWords}</p>}
           {row.problem !== null && <p className="text-danger-text">{row.problem}</p>}
-          {whyTheFileIsUnreadable !== null && <p className="text-danger-text">The file couldn't be read: {whyTheFileIsUnreadable}</p>}
+          {whyTheFileIsUnreadable !== null && <p className="text-danger-text">{relaySettingFileUnreadableSentence(whyTheFileIsUnreadable)}</p>}
         </div>
       }
     >
@@ -289,8 +291,8 @@ function RelaySettingRow({ row, onEdited }: { row: RelaySettingFormRow; onEdited
           label={row.useDefaultLabel}
           onPressed={() => {
             onEdited({ kind: "use_default" });
-            // The button goes once pressed; focus moves to the control it returned to its default, not to the page.
-            document.getElementById(fieldId)?.focus();
+            // The button goes once pressed; focus moves to the control it returned to its default, whatever its type, not to the page.
+            document.querySelector<HTMLElement>(`[data-relay-setting-field="${CSS.escape(formField.name)}"]`)?.focus();
           }}
           data-relay-action="use-default"
         >
@@ -323,7 +325,7 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
   const [refusal, setRefusal] = useState<BackendActionRefusal | null>(null);
   const { dialogWords, requiredRows, additionalOptionRows, settingsToSend, sendUnavailableBecause } = presentRelaySettingsForm(adapter, relay, draft);
   const adapterNaming = presentRelayAdapterNaming(adapter);
-  const forgetEverySecretTyped = () => setDraft((draftNow) => relaySettingsDraftWithoutTypedSecrets(adapter, draftNow));
+  const forgetEverySecretTyped = () => setDraft((draftNow) => relaySettingsDraftWithoutEnteredSecrets(adapter, draftNow));
   const relaySettingRowOf = (row: RelaySettingFormRow) => (
     <RelaySettingRow
       key={row.formField.name}
