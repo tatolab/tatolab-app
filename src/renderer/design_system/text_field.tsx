@@ -3,13 +3,14 @@ import { Input } from "@/components/ui/input";
 import type { ControlDataAttributes } from "./control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
 
-/** A one-line field the person types into: in Geist Mono for a machine word, as a stream's name; red-edged while what it holds was refused. */
+/** A one-line field the person types into: in Geist Mono for a machine word, as a stream's name; dots for a secret; red-edged while what it holds was refused. */
 export function TextField({
   id,
   label,
   text,
   onTextChanged,
   isMachineWord = false,
+  isMasked = false,
   isRequired = false,
   isRefused = false,
   placeholder,
@@ -25,13 +26,15 @@ export function TextField({
   text: string;
   onTextChanged: (text: string) => void;
   isMachineWord?: boolean;
+  /** Shows a secret as dots, as a password field does. */
+  isMasked?: boolean;
   /** Announced as required to assistive technology. */
   isRequired?: boolean;
   isRefused?: boolean;
   /** Shown while it holds nothing, as "Default". */
   placeholder?: string;
-  /** The keyboard a touch screen offers for it, `numeric` for a whole number. */
-  inputMode?: "text" | "numeric";
+  /** The keyboard a touch screen offers for it, `numeric` for a whole number, `decimal` for any number. */
+  inputMode?: "text" | "numeric" | "decimal" | "url";
   /** The id of what explains the field or its refusal. */
   describedBy?: string;
   /** A one-off adjustment where the field is used. */
@@ -40,6 +43,7 @@ export function TextField({
   return (
     <Input
       id={id}
+      type={isMasked ? "password" : "text"}
       value={text}
       onChange={(changeEvent) => onTextChanged(changeEvent.target.value)}
       placeholder={placeholder}
