@@ -32,6 +32,12 @@ import { failedWith, succeeded, type Result } from "./result.js";
 /** A tool of the runtime that changes a relay, each answering the `relay_id` it changed. */
 export type RelayChangeToolName = "add_relay" | "configure_relay" | "remove_relay";
 
+/** What a relay setting's value can be, as a refusal of one that is none of these words it. */
+export const WHAT_A_RELAY_SETTING_VALUE_CAN_BE = "text, a number, true or false, a list of text, or null";
+
+/** Every field type this app draws a control for, a `select` with its `options` beside it. */
+const RELAY_SETTING_FIELD_TYPES_THIS_APP_DRAWS = ["string", "url", "number", "boolean", "select", "string_list", "file"] as const satisfies readonly RelaySettingFieldType["type"][];
+
 /** Whether `value` is a relay setting's value: text, a finite number, true or false, a list of text, or `null`, which JSON carries as itself. */
 function isARelaySettingValue(value: unknown): value is RelaySettingValue {
   if (Array.isArray(value)) return value.every((listedValue) => typeof listedValue === "string");
@@ -104,7 +110,7 @@ function listedRelayOnTheWire(listedRelayValue: unknown): Result<ListedRelay, st
 function relaySettingsOnTheWire(listedRelay: JsonObjectOnTheWire): Result<RelaySettingsByName, string> {
   const settingsOnTheWire = objectOrEmpty(listedRelay, "settings");
   if (!settingsOnTheWire.ok) return settingsOnTheWire;
-  return relaySettingsByNameFrom(settingsOnTheWire.value, (settingName) => `the setting \`${settingName}\` is not text, a number, true or false, a list of text, or null`);
+  return relaySettingsByNameFrom(settingsOnTheWire.value, (settingName) => `the setting \`${settingName}\` is not ${WHAT_A_RELAY_SETTING_VALUE_CAN_BE}`);
 }
 
 /** Each secret's presence; a value that is not `set` or `unset` is refused by the setting's name alone, so no secret is ever carried on. */
@@ -176,38 +182,37 @@ function relaySettingFieldOnTheWire(settingFieldValue: unknown): Result<RelaySet
   if (!settingField.ok) return settingField;
   const name = requiredText(settingField.value, "name");
   if (!name.ok) return name;
-  const fieldType = relaySettingFieldTypeOnTheWire(settingField.value);
-  if (!fieldType.ok) return failedWith(`the setting \`${name.value}\`: ${fieldType.failure}`);
-  const isSecret = requiredTrueOrFalse(settingField.value, "secret");
+  const namedSettingField = relaySettingFieldNamed(name.value, settingField.value);
+  return namedSettingField.ok ? namedSettingField : failedWith(`the setting \`${name.value}\`: ${namedSettingField.failure}`);
+}
+
+function relaySettingFieldNamed(name: string, settingField: JsonObjectOnTheWire): Result<RelaySettingField, string> {
+  const fieldType = relaySettingFieldTypeOnTheWire(settingField);
+  if (!fieldType.ok) return fieldType;
+  const isSecret = requiredTrueOrFalse(settingField, "secret");
   if (!isSecret.ok) return isSecret;
-  const isRequired = requiredTrueOrFalse(settingField.value, "required");
+  const isRequired = requiredTrueOrFalse(settingField, "required");
   if (!isRequired.ok) return isRequired;
-  const doc = requiredText(settingField.value, "doc");
+  const doc = requiredText(settingField, "doc");
   if (!doc.ok) return doc;
-  const defaultValue = settingField.value["default"] ?? null;
-  if (!isARelaySettingValue(defaultValue)) return failedWith(`the default of the setting \`${name.value}\` is not text, a number, true or false, or a list of text`);
-  return succeeded({ name: name.value, field_type: fieldType.value, is_secret: isSecret.value, is_required: isRequired.value, doc: doc.value, default_value: defaultValue });
+  const defaultValue = settingField["default"] ?? null;
+  if (!isARelaySettingValue(defaultValue)) return failedWith(`its default is not ${WHAT_A_RELAY_SETTING_VALUE_CAN_BE}`);
+  return succeeded({ name, field_type: fieldType.value, is_secret: isSecret.value, is_required: isRequired.value, doc: doc.value, default_value: defaultValue });
+}
+
+/** Whether `spelledType` is a field type this app draws. */
+function isAFieldTypeThisAppDraws(spelledType: string): spelledType is (typeof RELAY_SETTING_FIELD_TYPES_THIS_APP_DRAWS)[number] {
+  return RELAY_SETTING_FIELD_TYPES_THIS_APP_DRAWS.some((fieldType) => fieldType === spelledType);
 }
 
 /** The setting's `type`; one this app does not know is refused, as the app always bundles the runtime it was built with. */
 function relaySettingFieldTypeOnTheWire(settingField: JsonObjectOnTheWire): Result<RelaySettingFieldType, string> {
   const fieldType = requiredText(settingField, "type");
   if (!fieldType.ok) return fieldType;
-  switch (fieldType.value) {
-    case "string":
-    case "url":
-    case "number":
-    case "boolean":
-    case "string_list":
-    case "file":
-      return succeeded({ type: fieldType.value });
-    case "select": {
-      const options = requiredArray(settingField, "options");
-      if (!options.ok) return options;
-      const textOptions = options.value.filter((option): option is string => typeof option === "string");
-      return textOptions.length === options.value.length ? succeeded({ type: "select", options: textOptions }) : failedWith("an option of the `select` is not text");
-    }
-    default:
-      return failedWith(`its type \`${fieldType.value}\` is not one this app draws`);
-  }
+  if (!isAFieldTypeThisAppDraws(fieldType.value)) return failedWith(`its type \`${fieldType.value}\` is not one this app draws`);
+  if (fieldType.value !== "select") return succeeded({ type: fieldType.value });
+  const options = requiredArray(settingField, "options");
+  if (!options.ok) return options;
+  const textOptions = options.value.filter((option): option is string => typeof option === "string");
+  return textOptions.length === options.value.length ? succeeded({ type: "select", options: textOptions }) : failedWith("an option of the `select` is not text");
 }

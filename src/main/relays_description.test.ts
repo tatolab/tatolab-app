@@ -176,6 +176,15 @@ test("a_setting_of_a_type_this_app_does_not_draw_is_refused_naming_the_setting_a
   );
 });
 
+test("a_setting_missing_a_field_or_with_a_default_no_setting_takes_is_refused_naming_the_setting", () => {
+  expect(failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalogOfOneAdapterTaking([{ name: "region", type: "string", required: true, doc: "The region." }])))).toBe(
+    "the runtime's /api/relay-adapters answer could not be read: the settings of `red5`: the setting `region`: missing field `secret`",
+  );
+  expect(
+    failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalogOfOneAdapterTaking([{ name: "limits", type: "string", secret: false, required: false, doc: "", default: { burst: 4 } }]))),
+  ).toContain("the setting `limits`: its default is not text, a number, true or false, a list of text, or null");
+});
+
 test("a_select_whose_options_are_not_all_text_is_refused_naming_the_setting", () => {
   const catalog = catalogOfOneAdapterTaking([{ name: "region", type: "select", options: ["us", 2], secret: false, required: true, doc: "The region." }]);
 

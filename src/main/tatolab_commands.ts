@@ -24,7 +24,7 @@ import {
   runInTheBackgroundWithTheController,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
-import { relaySettingsByNameFrom } from "./relays_description.js";
+import { relaySettingsByNameFrom, WHAT_A_RELAY_SETTING_VALUE_CAN_BE } from "./relays_description.js";
 import { openTheRuntimesLogFolder } from "./runtime_log_folder_opening.js";
 import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 
@@ -250,11 +250,11 @@ export function removeRelay(sharedState: TatolabAppSharedState, relayId: string)
   });
 }
 
-/** The `settings` of the command `commandName` as the window sends them: each value text, a finite number, true or false, or null; anything else is refused naming the setting, never its value. */
+/** The `settings` of the command `commandName` as the window sends them: each value text, a finite number, true or false, a list of text, or null; anything else is refused naming the setting, never its value. */
 function relaySettingsArgumentFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<RelaySettingsByName, string> {
   const settingsArgument = isAJsonObject(commandArguments) ? commandArguments["settings"] : undefined;
   if (!isAJsonObject(settingsArgument)) return failedWith(`${commandName} needs \`settings\`, each setting by name`);
-  return relaySettingsByNameFrom(settingsArgument, (settingName) => `${commandName} needs the setting \`${settingName}\` as text, a number, true or false, a list of text, or null`);
+  return relaySettingsByNameFrom(settingsArgument, (settingName) => `${commandName} needs the setting \`${settingName}\` as ${WHAT_A_RELAY_SETTING_VALUE_CAN_BE}`);
 }
 
 /** `add_relay`'s arguments as the window sends them, or why they are not. */

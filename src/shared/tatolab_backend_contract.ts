@@ -309,7 +309,7 @@ export type RelaySettingFieldType =
   | { type: "url" }
   | { type: "number" }
   | { type: "boolean" }
-  | { type: "select"; options: string[] }
+  | { type: "select"; options: readonly string[] }
   | { type: "string_list" }
   | { type: "file" };
 
