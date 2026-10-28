@@ -622,7 +622,7 @@ test("describing_the_relays_answers_the_window_in_the_contracts_shape", async ()
   expect(answer).toContain('{"relay_id":"cloudflare-1","adapter":"cloudflare","built_in":false,"settings":{},"secrets":{"relay_url":"set"},"connection_state":{"state":"joining"}}');
   expect(answer).toContain(
     `"adapters":[{"kind":"local","display_name":"Local relay","display_icon_data_uri":${JSON.stringify(recordedLocalRelayIcon)},` +
-      '"doc":"The machine\'s own relay, built in: `local-loopback` serves every exposed port to this machine alone, `local-every-interface` serves public ports to any machine that reaches it. Where each listens is never a setting.","setting_fields":[{"name":"port","description":"The port the listener takes for QUIC and HTTP alike; absent, the listener\'s own default (4443 at loopback, 4445 at every interface).","is_required":false,"is_secret":false,"value_kind":{"kind":"whole_number","minimum":0,"maximum":65535},"accepts_null":true}]}',
+      '"doc":"The machine\'s own relay, built in: `local-loopback` serves every exposed port to this machine alone, `local-every-interface` serves public ports to any machine that reaches it. Where each listens is never a setting.","setting_fields":[{"name":"port","field_type":{"type":"number"},"is_secret":false,"is_required":false,"doc":"The port the listener takes for QUIC and HTTP alike; absent, the listener\'s own default (4443 at loopback, 4445 at every interface).","default_value":null}]}',
   );
 });
 
@@ -653,14 +653,14 @@ test("the_relay_commands_read_their_arguments_as_the_window_sends_them_and_never
 
   expect(await commandHandlers.add_relay({ settings: {} })).toEqual({ ok: false, refusal: "add_relay needs `adapter`, an adapter's kind" });
   expect(await commandHandlers.add_relay({ adapter: "cloudflare" })).toEqual({ ok: false, refusal: "add_relay needs `settings`, each setting by name" });
-  expect(await commandHandlers.add_relay({ adapter: "cloudflare", settings: { relay_url: ["typed-in-the-test"] } })).toEqual({
+  expect(await commandHandlers.add_relay({ adapter: "cloudflare", settings: { relay_url: { url: "typed-in-the-test" } } })).toEqual({
     ok: false,
-    refusal: "add_relay needs the setting `relay_url` as text, a number, true or false, or null",
+    refusal: "add_relay needs the setting `relay_url` as text, a number, true or false, a list of text, or null",
   });
   expect(await commandHandlers.configure_relay({ settings: { port: 1 } })).toEqual({ ok: false, refusal: "configure_relay needs `relay_id`, a relay's id" });
   expect(await commandHandlers.configure_relay({ relay_id: "local-every-interface", settings: { port: Number.NaN } })).toEqual({
     ok: false,
-    refusal: "configure_relay needs the setting `port` as text, a number, true or false, or null",
+    refusal: "configure_relay needs the setting `port` as text, a number, true or false, a list of text, or null",
   });
   expect(await commandHandlers.remove_relay({ relay: "cloudflare-1" })).toEqual({ ok: false, refusal: "remove_relay needs `relay_id`, a relay's id" });
 });

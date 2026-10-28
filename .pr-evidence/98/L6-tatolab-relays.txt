@@ -1,0 +1,8 @@
+RELAY                             ADAPTER     STATE       SETTINGS                    SECRETS
+local-loopback (built in)         local       joined      {"port":14443}
+local-every-interface (built in)  local       joined      {"port":14447}
+moqpro-1                          moqpro      not joined  {"project_id":"pb1studio"}  signing_key set
+cloudflare-1                      cloudflare  lost        {}                          relay_url set
+
+moqpro-1 is not joined: the relay ended the publisher's session: unauthorized
+cloudflare-1 is lost (the publisher's session with the relay is not connected); joining again in 10000 ms

@@ -58,13 +58,28 @@ async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
   if (addStep === "done") await waitForElement(`[data-add-stream-step="running"], [data-add-stream-name-taken]`, MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS);
 }
 
-/** Types `text` into the controlled field `field` as a person would, so React's onChange sees it. */
-function typeIntoAField(field: HTMLInputElement, text: string): void {
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(field, text);
+/** Types `text` into the controlled field `field`, one line or several, as a person would, so React's onChange sees it. */
+function typeIntoAField(field: HTMLInputElement | HTMLTextAreaElement, text: string): void {
+  const fieldPrototype = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(fieldPrototype, "value")?.set?.call(field, text);
   field.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-/** Settings › Relays driven to `?relay=add:<kind>|configure:<relay_id>|remove:<relay_id>`, then each `?relay_fill=<setting>:<text>` typed and `?relay_submit=pressed`. */
+/** The text `?relay_file=` hands over as the chosen file's, a stand-in moq.pro signing key. */
+const MOCK_CHOSEN_FILE_TEXT = '{"kty":"OKP","crv":"Ed25519","x":"mock-public-key","d":"mock-private-key"}\n';
+
+/** Hands `fileName` to the file input `fileInput` as if the person had picked it in the system's file chooser. */
+function chooseAFile(fileInput: HTMLInputElement, fileName: string): void {
+  const chosenFiles = new DataTransfer();
+  chosenFiles.items.add(new File([MOCK_CHOSEN_FILE_TEXT], fileName, { type: "application/json" }));
+  fileInput.files = chosenFiles.files;
+  fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+/**
+ * Settings › Relays driven to `?relay=add:<kind>|configure:<relay_id>|remove:<relay_id>`, then each `?relay_fill=<setting>:<text>` typed,
+ * each `?relay_file=<setting>:<file name>` chosen and `?relay_submit=pressed`.
+ */
 async function driveRelaysToPreset(pageQuery: URLSearchParams): Promise<void> {
   const [relayDialog = "", relayDialogSubject = ""] = (pageQuery.get("relay") ?? "").split(":");
   if (relayDialog === "add-menu") {
@@ -87,11 +102,14 @@ async function driveRelaysToPreset(pageQuery: URLSearchParams): Promise<void> {
     const separator = fill.indexOf(":");
     const settingName = fill.slice(0, separator);
     if (separator <= 0) continue;
-    if (document.querySelector(`[data-relay-setting-field="${CSS.escape(settingName)}"]`) === null) {
-      await clickWhenShown(`[data-relay-setting="${CSS.escape(settingName)}"] [data-relay-action="replace-secret"]`);
-    }
-    const field = await waitForElement<HTMLInputElement>(`[data-relay-setting-field="${CSS.escape(settingName)}"]`);
+    const field = await waitForElement<HTMLInputElement | HTMLTextAreaElement>(`[data-relay-setting-field="${CSS.escape(settingName)}"]`);
     if (field !== null) typeIntoAField(field, fill.slice(separator + 1));
+  }
+  for (const chosenFile of pageQuery.getAll("relay_file")) {
+    const separator = chosenFile.indexOf(":");
+    if (separator <= 0) continue;
+    const fileInput = await waitForElement<HTMLInputElement>(`[data-relay-setting="${CSS.escape(chosenFile.slice(0, separator))}"] input[type="file"]`);
+    if (fileInput !== null) chooseAFile(fileInput, chosenFile.slice(separator + 1));
   }
   if (pageQuery.get("relay_submit") === "pressed") await clickWhenShown(`[data-relay-action="add"]:not([disabled]), [data-relay-action="save"]:not([disabled])`);
 }
@@ -108,8 +126,8 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * the steps as of the last load), `?inspect=tree`,
  * `?page=settings|add-stream` (the add-stream dialog, on Import project), on Settings `?section=general|appearance|runtime|relays|command-line|about`, on its Relays
  * `?relay=add-menu` (the + menu of adapters open) or `?relay=add:<adapter>|configure:<relay_id>|remove:<relay_id>` (that dialog open) with each
- * `?relay_fill=<setting>:<text>` typed into it and `?relay_submit=pressed` (Add relay or Save pressed), with the backend's `?relays=local` and
- * `?adapter_names=none`, and on its Runtime
+ * `?relay_fill=<setting>:<text>` typed into it, `?relay_file=<setting>:<file name>` chosen as its file and `?relay_submit=pressed` (Add relay or
+ * Save pressed), with the backend's `?relays=local|every-field-type` and `?adapter_names=none`, and on its Runtime
  * `?restart=pressed` (Restart runtime pressed: Starting, then Running up 0m) or `?restart=refused` (the service manager refusing it),
  * `?choose_python=pressed` (Choose Your Own… pressed, with the backend's `?python=chosen|not_offered` and `?python_pick=cancel|not_python`), with the
  * backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream>` (a

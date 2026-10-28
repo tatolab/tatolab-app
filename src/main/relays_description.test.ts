@@ -72,7 +72,15 @@ test("a_secret_listed_as_anything_but_set_or_unset_is_refused_so_no_value_reache
   expect(failure).not.toContain("the-token");
 });
 
-test("a_setting_that_is_not_text_a_number_true_false_or_null_is_refused_naming_it", () => {
+test("a_listed_list_of_text_is_kept_as_a_setting_value", () => {
+  const listed = JSON.stringify({
+    relays: [{ relay_id: "red5-1", adapter: "red5", built_in: false, settings: { tags: ["studio", "desk"] }, secrets: {}, connection_state: { state: "joined" } }],
+  });
+
+  expect(answerOf(listedRelaysFromTheListRelaysToolResult(listed))[0]?.settings).toEqual({ tags: ["studio", "desk"] });
+});
+
+test("a_setting_that_is_not_text_a_number_true_false_a_list_of_text_or_null_is_refused_naming_it", () => {
   const listed = JSON.stringify({
     relays: [{ relay_id: "local-loopback", adapter: "local", built_in: true, settings: { tls: { certificate: "/tmp/c.pem" } }, secrets: {}, connection_state: { state: "joined" } }],
   });
@@ -84,7 +92,7 @@ test("a_list_relays_result_without_relays_is_refused_naming_the_tool", () => {
   expect(failureOf(listedRelaysFromTheListRelaysToolResult("{}"))).toBe("the runtime's list_relays result could not be read: missing field `relays`");
 });
 
-test("the_real_relay_adapter_catalog_reads_each_adapter_with_its_settings_in_schema_order", async () => {
+test("the_real_relay_adapter_catalog_reads_each_adapter_with_its_settings_by_their_declared_type", async () => {
   const adapters = answerOf(relayAdaptersFromTheRelayAdaptersAnswer(await recordedResponseBody("local-api-relay-adapters-answer-of-a-test-root-runtime.json")));
 
   expect(adapters.map((adapter) => adapter.kind)).toEqual(["local", "cloudflare", "moqpro", "test-secret-holder"]);
@@ -92,28 +100,23 @@ test("the_real_relay_adapter_catalog_reads_each_adapter_with_its_settings_in_sch
   expect(adapters[2]?.setting_fields).toEqual([
     {
       name: "project_id",
-      description: "The project's id as moq.pro names it: the root every token is minted under and the path the relay is dialed at.",
+      field_type: { type: "string" },
+      is_secret: false,
       is_required: true,
-      is_secret: false,
-      value_kind: { kind: "text" },
-      accepts_null: false,
-    },
-    {
-      name: "relay_url",
-      description: "The relays the project is served at; absent, `https://cdn.moq.dev`.",
-      is_required: false,
-      is_secret: false,
-      value_kind: { kind: "text" },
-      accepts_null: true,
+      doc: "The project's id as moq.pro names it: the root every token is minted under and the path the relay is dialed at.",
+      default_value: null,
     },
     {
       name: "signing_key",
-      description: "The project's signing key, the JWK moq.pro gave for it, as JSON or base64url JSON. It mints read and write for every broadcast of the project.",
-      is_required: true,
+      field_type: { type: "file" },
       is_secret: true,
-      value_kind: { kind: "text" },
-      accepts_null: false,
+      is_required: true,
+      doc: "The project's signing key, the JWK moq.pro gave for it, as JSON or base64url JSON. It mints read and write for every broadcast of the project.",
+      default_value: null,
     },
+  ]);
+  expect(adapters[1]?.setting_fields.map(({ name, field_type, is_secret, is_required }) => ({ name, field_type, is_secret, is_required }))).toEqual([
+    { name: "relay_url", field_type: { type: "url" }, is_secret: true, is_required: true },
   ]);
 });
 
@@ -129,38 +132,69 @@ test("the_real_relay_adapter_catalog_names_each_adapter_with_its_logo_as_a_data_
   for (const adapter of adapters) expect(adapter.display_icon_data_uri?.startsWith("data:image/svg+xml;base64,")).toBe(true);
 });
 
-test("a_port_reads_as_a_whole_number_bounded_by_its_format", async () => {
+test("the_local_relays_port_reads_as_an_optional_number_with_no_default", async () => {
   const adapters = answerOf(relayAdaptersFromTheRelayAdaptersAnswer(await recordedResponseBody("local-api-relay-adapters-answer-of-a-test-root-runtime.json")));
 
   expect(adapters[0]?.setting_fields).toEqual([
     {
       name: "port",
-      description: "The port the listener takes for QUIC and HTTP alike; absent, the listener's own default (4443 at loopback, 4445 at every interface).",
-      is_required: false,
+      field_type: { type: "number" },
       is_secret: false,
-      value_kind: { kind: "whole_number", minimum: 0, maximum: 65535 },
-      accepts_null: true,
+      is_required: false,
+      doc: "The port the listener takes for QUIC and HTTP alike; absent, the listener's own default (4443 at loopback, 4445 at every interface).",
+      default_value: null,
     },
   ]);
 });
 
-test("a_setting_whose_type_the_form_cannot_draw_is_kept_naming_its_type", () => {
-  const catalog = JSON.stringify({
-    adapters: [
-      {
-        kind: "red5",
-        doc: "A Red5 relay.",
-        settings_schema: { type: "object", properties: { regions: { type: "array", items: { type: "string" } }, region: { enum: ["us", "eu"] } } },
-      },
-    ],
-  });
+/** A catalog of one adapter, `red5`, taking `settings`. */
+const catalogOfOneAdapterTaking = (settings: unknown[]) => JSON.stringify({ adapters: [{ kind: "red5", doc: "A Red5 relay.", settings }] });
+
+test("each_declared_field_type_reads_as_itself_with_a_selects_options_and_its_default", () => {
+  const catalog = catalogOfOneAdapterTaking([
+    { name: "api_key", type: "string", secret: true, required: false, doc: "The API key." },
+    { name: "records", type: "boolean", secret: false, required: false, doc: "Whether it records.", default: false },
+    { name: "region", type: "select", options: ["us", "eu"], secret: false, required: true, doc: "The region." },
+    { name: "tags", type: "string_list", secret: false, required: false, doc: "Its tags.", default: ["studio"] },
+  ]);
 
   const settingFields = answerOf(relayAdaptersFromTheRelayAdaptersAnswer(catalog))[0]?.setting_fields;
 
-  expect(settingFields?.map((settingField) => settingField.value_kind)).toEqual([
-    { kind: "not_drawable", schema_type_words: "array" },
-    { kind: "not_drawable", schema_type_words: "no type" },
+  expect(settingFields?.map(({ name, field_type, is_secret, default_value }) => ({ name, field_type, is_secret, default_value }))).toEqual([
+    { name: "api_key", field_type: { type: "string" }, is_secret: true, default_value: null },
+    { name: "records", field_type: { type: "boolean" }, is_secret: false, default_value: false },
+    { name: "region", field_type: { type: "select", options: ["us", "eu"] }, is_secret: false, default_value: null },
+    { name: "tags", field_type: { type: "string_list" }, is_secret: false, default_value: ["studio"] },
   ]);
+});
+
+test("a_setting_of_a_type_this_app_does_not_draw_is_refused_naming_the_setting_and_its_type", () => {
+  const catalog = catalogOfOneAdapterTaking([{ name: "limits", type: "key_value_map", secret: false, required: false, doc: "Its limits." }]);
+
+  expect(failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalog))).toBe(
+    "the runtime's /api/relay-adapters answer could not be read: the settings of `red5`: the setting `limits`: its type `key_value_map` is not one this app draws",
+  );
+});
+
+test("a_setting_missing_a_field_or_with_a_default_no_setting_takes_is_refused_naming_the_setting", () => {
+  expect(failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalogOfOneAdapterTaking([{ name: "region", type: "string", required: true, doc: "The region." }])))).toBe(
+    "the runtime's /api/relay-adapters answer could not be read: the settings of `red5`: the setting `region`: missing field `secret`",
+  );
+  expect(
+    failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalogOfOneAdapterTaking([{ name: "limits", type: "string", secret: false, required: false, doc: "", default: { burst: 4 } }]))),
+  ).toContain("the setting `limits`: its default is not text, a number, true or false, a list of text, or null");
+});
+
+test("a_select_whose_options_are_not_all_text_is_refused_naming_the_setting", () => {
+  const catalog = catalogOfOneAdapterTaking([{ name: "region", type: "select", options: ["us", 2], secret: false, required: true, doc: "The region." }]);
+
+  expect(failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalog))).toContain("the setting `region`: an option of the `select` is not text");
+});
+
+test("an_adapter_still_serving_a_settings_schema_and_no_settings_is_refused_naming_the_field", () => {
+  const catalog = JSON.stringify({ adapters: [{ kind: "moqpro", doc: "A moq.pro project.", settings_schema: { type: "object", properties: {} } }] });
+
+  expect(failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalog))).toBe("the runtime's /api/relay-adapters answer could not be read: missing field `settings`");
 });
 
 test("an_adapter_serving_its_name_and_icon_is_read_with_both", () => {
@@ -171,7 +205,7 @@ test("an_adapter_serving_its_name_and_icon_is_read_with_both", () => {
         display_name: "moq.pro",
         display_icon_data_uri: "data:image/svg+xml;base64,PHN2Zy8+",
         doc: "A moq.pro project.",
-        settings_schema: { type: "object", properties: {} },
+        settings: [],
       },
     ],
   });
@@ -183,7 +217,7 @@ test("an_adapter_serving_its_name_and_icon_is_read_with_both", () => {
 });
 
 test("an_adapter_serving_neither_its_name_nor_its_icon_reads_both_as_null_and_keeps_its_kind", () => {
-  const catalog = JSON.stringify({ adapters: [{ kind: "moqpro", doc: "A moq.pro project.", settings_schema: { type: "object", properties: {} } }] });
+  const catalog = JSON.stringify({ adapters: [{ kind: "moqpro", doc: "A moq.pro project.", settings: [] }] });
 
   const adapter = answerOf(relayAdaptersFromTheRelayAdaptersAnswer(catalog))[0];
 
@@ -198,7 +232,7 @@ test("an_icon_that_is_not_a_data_image_uri_is_dropped_and_the_adapter_kept", () 
       display_name: "An adapter",
       display_icon_data_uri: icon,
       doc: "An adapter.",
-      settings_schema: { type: "object", properties: {} },
+      settings: [],
     })),
   });
 
@@ -210,7 +244,7 @@ test("an_icon_that_is_not_a_data_image_uri_is_dropped_and_the_adapter_kept", () 
 
 test("a_display_name_or_icon_that_is_not_text_is_refused_naming_the_field", () => {
   const catalogWith = (fields: Record<string, unknown>) =>
-    JSON.stringify({ adapters: [{ kind: "moqpro", ...fields, doc: "A moq.pro project.", settings_schema: { type: "object", properties: {} } }] });
+    JSON.stringify({ adapters: [{ kind: "moqpro", ...fields, doc: "A moq.pro project.", settings: [] }] });
 
   expect(failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalogWith({ display_name: 7 })))).toContain("`display_name`");
   expect(failureOf(relayAdaptersFromTheRelayAdaptersAnswer(catalogWith({ display_icon_data_uri: { svg: "<svg/>" } })))).toContain("`display_icon_data_uri`");

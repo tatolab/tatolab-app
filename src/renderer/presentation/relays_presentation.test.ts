@@ -13,25 +13,21 @@ const LOCAL_ADAPTER: RelayAdapter = {
   display_name: "Local relay",
   display_icon_data_uri: "data:image/svg+xml;base64,TE9DQUw=",
   doc: "The machine's own relay, built in.",
-  setting_fields: [
-    { name: "port", description: null, is_required: false, is_secret: false, value_kind: { kind: "whole_number", minimum: 0, maximum: 65535 }, accepts_null: true },
-  ],
+  setting_fields: [{ name: "port", field_type: { type: "number" }, is_secret: false, is_required: false, doc: "", default_value: null }],
 };
 const CLOUDFLARE_ADAPTER: RelayAdapter = {
   kind: "cloudflare",
   display_name: "Cloudflare",
   display_icon_data_uri: "data:image/svg+xml;base64,Q0xPVUQ=",
   doc: "A relay Cloudflare provisioned.",
-  setting_fields: [{ name: "relay_url", description: null, is_required: true, is_secret: true, value_kind: { kind: "text" }, accepts_null: false }],
+  setting_fields: [{ name: "relay_url", field_type: { type: "url" }, is_secret: true, is_required: true, doc: "", default_value: null }],
 };
 const RED5_ADAPTER: RelayAdapter = {
   kind: "red5",
   display_name: null,
   display_icon_data_uri: null,
   doc: "A Red5 relay.",
-  setting_fields: [
-    { name: "regions", description: null, is_required: true, is_secret: false, value_kind: { kind: "not_drawable", schema_type_words: "array" }, accepts_null: false },
-  ],
+  setting_fields: [{ name: "regions", field_type: { type: "string_list" }, is_secret: false, is_required: true, doc: "", default_value: null }],
 };
 
 const LOOPBACK: ListedRelay = { relay_id: "local-loopback", adapter: "local", built_in: true, settings: { port: 4443 }, secrets: {}, connection_state: { state: "joined" } };
@@ -41,7 +37,7 @@ const MOQPRO_ADAPTER: RelayAdapter = {
   display_name: "moq.pro",
   display_icon_data_uri: "data:image/svg+xml;base64,TU9RUFJP",
   doc: "A moq.pro project.",
-  setting_fields: [{ name: "project_id", description: null, is_required: true, is_secret: false, value_kind: { kind: "text" }, accepts_null: false }],
+  setting_fields: [{ name: "project_id", field_type: { type: "string" }, is_secret: false, is_required: true, doc: "", default_value: null }],
 };
 
 const MOQPRO: ListedRelay = {
@@ -84,7 +80,7 @@ describe("the Relays section", () => {
     expect(section.lastReadingRefusal).toBeNull();
   });
 
-  it("names each Configure… by its relay, and makes it unavailable naming why for an adapter whose settings the form cannot draw or the catalog does not name", () => {
+  it("names each Configure… by its relay, and makes it unavailable naming why for an adapter the catalog does not name", () => {
     const section = presentRelaysSection(true, {
       kind: "read",
       description: {
@@ -96,19 +92,29 @@ describe("the Relays section", () => {
     if (section.kind !== "listed") return expect.unreachable(section.kind);
     expect(section.localRelayListenerRows.map((row) => [row.configureLabel, row.configureUnavailableBecause])).toEqual([["Configure Loopback", null]]);
     expect(section.hostedRelayRows.map((row) => [row.configureLabel, row.configureUnavailableBecause])).toEqual([
-      ["Configure red5-1", "Tatolab can't show the setting regions (array) in a form yet."],
+      ["Configure red5-1", null],
       ["Configure moqpro-1", "The runtime's catalog names no adapter moqpro."],
     ]);
     expect(section.noAddedRelayWords).toBe("Add one with + to serve public outputs beyond this machine's own network.");
   });
 
-  it("offers every adapter that backs no built-in relay, and one whose settings the form cannot draw as unavailable naming why", () => {
+  it("words a listed list of text in an added relay's row by its values, joined by commas", () => {
+    const section = presentRelaysSection(true, {
+      kind: "read",
+      description: { relays: [{ ...MOQPRO, relay_id: "red5-1", adapter: "red5", settings: { regions: ["us", "eu"] }, secrets: {} }], adapters: [RED5_ADAPTER] },
+    });
+
+    if (section.kind !== "listed") return expect.unreachable(section.kind);
+    expect(section.hostedRelayRows.map((row) => row.settingsWords)).toEqual(["Regions us, eu"]);
+  });
+
+  it("offers every adapter that backs no built-in relay", () => {
     const section = presentRelaysSection(true, { kind: "read", description: DESCRIBED });
 
     if (section.kind !== "listed") return expect.unreachable(section.kind);
     expect(section.adapterChoices).toEqual([
-      { adapter: CLOUDFLARE_ADAPTER, adapterNaming: presentRelayAdapterNaming(CLOUDFLARE_ADAPTER), unavailableBecause: null },
-      { adapter: RED5_ADAPTER, adapterNaming: presentRelayAdapterNaming(RED5_ADAPTER), unavailableBecause: "Tatolab can't show the setting regions (array) in a form yet." },
+      { adapter: CLOUDFLARE_ADAPTER, adapterNaming: presentRelayAdapterNaming(CLOUDFLARE_ADAPTER) },
+      { adapter: RED5_ADAPTER, adapterNaming: presentRelayAdapterNaming(RED5_ADAPTER) },
     ]);
   });
 

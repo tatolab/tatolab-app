@@ -215,7 +215,10 @@ export interface MockTatolabOptions {
   pythonInterpreterPick: MockPythonInterpreterPick;
   /** `?add_venv=refused`: the app's uv fails to make a project's `.venv`, as with the package index out of reach. */
   isMakingThePythonEnvironmentRefused: boolean;
-  /** `?relays=local`: the runtime holds only the local relay's two listeners; a joined Cloudflare relay and a lost moq.pro one beside them by default. */
+  /**
+   * `?relays=local`: the runtime holds only the local relay's two listeners; a joined Cloudflare relay and a lost moq.pro one beside them by default;
+   * `?relays=every-field-type` adds a mock-only adapter declaring a setting of each field type, and one relay of it.
+   */
   relaysScenario: MockRelaysScenario;
   /** `?adapter_names=none`: the relay-adapter catalog of a runtime older than adapter names and logos, which serves neither. */
   doesTheRelayAdapterCatalogServeNoNamesOrLogos: boolean;

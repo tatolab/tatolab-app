@@ -269,8 +269,8 @@ export type PythonForNewEnvironments =
 /** What Settings asks the Python for new environments to be: Tatolab's own, or one the person picks in the app's own file dialog, so the window never names a program for the app to run. */
 export type PythonForNewEnvironmentsChoice = "built_in" | "chosen_in_a_file_dialog";
 
-/** One value of a relay's settings on the wire: `add_relay` and `configure_relay` take them, `list_relays` lists the non-secret ones, and `null` returns a setting to its default. */
-export type RelaySettingValue = string | number | boolean | null;
+/** One value of a relay's settings on the wire: `add_relay` and `configure_relay` take them, `list_relays` lists the non-secret ones, a `string_list` is a list of text, and `null` returns a setting to its default. */
+export type RelaySettingValue = string | number | boolean | readonly string[] | null;
 
 /** Whether the runtime holds a value for one secret setting of a relay; never the value. */
 export type RelaySecretPresence = "set" | "unset";
@@ -303,26 +303,29 @@ export interface ListedRelay {
   connection_state: RelayConnectionState;
 }
 
-/** What one setting holds, as its adapter's settings schema types it: text, a whole number within its bounds, or a type the app's form cannot draw, named as the schema names it. */
-export type RelaySettingValueKind =
-  | { kind: "text" }
-  | { kind: "whole_number"; minimum: number | null; maximum: number | null }
-  | { kind: "not_drawable"; schema_type_words: string };
+/** How a person enters one setting, as the relay-adapter catalog's `type` declares it; a `select` takes one of its `options`, a `file` takes a file's text, picked or pasted. */
+export type RelaySettingFieldType =
+  | { type: "string" }
+  | { type: "url" }
+  | { type: "number" }
+  | { type: "boolean" }
+  | { type: "select"; options: readonly string[] }
+  | { type: "string_list" }
+  | { type: "file" };
 
-/** One setting an adapter takes, read from its settings schema. */
+/** One setting an adapter takes, as the relay-adapter catalog's `settings` lists it. */
 export interface RelaySettingField {
   name: string;
-  /** What the schema says of it; `null` when it says nothing. */
-  description: string | null;
-  is_required: boolean;
-  /** Marked `writeOnly`: the runtime keeps it in the OS secret store and lists it only as set or unset. */
+  field_type: RelaySettingFieldType;
+  /** The runtime keeps it in the OS secret store and lists it only as set or unset, whatever its type. */
   is_secret: boolean;
-  value_kind: RelaySettingValueKind;
-  /** Whether `null` is among its types, which returns it to its default. */
-  accepts_null: boolean;
+  is_required: boolean;
+  doc: string;
+  /** Its value when an instance's settings leave it out; `null` when the catalog serves none. */
+  default_value: RelaySettingValue;
 }
 
-/** One adapter of the runtime's relay-adapter catalog: its kind, as `add_relay` takes it, the name and icon people see it by, what it joins, and the settings it takes, in its schema's order. */
+/** One adapter of the runtime's relay-adapter catalog: its kind, as `add_relay` takes it, the name and icon people see it by, what it joins, and the settings it takes, in the catalog's order. */
 export interface RelayAdapter {
   kind: string;
   /** The name people know it by (`"moq.pro"`); `null` from a runtime that serves none. */
