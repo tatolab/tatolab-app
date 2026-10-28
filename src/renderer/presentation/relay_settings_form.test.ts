@@ -335,6 +335,16 @@ describe("the form's rows", () => {
     expect(rows.filter((row) => ["records", "tags", "relay_url"].includes(row.formField.name)).map((row) => row.offersUseDefault)).toEqual([false, false, false]);
   });
 
+  it("offer no Use default for an optional secret the runtime holds none of, and send nothing for one", () => {
+    const relayHoldingNoApiKey: ListedRelay = { ...EVERY_FIELD_TYPE_RELAY, secrets: { api_key: "unset" } };
+
+    expect(allRowsOf(presentRelaySettingsForm(EVERY_FIELD_TYPE_ADAPTER, relayHoldingNoApiKey, {})).find((row) => row.formField.name === "api_key")).toMatchObject({
+      heldSecretWords: "Not set",
+      offersUseDefault: false,
+    });
+    expect(relaySettingsToSendToConfigure(EVERY_FIELD_TYPE_ADAPTER, relayHoldingNoApiKey, { api_key: { kind: "use_default" } })).toEqual({ kind: "no_change" });
+  });
+
   it("show a setting's default once Use default is pressed", () => {
     const rows = allRowsOf(presentRelaySettingsForm(EVERY_FIELD_TYPE_ADAPTER, EVERY_FIELD_TYPE_RELAY, { records: { kind: "use_default" }, tags: { kind: "use_default" } }));
 

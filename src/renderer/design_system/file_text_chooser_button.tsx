@@ -13,7 +13,7 @@ export function FileTextChooserButton({
   onFileUnreadable,
   ...controlDataAttributes
 }: {
-  /** The button's accessible name, naming what the file is for, as "Choose the Signing key file". */
+  /** The button's accessible name, naming what the file is for, as "Choose file… for Signing key". */
   label: string;
   onFileTextChosen: (fileName: string, fileText: string) => void;
   /** Why the chosen file could not be read, in the browser's words. */

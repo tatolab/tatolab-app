@@ -162,7 +162,7 @@ export function relaySettingsToSendToConfigure(adapter: RelayAdapter, relay: Lis
   for (const formField of relaySettingsFormFields(adapter)) {
     const edit = draft[formField.name];
     if (edit === undefined) continue;
-    const relayHoldsAValue = listedSettingValue(relay, formField.name) !== null || relay.secrets[formField.name] !== undefined;
+    const relayHoldsAValue = listedSettingValue(relay, formField.name) !== null || relay.secrets[formField.name] === "set";
     if (edit.kind === "use_default") {
       if (relayHoldsAValue) settings[formField.name] = null;
       continue;
@@ -328,7 +328,7 @@ export function presentRelaySettingsForm(adapter: RelayAdapter, relay: ListedRel
     const heldSecret = relay === null ? undefined : relay.secrets[formField.name];
     const listedValue = relay === null ? null : listedSettingValue(relay, formField.name);
     const listsItsDefault = listedValue === null || isTheSameSettingValue(listedValue, formField.settingField.default_value);
-    const isAtItsDefault = edit?.kind === "use_default" || (edit === undefined && listsItsDefault && heldSecret === undefined);
+    const isAtItsDefault = edit?.kind === "use_default" || (edit === undefined && listsItsDefault && heldSecret !== "set");
     const problem = edit !== undefined && settingsToSend.kind === "incomplete" ? (settingsToSend.problems[formField.name] ?? null) : null;
     return {
       formField,
