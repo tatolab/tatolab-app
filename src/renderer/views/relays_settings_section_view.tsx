@@ -1,20 +1,25 @@
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { ListedRelay, RelayAdapter } from "../../shared/tatolab_backend_contract";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
 import { ConfirmationDialog } from "../design_system/confirmation_dialog";
+import { FileTextChooserButton } from "../design_system/file_text_chooser_button";
 import { FormDialog, FormDialogFooter, FormDialogRow, FormDialogRows, FormDialogRowsSection } from "../design_system/form_dialog";
-import { IconButtonMenu, MenuItem, MoreActionsMenu } from "../design_system/menus";
+import { IconButton } from "../design_system/icon_button";
+import { FieldMenu, IconButtonMenu, MenuItem, MenuSingleChoiceGroup, MoreActionsMenu } from "../design_system/menus";
+import { MultiLineTextField } from "../design_system/multi_line_text_field";
 import { PendingActionWords } from "../design_system/pending_action_words";
 import { RefusalLine } from "../design_system/refusal_line";
 import { ServedLogoSlot, type ServedLogoSlotSize } from "../design_system/served_logo_slot";
 import { SettingsGroup, SettingsMachineWords, SettingsRow, SettingsSectionExplanation } from "../design_system/settings_rows";
 import { StateWords, type StateWordsEmphasis } from "../design_system/stream_state_words";
 import { TextField } from "../design_system/text_field";
+import { ToggleSwitch } from "../design_system/toggle_switch";
 import {
   presentRelaySettingsForm,
   relaySettingsDraftWithoutTypedSecrets,
+  type RelaySettingEdit,
   type RelaySettingFormRow,
   type RelaySettingsDraft,
 } from "../presentation/relay_settings_form";
@@ -95,25 +100,181 @@ function ConfigureRelayButton({ row, onPressed }: { row: LocalRelayListenerRow |
   );
 }
 
-/** One setting's field in a relay's form: a plain text field, the runtime's set or not set beside a secret it holds, and Use default for an optional one. */
-function RelaySettingRow({ row, onTyped, onUseItsDefault }: { row: RelaySettingFormRow; onTyped: (text: string) => void; onUseItsDefault: () => void }) {
+/** The control of a setting's row, drawn by the setting's type, each change handed on as the person's edit. */
+function RelaySettingControlOfTheRow({
+  row,
+  fieldId,
+  labelId,
+  describedById,
+  onEdited,
+  onFileUnreadable,
+}: {
+  row: RelaySettingFormRow;
+  fieldId: string;
+  labelId: string;
+  describedById: string;
+  onEdited: (edit: RelaySettingEdit) => void;
+  onFileUnreadable: (whyUnreadable: string) => void;
+}) {
+  const { formField, control } = row;
+  const isRefused = row.problem !== null;
+  switch (control.control) {
+    case "text_field":
+      return (
+        <TextField
+          id={fieldId}
+          label={formField.label}
+          text={control.text}
+          onTextChanged={(text) => onEdited({ kind: "typed", text })}
+          isMachineWord
+          isMasked={control.isMasked}
+          isRequired={formField.isRequired}
+          isRefused={isRefused}
+          placeholder={control.placeholder ?? undefined}
+          inputMode={control.inputMode}
+          describedBy={describedById}
+          className="w-64"
+          data-relay-setting-field={formField.name}
+        />
+      );
+    case "file_text":
+      return (
+        <div className="flex flex-col items-end gap-1.5">
+          {control.isMasked ? (
+            <TextField
+              id={fieldId}
+              label={formField.label}
+              text={control.text}
+              onTextChanged={(text) => onEdited({ kind: "typed", text })}
+              isMachineWord
+              isMasked
+              isRequired={formField.isRequired}
+              isRefused={isRefused}
+              placeholder={control.placeholder ?? "Paste, or choose a file"}
+              describedBy={describedById}
+              className="w-64"
+              data-relay-setting-field={formField.name}
+            />
+          ) : (
+            <MultiLineTextField
+              id={fieldId}
+              label={formField.label}
+              text={control.text}
+              onTextChanged={(text) => onEdited({ kind: "typed", text })}
+              isMachineWord
+              isRequired={formField.isRequired}
+              isRefused={isRefused}
+              placeholder={control.placeholder ?? "Paste, or choose a file"}
+              describedBy={describedById}
+              className="w-64"
+              data-relay-setting-field={formField.name}
+            />
+          )}
+          <FileTextChooserButton
+            label={`Choose the ${formField.label} file`}
+            onFileTextChosen={(fileName, text) => onEdited({ kind: "file_chosen", fileName, text })}
+            onFileUnreadable={onFileUnreadable}
+            data-relay-action="choose-file"
+          />
+        </div>
+      );
+    case "switch":
+      return (
+        <ToggleSwitch
+          isOn={control.isOn}
+          onSwitched={(isOn) => onEdited({ kind: "switched", isOn })}
+          labelledBy={labelId}
+          describedBy={describedById}
+          data-relay-setting-field={formField.name}
+        />
+      );
+    case "menu":
+      return (
+        <FieldMenu label={`${formField.label}: ${control.chosenWords}`} words={<span className="font-mono">{control.chosenWords}</span>} data-relay-setting-field={formField.name}>
+          <MenuSingleChoiceGroup
+            choices={control.choices.map((choice) => ({ choice: choice.choiceKey, label: <span className={choice.option === null ? undefined : "font-mono"}>{choice.words}</span> }))}
+            chosen={control.chosenChoiceKey}
+            onChosen={(choiceKey) => onEdited({ kind: "chosen", option: control.choices.find((choice) => choice.choiceKey === choiceKey)?.option ?? null })}
+            dataAttributeOfEachChoice="data-relay-setting-choice"
+          />
+        </FieldMenu>
+      );
+    case "list_of_text_fields": {
+      const valueFieldId = (valueIndex: number) => `${fieldId}-${valueIndex}`;
+      const listWith = (values: readonly string[]) => onEdited({ kind: "listed", values });
+      return (
+        <div className="flex flex-col items-end gap-1.5" data-relay-setting-field={formField.name}>
+          {control.values.map((listedValue, valueIndex) => (
+            <div key={valueIndex} className="flex items-center gap-1">
+              <TextField
+                id={valueFieldId(valueIndex)}
+                label={`${formField.label} ${valueIndex + 1}`}
+                text={listedValue}
+                onTextChanged={(text) => listWith(control.values.map((otherValue, otherIndex) => (otherIndex === valueIndex ? text : otherValue)))}
+                isMachineWord
+                isMasked={control.isMasked}
+                isRefused={isRefused}
+                describedBy={describedById}
+                className="w-56"
+              />
+              <IconButton
+                icon={X}
+                label={`Remove ${formField.label} ${valueIndex + 1}`}
+                size="compact"
+                onPressed={() => listWith(control.values.filter((_, otherIndex) => otherIndex !== valueIndex))}
+                data-relay-action="remove-value"
+              />
+            </div>
+          ))}
+          <ActionButton
+            appearance="quiet"
+            size="small"
+            icon={Plus}
+            label={`Add a ${formField.label} value`}
+            onPressed={() => {
+              listWith([...control.values, ""]);
+              // The new field is drawn on the next frame; focus moves into it, not to the page.
+              requestAnimationFrame(() => document.getElementById(valueFieldId(control.values.length))?.focus());
+            }}
+            data-relay-action="add-value"
+          >
+            Add value
+          </ActionButton>
+        </div>
+      );
+    }
+  }
+}
+
+/** One setting's row in a relay's form: its control by type, the runtime's set or not set beside a secret it holds, and Use default for an optional one. */
+function RelaySettingRow({ row, onEdited }: { row: RelaySettingFormRow; onEdited: (edit: RelaySettingEdit) => void }) {
   const { formField } = row;
+  const [whyTheFileIsUnreadable, setWhyTheFileIsUnreadable] = useState<string | null>(null);
   const fieldId = `relay-setting-${formField.name}`;
+  const labelId = `${fieldId}-label`;
   const describedById = `${fieldId}-description`;
+  const labelsItsControl = row.control.control === "text_field" || row.control.control === "file_text";
   return (
     <FormDialogRow
       label={formField.label}
-      labelFor={fieldId}
+      labelFor={labelsItsControl ? fieldId : undefined}
+      labelId={labelId}
       data-relay-setting={formField.name}
       below={
         <div id={describedById} className="mt-1 flex flex-col gap-1 text-xs text-fg-3">
-          {formField.description !== null && (
+          {formField.doc !== null && (
             <p className="select-text">
-              <RuntimeWords words={formField.description} />
+              <RuntimeWords words={formField.doc} />
+            </p>
+          )}
+          {row.control.control === "file_text" && row.control.chosenFileName !== null && (
+            <p data-relay-chosen-file="">
+              From <SettingsMachineWords tone="of_the_words_around_it">{row.control.chosenFileName}</SettingsMachineWords>
             </p>
           )}
           {row.requiredWords !== null && <p>{row.requiredWords}</p>}
           {row.problem !== null && <p className="text-danger-text">{row.problem}</p>}
+          {whyTheFileIsUnreadable !== null && <p className="text-danger-text">The file couldn't be read: {whyTheFileIsUnreadable}</p>}
         </div>
       }
     >
@@ -127,8 +288,8 @@ function RelaySettingRow({ row, onTyped, onUseItsDefault }: { row: RelaySettingF
           appearance="quiet"
           label={row.useDefaultLabel}
           onPressed={() => {
-            onUseItsDefault();
-            // The button goes once pressed; focus moves to the field it returned to its default, not to the page.
+            onEdited({ kind: "use_default" });
+            // The button goes once pressed; focus moves to the control it returned to its default, not to the page.
             document.getElementById(fieldId)?.focus();
           }}
           data-relay-action="use-default"
@@ -136,27 +297,24 @@ function RelaySettingRow({ row, onTyped, onUseItsDefault }: { row: RelaySettingF
           Use default
         </ActionButton>
       )}
-      <TextField
-        id={fieldId}
-        label={formField.label}
-        text={row.shownText}
-        onTextChanged={onTyped}
-        isMachineWord
-        isRequired={formField.isRequired}
-        isRefused={row.problem !== null}
-        placeholder={row.placeholder ?? undefined}
-        inputMode={row.inputMode}
-        describedBy={describedById}
-        className="w-64"
-        data-relay-setting-field={formField.name}
+      <RelaySettingControlOfTheRow
+        row={row}
+        fieldId={fieldId}
+        labelId={labelId}
+        describedById={describedById}
+        onEdited={(edit) => {
+          setWhyTheFileIsUnreadable(null);
+          onEdited(edit);
+        }}
+        onFileUnreadable={setWhyTheFileIsUnreadable}
       />
     </FormDialogRow>
   );
 }
 
 /**
- * Adding a relay of one adapter, or configuring one relay: a field for each setting its adapter's schema names, the
- * runtime's refusal in its own words, and every secret typed forgotten once the runtime has answered, whatever it answered.
+ * Adding a relay of one adapter, or configuring one relay: a control for each setting its adapter's catalog entry lists, the
+ * runtime's refusal in its own words, and every secret entered forgotten once the runtime has answered, whatever it answered.
  */
 function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapter; relay: ListedRelay | null; onClose: () => void }) {
   const { relayReadings } = useTatolabWindowEnvironment();
@@ -170,8 +328,7 @@ function RelaySettingsDialog({ adapter, relay, onClose }: { adapter: RelayAdapte
     <RelaySettingRow
       key={row.formField.name}
       row={row}
-      onTyped={(text) => setDraft((draftNow) => ({ ...draftNow, [row.formField.name]: { kind: "typed", text } }))}
-      onUseItsDefault={() => setDraft((draftNow) => ({ ...draftNow, [row.formField.name]: { kind: "use_default" } }))}
+      onEdited={(edit) => setDraft((draftNow) => ({ ...draftNow, [row.formField.name]: edit }))}
     />
   );
   const send = () => {
@@ -355,17 +512,11 @@ export function RelaysSettingsSection() {
               {section.adapterChoices.map((choice) => (
                 <MenuItem
                   key={choice.adapter.kind}
-                  isDisabled={choice.unavailableBecause !== null}
                   onChosen={() => setSettingsDialog({ kind: "add", adapter: choice.adapter })}
                   leading={relayAdapterLogoOf(choice.adapterNaming, "in_a_menu")}
                   data-relay-adapter-choice={choice.adapter.kind}
                 >
-                  <span className="flex flex-col">
-                    <span>
-                      <RelayAdapterName adapterNaming={choice.adapterNaming} />
-                    </span>
-                    {choice.unavailableBecause !== null && <span className="text-xs text-fg-3">{choice.unavailableBecause}</span>}
-                  </span>
+                  <RelayAdapterName adapterNaming={choice.adapterNaming} />
                 </MenuItem>
               ))}
             </IconButtonMenu>

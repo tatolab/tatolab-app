@@ -2,13 +2,16 @@ import type { ListedRelay, RelayAdapter, RelaySettingsByName, RelaysDescription 
 
 /**
  * The relays the mock runtime holds as the page opens, picked with `?relays=`: the local relay's two listeners with a
- * joined Cloudflare relay and a moq.pro one it lost (the default), or the two listeners alone (`local`).
+ * joined Cloudflare relay and a moq.pro one it lost (the default), the two listeners alone (`local`), or the default's
+ * relays with a mock-only adapter in the catalog that declares a setting of every field type, and one relay of it
+ * (`every-field-type`), so each control can be pictured; no runtime serves that adapter.
  */
-export type MockRelaysScenario = "hosted" | "local";
+export type MockRelaysScenario = "hosted" | "local" | "every_field_type";
 
 /** What `?relays=` names. */
 export function mockRelaysScenarioNamed(relaysInTheQuery: string | null): MockRelaysScenario {
-  return relaysInTheQuery === "local" ? "local" : "hosted";
+  if (relaysInTheQuery === "local") return "local";
+  return relaysInTheQuery === "every-field-type" ? "every_field_type" : "hosted";
 }
 
 const MOCK_RELAY_CALL_MILLISECONDS = 30;
@@ -17,10 +20,10 @@ const MOCK_RELAY_CHANGE_MILLISECONDS = 600;
 /** How long an added or configured relay stays joining before it reads joined. */
 const MOCK_RELAY_JOIN_MILLISECONDS = 1800;
 
-/** The default port of each local listener, as the local adapter's schema says. */
+/** The default port of each local listener, as the local adapter's doc says. */
 const LOCAL_LISTENER_DEFAULT_PORTS: Readonly<Record<string, number>> = { "local-loopback": 4443, "local-every-interface": 4445 };
 
-/** Each adapter's logo as `GET /api/relay-adapters` serves it, copied from the recorded answer of a v0.55.5 runtime. */
+/** Each adapter's logo as `GET /api/relay-adapters` serves it, copied from the recorded answer of a v0.55.8 runtime. */
 const MOCK_RELAY_ADAPTER_DISPLAY_ICON_DATA_URIS = {
   local:
     "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiPgogIDxkZWZzPgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJ0YXRvbGFiLWFwcC1pY29uLWJvZHkiIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjNGQ3YmZmIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC41NSIgc3RvcC1jb2xvcj0iIzJhNWJmZiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMxYzNmZDYiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8cmFkaWFsR3JhZGllbnQgaWQ9InRhdG9sYWItYXBwLWljb24tc2hlZW4iIGN4PSIwLjMiIGN5PSIwLjA4IiByPSIwLjg1Ij4KICAgICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmZmZmZmIiBzdG9wLW9wYWNpdHk9IjAuMjIiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjYiIHN0b3AtY29sb3I9IiNmZmZmZmYiIHN0b3Atb3BhY2l0eT0iMCIvPgogICAgPC9yYWRpYWxHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0idGF0b2xhYi1hcHAtaWNvbi1yaW0iIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmZmZmZmIiBzdG9wLW9wYWNpdHk9IjAuMzgiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjMiIHN0b3AtY29sb3I9IiNmZmZmZmYiIHN0b3Atb3BhY2l0eT0iMC4wNiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMwMDBhNDAiIHN0b3Atb3BhY2l0eT0iMC4xOCIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0idGF0b2xhYi1hcHAtaWNvbi1sZXR0ZXIiIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmZmZmZmIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2U2ZWNmZiIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxmaWx0ZXIgaWQ9InRhdG9sYWItYXBwLWljb24tZHJvcC1zaGFkb3ciIHg9Ii0yMCUiIHk9Ii0yMCUiIHdpZHRoPSIxNDAlIiBoZWlnaHQ9IjE0NSUiPgogICAgICA8ZmVEcm9wU2hhZG93IGR4PSIwIiBkeT0iMTIiIHN0ZERldmlhdGlvbj0iMTQiIGZsb29kLWNvbG9yPSIjMGExNDQwIiBmbG9vZC1vcGFjaXR5PSIwLjMyIi8+CiAgICA8L2ZpbHRlcj4KICAgIDxmaWx0ZXIgaWQ9InRhdG9sYWItYXBwLWljb24tbGV0dGVyLXNoYWRvdyIgeD0iLTMwJSIgeT0iLTMwJSIgd2lkdGg9IjE2MCUiIGhlaWdodD0iMTcwJSI+CiAgICAgIDxmZURyb3BTaGFkb3cgZHg9IjAiIGR5PSIxMCIgc3RkRGV2aWF0aW9uPSIxMiIgZmxvb2QtY29sb3I9IiMwYjFkOGEiIGZsb29kLW9wYWNpdHk9IjAuMzUiLz4KICAgIDwvZmlsdGVyPgogIDwvZGVmcz4KICA8ZyBmaWx0ZXI9InVybCgjdGF0b2xhYi1hcHAtaWNvbi1kcm9wLXNoYWRvdykiPgogICAgPHJlY3QgeD0iMTAwIiB5PSIxMDAiIHdpZHRoPSI4MjQiIGhlaWdodD0iODI0IiByeD0iMTg1IiBmaWxsPSJ1cmwoI3RhdG9sYWItYXBwLWljb24tYm9keSkiLz4KICA8L2c+CiAgPHJlY3QgeD0iMTAwIiB5PSIxMDAiIHdpZHRoPSI4MjQiIGhlaWdodD0iODI0IiByeD0iMTg1IiBmaWxsPSJ1cmwoI3RhdG9sYWItYXBwLWljb24tc2hlZW4pIi8+CiAgPHJlY3QgeD0iMTAyIiB5PSIxMDIiIHdpZHRoPSI4MjAiIGhlaWdodD0iODIwIiByeD0iMTgzIiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjdGF0b2xhYi1hcHAtaWNvbi1yaW0pIiBzdHJva2Utd2lkdGg9IjQiLz4KICA8cGF0aCBkPSJNMzQzIDM4NGgzMzhNNTEyIDM4NHYzMDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0idXJsKCN0YXRvbGFiLWFwcC1pY29uLWxldHRlcikiIHN0cm9rZS13aWR0aD0iOTIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsdGVyPSJ1cmwoI3RhdG9sYWItYXBwLWljb24tbGV0dGVyLXNoYWRvdykiLz4KPC9zdmc+Cg==",
@@ -40,11 +43,11 @@ const MOCK_RELAY_ADAPTERS: readonly RelayAdapter[] = [
     setting_fields: [
       {
         name: "port",
-        description: "The port the listener takes for QUIC and HTTP alike; absent, the listener's own default (4443 at loopback, 4445 at every interface).",
-        is_required: false,
+        field_type: { type: "number" },
         is_secret: false,
-        value_kind: { kind: "whole_number", minimum: 0, maximum: 65535 },
-        accepts_null: true,
+        is_required: false,
+        doc: "The port the listener takes for QUIC and HTTP alike; absent, the listener's own default (4443 at loopback, 4445 at every interface).",
+        default_value: null,
       },
     ],
   },
@@ -56,12 +59,11 @@ const MOCK_RELAY_ADAPTERS: readonly RelayAdapter[] = [
     setting_fields: [
       {
         name: "relay_url",
-        description:
-          "The relay's publish-and-subscribe URL as Cloudflare returns it, `https://draft-16.cloudflare.mediaoverquic.com/<token>`; its token rides the path, so the whole URL is a secret.",
-        is_required: true,
+        field_type: { type: "url" },
         is_secret: true,
-        value_kind: { kind: "text" },
-        accepts_null: false,
+        is_required: true,
+        doc: "The relay's publish-and-subscribe URL as Cloudflare returns it, `https://draft-16.cloudflare.mediaoverquic.com/<token>`; its token rides the path, so the whole URL is a secret.",
+        default_value: null,
       },
     ],
   },
@@ -69,35 +71,45 @@ const MOCK_RELAY_ADAPTERS: readonly RelayAdapter[] = [
     kind: "moqpro",
     display_name: "moq.pro",
     display_icon_data_uri: MOCK_RELAY_ADAPTER_DISPLAY_ICON_DATA_URIS.moqpro,
-    doc: "A moq.pro project, dialed at its path on moq.pro's relays with a token signed by the project's key, which is kept as a secret. Serves public ports, under the project.",
+    doc: "A moq.pro project, dialed at its path on moq.pro's relay with a token signed by the project's key, which is kept as a secret. Serves public ports, under the project.",
     setting_fields: [
       {
         name: "project_id",
-        description: "The project's id as moq.pro names it: the root every token is minted under and the path the relay is dialed at.",
+        field_type: { type: "string" },
+        is_secret: false,
         is_required: true,
-        is_secret: false,
-        value_kind: { kind: "text" },
-        accepts_null: false,
-      },
-      {
-        name: "relay_url",
-        description: "The relays the project is served at; absent, `https://cdn.moq.dev`.",
-        is_required: false,
-        is_secret: false,
-        value_kind: { kind: "text" },
-        accepts_null: true,
+        doc: "The project's id as moq.pro names it: the root every token is minted under and the path the relay is dialed at.",
+        default_value: null,
       },
       {
         name: "signing_key",
-        description: "The project's signing key, the JWK moq.pro gave for it, as JSON or base64url JSON. It mints read and write for every broadcast of the project.",
-        is_required: true,
+        field_type: { type: "file" },
         is_secret: true,
-        value_kind: { kind: "text" },
-        accepts_null: false,
+        is_required: true,
+        doc: "The project's signing key, the JWK moq.pro gave for it, as JSON or base64url JSON. It mints read and write for every broadcast of the project.",
+        default_value: null,
       },
     ],
   },
 ];
+
+/** `?relays=every-field-type`'s mock-only adapter: one setting of each field type the catalog declares, a secret, a default and an optional select among them. */
+const MOCK_EVERY_FIELD_TYPE_RELAY_ADAPTER: RelayAdapter = {
+  kind: "every-field-type",
+  display_name: "Every field type",
+  display_icon_data_uri: null,
+  doc: "A mock adapter, served by no runtime, declaring a setting of each field type the relay-adapter catalog serves.",
+  setting_fields: [
+    { name: "api_key", field_type: { type: "string" }, is_secret: true, is_required: false, doc: "A secret `string`, masked.", default_value: null },
+    { name: "certificate", field_type: { type: "file" }, is_secret: false, is_required: false, doc: "A `file`, picked or pasted.", default_value: null },
+    { name: "fallback_region", field_type: { type: "select", options: ["us", "eu"] }, is_secret: false, is_required: false, doc: "An optional `select`.", default_value: null },
+    { name: "port", field_type: { type: "number" }, is_secret: false, is_required: false, doc: "A `number`.", default_value: 4446 },
+    { name: "records", field_type: { type: "boolean" }, is_secret: false, is_required: false, doc: "A `boolean`, defaulted off.", default_value: false },
+    { name: "region", field_type: { type: "select", options: ["us", "eu", "ap"] }, is_secret: false, is_required: true, doc: "A required `select`.", default_value: null },
+    { name: "relay_url", field_type: { type: "url" }, is_secret: false, is_required: true, doc: "A `url`.", default_value: null },
+    { name: "tags", field_type: { type: "string_list" }, is_secret: false, is_required: false, doc: "A `string_list`.", default_value: [] },
+  ],
+};
 
 function mockBuiltInRelays(): ListedRelay[] {
   return Object.entries(LOCAL_LISTENER_DEFAULT_PORTS).map(([relayId, port]) => ({
@@ -108,6 +120,18 @@ function mockBuiltInRelays(): ListedRelay[] {
     secrets: {},
     connection_state: { state: "joined" },
   }));
+}
+
+/** `?relays=every-field-type`'s relay of its mock-only adapter, a value listed for most of its settings. */
+function mockEveryFieldTypeRelay(): ListedRelay {
+  return {
+    relay_id: "every-field-type-1",
+    adapter: "every-field-type",
+    built_in: false,
+    settings: { fallback_region: "eu", port: 4446, records: true, region: "us", relay_url: "https://relay.example", tags: ["studio", "desk"] },
+    secrets: { api_key: "set" },
+    connection_state: { state: "joined" },
+  };
 }
 
 function mockHostedRelays(): ListedRelay[] {
@@ -148,7 +172,12 @@ const sleep = (milliseconds: number) => new Promise<void>((settle) => window.set
  * never kept, a change reads joining and then joined, and each refusal is worded as the runtime words it.
  */
 export function createMockRelays(sources: MockRelaysSources): MockRelays {
-  const relays: ListedRelay[] = [...mockBuiltInRelays(), ...(sources.scenario === "hosted" ? mockHostedRelays() : [])];
+  const relays: ListedRelay[] = [
+    ...mockBuiltInRelays(),
+    ...(sources.scenario === "local" ? [] : mockHostedRelays()),
+    ...(sources.scenario === "every_field_type" ? [mockEveryFieldTypeRelay()] : []),
+  ];
+  const catalogAdapters: readonly RelayAdapter[] = sources.scenario === "every_field_type" ? [...MOCK_RELAY_ADAPTERS, MOCK_EVERY_FIELD_TYPE_RELAY_ADAPTER] : MOCK_RELAY_ADAPTERS;
 
   const refuseUnlessTheRuntimeRuns = () => {
     if (!sources.isTheRuntimeRunning()) throw sources.noRuntimeAnswersRefusal();
@@ -197,16 +226,16 @@ export function createMockRelays(sources: MockRelaysSources): MockRelays {
       await sleep(MOCK_RELAY_CALL_MILLISECONDS);
       refuseUnlessTheRuntimeRuns();
       const adapters = sources.doesTheCatalogServeNoNamesOrLogos
-        ? MOCK_RELAY_ADAPTERS.map((adapter) => ({ ...adapter, display_name: null, display_icon_data_uri: null }))
-        : [...MOCK_RELAY_ADAPTERS];
+        ? catalogAdapters.map((adapter) => ({ ...adapter, display_name: null, display_icon_data_uri: null }))
+        : [...catalogAdapters];
       return structuredClone({ relays, adapters });
     },
     addRelay: async (adapterKind, settings) => {
       await sleep(MOCK_RELAY_CHANGE_MILLISECONDS);
       refuseUnlessTheRuntimeRuns();
-      const adapter = MOCK_RELAY_ADAPTERS.find((catalogAdapter) => catalogAdapter.kind === adapterKind);
+      const adapter = catalogAdapters.find((catalogAdapter) => catalogAdapter.kind === adapterKind);
       if (adapter === undefined) {
-        throw `no relay adapter is named \`${adapterKind}\`; the adapters are ${MOCK_RELAY_ADAPTERS.map((catalogAdapter) => catalogAdapter.kind).join(", ")}`;
+        throw `no relay adapter is named \`${adapterKind}\`; the adapters are ${catalogAdapters.map((catalogAdapter) => catalogAdapter.kind).join(", ")}`;
       }
       if (adapter.kind === "local") {
         throw "no `local` relay is added: the local relay is built in: its listeners `local-loopback` and `local-every-interface` are on every machine, and where a listener binds is never a setting";
@@ -234,7 +263,7 @@ export function createMockRelays(sources: MockRelaysSources): MockRelays {
       await sleep(MOCK_RELAY_CHANGE_MILLISECONDS);
       refuseUnlessTheRuntimeRuns();
       const relay = relayNamed(relayId);
-      const adapter = MOCK_RELAY_ADAPTERS.find((catalogAdapter) => catalogAdapter.kind === relay.adapter);
+      const adapter = catalogAdapters.find((catalogAdapter) => catalogAdapter.kind === relay.adapter);
       if (adapter === undefined) throw `no relay adapter is named \`${relay.adapter}\``;
       const relayWithTheNewSettings = structuredClone(relay);
       takeTheSettings(relayWithTheNewSettings, adapter, settings);

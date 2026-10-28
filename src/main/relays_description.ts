@@ -1,9 +1,9 @@
 // The runtime's relays as the window reads them: `list_relays`' instances, and the relay-adapter
 // catalog `GET /api/relay-adapters` serves: each adapter's name and icon as people see it, the icon
 // a `data:image/` URI the runtime carries, so the window's `img-src 'self' data:` draws it and
-// nothing is fetched; and its settings schema (JSON Schema, as `schemars` derives it from the
-// adapter's settings type) read narrowly into the settings its form draws. A secret setting is
-// `writeOnly` in the schema and listed by `list_relays` only as `set` or `unset`.
+// nothing is fetched; and its `settings`, each `{name, type, secret, required, doc, default?}` with
+// a `select`'s `options` beside its `type`, in name order. A setting flagged `secret`, whatever its
+// type, is listed by `list_relays` only as `set` or `unset`.
 
 import type {
   ListedRelay,
@@ -11,14 +11,12 @@ import type {
   RelayConnectionState,
   RelaySecretPresence,
   RelaySettingField,
+  RelaySettingFieldType,
   RelaySettingsByName,
   RelaySettingValue,
-  RelaySettingValueKind,
 } from "../shared/tatolab_backend_contract.js";
 import {
-  arrayOrEmpty,
   everyOneRead,
-  isAJsonObject,
   jsonObject,
   type JsonObjectOnTheWire,
   objectOrEmpty,
@@ -31,18 +29,12 @@ import {
 } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
-/** The largest value of each unsigned integer `format` schemars writes for a Rust integer type, which states no `maximum`. */
-const LARGEST_VALUE_OF_EACH_UNSIGNED_INTEGER_FORMAT: Readonly<Record<string, number>> = {
-  uint8: 255,
-  uint16: 65_535,
-  uint32: 4_294_967_295,
-};
-
 /** A tool of the runtime that changes a relay, each answering the `relay_id` it changed. */
 export type RelayChangeToolName = "add_relay" | "configure_relay" | "remove_relay";
 
-/** Whether `value` is a relay setting's value: text, a finite number, true or false, or `null`, which JSON carries as itself. */
+/** Whether `value` is a relay setting's value: text, a finite number, true or false, a list of text, or `null`, which JSON carries as itself. */
 function isARelaySettingValue(value: unknown): value is RelaySettingValue {
+  if (Array.isArray(value)) return value.every((listedValue) => typeof listedValue === "string");
   return value === null || typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value));
 }
 
@@ -112,7 +104,7 @@ function listedRelayOnTheWire(listedRelayValue: unknown): Result<ListedRelay, st
 function relaySettingsOnTheWire(listedRelay: JsonObjectOnTheWire): Result<RelaySettingsByName, string> {
   const settingsOnTheWire = objectOrEmpty(listedRelay, "settings");
   if (!settingsOnTheWire.ok) return settingsOnTheWire;
-  return relaySettingsByNameFrom(settingsOnTheWire.value, (settingName) => `the setting \`${settingName}\` is not text, a number, true or false, or null`);
+  return relaySettingsByNameFrom(settingsOnTheWire.value, (settingName) => `the setting \`${settingName}\` is not text, a number, true or false, a list of text, or null`);
 }
 
 /** Each secret's presence; a value that is not `set` or `unset` is refused by the setting's name alone, so no secret is ever carried on. */
@@ -166,10 +158,10 @@ function relayAdapterOnTheWire(adapterValue: unknown): Result<RelayAdapter, stri
   if (!displayIconDataUri.ok) return displayIconDataUri;
   const doc = requiredText(adapter.value, "doc");
   if (!doc.ok) return doc;
-  const settingsSchema = jsonObject(adapter.value["settings_schema"], `the settings schema of \`${kind.value}\``);
-  if (!settingsSchema.ok) return settingsSchema;
-  const settingFields = relaySettingFieldsOfTheSchema(settingsSchema.value);
-  if (!settingFields.ok) return failedWith(`the settings schema of \`${kind.value}\`: ${settingFields.failure}`);
+  const settingsOnTheWire = requiredArray(adapter.value, "settings");
+  if (!settingsOnTheWire.ok) return settingsOnTheWire;
+  const settingFields = everyOneRead(settingsOnTheWire.value, relaySettingFieldOnTheWire);
+  if (!settingFields.ok) return failedWith(`the settings of \`${kind.value}\`: ${settingFields.failure}`);
   return succeeded({
     kind: kind.value,
     display_name: displayName.value,
@@ -179,47 +171,43 @@ function relayAdapterOnTheWire(adapterValue: unknown): Result<RelayAdapter, stri
   });
 }
 
-function relaySettingFieldsOfTheSchema(settingsSchema: JsonObjectOnTheWire): Result<RelaySettingField[], string> {
-  const properties = objectOrEmpty(settingsSchema, "properties");
-  if (!properties.ok) return properties;
-  const required = arrayOrEmpty(settingsSchema, "required");
-  if (!required.ok) return required;
-  const requiredSettingNames = new Set(required.value.filter((settingName): settingName is string => typeof settingName === "string"));
-  return everyOneRead(Object.entries(properties.value), ([settingName, propertySchemaValue]) => {
-    if (!isAJsonObject(propertySchemaValue)) return failedWith(`the setting \`${settingName}\` has no schema`);
-    const description = optionalText(propertySchemaValue, "description");
-    if (!description.ok) return description;
-    const schemaTypes = schemaTypesOf(propertySchemaValue);
-    return succeeded({
-      name: settingName,
-      description: description.value,
-      is_required: requiredSettingNames.has(settingName),
-      is_secret: propertySchemaValue["writeOnly"] === true,
-      value_kind: relaySettingValueKindOf(propertySchemaValue, schemaTypes.filter((schemaType) => schemaType !== "null")),
-      accepts_null: schemaTypes.includes("null"),
-    });
-  });
+function relaySettingFieldOnTheWire(settingFieldValue: unknown): Result<RelaySettingField, string> {
+  const settingField = jsonObject(settingFieldValue, "a setting");
+  if (!settingField.ok) return settingField;
+  const name = requiredText(settingField.value, "name");
+  if (!name.ok) return name;
+  const fieldType = relaySettingFieldTypeOnTheWire(settingField.value);
+  if (!fieldType.ok) return failedWith(`the setting \`${name.value}\`: ${fieldType.failure}`);
+  const isSecret = requiredTrueOrFalse(settingField.value, "secret");
+  if (!isSecret.ok) return isSecret;
+  const isRequired = requiredTrueOrFalse(settingField.value, "required");
+  if (!isRequired.ok) return isRequired;
+  const doc = requiredText(settingField.value, "doc");
+  if (!doc.ok) return doc;
+  const defaultValue = settingField.value["default"] ?? null;
+  if (!isARelaySettingValue(defaultValue)) return failedWith(`the default of the setting \`${name.value}\` is not text, a number, true or false, or a list of text`);
+  return succeeded({ name: name.value, field_type: fieldType.value, is_secret: isSecret.value, is_required: isRequired.value, doc: doc.value, default_value: defaultValue });
 }
 
-/** The schema's `type`, one name or several; none when it states none. */
-function schemaTypesOf(propertySchema: JsonObjectOnTheWire): string[] {
-  const schemaType = propertySchema["type"];
-  if (typeof schemaType === "string") return [schemaType];
-  return Array.isArray(schemaType) ? schemaType.filter((typeName): typeName is string => typeof typeName === "string") : [];
-}
-
-function relaySettingValueKindOf(propertySchema: JsonObjectOnTheWire, typesOtherThanNull: readonly string[]): RelaySettingValueKind {
-  const [onlyType, ...otherTypes] = typesOtherThanNull;
-  if (onlyType === undefined) return { kind: "not_drawable", schema_type_words: "no type" };
-  if (otherTypes.length > 0) return { kind: "not_drawable", schema_type_words: typesOtherThanNull.join(" or ") };
-  if (onlyType === "string") return { kind: "text" };
-  if (onlyType !== "integer") return { kind: "not_drawable", schema_type_words: onlyType };
-  const format = propertySchema["format"];
-  const minimum = propertySchema["minimum"];
-  const maximum = propertySchema["maximum"];
-  return {
-    kind: "whole_number",
-    minimum: typeof minimum === "number" ? minimum : null,
-    maximum: typeof maximum === "number" ? maximum : typeof format === "string" ? (LARGEST_VALUE_OF_EACH_UNSIGNED_INTEGER_FORMAT[format] ?? null) : null,
-  };
+/** The setting's `type`; one this app does not know is refused, as the app always bundles the runtime it was built with. */
+function relaySettingFieldTypeOnTheWire(settingField: JsonObjectOnTheWire): Result<RelaySettingFieldType, string> {
+  const fieldType = requiredText(settingField, "type");
+  if (!fieldType.ok) return fieldType;
+  switch (fieldType.value) {
+    case "string":
+    case "url":
+    case "number":
+    case "boolean":
+    case "string_list":
+    case "file":
+      return succeeded({ type: fieldType.value });
+    case "select": {
+      const options = requiredArray(settingField, "options");
+      if (!options.ok) return options;
+      const textOptions = options.value.filter((option): option is string => typeof option === "string");
+      return textOptions.length === options.value.length ? succeeded({ type: "select", options: textOptions }) : failedWith("an option of the `select` is not text");
+    }
+    default:
+      return failedWith(`its type \`${fieldType.value}\` is not one this app draws`);
+  }
 }

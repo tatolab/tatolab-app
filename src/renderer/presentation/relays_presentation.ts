@@ -1,5 +1,5 @@
 import type { ListedRelay, RelayAdapter, RelayConnectionState, RelaysDescription } from "../../shared/tatolab_backend_contract";
-import { relaySettingLabel } from "./relay_settings_form";
+import { relaySettingLabel, relaySettingValueWords } from "./relay_settings_form";
 import type { StatusTone } from "./runtime_presentation";
 
 /** What the window holds of the runtime's relays: nothing yet, what it last answered, or why the last read was refused, beside what was read before it. */
@@ -97,11 +97,10 @@ export interface HostedRelayRow extends RelayRow {
   settingsWords: string | null;
 }
 
-/** An adapter Add relay offers, or offers greyed out with why. */
+/** An adapter Add relay offers. */
 export interface RelayAdapterChoice {
   adapter: RelayAdapter;
   adapterNaming: RelayAdapterNaming;
-  unavailableBecause: string | null;
 }
 
 /** What Settings › Relays shows. */
@@ -120,16 +119,6 @@ export type RelaysSectionPresentation =
       lastReadingRefusal: string | null;
     };
 
-/** Why the form cannot draw `adapter`'s settings: one whose type it cannot draw; `null` when it can. */
-export function whyTheFormCannotDrawTheAdaptersSettings(adapter: RelayAdapter): string | null {
-  for (const settingField of adapter.setting_fields) {
-    if (settingField.value_kind.kind === "not_drawable") {
-      return `Tatolab can't show the setting ${settingField.name} (${settingField.value_kind.schema_type_words}) in a form yet.`;
-    }
-  }
-  return null;
-}
-
 function relayRow(relay: ListedRelay, adapters: readonly RelayAdapter[], shownName: string): RelayRow {
   const adapter = adapters.find((catalogAdapter) => catalogAdapter.kind === relay.adapter) ?? null;
   return {
@@ -138,7 +127,7 @@ function relayRow(relay: ListedRelay, adapters: readonly RelayAdapter[], shownNa
     adapterNaming: adapter === null ? relayAdapterNamingByItsKind(relay.adapter, null) : presentRelayAdapterNaming(adapter),
     connection: presentRelayConnectionState(relay.connection_state),
     configureLabel: `Configure ${shownName}`,
-    configureUnavailableBecause: adapter === null ? `The runtime's catalog names no adapter ${relay.adapter}.` : whyTheFormCannotDrawTheAdaptersSettings(adapter),
+    configureUnavailableBecause: adapter === null ? `The runtime's catalog names no adapter ${relay.adapter}.` : null,
   };
 }
 
@@ -157,7 +146,7 @@ function localRelayListenerRow(relay: ListedRelay, adapters: readonly RelayAdapt
 function hostedRelayRow(relay: ListedRelay, adapters: readonly RelayAdapter[]): HostedRelayRow {
   const settingWords = Object.entries(relay.settings)
     .filter(([, settingValue]) => settingValue !== null)
-    .map(([settingName, settingValue]) => `${relaySettingLabel(settingName)} ${String(settingValue)}`);
+    .map(([settingName, settingValue]) => `${relaySettingLabel(settingName)} ${relaySettingValueWords(settingValue)}`);
   const secretWords = Object.entries(relay.secrets).map(([secretName, presence]) => `${relaySettingLabel(secretName)} ${presence === "set" ? "set" : "not set"}`);
   const allWords = [...settingWords, ...secretWords];
   const row = relayRow(relay, adapters, relay.relay_id);
@@ -189,7 +178,7 @@ export function presentRelaysSection(isTheRuntimeRunning: boolean, reading: Rela
   const adaptersBackingABuiltInRelay = new Set(description.relays.filter((relay) => relay.built_in).map((relay) => relay.adapter));
   const adapterChoices = description.adapters
     .filter((adapter) => !adaptersBackingABuiltInRelay.has(adapter.kind))
-    .map((adapter) => ({ adapter, adapterNaming: presentRelayAdapterNaming(adapter), unavailableBecause: whyTheFormCannotDrawTheAdaptersSettings(adapter) }));
+    .map((adapter) => ({ adapter, adapterNaming: presentRelayAdapterNaming(adapter) }));
   return {
     kind: "listed",
     localRelayListenerRows: description.relays.filter((relay) => relay.built_in).map((relay) => localRelayListenerRow(relay, description.adapters)),

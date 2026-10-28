@@ -254,7 +254,7 @@ export function removeRelay(sharedState: TatolabAppSharedState, relayId: string)
 function relaySettingsArgumentFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<RelaySettingsByName, string> {
   const settingsArgument = isAJsonObject(commandArguments) ? commandArguments["settings"] : undefined;
   if (!isAJsonObject(settingsArgument)) return failedWith(`${commandName} needs \`settings\`, each setting by name`);
-  return relaySettingsByNameFrom(settingsArgument, (settingName) => `${commandName} needs the setting \`${settingName}\` as text, a number, true or false, or null`);
+  return relaySettingsByNameFrom(settingsArgument, (settingName) => `${commandName} needs the setting \`${settingName}\` as text, a number, true or false, a list of text, or null`);
 }
 
 /** `add_relay`'s arguments as the window sends them, or why they are not. */
