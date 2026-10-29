@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PythonForNewEnvironments, StreamProjectFolderReport, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, PythonForNewEnvironments, StreamProjectFolderReport, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
 import {
   addStreamActionOf,
   addStreamRunNoticeOf,
@@ -16,6 +16,9 @@ import {
   addStreamActionUnavailableBecause,
   addStreamBlockerTheFormDoesNotShow,
   compilingForWords,
+  displayNamePlaceholderOf,
+  streamAlreadyImportedFrom,
+  streamAlreadyImportedWords,
   initialAddStreamFlowState,
   pythonEnvironmentSyncWords,
   compilingHeadingVerb,
@@ -69,15 +72,16 @@ describe("addStreamBlockerTheFormDoesNotShow", () => {
 });
 
 describe("running a project folder", () => {
-  it("prefills the display name from the folder's stream function and runs it, then shows the runtime's answer", () => {
+  it("leaves the name blank, its function's name its placeholder, so a run sends none and a re-run keeps the recorded one", () => {
     const chosen = afterEvents(initialAddStreamFlowState("project_folder"), [
       { kind: "work_started", work: "choosing_a_folder" },
       { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map") },
     ]);
-    expect(chosen.form.displayName).toBe("heat_map");
+    expect(chosen.form.displayName).toBe("");
+    expect(displayNamePlaceholderOf(chosen.form)).toBe("heat_map");
     expect(addStreamActionUnavailableBecause(chosen.form, true, TATOLABS_OWN_PYTHON)).toBeNull();
     const request = runRequestOf(chosen.form);
-    expect(request).toEqual({ folder: "/Users/someone/code/heat-map", streamFunction: null, displayName: "heat_map" });
+    expect(request).toEqual({ folder: "/Users/someone/code/heat-map", streamFunction: null, displayName: null });
 
     const compiling = advanceAddStreamFlow(chosen, { kind: "run_started", request: request ?? { folder: "", streamFunction: null, displayName: null }, nowMs: 100 });
     expect(compiling).toMatchObject({ step: "compiling", startedAtMs: 100 });
@@ -88,12 +92,34 @@ describe("running a project folder", () => {
     });
   });
 
-  it("asks for the chosen function as tatolab run takes it when stream.py has several, and names the stream after it", () => {
+  it("finds the listed stream a chosen project folder and stream already run as, by its location, and none for another folder or stream", () => {
+    const listed = (projectDirectory: string, streamFunction: string): ListedStream => ({
+      stream: "doorways-front-door-b937b6",
+      display_name: "Front door",
+      location: { project_directory: projectDirectory, stream_function: streamFunction },
+      state: "running",
+      node_count: 4,
+      failed_because: null,
+    });
+    const chosen = afterEvents(initialAddStreamFlowState("project_folder"), [
+      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/doorways", { stream_functions: ["front_door", "back_door"] }) },
+    ]);
+    const frontDoor = listed("/Users/someone/code/doorways", "stream:front_door");
+
+    expect(streamAlreadyImportedFrom(chosen.form, [frontDoor])).toBe(frontDoor);
+    expect(streamAlreadyImportedWords(frontDoor)).toBe("Already imported as Front door.");
+    expect(streamAlreadyImportedFrom(advanceAddStreamFlow(chosen, { kind: "stream_function_chosen", streamFunction: "back_door" }).form, [frontDoor])).toBeNull();
+    expect(streamAlreadyImportedFrom(chosen.form, [listed("/Users/someone/code/doorways-v2", "stream:front_door")])).toBeNull();
+    expect(streamAlreadyImportedFrom(chosen.form, null)).toBeNull();
+  });
+
+  it("asks for the chosen function as module:function when a project has several streams, its name the placeholder", () => {
     const chosen = afterEvents(initialAddStreamFlowState("project_folder"), [
       { kind: "project_folder_answered", report: folderReport("/Users/someone/code/doorways", { stream_functions: ["front_door", "back_door"] }) },
       { kind: "stream_function_chosen", streamFunction: "back_door" },
     ]);
-    expect(runRequestOf(chosen.form)).toEqual({ folder: "/Users/someone/code/doorways", streamFunction: "stream.py:back_door", displayName: "back_door" });
+    expect(runRequestOf(chosen.form)).toEqual({ folder: "/Users/someone/code/doorways", streamFunction: "stream:back_door", displayName: null });
+    expect(displayNamePlaceholderOf(chosen.form)).toBe("back_door");
   });
 
   it("keeps the person's name and function across a new answer for the same folder, and starts afresh for another folder", () => {
@@ -107,7 +133,7 @@ describe("running a project folder", () => {
     expect(addStreamActionUnavailableBecause(renamed.form, true, TATOLABS_OWN_PYTHON)).toBeNull();
 
     const another = advanceAddStreamFlow(renamed, { kind: "project_folder_answered", report: folderReport("/Users/someone/code/doorways", { stream_functions: ["front_door"] }) });
-    expect(another.form.displayName).toBe("front_door");
+    expect(another.form.displayName).toBe("");
   });
 
   it("lets a folder with no .venv compile and run, which sets up its Python first, and returns uv's refusal to the form under its own lead", () => {

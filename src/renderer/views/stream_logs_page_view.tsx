@@ -237,9 +237,11 @@ function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stre
             </span>
           )}
         </span>
-        <InlineLink destination={{ onPressed: openStreamLogFolder }} data-stream-action="open_stream_log_folder">
-          Open
-        </InlineLink>
+        {projectDirectory !== null && (
+          <InlineLink destination={{ onPressed: openStreamLogFolder }} data-stream-action="open_stream_log_folder">
+            Open
+          </InlineLink>
+        )}
       </div>
       {folderOpeningRefusal !== null && (
         <div className="pb-2">
@@ -465,9 +467,11 @@ function StreamLogsOfAStreamNotLoadedView({ stream, streamPageActions }: { strea
           </div>
         )}
         <div className="flex items-center gap-1.5">
-          <ActionButton icon={FolderOpen} onPressed={openStreamLogFolder} data-stream-action="open_stream_log_folder">
-            Open log folder
-          </ActionButton>
+          {projectDirectory !== null && (
+            <ActionButton icon={FolderOpen} onPressed={openStreamLogFolder} data-stream-action="open_stream_log_folder">
+              Open log folder
+            </ActionButton>
+          )}
           {retryAction !== null && (
             <ActionButton
               icon={RotateCw}

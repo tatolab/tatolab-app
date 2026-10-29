@@ -107,8 +107,8 @@ const MOCK_UPDATE_DOWNLOAD_STEP_PERCENT = 7;
 
 /**
  * The project folder the mock's folder dialog chooses, picked with `?add_folder=`: one ready to run (the default), one with no
- * `.venv` yet, which a run makes first, one with several `@stream` functions, the folder `main` was run from, whose run
- * replaces it under the same id, one with no `stream.py`, or none, the person cancelling.
+ * `.venv` yet, which a run makes first, one with several streams, the project `main` is already imported from, one with
+ * no streams, or none, the person cancelling.
  */
 export type MockChosenProjectFolder = "ready" | "no-venv" | "several" | "recorded" | "no-stream-file" | "cancel";
 

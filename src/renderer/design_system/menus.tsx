@@ -24,6 +24,10 @@ export type MenuWidth = "fit" | "wide";
 
 const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-56", wide: "w-[288px] max-h-96" };
 
+/** A menu choice's padding and its icon's look, the same in a dropdown menu and a right-click menu. */
+const MENU_ITEM_CLASS_NAMES = "px-2";
+const MENU_ITEM_ICON_CLASS_NAMES = "size-4 text-fg-3";
+
 /** An icon button that opens a menu of its choices: regular in rows and bars, compact beside a heading. */
 export function IconButtonMenu({
   icon: TriggerIcon,
@@ -142,20 +146,17 @@ export function MenuItem({
       closeOnClick={!keepsTheMenuOpen}
       disabled={isDisabled}
       onClick={onChosen}
-      className="px-2 data-[variant=destructive]:text-danger-text data-[variant=destructive]:focus:text-danger-text"
+      className={cn(MENU_ITEM_CLASS_NAMES, "data-[variant=destructive]:text-danger-text data-[variant=destructive]:focus:text-danger-text")}
       {...controlDataAttributes}
     >
-      {ItemIcon !== undefined && <ItemIcon className={cn("size-4", isDestructive ? "text-danger" : "text-fg-3")} strokeWidth={1.75} aria-hidden />}
+      {ItemIcon !== undefined && <ItemIcon className={cn(MENU_ITEM_ICON_CLASS_NAMES, isDestructive && "text-danger")} strokeWidth={1.75} aria-hidden />}
       {leading}
       {children}
     </DropdownMenuItem>
   );
 }
 
-/**
- * A menu a right-click on `children` opens at the pointer, as the keyboard's menu key or Shift+F10 does on a control
- * inside it. `children` is the element the area is, a row as it is, so a click in the menu never reaches the row.
- */
+/** A menu a right-click on `children` opens at the pointer; `children` is the row itself, so a click in the menu never reaches the row. */
 export function RightClickMenu({ label, choices, children }: { label: string; choices: ReactNode; children: ReactElement }) {
   return (
     <ContextMenu>
@@ -175,8 +176,8 @@ export function RightClickMenuItem({
   ...controlDataAttributes
 }: { icon?: LucideIcon; onChosen: () => void; children: ReactNode } & ControlDataAttributes) {
   return (
-    <ContextMenuItem onClick={onChosen} className="px-2" {...controlDataAttributes}>
-      {ItemIcon !== undefined && <ItemIcon className="size-4 text-fg-3" strokeWidth={1.75} aria-hidden />}
+    <ContextMenuItem onClick={onChosen} className={MENU_ITEM_CLASS_NAMES} {...controlDataAttributes}>
+      {ItemIcon !== undefined && <ItemIcon className={MENU_ITEM_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
       {children}
     </ContextMenuItem>
   );

@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Folder, FolderInput, FolderOpen, FolderPlus, List, Pencil, Plus, Settings } from "lucide-react";
+import { Folder, FolderInput, FolderOpen, FolderPlus, List, Plus, Settings } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
@@ -9,7 +9,7 @@ import { presentStreamState } from "../presentation/stream_presentation";
 import { streamProjectFoldersOf, type StreamProjectFolder } from "../presentation/streams_list_presentation";
 import { IconButton } from "../design_system/icon_button";
 import { ListRowButton } from "../design_system/list_row_button";
-import { IconButtonMenu, MenuItem, RightClickMenu, RightClickMenuItem } from "../design_system/menus";
+import { IconButtonMenu, MenuItem } from "../design_system/menus";
 import { PageFrame } from "../design_system/page_frame";
 import { PageHeader } from "../design_system/page_header";
 import { StreamStateIcon } from "../design_system/stream_state_words";
@@ -19,6 +19,7 @@ import { FirstRunFinishingRefusalNoticeView } from "./first_run_finishing_refusa
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { StreamPageView } from "./stream_page_view";
 import { useStreamRenameDialog } from "./stream_rename_dialog_view";
+import { StreamRowRightClickMenu } from "./stream_row_right_click_menu";
 import { streamPagePath, streamPageTabNamed } from "./stream_page_path";
 import { StreamsListPageView } from "./streams_list_page_view";
 import { SettingsPageView } from "./settings_page_view";
@@ -103,15 +104,7 @@ function StreamProjectFolderSidebarRows({ projectFolder, askToRename }: { projec
       {isOpen && (
         <ul aria-label={`Streams added from ${projectFolder.folderName}`} className="mt-0.5 flex flex-col gap-0.5">
           {projectFolder.streams.map((stream) => (
-            <RightClickMenu
-              key={stream.stream}
-              label={`Actions for ${stream.display_name}`}
-              choices={
-                <RightClickMenuItem icon={Pencil} onChosen={() => askToRename(stream)} data-stream-action="rename_stream">
-                  Rename…
-                </RightClickMenuItem>
-              }
-            >
+            <StreamRowRightClickMenu key={stream.stream} stream={stream} onRenameAsked={() => askToRename(stream)}>
               <li data-sidebar-stream={stream.stream}>
                 <SidebarNavigationRow
                   to={streamPagePath(stream.stream)}
@@ -121,7 +114,7 @@ function StreamProjectFolderSidebarRows({ projectFolder, askToRename }: { projec
                   isUnderAFolder
                 />
               </li>
-            </RightClickMenu>
+            </StreamRowRightClickMenu>
           ))}
         </ul>
       )}

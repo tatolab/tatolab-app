@@ -239,6 +239,24 @@ describe("renaming a stream", () => {
     expect(within(rowOf("camera")).getByRole("link", { name: "camera, Running", hidden: true })).toBeTruthy();
   });
 
+  it("leaves a rename's late answer out of a dialog opened since on another stream", async () => {
+    let refuseTheFirstRename: (refusal: string) => void = () => {};
+    await mountedWindowOverTheMock("state=running", {
+      renameStream: () => new Promise<void>((_, reject) => (refuseTheFirstRename = reject)),
+    });
+
+    fireEvent.change(await openTheRenameDialogOfTheSidebarRowOf("camera"), { target: { value: "Desk camera" } });
+    fireEvent.click(document.querySelector<HTMLElement>('[data-stream-rename-action="rename"]') ?? expect.unreachable("no Rename button"));
+    fireEvent.click(document.querySelector<HTMLElement>('[data-stream-rename-action="cancel"]') ?? expect.unreachable("no Cancel button"));
+    await waitFor(() => expect(document.querySelector("[data-stream-rename-display-name]")).toBeNull());
+    const mainsField = await openTheRenameDialogOfTheSidebarRowOf("main");
+    await act(async () => refuseTheFirstRename("Runtime error: the record of `camera-main-018da9` could not be written"));
+
+    expect(mainsField.value).toBe("main");
+    expect(document.querySelector("[data-stream-rename-dialog] [role=alert]")).toBeNull();
+    expect(document.querySelector("[data-stream-rename-display-name]")).not.toBeNull();
+  });
+
   it("renames from the stream page's menu too", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("main");
@@ -279,6 +297,10 @@ describe("a record an earlier runtime wrote", () => {
     fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Logs" })));
     await waitFor(() => expect(document.querySelector("[data-stream-logs-not-loaded='doorbell']")).not.toBeNull());
     expect(document.querySelector("[data-stream-logs-not-loaded='doorbell']")?.textContent).not.toContain(".streamlib/logs");
+    expect(document.querySelector('[data-stream-action="open_stream_log_folder"]')).toBeNull();
+    fireEvent.click(document.querySelector<HTMLElement>('[data-stream-page-header] [data-stream-action="more"]') ?? expect.unreachable("no ⋯ in the bar"));
+    await waitFor(() => expect(document.querySelector('[data-slot="dropdown-menu-item"][data-stream-action="rename_stream"]')).not.toBeNull());
+    expect(document.querySelector('[data-stream-action^="open_"]')).toBeNull();
   });
 });
 
@@ -870,11 +892,13 @@ describe("Add stream", () => {
 
     await waitFor(() => expect(document.querySelector('[data-add-stream-check="heat_map"]')?.textContent).toBe("heat_map"));
     expect(document.querySelector('[data-add-stream-check=".venv"]')).toBeNull();
-    expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "heat_map");
+    expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "");
+    expect(screen.getByRole("textbox", { name: "Stream name" }).getAttribute("placeholder")).toBe("heat_map");
 
     fireEvent.click(await addStreamControl("add"));
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="compiling"]')).not.toBeNull());
-    expect(document.querySelector("[data-add-stream-compile-output]")?.textContent).toContain("run_stream  /Users/jonathanf/code/heat-map  name=heat_map");
+    expect(document.querySelector("[data-add-stream-compile-output]")?.textContent).toContain("run_stream  /Users/jonathanf/code/heat-map");
+    expect(document.querySelector("[data-add-stream-compile-output]")?.textContent).not.toContain("name=");
     expect(document.querySelector("[data-add-stream-compile-output]")?.textContent).not.toContain("keep");
 
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"]')).not.toBeNull(), MOCK_RUN_WAIT);
@@ -885,18 +909,25 @@ describe("Add stream", () => {
     await waitFor(() => expect(document.querySelector("[data-stream-page] h1")?.textContent).toBe("heat_map"));
   });
 
-  it("runs the folder a listed stream was run from again, replacing it under the same id and name, with no second row", { timeout: 15_000 }, async () => {
-    await mountedWindowOverTheMock("state=running&add_folder=recorded");
+  it("says a project already imported is imported, under its name, and offers Open stream in place of Add, running nothing", { timeout: 15_000 }, async () => {
+    let runsAsked = 0;
+    const { backend } = await mountedWindowOverTheMock("state=running&add_folder=recorded", {
+      runStreamProject: async () => {
+        runsAsked += 1;
+        return { kind: "python_environment_not_made", words: "not asked" };
+      },
+    });
+    await act(async () => backend.renameStream(mockStreamIdOf("main"), "Front door"));
     await openAddStream();
     fireEvent.click(await addStreamControl("choose_folder"));
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Stream name" })).toHaveProperty("value", "main"));
-    fireEvent.click(await addStreamControl("add"));
 
-    await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"] h2')?.textContent).toBe("main is running"), MOCK_RUN_WAIT);
-    expect(document.querySelector('[data-add-stream-step="running"]')?.textContent).toContain("It replaced its last run.");
+    await waitFor(() => expect(document.querySelector(`[data-add-stream-already-imported="${mockStreamIdOf("main")}"]`)?.textContent).toBe("Already imported as Front door."));
+    expect(document.querySelector('[data-add-stream-action="add"]')).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Stream name" })).toBeNull();
     fireEvent.click(await addStreamControl("open_stream"));
+
     await waitFor(() => expect(document.querySelector(`[data-stream-page="${mockStreamIdOf("main")}"]`)).not.toBeNull());
-    expect(document.querySelectorAll(`[data-stream-row="${mockStreamIdOf("main")}"]`).length).toBeLessThanOrEqual(1);
+    expect(runsAsked).toBe(0);
   });
 
   it("creates the sample project with Create alone, which writes it, sets up its Python and runs it, with no command to run", { timeout: 20_000 }, async () => {

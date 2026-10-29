@@ -8,7 +8,7 @@
 import path from "node:path";
 import type { StreamProjectFolderChosenFor, StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure, StreamRunRequest } from "./local_api_client.js";
-import { somethingIsAt } from "./file_system_entries_on_this_machine.js";
+import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
 import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_tool.js";
 import { programsOwnWordsOrHowItEnded, programSucceeded, type ProgramRunner } from "./platform/run_program_to_completion.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -120,8 +120,9 @@ export class StreamProjectAdding {
     return path.join(newStreamProjectsFolder, freeName);
   }
 
+  /** `folder` with its links resolved, as the runtime lists a stream's project directory, so the window can tell a project already imported. */
   private async handToTheWindow(folder: string): Promise<StreamProjectFolderReport> {
-    const resolvedFolder = path.resolve(folder);
+    const resolvedFolder = await realPathOrAsGiven(path.resolve(folder));
     this.foldersHandedToTheWindow.add(resolvedFolder);
     return inspectStreamProjectFolder(resolvedFolder);
   }

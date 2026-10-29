@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
@@ -87,6 +87,20 @@ test("the first free name is the name itself, then -2, then the next number noth
   expect(await firstFreeSuffixedName("front-door", takenIn([]))).toBe("front-door");
   expect(await firstFreeSuffixedName("front-door", takenIn(["front-door"]))).toBe("front-door-2");
   expect(await firstFreeSuffixedName("front-door", takenIn(["front-door", "front-door-2", "front-door-3"]))).toBe("front-door-4");
+});
+
+test("a folder chosen through a link is handed to the window with its links resolved, as the runtime lists a project, and runs from there", async () => {
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "tl-app-project-"));
+  temporaryHomes.push(projectFolder);
+  const linkToTheProject = `${projectFolder}-link`;
+  await symlink(projectFolder, linkToTheProject);
+  temporaryHomes.push(linkToTheProject);
+  const { streamProjectAdding, streamRuns } = await streamProjectAddingOverFakes({ dialogAnswer: succeeded(linkToTheProject) });
+
+  const chosen = await streamProjectAdding.chooseStreamProjectFolder("project_to_run");
+  expect(chosen.ok && chosen.value?.folder).toBe(await realpath(projectFolder));
+  expect((await streamProjectAdding.runStreamProject(await realpath(projectFolder), null, null)).ok).toBe(true);
+  expect(streamRuns.runsAsked.map((runAsked) => runAsked.projectDirectory)).toEqual([await realpath(projectFolder)]);
 });
 
 test("a folder chosen in the dialog is handed to the window with what it holds; a cancelled dialog answers nothing", async () => {

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
@@ -489,7 +489,7 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
 
 /** The window's `StreamProjectFolderReport` and `StreamProjectRunOutcome` read exactly this JSON. */
 test("adding a stream answers the window in the contract's shape, from the chosen folder to the runtime's answer or its refusal", async () => {
-  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "tl-app-project-"));
+  const projectFolder = await realpath(await mkdtemp(path.join(os.tmpdir(), "tl-app-project-")));
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   const sharedState = await sharedStateOverFakes(
     [

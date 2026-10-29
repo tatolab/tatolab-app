@@ -1,4 +1,4 @@
-import type { PythonForNewEnvironments, StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, PythonForNewEnvironments, StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
 
 /** Where a new stream starts from: a project folder the person has, or a new project `tatolab new` writes. */
 export type AddStreamSource = "project_folder" | "new_project";
@@ -81,10 +81,37 @@ export function folderToRun(form: AddStreamForm): StreamProjectFolderReport | nu
   return form.hasCreatedTheNewProject ? form.newProjectFolder : null;
 }
 
-/** The stream function to ask `run_stream` for: none for a `stream.py` with one or no `@stream`, which the runtime finds itself, else the chosen one as `tatolab run` takes it. */
+/** The stream function to ask `run_stream` for: none for a project with one or no stream, which the runtime finds itself, else the chosen one as `module:function`. */
 export function streamFunctionArgumentFor(report: StreamProjectFolderReport, chosenStreamFunction: string | null): string | null {
   if (report.stream_functions.length <= 1 || chosenStreamFunction === null) return null;
-  return `stream.py:${chosenStreamFunction}`;
+  return `stream:${chosenStreamFunction}`;
+}
+
+/**
+ * The listed stream the chosen project folder's chosen stream already runs as, which importing it again leaves as it is;
+ * `null` for a folder or stream not imported. The runtime lists a stream's function as `module:function`, `stream:<name>` for one in `stream.py`.
+ */
+export function streamAlreadyImportedFrom(form: AddStreamForm, listedStreams: readonly ListedStream[] | null): ListedStream | null {
+  const folder = form.source === "project_folder" ? form.projectFolder : null;
+  if (folder === null || listedStreams === null) return null;
+  const streamFunction = form.chosenStreamFunction ?? folder.stream_functions[0] ?? null;
+  return (
+    listedStreams.find(
+      (listedStream) =>
+        listedStream.location?.project_directory === folder.folder && (streamFunction === null || listedStream.location.stream_function === `stream:${streamFunction}`),
+    ) ?? null
+  );
+}
+
+/** What the form says of a stream already imported. */
+export function streamAlreadyImportedWords(listedStream: ListedStream): string {
+  return `Already imported as ${listedStream.display_name}.`;
+}
+
+/** The name field's placeholder: the name the runtime shows the stream under when none is typed, its function's, for a stream not run before. */
+export function displayNamePlaceholderOf(form: AddStreamForm): string {
+  const folder = folderToRun(form) ?? form.projectFolder;
+  return form.chosenStreamFunction ?? folder?.stream_functions[0] ?? "";
 }
 
 /** The run the form asks for now; `null` until there is a folder to run. A blank display name lets the runtime show the stream under its function's name, or the one its recorded stream keeps. */
@@ -104,8 +131,7 @@ function streamFunctionsChoiceAfter(previous: StreamProjectFolderReport | null, 
   if (isTheSameFolder && form.chosenStreamFunction !== null && report.stream_functions.includes(form.chosenStreamFunction)) {
     return { chosenStreamFunction: form.chosenStreamFunction, displayName: form.displayName };
   }
-  const firstStreamFunction = report.stream_functions[0] ?? null;
-  return { chosenStreamFunction: firstStreamFunction, displayName: isTheSameFolder && form.displayName !== "" ? form.displayName : (firstStreamFunction ?? "") };
+  return { chosenStreamFunction: report.stream_functions[0] ?? null, displayName: isTheSameFolder ? form.displayName : "" };
 }
 
 /** The dialog after `event`. An event of the form changes only the form step: one that arrives while a run compiles or once it runs is about a form no longer shown. */
@@ -161,7 +187,7 @@ function advanceTheForm(state: AddStreamFlowState, event: AddStreamFlowEvent): A
         workUnderWay: null,
       });
     case "stream_function_chosen":
-      return withForm(state, { chosenStreamFunction: event.streamFunction, displayName: event.streamFunction });
+      return withForm(state, { chosenStreamFunction: event.streamFunction });
     case "display_name_edited":
       return withForm(state, { displayName: event.displayName });
     case "work_refused":

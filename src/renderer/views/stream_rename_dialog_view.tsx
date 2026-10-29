@@ -23,10 +23,14 @@ export function useStreamRenameDialog(): { askToRename: (stream: ListedStream) =
   const askToRename = (stream: ListedStream) => setDialogState({ stream, typedDisplayName: stream.display_name, isRenaming: false, refusal: null });
   const rename = () => {
     if (dialogState === null || dialogState.isRenaming || !canRenameStreamTo(dialogState.stream, dialogState.typedDisplayName)) return;
+    const renamedStreamId = dialogState.stream.stream;
+    // An answer is for the dialog that asked: one closed meanwhile, or opened on another stream, is left as it is.
+    const whileTheAskingDialogIsOpen = (next: (stateNow: StreamRenameDialogState) => StreamRenameDialogState | null) => (stateNow: StreamRenameDialogState | null) =>
+      stateNow?.stream.stream === renamedStreamId && stateNow.isRenaming ? next(stateNow) : stateNow;
     setDialogState({ ...dialogState, isRenaming: true, refusal: null });
-    backend.renameStream(dialogState.stream.stream, displayNameToRenameTo(dialogState.typedDisplayName)).then(
-      () => setDialogState(null),
-      (rejection: unknown) => setDialogState((stateNow) => (stateNow === null ? null : { ...stateNow, isRenaming: false, refusal: describeBackendRejection(rejection) })),
+    backend.renameStream(renamedStreamId, displayNameToRenameTo(dialogState.typedDisplayName)).then(
+      () => setDialogState(whileTheAskingDialogIsOpen(() => null)),
+      (rejection: unknown) => setDialogState(whileTheAskingDialogIsOpen((stateNow) => ({ ...stateNow, isRenaming: false, refusal: describeBackendRejection(rejection) }))),
     );
   };
   const presentation = dialogState === null ? null : presentStreamRenameDialog(dialogState.stream);
@@ -37,6 +41,7 @@ export function useStreamRenameDialog(): { askToRename: (stream: ListedStream) =
         if (!isOpen) setDialogState(null);
       }}
       title={presentation?.title ?? ""}
+      focusOnOpen="first_field_selected"
       description={presentation?.description ?? ""}
       footer={
         <FormDialogFooter>

@@ -119,15 +119,15 @@ export function StreamPageHeaderView({
             <MenuItem icon={Pencil} onChosen={askToRename} data-stream-action="rename_stream">
               Rename…
             </MenuItem>
-            <MenuSeparator />
-            <MenuItem icon={CodeXml} onChosen={() => openTheProject(backend.openStreamProjectFolder(stream.stream))} data-stream-action="open_stream_project_folder">
-              Open project
-            </MenuItem>
-            <MenuItem icon={SquareTerminal} onChosen={() => openTheProject(backend.openTerminalAtStreamProject(stream.stream))} data-stream-action="open_terminal_at_stream_project">
-              Open a terminal in the project
-            </MenuItem>
             {projectDirectory !== null && (
               <>
+                <MenuSeparator />
+                <MenuItem icon={CodeXml} onChosen={() => openTheProject(backend.openStreamProjectFolder(stream.stream))} data-stream-action="open_stream_project_folder">
+                  Open project
+                </MenuItem>
+                <MenuItem icon={SquareTerminal} onChosen={() => openTheProject(backend.openTerminalAtStreamProject(stream.stream))} data-stream-action="open_terminal_at_stream_project">
+                  Open a terminal in the project
+                </MenuItem>
                 <MenuSeparator />
                 <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(projectDirectory)}>
                   Copy project folder path

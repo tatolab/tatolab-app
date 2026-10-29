@@ -16,6 +16,7 @@ export function FormDialog({
   description,
   icon: TaskIcon,
   footer,
+  focusOnOpen = "body",
   children,
   ...controlDataAttributes
 }: {
@@ -26,14 +27,21 @@ export function FormDialog({
   /** Drawn large above the body, the task's picture. */
   icon?: LucideIcon;
   footer?: ReactNode;
+  /** What holds focus as it opens: the body, so Tab moves on to the task's first control; or, for a task that is one field, that field with its text selected. */
+  focusOnOpen?: "body" | "first_field_selected";
   children: ReactNode;
 } & ControlDataAttributes) {
-  // Opening focuses the body, not the close button, so Tab moves on to the task's first control.
   const bodyElement = useRef<HTMLDivElement>(null);
+  const elementFocusedOnOpen = () => {
+    if (focusOnOpen === "body") return bodyElement.current;
+    const firstField = bodyElement.current?.querySelector<HTMLInputElement>("input") ?? null;
+    firstField?.select();
+    return firstField ?? bodyElement.current;
+  };
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent
-        initialFocus={bodyElement}
+        initialFocus={elementFocusedOnOpen}
         showCloseButton={false}
         className="flex max-h-[min(720px,calc(100vh-4rem))] flex-col gap-0 overflow-hidden bg-window p-0 sm:max-w-xl"
         {...controlDataAttributes}

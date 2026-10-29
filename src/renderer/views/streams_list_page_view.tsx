@@ -7,7 +7,7 @@ import { writeTextToClipboard } from "../clipboard";
 import { EmptyState } from "../design_system/empty_state";
 import { IconButton } from "../design_system/icon_button";
 import { ListRowButton } from "../design_system/list_row_button";
-import { FieldMenu, MenuItem, MenuSeparator, MenuSingleChoiceGroup, MoreActionsMenu, RightClickMenu, RightClickMenuItem } from "../design_system/menus";
+import { FieldMenu, MenuItem, MenuSeparator, MenuSingleChoiceGroup, MoreActionsMenu } from "../design_system/menus";
 import { PageBody, PageFrame } from "../design_system/page_frame";
 import { PageHeader } from "../design_system/page_header";
 import { PendingActionWords } from "../design_system/pending_action_words";
@@ -38,6 +38,7 @@ import {
   type StreamActionOutcomeWords,
 } from "./stream_action_controls";
 import { useStreamRenameDialog } from "./stream_rename_dialog_view";
+import { StreamRowRightClickMenu } from "./stream_row_right_click_menu";
 import { streamPagePath } from "./stream_page_path";
 import type { AddStreamSource } from "../presentation/add_stream_flow";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
@@ -108,52 +109,45 @@ function StreamsListRow({
   const navigate = useNavigate();
   const statePresentation = presentStreamStateAfterTheLastAction(stream, outcome?.kind === "notice");
   return (
-    <RightClickMenu
-      label={`Actions for ${stream.display_name}`}
-      choices={
-        <RightClickMenuItem icon={Pencil} onChosen={onRenameAsked} data-stream-action="rename_stream">
-          Rename…
-        </RightClickMenuItem>
-      }
-    >
-    <li
-      data-stream-row={stream.stream}
-      onClick={() => {
-        // A drag that selects the runtime's words to copy them ends in a click too; it stays on the list.
-        if (window.getSelection()?.isCollapsed === false) return;
-        navigate(streamPagePath(stream.stream));
-      }}
-      className="group cursor-default rounded-md py-1.5 pr-1 pl-8 transition-colors hover:bg-hover"
-    >
-      <div className="flex h-7 min-w-0 items-center gap-3">
-        <StreamStateIcon stream={stream} />
-        <Link
-          to={streamPagePath(stream.stream)}
-          onClick={(clickEvent) => clickEvent.stopPropagation()}
-          aria-label={`${stream.display_name}, ${statePresentation.label}`}
-          title={statePresentation.meaning}
-          className="min-w-0 shrink truncate rounded-sm text-fg"
-        >
-          {stream.display_name}
-        </Link>
-        <span className="flex-1" />
-        {/* The row navigates on click, and React carries a click in the actions' portalled menu up to it. */}
-        <div className="shrink-0" onClick={(clickEvent) => clickEvent.stopPropagation()}>
-          <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} onPrimaryAction={onPrimaryAction} onRemoveAsked={onRemoveAsked} onRenameAsked={onRenameAsked} />
+    <StreamRowRightClickMenu stream={stream} onRenameAsked={onRenameAsked}>
+      <li
+        data-stream-row={stream.stream}
+        onClick={() => {
+          // A drag that selects the runtime's words to copy them ends in a click too; it stays on the list.
+          if (window.getSelection()?.isCollapsed === false) return;
+          navigate(streamPagePath(stream.stream));
+        }}
+        className="group cursor-default rounded-md py-1.5 pr-1 pl-8 transition-colors hover:bg-hover"
+      >
+        <div className="flex h-7 min-w-0 items-center gap-3">
+          <StreamStateIcon stream={stream} />
+          <Link
+            to={streamPagePath(stream.stream)}
+            onClick={(clickEvent) => clickEvent.stopPropagation()}
+            aria-label={`${stream.display_name}, ${statePresentation.label}`}
+            title={statePresentation.meaning}
+            className="min-w-0 shrink truncate rounded-sm text-fg"
+          >
+            {stream.display_name}
+          </Link>
+          <span className="flex-1" />
+          {/* The row navigates on click, and React carries a click in the actions' portalled menu up to it. */}
+          <div className="shrink-0" onClick={(clickEvent) => clickEvent.stopPropagation()}>
+            <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} onPrimaryAction={onPrimaryAction} onRemoveAsked={onRemoveAsked} onRenameAsked={onRenameAsked} />
+          </div>
         </div>
-      </div>
-      {stream.state === "failed" && stream.failed_because !== null && (
-        <p className="truncate pl-7 text-xs text-fg-2 select-text" title={stream.failed_because}>
-          {stream.failed_because}
-        </p>
-      )}
-      {outcome !== undefined && (
-        <div className="pl-7">
-          <StreamActionOutcomeLine outcome={outcome} />
-        </div>
-      )}
-    </li>
-    </RightClickMenu>
+        {stream.state === "failed" && stream.failed_because !== null && (
+          <p className="truncate pl-7 text-xs text-fg-2 select-text" title={stream.failed_because}>
+            {stream.failed_because}
+          </p>
+        )}
+        {outcome !== undefined && (
+          <div className="pl-7">
+            <StreamActionOutcomeLine outcome={outcome} />
+          </div>
+        )}
+      </li>
+    </StreamRowRightClickMenu>
   );
 }
 

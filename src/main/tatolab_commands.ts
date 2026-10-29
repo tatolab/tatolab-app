@@ -123,14 +123,6 @@ export function renameStream(sharedState: TatolabAppSharedState, stream: string,
   });
 }
 
-/** `rename_stream`'s arguments as the window sends them, or why they are not. */
-export function renameStreamArgumentsFrom(commandArguments: unknown): Result<{ stream: string; display_name: string }, string> {
-  const stream = oneTextArgumentFrom("rename_stream", commandArguments, "stream", "a stream's id");
-  if (!stream.ok) return stream;
-  const displayName = oneTextArgumentFrom("rename_stream", commandArguments, "display_name", "the display name to show it under");
-  return displayName.ok ? succeeded({ stream: stream.value, display_name: displayName.value }) : displayName;
-}
-
 /** Where each command that opens a stream's project folder opens it. */
 const STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND = {
   open_stream_project_folder: "file_manager",
@@ -319,6 +311,14 @@ export function readStreamLogRecordsArgumentsFrom(commandArguments: unknown): Re
 export function streamArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ stream: string }, string> {
   const stream = oneTextArgumentFrom(commandName, commandArguments, "stream", "a stream's id");
   return stream.ok ? succeeded({ stream: stream.value }) : stream;
+}
+
+/** `rename_stream`'s arguments as the window sends them, or why they are not. */
+export function renameStreamArgumentsFrom(commandArguments: unknown): Result<{ stream: string; display_name: string }, string> {
+  const stream = oneTextArgumentFrom("rename_stream", commandArguments, "stream", "a stream's id");
+  if (!stream.ok) return stream;
+  const displayName = oneTextArgumentFrom("rename_stream", commandArguments, "display_name", "the display name to show it under");
+  return displayName.ok ? succeeded({ stream: stream.value, display_name: displayName.value }) : displayName;
 }
 
 /** The text argument `argumentName` of the command `commandName`, or why the window's arguments carry none, naming what it is. */

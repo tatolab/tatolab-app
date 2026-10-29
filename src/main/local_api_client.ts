@@ -1,9 +1,9 @@
 // The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
 // local API's Unix socket. `GET /health` says the runtime is up, `describe_runtime` names its
-// version, uptime and log folder, the MCP tools `list_streams`,
-// `logs` and `graph` over `POST /mcp` list its streams, read one's log records and draw one's
-// graph, `run_stream` compiles a project and loads it, `stop_stream`, `start_stream`,
-// `remove_stream` and `rename_stream` act on one, and `GET /api/graph` names the machine. `GET /api/relay-adapters`
+// version, uptime and log folder, the MCP tools `list_streams`, `logs` and `graph` over
+// `POST /mcp` list its streams, read one's log records and draw one's graph, `run_stream`
+// compiles a project and loads it, `stop_stream`, `start_stream`, `remove_stream` and
+// `rename_stream` act on one, and `GET /api/graph` names the machine. `GET /api/relay-adapters`
 // and `list_relays` describe the machine's relays, and `add_relay`, `configure_relay` and
 // `remove_relay` change them.
 //
@@ -149,11 +149,15 @@ export interface StreamRenameAnswer {
 export function streamRenameAnswerFromTheRenameStreamToolResult(toolResultText: string): Result<StreamRenameAnswer, string> {
   const parsedToolResult = parseJsonOnTheWire(toolResultText);
   const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the rename_stream result") : parsedToolResult;
-  if (!toolResult.ok) return failedWith(`the runtime's rename_stream result could not be read: ${toolResult.failure}`);
-  const stream = requiredText(toolResult.value, "stream");
-  const displayName = requiredText(toolResult.value, "display_name");
-  if (!stream.ok) return failedWith(`the runtime's rename_stream result could not be read: ${stream.failure}`);
-  if (!displayName.ok) return failedWith(`the runtime's rename_stream result could not be read: ${displayName.failure}`);
+  const streamRenameAnswer = toolResult.ok ? streamRenameAnswerOnTheWire(toolResult.value) : toolResult;
+  return streamRenameAnswer.ok ? streamRenameAnswer : failedWith(`the runtime's rename_stream result could not be read: ${streamRenameAnswer.failure}`);
+}
+
+function streamRenameAnswerOnTheWire(toolResult: JsonObjectOnTheWire): Result<StreamRenameAnswer, string> {
+  const stream = requiredText(toolResult, "stream");
+  if (!stream.ok) return stream;
+  const displayName = requiredText(toolResult, "display_name");
+  if (!displayName.ok) return displayName;
   return succeeded({ stream: stream.value, display_name: displayName.value });
 }
 

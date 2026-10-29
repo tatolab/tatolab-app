@@ -176,13 +176,14 @@ export class TatolabSearchView {
     for (const stream of listedStreams) {
       const statePresentation = presentStreamState(stream);
       const isFailure = statePresentation.emphasis === "failure";
+      const projectDirectory = listedStreamProjectDirectory(stream);
       rows.push({
         groupLabel: "Streams",
         iconSvg: STREAM_ICON_SVG,
         matchText: stream.display_name,
         label: [
-          createElement("code", { class: "search-row-name" }, [stream.display_name]),
-          createElement("code", { class: "search-row-detail" }, [abbreviateHomeDirectory(listedStreamProjectDirectory(stream) ?? "")]),
+          createElement("span", { class: "search-row-name" }, [stream.display_name]),
+          ...(projectDirectory === null ? [] : [createElement("code", { class: "search-row-detail" }, [abbreviateHomeDirectory(projectDirectory)])]),
         ],
         meta: [isFailure && createFailureIcon(14), statePresentation.label],
         metaIsFailure: isFailure,

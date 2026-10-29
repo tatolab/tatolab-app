@@ -73,7 +73,7 @@ describe("the window's Add stream flow", () => {
   it("shows a run that answers while the dialog is open in the dialog, with no notice", async () => {
     const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
     addStreamFlow.performTheAction();
-    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "compiling", startedAtMs: 1000, request: { displayName: "heat_map" } });
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "compiling", startedAtMs: 1000, request: { displayName: null } });
 
     await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
 

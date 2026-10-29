@@ -9,6 +9,9 @@ import { FieldMenu, MenuSingleChoiceGroup } from "../design_system/menus";
 import { RefusalLine } from "../design_system/refusal_line";
 import { TextField } from "../design_system/text_field";
 import {
+  streamAlreadyImportedFrom,
+  streamAlreadyImportedWords,
+  displayNamePlaceholderOf,
   addStreamDialogSection,
   addStreamStepAnnouncement,
   ADD_STREAM_ACTION_LABELS,
@@ -149,7 +152,15 @@ function StreamFoundRow({ report, chosenStreamFunction, onChosen }: { report: St
 function StreamDisplayNameRow({ form, onEdited }: { form: AddStreamForm; onEdited: (displayName: string) => void }) {
   return (
     <FormDialogRow label="Name" labelFor="add-stream-name">
-      <TextField id="add-stream-name" label="Stream name" text={form.displayName} onTextChanged={onEdited} className="w-64" data-add-stream-name="" />
+      <TextField
+        id="add-stream-name"
+        label="Stream name"
+        text={form.displayName}
+        onTextChanged={onEdited}
+        placeholder={displayNamePlaceholderOf(form)}
+        className="w-64"
+        data-add-stream-name=""
+      />
     </FormDialogRow>
   );
 }
@@ -302,7 +313,9 @@ function ProjectFolderForm({
   onChooseFolder: () => void;
   dispatch: (event: AddStreamFlowEvent) => void;
 }) {
+  const status = useTatolabStatus();
   const report = form.projectFolder;
+  const streamAlreadyImported = streamAlreadyImportedFrom(form, status.streams);
   return (
     <div data-add-stream-step="project_folder">
       <FormDialogRows>
@@ -310,8 +323,15 @@ function ProjectFolderForm({
         {report !== null && (
           <StreamFoundRow report={report} chosenStreamFunction={form.chosenStreamFunction} onChosen={(streamFunction) => dispatch({ kind: "stream_function_chosen", streamFunction })} />
         )}
-        {report !== null && <StreamDisplayNameRow form={form} onEdited={(displayName) => dispatch({ kind: "display_name_edited", displayName })} />}
+        {report !== null && streamAlreadyImported === null && (
+          <StreamDisplayNameRow form={form} onEdited={(displayName) => dispatch({ kind: "display_name_edited", displayName })} />
+        )}
       </FormDialogRows>
+      {streamAlreadyImported !== null && (
+        <p className="mt-3 text-fg-2" role="status" data-add-stream-already-imported={streamAlreadyImported.stream}>
+          {streamAlreadyImportedWords(streamAlreadyImported)}
+        </p>
+      )}
     </div>
   );
 }
@@ -454,6 +474,7 @@ function AddStreamDialogFooter() {
   const isTheRuntimeRunning = presentRuntimeStatus(status).displayState === "running";
   const addStreamAction = addStreamActionOf(form);
   const addStreamActionUnavailableReason = addStreamActionUnavailableBecause(form, isTheRuntimeRunning, status.python_for_new_environments);
+  const streamAlreadyImported = streamAlreadyImportedFrom(form, status.streams);
   const openTheStream = (streamId: string, tab?: StreamPageTab) => {
     addStreamFlow.closeDialog();
     void navigate(streamPagePath(streamId, tab));
@@ -466,14 +487,20 @@ function AddStreamDialogFooter() {
           <ActionButton onPressed={() => addStreamFlow.closeDialog()} data-add-stream-action="cancel">
             Cancel
           </ActionButton>
-          <ActionButton
-            appearance="primary"
-            isDisabled={addStreamActionUnavailableReason !== null}
-            onPressed={() => addStreamFlow.performTheAction()}
-            data-add-stream-action={addStreamAction}
-          >
-            {form.workUnderWay === "creating_the_project" ? "Creating…" : ADD_STREAM_ACTION_LABELS[addStreamAction]}
-          </ActionButton>
+          {streamAlreadyImported === null ? (
+            <ActionButton
+              appearance="primary"
+              isDisabled={addStreamActionUnavailableReason !== null}
+              onPressed={() => addStreamFlow.performTheAction()}
+              data-add-stream-action={addStreamAction}
+            >
+              {form.workUnderWay === "creating_the_project" ? "Creating…" : ADD_STREAM_ACTION_LABELS[addStreamAction]}
+            </ActionButton>
+          ) : (
+            <ActionButton appearance="primary" onPressed={() => openTheStream(streamAlreadyImported.stream)} data-add-stream-action="open_stream">
+              Open stream
+            </ActionButton>
+          )}
         </>
       )}
       {flowState.step === "compiling" && (
