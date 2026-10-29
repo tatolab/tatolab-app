@@ -182,7 +182,7 @@ export class TatolabSearchView {
         matchText: stream.display_name,
         label: [
           createElement("code", { class: "search-row-name" }, [stream.display_name]),
-          createElement("code", { class: "search-row-detail" }, [abbreviateHomeDirectory(listedStreamProjectDirectory(stream))]),
+          createElement("code", { class: "search-row-detail" }, [abbreviateHomeDirectory(listedStreamProjectDirectory(stream) ?? "")]),
         ],
         meta: [isFailure && createFailureIcon(14), statePresentation.label],
         metaIsFailure: isFailure,
@@ -245,14 +245,15 @@ export class TatolabSearchView {
       meta: [createWindowShortcutCap(this.platform, ",")],
       run: () => this.actions.goToSettings(),
     });
-    if (selectedStream !== null) {
+    const selectedProjectDirectory = selectedStream === null ? null : listedStreamProjectDirectory(selectedStream);
+    if (selectedProjectDirectory !== null) {
       rows.push({
         groupLabel: "Copy",
         iconSvg: TERMINAL_ICON_SVG,
-        matchText: `copy ${listedStreamProjectDirectory(selectedStream)}`,
-        label: [createElement("code", { class: "search-row-address" }, [abbreviateHomeDirectory(listedStreamProjectDirectory(selectedStream))])],
+        matchText: `copy ${selectedProjectDirectory}`,
+        label: [createElement("code", { class: "search-row-address" }, [abbreviateHomeDirectory(selectedProjectDirectory)])],
         meta: ["Project path"],
-        run: () => void writeTextToClipboard(listedStreamProjectDirectory(selectedStream)),
+        run: () => void writeTextToClipboard(selectedProjectDirectory),
       });
     }
     return rows;

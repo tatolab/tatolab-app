@@ -373,6 +373,11 @@ export class TatolabAppController {
     return this.localApiClient.runStreamAction(streamAction, stream);
   }
 
+  /** Show the stream `stream` under `displayName`, through the runtime's `rename_stream`. */
+  renameStream(stream: string, displayName: string): Promise<Result<void, LocalApiRequestFailure>> {
+    return this.localApiClient.renameStream(stream, displayName);
+  }
+
   /** Compile the project `streamRunRequest` names and load it, answering `run_stream`'s reply. */
   runStream(streamRunRequest: StreamRunRequest): Promise<Result<StreamRunAnswer, LocalApiRequestFailure>> {
     return this.localApiClient.runStream(streamRunRequest);

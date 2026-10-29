@@ -10,6 +10,7 @@ import {
   LocalApiClient,
   parseHttpResponse,
   runtimeDescriptionFromTheDescribeRuntimeToolResult,
+  streamRenameAnswerFromTheRenameStreamToolResult,
   streamRunAnswerFromTheRunStreamToolResult,
 } from "./local_api_client.js";
 import type { Result } from "./result.js";
@@ -251,7 +252,7 @@ test("a_list_streams_result_naming_no_stream_id_or_display_name_is_refused", () 
     "the runtime's list_streams result could not be read: missing field `display_name`",
   );
   expect(failureOf(listedStreamsFromTheListStreamsToolResult(JSON.stringify({ streams: [{ stream: "a-main-1a2b3c", display_name: "main", location: "/a", state: "running" }] })))).toBe(
-    "the runtime's list_streams result could not be read: `location` is neither an object nor null",
+    "the runtime's list_streams result could not be read: `location` is not an object",
   );
 });
 
@@ -426,6 +427,29 @@ test("a_stream_action_the_runtime_refuses_carries_its_own_words", async () => {
   );
 });
 
+test("renaming_a_stream_calls_rename_stream_with_its_id_and_the_display_name_and_a_refusal_is_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-rename-stream-answer-for-the-stream-heat-map-main-8eda1f-renamed-heat-map.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-rename-stream-refusal-for-a-display-name-that-shows-nothing.json")),
+  ]);
+
+  expect(answerOf(await server.client().renameStream("heat-map-main-8eda1f", "Heat map"))).toBeUndefined();
+  expect(failureOf(await server.client().renameStream("heat-map-main-8eda1f", "   "))).toEqual({
+    failureDescription: `Invalid configuration: "   " cannot be a stream's display name: it shows nothing; a display name is any text with something to show`,
+    isTheRuntimesRefusal: true,
+  });
+  expect(server.receivedRequests().map((request) => [/Mcp-Name: (\S+)/.exec(headAndBodyOf(request)[0])?.[1], JSON.parse(headAndBodyOf(request)[1]).params.arguments])).toEqual([
+    ["rename_stream", { stream: "heat-map-main-8eda1f", display_name: "Heat map" }],
+    ["rename_stream", { stream: "heat-map-main-8eda1f", display_name: "   " }],
+  ]);
+});
+
+test("a_rename_stream_answer_missing_its_display_name_is_refused_naming_it", () => {
+  expect(failureOf(streamRenameAnswerFromTheRenameStreamToolResult('{"stream":"heat-map-main-8eda1f"}'))).toBe(
+    "the runtime's rename_stream result could not be read: missing field `display_name`",
+  );
+});
+
 test("a_stream_action_waits_past_the_polling_limit_for_the_runtime_to_finish_it", async () => {
   const server = await FakeLocalApiServer.answering(
     [
@@ -515,7 +539,7 @@ test("a_compile_the_runtime_refuses_carries_its_traceback_as_its_own_refusal", a
 
 test("a_run_stream_answer_missing_a_field_is_refused_naming_it", () => {
   expect(failureOf(streamRunAnswerFromTheRunStreamToolResult('{"stream":"hello-main-8d60ef","display_name":"main","stream_instance":"1"}'))).toBe(
-    "the runtime's run_stream result could not be read: `location` is not an object",
+    "the runtime's run_stream result could not be read: missing field `location`",
   );
 });
 

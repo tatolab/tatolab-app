@@ -1,7 +1,8 @@
 import { cn } from "cn";
 import { ChevronDown, Ellipsis, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -148,6 +149,36 @@ export function MenuItem({
       {leading}
       {children}
     </DropdownMenuItem>
+  );
+}
+
+/**
+ * A menu a right-click on `children` opens at the pointer, as the keyboard's menu key or Shift+F10 does on a control
+ * inside it. `children` is the element the area is, a row as it is, so a click in the menu never reaches the row.
+ */
+export function RightClickMenu({ label, choices, children }: { label: string; choices: ReactNode; children: ReactElement }) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger render={children} />
+      <ContextMenuContent aria-label={label} className={MENU_WIDTH_CLASS_NAMES.fit}>
+        {choices}
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+/** One choice of a right-click menu, drawn as a dropdown menu's choice is. */
+export function RightClickMenuItem({
+  icon: ItemIcon,
+  onChosen,
+  children,
+  ...controlDataAttributes
+}: { icon?: LucideIcon; onChosen: () => void; children: ReactNode } & ControlDataAttributes) {
+  return (
+    <ContextMenuItem onClick={onChosen} className="px-2" {...controlDataAttributes}>
+      {ItemIcon !== undefined && <ItemIcon className="size-4 text-fg-3" strokeWidth={1.75} aria-hidden />}
+      {children}
+    </ContextMenuItem>
   );
 }
 

@@ -40,13 +40,13 @@ function levelSegmentNamed(levelName: RegExp): HTMLElement {
 
 /** The id the mock runtime lists each of its streams under, by display name, as the runtime computes one from its location. */
 const MOCK_STREAM_ID_BY_DISPLAY_NAME: Readonly<Record<string, string>> = {
-  main: "pattern-main-457e65",
-  camera: "camera-main-88a685",
-  recorder: "pattern-recorder-61511c",
-  "pattern-two": "pattern-pattern-two-250843",
-  "lobby-recorder": "lobby-recorder-main-30baf5",
-  heat_map: "heat-map-heat-map-9127e0",
-  hello: "hello-main-5f9d59",
+  main: "pattern-main-645dbe",
+  camera: "camera-main-018da9",
+  recorder: "pattern-recorder-7d11b1",
+  "pattern-two": "pattern-pattern-two-e6043c",
+  "lobby-recorder": "lobby-recorder-main-3fc45e",
+  heat_map: "heat-map-heat-map-1acf70",
+  hello: "hello-main-56afa5",
 };
 
 function mockStreamIdOf(displayName: string): string {
@@ -97,7 +97,7 @@ describe("the Streams list", () => {
   });
 
   it("shows a refusal under its row in the runtime's own words", async () => {
-    const refusal = "Runtime error: the stream `camera-main-88a685` is already stopped; `start` loads it again";
+    const refusal = "Runtime error: the stream `camera-main-018da9` is already stopped; `start` loads it again";
     await mountedWindowOverTheMock("state=running", {
       runStreamAction: async (_streamAction: TatolabStreamActionName) => {
         throw refusal;
@@ -119,13 +119,13 @@ describe("the Streams list", () => {
   });
 
   it("says in the runtime's words when it stopped a stream but could not record it stopped", async () => {
-    await mountedWindowOverTheMock("state=running&stop_not_recorded=camera-main-88a685");
+    await mountedWindowOverTheMock("state=running&stop_not_recorded=camera-main-018da9");
 
     fireEvent.click(within(rowOf("camera")).getByRole("button", { name: "Stop: unloads it and remembers it stopped" }));
 
     await waitFor(() =>
       expect(within(rowOf("camera")).getByRole("status").textContent).toBe(
-        "Stopped, but not recorded, so it loads again when the runtime restarts: Runtime error: the record of `camera-main-88a685` could not be written: Permission denied (os error 13)",
+        "Stopped, but not recorded, so it loads again when the runtime restarts: Runtime error: the record of `camera-main-018da9` could not be written: Permission denied (os error 13)",
       ),
     );
     expect(within(rowOf("camera")).getByRole("link", { name: "camera, Stopped" })).toBeTruthy();
@@ -198,6 +198,87 @@ describe("the window's shell", () => {
     expect(screen.queryByText("Tatolab 0.45.0")).toBeNull();
     expect(screen.queryAllByRole("button", { name: /Add stream/ })).toEqual([]);
     expect(screen.getByRole("button", { name: "New or import a project" }).getAttribute("data-window-navigation")).toBe("add-project-menu");
+  });
+});
+
+/** The rename dialog of the mock stream shown as `displayName`, opened from its sidebar row's right-click menu. */
+async function openTheRenameDialogOfTheSidebarRowOf(displayName: string): Promise<HTMLInputElement> {
+  const sidebarRowLink = await waitFor(
+    () => document.querySelector<HTMLElement>(`[data-sidebar-stream="${mockStreamIdOf(displayName)}"] a`) ?? expect.unreachable(`no sidebar row for ${displayName}`),
+  );
+  fireEvent.contextMenu(sidebarRowLink, { button: 2, clientX: 40, clientY: 40 });
+  fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-slot="context-menu-item"][data-stream-action="rename_stream"]') ?? expect.unreachable("no Rename… in the right-click menu")));
+  return waitFor(() => document.querySelector<HTMLInputElement>("[data-stream-rename-display-name]") ?? expect.unreachable("no rename dialog"));
+}
+
+describe("renaming a stream", () => {
+  it("renames a stream from its sidebar row's right-click menu, the list and sidebar then showing the new name under the same id", async () => {
+    await mountedWindowOverTheMock("state=running");
+
+    const displayNameField = await openTheRenameDialogOfTheSidebarRowOf("camera");
+    expect(displayNameField.value).toBe("camera");
+    expect(document.querySelector("[data-stream-rename-dialog] h2")?.textContent).toBe("Rename camera");
+    expect(document.querySelector<HTMLButtonElement>('[data-stream-rename-action="rename"]')?.disabled).toBe(true);
+    fireEvent.change(displayNameField, { target: { value: "  Desk camera " } });
+    fireEvent.click(document.querySelector<HTMLElement>('[data-stream-rename-action="rename"]') ?? expect.unreachable("no Rename button"));
+
+    await waitFor(() => expect(within(rowOf("camera")).getByRole("link", { name: "Desk camera, Running" })).toBeTruthy());
+    expect(document.querySelector(`[data-sidebar-stream="${mockStreamIdOf("camera")}"]`)?.textContent).toBe("Desk camera");
+    expect(document.querySelector("[data-stream-rename-display-name]")).toBeNull();
+  });
+
+  it("keeps the dialog open with the runtime's refusal in its own words", async () => {
+    const refusal = "Runtime error: the record of `camera-main-018da9` could not be written: Permission denied (os error 13)";
+    await mountedWindowOverTheMock("state=running", { renameStream: () => Promise.reject(refusal) });
+
+    const displayNameField = await openTheRenameDialogOfTheSidebarRowOf("camera");
+    fireEvent.change(displayNameField, { target: { value: "Desk camera" } });
+    fireEvent.submit(displayNameField.closest("form") ?? expect.unreachable("no form around the field"));
+
+    await waitFor(() => expect(document.querySelector("[data-stream-rename-dialog] [role=alert]")?.textContent).toBe(`Rename was refused: ${refusal}`));
+    expect(within(rowOf("camera")).getByRole("link", { name: "camera, Running", hidden: true })).toBeTruthy();
+  });
+
+  it("renames from the stream page's menu too", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheStreamPageOf("main");
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-stream-page-header] [data-stream-action="more"]') ?? expect.unreachable("no ⋯ in the bar"));
+    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>('[data-slot="dropdown-menu-item"][data-stream-action="rename_stream"]') ?? expect.unreachable("no Rename… in the menu")));
+    const displayNameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-stream-rename-display-name]") ?? expect.unreachable("no rename dialog"));
+    fireEvent.change(displayNameField, { target: { value: "Test pattern" } });
+    fireEvent.click(document.querySelector<HTMLElement>('[data-stream-rename-action="rename"]') ?? expect.unreachable("no Rename button"));
+
+    await waitFor(() => expect(document.querySelector(`[data-stream-page="${mockStreamIdOf("main")}"] [data-stream-page-header]`)?.textContent).toContain("Test pattern"));
+  });
+
+  it("tells two streams shown under one name apart by their ids, so Stop on one row stops that stream alone", async () => {
+    const { backend } = await mountedWindowOverTheMock("state=running");
+    await act(async () => backend.renameStream(mockStreamIdOf("camera"), "main"));
+    await waitFor(() => expect(within(rowOf("camera")).getByRole("link", { name: "main, Running" })).toBeTruthy());
+
+    fireEvent.click(within(rowOf("camera")).getByRole("button", { name: "Stop: unloads it and remembers it stopped" }));
+
+    await waitFor(() => expect(within(rowOf("camera")).getByRole("link", { name: "main, Stopped" })).toBeTruthy());
+    expect(within(rowOf("main")).getByRole("link", { name: "main, Running" })).toBeTruthy();
+  });
+});
+
+describe("a record an earlier runtime wrote", () => {
+  it("is listed failed under a folder named for it, with no project path or log folder path made up for it", async () => {
+    await mountedWindowOverTheMock("state=running&streams=earlier_record");
+
+    const sidebarFolder = await waitFor(() => [...document.querySelectorAll<HTMLElement>("[data-sidebar-project-folder]")].find((folder) => folder.textContent === "From an earlier runtime") ?? expect.unreachable("no folder for the earlier runtime's record"));
+    expect(sidebarFolder.getAttribute("data-sidebar-project-folder")).toBe("");
+    const listSection = document.querySelector<HTMLElement>('[data-streams-list-project-folder=""]') ?? expect.unreachable("no list section for it");
+    expect(listSection.getAttribute("aria-label")).toBe("From an earlier runtime");
+    expect(listSection.querySelector("h2")?.textContent).toBe("From an earlier runtime");
+    expect(within(listSection).getByRole("link", { name: "doorbell, Failed" })).toBeTruthy();
+
+    fireEvent.click(within(listSection).getByRole("link", { name: "doorbell, Failed" }));
+    fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Logs" })));
+    await waitFor(() => expect(document.querySelector("[data-stream-logs-not-loaded='doorbell']")).not.toBeNull());
+    expect(document.querySelector("[data-stream-logs-not-loaded='doorbell']")?.textContent).not.toContain(".streamlib/logs");
   });
 });
 
@@ -305,7 +386,7 @@ describe("a stream's page", () => {
     fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Inspect" })));
 
     await waitFor(() => expect(document.querySelector("[data-graph-document-view='raw']")).not.toBeNull());
-    expect(textOf("[data-graph-document-view='raw']")).toContain('"stream": "pattern-main-457e65"');
+    expect(textOf("[data-graph-document-view='raw']")).toContain('"stream": "pattern-main-645dbe"');
     expect(screen.queryByRole("complementary", { name: "Graph document outline" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Tree" }));
@@ -409,8 +490,8 @@ describe("a stream's Logs tab", () => {
     await waitFor(() => expect(shownLogMessages().length).toBeGreaterThan(3));
     const servedPage = await backend.readStreamLogRecords(mockStreamIdOf("main"), 0);
     expect(document.querySelector("[data-stream-log-records]")?.querySelector("[data-stream-log-record]")?.getAttribute("data-stream-log-record")).toBe(String(servedPage.records[0]?.sequence));
-    const loadingRow = logRowOf("Loading the stream `pattern-main-457e65`");
-    expect(loadingRow.textContent).toMatch(/^\d{2}:\d{2}:\d{2}\.\d{3}INFOruntimeLoading the stream `pattern-main-457e65`/);
+    const loadingRow = logRowOf("Loading the stream `pattern-main-645dbe`");
+    expect(loadingRow.textContent).toMatch(/^\d{2}:\d{2}:\d{2}\.\d{3}INFOruntimeLoading the stream `pattern-main-645dbe`/);
     expect(logRowOf("mean=127.5").textContent).toMatch(/INFObrightnessmeterbrightness {2}height=720 {2}mean=127.5 {2}width=1280$/);
     const rowCountBefore = shownLogMessages().length;
 
@@ -545,7 +626,7 @@ describe("a stream's Logs tab", () => {
     isRefusingReads = true;
 
     await waitFor(() => expect(textOf("[data-stream-log-read-refusal]")).toBe(`Couldn't read new records, trying again: ${refusal}`), { timeout: 3000 });
-    expect(logRowOf("Loading the stream `pattern-main-457e65`")).toBeTruthy();
+    expect(logRowOf("Loading the stream `pattern-main-645dbe`")).toBeTruthy();
   });
 
   it("gives a failed stream its reason and log folder with Retry, and a stopped one its log folder", async () => {
@@ -561,8 +642,8 @@ describe("a stream's Logs tab", () => {
     await waitFor(() => expect(textOf("[data-stream-page-header] [role=alert]")).toMatch(/^Retry was refused: /));
 
     fireEvent.keyDown(document, { key: "ArrowUp", metaKey: true });
-    await waitFor(() => expect(document.querySelector("[data-stream-logs-not-loaded='pattern-pattern-two-250843']")).not.toBeNull());
-    expect(textOf("[data-stream-logs-not-loaded='pattern-pattern-two-250843']")).toContain("Not loaded");
+    await waitFor(() => expect(document.querySelector("[data-stream-logs-not-loaded='pattern-pattern-two-e6043c']")).not.toBeNull());
+    expect(textOf("[data-stream-logs-not-loaded='pattern-pattern-two-e6043c']")).toContain("Not loaded");
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 });
@@ -627,13 +708,13 @@ describe("a stream's Graph tab", () => {
       return preview;
     });
     expect(hoverPreview.querySelector("iframe")).not.toBeNull();
-    expect(hoverPreview.textContent).toContain("jonathanf-macbook/pattern-main-457e65/invertingeffect/video_to_downstream");
+    expect(hoverPreview.textContent).toContain("jonathanf-macbook/pattern-main-645dbe/invertingeffect/video_to_downstream");
     const describedHoveredPort = () => document.getElementById(outputPortOf("invertingeffect", "video_to_downstream").getAttribute("aria-describedby") ?? "");
-    expect(describedHoveredPort()?.textContent).toBe("jonathanf-macbook/pattern-main-457e65/invertingeffect/video_to_downstream");
+    expect(describedHoveredPort()?.textContent).toBe("jonathanf-macbook/pattern-main-645dbe/invertingeffect/video_to_downstream");
 
     fireEvent.click(outputPortOf("invertingeffect", "video_to_downstream"));
 
-    await waitFor(() => expect(document.querySelector("[data-pinned-output-preview='jonathanf-macbook/pattern-main-457e65/invertingeffect/video_to_downstream'] iframe")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-pinned-output-preview='jonathanf-macbook/pattern-main-645dbe/invertingeffect/video_to_downstream'] iframe")).not.toBeNull());
     expect(outputPortOf("invertingeffect", "video_to_downstream").getAttribute("aria-pressed")).toBe("true");
 
     fireEvent.mouseEnter(outputPortOf("testpatternsource", "video"));
@@ -684,10 +765,10 @@ describe("a stream's Graph tab", () => {
       if (input === null) throw new Error("no search yet");
       return input;
     });
-    fireEvent.input(searchInput, { target: { value: "watch jonathanf-macbook/pattern-main-457e65/invertingeffect" } });
+    fireEvent.input(searchInput, { target: { value: "watch jonathanf-macbook/pattern-main-645dbe/invertingeffect" } });
     fireEvent.keyDown(searchInput, { key: "Enter" });
 
-    await waitFor(() => expect(document.querySelector("[data-pinned-output-preview='jonathanf-macbook/pattern-main-457e65/invertingeffect/video_to_downstream']")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-pinned-output-preview='jonathanf-macbook/pattern-main-645dbe/invertingeffect/video_to_downstream']")).not.toBeNull());
   });
 
   it("waits for a restarted stream's new graph instead of drawing the last load's", async () => {
@@ -812,7 +893,7 @@ describe("Add stream", () => {
     fireEvent.click(await addStreamControl("add"));
 
     await waitFor(() => expect(document.querySelector('[data-add-stream-step="running"] h2')?.textContent).toBe("main is running"), MOCK_RUN_WAIT);
-    expect(document.querySelector('[data-add-stream-step="running"]')?.textContent).toContain("It replaced the stream this project ran before.");
+    expect(document.querySelector('[data-add-stream-step="running"]')?.textContent).toContain("It replaced its last run.");
     fireEvent.click(await addStreamControl("open_stream"));
     await waitFor(() => expect(document.querySelector(`[data-stream-page="${mockStreamIdOf("main")}"]`)).not.toBeNull());
     expect(document.querySelectorAll(`[data-stream-row="${mockStreamIdOf("main")}"]`).length).toBeLessThanOrEqual(1);

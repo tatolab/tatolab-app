@@ -25,7 +25,7 @@ const listedStreams = [
   listedStream("dev", "running", 3),
   listedStream("pattern-two", "stopped", null),
   listedStream("lobby", "failed", null),
-  listedStream("newer", "kept", 2),
+  listedStream("newer", "awaiting_restart", 2),
 ];
 
 describe("streamMatchesListFilter", () => {
@@ -85,12 +85,12 @@ describe("streamProjectFoldersOf", () => {
     expect(folders.map((folder) => folder.folderName)).toEqual(["work/demo", "play/demo", "camera"]);
   });
 
-  it("puts an earlier runtime's record, which has no location, under a folder of its own with no path", () => {
+  it("puts an earlier runtime's records, which have no location, under a folder of their own named for them, with no path", () => {
     const folders = streamProjectFoldersOf([streamIn("main", "/Users/ada/streams/pattern"), { ...streamIn("camera", "/x"), location: null }]);
 
-    expect(folders.map(({ projectDirectory, streams }) => [projectDirectory, streams.map((stream) => stream.display_name)])).toEqual([
-      ["/Users/ada/streams/pattern", ["main"]],
-      ["", ["camera"]],
+    expect(folders.map(({ projectDirectory, folderName, streams }) => [projectDirectory, folderName, streams.map((stream) => stream.display_name)])).toEqual([
+      ["/Users/ada/streams/pattern", "pattern", ["main"]],
+      [null, "From an earlier runtime", ["camera"]],
     ]);
   });
 

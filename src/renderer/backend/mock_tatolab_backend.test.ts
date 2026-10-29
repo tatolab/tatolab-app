@@ -8,12 +8,12 @@ afterEach(() => {
 });
 
 /** The mock streams' ids, which the runtime would compute from their locations. */
-const MAIN = "pattern-main-457e65";
-const CAMERA = "camera-main-88a685";
-const RECORDER = "pattern-recorder-61511c";
-const PATTERN_TWO = "pattern-pattern-two-250843";
-const LOBBY_RECORDER = "lobby-recorder-main-30baf5";
-const HEAT_MAP = "heat-map-heat-map-9127e0";
+const MAIN = "pattern-main-645dbe";
+const CAMERA = "camera-main-018da9";
+const RECORDER = "pattern-recorder-7d11b1";
+const PATTERN_TWO = "pattern-pattern-two-e6043c";
+const LOBBY_RECORDER = "lobby-recorder-main-3fc45e";
+const HEAT_MAP = "heat-map-heat-map-1acf70";
 
 function listingWithTheId(streams: ListedStream[] | null, streamId: string): ListedStream | undefined {
   return streams?.find((stream) => stream.stream === streamId);
@@ -80,6 +80,36 @@ describe("the mock backend's stream actions", () => {
     expect(startedWhileLoaded.answer).toEqual({ refusal: `Runtime error: the stream \`${MAIN}\` is already loaded in this runtime, running; only a stopped or failed stream starts` });
     const removedByItsDisplayName = await streamsAfterEachChange(() => backend.runStreamAction("remove_stream", "main"));
     expect(removedByItsDisplayName.answer).toEqual({ refusal: expect.stringMatching(/^Resource not found: no stream with the id `main` is loaded or recorded in this runtime\. Loaded: /) });
+  });
+
+  it("renames a stream under the same id, and refuses a name that shows nothing or an id it does not hold, in the runtime's words", async () => {
+    const { backend } = await runningMockBackend();
+    const settledRename = async (streamId: string, displayName: string) => {
+      const answer = backend.renameStream(streamId, displayName).then(
+        () => ({ renamed: true }),
+        (refusal: unknown) => ({ refusal }),
+      );
+      await vi.advanceTimersByTimeAsync(100);
+      return answer;
+    };
+
+    expect(await settledRename(CAMERA, "Desk camera")).toEqual({ renamed: true });
+    const status = backend.getTatolabStatus();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(listingWithTheId((await status).streams, CAMERA)).toMatchObject({ display_name: "Desk camera", state: "running" });
+    expect(await settledRename(CAMERA, "   ")).toEqual({
+      refusal: `Invalid configuration: "   " cannot be a stream's display name: it shows nothing; a display name is any text with something to show`,
+    });
+    expect(await settledRename("camera", "Desk")).toEqual({ refusal: expect.stringMatching(/^Resource not found: no stream with the id `camera` is loaded or recorded in this runtime\./) });
+  });
+
+  it("lists a record an earlier runtime wrote, failed with no location, with ?streams=earlier_record", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("streams=earlier_record")));
+    const status = backend.getTatolabStatus();
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(listingWithTheId((await status).streams, "doorbell")).toMatchObject({ location: null, state: "failed", failed_because: expect.stringMatching(/^an earlier runtime recorded it/) });
   });
 
   it("keeps a failed stream failed when its retry does not load, with the retry's reason", async () => {

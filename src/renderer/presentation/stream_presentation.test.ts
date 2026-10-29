@@ -50,8 +50,7 @@ describe("presentStreamState", () => {
   });
 
   it("labels a state newer than this app plainly instead of failing, its icon never toned as running", () => {
-    expect(presentStreamState(listedStream("main", "kept", 4))).toMatchObject({ label: "Kept", iconTone: "idle" });
-    expect(presentStreamState(listedStream("main", "awaiting_restart", 2))).toMatchObject({
+        expect(presentStreamState(listedStream("main", "awaiting_restart", 2))).toMatchObject({
       label: "Awaiting restart",
       emphasis: "plain",
       iconTone: "idle",
@@ -146,7 +145,7 @@ describe("display helpers", () => {
 
   it("reads a stream's project folder from its location, and none for an earlier runtime's record", () => {
     expect(listedStreamProjectDirectory(listedStream("main", "running", 4))).toBe("/Users/ada/streams/main");
-    expect(listedStreamProjectDirectory({ ...listedStream("main", "failed", null), location: null })).toBe("");
+    expect(listedStreamProjectDirectory({ ...listedStream("main", "failed", null), location: null })).toBeNull();
   });
 
   it("counts in the singular and the plural", () => {

@@ -232,7 +232,7 @@ export function compilingForWords(startedAtMs: number, nowMs: number): string {
 
 /** What a running stream's done view says about its load: whether it replaced the stream this folder and function loaded before, and its warnings to read or that it loaded cleanly. */
 export function streamRunningSummary(answer: StreamRunAnswer): string {
-  const replaced = answer.replaced_a_recorded_stream ? "It replaced the stream this project ran before. " : "";
+  const replaced = answer.replaced_a_recorded_stream ? "It replaced its last run. " : "";
   const warningCount = answer.compile_warnings.length;
   if (warningCount === 1) return `${replaced}It loaded with a warning. Read it before you rely on this stream.`;
   if (warningCount > 1) return `${replaced}It loaded with ${warningCount} warnings. Read them before you rely on this stream.`;
@@ -255,9 +255,9 @@ export interface StreamFunctionCheck {
 
 /** A row for each `@stream` function `stream.py` holds, in file order; one row for `stream.py` when it is missing or marks none. */
 export function presentStreamFunctionChecks(report: StreamProjectFolderReport): StreamFunctionCheck[] {
-  if (!report.stream_file_present) return [{ checked: "stream_file", name: "stream.py", isFound: false, detail: "The stream function the runtime loads lives in stream.py." }];
+  if (!report.stream_file_present) return [{ checked: "stream_file", name: "Streams", isFound: false, detail: "This project has none." }];
   if (report.stream_functions.length === 0) {
-    return [{ checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it loads." }];
+    return [{ checked: "stream_file", name: "Streams", isFound: true, detail: "The runtime finds them when it loads the project." }];
   }
   return report.stream_functions.map((streamFunction) => ({ checked: "stream_function", name: streamFunction, isFound: true, detail: null }));
 }
@@ -324,13 +324,10 @@ export function streamRunningFactsWords(answer: StreamRunAnswer): string {
   return nodeCountWords(answer.node_count);
 }
 
-/** What the compile output says the runtime did, after the request and its warnings: the load under its stream id, and that it loads again whenever the runtime starts. */
+/** What the compile output says the runtime did, after the request and its warnings: the load under its stream id, and that it starts with the runtime. */
 export function streamRunAnswerLines(answer: StreamRunAnswer): readonly string[] {
-  const replaced = answer.replaced_a_recorded_stream ? ", in place of the stream this project ran before" : "";
-  return [
-    `loaded ${answer.display_name} as ${answer.stream}: ${nodeCountWords(answer.node_count)}${replaced}`,
-    `${answer.display_name} is running, and loads again whenever the runtime starts until it is stopped or removed`,
-  ];
+  const replaced = answer.replaced_a_recorded_stream ? ", replacing its last run" : "";
+  return [`loaded ${answer.display_name} as ${answer.stream}: ${nodeCountWords(answer.node_count)}${replaced}`, `${answer.display_name} is running and starts with the runtime`];
 }
 
 /**

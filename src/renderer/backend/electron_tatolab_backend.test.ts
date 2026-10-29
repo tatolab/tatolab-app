@@ -105,7 +105,7 @@ describe("createElectronTatolabBackend", () => {
   });
 
   it("sends each stream action under its command, answering a stop's notice and null for the rest", async () => {
-    const notRecordedBecause = "the kept record of `camera` could not be written: Permission denied (os error 13)";
+    const notRecordedBecause = "the record of `camera-main-018da9` could not be written: Permission denied (os error 13)";
     const fakeBridge = fakeTatolabElectronBridge({
       stop_stream: { ok: true, value: { not_recorded_because: notRecordedBecause } },
       start_stream: { ok: true, value: null },

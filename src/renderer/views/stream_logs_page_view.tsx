@@ -224,14 +224,18 @@ function useStreamLogFolderOpening(streamId: string): { openStreamLogFolder: () 
 /** The quiet first row saying how many of this load's earlier records the window does not hold, and where they are on disk. */
 function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stream: ListedStream; earlierRecordsNotHeldCount: number }) {
   const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.stream);
+  const projectDirectory = listedStreamProjectDirectory(stream);
   return (
     <div className="border-b px-3 font-sans text-xs" data-stream-log-earlier-records="">
       <div className="flex h-8 items-center gap-2 text-fg-3">
         <FileText className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
         <span className="min-w-0 truncate">
-          {earlierRecordsNotHeldWords(earlierRecordsNotHeldCount)} <span className="font-mono text-fg-2 select-text" title={logFolderPathOfStream(listedStreamProjectDirectory(stream))}>
-            {logFolderPathOfStream(listedStreamProjectDirectory(stream))}
-          </span>
+          {earlierRecordsNotHeldWords(earlierRecordsNotHeldCount)}{" "}
+          {projectDirectory !== null && (
+            <span className="font-mono text-fg-2 select-text" title={logFolderPathOfStream(projectDirectory)}>
+              {logFolderPathOfStream(projectDirectory)}
+            </span>
+          )}
         </span>
         <InlineLink destination={{ onPressed: openStreamLogFolder }} data-stream-action="open_stream_log_folder">
           Open
@@ -449,14 +453,17 @@ function StreamLogsOfAStreamNotLoadedView({ stream, streamPageActions }: { strea
   const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.stream);
   const notLoadedWords = presentStreamLogsOfAStreamNotLoaded(stream);
   const retryAction = notLoadedWords.hasFailed ? presentStreamPrimaryAction(stream) : null;
+  const projectDirectory = listedStreamProjectDirectory(stream);
   return (
     <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-not-loaded={stream.stream}>
       <EmptyState icon={notLoadedWords.hasFailed ? SquareX : ScrollText} isFailure={notLoadedWords.hasFailed} title={notLoadedWords.title} explanation={notLoadedWords.explanation}>
-        <div className="flex h-7 max-w-full items-center rounded-md border bg-well px-2.5 font-mono text-xs text-fg-2">
-          <span className="truncate select-text" title={logFolderPathOfStream(listedStreamProjectDirectory(stream))}>
-            {logFolderPathOfStream(listedStreamProjectDirectory(stream))}
-          </span>
-        </div>
+        {projectDirectory !== null && (
+          <div className="flex h-7 max-w-full items-center rounded-md border bg-well px-2.5 font-mono text-xs text-fg-2">
+            <span className="truncate select-text" title={logFolderPathOfStream(projectDirectory)}>
+              {logFolderPathOfStream(projectDirectory)}
+            </span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
           <ActionButton icon={FolderOpen} onPressed={openStreamLogFolder} data-stream-action="open_stream_log_folder">
             Open log folder

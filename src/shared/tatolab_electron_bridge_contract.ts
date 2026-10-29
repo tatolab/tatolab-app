@@ -34,6 +34,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "stop_stream",
   "start_stream",
   "remove_stream",
+  "rename_stream",
   "open_stream_project_folder",
   "open_terminal_at_stream_project",
   "open_stream_log_folder",
@@ -55,7 +56,7 @@ export const TATOLAB_COMMAND_NAMES = [
 
 /**
  * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`,
- * `start_stream`, `remove_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`,
+ * `start_stream`, `remove_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` `{ folder }`, `run_stream_project` `{ folder, stream_function, name }`,
  * `choose_python_for_new_environments` `{ python }`, `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window, from its folder dialog or its proposal. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
@@ -102,6 +103,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   stop_stream: { commandArguments: { stream: string }; answer: StreamStopAnswer };
   start_stream: { commandArguments: { stream: string }; answer: null };
   remove_stream: { commandArguments: { stream: string }; answer: null };
+  /** `stream` a stream's id; answers once the runtime has recorded `display_name`, refused in its own words. */
+  rename_stream: { commandArguments: { stream: string; display_name: string }; answer: null };
   open_stream_project_folder: { commandArguments: { stream: string }; answer: null };
   open_terminal_at_stream_project: { commandArguments: { stream: string }; answer: null };
   open_stream_log_folder: { commandArguments: { stream: string }; answer: null };

@@ -411,6 +411,29 @@ test("each stream action answers the window in the contract's shape", async () =
   expect(await commandHandlers.remove_stream({})).toEqual({ ok: false, refusal: "remove_stream needs `stream`, a stream's id" });
 });
 
+test("renaming a stream asks the runtime, then observes again whether it renamed or refused, answering null or its refusal", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-rename-stream-answer-for-the-stream-heat-map-main-8eda1f-renamed-heat-map.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-rename-stream-refusal-for-a-display-name-that-shows-nothing.json")),
+    ],
+    "macos"
+  );
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(JSON.stringify(await commandHandlers.rename_stream({ stream: "heat-map-main-8eda1f", display_name: "Heat map" }))).toBe('{"ok":true,"value":null}');
+  expect(await commandHandlers.rename_stream({ stream: "heat-map-main-8eda1f", display_name: "   " })).toEqual({
+    ok: false,
+    refusal: `Invalid configuration: "   " cannot be a stream's display name: it shows nothing; a display name is any text with something to show`,
+  });
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
+  expect(await commandHandlers.rename_stream({ stream: "heat-map-main-8eda1f" })).toEqual({
+    ok: false,
+    refusal: "rename_stream needs `display_name`, the display name to show it under",
+  });
+});
+
 test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_and_never_a_path_from_the_window", async () => {
   const sharedState = await sharedStateOverFakes(
     [

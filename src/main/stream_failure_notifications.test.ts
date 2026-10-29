@@ -58,7 +58,7 @@ async function notificationsOverFakes() {
   const streamFailureNotifications = await StreamFailureNotifications.load(
     rememberedSwitch,
     systemNotifications,
-    (stream) => streamPagesShown.push(stream),
+    (streamId) => streamPagesShown.push(streamId),
     quietTatolabAppLog,
   );
   return { streamFailureNotifications, systemNotifications, streamPagesShown, appConfigDirectory, rememberedSwitch };
@@ -92,6 +92,19 @@ test("streams_already_failed_at_launch_or_still_failed_notify_nothing_and_a_stre
   streamFailureNotifications.noticeStatus(statusListing(null));
   streamFailureNotifications.noticeStatus(statusListing([listedStream("lobby-recorder", "failed"), listedStream("main", "running")]));
   expect(systemNotifications.notificationsShown).toEqual([{ title: STREAM_FAILURE_NOTIFICATION_TITLE, body: streamFailureNotificationBody("lobby-recorder") }]);
+});
+
+test("two_streams_shown_under_one_display_name_are_told_apart_by_id_so_the_second_failing_notifies_and_opens_its_own_page", async () => {
+  const { streamFailureNotifications, systemNotifications, streamPagesShown } = await notificationsOverFakes();
+  const helloMain = { ...listedStream("main", "running"), stream: "hello-main-8d60ef" };
+  const warnedMain = { ...listedStream("main", "running"), stream: "warned-main-6c2608" };
+
+  streamFailureNotifications.noticeStatus(statusListing([{ ...helloMain, state: "failed", node_count: null }, warnedMain]));
+  streamFailureNotifications.noticeStatus(statusListing([{ ...helloMain, state: "failed", node_count: null }, { ...warnedMain, state: "failed", node_count: null }]));
+
+  expect(systemNotifications.notificationsShown).toEqual([{ title: STREAM_FAILURE_NOTIFICATION_TITLE, body: streamFailureNotificationBody("main") }]);
+  systemNotifications.clickTheLastNotification();
+  expect(streamPagesShown).toEqual(["warned-main-6c2608"]);
 });
 
 test("with_the_switch_off_nothing_notifies_and_the_switch_is_remembered_across_launches", async () => {

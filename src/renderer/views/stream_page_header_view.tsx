@@ -1,4 +1,4 @@
-import { CodeXml, Copy, PanelRight, Play, Square, SquareTerminal, Trash2 } from "lucide-react";
+import { CodeXml, Copy, PanelRight, Pencil, Play, Square, SquareTerminal, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
@@ -56,6 +56,7 @@ export interface StreamPageActions {
   outcome: StreamActionOutcomeWords | undefined;
   runPrimaryAction(chosenAction: StreamPrimaryActionPresentation): void;
   askToRemove(): void;
+  askToRename(): void;
 }
 
 /** A stream's bar on every tab: its tabs, Start or Stop, and every other action in its menu; the sidebar shows its name and state. */
@@ -74,8 +75,9 @@ export function StreamPageHeaderView({
   const { backend, platform } = useTatolabWindowEnvironment();
   /** Why the project folder or a terminal in it did not open, in the words of what refused it, which name what failed. */
   const [projectOpeningRefusal, setProjectOpeningRefusal] = useState<string | null>(null);
-  const { actionUnderWay, outcome, runPrimaryAction, askToRemove } = streamPageActions;
+  const { actionUnderWay, outcome, runPrimaryAction, askToRemove, askToRename } = streamPageActions;
   const primaryAction = presentStreamPrimaryAction(stream);
+  const projectDirectory = listedStreamProjectDirectory(stream);
   const openTheProject = (opening: Promise<void>) => {
     setProjectOpeningRefusal(null);
     opening.catch((rejection: unknown) => setProjectOpeningRefusal(describeBackendRejection(rejection)));
@@ -114,16 +116,24 @@ export function StreamPageHeaderView({
             />
           )}
           <MoreActionsMenu label={`More for ${stream.display_name}`} data-stream-action="more">
+            <MenuItem icon={Pencil} onChosen={askToRename} data-stream-action="rename_stream">
+              Rename…
+            </MenuItem>
+            <MenuSeparator />
             <MenuItem icon={CodeXml} onChosen={() => openTheProject(backend.openStreamProjectFolder(stream.stream))} data-stream-action="open_stream_project_folder">
               Open project
             </MenuItem>
             <MenuItem icon={SquareTerminal} onChosen={() => openTheProject(backend.openTerminalAtStreamProject(stream.stream))} data-stream-action="open_terminal_at_stream_project">
               Open a terminal in the project
             </MenuItem>
-            <MenuSeparator />
-            <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(listedStreamProjectDirectory(stream))}>
-              Copy project folder path
-            </MenuItem>
+            {projectDirectory !== null && (
+              <>
+                <MenuSeparator />
+                <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(projectDirectory)}>
+                  Copy project folder path
+                </MenuItem>
+              </>
+            )}
             <MenuSeparator />
             <MenuItem icon={Trash2} isDestructive isDisabled={actionUnderWay !== undefined} onChosen={askToRemove} data-stream-action="remove_stream">
               Remove…

@@ -12,7 +12,7 @@ const HEAT_MAP_FOLDER: StreamProjectFolderReport = {
 };
 
 const HEAT_MAP_ANSWER_WITH_TWO_WARNINGS: StreamRunAnswer = {
-  stream: "heat-map-heat-map-9127e0",
+  stream: "heat-map-heat-map-1acf70",
   display_name: "heat_map",
   stream_instance: "7",
   location: { project_directory: HEAT_MAP_FOLDER.folder, stream_function: "stream:heat_map" },
@@ -88,7 +88,7 @@ describe("the window's Add stream flow", () => {
 
     await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
 
-    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "running", answer: { stream: "heat-map-heat-map-9127e0", display_name: "heat_map" } });
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "running", answer: { stream: "heat-map-heat-map-1acf70", display_name: "heat_map" } });
     expect(addStreamFlow.readRunNotice()).toEqual({ kind: "running", source: "project_folder", answer: HEAT_MAP_ANSWER_WITH_TWO_WARNINGS });
     addStreamFlow.openDialog("project_folder", true);
     expect(addStreamFlow.readRunNotice()).toBeNull();

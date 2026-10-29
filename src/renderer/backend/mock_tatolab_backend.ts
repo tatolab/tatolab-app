@@ -219,6 +219,8 @@ export interface MockTatolabOptions {
    * `?relays=every-field-type` adds a mock-only adapter declaring a setting of each field type, and one relay of it.
    */
   relaysScenario: MockRelaysScenario;
+  /** `?streams=earlier_record`: the runtime also lists a record an earlier runtime wrote, failed and naming no location. */
+  doesTheRuntimeListAnEarlierRuntimesRecord: boolean;
   /** `?adapter_names=none`: the relay-adapter catalog of a runtime older than adapter names and logos, which serves neither. */
   doesTheRelayAdapterCatalogServeNoNamesOrLogos: boolean;
 }
@@ -306,6 +308,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     pythonInterpreterPick: pageQuery.get("python_pick") === "cancel" ? "cancel" : pageQuery.get("python_pick") === "not_python" ? "not_python" : "picked",
     isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
     relaysScenario: mockRelaysScenarioNamed(pageQuery.get("relays")),
+    doesTheRuntimeListAnEarlierRuntimesRecord: pageQuery.get("streams") === "earlier_record",
     doesTheRelayAdapterCatalogServeNoNamesOrLogos: pageQuery.get("adapter_names") === "none",
   };
 }
@@ -453,6 +456,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     pythonInterpreterPick,
     isMakingThePythonEnvironmentRefused,
     relaysScenario,
+    doesTheRuntimeListAnEarlierRuntimesRecord,
     doesTheRelayAdapterCatalogServeNoNamesOrLogos,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
@@ -467,7 +471,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const listedStreamsNotLoaded = new Map<string, ListedStream>([
     [fixtures.stoppedPatternTwo.stream, fixtures.stoppedPatternTwo],
     [fixtures.failedLobbyRecorder.stream, fixtures.failedLobbyRecorder],
+    ...(doesTheRuntimeListAnEarlierRuntimesRecord ? [[fixtures.earlierRuntimesRecord.stream, fixtures.earlierRuntimesRecord] as const] : []),
   ]);
+  /** The display names `rename_stream` gave, by stream id, over the ones the fixtures load with. */
+  const displayNamesRenamedTo = new Map<string, string>();
   /** Recorded streams not loaded that `start_stream` can load, by id: `pattern-two`, and each one stopped from the window. */
   const recordedFixturesNotLoaded = new Map<string, MockStreamFixture>([[fixtures.patternTwoStream.listing.stream, fixtures.patternTwoStream]]);
   const forgottenStreamIds = new Set<string>();
@@ -495,9 +502,14 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const streamIdsRunFromTheWindow: string[] = [];
   const listStreams = (): ListedStream[] | null => {
     if (scenario === "not-listed") return null;
-    return [...(scenario === "empty" ? [] : fixtures.listingOrder), ...streamIdsRunFromTheWindow]
+    const listingOrder = [...(scenario === "empty" ? [] : fixtures.listingOrder), ...(doesTheRuntimeListAnEarlierRuntimesRecord ? [fixtures.earlierRuntimesRecord.stream] : [])];
+    return [...listingOrder, ...streamIdsRunFromTheWindow]
       .map((streamId) => loadedStreams.get(streamId)?.fixture.listing ?? listedStreamsNotLoaded.get(streamId) ?? null)
-      .filter((listing): listing is ListedStream => listing !== null);
+      .filter((listing): listing is ListedStream => listing !== null)
+      .map((listing) => {
+        const renamedTo = displayNamesRenamedTo.get(listing.stream);
+        return renamedTo === undefined ? listing : { ...listing, display_name: renamedTo };
+      });
   };
 
   /** Each project folder the mock knows, by path, as the window would be told it holds it; a folder not here does not exist. */
@@ -529,7 +541,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       case "several":
         return projectFolderReport(`${projectsFolder}/doorways`, ["front_door", "back_door"], true);
       case "recorded":
-        return projectFolderReport(fixtures.mainStream.listing.location?.project_directory ?? "", ["main", "recorder", "pattern_two"], true);
+        return projectFolderReport(fixtures.patternProjectDirectory, ["main", "recorder", "pattern_two"], true);
       case "no-stream-file":
         return projectFolderReport(`${projectsFolder}/notes`, [], true);
       case "cancel":
@@ -569,6 +581,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     const recordedListing = (listStreams() ?? []).find((listing) => listing.stream === streamId);
     const fixture = createMockStreamRunFromAProjectFolder(fixtures.machine, folder, location.stream_function, displayName ?? recordedListing?.display_name ?? functionName);
     if (recordedListing === undefined) streamIdsRunFromTheWindow.push(streamId);
+    displayNamesRenamedTo.delete(streamId);
     recordedFixturesNotLoaded.delete(streamId);
     forgottenStreamIds.delete(streamId);
     loadStream(fixture, Date.now());
@@ -756,6 +769,16 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     return null;
   };
 
+  /** `rename_stream` as the runtime does it: refused for a name that shows nothing or a stream it does not hold, else shown under the new name. */
+  const renameMockStream = (streamId: string, displayName: string): void => {
+    if (displayName.trim() === "") {
+      throw `Invalid configuration: ${JSON.stringify(displayName)} cannot be a stream's display name: it shows nothing; a display name is any text with something to show`;
+    }
+    if (!(listStreams() ?? []).some((listing) => listing.stream === streamId)) throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
+    displayNamesRenamedTo.set(streamId, displayName);
+    publishStatus({ streams: listStreams() });
+  };
+
   /** `remove_stream` as the runtime does it: unloaded if loaded, and forgotten. */
   const removeMockStream = (streamId: string): null => {
     const wasLoaded = loadedStreams.delete(streamId);
@@ -902,6 +925,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         case "remove_stream":
           return removeMockStream(streamId);
       }
+    },
+    renameStream: async (streamId, displayName) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer rename_stream`;
+      renameMockStream(streamId, displayName);
     },
     openStreamProjectFolder: async (streamId) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

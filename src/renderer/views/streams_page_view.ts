@@ -65,7 +65,7 @@ export class StreamsPageView implements TatolabWindowPage {
   }
 
   /** The stream listed before (`-1`) or after (`1`) the selected one; `null` when there is none to go to. */
-  adjacentStreamName(step: -1 | 1): string | null {
+  adjacentStreamId(step: -1 | 1): string | null {
     if (this.shownBodyKind !== "stream" || this.listedStreams.length === 0) return null;
     const selectedIndex = this.listedStreams.findIndex((stream) => stream.stream === this.selectedStreamId);
     const nextIndex = Math.min(this.listedStreams.length - 1, Math.max(0, selectedIndex + step));

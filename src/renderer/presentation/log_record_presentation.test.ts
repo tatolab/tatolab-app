@@ -259,7 +259,7 @@ describe("the pointer to records not held", () => {
 
 describe("presentStreamLogsOfAStreamNotLoaded", () => {
   const listing = (state: string, failedBecause: string | null): ListedStream => ({
-    stream: "lobby-recorder-main-30baf5",
+    stream: "lobby-recorder-main-3fc45e",
     display_name: "lobby-recorder",
     location: { project_directory: "/Users/jonathanf/streams/lobby-recorder", stream_function: "stream:main" },
     state,

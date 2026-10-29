@@ -30,15 +30,15 @@ export async function openedWhenAnExistingFolder(
   return (await streamProjectFolderOpeners.isAnExistingFolder(folder)) ? openTheFolder(folder) : failedWith(refusalWhenMissing);
 }
 
-/** Open the project folder the runtime listed for the stream `stream` in `listedStreams` as `opening` asks; refused naming why when it is not listed, has no location, or the folder is gone. */
+/** Open the project folder the runtime listed for the stream `streamId` in `listedStreams` as `opening` asks; refused naming why when it is not listed, has no location, or the folder is gone. */
 export async function openStreamProjectFolder(
   listedStreams: readonly ListedStream[] | null,
-  stream: string,
+  streamId: string,
   opening: StreamProjectFolderOpening,
   streamProjectFolderOpeners: StreamProjectFolderOpeners,
 ): Promise<Result<void, string>> {
-  const listedStream = listedStreams?.find((listed) => listed.stream === stream) ?? null;
-  if (listedStream === null) return failedWith(`The runtime does not list ${stream}, so Tatolab has no project folder to open.`);
+  const listedStream = listedStreams?.find((candidateListedStream) => candidateListedStream.stream === streamId) ?? null;
+  if (listedStream === null) return failedWith(`The runtime does not list ${streamId}, so Tatolab has no project folder to open.`);
   const streamDisplayName = listedStream.display_name;
   if (listedStream.location === null) return failedWith(`The runtime lists no project folder for ${streamDisplayName}.`);
   const projectFolder = listedStream.location.project_directory;

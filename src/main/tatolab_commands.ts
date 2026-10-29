@@ -114,6 +114,23 @@ export function runStreamAction(sharedState: TatolabAppSharedState, streamAction
   });
 }
 
+/** `rename_stream { stream, display_name }`: the runtime's `rename_stream` on `stream`, then a status round whether it renamed or refused; refused in the runtime's own words. */
+export function renameStream(sharedState: TatolabAppSharedState, stream: string, displayName: string): Promise<Result<void, string>> {
+  return answerTheWindow("rename_stream", async () => {
+    const renamed = await sharedState.controller.renameStream(stream, displayName);
+    sharedState.statusPublisher.requestRefresh();
+    return renamed.ok ? renamed : failedWith(renamed.failure.failureDescription);
+  });
+}
+
+/** `rename_stream`'s arguments as the window sends them, or why they are not. */
+export function renameStreamArgumentsFrom(commandArguments: unknown): Result<{ stream: string; display_name: string }, string> {
+  const stream = oneTextArgumentFrom("rename_stream", commandArguments, "stream", "a stream's id");
+  if (!stream.ok) return stream;
+  const displayName = oneTextArgumentFrom("rename_stream", commandArguments, "display_name", "the display name to show it under");
+  return displayName.ok ? succeeded({ stream: stream.value, display_name: displayName.value }) : displayName;
+}
+
 /** Where each command that opens a stream's project folder opens it. */
 const STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND = {
   open_stream_project_folder: "file_manager",
@@ -393,6 +410,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     },
     start_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "start_stream", commandArguments)),
     remove_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "remove_stream", commandArguments)),
+    rename_stream: async (commandArguments) => {
+      const renameStreamArguments = renameStreamArgumentsFrom(commandArguments);
+      if (!renameStreamArguments.ok) return { ok: false, refusal: renameStreamArguments.failure };
+      return commandAnswerOfNothingFrom(await renameStream(sharedState, renameStreamArguments.value.stream, renameStreamArguments.value.display_name));
+    },
     open_stream_project_folder: async (commandArguments) =>
       commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_project_folder", commandArguments)),
     open_terminal_at_stream_project: async (commandArguments) =>

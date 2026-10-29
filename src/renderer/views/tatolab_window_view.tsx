@@ -164,9 +164,9 @@ export function mountTatolabWindow(
       case "ArrowUp":
       case "ArrowDown": {
         if (!isOnAStreamPage()) return false;
-        const adjacentStreamName = streamsPage.adjacentStreamName(key === "ArrowUp" ? -1 : 1);
-        if (adjacentStreamName === null) return false;
-        void navigateTo(streamPagePath(adjacentStreamName, streamPageTabShownAt(router.state.location.pathname) ?? "overview"));
+        const adjacentStreamId = streamsPage.adjacentStreamId(key === "ArrowUp" ? -1 : 1);
+        if (adjacentStreamId === null) return false;
+        void navigateTo(streamPagePath(adjacentStreamId, streamPageTabShownAt(router.state.location.pathname) ?? "overview"));
         return true;
       }
       default:

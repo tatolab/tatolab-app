@@ -248,10 +248,10 @@ describe("the commands and words the page shows", () => {
     expect(presentStreamFunctionChecks(folderReport("/x"))).toEqual([{ checked: "stream_function", name: "heat_map", isFound: true, detail: null }]);
     expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: ["a", "b"] })).map((check) => check.name)).toEqual(["a", "b"]);
     expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: [] }))).toEqual([
-      { checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it loads." },
+      { checked: "stream_file", name: "Streams", isFound: true, detail: "The runtime finds them when it loads the project." },
     ]);
     expect(presentStreamFunctionChecks(folderReport("/x", { stream_file_present: false, stream_functions: [] }))).toEqual([
-      { checked: "stream_file", name: "stream.py", isFound: false, detail: "The stream function the runtime loads lives in stream.py." },
+      { checked: "stream_file", name: "Streams", isFound: false, detail: "This project has none." },
     ]);
     const builtIn = TATOLABS_OWN_PYTHON;
     expect(pythonEnvironmentSyncWords(builtIn)).toBe("uv sync  python=Tatolab's Python 3.12.12");
@@ -270,8 +270,8 @@ describe("the commands and words the page shows", () => {
     expect(compilingStreamWords({ folder: "/x", streamFunction: null, displayName: null })).toBe("the stream");
     expect(streamRunningFactsWords(HEAT_MAP_ANSWER)).toBe("4 nodes");
     expect(streamRunAnswerLines({ ...HEAT_MAP_ANSWER, replaced_a_recorded_stream: true })).toEqual([
-      "loaded heat_map as heat-map-heat-map-2c71fa: 4 nodes, in place of the stream this project ran before",
-      "heat_map is running, and loads again whenever the runtime starts until it is stopped or removed",
+      "loaded heat_map as heat-map-heat-map-2c71fa: 4 nodes, replacing its last run",
+      "heat_map is running and starts with the runtime",
     ]);
   });
 
@@ -282,11 +282,11 @@ describe("the commands and words the page shows", () => {
     expect(addStreamActionUnavailableBecause({ ...chosen.form, workUnderWay: "creating_the_project" }, true, TATOLABS_OWN_PYTHON)).toBe("Wait for tatolab new to write the project.");
   });
 
-  it("says whether the stream loaded cleanly, with warnings, or replaced the stream this project ran before", () => {
+  it("says whether the stream loaded cleanly, with warnings, or replaced its last run", () => {
     expect(streamRunningSummary(HEAT_MAP_ANSWER)).toBe("It loaded cleanly.");
     expect(streamRunningSummary({ ...HEAT_MAP_ANSWER, compile_warnings: ["a"] })).toBe("It loaded with a warning. Read it before you rely on this stream.");
     expect(streamRunningSummary({ ...HEAT_MAP_ANSWER, compile_warnings: ["a", "b"], replaced_a_recorded_stream: true })).toBe(
-      "It replaced the stream this project ran before. It loaded with 2 warnings. Read them before you rely on this stream.",
+      "It replaced its last run. It loaded with 2 warnings. Read them before you rely on this stream.",
     );
   });
 });
@@ -296,10 +296,10 @@ describe("the notice of a run that answered away from the page", () => {
     const running = afterEvents(initialAddStreamFlowState("new_project"), [
       { kind: "new_project_created", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"] }) },
       { kind: "run_started", request: { folder: "/Users/someone/streams/hello", streamFunction: null, displayName: "hello" }, nowMs: 0 },
-      { kind: "run_answered", outcome: { kind: "running", answer: { ...HEAT_MAP_ANSWER, stream: "hello-main-5f9d59", display_name: "hello", compile_warnings: ["a"] } } },
+      { kind: "run_answered", outcome: { kind: "running", answer: { ...HEAT_MAP_ANSWER, stream: "hello-main-56afa5", display_name: "hello", compile_warnings: ["a"] } } },
     ]);
     const runningNotice = addStreamRunNoticeOf(running);
-    expect(runningNotice).toMatchObject({ kind: "running", source: "new_project", answer: { stream: "hello-main-5f9d59" } });
+    expect(runningNotice).toMatchObject({ kind: "running", source: "new_project", answer: { stream: "hello-main-56afa5" } });
     expect(runningNotice === null ? null : presentAddStreamRunNotice(runningNotice)).toEqual({
       title: "hello is running",
       detail: "It loaded with a warning. Read it before you rely on this stream.",

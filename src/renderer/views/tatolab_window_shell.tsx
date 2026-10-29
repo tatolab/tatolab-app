@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Folder, FolderInput, FolderOpen, FolderPlus, List, Plus, Settings } from "lucide-react";
+import { Folder, FolderInput, FolderOpen, FolderPlus, List, Pencil, Plus, Settings } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
@@ -9,7 +9,7 @@ import { presentStreamState } from "../presentation/stream_presentation";
 import { streamProjectFoldersOf, type StreamProjectFolder } from "../presentation/streams_list_presentation";
 import { IconButton } from "../design_system/icon_button";
 import { ListRowButton } from "../design_system/list_row_button";
-import { IconButtonMenu, MenuItem } from "../design_system/menus";
+import { IconButtonMenu, MenuItem, RightClickMenu, RightClickMenuItem } from "../design_system/menus";
 import { PageFrame } from "../design_system/page_frame";
 import { PageHeader } from "../design_system/page_header";
 import { StreamStateIcon } from "../design_system/stream_state_words";
@@ -18,6 +18,7 @@ import { AddStreamRunNoticeView } from "./add_stream_run_notice_view";
 import { FirstRunFinishingRefusalNoticeView } from "./first_run_finishing_refusal_notice_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { StreamPageView } from "./stream_page_view";
+import { useStreamRenameDialog } from "./stream_rename_dialog_view";
 import { streamPagePath, streamPageTabNamed } from "./stream_page_path";
 import { StreamsListPageView } from "./streams_list_page_view";
 import { SettingsPageView } from "./settings_page_view";
@@ -83,8 +84,8 @@ function SidebarSectionHeading({ children, trailing }: { children: ReactNode; tr
 
 const SIDEBAR_ICON_CLASS_NAMES = "size-4 shrink-0 text-fg-3";
 
-/** A project folder's row, opening and closing the list of the streams added from it; a closed folder holding a failed stream says so. */
-function StreamProjectFolderSidebarRows({ projectFolder }: { projectFolder: StreamProjectFolder }) {
+/** A project folder's row, opening and closing the list of the streams added from it, each renamed from its right-click menu; a closed folder holding a failed stream says so. */
+function StreamProjectFolderSidebarRows({ projectFolder, askToRename }: { projectFolder: StreamProjectFolder; askToRename: (stream: ListedStream) => void }) {
   const [isOpen, setIsOpen] = useState(true);
   return (
     <li>
@@ -94,7 +95,7 @@ function StreamProjectFolderSidebarRows({ projectFolder }: { projectFolder: Stre
         aria-expanded={isOpen}
         onPressed={() => setIsOpen((wasOpen) => !wasOpen)}
         className="h-8 text-fg"
-        data-sidebar-project-folder={projectFolder.projectDirectory}
+        data-sidebar-project-folder={projectFolder.projectDirectory ?? ""}
       >
         <span className="min-w-0 flex-1 truncate">{projectFolder.folderName}</span>
         {!isOpen && projectFolder.holdsAFailedStream && <span className="sr-only">, holds a failed stream</span>}
@@ -102,15 +103,25 @@ function StreamProjectFolderSidebarRows({ projectFolder }: { projectFolder: Stre
       {isOpen && (
         <ul aria-label={`Streams added from ${projectFolder.folderName}`} className="mt-0.5 flex flex-col gap-0.5">
           {projectFolder.streams.map((stream) => (
-            <li key={stream.stream}>
-              <SidebarNavigationRow
-                to={streamPagePath(stream.stream)}
-                icon={<StreamStateIcon stream={stream} />}
-                label={stream.display_name}
-                stateWordsForAScreenReader={presentStreamState(stream).label}
-                isUnderAFolder
-              />
-            </li>
+            <RightClickMenu
+              key={stream.stream}
+              label={`Actions for ${stream.display_name}`}
+              choices={
+                <RightClickMenuItem icon={Pencil} onChosen={() => askToRename(stream)} data-stream-action="rename_stream">
+                  Rename…
+                </RightClickMenuItem>
+              }
+            >
+              <li data-sidebar-stream={stream.stream}>
+                <SidebarNavigationRow
+                  to={streamPagePath(stream.stream)}
+                  icon={<StreamStateIcon stream={stream} />}
+                  label={stream.display_name}
+                  stateWordsForAScreenReader={presentStreamState(stream).label}
+                  isUnderAFolder
+                />
+              </li>
+            </RightClickMenu>
           ))}
         </ul>
       )}
@@ -122,6 +133,7 @@ function StreamsSidebarNavigation() {
   const { addStreamFlow } = useTatolabWindowEnvironment();
   const listedStreams = useListedStreamsWhileTheRuntimeRuns();
   const navigate = useNavigate();
+  const { askToRename, renameDialog } = useStreamRenameDialog();
   return (
     <>
       <section className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-2">
@@ -153,11 +165,12 @@ function StreamsSidebarNavigation() {
         ) : (
           <ul aria-label="Project folders" className="flex flex-col gap-2">
             {streamProjectFoldersOf(listedStreams).map((projectFolder) => (
-              <StreamProjectFolderSidebarRows key={projectFolder.projectDirectory} projectFolder={projectFolder} />
+              <StreamProjectFolderSidebarRows key={projectFolder.projectDirectory ?? ""} projectFolder={projectFolder} askToRename={askToRename} />
             ))}
           </ul>
         )}
       </section>
+      {renameDialog}
       <div className="border-t px-2 py-2">
         <SidebarNavigationRow
           to="/settings"

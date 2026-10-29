@@ -43,7 +43,7 @@ const ADD_STREAM_DIALOG_WORDS: Record<AddStreamSource, { title: string; descript
   project_folder: {
     title: "Import project",
     icon: FolderInput,
-    description: "A folder with a stream.py. Tatolab installs what it needs, then the runtime loads and starts it.",
+    description: "Tatolab sets up the project and starts its stream.",
   },
   new_project: {
     title: "New project",
@@ -149,7 +149,7 @@ function StreamFoundRow({ report, chosenStreamFunction, onChosen }: { report: St
 function StreamDisplayNameRow({ form, onEdited }: { form: AddStreamForm; onEdited: (displayName: string) => void }) {
   return (
     <FormDialogRow label="Name" labelFor="add-stream-name">
-      <TextField id="add-stream-name" label="Stream name" text={form.displayName} onTextChanged={onEdited} isMachineWord className="w-64" data-add-stream-name="" />
+      <TextField id="add-stream-name" label="Stream name" text={form.displayName} onTextChanged={onEdited} className="w-64" data-add-stream-name="" />
     </FormDialogRow>
   );
 }
@@ -194,11 +194,11 @@ function CompilingView({
         lead={
           makesThePythonEnvironmentFirst ? (
             <>
-              Tatolab installs what pyproject.toml names with {pythonForNewEnvironmentsWords(pythonForNewEnvironments)}. Then the runtime loads stream.py and starts it.
+              Installing its packages with {pythonForNewEnvironmentsWords(pythonForNewEnvironments)}.
             </>
           ) : (
             <>
-              The runtime loads stream.py and starts it.
+              The runtime is loading it.
             </>
           )
         }
@@ -269,7 +269,7 @@ function StreamRunningView({ request, answer }: { request: AddStreamRunRequest; 
         )}
         <div className="min-w-0 pt-1">
           <h2 className="title-lg focus-visible:shadow-none" tabIndex={-1} data-add-stream-step-heading="">
-            <span className="font-mono">{answer.display_name}</span> is running
+            {answer.display_name} is running
           </h2>
           <p className="mt-1 text-fg-3">
             {streamRunningFactsWords(answer)} · <MachineWords>{answer.location.project_directory}</MachineWords>

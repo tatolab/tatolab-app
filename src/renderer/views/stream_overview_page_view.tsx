@@ -218,16 +218,19 @@ function StreamDetailsSidePanel({ stream, reading }: { stream: ListedStream; rea
   const readableOutputs = graph === null ? [] : readableExposedPorts(graph);
   const isFromTheLastLoad = graph !== null && reading.graphSource !== "loaded";
   const dataKindOfEachOutput = useMemo(() => (graph === null ? new Map<string, StreamGraphPortDataKind>() : dataKindOfEachOutputPort(graph)), [graph]);
+  const projectDirectory = listedStreamProjectDirectory(stream);
   return (
     <SidePanel label={`${stream.display_name} details`} title="Details" hiding={null} data-stream-details="">
-      <PanelSection appearance="card" icon={FolderOpen} title="Project">
-        <div className="flex min-w-0 items-center gap-1 py-1">
-          <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg select-text" title={listedStreamProjectDirectory(stream)}>
-            {abbreviateHomeDirectory(listedStreamProjectDirectory(stream))}
-          </span>
-          <CopyIconButton label="Copy project folder path" size="compact" readTextToCopy={() => listedStreamProjectDirectory(stream)} />
-        </div>
-      </PanelSection>
+      {projectDirectory !== null && (
+        <PanelSection appearance="card" icon={FolderOpen} title="Project">
+          <div className="flex min-w-0 items-center gap-1 py-1">
+            <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg select-text" title={projectDirectory}>
+              {abbreviateHomeDirectory(projectDirectory)}
+            </span>
+            <CopyIconButton label="Copy project folder path" size="compact" readTextToCopy={() => projectDirectory} />
+          </div>
+        </PanelSection>
+      )}
       <PanelSection
         appearance="card"
         icon={Radio}

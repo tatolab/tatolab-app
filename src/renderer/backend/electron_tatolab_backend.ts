@@ -51,6 +51,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
           return null;
       }
     },
+    renameStream: async (streamId, displayName) => {
+      await invokeTatolabCommand("rename_stream", { stream: streamId, display_name: displayName });
+    },
     openStreamProjectFolder: async (streamId) => {
       await invokeTatolabCommand("open_stream_project_folder", { stream: streamId });
     },

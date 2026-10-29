@@ -4,6 +4,7 @@ import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { PageFrame } from "../design_system/page_frame";
 import { isStreamLoaded } from "../presentation/stream_presentation";
 import { useStreamActionsUnderWay, useStreamRemovalDialog } from "./stream_action_controls";
+import { useStreamRenameDialog } from "./stream_rename_dialog_view";
 import { StreamGraphPageView } from "./stream_graph_page_view";
 import { StreamInspectPageView } from "./stream_inspect_page_view";
 import { StreamLogsPageView } from "./stream_logs_page_view";
@@ -20,11 +21,13 @@ export function StreamPageView({ stream, shownTab }: { stream: ListedStream; sho
   const thisStreamsListing = useMemo(() => [stream], [stream]);
   const { actionsUnderWay, outcomeWords, runStreamAction } = useStreamActionsUnderWay(thisStreamsListing);
   const { askToRemove, removalDialog } = useStreamRemovalDialog((streamToRemove) => runStreamAction("remove_stream", "Remove", streamToRemove));
+  const { askToRename, renameDialog } = useStreamRenameDialog();
   const streamPageActions: StreamPageActions = {
     actionUnderWay: actionsUnderWay.get(stream.stream),
     outcome: outcomeWords.get(stream.stream),
     runPrimaryAction: (chosenAction) => runStreamAction(chosenAction.streamAction, chosenAction.label, stream),
     askToRemove: () => askToRemove(stream),
+    askToRename: () => askToRename(stream),
   };
 
   useEffect(() => {
@@ -63,6 +66,7 @@ export function StreamPageView({ stream, shownTab }: { stream: ListedStream; sho
       )}
       {shownTab === "inspect" && <StreamInspectPageView stream={stream} />}
       {removalDialog}
+      {renameDialog}
     </PageFrame>
   );
 }

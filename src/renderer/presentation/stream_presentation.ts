@@ -23,9 +23,9 @@ export function isStreamLoaded(stream: ListedStream): boolean {
   return stream.node_count !== null;
 }
 
-/** The project folder the runtime lists `stream` from; empty for an earlier runtime's record, which has no location. */
-export function listedStreamProjectDirectory(stream: ListedStream): string {
-  return stream.location?.project_directory ?? "";
+/** The project folder the runtime lists `stream` from; `null` for an earlier runtime's record, which has no location. */
+export function listedStreamProjectDirectory(stream: ListedStream): string | null {
+  return stream.location?.project_directory ?? null;
 }
 
 /** `awaiting_restart` reads `Awaiting restart`. */

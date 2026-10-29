@@ -32,12 +32,16 @@ export function streamMatchesListFilter(stream: ListedStream, filter: StreamsLis
 /** Whether `stream`'s display name or project folder holds `filterText`, ignoring case; blank text matches every stream. */
 export function streamMatchesFilterText(stream: ListedStream, filterText: string): boolean {
   const wantedText = filterText.trim().toLowerCase();
-  return wantedText === "" || `${stream.display_name}\n${listedStreamProjectDirectory(stream)}`.toLowerCase().includes(wantedText);
+  return wantedText === "" || `${stream.display_name}\n${listedStreamProjectDirectory(stream) ?? ""}`.toLowerCase().includes(wantedText);
 }
+
+/** What the folder of the records an earlier runtime wrote, which name no project folder, shows under. */
+export const STREAMS_OF_AN_EARLIER_RUNTIME_FOLDER_NAME = "From an earlier runtime";
 
 /** A project folder in the sidebar: where it is, the name it shows under, and the streams added from it. */
 export interface StreamProjectFolder {
-  projectDirectory: string;
+  /** `null` for the records an earlier runtime wrote, which name no project folder. */
+  projectDirectory: string | null;
   folderName: string;
   streams: readonly ListedStream[];
   /** Whether a stream added from it failed, which its row says while it is closed. */
@@ -53,7 +57,7 @@ function lastPathSegments(absolutePath: string, segmentCount: number): string {
  * shows under its own name, or under its parent's and its own where two folders share a name.
  */
 export function streamProjectFoldersOf(streams: readonly ListedStream[]): StreamProjectFolder[] {
-  const streamsOfEachDirectory = new Map<string, ListedStream[]>();
+  const streamsOfEachDirectory = new Map<string | null, ListedStream[]>();
   for (const stream of streams) {
     const projectDirectory = listedStreamProjectDirectory(stream);
     const streamsOfThisDirectory = streamsOfEachDirectory.get(projectDirectory);
@@ -63,15 +67,20 @@ export function streamProjectFoldersOf(streams: readonly ListedStream[]): Stream
   const directories = [...streamsOfEachDirectory.keys()];
   const directoryCountOfEachName = new Map<string, number>();
   for (const directory of directories) {
+    if (directory === null) continue;
     const name = lastPathSegments(directory, 1);
     directoryCountOfEachName.set(name, (directoryCountOfEachName.get(name) ?? 0) + 1);
   }
-  return directories.map((directory) => {
+  const folderNameOf = (directory: string | null): string => {
+    if (directory === null) return STREAMS_OF_AN_EARLIER_RUNTIME_FOLDER_NAME;
     const name = lastPathSegments(directory, 1);
+    return (directoryCountOfEachName.get(name) ?? 0) > 1 ? lastPathSegments(directory, 2) : name;
+  };
+  return directories.map((directory) => {
     const streamsOfThisDirectory = streamsOfEachDirectory.get(directory) ?? [];
     return {
       projectDirectory: directory,
-      folderName: (directoryCountOfEachName.get(name) ?? 0) > 1 ? lastPathSegments(directory, 2) : name,
+      folderName: folderNameOf(directory),
       streams: streamsOfThisDirectory,
       holdsAFailedStream: streamsOfThisDirectory.some((stream) => stream.state === "failed"),
     };

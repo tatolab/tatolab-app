@@ -22,7 +22,7 @@ function withoutKey<Value>(entries: ReadonlyMap<string, Value>, key: string): Re
   return remainingEntries;
 }
 
-function listingNamed(listedStreams: readonly ListedStream[], streamId: string): ListedStream | null {
+function listingWithTheStreamId(listedStreams: readonly ListedStream[], streamId: string): ListedStream | null {
   return listedStreams.find((stream) => stream.stream === streamId) ?? null;
 }
 
@@ -38,12 +38,12 @@ export function useStreamActionsUnderWay(listedStreams: readonly ListedStream[])
     latestListedStreams.current = listedStreams;
     setActionsUnderWay((underWay) => {
       const stillUnderWay = new Map(
-        [...underWay].filter(([streamId, actionUnderWay]) => isStreamActionStillUnderWay(actionUnderWay, listingNamed(listedStreams, streamId))),
+        [...underWay].filter(([streamId, actionUnderWay]) => isStreamActionStillUnderWay(actionUnderWay, listingWithTheStreamId(listedStreams, streamId))),
       );
       return stillUnderWay.size === underWay.size ? underWay : stillUnderWay;
     });
     setOutcomeWords((words) => {
-      const stillListed = new Map([...words].filter(([streamId]) => listingNamed(listedStreams, streamId) !== null));
+      const stillListed = new Map([...words].filter(([streamId]) => listingWithTheStreamId(listedStreams, streamId) !== null));
       return stillListed.size === words.size ? words : stillListed;
     });
   }, [listedStreams]);
@@ -58,7 +58,7 @@ export function useStreamActionsUnderWay(listedStreams: readonly ListedStream[])
           const actionUnderWay = underWay.get(stream.stream);
           if (actionUnderWay === undefined) return underWay;
           const answeredAction = { ...actionUnderWay, isAnswered: true };
-          return isStreamActionStillUnderWay(answeredAction, listingNamed(latestListedStreams.current, stream.stream))
+          return isStreamActionStillUnderWay(answeredAction, listingWithTheStreamId(latestListedStreams.current, stream.stream))
             ? new Map(underWay).set(stream.stream, answeredAction)
             : withoutKey(underWay, stream.stream);
         });

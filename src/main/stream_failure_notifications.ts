@@ -30,7 +30,7 @@ export class StreamFailureNotifications {
     private notifyWhenAStreamFails: boolean,
     private readonly rememberedSwitch: RememberedSwitchFile,
     private readonly systemNotifications: SystemNotifications,
-    private readonly showTheStreamsPage: (stream: string) => void,
+    private readonly showTheStreamsPage: (streamId: string) => void,
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
 
@@ -38,7 +38,7 @@ export class StreamFailureNotifications {
   static async load(
     rememberedSwitch: RememberedSwitchFile,
     systemNotifications: SystemNotifications,
-    showTheStreamsPage: (stream: string) => void,
+    showTheStreamsPage: (streamId: string) => void,
     tatolabAppLog: TatolabAppLog,
   ): Promise<StreamFailureNotifications> {
     return new StreamFailureNotifications(await rememberedSwitch.loadRememberedSwitch(), rememberedSwitch, systemNotifications, showTheStreamsPage, tatolabAppLog);

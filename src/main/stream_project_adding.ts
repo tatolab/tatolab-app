@@ -1,7 +1,8 @@
 // Adding a stream from the window: choosing a project folder or a new project's directory,
 // checking what the folder holds, writing the sample project with `tatolab new`, and running a
-// folder through the runtime's `run_stream`, its `.venv` made first when it has none that runs. A command naming a folder acts only on one this module handed the window, from the app's
-// own folder dialog or its proposal, so a page can never have the app read, write or run a path of
+// folder through the runtime's `run_stream`, its `.venv` made first when it has none that runs.
+// A command naming a folder acts only on one this module handed the window, from the app's own
+// folder dialog or its proposal, so a page can never have the app read, write or run a path of
 // its choosing.
 
 import path from "node:path";

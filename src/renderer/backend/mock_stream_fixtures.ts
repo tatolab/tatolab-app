@@ -21,14 +21,14 @@ function castAsAStreamIdPart(name: string): string {
 }
 
 /**
- * The stream id the runtime computes from a location, `<folder>-<function>-<hash>`, with a stand-in hash over the folder's
- * name and the function rather than the whole path, so a mock stream has the same id on both platforms' homes.
+ * The stream id the runtime computes from a location, `<folder>-<function>-<hash>`, with a stand-in hash over the path
+ * with its home folder written `~`, so two folders give two ids and a mock stream has the same id on both platforms.
  */
 export function mockStreamIdOf(location: StreamLocation): string {
-  const folderName = location.project_directory.split("/").filter((segment) => segment !== "").at(-1) ?? "";
-  const folder = castAsAStreamIdPart(folderName);
+  const folder = castAsAStreamIdPart(location.project_directory.split("/").filter((segment) => segment !== "").at(-1) ?? "");
   const functionName = castAsAStreamIdPart(location.stream_function.split(":").at(-1) ?? "");
-  const hash = fnv1aHashOf(`${folderName}\n${location.stream_function}`).toString(16).padStart(8, "0").slice(0, 6);
+  const projectDirectoryUnderHome = location.project_directory.replace(/^\/(Users|home)\/[^/]+/, "~");
+  const hash = fnv1aHashOf(`${projectDirectoryUnderHome}\n${location.stream_function}`).toString(16).padStart(8, "0").slice(0, 6);
   return [folder, functionName, hash].filter((part) => part !== "").join("-");
 }
 
@@ -494,6 +494,10 @@ export interface MockStreamFixtures {
   /** `pattern-two` once started again. */
   patternTwoStream: MockStreamFixture;
   failedLobbyRecorder: ListedStream;
+  /** A record an earlier runtime wrote, which names no location and is listed failed until it is removed. */
+  earlierRuntimesRecord: ListedStream;
+  /** The folder the test pattern's streams are run from. */
+  patternProjectDirectory: string;
   /** The order the runtime lists its streams in, by id. */
   listingOrder: readonly string[];
 }
@@ -532,6 +536,16 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     stoppedPatternTwo,
     patternTwoStream: createTestPatternStream(machine, { ...mainStreamOptions, streamFunction: "stream:pattern_two", displayName: "pattern-two", exposesItsEffect: false }),
     failedLobbyRecorder,
+    earlierRuntimesRecord: {
+      stream: "doorbell",
+      display_name: "doorbell",
+      location: null,
+      state: "failed",
+      node_count: null,
+      failed_because:
+        "an earlier runtime recorded it, under record schema 2, and this runtime does not load it; run it again with `tatolab run` in its project, and `tatolab rm doorbell` forgets this record",
+    },
+    patternProjectDirectory: projectDirectory,
     listingOrder: [mainStream.listing.stream, cameraStream.listing.stream, recorderOfMainStream.listing.stream, stoppedPatternTwo.stream, failedLobbyRecorder.stream],
   };
 }

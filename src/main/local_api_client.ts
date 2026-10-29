@@ -2,8 +2,8 @@
 // local API's Unix socket. `GET /health` says the runtime is up, `describe_runtime` names its
 // version, uptime and log folder, the MCP tools `list_streams`,
 // `logs` and `graph` over `POST /mcp` list its streams, read one's log records and draw one's
-// graph, `run_stream` compiles a project and loads it, `stop_stream`, `start_stream` and
-// `remove_stream` act on one, and `GET /api/graph` names the machine. `GET /api/relay-adapters`
+// graph, `run_stream` compiles a project and loads it, `stop_stream`, `start_stream`,
+// `remove_stream` and `rename_stream` act on one, and `GET /api/graph` names the machine. `GET /api/relay-adapters`
 // and `list_relays` describe the machine's relays, and `add_relay`, `configure_relay` and
 // `remove_relay` change them.
 //
@@ -30,9 +30,11 @@ import {
   isAJsonObject,
   jsonObject,
   type JsonObjectOnTheWire,
+  optionalObject,
   optionalText,
   optionalUnsignedInteger,
   parseJsonOnTheWire,
+  requiredObject,
   requiredText,
   requiredTrueOrFalse,
   requiredUnsignedInteger,
@@ -102,8 +104,9 @@ function streamRunAnswerOnTheWire(toolResult: JsonObjectOnTheWire): Result<Strea
   if (!displayName.ok) return displayName;
   const streamInstance = requiredText(toolResult, "stream_instance");
   if (!streamInstance.ok) return streamInstance;
-  const locationOnTheWire = jsonObject(toolResult["location"], "`location`");
-  const location = locationOnTheWire.ok ? streamLocationOnTheWire(locationOnTheWire.value) : locationOnTheWire;
+  const locationOnTheWire = requiredObject(toolResult, "location");
+  if (!locationOnTheWire.ok) return locationOnTheWire;
+  const location = streamLocationOnTheWire(locationOnTheWire.value);
   if (!location.ok) return location;
   const nodeCount = requiredUnsignedInteger(toolResult, "node_count");
   if (!nodeCount.ok) return nodeCount;
@@ -134,6 +137,24 @@ function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLo
   const streamFunction = requiredText(location, "stream_function");
   if (!streamFunction.ok) return streamFunction;
   return succeeded({ project_directory: projectDirectory.value, stream_function: streamFunction.value });
+}
+
+/** What `rename_stream` answers: the stream's id and the display name it is shown under now. */
+export interface StreamRenameAnswer {
+  stream: string;
+  display_name: string;
+}
+
+/** A `rename_stream` tool result read field for field; unknown fields are ignored. */
+export function streamRenameAnswerFromTheRenameStreamToolResult(toolResultText: string): Result<StreamRenameAnswer, string> {
+  const parsedToolResult = parseJsonOnTheWire(toolResultText);
+  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the rename_stream result") : parsedToolResult;
+  if (!toolResult.ok) return failedWith(`the runtime's rename_stream result could not be read: ${toolResult.failure}`);
+  const stream = requiredText(toolResult.value, "stream");
+  const displayName = requiredText(toolResult.value, "display_name");
+  if (!stream.ok) return failedWith(`the runtime's rename_stream result could not be read: ${stream.failure}`);
+  if (!displayName.ok) return failedWith(`the runtime's rename_stream result could not be read: ${displayName.failure}`);
+  return succeeded({ stream: stream.value, display_name: displayName.value });
 }
 
 /** A `describe_runtime` tool result read field for field; unknown fields are ignored. */
@@ -188,13 +209,9 @@ function listedStreamOnTheWire(listedStreamOnTheWire: unknown): Result<ListedStr
   if (!stream.ok) return stream;
   const displayName = requiredText(listedStream.value, "display_name");
   if (!displayName.ok) return displayName;
-  const locationOnTheWire = listedStream.value["location"];
-  const location =
-    locationOnTheWire === null || locationOnTheWire === undefined
-      ? succeeded(null)
-      : isAJsonObject(locationOnTheWire)
-        ? streamLocationOnTheWire(locationOnTheWire)
-        : failedWith("`location` is neither an object nor null");
+  const locationOnTheWire = optionalObject(listedStream.value, "location");
+  if (!locationOnTheWire.ok) return locationOnTheWire;
+  const location = locationOnTheWire.value === null ? succeeded(null) : streamLocationOnTheWire(locationOnTheWire.value);
   if (!location.ok) return location;
   const state = requiredText(listedStream.value, "state");
   if (!state.ok) return state;
@@ -289,6 +306,14 @@ export class LocalApiClient {
     if (!toolResultText.ok) return toolResultText;
     const notice = streamActionNoticeFromTheToolResult(streamAction, toolResultText.value);
     return notice.ok ? notice : localApiRequestFailure(notice.failure);
+  }
+
+  /** Show the stream `stream` under `displayName` through the runtime's `rename_stream` tool, its id, address and broadcast as they are; refused in the runtime's own words. */
+  async renameStream(stream: string, displayName: string): Promise<Result<void, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("rename_stream", { stream, display_name: displayName }, STREAM_ACTION_RESPONSE_TIMEOUT_MS);
+    if (!toolResultText.ok) return toolResultText;
+    const renamed = streamRenameAnswerFromTheRenameStreamToolResult(toolResultText.value);
+    return renamed.ok ? succeeded(undefined) : localApiRequestFailure(renamed.failure);
   }
 
   /** Compile the project `streamRunRequest` names in its own `.venv` and load it, through the runtime's `run_stream` tool; refused in the runtime's own words. */
