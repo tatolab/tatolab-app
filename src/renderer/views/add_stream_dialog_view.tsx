@@ -187,11 +187,14 @@ function CompilingView({
   startedAtMs,
   makesThePythonEnvironmentFirst,
   pythonForNewEnvironments,
+  defaultDisplayName,
 }: {
   request: AddStreamRunRequest;
   startedAtMs: number;
   makesThePythonEnvironmentFirst: boolean;
   pythonForNewEnvironments: PythonForNewEnvironments;
+  /** The name the runtime gives the stream when the request names none. */
+  defaultDisplayName: string;
 }) {
   const nowMs = useMonotonicNowMsWhile(true);
   return (
@@ -199,7 +202,7 @@ function CompilingView({
       <AddStreamSectionHeading
         title={
           <>
-            {compilingHeadingVerb(makesThePythonEnvironmentFirst)} <span className="font-mono">{compilingStreamWords(request)}</span>
+            {compilingHeadingVerb(makesThePythonEnvironmentFirst)} {compilingStreamWords(request, defaultDisplayName)}
           </>
         }
         lead={
@@ -328,7 +331,7 @@ function ProjectFolderForm({
         )}
       </FormDialogRows>
       {streamAlreadyImported !== null && (
-        <p className="mt-3 text-fg-2" role="status" data-add-stream-already-imported={streamAlreadyImported.stream}>
+        <p className="mt-3 text-fg-2" data-add-stream-already-imported={streamAlreadyImported.stream}>
           {streamAlreadyImportedWords(streamAlreadyImported)}
         </p>
       )}
@@ -425,7 +428,7 @@ function AddStreamDialogBody({ source }: { source: AddStreamSource }) {
   return (
     <div ref={dialogContent}>
       <p role="status" className="sr-only">
-        {addStreamStepAnnouncement(flowState, isTheRuntimeRunning, status.python_for_new_environments)}
+        {addStreamStepAnnouncement(flowState, isTheRuntimeRunning, status.python_for_new_environments, streamAlreadyImportedFrom(flowState.form, status.streams))}
       </p>
       {form.refusal !== null && flowState.step === "form" && (
         <div className="mb-4" data-add-stream-refusal="">
@@ -438,6 +441,7 @@ function AddStreamDialogBody({ source }: { source: AddStreamSource }) {
           startedAtMs={flowState.startedAtMs}
           makesThePythonEnvironmentFirst={flowState.makesThePythonEnvironmentFirst}
           pythonForNewEnvironments={status.python_for_new_environments}
+          defaultDisplayName={displayNamePlaceholderOf(flowState.form)}
         />
       )}
       {flowState.step === "running" && <StreamRunningView request={flowState.request} answer={flowState.answer} />}

@@ -217,6 +217,8 @@ describe("renaming a stream", () => {
 
     const displayNameField = await openTheRenameDialogOfTheSidebarRowOf("camera");
     expect(displayNameField.value).toBe("camera");
+    await waitFor(() => expect(document.activeElement).toBe(displayNameField));
+    expect([displayNameField.selectionStart, displayNameField.selectionEnd]).toEqual([0, "camera".length]);
     expect(document.querySelector("[data-stream-rename-dialog] h2")?.textContent).toBe("Rename camera");
     expect(document.querySelector<HTMLButtonElement>('[data-stream-rename-action="rename"]')?.disabled).toBe(true);
     fireEvent.change(displayNameField, { target: { value: "  Desk camera " } });

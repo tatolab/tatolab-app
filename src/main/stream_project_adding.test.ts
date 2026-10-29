@@ -97,10 +97,11 @@ test("a folder chosen through a link is handed to the window with its links reso
   temporaryHomes.push(linkToTheProject);
   const { streamProjectAdding, streamRuns } = await streamProjectAddingOverFakes({ dialogAnswer: succeeded(linkToTheProject) });
 
+  const projectFolderAsTheRuntimeListsIt = await realpath(projectFolder);
   const chosen = await streamProjectAdding.chooseStreamProjectFolder("project_to_run");
-  expect(chosen.ok && chosen.value?.folder).toBe(await realpath(projectFolder));
-  expect((await streamProjectAdding.runStreamProject(await realpath(projectFolder), null, null)).ok).toBe(true);
-  expect(streamRuns.runsAsked.map((runAsked) => runAsked.projectDirectory)).toEqual([await realpath(projectFolder)]);
+  expect(chosen.ok && chosen.value?.folder).toBe(projectFolderAsTheRuntimeListsIt);
+  expect((await streamProjectAdding.runStreamProject(projectFolderAsTheRuntimeListsIt, null, null)).ok).toBe(true);
+  expect(streamRuns.runsAsked.map((runAsked) => runAsked.projectDirectory)).toEqual([projectFolderAsTheRuntimeListsIt]);
 });
 
 test("a folder chosen in the dialog is handed to the window with what it holds; a cancelled dialog answers nothing", async () => {

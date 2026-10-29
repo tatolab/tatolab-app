@@ -84,7 +84,12 @@ export function folderToRun(form: AddStreamForm): StreamProjectFolderReport | nu
 /** The stream function to ask `run_stream` for: none for a project with one or no stream, which the runtime finds itself, else the chosen one as `module:function`. */
 export function streamFunctionArgumentFor(report: StreamProjectFolderReport, chosenStreamFunction: string | null): string | null {
   if (report.stream_functions.length <= 1 || chosenStreamFunction === null) return null;
-  return `stream:${chosenStreamFunction}`;
+  return streamFunctionAsTheRuntimeListsIt(chosenStreamFunction);
+}
+
+/** A function in a project's `stream.py` as the runtime names it, `module:function`: `stream:<name>`. */
+function streamFunctionAsTheRuntimeListsIt(streamFunction: string): string {
+  return `stream:${streamFunction}`;
 }
 
 /**
@@ -98,7 +103,8 @@ export function streamAlreadyImportedFrom(form: AddStreamForm, listedStreams: re
   return (
     listedStreams.find(
       (listedStream) =>
-        listedStream.location?.project_directory === folder.folder && (streamFunction === null || listedStream.location.stream_function === `stream:${streamFunction}`),
+        listedStream.location?.project_directory === folder.folder &&
+        (streamFunction === null || listedStream.location.stream_function === streamFunctionAsTheRuntimeListsIt(streamFunction)),
     ) ?? null
   );
 }
@@ -110,8 +116,10 @@ export function streamAlreadyImportedWords(listedStream: ListedStream): string {
 
 /** The name field's placeholder: the name the runtime shows the stream under when none is typed, its function's, for a stream not run before. */
 export function displayNamePlaceholderOf(form: AddStreamForm): string {
-  const folder = folderToRun(form) ?? form.projectFolder;
-  return form.chosenStreamFunction ?? folder?.stream_functions[0] ?? "";
+  const folder = folderToRun(form);
+  if (folder === null) return "";
+  const isTheChosenFunctionTheFolders = form.chosenStreamFunction !== null && folder.stream_functions.includes(form.chosenStreamFunction);
+  return isTheChosenFunctionTheFolders ? (form.chosenStreamFunction ?? "") : (folder.stream_functions[0] ?? "");
 }
 
 /** The run the form asks for now; `null` until there is a folder to run. A blank display name lets the runtime show the stream under its function's name, or the one its recorded stream keeps. */
@@ -340,9 +348,9 @@ export function compileWaitingWords(makesThePythonEnvironmentFirst: boolean, sta
   return `waiting for ${makesThePythonEnvironmentFirst ? "uv and the runtime" : "the runtime's answer"} · ${compilingForWords(startedAtMs, nowMs)}`;
 }
 
-/** The name a compile view calls the stream by: the display name asked for, else none yet. */
-export function compilingStreamWords(request: AddStreamRunRequest): string {
-  return request.displayName ?? "the stream";
+/** The name a compile view calls the stream by: the display name asked for, else `defaultDisplayName`, the one the runtime gives it. */
+export function compilingStreamWords(request: AddStreamRunRequest, defaultDisplayName: string): string {
+  return request.displayName ?? (defaultDisplayName === "" ? "the stream" : defaultDisplayName);
 }
 
 /** The facts beside a running stream's name: its nodes. */
@@ -366,10 +374,16 @@ export function addStreamDialogSection(state: AddStreamFlowState): string {
 }
 
 /**
- * What the dialog's status line says, for a screen reader, of a milestone a focus move alone does not say: a folder ready
- * to compile only while Add can be pressed. Refusals speak through their own alert.
+ * What the dialog's status line says, for a screen reader, of a milestone a focus move alone does not say: a project
+ * already imported, as `streamAlreadyImported`, or a folder ready to compile only while Add can be pressed. Refusals
+ * speak through their own alert.
  */
-export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string {
+export function addStreamStepAnnouncement(
+  state: AddStreamFlowState,
+  isTheRuntimeRunning: boolean,
+  pythonForNewEnvironments: PythonForNewEnvironments,
+  streamAlreadyImported: ListedStream | null,
+): string {
   switch (state.step) {
     case "compiling":
     case "running":
@@ -377,6 +391,7 @@ export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntim
     case "form": {
       const folder = folderToRun(state.form);
       if (folder === null) return "";
+      if (streamAlreadyImported !== null) return streamAlreadyImportedWords(streamAlreadyImported);
       if (addStreamActionUnavailableBecause(state.form, isTheRuntimeRunning, pythonForNewEnvironments) !== null) return "";
       return state.form.source === "new_project" ? `tatolab new wrote ${folder.folder}. Add is ready.` : `${folder.folder} is ready to add.`;
     }

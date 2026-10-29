@@ -237,7 +237,7 @@ export type StreamProjectPythonEnvironment =
 
 /** What the app found in a project folder the window may name: whether it exists, its `stream.py`, and its `.venv`. */
 export interface StreamProjectFolderReport {
-  /** An absolute path. */
+  /** An absolute path with its links resolved, as the runtime lists a stream's `project_directory`. */
   folder: string;
   folder_exists: boolean;
   stream_file_present: boolean;

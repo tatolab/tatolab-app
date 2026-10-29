@@ -111,6 +111,7 @@ describe("running a project folder", () => {
     expect(streamAlreadyImportedFrom(advanceAddStreamFlow(chosen, { kind: "stream_function_chosen", streamFunction: "back_door" }).form, [frontDoor])).toBeNull();
     expect(streamAlreadyImportedFrom(chosen.form, [listed("/Users/someone/code/doorways-v2", "stream:front_door")])).toBeNull();
     expect(streamAlreadyImportedFrom(chosen.form, null)).toBeNull();
+    expect(addStreamStepAnnouncement(chosen, true, TATOLABS_OWN_PYTHON, frontDoor)).toBe("Already imported as Front door.");
   });
 
   it("asks for the chosen function as module:function when a project has several streams, its name the placeholder", () => {
@@ -120,6 +121,7 @@ describe("running a project folder", () => {
     ]);
     expect(runRequestOf(chosen.form)).toEqual({ folder: "/Users/someone/code/doorways", streamFunction: "stream:back_door", displayName: null });
     expect(displayNamePlaceholderOf(chosen.form)).toBe("back_door");
+    expect(displayNamePlaceholderOf(advanceAddStreamFlow(chosen, { kind: "source_chosen", source: "new_project" }).form)).toBe("");
   });
 
   it("keeps the person's name and function across a new answer for the same folder, and starts afresh for another folder", () => {
@@ -247,21 +249,21 @@ describe("events that arrive outside the form", () => {
   });
 
   it("announces the form's milestones a focus move does not say, and leaves refusals to their own alert", () => {
-    expect(addStreamStepAnnouncement(running, true, TATOLABS_OWN_PYTHON)).toBe("");
-    expect(addStreamStepAnnouncement(initialAddStreamFlowState("project_folder"), true, TATOLABS_OWN_PYTHON)).toBe("");
+    expect(addStreamStepAnnouncement(running, true, TATOLABS_OWN_PYTHON, null)).toBe("");
+    expect(addStreamStepAnnouncement(initialAddStreamFlowState("project_folder"), true, TATOLABS_OWN_PYTHON, null)).toBe("");
     const created = afterEvents(initialAddStreamFlowState("new_project"), [
       { kind: "new_project_created", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"], python_environment: { kind: "missing" } }) },
     ]);
-    expect(addStreamStepAnnouncement(created, true, TATOLABS_OWN_PYTHON)).toBe("tatolab new wrote /Users/someone/streams/hello. Add is ready.");
-    expect(addStreamStepAnnouncement(created, false, TATOLABS_OWN_PYTHON)).toBe("");
+    expect(addStreamStepAnnouncement(created, true, TATOLABS_OWN_PYTHON, null)).toBe("tatolab new wrote /Users/someone/streams/hello. Add is ready.");
+    expect(addStreamStepAnnouncement(created, false, TATOLABS_OWN_PYTHON, null)).toBe("");
     const chosenWithNoVenv = afterEvents(initialAddStreamFlowState("project_folder"), [
       { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map", { python_environment: { kind: "missing" } }) },
     ]);
-    expect(addStreamStepAnnouncement(chosenWithNoVenv, true, TATOLABS_OWN_PYTHON)).toBe("/Users/someone/code/heat-map is ready to add.");
+    expect(addStreamStepAnnouncement(chosenWithNoVenv, true, TATOLABS_OWN_PYTHON, null)).toBe("/Users/someone/code/heat-map is ready to add.");
     const synced = advanceAddStreamFlow(created, { kind: "new_project_folder_answered", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"] }) });
-    expect(addStreamStepAnnouncement(synced, true, TATOLABS_OWN_PYTHON)).toBe("tatolab new wrote /Users/someone/streams/hello. Add is ready.");
-    expect(addStreamStepAnnouncement(synced, false, TATOLABS_OWN_PYTHON)).toBe("");
-    expect(addStreamStepAnnouncement(advanceAddStreamFlow(synced, { kind: "work_refused", lead: "The folder dialog was refused:", words: "gone" }), true, TATOLABS_OWN_PYTHON)).toBe(
+    expect(addStreamStepAnnouncement(synced, true, TATOLABS_OWN_PYTHON, null)).toBe("tatolab new wrote /Users/someone/streams/hello. Add is ready.");
+    expect(addStreamStepAnnouncement(synced, false, TATOLABS_OWN_PYTHON, null)).toBe("");
+    expect(addStreamStepAnnouncement(advanceAddStreamFlow(synced, { kind: "work_refused", lead: "The folder dialog was refused:", words: "gone" }), true, TATOLABS_OWN_PYTHON, null)).toBe(
       "tatolab new wrote /Users/someone/streams/hello. Add is ready.",
     );
     expect(addStreamDialogSection(created)).toBe(addStreamDialogSection(synced));
@@ -293,7 +295,9 @@ describe("the commands and words the page shows", () => {
   });
 
   it("words the compile view's name, the running facts and what the runtime did", () => {
-    expect(compilingStreamWords({ folder: "/x", streamFunction: null, displayName: null })).toBe("the stream");
+    expect(compilingStreamWords({ folder: "/x", streamFunction: null, displayName: null }, "heat_map")).toBe("heat_map");
+    expect(compilingStreamWords({ folder: "/x", streamFunction: null, displayName: "Heat map" }, "heat_map")).toBe("Heat map");
+    expect(compilingStreamWords({ folder: "/x", streamFunction: null, displayName: null }, "")).toBe("the stream");
     expect(streamRunningFactsWords(HEAT_MAP_ANSWER)).toBe("4 nodes");
     expect(streamRunAnswerLines({ ...HEAT_MAP_ANSWER, replaced_a_recorded_stream: true })).toEqual([
       "loaded heat_map as heat-map-heat-map-2c71fa: 4 nodes, replacing its last run",
