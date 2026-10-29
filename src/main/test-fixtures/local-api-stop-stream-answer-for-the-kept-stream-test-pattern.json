@@ -1,1 +1,0 @@
-{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"stream\": \"test-pattern\",\n  \"stopped\": true,\n  \"kept\": true\n}"}],"isError":false}}

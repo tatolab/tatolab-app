@@ -36,7 +36,7 @@ generic provider. A check on its own only notifies that a newer version is avail
 downloads or installs until the person chooses "Check for Updates…" in the tray, or its button in
 Settings. On macOS Squirrel.Mac replaces the bundle from the signed `.zip` and reopens it, and the
 app then registers the runtime's agent again, so launchd runs the
-version the bundle ships with and the runtime reloads its kept streams; the AppImage replaces its own file and reopens; a `.deb` opens the newer
+version the bundle ships with and the runtime reloads its streams; the AppImage replaces its own file and reopens; a `.deb` opens the newer
 package's download in the browser, since apt alone replaces it. The feed's manifests are
 `app/latest-mac.yml` and `app/latest-linux.yml`, which point at `releases/<version>/`.
 
@@ -92,7 +92,7 @@ status reads the agent as `not_found` until the installer has run.
 ## Uninstalling
 
 Uninstalling removes the runtime's service and files and never its state directory, where the
-runtime keeps your kept streams and logs.
+runtime keeps your streams and logs.
 
 **macOS.** The app's "Uninstall Tatolab…":
 

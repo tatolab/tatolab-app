@@ -172,7 +172,7 @@ function GraphDocumentBar({ children }: { children: ReactNode }) {
 
 /** Inspect: the `graph` document of the loaded stream as the runtime gives it, raw or as a tree to fold. */
 export function StreamInspectPageView({ stream }: { stream: ListedStream }) {
-  const reading = useStreamGraphReading(stream.name);
+  const reading = useStreamGraphReading(stream.stream);
   const [shownView, setShownView] = useState<GraphDocumentView>("raw");
   const graphDocumentText = reading.graphSource === "loaded" ? (reading.graph?.graph_document_text ?? null) : null;
   const graphDocument = useMemo(() => (graphDocumentText === null ? null : readTheGraphDocument(graphDocumentText)), [graphDocumentText]);

@@ -1,7 +1,8 @@
 import { cn } from "cn";
 import { ChevronDown, Ellipsis, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -22,6 +23,10 @@ import { ICON_BUTTON_CLASS_NAMES, STOCK_ICON_BUTTON_SIZE, type IconButtonSize } 
 export type MenuWidth = "fit" | "wide";
 
 const MENU_WIDTH_CLASS_NAMES: Record<MenuWidth, string> = { fit: "w-auto min-w-56", wide: "w-[288px] max-h-96" };
+
+/** A menu choice's padding and its icon's look, the same in a dropdown menu and a right-click menu. */
+const MENU_ITEM_CLASS_NAMES = "px-2";
+const MENU_ITEM_ICON_CLASS_NAMES = "size-4 text-fg-3";
 
 /** An icon button that opens a menu of its choices: regular in rows and bars, compact beside a heading. */
 export function IconButtonMenu({
@@ -141,13 +146,40 @@ export function MenuItem({
       closeOnClick={!keepsTheMenuOpen}
       disabled={isDisabled}
       onClick={onChosen}
-      className="px-2 data-[variant=destructive]:text-danger-text data-[variant=destructive]:focus:text-danger-text"
+      className={cn(MENU_ITEM_CLASS_NAMES, "data-[variant=destructive]:text-danger-text data-[variant=destructive]:focus:text-danger-text")}
       {...controlDataAttributes}
     >
-      {ItemIcon !== undefined && <ItemIcon className={cn("size-4", isDestructive ? "text-danger" : "text-fg-3")} strokeWidth={1.75} aria-hidden />}
+      {ItemIcon !== undefined && <ItemIcon className={cn(MENU_ITEM_ICON_CLASS_NAMES, isDestructive && "text-danger")} strokeWidth={1.75} aria-hidden />}
       {leading}
       {children}
     </DropdownMenuItem>
+  );
+}
+
+/** A menu a right-click on `children` opens at the pointer; `children` is the row itself, so a click in the menu never reaches the row. */
+export function RightClickMenu({ label, choices, children }: { label: string; choices: ReactNode; children: ReactElement }) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger render={children} />
+      <ContextMenuContent aria-label={label} className={MENU_WIDTH_CLASS_NAMES.fit}>
+        {choices}
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+/** One choice of a right-click menu, drawn as a dropdown menu's choice is. */
+export function RightClickMenuItem({
+  icon: ItemIcon,
+  onChosen,
+  children,
+  ...controlDataAttributes
+}: { icon?: LucideIcon; onChosen: () => void; children: ReactNode } & ControlDataAttributes) {
+  return (
+    <ContextMenuItem onClick={onChosen} className={MENU_ITEM_CLASS_NAMES} {...controlDataAttributes}>
+      {ItemIcon !== undefined && <ItemIcon className={MENU_ITEM_ICON_CLASS_NAMES} strokeWidth={1.75} aria-hidden />}
+      {children}
+    </ContextMenuItem>
   );
 }
 

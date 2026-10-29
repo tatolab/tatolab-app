@@ -10,9 +10,9 @@ export const STREAM_PAGE_TABS = ["overview", "graph", "logs", "inspect"] as cons
 /** One tab of a stream's page. */
 export type StreamPageTab = (typeof STREAM_PAGE_TABS)[number];
 
-/** The path of `streamName`'s page in the window's router, on `tab`; Overview is the page's own path. */
-export function streamPagePath(streamName: string, tab: StreamPageTab = "overview"): string {
-  const streamPath = `/streams/${encodeURIComponent(streamName)}`;
+/** The path of `streamId`'s page in the window's router, on `tab`; Overview is the page's own path. */
+export function streamPagePath(streamId: string, tab: StreamPageTab = "overview"): string {
+  const streamPath = `/streams/${encodeURIComponent(streamId)}`;
   return tab === "overview" ? streamPath : `${streamPath}/${tab}`;
 }
 

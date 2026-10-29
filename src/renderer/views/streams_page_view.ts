@@ -2,7 +2,7 @@ import type { TatolabBackend } from "../backend/tatolab_backend";
 import type { ListedStream, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import { createElement } from "../dom";
 import { presentRuntimeStatus, type RuntimeDisplayPresentation } from "../presentation/runtime_presentation";
-import { chooseSelectedStreamName } from "../presentation/stream_selection";
+import { chooseSelectedStreamId } from "../presentation/stream_selection";
 import { createRuntimeStatePage, createStreamsNotListedPage } from "./runtime_state_page_view";
 import type { TatolabWindowPage } from "./tatolab_window_page";
 
@@ -18,7 +18,7 @@ export class StreamsPageView implements TatolabWindowPage {
   private shownBodyKind: StreamsPageBodyKind | null = null;
   /** The body kind, and for a runtime that isn't running which state it is in, so a new state redraws it. */
   private shownBodyKey: string | null = null;
-  private selectedStreamName: string | null = null;
+  private selectedStreamId: string | null = null;
   private listedStreams: ListedStream[] = [];
   private latestStatus: TatolabStatus | null = null;
   private runtimeLastAnsweredAt: Date | null = null;
@@ -45,10 +45,10 @@ export class StreamsPageView implements TatolabWindowPage {
     this.showBody(bodyKind, presentation);
 
     if (status.streams !== null && isRunning) {
-      this.selectedStreamName = chooseSelectedStreamName(
+      this.selectedStreamId = chooseSelectedStreamId(
         status.streams,
-        this.selectedStreamName,
-        this.listedStreams.map((stream) => stream.name),
+        this.selectedStreamId,
+        this.listedStreams.map((stream) => stream.stream),
       );
       this.listedStreams = status.streams;
     } else if (status.streams !== null) {
@@ -58,18 +58,18 @@ export class StreamsPageView implements TatolabWindowPage {
     }
   }
 
-  /** Selects `streamName`, as the window's route or Search does. */
-  chooseStream(streamName: string): void {
-    if (!this.listedStreams.some((stream) => stream.name === streamName)) return;
-    this.selectedStreamName = streamName;
+  /** Selects `streamId`, as the window's route or Search does. */
+  chooseStream(streamId: string): void {
+    if (!this.listedStreams.some((stream) => stream.stream === streamId)) return;
+    this.selectedStreamId = streamId;
   }
 
   /** The stream listed before (`-1`) or after (`1`) the selected one; `null` when there is none to go to. */
-  adjacentStreamName(step: -1 | 1): string | null {
+  adjacentStreamId(step: -1 | 1): string | null {
     if (this.shownBodyKind !== "stream" || this.listedStreams.length === 0) return null;
-    const selectedIndex = this.listedStreams.findIndex((stream) => stream.name === this.selectedStreamName);
+    const selectedIndex = this.listedStreams.findIndex((stream) => stream.stream === this.selectedStreamId);
     const nextIndex = Math.min(this.listedStreams.length - 1, Math.max(0, selectedIndex + step));
-    return this.listedStreams[nextIndex]?.name ?? null;
+    return this.listedStreams[nextIndex]?.stream ?? null;
   }
 
   listedStreamsForSearch(): ListedStream[] {
@@ -77,7 +77,7 @@ export class StreamsPageView implements TatolabWindowPage {
   }
 
   selectedStream(): ListedStream | null {
-    return this.listedStreams.find((stream) => stream.name === this.selectedStreamName) ?? null;
+    return this.listedStreams.find((stream) => stream.stream === this.selectedStreamId) ?? null;
   }
 
   machineName(): string | null {

@@ -1,18 +1,12 @@
 // Adding a stream from the window: choosing a project folder or a new project's directory,
 // checking what the folder holds, writing the sample project with `tatolab new`, and running a
-// folder kept through the runtime's `run_stream`, its `.venv` made first when it has none that
-// runs. A command naming a folder acts only on one this module handed the window, from the app's
-// own folder dialog or its proposal, so a page can never have the app read, write or run a path of
+// folder through the runtime's `run_stream`, its `.venv` made first when it has none that runs.
+// A command naming a folder acts only on one this module handed the window, from the app's own
+// folder dialog or its proposal, so a page can never have the app read, write or run a path of
 // its choosing.
 
 import path from "node:path";
-import type {
-  ListedStream,
-  StreamProjectFolderChosenFor,
-  StreamProjectFolderReport,
-  StreamProjectRunOutcome,
-  StreamRunAnswer,
-} from "../shared/tatolab_backend_contract.js";
+import type { StreamProjectFolderChosenFor, StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure, StreamRunRequest } from "./local_api_client.js";
 import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
 import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_tool.js";
@@ -32,10 +26,9 @@ const FIRST_SUFFIX_OF_A_TAKEN_NAME = 2;
 /** Asks the person for a folder in the desktop's dialog, opened at `defaultFolder`: an existing project to run, or a new project's directory, which may not exist yet. `null` when they cancel. */
 export type StreamProjectFolderDialog = (chosenFor: StreamProjectFolderChosenFor, defaultFolder: string) => Promise<Result<string | null, string>>;
 
-/** The runtime's two tools a run needs: `run_stream`, and `list_streams` to tell a taken name. */
+/** The runtime's tool a run needs: `run_stream`. */
 export interface StreamRunsOnTheRuntime {
   runStream(streamRunRequest: StreamRunRequest): Promise<Result<StreamRunAnswer, LocalApiRequestFailure>>;
-  listStreams(): Promise<Result<ListedStream[], LocalApiRequestFailure>>;
 }
 
 /** What adding a stream reaches: the person's home, the dialog, the `tatolab` CLI and how programs run, the app's making of a project's `.venv`, and the runtime. */
@@ -93,30 +86,17 @@ export class StreamProjectAdding {
   }
 
   /**
-   * Run `folder` kept through `run_stream`, making its `.venv` first when it has none that runs; uv failing to is
-   * `python_environment_not_made`, in uv's own words. A refusal is answered in the runtime's own words; one of a
-   * `streamName` a listed stream from another folder holds is `name_taken`, with the first `<name>-<n>` no listed stream
-   * holds. The runtime compiles before it reads the name and replaces a stream of the same folder and function, so a
-   * refusal while this folder's own stream holds the name is answered as it is: the listing names no function to tell
-   * the two apart.
+   * Run `folder` through `run_stream` under `displayName`, `null` for the function's own or the one its recorded stream
+   * keeps, making its `.venv` first when it has none that runs; uv failing to is `python_environment_not_made`, in uv's
+   * own words. A refusal is answered in the runtime's own words.
    */
-  async runStreamProject(folder: string, streamFunction: string | null, streamName: string | null): Promise<Result<StreamProjectRunOutcome, string>> {
+  async runStreamProject(folder: string, streamFunction: string | null, displayName: string | null): Promise<Result<StreamProjectRunOutcome, string>> {
     const projectFolder = this.folderHandedToTheWindow(folder);
     if (!projectFolder.ok) return projectFolder;
     const pythonEnvironment = await this.sources.makePythonEnvironmentUnlessOneWorks(projectFolder.value);
     if (!pythonEnvironment.ok) return succeeded({ kind: "python_environment_not_made", words: pythonEnvironment.failure });
-    const streamRuns = this.sources.streamRunsOnTheRuntime;
-    const run = await streamRuns.runStream({ projectDirectory: projectFolder.value, streamFunction, streamName });
-    if (run.ok) return succeeded({ kind: "running", answer: run.value });
-    const refusal = run.failure.failureDescription;
-    if (!run.failure.isTheRuntimesRefusal || streamName === null) return failedWith(refusal);
-    const listedStreams = await streamRuns.listStreams();
-    if (!listedStreams.ok) return failedWith(refusal);
-    const holder = listedStreams.value.find((listedStream) => listedStream.name === streamName);
-    if (holder === undefined) return failedWith(refusal);
-    if ((await realPathOrAsGiven(holder.project_directory)) === (await realPathOrAsGiven(projectFolder.value))) return failedWith(refusal);
-    const listedNames = listedStreams.value.map((listedStream) => listedStream.name);
-    return succeeded({ kind: "name_taken", refusal, free_name: await firstFreeSuffixedName(streamName, (candidate) => listedNames.includes(candidate)) });
+    const run = await this.sources.streamRunsOnTheRuntime.runStream({ projectDirectory: projectFolder.value, streamFunction, displayName });
+    return run.ok ? succeeded({ kind: "running", answer: run.value }) : failedWith(run.failure.failureDescription);
   }
 
   /** `folder` resolved, when the app handed it to the window; refused otherwise. */
@@ -140,8 +120,9 @@ export class StreamProjectAdding {
     return path.join(newStreamProjectsFolder, freeName);
   }
 
+  /** `folder` with its links resolved, as the runtime lists a stream's project directory, so the window can tell a project already imported. */
   private async handToTheWindow(folder: string): Promise<StreamProjectFolderReport> {
-    const resolvedFolder = path.resolve(folder);
+    const resolvedFolder = await realPathOrAsGiven(path.resolve(folder));
     this.foldersHandedToTheWindow.add(resolvedFolder);
     return inspectStreamProjectFolder(resolvedFolder);
   }

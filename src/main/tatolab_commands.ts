@@ -114,6 +114,15 @@ export function runStreamAction(sharedState: TatolabAppSharedState, streamAction
   });
 }
 
+/** `rename_stream { stream, display_name }`: the runtime's `rename_stream` on `stream`, then a status round whether it renamed or refused; refused in the runtime's own words. */
+export function renameStream(sharedState: TatolabAppSharedState, stream: string, displayName: string): Promise<Result<void, string>> {
+  return answerTheWindow("rename_stream", async () => {
+    const renamed = await sharedState.controller.renameStream(stream, displayName);
+    sharedState.statusPublisher.requestRefresh();
+    return renamed.ok ? renamed : failedWith(renamed.failure.failureDescription);
+  });
+}
+
 /** Where each command that opens a stream's project folder opens it. */
 const STREAM_PROJECT_FOLDER_OPENING_OF_THE_COMMAND = {
   open_stream_project_folder: "file_manager",
@@ -155,15 +164,15 @@ export function createStreamProject(sharedState: TatolabAppSharedState, folder: 
   return answerTheWindow("create_stream_project", () => sharedState.streamProjectAdding.createStreamProject(folder));
 }
 
-/** `run_stream_project { folder, stream_function, name }`: `run_stream` on `folder`, kept, then a status round whether it loaded or was refused. */
+/** `run_stream_project { folder, stream_function, name }`: `run_stream` on `folder` under the display name `name`, then a status round whether it loaded or was refused. */
 export function runStreamProject(
   sharedState: TatolabAppSharedState,
   folder: string,
   streamFunction: string | null,
-  streamName: string | null,
+  displayName: string | null,
 ): Promise<Result<StreamProjectRunOutcome, string>> {
   return answerTheWindow("run_stream_project", async () => {
-    const outcome = await sharedState.streamProjectAdding.runStreamProject(folder, streamFunction, streamName);
+    const outcome = await sharedState.streamProjectAdding.runStreamProject(folder, streamFunction, displayName);
     sharedState.statusPublisher.requestRefresh();
     return outcome;
   });
@@ -293,15 +302,23 @@ export function enabledArgumentsFrom(commandName: TatolabCommandName, commandArg
 /** `read_stream_log_records`'s arguments as the window sends them, or why they are not. */
 export function readStreamLogRecordsArgumentsFrom(commandArguments: unknown): Result<{ stream: string; after: number }, string> {
   if (!isAJsonObject(commandArguments) || typeof commandArguments["stream"] !== "string" || !isAnUnsignedInteger(commandArguments["after"])) {
-    return failedWith("read_stream_log_records needs `stream`, a stream's name, and `after`, a sequence number from 0");
+    return failedWith("read_stream_log_records needs `stream`, a stream's id, and `after`, a sequence number from 0");
   }
   return succeeded({ stream: commandArguments["stream"], after: commandArguments["after"] });
 }
 
 /** The `{ stream }` arguments of the command `commandName` as the window sends them, or why they are not. */
 export function streamArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ stream: string }, string> {
-  const stream = oneTextArgumentFrom(commandName, commandArguments, "stream", "a stream's name");
+  const stream = oneTextArgumentFrom(commandName, commandArguments, "stream", "a stream's id");
   return stream.ok ? succeeded({ stream: stream.value }) : stream;
+}
+
+/** `rename_stream`'s arguments as the window sends them, or why they are not. */
+export function renameStreamArgumentsFrom(commandArguments: unknown): Result<{ stream: string; display_name: string }, string> {
+  const stream = oneTextArgumentFrom("rename_stream", commandArguments, "stream", "a stream's id");
+  if (!stream.ok) return stream;
+  const displayName = oneTextArgumentFrom("rename_stream", commandArguments, "display_name", "the display name to show it under");
+  return displayName.ok ? succeeded({ stream: stream.value, display_name: displayName.value }) : displayName;
 }
 
 /** The text argument `argumentName` of the command `commandName`, or why the window's arguments carry none, naming what it is. */
@@ -393,6 +410,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     },
     start_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "start_stream", commandArguments)),
     remove_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "remove_stream", commandArguments)),
+    rename_stream: async (commandArguments) => {
+      const renameStreamArguments = renameStreamArgumentsFrom(commandArguments);
+      if (!renameStreamArguments.ok) return { ok: false, refusal: renameStreamArguments.failure };
+      return commandAnswerOfNothingFrom(await renameStream(sharedState, renameStreamArguments.value.stream, renameStreamArguments.value.display_name));
+    },
     open_stream_project_folder: async (commandArguments) =>
       commandAnswerOfNothingFrom(await streamProjectFolderOpeningOnTheStreamNamedIn(sharedState, "open_stream_project_folder", commandArguments)),
     open_terminal_at_stream_project: async (commandArguments) =>

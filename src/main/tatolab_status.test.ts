@@ -16,9 +16,10 @@ import {
 
 function listedStreams(streamCount: number): ListedStream[] {
   return Array.from({ length: streamCount }, (_, streamIndex) => ({
-    name: `stream-${streamIndex}`,
-    state: "kept",
-    project_directory: `/projects/stream-${streamIndex}`,
+    stream: `stream-${streamIndex}-main-3d9f01`,
+    display_name: `stream-${streamIndex}`,
+    location: { project_directory: `/projects/stream-${streamIndex}`, stream_function: "stream:main" },
+    state: "running",
     node_count: 2,
     failed_because: null,
   }));

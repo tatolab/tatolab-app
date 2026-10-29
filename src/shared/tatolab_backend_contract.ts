@@ -19,11 +19,21 @@ export type RuntimeState = "running" | "starting" | "stopped" | "unreachable" | 
 /** `/usr/local/bin/tatolab` on macOS: linked to this app's CLI, not linked, or not offered with why (Linux, whose installer links the command; a local-proof build; an app with no CLI in it). */
 export type CommandLineToolUsrLocalBinLink = { kind: "linked"; path: string } | { kind: "not_linked" } | { kind: "not_offered"; reason: string };
 
-/** One stream the runtime lists. `state` is attached, kept, stopped or failed, or a state newer than this app. */
-export interface ListedStream {
-  name: string;
-  state: string;
+/** Where a stream's code lives, which its stream id is computed from: its project directory, symlinks resolved, and its stream function as `module:qualname`. */
+export interface StreamLocation {
   project_directory: string;
+  stream_function: string;
+}
+
+/** One stream the runtime lists. `state` is running, stopped or failed, or a state newer than this app. */
+export interface ListedStream {
+  /** Its stream id, `<folder>-<function>-<hash>`, which every tool about one stream names it by. */
+  stream: string;
+  /** The label the runtime shows it under; free text, and never unique. */
+  display_name: string;
+  /** `null` for a record an earlier runtime wrote, which is listed failed until it is removed. */
+  location: StreamLocation | null;
+  state: string;
   /** How many nodes its loaded graph holds; `null` while it is not loaded. */
   node_count: number | null;
   failed_because: string | null;
@@ -34,7 +44,7 @@ export type TatolabStreamActionName = "stop_stream" | "start_stream" | "remove_s
 
 /** What `stop_stream` answers. */
 export interface StreamStopAnswer {
-  /** The runtime's words when it unloaded a kept stream but could not record it stopped, so a runtime restart loads it again; `null` otherwise. */
+  /** The runtime's words when it unloaded a stream but could not record it stopped, so a runtime restart loads it again; `null` otherwise. */
   not_recorded_because: string | null;
 }
 
@@ -227,7 +237,7 @@ export type StreamProjectPythonEnvironment =
 
 /** What the app found in a project folder the window may name: whether it exists, its `stream.py`, and its `.venv`. */
 export interface StreamProjectFolderReport {
-  /** An absolute path. */
+  /** An absolute path with its links resolved, as the runtime lists a stream's `project_directory`. */
   folder: string;
   folder_exists: boolean;
   stream_file_present: boolean;
@@ -238,27 +248,20 @@ export interface StreamProjectFolderReport {
 
 /** What `run_stream` answers for a load it carried out, field for field. */
 export interface StreamRunAnswer {
-  /** The name the stream was loaded under, as the runtime cast it. */
+  /** The stream id the runtime computed from the stream's location. */
   stream: string;
+  display_name: string;
   stream_instance: string;
-  kept: boolean;
-  project_directory: string;
+  location: StreamLocation;
   node_count: number;
-  /** Whether the load replaced the kept stream of the same project and function. */
-  replaced_the_kept_record: boolean;
+  /** Whether the load replaced the recorded stream of the same location, under the same id. */
+  replaced_a_recorded_stream: boolean;
   /** Each line the compile wrote to its standard error, the cross-floor check's warnings among them. */
   compile_warnings: string[];
 }
 
-/**
- * What running a project folder came to: the stream running; the runtime's refusal of a name a listed stream holds, with the
- * first name no listed stream holds; or the app's uv failing to make the project's `.venv` first, in uv's own words. Any
- * other refusal is the command's refusal.
- */
-export type StreamProjectRunOutcome =
-  | { kind: "running"; answer: StreamRunAnswer }
-  | { kind: "name_taken"; refusal: string; free_name: string }
-  | { kind: "python_environment_not_made"; words: string };
+/** What running a project folder came to: the stream running, or the app's uv failing to make the project's `.venv` first, in uv's own words. Any other refusal is the command's refusal. */
+export type StreamProjectRunOutcome = { kind: "running"; answer: StreamRunAnswer } | { kind: "python_environment_not_made"; words: string };
 
 /** The Python the app makes a project's `.venv` from: Tatolab's own, with its version; Tatolab's own in a build that carries none, with why; or the interpreter the person chose in Settings. */
 export type PythonForNewEnvironments =

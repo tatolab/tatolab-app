@@ -1,13 +1,13 @@
-import type { PythonForNewEnvironments, StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, PythonForNewEnvironments, StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
 
 /** Where a new stream starts from: a project folder the person has, or a new project `tatolab new` writes. */
 export type AddStreamSource = "project_folder" | "new_project";
 
-/** The run the window asks `run_stream` for: a folder, the stream function as `tatolab run` takes it, and the name to load it under. */
+/** The run the window asks `run_stream` for: a folder, the stream function as `tatolab run` takes it, and the display name to show it under. */
 export interface AddStreamRunRequest {
   folder: string;
   streamFunction: string | null;
-  streamName: string | null;
+  displayName: string | null;
 }
 
 /** What the backend is doing for the form while it waits. */
@@ -23,9 +23,7 @@ export interface AddStreamForm {
   hasCreatedTheNewProject: boolean;
   /** The `@stream` function chosen when the folder's `stream.py` has several. */
   chosenStreamFunction: string | null;
-  streamName: string;
-  /** The runtime's refusal of a name a listed stream holds, with the first name none holds. */
-  nameTaken: { refusal: string; freeName: string } | null;
+  displayName: string;
   /** The last refusal the backend gave, in its own words, after the window's lead naming what was refused. */
   refusal: { lead: string; words: string } | null;
   workUnderWay: AddStreamWorkUnderWay | null;
@@ -46,7 +44,7 @@ export type AddStreamFlowEvent =
   | { kind: "new_project_folder_answered"; report: StreamProjectFolderReport }
   | { kind: "new_project_created"; report: StreamProjectFolderReport }
   | { kind: "stream_function_chosen"; streamFunction: string }
-  | { kind: "stream_name_edited"; streamName: string }
+  | { kind: "display_name_edited"; displayName: string }
   | { kind: "work_refused"; lead: string; words: string }
   | { kind: "run_started"; request: AddStreamRunRequest; nowMs: number }
   | { kind: "run_answered"; outcome: StreamProjectRunOutcome }
@@ -61,8 +59,7 @@ export function emptyAddStreamForm(source: AddStreamSource): AddStreamForm {
     newProjectFolder: null,
     hasCreatedTheNewProject: false,
     chosenStreamFunction: null,
-    streamName: "",
-    nameTaken: null,
+    displayName: "",
     refusal: null,
     workUnderWay: null,
   };
@@ -84,31 +81,65 @@ export function folderToRun(form: AddStreamForm): StreamProjectFolderReport | nu
   return form.hasCreatedTheNewProject ? form.newProjectFolder : null;
 }
 
-/** The stream function to ask `run_stream` for: none for a `stream.py` with one or no `@stream`, which the runtime finds itself, else the chosen one as `tatolab run` takes it. */
+/** The stream function to ask `run_stream` for: none for a project with one or no stream, which the runtime finds itself, else the chosen one as `module:function`. */
 export function streamFunctionArgumentFor(report: StreamProjectFolderReport, chosenStreamFunction: string | null): string | null {
   if (report.stream_functions.length <= 1 || chosenStreamFunction === null) return null;
-  return `stream.py:${chosenStreamFunction}`;
+  return streamFunctionAsTheRuntimeListsIt(chosenStreamFunction);
 }
 
-/** The run the form asks for now; `null` until there is a folder to run. A blank name lets the runtime name the stream after its function. */
+/** A function in a project's `stream.py` as the runtime names it, `module:function`: `stream:<name>`. */
+function streamFunctionAsTheRuntimeListsIt(streamFunction: string): string {
+  return `stream:${streamFunction}`;
+}
+
+/**
+ * The listed stream the chosen project folder's chosen stream already runs as, which importing it again leaves as it is;
+ * `null` for a folder or stream not imported. The runtime lists a stream's function as `module:function`, `stream:<name>` for one in `stream.py`.
+ */
+export function streamAlreadyImportedFrom(form: AddStreamForm, listedStreams: readonly ListedStream[] | null): ListedStream | null {
+  const folder = form.source === "project_folder" ? form.projectFolder : null;
+  if (folder === null || listedStreams === null) return null;
+  const streamFunction = form.chosenStreamFunction ?? folder.stream_functions[0] ?? null;
+  return (
+    listedStreams.find(
+      (listedStream) =>
+        listedStream.location?.project_directory === folder.folder &&
+        (streamFunction === null || listedStream.location.stream_function === streamFunctionAsTheRuntimeListsIt(streamFunction)),
+    ) ?? null
+  );
+}
+
+/** What the form says of a stream already imported. */
+export function streamAlreadyImportedWords(listedStream: ListedStream): string {
+  return `Already imported as ${listedStream.display_name}.`;
+}
+
+/** The name field's placeholder: the name the runtime shows the stream under when none is typed, its function's, for a stream not run before. */
+export function displayNamePlaceholderOf(form: AddStreamForm): string {
+  const folder = folderToRun(form);
+  if (folder === null) return "";
+  const isTheChosenFunctionTheFolders = form.chosenStreamFunction !== null && folder.stream_functions.includes(form.chosenStreamFunction);
+  return isTheChosenFunctionTheFolders ? (form.chosenStreamFunction ?? "") : (folder.stream_functions[0] ?? "");
+}
+
+/** The run the form asks for now; `null` until there is a folder to run. A blank display name lets the runtime show the stream under its function's name, or the one its recorded stream keeps. */
 export function runRequestOf(form: AddStreamForm): AddStreamRunRequest | null {
   const folder = folderToRun(form);
   if (folder === null) return null;
-  const streamName = form.streamName.trim();
-  return { folder: folder.folder, streamFunction: streamFunctionArgumentFor(folder, form.chosenStreamFunction), streamName: streamName === "" ? null : streamName };
+  const displayName = form.displayName.trim();
+  return { folder: folder.folder, streamFunction: streamFunctionArgumentFor(folder, form.chosenStreamFunction), displayName: displayName === "" ? null : displayName };
 }
 
 function withForm(state: AddStreamFlowState, changes: Partial<AddStreamForm>): AddStreamFlowState {
   return { step: "form", form: { ...state.form, ...changes } };
 }
 
-function streamFunctionsChoiceAfter(previous: StreamProjectFolderReport | null, report: StreamProjectFolderReport, form: AddStreamForm): Pick<AddStreamForm, "chosenStreamFunction" | "streamName"> {
+function streamFunctionsChoiceAfter(previous: StreamProjectFolderReport | null, report: StreamProjectFolderReport, form: AddStreamForm): Pick<AddStreamForm, "chosenStreamFunction" | "displayName"> {
   const isTheSameFolder = previous?.folder === report.folder;
   if (isTheSameFolder && form.chosenStreamFunction !== null && report.stream_functions.includes(form.chosenStreamFunction)) {
-    return { chosenStreamFunction: form.chosenStreamFunction, streamName: form.streamName };
+    return { chosenStreamFunction: form.chosenStreamFunction, displayName: form.displayName };
   }
-  const firstStreamFunction = report.stream_functions[0] ?? null;
-  return { chosenStreamFunction: firstStreamFunction, streamName: isTheSameFolder && form.streamName !== "" ? form.streamName : (firstStreamFunction ?? "") };
+  return { chosenStreamFunction: report.stream_functions[0] ?? null, displayName: isTheSameFolder ? form.displayName : "" };
 }
 
 /** The dialog after `event`. An event of the form changes only the form step: one that arrives while a run compiles or once it runs is about a form no longer shown. */
@@ -120,8 +151,6 @@ export function advanceAddStreamFlow(state: AddStreamFlowState, event: AddStream
       switch (event.outcome.kind) {
         case "running":
           return { step: "running", form, request: state.request, answer: event.outcome.answer };
-        case "name_taken":
-          return withForm(state, { nameTaken: { refusal: event.outcome.refusal, freeName: event.outcome.free_name } });
         case "python_environment_not_made":
           return withForm(state, { refusal: { lead: PYTHON_ENVIRONMENT_NOT_MADE_LEAD, words: event.outcome.words } });
       }
@@ -140,7 +169,7 @@ function advanceTheForm(state: AddStreamFlowState, event: AddStreamFlowEvent): A
   const form = state.form;
   switch (event.kind) {
     case "source_chosen":
-      return withForm(state, { source: event.source, nameTaken: null, refusal: null, workUnderWay: null });
+      return withForm(state, { source: event.source, refusal: null, workUnderWay: null });
     case "work_started":
       return withForm(state, { workUnderWay: event.work, refusal: null });
     case "folder_dialog_cancelled":
@@ -149,14 +178,13 @@ function advanceTheForm(state: AddStreamFlowState, event: AddStreamFlowEvent): A
       return withForm(state, {
         projectFolder: event.report,
         ...streamFunctionsChoiceAfter(form.projectFolder, event.report, form),
-        nameTaken: form.projectFolder?.folder === event.report.folder ? form.nameTaken : null,
         workUnderWay: null,
       });
     case "new_project_folder_answered":
       return withForm(state, {
         newProjectFolder: event.report,
         hasCreatedTheNewProject: form.hasCreatedTheNewProject && form.newProjectFolder?.folder === event.report.folder,
-        streamName: form.newProjectFolder?.folder === event.report.folder ? form.streamName : folderBaseName(event.report.folder),
+        displayName: form.newProjectFolder?.folder === event.report.folder ? form.displayName : folderBaseName(event.report.folder),
         workUnderWay: null,
       });
     case "new_project_created":
@@ -167,15 +195,15 @@ function advanceTheForm(state: AddStreamFlowState, event: AddStreamFlowEvent): A
         workUnderWay: null,
       });
     case "stream_function_chosen":
-      return withForm(state, { chosenStreamFunction: event.streamFunction, streamName: event.streamFunction, nameTaken: null });
-    case "stream_name_edited":
-      return withForm(state, { streamName: event.streamName, nameTaken: null });
+      return withForm(state, { chosenStreamFunction: event.streamFunction });
+    case "display_name_edited":
+      return withForm(state, { displayName: event.displayName });
     case "work_refused":
       return withForm(state, { refusal: { lead: event.lead, words: event.words }, workUnderWay: null });
     case "run_started":
       return {
         step: "compiling",
-        form: { ...form, nameTaken: null, refusal: null, streamName: event.request.streamName ?? form.streamName },
+        form: { ...form, refusal: null, displayName: event.request.displayName ?? form.displayName },
         request: event.request,
         startedAtMs: event.nowMs,
         makesThePythonEnvironmentFirst: folderToRun(form)?.python_environment.kind === "missing",
@@ -219,7 +247,6 @@ export function addStreamActionUnavailableBecause(form: AddStreamForm, isTheRunt
   const folder = folderToRun(form);
   if (folder === null) return "Choose a project folder first.";
   if (folder.python_environment.kind === "missing" && pythonForNewEnvironments.kind === "built_in_not_offered") return NO_PYTHON_TO_SET_UP_A_PROJECT_WITH;
-  if (form.nameTaken !== null) return "Choose another name, or use the one offered.";
   return null;
 }
 
@@ -237,9 +264,9 @@ export function compilingForWords(startedAtMs: number, nowMs: number): string {
   return `${Math.max(0, Math.floor((nowMs - startedAtMs) / 1000))}s`;
 }
 
-/** What a running stream's done view says about its load: whether it replaced the project's kept stream, and its warnings to read or that it loaded cleanly. */
+/** What a running stream's done view says about its load: whether it replaced the stream this folder and function loaded before, and its warnings to read or that it loaded cleanly. */
 export function streamRunningSummary(answer: StreamRunAnswer): string {
-  const replaced = answer.replaced_the_kept_record ? "It replaced the stream this project kept before. " : "";
+  const replaced = answer.replaced_a_recorded_stream ? "It replaced its last run. " : "";
   const warningCount = answer.compile_warnings.length;
   if (warningCount === 1) return `${replaced}It loaded with a warning. Read it before you rely on this stream.`;
   if (warningCount > 1) return `${replaced}It loaded with ${warningCount} warnings. Read them before you rely on this stream.`;
@@ -262,9 +289,9 @@ export interface StreamFunctionCheck {
 
 /** A row for each `@stream` function `stream.py` holds, in file order; one row for `stream.py` when it is missing or marks none. */
 export function presentStreamFunctionChecks(report: StreamProjectFolderReport): StreamFunctionCheck[] {
-  if (!report.stream_file_present) return [{ checked: "stream_file", name: "stream.py", isFound: false, detail: "The stream function the runtime loads lives in stream.py." }];
+  if (!report.stream_file_present) return [{ checked: "stream_file", name: "Streams", isFound: false, detail: "This project has none." }];
   if (report.stream_functions.length === 0) {
-    return [{ checked: "stream_file", name: "stream.py", isFound: true, detail: "No @stream function found by reading it; the runtime decides when it loads." }];
+    return [{ checked: "stream_file", name: "Streams", isFound: true, detail: "The runtime finds them when it loads the project." }];
   }
   return report.stream_functions.map((streamFunction) => ({ checked: "stream_function", name: streamFunction, isFound: true, detail: null }));
 }
@@ -297,8 +324,7 @@ export function pythonForNewEnvironmentsWords(pythonForNewEnvironments: PythonFo
 export function runRequestWords(request: AddStreamRunRequest): string {
   const requestWords = ["run_stream", request.folder];
   if (request.streamFunction !== null) requestWords.push(`stream_function=${request.streamFunction}`);
-  if (request.streamName !== null) requestWords.push(`name=${request.streamName}`);
-  requestWords.push("keep=true");
+  if (request.displayName !== null) requestWords.push(`name=${request.displayName}`);
   return requestWords.join("  ");
 }
 
@@ -322,9 +348,9 @@ export function compileWaitingWords(makesThePythonEnvironmentFirst: boolean, sta
   return `waiting for ${makesThePythonEnvironmentFirst ? "uv and the runtime" : "the runtime's answer"} · ${compilingForWords(startedAtMs, nowMs)}`;
 }
 
-/** The name a compile view calls the stream by: the one asked for, else none yet. */
-export function compilingStreamWords(request: AddStreamRunRequest): string {
-  return request.streamName ?? "the stream";
+/** The name a compile view calls the stream by: the display name asked for, else `defaultDisplayName`, the one the runtime gives it. */
+export function compilingStreamWords(request: AddStreamRunRequest, defaultDisplayName: string): string {
+  return request.displayName ?? (defaultDisplayName === "" ? "the stream" : defaultDisplayName);
 }
 
 /** The facts beside a running stream's name: its nodes. */
@@ -332,13 +358,10 @@ export function streamRunningFactsWords(answer: StreamRunAnswer): string {
   return nodeCountWords(answer.node_count);
 }
 
-/** What the compile output says the runtime did, after the request and its warnings: the load, and that it is kept. */
+/** What the compile output says the runtime did, after the request and its warnings: the load under its stream id, and that it starts with the runtime. */
 export function streamRunAnswerLines(answer: StreamRunAnswer): readonly string[] {
-  const replaced = answer.replaced_the_kept_record ? ", in place of the stream this project kept" : "";
-  return [
-    `loaded ${answer.stream}: ${nodeCountWords(answer.node_count)}${replaced}`,
-    `${answer.stream} is running; kept, so it loads again whenever the runtime starts`,
-  ];
+  const replaced = answer.replaced_a_recorded_stream ? ", replacing its last run" : "";
+  return [`loaded ${answer.display_name} as ${answer.stream}: ${nodeCountWords(answer.node_count)}${replaced}`, `${answer.display_name} is running and starts with the runtime`];
 }
 
 /**
@@ -351,10 +374,16 @@ export function addStreamDialogSection(state: AddStreamFlowState): string {
 }
 
 /**
- * What the dialog's status line says, for a screen reader, of a milestone a focus move alone does not say: a folder ready
- * to compile only while Add can be pressed. Refusals speak through their own alert.
+ * What the dialog's status line says, for a screen reader, of a milestone a focus move alone does not say: a project
+ * already imported, as `streamAlreadyImported`, or a folder ready to compile only while Add can be pressed. Refusals
+ * speak through their own alert.
  */
-export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntimeRunning: boolean, pythonForNewEnvironments: PythonForNewEnvironments): string {
+export function addStreamStepAnnouncement(
+  state: AddStreamFlowState,
+  isTheRuntimeRunning: boolean,
+  pythonForNewEnvironments: PythonForNewEnvironments,
+  streamAlreadyImported: ListedStream | null,
+): string {
   switch (state.step) {
     case "compiling":
     case "running":
@@ -362,6 +391,7 @@ export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntim
     case "form": {
       const folder = folderToRun(state.form);
       if (folder === null) return "";
+      if (streamAlreadyImported !== null) return streamAlreadyImportedWords(streamAlreadyImported);
       if (addStreamActionUnavailableBecause(state.form, isTheRuntimeRunning, pythonForNewEnvironments) !== null) return "";
       return state.form.source === "new_project" ? `tatolab new wrote ${folder.folder}. Add is ready.` : `${folder.folder} is ready to add.`;
     }
@@ -378,7 +408,6 @@ export function addStreamRunNoticeOf(state: AddStreamFlowState): AddStreamRunNot
   const source = state.form.source;
   if (state.step === "running") return { kind: "running", source, answer: state.answer };
   if (state.step !== "form") return null;
-  if (state.form.nameTaken !== null) return { kind: "refused", source, title: "Adding the stream was refused", words: state.form.nameTaken.refusal };
   if (state.form.refusal === null) return null;
   const title = RUN_REFUSAL_NOTICE_TITLES[state.form.refusal.lead];
   return title === undefined ? null : { kind: "refused", source, title, words: state.form.refusal.words };
@@ -398,7 +427,7 @@ export interface AddStreamRunNoticePresentation {
 export function presentAddStreamRunNotice(notice: AddStreamRunNotice): AddStreamRunNoticePresentation {
   if (notice.kind === "refused") return { title: notice.title, detail: notice.words, tone: "failure" };
   return {
-    title: `${notice.answer.stream} is running`,
+    title: `${notice.answer.display_name} is running`,
     detail: streamRunningSummary(notice.answer),
     tone: notice.answer.compile_warnings.length === 0 ? "plain" : "warning",
   };

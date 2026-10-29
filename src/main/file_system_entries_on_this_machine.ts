@@ -25,7 +25,7 @@ export async function isAnExistingFolderOnThisMachine(folderPath: string): Promi
   return (await fileSystemEntryAt(folderPath))?.isDirectory() ?? false;
 }
 
-/** `fileSystemPath` with its links resolved, as `/tmp` is `/private/tmp` on macOS; as given when it cannot be resolved. */
+/** `fileSystemPath` with its links resolved, as `/tmp` is `/private/tmp` on macOS; as given when it cannot be resolved, as a folder not made yet. */
 export async function realPathOrAsGiven(fileSystemPath: string): Promise<string> {
   try {
     return await realpath(fileSystemPath);

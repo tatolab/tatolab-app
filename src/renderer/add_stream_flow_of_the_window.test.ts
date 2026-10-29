@@ -12,12 +12,12 @@ const HEAT_MAP_FOLDER: StreamProjectFolderReport = {
 };
 
 const HEAT_MAP_ANSWER_WITH_TWO_WARNINGS: StreamRunAnswer = {
-  stream: "heat_map",
+  stream: "heat-map-heat-map-1acf70",
+  display_name: "heat_map",
   stream_instance: "7",
-  kept: true,
-  project_directory: HEAT_MAP_FOLDER.folder,
+  location: { project_directory: HEAT_MAP_FOLDER.folder, stream_function: "stream:heat_map" },
   node_count: 4,
-  replaced_the_kept_record: false,
+  replaced_a_recorded_stream: false,
   compile_warnings: ["tatolab: the cross-floor check found 1 thing binding this app to one floor.", "  nodes/heat_render.py:4: imports `cupy`"],
 };
 
@@ -73,7 +73,7 @@ describe("the window's Add stream flow", () => {
   it("shows a run that answers while the dialog is open in the dialog, with no notice", async () => {
     const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
     addStreamFlow.performTheAction();
-    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "compiling", startedAtMs: 1000, request: { streamName: "heat_map" } });
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "compiling", startedAtMs: 1000, request: { displayName: null } });
 
     await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
 
@@ -88,7 +88,7 @@ describe("the window's Add stream flow", () => {
 
     await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
 
-    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "running", answer: { stream: "heat_map" } });
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "running", answer: { stream: "heat-map-heat-map-1acf70", display_name: "heat_map" } });
     expect(addStreamFlow.readRunNotice()).toEqual({ kind: "running", source: "project_folder", answer: HEAT_MAP_ANSWER_WITH_TWO_WARNINGS });
     addStreamFlow.openDialog("project_folder", true);
     expect(addStreamFlow.readRunNotice()).toBeNull();

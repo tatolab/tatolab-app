@@ -74,10 +74,10 @@ export class TatolabMainWindow {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STATUS_CHANGED_EVENT, status);
   }
 
-  /** Show the window on `streamName`'s page, as a click on its failure notification asks. */
-  showTheStreamsPage(streamName: string): void {
+  /** Show the window on the page of the stream whose id is `streamId`, as a click on its failure notification asks. */
+  showTheStreamsPage(streamId: string): void {
     this.show();
-    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STREAM_PAGE_REQUESTED_EVENT, { stream: streamName } satisfies TatolabStreamPageRequest);
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STREAM_PAGE_REQUESTED_EVENT, { stream: streamId } satisfies TatolabStreamPageRequest);
   }
 
   /** Let the window close, rather than hide, from here on: the app is quitting. */

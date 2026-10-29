@@ -1,4 +1,4 @@
-import { ChevronRight, Copy, FolderOpen, type LucideIcon, Play, Sparkles, Square, Trash2 } from "lucide-react";
+import { ChevronRight, Copy, FolderOpen, type LucideIcon, Pencil, Play, Sparkles, Square, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import mascotImageUrl from "../assets/tato_mascot_3d.png";
@@ -16,6 +16,7 @@ import { StreamStateIcon } from "../design_system/stream_state_words";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import {
   abbreviateHomeDirectory,
+  listedStreamProjectDirectory,
   presentStreamPrimaryAction,
   presentStreamStateAfterTheLastAction,
   streamActionPendingWords,
@@ -36,6 +37,8 @@ import {
   useStreamRemovalDialog,
   type StreamActionOutcomeWords,
 } from "./stream_action_controls";
+import { useStreamRenameDialog } from "./stream_rename_dialog_view";
+import { StreamRowRightClickMenu } from "./stream_row_right_click_menu";
 import { streamPagePath } from "./stream_page_path";
 import type { AddStreamSource } from "../presentation/add_stream_flow";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
@@ -45,13 +48,16 @@ function StreamRowActions({
   actionUnderWay,
   onPrimaryAction,
   onRemoveAsked,
+  onRenameAsked,
 }: {
   stream: ListedStream;
   actionUnderWay: StreamActionUnderWay | undefined;
   onPrimaryAction: (primaryAction: StreamPrimaryActionPresentation) => void;
   onRemoveAsked: () => void;
+  onRenameAsked: () => void;
 }) {
   const primaryAction = presentStreamPrimaryAction(stream);
+  const projectDirectory = listedStreamProjectDirectory(stream);
   if (actionUnderWay !== undefined) return <PendingActionWords words={streamActionPendingWords(actionUnderWay.streamAction)} />;
   return (
     <div className="flex items-center justify-end gap-0.5">
@@ -64,11 +70,19 @@ function StreamRowActions({
           data-stream-action={primaryAction.streamAction}
         />
       )}
-      <MoreActionsMenu label={`More for ${stream.name}`} data-stream-action="more">
-        <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(stream.project_directory)}>
-          Copy project folder path
+      <MoreActionsMenu label={`More for ${stream.display_name}`} data-stream-action="more">
+        <MenuItem icon={Pencil} onChosen={onRenameAsked} data-stream-action="rename_stream">
+          Rename…
         </MenuItem>
         <MenuSeparator />
+        {projectDirectory !== null && (
+          <>
+            <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(projectDirectory)}>
+              Copy project folder path
+            </MenuItem>
+            <MenuSeparator />
+          </>
+        )}
         <MenuItem icon={Trash2} isDestructive onChosen={onRemoveAsked} data-stream-action="remove_stream">
           Remove…
         </MenuItem>
@@ -83,53 +97,57 @@ function StreamsListRow({
   outcome,
   onPrimaryAction,
   onRemoveAsked,
+  onRenameAsked,
 }: {
   stream: ListedStream;
   actionUnderWay: StreamActionUnderWay | undefined;
   outcome: StreamActionOutcomeWords | undefined;
   onPrimaryAction: (primaryAction: StreamPrimaryActionPresentation) => void;
   onRemoveAsked: () => void;
+  onRenameAsked: () => void;
 }) {
   const navigate = useNavigate();
   const statePresentation = presentStreamStateAfterTheLastAction(stream, outcome?.kind === "notice");
   return (
-    <li
-      data-stream-row={stream.name}
-      onClick={() => {
-        // A drag that selects the runtime's words to copy them ends in a click too; it stays on the list.
-        if (window.getSelection()?.isCollapsed === false) return;
-        navigate(streamPagePath(stream.name));
-      }}
-      className="group cursor-default rounded-md py-1.5 pr-1 pl-8 transition-colors hover:bg-hover"
-    >
-      <div className="flex h-7 min-w-0 items-center gap-3">
-        <StreamStateIcon stream={stream} />
-        <Link
-          to={streamPagePath(stream.name)}
-          onClick={(clickEvent) => clickEvent.stopPropagation()}
-          aria-label={`${stream.name}, ${statePresentation.label}`}
-          title={statePresentation.meaning}
-          className="min-w-0 shrink truncate rounded-sm text-fg"
-        >
-          {stream.name}
-        </Link>
-        <span className="flex-1" />
-        {/* The row navigates on click, and React carries a click in the actions' portalled menu up to it. */}
-        <div className="shrink-0" onClick={(clickEvent) => clickEvent.stopPropagation()}>
-          <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} onPrimaryAction={onPrimaryAction} onRemoveAsked={onRemoveAsked} />
+    <StreamRowRightClickMenu stream={stream} onRenameAsked={onRenameAsked}>
+      <li
+        data-stream-row={stream.stream}
+        onClick={() => {
+          // A drag that selects the runtime's words to copy them ends in a click too; it stays on the list.
+          if (window.getSelection()?.isCollapsed === false) return;
+          navigate(streamPagePath(stream.stream));
+        }}
+        className="group cursor-default rounded-md py-1.5 pr-1 pl-8 transition-colors hover:bg-hover"
+      >
+        <div className="flex h-7 min-w-0 items-center gap-3">
+          <StreamStateIcon stream={stream} />
+          <Link
+            to={streamPagePath(stream.stream)}
+            onClick={(clickEvent) => clickEvent.stopPropagation()}
+            aria-label={`${stream.display_name}, ${statePresentation.label}`}
+            title={statePresentation.meaning}
+            className="min-w-0 shrink truncate rounded-sm text-fg"
+          >
+            {stream.display_name}
+          </Link>
+          <span className="flex-1" />
+          {/* The row navigates on click, and React carries a click in the actions' portalled menu up to it. */}
+          <div className="shrink-0" onClick={(clickEvent) => clickEvent.stopPropagation()}>
+            <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} onPrimaryAction={onPrimaryAction} onRemoveAsked={onRemoveAsked} onRenameAsked={onRenameAsked} />
+          </div>
         </div>
-      </div>
-      {stream.state === "failed" && stream.failed_because !== null && (
-        <p className="truncate pl-7 text-xs text-fg-2 select-text" title={stream.failed_because}>
-          {stream.failed_because}
-        </p>
-      )}
-      {outcome !== undefined && (
-        <div className="pl-7">
-          <StreamActionOutcomeLine outcome={outcome} />
-        </div>
-      )}
-    </li>
+        {stream.state === "failed" && stream.failed_because !== null && (
+          <p className="truncate pl-7 text-xs text-fg-2 select-text" title={stream.failed_because}>
+            {stream.failed_because}
+          </p>
+        )}
+        {outcome !== undefined && (
+          <div className="pl-7">
+            <StreamActionOutcomeLine outcome={outcome} />
+          </div>
+        )}
+      </li>
+    </StreamRowRightClickMenu>
   );
 }
 
@@ -159,10 +177,10 @@ function NoStreamsYet({ machineWords }: { machineWords: string }) {
       <div className="flex w-[480px] flex-col items-center text-center">
         <img src={mascotImageUrl} alt="" draggable={false} className="size-[120px] object-contain select-none" />
         <h2 className="mt-4 text-lg font-semibold">No streams on {machineWords} yet</h2>
-        <p className="mt-1 max-w-md text-fg-3">A stream is a Python project with a stream.py. The runtime loads its graph and keeps it running.</p>
+        <p className="mt-1 max-w-md text-fg-3">Projects contain streams. Create one or import your own.</p>
         <div className="mt-6 w-full overflow-hidden rounded-lg border text-left">
           <FirstStreamChoice icon={Sparkles} title="Create the sample stream" explanation="A sample stream you can edit, made with tatolab new." source="new_project" />
-          <FirstStreamChoice icon={FolderOpen} title="Run a project folder" explanation="Any folder with a stream.py." source="project_folder" />
+          <FirstStreamChoice icon={FolderOpen} title="Import a project" explanation="A project folder of yours." source="project_folder" />
         </div>
       </div>
     </div>
@@ -207,6 +225,7 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
   const [filterText, setFilterText] = useState("");
   const { actionsUnderWay, outcomeWords, runStreamAction } = useStreamActionsUnderWay(listedStreams);
   const { askToRemove, removalDialog } = useStreamRemovalDialog((stream) => runStreamAction("remove_stream", "Remove", stream));
+  const { askToRename, renameDialog } = useStreamRenameDialog();
   const shownStreams = listedStreams.filter((stream) => streamMatchesListFilter(stream, chosenFilter) && streamMatchesFilterText(stream, filterText));
   const machineWords = status.machine_name ?? presentPlatform(platform).thisMachineMidSentence;
 
@@ -234,21 +253,24 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
         ) : (
           <div className="flex flex-col gap-6">
             {streamProjectFoldersOf(shownStreams).map((projectFolder) => (
-              <section key={projectFolder.projectDirectory} aria-label={projectFolder.folderName} data-streams-list-project-folder={projectFolder.projectDirectory}>
+              <section key={projectFolder.projectDirectory ?? ""} aria-label={projectFolder.folderName} data-streams-list-project-folder={projectFolder.projectDirectory ?? ""}>
                 <h2 className="flex h-8 items-center gap-2 px-2 font-normal">
                   <FolderOpen className="size-4 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
                   <span className="truncate text-fg-2">{projectFolder.folderName}</span>
-                  <span className="min-w-0 truncate font-mono text-xs text-fg-3 select-text">{abbreviateHomeDirectory(projectFolder.projectDirectory)}</span>
+                  {projectFolder.projectDirectory !== null && (
+                    <span className="min-w-0 truncate font-mono text-xs text-fg-3 select-text">{abbreviateHomeDirectory(projectFolder.projectDirectory)}</span>
+                  )}
                 </h2>
                 <ul aria-label={`Streams added from ${projectFolder.folderName}`} className="flex flex-col gap-0.5">
                   {projectFolder.streams.map((stream) => (
                     <StreamsListRow
-                      key={stream.name}
+                      key={stream.stream}
                       stream={stream}
-                      actionUnderWay={actionsUnderWay.get(stream.name)}
-                      outcome={outcomeWords.get(stream.name)}
+                      actionUnderWay={actionsUnderWay.get(stream.stream)}
+                      outcome={outcomeWords.get(stream.stream)}
                       onPrimaryAction={(primaryAction) => runStreamAction(primaryAction.streamAction, primaryAction.label, stream)}
                       onRemoveAsked={() => askToRemove(stream)}
+                      onRenameAsked={() => askToRename(stream)}
                     />
                   ))}
                 </ul>
@@ -259,6 +281,7 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
         )}
       </PageBody>
       {removalDialog}
+      {renameDialog}
     </PageFrame>
   );
 }

@@ -35,36 +35,39 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     uninstallTatolab: async () => {
       await invokeTatolabCommand("uninstall_tatolab", undefined);
     },
-    readStreamLogRecords: (streamName, afterSequence) =>
-      invokeTatolabCommand("read_stream_log_records", { stream: streamName, after: afterSequence }),
-    describeStreamGraph: (streamName) => invokeTatolabCommand("describe_stream_graph", { stream: streamName }),
+    readStreamLogRecords: (streamId, afterSequence) =>
+      invokeTatolabCommand("read_stream_log_records", { stream: streamId, after: afterSequence }),
+    describeStreamGraph: (streamId) => invokeTatolabCommand("describe_stream_graph", { stream: streamId }),
     checkForTatolabAppUpdates: async () => {
       await invokeTatolabCommand("check_for_tatolab_app_updates", undefined);
     },
-    runStreamAction: async (streamAction, streamName) => {
+    runStreamAction: async (streamAction, streamId) => {
       switch (streamAction) {
         case "stop_stream":
-          return (await invokeTatolabCommand("stop_stream", { stream: streamName })).not_recorded_because;
+          return (await invokeTatolabCommand("stop_stream", { stream: streamId })).not_recorded_because;
         case "start_stream":
         case "remove_stream":
-          await invokeTatolabCommand(streamAction, { stream: streamName });
+          await invokeTatolabCommand(streamAction, { stream: streamId });
           return null;
       }
     },
-    openStreamProjectFolder: async (streamName) => {
-      await invokeTatolabCommand("open_stream_project_folder", { stream: streamName });
+    renameStream: async (streamId, displayName) => {
+      await invokeTatolabCommand("rename_stream", { stream: streamId, display_name: displayName });
     },
-    openTerminalAtStreamProject: async (streamName) => {
-      await invokeTatolabCommand("open_terminal_at_stream_project", { stream: streamName });
+    openStreamProjectFolder: async (streamId) => {
+      await invokeTatolabCommand("open_stream_project_folder", { stream: streamId });
     },
-    openStreamLogFolder: async (streamName) => {
-      await invokeTatolabCommand("open_stream_log_folder", { stream: streamName });
+    openTerminalAtStreamProject: async (streamId) => {
+      await invokeTatolabCommand("open_terminal_at_stream_project", { stream: streamId });
+    },
+    openStreamLogFolder: async (streamId) => {
+      await invokeTatolabCommand("open_stream_log_folder", { stream: streamId });
     },
     chooseStreamProjectFolder: (chosenFor) => invokeTatolabCommand("choose_stream_project_folder", { chosen_for: chosenFor }),
     proposeNewStreamProjectFolder: () => invokeTatolabCommand("propose_new_stream_project_folder", undefined),
     createStreamProject: (folder) => invokeTatolabCommand("create_stream_project", { folder }),
-    runStreamProject: (folder, streamFunction, streamName) =>
-      invokeTatolabCommand("run_stream_project", { folder, stream_function: streamFunction, name: streamName }),
+    runStreamProject: (folder, streamFunction, displayName) =>
+      invokeTatolabCommand("run_stream_project", { folder, stream_function: streamFunction, name: displayName }),
     describeRuntime: () => invokeTatolabCommand("describe_runtime", undefined),
     restartRuntime: async () => {
       await invokeTatolabCommand("restart_runtime", undefined);

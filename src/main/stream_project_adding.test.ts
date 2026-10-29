@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import type { ListedStream, StreamProjectFolderChosenFor, StreamRunAnswer } from "../shared/tatolab_backend_contract.js";
+import type { StreamProjectFolderChosenFor, StreamRunAnswer } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure, StreamRunRequest } from "./local_api_client.js";
 import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_tool.js";
 import { failedWith, succeeded, type Result } from "./result.js";
@@ -16,32 +16,23 @@ afterEach(async () => {
 });
 
 const HEAT_MAP_RUN_ANSWER: StreamRunAnswer = {
-  stream: "heat_map",
+  stream: "heat-map-heat-map-2c71fa",
+  display_name: "heat_map",
   stream_instance: "9",
-  kept: true,
-  project_directory: "/tmp/heat-map",
+  location: { project_directory: "/tmp/heat-map", stream_function: "stream:heat_map" },
   node_count: 4,
-  replaced_the_kept_record: false,
+  replaced_a_recorded_stream: false,
   compile_warnings: [],
 };
 
-function listedStreamNamed(name: string): ListedStream {
-  return { name, state: "kept", project_directory: `/home/someone/streams/${name}`, node_count: 3, failed_because: null };
-}
-
-/** The runtime's two tools, answering as scripted and recording each run asked of them. */
+/** The runtime's `run_stream`, answering as scripted and recording each run asked of it. */
 class FakeStreamRunsOnTheRuntime implements StreamRunsOnTheRuntime {
   readonly runsAsked: StreamRunRequest[] = [];
   runAnswer: Result<StreamRunAnswer, LocalApiRequestFailure> = succeeded(HEAT_MAP_RUN_ANSWER);
-  listAnswer: Result<ListedStream[], LocalApiRequestFailure> = succeeded([]);
 
   async runStream(streamRunRequest: StreamRunRequest): Promise<Result<StreamRunAnswer, LocalApiRequestFailure>> {
     this.runsAsked.push(streamRunRequest);
     return this.runAnswer;
-  }
-
-  async listStreams(): Promise<Result<ListedStream[], LocalApiRequestFailure>> {
-    return this.listAnswer;
   }
 }
 
@@ -96,6 +87,21 @@ test("the first free name is the name itself, then -2, then the next number noth
   expect(await firstFreeSuffixedName("front-door", takenIn([]))).toBe("front-door");
   expect(await firstFreeSuffixedName("front-door", takenIn(["front-door"]))).toBe("front-door-2");
   expect(await firstFreeSuffixedName("front-door", takenIn(["front-door", "front-door-2", "front-door-3"]))).toBe("front-door-4");
+});
+
+test("a folder chosen through a link is handed to the window with its links resolved, as the runtime lists a project, and runs from there", async () => {
+  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "tl-app-project-"));
+  temporaryHomes.push(projectFolder);
+  const linkToTheProject = `${projectFolder}-link`;
+  await symlink(projectFolder, linkToTheProject);
+  temporaryHomes.push(linkToTheProject);
+  const { streamProjectAdding, streamRuns } = await streamProjectAddingOverFakes({ dialogAnswer: succeeded(linkToTheProject) });
+
+  const projectFolderAsTheRuntimeListsIt = await realpath(projectFolder);
+  const chosen = await streamProjectAdding.chooseStreamProjectFolder("project_to_run");
+  expect(chosen.ok && chosen.value?.folder).toBe(projectFolderAsTheRuntimeListsIt);
+  expect((await streamProjectAdding.runStreamProject(projectFolderAsTheRuntimeListsIt, null, null)).ok).toBe(true);
+  expect(streamRuns.runsAsked.map((runAsked) => runAsked.projectDirectory)).toEqual([projectFolderAsTheRuntimeListsIt]);
 });
 
 test("a folder chosen in the dialog is handed to the window with what it holds; a cancelled dialog answers nothing", async () => {
@@ -193,13 +199,13 @@ test("tatolab new's refusal comes back in its own words, and a build with no CLI
   expect(withoutTheCli.programsRun).toEqual([]);
 });
 
-test("a run that loads answers run_stream's reply, asking for the function and name the window gave", async () => {
+test("a run that loads answers run_stream's reply, asking for the function and display name the window gave", async () => {
   const { streamProjectAdding, streamRuns } = await streamProjectAddingOverFakes({ dialogAnswer: succeeded("/tmp/heat-map") });
   await streamProjectAdding.chooseStreamProjectFolder("project_to_run");
   expect(await streamProjectAdding.runStreamProject("/tmp/heat-map", "stream.py:heat_map", "heat_map")).toEqual(
     succeeded({ kind: "running", answer: HEAT_MAP_RUN_ANSWER }),
   );
-  expect(streamRuns.runsAsked).toEqual([{ projectDirectory: "/tmp/heat-map", streamFunction: "stream.py:heat_map", streamName: "heat_map" }]);
+  expect(streamRuns.runsAsked).toEqual([{ projectDirectory: "/tmp/heat-map", streamFunction: "stream.py:heat_map", displayName: "heat_map" }]);
 });
 
 test("a run makes the folder's .venv before run_stream, and uv's refusal is python_environment_not_made with no run asked", async () => {
@@ -217,32 +223,13 @@ test("a run makes the folder's .venv before run_stream, and uv's refusal is pyth
   expect(notMade.streamRuns.runsAsked).toEqual([]);
 });
 
-test("a refused name a listed stream holds is name_taken with the first free name; any other failure is the refusal itself", async () => {
-  const runtimesRefusal = "the stream name `front-door` is held by a kept stream from /home/someone/streams/front-door; run this one under another name";
+test("a refusal comes back in the runtime's own words, and a run that never answered in the client's", async () => {
+  const compileRefusal = "Runtime error: the stream function in /tmp/front-door-v2 failed to compile: `/tmp/front-door-v2/.venv/bin/python` exited with exit status: 1.";
   const { streamProjectAdding, streamRuns } = await streamProjectAddingOverFakes({ dialogAnswer: succeeded("/tmp/front-door-v2") });
   await streamProjectAdding.chooseStreamProjectFolder("project_to_run");
-  streamRuns.runAnswer = failedWith({ failureDescription: runtimesRefusal, isTheRuntimesRefusal: true });
-  streamRuns.listAnswer = succeeded([listedStreamNamed("front-door"), listedStreamNamed("front-door-2")]);
-  expect(await streamProjectAdding.runStreamProject("/tmp/front-door-v2", null, "front-door")).toEqual(
-    succeeded({ kind: "name_taken", refusal: runtimesRefusal, free_name: "front-door-3" }),
-  );
+  streamRuns.runAnswer = failedWith({ failureDescription: compileRefusal, isTheRuntimesRefusal: true });
+  expect(await streamProjectAdding.runStreamProject("/tmp/front-door-v2", null, "front-door")).toEqual(failedWith(compileRefusal));
 
-  streamRuns.listAnswer = succeeded([listedStreamNamed("lobby-wall")]);
-  expect(await streamProjectAdding.runStreamProject("/tmp/front-door-v2", null, "front-door")).toEqual(failedWith(runtimesRefusal));
-
-  streamRuns.listAnswer = succeeded([listedStreamNamed("front-door")]);
   streamRuns.runAnswer = failedWith({ failureDescription: "POST /mcp did not answer within 360s", isTheRuntimesRefusal: false });
   expect(await streamProjectAdding.runStreamProject("/tmp/front-door-v2", null, "front-door")).toEqual(failedWith("POST /mcp did not answer within 360s"));
-});
-
-test("a refusal while this same folder's kept stream holds the name is the compile's, answered in the runtime's own words", async () => {
-  const projectFolder = await mkdtemp(path.join(os.tmpdir(), "tl-app-project-"));
-  temporaryHomes.push(projectFolder);
-  const compileRefusal = `Runtime error: the stream function in ${projectFolder} failed to compile: \`${projectFolder}/.venv/bin/python\` exited with exit status: 1.`;
-  const { streamProjectAdding, streamRuns } = await streamProjectAddingOverFakes({ dialogAnswer: succeeded(projectFolder) });
-  await streamProjectAdding.chooseStreamProjectFolder("project_to_run");
-  streamRuns.runAnswer = failedWith({ failureDescription: compileRefusal, isTheRuntimesRefusal: true });
-  streamRuns.listAnswer = succeeded([{ ...listedStreamNamed("hello"), project_directory: await realpath(projectFolder) }]);
-
-  expect(await streamProjectAdding.runStreamProject(projectFolder, null, "hello")).toEqual(failedWith(compileRefusal));
 });

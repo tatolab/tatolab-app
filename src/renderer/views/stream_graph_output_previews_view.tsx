@@ -19,7 +19,7 @@ const PINNED_OUTPUT_PREVIEW_HEADER_HEIGHT = 28;
 
 /** Where the stream an output belongs to runs, for its address. */
 export interface StreamGraphOutputPlace {
-  streamName: string;
+  streamId: string;
   machineName: string | null;
 }
 
@@ -51,7 +51,7 @@ export function StreamGraphOutputHoverPreview({
   const popoverElement = useRef<HTMLDivElement>(null);
   const [popoverPosition, setPopoverPosition] = useState<{ left: number; top: number } | null>(null);
   const { output, anchorRectangle } = hoveredOutput;
-  const address = exposedOutputAddress(outputPlace.machineName, outputPlace.streamName, { node: output.stepName, port: output.name });
+  const address = exposedOutputAddress(outputPlace.machineName, outputPlace.streamId, { node: output.stepName, port: output.name });
 
   useLayoutEffect(() => {
     const popoverHeight = popoverElement.current?.offsetHeight ?? 0;
@@ -135,7 +135,7 @@ export function PinnedStreamGraphOutputPreview({
   const dragOffset = useRef<{ fromLeft: number; fromTop: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const { output, watchPageUrl } = previewedOutput;
-  const address = exposedOutputAddress(outputPlace.machineName, outputPlace.streamName, { node: output.stepName, port: output.name });
+  const address = exposedOutputAddress(outputPlace.machineName, outputPlace.streamId, { node: output.stepName, port: output.name });
   const endDrag = () => {
     dragOffset.current = null;
     setIsDragging(false);

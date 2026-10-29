@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StreamGraphSummary } from "../shared/tatolab_backend_contract";
 import { StreamGraphReadings } from "./stream_graph_readings";
 
-function graphNamed(streamName: string, nodeName: string): StreamGraphSummary {
+function graphNamed(streamId: string, nodeName: string): StreamGraphSummary {
   return {
-    stream: streamName,
+    stream: streamId,
     nodes: [{ id: "", name: nodeName, type: "tatolab.stream:TestPatternSource", state: "Running", input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} }],
     links: [],
     exposed: [],
-    graph_document_text: `{"stream":"${streamName}"}`,
+    graph_document_text: `{"stream":"${streamId}"}`,
   };
 }
 
@@ -17,9 +17,9 @@ function backendAnswering() {
   const answers = new Map<string, (StreamGraphSummary | string)[]>();
   const reads: string[] = [];
   const backend = {
-    describeStreamGraph: async (streamName: string): Promise<StreamGraphSummary> => {
-      reads.push(streamName);
-      const answer = answers.get(streamName)?.shift() ?? `no stream named \`${streamName}\` is loaded`;
+    describeStreamGraph: async (streamId: string): Promise<StreamGraphSummary> => {
+      reads.push(streamId);
+      const answer = answers.get(streamId)?.shift() ?? `no stream named \`${streamId}\` is loaded`;
       if (typeof answer === "string") throw answer;
       return answer;
     },

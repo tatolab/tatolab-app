@@ -42,7 +42,7 @@ Evidence counts only when it was shot on what would ship now:
    `src/renderer/backend/mock_tatolab_backend.ts` and `src/renderer/mock_window_preset.ts` read:
    `?theme=light|dark`, `?platform=linux`, `?state=` (running, empty, loading, node-error,
    not-listed, starting, stopped, unreachable, setup; macOS-only approval, missing,
-   not-registered), `?uninstall=cancel`, and the screen keys `?stream=`, `?tab=`,
+   not-registered), `?uninstall=cancel`, and the screen keys `?stream=<stream id>`, `?tab=`,
    `?page=settings`, `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`,
    `?levels=errors`, `?search=<query>`, and on Graph `?step=<step>`, `?focus=<step>`,
    `?pin=<step>.<port>`, `?hover=<step>.<port>`, `?previews=off` and `?counters=off`; the
@@ -113,7 +113,7 @@ Evidence counts only when it was shot on what would ship now:
 
 ## Capture
 
-- Shoot into the session's scratch folder with descriptive names (`03-four-streams-attached.png`),
+- Shoot into the session's scratch folder with descriptive names (`03-four-streams-running.png`),
   both themes for a visual change, and the window at its real size — not cropped to the change.
 - The packaged window cannot be driven by Playwright (its fuses turn off the inspector); capture it
   with the platform's screenshot tool — on macOS `screencapture -l <CGWindowID>` (find the id with

@@ -4,6 +4,7 @@ import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { PageFrame } from "../design_system/page_frame";
 import { isStreamLoaded } from "../presentation/stream_presentation";
 import { useStreamActionsUnderWay, useStreamRemovalDialog } from "./stream_action_controls";
+import { useStreamRenameDialog } from "./stream_rename_dialog_view";
 import { StreamGraphPageView } from "./stream_graph_page_view";
 import { StreamInspectPageView } from "./stream_inspect_page_view";
 import { StreamLogsPageView } from "./stream_logs_page_view";
@@ -20,26 +21,28 @@ export function StreamPageView({ stream, shownTab }: { stream: ListedStream; sho
   const thisStreamsListing = useMemo(() => [stream], [stream]);
   const { actionsUnderWay, outcomeWords, runStreamAction } = useStreamActionsUnderWay(thisStreamsListing);
   const { askToRemove, removalDialog } = useStreamRemovalDialog((streamToRemove) => runStreamAction("remove_stream", "Remove", streamToRemove));
+  const { askToRename, renameDialog } = useStreamRenameDialog();
   const streamPageActions: StreamPageActions = {
-    actionUnderWay: actionsUnderWay.get(stream.name),
-    outcome: outcomeWords.get(stream.name),
+    actionUnderWay: actionsUnderWay.get(stream.stream),
+    outcome: outcomeWords.get(stream.stream),
     runPrimaryAction: (chosenAction) => runStreamAction(chosenAction.streamAction, chosenAction.label, stream),
     askToRemove: () => askToRemove(stream),
+    askToRename: () => askToRename(stream),
   };
 
   useEffect(() => {
-    hostedPages.streamsPage.chooseStream(stream.name);
+    hostedPages.streamsPage.chooseStream(stream.stream);
   }, [hostedPages, stream]);
   useEffect(() => {
-    streamGraphReadings.showStream(stream.name, isLoaded);
-  }, [streamGraphReadings, stream.name, isLoaded]);
+    streamGraphReadings.showStream(stream.stream, isLoaded);
+  }, [streamGraphReadings, stream.stream, isLoaded]);
   useEffect(() => () => streamGraphReadings.showStream(null, false), [streamGraphReadings]);
   useEffect(() => {
-    streamLogReadings.showStream(stream.name, isLoaded);
-  }, [streamLogReadings, stream.name, isLoaded]);
+    streamLogReadings.showStream(stream.stream, isLoaded);
+  }, [streamLogReadings, stream.stream, isLoaded]);
   useEffect(() => () => streamLogReadings.showStream(null, false), [streamLogReadings]);
 
-  if (shownTab === "graph" && !isLoaded) return <Navigate to={streamPagePath(stream.name)} replace />;
+  if (shownTab === "graph" && !isLoaded) return <Navigate to={streamPagePath(stream.stream)} replace />;
   return (
     <PageFrame
       header={
@@ -50,7 +53,7 @@ export function StreamPageView({ stream, shownTab }: { stream: ListedStream; sho
           overviewDetailsPanel={{ isOpen: isOverviewDetailsPanelOpen, onToggled: setIsOverviewDetailsPanelOpen }}
         />
       }
-      data-stream-page={stream.name}
+      data-stream-page={stream.stream}
     >
       {shownTab === "graph" && <StreamGraphPageView stream={stream} />}
       {shownTab === "logs" && <StreamLogsPageView stream={stream} streamPageActions={streamPageActions} />}
@@ -63,6 +66,7 @@ export function StreamPageView({ stream, shownTab }: { stream: ListedStream; sho
       )}
       {shownTab === "inspect" && <StreamInspectPageView stream={stream} />}
       {removalDialog}
+      {renameDialog}
     </PageFrame>
   );
 }

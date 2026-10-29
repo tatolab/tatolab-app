@@ -28,7 +28,7 @@ function headingIcon(presentation: RuntimeDisplayPresentation): Element | null {
 function explanationOf(presentation: RuntimeDisplayPresentation, banner: RuntimeBannerPresentation): string {
   switch (presentation.displayState) {
     case "unreachable":
-      return `${banner.explanation} Your kept streams come back with it.`;
+      return `${banner.explanation} Your streams come back with it.`;
     case "switched_off":
       return `${banner.explanation} The streams it keeps come back by themselves.`;
     default:

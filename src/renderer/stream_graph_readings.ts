@@ -28,7 +28,7 @@ export class StreamGraphReadings {
   private readonly readingsByStream = new Map<string, StreamGraphReading>();
   private readonly readingListeners = new Set<() => void>();
   private readonly graphPoll: RepeatingBackendPoll;
-  private shownStream: { streamName: string; isLoaded: boolean } | null = null;
+  private shownStream: { streamId: string; isLoaded: boolean } | null = null;
   private isPollingAllowed = false;
 
   constructor(
@@ -38,8 +38,8 @@ export class StreamGraphReadings {
     this.graphPoll = new RepeatingBackendPoll(() => this.readTheShownStreamsGraph(), pollMilliseconds);
   }
 
-  /** The reading of `streamName`, the same object until it changes. */
-  readonly readingOf = (streamName: string): StreamGraphReading => this.readingsByStream.get(streamName) ?? NOTHING_READ_YET;
+  /** The reading of `streamId`, the same object until it changes. */
+  readonly readingOf = (streamId: string): StreamGraphReading => this.readingsByStream.get(streamId) ?? NOTHING_READ_YET;
 
   /** Calls `readingListener` after each change to any stream's reading; the returned function stops it. */
   readonly subscribeToReadings = (readingListener: () => void): (() => void) => {
@@ -47,12 +47,12 @@ export class StreamGraphReadings {
     return () => this.readingListeners.delete(readingListener);
   };
 
-  /** Read `streamName`'s graph from now on while `isLoaded`, and none while it is not, or no stream's when `null`. */
-  showStream(streamName: string | null, isLoaded: boolean): void {
-    const isTheSameLoadedStream = isLoaded && this.shownStream?.streamName === streamName && this.shownStream.isLoaded;
-    this.shownStream = streamName === null ? null : { streamName, isLoaded };
-    if (streamName !== null && !isLoaded) {
-      this.updateReading(streamName, { graphSource: "as_of_the_last_load", readRefusal: null, streamInstance: null });
+  /** Read `streamId`'s graph from now on while `isLoaded`, and none while it is not, or no stream's when `null`. */
+  showStream(streamId: string | null, isLoaded: boolean): void {
+    const isTheSameLoadedStream = isLoaded && this.shownStream?.streamId === streamId && this.shownStream.isLoaded;
+    this.shownStream = streamId === null ? null : { streamId, isLoaded };
+    if (streamId !== null && !isLoaded) {
+      this.updateReading(streamId, { graphSource: "as_of_the_last_load", readRefusal: null, streamInstance: null });
     }
     // Another stream, or a new load, is read at once rather than at the poll's next interval.
     if (!isTheSameLoadedStream) this.graphPoll.stop();
@@ -69,9 +69,9 @@ export class StreamGraphReadings {
     this.graphPoll.pollNow();
   }
 
-  /** The load of `streamName` its log follower read, which the Overview's details name. */
-  rememberStreamInstance(streamName: string, streamInstance: string): void {
-    if (this.readingOf(streamName).streamInstance !== streamInstance) this.updateReading(streamName, { streamInstance });
+  /** The load of `streamId` its log follower read, which the Overview's details name. */
+  rememberStreamInstance(streamId: string, streamInstance: string): void {
+    if (this.readingOf(streamId).streamInstance !== streamInstance) this.updateReading(streamId, { streamInstance });
   }
 
   private updatePolling(): void {
@@ -79,24 +79,24 @@ export class StreamGraphReadings {
     else this.graphPoll.stop();
   }
 
-  private isStillShownLoaded(streamName: string): boolean {
-    return this.shownStream?.streamName === streamName && this.shownStream.isLoaded;
+  private isStillShownLoaded(streamId: string): boolean {
+    return this.shownStream?.streamId === streamId && this.shownStream.isLoaded;
   }
 
   private async readTheShownStreamsGraph(): Promise<void> {
     const shownStream = this.shownStream;
     if (shownStream === null || !shownStream.isLoaded) return;
-    const { streamName } = shownStream;
+    const { streamId } = shownStream;
     try {
-      const graph = await this.backend.describeStreamGraph(streamName);
-      if (this.isStillShownLoaded(streamName)) this.updateReading(streamName, { graph, graphSource: "loaded", readRefusal: null });
+      const graph = await this.backend.describeStreamGraph(streamId);
+      if (this.isStillShownLoaded(streamId)) this.updateReading(streamId, { graph, graphSource: "loaded", readRefusal: null });
     } catch (rejection) {
-      if (this.isStillShownLoaded(streamName)) this.updateReading(streamName, { readRefusal: describeBackendRejection(rejection) });
+      if (this.isStillShownLoaded(streamId)) this.updateReading(streamId, { readRefusal: describeBackendRejection(rejection) });
     }
   }
 
-  private updateReading(streamName: string, readingChanges: Partial<StreamGraphReading>): void {
-    const reading = this.readingOf(streamName);
+  private updateReading(streamId: string, readingChanges: Partial<StreamGraphReading>): void {
+    const reading = this.readingOf(streamId);
     const changedReading = { ...reading, ...readingChanges };
     const isUnchanged =
       changedReading.graph === reading.graph &&
@@ -104,7 +104,7 @@ export class StreamGraphReadings {
       changedReading.readRefusal === reading.readRefusal &&
       changedReading.streamInstance === reading.streamInstance;
     if (isUnchanged) return;
-    this.readingsByStream.set(streamName, changedReading);
+    this.readingsByStream.set(streamId, changedReading);
     for (const readingListener of this.readingListeners) readingListener();
   }
 }

@@ -1,22 +1,18 @@
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 
-/** The stream to select: the one chosen if still listed, else the nearest one after it, else the first. */
-export function chooseSelectedStreamName(
-  listedStreams: ListedStream[],
-  previouslySelectedStreamName: string | null,
-  previouslyListedStreamNames: string[],
-): string | null {
+/** The id of the stream to select: the one chosen if still listed, else the nearest one after it, else the first. */
+export function chooseSelectedStreamId(listedStreams: ListedStream[], previouslySelectedStreamId: string | null, previouslyListedStreamIds: string[]): string | null {
   if (listedStreams.length === 0) return null;
-  const listedNames = new Set(listedStreams.map((stream) => stream.name));
-  if (previouslySelectedStreamName === null) return listedStreams[0].name;
-  if (listedNames.has(previouslySelectedStreamName)) return previouslySelectedStreamName;
-  const previousIndex = previouslyListedStreamNames.indexOf(previouslySelectedStreamName);
+  const listedIds = new Set(listedStreams.map((listedStream) => listedStream.stream));
+  if (previouslySelectedStreamId === null) return listedStreams[0].stream;
+  if (listedIds.has(previouslySelectedStreamId)) return previouslySelectedStreamId;
+  const previousIndex = previouslyListedStreamIds.indexOf(previouslySelectedStreamId);
   if (previousIndex >= 0) {
-    const followingNames = previouslyListedStreamNames.slice(previousIndex + 1);
-    const precedingNamesNearestFirst = previouslyListedStreamNames.slice(0, previousIndex).reverse();
-    for (const candidateName of [...followingNames, ...precedingNamesNearestFirst]) {
-      if (listedNames.has(candidateName)) return candidateName;
+    const followingIds = previouslyListedStreamIds.slice(previousIndex + 1);
+    const precedingIdsNearestFirst = previouslyListedStreamIds.slice(0, previousIndex).reverse();
+    for (const candidateId of [...followingIds, ...precedingIdsNearestFirst]) {
+      if (listedIds.has(candidateId)) return candidateId;
     }
   }
-  return listedStreams[0].name;
+  return listedStreams[0].stream;
 }

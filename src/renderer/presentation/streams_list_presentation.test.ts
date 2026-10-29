@@ -8,49 +8,60 @@ import {
   streamProjectFoldersOf,
 } from "./streams_list_presentation";
 
-function listedStream(name: string, state: string, nodeCount: number | null): ListedStream {
-  return { name, state, project_directory: `/Users/ada/streams/${name}`, node_count: nodeCount, failed_because: null };
+/** A stream from `<projectDirectory>` (`/Users/ada/streams/<displayName>` by default) whose id is `<displayName>-main-<hash>`. */
+function listedStream(displayName: string, state: string, nodeCount: number | null, projectDirectory = `/Users/ada/streams/${displayName}`): ListedStream {
+  return {
+    stream: `${displayName}-main-c40d17`,
+    display_name: displayName,
+    location: { project_directory: projectDirectory, stream_function: "stream:main" },
+    state,
+    node_count: nodeCount,
+    failed_because: null,
+  };
 }
 
 const listedStreams = [
-  listedStream("main", "kept", 4),
-  listedStream("dev", "attached", 3),
+  listedStream("main", "running", 4),
+  listedStream("dev", "running", 3),
   listedStream("pattern-two", "stopped", null),
   listedStream("lobby", "failed", null),
+  listedStream("newer", "awaiting_restart", 2),
 ];
 
 describe("streamMatchesListFilter", () => {
-  it("sorts kept and attached streams under Running, and stopped and failed ones under their own words", () => {
-    expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "all")).length).toBe(4);
-    expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "running")).map((stream) => stream.name)).toEqual(["main", "dev"]);
-    expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "stopped")).map((stream) => stream.name)).toEqual(["pattern-two"]);
-    expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "failed")).map((stream) => stream.name)).toEqual(["lobby"]);
+  it("sorts running, stopped and failed streams under their own words, and a state newer than this app under All alone", () => {
+    expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "all")).length).toBe(5);
+    expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "running")).map((stream) => stream.display_name)).toEqual(["main", "dev"]);
+    expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "stopped")).map((stream) => stream.display_name)).toEqual(["pattern-two"]);
+    expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "failed")).map((stream) => stream.display_name)).toEqual(["lobby"]);
   });
 });
 
 describe("streamMatchesFilterText", () => {
-  it("matches a stream's name or project folder, ignoring case", () => {
-    expect(streamMatchesFilterText(listedStream("Main", "kept", 4), "mAI")).toBe(true);
-    expect(streamMatchesFilterText(listedStream("main", "kept", 4), "streams/ma")).toBe(true);
-    expect(streamMatchesFilterText(listedStream("main", "kept", 4), "lobby")).toBe(false);
-    expect(streamMatchesFilterText(listedStream("main", "kept", 4), "  ")).toBe(true);
+  it("matches a stream's display name or project folder, ignoring case, and never its id", () => {
+    expect(streamMatchesFilterText(listedStream("Main", "running", 4), "mAI")).toBe(true);
+    expect(streamMatchesFilterText(listedStream("main", "running", 4), "streams/ma")).toBe(true);
+    expect(streamMatchesFilterText(listedStream("main", "running", 4), "lobby")).toBe(false);
+    expect(streamMatchesFilterText(listedStream("main", "running", 4), "  ")).toBe(true);
+    expect(streamMatchesFilterText(listedStream("main", "running", 4), "c40d17")).toBe(false);
+    expect(streamMatchesFilterText({ ...listedStream("camera", "failed", null), location: null }, "camera")).toBe(true);
   });
 });
 
 describe("streamProjectFoldersOf", () => {
-  function streamIn(name: string, projectDirectory: string): ListedStream {
-    return { name, state: "kept", project_directory: projectDirectory, node_count: 4, failed_because: null };
+  function streamIn(displayName: string, projectDirectory: string): ListedStream {
+    return listedStream(displayName, "running", 4, projectDirectory);
   }
 
   it("puts each stream under the folder it was added from, in the order the runtime lists them", () => {
     const folders = streamProjectFoldersOf([
       streamIn("main", "/Users/ada/streams/pattern"),
       streamIn("camera", "/Users/ada/streams/camera"),
-      streamIn("attached-demo", "/Users/ada/streams/pattern"),
+      streamIn("recorder", "/Users/ada/streams/pattern"),
     ]);
 
-    expect(folders.map(({ folderName, streams }) => [folderName, streams.map((stream) => stream.name)])).toEqual([
-      ["pattern", ["main", "attached-demo"]],
+    expect(folders.map(({ folderName, streams }) => [folderName, streams.map((stream) => stream.display_name)])).toEqual([
+      ["pattern", ["main", "recorder"]],
       ["camera", ["camera"]],
     ]);
     expect(folders[0]?.projectDirectory).toBe("/Users/ada/streams/pattern");
@@ -74,24 +85,39 @@ describe("streamProjectFoldersOf", () => {
     expect(folders.map((folder) => folder.folderName)).toEqual(["work/demo", "play/demo", "camera"]);
   });
 
+  it("puts an earlier runtime's records, which have no location, under a folder of their own named for them, with no path", () => {
+    const folders = streamProjectFoldersOf([streamIn("main", "/Users/ada/streams/pattern"), { ...streamIn("camera", "/x"), location: null }]);
+
+    expect(folders.map(({ projectDirectory, folderName, streams }) => [projectDirectory, folderName, streams.map((stream) => stream.display_name)])).toEqual([
+      ["/Users/ada/streams/pattern", "pattern", ["main"]],
+      [null, "From an earlier runtime", ["camera"]],
+    ]);
+  });
+
   it("has no folders when the runtime lists no streams", () => {
     expect(streamProjectFoldersOf([])).toEqual([]);
   });
 });
 
 describe("presentStreamRemovalConfirmation", () => {
-  it("says the runtime forgets the stream and its project folder stays", () => {
-    expect(presentStreamRemovalConfirmation(listedStream("main", "kept", 4))).toEqual({
+  it("names the stream by its display name, and says the runtime forgets it and its project folder stays", () => {
+    expect(presentStreamRemovalConfirmation(listedStream("main", "running", 4))).toEqual({
       title: "Remove main?",
       explanation:
         "The runtime unloads it and forgets it, so it no longer loads when the runtime starts. Its project folder, ~/streams/main, stays as it is.",
     });
   });
+
+  it("names no project folder for an earlier runtime's record, which has none", () => {
+    expect(presentStreamRemovalConfirmation({ ...listedStream("camera", "failed", null), location: null }).explanation).toBe(
+      "The runtime unloads it and forgets it, so it no longer loads when the runtime starts.",
+    );
+  });
 });
 
 describe("isStreamActionStillUnderWay", () => {
   const stopped = listedStream("main", "stopped", null);
-  const running = listedStream("main", "kept", 4);
+  const running = listedStream("main", "running", 4);
 
   it("stays under way until the runtime answers, whatever the listing shows", () => {
     expect(isStreamActionStillUnderWay({ streamAction: "stop_stream", listingWhenAsked: running, isAnswered: false }, stopped)).toBe(true);

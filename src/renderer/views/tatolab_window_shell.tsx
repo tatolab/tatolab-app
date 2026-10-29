@@ -18,6 +18,8 @@ import { AddStreamRunNoticeView } from "./add_stream_run_notice_view";
 import { FirstRunFinishingRefusalNoticeView } from "./first_run_finishing_refusal_notice_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { StreamPageView } from "./stream_page_view";
+import { useStreamRenameDialog } from "./stream_rename_dialog_view";
+import { StreamRowRightClickMenu } from "./stream_row_right_click_menu";
 import { streamPagePath, streamPageTabNamed } from "./stream_page_path";
 import { StreamsListPageView } from "./streams_list_page_view";
 import { SettingsPageView } from "./settings_page_view";
@@ -83,8 +85,8 @@ function SidebarSectionHeading({ children, trailing }: { children: ReactNode; tr
 
 const SIDEBAR_ICON_CLASS_NAMES = "size-4 shrink-0 text-fg-3";
 
-/** A project folder's row, opening and closing the list of the streams added from it; a closed folder holding a failed stream says so. */
-function StreamProjectFolderSidebarRows({ projectFolder }: { projectFolder: StreamProjectFolder }) {
+/** A project folder's row, opening and closing the list of the streams added from it, each renamed from its right-click menu; a closed folder holding a failed stream says so. */
+function StreamProjectFolderSidebarRows({ projectFolder, askToRename }: { projectFolder: StreamProjectFolder; askToRename: (stream: ListedStream) => void }) {
   const [isOpen, setIsOpen] = useState(true);
   return (
     <li>
@@ -94,7 +96,7 @@ function StreamProjectFolderSidebarRows({ projectFolder }: { projectFolder: Stre
         aria-expanded={isOpen}
         onPressed={() => setIsOpen((wasOpen) => !wasOpen)}
         className="h-8 text-fg"
-        data-sidebar-project-folder={projectFolder.projectDirectory}
+        data-sidebar-project-folder={projectFolder.projectDirectory ?? ""}
       >
         <span className="min-w-0 flex-1 truncate">{projectFolder.folderName}</span>
         {!isOpen && projectFolder.holdsAFailedStream && <span className="sr-only">, holds a failed stream</span>}
@@ -102,15 +104,17 @@ function StreamProjectFolderSidebarRows({ projectFolder }: { projectFolder: Stre
       {isOpen && (
         <ul aria-label={`Streams added from ${projectFolder.folderName}`} className="mt-0.5 flex flex-col gap-0.5">
           {projectFolder.streams.map((stream) => (
-            <li key={stream.name}>
-              <SidebarNavigationRow
-                to={streamPagePath(stream.name)}
-                icon={<StreamStateIcon stream={stream} />}
-                label={stream.name}
-                stateWordsForAScreenReader={presentStreamState(stream).label}
-                isUnderAFolder
-              />
-            </li>
+            <StreamRowRightClickMenu key={stream.stream} stream={stream} onRenameAsked={() => askToRename(stream)}>
+              <li data-sidebar-stream={stream.stream}>
+                <SidebarNavigationRow
+                  to={streamPagePath(stream.stream)}
+                  icon={<StreamStateIcon stream={stream} />}
+                  label={stream.display_name}
+                  stateWordsForAScreenReader={presentStreamState(stream).label}
+                  isUnderAFolder
+                />
+              </li>
+            </StreamRowRightClickMenu>
           ))}
         </ul>
       )}
@@ -122,6 +126,7 @@ function StreamsSidebarNavigation() {
   const { addStreamFlow } = useTatolabWindowEnvironment();
   const listedStreams = useListedStreamsWhileTheRuntimeRuns();
   const navigate = useNavigate();
+  const { askToRename, renameDialog } = useStreamRenameDialog();
   return (
     <>
       <section className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-2">
@@ -153,11 +158,12 @@ function StreamsSidebarNavigation() {
         ) : (
           <ul aria-label="Project folders" className="flex flex-col gap-2">
             {streamProjectFoldersOf(listedStreams).map((projectFolder) => (
-              <StreamProjectFolderSidebarRows key={projectFolder.projectDirectory} projectFolder={projectFolder} />
+              <StreamProjectFolderSidebarRows key={projectFolder.projectDirectory ?? ""} projectFolder={projectFolder} askToRename={askToRename} />
             ))}
           </ul>
         )}
       </section>
+      {renameDialog}
       <div className="border-t px-2 py-2">
         <SidebarNavigationRow
           to="/settings"
@@ -218,13 +224,13 @@ function StreamsRoute() {
 /** One stream's page on the tab its path names; the hosted page saying why while the runtime lists none; back to the list once it is not listed. */
 function StreamRoute() {
   const listedStreams = useListedStreamsWhileTheRuntimeRuns();
-  const { streamName, streamTab } = useParams();
+  const { streamId, streamTab } = useParams();
   if (listedStreams === null) return <StreamsPageWhileTheRuntimeListsNone />;
-  const stream = listedStreams.find((listedStream) => listedStream.name === streamName);
+  const stream = listedStreams.find((listedStream) => listedStream.stream === streamId);
   if (stream === undefined) return <Navigate to="/" replace />;
   const shownTab = streamPageTabNamed(streamTab);
-  if (shownTab === null) return <Navigate to={streamPagePath(stream.name)} replace />;
-  return <StreamPageView key={stream.name} stream={stream} shownTab={shownTab} />;
+  if (shownTab === null) return <Navigate to={streamPagePath(stream.stream)} replace />;
+  return <StreamPageView key={stream.stream} stream={stream} shownTab={shownTab} />;
 }
 
 /** The window's routes, in its memory router: the Streams list, a stream on one of its tabs, and Settings on one of its sections. */
@@ -233,7 +239,7 @@ export const TATOLAB_WINDOW_ROUTES: RouteObject[] = [
     element: <TatolabWindowShell />,
     children: [
       { index: true, element: <StreamsRoute /> },
-      { path: "streams/:streamName/:streamTab?", element: <StreamRoute /> },
+      { path: "streams/:streamId/:streamTab?", element: <StreamRoute /> },
       { path: "settings/:settingsSection?", element: <SettingsPageView /> },
     ],
   },

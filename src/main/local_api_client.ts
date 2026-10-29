@@ -1,9 +1,9 @@
 // The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
 // local API's Unix socket. `GET /health` says the runtime is up, `describe_runtime` names its
-// version, uptime and log folder, the MCP tools `list_streams`,
-// `logs` and `graph` over `POST /mcp` list its streams, read one's log records and draw one's
-// graph, `run_stream` compiles a project and loads it kept, `stop_stream`, `start_stream` and
-// `remove_stream` act on one, and `GET /api/graph` names the machine. `GET /api/relay-adapters`
+// version, uptime and log folder, the MCP tools `list_streams`, `logs` and `graph` over
+// `POST /mcp` list its streams, read one's log records and draw one's graph, `run_stream`
+// compiles a project and loads it, `stop_stream`, `start_stream`, `remove_stream` and
+// `rename_stream` act on one, and `GET /api/graph` names the machine. `GET /api/relay-adapters`
 // and `list_relays` describe the machine's relays, and `add_relay`, `configure_relay` and
 // `remove_relay` change them.
 //
@@ -20,6 +20,7 @@ import type {
   RelaysDescription,
   RuntimeDescription,
   StreamGraphSummary,
+  StreamLocation,
   StreamLogRecordsPage,
   StreamRunAnswer,
   TatolabStreamActionName,
@@ -29,13 +30,14 @@ import {
   isAJsonObject,
   jsonObject,
   type JsonObjectOnTheWire,
+  optionalObject,
   optionalText,
   optionalUnsignedInteger,
   parseJsonOnTheWire,
+  requiredObject,
   requiredText,
   requiredTrueOrFalse,
   requiredUnsignedInteger,
-  textOrDefault,
 } from "./json_on_the_wire.js";
 import {
   listedRelaysFromTheListRelaysToolResult,
@@ -80,11 +82,11 @@ function theRuntimesRefusal(failureDescription: string): { ok: false; failure: L
   return failedWith({ failureDescription, isTheRuntimesRefusal: true });
 }
 
-/** What the app asks `run_stream` to load: a project folder, kept. `streamFunction` as `tatolab run` takes it, `null` for the project's sole `@stream`; `streamName` in place of the function's own, or `null`. */
+/** What the app asks `run_stream` to load: a project folder. `streamFunction` as `tatolab run` takes it, `null` for the project's sole `@stream`; `displayName` to show it under, `null` for the function's own or the one a re-load keeps. */
 export interface StreamRunRequest {
   projectDirectory: string;
   streamFunction: string | null;
-  streamName: string | null;
+  displayName: string | null;
 }
 
 /** A `run_stream` tool result read field for field; unknown fields are ignored. */
@@ -98,16 +100,18 @@ export function streamRunAnswerFromTheRunStreamToolResult(toolResultText: string
 function streamRunAnswerOnTheWire(toolResult: JsonObjectOnTheWire): Result<StreamRunAnswer, string> {
   const stream = requiredText(toolResult, "stream");
   if (!stream.ok) return stream;
+  const displayName = requiredText(toolResult, "display_name");
+  if (!displayName.ok) return displayName;
   const streamInstance = requiredText(toolResult, "stream_instance");
   if (!streamInstance.ok) return streamInstance;
-  const kept = requiredTrueOrFalse(toolResult, "kept");
-  if (!kept.ok) return kept;
-  const projectDirectory = requiredText(toolResult, "project_directory");
-  if (!projectDirectory.ok) return projectDirectory;
+  const locationOnTheWire = requiredObject(toolResult, "location");
+  if (!locationOnTheWire.ok) return locationOnTheWire;
+  const location = streamLocationOnTheWire(locationOnTheWire.value);
+  if (!location.ok) return location;
   const nodeCount = requiredUnsignedInteger(toolResult, "node_count");
   if (!nodeCount.ok) return nodeCount;
-  const replacedTheKeptRecord = requiredTrueOrFalse(toolResult, "replaced_the_kept_record");
-  if (!replacedTheKeptRecord.ok) return replacedTheKeptRecord;
+  const replacedARecordedStream = requiredTrueOrFalse(toolResult, "replaced_a_recorded_stream");
+  if (!replacedARecordedStream.ok) return replacedARecordedStream;
   const compileWarningsOnTheWire = toolResult["compile_warnings"];
   if (compileWarningsOnTheWire === undefined) return failedWith("missing field `compile_warnings`");
   if (!Array.isArray(compileWarningsOnTheWire)) return failedWith("`compile_warnings` is not an array");
@@ -117,13 +121,44 @@ function streamRunAnswerOnTheWire(toolResult: JsonObjectOnTheWire): Result<Strea
   if (!compileWarnings.ok) return compileWarnings;
   return succeeded({
     stream: stream.value,
+    display_name: displayName.value,
     stream_instance: streamInstance.value,
-    kept: kept.value,
-    project_directory: projectDirectory.value,
+    location: location.value,
     node_count: nodeCount.value,
-    replaced_the_kept_record: replacedTheKeptRecord.value,
+    replaced_a_recorded_stream: replacedARecordedStream.value,
     compile_warnings: compileWarnings.value,
   });
+}
+
+/** A stream's `location` on the wire: `project_directory` and `stream_function` as `module:qualname`. */
+function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLocation, string> {
+  const projectDirectory = requiredText(location, "project_directory");
+  if (!projectDirectory.ok) return projectDirectory;
+  const streamFunction = requiredText(location, "stream_function");
+  if (!streamFunction.ok) return streamFunction;
+  return succeeded({ project_directory: projectDirectory.value, stream_function: streamFunction.value });
+}
+
+/** What `rename_stream` answers: the stream's id and the display name it is shown under now. */
+export interface StreamRenameAnswer {
+  stream: string;
+  display_name: string;
+}
+
+/** A `rename_stream` tool result read field for field; unknown fields are ignored. */
+export function streamRenameAnswerFromTheRenameStreamToolResult(toolResultText: string): Result<StreamRenameAnswer, string> {
+  const parsedToolResult = parseJsonOnTheWire(toolResultText);
+  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the rename_stream result") : parsedToolResult;
+  const streamRenameAnswer = toolResult.ok ? streamRenameAnswerOnTheWire(toolResult.value) : toolResult;
+  return streamRenameAnswer.ok ? streamRenameAnswer : failedWith(`the runtime's rename_stream result could not be read: ${streamRenameAnswer.failure}`);
+}
+
+function streamRenameAnswerOnTheWire(toolResult: JsonObjectOnTheWire): Result<StreamRenameAnswer, string> {
+  const stream = requiredText(toolResult, "stream");
+  if (!stream.ok) return stream;
+  const displayName = requiredText(toolResult, "display_name");
+  if (!displayName.ok) return displayName;
+  return succeeded({ stream: stream.value, display_name: displayName.value });
 }
 
 /** A `describe_runtime` tool result read field for field; unknown fields are ignored. */
@@ -155,7 +190,7 @@ export interface LocalApiHttpResponse {
 /** One HTTP request header, as name and value. */
 type HttpRequestHeader = readonly [headerName: string, headerValue: string];
 
-/** Every stream a `list_streams` tool result lists. A stream's unknown state is kept as spelled, an absent project directory reads empty, and unknown fields are ignored. */
+/** Every stream a `list_streams` tool result lists. A stream's unknown state is kept as spelled, a `null` location is an earlier runtime's record, and unknown fields are ignored. */
 export function listedStreamsFromTheListStreamsToolResult(toolResultText: string): Result<ListedStream[], string> {
   const listedStreams = listedStreamsFromTheParsedToolResult(parseJsonOnTheWire(toolResultText));
   return listedStreams.ok ? listedStreams : failedWith(`the runtime's list_streams result could not be read: ${listedStreams.failure}`);
@@ -174,20 +209,25 @@ function listedStreamsFromTheParsedToolResult(parsedToolResult: Result<unknown, 
 function listedStreamOnTheWire(listedStreamOnTheWire: unknown): Result<ListedStream, string> {
   const listedStream = jsonObject(listedStreamOnTheWire, "a stream");
   if (!listedStream.ok) return listedStream;
-  const name = requiredText(listedStream.value, "name");
-  if (!name.ok) return name;
+  const stream = requiredText(listedStream.value, "stream");
+  if (!stream.ok) return stream;
+  const displayName = requiredText(listedStream.value, "display_name");
+  if (!displayName.ok) return displayName;
+  const locationOnTheWire = optionalObject(listedStream.value, "location");
+  if (!locationOnTheWire.ok) return locationOnTheWire;
+  const location = locationOnTheWire.value === null ? succeeded(null) : streamLocationOnTheWire(locationOnTheWire.value);
+  if (!location.ok) return location;
   const state = requiredText(listedStream.value, "state");
   if (!state.ok) return state;
-  const projectDirectory = textOrDefault(listedStream.value, "project_directory", "");
-  if (!projectDirectory.ok) return projectDirectory;
   const nodeCount = optionalUnsignedInteger(listedStream.value, "node_count");
   if (!nodeCount.ok) return nodeCount;
   const failedBecause = optionalText(listedStream.value, "failed_because");
   if (!failedBecause.ok) return failedBecause;
   return succeeded({
-    name: name.value,
+    stream: stream.value,
+    display_name: displayName.value,
+    location: location.value,
     state: state.value,
-    project_directory: projectDirectory.value,
     node_count: nodeCount.value,
     failed_because: failedBecause.value,
   });
@@ -272,15 +312,22 @@ export class LocalApiClient {
     return notice.ok ? notice : localApiRequestFailure(notice.failure);
   }
 
-  /** Compile the project `streamRunRequest` names in its own `.venv` and load it kept, through the runtime's `run_stream` tool; refused in the runtime's own words. */
+  /** Show the stream `stream` under `displayName` through the runtime's `rename_stream` tool, its id, address and broadcast as they are; refused in the runtime's own words. */
+  async renameStream(stream: string, displayName: string): Promise<Result<void, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("rename_stream", { stream, display_name: displayName }, STREAM_ACTION_RESPONSE_TIMEOUT_MS);
+    if (!toolResultText.ok) return toolResultText;
+    const renamed = streamRenameAnswerFromTheRenameStreamToolResult(toolResultText.value);
+    return renamed.ok ? succeeded(undefined) : localApiRequestFailure(renamed.failure);
+  }
+
+  /** Compile the project `streamRunRequest` names in its own `.venv` and load it, through the runtime's `run_stream` tool; refused in the runtime's own words. */
   async runStream(streamRunRequest: StreamRunRequest): Promise<Result<StreamRunAnswer, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool(
       "run_stream",
       {
         project_directory: streamRunRequest.projectDirectory,
         ...(streamRunRequest.streamFunction === null ? {} : { stream_function: streamRunRequest.streamFunction }),
-        ...(streamRunRequest.streamName === null ? {} : { name: streamRunRequest.streamName }),
-        keep: true,
+        ...(streamRunRequest.displayName === null ? {} : { name: streamRunRequest.displayName }),
       },
       STREAM_LOAD_RESPONSE_TIMEOUT_MS,
     );

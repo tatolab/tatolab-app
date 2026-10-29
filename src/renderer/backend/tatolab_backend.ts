@@ -32,18 +32,20 @@ export interface TatolabBackend {
   quitTatolabApp(): Promise<void>;
   /** On macOS uninstalls Tatolab and quits at the end, rejecting with the reason when it can't; on Linux rejects with how to. */
   uninstallTatolab(): Promise<void>;
-  readStreamLogRecords(streamName: string, afterSequence: number): Promise<StreamLogRecordsPage>;
-  describeStreamGraph(streamName: string): Promise<StreamGraphSummary>;
+  readStreamLogRecords(streamId: string, afterSequence: number): Promise<StreamLogRecordsPage>;
+  describeStreamGraph(streamId: string): Promise<StreamGraphSummary>;
   /** Check for a newer Tatolab and take it if there is one; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
-  /** Stop, start (or retry) or remove `streamName`, resolving with the runtime's notice beside an action it carried out (a stop it could not record) or `null`, and rejecting with its refusal; the new listing arrives as the next status. */
-  runStreamAction(streamAction: TatolabStreamActionName, streamName: string): Promise<string | null>;
-  /** Show the project folder the runtime lists for `streamName` in the file manager, rejecting with why it could not. */
-  openStreamProjectFolder(streamName: string): Promise<void>;
-  /** Open a terminal in the project folder the runtime lists for `streamName`, rejecting with why it could not. */
-  openTerminalAtStreamProject(streamName: string): Promise<void>;
-  /** Show the log folder under the project folder the runtime lists for `streamName` in the file manager, rejecting with why it could not. */
-  openStreamLogFolder(streamName: string): Promise<void>;
+  /** Stop, start (or retry) or remove `streamId`, resolving with the runtime's notice beside an action it carried out (a stop it could not record) or `null`, and rejecting with its refusal; the new listing arrives as the next status. */
+  runStreamAction(streamAction: TatolabStreamActionName, streamId: string): Promise<string | null>;
+  /** Show the stream `streamId` under `displayName`, resolving once the runtime has recorded it and rejecting with its refusal; the new name arrives as the next status. */
+  renameStream(streamId: string, displayName: string): Promise<void>;
+  /** Show the project folder the runtime lists for `streamId` in the file manager, rejecting with why it could not. */
+  openStreamProjectFolder(streamId: string): Promise<void>;
+  /** Open a terminal in the project folder the runtime lists for `streamId`, rejecting with why it could not. */
+  openTerminalAtStreamProject(streamId: string): Promise<void>;
+  /** Show the log folder under the project folder the runtime lists for `streamId` in the file manager, rejecting with why it could not. */
+  openStreamLogFolder(streamId: string): Promise<void>;
   /** Ask the person for a folder in the app's dialog and resolve with what it holds, or `null` when they cancel. A folder it answers is one the window may name. */
   chooseStreamProjectFolder(chosenFor: StreamProjectFolderChosenFor): Promise<StreamProjectFolderReport | null>;
   /** The first free `~/streams/hello[-N]` for a new project, which the window may name. */
@@ -51,11 +53,11 @@ export interface TatolabBackend {
   /** Run `tatolab new` in `folder`, then resolve with what it holds; rejects in the CLI's own words. */
   createStreamProject(folder: string): Promise<StreamProjectFolderReport>;
   /**
-   * Make `folder`'s `.venv` with the app's uv when it has none that runs, then compile it and load it kept, resolving once the
-   * runtime answers; rejects with its refusal in its own words, except a refused name a listed stream holds, which resolves
-   * `name_taken`, and uv failing to make the `.venv`, which resolves `python_environment_not_made` in uv's own words.
+   * Make `folder`'s `.venv` with the app's uv when it has none that runs, then compile it and load it under `displayName`,
+   * resolving once the runtime answers; rejects with its refusal in its own words, except uv failing to make the `.venv`,
+   * which resolves `python_environment_not_made` in uv's own words.
    */
-  runStreamProject(folder: string, streamFunction: string | null, streamName: string | null): Promise<StreamProjectRunOutcome>;
+  runStreamProject(folder: string, streamFunction: string | null, displayName: string | null): Promise<StreamProjectRunOutcome>;
   /** How the running runtime describes itself, rejecting in its own words when it does not answer. */
   describeRuntime(): Promise<RuntimeDescription>;
   /** Stop the runtime and start it again through the service manager, resolving once the service manager has answered and rejecting in its words; the state that follows arrives as the next statuses. */
@@ -78,7 +80,7 @@ export interface TatolabBackend {
   removeRelay(relayId: string): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
   /** Calls `listener` with the stream each request from the app to show a stream's page names; the returned function stops it. */
-  onStreamPageRequested(listener: (streamName: string) => void): () => void;
+  onStreamPageRequested(listener: (streamId: string) => void): () => void;
 }
 
 /** Where the page runs: Tatolab.app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */

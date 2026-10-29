@@ -21,7 +21,7 @@ import {
   type StreamLogRow,
 } from "../presentation/log_record_presentation";
 import { presentWindowShortcut } from "../presentation/platform_presentation";
-import { isStreamLoaded, presentStreamPrimaryAction } from "../presentation/stream_presentation";
+import { isStreamLoaded, listedStreamProjectDirectory, presentStreamPrimaryAction } from "../presentation/stream_presentation";
 import { ActionButton } from "../design_system/action_button";
 import { EmptyState } from "../design_system/empty_state";
 import { InlineLink } from "../design_system/inline_link";
@@ -208,14 +208,14 @@ function StreamLogStepFilterControl({
   );
 }
 
-/** Opens `streamName`'s log folder, keeping why the last try was refused, in the refusal's own words, until the next. */
-function useStreamLogFolderOpening(streamName: string): { openStreamLogFolder: () => void; folderOpeningRefusal: string | null } {
+/** Opens `streamId`'s log folder, keeping why the last try was refused, in the refusal's own words, until the next. */
+function useStreamLogFolderOpening(streamId: string): { openStreamLogFolder: () => void; folderOpeningRefusal: string | null } {
   const { backend } = useTatolabWindowEnvironment();
   const [folderOpeningRefusal, setFolderOpeningRefusal] = useState<string | null>(null);
   return {
     openStreamLogFolder: () => {
       setFolderOpeningRefusal(null);
-      backend.openStreamLogFolder(streamName).catch((rejection: unknown) => setFolderOpeningRefusal(describeBackendRejection(rejection)));
+      backend.openStreamLogFolder(streamId).catch((rejection: unknown) => setFolderOpeningRefusal(describeBackendRejection(rejection)));
     },
     folderOpeningRefusal,
   };
@@ -223,19 +223,25 @@ function useStreamLogFolderOpening(streamName: string): { openStreamLogFolder: (
 
 /** The quiet first row saying how many of this load's earlier records the window does not hold, and where they are on disk. */
 function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stream: ListedStream; earlierRecordsNotHeldCount: number }) {
-  const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.name);
+  const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.stream);
+  const projectDirectory = listedStreamProjectDirectory(stream);
   return (
     <div className="border-b px-3 font-sans text-xs" data-stream-log-earlier-records="">
       <div className="flex h-8 items-center gap-2 text-fg-3">
         <FileText className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
         <span className="min-w-0 truncate">
-          {earlierRecordsNotHeldWords(earlierRecordsNotHeldCount)} <span className="font-mono text-fg-2 select-text" title={logFolderPathOfStream(stream.project_directory)}>
-            {logFolderPathOfStream(stream.project_directory)}
-          </span>
+          {earlierRecordsNotHeldWords(earlierRecordsNotHeldCount)}{" "}
+          {projectDirectory !== null && (
+            <span className="font-mono text-fg-2 select-text" title={logFolderPathOfStream(projectDirectory)}>
+              {logFolderPathOfStream(projectDirectory)}
+            </span>
+          )}
         </span>
-        <InlineLink destination={{ onPressed: openStreamLogFolder }} data-stream-action="open_stream_log_folder">
-          Open
-        </InlineLink>
+        {projectDirectory !== null && (
+          <InlineLink destination={{ onPressed: openStreamLogFolder }} data-stream-action="open_stream_log_folder">
+            Open
+          </InlineLink>
+        )}
       </div>
       {folderOpeningRefusal !== null && (
         <div className="pb-2">
@@ -249,8 +255,8 @@ function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stre
 /** A loaded stream's records as the runtime holds them, followed live, with the toolbar, the rows and the selected record's details. */
 function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   const { platform } = useTatolabWindowEnvironment();
-  const reading = useStreamLogReading(stream.name);
-  const { graph } = useStreamGraphReading(stream.name);
+  const reading = useStreamLogReading(stream.stream);
+  const { graph } = useStreamGraphReading(stream.stream);
   const location = useLocation();
   const navigate = useNavigate();
   const searchInput = useRef<HTMLInputElement>(null);
@@ -331,24 +337,24 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   const recordDetailsPanel = selectedRecordDetails !== null ? (
     <StreamLogRecordDetailsView
       details={selectedRecordDetails}
-      streamName={stream.name}
+      streamDisplayName={stream.display_name}
       actions={{
         onClosed: () => setSelectedSequence(null),
         onOnlyStepShown: (stepKey) => {
           setShownStepKeys(new Set([stepKey]));
           setLevelFilter("all");
         },
-        onStepShownInGraph: (stepName) => void navigate(streamPagePath(stream.name, "graph"), { state: { selectedStep: stepName } }),
+        onStepShownInGraph: (stepName) => void navigate(streamPagePath(stream.stream, "graph"), { state: { selectedStep: stepName } }),
       }}
     />
   ) : null;
   return (
-    <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-page={stream.name}>
+    <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-page={stream.stream}>
       <WorkAreaWithSidePanel sidePanel={recordDetailsPanel}>
         <Toolbar label="Logs">
           <SearchField
             inputRef={searchInput}
-            label={`Search ${stream.name} logs`}
+            label={`Search ${stream.display_name} logs`}
             placeholder="Search logs"
             text={searchText}
             onTextChanged={setSearchText}
@@ -446,21 +452,26 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
 
 /** A stream's Logs tab while it is not loaded: why, the folder its log is in, and Retry for a failed one. */
 function StreamLogsOfAStreamNotLoadedView({ stream, streamPageActions }: { stream: ListedStream; streamPageActions: StreamPageActions }) {
-  const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.name);
+  const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.stream);
   const notLoadedWords = presentStreamLogsOfAStreamNotLoaded(stream);
   const retryAction = notLoadedWords.hasFailed ? presentStreamPrimaryAction(stream) : null;
+  const projectDirectory = listedStreamProjectDirectory(stream);
   return (
-    <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-not-loaded={stream.name}>
+    <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-not-loaded={stream.stream}>
       <EmptyState icon={notLoadedWords.hasFailed ? SquareX : ScrollText} isFailure={notLoadedWords.hasFailed} title={notLoadedWords.title} explanation={notLoadedWords.explanation}>
-        <div className="flex h-7 max-w-full items-center rounded-md border bg-well px-2.5 font-mono text-xs text-fg-2">
-          <span className="truncate select-text" title={logFolderPathOfStream(stream.project_directory)}>
-            {logFolderPathOfStream(stream.project_directory)}
-          </span>
-        </div>
+        {projectDirectory !== null && (
+          <div className="flex h-7 max-w-full items-center rounded-md border bg-well px-2.5 font-mono text-xs text-fg-2">
+            <span className="truncate select-text" title={logFolderPathOfStream(projectDirectory)}>
+              {logFolderPathOfStream(projectDirectory)}
+            </span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
-          <ActionButton icon={FolderOpen} onPressed={openStreamLogFolder} data-stream-action="open_stream_log_folder">
-            Open log folder
-          </ActionButton>
+          {projectDirectory !== null && (
+            <ActionButton icon={FolderOpen} onPressed={openStreamLogFolder} data-stream-action="open_stream_log_folder">
+              Open log folder
+            </ActionButton>
+          )}
           {retryAction !== null && (
             <ActionButton
               icon={RotateCw}

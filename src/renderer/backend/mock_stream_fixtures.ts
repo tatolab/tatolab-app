@@ -1,11 +1,40 @@
-import type { ListedStream, StreamGraphDeclaredPort, StreamGraphLink, StreamLogRecord, TatolabPlatform } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, StreamLogRecord, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 
-/** A stable runtime-looking id for `streamName`'s node `nodeName`, such as `P0kq3…`, which its graph and its log records both name it by. */
-export function mockNodeIdOf(streamName: string, nodeName: string): string {
-  const name = `${streamName}/${nodeName}`;
+function fnv1aHashOf(text: string): number {
   let hash = 2166136261;
-  for (const character of name) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
-  return `P${hash.toString(36).padStart(7, "0")}${name.length.toString(36)}mockgraph`.slice(0, 26);
+  for (const character of text) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
+  return hash;
+}
+
+/** A stable runtime-looking id for the node `nodeName` of the stream `streamId`, such as `P0kq3…`, which its graph and its log records both name it by. */
+export function mockNodeIdOf(streamId: string, nodeName: string): string {
+  const name = `${streamId}/${nodeName}`;
+  return `P${fnv1aHashOf(name).toString(36).padStart(7, "0")}${name.length.toString(36)}mockgraph`.slice(0, 26);
+}
+
+/** A part of a stream id as the runtime casts one: lower case, each run of other characters one `-`, none at either end. */
+function castAsAStreamIdPart(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * The stream id the runtime computes from a location, `<folder>-<function>-<hash>`, with a stand-in hash over the path
+ * with its home folder written `~`, so two folders give two ids and a mock stream has the same id on both platforms.
+ */
+export function mockStreamIdOf(location: StreamLocation): string {
+  const folder = castAsAStreamIdPart(location.project_directory.split("/").filter((segment) => segment !== "").at(-1) ?? "");
+  const functionName = castAsAStreamIdPart(location.stream_function.split(":").at(-1) ?? "");
+  const projectDirectoryUnderHome = location.project_directory.replace(/^\/(Users|home)\/[^/]+/, "~");
+  const hash = fnv1aHashOf(`${projectDirectoryUnderHome}\n${location.stream_function}`).toString(16).padStart(8, "0").slice(0, 6);
+  return [folder, functionName, hash].filter((part) => part !== "").join("-");
+}
+
+/** A stream listed running, its graph loaded with `nodeCount` nodes, under the id its location computes to. */
+function runningListing(location: StreamLocation, displayName: string, nodeCount: number): ListedStream {
+  return { stream: mockStreamIdOf(location), display_name: displayName, location, state: "running", node_count: nodeCount, failed_because: null };
 }
 
 /** A log record before the mock runtime numbers and stamps it. */
@@ -147,9 +176,9 @@ function once(atMilliseconds: number): (millisecondsSinceLoad: number) => number
   };
 }
 
-function loadingLines(machine: MockMachine, streamName: string, projectDirectory: string): MockLogRecordDraft[] {
+function loadingLines(machine: MockMachine, streamId: string, projectDirectory: string): MockLogRecordDraft[] {
   return [
-    { millisecondsAfterLoad: 0, source: "rust", level: "info", target: LOADED_STREAM_TARGET, message: `Loading the stream \`${streamName}\` from ${projectDirectory}` },
+    { millisecondsAfterLoad: 0, source: "rust", level: "info", target: LOADED_STREAM_TARGET, message: `Loading the stream \`${streamId}\` from ${projectDirectory}` },
     {
       millisecondsAfterLoad: 113,
       source: "rust",
@@ -227,14 +256,17 @@ const RECORDER_OF_MAIN_NODE: MockGraphNode = {
   output_ports: [],
 };
 
-const RECORDER_OF_MAIN_LINK: StreamGraphLink = {
-  id: "Lr3c0rd3rm41nx7q2w9e5t1y8u",
-  source_node: "main/invertingeffect",
-  source_port: "video_to_downstream",
-  target_node: "mp4writer",
-  target_port: "video",
-  state: "wired",
-};
+/** The recorder's link from `main`'s effect, its source named `<stream id>/<node>` as a link from another stream is. */
+function recorderOfMainLink(mainStreamId: string): StreamGraphLink {
+  return {
+    id: "Lr3c0rd3rm41nx7q2w9e5t1y8u",
+    source_node: `${mainStreamId}/invertingeffect`,
+    source_port: "video_to_downstream",
+    target_node: "mp4writer",
+    target_port: "video",
+    state: "wired",
+  };
+}
 
 /** The test pattern's meter falling behind: its link drops frames and the effect's output refuses a few. */
 const TEST_PATTERN_METER_FALLING_BEHIND: MockCounterRates = {
@@ -242,21 +274,24 @@ const TEST_PATTERN_METER_FALLING_BEHIND: MockCounterRates = {
   refusedPerSecondByOutput: [{ node: "invertingeffect", port: "video_to_downstream", perSecond: 2 }],
 };
 
-/** `tatolab new --test-pattern`, run as `streamName`: the scaffold's four nodes, two of them Python. */
+/** `tatolab new --test-pattern`'s stream function `streamFunction` in `projectDirectory`, shown as `displayName`: the scaffold's four nodes, two of them Python. */
 function createTestPatternStream(
   machine: MockMachine,
   options: {
-    streamName: string;
-    state: "kept" | "attached";
+    projectDirectory: string;
+    /** As `module:qualname`, which the stream's id is computed from. */
+    streamFunction: string;
+    displayName: string;
     exposesItsEffect: boolean;
     withDisplayWindowInError: boolean;
     withTheMeterFallingBehind: boolean;
-    /** A recorder that reads `main`'s exposed effect output, a link whose source is in another stream. */
-    withARecorderOfMain: boolean;
+    /** The id of the stream a recorder reads the exposed effect output of, a link whose source is in another stream; `null` for none. */
+    recordsTheStream: string | null;
   },
 ): MockStreamFixture {
-  const projectDirectory = `${machine.homeDirectory}/streams/pattern`;
-  const { streamName } = options;
+  const { projectDirectory, recordsTheStream } = options;
+  const listing = runningListing({ project_directory: projectDirectory, stream_function: options.streamFunction }, options.displayName, recordsTheStream === null ? 4 : 5);
+  const streamId = listing.stream;
   const brightness = (dueAt: number): MockLogRecordDraft => ({
     millisecondsAfterLoad: dueAt,
     source: "python",
@@ -267,21 +302,21 @@ function createTestPatternStream(
     node: "brightnessmeter",
   });
   return {
-    listing: { name: streamName, state: options.state, project_directory: projectDirectory, node_count: options.withARecorderOfMain ? 5 : 4, failed_because: null },
+    listing,
     graph: {
       nodes: [
         ...TEST_PATTERN_NODES.map((node) => (options.withDisplayWindowInError && node.name === "displaywindow" ? { ...node, state: "Error" } : node)),
-        ...(options.withARecorderOfMain ? [RECORDER_OF_MAIN_NODE] : []),
+        ...(recordsTheStream === null ? [] : [RECORDER_OF_MAIN_NODE]),
       ],
       links: [
         ...TEST_PATTERN_LINKS.map((link) => (options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link)),
-        ...(options.withARecorderOfMain ? [RECORDER_OF_MAIN_LINK] : []),
+        ...(recordsTheStream === null ? [] : [recorderOfMainLink(recordsTheStream)]),
       ],
       exposed: options.exposesItsEffect ? [{ node: "invertingeffect", port: "video_to_downstream", level: "private" }] : [],
       counterRates: options.withTheMeterFallingBehind ? TEST_PATTERN_METER_FALLING_BEHIND : NO_COUNTERS_CLIMB,
     },
     startupLog: [
-      ...loadingLines(machine, streamName, projectDirectory),
+      ...loadingLines(machine, streamId, projectDirectory),
       {
         millisecondsAfterLoad: 399,
         source: "rust",
@@ -305,7 +340,7 @@ function createTestPatternStream(
     createLiveLogWriter: () => {
       const brightnessReportsDue = cadence(1001, 1493);
       const escalateWarningDue = once(2772);
-      const brightnessReadFailureDue = options.state === "kept" && !options.withDisplayWindowInError ? once(4120) : once(Number.POSITIVE_INFINITY);
+      const brightnessReadFailureDue = recordsTheStream === null && !options.withDisplayWindowInError ? once(4120) : once(Number.POSITIVE_INFINITY);
       return (millisecondsSinceLoad) => [
         ...brightnessReportsDue(millisecondsSinceLoad).map(brightness),
         ...escalateWarningDue(millisecondsSinceLoad).map(
@@ -331,15 +366,16 @@ function createTestPatternStream(
         ),
       ];
     },
-    loadedForMillisecondsAtOpen: options.state === "kept" ? 6200 : 3900,
+    loadedForMillisecondsAtOpen: recordsTheStream === null ? 6200 : 3900,
   };
 }
 
-/** A camera and a microphone, each watched and metered, kept with `tatolab run -d`. */
+/** A camera and a microphone, each watched and metered, loaded with `tatolab run --name camera`. */
 function createCameraStream(machine: MockMachine): MockStreamFixture {
   const projectDirectory = `${machine.homeDirectory}/streams/camera`;
+  const listing = runningListing({ project_directory: projectDirectory, stream_function: "stream:main" }, "camera", 4);
   return {
-    listing: { name: "camera", state: "kept", project_directory: projectDirectory, node_count: 4, failed_because: null },
+    listing,
     graph: {
       nodes: [
         {
@@ -393,7 +429,7 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
       counterRates: NO_COUNTERS_CLIMB,
     },
     startupLog: [
-      { millisecondsAfterLoad: 0, source: "rust", level: "info", target: LOADED_STREAM_TARGET, message: `Loading the stream \`camera\` from ${projectDirectory}` },
+      { millisecondsAfterLoad: 0, source: "rust", level: "info", target: LOADED_STREAM_TARGET, message: `Loading the stream \`${listing.stream}\` from ${projectDirectory}` },
       { millisecondsAfterLoad: 382, source: "rust", level: "info", target: "streamlib_media_builtins::camera_source", message: "Camera opened", attrs: machine.cameraOpenedAttrs, node: "camerasource" },
       {
         millisecondsAfterLoad: 396,
@@ -427,20 +463,21 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
   };
 }
 
-/** A kept stream its owner stopped with `tatolab stop`. */
-function stoppedPatternTwoListing(machine: MockMachine): ListedStream {
-  return { name: "pattern-two", state: "stopped", project_directory: `${machine.homeDirectory}/streams/pattern`, node_count: null, failed_because: null };
+/** The folder the test pattern's streams are run from. */
+function patternProjectDirectory(machine: MockMachine): string {
+  return `${machine.homeDirectory}/streams/pattern`;
 }
 
-/** A kept stream that could not load at the runtime's start. */
+/** A stream its owner stopped with `tatolab stop`. */
+function stoppedPatternTwoListing(machine: MockMachine): ListedStream {
+  const location = { project_directory: patternProjectDirectory(machine), stream_function: "stream:pattern_two" };
+  return { stream: mockStreamIdOf(location), display_name: "pattern-two", location, state: "stopped", node_count: null, failed_because: null };
+}
+
+/** A stream that could not load at the runtime's start. */
 function failedLobbyRecorderListing(machine: MockMachine): ListedStream {
-  return {
-    name: "lobby-recorder",
-    state: "failed",
-    project_directory: `${machine.homeDirectory}/streams/lobby-recorder`,
-    node_count: null,
-    failed_because: machine.cameraFailure,
-  };
+  const location = { project_directory: `${machine.homeDirectory}/streams/lobby-recorder`, stream_function: "stream:main" };
+  return { stream: mockStreamIdOf(location), display_name: "lobby-recorder", location, state: "failed", node_count: null, failed_because: machine.cameraFailure };
 }
 
 /** The machine the mock runtime runs on for `platform`, and the streams it lists. */
@@ -451,93 +488,95 @@ export interface MockStreamFixtures {
   /** `main` with its meter falling behind, so a link drops frames. */
   mainStreamWithItsMeterFallingBehind: MockStreamFixture;
   cameraStream: MockStreamFixture;
-  attachedDemoStream: MockStreamFixture;
+  /** A recorder in the pattern folder reading `main`'s exposed effect, a link whose source is in another stream. */
+  recorderOfMainStream: MockStreamFixture;
   stoppedPatternTwo: ListedStream;
   /** `pattern-two` once started again. */
   patternTwoStream: MockStreamFixture;
   failedLobbyRecorder: ListedStream;
-  /** The order the runtime lists its streams in. */
+  /** A record an earlier runtime wrote, which names no location and is listed failed until it is removed. */
+  earlierRuntimesRecord: ListedStream;
+  /** The folder the test pattern's streams are run from. */
+  patternProjectDirectory: string;
+  /** The order the runtime lists its streams in, by id. */
   listingOrder: readonly string[];
 }
 
 /** The mock runtime's machine and streams as they look on `platform`. */
 export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamFixtures {
   const machine = MOCK_MACHINES[platform];
-  return {
-    machine,
-    mainStream: createTestPatternStream(machine, {
-      streamName: "main",
-      state: "kept",
-      exposesItsEffect: true,
-      withDisplayWindowInError: false,
-      withTheMeterFallingBehind: false,
-      withARecorderOfMain: false,
-    }),
-    mainStreamWithDisplayWindowInError: createTestPatternStream(machine, {
-      streamName: "main",
-      state: "kept",
-      exposesItsEffect: true,
-      withDisplayWindowInError: true,
-      withTheMeterFallingBehind: false,
-      withARecorderOfMain: false,
-    }),
-    mainStreamWithItsMeterFallingBehind: createTestPatternStream(machine, {
-      streamName: "main",
-      state: "kept",
-      exposesItsEffect: true,
-      withDisplayWindowInError: false,
-      withTheMeterFallingBehind: true,
-      withARecorderOfMain: false,
-    }),
-    cameraStream: createCameraStream(machine),
-    attachedDemoStream: createTestPatternStream(machine, {
-      streamName: "attached-demo",
-      state: "attached",
-      exposesItsEffect: false,
-      withDisplayWindowInError: false,
-      withTheMeterFallingBehind: false,
-      withARecorderOfMain: true,
-    }),
-    stoppedPatternTwo: stoppedPatternTwoListing(machine),
-    patternTwoStream: createTestPatternStream(machine, {
-      streamName: "pattern-two",
-      state: "kept",
-      exposesItsEffect: false,
-      withDisplayWindowInError: false,
-      withTheMeterFallingBehind: false,
-      withARecorderOfMain: false,
-    }),
-    failedLobbyRecorder: failedLobbyRecorderListing(machine),
-    listingOrder: ["main", "camera", "attached-demo", "pattern-two", "lobby-recorder"],
-  };
-}
-
-/** The stream a project folder run from the window loads as `streamName`, kept: the sample's four nodes, its effect exposed. */
-export function createMockStreamRunFromAProjectFolder(machine: MockMachine, streamName: string, projectDirectory: string): MockStreamFixture {
-  const fixture = createTestPatternStream(machine, {
-    streamName,
-    state: "kept",
+  const projectDirectory = patternProjectDirectory(machine);
+  const mainStreamOptions = {
+    projectDirectory,
+    streamFunction: "stream:main",
+    displayName: "main",
     exposesItsEffect: true,
     withDisplayWindowInError: false,
     withTheMeterFallingBehind: false,
-    withARecorderOfMain: false,
+    recordsTheStream: null,
+  };
+  const mainStream = createTestPatternStream(machine, mainStreamOptions);
+  const cameraStream = createCameraStream(machine);
+  const recorderOfMainStream = createTestPatternStream(machine, {
+    ...mainStreamOptions,
+    streamFunction: "stream:recorder",
+    displayName: "recorder",
+    exposesItsEffect: false,
+    recordsTheStream: mainStream.listing.stream,
   });
-  return { ...fixture, listing: { ...fixture.listing, project_directory: projectDirectory }, loadedForMillisecondsAtOpen: 0 };
+  const stoppedPatternTwo = stoppedPatternTwoListing(machine);
+  const failedLobbyRecorder = failedLobbyRecorderListing(machine);
+  return {
+    machine,
+    mainStream,
+    mainStreamWithDisplayWindowInError: createTestPatternStream(machine, { ...mainStreamOptions, withDisplayWindowInError: true }),
+    mainStreamWithItsMeterFallingBehind: createTestPatternStream(machine, { ...mainStreamOptions, withTheMeterFallingBehind: true }),
+    cameraStream,
+    recorderOfMainStream,
+    stoppedPatternTwo,
+    patternTwoStream: createTestPatternStream(machine, { ...mainStreamOptions, streamFunction: "stream:pattern_two", displayName: "pattern-two", exposesItsEffect: false }),
+    failedLobbyRecorder,
+    earlierRuntimesRecord: {
+      stream: "doorbell",
+      display_name: "doorbell",
+      location: null,
+      state: "failed",
+      node_count: null,
+      failed_because:
+        "an earlier runtime recorded it, under record schema 2, and this runtime does not load it; run it again with `tatolab run` in its project, and `tatolab rm doorbell` forgets this record",
+    },
+    patternProjectDirectory: projectDirectory,
+    listingOrder: [mainStream.listing.stream, cameraStream.listing.stream, recorderOfMainStream.listing.stream, stoppedPatternTwo.stream, failedLobbyRecorder.stream],
+  };
+}
+
+/** The stream a project folder run from the window loads from `projectDirectory`'s `streamFunction`, shown as `displayName`: the sample's four nodes, its effect exposed. */
+export function createMockStreamRunFromAProjectFolder(machine: MockMachine, projectDirectory: string, streamFunction: string, displayName: string): MockStreamFixture {
+  const fixture = createTestPatternStream(machine, {
+    projectDirectory,
+    streamFunction,
+    displayName,
+    exposesItsEffect: true,
+    withDisplayWindowInError: false,
+    withTheMeterFallingBehind: false,
+    recordsTheStream: null,
+  });
+  return { ...fixture, loadedForMillisecondsAtOpen: 0 };
 }
 
 /** The id the mock runtime runs under, which every record it writes carries. */
 const MOCK_RUNTIME_ID = "Rmockruntime7f3k2q9x4w1b8n";
 
-/** The record a draft of `streamName`'s log becomes once numbered and stamped against the stream's load time, with its JSONL line as the runtime writes it. */
-export function stampMockLogRecord(draft: MockLogRecordDraft, sequence: number, loadedAtMilliseconds: number, streamName: string): StreamLogRecord {
+/** The record a draft of the log of the stream `streamId` becomes once numbered and stamped against the stream's load time, with its JSONL line as the runtime writes it. */
+export function stampMockLogRecord(draft: MockLogRecordDraft, sequence: number, loadedAtMilliseconds: number, streamId: string): StreamLogRecord {
   const hostTimestampNanoseconds = Math.round((loadedAtMilliseconds + draft.millisecondsAfterLoad) * 1_000_000);
-  const processorId = draft.node === undefined ? null : mockNodeIdOf(streamName, draft.node);
+  const processorId = draft.node === undefined ? null : mockNodeIdOf(streamId, draft.node);
   const attrs = draft.attrs ?? {};
   const jsonlRecord = {
     schema_version: 1,
     host_ts: hostTimestampNanoseconds,
     runtime_id: MOCK_RUNTIME_ID,
-    stream: streamName,
+    stream: streamId,
     source: draft.source,
     level: draft.level,
     message: draft.message,

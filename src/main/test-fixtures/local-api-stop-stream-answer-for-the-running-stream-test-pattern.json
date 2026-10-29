@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"stream\": \"test-pattern-main-cab18a\",\n  \"stopped\": true\n}"}],"isError":false}}

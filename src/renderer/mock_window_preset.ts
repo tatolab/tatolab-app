@@ -55,7 +55,7 @@ async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
     await waitForElement(`[data-add-stream-run-notice]`, MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS);
     return;
   }
-  if (addStep === "done") await waitForElement(`[data-add-stream-step="running"], [data-add-stream-name-taken]`, MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS);
+  if (addStep === "done") await waitForElement(`[data-add-stream-step="running"]`, MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS);
 }
 
 /** Types `text` into the controlled field `field`, one line or several, as a person would, so React's onChange sees it. */
@@ -114,6 +114,23 @@ async function driveRelaysToPreset(pageQuery: URLSearchParams): Promise<void> {
   if (pageQuery.get("relay_submit") === "pressed") await clickWhenShown(`[data-relay-action="add"]:not([disabled]), [data-relay-action="save"]:not([disabled])`);
 }
 
+/**
+ * Right-clicks the sidebar row of the stream `streamId`, then stops on the menu (`menu`), or chooses Rename… and
+ * types `renameTo` into its dialog's field (by default), or presses Rename too (`pressed`).
+ */
+async function driveTheRightClickRenameToPreset(streamId: string, renameStep: string | null, renameTo: string | null): Promise<void> {
+  const sidebarRow = await waitForElement<HTMLElement>(`[data-sidebar-stream="${CSS.escape(streamId)}"] a`);
+  if (sidebarRow === null) return;
+  const rowBounds = sidebarRow.getBoundingClientRect();
+  sidebarRow.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: rowBounds.left + 24, clientY: rowBounds.top + rowBounds.height / 2 }));
+  if (renameStep === "menu") return;
+  await clickWhenShown(`[data-slot="context-menu-item"][data-stream-action="rename_stream"]`);
+  const displayNameField = await waitForElement<HTMLInputElement>("[data-stream-rename-display-name]");
+  if (displayNameField === null || renameTo === null) return;
+  typeIntoAField(displayNameField, renameTo);
+  if (renameStep === "pressed") await clickWhenShown('[data-stream-rename-action="rename"]:not([disabled])');
+}
+
 async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STEP_TIMEOUT_MILLISECONDS): Promise<boolean> {
   const element = await waitForElement<HTMLElement>(selector, timeoutMilliseconds);
   element?.click();
@@ -121,7 +138,7 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
 }
 
 /**
- * Browser-mock only: drives the window the way a person would, to the screen `?stream=`, `?tab=overview|graph|logs|inspect`,
+ * Browser-mock only: drives the window the way a person would, to the screen `?stream=<stream id>` (a mock stream's id, such as `pattern-main-645dbe`), `?tab=overview|graph|logs|inspect`,
  * `?stream_page_action=<action>` (a header or menu action of the stream's page, once its graph shows: `stop_stream` there gives
  * the steps as of the last load), `?inspect=tree`,
  * `?page=settings|add-stream` (the add-stream dialog, on Import project), on Settings `?section=general|appearance|runtime|relays|command-line|about`, on its Relays
@@ -130,12 +147,12 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * Save pressed), with the backend's `?relays=local|every-field-type` and `?adapter_names=none`, and on its Runtime
  * `?restart=pressed` (Restart runtime pressed: Starting, then Running up 0m) or `?restart=refused` (the service manager refusing it),
  * `?choose_python=pressed` (Choose Your Own… pressed, with the backend's `?python=chosen|not_offered` and `?python_pick=cancel|not_python`), with the
- * backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream>` (a
+ * backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream id>` (a
  * click on that stream's failure notification), on the add-stream dialog `?add=folder|compiling|done|away` (a folder chosen, compiling, the stream running, or
  * the dialog closed while it compiled and the run's notice shown once it answers) or
  * `?add=new|created` (opened on New project, a new project proposed, then Create pressed, which writes it with `tatolab new` and adds it), with the backend's `?add_folder=` (`no-venv` for a run that
- * makes the `.venv` first), `?add_venv=refused` (uv refusing to make it), `?add_run=warning` and `?add_cli=missing`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove=<stream>`, `?stream_action=stop_stream|start_stream:<stream>` (with
- * `?stop_not_recorded=<stream>`, the backend's option, for a stop the runtime could not record),
+ * makes the `.venv` first), `?add_venv=refused` (uv refusing to make it), `?add_run=warning` and `?add_cli=missing`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove=<stream id>`, `?rename=<stream id>` (its sidebar row right-clicked and Rename… chosen, with `?rename_to=<name>` typed, and `?rename_step=menu` stopping on the menu or `pressed` pressing Rename), `?stream_action=stop_stream|start_stream:<stream id>` (with
+ * `?stop_not_recorded=<stream id>`, the backend's option, for a stop the runtime could not record),
  * `?sheet=uninstall|uninstalling|uninstalled`, on first run `?setup=getting_set_up` (Continue pressed on Welcome) or `?setup=get_started` (then
  * Get Started once the runtime answers) and `?setup_step_action=<action>` (a step's action pressed), with the backend's `?state=setup`, or
  * `?first_run=unfinished` over any runtime state, as `?state=approval|blocked|never-answered`, and its `?first_run_remember=refused`,
@@ -146,18 +163,20 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * `?only_step=<step>` (that step alone chosen in the step menu) and `?step_menu=open`, and `?search=<query>` name, so each screen can be shown and pictured from its URL. `?theme=light|dark` is read by the page's first script, before first paint.
  */
 export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platform: TatolabPlatform): Promise<void> {
-  const streamName = pageQuery.get("stream");
+  const streamId = pageQuery.get("stream");
   const rowStreamAction = pageQuery.get("stream_action");
   if (rowStreamAction !== null) {
-    const [streamAction, actedOnStreamName] = rowStreamAction.split(":");
-    await clickWhenShown(`[data-stream-row="${CSS.escape(actedOnStreamName ?? "")}"] [data-stream-action="${CSS.escape(streamAction)}"]`);
+    const [streamAction, actedOnStreamId] = rowStreamAction.split(":");
+    await clickWhenShown(`[data-stream-row="${CSS.escape(actedOnStreamId ?? "")}"] [data-stream-action="${CSS.escape(streamAction)}"]`);
   }
+  const streamToRename = pageQuery.get("rename");
+  if (streamToRename !== null) await driveTheRightClickRenameToPreset(streamToRename, pageQuery.get("rename_step"), pageQuery.get("rename_to"));
   const streamToRemove = pageQuery.get("remove");
   if (streamToRemove !== null) {
     await clickWhenShown(`[data-stream-row="${CSS.escape(streamToRemove)}"] [data-stream-action="more"]`);
     await clickWhenShown(`[data-slot="dropdown-menu-item"][data-stream-action="remove_stream"]`);
   }
-  if (streamName !== null) await clickWhenShown(`[data-stream-row="${CSS.escape(streamName)}"]`);
+  if (streamId !== null) await clickWhenShown(`[data-stream-row="${CSS.escape(streamId)}"]`);
   const tab = pageQuery.get("tab");
   if (tab !== null) await clickWhenShown(`[data-stream-page-header] [data-stream-tab="${CSS.escape(tab)}"]`);
   const streamPageAction = pageQuery.get("stream_page_action");
