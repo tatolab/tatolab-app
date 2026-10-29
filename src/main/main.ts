@@ -135,8 +135,8 @@ export async function startTatolabApp(
   const streamFailureNotifications = await StreamFailureNotifications.load(
     RememberedSwitchFile.streamFailureNotificationsInAppConfigDirectory(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
     tatolabElectronAppShell.systemNotifications,
-    (streamName) => {
-      tatolabMainWindow.showTheStreamsPage(streamName);
+    (stream) => {
+      tatolabMainWindow.showTheStreamsPage(stream);
       statusPublisherOnceBuilt?.sendTheLastPublishedStatusToTheWindow();
     },
     tatolabAppLog,

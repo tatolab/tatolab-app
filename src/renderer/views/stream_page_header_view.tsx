@@ -13,6 +13,7 @@ import { ToggleIconButton } from "../design_system/toggle_icon_button";
 import { shortcutHint, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import {
   isStreamLoaded,
+  listedStreamProjectDirectory,
   presentStreamPrimaryAction,
   streamActionPendingWords,
   type StreamPrimaryActionPresentation,
@@ -35,13 +36,13 @@ function StreamPageTabs({ stream, shownTab }: { stream: ListedStream; shownTab: 
   const isLoaded = isStreamLoaded(stream);
   return (
     <PageTabs
-      label={`${stream.name} views`}
+      label={`${stream.display_name} views`}
       shownTab={shownTab}
       dataAttributeOfEachTab="data-stream-tab"
       tabs={STREAM_PAGE_TAB_WORDS.map(({ tab, label, shortcutKey }) => ({
         tab,
         label,
-        path: streamPagePath(stream.name, tab),
+        path: streamPagePath(stream.stream, tab),
         tooltip: shortcutKey === null ? label : `${label} (${shortcutHint(platform, shortcutKey)})`,
         disabledReason: !isLoaded && tab === "graph" ? "not loaded, so it has no graph" : null,
       }))}
@@ -81,7 +82,7 @@ export function StreamPageHeaderView({
   };
   return (
     <PageHeader
-      title={stream.name}
+      title={stream.display_name}
       isTitleShown={false}
       tabs={<StreamPageTabs stream={stream} shownTab={shownTab} />}
       actions={
@@ -112,15 +113,15 @@ export function StreamPageHeaderView({
               data-stream-action="details"
             />
           )}
-          <MoreActionsMenu label={`More for ${stream.name}`} data-stream-action="more">
-            <MenuItem icon={CodeXml} onChosen={() => openTheProject(backend.openStreamProjectFolder(stream.name))} data-stream-action="open_stream_project_folder">
+          <MoreActionsMenu label={`More for ${stream.display_name}`} data-stream-action="more">
+            <MenuItem icon={CodeXml} onChosen={() => openTheProject(backend.openStreamProjectFolder(stream.stream))} data-stream-action="open_stream_project_folder">
               Open project
             </MenuItem>
-            <MenuItem icon={SquareTerminal} onChosen={() => openTheProject(backend.openTerminalAtStreamProject(stream.name))} data-stream-action="open_terminal_at_stream_project">
+            <MenuItem icon={SquareTerminal} onChosen={() => openTheProject(backend.openTerminalAtStreamProject(stream.stream))} data-stream-action="open_terminal_at_stream_project">
               Open a terminal in the project
             </MenuItem>
             <MenuSeparator />
-            <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(stream.project_directory)}>
+            <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(listedStreamProjectDirectory(stream))}>
               Copy project folder path
             </MenuItem>
             <MenuSeparator />

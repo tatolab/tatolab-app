@@ -28,7 +28,7 @@ export function PortDataKindIcon({ dataKind, className }: { dataKind: StreamGrap
 
 /** What a step card asks of the canvas around it. */
 export interface StreamGraphStepCardSurroundings {
-  streamName: string;
+  streamId: string;
   machineName: string | null;
   isSelected: boolean;
   arePreviewsShown: boolean;
@@ -121,7 +121,7 @@ export function StreamGraphStepCardView({ step, surroundings }: { step: StreamGr
             {/* The frame takes no pointer, so a press on it selects and drags the card like the rest of it. */}
             <ExposedOutputWatchPageFrame
               watchPageUrl={cardPreview.watchPageUrl}
-              fullAddress={exposedOutputAddress(surroundings.machineName, surroundings.streamName, { node: step.name, port: cardPreview.output.name }).fullAddress}
+              fullAddress={exposedOutputAddress(surroundings.machineName, surroundings.streamId, { node: step.name, port: cardPreview.output.name }).fullAddress}
               className="pointer-events-none h-full w-full rounded-md"
               isOutOfTheKeyboardsWay
             />

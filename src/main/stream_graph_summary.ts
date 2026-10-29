@@ -71,15 +71,15 @@ function streamGraphSummaryFromTheParsedGraph(
   if (!links.ok) return links;
   const exposedOnTheWire = arrayOrEmpty(graph.value, "exposed");
   if (!exposedOnTheWire.ok) return exposedOnTheWire;
-  const streamName = stream.value ?? requestedStream;
+  const streamId = stream.value ?? requestedStream;
   const machineName = machine.value;
   const exposed = everyOneRead(exposedOnTheWire.value, (exposedPortOnTheWire) =>
     streamGraphExposedPortOnTheWire(exposedPortOnTheWire, (node, port) =>
-      machineName === null ? null : runtimeWatchPageUrl(runtimeLoopbackHttpOrigin, { machine: machineName, stream: streamName, node, port }),
+      machineName === null ? null : runtimeWatchPageUrl(runtimeLoopbackHttpOrigin, { machine: machineName, stream: streamId, node, port }),
     ),
   );
   if (!exposed.ok) return exposed;
-  return succeeded({ stream: streamName, nodes: nodes.value, links: links.value, exposed: exposed.value });
+  return succeeded({ stream: streamId, nodes: nodes.value, links: links.value, exposed: exposed.value });
 }
 
 /** A `{ name: count }` object of the node's `components.metrics`, keeping each count the runtime wrote as a number; `{}` when it wrote none. */

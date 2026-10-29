@@ -101,16 +101,16 @@ export function useTatolabStatus(): TatolabStatus {
   return useSyncExternalStore(statusStore.subscribeToStatus, statusStore.readLatestStatus);
 }
 
-/** What the window knows of `streamName`'s graph, re-rendering the caller on each change. */
-export function useStreamGraphReading(streamName: string): StreamGraphReading {
+/** What the window knows of `streamId`'s graph, re-rendering the caller on each change. */
+export function useStreamGraphReading(streamId: string): StreamGraphReading {
   const { streamGraphReadings } = useTatolabWindowEnvironment();
-  return useSyncExternalStore(streamGraphReadings.subscribeToReadings, () => streamGraphReadings.readingOf(streamName));
+  return useSyncExternalStore(streamGraphReadings.subscribeToReadings, () => streamGraphReadings.readingOf(streamId));
 }
 
-/** What the window holds of `streamName`'s log, re-rendering the caller on each change. */
-export function useStreamLogReading(streamName: string): StreamLogReading {
+/** What the window holds of `streamId`'s log, re-rendering the caller on each change. */
+export function useStreamLogReading(streamId: string): StreamLogReading {
   const { streamLogReadings } = useTatolabWindowEnvironment();
-  return useSyncExternalStore(streamLogReadings.subscribeToReadings, () => streamLogReadings.readingOf(streamName));
+  return useSyncExternalStore(streamLogReadings.subscribeToReadings, () => streamLogReadings.readingOf(streamId));
 }
 
 /** The Add stream flow, re-rendering the caller on each change. */

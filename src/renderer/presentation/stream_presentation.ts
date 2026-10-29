@@ -23,6 +23,11 @@ export function isStreamLoaded(stream: ListedStream): boolean {
   return stream.node_count !== null;
 }
 
+/** The project folder the runtime lists `stream` from; empty for an earlier runtime's record, which has no location. */
+export function listedStreamProjectDirectory(stream: ListedStream): string {
+  return stream.location?.project_directory ?? "";
+}
+
 /** `awaiting_restart` reads `Awaiting restart`. */
 export function labelUnknownStreamState(wireState: string): string {
   const spaced = wireState.replace(/[_-]+/g, " ").trim();
@@ -32,8 +37,7 @@ export function labelUnknownStreamState(wireState: string): string {
 /** The word, emphasis and meaning of a stream's state, including a state newer than this app. */
 export function presentStreamState(stream: ListedStream): StreamStatePresentation {
   switch (stream.state) {
-    case "attached":
-    case "kept":
+    case "running":
       return isStreamLoaded(stream)
         ? { label: "Running", emphasis: "plain", iconTone: "running", meaning: "Running: its graph is loaded in the runtime." }
         : { label: "Starting", emphasis: "starting", iconTone: "idle", meaning: "Starting: the runtime is loading its graph." };
@@ -50,10 +54,10 @@ export function presentStreamState(stream: ListedStream): StreamStatePresentatio
 
 /**
  * A row's state word once the runtime has answered a stop it could not record: it unloaded the stream, which
- * `list_streams` still lists as kept with no graph, so the row reads Stopped rather than Starting.
+ * `list_streams` still lists as running with no graph, so the row reads Stopped rather than Starting.
  */
 export function presentStreamStateAfterAStopNotRecorded(stream: ListedStream): StreamStatePresentation {
-  if (stream.state !== "kept" || isStreamLoaded(stream)) return presentStreamState(stream);
+  if (stream.state !== "running" || isStreamLoaded(stream)) return presentStreamState(stream);
   return { label: "Stopped", emphasis: "quiet", iconTone: "idle", meaning: "Stopped: unloaded, but not recorded stopped, so the runtime loads it again when it restarts." };
 }
 
@@ -72,9 +76,7 @@ export interface StreamPrimaryActionPresentation {
 /** Stop for a loaded or loading stream, Start for a stopped one, Retry for a failed one; `null` for a state newer than this app. */
 export function presentStreamPrimaryAction(stream: ListedStream): StreamPrimaryActionPresentation | null {
   switch (stream.state) {
-    case "attached":
-      return { streamAction: "stop_stream", label: "Stop", meaning: "Stop: ends the tatolab command in the terminal that runs it" };
-    case "kept":
+    case "running":
       return { streamAction: "stop_stream", label: "Stop", meaning: "Stop: unloads it and remembers it stopped" };
     case "stopped":
       return { streamAction: "start_stream", label: "Start", meaning: "Start: loads it again from its record" };
@@ -90,7 +92,7 @@ export function streamNotLoadedReason(stream: ListedStream): StreamNotLoadedReas
   if (stream.state === "stopped") return "stopped";
   if (stream.state === "failed") return "failed";
   if (isStreamLoaded(stream)) return null;
-  if (stream.state === "kept" || stream.state === "attached") return "loading";
+  if (stream.state === "running") return "loading";
   return "not_loaded";
 }
 
@@ -111,7 +113,7 @@ export function streamActionRefusalLead(chosenActionLabel: StreamPrimaryActionPr
   return `${chosenActionLabel} was refused:`;
 }
 
-/** The lead before the runtime's reason when it stopped a kept stream but could not record it stopped. */
+/** The lead before the runtime's reason when it stopped a stream but could not record it stopped. */
 export const STOP_NOT_RECORDED_LEAD = "Stopped, but not recorded, so it loads again when the runtime restarts:";
 
 /** `1 stream`, `2,000 lines`. */

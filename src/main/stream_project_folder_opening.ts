@@ -1,7 +1,8 @@
 // Opening a stream's project folder from the window, in the file manager or in a terminal, or its
-// log folder in the file manager. The window names only the stream; the folder is the
-// `project_directory` the runtime listed for it in the status the app last published, or the log
-// folder under it, so a page can never have the app open a path of its choosing.
+// log folder in the file manager. The window names only the stream's id; the folder is the
+// project directory of the location the runtime listed for it in the status the app last
+// published, or the log folder under it, so a page can never have the app open a path of its
+// choosing.
 
 import path from "node:path";
 import { STREAM_LOG_FOLDER_IN_THE_PROJECT, type ListedStream } from "../shared/tatolab_backend_contract.js";
@@ -29,17 +30,18 @@ export async function openedWhenAnExistingFolder(
   return (await streamProjectFolderOpeners.isAnExistingFolder(folder)) ? openTheFolder(folder) : failedWith(refusalWhenMissing);
 }
 
-/** Open the project folder the runtime listed for `streamName` in `listedStreams` as `opening` asks; refused naming why when it is not listed, names no folder, or the folder is gone. */
+/** Open the project folder the runtime listed for the stream `stream` in `listedStreams` as `opening` asks; refused naming why when it is not listed, has no location, or the folder is gone. */
 export async function openStreamProjectFolder(
   listedStreams: readonly ListedStream[] | null,
-  streamName: string,
+  stream: string,
   opening: StreamProjectFolderOpening,
   streamProjectFolderOpeners: StreamProjectFolderOpeners,
 ): Promise<Result<void, string>> {
-  const listedStream = listedStreams?.find((stream) => stream.name === streamName) ?? null;
-  if (listedStream === null) return failedWith(`The runtime does not list ${streamName}, so Tatolab has no project folder to open.`);
-  const projectFolder = listedStream.project_directory;
-  if (projectFolder === "") return failedWith(`The runtime lists no project folder for ${streamName}.`);
+  const listedStream = listedStreams?.find((listed) => listed.stream === stream) ?? null;
+  if (listedStream === null) return failedWith(`The runtime does not list ${stream}, so Tatolab has no project folder to open.`);
+  const streamDisplayName = listedStream.display_name;
+  if (listedStream.location === null) return failedWith(`The runtime lists no project folder for ${streamDisplayName}.`);
+  const projectFolder = listedStream.location.project_directory;
   const projectFolderGoneRefusal = `${projectFolder} is no longer a folder on this machine.`;
   const openInTheFileManager = (folder: string) => streamProjectFolderOpeners.openAFolderInTheFileManager(folder);
   switch (opening) {
@@ -52,7 +54,7 @@ export async function openStreamProjectFolder(
     case "log_folder_in_the_file_manager": {
       // Stat only: the runtime's log segments in it are never listed or read.
       const logFolder = path.join(projectFolder, STREAM_LOG_FOLDER_IN_THE_PROJECT);
-      return openedWhenAnExistingFolder(streamProjectFolderOpeners, logFolder, `${streamName} has no log folder yet: ${logFolder} is not on this machine.`, openInTheFileManager);
+      return openedWhenAnExistingFolder(streamProjectFolderOpeners, logFolder, `${streamDisplayName} has no log folder yet: ${logFolder} is not on this machine.`, openInTheFileManager);
     }
   }
 }

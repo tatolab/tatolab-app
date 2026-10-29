@@ -1,5 +1,5 @@
 import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";
-import { abbreviateHomeDirectory } from "./stream_presentation";
+import { abbreviateHomeDirectory, listedStreamProjectDirectory } from "./stream_presentation";
 
 /** Which streams the Streams list shows. */
 export type StreamsListFilter = "all" | "running" | "stopped" | "failed";
@@ -17,23 +17,22 @@ export function streamsListFilterWords(filter: StreamsListFilter): string {
   return filter === "all" ? "Any state" : (STREAMS_LIST_FILTERS.find((listFilter) => listFilter.filter === filter)?.label ?? "Any state");
 }
 
-/** Whether `stream` is one `filter` shows: kept and attached streams count as Running. */
+/** Whether `stream` is one `filter` shows. */
 export function streamMatchesListFilter(stream: ListedStream, filter: StreamsListFilter): boolean {
   switch (filter) {
     case "all":
       return true;
     case "running":
-      return stream.state === "kept" || stream.state === "attached";
     case "stopped":
     case "failed":
       return stream.state === filter;
   }
 }
 
-/** Whether `stream`'s name or project folder holds `filterText`, ignoring case; blank text matches every stream. */
+/** Whether `stream`'s display name or project folder holds `filterText`, ignoring case; blank text matches every stream. */
 export function streamMatchesFilterText(stream: ListedStream, filterText: string): boolean {
   const wantedText = filterText.trim().toLowerCase();
-  return wantedText === "" || `${stream.name}\n${stream.project_directory}`.toLowerCase().includes(wantedText);
+  return wantedText === "" || `${stream.display_name}\n${listedStreamProjectDirectory(stream)}`.toLowerCase().includes(wantedText);
 }
 
 /** A project folder in the sidebar: where it is, the name it shows under, and the streams added from it. */
@@ -56,8 +55,9 @@ function lastPathSegments(absolutePath: string, segmentCount: number): string {
 export function streamProjectFoldersOf(streams: readonly ListedStream[]): StreamProjectFolder[] {
   const streamsOfEachDirectory = new Map<string, ListedStream[]>();
   for (const stream of streams) {
-    const streamsOfThisDirectory = streamsOfEachDirectory.get(stream.project_directory);
-    if (streamsOfThisDirectory === undefined) streamsOfEachDirectory.set(stream.project_directory, [stream]);
+    const projectDirectory = listedStreamProjectDirectory(stream);
+    const streamsOfThisDirectory = streamsOfEachDirectory.get(projectDirectory);
+    if (streamsOfThisDirectory === undefined) streamsOfEachDirectory.set(projectDirectory, [stream]);
     else streamsOfThisDirectory.push(stream);
   }
   const directories = [...streamsOfEachDirectory.keys()];
@@ -87,8 +87,11 @@ export interface StreamRemovalConfirmationPresentation {
 /** The question before `remove_stream`, the one action that loses a stream. */
 export function presentStreamRemovalConfirmation(stream: ListedStream): StreamRemovalConfirmationPresentation {
   return {
-    title: `Remove ${stream.name}?`,
-    explanation: `The runtime unloads it and forgets it, so it no longer loads when the runtime starts. Its project folder, ${abbreviateHomeDirectory(stream.project_directory)}, stays as it is.`,
+    title: `Remove ${stream.display_name}?`,
+    explanation:
+      stream.location === null
+        ? "The runtime unloads it and forgets it, so it no longer loads when the runtime starts."
+        : `The runtime unloads it and forgets it, so it no longer loads when the runtime starts. Its project folder, ${abbreviateHomeDirectory(stream.location.project_directory)}, stays as it is.`,
   };
 }
 

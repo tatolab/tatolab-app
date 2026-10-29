@@ -130,15 +130,9 @@ export class AddStreamFlowOfTheWindow {
     if (runRequest !== null) this.run(runRequest);
   }
 
-  /** Run again under `freeName`, the name the runtime's refusal of a taken one was answered with. */
-  runUnderTheFreeName(freeName: string): void {
-    const runRequest = runRequestOf(this.flowState.form);
-    if (runRequest !== null) this.run({ ...runRequest, streamName: freeName });
-  }
-
   private run(request: AddStreamRunRequest): void {
     this.dispatch({ kind: "run_started", request, nowMs: this.readMonotonicClockMs() });
-    this.backend.runStreamProject(request.folder, request.streamFunction, request.streamName).then(
+    this.backend.runStreamProject(request.folder, request.streamFunction, request.displayName).then(
       (outcome) => this.dispatch({ kind: "run_answered", outcome }),
       (rejection: unknown) => this.dispatch({ kind: "run_refused", words: describeBackendRejection(rejection) }),
     );

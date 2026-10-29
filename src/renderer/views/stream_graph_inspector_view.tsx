@@ -47,7 +47,7 @@ function StepOutputPreview({
     );
   }
   const { output, watchPageUrl } = previewedOutput;
-  const address = exposedOutputAddress(outputPlace.machineName, outputPlace.streamName, { node: output.stepName, port: output.name });
+  const address = exposedOutputAddress(outputPlace.machineName, outputPlace.streamId, { node: output.stepName, port: output.name });
   const isPinned = pinnedOutputKeys.has(outputPinKey(output));
   return (
     <PanelSection

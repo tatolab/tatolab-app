@@ -22,8 +22,8 @@ function withoutKey<Value>(entries: ReadonlyMap<string, Value>, key: string): Re
   return remainingEntries;
 }
 
-function listingNamed(listedStreams: readonly ListedStream[], streamName: string): ListedStream | null {
-  return listedStreams.find((stream) => stream.name === streamName) ?? null;
+function listingNamed(listedStreams: readonly ListedStream[], streamId: string): ListedStream | null {
+  return listedStreams.find((stream) => stream.stream === streamId) ?? null;
 }
 
 /** The stream actions under way on each stream and what the runtime last said of each, kept until the listing shows the outcome. */
@@ -38,36 +38,36 @@ export function useStreamActionsUnderWay(listedStreams: readonly ListedStream[])
     latestListedStreams.current = listedStreams;
     setActionsUnderWay((underWay) => {
       const stillUnderWay = new Map(
-        [...underWay].filter(([streamName, actionUnderWay]) => isStreamActionStillUnderWay(actionUnderWay, listingNamed(listedStreams, streamName))),
+        [...underWay].filter(([streamId, actionUnderWay]) => isStreamActionStillUnderWay(actionUnderWay, listingNamed(listedStreams, streamId))),
       );
       return stillUnderWay.size === underWay.size ? underWay : stillUnderWay;
     });
     setOutcomeWords((words) => {
-      const stillListed = new Map([...words].filter(([streamName]) => listingNamed(listedStreams, streamName) !== null));
+      const stillListed = new Map([...words].filter(([streamId]) => listingNamed(listedStreams, streamId) !== null));
       return stillListed.size === words.size ? words : stillListed;
     });
   }, [listedStreams]);
 
   const runStreamAction = (streamAction: TatolabStreamActionName, chosenActionLabel: ChosenStreamActionLabel, stream: ListedStream): void => {
-    setActionsUnderWay((underWay) => new Map(underWay).set(stream.name, { streamAction, listingWhenAsked: stream, isAnswered: false }));
-    setOutcomeWords((words) => withoutKey(words, stream.name));
-    backend.runStreamAction(streamAction, stream.name).then(
+    setActionsUnderWay((underWay) => new Map(underWay).set(stream.stream, { streamAction, listingWhenAsked: stream, isAnswered: false }));
+    setOutcomeWords((words) => withoutKey(words, stream.stream));
+    backend.runStreamAction(streamAction, stream.stream).then(
       (notice) => {
-        if (notice !== null) setOutcomeWords((words) => new Map(words).set(stream.name, { kind: "notice", runtimeWords: notice }));
+        if (notice !== null) setOutcomeWords((words) => new Map(words).set(stream.stream, { kind: "notice", runtimeWords: notice }));
         setActionsUnderWay((underWay) => {
-          const actionUnderWay = underWay.get(stream.name);
+          const actionUnderWay = underWay.get(stream.stream);
           if (actionUnderWay === undefined) return underWay;
           const answeredAction = { ...actionUnderWay, isAnswered: true };
-          return isStreamActionStillUnderWay(answeredAction, listingNamed(latestListedStreams.current, stream.name))
-            ? new Map(underWay).set(stream.name, answeredAction)
-            : withoutKey(underWay, stream.name);
+          return isStreamActionStillUnderWay(answeredAction, listingNamed(latestListedStreams.current, stream.stream))
+            ? new Map(underWay).set(stream.stream, answeredAction)
+            : withoutKey(underWay, stream.stream);
         });
       },
       (rejection: unknown) => {
         setOutcomeWords((words) =>
-          new Map(words).set(stream.name, { kind: "refusal", chosenActionLabel, runtimeWords: describeBackendRejection(rejection) }),
+          new Map(words).set(stream.stream, { kind: "refusal", chosenActionLabel, runtimeWords: describeBackendRejection(rejection) }),
         );
-        setActionsUnderWay((underWay) => withoutKey(underWay, stream.name));
+        setActionsUnderWay((underWay) => withoutKey(underWay, stream.stream));
       },
     );
   };

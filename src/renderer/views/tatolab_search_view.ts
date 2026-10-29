@@ -15,7 +15,7 @@ import {
 } from "../icons";
 import { holdsWindowShortcutModifier } from "../presentation/platform_presentation";
 import { exposedOutputAddress, readableExposedPorts } from "../presentation/stream_overview_presentation";
-import { abbreviateHomeDirectory, presentStreamState, streamNotLoadedReason } from "../presentation/stream_presentation";
+import { abbreviateHomeDirectory, listedStreamProjectDirectory, presentStreamState, streamNotLoadedReason } from "../presentation/stream_presentation";
 import type { StreamPageTab } from "./stream_page_path";
 import type { GraphOutputPortAddress } from "./stream_page_path";
 import { createExposedAddressLabel, createFailureIcon, createIcon, createShortcutCap, createWindowShortcutCap } from "./window_controls";
@@ -25,15 +25,15 @@ export interface TatolabSearchSources {
   listedStreams(): ListedStream[];
   selectedStream(): ListedStream | null;
   machineName(): string | null;
-  exposedPortsAlreadyRead(streamName: string): StreamGraphExposedPort[] | null;
+  exposedPortsAlreadyRead(streamId: string): StreamGraphExposedPort[] | null;
 }
 
 /** Where Search takes the window; it runs no other action. */
 export interface TatolabSearchActions {
-  selectStream(streamName: string): void;
-  showExposedOutputInOverview(streamName: string, outputPort: GraphOutputPortAddress): void;
+  selectStream(streamId: string): void;
+  showExposedOutputInOverview(streamId: string, outputPort: GraphOutputPortAddress): void;
   /** Opens Graph with `outputPort` pinned in a floating preview. */
-  watchOutput(streamName: string, outputPort: GraphOutputPortAddress): void;
+  watchOutput(streamId: string, outputPort: GraphOutputPortAddress): void;
   goToStreamTab(tab: StreamPageTab): void;
   goToSettings(): void;
 }
@@ -152,15 +152,15 @@ export class TatolabSearchView {
   private readExposedPortsOfLoadedStreams(openCount: number): void {
     for (const stream of this.sources.listedStreams()) {
       if (streamNotLoadedReason(stream) !== null) continue;
-      const alreadyRead = this.sources.exposedPortsAlreadyRead(stream.name);
+      const alreadyRead = this.sources.exposedPortsAlreadyRead(stream.stream);
       if (alreadyRead !== null) {
-        this.exposedPortsByStream.set(stream.name, alreadyRead);
+        this.exposedPortsByStream.set(stream.stream, alreadyRead);
         continue;
       }
-      void this.backend.describeStreamGraph(stream.name).then(
+      void this.backend.describeStreamGraph(stream.stream).then(
         (graph) => {
           if (openCount !== this.openCount || !this.isOpen()) return;
-          this.exposedPortsByStream.set(stream.name, readableExposedPorts(graph));
+          this.exposedPortsByStream.set(stream.stream, readableExposedPorts(graph));
           this.renderRows();
         },
         () => undefined,
@@ -179,43 +179,43 @@ export class TatolabSearchView {
       rows.push({
         groupLabel: "Streams",
         iconSvg: STREAM_ICON_SVG,
-        matchText: stream.name,
+        matchText: stream.display_name,
         label: [
-          createElement("code", { class: "search-row-name" }, [stream.name]),
-          createElement("code", { class: "search-row-detail" }, [abbreviateHomeDirectory(stream.project_directory)]),
+          createElement("code", { class: "search-row-name" }, [stream.display_name]),
+          createElement("code", { class: "search-row-detail" }, [abbreviateHomeDirectory(listedStreamProjectDirectory(stream))]),
         ],
         meta: [isFailure && createFailureIcon(14), statePresentation.label],
         metaIsFailure: isFailure,
-        run: () => this.actions.selectStream(stream.name),
+        run: () => this.actions.selectStream(stream.stream),
       });
     }
-    const readableOutputs: { streamName: string; exposedPort: StreamGraphExposedPort }[] = [];
+    const readableOutputs: { streamId: string; exposedPort: StreamGraphExposedPort }[] = [];
     for (const stream of listedStreams) {
-      for (const exposedPort of readableExposedPorts({ exposed: this.exposedPortsByStream.get(stream.name) ?? [] })) {
-        readableOutputs.push({ streamName: stream.name, exposedPort });
+      for (const exposedPort of readableExposedPorts({ exposed: this.exposedPortsByStream.get(stream.stream) ?? [] })) {
+        readableOutputs.push({ streamId: stream.stream, exposedPort });
       }
     }
-    for (const { streamName, exposedPort } of readableOutputs) {
-      const address = exposedOutputAddress(machineName, streamName, exposedPort);
+    for (const { streamId, exposedPort } of readableOutputs) {
+      const address = exposedOutputAddress(machineName, streamId, exposedPort);
       rows.push({
         groupLabel: "Exposed outputs",
         iconSvg: OVERVIEW_ICON_SVG,
         matchText: address.fullAddress,
         label: [createExposedAddressLabel(address, "search-row-address")],
         meta: [capitalise(exposedPort.level)],
-        run: () => this.actions.showExposedOutputInOverview(streamName, { node: exposedPort.node, port: exposedPort.port }),
+        run: () => this.actions.showExposedOutputInOverview(streamId, { node: exposedPort.node, port: exposedPort.port }),
       });
     }
     if (this.featureFlags.watchExposedOutput) {
-      for (const { streamName, exposedPort } of readableOutputs) {
-        const address = exposedOutputAddress(machineName, streamName, exposedPort);
+      for (const { streamId, exposedPort } of readableOutputs) {
+        const address = exposedOutputAddress(machineName, streamId, exposedPort);
         rows.push({
           groupLabel: "Watch",
           iconSvg: EYE_ICON_SVG,
           matchText: `watch ${address.fullAddress}`,
           label: [createExposedAddressLabel(address, "search-row-address")],
           meta: [capitalise(exposedPort.level)],
-          run: () => this.actions.watchOutput(streamName, { node: exposedPort.node, port: exposedPort.port }),
+          run: () => this.actions.watchOutput(streamId, { node: exposedPort.node, port: exposedPort.port }),
         });
       }
     }
@@ -231,7 +231,7 @@ export class TatolabSearchView {
           groupLabel: "Go to",
           iconSvg,
           matchText: label,
-          label: [createElement("span", {}, [label]), createElement("code", { class: "search-row-detail" }, [selectedStream.name])],
+          label: [createElement("span", {}, [label]), createElement("code", { class: "search-row-detail" }, [selectedStream.display_name])],
           meta: [createWindowShortcutCap(this.platform, key)],
           run: () => this.actions.goToStreamTab(tab),
         });
@@ -249,10 +249,10 @@ export class TatolabSearchView {
       rows.push({
         groupLabel: "Copy",
         iconSvg: TERMINAL_ICON_SVG,
-        matchText: `copy ${selectedStream.project_directory}`,
-        label: [createElement("code", { class: "search-row-address" }, [abbreviateHomeDirectory(selectedStream.project_directory)])],
+        matchText: `copy ${listedStreamProjectDirectory(selectedStream)}`,
+        label: [createElement("code", { class: "search-row-address" }, [abbreviateHomeDirectory(listedStreamProjectDirectory(selectedStream))])],
         meta: ["Project path"],
-        run: () => void writeTextToClipboard(selectedStream.project_directory),
+        run: () => void writeTextToClipboard(listedStreamProjectDirectory(selectedStream)),
       });
     }
     return rows;

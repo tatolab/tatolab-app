@@ -34,10 +34,10 @@ export interface ExposedOutputAddress {
 /** The address the plan gives an exposed output: the machine, then the stream, the node and the port. */
 export function exposedOutputAddress(
   machineName: string | null,
-  streamName: string,
+  streamId: string,
   exposedPort: Pick<StreamGraphExposedPort, "node" | "port">,
 ): ExposedOutputAddress {
-  const streamPath = `${streamName}/${exposedPort.node}/${exposedPort.port}`;
+  const streamPath = `${streamId}/${exposedPort.node}/${exposedPort.port}`;
   const machineSegment = machineName === null ? null : `${machineName}/`;
   return { machineSegment, streamPath, fullAddress: `${machineSegment ?? ""}${streamPath}` };
 }

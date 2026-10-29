@@ -373,7 +373,7 @@ export class TatolabAppController {
     return this.localApiClient.runStreamAction(streamAction, stream);
   }
 
-  /** Compile the project `streamRunRequest` names and load it kept, answering `run_stream`'s reply. */
+  /** Compile the project `streamRunRequest` names and load it, answering `run_stream`'s reply. */
   runStream(streamRunRequest: StreamRunRequest): Promise<Result<StreamRunAnswer, LocalApiRequestFailure>> {
     return this.localApiClient.runStream(streamRunRequest);
   }

@@ -13,7 +13,7 @@ import {
 } from "../presentation/stream_overview_presentation";
 import { dataKindOfEachOutputPort, presentStreamGraphCanvas, type StreamGraphPortDataKind } from "../presentation/stream_graph_canvas_presentation";
 import { stepNamesInFlowOrder } from "../presentation/stream_graph_step_layout";
-import { abbreviateHomeDirectory, isStreamLoaded, presentStreamPrimaryAction, streamNotLoadedReason } from "../presentation/stream_presentation";
+import { abbreviateHomeDirectory, isStreamLoaded, listedStreamProjectDirectory, presentStreamPrimaryAction, streamNotLoadedReason } from "../presentation/stream_presentation";
 import type { StreamGraphReading } from "../stream_graph_readings";
 import { ActionButton } from "../design_system/action_button";
 import { CopyIconButton } from "../design_system/copy_icon_button";
@@ -54,7 +54,7 @@ function DroppingLinkLines({ stream, reading }: { stream: ListedStream; reading:
             dropped <span className="text-warn-text tabular">{droppingLink.droppedCountText}</span> {droppingLink.isOne ? "message" : "messages"} since it was wired
           </span>
           <span className="ml-auto text-xs">
-            <InlineLink destination={{ to: streamPagePath(stream.name, "graph") }}>Show in graph</InlineLink>
+            <InlineLink destination={{ to: streamPagePath(stream.stream, "graph") }}>Show in graph</InlineLink>
           </span>
         </div>
       ))}
@@ -87,7 +87,7 @@ function ExposedOutputTile({ stream, output, machineName, isAsked }: { stream: L
   }, [isAsked]);
   const watchPageUrl = output.watch_page_url;
   if (watchPageUrl === null) return null;
-  const address = exposedOutputAddress(machineName, stream.name, output);
+  const address = exposedOutputAddress(machineName, stream.stream, output);
   return (
     <figure ref={tileElement} className="min-w-0" data-stream-output-preview={`${output.node}/${output.port}`}>
       <ExposedOutputWatchPageFrame watchPageUrl={watchPageUrl} fullAddress={address.fullAddress} className={cn("aspect-video w-full rounded-md", isAsked && "ring-2 ring-brand")} />
@@ -159,7 +159,7 @@ function StreamOutputPreviews({
         title="No exposed output to preview"
         explanation={
           readableExposedPorts(reading.graph).length === 0
-            ? `Every output of ${stream.name} is internal. Previews play an output exposed to this machine or publicly.`
+            ? `Every output of ${stream.display_name} is internal. Previews play an output exposed to this machine or publicly.`
             : "The runtime's graph names no machine, so its outputs have no preview page."
         }
       />
@@ -219,13 +219,13 @@ function StreamDetailsSidePanel({ stream, reading }: { stream: ListedStream; rea
   const isFromTheLastLoad = graph !== null && reading.graphSource !== "loaded";
   const dataKindOfEachOutput = useMemo(() => (graph === null ? new Map<string, StreamGraphPortDataKind>() : dataKindOfEachOutputPort(graph)), [graph]);
   return (
-    <SidePanel label={`${stream.name} details`} title="Details" hiding={null} data-stream-details="">
+    <SidePanel label={`${stream.display_name} details`} title="Details" hiding={null} data-stream-details="">
       <PanelSection appearance="card" icon={FolderOpen} title="Project">
         <div className="flex min-w-0 items-center gap-1 py-1">
-          <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg select-text" title={stream.project_directory}>
-            {abbreviateHomeDirectory(stream.project_directory)}
+          <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg select-text" title={listedStreamProjectDirectory(stream)}>
+            {abbreviateHomeDirectory(listedStreamProjectDirectory(stream))}
           </span>
-          <CopyIconButton label="Copy project folder path" size="compact" readTextToCopy={() => stream.project_directory} />
+          <CopyIconButton label="Copy project folder path" size="compact" readTextToCopy={() => listedStreamProjectDirectory(stream)} />
         </div>
       </PanelSection>
       <PanelSection
@@ -285,7 +285,7 @@ export function StreamOverviewPageView({
   isDetailsPanelOpen: boolean;
 }) {
   const status = useTatolabStatus();
-  const reading = useStreamGraphReading(stream.name);
+  const reading = useStreamGraphReading(stream.stream);
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-stream-overview="">
       {stream.state === "failed" && <FailedStreamBanner stream={stream} />}

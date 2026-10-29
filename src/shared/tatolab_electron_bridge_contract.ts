@@ -70,7 +70,7 @@ export const TATOLAB_STATUS_CHANGED_EVENT = "tatolab-status-changed";
 /** The event the app asks the window to show a stream's page on, as a click on that stream's failure notification does; it carries a `TatolabStreamPageRequest`. */
 export const TATOLAB_STREAM_PAGE_REQUESTED_EVENT = "tatolab-stream-page-requested";
 
-/** What `tatolab-stream-page-requested` carries: the stream whose page to show. */
+/** What `tatolab-stream-page-requested` carries: the id of the stream whose page to show. */
 export interface TatolabStreamPageRequest {
   stream: string;
 }
@@ -109,7 +109,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   choose_stream_project_folder: { commandArguments: { chosen_for: StreamProjectFolderChosenFor }; answer: StreamProjectFolderReport | null };
   propose_new_stream_project_folder: { commandArguments: undefined; answer: StreamProjectFolderReport };
   create_stream_project: { commandArguments: { folder: string }; answer: StreamProjectFolderReport };
-  /** `stream_function` as `tatolab run` takes it, `null` for the project's sole `@stream`; `name` in place of the function's own, or `null`. */
+  /** `stream_function` as `tatolab run` takes it, `null` for the project's sole `@stream`; `name` the display name to show the stream under, `null` for the function's own or the one a re-added folder's stream keeps. */
   run_stream_project: { commandArguments: { folder: string; stream_function: string | null; name: string | null }; answer: StreamProjectRunOutcome };
   describe_runtime: { commandArguments: undefined; answer: RuntimeDescription };
   restart_runtime: { commandArguments: undefined; answer: null };
@@ -143,6 +143,6 @@ export interface TatolabElectronBridge {
   ): Promise<TatolabCommandAnswerTo<CommandName>>;
   /** Calls `listener` with each status the main process sends; the returned function stops it. */
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): () => void;
-  /** Calls `listener` with the stream each request to show a stream's page names; the returned function stops it. */
-  onStreamPageRequested(listener: (streamName: string) => void): () => void;
+  /** Calls `listener` with the id of the stream each request to show a stream's page names; the returned function stops it. */
+  onStreamPageRequested(listener: (stream: string) => void): () => void;
 }

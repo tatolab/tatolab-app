@@ -16,6 +16,7 @@ import { StreamStateIcon } from "../design_system/stream_state_words";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import {
   abbreviateHomeDirectory,
+  listedStreamProjectDirectory,
   presentStreamPrimaryAction,
   presentStreamStateAfterTheLastAction,
   streamActionPendingWords,
@@ -64,8 +65,8 @@ function StreamRowActions({
           data-stream-action={primaryAction.streamAction}
         />
       )}
-      <MoreActionsMenu label={`More for ${stream.name}`} data-stream-action="more">
-        <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(stream.project_directory)}>
+      <MoreActionsMenu label={`More for ${stream.display_name}`} data-stream-action="more">
+        <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(listedStreamProjectDirectory(stream))}>
           Copy project folder path
         </MenuItem>
         <MenuSeparator />
@@ -94,24 +95,24 @@ function StreamsListRow({
   const statePresentation = presentStreamStateAfterTheLastAction(stream, outcome?.kind === "notice");
   return (
     <li
-      data-stream-row={stream.name}
+      data-stream-row={stream.stream}
       onClick={() => {
         // A drag that selects the runtime's words to copy them ends in a click too; it stays on the list.
         if (window.getSelection()?.isCollapsed === false) return;
-        navigate(streamPagePath(stream.name));
+        navigate(streamPagePath(stream.stream));
       }}
       className="group cursor-default rounded-md py-1.5 pr-1 pl-8 transition-colors hover:bg-hover"
     >
       <div className="flex h-7 min-w-0 items-center gap-3">
         <StreamStateIcon stream={stream} />
         <Link
-          to={streamPagePath(stream.name)}
+          to={streamPagePath(stream.stream)}
           onClick={(clickEvent) => clickEvent.stopPropagation()}
-          aria-label={`${stream.name}, ${statePresentation.label}`}
+          aria-label={`${stream.display_name}, ${statePresentation.label}`}
           title={statePresentation.meaning}
           className="min-w-0 shrink truncate rounded-sm text-fg"
         >
-          {stream.name}
+          {stream.display_name}
         </Link>
         <span className="flex-1" />
         {/* The row navigates on click, and React carries a click in the actions' portalled menu up to it. */}
@@ -243,10 +244,10 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
                 <ul aria-label={`Streams added from ${projectFolder.folderName}`} className="flex flex-col gap-0.5">
                   {projectFolder.streams.map((stream) => (
                     <StreamsListRow
-                      key={stream.name}
+                      key={stream.stream}
                       stream={stream}
-                      actionUnderWay={actionsUnderWay.get(stream.name)}
-                      outcome={outcomeWords.get(stream.name)}
+                      actionUnderWay={actionsUnderWay.get(stream.stream)}
+                      outcome={outcomeWords.get(stream.stream)}
                       onPrimaryAction={(primaryAction) => runStreamAction(primaryAction.streamAction, primaryAction.label, stream)}
                       onRemoveAsked={() => askToRemove(stream)}
                     />

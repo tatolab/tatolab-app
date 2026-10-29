@@ -36,11 +36,11 @@ export interface StreamLogRecordDetailsActions {
 /** The selected record in full: its message, where it came from, where to go from it, its fields, and its JSON record exactly as the runtime wrote it. */
 export function StreamLogRecordDetailsView({
   details,
-  streamName,
+  streamDisplayName,
   actions,
 }: {
   details: StreamLogRecordDetails;
-  streamName: string;
+  streamDisplayName: string;
   actions: StreamLogRecordDetailsActions;
 }) {
   return (
@@ -62,7 +62,7 @@ export function StreamLogRecordDetailsView({
           <KeyValueRows
             rows={[
               ["Time", <span className="font-mono text-xs tabular select-text">{details.dateAndTimeText}</span>],
-              ["Stream", <span className="select-text">{streamName}</span>],
+              ["Stream", <span className="select-text">{streamDisplayName}</span>],
               ["Node", <span className="font-mono text-xs select-text">{details.step.stepName}</span>],
             ]}
           />

@@ -44,13 +44,13 @@ requestAnimationFrame(draw)}requestAnimationFrame(draw);
   return `data:text/html;charset=utf-8,${encodeURIComponent(standInPage)}`;
 }
 
-/** The `graph {stream}` document of `graph` for `streamName` on `machineName` at `moment`, and the summary read from it. */
-export function mockStreamGraphSummary(streamName: string, machineName: string, graph: MockStreamGraph, moment: MockStreamGraphMoment): StreamGraphSummary {
+/** The `graph {stream}` document of `graph` for the stream `streamId` on `machineName` at `moment`, and the summary read from it. */
+export function mockStreamGraphSummary(streamId: string, machineName: string, graph: MockStreamGraph, moment: MockStreamGraphMoment): StreamGraphSummary {
   const nodeState = (state: string) => (moment.hasSettled ? state : "Pending");
   const linkState = (state: string) => (moment.hasSettled ? state : "pending");
   const climbed = (perSecond: number) => (moment.hasSettled ? Math.floor(perSecond * moment.secondsSinceSettled) : 0);
   const nodes: StreamGraphNode[] = graph.nodes.map((node) => ({
-    id: mockNodeIdOf(streamName, node.name),
+    id: mockNodeIdOf(streamId, node.name),
     name: node.name,
     type: node.type,
     state: nodeState(node.state),
@@ -67,9 +67,9 @@ export function mockStreamGraphSummary(streamName: string, machineName: string, 
     ),
   }));
   const graphDocument = {
-    stream: streamName,
+    stream: streamId,
     nodes: graph.nodes.map((node, nodeIndex) => ({
-      id: mockNodeIdOf(streamName, node.name),
+      id: mockNodeIdOf(streamId, node.name),
       type: node.type,
       name: node.name,
       config: node.config,
@@ -105,12 +105,12 @@ export function mockStreamGraphSummary(streamName: string, machineName: string, 
     machine: machineName,
   };
   return {
-    stream: streamName,
+    stream: streamId,
     nodes,
     links: graph.links.map((link) => ({ ...link, state: linkState(link.state) })),
     exposed: graph.exposed.map((exposedPort) => ({
       ...exposedPort,
-      watch_page_url: exposedPort.level === "internal" ? null : mockWatchPageUrl(`${machineName}/${streamName}/${exposedPort.node}/${exposedPort.port}`),
+      watch_page_url: exposedPort.level === "internal" ? null : mockWatchPageUrl(`${machineName}/${streamId}/${exposedPort.node}/${exposedPort.port}`),
     })),
     graph_document_text: JSON.stringify(graphDocument, null, 2),
   };

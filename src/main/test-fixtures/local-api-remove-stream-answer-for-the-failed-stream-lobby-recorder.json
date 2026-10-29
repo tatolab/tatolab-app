@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"stream\": \"lobby-recorder-main-382ba0\",\n  \"unloaded\": false,\n  \"forgotten\": true\n}"}],"isError":false}}

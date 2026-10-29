@@ -155,15 +155,15 @@ export function createStreamProject(sharedState: TatolabAppSharedState, folder: 
   return answerTheWindow("create_stream_project", () => sharedState.streamProjectAdding.createStreamProject(folder));
 }
 
-/** `run_stream_project { folder, stream_function, name }`: `run_stream` on `folder`, kept, then a status round whether it loaded or was refused. */
+/** `run_stream_project { folder, stream_function, name }`: `run_stream` on `folder` under the display name `name`, then a status round whether it loaded or was refused. */
 export function runStreamProject(
   sharedState: TatolabAppSharedState,
   folder: string,
   streamFunction: string | null,
-  streamName: string | null,
+  displayName: string | null,
 ): Promise<Result<StreamProjectRunOutcome, string>> {
   return answerTheWindow("run_stream_project", async () => {
-    const outcome = await sharedState.streamProjectAdding.runStreamProject(folder, streamFunction, streamName);
+    const outcome = await sharedState.streamProjectAdding.runStreamProject(folder, streamFunction, displayName);
     sharedState.statusPublisher.requestRefresh();
     return outcome;
   });
@@ -293,14 +293,14 @@ export function enabledArgumentsFrom(commandName: TatolabCommandName, commandArg
 /** `read_stream_log_records`'s arguments as the window sends them, or why they are not. */
 export function readStreamLogRecordsArgumentsFrom(commandArguments: unknown): Result<{ stream: string; after: number }, string> {
   if (!isAJsonObject(commandArguments) || typeof commandArguments["stream"] !== "string" || !isAnUnsignedInteger(commandArguments["after"])) {
-    return failedWith("read_stream_log_records needs `stream`, a stream's name, and `after`, a sequence number from 0");
+    return failedWith("read_stream_log_records needs `stream`, a stream's id, and `after`, a sequence number from 0");
   }
   return succeeded({ stream: commandArguments["stream"], after: commandArguments["after"] });
 }
 
 /** The `{ stream }` arguments of the command `commandName` as the window sends them, or why they are not. */
 export function streamArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ stream: string }, string> {
-  const stream = oneTextArgumentFrom(commandName, commandArguments, "stream", "a stream's name");
+  const stream = oneTextArgumentFrom(commandName, commandArguments, "stream", "a stream's id");
   return stream.ok ? succeeded({ stream: stream.value }) : stream;
 }
 

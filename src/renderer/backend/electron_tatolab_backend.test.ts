@@ -16,7 +16,7 @@ type FakeCommandAnswers = Partial<{ [CommandName in TatolabCommandName]: Tatolab
 function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
   const invokedCommands: [TatolabCommandName, unknown][] = [];
   const statusListeners = new Set<(status: TatolabStatus) => void>();
-  const streamPageRequestListeners = new Set<(streamName: string) => void>();
+  const streamPageRequestListeners = new Set<(streamId: string) => void>();
   const tatolabElectronBridge: TatolabElectronBridge = {
     async invokeTatolabCommand<CommandName extends TatolabCommandName>(
       commandName: CommandName,
@@ -131,7 +131,7 @@ describe("createElectronTatolabBackend", () => {
       stream_functions: ["heat_map"],
       python_environment: { kind: "missing" as const },
     };
-    const outcome = { kind: "name_taken" as const, refusal: "the stream name `heat_map` is held", free_name: "heat_map-2" };
+    const outcome = { kind: "python_environment_not_made" as const, words: "error: No interpreter found at path `/opt/homebrew/bin/python3.11`" };
     const fakeBridge = fakeTatolabElectronBridge({
       choose_stream_project_folder: { ok: true, value: null },
       propose_new_stream_project_folder: { ok: true, value: report },
@@ -200,7 +200,7 @@ describe("createElectronTatolabBackend", () => {
     await backend.setStreamFailureNotifications(false);
     await backend.setOpenTatolabAtLogin(true);
     await backend.choosePythonForNewEnvironments("chosen_in_a_file_dialog");
-    const stopListening = backend.onStreamPageRequested((streamName) => requestedStreams.push(streamName));
+    const stopListening = backend.onStreamPageRequested((streamId) => requestedStreams.push(streamId));
     fakeBridge.streamPageRequestListeners.forEach((streamPageRequestListener) => streamPageRequestListener("camera"));
     stopListening();
     fakeBridge.streamPageRequestListeners.forEach((streamPageRequestListener) => streamPageRequestListener("main"));

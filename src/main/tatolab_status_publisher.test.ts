@@ -44,7 +44,7 @@ test("no_more_rounds_once_every_requester_is_gone", async () => {
 const runtimeHealthy = () => httpResponse("200 OK", "text/plain; charset=utf-8", "ok");
 const runtimeNotAnsweringHealth = () => httpResponse("503 Service Unavailable", "text/plain", "not ready");
 const oneStreamListed = () =>
-  toolResultResponse({ streams: [{ name: "main", state: "kept", project_directory: "/p", node_count: 4, failed_because: null }] });
+  toolResultResponse({ streams: [{ stream: "p-main-0a1b2c", display_name: "main", location: { project_directory: "/p", stream_function: "stream:main" }, state: "running", node_count: 4, failed_because: null }] });
 const machineWideGraph = () => httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] }));
 
 test("the published status walks starting, running, starting, unreachable and stopped as the runtime comes and goes", async () => {

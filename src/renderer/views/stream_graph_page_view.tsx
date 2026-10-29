@@ -61,7 +61,7 @@ function GraphTabMessage({ title, detail }: { title: string; detail?: string }) 
 
 function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: StreamGraphCanvas }) {
   const machineName = useTatolabStatus().machine_name;
-  const reading = useStreamGraphReading(stream.name);
+  const reading = useStreamGraphReading(stream.stream);
   const viewport = useStreamGraphViewportCommands();
   const location = useLocation();
   const navigate = useNavigate();
@@ -84,7 +84,7 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
 
   const graphDocument = useMemo(() => (reading.graph === null ? null : readTheGraphDocument(reading.graph.graph_document_text)), [reading.graph]);
   const inspection = presentStreamGraphInspection(canvas, graphDocument, selectedStepName);
-  const outputPlace: StreamGraphOutputPlace = { streamName: stream.name, machineName };
+  const outputPlace: StreamGraphOutputPlace = { streamId: stream.stream, machineName };
   const pinnedOutputKeys = useMemo(() => new Set(pinnedPreviews.map((pinnedPreview) => pinnedPreview.pinKey)), [pinnedPreviews]);
 
   const togglePinnedPreview = useCallback((output: StreamGraphStepOutputPort) => {
@@ -167,14 +167,14 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
         onClosed: () => setSelectedStepName(null),
         onStepSelected: setSelectedStepName,
         onOutputPinToggled: togglePinnedPreview,
-        onErrorsInLogsShown: () => void navigate(streamPagePath(stream.name, "logs"), { state: { askedLogView: "errors_only" } }),
+        onErrorsInLogsShown: () => void navigate(streamPagePath(stream.stream, "logs"), { state: { askedLogView: "errors_only" } }),
       }}
     />
   ) : null;
   // The hovered output as this reading of the graph has it; undefined when no preview is open or its output is gone.
   const openHoverPreviewOutput = hoveredOutput === null ? undefined : findOutput(canvas, hoveredOutput.output.stepName, hoveredOutput.output.name);
   return (
-    <div className="flex min-h-0 flex-1 bg-window" data-stream-graph-page={stream.name}>
+    <div className="flex min-h-0 flex-1 bg-window" data-stream-graph-page={stream.stream}>
       <WorkAreaWithSidePanel sidePanel={inspectorPanel}>
         <StreamGraphToolbarView
           arePreviewsShown={arePreviewsShown}
@@ -196,7 +196,7 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
           <StreamGraphReactFlowCanvas
             canvas={canvas}
             stepPositions={stepPositions}
-            streamName={stream.name}
+            streamId={stream.stream}
             machineName={machineName}
             selectedStepName={inspection === null ? null : inspection.step.name}
             arePreviewsShown={arePreviewsShown}
@@ -251,7 +251,7 @@ function StreamGraphTab({ stream, canvas }: { stream: ListedStream; canvas: Stre
 
 /** A loaded stream's Graph tab: its steps and links on a canvas, previews of its exposed outputs, and an inspector. Viewing only. */
 export function StreamGraphPageView({ stream }: { stream: ListedStream }) {
-  const reading = useStreamGraphReading(stream.name);
+  const reading = useStreamGraphReading(stream.stream);
   // A graph kept from the stream's last load is not this load's, so the canvas waits for this load's first read.
   const loadedGraph = reading.graphSource === "loaded" ? reading.graph : null;
   const canvas = useMemo(() => (loadedGraph === null ? null : presentStreamGraphCanvas(loadedGraph)), [loadedGraph]);
@@ -263,10 +263,10 @@ export function StreamGraphPageView({ stream }: { stream: ListedStream }) {
     );
   }
   if (canvas.steps.length === 0) {
-    return <GraphTabMessage title={`${stream.name} has no nodes yet`} detail="Its nodes show here once its stream function adds them." />;
+    return <GraphTabMessage title={`${stream.display_name} has no nodes yet`} detail="Its nodes show here once its stream function adds them." />;
   }
   return (
-    <StreamGraphCanvasProvider key={stream.name}>
+    <StreamGraphCanvasProvider key={stream.stream}>
       <StreamGraphTab stream={stream} canvas={canvas} />
     </StreamGraphCanvasProvider>
   );

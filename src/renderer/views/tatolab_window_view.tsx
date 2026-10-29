@@ -80,12 +80,12 @@ export function mountTatolabWindow(
   const showTheShownStreamsTab = (tab: StreamPageTab, navigationState?: StreamPageNavigationState): boolean => {
     const selectedStream = isOnAStreamPage() ? streamsPage.selectedStream() : null;
     if (selectedStream === null || (tab === "graph" && !isStreamLoaded(selectedStream))) return false;
-    void navigateTo(streamPagePath(selectedStream.name, tab), navigationState);
+    void navigateTo(streamPagePath(selectedStream.stream, tab), navigationState);
     return true;
   };
 
   const streamGraphReadings = new StreamGraphReadings(backend);
-  const streamLogReadings = new StreamLogReadings(backend, (streamName, streamInstance) => streamGraphReadings.rememberStreamInstance(streamName, streamInstance));
+  const streamLogReadings = new StreamLogReadings(backend, (streamId, streamInstance) => streamGraphReadings.rememberStreamInstance(streamId, streamInstance));
   const runtimeDescriptionReadings = new RuntimeDescriptionReadings(backend);
   const relayReadings = new RelayReadings(backend);
   streamGraphReadings.setPollingAllowed(isTatolabWindowVisible());
@@ -101,7 +101,7 @@ export function mountTatolabWindow(
   const windowAppearance = new WindowAppearanceChoice(windowLocalStorage(), window.matchMedia(SYSTEM_PREFERS_DARK_MEDIA_QUERY), document.documentElement);
   const uninstallTatolabRefusal = new RefusalKeptForTheWindow();
   const firstRunFinishingRefusal = new RefusalKeptForTheWindow();
-  backend.onStreamPageRequested((streamName) => void navigateTo(streamPagePath(streamName)));
+  backend.onStreamPageRequested((streamId) => void navigateTo(streamPagePath(streamId)));
   const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
   const streamsPage = new StreamsPageView(backend);
   const uninstallSheet = new UninstallSheetView(backend, platform, (flowState) =>
@@ -115,15 +115,15 @@ export function mountTatolabWindow(
       listedStreams: () => streamsPage.listedStreamsForSearch(),
       selectedStream: () => (isOnAStreamPage() ? streamsPage.selectedStream() : null),
       machineName: () => streamsPage.machineName(),
-      exposedPortsAlreadyRead: (streamName) => {
-        const graph = streamGraphReadings.readingOf(streamName).graph;
+      exposedPortsAlreadyRead: (streamId) => {
+        const graph = streamGraphReadings.readingOf(streamId).graph;
         return graph === null ? null : readableExposedPorts(graph);
       },
     },
     {
-      selectStream: (streamName) => void navigateTo(streamPagePath(streamName)),
-      showExposedOutputInOverview: (streamName, outputPort) => void navigateTo(streamPagePath(streamName), { previewedOutput: outputPort }),
-      watchOutput: (streamName, outputPort) => void navigateTo(streamPagePath(streamName, "graph"), { pinnedOutput: outputPort }),
+      selectStream: (streamId) => void navigateTo(streamPagePath(streamId)),
+      showExposedOutputInOverview: (streamId, outputPort) => void navigateTo(streamPagePath(streamId), { previewedOutput: outputPort }),
+      watchOutput: (streamId, outputPort) => void navigateTo(streamPagePath(streamId, "graph"), { pinnedOutput: outputPort }),
       goToStreamTab: (tab) => {
         showTheShownStreamsTab(tab);
       },

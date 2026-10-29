@@ -145,37 +145,11 @@ function StreamFoundRow({ report, chosenStreamFunction, onChosen }: { report: St
   );
 }
 
-/** The name the stream loads under, and the runtime's refusal when a listed stream holds it, with the name to use instead. */
-function StreamNameRow({ form, onEdited, onUseFreeName }: { form: AddStreamForm; onEdited: (streamName: string) => void; onUseFreeName: (freeName: string) => void }) {
-  const nameTaken = form.nameTaken;
+/** The display name the stream shows under. */
+function StreamDisplayNameRow({ form, onEdited }: { form: AddStreamForm; onEdited: (displayName: string) => void }) {
   return (
-    <FormDialogRow
-      label="Name"
-      labelFor="add-stream-name"
-      below={
-        nameTaken !== null && (
-          <div id="add-stream-name-hint" className="mt-2" data-add-stream-name-taken="">
-            <RefusalLine words={nameTaken.refusal} />
-            <div className="mt-2 pl-5">
-              <ActionButton onPressed={() => onUseFreeName(nameTaken.freeName)} data-add-stream-action="use_free_name">
-                Run as <span className="font-mono">{nameTaken.freeName}</span>
-              </ActionButton>
-            </div>
-          </div>
-        )
-      }
-    >
-      <TextField
-        id="add-stream-name"
-        label="Stream name"
-        text={form.streamName}
-        onTextChanged={onEdited}
-        isMachineWord
-        isRefused={nameTaken !== null}
-        describedBy={nameTaken === null ? undefined : "add-stream-name-hint"}
-        className="w-64"
-        data-add-stream-name=""
-      />
+    <FormDialogRow label="Name" labelFor="add-stream-name">
+      <TextField id="add-stream-name" label="Stream name" text={form.displayName} onTextChanged={onEdited} isMachineWord className="w-64" data-add-stream-name="" />
     </FormDialogRow>
   );
 }
@@ -257,15 +231,15 @@ function CompileWarningsList({ compileWarnings }: { compileWarnings: readonly st
 }
 
 /** The output the new stream's preview shows, as the Overview picks one, once the runtime lists the stream loaded and its graph is read; `null` while there is none to show. */
-function usePreviewedOutputOf(streamName: string) {
+function usePreviewedOutputOf(streamId: string) {
   const { backend } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
-  const isListedLoaded = status.streams?.some((stream) => stream.name === streamName && stream.node_count !== null) ?? false;
+  const isListedLoaded = status.streams?.some((stream) => stream.stream === streamId && stream.node_count !== null) ?? false;
   const [previewedOutput, setPreviewedOutput] = useState<StreamGraphExposedPort | null>(null);
   useEffect(() => {
     if (!isListedLoaded) return;
     let isStillShown = true;
-    backend.describeStreamGraph(streamName).then(
+    backend.describeStreamGraph(streamId).then(
       (graph) => {
         if (isStillShown) setPreviewedOutput(choosePreviewedOutput(graph, null));
       },
@@ -275,7 +249,7 @@ function usePreviewedOutputOf(streamName: string) {
     return () => {
       isStillShown = false;
     };
-  }, [backend, streamName, isListedLoaded]);
+  }, [backend, streamId, isListedLoaded]);
   return previewedOutput;
 }
 
@@ -295,10 +269,10 @@ function StreamRunningView({ request, answer }: { request: AddStreamRunRequest; 
         )}
         <div className="min-w-0 pt-1">
           <h2 className="title-lg focus-visible:shadow-none" tabIndex={-1} data-add-stream-step-heading="">
-            <span className="font-mono">{answer.stream}</span> is running
+            <span className="font-mono">{answer.display_name}</span> is running
           </h2>
           <p className="mt-1 text-fg-3">
-            {streamRunningFactsWords(answer)} · <MachineWords>{answer.project_directory}</MachineWords>
+            {streamRunningFactsWords(answer)} · <MachineWords>{answer.location.project_directory}</MachineWords>
           </p>
           <p className="mt-3 max-w-md text-fg-2">{streamRunningSummary(answer)}</p>
         </div>
@@ -323,12 +297,10 @@ function ProjectFolderForm({
   form,
   onChooseFolder,
   dispatch,
-  onUseFreeName,
 }: {
   form: AddStreamForm;
   onChooseFolder: () => void;
   dispatch: (event: AddStreamFlowEvent) => void;
-  onUseFreeName: (freeName: string) => void;
 }) {
   const report = form.projectFolder;
   return (
@@ -338,7 +310,7 @@ function ProjectFolderForm({
         {report !== null && (
           <StreamFoundRow report={report} chosenStreamFunction={form.chosenStreamFunction} onChosen={(streamFunction) => dispatch({ kind: "stream_function_chosen", streamFunction })} />
         )}
-        {report !== null && <StreamNameRow form={form} onEdited={(streamName) => dispatch({ kind: "stream_name_edited", streamName })} onUseFreeName={onUseFreeName} />}
+        {report !== null && <StreamDisplayNameRow form={form} onEdited={(displayName) => dispatch({ kind: "display_name_edited", displayName })} />}
       </FormDialogRows>
     </div>
   );
@@ -348,12 +320,10 @@ function NewProjectForm({
   form,
   onChooseDirectory,
   dispatch,
-  onUseFreeName,
 }: {
   form: AddStreamForm;
   onChooseDirectory: () => void;
   dispatch: (event: AddStreamFlowEvent) => void;
-  onUseFreeName: (freeName: string) => void;
 }) {
   const report = form.newProjectFolder;
   const hasCreatedIt = form.hasCreatedTheNewProject && report !== null;
@@ -374,13 +344,13 @@ function NewProjectForm({
         {hasCreatedIt && (
           <StreamFoundRow report={report} chosenStreamFunction={form.chosenStreamFunction} onChosen={(streamFunction) => dispatch({ kind: "stream_function_chosen", streamFunction })} />
         )}
-        {report !== null && <StreamNameRow form={form} onEdited={(streamName) => dispatch({ kind: "stream_name_edited", streamName })} onUseFreeName={onUseFreeName} />}
+        {report !== null && <StreamDisplayNameRow form={form} onEdited={(displayName) => dispatch({ kind: "display_name_edited", displayName })} />}
       </FormDialogRows>
     </div>
   );
 }
 
-/** New project or Import project, over the window while the flow's dialog is open: run a project folder kept, or create one with `tatolab new` and run it, the app setting up its Python first. */
+/** New project or Import project, over the window while the flow's dialog is open: run a project folder, or create one with `tatolab new` and run it, the app setting up its Python first. */
 export function AddStreamDialogView() {
   const { addStreamFlow } = useTatolabWindowEnvironment();
   const openDialog = useOpenAddStreamDialog();
@@ -456,7 +426,6 @@ function AddStreamDialogBody({ source }: { source: AddStreamSource }) {
           form={form}
           onChooseFolder={() => addStreamFlow.chooseFolder()}
           dispatch={dispatch}
-          onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
         />
       )}
       {flowState.step === "form" && form.source === "new_project" && (
@@ -464,7 +433,6 @@ function AddStreamDialogBody({ source }: { source: AddStreamSource }) {
           form={form}
           onChooseDirectory={() => addStreamFlow.chooseFolder()}
           dispatch={dispatch}
-          onUseFreeName={(freeName) => addStreamFlow.runUnderTheFreeName(freeName)}
         />
       )}
       {flowState.step === "form" && blockerTheFormDoesNotShow !== null && (
@@ -486,9 +454,9 @@ function AddStreamDialogFooter() {
   const isTheRuntimeRunning = presentRuntimeStatus(status).displayState === "running";
   const addStreamAction = addStreamActionOf(form);
   const addStreamActionUnavailableReason = addStreamActionUnavailableBecause(form, isTheRuntimeRunning, status.python_for_new_environments);
-  const openTheStream = (streamName: string, tab?: StreamPageTab) => {
+  const openTheStream = (streamId: string, tab?: StreamPageTab) => {
     addStreamFlow.closeDialog();
-    void navigate(streamPagePath(streamName, tab));
+    void navigate(streamPagePath(streamId, tab));
   };
   return (
     <FormDialogFooter>

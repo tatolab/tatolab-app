@@ -259,9 +259,10 @@ describe("the pointer to records not held", () => {
 
 describe("presentStreamLogsOfAStreamNotLoaded", () => {
   const listing = (state: string, failedBecause: string | null): ListedStream => ({
-    name: "lobby-recorder",
+    stream: "lobby-recorder-main-30baf5",
+    display_name: "lobby-recorder",
+    location: { project_directory: "/Users/jonathanf/streams/lobby-recorder", stream_function: "stream:main" },
     state,
-    project_directory: "/Users/jonathanf/streams/lobby-recorder",
     node_count: null,
     failed_because: failedBecause,
   });
@@ -272,7 +273,7 @@ describe("presentStreamLogsOfAStreamNotLoaded", () => {
       title: "Failed to load",
       explanation: "camera 0 is in use by another process",
     });
-    expect(presentStreamLogsOfAStreamNotLoaded(listing("kept", null))).toEqual({
+    expect(presentStreamLogsOfAStreamNotLoaded(listing("running", null))).toEqual({
       hasFailed: false,
       title: "Loading",
       explanation: "Its records show here once the runtime has loaded it.",

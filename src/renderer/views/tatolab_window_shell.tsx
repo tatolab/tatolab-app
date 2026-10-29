@@ -102,11 +102,11 @@ function StreamProjectFolderSidebarRows({ projectFolder }: { projectFolder: Stre
       {isOpen && (
         <ul aria-label={`Streams added from ${projectFolder.folderName}`} className="mt-0.5 flex flex-col gap-0.5">
           {projectFolder.streams.map((stream) => (
-            <li key={stream.name}>
+            <li key={stream.stream}>
               <SidebarNavigationRow
-                to={streamPagePath(stream.name)}
+                to={streamPagePath(stream.stream)}
                 icon={<StreamStateIcon stream={stream} />}
-                label={stream.name}
+                label={stream.display_name}
                 stateWordsForAScreenReader={presentStreamState(stream).label}
                 isUnderAFolder
               />
@@ -218,13 +218,13 @@ function StreamsRoute() {
 /** One stream's page on the tab its path names; the hosted page saying why while the runtime lists none; back to the list once it is not listed. */
 function StreamRoute() {
   const listedStreams = useListedStreamsWhileTheRuntimeRuns();
-  const { streamName, streamTab } = useParams();
+  const { streamId, streamTab } = useParams();
   if (listedStreams === null) return <StreamsPageWhileTheRuntimeListsNone />;
-  const stream = listedStreams.find((listedStream) => listedStream.name === streamName);
+  const stream = listedStreams.find((listedStream) => listedStream.stream === streamId);
   if (stream === undefined) return <Navigate to="/" replace />;
   const shownTab = streamPageTabNamed(streamTab);
-  if (shownTab === null) return <Navigate to={streamPagePath(stream.name)} replace />;
-  return <StreamPageView key={stream.name} stream={stream} shownTab={shownTab} />;
+  if (shownTab === null) return <Navigate to={streamPagePath(stream.stream)} replace />;
+  return <StreamPageView key={stream.stream} stream={stream} shownTab={shownTab} />;
 }
 
 /** The window's routes, in its memory router: the Streams list, a stream on one of its tabs, and Settings on one of its sections. */
@@ -233,7 +233,7 @@ export const TATOLAB_WINDOW_ROUTES: RouteObject[] = [
     element: <TatolabWindowShell />,
     children: [
       { index: true, element: <StreamsRoute /> },
-      { path: "streams/:streamName/:streamTab?", element: <StreamRoute /> },
+      { path: "streams/:streamId/:streamTab?", element: <StreamRoute /> },
       { path: "settings/:settingsSection?", element: <SettingsPageView /> },
     ],
   },

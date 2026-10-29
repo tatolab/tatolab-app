@@ -16,29 +16,29 @@ const FAILED_STREAM_STATE = "failed";
 /** A failed stream's notification title. */
 export const STREAM_FAILURE_NOTIFICATION_TITLE = "A stream couldn't start";
 
-/** What a failed stream's notification says under its title, naming the stream. */
-export function streamFailureNotificationBody(streamName: string): string {
-  return `The stream named “${streamName}” couldn't be started. An error occurred while launching it. Click to see why.`;
+/** What a failed stream's notification says under its title, naming the stream by its display name. */
+export function streamFailureNotificationBody(streamDisplayName: string): string {
+  return `The stream named “${streamDisplayName}” couldn't be started. An error occurred while launching it. Click to see why.`;
 }
 
 /** The switch, the desktop's notifications, and the failed streams the last listing held. */
 export class StreamFailureNotifications {
-  /** `null` until the first listing after launch. */
+  /** The failed streams' ids; `null` until the first listing after launch. */
   private failedStreamsInTheLastListing: ReadonlySet<string> | null = null;
 
   private constructor(
     private notifyWhenAStreamFails: boolean,
     private readonly rememberedSwitch: RememberedSwitchFile,
     private readonly systemNotifications: SystemNotifications,
-    private readonly showTheStreamsPage: (streamName: string) => void,
+    private readonly showTheStreamsPage: (stream: string) => void,
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
 
-  /** The notifications as remembered in `rememberedSwitch`, shown through `systemNotifications`; clicking one calls `showTheStreamsPage` with its stream. */
+  /** The notifications as remembered in `rememberedSwitch`, shown through `systemNotifications`; clicking one calls `showTheStreamsPage` with its stream's id. */
   static async load(
     rememberedSwitch: RememberedSwitchFile,
     systemNotifications: SystemNotifications,
-    showTheStreamsPage: (streamName: string) => void,
+    showTheStreamsPage: (stream: string) => void,
     tatolabAppLog: TatolabAppLog,
   ): Promise<StreamFailureNotifications> {
     return new StreamFailureNotifications(await rememberedSwitch.loadRememberedSwitch(), rememberedSwitch, systemNotifications, showTheStreamsPage, tatolabAppLog);
@@ -63,12 +63,12 @@ export class StreamFailureNotifications {
     if (status.streams === null) return;
     const failedStreams = status.streams.filter((listedStream) => listedStream.state === FAILED_STREAM_STATE);
     const failedStreamsBefore = this.failedStreamsInTheLastListing;
-    this.failedStreamsInTheLastListing = new Set(failedStreams.map((failedStream) => failedStream.name));
+    this.failedStreamsInTheLastListing = new Set(failedStreams.map((failedStream) => failedStream.stream));
     if (failedStreamsBefore === null || !this.notifyWhenAStreamFails) return;
-    for (const newlyFailedStream of failedStreams.filter((failedStream) => !failedStreamsBefore.has(failedStream.name))) {
-      this.tatolabAppLog.info("a stream failed; notifying", { stream: newlyFailedStream.name });
-      this.systemNotifications.showNotification(STREAM_FAILURE_NOTIFICATION_TITLE, streamFailureNotificationBody(newlyFailedStream.name), () =>
-        this.showTheStreamsPage(newlyFailedStream.name),
+    for (const newlyFailedStream of failedStreams.filter((failedStream) => !failedStreamsBefore.has(failedStream.stream))) {
+      this.tatolabAppLog.info("a stream failed; notifying", { stream: newlyFailedStream.stream });
+      this.systemNotifications.showNotification(STREAM_FAILURE_NOTIFICATION_TITLE, streamFailureNotificationBody(newlyFailedStream.display_name), () =>
+        this.showTheStreamsPage(newlyFailedStream.stream),
       );
     }
   }

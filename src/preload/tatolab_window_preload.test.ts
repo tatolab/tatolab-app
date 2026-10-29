@@ -80,7 +80,7 @@ test("each stream page request reaches the listener with its stream, one naming 
   const tatolabElectronBridge = await exposedTatolabElectronBridge();
   const requestedStreams: string[] = [];
 
-  const stopListening = tatolabElectronBridge.onStreamPageRequested((streamName) => requestedStreams.push(streamName));
+  const stopListening = tatolabElectronBridge.onStreamPageRequested((streamId) => requestedStreams.push(streamId));
   const [streamPageChannel, addedListener] = fakeElectron.ipcRenderer.on.mock.calls[0] ?? [];
   addedListener?.({}, { stream: "camera" });
   addedListener?.({}, { stream: 7 });

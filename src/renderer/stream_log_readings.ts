@@ -30,10 +30,10 @@ const NOTHING_READ_YET: StreamLogReading = { streamInstance: null, records: [], 
  * the Overview and the graph inspector can name it. It holds only the shown stream's records.
  */
 export class StreamLogReadings {
-  private shownReading: { streamName: string; reading: StreamLogReading } | null = null;
+  private shownReading: { streamId: string; reading: StreamLogReading } | null = null;
   private readonly readingListeners = new Set<() => void>();
   private readonly logPoll: RepeatingBackendPoll;
-  private shownStream: { streamName: string; isLoaded: boolean } | null = null;
+  private shownStream: { streamId: string; isLoaded: boolean } | null = null;
   private isPollingAllowed = false;
   private afterSequence = 0;
   /** Counts each time the stream shown changes or loads again, so a read begun before it is dropped when it settles. */
@@ -41,16 +41,16 @@ export class StreamLogReadings {
 
   constructor(
     private readonly backend: Pick<TatolabBackend, "readStreamLogRecords">,
-    private readonly onStreamInstanceRead: (streamName: string, streamInstance: string) => void,
+    private readonly onStreamInstanceRead: (streamId: string, streamInstance: string) => void,
     pollMilliseconds: number = STREAM_LOG_POLL_MILLISECONDS,
     private readonly mostRecordsHeld: number = MOST_STREAM_LOG_RECORDS_HELD,
   ) {
     this.logPoll = new RepeatingBackendPoll(() => this.readTheShownStreamsNewRecords(), pollMilliseconds);
   }
 
-  /** The reading of `streamName`, the same object until it changes; nothing read for a stream not shown. */
-  readonly readingOf = (streamName: string): StreamLogReading =>
-    this.shownReading?.streamName === streamName ? this.shownReading.reading : NOTHING_READ_YET;
+  /** The reading of `streamId`, the same object until it changes; nothing read for a stream not shown. */
+  readonly readingOf = (streamId: string): StreamLogReading =>
+    this.shownReading?.streamId === streamId ? this.shownReading.reading : NOTHING_READ_YET;
 
   /** Calls `readingListener` after each change to the shown stream's reading; the returned function stops it. */
   readonly subscribeToReadings = (readingListener: () => void): (() => void) => {
@@ -58,15 +58,15 @@ export class StreamLogReadings {
     return () => this.readingListeners.delete(readingListener);
   };
 
-  /** Read `streamName`'s log from now on while `isLoaded`, letting go of what was held of any other, or of none when `null`. */
-  showStream(streamName: string | null, isLoaded: boolean): void {
-    const isTheSameLoadedStream = isLoaded && this.shownStream?.streamName === streamName && this.shownStream.isLoaded;
-    this.shownStream = streamName === null ? null : { streamName, isLoaded };
+  /** Read `streamId`'s log from now on while `isLoaded`, letting go of what was held of any other, or of none when `null`. */
+  showStream(streamId: string | null, isLoaded: boolean): void {
+    const isTheSameLoadedStream = isLoaded && this.shownStream?.streamId === streamId && this.shownStream.isLoaded;
+    this.shownStream = streamId === null ? null : { streamId, isLoaded };
     if (!isTheSameLoadedStream) {
       this.shownStreamGeneration += 1;
       this.logPoll.stop();
       this.afterSequence = 0;
-      this.replaceTheShownReading(streamName === null ? null : { streamName, reading: NOTHING_READ_YET });
+      this.replaceTheShownReading(streamId === null ? null : { streamId, reading: NOTHING_READ_YET });
     }
     this.updatePolling();
   }
@@ -81,32 +81,32 @@ export class StreamLogReadings {
     else this.logPoll.stop();
   }
 
-  private isStillShownAsReadFrom(streamName: string, readGeneration: number): boolean {
-    return readGeneration === this.shownStreamGeneration && this.shownStream?.streamName === streamName && this.shownStream.isLoaded;
+  private isStillShownAsReadFrom(streamId: string, readGeneration: number): boolean {
+    return readGeneration === this.shownStreamGeneration && this.shownStream?.streamId === streamId && this.shownStream.isLoaded;
   }
 
   private async readTheShownStreamsNewRecords(): Promise<void> {
     const shownStream = this.shownStream;
     if (shownStream === null || !shownStream.isLoaded) return;
-    const { streamName } = shownStream;
+    const { streamId } = shownStream;
     const readGeneration = this.shownStreamGeneration;
     try {
       for (let pageIndex = 0; pageIndex < MOST_PAGES_READ_PER_POLL; pageIndex++) {
-        const recordsPage = await this.backend.readStreamLogRecords(streamName, this.afterSequence);
-        if (!this.isStillShownAsReadFrom(streamName, readGeneration)) return;
-        this.onStreamInstanceRead(streamName, recordsPage.stream_instance);
-        const heldReading = this.readingOf(streamName);
+        const recordsPage = await this.backend.readStreamLogRecords(streamId, this.afterSequence);
+        if (!this.isStillShownAsReadFrom(streamId, readGeneration)) return;
+        this.onStreamInstanceRead(streamId, recordsPage.stream_instance);
+        const heldReading = this.readingOf(streamId);
         if (heldReading.streamInstance !== null && recordsPage.stream_instance !== heldReading.streamInstance) {
           // Another load numbers its records from 1 again, so this page's cursor belongs to the old one.
           this.afterSequence = 0;
-          this.replaceTheShownReading({ streamName, reading: { ...NOTHING_READ_YET, streamInstance: recordsPage.stream_instance } });
+          this.replaceTheShownReading({ streamId, reading: { ...NOTHING_READ_YET, streamInstance: recordsPage.stream_instance } });
           continue;
         }
         const recordsWithThisPage = [...heldReading.records, ...recordsPage.records];
         const recordsLetGoCount = Math.max(0, recordsWithThisPage.length - this.mostRecordsHeld);
         this.afterSequence = recordsPage.next_after;
         this.replaceTheShownReading({
-          streamName,
+          streamId,
           reading: {
             streamInstance: recordsPage.stream_instance,
             records: recordsLetGoCount === 0 ? recordsWithThisPage : recordsWithThisPage.slice(recordsLetGoCount),
@@ -118,16 +118,16 @@ export class StreamLogReadings {
         if (recordsPage.records.length < STREAM_LOG_RECORDS_PAGE_SIZE) break;
       }
     } catch (rejection) {
-      if (this.isStillShownAsReadFrom(streamName, readGeneration)) {
-        this.replaceTheShownReading({ streamName, reading: { ...this.readingOf(streamName), readRefusal: describeBackendRejection(rejection) } });
+      if (this.isStillShownAsReadFrom(streamId, readGeneration)) {
+        this.replaceTheShownReading({ streamId, reading: { ...this.readingOf(streamId), readRefusal: describeBackendRejection(rejection) } });
       }
     }
   }
 
-  private replaceTheShownReading(shownReading: { streamName: string; reading: StreamLogReading } | null): void {
+  private replaceTheShownReading(shownReading: { streamId: string; reading: StreamLogReading } | null): void {
     const previousReading = this.shownReading;
     const isUnchanged =
-      previousReading?.streamName === shownReading?.streamName &&
+      previousReading?.streamId === shownReading?.streamId &&
       previousReading !== null &&
       shownReading !== null &&
       previousReading.reading.streamInstance === shownReading.reading.streamInstance &&

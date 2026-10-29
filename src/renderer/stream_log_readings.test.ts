@@ -23,10 +23,10 @@ function recordsPage(streamInstance: string, records: StreamLogRecord[], records
 
 /** A backend answering each read with the next page or refusal queued, writing down the cursor each read asked after. */
 function backendAnswering(answers: (StreamLogRecordsPage | string)[]) {
-  const askedAfter: { streamName: string; afterSequence: number }[] = [];
+  const askedAfter: { streamId: string; afterSequence: number }[] = [];
   const backend = {
-    readStreamLogRecords: async (streamName: string, afterSequence: number): Promise<StreamLogRecordsPage> => {
-      askedAfter.push({ streamName, afterSequence });
+    readStreamLogRecords: async (streamId: string, afterSequence: number): Promise<StreamLogRecordsPage> => {
+      askedAfter.push({ streamId, afterSequence });
       const answer = answers.shift() ?? recordsPage("4", []);
       if (typeof answer === "string") throw answer;
       return answer;
@@ -35,7 +35,7 @@ function backendAnswering(answers: (StreamLogRecordsPage | string)[]) {
   return { backend, askedAfter };
 }
 
-const messagesOf = (readings: StreamLogReadings, streamName = "main") => readings.readingOf(streamName).records.map((record) => record.message);
+const messagesOf = (readings: StreamLogReadings, streamId = "main") => readings.readingOf(streamId).records.map((record) => record.message);
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
@@ -102,7 +102,7 @@ describe("StreamLogReadings", () => {
       recordsPage("5", [logRecord(1, "new load")]),
     ]);
     const streamInstancesRead: string[] = [];
-    const readings = new StreamLogReadings(backend, (streamName, streamInstance) => streamInstancesRead.push(`${streamName}:${streamInstance}`), 1000);
+    const readings = new StreamLogReadings(backend, (streamId, streamInstance) => streamInstancesRead.push(`${streamId}:${streamInstance}`), 1000);
     readings.showStream("main", true);
     readings.setPollingAllowed(true);
     await vi.advanceTimersByTimeAsync(0);
@@ -145,9 +145,9 @@ describe("StreamLogReadings", () => {
     let answerTheSlowRead: (page: StreamLogRecordsPage) => void = () => {};
     const askedStreams: string[] = [];
     const backend = {
-      readStreamLogRecords: (streamName: string): Promise<StreamLogRecordsPage> => {
-        askedStreams.push(streamName);
-        if (streamName === "main") return new Promise((resolve) => (answerTheSlowRead = resolve));
+      readStreamLogRecords: (streamId: string): Promise<StreamLogRecordsPage> => {
+        askedStreams.push(streamId);
+        if (streamId === "main") return new Promise((resolve) => (answerTheSlowRead = resolve));
         return Promise.resolve({ ...recordsPage("9", [logRecord(1, "camera's")]), stream: "camera" });
       },
     };
@@ -171,9 +171,9 @@ describe("StreamLogReadings", () => {
     const answersInFlight: ((page: StreamLogRecordsPage) => void)[] = [];
     const askedAfter: string[] = [];
     const backend = {
-      readStreamLogRecords: (streamName: string, afterSequence: number): Promise<StreamLogRecordsPage> => {
-        askedAfter.push(`${streamName}:${afterSequence}`);
-        if (streamName === "camera") return Promise.resolve({ ...recordsPage("9", []), stream: "camera" });
+      readStreamLogRecords: (streamId: string, afterSequence: number): Promise<StreamLogRecordsPage> => {
+        askedAfter.push(`${streamId}:${afterSequence}`);
+        if (streamId === "camera") return Promise.resolve({ ...recordsPage("9", []), stream: "camera" });
         return new Promise((resolve) => answersInFlight.push(resolve));
       },
     };

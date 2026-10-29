@@ -15,8 +15,16 @@ afterEach(async () => {
   await Promise.all(temporaryConfigDirectories.splice(0).map((configDirectory) => rm(configDirectory, { recursive: true, force: true })));
 });
 
-function listedStream(name: string, state: string, failedBecause: string | null = null): ListedStream {
-  return { name, state, project_directory: `/Users/u/streams/${name}`, node_count: state === "failed" ? null : 3, failed_because: failedBecause };
+/** A stream from `/Users/u/streams/<displayName>` whose id is `<displayName>-main-<hash>`. */
+function listedStream(displayName: string, state: string, failedBecause: string | null = null): ListedStream {
+  return {
+    stream: `${displayName}-main-0c4e2a`,
+    display_name: displayName,
+    location: { project_directory: `/Users/u/streams/${displayName}`, stream_function: "stream:main" },
+    state,
+    node_count: state === "failed" ? null : 3,
+    failed_because: failedBecause,
+  };
 }
 
 function statusListing(streams: ListedStream[] | null): TatolabStatus {
@@ -50,16 +58,16 @@ async function notificationsOverFakes() {
   const streamFailureNotifications = await StreamFailureNotifications.load(
     rememberedSwitch,
     systemNotifications,
-    (streamName) => streamPagesShown.push(streamName),
+    (stream) => streamPagesShown.push(stream),
     quietTatolabAppLog,
   );
   return { streamFailureNotifications, systemNotifications, streamPagesShown, appConfigDirectory, rememberedSwitch };
 }
 
-test("a_stream_failing_while_the_app_runs_notifies_in_plain_sentences_and_a_click_shows_its_page_with_the_runtimes_reason", async () => {
+test("a_stream_failing_while_the_app_runs_notifies_by_its_display_name_and_a_click_shows_its_page_by_its_id", async () => {
   const { streamFailureNotifications, systemNotifications, streamPagesShown } = await notificationsOverFakes();
 
-  streamFailureNotifications.noticeStatus(statusListing([listedStream("camera", "kept")]));
+  streamFailureNotifications.noticeStatus(statusListing([listedStream("camera", "running")]));
   streamFailureNotifications.noticeStatus(statusListing([listedStream("camera", "failed", "camera access is denied for Tatolab")]));
 
   expect(systemNotifications.notificationsShown).toEqual([
@@ -69,20 +77,20 @@ test("a_stream_failing_while_the_app_runs_notifies_in_plain_sentences_and_a_clic
     },
   ]);
   systemNotifications.clickTheLastNotification();
-  expect(streamPagesShown).toEqual(["camera"]);
+  expect(streamPagesShown).toEqual(["camera-main-0c4e2a"]);
 });
 
 test("streams_already_failed_at_launch_or_still_failed_notify_nothing_and_a_stream_failing_again_notifies_again", async () => {
   const { streamFailureNotifications, systemNotifications } = await notificationsOverFakes();
 
   streamFailureNotifications.noticeStatus(statusListing(null));
-  streamFailureNotifications.noticeStatus(statusListing([listedStream("lobby-recorder", "failed", "no camera"), listedStream("main", "kept")]));
-  streamFailureNotifications.noticeStatus(statusListing([listedStream("lobby-recorder", "failed", "no camera"), listedStream("main", "kept")]));
+  streamFailureNotifications.noticeStatus(statusListing([listedStream("lobby-recorder", "failed", "no camera"), listedStream("main", "running")]));
+  streamFailureNotifications.noticeStatus(statusListing([listedStream("lobby-recorder", "failed", "no camera"), listedStream("main", "running")]));
   expect(systemNotifications.notificationsShown).toEqual([]);
 
-  streamFailureNotifications.noticeStatus(statusListing([listedStream("lobby-recorder", "kept"), listedStream("main", "kept")]));
+  streamFailureNotifications.noticeStatus(statusListing([listedStream("lobby-recorder", "running"), listedStream("main", "running")]));
   streamFailureNotifications.noticeStatus(statusListing(null));
-  streamFailureNotifications.noticeStatus(statusListing([listedStream("lobby-recorder", "failed"), listedStream("main", "kept")]));
+  streamFailureNotifications.noticeStatus(statusListing([listedStream("lobby-recorder", "failed"), listedStream("main", "running")]));
   expect(systemNotifications.notificationsShown).toEqual([{ title: STREAM_FAILURE_NOTIFICATION_TITLE, body: streamFailureNotificationBody("lobby-recorder") }]);
 });
 
@@ -90,7 +98,7 @@ test("with_the_switch_off_nothing_notifies_and_the_switch_is_remembered_across_l
   const { streamFailureNotifications, systemNotifications, rememberedSwitch } = await notificationsOverFakes();
 
   expect(await streamFailureNotifications.setNotifyWhenAStreamFails(false)).toEqual({ ok: true, value: undefined });
-  streamFailureNotifications.noticeStatus(statusListing([listedStream("camera", "kept")]));
+  streamFailureNotifications.noticeStatus(statusListing([listedStream("camera", "running")]));
   streamFailureNotifications.noticeStatus(statusListing([listedStream("camera", "failed", "no camera")]));
 
   expect(systemNotifications.notificationsShown).toEqual([]);

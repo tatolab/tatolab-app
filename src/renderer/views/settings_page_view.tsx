@@ -382,7 +382,7 @@ function RuntimeSection() {
           label="Stream records"
           description={
             <>
-              Each kept stream's record, which an uninstall leaves in place.
+              Each stream's record, which an uninstall leaves in place.
               <PathUnderTheWords>{streamRecordsDirectory}</PathUnderTheWords>
             </>
           }
