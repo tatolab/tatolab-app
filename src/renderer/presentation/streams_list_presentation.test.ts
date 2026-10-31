@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import {
   isStreamActionStillUnderWay,
-  presentStreamRemovalConfirmation,
+  presentProjectRemovalConfirmation,
+  streamsOfTheProject,
   streamMatchesFilterText,
   streamMatchesListFilter,
   streamProjectFoldersOf,
@@ -17,6 +18,8 @@ function listedStream(displayName: string, state: string, nodeCount: number | nu
     state,
     node_count: nodeCount,
     failed_because: null,
+    action: null,
+    step: null,
   };
 }
 
@@ -99,18 +102,26 @@ describe("streamProjectFoldersOf", () => {
   });
 });
 
-describe("presentStreamRemovalConfirmation", () => {
-  it("names the stream by its display name, and says the runtime forgets it and its project folder stays", () => {
-    expect(presentStreamRemovalConfirmation(listedStream("main", "running", 4))).toEqual({
-      title: "Remove main?",
-      explanation:
-        "The runtime unloads it and forgets it, so it no longer loads when the runtime starts. Its project folder, ~/streams/main, stays as it is.",
-    });
+describe("presentProjectRemovalConfirmation", () => {
+  const patternFolder = "/Users/ada/streams/pattern";
+  const streamsOfPattern = [listedStream("main", "running", 4, patternFolder), listedStream("recorder", "stopped", null, patternFolder), listedStream("pattern-two", "failed", null, patternFolder)];
+
+  it("finds every stream the listing holds from the folder, in the order it lists them", () => {
+    expect(streamsOfTheProject([listedStream("camera", "running", 3), ...streamsOfPattern], patternFolder).map((stream) => stream.display_name)).toEqual([
+      "main",
+      "recorder",
+      "pattern-two",
+    ]);
   });
 
-  it("names no project folder for an earlier runtime's record, which has none", () => {
-    expect(presentStreamRemovalConfirmation({ ...listedStream("camera", "failed", null), location: null }).explanation).toBe(
-      "The runtime unloads it and forgets it, so it no longer loads when the runtime starts.",
+  it("names the folder and every stream the runtime forgets, and says the folder and its log stay", () => {
+    expect(presentProjectRemovalConfirmation(patternFolder, streamsOfPattern)).toEqual({
+      title: "Remove the project pattern?",
+      explanation:
+        "The runtime stops and forgets its 3 streams, main, recorder and pattern-two, so they no longer load when the runtime starts. The folder ~/streams/pattern and its log stay as they are.",
+    });
+    expect(presentProjectRemovalConfirmation(patternFolder, streamsOfPattern.slice(0, 1)).explanation).toBe(
+      "The runtime stops and forgets its stream main, so it no longer loads when the runtime starts. The folder ~/streams/pattern and its log stay as they are.",
     );
   });
 });
@@ -126,6 +137,6 @@ describe("isStreamActionStillUnderWay", () => {
   it("ends once the runtime has answered and the listing shows something else, or nothing", () => {
     expect(isStreamActionStillUnderWay({ streamAction: "stop_stream", listingWhenAsked: running, isAnswered: true }, running)).toBe(true);
     expect(isStreamActionStillUnderWay({ streamAction: "stop_stream", listingWhenAsked: running, isAnswered: true }, stopped)).toBe(false);
-    expect(isStreamActionStillUnderWay({ streamAction: "remove_stream", listingWhenAsked: running, isAnswered: true }, null)).toBe(false);
+    expect(isStreamActionStillUnderWay({ streamAction: "remove_project", listingWhenAsked: running, isAnswered: true }, null)).toBe(false);
   });
 });

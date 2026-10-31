@@ -1,24 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";
-import { STOP_NOT_RECORDED_LEAD, streamActionRefusalLead, type StreamPrimaryActionPresentation } from "../presentation/stream_presentation";
-import { isStreamActionStillUnderWay, presentStreamRemovalConfirmation, type StreamActionUnderWay } from "../presentation/streams_list_presentation";
+import { listedStreamProjectDirectory, streamActionRefusalLead, type StreamActionAskedByTheWindow, type StreamPrimaryActionPresentation } from "../presentation/stream_presentation";
+import {
+  isStreamActionStillUnderWay,
+  presentProjectRemovalConfirmation,
+  streamsOfTheProject,
+  type StreamActionUnderWay,
+} from "../presentation/streams_list_presentation";
 import { ConfirmationDialog } from "../design_system/confirmation_dialog";
 import { RefusalLine } from "../design_system/refusal_line";
 import { useTatolabWindowEnvironment } from "./tatolab_window_context";
 
-/** The action a person chose on a row, by its word: Stop, Start, Retry or Remove. */
-export type ChosenStreamActionLabel = StreamPrimaryActionPresentation["label"] | "Remove";
+/** The action a person chose on a row, by its word: Stop, Start, Retry or Remove project. */
+export type ChosenStreamActionLabel = StreamPrimaryActionPresentation["label"] | "Remove project";
 
-/** What the runtime said about a stream's last action: its refusal after the action the person chose, or the notice beside a stop it could not record. */
-export type StreamActionOutcomeWords =
-  | { kind: "refusal"; chosenActionLabel: ChosenStreamActionLabel; runtimeWords: string }
-  | { kind: "notice"; runtimeWords: string };
+/** The runtime's refusal of a stream's last action, after the action the person chose. */
+export interface StreamActionRefusalWords {
+  chosenActionLabel: ChosenStreamActionLabel;
+  runtimeWords: string;
+}
 
-function withoutKey<Value>(entries: ReadonlyMap<string, Value>, key: string): ReadonlyMap<string, Value> {
-  if (!entries.has(key)) return entries;
+function withoutKeys<Value>(entries: ReadonlyMap<string, Value>, keys: readonly string[]): ReadonlyMap<string, Value> {
+  if (!keys.some((key) => entries.has(key))) return entries;
   const remainingEntries = new Map(entries);
-  remainingEntries.delete(key);
+  for (const key of keys) remainingEntries.delete(key);
   return remainingEntries;
 }
 
@@ -26,11 +32,11 @@ function listingWithTheStreamId(listedStreams: readonly ListedStream[], streamId
   return listedStreams.find((stream) => stream.stream === streamId) ?? null;
 }
 
-/** The stream actions under way on each stream and what the runtime last said of each, kept until the listing shows the outcome. */
+/** The stream actions being asked for on each stream and the runtime's last refusal of each, kept until the listing shows the outcome. */
 export function useStreamActionsUnderWay(listedStreams: readonly ListedStream[]) {
   const { backend } = useTatolabWindowEnvironment();
   const [actionsUnderWay, setActionsUnderWay] = useState<ReadonlyMap<string, StreamActionUnderWay>>(new Map());
-  const [outcomeWords, setOutcomeWords] = useState<ReadonlyMap<string, StreamActionOutcomeWords>>(new Map());
+  const [refusalWords, setRefusalWords] = useState<ReadonlyMap<string, StreamActionRefusalWords>>(new Map());
   /** The listing as of the last render, for an answer that arrives after the status showing its outcome. */
   const latestListedStreams = useRef(listedStreams);
 
@@ -42,69 +48,94 @@ export function useStreamActionsUnderWay(listedStreams: readonly ListedStream[])
       );
       return stillUnderWay.size === underWay.size ? underWay : stillUnderWay;
     });
-    setOutcomeWords((words) => {
+    setRefusalWords((words) => {
       const stillListed = new Map([...words].filter(([streamId]) => listingWithTheStreamId(listedStreams, streamId) !== null));
       return stillListed.size === words.size ? words : stillListed;
     });
   }, [listedStreams]);
 
-  const runStreamAction = (streamAction: TatolabStreamActionName, chosenActionLabel: ChosenStreamActionLabel, stream: ListedStream): void => {
-    setActionsUnderWay((underWay) => new Map(underWay).set(stream.stream, { streamAction, listingWhenAsked: stream, isAnswered: false }));
-    setOutcomeWords((words) => withoutKey(words, stream.stream));
-    backend.runStreamAction(streamAction, stream.stream).then(
-      (notice) => {
-        if (notice !== null) setOutcomeWords((words) => new Map(words).set(stream.stream, { kind: "notice", runtimeWords: notice }));
+  const askTheRuntime = (
+    streamAction: StreamActionAskedByTheWindow,
+    chosenActionLabel: ChosenStreamActionLabel,
+    streamsAskedAbout: readonly ListedStream[],
+    queueTheAction: () => Promise<void>,
+  ): void => {
+    const streamIds = streamsAskedAbout.map((stream) => stream.stream);
+    setActionsUnderWay((underWay) => {
+      const askedFor = new Map(underWay);
+      for (const stream of streamsAskedAbout) askedFor.set(stream.stream, { streamAction, listingWhenAsked: stream, isAnswered: false });
+      return askedFor;
+    });
+    setRefusalWords((words) => withoutKeys(words, streamIds));
+    queueTheAction().then(
+      () => {
         setActionsUnderWay((underWay) => {
-          const actionUnderWay = underWay.get(stream.stream);
-          if (actionUnderWay === undefined) return underWay;
-          const answeredAction = { ...actionUnderWay, isAnswered: true };
-          return isStreamActionStillUnderWay(answeredAction, listingWithTheStreamId(latestListedStreams.current, stream.stream))
-            ? new Map(underWay).set(stream.stream, answeredAction)
-            : withoutKey(underWay, stream.stream);
+          const answered = new Map(underWay);
+          for (const streamId of streamIds) {
+            const actionUnderWay = underWay.get(streamId);
+            if (actionUnderWay === undefined) continue;
+            const answeredAction = { ...actionUnderWay, isAnswered: true };
+            if (isStreamActionStillUnderWay(answeredAction, listingWithTheStreamId(latestListedStreams.current, streamId))) answered.set(streamId, answeredAction);
+            else answered.delete(streamId);
+          }
+          return answered;
         });
       },
       (rejection: unknown) => {
-        setOutcomeWords((words) =>
-          new Map(words).set(stream.stream, { kind: "refusal", chosenActionLabel, runtimeWords: describeBackendRejection(rejection) }),
-        );
-        setActionsUnderWay((underWay) => withoutKey(underWay, stream.stream));
+        const runtimeWords = describeBackendRejection(rejection);
+        setRefusalWords((words) => {
+          const refused = new Map(words);
+          for (const streamId of streamIds) refused.set(streamId, { chosenActionLabel, runtimeWords });
+          return refused;
+        });
+        setActionsUnderWay((underWay) => withoutKeys(underWay, streamIds));
       },
     );
   };
 
-  return { actionsUnderWay, outcomeWords, runStreamAction };
+  const runStreamAction = (streamAction: TatolabStreamActionName, chosenActionLabel: ChosenStreamActionLabel, stream: ListedStream): void =>
+    askTheRuntime(streamAction, chosenActionLabel, [stream], () => backend.runStreamAction(streamAction, stream.stream));
+
+  const removeProject = (projectDirectory: string, streamsOfThatProject: readonly ListedStream[]): void =>
+    askTheRuntime("remove_project", "Remove project", streamsOfThatProject, () => backend.removeProject(projectDirectory));
+
+  return { actionsUnderWay, refusalWords, runStreamAction, removeProject };
 }
 
-/** The runtime's refusal of a stream action, or its notice beside a stop it could not record, in its own words. */
-export function StreamActionOutcomeLine({ outcome }: { outcome: StreamActionOutcomeWords }) {
-  if (outcome.kind === "notice") return <RefusalLine tone="warning" lead={STOP_NOT_RECORDED_LEAD} words={outcome.runtimeWords} />;
-  return <RefusalLine lead={streamActionRefusalLead(outcome.chosenActionLabel)} words={outcome.runtimeWords} />;
+/** The runtime's refusal of a stream action, in its own words. */
+export function StreamActionRefusalLine({ refusal }: { refusal: StreamActionRefusalWords }) {
+  return <RefusalLine lead={streamActionRefusalLead(refusal.chosenActionLabel)} words={refusal.runtimeWords} />;
 }
 
-/** The question before `remove_stream`; the stream it asks about stays until the dialog has finished closing. */
-export function useStreamRemovalDialog(onRemove: (stream: ListedStream) => void) {
+/**
+ * The question before `remove_project`, naming the folder and every stream the listing holds from it; the project it
+ * asks about stays until the dialog has finished closing. A stream an earlier runtime recorded names no folder, so it
+ * offers no removal.
+ */
+export function useProjectRemovalDialog(listedStreams: readonly ListedStream[], onRemove: (projectDirectory: string, streamsOfThatProject: readonly ListedStream[]) => void) {
   const [isOpen, setIsOpen] = useState(false);
-  const [streamAskedAbout, setStreamAskedAbout] = useState<ListedStream | null>(null);
-  const confirmation = streamAskedAbout === null ? null : presentStreamRemovalConfirmation(streamAskedAbout);
-  const askToRemove = (stream: ListedStream) => {
-    setStreamAskedAbout(stream);
+  const [projectAskedAbout, setProjectAskedAbout] = useState<{ projectDirectory: string; streams: readonly ListedStream[] } | null>(null);
+  const confirmation = projectAskedAbout === null ? null : presentProjectRemovalConfirmation(projectAskedAbout.projectDirectory, projectAskedAbout.streams);
+  const askToRemoveTheProjectOf = (stream: ListedStream) => {
+    const projectDirectory = listedStreamProjectDirectory(stream);
+    if (projectDirectory === null) return;
+    setProjectAskedAbout({ projectDirectory, streams: streamsOfTheProject(listedStreams, projectDirectory) });
     setIsOpen(true);
   };
   const removalDialog = (
     <ConfirmationDialog
       isOpen={isOpen}
       onOpenChange={setIsOpen}
-      onClosedCompletely={() => setStreamAskedAbout(null)}
-      question={confirmation === null ? null : { ...confirmation, confirmWords: "Remove" }}
+      onClosedCompletely={() => setProjectAskedAbout(null)}
+      question={confirmation === null ? null : { ...confirmation, confirmWords: "Remove project" }}
       isDestructive
       onConfirmed={() => {
-        if (streamAskedAbout !== null) onRemove(streamAskedAbout);
+        if (projectAskedAbout !== null) onRemove(projectAskedAbout.projectDirectory, projectAskedAbout.streams);
         setIsOpen(false);
       }}
-      confirmDataAttributes={{ "data-stream-action": "confirm_remove_stream" }}
-      data-stream-removal-dialog=""
+      confirmDataAttributes={{ "data-stream-action": "confirm_remove_project" }}
+      data-project-removal-dialog=""
     />
   );
-  return { askToRemove, removalDialog };
+  return { askToRemoveTheProjectOf, removalDialog };
 }
-

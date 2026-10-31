@@ -1,5 +1,5 @@
-import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";
-import { abbreviateHomeDirectory, listedStreamProjectDirectory } from "./stream_presentation";
+import type { ListedStream } from "../../shared/tatolab_backend_contract";
+import { abbreviateHomeDirectory, listedStreamProjectDirectory, type StreamActionAskedByTheWindow } from "./stream_presentation";
 
 /** Which streams the Streams list shows. */
 export type StreamsListFilter = "all" | "running" | "stopped" | "failed";
@@ -87,26 +87,41 @@ export function streamProjectFoldersOf(streams: readonly ListedStream[]): Stream
   });
 }
 
-/** What the dialog asking to remove a stream says. */
-export interface StreamRemovalConfirmationPresentation {
+/** What the dialog asking to remove a project says. */
+export interface ProjectRemovalConfirmationPresentation {
   title: string;
   explanation: string;
 }
 
-/** The question before `remove_stream`, the one action that loses a stream. */
-export function presentStreamRemovalConfirmation(stream: ListedStream): StreamRemovalConfirmationPresentation {
+/** The streams the listing holds from `projectDirectory`, in the order it lists them. */
+export function streamsOfTheProject(listedStreams: readonly ListedStream[], projectDirectory: string): ListedStream[] {
+  return listedStreams.filter((stream) => listedStreamProjectDirectory(stream) === projectDirectory);
+}
+
+function namesInASentence(names: readonly string[]): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
+}
+
+/** The question before `remove_project`, the one action that loses a project's streams: the folder, and every stream the listing holds from it. */
+export function presentProjectRemovalConfirmation(projectDirectory: string, streamsOfThatProject: readonly ListedStream[]): ProjectRemovalConfirmationPresentation {
+  const folderShown = abbreviateHomeDirectory(projectDirectory);
+  const streamNames = namesInASentence(streamsOfThatProject.map((stream) => stream.display_name));
+  const whatTheRuntimeForgets =
+    streamsOfThatProject.length === 1 ? `its stream ${streamNames}, so it no longer loads` : `its ${streamsOfThatProject.length} streams, ${streamNames}, so they no longer load`;
   return {
-    title: `Remove ${stream.display_name}?`,
-    explanation:
-      stream.location === null
-        ? "The runtime unloads it and forgets it, so it no longer loads when the runtime starts."
-        : `The runtime unloads it and forgets it, so it no longer loads when the runtime starts. Its project folder, ${abbreviateHomeDirectory(stream.location.project_directory)}, stays as it is.`,
+    title: `Remove the project ${lastSegmentOf(projectDirectory)}?`,
+    explanation: `The runtime stops and forgets ${whatTheRuntimeForgets} when the runtime starts. The folder ${folderShown} and its log stay as they are.`,
   };
+}
+
+function lastSegmentOf(absolutePath: string): string {
+  return lastPathSegments(absolutePath, 1);
 }
 
 /** A stream action the window asked for, with the listing it saw when it asked and whether the runtime has answered. */
 export interface StreamActionUnderWay {
-  streamAction: TatolabStreamActionName;
+  streamAction: StreamActionAskedByTheWindow;
   listingWhenAsked: ListedStream | null;
   isAnswered: boolean;
 }

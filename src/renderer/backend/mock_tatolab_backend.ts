@@ -1,6 +1,7 @@
 import {
   createMockStreamFixtures,
   createMockStreamRunFromAProjectFolder,
+  MOCK_RUNTIME_ID,
   mockStreamIdOf,
   type MockLiveLogWriter,
   type MockLogRecordDraft,
@@ -12,16 +13,16 @@ import { createMockRelays, mockRelaysScenarioNamed, type MockRelaysScenario } fr
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import type { TatolabBackend } from "./tatolab_backend";
 import {
-  STREAM_LOG_FOLDER_IN_THE_PROJECT,
+  PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
+  type ProjectLogRecord,
+  type ProjectLogRecordsPage,
   type PythonForNewEnvironments,
   type RuntimeDescription,
   type TatolabAppBuild,
   type TatolabAppOpenAtLogin,
   type TatolabCommandLineToolVersion,
   type StreamGraphSummary,
-  type StreamLogRecord,
-  type StreamLogRecordsPage,
   type StreamProjectFolderReport,
   type StreamProjectPythonEnvironment,
   type StreamProjectRunOutcome,
@@ -88,8 +89,10 @@ const MOCK_STREAM_SETTLE_MILLISECONDS = 1600;
 /** How long `main` stays listed but not loaded in the `loading` scenario. */
 const MOCK_MAIN_LOADING_MILLISECONDS = 9000;
 const MOCK_RECORDS_PAGE_SIZE = 500;
-/** How many of a stream's newest records the runtime holds in memory. */
-const MOST_RECORDS_THE_RUNTIME_HOLDS = 4096;
+/** How many of a project's newest log records the mock keeps unless `?held_records=` asks for fewer. */
+const MOST_PROJECT_LOG_RECORDS_KEPT = 100_000;
+/** How long each step of a queued stream action takes in the mock. */
+const MOCK_STREAM_ACTION_STEP_MILLISECONDS = 700;
 
 /**
  * What a check for updates finds in the mock, picked with `?update=`: nothing newer (the default), a newer
@@ -174,14 +177,12 @@ export interface MockTatolabOptions {
   /** `?uninstall=cancel`: the administrator cancels the prompt an uninstall shows, so the uninstall is refused. */
   isUninstallPromptCancelled: boolean;
   appUpdateScenario: MockTatolabAppUpdateScenario;
-  /** `?stop_not_recorded=<stream id>`: stopping that stream unloads it but cannot write its record, as when the runtime's state directory refuses the write. */
-  streamWhoseStopIsNotRecorded: string | null;
   /** `?terminal=missing`: the desktop has no terminal to open, as a Linux desktop without `x-terminal-emulator`. */
   isTheTerminalMissing: boolean;
   /** `?log_folder=missing`: no stream has a log folder on disk yet, so opening one is refused as the app refuses it. */
   isTheLogFolderMissing: boolean;
-  /** `?held_records=<n>`: the runtime holds only each stream's newest `n` records, as it holds its newest 4096, so a stream's earlier records are no longer held. */
-  mostRecordsHeldPerStream: number;
+  /** `?held_records=<n>`: each project's log keeps only its newest `n` records, as the runtime's retention deletes a log's oldest segments. */
+  mostProjectLogRecordsKept: number;
   /** `?add_folder=`: the project folder the folder dialog chooses. */
   chosenProjectFolder: MockChosenProjectFolder;
   /** `?add_run=warning`: a project's compile writes a cross-floor warning. */
@@ -287,10 +288,9 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     platform,
     isUninstallPromptCancelled: pageQuery.get("uninstall") === "cancel",
     appUpdateScenario: appUpdateScenario ?? "up-to-date",
-    streamWhoseStopIsNotRecorded: pageQuery.get("stop_not_recorded"),
     isTheTerminalMissing: pageQuery.get("terminal") === "missing",
     isTheLogFolderMissing: pageQuery.get("log_folder") === "missing",
-    mostRecordsHeldPerStream: positiveWholeNumberOrNull(pageQuery.get("held_records")) ?? MOST_RECORDS_THE_RUNTIME_HOLDS,
+    mostProjectLogRecordsKept: positiveWholeNumberOrNull(pageQuery.get("held_records")) ?? MOST_PROJECT_LOG_RECORDS_KEPT,
     chosenProjectFolder: MOCK_CHOSEN_PROJECT_FOLDERS.find((knownFolder) => knownFolder === pageQuery.get("add_folder")) ?? "ready",
     doesTheCompileWriteAWarning: pageQuery.get("add_run") === "warning",
     isTheTatolabCommandMissing: pageQuery.get("add_cli") === "missing",
@@ -323,12 +323,17 @@ const LINUX_UNINSTALL_COMMAND = "curl -fsSL https://get.tatolab.com/install.sh |
 
 interface MockLoadedStream {
   fixture: MockStreamFixture;
-  streamInstance: string;
+  /** The stream action that loaded it, which every record its load writes carries. */
+  loadAction: string;
   loadedAtMilliseconds: number;
   unreleasedStartupDrafts: MockLogRecordDraft[];
   writeLiveLog: MockLiveLogWriter;
-  heldRecords: StreamLogRecord[];
-  nextSequence: number;
+}
+
+/** A project's log as the mock keeps it: its records oldest first, after the ones its retention deleted. */
+interface MockProjectLog {
+  records: ProjectLogRecord[];
+  recordsDeletedCount: number;
 }
 
 /** Where the mock's updates stand as the page opens: a newer version already found by the launch check in `available` and `download`. */
@@ -441,10 +446,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     platform,
     isUninstallPromptCancelled,
     appUpdateScenario,
-    streamWhoseStopIsNotRecorded,
     isTheTerminalMissing,
     isTheLogFolderMissing,
-    mostRecordsHeldPerStream,
+    mostProjectLogRecordsKept,
     chosenProjectFolder,
     doesTheCompileWriteAWarning,
     isTheTatolabCommandMissing,
@@ -478,8 +482,14 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   /** Recorded streams not loaded that `start_stream` can load, by id: `pattern-two`, and each one stopped from the window. */
   const recordedFixturesNotLoaded = new Map<string, MockStreamFixture>([[fixtures.patternTwoStream.listing.stream, fixtures.patternTwoStream]]);
   const forgottenStreamIds = new Set<string>();
-  /** Streams unloaded by a stop the mock could not record: not loaded now, loaded again when the mock runtime restarts. */
-  const streamIdsUnloadedButNotRecordedStopped = new Set<string>();
+  /** The stream action queued or under way on each stream, by id; a step of an action that is no longer its stream's does nothing. */
+  const streamActionOfEachStream = new Map<string, string>();
+  const projectLogs = new Map<string, MockProjectLog>();
+  let streamActionCount = 0;
+  const nextStreamActionId = (): string => {
+    streamActionCount += 1;
+    return `${MOCK_RUNTIME_ID}-${streamActionCount}`;
+  };
   let mockStatus = initialMockStatus(scenario, platform, fixtures.machine, mockTatolabOptions);
   /** Tatolab's own Python as this build has it, which choosing it again goes back to. */
   const initialPythonForNewEnvironmentsBuiltIn: PythonForNewEnvironments =
@@ -490,7 +500,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   let runtimeUpSinceMilliseconds: number | null = null;
   /** When the mock runtime's engine started, which its uptime counts from: long before the page opened, until a restart. */
   let runtimeEngineStartedAtMilliseconds = Date.now() - MOCK_RUNTIME_UP_FOR_AT_OPEN_MILLISECONDS;
-  let loadedStreamInstanceCount = 3;
   let liveTickTimer: number | undefined;
 
   const publishStatus = (statusChanges: Partial<TatolabStatus>): void => {
@@ -589,7 +598,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     const answer: StreamRunAnswer = {
       stream: streamId,
       display_name: fixture.listing.display_name,
-      stream_instance: loadedStreams.get(streamId)?.streamInstance ?? "",
+      stream_instance: loadedStreams.get(streamId)?.loadAction ?? "",
       location,
       node_count: fixture.listing.node_count ?? 0,
       replaced_a_recorded_stream: recordedListing !== undefined,
@@ -598,14 +607,31 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     return { kind: "running", answer };
   };
 
+  /** Writes `records` to the log of the project `projectDirectory`, its retention deleting the oldest past what it keeps. */
+  const writeToTheProjectLog = (projectDirectory: string | null, records: ProjectLogRecord[]): void => {
+    if (projectDirectory === null || records.length === 0) return;
+    const projectLog = projectLogs.get(projectDirectory) ?? { records: [], recordsDeletedCount: 0 };
+    projectLog.records.push(...records);
+    const recordsPastWhatItKeeps = projectLog.records.length - mostProjectLogRecordsKept;
+    if (recordsPastWhatItKeeps > 0) {
+      projectLog.records.splice(0, recordsPastWhatItKeeps);
+      projectLog.recordsDeletedCount += recordsPastWhatItKeeps;
+    }
+    projectLogs.set(projectDirectory, projectLog);
+  };
+
+  /** Writes one record the runtime writes for `listing` outside any step, now, under `action`. */
+  const writeRuntimeRecord = (listing: ListedStream, action: string, level: MockLogRecordDraft["level"], message: string): void => {
+    const draft: MockLogRecordDraft = { millisecondsAfterLoad: 0, source: "rust", level, target: "streamlib_engine::core::runtime::stream_actions", message };
+    writeToTheProjectLog(listing.location?.project_directory ?? null, [stampMockLogRecord(draft, action, Date.now(), listing.stream)]);
+  };
+
   const holdRecords = (loadedStream: MockLoadedStream, drafts: MockLogRecordDraft[]): void => {
-    for (const draft of drafts) {
-      loadedStream.heldRecords.push(stampMockLogRecord(draft, loadedStream.nextSequence, loadedStream.loadedAtMilliseconds, loadedStream.fixture.listing.stream));
-      loadedStream.nextSequence += 1;
-    }
-    if (loadedStream.heldRecords.length > mostRecordsHeldPerStream) {
-      loadedStream.heldRecords.splice(0, loadedStream.heldRecords.length - mostRecordsHeldPerStream);
-    }
+    const { listing } = loadedStream.fixture;
+    writeToTheProjectLog(
+      listing.location?.project_directory ?? null,
+      drafts.map((draft) => stampMockLogRecord(draft, loadedStream.loadAction, loadedStream.loadedAtMilliseconds, listing.stream)),
+    );
   };
 
   const advanceStreamLog = (loadedStream: MockLoadedStream, millisecondsSinceLoad: number): void => {
@@ -623,18 +649,15 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     );
   };
 
-  const loadStream = (fixture: MockStreamFixture, loadedAtMilliseconds: number): void => {
-    loadedStreamInstanceCount += 1;
-    streamIdsUnloadedButNotRecordedStopped.delete(fixture.listing.stream);
+  const loadStream = (fixture: MockStreamFixture, loadedAtMilliseconds: number, loadAction: string = nextStreamActionId()): void => {
     recordedFixturesNotLoaded.delete(fixture.listing.stream);
+    streamActionOfEachStream.delete(fixture.listing.stream);
     const loadedStream: MockLoadedStream = {
       fixture,
-      streamInstance: String(loadedStreamInstanceCount),
+      loadAction,
       loadedAtMilliseconds,
       unreleasedStartupDrafts: [...fixture.startupLog],
       writeLiveLog: fixture.createLiveLogWriter(),
-      heldRecords: [],
-      nextSequence: 1,
     };
     loadedStreams.set(fixture.listing.stream, loadedStream);
     listedStreamsNotLoaded.delete(fixture.listing.stream);
@@ -650,7 +673,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     const now = Date.now();
     let listingChanged = false;
     if (scenario === "loading" && !loadedStreams.has(mainStream.listing.stream) && now - runtimeUpSinceMilliseconds >= MOCK_MAIN_LOADING_MILLISECONDS) {
-      loadStream(mainStream, now);
+      loadStream(mainStream, now, listedStreamsNotLoaded.get(mainStream.listing.stream)?.action ?? undefined);
       listingChanged = true;
     }
     for (const loadedStream of loadedStreams.values()) advanceStreamLog(loadedStream, now - loadedStream.loadedAtMilliseconds);
@@ -663,10 +686,15 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     loadedStreams.clear();
     if (scenario !== "empty" && scenario !== "not-listed") {
       const loadsAtTheRuntimesStart = (fixture: MockStreamFixture): boolean =>
-        !forgottenStreamIds.has(fixture.listing.stream) &&
-        (!recordedFixturesNotLoaded.has(fixture.listing.stream) || streamIdsUnloadedButNotRecordedStopped.has(fixture.listing.stream));
+        !forgottenStreamIds.has(fixture.listing.stream) && !recordedFixturesNotLoaded.has(fixture.listing.stream);
+      const failedLobbyRecorder = listedStreamsNotLoaded.get(fixtures.failedLobbyRecorder.stream);
+      if (failedLobbyRecorder?.state === "failed") {
+        const loadAction = nextStreamActionId();
+        writeRuntimeRecord(failedLobbyRecorder, loadAction, "info", `Loading the stream \`${failedLobbyRecorder.stream}\` from ${failedLobbyRecorder.location?.project_directory ?? ""}`);
+        writeRuntimeRecord(failedLobbyRecorder, loadAction, "error", failedLobbyRecorder.failed_because ?? "");
+      }
       if (scenario === "loading") {
-        listedStreamsNotLoaded.set(mainStream.listing.stream, { ...mainStream.listing, node_count: null });
+        listedStreamsNotLoaded.set(mainStream.listing.stream, { ...mainStream.listing, state: "preparing", node_count: null, action: nextStreamActionId(), step: "compiling" });
       } else if (loadsAtTheRuntimesStart(mainStream)) {
         loadStream(mainStream, now - mainStream.loadedForMillisecondsAtOpen);
       }
@@ -718,55 +746,122 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const aStreamThisRuntimeDoesNotHoldRefusal = (streamId: string): string =>
     `Resource not found: no stream with the id \`${streamId}\` is loaded or recorded in this runtime. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
 
-  /** `stop_stream` as the runtime does it: a loaded stream unloads and is recorded stopped. */
-  const stopMockStream = (streamId: string): string | null => {
-    const loadedStream = loadedStreams.get(streamId);
-    const listingNotLoaded = listedStreamsNotLoaded.get(streamId);
-    if (loadedStream && streamId === streamWhoseStopIsNotRecorded) {
-      loadedStreams.delete(streamId);
-      recordedFixturesNotLoaded.set(streamId, loadedStream.fixture);
-      streamIdsUnloadedButNotRecordedStopped.add(streamId);
-      listedStreamsNotLoaded.set(streamId, { ...loadedStream.fixture.listing, node_count: null });
+  /**
+   * Shows `listing` under `state` at each of `steps` in turn, a beat each, as the runtime works on a queued stream
+   * action, then calls `finish`; it stops at any step once another action is its stream's.
+   */
+  const workOnTheStreamAction = (listing: ListedStream, state: "preparing" | "stopping", action: string, steps: readonly string[], finish: () => void): void => {
+    streamActionOfEachStream.set(listing.stream, action);
+    const isStillTheStreamsAction = () => streamActionOfEachStream.get(listing.stream) === action && runtimeUpSinceMilliseconds !== null;
+    steps.forEach((step, stepIndex) =>
+      window.setTimeout(() => {
+        if (!isStillTheStreamsAction()) return;
+        listedStreamsNotLoaded.set(listing.stream, { ...listing, state, node_count: null, failed_because: null, action, step });
+        publishStatus({ streams: listStreams() });
+      }, stepIndex * MOCK_STREAM_ACTION_STEP_MILLISECONDS),
+    );
+    window.setTimeout(() => {
+      if (!isStillTheStreamsAction()) return;
+      streamActionOfEachStream.delete(listing.stream);
+      finish();
       publishStatus({ streams: listStreams() });
-      return `Runtime error: the record of \`${streamId}\` could not be written: Permission denied (os error 13)`;
-    }
-    if (loadedStream) {
-      loadedStreams.delete(streamId);
-      recordedFixturesNotLoaded.set(streamId, loadedStream.fixture);
-      listedStreamsNotLoaded.set(streamId, { ...loadedStream.fixture.listing, state: "stopped", node_count: null, failed_because: null });
-    } else if (listingNotLoaded?.state === "failed") {
-      throw `Runtime error: the stream \`${streamId}\` is failed, so it is not loaded to stop: ${listingNotLoaded.failed_because ?? ""}. \`start\` retries it, \`rm\` forgets it`;
-    } else if (listingNotLoaded?.state === "stopped") {
-      throw `Runtime error: the stream \`${streamId}\` is already stopped; \`start\` loads it again`;
-    } else if (listingNotLoaded) {
-      listedStreamsNotLoaded.set(streamId, { ...listingNotLoaded, state: "stopped", node_count: null });
-    } else {
-      throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
-    }
-    publishStatus({ streams: listStreams() });
-    return null;
+    }, steps.length * MOCK_STREAM_ACTION_STEP_MILLISECONDS);
   };
 
-  /** `start_stream` as the runtime does it: a stopped stream loads; a failed one is retried, and the lobby recorder's camera is still missing. */
-  const startMockStream = (streamId: string): null => {
+  /** Lists `listing` under `state` with `action` queued and no step yet, as the runtime lists an action waiting its turn. */
+  const queueTheStreamAction = (listing: ListedStream, state: "preparing" | "stopping", action: string): void => {
+    listedStreamsNotLoaded.set(listing.stream, { ...listing, state, node_count: null, failed_because: null, action, step: null });
+    publishStatus({ streams: listStreams() });
+  };
+
+  /** `stop_stream` as the runtime does it: queued for a loaded stream, which stops and is recorded stopped; refused for one not loaded. */
+  const stopMockStream = (streamId: string): void => {
+    const loadedStream = loadedStreams.get(streamId);
+    const listingNotLoaded = listedStreamsNotLoaded.get(streamId);
+    if (loadedStream === undefined) {
+      if (listingNotLoaded?.state === "stopped") throw `Runtime error: the stream \`${streamId}\` is already stopped; \`start\` loads it again`;
+      if (listingNotLoaded?.state === "failed") {
+        throw `Runtime error: the stream \`${streamId}\` is failed, so it is not loaded to stop: ${listingNotLoaded.failed_because ?? ""}. \`start\` retries it, \`rm\` forgets it`;
+      }
+      if (listingNotLoaded === undefined) throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
+    }
+    const listing = loadedStream?.fixture.listing ?? listingNotLoaded;
+    if (listing === undefined) return;
+    const action = nextStreamActionId();
+    loadedStreams.delete(streamId);
+    if (loadedStream !== undefined) recordedFixturesNotLoaded.set(streamId, loadedStream.fixture);
+    queueTheStreamAction(listing, "stopping", action);
+    workOnTheStreamAction(listing, "stopping", action, ["stopping"], () => {
+      writeRuntimeRecord(listing, action, "info", `Stopped the stream \`${streamId}\``);
+      listedStreamsNotLoaded.set(streamId, { ...listing, state: "stopped", node_count: null, failed_because: null, action: null, step: null });
+    });
+  };
+
+  /** `start_stream` as the runtime does it: queued for a stopped or failed stream, which loads, or for the lobby recorder fails again as its camera is still missing; refused for one loaded. */
+  const startMockStream = (streamId: string): void => {
     if (loadedStreams.has(streamId)) {
-      throw `Runtime error: the stream \`${streamId}\` is already loaded in this runtime, running; only a stopped or failed stream starts`;
+      throw `Runtime error: the stream \`${streamId}\` is already loaded in this runtime, recorded by the runtime; only a stopped or failed stream starts`;
     }
     const listingNotLoaded = listedStreamsNotLoaded.get(streamId);
     if (!listingNotLoaded) {
       throw `Resource not found: no stream with the id \`${streamId}\` is recorded in this runtime, so there is none to start. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
     }
-    const fixture = recordedFixturesNotLoaded.get(streamId);
-    if (!fixture) {
-      const retryRefusal = fixtures.machine.cameraFailure;
-      listedStreamsNotLoaded.set(streamId, { ...listingNotLoaded, state: "failed", failed_because: `\`start\` retried it, and it did not load: ${retryRefusal}` });
-      publishStatus({ streams: listStreams() });
-      throw retryRefusal;
+    const action = nextStreamActionId();
+    queueTheStreamAction(listingNotLoaded, "preparing", action);
+    workOnTheStreamAction(listingNotLoaded, "preparing", action, ["compiling", "starting"], () => {
+      writeRuntimeRecord(listingNotLoaded, action, "info", `Loading the stream \`${streamId}\` from ${listingNotLoaded.location?.project_directory ?? ""}`);
+      const fixture = recordedFixturesNotLoaded.get(streamId);
+      if (fixture !== undefined) {
+        loadStream(fixture, Date.now(), action);
+        return;
+      }
+      const retryFailure = `\`start\` retried it, and it did not load: ${fixtures.machine.cameraFailure}`;
+      writeRuntimeRecord(listingNotLoaded, action, "error", retryFailure);
+      listedStreamsNotLoaded.set(streamId, { ...listingNotLoaded, state: "failed", node_count: null, failed_because: retryFailure, action: null, step: null });
+    });
+  };
+
+  /** `remove_project` as the runtime does it: every stream of the project stops if loaded and is forgotten; refused for a folder the runtime holds no stream of. */
+  const removeMockProject = (projectDirectory: string): void => {
+    const streamsOfTheProject = (listStreams() ?? []).filter((listing) => listing.location?.project_directory === projectDirectory);
+    if (streamsOfTheProject.length === 0) {
+      throw `Resource not found: this runtime holds no stream of the project in ${projectDirectory}, so there is none to remove. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
     }
-    recordedFixturesNotLoaded.delete(streamId);
-    loadStream(fixture, Date.now());
-    publishStatus({ streams: listStreams() });
-    return null;
+    const action = nextStreamActionId();
+    for (const listing of streamsOfTheProject) {
+      loadedStreams.delete(listing.stream);
+      queueTheStreamAction(listing, "stopping", action);
+      workOnTheStreamAction(listing, "stopping", action, ["stopping"], () => {
+        writeRuntimeRecord(listing, action, "info", `Removed the stream \`${listing.stream}\``);
+        listedStreamsNotLoaded.delete(listing.stream);
+        recordedFixturesNotLoaded.delete(listing.stream);
+        forgottenStreamIds.add(listing.stream);
+      });
+    }
+  };
+
+  /** `logs` as the runtime answers it: the project's records after the cursor `after`, from its first record kept when `null`, narrowed as asked. */
+  const readMockProjectLog = (projectDirectory: string, narrowing: { stream: string | null; action: string | null }, after: string | null): ProjectLogRecordsPage => {
+    const projectLog = projectLogs.get(projectDirectory);
+    if (projectLog === undefined && !(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) {
+      throw `Resource not found: this runtime holds no stream of the project in ${projectDirectory}`;
+    }
+    const { records, recordsDeletedCount } = projectLog ?? { records: [], recordsDeletedCount: 0 };
+    const askedAfterIndex = after === null ? 0 : Number(after.split(":")[1] ?? "0");
+    const firstIndexRead = Math.max(askedAfterIndex, recordsDeletedCount);
+    const recordsOfThePage: ProjectLogRecord[] = [];
+    let nextIndex = firstIndexRead;
+    for (; nextIndex < recordsDeletedCount + records.length && recordsOfThePage.length < MOCK_RECORDS_PAGE_SIZE; nextIndex++) {
+      const record = records[nextIndex - recordsDeletedCount];
+      if (record === undefined) continue;
+      if ((narrowing.stream === null || record.stream === narrowing.stream) && (narrowing.action === null || record.action === narrowing.action)) recordsOfThePage.push(record);
+    }
+    return {
+      project_directory: projectDirectory,
+      records: structuredClone(recordsOfThePage),
+      next_after: `1:${nextIndex}`,
+      records_no_longer_held: askedAfterIndex < recordsDeletedCount,
+    };
   };
 
   /** `rename_stream` as the runtime does it: refused for a name that shows nothing or a stream it does not hold, else shown under the new name. */
@@ -777,17 +872,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     if (!(listStreams() ?? []).some((listing) => listing.stream === streamId)) throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
     displayNamesRenamedTo.set(streamId, displayName);
     publishStatus({ streams: listStreams() });
-  };
-
-  /** `remove_stream` as the runtime does it: unloaded if loaded, and forgotten. */
-  const removeMockStream = (streamId: string): null => {
-    const wasLoaded = loadedStreams.delete(streamId);
-    const wasListedNotLoaded = listedStreamsNotLoaded.delete(streamId);
-    if (!wasLoaded && !wasListedNotLoaded) throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
-    recordedFixturesNotLoaded.delete(streamId);
-    forgottenStreamIds.add(streamId);
-    publishStatus({ streams: listStreams() });
-    return null;
   };
 
   const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraphSummary => {
@@ -888,20 +972,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       publishStatus({ command_line_tool_linked_at: null, command_line_tool_usr_local_bin_link: { kind: "not_linked" } });
       takeRuntimeDown({ run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped" });
     },
-    readStreamLogRecords: async (streamId, afterSequence): Promise<StreamLogRecordsPage> => {
+    readProjectLogRecords: async (projectDirectory, narrowing, after) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      const loadedStream = loadedStreamOfTheId(streamId);
-      const firstHeldSequence = loadedStream.heldRecords[0]?.sequence ?? loadedStream.nextSequence;
-      const records = loadedStream.heldRecords
-        .filter((record) => record.sequence > afterSequence)
-        .slice(0, MOCK_RECORDS_PAGE_SIZE);
-      return {
-        stream: streamId,
-        stream_instance: loadedStream.streamInstance,
-        records: structuredClone(records),
-        next_after: records.at(-1)?.sequence ?? afterSequence,
-        records_no_longer_held: Math.max(0, firstHeldSequence - 1 - afterSequence),
-      };
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      return readMockProjectLog(projectDirectory, narrowing, after);
     },
     describeStreamGraph: async (streamId) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -922,9 +996,12 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
           return stopMockStream(streamId);
         case "start_stream":
           return startMockStream(streamId);
-        case "remove_stream":
-          return removeMockStream(streamId);
       }
+    },
+    removeProject: async (projectDirectory) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer remove_project`;
+      removeMockProject(projectDirectory);
     },
     renameStream: async (streamId, displayName) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -946,7 +1023,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       const projectFolder = listedProjectFolderOf(streamId);
       const displayName = listStreams()?.find((listing) => listing.stream === streamId)?.display_name ?? streamId;
-      if (isTheLogFolderMissing) throw `${displayName} has no log folder yet: ${projectFolder}/${STREAM_LOG_FOLDER_IN_THE_PROJECT} is not on this machine.`;
+      if (isTheLogFolderMissing) throw `${displayName} has no log folder yet: ${projectFolder}/${PROJECT_LOG_FOLDER_IN_THE_PROJECT} is not on this machine.`;
     },
     chooseStreamProjectFolder: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

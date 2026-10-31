@@ -6,13 +6,13 @@ import type {
   PythonForNewEnvironmentsChoice,
   RelaySettingsByName,
   RelaysDescription,
+  ProjectLogNarrowing,
+  ProjectLogRecordsPage,
   RuntimeDescription,
   StreamGraphSummary,
-  StreamLogRecordsPage,
   StreamProjectFolderChosenFor,
   StreamProjectFolderReport,
   StreamProjectRunOutcome,
-  StreamStopAnswer,
   TatolabStatus,
 } from "./tatolab_backend_contract.js";
 
@@ -28,12 +28,12 @@ export const TATOLAB_COMMAND_NAMES = [
   "link_command_line_tool_in_usr_local_bin",
   "uninstall_tatolab",
   "quit_tatolab_app",
-  "read_stream_log_records",
+  "read_project_log_records",
   "describe_stream_graph",
   "check_for_tatolab_app_updates",
   "stop_stream",
   "start_stream",
-  "remove_stream",
+  "remove_project",
   "rename_stream",
   "open_stream_project_folder",
   "open_terminal_at_stream_project",
@@ -55,8 +55,8 @@ export const TATOLAB_COMMAND_NAMES = [
 ] as const;
 
 /**
- * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`,
- * `start_stream`, `remove_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
+ * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
+ * `remove_project` `{ project_directory }`, `describe_stream_graph`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` `{ folder }`, `run_stream_project` `{ folder, stream_function, name }`,
  * `choose_python_for_new_environments` `{ python }`, `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window, from its folder dialog or its proposal. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
@@ -97,12 +97,16 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   link_command_line_tool_in_usr_local_bin: { commandArguments: undefined; answer: null };
   uninstall_tatolab: { commandArguments: undefined; answer: null };
   quit_tatolab_app: { commandArguments: undefined; answer: null };
-  read_stream_log_records: { commandArguments: { stream: string; after: number }; answer: StreamLogRecordsPage };
+  /** `stream` and `action` narrow the read, `null` for no narrowing; `after` is the `next_after` of the page before, `null` for the oldest record held. */
+  read_project_log_records: { commandArguments: { project_directory: string; after: string | null } & ProjectLogNarrowing; answer: ProjectLogRecordsPage };
   describe_stream_graph: { commandArguments: { stream: string }; answer: StreamGraphSummary };
   check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };
-  stop_stream: { commandArguments: { stream: string }; answer: StreamStopAnswer };
+  /** Answers once the runtime has queued the stop; the stream shows `stopping` in the listing until it has run. */
+  stop_stream: { commandArguments: { stream: string }; answer: null };
+  /** Answers once the runtime has queued the start, a failed stream's retry among them; the stream shows `preparing` in the listing until it has run. */
   start_stream: { commandArguments: { stream: string }; answer: null };
-  remove_stream: { commandArguments: { stream: string }; answer: null };
+  /** Answers once the runtime has queued the removal of every stream it holds from the project; deletes no file. */
+  remove_project: { commandArguments: { project_directory: string }; answer: null };
   /** `stream` a stream's id; answers once the runtime has recorded `display_name`, refused in its own words. */
   rename_stream: { commandArguments: { stream: string; display_name: string }; answer: null };
   open_stream_project_folder: { commandArguments: { stream: string }; answer: null };

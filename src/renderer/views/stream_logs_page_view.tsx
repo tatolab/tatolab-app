@@ -1,18 +1,19 @@
 import { cn } from "cn";
-import { ArrowDownToLine, Ban, Copy, FileText, FolderOpen, ListFilter, RotateCw, ScrollText, SquareX } from "lucide-react";
+import { ArrowDownToLine, Ban, Copy, FileText, History, ListFilter, ScrollText } from "lucide-react";
 import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { writeTextToClipboard } from "../clipboard";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
+import type { ProjectLogScope } from "../project_log_readings";
 import {
-  earlierRecordsNotHeldWords,
+  actionKeyOfTheLastFailure,
+  EARLIER_RECORDS_NOT_HELD_WORDS,
   isEarlierRecordsPointerShown,
   jsonlOfStreamLogRows,
-  logFolderPathOfStream,
+  logFolderPathOfProject,
   presentStreamLog,
   presentStreamLogRecordDetails,
-  presentStreamLogsOfAStreamNotLoaded,
   searchMatchRangesOf,
   type StreamLogLevelFilter,
   type StreamLogLevelFilterChoice,
@@ -21,11 +22,10 @@ import {
   type StreamLogRow,
 } from "../presentation/log_record_presentation";
 import { presentWindowShortcut } from "../presentation/platform_presentation";
-import { isStreamLoaded, listedStreamProjectDirectory, presentStreamPrimaryAction } from "../presentation/stream_presentation";
-import { ActionButton } from "../design_system/action_button";
+import { listedStreamProjectDirectory } from "../presentation/stream_presentation";
 import { EmptyState } from "../design_system/empty_state";
 import { InlineLink } from "../design_system/inline_link";
-import { FieldMenu, MenuCheckboxItem, MenuGroup, MenuItem, MenuSeparator, MoreActionsMenu } from "../design_system/menus";
+import { FieldMenu, MenuCheckboxItem, MenuGroup, MenuItem, MenuSeparator, MenuSingleChoiceGroup, MoreActionsMenu } from "../design_system/menus";
 import { RefusalLine } from "../design_system/refusal_line";
 import { SearchField } from "../design_system/search_field";
 import { SegmentedChoiceControl } from "../design_system/segmented_choice_control";
@@ -33,16 +33,15 @@ import { WorkAreaWithSidePanel } from "../design_system/side_panel";
 import { ToggleIconButton } from "../design_system/toggle_icon_button";
 import { Toolbar, ToolbarGroup } from "../design_system/toolbar";
 import { LOG_LEVEL_WORD_TONE_CLASS_NAMES, StreamLogRecordDetailsView } from "./stream_log_record_details_view";
-import type { StreamPageActions } from "./stream_page_header_view";
 import { logViewAskedBy, streamPagePath } from "./stream_page_path";
-import { useStreamGraphReading, useStreamLogReading, useTatolabWindowEnvironment } from "./tatolab_window_context";
+import { useProjectLogReading, useStreamGraphReading, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 /** Scrolled within this many pixels of the end, the list keeps following new records. */
 const FOLLOW_TAIL_DISTANCE_PIXELS = 8;
 
 /** The id of a record's row, which the list names as its active descendant. */
-function streamLogRowElementId(sequence: number): string {
-  return `stream-log-record-${sequence}`;
+function streamLogRowElementId(position: number): string {
+  return `stream-log-record-${position}`;
 }
 
 /** A run of a row's text in its colour. */
@@ -96,7 +95,7 @@ interface StreamLogRowViewProps {
   areTimestampsShown: boolean;
   areLinesWrapped: boolean;
   searchText: string;
-  onSelected: (sequence: number) => void;
+  onSelected: (position: number) => void;
 }
 
 /** One record's row: its time, level word, step, message and fields. Each poll makes new row objects, so a row redraws only when what it shows changed. */
@@ -110,12 +109,19 @@ const StreamLogRowView = memo(
             <span className="h-px flex-1 bg-line" />
           </div>
         )}
+        {row.actionDividerWords !== null && (
+          <div className="flex items-center gap-2 px-3 pt-2 pb-1 text-fg-3" aria-hidden data-stream-log-action-divider={row.record.action ?? ""}>
+            <History className="size-3.5 shrink-0" strokeWidth={1.75} />
+            <span className="truncate">{row.actionDividerWords}</span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        )}
         <div
-          id={streamLogRowElementId(row.record.sequence)}
+          id={streamLogRowElementId(row.record.position)}
           role="option"
           aria-selected={isSelected}
-          onMouseDown={() => onSelected(row.record.sequence)}
-          data-stream-log-record={row.record.sequence}
+          onMouseDown={() => onSelected(row.record.position)}
+          data-stream-log-record={row.record.position}
           data-stream-log-level-tone={row.levelTone}
           className={cn(
             "grid cursor-default gap-x-3 px-3 hover:bg-hover",
@@ -144,12 +150,13 @@ const StreamLogRowView = memo(
       </>
     );
   },
-  // Every field of a row but its step and day divider is drawn from its record alone (`rowOfLogRecord`), so those three decide whether it redraws.
+  // Every field of a row but its step and its dividers is drawn from its record alone (`rowOfLogRecord`), so those decide whether it redraws.
   (previousProps, nextProps) =>
     previousProps.row.record === nextProps.row.record &&
     previousProps.row.step.stepName === nextProps.row.step.stepName &&
     previousProps.row.step.isAStepOfTheGraph === nextProps.row.step.isAStepOfTheGraph &&
     previousProps.row.dayDividerWords === nextProps.row.dayDividerWords &&
+    previousProps.row.actionDividerWords === nextProps.row.actionDividerWords &&
     previousProps.isSelected === nextProps.isSelected &&
     previousProps.areTimestampsShown === nextProps.areTimestampsShown &&
     previousProps.areLinesWrapped === nextProps.areLinesWrapped &&
@@ -208,6 +215,50 @@ function StreamLogStepFilterControl({
   );
 }
 
+/** The action filter's choice that shows every action's records. */
+const EVERY_ACTION_CHOICE = "every_action";
+
+/** Narrows the rows to one stream action's records, offering each action the records name. */
+function StreamLogActionFilterControl({
+  streamLog,
+  shownActionKey,
+  onShownActionKeyChosen,
+}: {
+  streamLog: StreamLogPresentation;
+  shownActionKey: string | null;
+  onShownActionKeyChosen: (shownActionKey: string | null) => void;
+}) {
+  const choiceOfActionKey = (actionKey: string) => `action:${actionKey}`;
+  return (
+    <FieldMenu
+      label={`Actions shown: ${streamLog.actionFilterWords}`}
+      leading={<History className="size-3.5 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />}
+      words={<span className="max-w-40 truncate">{streamLog.actionFilterWords}</span>}
+      isNarrowing={shownActionKey !== null}
+      menuWidth="wide"
+      data-stream-log-action-filter=""
+    >
+      <MenuGroup label="Stream actions">
+        <MenuSingleChoiceGroup
+          choices={[
+            { choice: EVERY_ACTION_CHOICE, label: "All actions" },
+            ...streamLog.actionChoices.map((actionChoice) => ({
+              choice: choiceOfActionKey(actionChoice.actionKey),
+              label: <span className="min-w-0 truncate tabular">{actionChoice.actionWords}</span>,
+            })),
+          ]}
+          chosen={shownActionKey === null ? EVERY_ACTION_CHOICE : choiceOfActionKey(shownActionKey)}
+          onChosen={(choice) => onShownActionKeyChosen(choice === EVERY_ACTION_CHOICE ? null : choice.slice("action:".length))}
+          dataAttributeOfEachChoice="data-stream-log-action-choice"
+        />
+      </MenuGroup>
+    </FieldMenu>
+  );
+}
+
+/** Which records the Logs tab reads: the stream's own, or every record of its project. */
+type StreamLogScopeChoice = "this_stream" | "whole_project";
+
 /** Opens `streamId`'s log folder, keeping why the last try was refused, in the refusal's own words, until the next. */
 function useStreamLogFolderOpening(streamId: string): { openStreamLogFolder: () => void; folderOpeningRefusal: string | null } {
   const { backend } = useTatolabWindowEnvironment();
@@ -221,27 +272,22 @@ function useStreamLogFolderOpening(streamId: string): { openStreamLogFolder: () 
   };
 }
 
-/** The quiet first row saying how many of this load's earlier records the window does not hold, and where they are on disk. */
-function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stream: ListedStream; earlierRecordsNotHeldCount: number }) {
+/** The quiet first row saying the window does not hold the earliest records, and where they are on disk. */
+function EarlierRecordsNotHeldRow({ stream, projectDirectory }: { stream: ListedStream; projectDirectory: string }) {
   const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.stream);
-  const projectDirectory = listedStreamProjectDirectory(stream);
   return (
     <div className="border-b px-3 font-sans text-xs" data-stream-log-earlier-records="">
       <div className="flex h-8 items-center gap-2 text-fg-3">
         <FileText className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
         <span className="min-w-0 truncate">
-          {earlierRecordsNotHeldWords(earlierRecordsNotHeldCount)}{" "}
-          {projectDirectory !== null && (
-            <span className="font-mono text-fg-2 select-text" title={logFolderPathOfStream(projectDirectory)}>
-              {logFolderPathOfStream(projectDirectory)}
-            </span>
-          )}
+          {EARLIER_RECORDS_NOT_HELD_WORDS}{" "}
+          <span className="font-mono text-fg-2 select-text" title={logFolderPathOfProject(projectDirectory)}>
+            {logFolderPathOfProject(projectDirectory)}
+          </span>
         </span>
-        {projectDirectory !== null && (
-          <InlineLink destination={{ onPressed: openStreamLogFolder }} data-stream-action="open_stream_log_folder">
-            Open
-          </InlineLink>
-        )}
+        <InlineLink destination={{ onPressed: openStreamLogFolder }} data-stream-action="open_stream_log_folder">
+          Open
+        </InlineLink>
       </div>
       {folderOpeningRefusal !== null && (
         <div className="pb-2">
@@ -252,10 +298,23 @@ function EarlierRecordsNotHeldRow({ stream, earlierRecordsNotHeldCount }: { stre
   );
 }
 
-/** A loaded stream's records as the runtime holds them, followed live, with the toolbar, the rows and the selected record's details. */
-function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
-  const { platform } = useTatolabWindowEnvironment();
-  const reading = useStreamLogReading(stream.stream);
+/**
+ * The project log of `stream`'s project, narrowed to the stream's own records or showing the whole project's, followed
+ * live, with the toolbar, the rows and the selected record's details. A failed stream opens on the records of the
+ * action that failed it.
+ */
+function ProjectLogOfTheStreamView({ stream, projectDirectory }: { stream: ListedStream; projectDirectory: string }) {
+  const { platform, projectLogReadings } = useTatolabWindowEnvironment();
+  const [scopeChoice, setScopeChoice] = useState<StreamLogScopeChoice>("this_stream");
+  const scope: ProjectLogScope = useMemo(
+    () => ({ projectDirectory, stream: scopeChoice === "this_stream" ? stream.stream : null }),
+    [projectDirectory, scopeChoice, stream.stream],
+  );
+  useEffect(() => {
+    projectLogReadings.showProjectLog(scope);
+  }, [projectLogReadings, scope]);
+  useEffect(() => () => projectLogReadings.showProjectLog(null), [projectLogReadings]);
+  const reading = useProjectLogReading(scope);
   const { graph } = useStreamGraphReading(stream.stream);
   const location = useLocation();
   const navigate = useNavigate();
@@ -265,29 +324,36 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   const [searchText, setSearchText] = useState("");
   const [levelFilter, setLevelFilter] = useState<StreamLogLevelFilter>("all");
   const [shownStepKeys, setShownStepKeys] = useState<ReadonlySet<string>>(new Set());
+  const [shownActionKey, setShownActionKey] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(true);
   const [areLinesWrapped, setAreLinesWrapped] = useState(false);
   const [areTimestampsShown, setAreTimestampsShown] = useState(true);
-  const [clearedThroughSequence, setClearedThroughSequence] = useState(0);
-  const [selectedSequence, setSelectedSequence] = useState<number | null>(null);
-  const [streamInstanceShown, setStreamInstanceShown] = useState(reading.streamInstance);
-  // A new load numbers its records from 1 again, so what was cleared or selected of the last one no longer applies.
-  if (reading.streamInstance !== streamInstanceShown) {
-    setStreamInstanceShown(reading.streamInstance);
-    setClearedThroughSequence(0);
-    setSelectedSequence(null);
+  const [clearedThroughPosition, setClearedThroughPosition] = useState(0);
+  const [selectedPosition, setSelectedPosition] = useState<number | null>(null);
+  const [scopeShown, setScopeShown] = useState(scope);
+  const [hasOpenedOnTheFailure, setHasOpenedOnTheFailure] = useState(false);
+  // Another scope numbers its records from 1 again, so what was cleared, selected or narrowed to of the last one no longer applies.
+  if (scope !== scopeShown) {
+    setScopeShown(scope);
+    setClearedThroughPosition(0);
+    setSelectedPosition(null);
+    setShownActionKey(null);
+  }
+  if (!hasOpenedOnTheFailure && scope.stream !== null && reading.hasReadToTheNewestRecord) {
+    setHasOpenedOnTheFailure(true);
+    if (stream.state === "failed") setShownActionKey(actionKeyOfTheLastFailure(reading.records));
   }
 
   // The rows follow the search a beat behind the field, so typing stays quick over thousands of rows.
   const searchTextShown = useDeferredValue(searchText);
   const streamLogFilters = useMemo(
-    () => ({ searchText: searchTextShown, levelFilter, shownStepKeys, clearedThroughSequence }),
-    [searchTextShown, levelFilter, shownStepKeys, clearedThroughSequence],
+    () => ({ searchText: searchTextShown, levelFilter, shownStepKeys, shownActionKey, clearedThroughPosition }),
+    [searchTextShown, levelFilter, shownStepKeys, shownActionKey, clearedThroughPosition],
   );
   const streamLog = useMemo(() => presentStreamLog(reading.records, graph, streamLogFilters), [reading.records, graph, streamLogFilters]);
-  const selectedRecord = selectedSequence === null ? null : (reading.records.find((record) => record.sequence === selectedSequence) ?? null);
+  const selectedRecord = selectedPosition === null ? null : (reading.records.find((record) => record.position === selectedPosition) ?? null);
   const selectedRecordDetails = useMemo(() => (selectedRecord === null ? null : presentStreamLogRecordDetails(selectedRecord, graph)), [selectedRecord, graph]);
-  const lastRowSequence = streamLog.rows.at(-1)?.record.sequence ?? null;
+  const lastRowPosition = streamLog.rows.at(-1)?.record.position ?? null;
 
   const askedLogView = logViewAskedBy(location.state);
   useEffect(() => {
@@ -303,11 +369,11 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   useLayoutEffect(() => {
     const scroller = recordsScroller.current;
     if (isFollowing && scroller !== null) scroller.scrollTop = scroller.scrollHeight;
-  }, [isFollowing, lastRowSequence, streamLog.rows.length, areLinesWrapped, areTimestampsShown, selectedRecordDetails !== null]);
+  }, [isFollowing, lastRowPosition, streamLog.rows.length, areLinesWrapped, areTimestampsShown, selectedRecordDetails !== null]);
 
   useEffect(() => {
-    if (selectedSequence !== null) document.getElementById(streamLogRowElementId(selectedSequence))?.scrollIntoView?.({ block: "nearest" });
-  }, [selectedSequence]);
+    if (selectedPosition !== null) document.getElementById(streamLogRowElementId(selectedPosition))?.scrollIntoView?.({ block: "nearest" });
+  }, [selectedPosition]);
 
   const onRecordsScrolled = () => {
     const scroller = recordsScroller.current;
@@ -319,7 +385,7 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   const onRecordsKeyDown = (keyboardEvent: ReactKeyboardEvent<HTMLDivElement>) => {
     const { rows } = streamLog;
     if (rows.length === 0) return;
-    const selectedIndex = rows.findIndex((row) => row.record.sequence === selectedSequence);
+    const selectedIndex = rows.findIndex((row) => row.record.position === selectedPosition);
     let nextIndex: number | null = null;
     if (keyboardEvent.key === "ArrowDown") nextIndex = selectedIndex === -1 ? rows.length - 1 : Math.min(rows.length - 1, selectedIndex + 1);
     else if (keyboardEvent.key === "ArrowUp") nextIndex = selectedIndex === -1 ? rows.length - 1 : Math.max(0, selectedIndex - 1);
@@ -330,16 +396,16 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
     }
     if (nextIndex === null) return;
     keyboardEvent.preventDefault();
-    setSelectedSequence(rows[nextIndex]?.record.sequence ?? null);
+    setSelectedPosition(rows[nextIndex]?.record.position ?? null);
   };
 
-  const isShowingEarlierRecordsRow = isEarlierRecordsPointerShown(reading.earlierRecordsNotHeldCount, streamLogFilters);
+  const isShowingEarlierRecordsRow = isEarlierRecordsPointerShown(reading.areEarlierRecordsNotHeld, streamLogFilters);
   const recordDetailsPanel = selectedRecordDetails !== null ? (
     <StreamLogRecordDetailsView
       details={selectedRecordDetails}
       streamDisplayName={stream.display_name}
       actions={{
-        onClosed: () => setSelectedSequence(null),
+        onClosed: () => setSelectedPosition(null),
         onOnlyStepShown: (stepKey) => {
           setShownStepKeys(new Set([stepKey]));
           setLevelFilter("all");
@@ -349,9 +415,19 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
     />
   ) : null;
   return (
-    <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-page={stream.stream}>
+    <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-page={stream.stream} data-stream-log-scope-shown={scopeChoice}>
       <WorkAreaWithSidePanel sidePanel={recordDetailsPanel}>
         <Toolbar label="Logs">
+          <SegmentedChoiceControl
+            label="Records shown"
+            choices={[
+              { choice: "this_stream", label: "This stream" },
+              { choice: "whole_project", label: "Whole project" },
+            ]}
+            chosen={scopeChoice}
+            onChosen={setScopeChoice}
+            dataAttributeOfEachSegment="data-stream-log-scope"
+          />
           <SearchField
             inputRef={searchInput}
             label={`Search ${stream.display_name} logs`}
@@ -373,6 +449,7 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
             dataAttributeOfEachSegment="data-stream-log-level-filter"
           />
           <StreamLogStepFilterControl streamLog={streamLog} shownStepKeys={shownStepKeys} onShownStepKeysChosen={setShownStepKeys} />
+          <StreamLogActionFilterControl streamLog={streamLog} shownActionKey={shownActionKey} onShownActionKeyChosen={setShownActionKey} />
           <ToolbarGroup isAtTheEnd>
             <ToggleIconButton
               icon={ArrowDownToLine}
@@ -396,8 +473,8 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
               <MenuItem
                 icon={Ban}
                 onChosen={() => {
-                  setClearedThroughSequence(reading.records.at(-1)?.sequence ?? 0);
-                  setSelectedSequence(null);
+                  setClearedThroughPosition(reading.records.at(-1)?.position ?? 0);
+                  setSelectedPosition(null);
                 }}
                 data-stream-log-toolbar="clear"
               >
@@ -412,7 +489,7 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
           </div>
         )}
         <div ref={recordsScroller} onScroll={onRecordsScrolled} className="scrollbar-thin min-h-0 flex-1 overflow-auto">
-          {isShowingEarlierRecordsRow && <EarlierRecordsNotHeldRow stream={stream} earlierRecordsNotHeldCount={reading.earlierRecordsNotHeldCount} />}
+          {isShowingEarlierRecordsRow && <EarlierRecordsNotHeldRow stream={stream} projectDirectory={projectDirectory} />}
           {!reading.hasReadAPage ? (
             <div className="flex h-full">
               <EmptyState title="Reading logs…" />
@@ -426,20 +503,20 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
               role="listbox"
               tabIndex={0}
               aria-label="Log records, oldest first"
-              aria-activedescendant={selectedRecord === null ? undefined : streamLogRowElementId(selectedRecord.sequence)}
+              aria-activedescendant={selectedRecord === null ? undefined : streamLogRowElementId(selectedRecord.position)}
               onKeyDown={onRecordsKeyDown}
               className="py-1 font-mono text-[12px] leading-5 outline-none select-text focus-visible:shadow-[inset_0_0_0_2px_var(--ring)]"
               data-stream-log-records=""
             >
               {streamLog.rows.map((row) => (
                 <StreamLogRowView
-                  key={row.record.sequence}
+                  key={row.record.position}
                   row={row}
-                  isSelected={row.record.sequence === selectedSequence}
+                  isSelected={row.record.position === selectedPosition}
                   areTimestampsShown={areTimestampsShown}
                   areLinesWrapped={areLinesWrapped}
                   searchText={searchTextShown}
-                  onSelected={setSelectedSequence}
+                  onSelected={setSelectedPosition}
                 />
               ))}
             </div>
@@ -450,51 +527,19 @@ function LoadedStreamLogsView({ stream }: { stream: ListedStream }) {
   );
 }
 
-/** A stream's Logs tab while it is not loaded: why, the folder its log is in, and Retry for a failed one. */
-function StreamLogsOfAStreamNotLoadedView({ stream, streamPageActions }: { stream: ListedStream; streamPageActions: StreamPageActions }) {
-  const { openStreamLogFolder, folderOpeningRefusal } = useStreamLogFolderOpening(stream.stream);
-  const notLoadedWords = presentStreamLogsOfAStreamNotLoaded(stream);
-  const retryAction = notLoadedWords.hasFailed ? presentStreamPrimaryAction(stream) : null;
+/** A stream's Logs tab: its project's log, narrowed to the stream; or, for an earlier runtime's record, which names no project folder, why there is none. */
+export function StreamLogsPageView({ stream }: { stream: ListedStream }) {
   const projectDirectory = listedStreamProjectDirectory(stream);
-  return (
-    <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-not-loaded={stream.stream}>
-      <EmptyState icon={notLoadedWords.hasFailed ? SquareX : ScrollText} isFailure={notLoadedWords.hasFailed} title={notLoadedWords.title} explanation={notLoadedWords.explanation}>
-        {projectDirectory !== null && (
-          <div className="flex h-7 max-w-full items-center rounded-md border bg-well px-2.5 font-mono text-xs text-fg-2">
-            <span className="truncate select-text" title={logFolderPathOfStream(projectDirectory)}>
-              {logFolderPathOfStream(projectDirectory)}
-            </span>
-          </div>
-        )}
-        <div className="flex items-center gap-1.5">
-          {projectDirectory !== null && (
-            <ActionButton icon={FolderOpen} onPressed={openStreamLogFolder} data-stream-action="open_stream_log_folder">
-              Open log folder
-            </ActionButton>
-          )}
-          {retryAction !== null && (
-            <ActionButton
-              icon={RotateCw}
-              isDisabled={streamPageActions.actionUnderWay !== undefined}
-              onPressed={() => streamPageActions.runPrimaryAction(retryAction)}
-              data-stream-action={`${retryAction.streamAction}_from_logs`}
-            >
-              {retryAction.label}
-            </ActionButton>
-          )}
-        </div>
-        {folderOpeningRefusal !== null && (
-          <div className="text-left">
-            <RefusalLine words={folderOpeningRefusal} />
-          </div>
-        )}
-      </EmptyState>
-    </div>
-  );
-}
-
-/** A stream's Logs tab: its records while it is loaded, or why it has none and where its log is on disk. */
-export function StreamLogsPageView({ stream, streamPageActions }: { stream: ListedStream; streamPageActions: StreamPageActions }) {
-  if (!isStreamLoaded(stream)) return <StreamLogsOfAStreamNotLoadedView stream={stream} streamPageActions={streamPageActions} />;
-  return <LoadedStreamLogsView stream={stream} />;
+  if (projectDirectory === null) {
+    return (
+      <div className="flex min-h-0 flex-1 bg-window" data-stream-logs-without-a-project={stream.stream}>
+        <EmptyState
+          icon={ScrollText}
+          title="No project log"
+          explanation="An earlier runtime recorded this stream without its project folder, so there is no project log to read."
+        />
+      </div>
+    );
+  }
+  return <ProjectLogOfTheStreamView stream={stream} projectDirectory={projectDirectory} />;
 }

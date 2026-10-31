@@ -1,4 +1,4 @@
-import type { ListedStream, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, StreamLogRecord, TatolabPlatform } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 
 function fnv1aHashOf(text: string): number {
   let hash = 2166136261;
@@ -34,7 +34,7 @@ export function mockStreamIdOf(location: StreamLocation): string {
 
 /** A stream listed running, its graph loaded with `nodeCount` nodes, under the id its location computes to. */
 function runningListing(location: StreamLocation, displayName: string, nodeCount: number): ListedStream {
-  return { stream: mockStreamIdOf(location), display_name: displayName, location, state: "running", node_count: nodeCount, failed_because: null };
+  return { stream: mockStreamIdOf(location), display_name: displayName, location, state: "running", node_count: nodeCount, failed_because: null, action: null, step: null };
 }
 
 /** A log record before the mock runtime numbers and stamps it. */
@@ -471,13 +471,13 @@ function patternProjectDirectory(machine: MockMachine): string {
 /** A stream its owner stopped with `tatolab stop`. */
 function stoppedPatternTwoListing(machine: MockMachine): ListedStream {
   const location = { project_directory: patternProjectDirectory(machine), stream_function: "stream:pattern_two" };
-  return { stream: mockStreamIdOf(location), display_name: "pattern-two", location, state: "stopped", node_count: null, failed_because: null };
+  return { stream: mockStreamIdOf(location), display_name: "pattern-two", location, state: "stopped", node_count: null, failed_because: null, action: null, step: null };
 }
 
 /** A stream that could not load at the runtime's start. */
 function failedLobbyRecorderListing(machine: MockMachine): ListedStream {
   const location = { project_directory: `${machine.homeDirectory}/streams/lobby-recorder`, stream_function: "stream:main" };
-  return { stream: mockStreamIdOf(location), display_name: "lobby-recorder", location, state: "failed", node_count: null, failed_because: machine.cameraFailure };
+  return { stream: mockStreamIdOf(location), display_name: "lobby-recorder", location, state: "failed", node_count: null, failed_because: machine.cameraFailure, action: null, step: null };
 }
 
 /** The machine the mock runtime runs on for `platform`, and the streams it lists. */
@@ -544,6 +544,8 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       node_count: null,
       failed_because:
         "an earlier runtime recorded it, under record schema 2, and this runtime does not load it; run it again with `tatolab run` in its project, and `tatolab rm doorbell` forgets this record",
+      action: null,
+      step: null,
     },
     patternProjectDirectory: projectDirectory,
     listingOrder: [mainStream.listing.stream, cameraStream.listing.stream, recorderOfMainStream.listing.stream, stoppedPatternTwo.stream, failedLobbyRecorder.stream],
@@ -564,19 +566,20 @@ export function createMockStreamRunFromAProjectFolder(machine: MockMachine, proj
   return { ...fixture, loadedForMillisecondsAtOpen: 0 };
 }
 
-/** The id the mock runtime runs under, which every record it writes carries. */
-const MOCK_RUNTIME_ID = "Rmockruntime7f3k2q9x4w1b8n";
+/** The id the mock runtime runs under, which every record it writes and every stream action id it gives carries. */
+export const MOCK_RUNTIME_ID = "Rmockruntime7f3k2q9x4w1b8n";
 
-/** The record a draft of the log of the stream `streamId` becomes once numbered and stamped against the stream's load time, with its JSONL line as the runtime writes it. */
-export function stampMockLogRecord(draft: MockLogRecordDraft, sequence: number, loadedAtMilliseconds: number, streamId: string): StreamLogRecord {
+/** The record a draft of the log of the stream `streamId` becomes once stamped against the stream's load time under the stream action `action`, with its JSONL line as the runtime writes it. */
+export function stampMockLogRecord(draft: MockLogRecordDraft, action: string, loadedAtMilliseconds: number, streamId: string): ProjectLogRecord {
   const hostTimestampNanoseconds = Math.round((loadedAtMilliseconds + draft.millisecondsAfterLoad) * 1_000_000);
   const processorId = draft.node === undefined ? null : mockNodeIdOf(streamId, draft.node);
   const attrs = draft.attrs ?? {};
   const jsonlRecord = {
-    schema_version: 1,
+    schema_version: 2,
     host_ts: hostTimestampNanoseconds,
     runtime_id: MOCK_RUNTIME_ID,
     stream: streamId,
+    action,
     source: draft.source,
     level: draft.level,
     message: draft.message,
@@ -586,7 +589,6 @@ export function stampMockLogRecord(draft: MockLogRecordDraft, sequence: number, 
     ...(Object.keys(attrs).length === 0 ? {} : { attrs }),
   };
   return {
-    sequence,
     host_ts_ns: hostTimestampNanoseconds,
     level: draft.level,
     source: draft.source,
@@ -595,6 +597,8 @@ export function stampMockLogRecord(draft: MockLogRecordDraft, sequence: number, 
     attrs,
     processor_id: processorId,
     sent_by_its_own_process: draft.source === "python",
+    action,
+    stream: streamId,
     jsonl_line: JSON.stringify(jsonlRecord),
   };
 }

@@ -139,7 +139,7 @@ function StreamOutputPreviews({
     );
   }
   if (notLoadedReason === "loading") {
-    return <NothingToPreview title="Starting…" explanation="Its previews play here as soon as it runs." />;
+    return <NothingToPreview title="Loading…" explanation="Its previews play here as soon as it runs." />;
   }
   if (notLoadedReason !== null) {
     return <NothingToPreview title="Not loaded, so nothing to preview" explanation="Previews play the exposed outputs of a loaded stream." />;

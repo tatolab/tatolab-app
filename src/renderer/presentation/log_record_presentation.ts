@@ -1,5 +1,6 @@
-import { STREAM_LOG_FOLDER_IN_THE_PROJECT, type ListedStream, type StreamGraphSummary, type StreamLogRecord } from "../../shared/tatolab_backend_contract";
-import { abbreviateHomeDirectory, countLabel, streamNotLoadedReason } from "./stream_presentation";
+import { PROJECT_LOG_FOLDER_IN_THE_PROJECT, type StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type { HeldProjectLogRecord } from "../project_log_readings";
+import { abbreviateHomeDirectory } from "./stream_presentation";
 
 /** The levels the runtime writes, least severe first; a level this app does not know ranks as info. */
 const LOG_LEVEL_RANKS: Record<string, number> = { trace: 0, debug: 1, info: 2, warn: 3, error: 4 };
@@ -94,7 +95,7 @@ function stepNamesByProcessorIdOf(graph: StreamGraphSummary | null): ReadonlyMap
   return new Map((graph?.nodes ?? []).filter((node) => node.id !== "").map((node) => [node.id, node.name]));
 }
 
-function stepOfLogRecord(record: StreamLogRecord, stepNamesByProcessorId: ReadonlyMap<string, string>): StreamLogRecordStep {
+function stepOfLogRecord(record: HeldProjectLogRecord, stepNamesByProcessorId: ReadonlyMap<string, string>): StreamLogRecordStep {
   if (record.processor_id === null) return { stepKey: RUNTIME_STEP_KEY, stepName: "runtime", isAStepOfTheGraph: false };
   const stepName = stepNamesByProcessorId.get(record.processor_id);
   return { stepKey: record.processor_id, stepName: stepName ?? record.processor_id, isAStepOfTheGraph: stepName !== undefined };
@@ -106,17 +107,39 @@ export interface StreamLogRecordField {
   valueText: string;
 }
 
-function fieldsOfLogRecord(record: StreamLogRecord): StreamLogRecordField[] {
+function fieldsOfLogRecord(record: HeldProjectLogRecord): StreamLogRecordField[] {
   return Object.entries(record.attrs).map(([key, value]) => ({ key, valueText: formatLogAttrValue(value) }));
 }
 
-/** What narrows the Logs tab's rows: search text, a level, the steps chosen (none chosen shows every step), and the records cleared. */
+/** What narrows the Logs tab's rows: search text, a level, the steps chosen (none chosen shows every step), one stream action, and the records cleared. */
 export interface StreamLogFilters {
   searchText: string;
   levelFilter: StreamLogLevelFilter;
   shownStepKeys: ReadonlySet<string>;
-  /** Records numbered up to this one were cleared from the view; 0 when none were. */
-  clearedThroughSequence: number;
+  /** The key of the one stream action whose records show; `null` shows every action's. */
+  shownActionKey: string | null;
+  /** Records held up to this position were cleared from the view; 0 when none were. */
+  clearedThroughPosition: number;
+}
+
+/** The action filter's key for the records that name no stream action. */
+const NO_ACTION_KEY = "";
+
+/** What the records that name no stream action show under, such as those a stream writes while it runs. */
+const NOT_UNDER_A_STREAM_ACTION_WORDS = "Not under a stream action";
+
+/** The action filter's words while the action chosen has no record left in view. */
+const ONE_ACTION_NO_LONGER_HELD_WORDS = "One action";
+
+function actionKeyOfLogRecord(record: HeldProjectLogRecord): string {
+  return record.action ?? NO_ACTION_KEY;
+}
+
+/** One choice of the action filter: a stream action the records name. */
+export interface StreamLogActionChoice {
+  actionKey: string;
+  /** `Action at HH:MM:SS`, when its first record held was written, or `Not under a stream action` for the records that name none. */
+  actionWords: string;
 }
 
 /** What a run of a row's message line is, which decides its colour. */
@@ -130,7 +153,7 @@ export interface StreamLogMessageLinePart {
 
 /** One row of the Logs tab. */
 export interface StreamLogRow {
-  record: StreamLogRecord;
+  record: HeldProjectLogRecord;
   timeText: string;
   dateAndTimeText: string;
   levelWord: string;
@@ -139,6 +162,8 @@ export interface StreamLogRow {
   messageLineParts: StreamLogMessageLinePart[];
   /** `Tuesday, October 20` above the first row of each day while the rows span more than one; `null` otherwise. */
   dayDividerWords: string | null;
+  /** The action's words above the first row of each run of one stream action while the rows hold more than one action; `null` otherwise. */
+  actionDividerWords: string | null;
 }
 
 /** One choice of the step filter. */
@@ -163,13 +188,17 @@ export interface StreamLogPresentation {
   rows: StreamLogRow[];
   levelFilterChoices: StreamLogLevelFilterChoice[];
   stepChoices: StreamLogStepChoice[];
+  /** Each stream action the records not cleared name, in the order their first records were written. */
+  actionChoices: StreamLogActionChoice[];
+  /** The action filter's words: `All actions`, or the one chosen. */
+  actionFilterWords: string;
   /** The step filter's words: `All steps`, the one step chosen, or `2 of 5`. */
   stepFilterWords: { words: string; isOneStepChosen: boolean };
   /** Why no row shows; `null` while some do. */
   emptyWords: string | null;
 }
 
-function rowOfLogRecord(record: StreamLogRecord, stepNamesByProcessorId: ReadonlyMap<string, string>): StreamLogRow {
+function rowOfLogRecord(record: HeldProjectLogRecord, stepNamesByProcessorId: ReadonlyMap<string, string>): StreamLogRow {
   return {
     record,
     timeText: formatLogRecordTime(record.host_ts_ns),
@@ -186,7 +215,40 @@ function rowOfLogRecord(record: StreamLogRecord, stepNamesByProcessorId: Readonl
       ]),
     ],
     dayDividerWords: null,
+    actionDividerWords: null,
   };
+}
+
+/** The words a stream action shows under: when its first record held was written, to the second. */
+function actionWordsOfItsFirstRow(actionKey: string, firstRow: StreamLogRow): string {
+  return actionKey === NO_ACTION_KEY ? NOT_UNDER_A_STREAM_ACTION_WORDS : `Action at ${firstRow.timeText.slice(0, "HH:MM:SS".length)}`;
+}
+
+/** `rows` with an action divider above the first row of each run of one stream action, when they hold more than one. */
+function rowsWithActionDividers(rows: StreamLogRow[], actionWordsByActionKey: ReadonlyMap<string, string>): StreamLogRow[] {
+  if (new Set(rows.map((row) => actionKeyOfLogRecord(row.record))).size < 2) return rows;
+  let previousActionKey: string | null = null;
+  return rows.map((row) => {
+    const actionKey = actionKeyOfLogRecord(row.record);
+    if (actionKey === previousActionKey) return row;
+    previousActionKey = actionKey;
+    return { ...row, actionDividerWords: actionWordsByActionKey.get(actionKey) ?? NOT_UNDER_A_STREAM_ACTION_WORDS };
+  });
+}
+
+function actionChoicesOfRows(rows: readonly StreamLogRow[]): StreamLogActionChoice[] {
+  const actionChoices = new Map<string, StreamLogActionChoice>();
+  for (const row of rows) {
+    const actionKey = actionKeyOfLogRecord(row.record);
+    if (!actionChoices.has(actionKey)) actionChoices.set(actionKey, { actionKey, actionWords: actionWordsOfItsFirstRow(actionKey, row) });
+  }
+  return [...actionChoices.values()];
+}
+
+/** The stream action that failed a stream, from its records: the action of its last error, else of its last record; `null` with no records. */
+export function actionKeyOfTheLastFailure(records: readonly HeldProjectLogRecord[]): string | null {
+  const lastRecordOfTheFailure = [...records].reverse().find((record) => levelFilterOfLogRecord(record.level) === "error") ?? records.at(-1);
+  return lastRecordOfTheFailure === undefined ? null : actionKeyOfLogRecord(lastRecordOfTheFailure);
 }
 
 function localDayOfHostTimestamp(hostTimestampNanoseconds: number | null): string | null {
@@ -250,20 +312,28 @@ function stepChoicesOfRows(rows: readonly StreamLogRow[], graph: StreamGraphSumm
 }
 
 /** The rows, counts and step choices of `records`, oldest first, narrowed by `filters`, with each step named from `graph`. */
-export function presentStreamLog(records: readonly StreamLogRecord[], graph: StreamGraphSummary | null, filters: StreamLogFilters): StreamLogPresentation {
+export function presentStreamLog(records: readonly HeldProjectLogRecord[], graph: StreamGraphSummary | null, filters: StreamLogFilters): StreamLogPresentation {
   const stepNamesByProcessorId = stepNamesByProcessorIdOf(graph);
-  const rowsNotCleared = records.filter((record) => record.sequence > filters.clearedThroughSequence).map((record) => rowOfLogRecord(record, stepNamesByProcessorId));
+  const rowsNotCleared = records.filter((record) => record.position > filters.clearedThroughPosition).map((record) => rowOfLogRecord(record, stepNamesByProcessorId));
   const rowsOfTheStepsSearched = rowsNotCleared.filter(
-    (row) => (filters.shownStepKeys.size === 0 || filters.shownStepKeys.has(row.step.stepKey)) && rowMatchesSearch(row, filters.searchText),
+    (row) =>
+      (filters.shownStepKeys.size === 0 || filters.shownStepKeys.has(row.step.stepKey)) &&
+      (filters.shownActionKey === null || actionKeyOfLogRecord(row.record) === filters.shownActionKey) &&
+      rowMatchesSearch(row, filters.searchText),
   );
+  const actionChoices = actionChoicesOfRows(rowsNotCleared);
+  const actionWordsByActionKey = new Map(actionChoices.map((actionChoice) => [actionChoice.actionKey, actionChoice.actionWords]));
   const countsByLevelFilter: Record<StreamLogLevelFilter, number> = { all: rowsOfTheStepsSearched.length, info: 0, warn: 0, error: 0 };
   for (const row of rowsOfTheStepsSearched) countsByLevelFilter[levelFilterOfLogRecord(row.record.level)] += 1;
-  const rows = rowsWithDayDividers(
-    filters.levelFilter === "all" ? rowsOfTheStepsSearched : rowsOfTheStepsSearched.filter((row) => levelFilterOfLogRecord(row.record.level) === filters.levelFilter),
+  const rows = rowsWithActionDividers(
+    rowsWithDayDividers(
+      filters.levelFilter === "all" ? rowsOfTheStepsSearched : rowsOfTheStepsSearched.filter((row) => levelFilterOfLogRecord(row.record.level) === filters.levelFilter),
+    ),
+    actionWordsByActionKey,
   );
   let emptyWords: string | null = null;
   if (rows.length === 0) {
-    if (records.length === 0) emptyWords = "No log records yet. New ones show up here as the stream writes them.";
+    if (records.length === 0) emptyWords = "No log records yet. New ones show up here as they are written.";
     else if (rowsNotCleared.length === 0) emptyWords = "Cleared. New lines appear here.";
     else emptyWords = "No lines match.";
   }
@@ -276,6 +346,8 @@ export function presentStreamLog(records: readonly StreamLogRecord[], graph: Str
       return { levelFilter, label, count, labelTone: count > 0 && (levelFilter === "warn" || levelFilter === "error") ? levelFilter : "plain" };
     }),
     stepChoices,
+    actionChoices,
+    actionFilterWords: filters.shownActionKey === null ? "All actions" : (actionWordsByActionKey.get(filters.shownActionKey) ?? ONE_ACTION_NO_LONGER_HELD_WORDS),
     stepFilterWords: {
       words:
         filters.shownStepKeys.size === 0
@@ -301,6 +373,10 @@ export interface StreamLogRecordDetails {
   message: string;
   dateAndTimeText: string;
   step: StreamLogRecordStep;
+  /** The stream that wrote it; `null` for a record of the project no stream wrote. */
+  streamId: string | null;
+  /** The stream action it was written under, as the runtime names it; `null` when it names none. */
+  action: string | null;
   fields: StreamLogRecordField[];
   /** The fields as the row writes them, `key=value` two spaces apart, for Copy fields. */
   fieldsTextToCopy: string;
@@ -311,7 +387,7 @@ export interface StreamLogRecordDetails {
 }
 
 /** The selected record's details, its step named from `graph`. */
-export function presentStreamLogRecordDetails(record: StreamLogRecord, graph: StreamGraphSummary | null): StreamLogRecordDetails {
+export function presentStreamLogRecordDetails(record: HeldProjectLogRecord, graph: StreamGraphSummary | null): StreamLogRecordDetails {
   const stepNamesByProcessorId = stepNamesByProcessorIdOf(graph);
   const fieldsOfTheRecord = fieldsOfLogRecord(record);
   return {
@@ -320,6 +396,8 @@ export function presentStreamLogRecordDetails(record: StreamLogRecord, graph: St
     message: record.message,
     dateAndTimeText: formatLogRecordDateAndTime(record.host_ts_ns),
     step: stepOfLogRecord(record, stepNamesByProcessorId),
+    streamId: record.stream,
+    action: record.action,
     fields: fieldsOfTheRecord,
     fieldsTextToCopy: fieldsOfTheRecord.map((field) => `${field.key}=${field.valueText}`).join("  "),
     recordJsonLines: prettyJsonLinesOf(record.jsonl_line),
@@ -373,36 +451,14 @@ export function prettyJsonLinesOf(jsonText: string): string[] {
 }
 
 /** Whether the pointer row to the records not held shows: while some are not held, nothing is cleared and nothing is searched for. */
-export function isEarlierRecordsPointerShown(earlierRecordsNotHeldCount: number, filters: StreamLogFilters): boolean {
-  return earlierRecordsNotHeldCount > 0 && filters.clearedThroughSequence === 0 && filters.searchText.trim() === "";
+export function isEarlierRecordsPointerShown(areEarlierRecordsNotHeld: boolean, filters: StreamLogFilters): boolean {
+  return areEarlierRecordsNotHeld && filters.clearedThroughPosition === 0 && filters.searchText.trim() === "";
 }
 
-/** The pointer row's words before the log folder: `2,312 earlier records are in`. */
-export function earlierRecordsNotHeldWords(earlierRecordsNotHeldCount: number): string {
-  return countLabel(earlierRecordsNotHeldCount, "earlier record is in", "earlier records are in");
-}
+/** The pointer row's words before the log folder. */
+export const EARLIER_RECORDS_NOT_HELD_WORDS = "Earlier records are in";
 
-/** The folder the runtime writes a stream's log segments into, under its project, the home folder shortened, for display. */
-export function logFolderPathOfStream(projectDirectory: string): string {
-  return `${abbreviateHomeDirectory(projectDirectory)}/${STREAM_LOG_FOLDER_IN_THE_PROJECT}/`;
-}
-
-/** What the Logs tab of a stream that is not loaded says. */
-export interface StreamLogsOfAStreamNotLoaded {
-  hasFailed: boolean;
-  title: string;
-  /** A failed stream's reason in the runtime's words; else why there are no records to show. */
-  explanation: string;
-}
-
-/** The Logs tab's words for `stream` while it is not loaded. */
-export function presentStreamLogsOfAStreamNotLoaded(stream: ListedStream): StreamLogsOfAStreamNotLoaded {
-  const notLoadedReason = streamNotLoadedReason(stream);
-  if (notLoadedReason === "failed") return { hasFailed: true, title: "Failed to load", explanation: stream.failed_because ?? "The runtime gave no reason." };
-  if (notLoadedReason === "loading") return { hasFailed: false, title: "Loading", explanation: "Its records show here once the runtime has loaded it." };
-  return {
-    hasFailed: false,
-    title: "Not loaded",
-    explanation: "The runtime holds records only for a loaded stream. Everything it wrote is in the stream's log folder.",
-  };
+/** The folder the runtime writes a project's log segments into, the home folder shortened, for display. */
+export function logFolderPathOfProject(projectDirectory: string): string {
+  return `${abbreviateHomeDirectory(projectDirectory)}/${PROJECT_LOG_FOLDER_IN_THE_PROJECT}/`;
 }

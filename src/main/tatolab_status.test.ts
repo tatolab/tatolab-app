@@ -21,7 +21,7 @@ function listedStreams(streamCount: number): ListedStream[] {
     location: { project_directory: `/projects/stream-${streamIndex}`, stream_function: "stream:main" },
     state: "running",
     node_count: 2,
-    failed_because: null,
+    failed_because: null, action: null, step: null,
   }));
 }
 

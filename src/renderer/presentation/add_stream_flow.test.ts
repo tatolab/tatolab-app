@@ -99,7 +99,7 @@ describe("running a project folder", () => {
       location: { project_directory: projectDirectory, stream_function: streamFunction },
       state: "running",
       node_count: 4,
-      failed_because: null,
+      failed_because: null, action: null, step: null,
     });
     const chosen = afterEvents(initialAddStreamFlowState("project_folder"), [
       { kind: "project_folder_answered", report: folderReport("/Users/someone/code/doorways", { stream_functions: ["front_door", "back_door"] }) },

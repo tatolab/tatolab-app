@@ -23,7 +23,7 @@ function listedStream(displayName: string, state: string, failedBecause: string 
     location: { project_directory: `/Users/u/streams/${displayName}`, stream_function: "stream:main" },
     state,
     node_count: state === "failed" ? null : 3,
-    failed_because: failedBecause,
+    failed_because: failedBecause, action: null, step: null,
   };
 }
 

@@ -84,7 +84,7 @@ test("a healthy runtime's status names its streams and machine, read as the wind
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
     '{"app_version":"0.45.0","app_build":null,"platform":"macos","run_tatolab":true,"runtime_agent":"enabled","runtime_state":"running",' +
       '"machine_name":"jonathanf-macbook","streams":[{"stream":"p-main-0a1b2c","display_name":"main","location":{"project_directory":"/p","stream_function":"stream:main"},' +
-      '"state":"running","node_count":4,"failed_because":null}],' +
+      '"state":"running","node_count":4,"failed_because":null,"action":null,"step":null}],' +
       '"first_run_finished":false,"command_line_tool_linked_at":null,"command_line_tool_usr_local_bin_link":{"kind":"not_linked"},' +
       '"app_update":{"kind":"not_checked"},' +
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
