@@ -15,6 +15,9 @@
 #   APPLE_CERTIFICATE           base64 of the Developer ID Application .p12 (Infisical)
 #   APPLE_CERTIFICATE_PASSWORD  its password (Infisical)
 #   APPLE_SIGNING_IDENTITY      "Developer ID Application: … (TEAMID)" (Infisical)
+#   APPLE_RUNTIME_PROVISIONING_PROFILE  base64 of the Developer ID provisioning profile for
+#                               com.tatolab.runtime, which authorizes the runtime's keychain access
+#                               group (Infisical)
 #                               locally: infisical run -- scripts/build-tatolab-app.sh …
 #   --streamlib-ref REF      the streamlib tag or commit to bundle instead of main's head; a release
 #                            passes the release tag it builds
@@ -63,7 +66,7 @@ if $release_build && $local_proof_test_root; then
 fi
 
 missing_developer_id_variables=()
-for developer_id_variable in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
+for developer_id_variable in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_RUNTIME_PROVISIONING_PROFILE; do
   [ -n "${!developer_id_variable:-}" ] || missing_developer_id_variables+=("$developer_id_variable")
 done
 if [ ${#missing_developer_id_variables[@]} -gt 0 ]; then
@@ -102,6 +105,8 @@ security import "$developer_id_scratch_directory/developer-id.p12" -k "$develope
 rm -f "$developer_id_scratch_directory/developer-id.p12"
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$developer_id_keychain_password" "$developer_id_keychain" >/dev/null
 security list-keychains -d user -s "$developer_id_keychain" ${keychain_search_list_before_the_build[@]+"${keychain_search_list_before_the_build[@]}"}
+runtime_provisioning_profile="$developer_id_scratch_directory/tatolab-runtime.provisionprofile"
+printf '%s' "$APPLE_RUNTIME_PROVISIONING_PROFILE" | base64 --decode > "$runtime_provisioning_profile"
 security find-identity -v -p codesigning "$developer_id_keychain" | grep -qF "\"$signing_identity\"" || {
   echo "APPLE_CERTIFICATE holds no valid codesigning identity named by APPLE_SIGNING_IDENTITY" >&2
   exit 1
@@ -167,7 +172,7 @@ echo "==> assemble"
   --installer "$fetched_streamlib/installer/install.sh" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"}
 
 echo "==> sign (Developer ID)"
-"$scripts_directory/sign-tatolab-app-bundle.sh" "$assembled_app" "$signing_identity"
+"$scripts_directory/sign-tatolab-app-bundle.sh" "$assembled_app" "$signing_identity" "$runtime_provisioning_profile"
 if $notarize; then
   echo "==> notarize the app"
   "$scripts_directory/notarize-and-staple.sh" "$assembled_app"

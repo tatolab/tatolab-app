@@ -42,7 +42,9 @@ afterEach(async () => {
 test("a build with no Developer ID stops before anything, naming every missing secret", async () => {
   const buildOutcome = await runSigningScriptWithOnlyTheseAppleVariables([BUILD_SCRIPT, "--local-proof-test-root"], {});
   expect(buildOutcome.exitCode).toBe(1);
-  expect(buildOutcome.output).toContain("no Developer ID to sign with: APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY not set");
+  expect(buildOutcome.output).toContain(
+    "no Developer ID to sign with: APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_RUNTIME_PROVISIONING_PROFILE not set",
+  );
   expect(buildOutcome.output).toContain("infisical run -- scripts/build-tatolab-app.sh");
   expect(buildOutcome.output).not.toContain("==>");
 });
@@ -51,6 +53,7 @@ test("a build missing only the certificate's password names just that", async ()
   const buildOutcome = await runSigningScriptWithOnlyTheseAppleVariables([BUILD_SCRIPT], {
     APPLE_CERTIFICATE: "cGxhbnRlZA==",
     APPLE_SIGNING_IDENTITY: "Developer ID Application: Planted (PLANTED001)",
+    APPLE_RUNTIME_PROVISIONING_PROFILE: "cGxhbnRlZA==",
   });
   expect(buildOutcome.exitCode).toBe(1);
   expect(buildOutcome.output).toContain("no Developer ID to sign with: APPLE_CERTIFICATE_PASSWORD not set");
@@ -62,6 +65,7 @@ test("a build whose signing identity is not a Developer ID Application stops bef
     APPLE_CERTIFICATE: "cGxhbnRlZA==",
     APPLE_CERTIFICATE_PASSWORD: "planted",
     APPLE_SIGNING_IDENTITY: "Apple Development: Planted (PLANTED001)",
+    APPLE_RUNTIME_PROVISIONING_PROFILE: "cGxhbnRlZA==",
   });
   expect(buildOutcome.exitCode).toBe(1);
   expect(buildOutcome.output).toContain("APPLE_SIGNING_IDENTITY is not a 'Developer ID Application: …' identity");
@@ -75,7 +79,10 @@ test("the build has no flag that signs another way", async () => {
 });
 
 test.each(["-", "Apple Development: Planted (PLANTED001)"])("signing refuses the identity %j before touching the bundle", async (refusedIdentity) => {
-  const signOutcome = await runSigningScriptWithOnlyTheseAppleVariables([SIGN_SCRIPT, path.join(scratchDirectory, "Tatolab.app"), refusedIdentity], {});
+  const signOutcome = await runSigningScriptWithOnlyTheseAppleVariables(
+    [SIGN_SCRIPT, path.join(scratchDirectory, "Tatolab.app"), refusedIdentity, path.join(scratchDirectory, "tatolab-runtime.provisionprofile")],
+    {},
+  );
   expect(signOutcome.exitCode).toBe(1);
   expect(signOutcome.output).toContain(`'${refusedIdentity}' is not a 'Developer ID Application: …' identity`);
 });
