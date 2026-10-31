@@ -314,18 +314,23 @@ export class LocalApiClient {
   }
 
   /** Queue the runtime's stream action `streamAction` on `stream`, answering the id of the action it queued; refused in the runtime's own words. */
-  async runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool(streamAction, { stream });
-    if (!toolResultText.ok) return toolResultText;
-    const action = queuedStreamActionFromTheToolResult(streamAction, toolResultText.value);
-    return action.ok ? action : localApiRequestFailure(action.failure);
+  runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.queueRuntimeAction(streamAction, { stream });
   }
 
   /** Queue the removal of every stream the runtime holds from the project in `projectDirectory`, answering the id of the action it queued; refused in the runtime's own words. */
-  async removeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("remove_project", { project_directory: projectDirectory });
+  removeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.queueRuntimeAction("remove_project", { project_directory: projectDirectory });
+  }
+
+  /** Call the tool `toolName` that queues an action, answering the id of the action the runtime queued; refused in the runtime's own words. */
+  private async queueRuntimeAction(
+    toolName: TatolabStreamActionName | "remove_project",
+    toolArguments: Record<string, string>,
+  ): Promise<Result<string, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool(toolName, toolArguments);
     if (!toolResultText.ok) return toolResultText;
-    const action = queuedStreamActionFromTheToolResult("remove_project", toolResultText.value);
+    const action = queuedStreamActionFromTheToolResult(toolName, toolResultText.value);
     return action.ok ? action : localApiRequestFailure(action.failure);
   }
 

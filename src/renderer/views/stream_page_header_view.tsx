@@ -137,10 +137,6 @@ export function StreamPageHeaderView({
                 <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(projectDirectory)}>
                   Copy project folder path
                 </MenuItem>
-              </>
-            )}
-            {projectDirectory !== null && (
-              <>
                 <MenuSeparator />
                 <MenuItem icon={Trash2} isDestructive isDisabled={actionUnderWay !== undefined} onChosen={askToRemoveTheProject} data-stream-action="remove_project">
                   Remove project…

@@ -346,7 +346,7 @@ test("a command's arguments are read as the window sends them, and anything else
   expect(enabledArgumentsFrom("set_run_tatolab", { enabled: "yes" }).ok).toBe(false);
   expect(enabledArgumentsFrom("set_run_tatolab", null).ok).toBe(false);
   expect(readProjectLogRecordsArgumentsFrom({ project_directory: "/tmp/p", stream: "pattern-main-d76f70", action: null, after: "1:7830" })).toEqual(
-    succeeded({ project_directory: "/tmp/p", stream: "pattern-main-d76f70", action: null, after: "1:7830" }),
+    succeeded({ projectDirectory: "/tmp/p", narrowing: { stream: "pattern-main-d76f70", action: null }, after: "1:7830" }),
   );
   expect(readProjectLogRecordsArgumentsFrom({ project_directory: "/tmp/p", stream: null, action: null, after: 79 }).ok).toBe(false);
   expect(readProjectLogRecordsArgumentsFrom({ stream: null, action: null, after: null }).ok).toBe(false);
@@ -414,9 +414,12 @@ test("removing a project queues on the runtime, then observes again whether it q
   expect(refreshRequests).toHaveBeenCalledTimes(2);
 });
 
-test("each queued action answers the window null, and a missing argument is refused in the command's words", async () => {
+test("each queued action answers the window null, and a missing argument or a project the runtime does not list is refused in the command's words", async () => {
   const sharedState = await sharedStateOverFakes(
     [
+      httpResponse("200 OK", "text/plain", "ok"),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
+      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-answer-for-the-running-stream-pattern-main.json")),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-answer-for-the-stopped-stream-pattern-main.json")),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
@@ -424,6 +427,11 @@ test("each queued action answers the window null, and a missing argument is refu
     "linux"
   );
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  expect(await commandHandlers.remove_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" })).toEqual({
+    ok: false,
+    refusal: "The runtime lists no stream from /tmp/tatolab-proof-projects/doorways.",
+  });
+  await sharedState.statusPublisher.refreshAndPublish();
 
   expect(await commandHandlers.stop_stream({ stream: "pattern-main-d76f70" })).toEqual({ ok: true, value: null });
   expect(await commandHandlers.start_stream({ stream: "pattern-main-d76f70" })).toEqual({ ok: true, value: null });
@@ -431,6 +439,11 @@ test("each queued action answers the window null, and a missing argument is refu
   expect(await commandHandlers.remove_project({ stream: "pattern-main-d76f70" })).toEqual({
     ok: false,
     refusal: "remove_project needs `project_directory`, a project's folder as the runtime lists it",
+  });
+  expect(await commandHandlers.remove_project({ project_directory: "/etc" })).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
+  expect(await commandHandlers.read_project_log_records({ project_directory: "/etc", stream: null, action: null, after: null })).toEqual({
+    ok: false,
+    refusal: "The runtime lists no stream from /etc.",
   });
 });
 

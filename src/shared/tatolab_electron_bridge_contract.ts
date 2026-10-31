@@ -3,11 +3,11 @@
 // command answers.
 
 import type {
+  ProjectLogNarrowing,
+  ProjectLogRecordsPage,
   PythonForNewEnvironmentsChoice,
   RelaySettingsByName,
   RelaysDescription,
-  ProjectLogNarrowing,
-  ProjectLogRecordsPage,
   RuntimeDescription,
   StreamGraphSummary,
   StreamProjectFolderChosenFor,
@@ -59,7 +59,7 @@ export const TATOLAB_COMMAND_NAMES = [
  * `remove_project` `{ project_directory }`, `describe_stream_graph`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` `{ folder }`, `run_stream_project` `{ folder, stream_function, name }`,
  * `choose_python_for_new_environments` `{ python }`, `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
- * acts only on a folder the app handed the window, from its folder dialog or its proposal. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
+ * acts only on a folder the app handed the window, from its folder dialog or its proposal, and `read_project_log_records` and `remove_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
  * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
  */

@@ -19,6 +19,7 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject } from "./json_on_the_wire.js";
+import type { LocalApiRequestFailure } from "./local_api_client.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import {
   checkForTatolabAppUpdatesOnRequest,
@@ -111,22 +112,34 @@ export function describeStreamGraph(sharedState: TatolabAppSharedState, stream: 
   });
 }
 
-/** `stop_stream` or `start_stream { stream }`: the runtime's tool of that name queued on `stream`, then a status round whether it queued or refused, so the listing shows the stream `stopping` or `preparing`; refused in the runtime's own words. */
-export function runStreamAction(sharedState: TatolabAppSharedState, streamAction: TatolabStreamActionName, stream: string): Promise<Result<void, string>> {
-  return answerTheWindow(streamAction, async () => {
-    const queued = await sharedState.controller.runStreamAction(streamAction, stream);
+/** The window's `commandName` answered once the runtime queued its action or refused it, then a status round either way, so the listing shows the action under way; the action's id is read only to check the answer. */
+function answerTheWindowOnceQueued(
+  sharedState: TatolabAppSharedState,
+  commandName: TatolabCommandName,
+  queueTheAction: () => Promise<Result<string, LocalApiRequestFailure>>,
+): Promise<Result<void, string>> {
+  return answerTheWindow(commandName, async () => {
+    const queued = await queueTheAction();
     sharedState.statusPublisher.requestRefresh();
     return queued.ok ? succeeded(undefined) : failedWith(queued.failure.failureDescription);
   });
 }
 
-/** `remove_project { project_directory }`: the runtime's `remove_project` queued on the project, then a status round whether it queued or refused, so the listing shows its streams `stopping`; refused in the runtime's own words. */
+/** `stop_stream` or `start_stream { stream }`: the runtime's tool of that name queued on `stream`, so the listing shows the stream `stopping` or `preparing`; refused in the runtime's own words. */
+export function runStreamAction(sharedState: TatolabAppSharedState, streamAction: TatolabStreamActionName, stream: string): Promise<Result<void, string>> {
+  return answerTheWindowOnceQueued(sharedState, streamAction, () => sharedState.controller.runStreamAction(streamAction, stream));
+}
+
+/** `remove_project { project_directory }`: the runtime's `remove_project` queued on the project, so the listing shows its streams `stopping`; refused in the runtime's own words. */
 export function removeProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<void, string>> {
-  return answerTheWindow("remove_project", async () => {
-    const queued = await sharedState.controller.removeProject(projectDirectory);
-    sharedState.statusPublisher.requestRefresh();
-    return queued.ok ? succeeded(undefined) : failedWith(queued.failure.failureDescription);
-  });
+  return answerTheWindowOnceQueued(sharedState, "remove_project", () => sharedState.controller.removeProject(projectDirectory));
+}
+
+/** `projectDirectory` when a stream the runtime last listed is from it, so a command naming a folder acts only on a project the runtime holds; refused naming it otherwise. */
+export function projectDirectoryTheRuntimeLastListed(sharedState: TatolabAppSharedState, projectDirectory: string): Result<string, string> {
+  const listedStreams = sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
+  const isListed = listedStreams.some((listedStream) => listedStream.location?.project_directory === projectDirectory);
+  return isListed ? succeeded(projectDirectory) : failedWith(`The runtime lists no stream from ${projectDirectory}.`);
 }
 
 /** `rename_stream { stream, display_name }`: the runtime's `rename_stream` on `stream`, then a status round whether it renamed or refused; refused in the runtime's own words. */
@@ -314,11 +327,14 @@ export function enabledArgumentsFrom(commandName: TatolabCommandName, commandArg
   return succeeded({ enabled: commandArguments["enabled"] });
 }
 
+function isTextOrNull(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
 /** `read_project_log_records`'s arguments as the window sends them, or why they are not. */
 export function readProjectLogRecordsArgumentsFrom(
   commandArguments: unknown,
-): Result<{ project_directory: string; stream: string | null; action: string | null; after: string | null }, string> {
-  const isTextOrNull = (value: unknown): value is string | null => value === null || typeof value === "string";
+): Result<{ projectDirectory: string; narrowing: ProjectLogNarrowing; after: string | null }, string> {
   if (
     !isAJsonObject(commandArguments) ||
     typeof commandArguments["project_directory"] !== "string" ||
@@ -331,9 +347,8 @@ export function readProjectLogRecordsArgumentsFrom(
     );
   }
   return succeeded({
-    project_directory: commandArguments["project_directory"],
-    stream: commandArguments["stream"],
-    action: commandArguments["action"],
+    projectDirectory: commandArguments["project_directory"],
+    narrowing: { stream: commandArguments["stream"], action: commandArguments["action"] },
     after: commandArguments["after"],
   });
 }
@@ -377,7 +392,6 @@ export function chooseStreamProjectFolderArgumentsFrom(commandArguments: unknown
 export function runStreamProjectArgumentsFrom(
   commandArguments: unknown,
 ): Result<{ folder: string; stream_function: string | null; name: string | null }, string> {
-  const isTextOrNull = (value: unknown): value is string | null => value === null || typeof value === "string";
   if (
     !isAJsonObject(commandArguments) ||
     typeof commandArguments["folder"] !== "string" ||
@@ -423,8 +437,10 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     read_project_log_records: async (commandArguments) => {
       const readArguments = readProjectLogRecordsArgumentsFrom(commandArguments);
       if (!readArguments.ok) return { ok: false, refusal: readArguments.failure };
-      const { project_directory, stream, action, after } = readArguments.value;
-      return commandAnswerFrom(await readProjectLogRecords(sharedState, project_directory, { stream, action }, after));
+      const { projectDirectory, narrowing, after } = readArguments.value;
+      const listedProjectDirectory = projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory);
+      if (!listedProjectDirectory.ok) return { ok: false, refusal: listedProjectDirectory.failure };
+      return commandAnswerFrom(await readProjectLogRecords(sharedState, listedProjectDirectory.value, narrowing, after));
     },
     check_for_tatolab_app_updates: async () => {
       checkForTatolabAppUpdatesOnRequest(sharedState, "window");
@@ -440,7 +456,9 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     remove_project: async (commandArguments) => {
       const projectDirectory = oneTextArgumentFrom("remove_project", commandArguments, "project_directory", "a project's folder as the runtime lists it");
       if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
-      return commandAnswerOfNothingFrom(await removeProject(sharedState, projectDirectory.value));
+      const listedProjectDirectory = projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory.value);
+      if (!listedProjectDirectory.ok) return { ok: false, refusal: listedProjectDirectory.failure };
+      return commandAnswerOfNothingFrom(await removeProject(sharedState, listedProjectDirectory.value));
     },
     rename_stream: async (commandArguments) => {
       const renameStreamArguments = renameStreamArgumentsFrom(commandArguments);

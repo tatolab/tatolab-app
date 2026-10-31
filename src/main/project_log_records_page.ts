@@ -45,14 +45,21 @@ function projectLogRecordsPageFromTheParsedToolResult(
   const recordsOnTheWire = arrayOrEmpty(toolResult.value, "records");
   if (!recordsOnTheWire.ok) return recordsOnTheWire;
   if (!jsonlLineTexts.ok) return jsonlLineTexts;
-  if (jsonlLineTexts.value.length !== recordsOnTheWire.value.length) return failedWith("the records' JSONL texts do not line up with the records");
+  const recordsDoNotLineUp = failedWith("the records' JSONL texts do not line up with the records");
+  if (jsonlLineTexts.value.length !== recordsOnTheWire.value.length) return recordsDoNotLineUp;
+  const records: ProjectLogRecord[] = [];
+  for (const [recordIndex, recordOnTheWire] of recordsOnTheWire.value.entries()) {
+    const jsonlLineText = jsonlLineTexts.value[recordIndex];
+    if (jsonlLineText === undefined) return recordsDoNotLineUp;
+    records.push(projectLogRecordFromItsJsonlLine(recordOnTheWire, jsonlLineText));
+  }
   const nextAfter = requiredText(toolResult.value, "next_after");
   if (!nextAfter.ok) return nextAfter;
   const recordsNoLongerHeld = requiredTrueOrFalse(toolResult.value, "records_no_longer_held");
   if (!recordsNoLongerHeld.ok) return recordsNoLongerHeld;
   return succeeded({
     project_directory: projectDirectory.value,
-    records: recordsOnTheWire.value.map((jsonlLine, recordIndex) => projectLogRecordFromItsJsonlLine(jsonlLine, jsonlLineTexts.value[recordIndex] ?? "")),
+    records,
     next_after: nextAfter.value,
     records_no_longer_held: recordsNoLongerHeld.value,
   });

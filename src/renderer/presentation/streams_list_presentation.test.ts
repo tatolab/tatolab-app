@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import {
   isStreamActionStillUnderWay,
+  STREAMS_LIST_FILTERS,
   presentProjectRemovalConfirmation,
   streamsOfTheProject,
   streamMatchesFilterText,
@@ -37,6 +38,15 @@ describe("streamMatchesListFilter", () => {
     expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "running")).map((stream) => stream.display_name)).toEqual(["main", "dev"]);
     expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "stopped")).map((stream) => stream.display_name)).toEqual(["pattern-two"]);
     expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "failed")).map((stream) => stream.display_name)).toEqual(["lobby"]);
+  });
+
+  it("shows a stream preparing or stopping under every filter, so a row does not vanish while its action runs", () => {
+    const [someStream] = listedStreams;
+    if (someStream === undefined) return expect.unreachable("the listing holds no stream");
+    for (const state of ["preparing", "stopping"] as const) {
+      const streamUnderAnAction = { ...someStream, state, action: "R1-7", step: null };
+      expect(STREAMS_LIST_FILTERS.map(({ filter }) => streamMatchesListFilter(streamUnderAnAction, filter))).toEqual([true, true, true, true]);
+    }
   });
 });
 

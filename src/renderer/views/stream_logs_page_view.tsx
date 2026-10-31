@@ -34,7 +34,7 @@ import { ToggleIconButton } from "../design_system/toggle_icon_button";
 import { Toolbar, ToolbarGroup } from "../design_system/toolbar";
 import { LOG_LEVEL_WORD_TONE_CLASS_NAMES, StreamLogRecordDetailsView } from "./stream_log_record_details_view";
 import { logViewAskedBy, streamPagePath } from "./stream_page_path";
-import { useProjectLogReading, useStreamGraphReading, useTatolabWindowEnvironment } from "./tatolab_window_context";
+import { useProjectLogReading, useStreamGraphReading, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 /** Scrolled within this many pixels of the end, the list keeps following new records. */
 const FOLLOW_TAIL_DISTANCE_PIXELS = 8;
@@ -352,7 +352,13 @@ function ProjectLogOfTheStreamView({ stream, projectDirectory }: { stream: Liste
   );
   const streamLog = useMemo(() => presentStreamLog(reading.records, graph, streamLogFilters), [reading.records, graph, streamLogFilters]);
   const selectedRecord = selectedPosition === null ? null : (reading.records.find((record) => record.position === selectedPosition) ?? null);
-  const selectedRecordDetails = useMemo(() => (selectedRecord === null ? null : presentStreamLogRecordDetails(selectedRecord, graph)), [selectedRecord, graph]);
+  const listedStreams = useTatolabStatus().streams;
+  const displayNamesByStreamId = useMemo(() => new Map((listedStreams ?? []).map((listedStream) => [listedStream.stream, listedStream.display_name])), [listedStreams]);
+  const selectedRecordDetails = useMemo(
+    () =>
+      selectedRecord === null ? null : presentStreamLogRecordDetails(selectedRecord, graph, { displayNamesByStreamId, actionChoices: streamLog.actionChoices }),
+    [selectedRecord, graph, displayNamesByStreamId, streamLog.actionChoices],
+  );
   const lastRowPosition = streamLog.rows.at(-1)?.record.position ?? null;
 
   const askedLogView = logViewAskedBy(location.state);
@@ -403,7 +409,6 @@ function ProjectLogOfTheStreamView({ stream, projectDirectory }: { stream: Liste
   const recordDetailsPanel = selectedRecordDetails !== null ? (
     <StreamLogRecordDetailsView
       details={selectedRecordDetails}
-      streamDisplayName={stream.display_name}
       actions={{
         onClosed: () => setSelectedPosition(null),
         onOnlyStepShown: (stepKey) => {
@@ -430,7 +435,7 @@ function ProjectLogOfTheStreamView({ stream, projectDirectory }: { stream: Liste
           />
           <SearchField
             inputRef={searchInput}
-            label={`Search ${stream.display_name} logs`}
+            label={scopeChoice === "this_stream" ? `Search ${stream.display_name} logs` : "Search the whole project's logs"}
             placeholder="Search logs"
             text={searchText}
             onTextChanged={setSearchText}

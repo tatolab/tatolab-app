@@ -17,8 +17,9 @@ export function streamsListFilterWords(filter: StreamsListFilter): string {
   return filter === "all" ? "Any state" : (STREAMS_LIST_FILTERS.find((listFilter) => listFilter.filter === filter)?.label ?? "Any state");
 }
 
-/** Whether `stream` is one `filter` shows. */
+/** Whether `stream` is one `filter` shows; a stream preparing or stopping shows under every filter, so its row stays put while its action runs. */
 export function streamMatchesListFilter(stream: ListedStream, filter: StreamsListFilter): boolean {
+  if (stream.state === "preparing" || stream.state === "stopping") return true;
   switch (filter) {
     case "all":
       return true;

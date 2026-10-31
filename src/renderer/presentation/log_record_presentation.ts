@@ -219,9 +219,11 @@ function rowOfLogRecord(record: HeldProjectLogRecord, stepNamesByProcessorId: Re
   };
 }
 
-/** The words a stream action shows under: when its first record held was written, to the second. */
-function actionWordsOfItsFirstRow(actionKey: string, firstRow: StreamLogRow): string {
-  return actionKey === NO_ACTION_KEY ? NOT_UNDER_A_STREAM_ACTION_WORDS : `Action at ${firstRow.timeText.slice(0, "HH:MM:SS".length)}`;
+/** `Action at HH:MM:SS`, local time, from when an action's first record held was written; `Action` for a record with no timestamp. */
+function actionWordsOfItsFirstRecord(firstRecord: HeldProjectLogRecord): string {
+  if (firstRecord.host_ts_ns === null) return "Action";
+  const writtenAt = dateOfHostTimestamp(firstRecord.host_ts_ns);
+  return `Action at ${padNumber(writtenAt.getHours(), 2)}:${padNumber(writtenAt.getMinutes(), 2)}:${padNumber(writtenAt.getSeconds(), 2)}`;
 }
 
 /** `rows` with an action divider above the first row of each run of one stream action, when they hold more than one. */
@@ -236,11 +238,21 @@ function rowsWithActionDividers(rows: StreamLogRow[], actionWordsByActionKey: Re
   });
 }
 
+/** Each action the rows name, in the order its first record was written; two actions begun in the same second read `(2)`, `(3)` after the first. */
 function actionChoicesOfRows(rows: readonly StreamLogRow[]): StreamLogActionChoice[] {
   const actionChoices = new Map<string, StreamLogActionChoice>();
+  const actionsByTheirWords = new Map<string, number>();
   for (const row of rows) {
     const actionKey = actionKeyOfLogRecord(row.record);
-    if (!actionChoices.has(actionKey)) actionChoices.set(actionKey, { actionKey, actionWords: actionWordsOfItsFirstRow(actionKey, row) });
+    if (actionChoices.has(actionKey)) continue;
+    if (actionKey === NO_ACTION_KEY) {
+      actionChoices.set(actionKey, { actionKey, actionWords: NOT_UNDER_A_STREAM_ACTION_WORDS });
+      continue;
+    }
+    const actionWords = actionWordsOfItsFirstRecord(row.record);
+    const actionsWithTheseWords = (actionsByTheirWords.get(actionWords) ?? 0) + 1;
+    actionsByTheirWords.set(actionWords, actionsWithTheseWords);
+    actionChoices.set(actionKey, { actionKey, actionWords: actionsWithTheseWords === 1 ? actionWords : `${actionWords} (${actionsWithTheseWords})` });
   }
   return [...actionChoices.values()];
 }
@@ -373,10 +385,10 @@ export interface StreamLogRecordDetails {
   message: string;
   dateAndTimeText: string;
   step: StreamLogRecordStep;
-  /** The stream that wrote it; `null` for a record of the project no stream wrote. */
-  streamId: string | null;
-  /** The stream action it was written under, as the runtime names it; `null` when it names none. */
-  action: string | null;
+  /** The display name of the stream that wrote it, its id while the listing holds no such stream, or `None, the project wrote it`. */
+  streamWords: string;
+  /** The words of the stream action it was written under, as the action filter offers it. */
+  actionWords: string;
   fields: StreamLogRecordField[];
   /** The fields as the row writes them, `key=value` two spaces apart, for Copy fields. */
   fieldsTextToCopy: string;
@@ -386,8 +398,21 @@ export interface StreamLogRecordDetails {
   jsonlLine: string;
 }
 
-/** The selected record's details, its step named from `graph`. */
-export function presentStreamLogRecordDetails(record: HeldProjectLogRecord, graph: StreamGraphSummary | null): StreamLogRecordDetails {
+/** What names the source of a record in its details: the listing's display names by stream id, and the action filter's choices. */
+export interface StreamLogRecordSourceNames {
+  displayNamesByStreamId: ReadonlyMap<string, string>;
+  actionChoices: readonly StreamLogActionChoice[];
+}
+
+const RECORD_OF_NO_STREAM_WORDS = "None, the project wrote it";
+
+/** The selected record's details, its step named from `graph`, its stream and action from `sourceNames`. */
+export function presentStreamLogRecordDetails(
+  record: HeldProjectLogRecord,
+  graph: StreamGraphSummary | null,
+  sourceNames: StreamLogRecordSourceNames,
+): StreamLogRecordDetails {
+  const actionKey = actionKeyOfLogRecord(record);
   const stepNamesByProcessorId = stepNamesByProcessorIdOf(graph);
   const fieldsOfTheRecord = fieldsOfLogRecord(record);
   return {
@@ -396,8 +421,10 @@ export function presentStreamLogRecordDetails(record: HeldProjectLogRecord, grap
     message: record.message,
     dateAndTimeText: formatLogRecordDateAndTime(record.host_ts_ns),
     step: stepOfLogRecord(record, stepNamesByProcessorId),
-    streamId: record.stream,
-    action: record.action,
+    streamWords: record.stream === null ? RECORD_OF_NO_STREAM_WORDS : (sourceNames.displayNamesByStreamId.get(record.stream) ?? record.stream),
+    actionWords:
+      sourceNames.actionChoices.find((actionChoice) => actionChoice.actionKey === actionKey)?.actionWords ??
+      (actionKey === NO_ACTION_KEY ? NOT_UNDER_A_STREAM_ACTION_WORDS : ONE_ACTION_NO_LONGER_HELD_WORDS),
     fields: fieldsOfTheRecord,
     fieldsTextToCopy: fieldsOfTheRecord.map((field) => `${field.key}=${field.valueText}`).join("  "),
     recordJsonLines: prettyJsonLinesOf(record.jsonl_line),

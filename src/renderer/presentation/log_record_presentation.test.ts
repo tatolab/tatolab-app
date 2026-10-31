@@ -209,6 +209,23 @@ describe("presentStreamLog", () => {
     expect(presentStreamLog(recordsOfTwoActions, null, { ...EVERY_RECORD, shownActionKey: "R1-9" }).actionFilterWords).toBe("One action");
   });
 
+  it("numbers the actions begun in the same second, and names an action whose first record has no timestamp plainly", () => {
+    const at = (millisecond: number) => new Date(2026, 9, 31, 16, 2, 1, millisecond).getTime() * 1_000_000;
+    const recordsOfThreeActions = [
+      logRecord(1, { action: "R1-2", host_ts_ns: at(100) }),
+      logRecord(2, { action: "R1-3", host_ts_ns: at(400) }),
+      logRecord(3, { action: "R1-4", host_ts_ns: at(800) }),
+      logRecord(4, { action: "R1-5", host_ts_ns: null }),
+    ];
+
+    expect(presentStreamLog(recordsOfThreeActions, null, EVERY_RECORD).actionChoices.map((actionChoice) => actionChoice.actionWords)).toEqual([
+      "Action at 16:02:01",
+      "Action at 16:02:01 (2)",
+      "Action at 16:02:01 (3)",
+      "Action",
+    ]);
+  });
+
   it("finds the action that failed a stream: its last error's, else its last record's", () => {
     expect(actionKeyOfTheLastFailure([logRecord(1, { action: "R1-2", level: "error" }), logRecord(2, { action: "R1-7", level: "error" }), logRecord(3, { action: "R1-8" })])).toBe("R1-7");
     expect(actionKeyOfTheLastFailure([logRecord(1, { action: "R1-2" }), logRecord(2, { action: "R1-3" })])).toBe("R1-3");
@@ -233,14 +250,19 @@ describe("presentStreamLogRecordDetails", () => {
       jsonl_line: '{"host_ts":1791759307069355001,"level":"error","attrs":{"freed_gb":12.40,"tags":[],"none":{}}}',
     });
 
-    const details = presentStreamLogRecordDetails(record, FRONT_DOOR_GRAPH);
+    const sourceNames = { displayNamesByStreamId: new Map([["front-door-main-8a1b2c", "main"]]), actionChoices: [{ actionKey: "R1-2", actionWords: "Action at 16:02:01" }] };
+    const details = presentStreamLogRecordDetails(record, FRONT_DOOR_GRAPH, sourceNames);
 
     expect(details.levelWord).toBe("ERROR");
     expect(details.levelTone).toBe("error");
     expect(details.step).toEqual({ stepKey: "Pdet", stepName: "persondetector", isAStepOfTheGraph: true });
-    expect([details.streamId, details.action]).toEqual(["front-door-main-8a1b2c", "R1-2"]);
+    expect([details.streamWords, details.actionWords]).toEqual(["main", "Action at 16:02:01"]);
+    const recordOfTheProject = presentStreamLogRecordDetails(logRecord(3, { stream: null, action: null }), null, sourceNames);
+    expect([recordOfTheProject.streamWords, recordOfTheProject.actionWords]).toEqual(["None, the project wrote it", "Not under a stream action"]);
+    const recordOfAStreamNotListed = presentStreamLogRecordDetails(logRecord(4, { stream: "lobby-recorder-1c2d3e", action: "R1-9" }), null, sourceNames);
+    expect([recordOfAStreamNotListed.streamWords, recordOfAStreamNotListed.actionWords]).toEqual(["lobby-recorder-1c2d3e", "One action"]);
     expect(details.fields).toEqual([{ key: "freed_gb", valueText: "12.4" }]);
-    expect(presentStreamLogRecordDetails(logRecord(2, { attrs: { device: "FaceTime HD Camera", fps: "30" } }), null).fieldsTextToCopy).toBe('device="FaceTime HD Camera"  fps=30');
+    expect(presentStreamLogRecordDetails(logRecord(2, { attrs: { device: "FaceTime HD Camera", fps: "30" } }), null, sourceNames).fieldsTextToCopy).toBe('device="FaceTime HD Camera"  fps=30');
     expect(details.recordJsonLines).toEqual([
       "{",
       '  "host_ts": 1791759307069355001,',
