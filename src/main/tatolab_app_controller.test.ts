@@ -4,10 +4,9 @@ import path from "node:path";
 import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { afterEach, expect, test, vi } from "vitest";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
-import { FakeRuntimeAgentRegistration, FakeTatolabCommandLineToolLinks, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import { FakeCarriedRuntimeInstall, FakeRuntimeAgentRegistration, FakeTatolabCommandLineToolLinks, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import { failedWith, succeeded } from "./result.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
-import { RuntimeRestartedForAppVersionFile } from "./runtime_restarted_for_app_version.js";
 import { MachineNameAskedOncePerRuntimeUpEpisode, TatolabAppController } from "./tatolab_app_controller.js";
 import { RUNTIME_AGENT_RECOVERY_FIRST_INTERVAL_MS, RUNTIME_AGENT_TAKEOVER_WAIT_MS } from "./run_tatolab_switch.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
@@ -66,6 +65,7 @@ async function controllerOverFakes(
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
+    whenTheRuntimeInstallProgresses: () => {},
     tatolabAppLog,
   });
   return { controller, runtimeAgent, commandLineToolLinks, localApiServer, appConfigDirectory };
@@ -85,23 +85,22 @@ test("a healthy runtime's status names its streams and machine, read as the wind
     '{"app_version":"0.45.0","app_build":null,"platform":"macos","run_tatolab":true,"runtime_agent":"enabled","runtime_state":"running",' +
       '"machine_name":"jonathanf-macbook","streams":[{"stream":"p-main-0a1b2c","display_name":"main","location":{"project_directory":"/p","stream_function":"stream:main"},' +
       '"state":"running","node_count":4,"failed_because":null}],' +
-      '"first_run_finished":false,"command_line_tool_linked_at":null,"command_line_tool_usr_local_bin_link":{"kind":"not_linked"},' +
+      '"first_run_finished":false,"command_line_tool_linked_at":"/Users/someone/.local/bin/tatolab","command_line_tool_usr_local_bin_link":{"kind":"not_linked"},' +
       '"app_update":{"kind":"not_checked"},' +
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"},' +
-      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"}}',
+      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"},"runtime_install":{"kind":"none"},"installed_runtime_build":null}',
   );
 });
 
-test("opening the app registers the agent with no prompt and links the command in the home folder", async () => {
+test("opening the app registers the agent with no prompt and reads the installer's link of the command", async () => {
   const { controller, runtimeAgent, commandLineToolLinks } = await controllerOverFakes([], "not_registered");
 
   await controller.reconcileTheAgentWithTheRunTatolabSwitch();
-  await controller.linkTheCommandLineToolInTheHomeFolderAsTheAppOpens();
 
   expect(runtimeAgent.calls).toEqual(["register", "start_if_not_running"]);
-  expect(commandLineToolLinks.linksAsked).toEqual(["home_folder"]);
+  expect(commandLineToolLinks.linksAsked).toEqual([]);
   expect((await controller.composeStatus(0)).command_line_tool_linked_at).toBe("/Users/someone/.local/bin/tatolab");
 });
 
@@ -234,6 +233,7 @@ test("a tray toggle and a window request run in turn, never interleaved", async 
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
+    whenTheRuntimeInstallProgresses: () => {},
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
 
@@ -250,28 +250,38 @@ test("a tray toggle and a window request run in turn, never interleaved", async 
   expect(controller.runTatolab()).toBe(true);
 });
 
-/** A controller over a fake platform with no runtime to ask, at `appVersion`, in a fresh config directory; `carriesTheRuntime: false` is a platform whose app carries no runtime. */
-async function controllerAtAppVersion(appVersion: string, appConfigDirectory: string, runtimeAgent: FakeRuntimeAgentRegistration, carriesTheRuntime = true) {
+const CARRIED_RUNTIME_BUILD = `0.68.0-${"1".repeat(40)}`;
+const OLDER_RUNTIME_BUILD = `0.67.0-${"2".repeat(40)}`;
+
+/** A controller over a fake platform with no runtime to ask, in a fresh config directory with Run Tatolab as `runTatolab`, whose app carries the runtime `carriedRuntimeInstall` installs, or none. */
+async function controllerCarrying(
+  carriedRuntimeInstall: FakeCarriedRuntimeInstall | null,
+  runtimeAgent: FakeRuntimeAgentRegistration,
+  { runTatolab = true, whenTheRuntimeInstallProgresses = () => {} }: { runTatolab?: boolean; whenTheRuntimeInstallProgresses?: () => void } = {},
+) {
+  const appConfigDirectory = await aFreshAppConfigDirectory();
+  await RememberedSwitchFile.runTatolabInAppConfigDirectory(appConfigDirectory, createTatolabAppLog("error", () => {})).saveRememberedSwitch(runTatolab);
   return TatolabAppController.create({
-    platform: carriesTheRuntime ? "macos" : "linux",
+    platform: "macos",
     platformForThisBuild: fakeTatolabPlatformForThisBuild(
       runtimeAgent,
       new FakeTatolabCommandLineToolLinks(null),
       "/tmp/tl-app-no-runtime.sock",
       undefined,
       undefined,
-      carriesTheRuntime ? runtimeAgent : null,
+      carriedRuntimeInstall,
     ),
     appConfigDirectory,
     appLaunchedAtMs: 0,
-    appVersion,
+    appVersion: "0.68.0",
     appBuild: null,
-    readMonotonicClockMs: () => 0,
+    readMonotonicClockMs: () => 60_000,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
+    whenTheRuntimeInstallProgresses,
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
 }
@@ -282,75 +292,128 @@ async function aFreshAppConfigDirectory(): Promise<string> {
   return appConfigDirectory;
 }
 
-test("a new app version restarts the bundled runtime once, and the same version again restarts nothing", async () => {
-  const appConfigDirectory = await aFreshAppConfigDirectory();
-  await RuntimeRestartedForAppVersionFile.inAppConfigDirectory(appConfigDirectory).saveAppVersion("0.46.3");
-  const runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
-  await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent)).restartTheBundledRuntimeIfTheAppChanged();
-  expect(runtimeAgent.calls).toEqual(["restart_the_bundled_runtime"]);
-  expect(await RuntimeRestartedForAppVersionFile.inAppConfigDirectory(appConfigDirectory).loadAppVersion()).toBe("0.47.0");
-  await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent)).restartTheBundledRuntimeIfTheAppChanged();
-  expect(runtimeAgent.calls).toEqual(["restart_the_bundled_runtime"]);
+test("opening an app whose runtime build differs from the installed one, older or newer, installs it and asks nothing", async () => {
+  for (const installedRuntimeBuild of [OLDER_RUNTIME_BUILD, `0.69.0-${"3".repeat(40)}`, null]) {
+    const runtimeAgent = new FakeRuntimeAgentRegistration(installedRuntimeBuild === null ? "not_found" : "enabled");
+    const carriedRuntimeInstall = new FakeCarriedRuntimeInstall(CARRIED_RUNTIME_BUILD, installedRuntimeBuild, runtimeAgent);
+    const controller = await controllerCarrying(carriedRuntimeInstall, runtimeAgent);
+
+    await controller.installTheCarriedRuntimeIfItDiffers();
+
+    expect(carriedRuntimeInstall.installedBuilds, String(installedRuntimeBuild)).toEqual([CARRIED_RUNTIME_BUILD]);
+    expect(runtimeAgent.calls, "the installer started it; the switch, on, only makes sure").toEqual(["start_if_not_running"]);
+    const status = await controller.composeStatus(61_000);
+    expect(status.runtime_install).toEqual({ kind: "none" });
+    expect(status.installed_runtime_build).toBe(CARRIED_RUNTIME_BUILD);
+    expect(status.runtime_state, "the installed runtime gets the starting grace again").toBe("starting");
+  }
 });
 
-test("an app that never restarted the runtime restarts it once", async () => {
-  const appConfigDirectory = await aFreshAppConfigDirectory();
+test("opening an app whose runtime is the installed build installs nothing", async () => {
   const runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
-  await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent)).restartTheBundledRuntimeIfTheAppChanged();
-  expect(runtimeAgent.calls).toEqual(["restart_the_bundled_runtime"]);
+  const carriedRuntimeInstall = new FakeCarriedRuntimeInstall(CARRIED_RUNTIME_BUILD, CARRIED_RUNTIME_BUILD, runtimeAgent);
+  const controller = await controllerCarrying(carriedRuntimeInstall, runtimeAgent);
+
+  await controller.installTheCarriedRuntimeIfItDiffers();
+
+  expect(carriedRuntimeInstall.installedBuilds).toEqual([]);
+  expect(runtimeAgent.calls).toEqual([]);
+  expect((await controller.composeStatus(0)).installed_runtime_build).toBe(CARRIED_RUNTIME_BUILD);
 });
 
-test("the restarted runtime gets the starting grace again", async () => {
-  const appConfigDirectory = await aFreshAppConfigDirectory();
+test("an app that carries no runtime installs none", async () => {
   const runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
-  let nowMs = 0;
-  const controller = await TatolabAppController.create({
-    platform: "macos",
-    platformForThisBuild: fakeTatolabPlatformForThisBuild(runtimeAgent, new FakeTatolabCommandLineToolLinks(null), "/tmp/tl-app-no-runtime.sock"),
-    appConfigDirectory,
-    appLaunchedAtMs: 0,
-    appVersion: "0.47.0",
-    appBuild: null,
-    readMonotonicClockMs: () => nowMs,
-    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
-    readTheAppUpdateState: () => ({ kind: "not_checked" }),
-    readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
-    readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
-    readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
-    tatolabAppLog: createTatolabAppLog("error", () => {}),
-  });
-  nowMs = 60_000;
-  expect((await controller.composeStatus(nowMs)).runtime_state).toBe("never_answered");
-  await controller.restartTheBundledRuntimeIfTheAppChanged();
-  expect((await controller.composeStatus(nowMs + 1_000)).runtime_state).toBe("starting");
+  const controller = await controllerCarrying(null, runtimeAgent);
+
+  await controller.installTheCarriedRuntimeIfItDiffers();
+
+  expect(runtimeAgent.calls).toEqual([]);
+  expect((await controller.composeStatus(0)).runtime_install).toEqual({ kind: "none" });
+  expect(await controller.installTheCarriedRuntimeAgain()).toEqual(failedWith("This build of Tatolab carries no runtime to install."));
 });
 
-test("with Run Tatolab off nothing restarts, and the version is remembered", async () => {
-  const appConfigDirectory = await aFreshAppConfigDirectory();
-  await RememberedSwitchFile.runTatolabInAppConfigDirectory(appConfigDirectory, createTatolabAppLog("error", () => {})).saveRememberedSwitch(false);
+test("with Run Tatolab off the installed runtime the installer started is stopped again", async () => {
   const runtimeAgent = new FakeRuntimeAgentRegistration("not_registered");
-  await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent)).restartTheBundledRuntimeIfTheAppChanged();
-  expect(runtimeAgent.calls).toEqual([]);
-  expect(await RuntimeRestartedForAppVersionFile.inAppConfigDirectory(appConfigDirectory).loadAppVersion()).toBe("0.47.0");
+  const carriedRuntimeInstall = new FakeCarriedRuntimeInstall(CARRIED_RUNTIME_BUILD, OLDER_RUNTIME_BUILD, runtimeAgent);
+  const controller = await controllerCarrying(carriedRuntimeInstall, runtimeAgent, { runTatolab: false });
+
+  await controller.installTheCarriedRuntimeIfItDiffers();
+
+  expect(carriedRuntimeInstall.installedBuilds).toEqual([CARRIED_RUNTIME_BUILD]);
+  expect(runtimeAgent.calls).toEqual(["unregister"]);
+  expect(controller.runTatolab()).toBe(false);
 });
 
-test("a refused restart is tried again at the next launch", async () => {
-  const appConfigDirectory = await aFreshAppConfigDirectory();
+test("a refused install keeps the installer's words and lines until try again installs it", async () => {
   const runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
-  runtimeAgent.restartingTheBundledRuntime = failedWith("launchd holds no job for com.tatolab.tatolabd after registering it again");
-  await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent)).restartTheBundledRuntimeIfTheAppChanged();
-  expect(await RuntimeRestartedForAppVersionFile.inAppConfigDirectory(appConfigDirectory).loadAppVersion()).toBeNull();
-  runtimeAgent.restartingTheBundledRuntime = succeeded(undefined);
-  await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent)).restartTheBundledRuntimeIfTheAppChanged();
-  expect(runtimeAgent.calls).toEqual(["restart_the_bundled_runtime", "restart_the_bundled_runtime"]);
-  expect(await RuntimeRestartedForAppVersionFile.inAppConfigDirectory(appConfigDirectory).loadAppVersion()).toBe("0.47.0");
+  const carriedRuntimeInstall = new FakeCarriedRuntimeInstall(CARRIED_RUNTIME_BUILD, OLDER_RUNTIME_BUILD, runtimeAgent);
+  carriedRuntimeInstall.installerLines = ["Stopping the runtime", "Starting Tatolab", "Waiting for Tatolab to answer"];
+  carriedRuntimeInstall.installAnswer = failedWith("tatolab install: Tatolab 0.68.0 did not start; Tatolab 0.67.0 is running again");
+  const controller = await controllerCarrying(carriedRuntimeInstall, runtimeAgent);
+
+  await controller.installTheCarriedRuntimeIfItDiffers();
+
+  const refused = await controller.composeStatus(61_000);
+  expect(refused.runtime_install).toEqual({
+    kind: "failed",
+    carried_runtime_build: CARRIED_RUNTIME_BUILD,
+    installer_lines: ["Stopping the runtime", "Starting Tatolab", "Waiting for Tatolab to answer"],
+    refusal: "tatolab install: Tatolab 0.68.0 did not start; Tatolab 0.67.0 is running again",
+  });
+  expect(refused.installed_runtime_build).toBe(OLDER_RUNTIME_BUILD);
+
+  carriedRuntimeInstall.installAnswer = succeeded(undefined);
+  expect(await controller.installTheCarriedRuntimeAgain()).toEqual(succeeded(undefined));
+  expect(carriedRuntimeInstall.installedBuilds).toEqual([CARRIED_RUNTIME_BUILD]);
+  expect((await controller.composeStatus(61_000)).runtime_install).toEqual({ kind: "none" });
 });
 
-test("an app that carries no runtime restarts none", async () => {
-  const appConfigDirectory = await aFreshAppConfigDirectory();
+test("a carried runtime that cannot name its build is refused in words and installs nothing", async () => {
   const runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
-  await (await controllerAtAppVersion("0.47.0", appConfigDirectory, runtimeAgent, false)).restartTheBundledRuntimeIfTheAppChanged();
+  const carriedRuntimeInstall = new FakeCarriedRuntimeInstall(CARRIED_RUNTIME_BUILD, OLDER_RUNTIME_BUILD, runtimeAgent);
+  carriedRuntimeInstall.carriedBuildAnswer = failedWith("the runtime the app carries named no version: something else");
+  const controller = await controllerCarrying(carriedRuntimeInstall, runtimeAgent);
+
+  await controller.installTheCarriedRuntimeIfItDiffers();
+
+  expect(carriedRuntimeInstall.installedBuilds).toEqual([]);
   expect(runtimeAgent.calls).toEqual([]);
+  expect((await controller.composeStatus(0)).runtime_install).toEqual({
+    kind: "failed",
+    carried_runtime_build: null,
+    installer_lines: [],
+    refusal: "The runtime this app carries could not be read: the runtime the app carries named no version: something else",
+  });
+  expect(await controller.installTheCarriedRuntimeAgain()).toEqual(
+    failedWith("The runtime this app carries could not be read: the runtime the app carries named no version: something else"),
+  );
+});
+
+test("while the installer runs, each line reaches the status at once, the runtime reads as starting, and a toggle waits for it", async () => {
+  const runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
+  const carriedRuntimeInstall = new FakeCarriedRuntimeInstall(CARRIED_RUNTIME_BUILD, OLDER_RUNTIME_BUILD, runtimeAgent);
+  let releaseTheInstaller = () => {};
+  carriedRuntimeInstall.installerHeldUntil = new Promise((release) => (releaseTheInstaller = release));
+  let progressCalls = 0;
+  const controller = await controllerCarrying(carriedRuntimeInstall, runtimeAgent, { whenTheRuntimeInstallProgresses: () => (progressCalls += 1) });
+
+  const installing = controller.installTheCarriedRuntimeIfItDiffers();
+  await vi.waitFor(() => expect(progressCalls).toBe(3));
+  const whileInstalling = await controller.composeStatus(61_000);
+  expect(whileInstalling.runtime_install).toEqual({
+    kind: "installing",
+    carried_runtime_build: CARRIED_RUNTIME_BUILD,
+    installer_lines: ["Stopping the runtime", "Starting Tatolab"],
+  });
+  expect(whileInstalling.runtime_state).toBe("starting");
+  const toggle = controller.toggleRunTatolab();
+  await new Promise((settle) => setTimeout(settle, 20));
+  expect(runtimeAgent.calls, "the toggle waits for the installer").toEqual([]);
+
+  releaseTheInstaller();
+  await Promise.all([installing, toggle]);
+  expect(runtimeAgent.calls).toEqual(["start_if_not_running", "unregister"]);
+  expect(progressCalls).toBe(4);
 });
 
 test("each status carries where updates stand", async () => {
@@ -368,6 +431,7 @@ test("each status carries where updates stand", async () => {
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
+    whenTheRuntimeInstallProgresses: () => {},
     tatolabAppLog: createTatolabAppLog("error", () => {}),
   });
   expect((await controller.composeStatus(0)).app_update).toEqual({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" });

@@ -149,14 +149,9 @@ cd "$repository_root"
 npm ci
 npm run build -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} \
   ${release_build_arguments[@]+"${release_build_arguments[@]}"}
-npm run build:service-management-addon -- --arch=arm64
-built_service_management_addon="$repository_root/native/service_management_agent_services/build/Release/service_management_agent_services.node"
-[ "$(lipo -archs "$built_service_management_addon")" = arm64 ] || { echo "$built_service_management_addon is not arm64-only" >&2; exit 1; }
 packaged_app="$(node scripts/package_tatolab_electron_app.mjs darwin "$app_version" "$build_directory/electron-packaging" | tail -1)"
 rm -rf "$assembled_app"
 ditto "$packaged_app" "$assembled_app"
-mkdir -p "$assembled_app/Contents/Frameworks/tatolab-app-native"
-install -m 0755 "$built_service_management_addon" "$assembled_app/Contents/Frameworks/tatolab-app-native/service_management_agent_services.node"
 info_plist="$assembled_app/Contents/Info.plist"
 plutil -replace LSMinimumSystemVersion -string 15.0 "$info_plist"
 # Electron's own Info.plist lets the main process load any http:// URL; the app loads none.

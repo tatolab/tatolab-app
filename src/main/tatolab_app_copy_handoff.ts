@@ -2,11 +2,7 @@
 // single-instance lock; a different build makes the running copy quit and open the new one.
 
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import type { TatolabAppBuild } from "../shared/tatolab_backend_contract.js";
-
-/** The file in the app's resources naming the streamlib commit its runtime was built from. */
-export const STREAMLIB_COMMIT_FILE_NAME = "streamlib-commit";
 
 /** One copy of Tatolab on disk: which build it is and the executable that opens it. */
 export interface TatolabAppCopy {
@@ -86,10 +82,11 @@ export function isAnotherBuildOfTatolab(runningCopy: TatolabAppCopy, openedCopy:
   );
 }
 
-/** The streamlib commit named in `appResourcesDirectory`'s streamlib-commit file; `null` when the app carries no runtime there. */
-export async function streamlibCommitTheAppCarries(appResourcesDirectory: string): Promise<string | null> {
+/** The streamlib commit `streamlibCommitFile` names; `null` when the app carries no runtime, so no such file, or it names none. */
+export async function streamlibCommitTheAppCarries(streamlibCommitFile: string | null): Promise<string | null> {
+  if (streamlibCommitFile === null) return null;
   try {
-    const streamlibCommit = (await readFile(path.join(appResourcesDirectory, STREAMLIB_COMMIT_FILE_NAME), "utf8")).trim();
+    const streamlibCommit = (await readFile(streamlibCommitFile, "utf8")).trim();
     return streamlibCommit === "" ? null : streamlibCommit;
   } catch {
     return null;

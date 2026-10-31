@@ -78,6 +78,7 @@ test("the published status walks starting, running, starting, unreachable and st
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
+    whenTheRuntimeInstallProgresses: () => {},
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusesSentToTheWindow: TatolabStatus[] = [];
@@ -128,6 +129,7 @@ test("the window asking before the first round waits for it, and hears nothing w
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
+    whenTheRuntimeInstallProgresses: () => {},
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);

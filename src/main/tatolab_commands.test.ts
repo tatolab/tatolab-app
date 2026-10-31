@@ -117,6 +117,7 @@ async function sharedStateOverFakes(
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     readPythonForNewEnvironments: () => streamProjectPythonEnvironments.pythonForNewEnvironmentsNow(),
+    whenTheRuntimeInstallProgresses: () => {},
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);
@@ -209,7 +210,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       `"local_api_socket":${JSON.stringify(runningRuntime.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"},' +
-      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"}}',
+      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"},"runtime_install":{"kind":"none"},"installed_runtime_build":null}',
   );
   const runtimeThatIsDown = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux");
   runtimeThatIsDown.commandLineToolLinks.homeFolderLinkedAt = null;
@@ -225,7 +226,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       `"local_api_socket":${JSON.stringify(runtimeThatIsDown.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"},' +
-      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"}}',
+      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"},"runtime_install":{"kind":"none"},"installed_runtime_build":null}',
   );
 
   const page = streamLogRecordsPageFromTheLogsToolResult(

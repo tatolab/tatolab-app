@@ -1,7 +1,6 @@
-// The links that put the `tatolab` command on a terminal's PATH: on macOS the app's own link in
-// `~/.local/bin`, made with no prompt each time the app opens, and the optional one in
-// `/usr/local/bin` behind the administrator prompt; on Linux the installer's link, which the app
-// only reads.
+// The links that put the `tatolab` command on a terminal's PATH: the installer's link in
+// `~/.local/bin`, which the app only reads, and on macOS the optional one in `/usr/local/bin`
+// behind the administrator prompt.
 
 import type { CommandLineToolUsrLocalBinLink } from "../../shared/tatolab_backend_contract.js";
 import type { Result } from "../result.js";
@@ -20,9 +19,6 @@ export type CommandLineToolLinkRefusal = { kind: "not_offered"; reason: string }
 export interface TatolabCommandLineToolLinks {
   /** Both links as they are now; opens nothing. */
   observeCommandLineToolLinks(): Promise<CommandLineToolLinksObservation>;
-
-  /** Link `tatolab` in the home folder with no prompt, unless it already is; never replaces a file that is not a link into a Tatolab bundle. */
-  linkTheCommandLineToolInTheHomeFolder(): Promise<Result<void, CommandLineToolLinkRefusal>>;
 
   /** Link `tatolab` in `/usr/local/bin` behind one administrator prompt, settling once it closes; refused while one is already showing. */
   linkTheCommandLineToolInUsrLocalBin(): Promise<Result<void, CommandLineToolLinkRefusal>>;

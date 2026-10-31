@@ -1,5 +1,6 @@
-// Tests' stand-in for a platform: a service manager whose agent status the test sets and the
-// `tatolab` command's links, each recording what it was asked. Never imported by shipped code.
+// Tests' stand-in for a platform: a service manager whose agent status the test sets, the
+// installer of the runtime the app carries, and the `tatolab` command's links, each recording what
+// it was asked. Never imported by shipped code.
 
 import type {
   CommandLineToolUsrLocalBinLink,
@@ -13,7 +14,8 @@ import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_too
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { TatolabUninstall } from "./platform/tatolab_uninstall.js";
 import type { TerminalOpenedInAFolder } from "./platform/terminal_opened_in_a_folder.js";
-import type { BundledRuntimeRestart, RuntimeAgentGiveUp, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
+import type { CarriedAndInstalledRuntimeBuilds, CarriedRuntimeInstall } from "./platform/carried_runtime_install.js";
+import type { RuntimeAgentGiveUp, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
 import type { CommandLineToolLinkRefusal, CommandLineToolLinksObservation, TatolabCommandLineToolLinks } from "./platform/tatolab_command_line_tool_links.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
@@ -22,14 +24,12 @@ export type FakeRuntimeAgentCall =
   | "register"
   | "start_if_not_running"
   | "restart_the_agents_runtime"
-  | "restart_the_bundled_runtime"
   | "unregister"
   | "open_login_items_settings";
 
-/** A service manager whose registration the test sets; registering enables the agent and unregistering removes it. Its restarts answer `restartingTheAgentsRuntime` and `restartingTheBundledRuntime`. */
-export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, BundledRuntimeRestart {
+/** A service manager whose registration the test sets; registering enables the agent and unregistering removes it. Its restart answers `restartingTheAgentsRuntime`. */
+export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration {
   readonly calls: FakeRuntimeAgentCall[] = [];
-  restartingTheBundledRuntime: Result<void, string> = succeeded(undefined);
   restartingTheAgentsRuntime: Result<void, RuntimeAgentStartFailure> = succeeded(undefined);
   /** The service manager having given up on the runtime, until registering the agent clears it; `null` while it has not. */
   whyTheServiceManagerGaveUp: RuntimeAgentGiveUp | null = null;
@@ -63,11 +63,6 @@ export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, B
     return this.restartingTheAgentsRuntime;
   }
 
-  async restartTheBundledRuntime(): Promise<Result<void, string>> {
-    this.calls.push("restart_the_bundled_runtime");
-    return this.restartingTheBundledRuntime;
-  }
-
   async unregisterRuntimeAgent(): Promise<Result<void, string>> {
     this.calls.push("unregister");
     this.status = "not_registered";
@@ -80,24 +75,52 @@ export class FakeRuntimeAgentRegistration implements RuntimeAgentRegistration, B
   }
 }
 
-/** The command's links as the test sets them, linking in the home folder when asked and answering the `/usr/local/bin` link as the test says, recording each request. */
+/**
+ * streamlib's installer as a fake: it writes `installerLines`, then answers `installAnswer`; one that succeeds makes the
+ * carried build the installed one and, as the real installer does, loads and starts the agent of `runtimeAgent`. While
+ * `installerHeldUntil` is set it waits for it after its lines.
+ */
+export class FakeCarriedRuntimeInstall implements CarriedRuntimeInstall {
+  readonly installedBuilds: string[] = [];
+  installerLines: readonly string[] = ["Stopping the runtime", "Starting Tatolab"];
+  installAnswer: Result<void, string> = succeeded(undefined);
+  carriedBuildAnswer: Result<string, string>;
+  installerHeldUntil: Promise<void> | null = null;
+
+  constructor(
+    carriedRuntimeBuild: string,
+    public installedRuntimeBuild: string | null,
+    private readonly runtimeAgent: FakeRuntimeAgentRegistration,
+  ) {
+    this.carriedBuildAnswer = succeeded(carriedRuntimeBuild);
+  }
+
+  async carriedAndInstalledRuntimeBuilds(): Promise<Result<CarriedAndInstalledRuntimeBuilds, string>> {
+    if (!this.carriedBuildAnswer.ok) return this.carriedBuildAnswer;
+    return succeeded({ carriedRuntimeBuild: this.carriedBuildAnswer.value, installedRuntimeBuild: this.installedRuntimeBuild });
+  }
+
+  async installTheCarriedRuntime(onInstallerLine: (installerLine: string) => void): Promise<Result<void, string>> {
+    for (const installerLine of this.installerLines) onInstallerLine(installerLine);
+    if (this.installerHeldUntil !== null) await this.installerHeldUntil;
+    this.runtimeAgent.status = "enabled";
+    if (!this.installAnswer.ok || !this.carriedBuildAnswer.ok) return this.installAnswer;
+    this.installedBuilds.push(this.carriedBuildAnswer.value);
+    this.installedRuntimeBuild = this.carriedBuildAnswer.value;
+    return this.installAnswer;
+  }
+}
+
+/** The command's links as the test sets them, the installer's home-folder link at `homeFolderLinkedAt`, answering the `/usr/local/bin` link as the test says and recording each request. */
 export class FakeTatolabCommandLineToolLinks implements TatolabCommandLineToolLinks {
-  readonly linksAsked: ("home_folder" | "usr_local_bin")[] = [];
-  homeFolderLinkedAt: string | null = null;
+  readonly linksAsked: "usr_local_bin"[] = [];
   usrLocalBinLink: CommandLineToolUsrLocalBinLink = { kind: "not_linked" };
   linkingInUsrLocalBin: Result<void, CommandLineToolLinkRefusal> = succeeded(undefined);
 
-  constructor(private readonly homeFolderLink: string | null) {}
+  constructor(public homeFolderLinkedAt: string | null) {}
 
   async observeCommandLineToolLinks(): Promise<CommandLineToolLinksObservation> {
     return { homeFolderLinkedAt: this.homeFolderLinkedAt, usrLocalBinLink: this.usrLocalBinLink };
-  }
-
-  async linkTheCommandLineToolInTheHomeFolder(): Promise<Result<void, CommandLineToolLinkRefusal>> {
-    this.linksAsked.push("home_folder");
-    if (this.homeFolderLink === null) return failedWith({ kind: "not_offered", reason: "this fake platform links nothing" });
-    this.homeFolderLinkedAt = this.homeFolderLink;
-    return succeeded(undefined);
   }
 
   async linkTheCommandLineToolInUsrLocalBin(): Promise<Result<void, CommandLineToolLinkRefusal>> {
@@ -144,14 +167,14 @@ export class FakeTatolabAppOpenedAtLogin implements TatolabAppOpenedAtLogin {
 /** How the fakes' app updates unless a test says otherwise: as an unpackaged app, which offers none. */
 const FAKE_APP_UPDATE_PACKAGING_NOT_OFFERED: TatolabAppUpdatePackaging = { kind: "not_offered", reason: "this fake platform updates nothing" };
 
-/** A platform of these fakes, serving its local API at `localApiSocket`, whose bundle carries the runtime `runtimeAgent` restarts unless `bundledRuntimeRestart` says it carries none. */
+/** A platform of these fakes, serving its local API at `localApiSocket`, carrying a runtime to install only when `carriedRuntimeInstall` is given. */
 export function fakeTatolabPlatformForThisBuild(
   runtimeAgent: FakeRuntimeAgentRegistration,
   commandLineToolLinks: FakeTatolabCommandLineToolLinks,
   localApiSocket: string,
   tatolabUninstall: TatolabUninstall = FAKE_TATOLAB_UNINSTALL_REFUSING,
   appUpdatePackaging: TatolabAppUpdatePackaging = FAKE_APP_UPDATE_PACKAGING_NOT_OFFERED,
-  bundledRuntimeRestart: BundledRuntimeRestart | null = runtimeAgent,
+  carriedRuntimeInstall: CarriedRuntimeInstall | null = null,
   terminalOpenedInAFolder: TerminalOpenedInAFolder = new FakeTerminalOpenedInAFolder(),
   tatolabCommandLineTool: TatolabCommandLineTool = { kind: "not_offered", reason: "this fake platform has no tatolab command" },
   tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin = new FakeTatolabAppOpenedAtLogin(),
@@ -163,7 +186,7 @@ export function fakeTatolabPlatformForThisBuild(
     localApiSocket,
     tatolabUninstall,
     appUpdatePackaging,
-    bundledRuntimeRestart,
+    carriedRuntimeInstall,
     terminalOpenedInAFolder,
     tatolabCommandLineTool,
     tatolabAppOpenedAtLogin,

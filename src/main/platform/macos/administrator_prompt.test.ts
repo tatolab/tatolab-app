@@ -29,7 +29,10 @@ test.skipIf(!OSASCRIPT_RUNS_HERE)("every_administrator_script_round_trips_throug
     `${bundleWithQuotesBackslashesAndGlobs}/Contents/MacOS/tatolab-cli`,
   );
   const uninstallScript =
-    tatolabUninstallAdministratorShellScript("/usr/local/bin/tatolab", bundleWithQuotesBackslashesAndGlobs) ?? "";
+    tatolabUninstallAdministratorShellScript("/usr/local/bin/tatolab", [
+      bundleWithQuotesBackslashesAndGlobs,
+      "/Users/o'neil/Library/Application Support/com.tatolab.runtime",
+    ]) ?? "";
   for (const shellScript of [usrLocalBinLinkScript, uninstallScript]) {
     expect(await programAnswer("/usr/bin/osascript", ["-e", `return ${applescriptStringLiteral(shellScript)}`])).toBe(shellScript);
   }

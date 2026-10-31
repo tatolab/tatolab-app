@@ -12,10 +12,9 @@ The repository's gates, on this machine's platform, in the worktree you were poi
 
 1. `npm ci` only when `node_modules/` is missing or `package-lock.json` changed against `origin/main`.
 2. `npm run lint` (ESLint and Stylelint).
-3. On macOS only: `npm run build:service-management-addon`.
-4. `npm run build` (`tsc -b` over the window and the main process, then `electron-vite build`).
-5. `npm test`.
-6. When the change touches `.claude/hooks/` or `.claude/scripts/`: `.claude/scripts/tests/machine-brake.test.sh`.
+3. `npm run build` (`tsc -b` over the window and the main process, then `electron-vite build`).
+4. `npm test`.
+5. When the change touches `.claude/hooks/` or `.claude/scripts/`: `.claude/scripts/tests/machine-brake.test.sh`.
 
 A change touching only docs or `.claude/` prose runs only steps 1 and 2. Each platform's run covers only that platform: a macOS pass is never reported as covering Linux (an x86_64 Linux machine or an `ubuntu:22.04` container is the Linux gate), and the reverse. Never run a bundle build, signing, notarization, the real app, or anything against the machine's runtime.
 

@@ -84,11 +84,11 @@ Evidence counts only when it was shot on what would ship now:
      never edit the built `.js`), and run `npx electron . --remote-debugging-port=<port>` with `TATOLAB_TEST_MACHINE_ROOT` and `CFFIXED_USER_HOME` (a
      scratch home) set. Drive it with Playwright over the DevTools protocol; Electron answers no
      window-bounds command there, so a larger page is an emulated viewport, said in the caption.
-   - **The unpackaged app still calls Service Management at launch**: it tries to register the
-     runtime's agent and to restart the runtime under its own version, against the owner's real
-     `com.tatolab.tatolabd`. In #38 both calls failed, but nothing stops them. Record
-     `launchctl print gui/$(id -u)/com.tatolab.tatolabd` and the runtime's pid before, and show
-     both unchanged after.
+   - **The local-proof app drives launchd at launch**: it asks only about
+     `com.tatolab.tatolabd.local-proof`, whose plist would sit under the test root, never the
+     owner's `com.tatolab.tatolabd`, and a local-proof build installs no runtime. Record
+     `launchctl print gui/$(id -u)/com.tatolab.tatolabd` and the owner's runtime pid before, and
+     show both unchanged after.
    - After: quit the app, stop the unit's `tatolabd`, `rm -rf /tmp/tatolab-proof`, and run
      `npm run build` again so `out/` holds the shipping features.
 
@@ -96,7 +96,7 @@ Evidence counts only when it was shot on what would ship now:
    that runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=/tmp/tatolab-proof/run/local-api.sock npx vitest
    run src/main/local_api_client.test.ts`.
 3. **Live on the machine.** Only for what the test root cannot reach: the real administrator
-   prompt, `SMAppService` registration after a `brew` reinstall, Gatekeeper, TCC prompts. This
+   prompt, the carried runtime installing over the owner's after a `brew` reinstall, Gatekeeper, TCC prompts. This
    acts on the owner's real runtime — the `machine-brake` hook notes it — so say what you will
    run, run it only when the owner asked for this proof, and restore what you changed. Label
    **Live**.

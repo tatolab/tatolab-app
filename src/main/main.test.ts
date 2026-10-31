@@ -8,6 +8,7 @@ import { tatolabPlatformItemsFor } from "./platform/tatolab_platform_items.js";
 import { succeeded } from "./result.js";
 import { APP_UPDATE_CHECK_INTERVAL_MS, type TatolabAppUpdateFeed } from "./tatolab_app_updater.js";
 import { tatolabAppCopyOnTheSingleInstanceLock } from "./tatolab_app_copy_handoff.js";
+import { FakeCarriedRuntimeInstall } from "./fake_tatolab_platform_for_this_build.js";
 
 const MACOS_PLATFORM_ITEMS = tatolabPlatformItemsFor("darwin");
 const LINUX_PLATFORM_ITEMS = tatolabPlatformItemsFor("linux");
@@ -267,11 +268,10 @@ describe("starting the app", () => {
     await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("register");
   });
 
-  test("the first opening links the command in the home folder, and the tray's Open Login Items reaches the service manager", async () => {
+  test("the tray's Open Login Items reaches the service manager", async () => {
     const fakeShell = fakeShellQuitAfterTheTest();
     const tatolabRunningApp = await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await theFirstPublishedStatus(tatolabRunningApp);
-    await expect.poll(() => fakeShell.commandLineToolLinks.linksAsked).toEqual(["home_folder"]);
 
     fakeShell.runtimeAgent.calls.length = 0;
     fakeShell.clickTheTrayMenuItem("open_login_items_settings");
@@ -351,9 +351,15 @@ describe("updating the app", () => {
     expect(trayMenuShownLast).not.toMatchObject({ trayMenuItems: expect.arrayContaining([expect.objectContaining({ id: "check_for_app_updates" })]) });
   });
 
-  test("opening an app whose version the runtime was not restarted under restarts the bundled runtime", async () => {
+  test("opening an app that carries another runtime than the installed one installs it, and the status names the installed build", async () => {
     const fakeShell = fakeShellQuitAfterTheTest();
-    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
-    await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("restart_the_bundled_runtime");
+    const carriedRuntimeInstall = new FakeCarriedRuntimeInstall("0.68.0-1111111", "0.67.0-2222222", fakeShell.runtimeAgent);
+    fakeShell.carriedRuntimeInstall = carriedRuntimeInstall;
+    const tatolabRunningApp = await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+
+    await expect.poll(() => carriedRuntimeInstall.installedBuilds).toEqual(["0.68.0-1111111"]);
+    await expect
+      .poll(() => tatolabRunningApp?.statusPublisher.lastPublishedStatusWaitingUpTo(0).then((status) => status?.installed_runtime_build))
+      .toBe("0.68.0-1111111");
   });
 });

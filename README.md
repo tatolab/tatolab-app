@@ -22,9 +22,9 @@ the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-em
 
 |  | macOS | Linux |
 |---|---|---|
-| The runtime | inside the app, run as a login item the app registers with `SMAppService` | from the installer, run as the systemd user service `tatolabd.service` |
-| "Run Tatolab" | registers and unregisters the login item | `systemctl --user enable --now` / `disable --now tatolabd.service` |
-| First launch | Welcome and Getting set up, with no administrator password; links `~/.local/bin/tatolab` | nothing: the installer set the machine up |
+| The runtime | carried inside the app and installed by streamlib's installer whenever the app opens carrying another build, run as the launch agent `com.tatolab.tatolabd` | from the installer, run as the systemd user service `tatolabd.service` |
+| "Run Tatolab" | loads and unloads the launch agent (`launchctl bootstrap` / `bootout`) | `systemctl --user enable --now` / `disable --now tatolabd.service` |
+| First launch | Welcome and Getting set up, with no administrator password; the installer links `~/.local/bin/tatolab` | nothing: the installer set the machine up |
 | Local API socket | `/tmp/streamlib-<uid>/local-api.sock` | `$XDG_RUNTIME_DIR/streamlib/local-api.sock`, else `/tmp/streamlib-<uid>/local-api.sock` |
 | Uninstall | the app's "Uninstall Tatolab…", or `brew uninstall --cask tatolab` | the installer's `--uninstall`, then remove the app's package |
 
@@ -96,10 +96,11 @@ runtime keeps your streams and logs.
 
 **macOS.** The app's "Uninstall Tatolab…":
 
-1. removes `/usr/local/bin/tatolab` if it links into this app, behind one administrator prompt
-   shown only then. Cancelling the prompt changes nothing;
-2. removes `~/.local/bin/tatolab` if it links into this app;
-3. unregisters the login item, which stops the runtime;
+1. removes `/usr/local/bin/tatolab` if it links into this app or the installed runtime, behind
+   one administrator prompt shown only then. Cancelling the prompt changes nothing;
+2. unloads the launch agent, which stops the runtime;
+3. runs the installer it carries with `--uninstall`, which removes the installed runtime, its
+   launch agent and `~/.local/bin/tatolab`;
 4. removes the app's own settings, `~/Library/Application Support/com.tatolab.tatolab`;
 5. moves Tatolab.app to the Trash, and quits.
 
@@ -121,12 +122,13 @@ On Linux the app's "Uninstall Tatolab…" shows these steps and removes nothing 
 
 Everything that differs by platform sits in `src/main/platform/`, behind the interfaces
 the rest of the main process uses: `RuntimeAgentRegistration` (the service manager that runs the
-runtime), `TatolabCommandLineToolLinks` (the `tatolab` command's links: the app's own on macOS,
-the installer's on Linux), and
+runtime), `CarriedRuntimeInstall` (the runtime the app carries and the installer that installs it),
+`TatolabCommandLineToolLinks` (the `tatolab` command's links: the installer's in the home folder,
+and on macOS the app's own in `/usr/local/bin`), and
 each platform's window chrome, Dock icon, tray image, menu and uninstall. Both platform modules
 expose the same items, and only `platform/` reads `process.platform`
-(ESLint, `eslint.config.js`). `platform/macos/` drives `SMAppService` through the
-app's native addon, `launchctl kickstart` and `osascript`; `platform/linux/` drives
+(ESLint, `eslint.config.js`). `platform/macos/` runs the carried `install.sh` and drives the
+launch agent it writes with `launchctl`, and the administrator prompt with `osascript`; `platform/linux/` drives
 `systemctl --user` and reads the machine's paths. Neither module needs its OS to run its tests, so
 `npm test` on either platform runs both. On any other OS the app refuses to start.
 
@@ -139,26 +141,33 @@ Tatolab.app/Contents/
                                               preload in Resources/app.asar
   Frameworks/Electron Framework.framework, Frameworks/Tatolab Helper*.app
                                               Electron, and its GPU, plugin and renderer helpers
-  Frameworks/tatolab-app-native/service_management_agent_services.node
-                                              the app's Service Management addon
-  MacOS/tatolabd                              the runtime (streamlib bin/tatolabd)
-  MacOS/tatolab-cli                           the CLI (streamlib bin/tatolab); the app links
-                                              ~/.local/bin/tatolab to it
-  MacOS/moq-relay                             the local relay (streamlib bin/moq-relay); tatolabd
-                                              runs it from beside itself as its two local relays
-  Frameworks/tatolab-runtime/                 every Mach-O of the lend's tatolab/runtime/, same paths
-    _engine.abi3.so
-    _vulkan_driver/libvulkan.1.dylib
-    _vulkan_driver/libMoltenVK.dylib
-  Resources/lend/                             streamlib's lib/tatolab/lend; each Mach-O is a relative
+  MacOS/uv                                    the uv the app makes a project's .venv with
+  Frameworks/tatolab-python/, Resources/python/
+                                              the built-in Python, each Mach-O linked into Frameworks
+  Resources/install.sh                        streamlib's installer, which installs the helper below
+  Helpers/Tatolab Runtime.app/Contents/       the runtime, a bundle of its own (com.tatolab.runtime)
+    Info.plist                                its id and the usage strings macOS credits it for
+                                              (packaging/runtime-helper/Info.plist)
+    MacOS/tatolabd                            the runtime (streamlib bin/tatolabd)
+    MacOS/tatolab-cli                         the CLI (streamlib bin/tatolab)
+    MacOS/moq-relay, MacOS/uv                 the local relay and the uv tatolabd runs from beside itself
+    Frameworks/tatolab-runtime/               every Mach-O of the lend's tatolab/runtime/, same paths
+    Resources/lend/                           streamlib's lib/tatolab/lend; each Mach-O is a relative
                                               symlink into Frameworks/tatolab-runtime; precompiled
                                               (unchecked-hash .pyc) for CPython 3.10-3.14
-  Resources/watch/                            the preview page tatolabd serves on its loopback HTTP
+    Resources/watch/                          the preview page tatolabd serves on its loopback HTTP
                                               (streamlib's lib/tatolab/watch)
-  Resources/streamlib-commit                  the streamlib commit the runtime was built from
-  Library/LaunchAgents/com.tatolab.tatolabd.plist
-                                              the SMAppService agent (packaging/launch-agent/)
+    Resources/streamlib-commit                the streamlib commit the runtime was built from
 ```
+
+Each time the app opens it compares the build it carries, `<version>-<commit>` from the helper's
+`tatolabd --version` and `streamlib-commit`, with the build `current` names in
+`~/Library/Application Support/com.tatolab.runtime/`. When they differ it runs
+`install.sh --from-unit Contents/Helpers`, which copies the helper there as its own build, writes
+`~/Library/LaunchAgents/com.tatolab.tatolabd.plist`, links `~/.local/bin/tatolab` to that build's
+CLI, and restarts the runtime on it, rolling back to the build before when the new one will not
+start. The runtime never runs from inside the app, so replacing or trashing the app leaves the
+running runtime alone until the next build installs.
 
 The CLI is named `tatolab-cli` inside the bundle because APFS is case-insensitive by default, so a
 file called `tatolab` would overwrite `Tatolab`. Code signing only accepts code under `MacOS/` and
@@ -211,13 +220,13 @@ It bundles streamlib's latest `main`. It never reads a streamlib checkout elsewh
 it resolves `main` on github.com/tatolab/streamlib to a commit, fetches exactly that commit into
 `build/streamlib` (keeping its cargo `target/` between builds), and builds the runtime unit there
 (`cargo xtask build-runtime --release`). The unit records that commit in `streamlib-commit`, the
-bundle carries it in `Contents/Resources/streamlib-commit`, and the app's version is the version
+helper carries it in `Contents/Helpers/Tatolab Runtime.app/Contents/Resources/streamlib-commit`, and the app's version is the version
 of the `tatolabd` it bundles. When the build finishes it checks `main` again: if `main` moved on
 while it ran, the build fails and says to build again (a `--streamlib-ref` build only notes it,
 and an unreachable GitHub is noted, not fatal). Then the Electron app: `npm run build` (electron-vite bundles the main process into `out/main/`,
 the preload into `out/preload/` and the window into `out/renderer/`, then writes the build features, with the
 tatolab-app commit the checkout is at, which Settings › About shows as `Build 22b07a1-dev`),
-the arm64 Service Management addon, and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
+and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
 `@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
 branded `.dmg` and checks the result. The output is `build/Tatolab.app`,
 `build/Tatolab-<version>-arm64.dmg`, and the update: `build/Tatolab-<version>-arm64-mac.zip` and its
@@ -270,7 +279,7 @@ The installer background is `packaging/dmg/tatolab-dmg-background.svg`, rendered
 committed `@1x`/`@2x` PNGs by `packaging/dmg/render-dmg-background.sh` (needs `rsvg-convert`; it
 fetches Instrument Sans with `npm pack`).
 
-Tools: Xcode command line tools, Rust, Node 22+ (the window, the Electron app and its addon), `uv` (`uvx` runs the pinned dmgbuild), and
+Tools: Xcode command line tools, Rust, Node 22+ (the window and the Electron app), `uv` (`uvx` runs the pinned dmgbuild), and
 whatever streamlib's runtime build needs (`brew install shaderc cmake ninja`).
 
 ## Building on Linux
@@ -308,8 +317,7 @@ out, and packaging refuses an `out/renderer/` that carries it.
 ## Checks
 
 No hosted CI runs on this repository; every gate runs on a developer's machine. Before a pull
-request: `npm run lint`, `npm run build` and `npm test` (on macOS also
-`npm run build:service-management-addon`), which the `local-ci-runner` agent runs and reports.
+request: `npm run lint`, `npm run build` and `npm test`, which the `local-ci-runner` agent runs and reports.
 `npm test` runs both platforms' modules on any OS. A packaging change also carries a signed
 `scripts/build-tatolab-app.sh` build of its branch, whose last step is
 `scripts/verify-tatolab-app-bundle.sh`, and a Linux packaging change a

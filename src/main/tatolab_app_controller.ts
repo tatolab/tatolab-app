@@ -23,16 +23,15 @@ import type {
   TatolabStatus,
   TatolabStreamActionName,
 } from "../shared/tatolab_backend_contract.js";
+import { CarriedRuntimeInstallOnLaunch, type CarriedRuntimeInstallOutcome } from "./carried_runtime_install_on_launch.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
 import { LocalApiClient, type LocalApiRequestFailure, type StreamRunRequest } from "./local_api_client.js";
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
-import type { BundledRuntimeRestart } from "./platform/runtime_agent_registration.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
 import type { CommandLineToolLinkRefusal, TatolabCommandLineToolLinks } from "./platform/tatolab_command_line_tool_links.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { RunTatolabSwitch, type RunTatolabReconciliation } from "./run_tatolab_switch.js";
-import { RuntimeRestartedForAppVersionFile } from "./runtime_restarted_for_app_version.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import { deriveRuntimeState, isARuntimeNotAnswering, theServiceManagerMayHaveGivenUp, type RuntimeHealthObservation } from "./tatolab_status.js";
 
@@ -80,6 +79,8 @@ export interface TatolabAppControllerSources {
   readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion;
   /** The Python the app makes a project's `.venv` from, which each status carries. */
   readPythonForNewEnvironments: () => PythonForNewEnvironments;
+  /** Called each time installing the carried runtime moves on, so the window sees the installer's lines as they come. */
+  whenTheRuntimeInstallProgresses: () => void;
   tatolabAppLog: TatolabAppLog;
 }
 
@@ -102,8 +103,7 @@ export class TatolabAppController {
     private readonly localApiSocket: string,
     private readonly localApiClient: LocalApiClient,
     private readonly runtimeLoopbackHttpOrigin: string,
-    private readonly bundledRuntimeRestart: BundledRuntimeRestart | null,
-    private readonly runtimeRestartedForAppVersionFile: RuntimeRestartedForAppVersionFile,
+    private readonly carriedRuntimeInstallOnLaunch: CarriedRuntimeInstallOnLaunch,
     private readonly readMonotonicClockMs: () => number,
     private readonly readTheAppUpdateState: () => TatolabAppUpdateState,
     private readonly readStreamFailureNotifications: () => StreamFailureNotificationsState,
@@ -133,8 +133,7 @@ export class TatolabAppController {
       sources.platformForThisBuild.localApiSocket,
       new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS, sources.appVersion),
       sources.runtimeLoopbackHttpOrigin,
-      sources.platformForThisBuild.bundledRuntimeRestart,
-      RuntimeRestartedForAppVersionFile.inAppConfigDirectory(sources.appConfigDirectory),
+      new CarriedRuntimeInstallOnLaunch(sources.platformForThisBuild.carriedRuntimeInstall, sources.whenTheRuntimeInstallProgresses, sources.tatolabAppLog),
       sources.readMonotonicClockMs,
       sources.readTheAppUpdateState,
       sources.readStreamFailureNotifications,
@@ -161,17 +160,6 @@ export class TatolabAppController {
       runTatolabSwitch.reconcileTheAgentWithTheRunTatolabSwitch(this.readMonotonicClockMs()),
     );
     this.tatolabAppLog.info("reconciled the agent with the Run Tatolab switch", { reconciliation: describeReconciliation(reconciliation) });
-  }
-
-  /** What opening the app does beside reconciling the switch: link `tatolab` in the home folder, with no prompt; a link not made is logged and tried again next launch. */
-  async linkTheCommandLineToolInTheHomeFolderAsTheAppOpens(): Promise<void> {
-    const linked = await this.commandLineToolLinks.linkTheCommandLineToolInTheHomeFolder();
-    if (linked.ok) return;
-    if (linked.failure.kind === "not_offered") {
-      this.tatolabAppLog.info("the tatolab command is not linked in the home folder by this build", { reason: linked.failure.reason });
-    } else {
-      this.tatolabAppLog.warn("the tatolab command could not be linked in the home folder", { failure: linked.failure.refusal });
-    }
   }
 
   /** "Link in /usr/local/bin…": link `tatolab` there behind the administrator prompt, settling once it closes; refused in words. */
@@ -215,32 +203,39 @@ export class TatolabAppController {
   }
 
   /**
-   * Restart the runtime the app's bundle carries when this app's version is not the one it was last
-   * restarted under: an update, or a bundle replaced by hand, leaves a running runtime on the bundle as it
-   * was. Nothing where the app carries no runtime. A restart not made is tried again next launch.
+   * As the app opens: install the runtime it carries when the installed build differs, then bring the agent in line
+   * with the switch, as one queued step, so no toggle or restart lands while the installer runs.
    */
-  async restartTheBundledRuntimeIfTheAppChanged(): Promise<void> {
-    if (this.bundledRuntimeRestart === null) return;
-    const bundledRuntimeRestart = this.bundledRuntimeRestart;
-    const restartedForAppVersion = await this.runtimeRestartedForAppVersionFile.loadAppVersion();
-    if (restartedForAppVersion === this.appVersion) return;
-    const restarted = await this.withTheRunTatolabSwitch((runTatolabSwitch) =>
-      runTatolabSwitch.restartTheBundledRuntime(bundledRuntimeRestart, this.readMonotonicClockMs()),
-    );
-    if (!restarted.ok) {
-      this.tatolabAppLog.warn("the runtime could not be restarted under this app's version; it is tried again next launch", {
-        app_version: this.appVersion,
-        failure: restarted.failure,
-      });
-      return;
-    }
-    this.tatolabAppLog.info("the runtime runs under this app's version", {
-      app_version: this.appVersion,
-      restarted_for_app_version: restartedForAppVersion,
-      outcome: restarted.value,
+  async installTheCarriedRuntimeIfItDiffers(): Promise<void> {
+    await this.withTheRunTatolabSwitch(async (runTatolabSwitch) => {
+      const outcome = await this.carriedRuntimeInstallOnLaunch.installTheCarriedRuntimeIfItDiffers();
+      await this.bringTheAgentInLineAfterTheInstaller(runTatolabSwitch, outcome);
     });
-    const saved = await this.runtimeRestartedForAppVersionFile.saveAppVersion(this.appVersion);
-    if (!saved.ok) this.tatolabAppLog.warn("the app version the runtime was restarted under could not be remembered", { failure: saved.failure });
+  }
+
+  /** "Try again" on a refused install, as one queued step; refused in the installer's words. */
+  async installTheCarriedRuntimeAgain(): Promise<Result<void, string>> {
+    return this.withTheRunTatolabSwitch(async (runTatolabSwitch) => {
+      const outcome = await this.carriedRuntimeInstallOnLaunch.installTheCarriedRuntimeAgain();
+      if (!outcome.ok) return outcome;
+      await this.bringTheAgentInLineAfterTheInstaller(runTatolabSwitch, outcome.value);
+      switch (outcome.value.kind) {
+        case "not_installed":
+        case "carried_runtime_unreadable":
+          return failedWith(outcome.value.refusal);
+        default:
+          return succeeded(undefined);
+      }
+    });
+  }
+
+  /** The installer starts a runtime whatever the switch says, even one it put back; nothing when it did not run. */
+  private async bringTheAgentInLineAfterTheInstaller(runTatolabSwitch: RunTatolabSwitch, outcome: CarriedRuntimeInstallOutcome): Promise<void> {
+    if (outcome.kind !== "installed" && outcome.kind !== "not_installed") return;
+    const reconciliation = await runTatolabSwitch.bringTheAgentInLineAfterTheRuntimeInstall(this.readMonotonicClockMs());
+    this.tatolabAppLog.info("brought the agent in line with the Run Tatolab switch after the installer ran", {
+      reconciliation: describeReconciliation(reconciliation),
+    });
   }
 
   /** "Restart runtime": stop the agent's runtime and start it again, as one queued step; refused while Run Tatolab is off, and in the service manager's words. */
@@ -275,8 +270,9 @@ export class TatolabAppController {
   }
 
   /** Start the runtime when the poller's `status`, observed at `nowMs`, found it down with the switch on and the agent enabled, or register the agent afresh to recover a runtime the service manager gave up on, that never answered, or whose agent is not registered. */
-  startTheRuntimeIfThePollerFoundItDown(status: TatolabStatus, nowMs: number): Promise<void> {
-    return this.withTheRunTatolabSwitch((runTatolabSwitch) =>
+  async startTheRuntimeIfThePollerFoundItDown(status: TatolabStatus, nowMs: number): Promise<void> {
+    if (status.runtime_install.kind === "installing") return;
+    await this.withTheRunTatolabSwitch((runTatolabSwitch) =>
       runTatolabSwitch.startTheRuntimeIfThePollerFoundItDown(status.runtime_agent, status.runtime_state, nowMs),
     );
   }
@@ -301,32 +297,9 @@ export class TatolabAppController {
       this.machineNameOfTheRunningRuntime.runtimeIsDown();
     }
 
-    const { runTatolab, runtimeAgent, runtimeState, serviceManagerGiveUp } = await this.withTheRunTatolabSwitch(async (runTatolabSwitch) => {
-      const runtimeAgentNow = await runTatolabSwitch.runtimeAgentRegistrationStatus();
-      const isRestartingTheRuntime = runTatolabSwitch.isRestartingTheRuntime(nowMs, runtimeHealth);
-      runTatolabSwitch.noteRestartSettledIfThisRoundShowsIt(nowMs, runtimeHealth);
-      if (runtimeHealth === "healthy" && !isRestartingTheRuntime) runTatolabSwitch.noteRuntimeHealthy(nowMs);
-      const runTatolabNow = runTatolabSwitch.runTatolab();
-      const serviceManagerGiveUpNow = theServiceManagerMayHaveGivenUp({ runTatolab: runTatolabNow, runtimeAgent: runtimeAgentNow, runtimeHealth })
-        ? await runTatolabSwitch.whyTheServiceManagerGaveUpOnTheRuntime()
-        : null;
-      runTatolabSwitch.noteTheServiceManagersGiveUp(serviceManagerGiveUpNow);
-      return {
-        runTatolab: runTatolabNow,
-        runtimeAgent: runtimeAgentNow,
-        serviceManagerGiveUp: serviceManagerGiveUpNow,
-        runtimeState: isRestartingTheRuntime
-          ? "starting"
-          : deriveRuntimeState({
-              runTatolab: runTatolabNow,
-              runtimeAgent: runtimeAgentNow,
-              runtimeHealth,
-              serviceManagerGaveUpOnTheRuntime: runTatolabSwitch.serviceManagerStillGivesUpAfterTheAppsOwnFreshRegistration(),
-              runtimeAnsweredSinceItWasLastStarted: runTatolabSwitch.runtimeAnsweredSinceItWasLastStarted(),
-              timeSinceTheRuntimeWasExpectedUpMs: runTatolabSwitch.timeSinceTheRuntimeWasExpectedUpMs(nowMs),
-            }),
-      };
-    });
+    const { runTatolab, runtimeAgent, runtimeState, serviceManagerGiveUp } = this.carriedRuntimeInstallOnLaunch.isInstalling()
+      ? await this.observeTheSwitchWhileTheInstallerRuns()
+      : await this.withTheRunTatolabSwitch((runTatolabSwitch) => this.observeTheSwitchInItsQueue(runTatolabSwitch, nowMs, runtimeHealth));
     if (this.runtimeNotAnsweringOnset.conditionJustStartedHolding(isARuntimeNotAnswering(runtimeState)) && !healthCheck.ok) {
       this.tatolabAppLog.warn("the runtime is not responding to its health check", {
         runtime_state: runtimeState,
@@ -355,6 +328,46 @@ export class TatolabAppController {
       open_at_login: await this.tatolabAppOpenedAtLogin.readOpenAtLogin(),
       command_line_tool_version: this.readTheCommandLineToolVersion(),
       python_for_new_environments: this.readPythonForNewEnvironments(),
+      runtime_install: this.carriedRuntimeInstallOnLaunch.runtimeInstallNow(),
+      installed_runtime_build: this.carriedRuntimeInstallOnLaunch.installedRuntimeBuildNow(),
+    };
+  }
+
+  /** The switch and the agent as a status round at `nowMs` reads them in the switch's queue, given what the runtime's health check found. */
+  private async observeTheSwitchInItsQueue(runTatolabSwitch: RunTatolabSwitch, nowMs: number, runtimeHealth: RuntimeHealthObservation) {
+    const runtimeAgentNow = await runTatolabSwitch.runtimeAgentRegistrationStatus();
+    const isRestartingTheRuntime = runTatolabSwitch.isRestartingTheRuntime(nowMs, runtimeHealth);
+    runTatolabSwitch.noteRestartSettledIfThisRoundShowsIt(nowMs, runtimeHealth);
+    if (runtimeHealth === "healthy" && !isRestartingTheRuntime) runTatolabSwitch.noteRuntimeHealthy(nowMs);
+    const runTatolabNow = runTatolabSwitch.runTatolab();
+    const serviceManagerGiveUpNow = theServiceManagerMayHaveGivenUp({ runTatolab: runTatolabNow, runtimeAgent: runtimeAgentNow, runtimeHealth })
+      ? await runTatolabSwitch.whyTheServiceManagerGaveUpOnTheRuntime()
+      : null;
+    runTatolabSwitch.noteTheServiceManagersGiveUp(serviceManagerGiveUpNow);
+    return {
+      runTatolab: runTatolabNow,
+      runtimeAgent: runtimeAgentNow,
+      serviceManagerGiveUp: serviceManagerGiveUpNow,
+      runtimeState: isRestartingTheRuntime
+        ? "starting"
+        : deriveRuntimeState({
+            runTatolab: runTatolabNow,
+            runtimeAgent: runtimeAgentNow,
+            runtimeHealth,
+            serviceManagerGaveUpOnTheRuntime: runTatolabSwitch.serviceManagerStillGivesUpAfterTheAppsOwnFreshRegistration(),
+            runtimeAnsweredSinceItWasLastStarted: runTatolabSwitch.runtimeAnsweredSinceItWasLastStarted(),
+            timeSinceTheRuntimeWasExpectedUpMs: runTatolabSwitch.timeSinceTheRuntimeWasExpectedUpMs(nowMs),
+          }),
+    };
+  }
+
+  /** The switch and the agent read outside the queue the installer holds, the runtime reading as starting; reads only. */
+  private async observeTheSwitchWhileTheInstallerRuns() {
+    return {
+      runTatolab: this.runTatolabSwitch.runTatolab(),
+      runtimeAgent: await this.runTatolabSwitch.runtimeAgentRegistrationStatus(),
+      runtimeState: "starting" as const,
+      serviceManagerGiveUp: null,
     };
   }
 

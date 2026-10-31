@@ -8,9 +8,8 @@
 # commit it was built from, the lend's CPython 3.10-3.14 bytecode, the runtime's preview page, uv
 # and the built-in Python laid out as the app finds them, the entitlements of the helper's tatolabd,
 # moq-relay and uv, the app's uv, the built-in Python's interpreter, the app and Electron's helpers, Electron's
-# fuses, the build features the app was built with and the tatolab-app commit they name, and the
-# Service Management addon. Reading the
-# fuses and the build features needs this checkout's node_modules (npm ci).
+# fuses, and the build features the app was built with and the tatolab-app commit they name.
+# Reading the fuses and the build features needs this checkout's node_modules (npm ci).
 # A stapled target must also pass Gatekeeper.
 #
 # Usage: verify-tatolab-app-bundle.sh <Tatolab.app|file.dmg> [--shipping]
@@ -328,10 +327,6 @@ verify_app_bundle() {
     grep -qF "$electron_fuse_state" <<<"$electron_fuse_states" \
       && pass "Electron fuse: $electron_fuse_state" || fail "Electron fuse is not '$electron_fuse_state'"
   done
-  [ -f "$contents/Frameworks/tatolab-app-native/service_management_agent_services.node" ] \
-    && is_mach_o "$contents/Frameworks/tatolab-app-native/service_management_agent_services.node" \
-    && pass "the Service Management addon is in Frameworks/tatolab-app-native" \
-    || fail "no Service Management addon at Contents/Frameworks/tatolab-app-native/service_management_agent_services.node"
   # The asar's header is JSON naming every directory it holds.
   grep -aqF '"electron-updater":{"files"' "$contents/Resources/app.asar" \
     && pass "electron-updater is in app.asar" || fail "app.asar carries no electron-updater"

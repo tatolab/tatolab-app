@@ -382,6 +382,8 @@ function initialMockStatus(
     open_at_login: openAtLogin,
     command_line_tool_version: commandLineToolVersion,
     python_for_new_environments: pythonForNewEnvironments,
+    runtime_install: { kind: "none" },
+    installed_runtime_build: null,
   };
   switch (scenario) {
     case "running":

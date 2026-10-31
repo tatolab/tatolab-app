@@ -4,7 +4,7 @@
 # Frameworks (the runtime's dylibs), its tatolab-cli, moq-relay and uv, then the helper itself, whose
 # main executable is tatolabd, with the device entitlements; install.sh copies it out whole, so its
 # own signature is what macOS checks the installed runtime against. Then the app: every loose Mach-O
-# in Contents/Frameworks (the built-in Python, the app's Service Management addon, Electron's
+# in Contents/Frameworks (the built-in Python and Electron's
 # libraries), each framework, each Electron helper app, Contents/MacOS/uv, then the app. The built-in
 # Python's interpreter keeps its signature when the app copies it out of the bundle, so a project's
 # .venv runs code signed by the Developer ID.
@@ -31,7 +31,7 @@ built_in_python_entitlements="$repository_root/packaging/entitlements/tatolab-py
 
 helper_bundle="$contents/Helpers/Tatolab Runtime.app"
 helper_contents="$helper_bundle/Contents"
-for required in MacOS/Tatolab MacOS/uv Frameworks/tatolab-python Frameworks/tatolab-app-native "Frameworks/Electron Framework.framework" \
+for required in MacOS/Tatolab MacOS/uv Frameworks/tatolab-python "Frameworks/Electron Framework.framework" \
   Resources/install.sh "Helpers/Tatolab Runtime.app/Contents/Info.plist" "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolabd" \
   "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolab-cli" "Helpers/Tatolab Runtime.app/Contents/MacOS/moq-relay" \
   "Helpers/Tatolab Runtime.app/Contents/MacOS/uv" "Helpers/Tatolab Runtime.app/Contents/Frameworks/tatolab-runtime"; do

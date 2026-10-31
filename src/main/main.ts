@@ -96,7 +96,7 @@ export async function startTatolabApp(
 ): Promise<TatolabRunningApp | null> {
   if (platformItems === null) {
     tatolabAppLog.error(
-      "Tatolab runs on macOS and Linux only: on macOS it registers the runtime through Service Management, and on Linux it drives the installer's systemd user service, tatolabd.service",
+      "Tatolab runs on macOS and Linux only: it runs the runtime through the installer's launch agent on macOS and its systemd user service, tatolabd.service, on Linux",
     );
     tatolabElectronAppShell.exitTheApp(1);
     return null;
@@ -185,6 +185,7 @@ export async function startTatolabApp(
     readStreamFailureNotifications: () => streamFailureNotifications.stateNow(),
     readTheCommandLineToolVersion: () => tatolabCommandLineToolVersion.versionNow(),
     readPythonForNewEnvironments: () => streamProjectPythonEnvironments.pythonForNewEnvironmentsNow(),
+    whenTheRuntimeInstallProgresses: () => statusPublisherOnceBuilt?.requestRefresh(),
     tatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(
@@ -259,11 +260,10 @@ export async function startTatolabApp(
   statusPublisher.attachTrayMenu(tatolabTrayMenu);
   showTheWindowWithTheLastStatus();
   runInTheBackgroundWithTheController(sharedState, "tatolab-app-opened", async (controller, statusPublisher) => {
-    await controller.reconcileTheAgentWithTheRunTatolabSwitch();
     statusPublisher.startPolling();
     tatolabAppUpdater.startCheckingOnItsOwn(tatolabElectronAppShell.repeatingTimer);
-    await controller.linkTheCommandLineToolInTheHomeFolderAsTheAppOpens();
-    await controller.restartTheBundledRuntimeIfTheAppChanged();
+    await controller.installTheCarriedRuntimeIfItDiffers();
+    await controller.reconcileTheAgentWithTheRunTatolabSwitch();
     statusPublisher.requestRefresh();
   });
   return { tatolabMainWindow, tatolabTrayMenu, statusPublisher };
