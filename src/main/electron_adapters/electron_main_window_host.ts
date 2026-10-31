@@ -62,6 +62,16 @@ export function createElectronMainWindowHostFactory(
         answerPermissionRequest(false),
       );
       windowContents.session.setPermissionCheckHandler(() => false);
+      // A window shown before its page first paints is a blank white rectangle until the renderer catches up.
+      let windowPageHasPaintedOrFailedToLoad = false;
+      let showWaitsForTheFirstPaint = false;
+      const showOnceThePageHasPaintedOrFailed = () => {
+        if (windowPageHasPaintedOrFailedToLoad) return;
+        windowPageHasPaintedOrFailedToLoad = true;
+        if (showWaitsForTheFirstPaint) mainBrowserWindow.show();
+      };
+      mainBrowserWindow.once("ready-to-show", showOnceThePageHasPaintedOrFailed);
+      windowContents.once("did-fail-load", showOnceThePageHasPaintedOrFailed);
       mainBrowserWindow.loadURL(windowPageUrl).catch((loadFailure: unknown) => {
         tatolabAppLog.error("the Tatolab window's page did not load", { window_page_url: windowPageUrl, failure: describeCaughtFailure(loadFailure) });
       });
@@ -69,10 +79,17 @@ export function createElectronMainWindowHostFactory(
         unminimize: () => {
           if (mainBrowserWindow.isMinimized()) mainBrowserWindow.restore();
         },
-        show: () => mainBrowserWindow.show(),
+        show: () => {
+          if (windowPageHasPaintedOrFailedToLoad) mainBrowserWindow.show();
+          else showWaitsForTheFirstPaint = true;
+        },
         focus: () => mainBrowserWindow.focus(),
-        hide: () => mainBrowserWindow.hide(),
-        isShowing: () => mainBrowserWindow.isVisible() && !mainBrowserWindow.isMinimized(),
+        hide: () => {
+          showWaitsForTheFirstPaint = false;
+          mainBrowserWindow.hide();
+        },
+        isShowing: () =>
+          (showWaitsForTheFirstPaint && !windowPageHasPaintedOrFailedToLoad) || (mainBrowserWindow.isVisible() && !mainBrowserWindow.isMinimized()),
         sendTheWindowAnEvent: (eventChannel, eventPayload) => {
           if (!windowContents.isDestroyed()) windowContents.send(eventChannel, eventPayload);
         },
