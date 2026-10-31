@@ -23,6 +23,7 @@ import {
   type TatolabCommandLineToolVersion,
   type StreamGraphSummary,
   type StreamActionDescription,
+  type StreamActionCancelAnswer,
   type StreamActionFollowed,
   type StreamProjectFolderChosenFor,
   type TatolabAppUpdateState,
@@ -558,7 +559,54 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   /** Each load `create_project` or `run_project` queued, by action, as `describe_stream_action` reads it. */
   const projectLoadsQueued = new Map<string, StreamActionDescription>();
   const notHeldWords = (action: string): string =>
-    `Invalid configuration: the stream action \`${action}\` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log`;
+    `the stream action \`${action}\` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log`;
+
+  /** Each running action `cancel_stream_action` asked to stop, which the work on it ends at its next step. */
+  const streamActionsAskedToCancel = new Set<string>();
+  /** Each stop and removal under way, which is past cancelling once it runs. */
+  const unloadingStreamActions = new Map<string, "stop" | "remove">();
+  /** How each stop, start and removal ended, which a cancel of it is refused with. */
+  const endedStreamActions = new Map<string, "done" | "cancelled">();
+  const streamNotLoadedForTheCancelWords = (streamId: string): string => `Runtime error: the stream \`${streamId}\` was not loaded: its stream action was cancelled`;
+
+  /** `cancel_stream_action` as the runtime does it: a queued load dropped, a running load or start stopped at its next step; refused for a running stop or removal, an ended action and one never queued. */
+  const cancelMockStreamAction = (action: string): StreamActionCancelAnswer => {
+    const projectLoad = projectLoadsQueued.get(action);
+    if (projectLoad !== undefined) {
+      if (projectLoad.state === "queued") {
+        writeProjectRecord(projectLoad.project_directory, action, "info", `the stream action ${action} was cancelled before it began`);
+        Object.assign(projectLoad, { state: "cancelled", step: null });
+        return { action, state: "cancelled" };
+      }
+      if (projectLoad.state !== "in_progress") throw `Invalid configuration: the stream action \`${action}\` is already ${projectLoad.state}, so there is nothing to cancel`;
+      streamActionsAskedToCancel.add(action);
+      return { action, state: "in_progress" };
+    }
+    const ending = endedStreamActions.get(action);
+    if (ending !== undefined) throw `Invalid configuration: the stream action \`${action}\` is already ${ending}, so there is nothing to cancel`;
+    const unloadingKind = unloadingStreamActions.get(action);
+    if (unloadingKind !== undefined) {
+      throw `Invalid configuration: the stream action \`${action}\` is a running ${unloadingKind}, which has begun unloading its streams and cannot be cut short; it ends done`;
+    }
+    if (![...streamActionOfEachStream.values()].includes(action)) throw `Invalid configuration: ${notHeldWords(action)}`;
+    streamActionsAskedToCancel.add(action);
+    return { action, state: "in_progress" };
+  };
+
+  /** Lists each stream `action` was loading failed for its cancel, and ends it; `false` when no cancel was asked. */
+  const endTheLoadAtItsCancel = (description: StreamActionDescription): boolean => {
+    if (!streamActionsAskedToCancel.delete(description.action)) return false;
+    for (const [streamId, streamAction] of streamActionOfEachStream) {
+      if (streamAction !== description.action) continue;
+      streamActionOfEachStream.delete(streamId);
+      const listing = listedStreamsNotLoaded.get(streamId);
+      if (listing !== undefined) listedStreamsNotLoaded.set(streamId, { ...listing, state: "failed", failed_because: streamNotLoadedForTheCancelWords(streamId), action: null, step: null });
+    }
+    writeProjectRecord(description.project_directory, description.action, "info", `the stream action ${description.action} was cancelled at the step it was on`);
+    Object.assign(description, { state: "cancelled", step: null });
+    publishStatus({ streams: listStreams() });
+    return true;
+  };
 
   /** Queues a load of `projectDirectory` that fails after a beat with `failedBecause`, as the runtime fails a load it cannot begin. */
   const queueAMockProjectLoadThatFails = (projectDirectory: string, failedBecause: string): string => {
@@ -602,10 +650,12 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       publishStatus({ streams: listStreams() });
     };
     await sleep(MOCK_STREAM_ACTION_STEP_MILLISECONDS);
+    if (description.state === "cancelled") return;
     if (!project.hasAPythonEnvironment) {
       Object.assign(description, { state: "in_progress", step: "making_the_venv" });
       writeProjectRecord(projectDirectory, description.action, "info", `${projectDirectory}/.venv/bin/python does not start, so ${projectDirectory}/.venv is made again`);
       await sleep(MOCK_PYTHON_ENVIRONMENT_MILLISECONDS);
+      if (endTheLoadAtItsCancel(description)) return;
       if (isMakingThePythonEnvironmentRefused) {
         writeProjectRecord(projectDirectory, description.action, "error", MOCK_UV_SYNC_REFUSAL);
         Object.assign(description, { state: "failed", step: null, failed_because: MOCK_UV_SYNC_REFUSAL });
@@ -616,9 +666,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }
     for (const step of ["compiling", "starting"]) {
       if (!isTheRuntimeStillUp()) {
+        streamActionsAskedToCancel.delete(description.action);
         Object.assign(description, { state: "cancelled", step: null });
         return;
       }
+      if (endTheLoadAtItsCancel(description)) return;
       Object.assign(description, { state: "in_progress", step });
       listEveryStreamPreparingAt(step);
       if (step === "starting") {
@@ -626,6 +678,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       }
       await sleep(MOCK_STREAM_ACTION_STEP_MILLISECONDS);
     }
+    if (endTheLoadAtItsCancel(description)) return;
     const now = Date.now();
     description.streams = streamFixtures.map((fixture) => {
       const listing = fixture.listing;
@@ -795,16 +848,29 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const workOnTheStreamAction = (listing: ListedStream, state: "preparing" | "stopping", action: string, steps: readonly string[], finish: () => void): void => {
     streamActionOfEachStream.set(listing.stream, action);
     const isStillTheStreamsAction = () => streamActionOfEachStream.get(listing.stream) === action && runtimeUpSinceMilliseconds !== null;
+    const endTheStartAtItsCancel = (): boolean => {
+      if (!streamActionsAskedToCancel.delete(action)) return false;
+      streamActionOfEachStream.delete(listing.stream);
+      endedStreamActions.set(action, "cancelled");
+      writeRuntimeRecord(listing, action, "error", streamNotLoadedForTheCancelWords(listing.stream));
+      listedStreamsNotLoaded.set(listing.stream, { ...listing, state: "failed", node_count: null, failed_because: streamNotLoadedForTheCancelWords(listing.stream), action: null, step: null });
+      publishStatus({ streams: listStreams() });
+      return true;
+    };
     steps.forEach((step, stepIndex) =>
       window.setTimeout(() => {
-        if (!isStillTheStreamsAction()) return;
+        if (!isStillTheStreamsAction() || endTheStartAtItsCancel()) return;
         listedStreamsNotLoaded.set(listing.stream, { ...listing, state, node_count: null, failed_because: null, action, step });
         publishStatus({ streams: listStreams() });
       }, stepIndex * MOCK_STREAM_ACTION_STEP_MILLISECONDS),
     );
     window.setTimeout(() => {
-      if (!isStillTheStreamsAction()) return;
+      if (!isStillTheStreamsAction() || endTheStartAtItsCancel()) return;
       streamActionOfEachStream.delete(listing.stream);
+      if (![...streamActionOfEachStream.values()].includes(action)) {
+        unloadingStreamActions.delete(action);
+        endedStreamActions.set(action, "done");
+      }
       finish();
       publishStatus({ streams: listStreams() });
     }, steps.length * MOCK_STREAM_ACTION_STEP_MILLISECONDS);
@@ -832,6 +898,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     const action = nextStreamActionId();
     loadedStreams.delete(streamId);
     if (loadedStream !== undefined) recordedFixturesNotLoaded.set(streamId, loadedStream.fixture);
+    unloadingStreamActions.set(action, "stop");
     queueTheStreamAction(listing, "stopping", action);
     workOnTheStreamAction(listing, "stopping", action, ["stopping"], () => {
       writeRuntimeRecord(listing, action, "info", `Stopped the stream \`${streamId}\``);
@@ -870,6 +937,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       throw `Resource not found: this runtime holds no stream of the project in ${projectDirectory}, so there is none to remove. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
     }
     const action = nextStreamActionId();
+    unloadingStreamActions.set(action, "remove");
     for (const listing of streamsOfTheProject) {
       loadedStreams.delete(listing.stream);
       queueTheStreamAction(listing, "stopping", action);
@@ -1141,8 +1209,13 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
       const description = projectLoadsQueued.get(action);
-      if (description === undefined || isNoProjectLoadHeld) return { kind: "not_held", words: notHeldWords(action) };
+      if (description === undefined || isNoProjectLoadHeld) return { kind: "not_held", words: `Invalid configuration: ${notHeldWords(action)}` };
       return { kind: "described", description: structuredClone(description) };
+    },
+    cancelStreamAction: async (action): Promise<StreamActionCancelAnswer> => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      return cancelMockStreamAction(action);
     },
     describeRuntime: async (): Promise<RuntimeDescription> => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

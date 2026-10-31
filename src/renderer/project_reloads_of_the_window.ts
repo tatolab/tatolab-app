@@ -1,16 +1,16 @@
 import { describeBackendRejection, type TatolabBackend } from "./backend/tatolab_backend";
-import { isStreamActionEnded } from "./presentation/add_stream_flow";
+import { canCancelTheFollowedAction, followedActionCancelAfter, isStreamActionEnded, type FollowedStreamActionCancel } from "./presentation/add_stream_flow";
 import type { StreamActionDescription } from "../shared/tatolab_backend_contract";
 import { StreamActionFollowing, type StreamActionFollowingRead } from "./stream_action_following";
 
 /** The backend's commands a project's Reload uses. */
-export type ProjectReloadBackend = Pick<TatolabBackend, "reloadProject" | "describeStreamAction">;
+export type ProjectReloadBackend = Pick<TatolabBackend, "reloadProject" | "describeStreamAction" | "cancelStreamAction">;
 
 /** Where a project's last Reload has got to, or what it came to. */
 export type ProjectReload =
   | { kind: "queuing" }
   | { kind: "refused"; words: string }
-  | { kind: "following"; action: string; description: StreamActionDescription | null }
+  | { kind: "following"; action: string; description: StreamActionDescription | null; cancel: FollowedStreamActionCancel | null }
   | { kind: "ended"; action: string; description: StreamActionDescription }
   | { kind: "no_longer_followed"; action: string; words: string };
 
@@ -45,10 +45,26 @@ export class ProjectReloadsOfTheWindow {
     this.setReloadOf(projectDirectory, { kind: "queuing" });
     this.backend.reloadProject(projectDirectory).then(
       (queued) => {
-        this.setReloadOf(projectDirectory, { kind: "following", action: queued.action, description: null });
+        this.setReloadOf(projectDirectory, { kind: "following", action: queued.action, description: null, cancel: null });
         this.followingOf(projectDirectory).follow(queued.action);
       },
       (rejection: unknown) => this.setReloadOf(projectDirectory, { kind: "refused", words: describeBackendRejection(rejection) }),
+    );
+  }
+
+  /** Cancel `projectDirectory`'s reload being followed: the runtime drops it from its queue or stops it at its step; the following reads it `cancelled`. */
+  cancelTheReloadOf(projectDirectory: string): void {
+    const reload = this.readReloadOf(projectDirectory);
+    if (reload?.kind !== "following" || !canCancelTheFollowedAction(reload.cancel)) return;
+    const { action } = reload;
+    const setTheCancel = (event: Parameters<typeof followedActionCancelAfter>[0]): void => {
+      const reloadNow = this.readReloadOf(projectDirectory);
+      if (reloadNow?.kind === "following" && reloadNow.action === action) this.setReloadOf(projectDirectory, { ...reloadNow, cancel: followedActionCancelAfter(event) });
+    };
+    setTheCancel({ kind: "cancel_asked" });
+    this.backend.cancelStreamAction(action).then(
+      () => setTheCancel({ kind: "cancel_answered" }),
+      (rejection: unknown) => setTheCancel({ kind: "cancel_refused", words: describeBackendRejection(rejection) }),
     );
   }
 
@@ -78,7 +94,7 @@ export class ProjectReloadsOfTheWindow {
     }
     const { description } = read;
     if (!isStreamActionEnded(description)) {
-      this.setReloadOf(projectDirectory, { kind: "following", action, description });
+      this.setReloadOf(projectDirectory, { ...reload, description });
       return;
     }
     this.stopFollowing(projectDirectory);

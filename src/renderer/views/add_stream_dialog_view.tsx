@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Check, FolderInput, FolderPlus, LoaderCircle, type LucideIcon, SquareX } from "lucide-react";
+import { Check, FolderInput, FolderPlus, LoaderCircle, type LucideIcon, SquareX, X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { ActionButton } from "../design_system/action_button";
@@ -12,7 +12,8 @@ import {
   addStreamActionOf,
   addStreamActionUnavailableBecause,
   addStreamBlockerTheFormDoesNotShow,
-  followedStepWords,
+  canCancelTheFollowedAction,
+  followedStepOrCancellingWords,
   followingHeadingWords,
   NEW_PROJECT_FOLDER_THE_RUNTIME_DRAWS_WORDS,
   presentStreamsTakenIn,
@@ -29,7 +30,7 @@ import {
   type StreamTakenInPresentation,
 } from "../presentation/add_stream_flow";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
-import { abbreviateHomeDirectory } from "../presentation/stream_presentation";
+import { abbreviateHomeDirectory, streamActionRefusalLead } from "../presentation/stream_presentation";
 import { streamPagePath, type StreamPageTab } from "./stream_page_path";
 import { useAddStreamFlowState, useOpenAddStreamDialog, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
@@ -101,10 +102,15 @@ function ProjectLoadOutputLine({ isQuiet = false, children }: { isQuiet?: boolea
 }
 
 function ProjectLoadFollowingView({ state }: { state: Extract<AddStreamFlowState, { step: "following" }> }) {
-  const currentStepWords = followedStepWords(state.description);
+  const currentStepWords = followedStepOrCancellingWords(state.description, state.cancel);
   return (
     <div data-add-stream-step="following" data-add-stream-load-step={state.description?.step ?? state.description?.state ?? "queued"}>
       <AddStreamSectionHeading title={followingHeadingWords(state.form.source, state.queued)} lead={`${currentStepWords}…`} />
+      {state.cancel?.kind === "refused" && (
+        <div className="mb-3" data-add-stream-cancel-refusal="">
+          <RefusalLine lead={streamActionRefusalLead("Cancel")} words={state.cancel.words} />
+        </div>
+      )}
       <ProjectLoadOutputWell title={state.queued.projectDirectory} isWaiting>
         <ProjectLoadOutputLine isQuiet>{projectLoadRequestWords(state.form.source, state.form.chosenFolder)}</ProjectLoadOutputLine>
         <ProjectLoadOutputLine isQuiet>queued as {state.queued.action}</ProjectLoadOutputLine>
@@ -268,7 +274,7 @@ function AddStreamDialogBody() {
   );
 }
 
-/** The dialog's actions for the step it is on: Cancel and Create or Import on the form, the load's step while it runs, or what to do once it ended. */
+/** The dialog's actions for the step it is on: Cancel and Create or Import on the form, the load's step and its Cancel while it runs, or what to do once it ended. */
 function AddStreamDialogFooter() {
   const { addStreamFlow } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
@@ -301,9 +307,18 @@ function AddStreamDialogFooter() {
         <>
           <span className="inline-flex items-center gap-2 text-fg-2">
             <LoaderCircle className="size-3.5 animate-spin text-fg-3" strokeWidth={1.75} aria-hidden />
-            {followedStepWords(flowState.description)}…
+            {followedStepOrCancellingWords(flowState.description, flowState.cancel)}…
           </span>
           <div className="flex-1" />
+          <ActionButton
+            icon={X}
+            isDisabled={!canCancelTheFollowedAction(flowState.cancel)}
+            tooltip="The runtime stops at the step it is on and removes a half-made environment"
+            onPressed={() => addStreamFlow.cancelTheLoad()}
+            data-add-stream-action="cancel_the_load"
+          >
+            {form.source === "new_project" ? "Cancel create" : "Cancel import"}
+          </ActionButton>
           <ActionButton onPressed={() => addStreamFlow.closeDialog()} data-add-stream-action="close">
             Close
           </ActionButton>

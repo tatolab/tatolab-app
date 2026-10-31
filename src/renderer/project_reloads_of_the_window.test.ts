@@ -14,9 +14,10 @@ function described(description: StreamActionDescription): StreamActionFollowed {
   return { kind: "described", description };
 }
 
-/** A backend that queues each project's reload as its own action and answers each read of an action with the next of its answers, the last again once they run out; `null` rejects as the runtime not answering. */
-function scriptedBackend(followedAnswersByAction: Record<string, readonly (StreamActionFollowed | null)[]>) {
+/** A backend that queues each project's reload as its own action and answers each read of an action with the next of its answers, the last again once they run out; `null` rejects as the runtime not answering. A cancel is answered `cancelled`, or refused with `cancelRefusal`. */
+function scriptedBackend(followedAnswersByAction: Record<string, readonly (StreamActionFollowed | null)[]>, cancelRefusal: string | null = null) {
   const actionsDescribed: string[] = [];
+  const actionsCancelled: string[] = [];
   const projectsReloaded: string[] = [];
   const answerIndexByAction = new Map<string, number>();
   const backend: ProjectReloadBackend = {
@@ -33,8 +34,13 @@ function scriptedBackend(followedAnswersByAction: Record<string, readonly (Strea
       if (answer === null) throw "no runtime answers";
       return answer;
     },
+    cancelStreamAction: async (action) => {
+      actionsCancelled.push(action);
+      if (cancelRefusal !== null) throw cancelRefusal;
+      return { action, state: "cancelled" };
+    },
   };
-  return { backend, actionsDescribed, projectsReloaded };
+  return { backend, actionsDescribed, actionsCancelled, projectsReloaded };
 }
 
 afterEach(() => {
@@ -137,5 +143,41 @@ describe("each project's Reload", () => {
     expect(projectReloads.readReloadOf(DOORWAYS)).toEqual({ kind: "no_longer_followed", action: "R1-4", words: "Tatolab could not read the load: no runtime answers" });
     expect(actionsDescribed.filter((action) => action === "R1-3")).toHaveLength(1);
     expect(actionsDescribed.filter((action) => action === "R1-4")).toHaveLength(MOST_FAILED_STREAM_ACTION_READS_IN_A_ROW);
+  });
+
+  it("cancels the reload it follows once, says so until the following reads it cancelled, and keeps a declined cancel's words", async () => {
+    vi.useFakeTimers();
+    const refusal = "Invalid configuration: the stream action `R1-4` is already done, so there is nothing to cancel";
+    const { backend, actionsCancelled } = scriptedBackend({
+      "R1-3": [described(reloadDescription(HALLWAYS, { state: "queued" })), described(reloadDescription(HALLWAYS, { state: "cancelled" }))],
+      "R1-4": [described(reloadDescription(DOORWAYS, { state: "in_progress", step: "compiling" }))],
+    });
+    const projectReloads = new ProjectReloadsOfTheWindow({
+      ...backend,
+      cancelStreamAction: async (action) => {
+        if (action === "R1-4") {
+          actionsCancelled.push(action);
+          throw refusal;
+        }
+        return backend.cancelStreamAction(action);
+      },
+    });
+
+    projectReloads.cancelTheReloadOf(HALLWAYS);
+    projectReloads.reload(HALLWAYS);
+    projectReloads.reload(DOORWAYS);
+    await vi.advanceTimersByTimeAsync(0);
+    projectReloads.cancelTheReloadOf(HALLWAYS);
+    projectReloads.cancelTheReloadOf(HALLWAYS);
+    projectReloads.cancelTheReloadOf(DOORWAYS);
+    expect(projectReloads.readReloadOf(HALLWAYS)).toMatchObject({ kind: "following", cancel: { kind: "asking" } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(actionsCancelled).toEqual(["R1-3", "R1-4"]);
+    expect(projectReloads.readReloadOf(HALLWAYS)).toMatchObject({ kind: "following", cancel: { kind: "answered" } });
+    expect(projectReloads.readReloadOf(DOORWAYS)).toMatchObject({ kind: "following", cancel: { kind: "refused", words: refusal } });
+
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS);
+    expect(projectReloads.readReloadOf(HALLWAYS)).toMatchObject({ kind: "ended", description: { state: "cancelled" } });
+    expect(projectReloads.readReloadOf(DOORWAYS)).toMatchObject({ kind: "following", description: { step: "compiling" }, cancel: { kind: "refused", words: refusal } });
   });
 });

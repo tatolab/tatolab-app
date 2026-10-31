@@ -4,6 +4,7 @@ import { chooseSelectedStreamId } from "./stream_selection";
 import {
   abbreviateHomeDirectory,
   countLabel,
+  presentStreamActionCancel,
   presentStreamPrimaryAction,
   presentStreamState,
   listedStreamProjectDirectory,
@@ -104,7 +105,9 @@ describe("a row's action words", () => {
     expect(streamActionPendingWords("stop_stream")).toBe("Stopping…");
     expect(streamActionPendingWords("start_stream")).toBe("Starting…");
     expect(streamActionPendingWords("remove_project")).toBe("Removing…");
+    expect(streamActionPendingWords("cancel_stream_action")).toBe("Cancelling…");
     expect(streamActionRefusalLead("Retry")).toBe("Retry was refused:");
+    expect(streamActionRefusalLead("Cancel")).toBe("Cancel was refused:");
     expect(streamActionRefusalLead("Remove project")).toBe("Remove project was refused:");
   });
 });
@@ -167,5 +170,25 @@ describe("display helpers", () => {
   it("counts in the singular and the plural", () => {
     expect(countLabel(1, "stream", "streams")).toBe("1 stream");
     expect(countLabel(2000, "line", "lines")).toBe("2,000 lines");
+  });
+});
+
+describe("presentStreamActionCancel", () => {
+  it("offers Cancel on the action the listing names, dropping a queued one or stopping a running one at its step, and none while it names none", () => {
+    expect(presentStreamActionCancel(streamUnderAnAction("main", "preparing", null))).toEqual({
+      action: "Rnd53mwtsrixjyxk7h3jfq5j5-2",
+      meaning: "Cancel: drops it from its project's queue",
+    });
+    expect(presentStreamActionCancel(streamUnderAnAction("main", "preparing", "making_the_venv"))).toEqual({
+      action: "Rnd53mwtsrixjyxk7h3jfq5j5-2",
+      meaning: "Cancel: stops it at the step it is on",
+    });
+    expect(presentStreamActionCancel(streamUnderAnAction("main", "stopping", "stopping"))).toEqual({
+      action: "Rnd53mwtsrixjyxk7h3jfq5j5-2",
+      meaning: "Cancel: a stop that has begun unloading runs to its end",
+    });
+    expect(presentStreamActionCancel(streamUnderAnAction("main", "stopping", null))?.meaning).toBe("Cancel: drops it from its project's queue");
+    expect(presentStreamActionCancel(listedStream("main", "running", 4))).toBeNull();
+    expect(presentStreamActionCancel({ ...listedStream("main", "failed", null), action: "Rnd53mwtsrixjyxk7h3jfq5j5-2" })).toBeNull();
   });
 });

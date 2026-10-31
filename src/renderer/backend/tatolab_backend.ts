@@ -7,6 +7,7 @@ import type {
   StreamGraphSummary,
   ProjectCreationQueued,
   ProjectRunQueued,
+  StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamProjectFolderChosenFor,
   TatolabStatus,
@@ -60,6 +61,8 @@ export interface TatolabBackend {
   reloadProject(projectDirectory: string): Promise<ProjectRunQueued>;
   /** Where the stream action `action` has got to, or the runtime's words that it no longer holds it; rejects when the runtime does not answer. */
   describeStreamAction(action: string): Promise<StreamActionFollowed>;
+  /** End the stream action `action` early, resolving once the runtime has dropped it or begun stopping it and rejecting in its own words, as for a stop past cancelling; the streams it leaves arrive as the next statuses. */
+  cancelStreamAction(action: string): Promise<StreamActionCancelAnswer>;
   /** How the running runtime describes itself, rejecting in its own words when it does not answer. */
   describeRuntime(): Promise<RuntimeDescription>;
   /** Stop the runtime and start it again through the service manager, resolving once the service manager has answered and rejecting in its words; the state that follows arrives as the next statuses. */

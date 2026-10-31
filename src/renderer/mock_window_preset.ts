@@ -59,6 +59,14 @@ async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
   if (addStep === "done") await waitForElement(`[data-add-stream-step="ended"]`, MOCK_PROJECT_LOAD_TIMEOUT_MILLISECONDS);
 }
 
+/** The load the add-stream dialog follows cancelled once it reaches `making_the_venv`: `pressed` stops while it is cancelling, `ended` once the dialog says it was cancelled. */
+async function driveTheAddStreamCancelToPreset(addCancel: string | null): Promise<void> {
+  if (addCancel !== "pressed" && addCancel !== "ended") return;
+  await waitForElement(`[data-add-stream-load-step="making_the_venv"]`, MOCK_PROJECT_LOAD_TIMEOUT_MILLISECONDS);
+  await clickWhenShown(`[data-add-stream-action="cancel_the_load"]:not([disabled])`);
+  if (addCancel === "ended") await waitForElement(`[data-add-stream-ending="cancelled"]`, MOCK_PROJECT_LOAD_TIMEOUT_MILLISECONDS);
+}
+
 /** Types `text` into the controlled field `field`, one line or several, as a person would, so React's onChange sees it. */
 function typeIntoAField(field: HTMLInputElement | HTMLTextAreaElement, text: string): void {
   const fieldPrototype = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -146,9 +154,10 @@ async function driveTheProjectPageToPreset(pageQuery: URLSearchParams): Promise<
   const projectTab = pageQuery.get("project_tab");
   if (projectTab !== null) await clickWhenShown(`[data-project-page-header] [data-project-tab="${CSS.escape(projectTab)}"]`);
   const projectAction = pageQuery.get("project_action");
-  if (projectAction === "reload" || projectAction === "reloaded") {
+  if (projectAction === "reload" || projectAction === "reloaded" || projectAction === "reload_cancelled") {
     await clickWhenShown(`[data-project-page-header] [data-project-action="reload"]`);
-    if (projectAction === "reloaded") await waitForElement("[data-project-reload-outcome]", MOCK_PROJECT_LOAD_TIMEOUT_MILLISECONDS);
+    if (projectAction === "reload_cancelled") await clickWhenShown(`[data-project-page-header] [data-project-action="cancel_reload"]:not([disabled])`);
+    if (projectAction === "reloaded" || projectAction === "reload_cancelled") await waitForElement("[data-project-reload-outcome]", MOCK_PROJECT_LOAD_TIMEOUT_MILLISECONDS);
   }
   if (projectAction === "remove_project") {
     await clickWhenShown(`[data-project-page-header] [data-project-action="more"]`);
@@ -168,10 +177,10 @@ async function driveTheProjectPageToPreset(pageQuery: URLSearchParams): Promise<
  * with the backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream id>` (a
  * click on that stream's failure notification), on the add-project dialog `?add=folder|following|done|away` (a folder chosen, its import followed, ended, or
  * the dialog closed while it loads and the load's notice shown once it ends) or
- * `?add=new|created` (opened on New project, then Create pressed, which has the runtime write it and load it), with the backend's `?add_folder=` (`no-venv` for a load that
- * makes the `.venv` first, `several` for two streams, one failing), `?add_new_folder=existing`, `?add_venv=refused` (the runtime's uv refusing to make it) and `?add_action=not_held`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove_project=<stream id>` (Remove project… chosen on that stream's row, its confirmation open), `?rename=<stream id>` (its sidebar row right-clicked and Rename… chosen, with `?rename_to=<name>` typed, and `?rename_step=menu` stopping on the menu or `pressed` pressing Rename), `?stream_action=stop_stream|start_stream:<stream id>`,
- * `?project=<folder name>` (that project's page, from its sidebar folder) with `?project_tab=logs` and `?project_action=reload|reloaded|remove_project` (Reload pressed, then followed to
- * its end, or Remove project… chosen, its confirmation open), and on a project's Logs `?stream_menu=open`,
+ * `?add=new|created` (opened on New project, then Create pressed, which has the runtime write it and load it), and `?add_cancel=pressed|ended` (Cancel pressed once the load makes its `.venv`, then followed to cancelled), with the backend's `?add_folder=` (`no-venv` for a load that
+ * makes the `.venv` first, `several` for two streams, one failing), `?add_new_folder=existing`, `?add_venv=refused` (the runtime's uv refusing to make it) and `?add_action=not_held`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove_project=<stream id>` (Remove project… chosen on that stream's row, its confirmation open), `?rename=<stream id>` (its sidebar row right-clicked and Rename… chosen, with `?rename_to=<name>` typed, and `?rename_step=menu` stopping on the menu or `pressed` pressing Rename), `?stream_action=stop_stream|start_stream:<stream id>` and `?row_cancel=<stream id>` (Cancel pressed on that row),
+ * `?project=<folder name>` (that project's page, from its sidebar folder) with `?project_tab=logs` and `?project_action=reload|reloaded|reload_cancelled|remove_project` (Reload pressed, then followed to
+ * its end or cancelled, or Remove project… chosen, its confirmation open), and on a project's Logs `?stream_menu=open`,
  * `?sheet=uninstall|uninstalling|uninstalled`, on first run `?setup=getting_set_up` (Continue pressed on Welcome) or `?setup=get_started` (then
  * Get Started once the runtime answers) and `?setup_step_action=<action>` (a step's action pressed), with the backend's `?state=setup`, or
  * `?first_run=unfinished` over any runtime state, as `?state=approval|blocked|never-answered`, and its `?first_run_remember=refused`,
@@ -189,6 +198,8 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     const [streamAction, actedOnStreamId] = rowStreamAction.split(":");
     await clickWhenShown(`[data-stream-row="${CSS.escape(actedOnStreamId ?? "")}"] [data-stream-action="${CSS.escape(streamAction)}"]`);
   }
+  const streamWhoseActionToCancel = pageQuery.get("row_cancel");
+  if (streamWhoseActionToCancel !== null) await clickWhenShown(`[data-stream-row="${CSS.escape(streamWhoseActionToCancel)}"] [data-stream-action="cancel_stream_action"]`);
   const streamToRename = pageQuery.get("rename");
   if (streamToRename !== null) await driveTheRightClickRenameToPreset(streamToRename, pageQuery.get("rename_step"), pageQuery.get("rename_to"));
   const streamWhoseProjectToRemove = pageQuery.get("remove_project");
@@ -251,6 +262,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   const page = pageQuery.get("page");
   if (page === "settings") await clickWhenShown(`[data-window-navigation="settings"]`);
   if (page === "add-stream") await driveAddStreamToPreset(pageQuery.get("add"));
+  if (page === "add-stream") await driveTheAddStreamCancelToPreset(pageQuery.get("add_cancel"));
   const settingsSection = pageQuery.get("section");
   if (page === "settings" && settingsSection !== null) await clickWhenShown(`[data-settings-section="${CSS.escape(settingsSection)}"]`);
   if (page === "settings" && settingsSection === "relays") await driveRelaysToPreset(pageQuery);

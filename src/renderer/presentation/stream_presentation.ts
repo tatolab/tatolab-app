@@ -116,8 +116,8 @@ export function streamNotLoadedReason(stream: ListedStream): StreamNotLoadedReas
   return "not_loaded";
 }
 
-/** An action the window asks of the runtime on a stream: a stop, a start, or the removal of its whole project. */
-export type StreamActionAskedByTheWindow = TatolabStreamActionName | "remove_project";
+/** An action the window asks of the runtime on a stream: a stop, a start, the removal of its whole project, or the cancel of the action the listing names on it. */
+export type StreamActionAskedByTheWindow = TatolabStreamActionName | "remove_project" | "cancel_stream_action";
 
 /** What a row says while its stream action is being asked for, until the listing shows it under way. */
 export function streamActionPendingWords(streamAction: StreamActionAskedByTheWindow): string {
@@ -128,11 +128,30 @@ export function streamActionPendingWords(streamAction: StreamActionAskedByTheWin
       return "Starting…";
     case "remove_project":
       return "Removing…";
+    case "cancel_stream_action":
+      return "Cancelling…";
   }
 }
 
+/** The Cancel a row and a stream page offer while the listing names an action on the stream: the action, and what Cancel does to it. */
+export interface StreamActionCancelPresentation {
+  action: string;
+  meaning: string;
+}
+
+/** Cancel for the action the listing names on a `preparing` or `stopping` stream, a running stop among them, which the runtime refuses in its own words; `null` while it names none. */
+export function presentStreamActionCancel(stream: ListedStream): StreamActionCancelPresentation | null {
+  if (stream.action === null || (stream.state !== "preparing" && stream.state !== "stopping")) return null;
+  return { action: stream.action, meaning: streamActionCancelMeaning(stream.state, stream.step) };
+}
+
+function streamActionCancelMeaning(state: "preparing" | "stopping", step: string | null): string {
+  if (step === null) return "Cancel: drops it from its project's queue";
+  return state === "preparing" ? "Cancel: stops it at the step it is on" : "Cancel: a stop that has begun unloading runs to its end";
+}
+
 /** The lead before a refusal in the runtime's words: `Retry was refused:` for the action the person chose. */
-export function streamActionRefusalLead(chosenActionLabel: StreamPrimaryActionPresentation["label"] | "Remove project"): string {
+export function streamActionRefusalLead(chosenActionLabel: StreamPrimaryActionPresentation["label"] | "Remove project" | "Cancel"): string {
   return `${chosenActionLabel} was refused:`;
 }
 

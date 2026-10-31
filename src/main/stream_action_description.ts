@@ -1,7 +1,8 @@
-// The runtime's answers about a queued load: `create_project` and `run_project`, which answer at
-// once with the action they queued, and `describe_stream_action`, which follows it to its end.
+// The runtime's answers about a queued stream action: `create_project` and `run_project`, which answer
+// at once with the action they queued, `describe_stream_action`, which follows it to its end, and
+// `cancel_stream_action`, which ends it early.
 
-import type { ProjectCreationQueued, ProjectRunQueued, StreamActionDescription, StreamTakenInByAnAction } from "../shared/tatolab_backend_contract.js";
+import type { ProjectCreationQueued, ProjectRunQueued, StreamActionCancelAnswer, StreamActionDescription, StreamTakenInByAnAction } from "../shared/tatolab_backend_contract.js";
 import { arrayOrEmpty, everyOneRead, jsonObject, type JsonObjectOnTheWire, optionalText, parseJsonOnTheWire, requiredText } from "./json_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
@@ -79,4 +80,15 @@ export function streamActionDescriptionFromTheDescribeStreamActionToolResult(too
     streams: streams.value,
     failed_because: failedBecause.value,
   });
+}
+
+/** A `cancel_stream_action` tool result read field for field; unknown fields are ignored. */
+export function streamActionCancelAnswerFromTheCancelStreamActionToolResult(toolResultText: string): Result<StreamActionCancelAnswer, string> {
+  const toolResult = toolResultObject("cancel_stream_action", toolResultText);
+  if (!toolResult.ok) return readOrSayWhy("cancel_stream_action", toolResult);
+  const action = requiredText(toolResult.value, "action");
+  if (!action.ok) return readOrSayWhy("cancel_stream_action", action);
+  const state = requiredText(toolResult.value, "state");
+  if (!state.ok) return readOrSayWhy("cancel_stream_action", state);
+  return succeeded({ action: action.value, state: state.value });
 }

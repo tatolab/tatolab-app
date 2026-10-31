@@ -571,6 +571,29 @@ test("adding a project answers the window in the contract's shape, from the chos
   expect(unanswered.ok).toBe(false);
 });
 
+/** The window's `StreamActionCancelAnswer` reads exactly this JSON. */
+test("cancel_stream_action answers the window in the contract's shape, asks for a status round, and carries a declined cancel in the runtime's words", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-cancel-stream-action-answer-for-a-run-of-slowpoke-making-the-venv-in-progress.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-cancel-stream-action-refusal-for-a-running-stop-of-doorways-front-door.json")),
+    ],
+    "linux",
+  );
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(JSON.stringify(await commandHandlers.cancel_stream_action({ action: "Ra19ljkh20wimdvgya5udt9v1-9" }))).toBe(
+    '{"ok":true,"value":{"action":"Ra19ljkh20wimdvgya5udt9v1-9","state":"in_progress"}}',
+  );
+  expect(await commandHandlers.cancel_stream_action({ action: "Ra19ljkh20wimdvgya5udt9v1-13" })).toEqual({
+    ok: false,
+    refusal: "Invalid configuration: the stream action `Ra19ljkh20wimdvgya5udt9v1-13` is a running stop, which has begun unloading its streams and cannot be cut short; it ends done",
+  });
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
+  expect(await commandHandlers.cancel_stream_action({})).toEqual({ ok: false, refusal: "cancel_stream_action needs `action`, a stream action's id" });
+});
+
 test("the commands that add a project read their arguments as the window sends them, and refuse anything else", async () => {
   const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
   expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "anything" })).toEqual({

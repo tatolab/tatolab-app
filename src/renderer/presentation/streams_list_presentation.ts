@@ -135,7 +135,13 @@ function sameListing(firstListing: ListedStream | null, secondListing: ListedStr
   return JSON.stringify(firstListing) === JSON.stringify(secondListing);
 }
 
-/** Whether a row still shows its action as under way: until the runtime answers, then until the listing differs from the one seen when asking. */
+/**
+ * Whether a row still shows its action as under way: until the runtime answers, then until the listing differs from the
+ * one seen when asking; a cancel until the listing no longer names the action it cancelled.
+ */
 export function isStreamActionStillUnderWay(actionUnderWay: StreamActionUnderWay, listingNow: ListedStream | null): boolean {
-  return !actionUnderWay.isAnswered || sameListing(actionUnderWay.listingWhenAsked, listingNow);
+  if (!actionUnderWay.isAnswered) return true;
+  if (actionUnderWay.streamAction !== "cancel_stream_action") return sameListing(actionUnderWay.listingWhenAsked, listingNow);
+  const cancelledAction = actionUnderWay.listingWhenAsked?.action ?? null;
+  return cancelledAction !== null && listingNow?.action === cancelledAction;
 }

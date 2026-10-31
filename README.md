@@ -18,7 +18,9 @@ the removal of a whole project, with the MCP tools `stop_stream`, `start_stream`
 `remove_project`, then shows the stream `stopping` or `preparing` at each step the runtime lists
 until it settles. New project and Import project queue `create_project` and `run_project`, and a
 project's Reload queues `run_project` again; the window follows each load with
-`describe_stream_action` until it ends. A stream's Logs tab reads its project's log with `logs`,
+`describe_stream_action` until it ends. Cancel ends an action early with `cancel_stream_action`,
+on a stream the listing shows `preparing` or `stopping`, on a Reload, and on a New project or
+Import project, and shows the runtime's refusal in its own words. A stream's Logs tab reads its project's log with `logs`,
 narrowed to the stream or showing the whole project; a project's page lists its streams and reads
 its whole log, narrowed to one stream or one action. A stream's Overview plays each output it exposes beyond itself that the runtime
 gives a preview page, in a frame of `http://127.0.0.1:4446/watch/…`, the one origin the window's

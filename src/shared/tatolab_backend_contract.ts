@@ -291,6 +291,12 @@ export interface StreamActionDescription {
   failed_because: string | null;
 }
 
+/** What `cancel_stream_action` answers: the action, `cancelled` for one dropped from its queue, or `in_progress` for one stopping at the step it is on, or a state newer than this app. */
+export interface StreamActionCancelAnswer {
+  action: string;
+  state: string;
+}
+
 /** What following a stream action read: its description, or the runtime's words that it no longer holds the action. */
 export type StreamActionFollowed = { kind: "described"; description: StreamActionDescription } | { kind: "not_held"; words: string };
 

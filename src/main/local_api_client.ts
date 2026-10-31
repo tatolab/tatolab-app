@@ -25,6 +25,7 @@ import type {
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
+  StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamGraphSummary,
   StreamLocation,
@@ -54,6 +55,7 @@ import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_record
 import {
   projectCreationQueuedFromTheCreateProjectToolResult,
   projectRunQueuedFromTheRunProjectToolResult,
+  streamActionCancelAnswerFromTheCancelStreamActionToolResult,
   streamActionDescriptionFromTheDescribeStreamActionToolResult,
 } from "./stream_action_description.js";
 
@@ -320,6 +322,14 @@ export class LocalApiClient {
     if (toolAnswer.value.kind === "refused_by_the_tool") return succeeded({ kind: "not_held", words: toolAnswer.value.words });
     const description = streamActionDescriptionFromTheDescribeStreamActionToolResult(toolAnswer.value.text);
     return description.ok ? succeeded({ kind: "described", description: description.value }) : localApiRequestFailure(description.failure);
+  }
+
+  /** End the stream action `action` early through the runtime's `cancel_stream_action`: dropped while queued, stopped at its step while running; refused in the runtime's own words, as for a stop past cancelling. */
+  async cancelStreamAction(action: string): Promise<Result<StreamActionCancelAnswer, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("cancel_stream_action", { action });
+    if (!toolResultText.ok) return toolResultText;
+    const answer = streamActionCancelAnswerFromTheCancelStreamActionToolResult(toolResultText.value);
+    return answer.ok ? answer : localApiRequestFailure(answer.failure);
   }
 
   /** The graph of the loaded stream `stream` from the runtime's `graph` tool, the text `tatolab graph --stream` prints, its readable outputs' preview pages at `runtimeLoopbackHttpOrigin`. */

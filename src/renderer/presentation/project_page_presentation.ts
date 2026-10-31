@@ -1,6 +1,14 @@
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import type { ProjectReload } from "../project_reloads_of_the_window";
-import { folderBaseName, followedStepWords, presentStreamsTakenIn, projectLoadDoneHeadingWords, projectLoadDoneLeadWords } from "./add_stream_flow";
+import {
+  canCancelTheFollowedAction,
+  folderBaseName,
+  followedStepWords,
+  isTheFollowedActionCancelling,
+  presentStreamsTakenIn,
+  projectLoadDoneHeadingWords,
+  projectLoadDoneLeadWords,
+} from "./add_stream_flow";
 
 /** The lead of a reload the runtime ended `failed`, before its `failed_because`. */
 export const RELOAD_FAILED_LEAD = "Reload failed:";
@@ -9,9 +17,9 @@ export const RELOAD_WAS_REFUSED_LEAD = "Reload was refused:";
 /** The lead of a reload no longer followed, before why. */
 export const RELOAD_NO_LONGER_FOLLOWED_LEAD = "Tatolab stopped following the reload:";
 
-/** A project's last Reload as its page says it: under way with its step, or what it came to, with the runtime's words where it failed. */
+/** A project's last Reload as its page says it: under way with its step and whether Cancel can be pressed, or what it came to, with the runtime's words where it failed. */
 export type ProjectReloadPresentation =
-  | { kind: "under_way"; words: string }
+  | { kind: "under_way"; words: string; canCancel: boolean; cancelRefusal: string | null }
   | { kind: "ended"; tone: "plain" | "warning"; heading: string; detail: string }
   | { kind: "refused"; lead: string; words: string };
 
@@ -19,9 +27,14 @@ export type ProjectReloadPresentation =
 export function presentProjectReload(projectDirectory: string, reload: ProjectReload, listedStreams: readonly ListedStream[] | null): ProjectReloadPresentation {
   switch (reload.kind) {
     case "queuing":
-      return { kind: "under_way", words: "Reloading…" };
+      return { kind: "under_way", words: "Reloading…", canCancel: false, cancelRefusal: null };
     case "following":
-      return { kind: "under_way", words: `Reloading: ${followedStepWords(reload.description).toLowerCase()}…` };
+      return {
+        kind: "under_way",
+        words: isTheFollowedActionCancelling(reload.cancel) ? "Cancelling the reload…" : `Reloading: ${followedStepWords(reload.description).toLowerCase()}…`,
+        canCancel: canCancelTheFollowedAction(reload.cancel),
+        cancelRefusal: reload.cancel?.kind === "refused" ? reload.cancel.words : null,
+      };
     case "refused":
       return { kind: "refused", lead: RELOAD_WAS_REFUSED_LEAD, words: reload.words };
     case "no_longer_followed":

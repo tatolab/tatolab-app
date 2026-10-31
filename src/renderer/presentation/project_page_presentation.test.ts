@@ -23,11 +23,35 @@ function listedHallwaysStream(functionName: string, state: ListedStream["state"]
 
 describe("a project's Reload", () => {
   it("says its step while it is under way", () => {
-    expect(presentProjectReload(HALLWAYS, { kind: "queuing" }, null)).toEqual({ kind: "under_way", words: "Reloading…" });
-    expect(presentProjectReload(HALLWAYS, { kind: "following", action: "R1-3", description: null }, null)).toEqual({ kind: "under_way", words: "Reloading: queued…" });
-    expect(presentProjectReload(HALLWAYS, { kind: "following", action: "R1-3", description: reloadDescription({ state: "in_progress", step: "making_the_venv" }) }, null)).toEqual({
+    expect(presentProjectReload(HALLWAYS, { kind: "queuing" }, null)).toEqual({ kind: "under_way", words: "Reloading…", canCancel: false, cancelRefusal: null });
+    expect(presentProjectReload(HALLWAYS, { kind: "following", action: "R1-3", description: null, cancel: null }, null)).toEqual({
+      kind: "under_way",
+      words: "Reloading: queued…",
+      canCancel: true,
+      cancelRefusal: null,
+    });
+    expect(
+      presentProjectReload(HALLWAYS, { kind: "following", action: "R1-3", description: reloadDescription({ state: "in_progress", step: "making_the_venv" }), cancel: null }, null),
+    ).toEqual({ kind: "under_way", words: "Reloading: making the environment…", canCancel: true, cancelRefusal: null });
+  });
+
+  it("says Cancelling while its cancel is asked or the runtime ends it, and keeps the runtime's refusal of one, Cancel pressable again", () => {
+    const making = reloadDescription({ state: "in_progress", step: "making_the_venv" });
+    for (const cancel of [{ kind: "asking" }, { kind: "answered" }] as const) {
+      expect(presentProjectReload(HALLWAYS, { kind: "following", action: "R1-3", description: making, cancel }, null)).toEqual({
+        kind: "under_way",
+        words: "Cancelling the reload…",
+        canCancel: false,
+        cancelRefusal: null,
+      });
+    }
+    const runningStopRefusal =
+      "Invalid configuration: the stream action `Ra19ljkh20wimdvgya5udt9v1-13` is a running stop, which has begun unloading its streams and cannot be cut short; it ends done";
+    expect(presentProjectReload(HALLWAYS, { kind: "following", action: "R1-3", description: making, cancel: { kind: "refused", words: runningStopRefusal } }, null)).toEqual({
       kind: "under_way",
       words: "Reloading: making the environment…",
+      canCancel: true,
+      cancelRefusal: runningStopRefusal,
     });
   });
 

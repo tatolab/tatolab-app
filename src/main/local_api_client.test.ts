@@ -14,7 +14,11 @@ import {
   streamRenameAnswerFromTheRenameStreamToolResult,
 } from "./local_api_client.js";
 import type { Result } from "./result.js";
-import { projectCreationQueuedFromTheCreateProjectToolResult, streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
+import {
+  projectCreationQueuedFromTheCreateProjectToolResult,
+  streamActionCancelAnswerFromTheCancelStreamActionToolResult,
+  streamActionDescriptionFromTheDescribeStreamActionToolResult,
+} from "./stream_action_description.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
 
@@ -622,7 +626,49 @@ test("a_failed_action_reads_its_reason_one_the_tool_no_longer_holds_answers_its_
   });
 });
 
+test("a_cancel_answers_cancelled_for_a_queued_action_and_in_progress_for_one_it_stops_at_its_step_the_action_then_read_cancelled", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-cancel-stream-action-answer-for-a-queued-run-of-slowpoke-cancelled.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-cancel-stream-action-answer-for-a-run-of-slowpoke-making-the-venv-in-progress.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-the-run-of-slowpoke-cancelled-while-making-the-venv.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-cancel-stream-action-answer-for-a-queued-stop-of-doorways-front-door-cancelled.json")),
+  ]);
+
+  expect(answerOf(await server.client().cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-10"))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-10", state: "cancelled" });
+  expect(answerOf(await server.client().cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-9"))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-9", state: "in_progress" });
+  expect(describedOf(answerOf(await server.client().describeStreamAction("Ra19ljkh20wimdvgya5udt9v1-9")))).toEqual({
+    action: "Ra19ljkh20wimdvgya5udt9v1-9",
+    project_directory: "/tmp/tatolab-proof-projects/slowpoke",
+    kind: "load",
+    state: "cancelled",
+    step: null,
+    streams: [],
+    failed_because: null,
+  });
+  expect(answerOf(await server.client().cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-12"))).toEqual({ action: "Ra19ljkh20wimdvgya5udt9v1-12", state: "cancelled" });
+  expect(toolCallsReceivedBy(server)[0]).toEqual(["cancel_stream_action", { action: "Ra19ljkh20wimdvgya5udt9v1-10" }]);
+});
+
+test("a_cancel_the_runtime_declines_carries_its_own_words_a_running_stop_past_cancelling_among_them", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-cancel-stream-action-refusal-for-a-running-stop-of-doorways-front-door.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-cancel-stream-action-refusal-for-an-action-already-cancelled.json")),
+  ]);
+
+  expect(failureOf(await server.client().cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-13"))).toEqual({
+    failureDescription:
+      "Invalid configuration: the stream action `Ra19ljkh20wimdvgya5udt9v1-13` is a running stop, which has begun unloading its streams and cannot be cut short; it ends done",
+    isTheRuntimesRefusal: true,
+  });
+  expect(failureOf(await server.client().cancelStreamAction("Ra19ljkh20wimdvgya5udt9v1-9")).failureDescription).toBe(
+    "Invalid configuration: the stream action `Ra19ljkh20wimdvgya5udt9v1-9` is already cancelled, so there is nothing to cancel",
+  );
+});
+
 test("a_describe_stream_action_result_missing_a_field_is_refused_naming_it", () => {
+  expect(failureOf(streamActionCancelAnswerFromTheCancelStreamActionToolResult('{"action":"R1-2"}'))).toBe(
+    "the runtime's cancel_stream_action result could not be read: missing field `state`",
+  );
   expect(failureOf(streamActionDescriptionFromTheDescribeStreamActionToolResult('{"action":"R1-2","project_directory":"/tmp/p","kind":"load"}'))).toBe(
     "the runtime's describe_stream_action result could not be read: missing field `state`",
   );

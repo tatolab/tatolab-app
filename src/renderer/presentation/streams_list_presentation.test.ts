@@ -152,3 +152,19 @@ describe("isStreamActionStillUnderWay", () => {
     expect(isStreamActionStillUnderWay({ streamAction: "remove_project", listingWhenAsked: running, isAnswered: true }, null)).toBe(false);
   });
 });
+
+describe("isStreamActionStillUnderWay for a cancel", () => {
+  const preparing = { ...listedStream("main", "preparing", null), action: "Ra19ljkh20wimdvgya5udt9v1-9", step: "making_the_venv" };
+  const cancel = { streamAction: "cancel_stream_action", listingWhenAsked: preparing, isAnswered: true } as const;
+
+  it("stays under way while the listing still names the action it cancelled, whatever its step", () => {
+    expect(isStreamActionStillUnderWay(cancel, preparing)).toBe(true);
+    expect(isStreamActionStillUnderWay(cancel, { ...preparing, step: "compiling" })).toBe(true);
+  });
+
+  it("ends once the listing names no action or another one, or no longer lists the stream", () => {
+    expect(isStreamActionStillUnderWay(cancel, listedStream("main", "failed", null))).toBe(false);
+    expect(isStreamActionStillUnderWay(cancel, { ...preparing, action: "Ra19ljkh20wimdvgya5udt9v1-10", step: null })).toBe(false);
+    expect(isStreamActionStillUnderWay(cancel, null)).toBe(false);
+  });
+});
