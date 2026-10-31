@@ -19,6 +19,8 @@ const LAUNCHCTL_BOOTSTRAP_REFUSED_EXIT_STATUS = 5;
 
 const LAUNCHCTL_PATH = "/bin/launchctl";
 
+const CAFFEINATE_PATH = "/usr/bin/caffeinate";
+
 /** The System Settings pane that lists Login Items and background items. */
 const LOGIN_ITEMS_SETTINGS_URL = "x-apple.systempreferences:com.apple.LoginItems-Settings.extension";
 
@@ -27,6 +29,15 @@ export type LaunchctlRunner = (launchctlArguments: readonly string[]) => Promise
 
 /** `launchctl` at its system path. */
 export const LAUNCHCTL_AT_ITS_SYSTEM_PATH: LaunchctlRunner = (launchctlArguments) => runProgramToCompletion(LAUNCHCTL_PATH, launchctlArguments);
+
+/** Waits until the process with `processId` has exited, with no deadline of its own; a test's fake stands in for it. */
+export type ProcessExitWaiter = (processId: number) => Promise<Result<void, string>>;
+
+/** `caffeinate -w`, which waits on the process's exit through the kernel and answers at once for a process already gone. */
+export const CAFFEINATE_WAITING_FOR_THE_PROCESS_TO_EXIT: ProcessExitWaiter = async (processId) => {
+  const caffeinateRun = await runProgramToCompletion(CAFFEINATE_PATH, ["-w", String(processId)]);
+  return caffeinateRun.ok ? succeeded(undefined) : failedWith(`caffeinate could not be run: ${caffeinateRun.failure}`);
+};
 
 /** `open` at its system path. */
 export const OPEN_RUN_AT_ITS_SYSTEM_PATH: OpenRunner = (openArguments) => runProgramToCompletion(OPEN_AT_ITS_SYSTEM_PATH, openArguments);
@@ -42,6 +53,21 @@ function launchctlPrintField(launchctlPrintOutput: string, fieldName: string): s
   const fieldPrefix = `\t${fieldName} = `;
   const fieldLine = launchctlPrintOutput.split("\n").find((printedLine) => printedLine.startsWith(fieldPrefix));
   return fieldLine === undefined ? null : fieldLine.slice(fieldPrefix.length).trim();
+}
+
+/** The process id of the job `launchctl print` describes, while it has a process; `null` when it has none. */
+function launchdJobProcessId(launchctlPrintOutput: string): number | null {
+  const processId = launchctlPrintField(launchctlPrintOutput, "pid");
+  return processId !== null && /^\d+$/.test(processId) ? Number(processId) : null;
+}
+
+/**
+ * Whether launchd is still booting out the job `launchctl print` describes. `launchctl bootout` answers while the job's
+ * process is still exiting, its state `SIGTERMed` (`SIGKILLed` once launchd escalates), and launchd keeps the job, refusing
+ * a bootstrap under its label, until that process has exited.
+ */
+function launchdIsStillBootingOutTheJob(launchctlPrintOutput: string): boolean {
+  return /^SIG[A-Z]+ed$/.test(launchctlPrintField(launchctlPrintOutput, "state") ?? "");
 }
 
 /**
@@ -84,6 +110,7 @@ export class LaunchctlRuntimeLaunchAgent implements RuntimeAgentRegistration {
     private readonly runtimeLaunchAgent: RuntimeLaunchAgentOnThisMac,
     private readonly launchctlRunner: LaunchctlRunner,
     private readonly runOpen: OpenRunner,
+    private readonly waitForTheProcessToExit: ProcessExitWaiter,
   ) {}
 
   async registrationStatus(): Promise<RuntimeAgentRegistrationStatus> {
@@ -100,7 +127,12 @@ export class LaunchctlRuntimeLaunchAgent implements RuntimeAgentRegistration {
     const enabled = await this.runLaunchctl(enableArguments);
     if (!enabled.ok) return enabled;
     if (!programSucceeded(enabled.value)) return failedWith(launchctlRefusal(enableArguments, enabled.value));
-    if (await this.launchdHoldsTheJob()) return succeeded(undefined);
+    const heldJob = await this.launchdsDescriptionOfTheJob();
+    if (heldJob !== null) {
+      if (!launchdIsStillBootingOutTheJob(heldJob)) return succeeded(undefined);
+      const waitedForTheBootout = await this.waitUntilTheJobsProcessHasExited(launchdJobProcessId(heldJob));
+      if (!waitedForTheBootout.ok) return waitedForTheBootout;
+    }
     const bootstrapArguments = ["bootstrap", this.launchdDomain(), this.runtimeLaunchAgent.plistPath];
     const bootstrapped = await this.runLaunchctl(bootstrapArguments);
     if (!bootstrapped.ok) return bootstrapped;
@@ -114,9 +146,8 @@ export class LaunchctlRuntimeLaunchAgent implements RuntimeAgentRegistration {
   }
 
   async whyTheServiceManagerGaveUpOnTheRuntime(): Promise<RuntimeAgentGiveUp | null> {
-    const printed = await this.launchctlRunner(["print", this.launchdJob()]);
-    if (!printed.ok || !programSucceeded(printed.value)) return null;
-    return whyLaunchdGaveUpOnTheJob(printed.value.standardOutput);
+    const heldJob = await this.launchdsDescriptionOfTheJob();
+    return heldJob === null ? null : whyLaunchdGaveUpOnTheJob(heldJob);
   }
 
   startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>> {
@@ -135,18 +166,28 @@ export class LaunchctlRuntimeLaunchAgent implements RuntimeAgentRegistration {
     const disabled = await this.runLaunchctl(disableArguments);
     if (!disabled.ok) return disabled;
     if (!programSucceeded(disabled.value)) return failedWith(launchctlRefusal(disableArguments, disabled.value));
+    const jobBeforeTheBootout = await this.launchdsDescriptionOfTheJob();
     const bootoutArguments = ["bootout", this.launchdJob()];
     const bootedOut = await this.runLaunchctl(bootoutArguments);
     if (!bootedOut.ok) return bootedOut;
     const bootoutExitStatus = bootedOut.value.exitStatus;
     if (
-      programSucceeded(bootedOut.value) ||
-      bootoutExitStatus === LAUNCHCTL_NO_SUCH_SERVICE_EXIT_STATUS ||
-      bootoutExitStatus === LAUNCHCTL_NO_SUCH_PROCESS_EXIT_STATUS
+      !programSucceeded(bootedOut.value) &&
+      bootoutExitStatus !== LAUNCHCTL_NO_SUCH_SERVICE_EXIT_STATUS &&
+      bootoutExitStatus !== LAUNCHCTL_NO_SUCH_PROCESS_EXIT_STATUS
     ) {
-      return succeeded(undefined);
+      return failedWith(launchctlRefusal(bootoutArguments, bootedOut.value));
     }
-    return failedWith(launchctlRefusal(bootoutArguments, bootedOut.value));
+    const waitedForTheBootout = await this.waitUntilTheJobsProcessHasExited(
+      jobBeforeTheBootout === null ? null : launchdJobProcessId(jobBeforeTheBootout),
+    );
+    if (!waitedForTheBootout.ok) return waitedForTheBootout;
+    const printArguments = ["print", this.launchdJob()];
+    const printedAfterTheBootout = await this.runLaunchctl(printArguments);
+    if (!printedAfterTheBootout.ok) return printedAfterTheBootout;
+    if (programSucceeded(printedAfterTheBootout.value)) return failedWith(`launchd still holds ${this.launchdJob()} after booting it out`);
+    if (printedAfterTheBootout.value.exitStatus === LAUNCHCTL_NO_SUCH_SERVICE_EXIT_STATUS) return succeeded(undefined);
+    return failedWith(`launchd could not say whether it let go of ${this.launchdJob()}: ${launchctlRefusal(printArguments, printedAfterTheBootout.value)}`);
   }
 
   async openLoginItemsSettings(): Promise<Result<void, string>> {
@@ -180,8 +221,20 @@ export class LaunchctlRuntimeLaunchAgent implements RuntimeAgentRegistration {
   }
 
   private async launchdHoldsTheJob(): Promise<boolean> {
+    return (await this.launchdsDescriptionOfTheJob()) !== null;
+  }
+
+  /** `launchctl print`'s answer for the job; `null` when launchd holds no job under the label or could not be asked. */
+  private async launchdsDescriptionOfTheJob(): Promise<string | null> {
     const printed = await this.launchctlRunner(["print", this.launchdJob()]);
-    return printed.ok && programSucceeded(printed.value);
+    return printed.ok && programSucceeded(printed.value) ? printed.value.standardOutput : null;
+  }
+
+  /** Waits until the job's process, if it had one, has exited, which is when launchd lets go of a job it is booting out. */
+  private async waitUntilTheJobsProcessHasExited(jobProcessId: number | null): Promise<Result<void, string>> {
+    if (jobProcessId === null) return succeeded(undefined);
+    const waited = await this.waitForTheProcessToExit(jobProcessId);
+    return waited.ok ? waited : failedWith(`the runtime's exit could not be waited for: ${waited.failure}`);
   }
 
   private theInstallerWroteTheAgentsPlist(): Promise<boolean> {
