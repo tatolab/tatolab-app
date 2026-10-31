@@ -1,11 +1,11 @@
 // Tatolab.app: opening it shows its window and puts it in the tray, opening it again shows the
-// window of the one app already running, closing the window leaves the app in the tray, and
+// window of the one app already running — or, when the copy opened is another build, quits the
+// running one and opens it — closing the window leaves the app in the tray, and
 // quitting quits only the app — the runtime stays on. Each opening reconciles the runtime's agent
 // with "Run Tatolab"; the first also links the `tatolab` command in the home folder, restarts a
 // runtime left running from the bundle before an update, and starts checking for updates on its
 // own.
 
-import type { TatolabAppBuild } from "../shared/tatolab_backend_contract.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
@@ -33,14 +33,22 @@ import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_m
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
 import { StreamProjectPythonEnvironments, type PythonInterpreterFileDialog } from "./stream_project_python_environments.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
+import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy_handoff.js";
 
 /** The Electron app as the lifecycle drives it. */
 export interface TatolabElectronAppShell {
-  /** Whether this is the one running app; a second launch gets false and hands itself to the first. */
-  requestTheSingleInstanceLock(): boolean;
+  /** Which build this copy of the app is and the executable that opens it. */
+  readThisCopyOfTatolab(): Promise<TatolabAppCopy>;
+  /** Whether this is the one running app; a second launch gets false and hands `thisCopy` to the first. */
+  requestTheSingleInstanceLock(thisCopy: TatolabAppCopy): boolean;
   whenReady(): Promise<void>;
-  /** Calls `listener` when the user opens the running app again: a second launch, or macOS reopening it from the Dock or Finder. */
-  onTheAppOpenedAgain(listener: () => void): void;
+  /**
+   * Calls `listener` when the user opens the running app again: a second launch, with the copy it handed over, or macOS
+   * reopening it from the Dock or Finder, with `null`.
+   */
+  onTheAppOpenedAgain(listener: (openedCopy: TatolabAppCopy | null) => void): void;
+  /** Open `executable` once this process exits. */
+  openAnotherCopyOnceThisOneExits(executable: string): void;
   /** Calls `listener` as the app begins to quit, from the tray, the window or the system. */
   onTheAppQuitting(listener: () => void): void;
   exitTheApp(exitCode: number): void;
@@ -65,9 +73,6 @@ export interface TatolabElectronAppShell {
   repeatingTimer: RepeatingTimer;
   /** The app's own config directory, where "Run Tatolab" is remembered. */
   appConfigDirectory: string;
-  appVersion: string;
-  /** Which build of the app this is: its build features' build id, as the window's status carries it. */
-  appBuild: TatolabAppBuild | null;
   /** Where the runtime this build reads serves its loopback HTTP: the window's content security policy frames it, and the graph's preview pages sit under it. */
   runtimeLoopbackHttpOrigin: string;
   readMonotonicClockMs(): number;
@@ -96,8 +101,12 @@ export async function startTatolabApp(
     tatolabElectronAppShell.exitTheApp(1);
     return null;
   }
-  if (!tatolabElectronAppShell.requestTheSingleInstanceLock()) {
-    tatolabAppLog.info("Tatolab is already running; it shows its window");
+  const thisCopyOfTatolab = await tatolabElectronAppShell.readThisCopyOfTatolab();
+  if (!tatolabElectronAppShell.requestTheSingleInstanceLock(thisCopyOfTatolab)) {
+    tatolabAppLog.info("Tatolab is already running; this copy hands it its build", {
+      app_version: thisCopyOfTatolab.appVersion,
+      executable: thisCopyOfTatolab.executableThatOpensTheCopy,
+    });
     tatolabElectronAppShell.exitTheApp(0);
     return null;
   }
@@ -112,7 +121,17 @@ export async function startTatolabApp(
   await tatolabElectronAppShell.whenReady();
   tatolabElectronAppShell.setTheApplicationMenu(platformItems.applicationMenu);
   let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
-  tatolabElectronAppShell.onTheAppOpenedAgain(() => {
+  tatolabElectronAppShell.onTheAppOpenedAgain((openedCopy) => {
+    if (openedCopy !== null && isAnotherBuildOfTatolab(thisCopyOfTatolab, openedCopy)) {
+      tatolabAppLog.info("another build of Tatolab was opened; this copy quits and opens it", {
+        running_app_version: thisCopyOfTatolab.appVersion,
+        opened_app_version: openedCopy.appVersion,
+        opened_executable: openedCopy.executableThatOpensTheCopy,
+      });
+      tatolabElectronAppShell.openAnotherCopyOnceThisOneExits(openedCopy.executableThatOpensTheCopy);
+      quitTheTatolabApp(tatolabMainWindow, (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode), tatolabAppLog);
+      return;
+    }
     tatolabMainWindow.show();
     if (sharedStateOnceBuilt === null) return;
     sharedStateOnceBuilt.statusPublisher.sendTheLastPublishedStatusToTheWindow();
@@ -158,8 +177,8 @@ export async function startTatolabApp(
     platformForThisBuild,
     appConfigDirectory: tatolabElectronAppShell.appConfigDirectory,
     appLaunchedAtMs,
-    appVersion: tatolabElectronAppShell.appVersion,
-    appBuild: tatolabElectronAppShell.appBuild,
+    appVersion: thisCopyOfTatolab.appVersion,
+    appBuild: thisCopyOfTatolab.appBuild,
     runtimeLoopbackHttpOrigin: tatolabElectronAppShell.runtimeLoopbackHttpOrigin,
     readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     readTheAppUpdateState: () => tatolabAppUpdater.state(),
