@@ -4,10 +4,8 @@
 # Frameworks (the runtime's dylibs), its tatolab-cli, moq-relay and uv, then the helper itself, whose
 # main executable is tatolabd, with the device entitlements; install.sh copies it out whole, so its
 # own signature is what macOS checks the installed runtime against. Then the app: every loose Mach-O
-# in Contents/Frameworks (the built-in Python and Electron's
-# libraries), each framework, each Electron helper app, Contents/MacOS/uv, then the app. The built-in
-# Python's interpreter keeps its signature when the app copies it out of the bundle, so a project's
-# .venv runs code signed by the Developer ID.
+# in Contents/Frameworks (Electron's libraries), each framework, each Electron helper app, then the
+# app.
 #
 # Usage: sign-tatolab-app-bundle.sh <Tatolab.app> <identity>
 #   identity  the "Developer ID Application: … (TEAMID)" identity from Infisical, in a keychain
@@ -27,11 +25,10 @@ repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 app_entitlements="$repository_root/packaging/entitlements/tatolab-app.entitlements"
 renderer_helper_entitlements="$repository_root/packaging/entitlements/tatolab-renderer-helper.entitlements"
 tatolabd_entitlements="$repository_root/packaging/entitlements/tatolabd.entitlements"
-built_in_python_entitlements="$repository_root/packaging/entitlements/tatolab-python.entitlements"
 
 helper_bundle="$contents/Helpers/Tatolab Runtime.app"
 helper_contents="$helper_bundle/Contents"
-for required in MacOS/Tatolab MacOS/uv Frameworks/tatolab-python "Frameworks/Electron Framework.framework" \
+for required in MacOS/Tatolab "Frameworks/Electron Framework.framework" \
   Resources/install.sh "Helpers/Tatolab Runtime.app/Contents/Info.plist" "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolabd" \
   "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolab-cli" "Helpers/Tatolab Runtime.app/Contents/MacOS/moq-relay" \
   "Helpers/Tatolab Runtime.app/Contents/MacOS/uv" "Helpers/Tatolab Runtime.app/Contents/Frameworks/tatolab-runtime"; do
@@ -41,7 +38,6 @@ done
 codesign_common_arguments=(--force --options runtime --timestamp --sign "$signing_identity")
 
 is_mach_o() { [[ "$(file -b "$1")" == Mach-O* ]]; }
-is_a_mach_o_executable() { [[ "$(file -b "$1")" == Mach-O*executable* ]]; }
 
 helper_mach_o_count=0
 while IFS= read -r -d '' helper_framework_file; do
@@ -62,11 +58,7 @@ while IFS= read -r -d '' framework_file; do
   case "$framework_file" in
     *.app/Contents/MacOS/*) continue ;;
   esac
-  if [[ "$framework_file" == "$contents/Frameworks/tatolab-python/"* ]] && is_a_mach_o_executable "$framework_file"; then
-    codesign "${codesign_common_arguments[@]}" --entitlements "$built_in_python_entitlements" "$framework_file"
-  else
-    codesign "${codesign_common_arguments[@]}" "$framework_file"
-  fi
+  codesign "${codesign_common_arguments[@]}" "$framework_file"
   loose_framework_mach_o_count=$((loose_framework_mach_o_count + 1))
 done < <(find "$contents/Frameworks" -type f -print0)
 
@@ -83,8 +75,7 @@ while IFS= read -r -d '' helper_app; do
   helper_app_count=$((helper_app_count + 1))
 done < <(find "$contents/Frameworks" -maxdepth 1 -name '*.app' -print0)
 
-codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.uv "$contents/MacOS/uv"
 codesign "${codesign_common_arguments[@]}" --entitlements "$app_entitlements" "$app_bundle"
 
 codesign --verify --deep --strict "$app_bundle"
-echo "signed $app_bundle with the Developer ID: Tatolab Runtime.app ($helper_mach_o_count Mach-O in its Frameworks, tatolab-cli, moq-relay, uv, tatolabd), $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count Electron helper apps, uv, the app"
+echo "signed $app_bundle with the Developer ID: Tatolab Runtime.app ($helper_mach_o_count Mach-O in its Frameworks, tatolab-cli, moq-relay, uv, tatolabd), $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count Electron helper apps, the app"

@@ -3,16 +3,16 @@
 // command answers.
 
 import type {
-  PythonForNewEnvironmentsChoice,
+  ProjectCreationQueued,
+  ProjectLogNarrowing,
+  ProjectLogRecordsPage,
+  ProjectRunQueued,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
+  StreamActionFollowed,
   StreamGraphSummary,
-  StreamLogRecordsPage,
   StreamProjectFolderChosenFor,
-  StreamProjectFolderReport,
-  StreamProjectRunOutcome,
-  StreamStopAnswer,
   TatolabStatus,
 } from "./tatolab_backend_contract.js";
 
@@ -28,27 +28,26 @@ export const TATOLAB_COMMAND_NAMES = [
   "link_command_line_tool_in_usr_local_bin",
   "uninstall_tatolab",
   "quit_tatolab_app",
-  "read_stream_log_records",
+  "read_project_log_records",
   "describe_stream_graph",
   "check_for_tatolab_app_updates",
   "stop_stream",
   "start_stream",
-  "remove_stream",
+  "remove_project",
   "rename_stream",
   "open_stream_project_folder",
   "open_terminal_at_stream_project",
   "open_stream_log_folder",
   "choose_stream_project_folder",
-  "propose_new_stream_project_folder",
   "create_stream_project",
   "run_stream_project",
+  "describe_stream_action",
   "describe_runtime",
   "restart_runtime",
   "install_the_carried_runtime_again",
   "open_runtime_log_folder",
   "set_stream_failure_notifications",
   "set_open_tatolab_at_login",
-  "choose_python_for_new_environments",
   "describe_relays",
   "add_relay",
   "configure_relay",
@@ -56,11 +55,11 @@ export const TATOLAB_COMMAND_NAMES = [
 ] as const;
 
 /**
- * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_stream_log_records` `{ stream, after }`, `describe_stream_graph`, `stop_stream`,
- * `start_stream`, `remove_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
- * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` `{ folder }`, `run_stream_project` `{ folder, stream_function, name }`,
- * `choose_python_for_new_environments` `{ python }`, `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
- * acts only on a folder the app handed the window, from its folder dialog or its proposal. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
+ * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
+ * `remove_project` `{ project_directory }`, `describe_stream_graph`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
+ * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` `{ action }`,
+ * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * acts only on a folder the app handed the window from its folder dialog, and `read_project_log_records` and `remove_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
  * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `install_the_carried_runtime_again` once the installer ends, refused in its words; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
  */
@@ -98,23 +97,29 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   link_command_line_tool_in_usr_local_bin: { commandArguments: undefined; answer: null };
   uninstall_tatolab: { commandArguments: undefined; answer: null };
   quit_tatolab_app: { commandArguments: undefined; answer: null };
-  read_stream_log_records: { commandArguments: { stream: string; after: number }; answer: StreamLogRecordsPage };
+  /** `stream` and `action` narrow the read, `null` for no narrowing; `after` is the `next_after` of the page before, `null` for the oldest record held. */
+  read_project_log_records: { commandArguments: { project_directory: string; after: string | null } & ProjectLogNarrowing; answer: ProjectLogRecordsPage };
   describe_stream_graph: { commandArguments: { stream: string }; answer: StreamGraphSummary };
   check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };
-  stop_stream: { commandArguments: { stream: string }; answer: StreamStopAnswer };
+  /** Answers once the runtime has queued the stop; the stream shows `stopping` in the listing until it has run. */
+  stop_stream: { commandArguments: { stream: string }; answer: null };
+  /** Answers once the runtime has queued the start, a failed stream's retry among them; the stream shows `preparing` in the listing until it has run. */
   start_stream: { commandArguments: { stream: string }; answer: null };
-  remove_stream: { commandArguments: { stream: string }; answer: null };
+  /** Answers once the runtime has queued the removal of every stream it holds from the project; deletes no file. */
+  remove_project: { commandArguments: { project_directory: string }; answer: null };
   /** `stream` a stream's id; answers once the runtime has recorded `display_name`, refused in its own words. */
   rename_stream: { commandArguments: { stream: string; display_name: string }; answer: null };
   open_stream_project_folder: { commandArguments: { stream: string }; answer: null };
   open_terminal_at_stream_project: { commandArguments: { stream: string }; answer: null };
   open_stream_log_folder: { commandArguments: { stream: string }; answer: null };
-  /** `null` when the person cancels the dialog. */
-  choose_stream_project_folder: { commandArguments: { chosen_for: StreamProjectFolderChosenFor }; answer: StreamProjectFolderReport | null };
-  propose_new_stream_project_folder: { commandArguments: undefined; answer: StreamProjectFolderReport };
-  create_stream_project: { commandArguments: { folder: string }; answer: StreamProjectFolderReport };
-  /** `stream_function` as `tatolab run` takes it, `null` for the project's sole `@stream`; `name` the display name to show the stream under, `null` for the function's own or the one a re-added folder's stream keeps. */
-  run_stream_project: { commandArguments: { folder: string; stream_function: string | null; name: string | null }; answer: StreamProjectRunOutcome };
+  /** The chosen folder, absolute with its links resolved; `null` when the person cancels the dialog. */
+  choose_stream_project_folder: { commandArguments: { chosen_for: StreamProjectFolderChosenFor }; answer: string | null };
+  /** `folder` `null` lets the runtime draw one under `~/streams`; answers once the runtime has queued the creation, which the window follows with `describe_stream_action`. */
+  create_stream_project: { commandArguments: { folder: string | null }; answer: ProjectCreationQueued };
+  /** Answers once the runtime has queued the run of every `@stream` in the folder, which the window follows with `describe_stream_action`. */
+  run_stream_project: { commandArguments: { folder: string }; answer: ProjectRunQueued };
+  /** The action's description, or the runtime's words that it no longer holds it; refused when the runtime could not be asked. */
+  describe_stream_action: { commandArguments: { action: string }; answer: StreamActionFollowed };
   describe_runtime: { commandArguments: undefined; answer: RuntimeDescription };
   restart_runtime: { commandArguments: undefined; answer: null };
   install_the_carried_runtime_again: { commandArguments: undefined; answer: null };
@@ -124,7 +129,6 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   /** Answers once the desktop has; refused in its words, or with why this build does not offer it. */
   set_open_tatolab_at_login: { commandArguments: { enabled: boolean }; answer: null };
   /** `chosen_in_a_file_dialog` opens the app's own file dialog and answers once the person picks or cancels; refused naming why, the choice unchanged. */
-  choose_python_for_new_environments: { commandArguments: { python: PythonForNewEnvironmentsChoice }; answer: null };
   /** The runtime's `list_relays` and its relay-adapter catalog, read together; refused in the runtime's own words. */
   describe_relays: { commandArguments: undefined; answer: RelaysDescription };
   /** `settings` as the adapter's settings take them, its secrets among them, sent once and kept by the app nowhere; answers the id the runtime gave the relay. */

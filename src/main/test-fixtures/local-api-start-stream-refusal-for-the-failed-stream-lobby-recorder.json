@@ -1,1 +1,0 @@
-{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"Invalid configuration: the stream `lobby-recorder-main-382ba0` was not loaded: its interpreter /private/tmp/tatolab-proof/projects/lobby-recorder/.venv/bin/python is gone; run `uv sync` in /private/tmp/tatolab-proof/projects/lobby-recorder"}],"isError":true}}

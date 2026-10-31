@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./mock_tatolab_backend";
-import type { ListedStream, RelaysDescription, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, RelaysDescription, StreamActionFollowed, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { TatolabBackend } from "./tatolab_backend";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -19,21 +20,31 @@ function listingWithTheId(streams: ListedStream[] | null, streamId: string): Lis
   return streams?.find((stream) => stream.stream === streamId);
 }
 
-async function runningMockBackend() {
+async function runningMockBackend(pageQuery = "") {
   vi.useFakeTimers();
-  const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
-  const streamsAfterEachChange = async (act: () => Promise<string | null>) => {
+  const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams(pageQuery)));
+  const streamsAfterEachChange = async (act: () => Promise<void>, millisecondsToWait = 100) => {
     const settledAnswer = act().then(
-      (notice) => ({ notice }),
+      () => ({ queued: true }),
       (refusal: unknown) => ({ refusal }),
     );
-    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(millisecondsToWait);
     const status = backend.getTatolabStatus();
     await vi.advanceTimersByTimeAsync(100);
     return { answer: await settledAnswer, streams: (await status).streams };
   };
   return { backend, streamsAfterEachChange };
 }
+
+/** Reads every record of `projectDirectory`'s log narrowed as asked, page after page. */
+async function everyProjectLogRecord(backend: TatolabBackend, projectDirectory: string, narrowing: ProjectLogNarrowing): Promise<ProjectLogRecord[]> {
+  const page = backend.readProjectLogRecords(projectDirectory, narrowing, null);
+  await vi.advanceTimersByTimeAsync(100);
+  return (await page).records;
+}
+
+const PATTERN_FOLDER = "/Users/jonathanf/streams/pattern";
+const LOBBY_RECORDER_FOLDER = "/Users/jonathanf/streams/lobby-recorder";
 
 describe("the mock backend's stream actions", () => {
   it("lists every stream by its id and display name, running, stopped or failed, and none attached", async () => {
@@ -50,25 +61,21 @@ describe("the mock backend's stream actions", () => {
     ]);
   });
 
-  it("stops a running stream as the runtime records it, and starts it again", async () => {
+  it("queues a stop, lists the stream stopping, then stopped; and queues a start, listing it preparing at each step, then running", async () => {
     const { backend, streamsAfterEachChange } = await runningMockBackend();
 
-    const stopped = await streamsAfterEachChange(() => backend.runStreamAction("stop_stream", CAMERA));
-    expect(stopped.answer).toEqual({ notice: null });
-    expect(listingWithTheId(stopped.streams, CAMERA)).toMatchObject({ state: "stopped", node_count: null });
+    const stopping = await streamsAfterEachChange(() => backend.runStreamAction("stop_stream", CAMERA));
+    expect(stopping.answer).toEqual({ queued: true });
+    expect(listingWithTheId(stopping.streams, CAMERA)).toMatchObject({ state: "stopping", step: "stopping", action: expect.stringMatching(/^Rmockruntime7f3k2q9x4w1b8n-\d+$/) });
+    const stopped = await streamsAfterEachChange(() => Promise.resolve(), 1000);
+    expect(listingWithTheId(stopped.streams, CAMERA)).toMatchObject({ state: "stopped", node_count: null, action: null, step: null });
 
-    const started = await streamsAfterEachChange(() => backend.runStreamAction("start_stream", CAMERA));
-    expect(started.answer).toEqual({ notice: null });
-    expect(listingWithTheId(started.streams, CAMERA)).toMatchObject({ state: "running", node_count: 4 });
-  });
-
-  it("stops the recorder that reads another stream like any other, and it stays listed stopped", async () => {
-    const { backend, streamsAfterEachChange } = await runningMockBackend();
-
-    const stopped = await streamsAfterEachChange(() => backend.runStreamAction("stop_stream", RECORDER));
-
-    expect(stopped.answer).toEqual({ notice: null });
-    expect(listingWithTheId(stopped.streams, RECORDER)).toMatchObject({ state: "stopped", node_count: null });
+    const compiling = await streamsAfterEachChange(() => backend.runStreamAction("start_stream", CAMERA));
+    expect(listingWithTheId(compiling.streams, CAMERA)).toMatchObject({ state: "preparing", step: "compiling" });
+    const starting = await streamsAfterEachChange(() => Promise.resolve(), 600);
+    expect(listingWithTheId(starting.streams, CAMERA)).toMatchObject({ state: "preparing", step: "starting" });
+    const running = await streamsAfterEachChange(() => Promise.resolve(), 1000);
+    expect(listingWithTheId(running.streams, CAMERA)).toMatchObject({ state: "running", node_count: 4, action: null, step: null });
   });
 
   it("refuses what the runtime refuses, in words shaped as the runtime's", async () => {
@@ -77,9 +84,13 @@ describe("the mock backend's stream actions", () => {
     const stoppedTwice = await streamsAfterEachChange(() => backend.runStreamAction("stop_stream", PATTERN_TWO));
     expect(stoppedTwice.answer).toEqual({ refusal: `Runtime error: the stream \`${PATTERN_TWO}\` is already stopped; \`start\` loads it again` });
     const startedWhileLoaded = await streamsAfterEachChange(() => backend.runStreamAction("start_stream", MAIN));
-    expect(startedWhileLoaded.answer).toEqual({ refusal: `Runtime error: the stream \`${MAIN}\` is already loaded in this runtime, running; only a stopped or failed stream starts` });
-    const removedByItsDisplayName = await streamsAfterEachChange(() => backend.runStreamAction("remove_stream", "main"));
-    expect(removedByItsDisplayName.answer).toEqual({ refusal: expect.stringMatching(/^Resource not found: no stream with the id `main` is loaded or recorded in this runtime\. Loaded: /) });
+    expect(startedWhileLoaded.answer).toEqual({
+      refusal: `Runtime error: the stream \`${MAIN}\` is already loaded in this runtime, recorded by the runtime; only a stopped or failed stream starts`,
+    });
+    const removedAFolderOfNoStream = await streamsAfterEachChange(() => backend.removeProject("/Users/jonathanf/streams/nothing-here"));
+    expect(removedAFolderOfNoStream.answer).toEqual({
+      refusal: expect.stringMatching(/^Resource not found: this runtime holds no stream of the project in \/Users\/jonathanf\/streams\/nothing-here, so there is none to remove\. Loaded: /),
+    });
   });
 
   it("renames a stream under the same id, and refuses a name that shows nothing or an id it does not hold, in the runtime's words", async () => {
@@ -100,7 +111,7 @@ describe("the mock backend's stream actions", () => {
     expect(await settledRename(CAMERA, "   ")).toEqual({
       refusal: `Invalid configuration: "   " cannot be a stream's display name: it shows nothing; a display name is any text with something to show`,
     });
-    expect(await settledRename("camera", "Desk")).toEqual({ refusal: expect.stringMatching(/^Resource not found: no stream with the id `camera` is loaded or recorded in this runtime\./) });
+    expect(await settledRename("camera", "Desk")).toEqual({ refusal: expect.stringMatching(/^Resource not found: no stream with the id \`camera\` is loaded or recorded in this runtime\./) });
   });
 
   it("lists a record an earlier runtime wrote, failed with no location, with ?streams=earlier_record", async () => {
@@ -112,26 +123,65 @@ describe("the mock backend's stream actions", () => {
     expect(listingWithTheId((await status).streams, "doorbell")).toMatchObject({ location: null, state: "failed", failed_because: expect.stringMatching(/^an earlier runtime recorded it/) });
   });
 
-  it("keeps a failed stream failed when its retry does not load, with the retry's reason", async () => {
+  it("queues a retry of a failed stream, which fails again with the retry's reason when it does not load", async () => {
     const { backend, streamsAfterEachChange } = await runningMockBackend();
 
     const retried = await streamsAfterEachChange(() => backend.runStreamAction("start_stream", LOBBY_RECORDER));
-
-    expect(retried.answer).toEqual({ refusal: expect.any(String) });
-    expect(listingWithTheId(retried.streams, LOBBY_RECORDER)?.failed_because).toMatch(/^`start` retried it, and it did not load: /);
+    expect(retried.answer).toEqual({ queued: true });
+    expect(listingWithTheId(retried.streams, LOBBY_RECORDER)).toMatchObject({ state: "preparing" });
+    const failedAgain = await streamsAfterEachChange(() => Promise.resolve(), 2000);
+    expect(listingWithTheId(failedAgain.streams, LOBBY_RECORDER)?.failed_because).toMatch(/^`start` retried it, and it did not load: /);
   });
 
-  it("forgets a removed stream", async () => {
+  it("removes a project: each of its streams stopping, then forgotten, and no other", async () => {
     const { backend, streamsAfterEachChange } = await runningMockBackend();
 
-    const removed = await streamsAfterEachChange(() => backend.runStreamAction("remove_stream", PATTERN_TWO));
-
-    expect(removed.answer).toEqual({ notice: null });
-    expect(listingWithTheId(removed.streams, PATTERN_TWO)).toBeUndefined();
+    const removing = await streamsAfterEachChange(() => backend.removeProject(PATTERN_FOLDER));
+    expect(removing.answer).toEqual({ queued: true });
+    expect([MAIN, RECORDER, PATTERN_TWO].map((streamId) => listingWithTheId(removing.streams, streamId)?.state)).toEqual(["stopping", "stopping", "stopping"]);
+    const removed = await streamsAfterEachChange(() => Promise.resolve(), 1000);
+    expect(removed.streams?.map((stream) => stream.stream)).toEqual([CAMERA, LOBBY_RECORDER]);
   });
 });
 
-describe("the mock backend's Add stream", () => {
+describe("the mock backend's project logs", () => {
+  it("holds a failed stream's error under the action that failed it", async () => {
+    const { backend } = await runningMockBackend();
+
+    const records = await everyProjectLogRecord(backend, LOBBY_RECORDER_FOLDER, { stream: LOBBY_RECORDER, action: null });
+
+    expect(records.map((record) => record.level)).toEqual(["info", "error"]);
+    expect(new Set(records.map((record) => record.action)).size).toBe(1);
+  });
+
+  it("narrows a project's log to one stream, and pages on from each cursor", async () => {
+    const { backend } = await runningMockBackend();
+
+    const wholeProject = await everyProjectLogRecord(backend, PATTERN_FOLDER, { stream: null, action: null });
+    const mainOnly = await everyProjectLogRecord(backend, PATTERN_FOLDER, { stream: MAIN, action: null });
+    expect(new Set(wholeProject.map((record) => record.stream))).toEqual(new Set([MAIN, RECORDER]));
+    expect(mainOnly.length).toBeGreaterThan(0);
+    expect(mainOnly.every((record) => record.stream === MAIN)).toBe(true);
+
+    const firstPage = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, null);
+    await vi.advanceTimersByTimeAsync(100);
+    const pageAfterIt = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, (await firstPage).next_after);
+    await vi.advanceTimersByTimeAsync(100);
+    expect((await pageAfterIt).records.length).toBeLessThan(wholeProject.length);
+  });
+
+  it("marks records no longer held once the log's retention deleted some, with ?held_records=", async () => {
+    const { backend } = await runningMockBackend("held_records=5");
+
+    const page = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, null);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(await page).toMatchObject({ records_no_longer_held: true });
+    expect((await page).records).toHaveLength(5);
+  });
+});
+
+describe("the mock backend's New project and Import project", () => {
   async function settled<Answer>(act: () => Promise<Answer>, waitMilliseconds = 3000): Promise<{ answer: Answer } | { refusal: unknown }> {
     const settledAnswer = act().then(
       (answer) => ({ answer }),
@@ -141,102 +191,102 @@ describe("the mock backend's Add stream", () => {
     return settledAnswer;
   }
 
-  it("runs the chosen folder under the id its location computes to, lists it running, and refuses a folder it never handed the window", async () => {
-    vi.useFakeTimers();
-    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_run=warning")));
-    const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
-    const folder = "answer" in chosen && chosen.answer !== null ? chosen.answer.folder : "";
-    expect(folder).toBe("/Users/jonathanf/code/heat-map");
-
-    const run = await settled(() => backend.runStreamProject(folder, null, "heat map"));
-    expect(run).toEqual({
-      answer: {
-        kind: "running",
-        answer: expect.objectContaining({
-          stream: HEAT_MAP,
-          display_name: "heat map",
-          location: { project_directory: folder, stream_function: "stream:heat_map" },
-          node_count: 4,
-          replaced_a_recorded_stream: false,
-          compile_warnings: ["tatolab: the cross-floor check found 1 thing binding this app to one floor.", "  nodes/heat_render.py:4: imports `cupy`"],
-        }),
-      },
-    });
-    const status = await settled(() => backend.getTatolabStatus());
-    expect("answer" in status && listingWithTheId(status.answer.streams, HEAT_MAP)).toMatchObject({ display_name: "heat map", state: "running" });
-
-    expect(await settled(() => backend.runStreamProject("/etc", null, "etc"))).toEqual({
-      refusal: "Tatolab acts only on a folder chosen in its window. Choose /etc again.",
-    });
-  });
-
-  it("replaces the stream a folder already runs when it runs again, under the same id, keeping its display name unless one is given", async () => {
-    vi.useFakeTimers();
-    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_folder=recorded")));
-    const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
-    const folder = "answer" in chosen && chosen.answer !== null ? chosen.answer.folder : "";
-
-    expect(await settled(() => backend.runStreamProject(folder, null, null))).toEqual({
-      answer: { kind: "running", answer: expect.objectContaining({ stream: MAIN, display_name: "main", replaced_a_recorded_stream: true }) },
-    });
-    expect(await settled(() => backend.runStreamProject(folder, null, "front door"))).toEqual({
-      answer: { kind: "running", answer: expect.objectContaining({ stream: MAIN, display_name: "front door", replaced_a_recorded_stream: true }) },
-    });
-    const status = await settled(() => backend.getTatolabStatus());
-    expect("answer" in status && status.answer.streams?.filter((stream) => stream.stream === MAIN).map((stream) => stream.display_name)).toEqual(["front door"]);
-  });
-
-  it("creates a project, then makes its .venv with the Python for new environments as it runs it", async () => {
-    vi.useFakeTimers();
-    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
-    const proposal = await settled(() => backend.proposeNewStreamProjectFolder());
-    const folder = "answer" in proposal ? proposal.answer.folder : "";
-    expect(folder).toBe("/Users/jonathanf/streams/hello");
-
-    const created = await settled(() => backend.createStreamProject(folder));
-    expect(created).toEqual({ answer: expect.objectContaining({ stream_functions: ["main"], python_environment: { kind: "missing" } }) });
-    expect(await settled(() => backend.runStreamProject(folder, null, "hello"), 7000)).toEqual({ answer: expect.objectContaining({ kind: "running" }) });
-  });
-
-  it("answers uv's refusal as python_environment_not_made with ?add_venv=refused, and a build with no Python with its reason", async () => {
-    vi.useFakeTimers();
-    for (const [query, words] of [
-      ["add_venv=refused&add_folder=no-venv", expect.stringMatching(/^error: Failed to fetch: `https:\/\/pypi.org\/simple\/tatolab-stream\/`/)],
-      ["python=not_offered&add_folder=no-venv", expect.stringMatching(/^This build of Tatolab carries no uv or Python of its own/)],
-    ] as const) {
-      const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams(query)));
-      const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
-      const folder = "answer" in chosen && chosen.answer !== null ? chosen.answer.folder : "";
-      expect(await settled(() => backend.runStreamProject(folder, null, "heat_map"), 4000)).toEqual({ answer: { kind: "python_environment_not_made", words } });
+  /** Follows `action` until it ends, advancing the mock's clock a beat at a time, answering every description read along the way. */
+  async function followedToItsEnd(backend: ReturnType<typeof createMockTatolabBackend>, action: string): Promise<StreamActionFollowed[]> {
+    const followed: StreamActionFollowed[] = [];
+    for (let beat = 0; beat < 20; beat += 1) {
+      const description = await settled(() => backend.describeStreamAction(action), 500);
+      if (!("answer" in description)) throw new Error("the mock refused to describe the action");
+      followed.push(description.answer);
+      if (description.answer.kind === "not_held" || ["done", "failed", "cancelled"].includes(description.answer.description.state)) return followed;
     }
-  });
+    return followed;
+  }
 
-  it("chooses the Python for new environments: one the file dialog picks, Tatolab's again, and a pick that is no Python refused", async () => {
+  function statesOf(followed: readonly StreamActionFollowed[]): string[] {
+    return [...new Set(followed.map((answer) => (answer.kind === "described" ? `${answer.description.state}:${answer.description.step ?? ""}` : answer.kind)))];
+  }
+
+  it("imports the chosen folder as a queued load, lists its stream preparing then running, and refuses a folder it never handed the window", async () => {
     vi.useFakeTimers();
     const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
-    const statuses: TatolabStatus[] = [];
-    await backend.onTatolabStatusChanged((status) => statuses.push(status));
+    await settled(() => backend.getTatolabStatus());
+    const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
+    expect(chosen).toEqual({ answer: "/Users/jonathanf/code/heat-map" });
 
-    await settled(() => backend.choosePythonForNewEnvironments("chosen_in_a_file_dialog"));
-    expect(statuses.at(-1)?.python_for_new_environments).toEqual({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" });
-    await settled(() => backend.choosePythonForNewEnvironments("built_in"));
-    expect(statuses.at(-1)?.python_for_new_environments).toEqual({ kind: "built_in", python_version: "3.12.12" });
+    const queued = await settled(() => backend.runStreamProject("/Users/jonathanf/code/heat-map"), 50);
+    if (!("answer" in queued)) throw new Error("the run was refused");
+    expect(queued.answer.project_directory).toBe("/Users/jonathanf/code/heat-map");
+    const followed = await followedToItsEnd(backend, queued.answer.action);
+    expect(statesOf(followed)).toEqual(["queued:", "in_progress:compiling", "in_progress:starting", "done:"]);
+    expect(followed.at(-1)).toEqual({
+      kind: "described",
+      description: expect.objectContaining({ state: "done", streams: [{ stream: HEAT_MAP, display_name: "heat_map", state: "running" }] }),
+    });
+    const status = await settled(() => backend.getTatolabStatus());
+    expect("answer" in status && listingWithTheId(status.answer.streams, HEAT_MAP)).toMatchObject({ state: "running" });
 
-    const notAPython = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("python_pick=not_python")));
-    expect(await settled(() => notAPython.choosePythonForNewEnvironments("chosen_in_a_file_dialog"))).toEqual({
-      refusal: "/usr/bin/ruby is not a Python interpreter: ruby 3.3.0",
+    expect(await settled(() => backend.runStreamProject("/etc"))).toEqual({ refusal: "Tatolab acts only on a folder chosen in its window. Choose /etc again." });
+  });
+
+  it("imports a folder with two streams, one failing, and makes a .venv first for a folder with none", async () => {
+    vi.useFakeTimers();
+    const doorways = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_folder=several")));
+    await settled(() => doorways.getTatolabStatus());
+    await settled(() => doorways.chooseStreamProjectFolder("project_to_run"));
+    const queued = await settled(() => doorways.runStreamProject("/Users/jonathanf/code/doorways"), 50);
+    if (!("answer" in queued)) throw new Error("the run was refused");
+    const ending = (await followedToItsEnd(doorways, queued.answer.action)).at(-1);
+    expect(ending?.kind === "described" && ending.description.streams.map((stream) => [stream.display_name, stream.state])).toEqual([
+      ["front_door", "running"],
+      ["back_door", "failed"],
+    ]);
+
+    const noVenv = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_folder=no-venv")));
+    await settled(() => noVenv.getTatolabStatus());
+    await settled(() => noVenv.chooseStreamProjectFolder("project_to_run"));
+    const queuedWithNoVenv = await settled(() => noVenv.runStreamProject("/Users/jonathanf/code/heat-map"), 50);
+    if (!("answer" in queuedWithNoVenv)) throw new Error("the run was refused");
+    expect(statesOf(await followedToItsEnd(noVenv, queuedWithNoVenv.answer.action))).toContain("in_progress:making_the_venv");
+  });
+
+  it("creates a project in a folder it draws under ~/streams, or the chosen one, making its .venv; a folder holding a project fails the load in the runtime's words", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
+    await settled(() => backend.getTatolabStatus());
+    const drawn = await settled(() => backend.createStreamProject(null), 50);
+    expect(drawn).toEqual({ answer: { action: expect.any(String), stream: expect.stringMatching(/^kind-butte-main-/), project_directory: "/Users/jonathanf/streams/kind-butte" } });
+    if (!("answer" in drawn)) throw new Error("the creation was refused");
+    expect(statesOf(await followedToItsEnd(backend, drawn.answer.action))).toEqual(["queued:", "in_progress:making_the_venv", "in_progress:compiling", "in_progress:starting", "done:"]);
+    expect(await settled(() => backend.chooseStreamProjectFolder("new_project_directory"))).toEqual({ answer: "/Users/jonathanf/streams/lobby" });
+
+    const existing = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_new_folder=existing")));
+    await settled(() => existing.getTatolabStatus());
+    await settled(() => existing.chooseStreamProjectFolder("new_project_directory"));
+    const intoAProject = await settled(() => existing.createStreamProject("/Users/jonathanf/code/heat-map"), 50);
+    if (!("answer" in intoAProject)) throw new Error("the creation was refused");
+    expect((await followedToItsEnd(existing, intoAProject.answer.action)).at(-1)).toEqual({
+      kind: "described",
+      description: expect.objectContaining({ state: "failed", failed_because: expect.stringMatching(/already has pyproject.toml, stream.py, and a new project's files would overwrite it/) }),
     });
   });
 
-  it("refuses creating a project in a build with no tatolab command, and answers a cancelled dialog with null", async () => {
+  it("fails the load when the runtime's uv cannot make the .venv with ?add_venv=refused, answers no load held with ?add_action=not_held, and a cancelled dialog with null", async () => {
     vi.useFakeTimers();
-    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_cli=missing&add_folder=cancel")));
-    const proposal = await settled(() => backend.proposeNewStreamProjectFolder());
-    const folder = "answer" in proposal ? proposal.answer.folder : "";
-    expect(await settled(() => backend.createStreamProject(folder))).toEqual({
-      refusal: "This build of Tatolab has no tatolab command to run. Run tatolab new in a terminal instead.",
+    const refused = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_venv=refused&add_folder=no-venv")));
+    await settled(() => refused.getTatolabStatus());
+    await settled(() => refused.chooseStreamProjectFolder("project_to_run"));
+    const queued = await settled(() => refused.runStreamProject("/Users/jonathanf/code/heat-map"), 50);
+    if (!("answer" in queued)) throw new Error("the run was refused");
+    expect((await followedToItsEnd(refused, queued.answer.action)).at(-1)).toEqual({
+      kind: "described",
+      description: expect.objectContaining({ state: "failed", failed_because: expect.stringMatching(/^error: Failed to fetch: `https:\/\/pypi.org\/simple\/tatolab-stream\/`/) }),
     });
-    expect(await settled(() => backend.chooseStreamProjectFolder("project_to_run"))).toEqual({ answer: null });
+
+    const notHeld = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_action=not_held&add_folder=cancel")));
+    await settled(() => notHeld.getTatolabStatus());
+    expect(await settled(() => notHeld.describeStreamAction("R-1"))).toEqual({ answer: { kind: "not_held", words: expect.stringMatching(/^Invalid configuration: the stream action `R-1` is not held/) } });
+    expect(await settled(() => notHeld.chooseStreamProjectFolder("project_to_run"))).toEqual({ answer: null });
   });
 });
 

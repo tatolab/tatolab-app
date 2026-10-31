@@ -77,7 +77,6 @@ test("the published status walks starting, running, starting, unreachable and st
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
-    readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
     whenTheRuntimeInstallProgresses: () => {},
     tatolabAppLog: quietTatolabAppLog,
   });
@@ -128,7 +127,6 @@ test("the window asking before the first round waits for it, and hears nothing w
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
-    readPythonForNewEnvironments: () => ({ kind: "built_in", python_version: "3.12.12" }),
     whenTheRuntimeInstallProgresses: () => {},
     tatolabAppLog: quietTatolabAppLog,
   });

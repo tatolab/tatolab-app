@@ -1,27 +1,27 @@
 import { describe, expect, it } from "vitest";
-import type { ListedStream, StreamGraphSummary, StreamLogRecord } from "../../shared/tatolab_backend_contract";
+import type { StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type { HeldProjectLogRecord } from "../project_log_readings";
 import {
   formatLogAttrValue,
   formatLogRecordDateAndTime,
   formatLogRecordTime,
+  actionKeyOfTheLastFailure,
   isEarlierRecordsPointerShown,
   jsonlOfStreamLogRows,
   levelFilterOfLogRecord,
-  logFolderPathOfStream,
+  logFolderPathOfProject,
   presentLogLevelWord,
   presentStreamLog,
   presentStreamLogRecordDetails,
-  presentStreamLogsOfAStreamNotLoaded,
   prettyJsonLinesOf,
   searchMatchRangesOf,
   STREAM_LOG_LEVEL_FILTERS,
-  earlierRecordsNotHeldWords,
   type StreamLogFilters,
 } from "./log_record_presentation";
 
-function logRecord(sequence: number, recordChanges: Partial<StreamLogRecord> = {}): StreamLogRecord {
+function logRecord(sequence: number, recordChanges: Partial<HeldProjectLogRecord> = {}): HeldProjectLogRecord {
   return {
-    sequence,
+    position: sequence,
     host_ts_ns: null,
     level: "info",
     source: "rust",
@@ -30,6 +30,8 @@ function logRecord(sequence: number, recordChanges: Partial<StreamLogRecord> = {
     attrs: {},
     processor_id: null,
     sent_by_its_own_process: false,
+    action: "R1-2",
+    stream: "front-door-main-8a1b2c",
     jsonl_line: `{"seq":${sequence}}`,
     ...recordChanges,
   };
@@ -46,7 +48,7 @@ const FRONT_DOOR_GRAPH: StreamGraphSummary = {
   graph_document_text: "{}",
 };
 
-const EVERY_RECORD: StreamLogFilters = { searchText: "", levelFilter: "all", shownStepKeys: new Set(), clearedThroughSequence: 0 };
+const EVERY_RECORD: StreamLogFilters = { searchText: "", levelFilter: "all", shownStepKeys: new Set(), shownActionKey: null, clearedThroughPosition: 0 };
 
 describe("formatLogRecordTime", () => {
   it("writes the local time to the millisecond", () => {
@@ -137,7 +139,7 @@ describe("presentStreamLog", () => {
       { levelFilter: "error", label: "Errors", count: 1, labelTone: "error" },
     ]);
     expect(streamLog.stepFilterWords).toEqual({ words: "persondetector", isOneStepChosen: true });
-    expect(streamLog.rows.map((row) => row.record.sequence)).toEqual([3]);
+    expect(streamLog.rows.map((row) => row.record.position)).toEqual([3]);
   });
 
   it("words the step filter as every step, the one chosen, or how many of how many", () => {
@@ -148,7 +150,7 @@ describe("presentStreamLog", () => {
   });
 
   it("searches step names and the message line as the row shows it, quoted values and spacing included", () => {
-    const sequencesFound = (searchText: string) => presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, searchText }).rows.map((row) => row.record.sequence);
+    const sequencesFound = (searchText: string) => presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, searchText }).rows.map((row) => row.record.position);
 
     expect(sequencesFound('device="FaceTime')).toEqual([2]);
     expect(sequencesFound("opened  device")).toEqual([2]);
@@ -156,7 +158,7 @@ describe("presentStreamLog", () => {
   });
 
   it("searches messages, step names and key=value fields, ignoring case", () => {
-    const sequencesFound = (searchText: string) => presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, searchText }).rows.map((row) => row.record.sequence);
+    const sequencesFound = (searchText: string) => presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, searchText }).rows.map((row) => row.record.position);
 
     expect(sequencesFound("CAMERA OPENED")).toEqual([2]);
     expect(sequencesFound("persondetector")).toEqual([3, 4]);
@@ -166,12 +168,12 @@ describe("presentStreamLog", () => {
 
   it("leaves out the records cleared, and says why nothing shows", () => {
 
-    const cleared = presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, clearedThroughSequence: 5 });
+    const cleared = presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, clearedThroughPosition: 5 });
     expect(cleared.rows).toEqual([]);
     expect(cleared.emptyWords).toBe("Cleared. New lines appear here.");
-    expect(presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, clearedThroughSequence: 3 }).rows.map((row) => row.record.sequence)).toEqual([4, 5]);
+    expect(presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, clearedThroughPosition: 3 }).rows.map((row) => row.record.position)).toEqual([4, 5]);
     expect(presentStreamLog(records, FRONT_DOOR_GRAPH, { ...EVERY_RECORD, searchText: "nothing like it" }).emptyWords).toBe("No lines match.");
-    expect(presentStreamLog([], FRONT_DOOR_GRAPH, EVERY_RECORD).emptyWords).toBe("No log records yet. New ones show up here as the stream writes them.");
+    expect(presentStreamLog([], FRONT_DOOR_GRAPH, EVERY_RECORD).emptyWords).toBe("No log records yet. New ones show up here as they are written.");
     expect(presentStreamLog(records, FRONT_DOOR_GRAPH, EVERY_RECORD).emptyWords).toBeNull();
   });
 
@@ -181,6 +183,53 @@ describe("presentStreamLog", () => {
 
     expect(presentStreamLog(recordsOverTwoDays, null, EVERY_RECORD).rows.map((row) => row.dayDividerWords)).toEqual(["Monday, October 19", "Tuesday, October 20", null]);
     expect(presentStreamLog(recordsOverTwoDays.slice(1), null, EVERY_RECORD).rows.map((row) => row.dayDividerWords)).toEqual([null, null]);
+  });
+
+  it("narrows the rows to one stream action, offers each action in the order it began, and divides the rows by action only when they hold more than one", () => {
+    const at = (second: number) => new Date(2026, 9, 31, 16, 2, second).getTime() * 1_000_000;
+    const recordsOfTwoActions = [
+      logRecord(1, { action: "R1-2", host_ts_ns: at(1) }),
+      logRecord(2, { action: "R1-2", host_ts_ns: at(2) }),
+      logRecord(3, { action: "R1-5", host_ts_ns: at(30) }),
+      logRecord(4, { action: null, host_ts_ns: at(31) }),
+    ];
+
+    const everyAction = presentStreamLog(recordsOfTwoActions, null, EVERY_RECORD);
+    expect(everyAction.rows.map((row) => row.actionDividerWords)).toEqual(["Action at 16:02:01", null, "Action at 16:02:30", "Not under a stream action"]);
+    expect(everyAction.actionChoices).toEqual([
+      { actionKey: "R1-2", actionWords: "Action at 16:02:01" },
+      { actionKey: "R1-5", actionWords: "Action at 16:02:30" },
+      { actionKey: "", actionWords: "Not under a stream action" },
+    ]);
+    expect(everyAction.actionFilterWords).toBe("All actions");
+    const oneAction = presentStreamLog(recordsOfTwoActions, null, { ...EVERY_RECORD, shownActionKey: "R1-5" });
+    expect(oneAction.rows.map((row) => [row.record.position, row.actionDividerWords])).toEqual([[3, null]]);
+    expect(oneAction.actionFilterWords).toBe("Action at 16:02:30");
+    expect(oneAction.actionChoices).toHaveLength(3);
+    expect(presentStreamLog(recordsOfTwoActions, null, { ...EVERY_RECORD, shownActionKey: "R1-9" }).actionFilterWords).toBe("One action");
+  });
+
+  it("numbers the actions begun in the same second, and names an action whose first record has no timestamp plainly", () => {
+    const at = (millisecond: number) => new Date(2026, 9, 31, 16, 2, 1, millisecond).getTime() * 1_000_000;
+    const recordsOfThreeActions = [
+      logRecord(1, { action: "R1-2", host_ts_ns: at(100) }),
+      logRecord(2, { action: "R1-3", host_ts_ns: at(400) }),
+      logRecord(3, { action: "R1-4", host_ts_ns: at(800) }),
+      logRecord(4, { action: "R1-5", host_ts_ns: null }),
+    ];
+
+    expect(presentStreamLog(recordsOfThreeActions, null, EVERY_RECORD).actionChoices.map((actionChoice) => actionChoice.actionWords)).toEqual([
+      "Action at 16:02:01",
+      "Action at 16:02:01 (2)",
+      "Action at 16:02:01 (3)",
+      "Action",
+    ]);
+  });
+
+  it("finds the action that failed a stream: its last error's, else its last record's", () => {
+    expect(actionKeyOfTheLastFailure([logRecord(1, { action: "R1-2", level: "error" }), logRecord(2, { action: "R1-7", level: "error" }), logRecord(3, { action: "R1-8" })])).toBe("R1-7");
+    expect(actionKeyOfTheLastFailure([logRecord(1, { action: "R1-2" }), logRecord(2, { action: "R1-3" })])).toBe("R1-3");
+    expect(actionKeyOfTheLastFailure([])).toBeNull();
   });
 
   it("copies the rows shown as the runtime's JSONL lines", () => {
@@ -201,13 +250,19 @@ describe("presentStreamLogRecordDetails", () => {
       jsonl_line: '{"host_ts":1791759307069355001,"level":"error","attrs":{"freed_gb":12.40,"tags":[],"none":{}}}',
     });
 
-    const details = presentStreamLogRecordDetails(record, FRONT_DOOR_GRAPH);
+    const sourceNames = { displayNamesByStreamId: new Map([["front-door-main-8a1b2c", "main"]]), actionChoices: [{ actionKey: "R1-2", actionWords: "Action at 16:02:01" }] };
+    const details = presentStreamLogRecordDetails(record, FRONT_DOOR_GRAPH, sourceNames);
 
     expect(details.levelWord).toBe("ERROR");
     expect(details.levelTone).toBe("error");
     expect(details.step).toEqual({ stepKey: "Pdet", stepName: "persondetector", isAStepOfTheGraph: true });
+    expect([details.streamWords, details.actionWords]).toEqual(["main", "Action at 16:02:01"]);
+    const recordOfTheProject = presentStreamLogRecordDetails(logRecord(3, { stream: null, action: null }), null, sourceNames);
+    expect([recordOfTheProject.streamWords, recordOfTheProject.actionWords]).toEqual(["None, the project wrote it", "Not under a stream action"]);
+    const recordOfAStreamNotListed = presentStreamLogRecordDetails(logRecord(4, { stream: "lobby-recorder-1c2d3e", action: "R1-9" }), null, sourceNames);
+    expect([recordOfAStreamNotListed.streamWords, recordOfAStreamNotListed.actionWords]).toEqual(["lobby-recorder-1c2d3e", "One action"]);
     expect(details.fields).toEqual([{ key: "freed_gb", valueText: "12.4" }]);
-    expect(presentStreamLogRecordDetails(logRecord(2, { attrs: { device: "FaceTime HD Camera", fps: "30" } }), null).fieldsTextToCopy).toBe('device="FaceTime HD Camera"  fps=30');
+    expect(presentStreamLogRecordDetails(logRecord(2, { attrs: { device: "FaceTime HD Camera", fps: "30" } }), null, sourceNames).fieldsTextToCopy).toBe('device="FaceTime HD Camera"  fps=30');
     expect(details.recordJsonLines).toEqual([
       "{",
       '  "host_ts": 1791759307069355001,',
@@ -244,44 +299,13 @@ describe("searchMatchRangesOf", () => {
 
 describe("the pointer to records not held", () => {
   it("shows while some are not held and nothing is cleared or searched for", () => {
-    expect(isEarlierRecordsPointerShown(3, EVERY_RECORD)).toBe(true);
-    expect(isEarlierRecordsPointerShown(0, EVERY_RECORD)).toBe(false);
-    expect(isEarlierRecordsPointerShown(3, { ...EVERY_RECORD, clearedThroughSequence: 9 })).toBe(false);
-    expect(isEarlierRecordsPointerShown(3, { ...EVERY_RECORD, searchText: "x" })).toBe(false);
+    expect(isEarlierRecordsPointerShown(true, EVERY_RECORD)).toBe(true);
+    expect(isEarlierRecordsPointerShown(false, EVERY_RECORD)).toBe(false);
+    expect(isEarlierRecordsPointerShown(true, { ...EVERY_RECORD, clearedThroughPosition: 9 })).toBe(false);
+    expect(isEarlierRecordsPointerShown(true, { ...EVERY_RECORD, searchText: "x" })).toBe(false);
   });
 
-  it("counts the earlier records and names the stream's log folder under its project, home shortened", () => {
-    expect(earlierRecordsNotHeldWords(1)).toBe("1 earlier record is in");
-    expect(earlierRecordsNotHeldWords(2312)).toBe("2,312 earlier records are in");
-    expect(logFolderPathOfStream("/Users/jonathanf/streams/front-door")).toBe("~/streams/front-door/.streamlib/logs/");
-  });
-});
-
-describe("presentStreamLogsOfAStreamNotLoaded", () => {
-  const listing = (state: string, failedBecause: string | null): ListedStream => ({
-    stream: "lobby-recorder-main-3fc45e",
-    display_name: "lobby-recorder",
-    location: { project_directory: "/Users/jonathanf/streams/lobby-recorder", stream_function: "stream:main" },
-    state,
-    node_count: null,
-    failed_because: failedBecause,
-  });
-
-  it("gives a failed stream its reason in the runtime's words, a loading one its loading words, and any other its not-loaded words", () => {
-    expect(presentStreamLogsOfAStreamNotLoaded(listing("failed", "camera 0 is in use by another process"))).toEqual({
-      hasFailed: true,
-      title: "Failed to load",
-      explanation: "camera 0 is in use by another process",
-    });
-    expect(presentStreamLogsOfAStreamNotLoaded(listing("running", null))).toEqual({
-      hasFailed: false,
-      title: "Loading",
-      explanation: "Its records show here once the runtime has loaded it.",
-    });
-    expect(presentStreamLogsOfAStreamNotLoaded(listing("stopped", null))).toEqual({
-      hasFailed: false,
-      title: "Not loaded",
-      explanation: "The runtime holds records only for a loaded stream. Everything it wrote is in the stream's log folder.",
-    });
+  it("names the project's log folder, home shortened", () => {
+    expect(logFolderPathOfProject("/Users/jonathanf/streams/front-door")).toBe("~/streams/front-door/.streamlib/logs/");
   });
 });

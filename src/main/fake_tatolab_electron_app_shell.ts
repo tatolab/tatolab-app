@@ -46,8 +46,7 @@ export type FakeShellRecord =
   | { asked: "repeat_every"; intervalMs: number }
   | { asked: "set_application_menu"; applicationMenu: ApplicationMenu }
   | { asked: "open_folder_in_the_file_manager"; folder: string }
-  | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
-  | { asked: "ask_for_a_python_interpreter" };
+  | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string };
 
 /** A fake Electron app shell for the lifecycle's tests. */
 export class FakeTatolabElectronAppShell {
@@ -116,10 +115,6 @@ export class FakeTatolabElectronAppShell {
     askThePersonForAStreamProjectFolder: async (chosenFor, defaultFolder) => {
       this.records.push({ asked: "ask_for_a_stream_project_folder", chosenFor, defaultFolder });
       return succeeded(this.streamProjectFolderTheDialogAnswers);
-    },
-    askThePersonForAPythonInterpreter: async () => {
-      this.records.push({ asked: "ask_for_a_python_interpreter" });
-      return succeeded(null);
     },
     homeDirectory: path.join(this.appConfigDirectory, "home"),
     createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,

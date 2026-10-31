@@ -1,9 +1,11 @@
 // The app's client of the runtime's local API: one short HTTP/1.1 request per call over the
 // local API's Unix socket. `GET /health` says the runtime is up, `describe_runtime` names its
 // version, uptime and log folder, the MCP tools `list_streams`, `logs` and `graph` over
-// `POST /mcp` list its streams, read one's log records and draw one's graph, `run_stream`
-// compiles a project and loads it, `stop_stream`, `start_stream`, `remove_stream` and
-// `rename_stream` act on one, and `GET /api/graph` names the machine. `GET /api/relay-adapters`
+// `POST /mcp` list its streams, read a project's log records and draw one stream's graph,
+// `create_project` and `run_project` queue a project's load, which `describe_stream_action` follows,
+// `stop_stream` and `start_stream` queue an action on one stream, `remove_project` queues the
+// removal of a project's streams, `rename_stream`
+// renames one, and `GET /api/graph` names the machine. `GET /api/relay-adapters`
 // and `list_relays` describe the machine's relays, and `add_relay`, `configure_relay` and
 // `remove_relay` change them.
 //
@@ -16,13 +18,16 @@ import { isUtf8 } from "node:buffer";
 import net from "node:net";
 import type {
   ListedStream,
+  ProjectCreationQueued,
+  ProjectLogNarrowing,
+  ProjectLogRecordsPage,
+  ProjectRunQueued,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
+  StreamActionFollowed,
   StreamGraphSummary,
   StreamLocation,
-  StreamLogRecordsPage,
-  StreamRunAnswer,
   TatolabStreamActionName,
 } from "../shared/tatolab_backend_contract.js";
 import {
@@ -34,9 +39,7 @@ import {
   optionalText,
   optionalUnsignedInteger,
   parseJsonOnTheWire,
-  requiredObject,
   requiredText,
-  requiredTrueOrFalse,
   requiredUnsignedInteger,
 } from "./json_on_the_wire.js";
 import {
@@ -47,19 +50,18 @@ import {
 } from "./relays_description.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
-import { streamLogRecordsPageFromTheLogsToolResult } from "./stream_log_records_page.js";
+import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
+import {
+  projectCreationQueuedFromTheCreateProjectToolResult,
+  projectRunQueuedFromTheRunProjectToolResult,
+  streamActionDescriptionFromTheDescribeStreamActionToolResult,
+} from "./stream_action_description.js";
 
 /** The MCP protocol revision the runtime serves, and the only one. */
 export const LOCAL_API_MCP_PROTOCOL_VERSION = "2026-07-28";
 
 /** The client name the app gives the runtime in every MCP request's `_meta`. */
 const LOCAL_API_MCP_CLIENT_NAME = "tatolab-app";
-
-/** How long a stream action may go without a byte: `start_stream` answers once the stream's graph has loaded, which compiles `stream.py` and starts its Python processes. */
-const STREAM_ACTION_RESPONSE_TIMEOUT_MS = 120_000;
-
-/** How long `run_stream` may go without a byte: StreamLib's `STREAM_LOAD_TOOL_CALL_TIMEOUT`, which the runtime's compile, describe and teardown bounds fit within. */
-const STREAM_LOAD_RESPONSE_TIMEOUT_MS = 360_000;
 
 /** How long a relay change may go without a byte: a generous bound, as `add_relay` and `configure_relay` answer once the relay's adapter has taken the settings, and the runtime states no bound of its own. */
 const RELAY_CHANGE_RESPONSE_TIMEOUT_MS = 120_000;
@@ -80,54 +82,6 @@ function localApiRequestFailure(failureDescription: string): { ok: false; failur
 
 function theRuntimesRefusal(failureDescription: string): { ok: false; failure: LocalApiRequestFailure } {
   return failedWith({ failureDescription, isTheRuntimesRefusal: true });
-}
-
-/** What the app asks `run_stream` to load: a project folder. `streamFunction` as `tatolab run` takes it, `null` for the project's sole `@stream`; `displayName` to show it under, `null` for the function's own or the one a re-load keeps. */
-export interface StreamRunRequest {
-  projectDirectory: string;
-  streamFunction: string | null;
-  displayName: string | null;
-}
-
-/** A `run_stream` tool result read field for field; unknown fields are ignored. */
-export function streamRunAnswerFromTheRunStreamToolResult(toolResultText: string): Result<StreamRunAnswer, string> {
-  const parsedToolResult = parseJsonOnTheWire(toolResultText);
-  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the run_stream result") : parsedToolResult;
-  const streamRunAnswer = toolResult.ok ? streamRunAnswerOnTheWire(toolResult.value) : toolResult;
-  return streamRunAnswer.ok ? streamRunAnswer : failedWith(`the runtime's run_stream result could not be read: ${streamRunAnswer.failure}`);
-}
-
-function streamRunAnswerOnTheWire(toolResult: JsonObjectOnTheWire): Result<StreamRunAnswer, string> {
-  const stream = requiredText(toolResult, "stream");
-  if (!stream.ok) return stream;
-  const displayName = requiredText(toolResult, "display_name");
-  if (!displayName.ok) return displayName;
-  const streamInstance = requiredText(toolResult, "stream_instance");
-  if (!streamInstance.ok) return streamInstance;
-  const locationOnTheWire = requiredObject(toolResult, "location");
-  if (!locationOnTheWire.ok) return locationOnTheWire;
-  const location = streamLocationOnTheWire(locationOnTheWire.value);
-  if (!location.ok) return location;
-  const nodeCount = requiredUnsignedInteger(toolResult, "node_count");
-  if (!nodeCount.ok) return nodeCount;
-  const replacedARecordedStream = requiredTrueOrFalse(toolResult, "replaced_a_recorded_stream");
-  if (!replacedARecordedStream.ok) return replacedARecordedStream;
-  const compileWarningsOnTheWire = toolResult["compile_warnings"];
-  if (compileWarningsOnTheWire === undefined) return failedWith("missing field `compile_warnings`");
-  if (!Array.isArray(compileWarningsOnTheWire)) return failedWith("`compile_warnings` is not an array");
-  const compileWarnings = everyOneRead(compileWarningsOnTheWire, (compileWarning: unknown) =>
-    typeof compileWarning === "string" ? succeeded(compileWarning) : failedWith("a compile warning is not a string"),
-  );
-  if (!compileWarnings.ok) return compileWarnings;
-  return succeeded({
-    stream: stream.value,
-    display_name: displayName.value,
-    stream_instance: streamInstance.value,
-    location: location.value,
-    node_count: nodeCount.value,
-    replaced_a_recorded_stream: replacedARecordedStream.value,
-    compile_warnings: compileWarnings.value,
-  });
 }
 
 /** A stream's `location` on the wire: `project_directory` and `stream_function` as `module:qualname`. */
@@ -223,6 +177,10 @@ function listedStreamOnTheWire(listedStreamOnTheWire: unknown): Result<ListedStr
   if (!nodeCount.ok) return nodeCount;
   const failedBecause = optionalText(listedStream.value, "failed_because");
   if (!failedBecause.ok) return failedBecause;
+  const action = optionalText(listedStream.value, "action");
+  if (!action.ok) return action;
+  const step = optionalText(listedStream.value, "step");
+  if (!step.ok) return step;
   return succeeded({
     stream: stream.value,
     display_name: displayName.value,
@@ -230,22 +188,17 @@ function listedStreamOnTheWire(listedStreamOnTheWire: unknown): Result<ListedStr
     state: state.value,
     node_count: nodeCount.value,
     failed_because: failedBecause.value,
+    action: action.value,
+    step: step.value,
   });
 }
 
-/** What the runtime said beside a stream action it carried out: a `stop_stream` result's `not_recorded_because`; `start_stream` and `remove_stream` say nothing beside theirs. */
-function streamActionNoticeFromTheToolResult(streamAction: TatolabStreamActionName, toolResultText: string): Result<string | null, string> {
-  switch (streamAction) {
-    case "stop_stream": {
-      const parsedToolResult = parseJsonOnTheWire(toolResultText);
-      const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, "the stop_stream result") : parsedToolResult;
-      const notRecordedBecause = toolResult.ok ? optionalText(toolResult.value, "not_recorded_because") : toolResult;
-      return notRecordedBecause.ok ? notRecordedBecause : failedWith(`the runtime's stop_stream result could not be read: ${notRecordedBecause.failure}`);
-    }
-    case "start_stream":
-    case "remove_stream":
-      return succeeded(null);
-  }
+/** The action id a tool result that queued a stream action names, read from the result of `toolName`. */
+export function queuedStreamActionFromTheToolResult(toolName: TatolabStreamActionName | "remove_project", toolResultText: string): Result<string, string> {
+  const parsedToolResult = parseJsonOnTheWire(toolResultText);
+  const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, `the ${toolName} result`) : parsedToolResult;
+  const action = toolResult.ok ? requiredText(toolResult.value, "action") : toolResult;
+  return action.ok ? action : failedWith(`the runtime's ${toolName} result could not be read: ${action.failure}`);
 }
 
 /** `durationMs` as a timeout refusal spells it: whole seconds as `3s`, anything else as `200ms`. */
@@ -296,44 +249,77 @@ export class LocalApiClient {
     return machine.ok ? machine : localApiRequestFailure(`the runtime's /api/graph names no machine: ${machine.failure}`);
   }
 
-  /** Up to `count` of `stream`'s log records numbered after `after`, from the runtime's `logs` tool. */
-  async readStreamLogRecords(stream: string, after: number, count: number): Promise<Result<StreamLogRecordsPage, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("logs", { stream, after, count });
+  /** Up to `count` of the log records of the project in `projectDirectory` after the cursor `after` (`null` for the oldest held), narrowed as `narrowing` asks, from the runtime's `logs` tool. */
+  async readProjectLogRecords(
+    projectDirectory: string,
+    narrowing: ProjectLogNarrowing,
+    after: string | null,
+    count: number,
+  ): Promise<Result<ProjectLogRecordsPage, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("logs", {
+      project_directory: projectDirectory,
+      ...(narrowing.stream === null ? {} : { stream: narrowing.stream }),
+      ...(narrowing.action === null ? {} : { action: narrowing.action }),
+      ...(after === null ? {} : { after }),
+      count,
+    });
     if (!toolResultText.ok) return toolResultText;
-    const page = streamLogRecordsPageFromTheLogsToolResult(toolResultText.value);
+    const page = projectLogRecordsPageFromTheLogsToolResult(toolResultText.value);
     return page.ok ? page : localApiRequestFailure(page.failure);
   }
 
-  /** Run the runtime's tool `streamAction` on `stream`, answering the notice it gives beside an action it carried out, or `null`. */
-  async runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string | null, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool(streamAction, { stream }, STREAM_ACTION_RESPONSE_TIMEOUT_MS);
+  /** Queue the runtime's stream action `streamAction` on `stream`, answering the id of the action it queued; refused in the runtime's own words. */
+  runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.queueRuntimeAction(streamAction, { stream });
+  }
+
+  /** Queue the removal of every stream the runtime holds from the project in `projectDirectory`, answering the id of the action it queued; refused in the runtime's own words. */
+  removeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.queueRuntimeAction("remove_project", { project_directory: projectDirectory });
+  }
+
+  /** Call the tool `toolName` that queues an action, answering the id of the action the runtime queued; refused in the runtime's own words. */
+  private async queueRuntimeAction(
+    toolName: TatolabStreamActionName | "remove_project",
+    toolArguments: Record<string, string>,
+  ): Promise<Result<string, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool(toolName, toolArguments);
     if (!toolResultText.ok) return toolResultText;
-    const notice = streamActionNoticeFromTheToolResult(streamAction, toolResultText.value);
-    return notice.ok ? notice : localApiRequestFailure(notice.failure);
+    const action = queuedStreamActionFromTheToolResult(toolName, toolResultText.value);
+    return action.ok ? action : localApiRequestFailure(action.failure);
   }
 
   /** Show the stream `stream` under `displayName` through the runtime's `rename_stream` tool, its id, address and broadcast as they are; refused in the runtime's own words. */
   async renameStream(stream: string, displayName: string): Promise<Result<void, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("rename_stream", { stream, display_name: displayName }, STREAM_ACTION_RESPONSE_TIMEOUT_MS);
+    const toolResultText = await this.callMcpTool("rename_stream", { stream, display_name: displayName });
     if (!toolResultText.ok) return toolResultText;
     const renamed = streamRenameAnswerFromTheRenameStreamToolResult(toolResultText.value);
     return renamed.ok ? succeeded(undefined) : localApiRequestFailure(renamed.failure);
   }
 
-  /** Compile the project `streamRunRequest` names in its own `.venv` and load it, through the runtime's `run_stream` tool; refused in the runtime's own words. */
-  async runStream(streamRunRequest: StreamRunRequest): Promise<Result<StreamRunAnswer, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool(
-      "run_stream",
-      {
-        project_directory: streamRunRequest.projectDirectory,
-        ...(streamRunRequest.streamFunction === null ? {} : { stream_function: streamRunRequest.streamFunction }),
-        ...(streamRunRequest.displayName === null ? {} : { name: streamRunRequest.displayName }),
-      },
-      STREAM_LOAD_RESPONSE_TIMEOUT_MS,
-    );
+  /** Queue the creation of a new project in `projectDirectory`, or with `null` in a folder the runtime draws under `~/streams`, and its run; answered at once, refused in the runtime's own words. */
+  async createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("create_project", projectDirectory === null ? {} : { project_directory: projectDirectory });
     if (!toolResultText.ok) return toolResultText;
-    const streamRunAnswer = streamRunAnswerFromTheRunStreamToolResult(toolResultText.value);
-    return streamRunAnswer.ok ? streamRunAnswer : localApiRequestFailure(streamRunAnswer.failure);
+    const queued = projectCreationQueuedFromTheCreateProjectToolResult(toolResultText.value);
+    return queued.ok ? queued : localApiRequestFailure(queued.failure);
+  }
+
+  /** Queue a run of the project in `projectDirectory`, which loads every `@stream` in it; answered at once, refused in the runtime's own words. */
+  async runProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("run_project", { project_directory: projectDirectory });
+    if (!toolResultText.ok) return toolResultText;
+    const queued = projectRunQueuedFromTheRunProjectToolResult(toolResultText.value);
+    return queued.ok ? queued : localApiRequestFailure(queued.failure);
+  }
+
+  /** Where the stream action `action` is: its state and step, and the streams it took in; refused in the runtime's own words, as for an action it no longer holds. */
+  async describeStreamAction(action: string): Promise<Result<StreamActionFollowed, LocalApiRequestFailure>> {
+    const toolAnswer = await this.callMcpToolKeepingItsRefusal("describe_stream_action", { action });
+    if (!toolAnswer.ok) return toolAnswer;
+    if (toolAnswer.value.kind === "refused_by_the_tool") return succeeded({ kind: "not_held", words: toolAnswer.value.words });
+    const description = streamActionDescriptionFromTheDescribeStreamActionToolResult(toolAnswer.value.text);
+    return description.ok ? succeeded({ kind: "described", description: description.value }) : localApiRequestFailure(description.failure);
   }
 
   /** The graph of the loaded stream `stream` from the runtime's `graph` tool, the text `tatolab graph --stream` prints, its readable outputs' preview pages at `runtimeLoopbackHttpOrigin`. */
@@ -400,6 +386,17 @@ export class LocalApiClient {
     toolArguments: Readonly<Record<string, unknown>>,
     responseTimeoutMs: number = this.requestTimeoutMs,
   ): Promise<Result<string, LocalApiRequestFailure>> {
+    const toolAnswer = await this.callMcpToolKeepingItsRefusal(toolName, toolArguments, responseTimeoutMs);
+    if (!toolAnswer.ok) return toolAnswer;
+    return toolAnswer.value.kind === "answered" ? succeeded(toolAnswer.value.text) : theRuntimesRefusal(toolAnswer.value.words);
+  }
+
+  /** As `callMcpTool`, but a tool that ran and failed answers its words apart from every other refusal, the JSON-RPC layer's included. */
+  private async callMcpToolKeepingItsRefusal(
+    toolName: string,
+    toolArguments: Readonly<Record<string, unknown>>,
+    responseTimeoutMs: number = this.requestTimeoutMs,
+  ): Promise<Result<McpToolAnswer, LocalApiRequestFailure>> {
     const requestBody = mcpToolCallRequestBody(toolName, toolArguments, this.appVersion);
     const response = await this.sendOneHttpRequestAndReadItsResponse(
       "POST",
@@ -506,7 +503,10 @@ function mcpToolCallRequestBody(toolName: string, toolArguments: Readonly<Record
   });
 }
 
-function firstTextBlockOfToolCallResponse(toolName: string, response: LocalApiHttpResponse): Result<string, LocalApiRequestFailure> {
+/** What a tool call answered: the text of its first content block, or the words of a tool that ran and failed (`isError`). */
+type McpToolAnswer = { kind: "answered"; text: string } | { kind: "refused_by_the_tool"; words: string };
+
+function firstTextBlockOfToolCallResponse(toolName: string, response: LocalApiHttpResponse): Result<McpToolAnswer, LocalApiRequestFailure> {
   const jsonRpcResponse = parseJsonOnTheWire(response.body.toString("utf8"));
   if (!jsonRpcResponse.ok) {
     return localApiRequestFailure(`\`${toolName}\` answered ${response.statusCode} with a body that is not JSON-RPC: ${jsonRpcResponse.failure}`);
@@ -523,8 +523,8 @@ function firstTextBlockOfToolCallResponse(toolName: string, response: LocalApiHt
   const content = toolResultFields["content"];
   const firstText = Array.isArray(content) ? content.map(textOfATextBlock).find((blockText) => blockText !== null) ?? null : null;
   const toolFailed = toolResultFields["isError"] === true;
-  if (toolFailed) return theRuntimesRefusal(firstText ?? `\`${toolName}\` failed and gave no reason`);
-  return firstText === null ? localApiRequestFailure(`\`${toolName}\` answered with no text`) : succeeded(firstText);
+  if (toolFailed) return succeeded({ kind: "refused_by_the_tool", words: firstText ?? `\`${toolName}\` failed and gave no reason` });
+  return firstText === null ? localApiRequestFailure(`\`${toolName}\` answered with no text`) : succeeded({ kind: "answered", text: firstText });
 }
 
 /** A content block's text when it is a text block carrying text. */

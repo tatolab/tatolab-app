@@ -7,7 +7,6 @@ import type {
   RuntimeAgentRegistration as RuntimeAgentRegistrationStatus,
   TatolabAppOpenAtLogin,
 } from "../shared/tatolab_backend_contract.js";
-import type { BundledPythonToolchain } from "./platform/bundled_python_toolchain.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
 import type { TatolabAppUpdatePackaging } from "./platform/tatolab_app_update_packaging.js";
 import type { TatolabCommandLineTool } from "./platform/tatolab_command_line_tool.js";
@@ -182,7 +181,6 @@ export function fakeTatolabPlatformForThisBuild(
   terminalOpenedInAFolder: TerminalOpenedInAFolder = new FakeTerminalOpenedInAFolder(),
   tatolabCommandLineTool: TatolabCommandLineTool = { kind: "not_offered", reason: "this fake platform has no tatolab command" },
   tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin = new FakeTatolabAppOpenedAtLogin(),
-  bundledPythonToolchain: BundledPythonToolchain = { kind: "not_offered", reason: "this fake platform carries no uv or Python" },
 ): TatolabPlatformForThisBuild {
   return {
     runtimeAgent,
@@ -194,6 +192,5 @@ export function fakeTatolabPlatformForThisBuild(
     terminalOpenedInAFolder,
     tatolabCommandLineTool,
     tatolabAppOpenedAtLogin,
-    bundledPythonToolchain,
   };
 }

@@ -1,6 +1,7 @@
 import {
   createMockStreamFixtures,
   createMockStreamRunFromAProjectFolder,
+  MOCK_RUNTIME_ID,
   mockStreamIdOf,
   type MockLiveLogWriter,
   type MockLogRecordDraft,
@@ -12,20 +13,18 @@ import { createMockRelays, mockRelaysScenarioNamed, type MockRelaysScenario } fr
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import type { TatolabBackend } from "./tatolab_backend";
 import {
-  STREAM_LOG_FOLDER_IN_THE_PROJECT,
+  PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
-  type PythonForNewEnvironments,
+  type ProjectLogRecord,
+  type ProjectLogRecordsPage,
   type RuntimeDescription,
   type TatolabAppBuild,
   type TatolabAppOpenAtLogin,
   type TatolabCommandLineToolVersion,
   type StreamGraphSummary,
-  type StreamLogRecord,
-  type StreamLogRecordsPage,
-  type StreamProjectFolderReport,
-  type StreamProjectPythonEnvironment,
-  type StreamProjectRunOutcome,
-  type StreamRunAnswer,
+  type StreamActionDescription,
+  type StreamActionFollowed,
+  type StreamProjectFolderChosenFor,
   type TatolabAppUpdateState,
   type InstalledRuntime,
   type TatolabPlatform,
@@ -89,8 +88,10 @@ const MOCK_STREAM_SETTLE_MILLISECONDS = 1600;
 /** How long `main` stays listed but not loaded in the `loading` scenario. */
 const MOCK_MAIN_LOADING_MILLISECONDS = 9000;
 const MOCK_RECORDS_PAGE_SIZE = 500;
-/** How many of a stream's newest records the runtime holds in memory. */
-const MOST_RECORDS_THE_RUNTIME_HOLDS = 4096;
+/** How many of a project's newest log records the mock keeps unless `?held_records=` asks for fewer. */
+const MOST_PROJECT_LOG_RECORDS_KEPT = 100_000;
+/** How long each step of a queued stream action takes in the mock. */
+const MOCK_STREAM_ACTION_STEP_MILLISECONDS = 700;
 
 /**
  * What a check for updates finds in the mock, picked with `?update=`: nothing newer (the default), a newer
@@ -108,8 +109,8 @@ const MOCK_UPDATE_DOWNLOAD_STEP_PERCENT = 7;
 
 /**
  * The project folder the mock's folder dialog chooses, picked with `?add_folder=`: one ready to run (the default), one with no
- * `.venv` yet, which a run makes first, one with several streams, the project `main` is already imported from, one with
- * no streams, or none, the person cancelling.
+ * `.venv` yet, which the runtime makes first, one with two streams, one of which fails, the project `main` is already
+ * imported from, one with no `stream.py`, or none, the person cancelling.
  */
 export type MockChosenProjectFolder = "ready" | "no-venv" | "several" | "recorded" | "no-stream-file" | "cancel";
 
@@ -130,48 +131,20 @@ const MOCK_RUNTIME_UP_FOR_AT_OPEN_MILLISECONDS = ((3 * 24 + 2) * 60 + 14) * 60_0
 /** How long the mock service manager takes to answer a restart. */
 const MOCK_RUNTIME_RESTART_MILLISECONDS = 700;
 
-/** How long the mock runtime takes to compile, load and start a project. */
-const MOCK_RUN_STREAM_MILLISECONDS = 2600;
-/** How long the mock `tatolab new` takes. */
-const MOCK_TATOLAB_NEW_MILLISECONDS = 400;
-/** How long the app's uv takes to make a project's `.venv` in the mock, before the runtime compiles it. */
+/** How long the mock runtime's uv takes to make a project's `.venv`, before it compiles it. */
 const MOCK_PYTHON_ENVIRONMENT_MILLISECONDS = 3200;
+/** The folders the mock runtime draws a new project in under `~/streams`, the first one free. */
+const MOCK_NEW_PROJECT_FOLDER_NAMES = ["kind-butte", "quiet-harbor", "amber-delta"];
+/** The `@stream` of the mock's doorways project that fails to load, as a stream whose camera is missing does. */
+const MOCK_FAILING_STREAM_FUNCTION = "back_door";
 
-/** Tatolab's built-in Python in the mock, as python-build-standalone names its version. */
-const MOCK_BUILT_IN_PYTHON_VERSION = "3.12.12";
-/** The interpreter the mock's file dialog picks in Settings. */
-const MOCK_PICKED_PYTHON_INTERPRETER = "/opt/homebrew/bin/python3.12";
-/** The version MOCK_PICKED_PYTHON_INTERPRETER answers to `--version`, which a `.venv` made from it names. */
-const MOCK_PICKED_PYTHON_VERSION = "3.12.7";
-
-/** What uv says in the mock when `?add_venv=refused` has it fail to make a project's `.venv`: the package index out of reach. */
+/** What the runtime's uv says in the mock when `?add_venv=refused` has it fail to make a project's `.venv`: the package index out of reach. */
 const MOCK_UV_SYNC_REFUSAL = [
   "error: Failed to fetch: `https://pypi.org/simple/tatolab-stream/`",
   "  Caused by: Request failed after 3 retries",
   "  Caused by: error sending request for url (https://pypi.org/simple/tatolab-stream/)",
   "  Caused by: dns error: failed to lookup address information: nodename nor servname provided, or not known",
 ].join("\n");
-
-/** What the mock's file dialog does when Settings asks for a Python, picked with `?python_pick=`: picks an interpreter (the default), is cancelled, or picks a file that is no Python. */
-export type MockPythonInterpreterPick = "picked" | "cancel" | "not_python";
-
-/** What `?python=` names: Tatolab's built-in Python (the default), an interpreter already chosen, or a build that carries no Python. */
-function mockPythonForNewEnvironments(pythonInTheQuery: string | null): PythonForNewEnvironments {
-  switch (pythonInTheQuery) {
-    case "chosen":
-      return { kind: "chosen", interpreter: MOCK_PICKED_PYTHON_INTERPRETER };
-    case "not_offered":
-      return {
-        kind: "built_in_not_offered",
-        reason: "This build of Tatolab carries no uv or Python of its own, so it cannot set up a project's Python. Run uv sync in the project's folder instead.",
-      };
-    default:
-      return { kind: "built_in", python_version: MOCK_BUILT_IN_PYTHON_VERSION };
-  }
-}
-
-/** The lines the mock compile writes to its standard error with `?add_run=warning`, as StreamLib's cross-floor check words them. */
-const MOCK_COMPILE_WARNINGS = ["tatolab: the cross-floor check found 1 thing binding this app to one floor.", "  nodes/heat_render.py:4: imports `cupy`"];
 
 /** What the page's query asks of the mock. */
 export interface MockTatolabOptions {
@@ -180,20 +153,18 @@ export interface MockTatolabOptions {
   /** `?uninstall=cancel`: the administrator cancels the prompt an uninstall shows, so the uninstall is refused. */
   isUninstallPromptCancelled: boolean;
   appUpdateScenario: MockTatolabAppUpdateScenario;
-  /** `?stop_not_recorded=<stream id>`: stopping that stream unloads it but cannot write its record, as when the runtime's state directory refuses the write. */
-  streamWhoseStopIsNotRecorded: string | null;
   /** `?terminal=missing`: the desktop has no terminal to open, as a Linux desktop without `x-terminal-emulator`. */
   isTheTerminalMissing: boolean;
   /** `?log_folder=missing`: no stream has a log folder on disk yet, so opening one is refused as the app refuses it. */
   isTheLogFolderMissing: boolean;
-  /** `?held_records=<n>`: the runtime holds only each stream's newest `n` records, as it holds its newest 4096, so a stream's earlier records are no longer held. */
-  mostRecordsHeldPerStream: number;
-  /** `?add_folder=`: the project folder the folder dialog chooses. */
+  /** `?held_records=<n>`: each project's log keeps only its newest `n` records, as the runtime's retention deletes a log's oldest segments. */
+  mostProjectLogRecordsKept: number;
+  /** `?add_folder=`: the project folder the folder dialog chooses to import. */
   chosenProjectFolder: MockChosenProjectFolder;
-  /** `?add_run=warning`: a project's compile writes a cross-floor warning. */
-  doesTheCompileWriteAWarning: boolean;
-  /** `?add_cli=missing`: this build has no `tatolab` CLI, so creating a project is refused. */
-  isTheTatolabCommandMissing: boolean;
+  /** `?add_new_folder=existing`: the folder dialog chooses a folder that already holds a project for a new one, so the creation fails. */
+  isTheNewProjectFolderChosenAnExistingProject: boolean;
+  /** `?add_action=not_held`: the runtime answers every followed load as no longer held. */
+  isNoProjectLoadHeld: boolean;
   /** `?runtime_log=none`: the runtime keeps no log of its own, so `describe_runtime` names no folder. */
   doesTheRuntimeKeepNoOwnLog: boolean;
   /** `?restart=refused`: the service manager refuses to restart the runtime. */
@@ -216,11 +187,7 @@ export interface MockTatolabOptions {
   isRememberingFirstRunRefused: boolean;
   /** `?app_build=release|modified|none`: a release build, a dev build with uncommitted changes, or one that recorded none; a dev build by default. */
   appBuild: TatolabAppBuild | null;
-  /** `?python=chosen|not_offered`: the Python new environments are made from; Tatolab's built-in by default. */
-  pythonForNewEnvironments: PythonForNewEnvironments;
-  /** `?python_pick=cancel|not_python`: what the file dialog Settings opens for a Python does. */
-  pythonInterpreterPick: MockPythonInterpreterPick;
-  /** `?add_venv=refused`: the app's uv fails to make a project's `.venv`, as with the package index out of reach. */
+  /** `?add_venv=refused`: the runtime's uv fails to make a project's `.venv`, as with the package index out of reach, so its load fails. */
   isMakingThePythonEnvironmentRefused: boolean;
   /**
    * `?relays=local`: the runtime holds only the local relay's two listeners; a joined Cloudflare relay and a lost moq.pro one beside them by default;
@@ -295,13 +262,12 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     platform,
     isUninstallPromptCancelled: pageQuery.get("uninstall") === "cancel",
     appUpdateScenario: appUpdateScenario ?? "up-to-date",
-    streamWhoseStopIsNotRecorded: pageQuery.get("stop_not_recorded"),
     isTheTerminalMissing: pageQuery.get("terminal") === "missing",
     isTheLogFolderMissing: pageQuery.get("log_folder") === "missing",
-    mostRecordsHeldPerStream: positiveWholeNumberOrNull(pageQuery.get("held_records")) ?? MOST_RECORDS_THE_RUNTIME_HOLDS,
+    mostProjectLogRecordsKept: positiveWholeNumberOrNull(pageQuery.get("held_records")) ?? MOST_PROJECT_LOG_RECORDS_KEPT,
     chosenProjectFolder: MOCK_CHOSEN_PROJECT_FOLDERS.find((knownFolder) => knownFolder === pageQuery.get("add_folder")) ?? "ready",
-    doesTheCompileWriteAWarning: pageQuery.get("add_run") === "warning",
-    isTheTatolabCommandMissing: pageQuery.get("add_cli") === "missing",
+    isTheNewProjectFolderChosenAnExistingProject: pageQuery.get("add_new_folder") === "existing",
+    isNoProjectLoadHeld: pageQuery.get("add_action") === "not_held",
     doesTheRuntimeKeepNoOwnLog: pageQuery.get("runtime_log") === "none",
     isTheRuntimeRestartRefused: pageQuery.get("restart") === "refused",
     runtimeInstallScenario:
@@ -318,8 +284,6 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     usrLocalBinLinkScenario: pageQuery.get("usr_local_bin") === "linked" ? "linked" : pageQuery.get("usr_local_bin") === "cancel" ? "cancel" : "not_linked",
     isRememberingFirstRunRefused: pageQuery.get("first_run_remember") === "refused",
     appBuild: mockAppBuild(pageQuery.get("app_build")),
-    pythonForNewEnvironments: mockPythonForNewEnvironments(pageQuery.get("python")),
-    pythonInterpreterPick: pageQuery.get("python_pick") === "cancel" ? "cancel" : pageQuery.get("python_pick") === "not_python" ? "not_python" : "picked",
     isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
     relaysScenario: mockRelaysScenarioNamed(pageQuery.get("relays")),
     doesTheRuntimeListAnEarlierRuntimesRecord: pageQuery.get("streams") === "earlier_record",
@@ -337,12 +301,17 @@ const LINUX_UNINSTALL_COMMAND = "curl -fsSL https://get.tatolab.com/install.sh |
 
 interface MockLoadedStream {
   fixture: MockStreamFixture;
-  streamInstance: string;
+  /** The stream action that loaded it, which every record its load writes carries. */
+  loadAction: string;
   loadedAtMilliseconds: number;
   unreleasedStartupDrafts: MockLogRecordDraft[];
   writeLiveLog: MockLiveLogWriter;
-  heldRecords: StreamLogRecord[];
-  nextSequence: number;
+}
+
+/** A project's log as the mock keeps it: its records oldest first, after the ones its retention deleted. */
+interface MockProjectLog {
+  records: ProjectLogRecord[];
+  recordsDeletedCount: number;
 }
 
 /** Where the mock's updates stand as the page opens: a newer version already found by the launch check in `available` and `download`. */
@@ -370,7 +339,6 @@ function initialMockStatus(
     isFirstRunUnfinished,
     usrLocalBinLinkScenario,
     appBuild,
-    pythonForNewEnvironments,
   }: MockTatolabOptions,
 ): TatolabStatus {
   const runningStatus: TatolabStatus = {
@@ -395,7 +363,6 @@ function initialMockStatus(
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: !doesTheDesktopShowNoNotifications },
     open_at_login: openAtLogin,
     command_line_tool_version: commandLineToolVersion,
-    python_for_new_environments: pythonForNewEnvironments,
     runtime_install: { kind: "none" },
     installed_runtime: platform === "macos" ? mockInstalledRuntime(machine, MOCK_INSTALLED_RUNTIME_BUILD) : null,
   };
@@ -475,20 +442,18 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     platform,
     isUninstallPromptCancelled,
     appUpdateScenario,
-    streamWhoseStopIsNotRecorded,
     isTheTerminalMissing,
     isTheLogFolderMissing,
-    mostRecordsHeldPerStream,
+    mostProjectLogRecordsKept,
     chosenProjectFolder,
-    doesTheCompileWriteAWarning,
-    isTheTatolabCommandMissing,
+    isTheNewProjectFolderChosenAnExistingProject,
+    isNoProjectLoadHeld,
     doesTheRuntimeKeepNoOwnLog,
     isTheRuntimeRestartRefused,
     runtimeInstallScenario,
     streamPageRequestedByANotification,
     usrLocalBinLinkScenario,
     isRememberingFirstRunRefused,
-    pythonInterpreterPick,
     isMakingThePythonEnvironmentRefused,
     relaysScenario,
     doesTheRuntimeListAnEarlierRuntimesRecord,
@@ -513,19 +478,19 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   /** Recorded streams not loaded that `start_stream` can load, by id: `pattern-two`, and each one stopped from the window. */
   const recordedFixturesNotLoaded = new Map<string, MockStreamFixture>([[fixtures.patternTwoStream.listing.stream, fixtures.patternTwoStream]]);
   const forgottenStreamIds = new Set<string>();
-  /** Streams unloaded by a stop the mock could not record: not loaded now, loaded again when the mock runtime restarts. */
-  const streamIdsUnloadedButNotRecordedStopped = new Set<string>();
+  /** The stream action queued or under way on each stream, by id; a step of an action that is no longer its stream's does nothing. */
+  const streamActionOfEachStream = new Map<string, string>();
+  const projectLogs = new Map<string, MockProjectLog>();
+  let streamActionCount = 0;
+  const nextStreamActionId = (): string => {
+    streamActionCount += 1;
+    return `${MOCK_RUNTIME_ID}-${streamActionCount}`;
+  };
   let mockStatus = initialMockStatus(scenario, platform, fixtures.machine, mockTatolabOptions);
-  /** Tatolab's own Python as this build has it, which choosing it again goes back to. */
-  const initialPythonForNewEnvironmentsBuiltIn: PythonForNewEnvironments =
-    mockTatolabOptions.pythonForNewEnvironments.kind === "chosen"
-      ? { kind: "built_in", python_version: MOCK_BUILT_IN_PYTHON_VERSION }
-      : mockTatolabOptions.pythonForNewEnvironments;
   let isLoginItemsApproved = scenario !== "approval";
   let runtimeUpSinceMilliseconds: number | null = null;
   /** When the mock runtime's engine started, which its uptime counts from: long before the page opened, until a restart. */
   let runtimeEngineStartedAtMilliseconds = Date.now() - MOCK_RUNTIME_UP_FOR_AT_OPEN_MILLISECONDS;
-  let loadedStreamInstanceCount = 3;
   let liveTickTimer: number | undefined;
 
   const publishStatus = (statusChanges: Partial<TatolabStatus>): void => {
@@ -547,100 +512,149 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       });
   };
 
-  /** Each project folder the mock knows, by path, as the window would be told it holds it; a folder not here does not exist. */
-  const projectFolders = new Map<string, StreamProjectFolderReport>();
+  /** Each project folder the mock knows, by path: its `@stream`s, none without a `stream.py`, and whether it has a `.venv`; a folder not here does not exist. */
+  const projectFolders = new Map<string, { streamFunctions: readonly string[]; hasAPythonEnvironment: boolean }>([
+    [`${fixtures.machine.homeDirectory}/code/heat-map`, { streamFunctions: ["heat_map"], hasAPythonEnvironment: chosenProjectFolder !== "no-venv" }],
+    [`${fixtures.machine.homeDirectory}/code/doorways`, { streamFunctions: ["front_door", MOCK_FAILING_STREAM_FUNCTION], hasAPythonEnvironment: true }],
+    [fixtures.patternProjectDirectory, { streamFunctions: ["main", "recorder", "pattern_two"], hasAPythonEnvironment: true }],
+    [`${fixtures.machine.homeDirectory}/code/notes`, { streamFunctions: [], hasAPythonEnvironment: true }],
+  ]);
   const foldersHandedToTheWindow = new Set<string>();
-  const projectsFolder = `${fixtures.machine.homeDirectory}/code`;
-  const syncedPythonEnvironment = { kind: "present", python_version: "3.12.10", tatolab_stream_version: "0.55.0" } as const;
-  /** A `.venv` as the app's uv makes it from the Python for new environments, or uv's words when it cannot. */
-  const pythonEnvironmentTheAppMakes = (): { made: StreamProjectPythonEnvironment } | { refusal: string } => {
-    const pythonForNewEnvironments = mockStatus.python_for_new_environments;
-    if (pythonForNewEnvironments.kind === "built_in_not_offered") return { refusal: pythonForNewEnvironments.reason };
-    if (isMakingThePythonEnvironmentRefused) return { refusal: MOCK_UV_SYNC_REFUSAL };
-    const pythonVersion = pythonForNewEnvironments.kind === "built_in" ? pythonForNewEnvironments.python_version : MOCK_PICKED_PYTHON_VERSION;
-    return { made: { kind: "present", python_version: pythonVersion, tatolab_stream_version: "0.55.0" } };
-  };
-  const projectFolderReport = (folder: string, streamFunctions: string[], isSynced: boolean): StreamProjectFolderReport => ({
-    folder,
-    folder_exists: true,
-    stream_file_present: streamFunctions.length > 0,
-    stream_functions: streamFunctions,
-    python_environment: isSynced ? syncedPythonEnvironment : { kind: "missing" },
-  });
-  const projectFolderTheDialogChooses = (): StreamProjectFolderReport | null => {
+  const projectFolderTheDialogChooses = (chosenFor: StreamProjectFolderChosenFor): string | null => {
+    const projectsFolder = `${fixtures.machine.homeDirectory}/code`;
+    if (chosenProjectFolder === "cancel") return null;
+    if (chosenFor === "new_project_directory") return isTheNewProjectFolderChosenAnExistingProject ? `${projectsFolder}/heat-map` : `${fixtures.machine.homeDirectory}/streams/lobby`;
     switch (chosenProjectFolder) {
       case "ready":
-        return projectFolderReport(`${projectsFolder}/heat-map`, ["heat_map"], true);
       case "no-venv":
-        return projectFolderReport(`${projectsFolder}/heat-map`, ["heat_map"], false);
+        return `${projectsFolder}/heat-map`;
       case "several":
-        return projectFolderReport(`${projectsFolder}/doorways`, ["front_door", "back_door"], true);
+        return `${projectsFolder}/doorways`;
       case "recorded":
-        return projectFolderReport(fixtures.patternProjectDirectory, ["main", "recorder", "pattern_two"], true);
+        return fixtures.patternProjectDirectory;
       case "no-stream-file":
-        return projectFolderReport(`${projectsFolder}/notes`, [], true);
-      case "cancel":
-        return null;
+        return `${projectsFolder}/notes`;
     }
-  };
-  const handToTheWindow = (report: StreamProjectFolderReport): StreamProjectFolderReport => {
-    foldersHandedToTheWindow.add(report.folder);
-    if (report.folder_exists) projectFolders.set(report.folder, report);
-    return structuredClone(report);
   };
   const refuseAFolderNotHandedToTheWindow = (folder: string): void => {
     if (!foldersHandedToTheWindow.has(folder)) throw `Tatolab acts only on a folder chosen in its window. Choose ${folder} again.`;
   };
-  const firstFreeNewStreamProjectFolder = (): string => {
+  const newProjectFolderTheRuntimeDraws = (): string => {
     const newProjectsFolder = `${fixtures.machine.homeDirectory}/streams`;
-    let candidate = `${newProjectsFolder}/hello`;
-    for (let suffix = 2; projectFolders.has(candidate); suffix += 1) candidate = `${newProjectsFolder}/hello-${suffix}`;
-    return candidate;
+    const freeName = MOCK_NEW_PROJECT_FOLDER_NAMES.find((name) => !projectFolders.has(`${newProjectsFolder}/${name}`));
+    return `${newProjectsFolder}/${freeName ?? `project-${projectFolders.size}`}`;
   };
-  const newProjectFolderReport = (folder: string): StreamProjectFolderReport => ({
-    folder,
-    folder_exists: false,
-    stream_file_present: false,
-    stream_functions: [],
-    python_environment: { kind: "missing" },
-  });
-  /** `run_stream` as the runtime does it: refused for a project with no `.venv`, else loaded under the id its location computes to, replacing a stream of the same location and keeping its display name unless one is given. */
-  const runMockStreamProject = (folder: string, streamFunction: string | null, displayName: string | null): StreamProjectRunOutcome => {
-    const project = projectFolders.get(folder);
-    if (project === undefined || project.python_environment.kind === "missing") {
-      throw `Invalid configuration: ${folder} has no .venv/bin/python; run \`uv sync\` in ${folder}`;
-    }
-    const functionName = streamFunction?.split(":").at(-1) ?? project.stream_functions[0] ?? "main";
-    const location = { project_directory: folder, stream_function: `stream:${functionName}` };
-    const streamId = mockStreamIdOf(location);
-    const recordedListing = (listStreams() ?? []).find((listing) => listing.stream === streamId);
-    const fixture = createMockStreamRunFromAProjectFolder(fixtures.machine, folder, location.stream_function, displayName ?? recordedListing?.display_name ?? functionName);
-    if (recordedListing === undefined) streamIdsRunFromTheWindow.push(streamId);
-    displayNamesRenamedTo.delete(streamId);
-    recordedFixturesNotLoaded.delete(streamId);
-    forgottenStreamIds.delete(streamId);
-    loadStream(fixture, Date.now());
-    publishStatus({ streams: listStreams() });
-    const answer: StreamRunAnswer = {
-      stream: streamId,
-      display_name: fixture.listing.display_name,
-      stream_instance: loadedStreams.get(streamId)?.streamInstance ?? "",
-      location,
-      node_count: fixture.listing.node_count ?? 0,
-      replaced_a_recorded_stream: recordedListing !== undefined,
-      compile_warnings: doesTheCompileWriteAWarning ? [...MOCK_COMPILE_WARNINGS] : [],
+
+  /** Each load `create_project` or `run_project` queued, by action, as `describe_stream_action` reads it. */
+  const projectLoadsQueued = new Map<string, StreamActionDescription>();
+  const notHeldWords = (action: string): string =>
+    `Invalid configuration: the stream action \`${action}\` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log`;
+
+  /** Queues a load of `projectDirectory` that fails after a beat with `failedBecause`, as the runtime fails a load it cannot begin. */
+  const queueAMockProjectLoadThatFails = (projectDirectory: string, failedBecause: string): string => {
+    const action = nextStreamActionId();
+    const description: StreamActionDescription = { action, project_directory: projectDirectory, kind: "load", state: "queued", step: null, streams: [], failed_because: null };
+    projectLoadsQueued.set(action, description);
+    window.setTimeout(() => Object.assign(description, { state: "failed", failed_because: failedBecause }), MOCK_STREAM_ACTION_STEP_MILLISECONDS);
+    return action;
+  };
+
+  /**
+   * `create_project`'s and `run_project`'s load as the runtime does it: queued, then the `.venv` made where it has none,
+   * then every `@stream` compiling and starting, each listed `preparing` under the action, then loaded, or failed for
+   * the doorways project's `back_door`.
+   */
+  const queueAMockProjectLoad = (projectDirectory: string): string => {
+    const action = nextStreamActionId();
+    const description: StreamActionDescription = { action, project_directory: projectDirectory, kind: "load", state: "queued", step: null, streams: [], failed_because: null };
+    projectLoadsQueued.set(action, description);
+    void workOnTheMockProjectLoad(description);
+    return action;
+  };
+
+  const workOnTheMockProjectLoad = async (description: StreamActionDescription): Promise<void> => {
+    const projectDirectory = description.project_directory;
+    const project = projectFolders.get(projectDirectory);
+    if (project === undefined) return;
+    const isTheRuntimeStillUp = (): boolean => runtimeUpSinceMilliseconds !== null;
+    const streamFixtures = project.streamFunctions.map((streamFunction) =>
+      createMockStreamRunFromAProjectFolder(fixtures.machine, projectDirectory, `stream:${streamFunction}`, streamFunction),
+    );
+    const listEveryStreamPreparingAt = (step: string): void => {
+      for (const fixture of streamFixtures) {
+        const streamId = fixture.listing.stream;
+        if (!(listStreams() ?? []).some((listing) => listing.stream === streamId)) streamIdsRunFromTheWindow.push(streamId);
+        loadedStreams.delete(streamId);
+        forgottenStreamIds.delete(streamId);
+        streamActionOfEachStream.set(streamId, description.action);
+        listedStreamsNotLoaded.set(streamId, { ...fixture.listing, display_name: displayNamesRenamedTo.get(streamId) ?? fixture.listing.display_name, state: "preparing", node_count: null, action: description.action, step });
+      }
+      publishStatus({ streams: listStreams() });
     };
-    return { kind: "running", answer };
+    await sleep(MOCK_STREAM_ACTION_STEP_MILLISECONDS);
+    if (!project.hasAPythonEnvironment) {
+      Object.assign(description, { state: "in_progress", step: "making_the_venv" });
+      await sleep(MOCK_PYTHON_ENVIRONMENT_MILLISECONDS);
+      if (isMakingThePythonEnvironmentRefused) {
+        Object.assign(description, { state: "failed", step: null, failed_because: MOCK_UV_SYNC_REFUSAL });
+        return;
+      }
+      project.hasAPythonEnvironment = true;
+    }
+    for (const step of ["compiling", "starting"]) {
+      if (!isTheRuntimeStillUp()) {
+        Object.assign(description, { state: "cancelled", step: null });
+        return;
+      }
+      Object.assign(description, { state: "in_progress", step });
+      listEveryStreamPreparingAt(step);
+      if (step === "starting") {
+        description.streams = streamFixtures.map((fixture) => ({ stream: fixture.listing.stream, display_name: fixture.listing.display_name, state: null }));
+      }
+      await sleep(MOCK_STREAM_ACTION_STEP_MILLISECONDS);
+    }
+    const now = Date.now();
+    description.streams = streamFixtures.map((fixture) => {
+      const listing = fixture.listing;
+      streamActionOfEachStream.delete(listing.stream);
+      writeRuntimeRecord(listing, description.action, "info", `Loading the stream \`${listing.stream}\` from ${projectDirectory}`);
+      if (listing.location?.stream_function === `stream:${MOCK_FAILING_STREAM_FUNCTION}`) {
+        writeRuntimeRecord(listing, description.action, "error", fixtures.machine.cameraFailure);
+        listedStreamsNotLoaded.set(listing.stream, { ...listing, state: "failed", node_count: null, failed_because: fixtures.machine.cameraFailure, action: null, step: null });
+        return { stream: listing.stream, display_name: listing.display_name, state: "failed" };
+      }
+      loadStream(fixture, now, description.action);
+      return { stream: listing.stream, display_name: listing.display_name, state: "running" };
+    });
+    Object.assign(description, { state: "done", step: null });
+    publishStatus({ streams: listStreams() });
+  };
+
+  /** Writes `records` to the log of the project `projectDirectory`, its retention deleting the oldest past what it keeps. */
+  const writeToTheProjectLog = (projectDirectory: string | null, records: ProjectLogRecord[]): void => {
+    if (projectDirectory === null || records.length === 0) return;
+    const projectLog = projectLogs.get(projectDirectory) ?? { records: [], recordsDeletedCount: 0 };
+    projectLog.records.push(...records);
+    const recordsPastWhatItKeeps = projectLog.records.length - mostProjectLogRecordsKept;
+    if (recordsPastWhatItKeeps > 0) {
+      projectLog.records.splice(0, recordsPastWhatItKeeps);
+      projectLog.recordsDeletedCount += recordsPastWhatItKeeps;
+    }
+    projectLogs.set(projectDirectory, projectLog);
+  };
+
+  /** Writes one record the runtime writes for `listing` outside any step, now, under `action`. */
+  const writeRuntimeRecord = (listing: ListedStream, action: string, level: MockLogRecordDraft["level"], message: string): void => {
+    const draft: MockLogRecordDraft = { millisecondsAfterLoad: 0, source: "rust", level, target: "streamlib_engine::core::runtime::stream_actions", message };
+    writeToTheProjectLog(listing.location?.project_directory ?? null, [stampMockLogRecord(draft, action, Date.now(), listing.stream)]);
   };
 
   const holdRecords = (loadedStream: MockLoadedStream, drafts: MockLogRecordDraft[]): void => {
-    for (const draft of drafts) {
-      loadedStream.heldRecords.push(stampMockLogRecord(draft, loadedStream.nextSequence, loadedStream.loadedAtMilliseconds, loadedStream.fixture.listing.stream));
-      loadedStream.nextSequence += 1;
-    }
-    if (loadedStream.heldRecords.length > mostRecordsHeldPerStream) {
-      loadedStream.heldRecords.splice(0, loadedStream.heldRecords.length - mostRecordsHeldPerStream);
-    }
+    const { listing } = loadedStream.fixture;
+    writeToTheProjectLog(
+      listing.location?.project_directory ?? null,
+      drafts.map((draft) => stampMockLogRecord(draft, loadedStream.loadAction, loadedStream.loadedAtMilliseconds, listing.stream)),
+    );
   };
 
   const advanceStreamLog = (loadedStream: MockLoadedStream, millisecondsSinceLoad: number): void => {
@@ -658,18 +672,15 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     );
   };
 
-  const loadStream = (fixture: MockStreamFixture, loadedAtMilliseconds: number): void => {
-    loadedStreamInstanceCount += 1;
-    streamIdsUnloadedButNotRecordedStopped.delete(fixture.listing.stream);
+  const loadStream = (fixture: MockStreamFixture, loadedAtMilliseconds: number, loadAction: string = nextStreamActionId()): void => {
     recordedFixturesNotLoaded.delete(fixture.listing.stream);
+    streamActionOfEachStream.delete(fixture.listing.stream);
     const loadedStream: MockLoadedStream = {
       fixture,
-      streamInstance: String(loadedStreamInstanceCount),
+      loadAction,
       loadedAtMilliseconds,
       unreleasedStartupDrafts: [...fixture.startupLog],
       writeLiveLog: fixture.createLiveLogWriter(),
-      heldRecords: [],
-      nextSequence: 1,
     };
     loadedStreams.set(fixture.listing.stream, loadedStream);
     listedStreamsNotLoaded.delete(fixture.listing.stream);
@@ -685,7 +696,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     const now = Date.now();
     let listingChanged = false;
     if (scenario === "loading" && !loadedStreams.has(mainStream.listing.stream) && now - runtimeUpSinceMilliseconds >= MOCK_MAIN_LOADING_MILLISECONDS) {
-      loadStream(mainStream, now);
+      loadStream(mainStream, now, listedStreamsNotLoaded.get(mainStream.listing.stream)?.action ?? undefined);
       listingChanged = true;
     }
     for (const loadedStream of loadedStreams.values()) advanceStreamLog(loadedStream, now - loadedStream.loadedAtMilliseconds);
@@ -698,10 +709,15 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     loadedStreams.clear();
     if (scenario !== "empty" && scenario !== "not-listed") {
       const loadsAtTheRuntimesStart = (fixture: MockStreamFixture): boolean =>
-        !forgottenStreamIds.has(fixture.listing.stream) &&
-        (!recordedFixturesNotLoaded.has(fixture.listing.stream) || streamIdsUnloadedButNotRecordedStopped.has(fixture.listing.stream));
+        !forgottenStreamIds.has(fixture.listing.stream) && !recordedFixturesNotLoaded.has(fixture.listing.stream);
+      const failedLobbyRecorder = listedStreamsNotLoaded.get(fixtures.failedLobbyRecorder.stream);
+      if (failedLobbyRecorder?.state === "failed") {
+        const loadAction = nextStreamActionId();
+        writeRuntimeRecord(failedLobbyRecorder, loadAction, "info", `Loading the stream \`${failedLobbyRecorder.stream}\` from ${failedLobbyRecorder.location?.project_directory ?? ""}`);
+        writeRuntimeRecord(failedLobbyRecorder, loadAction, "error", failedLobbyRecorder.failed_because ?? "");
+      }
       if (scenario === "loading") {
-        listedStreamsNotLoaded.set(mainStream.listing.stream, { ...mainStream.listing, node_count: null });
+        listedStreamsNotLoaded.set(mainStream.listing.stream, { ...mainStream.listing, state: "preparing", node_count: null, action: nextStreamActionId(), step: "compiling" });
       } else if (loadsAtTheRuntimesStart(mainStream)) {
         loadStream(mainStream, now - mainStream.loadedForMillisecondsAtOpen);
       }
@@ -753,55 +769,122 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const aStreamThisRuntimeDoesNotHoldRefusal = (streamId: string): string =>
     `Resource not found: no stream with the id \`${streamId}\` is loaded or recorded in this runtime. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
 
-  /** `stop_stream` as the runtime does it: a loaded stream unloads and is recorded stopped. */
-  const stopMockStream = (streamId: string): string | null => {
-    const loadedStream = loadedStreams.get(streamId);
-    const listingNotLoaded = listedStreamsNotLoaded.get(streamId);
-    if (loadedStream && streamId === streamWhoseStopIsNotRecorded) {
-      loadedStreams.delete(streamId);
-      recordedFixturesNotLoaded.set(streamId, loadedStream.fixture);
-      streamIdsUnloadedButNotRecordedStopped.add(streamId);
-      listedStreamsNotLoaded.set(streamId, { ...loadedStream.fixture.listing, node_count: null });
+  /**
+   * Shows `listing` under `state` at each of `steps` in turn, a beat each, as the runtime works on a queued stream
+   * action, then calls `finish`; it stops at any step once another action is its stream's.
+   */
+  const workOnTheStreamAction = (listing: ListedStream, state: "preparing" | "stopping", action: string, steps: readonly string[], finish: () => void): void => {
+    streamActionOfEachStream.set(listing.stream, action);
+    const isStillTheStreamsAction = () => streamActionOfEachStream.get(listing.stream) === action && runtimeUpSinceMilliseconds !== null;
+    steps.forEach((step, stepIndex) =>
+      window.setTimeout(() => {
+        if (!isStillTheStreamsAction()) return;
+        listedStreamsNotLoaded.set(listing.stream, { ...listing, state, node_count: null, failed_because: null, action, step });
+        publishStatus({ streams: listStreams() });
+      }, stepIndex * MOCK_STREAM_ACTION_STEP_MILLISECONDS),
+    );
+    window.setTimeout(() => {
+      if (!isStillTheStreamsAction()) return;
+      streamActionOfEachStream.delete(listing.stream);
+      finish();
       publishStatus({ streams: listStreams() });
-      return `Runtime error: the record of \`${streamId}\` could not be written: Permission denied (os error 13)`;
-    }
-    if (loadedStream) {
-      loadedStreams.delete(streamId);
-      recordedFixturesNotLoaded.set(streamId, loadedStream.fixture);
-      listedStreamsNotLoaded.set(streamId, { ...loadedStream.fixture.listing, state: "stopped", node_count: null, failed_because: null });
-    } else if (listingNotLoaded?.state === "failed") {
-      throw `Runtime error: the stream \`${streamId}\` is failed, so it is not loaded to stop: ${listingNotLoaded.failed_because ?? ""}. \`start\` retries it, \`rm\` forgets it`;
-    } else if (listingNotLoaded?.state === "stopped") {
-      throw `Runtime error: the stream \`${streamId}\` is already stopped; \`start\` loads it again`;
-    } else if (listingNotLoaded) {
-      listedStreamsNotLoaded.set(streamId, { ...listingNotLoaded, state: "stopped", node_count: null });
-    } else {
-      throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
-    }
-    publishStatus({ streams: listStreams() });
-    return null;
+    }, steps.length * MOCK_STREAM_ACTION_STEP_MILLISECONDS);
   };
 
-  /** `start_stream` as the runtime does it: a stopped stream loads; a failed one is retried, and the lobby recorder's camera is still missing. */
-  const startMockStream = (streamId: string): null => {
+  /** Lists `listing` under `state` with `action` queued and no step yet, as the runtime lists an action waiting its turn. */
+  const queueTheStreamAction = (listing: ListedStream, state: "preparing" | "stopping", action: string): void => {
+    listedStreamsNotLoaded.set(listing.stream, { ...listing, state, node_count: null, failed_because: null, action, step: null });
+    publishStatus({ streams: listStreams() });
+  };
+
+  /** `stop_stream` as the runtime does it: queued for a loaded stream, which stops and is recorded stopped; refused for one not loaded. */
+  const stopMockStream = (streamId: string): void => {
+    const loadedStream = loadedStreams.get(streamId);
+    const listingNotLoaded = listedStreamsNotLoaded.get(streamId);
+    if (loadedStream === undefined) {
+      if (listingNotLoaded?.state === "stopped") throw `Runtime error: the stream \`${streamId}\` is already stopped; \`start\` loads it again`;
+      if (listingNotLoaded?.state === "failed") {
+        throw `Runtime error: the stream \`${streamId}\` is failed, so it is not loaded to stop: ${listingNotLoaded.failed_because ?? ""}. \`start\` retries it, \`rm\` forgets it`;
+      }
+      if (listingNotLoaded === undefined) throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
+    }
+    const listing = loadedStream?.fixture.listing ?? listingNotLoaded;
+    if (listing === undefined) return;
+    const action = nextStreamActionId();
+    loadedStreams.delete(streamId);
+    if (loadedStream !== undefined) recordedFixturesNotLoaded.set(streamId, loadedStream.fixture);
+    queueTheStreamAction(listing, "stopping", action);
+    workOnTheStreamAction(listing, "stopping", action, ["stopping"], () => {
+      writeRuntimeRecord(listing, action, "info", `Stopped the stream \`${streamId}\``);
+      listedStreamsNotLoaded.set(streamId, { ...listing, state: "stopped", node_count: null, failed_because: null, action: null, step: null });
+    });
+  };
+
+  /** `start_stream` as the runtime does it: queued for a stopped or failed stream, which loads, or for the lobby recorder fails again as its camera is still missing; refused for one loaded. */
+  const startMockStream = (streamId: string): void => {
     if (loadedStreams.has(streamId)) {
-      throw `Runtime error: the stream \`${streamId}\` is already loaded in this runtime, running; only a stopped or failed stream starts`;
+      throw `Runtime error: the stream \`${streamId}\` is already loaded in this runtime, recorded by the runtime; only a stopped or failed stream starts`;
     }
     const listingNotLoaded = listedStreamsNotLoaded.get(streamId);
     if (!listingNotLoaded) {
       throw `Resource not found: no stream with the id \`${streamId}\` is recorded in this runtime, so there is none to start. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
     }
-    const fixture = recordedFixturesNotLoaded.get(streamId);
-    if (!fixture) {
-      const retryRefusal = fixtures.machine.cameraFailure;
-      listedStreamsNotLoaded.set(streamId, { ...listingNotLoaded, state: "failed", failed_because: `\`start\` retried it, and it did not load: ${retryRefusal}` });
-      publishStatus({ streams: listStreams() });
-      throw retryRefusal;
+    const action = nextStreamActionId();
+    queueTheStreamAction(listingNotLoaded, "preparing", action);
+    workOnTheStreamAction(listingNotLoaded, "preparing", action, ["compiling", "starting"], () => {
+      writeRuntimeRecord(listingNotLoaded, action, "info", `Loading the stream \`${streamId}\` from ${listingNotLoaded.location?.project_directory ?? ""}`);
+      const fixture = recordedFixturesNotLoaded.get(streamId);
+      if (fixture !== undefined) {
+        loadStream(fixture, Date.now(), action);
+        return;
+      }
+      const retryFailure = `\`start\` retried it, and it did not load: ${fixtures.machine.cameraFailure}`;
+      writeRuntimeRecord(listingNotLoaded, action, "error", retryFailure);
+      listedStreamsNotLoaded.set(streamId, { ...listingNotLoaded, state: "failed", node_count: null, failed_because: retryFailure, action: null, step: null });
+    });
+  };
+
+  /** `remove_project` as the runtime does it: every stream of the project stops if loaded and is forgotten; refused for a folder the runtime holds no stream of. */
+  const removeMockProject = (projectDirectory: string): void => {
+    const streamsOfTheProject = (listStreams() ?? []).filter((listing) => listing.location?.project_directory === projectDirectory);
+    if (streamsOfTheProject.length === 0) {
+      throw `Resource not found: this runtime holds no stream of the project in ${projectDirectory}, so there is none to remove. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
     }
-    recordedFixturesNotLoaded.delete(streamId);
-    loadStream(fixture, Date.now());
-    publishStatus({ streams: listStreams() });
-    return null;
+    const action = nextStreamActionId();
+    for (const listing of streamsOfTheProject) {
+      loadedStreams.delete(listing.stream);
+      queueTheStreamAction(listing, "stopping", action);
+      workOnTheStreamAction(listing, "stopping", action, ["stopping"], () => {
+        writeRuntimeRecord(listing, action, "info", `Removed the stream \`${listing.stream}\``);
+        listedStreamsNotLoaded.delete(listing.stream);
+        recordedFixturesNotLoaded.delete(listing.stream);
+        forgottenStreamIds.add(listing.stream);
+      });
+    }
+  };
+
+  /** `logs` as the runtime answers it: the project's records after the cursor `after`, from its first record kept when `null`, narrowed as asked. */
+  const readMockProjectLog = (projectDirectory: string, narrowing: { stream: string | null; action: string | null }, after: string | null): ProjectLogRecordsPage => {
+    const projectLog = projectLogs.get(projectDirectory);
+    if (projectLog === undefined && !(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) {
+      throw `Resource not found: this runtime holds no stream of the project in ${projectDirectory}`;
+    }
+    const { records, recordsDeletedCount } = projectLog ?? { records: [], recordsDeletedCount: 0 };
+    const askedAfterIndex = after === null ? 0 : Number(after.split(":")[1] ?? "0");
+    const firstIndexRead = Math.max(askedAfterIndex, recordsDeletedCount);
+    const recordsOfThePage: ProjectLogRecord[] = [];
+    let nextIndex = firstIndexRead;
+    for (; nextIndex < recordsDeletedCount + records.length && recordsOfThePage.length < MOCK_RECORDS_PAGE_SIZE; nextIndex++) {
+      const record = records[nextIndex - recordsDeletedCount];
+      if (record === undefined) continue;
+      if ((narrowing.stream === null || record.stream === narrowing.stream) && (narrowing.action === null || record.action === narrowing.action)) recordsOfThePage.push(record);
+    }
+    return {
+      project_directory: projectDirectory,
+      records: structuredClone(recordsOfThePage),
+      next_after: `1:${nextIndex}`,
+      records_no_longer_held: askedAfterIndex < recordsDeletedCount,
+    };
   };
 
   /** `rename_stream` as the runtime does it: refused for a name that shows nothing or a stream it does not hold, else shown under the new name. */
@@ -812,17 +895,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     if (!(listStreams() ?? []).some((listing) => listing.stream === streamId)) throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
     displayNamesRenamedTo.set(streamId, displayName);
     publishStatus({ streams: listStreams() });
-  };
-
-  /** `remove_stream` as the runtime does it: unloaded if loaded, and forgotten. */
-  const removeMockStream = (streamId: string): null => {
-    const wasLoaded = loadedStreams.delete(streamId);
-    const wasListedNotLoaded = listedStreamsNotLoaded.delete(streamId);
-    if (!wasLoaded && !wasListedNotLoaded) throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
-    recordedFixturesNotLoaded.delete(streamId);
-    forgottenStreamIds.add(streamId);
-    publishStatus({ streams: listStreams() });
-    return null;
   };
 
   const graphOfLoadedStream = (loadedStream: MockLoadedStream): StreamGraphSummary => {
@@ -953,20 +1025,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       publishStatus({ command_line_tool_linked_at: null, command_line_tool_usr_local_bin_link: { kind: "not_linked" } });
       takeRuntimeDown({ run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped" });
     },
-    readStreamLogRecords: async (streamId, afterSequence): Promise<StreamLogRecordsPage> => {
+    readProjectLogRecords: async (projectDirectory, narrowing, after) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      const loadedStream = loadedStreamOfTheId(streamId);
-      const firstHeldSequence = loadedStream.heldRecords[0]?.sequence ?? loadedStream.nextSequence;
-      const records = loadedStream.heldRecords
-        .filter((record) => record.sequence > afterSequence)
-        .slice(0, MOCK_RECORDS_PAGE_SIZE);
-      return {
-        stream: streamId,
-        stream_instance: loadedStream.streamInstance,
-        records: structuredClone(records),
-        next_after: records.at(-1)?.sequence ?? afterSequence,
-        records_no_longer_held: Math.max(0, firstHeldSequence - 1 - afterSequence),
-      };
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      if (!(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) throw `The runtime lists no stream from ${projectDirectory}.`;
+      return readMockProjectLog(projectDirectory, narrowing, after);
     },
     describeStreamGraph: async (streamId) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -987,9 +1050,12 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
           return stopMockStream(streamId);
         case "start_stream":
           return startMockStream(streamId);
-        case "remove_stream":
-          return removeMockStream(streamId);
       }
+    },
+    removeProject: async (projectDirectory) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer remove_project`;
+      removeMockProject(projectDirectory);
     },
     renameStream: async (streamId, displayName) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -1011,36 +1077,44 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       const projectFolder = listedProjectFolderOf(streamId);
       const displayName = listStreams()?.find((listing) => listing.stream === streamId)?.display_name ?? streamId;
-      if (isTheLogFolderMissing) throw `${displayName} has no log folder yet: ${projectFolder}/${STREAM_LOG_FOLDER_IN_THE_PROJECT} is not on this machine.`;
+      if (isTheLogFolderMissing) throw `${displayName} has no log folder yet: ${projectFolder}/${PROJECT_LOG_FOLDER_IN_THE_PROJECT} is not on this machine.`;
     },
-    chooseStreamProjectFolder: async () => {
+    chooseStreamProjectFolder: async (chosenFor) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      const chosen = projectFolderTheDialogChooses();
-      return chosen === null ? null : handToTheWindow(chosen);
-    },
-    proposeNewStreamProjectFolder: async () => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      return handToTheWindow(newProjectFolderReport(firstFreeNewStreamProjectFolder()));
+      const chosen = projectFolderTheDialogChooses(chosenFor);
+      if (chosen !== null) foldersHandedToTheWindow.add(chosen);
+      return chosen;
     },
     createStreamProject: async (folder) => {
-      await sleep(MOCK_TATOLAB_NEW_MILLISECONDS);
-      refuseAFolderNotHandedToTheWindow(folder);
-      if (isTheTatolabCommandMissing) throw "This build of Tatolab has no tatolab command to run. Run tatolab new in a terminal instead.";
-      if (projectFolders.has(folder)) throw `\`${folder}\` already has stream.py, pyproject.toml — scaffolding would overwrite it. Pick an empty directory.`;
-      return handToTheWindow(projectFolderReport(folder, ["main"], false));
-    },
-    runStreamProject: async (folder, streamFunction, displayName) => {
-      refuseAFolderNotHandedToTheWindow(folder);
-      const project = projectFolders.get(folder);
-      if (project !== undefined && project.python_environment.kind === "missing") {
-        await sleep(MOCK_PYTHON_ENVIRONMENT_MILLISECONDS);
-        const pythonEnvironment = pythonEnvironmentTheAppMakes();
-        if ("refusal" in pythonEnvironment) return { kind: "python_environment_not_made", words: pythonEnvironment.refusal };
-        projectFolders.set(folder, { ...project, python_environment: pythonEnvironment.made });
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (folder !== null) refuseAFolderNotHandedToTheWindow(folder);
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const projectDirectory = folder ?? newProjectFolderTheRuntimeDraws();
+      const stream = mockStreamIdOf({ project_directory: projectDirectory, stream_function: "stream:main" });
+      if (projectFolders.has(projectDirectory)) {
+        const failedBecause = `Invalid configuration: \`${projectDirectory}\` already has pyproject.toml, stream.py, and a new project's files would overwrite it; create the project in an empty directory`;
+        return { action: queueAMockProjectLoadThatFails(projectDirectory, failedBecause), stream, project_directory: projectDirectory };
       }
-      await sleep(MOCK_RUN_STREAM_MILLISECONDS);
-      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer run_stream`;
-      return runMockStreamProject(folder, streamFunction, displayName);
+      projectFolders.set(projectDirectory, { streamFunctions: ["main"], hasAPythonEnvironment: false });
+      return { action: queueAMockProjectLoad(projectDirectory), stream, project_directory: projectDirectory };
+    },
+    runStreamProject: async (folder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      refuseAFolderNotHandedToTheWindow(folder);
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const project = projectFolders.get(folder);
+      if (project === undefined) return { action: queueAMockProjectLoadThatFails(folder, `the project directory ${folder} does not exist`), project_directory: folder };
+      if (project.streamFunctions.length === 0) {
+        return { action: queueAMockProjectLoadThatFails(folder, `Invalid configuration: ${folder} has no stream.py, so it is not a Tatolab project`), project_directory: folder };
+      }
+      return { action: queueAMockProjectLoad(folder), project_directory: folder };
+    },
+    describeStreamAction: async (action): Promise<StreamActionFollowed> => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const description = projectLoadsQueued.get(action);
+      if (description === undefined || isNoProjectLoadHeld) return { kind: "not_held", words: notHeldWords(action) };
+      return { kind: "described", description: structuredClone(description) };
     },
     describeRuntime: async (): Promise<RuntimeDescription> => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -1082,19 +1156,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     setOpenTatolabAtLogin: async (enabled) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       publishStatus({ open_at_login: enabled ? { kind: "on" } : { kind: "off" } });
-    },
-    choosePythonForNewEnvironments: async (python) => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      switch (python) {
-        case "built_in":
-          publishStatus({ python_for_new_environments: initialPythonForNewEnvironmentsBuiltIn });
-          return;
-        case "chosen_in_a_file_dialog":
-          if (pythonInterpreterPick === "cancel") return;
-          if (pythonInterpreterPick === "not_python") throw "/usr/bin/ruby is not a Python interpreter: ruby 3.3.0";
-          publishStatus({ python_for_new_environments: { kind: "chosen", interpreter: MOCK_PICKED_PYTHON_INTERPRETER } });
-          return;
-      }
     },
     describeRelays: () => mockRelays.describeRelays(),
     addRelay: (adapter, settings) => mockRelays.addRelay(adapter, settings),
