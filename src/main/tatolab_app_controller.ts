@@ -4,7 +4,6 @@
 // interleave between the service manager's answers.
 
 import type {
-  PythonForNewEnvironments,
   RuntimeAgentRegistration as RuntimeAgentRegistrationStatus,
 } from "../shared/tatolab_backend_contract.js";
 import type {
@@ -81,8 +80,6 @@ export interface TatolabAppControllerSources {
   readStreamFailureNotifications: () => StreamFailureNotificationsState;
   /** The `tatolab` CLI's version as read so far this launch, which each status carries. */
   readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion;
-  /** The Python the app makes a project's `.venv` from, which each status carries. */
-  readPythonForNewEnvironments: () => PythonForNewEnvironments;
   tatolabAppLog: TatolabAppLog;
 }
 
@@ -111,7 +108,6 @@ export class TatolabAppController {
     private readonly readTheAppUpdateState: () => TatolabAppUpdateState,
     private readonly readStreamFailureNotifications: () => StreamFailureNotificationsState,
     private readonly readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion,
-    private readonly readPythonForNewEnvironments: () => PythonForNewEnvironments,
     private readonly tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin,
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
@@ -142,7 +138,6 @@ export class TatolabAppController {
       sources.readTheAppUpdateState,
       sources.readStreamFailureNotifications,
       sources.readTheCommandLineToolVersion,
-      sources.readPythonForNewEnvironments,
       sources.platformForThisBuild.tatolabAppOpenedAtLogin,
       sources.tatolabAppLog,
     );
@@ -357,7 +352,6 @@ export class TatolabAppController {
       stream_failure_notifications: this.readStreamFailureNotifications(),
       open_at_login: await this.tatolabAppOpenedAtLogin.readOpenAtLogin(),
       command_line_tool_version: this.readTheCommandLineToolVersion(),
-      python_for_new_environments: this.readPythonForNewEnvironments(),
     };
   }
 

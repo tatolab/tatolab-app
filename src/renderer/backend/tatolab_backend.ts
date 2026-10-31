@@ -1,7 +1,6 @@
 import type {
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
-  PythonForNewEnvironmentsChoice,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
@@ -69,8 +68,6 @@ export interface TatolabBackend {
   setStreamFailureNotifications(enabled: boolean): Promise<void>;
   /** Have the desktop open Tatolab at login, or stop, resolving once it has and rejecting in its words; what it reports arrives as the next status. */
   setOpenTatolabAtLogin(enabled: boolean): Promise<void>;
-  /** Make new environments from Tatolab's built-in Python, or from one the person picks in the app's file dialog, resolving once it is remembered or the dialog is cancelled and rejecting with why; the choice arrives as the next status. */
-  choosePythonForNewEnvironments(python: PythonForNewEnvironmentsChoice): Promise<void>;
   /** Every relay the runtime holds and every adapter it can join one through, rejecting in the runtime's own words. */
   describeRelays(): Promise<RelaysDescription>;
   /** Add a relay of `adapter` with `settings`, its secrets among them, resolving with the id the runtime gave it and rejecting in the runtime's own words. */

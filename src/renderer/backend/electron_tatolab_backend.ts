@@ -76,9 +76,6 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     setOpenTatolabAtLogin: async (enabled) => {
       await invokeTatolabCommand("set_open_tatolab_at_login", { enabled });
     },
-    choosePythonForNewEnvironments: async (python) => {
-      await invokeTatolabCommand("choose_python_for_new_environments", { python });
-    },
     describeRelays: () => invokeTatolabCommand("describe_relays", undefined),
     addRelay: async (adapter, settings) => (await invokeTatolabCommand("add_relay", { adapter, settings: { ...settings } })).relay_id,
     configureRelay: async (relayId, settings) => {

@@ -17,7 +17,6 @@ import {
   type ListedStream,
   type ProjectLogRecord,
   type ProjectLogRecordsPage,
-  type PythonForNewEnvironments,
   type RuntimeDescription,
   type TatolabAppBuild,
   type TatolabAppOpenAtLogin,
@@ -133,11 +132,6 @@ const MOCK_NEW_PROJECT_FOLDER_NAMES = ["kind-butte", "quiet-harbor", "amber-delt
 /** The `@stream` of the mock's doorways project that fails to load, as a stream whose camera is missing does. */
 const MOCK_FAILING_STREAM_FUNCTION = "back_door";
 
-/** Tatolab's built-in Python in the mock, as python-build-standalone names its version. */
-const MOCK_BUILT_IN_PYTHON_VERSION = "3.12.12";
-/** The interpreter the mock's file dialog picks in Settings. */
-const MOCK_PICKED_PYTHON_INTERPRETER = "/opt/homebrew/bin/python3.12";
-
 /** What the runtime's uv says in the mock when `?add_venv=refused` has it fail to make a project's `.venv`: the package index out of reach. */
 const MOCK_UV_SYNC_REFUSAL = [
   "error: Failed to fetch: `https://pypi.org/simple/tatolab-stream/`",
@@ -145,24 +139,6 @@ const MOCK_UV_SYNC_REFUSAL = [
   "  Caused by: error sending request for url (https://pypi.org/simple/tatolab-stream/)",
   "  Caused by: dns error: failed to lookup address information: nodename nor servname provided, or not known",
 ].join("\n");
-
-/** What the mock's file dialog does when Settings asks for a Python, picked with `?python_pick=`: picks an interpreter (the default), is cancelled, or picks a file that is no Python. */
-export type MockPythonInterpreterPick = "picked" | "cancel" | "not_python";
-
-/** What `?python=` names: Tatolab's built-in Python (the default), an interpreter already chosen, or a build that carries no Python. */
-function mockPythonForNewEnvironments(pythonInTheQuery: string | null): PythonForNewEnvironments {
-  switch (pythonInTheQuery) {
-    case "chosen":
-      return { kind: "chosen", interpreter: MOCK_PICKED_PYTHON_INTERPRETER };
-    case "not_offered":
-      return {
-        kind: "built_in_not_offered",
-        reason: "This build of Tatolab carries no uv or Python of its own, so it cannot set up a project's Python. Run uv sync in the project's folder instead.",
-      };
-    default:
-      return { kind: "built_in", python_version: MOCK_BUILT_IN_PYTHON_VERSION };
-  }
-}
 
 /** What the page's query asks of the mock. */
 export interface MockTatolabOptions {
@@ -203,10 +179,6 @@ export interface MockTatolabOptions {
   isRememberingFirstRunRefused: boolean;
   /** `?app_build=release|modified|none`: a release build, a dev build with uncommitted changes, or one that recorded none; a dev build by default. */
   appBuild: TatolabAppBuild | null;
-  /** `?python=chosen|not_offered`: the Python new environments are made from; Tatolab's built-in by default. */
-  pythonForNewEnvironments: PythonForNewEnvironments;
-  /** `?python_pick=cancel|not_python`: what the file dialog Settings opens for a Python does. */
-  pythonInterpreterPick: MockPythonInterpreterPick;
   /** `?add_venv=refused`: the runtime's uv fails to make a project's `.venv`, as with the package index out of reach, so its load fails. */
   isMakingThePythonEnvironmentRefused: boolean;
   /**
@@ -298,8 +270,6 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     usrLocalBinLinkScenario: pageQuery.get("usr_local_bin") === "linked" ? "linked" : pageQuery.get("usr_local_bin") === "cancel" ? "cancel" : "not_linked",
     isRememberingFirstRunRefused: pageQuery.get("first_run_remember") === "refused",
     appBuild: mockAppBuild(pageQuery.get("app_build")),
-    pythonForNewEnvironments: mockPythonForNewEnvironments(pageQuery.get("python")),
-    pythonInterpreterPick: pageQuery.get("python_pick") === "cancel" ? "cancel" : pageQuery.get("python_pick") === "not_python" ? "not_python" : "picked",
     isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
     relaysScenario: mockRelaysScenarioNamed(pageQuery.get("relays")),
     doesTheRuntimeListAnEarlierRuntimesRecord: pageQuery.get("streams") === "earlier_record",
@@ -355,7 +325,6 @@ function initialMockStatus(
     isFirstRunUnfinished,
     usrLocalBinLinkScenario,
     appBuild,
-    pythonForNewEnvironments,
   }: MockTatolabOptions,
 ): TatolabStatus {
   const runningStatus: TatolabStatus = {
@@ -380,7 +349,6 @@ function initialMockStatus(
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: !doesTheDesktopShowNoNotifications },
     open_at_login: openAtLogin,
     command_line_tool_version: commandLineToolVersion,
-    python_for_new_environments: pythonForNewEnvironments,
   };
   switch (scenario) {
     case "running":
@@ -451,7 +419,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     streamPageRequestedByANotification,
     usrLocalBinLinkScenario,
     isRememberingFirstRunRefused,
-    pythonInterpreterPick,
     isMakingThePythonEnvironmentRefused,
     relaysScenario,
     doesTheRuntimeListAnEarlierRuntimesRecord,
@@ -485,11 +452,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     return `${MOCK_RUNTIME_ID}-${streamActionCount}`;
   };
   let mockStatus = initialMockStatus(scenario, platform, fixtures.machine, mockTatolabOptions);
-  /** Tatolab's own Python as this build has it, which choosing it again goes back to. */
-  const initialPythonForNewEnvironmentsBuiltIn: PythonForNewEnvironments =
-    mockTatolabOptions.pythonForNewEnvironments.kind === "chosen"
-      ? { kind: "built_in", python_version: MOCK_BUILT_IN_PYTHON_VERSION }
-      : mockTatolabOptions.pythonForNewEnvironments;
   let isLoginItemsApproved = scenario !== "approval";
   let runtimeUpSinceMilliseconds: number | null = null;
   /** When the mock runtime's engine started, which its uptime counts from: long before the page opened, until a restart. */
@@ -1122,19 +1084,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     setOpenTatolabAtLogin: async (enabled) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       publishStatus({ open_at_login: enabled ? { kind: "on" } : { kind: "off" } });
-    },
-    choosePythonForNewEnvironments: async (python) => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      switch (python) {
-        case "built_in":
-          publishStatus({ python_for_new_environments: initialPythonForNewEnvironmentsBuiltIn });
-          return;
-        case "chosen_in_a_file_dialog":
-          if (pythonInterpreterPick === "cancel") return;
-          if (pythonInterpreterPick === "not_python") throw "/usr/bin/ruby is not a Python interpreter: ruby 3.3.0";
-          publishStatus({ python_for_new_environments: { kind: "chosen", interpreter: MOCK_PICKED_PYTHON_INTERPRETER } });
-          return;
-      }
     },
     describeRelays: () => mockRelays.describeRelays(),
     addRelay: (adapter, settings) => mockRelays.addRelay(adapter, settings),

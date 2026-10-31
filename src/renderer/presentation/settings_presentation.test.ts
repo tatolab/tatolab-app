@@ -7,7 +7,6 @@ import {
   presentCommandLineToolVersion,
   presentLoginItemsRow,
   presentOpenAtLogin,
-  presentPythonForNewEnvironments,
   presentRuntimeLogFolder,
   presentRuntimeStatusRow,
   presentRuntimeUptime,
@@ -37,7 +36,6 @@ function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
-    python_for_new_environments: { kind: "built_in", python_version: "3.12.12" },
     ...statusChanges,
   };
 }
@@ -226,28 +224,5 @@ describe("Command line › Link in /usr/local/bin", () => {
       isOffered: false,
     });
     expect(presentUsrLocalBinLink("linux", { kind: "not_offered", reason: "On Linux the installer links tatolab." })).toBeNull();
-  });
-});
-
-describe("Runtime › Python", () => {
-  it("says what a project's Python is set up from, shows a chosen interpreter's path, and offers the other choice", () => {
-    expect(presentPythonForNewEnvironments({ kind: "built_in", python_version: "3.12.12" })).toEqual({
-      description: "Tatolab's own Python 3.12.12, which sets up a project's Python when it has none.",
-      chosenInterpreter: null,
-      chooseYourOwnPythonLabel: "Choose Your Own…",
-      offersTatolabsPython: false,
-    });
-    expect(presentPythonForNewEnvironments({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" })).toEqual({
-      description: "Your own Python, which sets up a project's Python when it has none.",
-      chosenInterpreter: "/opt/homebrew/bin/python3.12",
-      chooseYourOwnPythonLabel: "Choose Another…",
-      offersTatolabsPython: true,
-    });
-    expect(presentPythonForNewEnvironments({ kind: "built_in_not_offered", reason: "No uv here." })).toEqual({
-      description: "No uv here.",
-      chosenInterpreter: null,
-      chooseYourOwnPythonLabel: null,
-      offersTatolabsPython: false,
-    });
   });
 });

@@ -8,7 +8,6 @@ import type {
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
-  PythonForNewEnvironmentsChoice,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
@@ -251,13 +250,6 @@ export function setOpenTatolabAtLogin(sharedState: TatolabAppSharedState, enable
   });
 }
 
-/** `choose_python_for_new_environments { python }`: make new environments from Tatolab's built-in Python, or from one the person picks in the app's file dialog, then a status round; refused naming why, the choice unchanged. */
-export function choosePythonForNewEnvironments(sharedState: TatolabAppSharedState, python: PythonForNewEnvironmentsChoice): Promise<Result<void, string>> {
-  return answerTheWindowThenRefreshTheStatus(sharedState, "choose_python_for_new_environments", () =>
-    sharedState.streamProjectPythonEnvironments.choosePythonForNewEnvironments(python),
-  );
-}
-
 /** `describe_relays`: every relay the runtime holds and every adapter it can join one through; refused in the runtime's own words. */
 export function describeRelays(sharedState: TatolabAppSharedState): Promise<Result<RelaysDescription, string>> {
   return answerTheWindow("describe_relays", async () => {
@@ -311,15 +303,6 @@ export function configureRelayArgumentsFrom(commandArguments: unknown): Result<{
   if (!relayId.ok) return relayId;
   const settings = relaySettingsArgumentFrom("configure_relay", commandArguments);
   return settings.ok ? succeeded({ relay_id: relayId.value, settings: settings.value }) : settings;
-}
-
-/** `choose_python_for_new_environments`'s arguments as the window sends them, or why they are not. */
-export function choosePythonForNewEnvironmentsArgumentsFrom(commandArguments: unknown): Result<{ python: PythonForNewEnvironmentsChoice }, string> {
-  const python = isAJsonObject(commandArguments) ? commandArguments["python"] : undefined;
-  if (python !== "built_in" && python !== "chosen_in_a_file_dialog") {
-    return failedWith("choose_python_for_new_environments needs `python`, built_in or chosen_in_a_file_dialog");
-  }
-  return succeeded({ python });
 }
 
 /** The `{ enabled }` arguments of the command `commandName` as the window sends them, or why they are not. */
@@ -499,11 +482,6 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const enabledArguments = enabledArgumentsFrom("set_open_tatolab_at_login", commandArguments);
       if (!enabledArguments.ok) return { ok: false, refusal: enabledArguments.failure };
       return commandAnswerOfNothingFrom(await setOpenTatolabAtLogin(sharedState, enabledArguments.value.enabled));
-    },
-    choose_python_for_new_environments: async (commandArguments) => {
-      const pythonArguments = choosePythonForNewEnvironmentsArgumentsFrom(commandArguments);
-      if (!pythonArguments.ok) return { ok: false, refusal: pythonArguments.failure };
-      return commandAnswerOfNothingFrom(await choosePythonForNewEnvironments(sharedState, pythonArguments.value.python));
     },
     describe_relays: async () => commandAnswerFrom(await describeRelays(sharedState)),
     add_relay: async (commandArguments) => {

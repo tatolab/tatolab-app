@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./mock_tatolab_backend";
-import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, RelaysDescription, StreamActionFollowed, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, RelaysDescription, StreamActionFollowed } from "../../shared/tatolab_backend_contract";
 import type { TatolabBackend } from "./tatolab_backend";
 
 afterEach(() => {
@@ -288,24 +288,6 @@ describe("the mock backend's New project and Import project", () => {
     expect(await settled(() => notHeld.describeStreamAction("R-1"))).toEqual({ answer: { kind: "not_held", words: expect.stringMatching(/^Invalid configuration: the stream action `R-1` is not held/) } });
     expect(await settled(() => notHeld.chooseStreamProjectFolder("project_to_run"))).toEqual({ answer: null });
   });
-
-  it("chooses the Python for new environments: one the file dialog picks, Tatolab's again, and a pick that is no Python refused", async () => {
-    vi.useFakeTimers();
-    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
-    const statuses: TatolabStatus[] = [];
-    await backend.onTatolabStatusChanged((status) => statuses.push(status));
-
-    await settled(() => backend.choosePythonForNewEnvironments("chosen_in_a_file_dialog"));
-    expect(statuses.at(-1)?.python_for_new_environments).toEqual({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" });
-    await settled(() => backend.choosePythonForNewEnvironments("built_in"));
-    expect(statuses.at(-1)?.python_for_new_environments).toEqual({ kind: "built_in", python_version: "3.12.12" });
-
-    const notAPython = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("python_pick=not_python")));
-    expect(await settled(() => notAPython.choosePythonForNewEnvironments("chosen_in_a_file_dialog"))).toEqual({
-      refusal: "/usr/bin/ruby is not a Python interpreter: ruby 3.3.0",
-    });
-  });
-
 });
 
 describe("the mock backend's runtime", () => {
