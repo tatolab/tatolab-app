@@ -26,6 +26,7 @@ import {
 import {
   STREAMS_LIST_FILTERS,
   streamMatchesFilterText,
+  streamIsInListFilterState,
   streamMatchesListFilter,
   streamProjectFoldersOf,
   streamsListFilterWords,
@@ -203,7 +204,7 @@ function StreamsListStateFilterMenu({
           label: (
             <span className="flex w-full items-center gap-6">
               {streamsListFilterWords(filter)}
-              <span className="ml-auto text-fg-3 tabular">{listedStreams.filter((stream) => streamMatchesListFilter(stream, filter)).length}</span>
+              <span className="ml-auto text-fg-3 tabular">{listedStreams.filter((stream) => streamIsInListFilterState(stream, filter)).length}</span>
             </span>
           ),
         }))}

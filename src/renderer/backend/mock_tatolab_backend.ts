@@ -975,6 +975,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     readProjectLogRecords: async (projectDirectory, narrowing, after) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      if (!(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) throw `The runtime lists no stream from ${projectDirectory}.`;
       return readMockProjectLog(projectDirectory, narrowing, after);
     },
     describeStreamGraph: async (streamId) => {

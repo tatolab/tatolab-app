@@ -6,6 +6,7 @@ import {
   presentProjectRemovalConfirmation,
   streamsOfTheProject,
   streamMatchesFilterText,
+  streamIsInListFilterState,
   streamMatchesListFilter,
   streamProjectFoldersOf,
 } from "./streams_list_presentation";
@@ -46,6 +47,7 @@ describe("streamMatchesListFilter", () => {
     for (const state of ["preparing", "stopping"] as const) {
       const streamUnderAnAction = { ...someStream, state, action: "R1-7", step: null };
       expect(STREAMS_LIST_FILTERS.map(({ filter }) => streamMatchesListFilter(streamUnderAnAction, filter))).toEqual([true, true, true, true]);
+      expect(STREAMS_LIST_FILTERS.map(({ filter }) => streamIsInListFilterState(streamUnderAnAction, filter))).toEqual([true, false, false, false]);
     }
   });
 });

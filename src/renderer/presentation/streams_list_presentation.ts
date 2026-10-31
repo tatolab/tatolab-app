@@ -19,7 +19,11 @@ export function streamsListFilterWords(filter: StreamsListFilter): string {
 
 /** Whether `stream` is one `filter` shows; a stream preparing or stopping shows under every filter, so its row stays put while its action runs. */
 export function streamMatchesListFilter(stream: ListedStream, filter: StreamsListFilter): boolean {
-  if (stream.state === "preparing" || stream.state === "stopping") return true;
+  return stream.state === "preparing" || stream.state === "stopping" || streamIsInListFilterState(stream, filter);
+}
+
+/** Whether `stream`'s own state is the one `filter` names, which is what the filter counts; a stream preparing or stopping counts only under All. */
+export function streamIsInListFilterState(stream: ListedStream, filter: StreamsListFilter): boolean {
   switch (filter) {
     case "all":
       return true;
