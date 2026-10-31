@@ -17,7 +17,7 @@ export interface TatolabPlatformForThisBuild {
   localApiSocket: string;
   tatolabUninstall: TatolabUninstall;
   appUpdatePackaging: TatolabAppUpdatePackaging;
-  /** The install of the runtime the app carries; `null` where it carries none to install: an unpackaged app, and Linux, whose installer installs it. */
+  /** The install of the runtime the app carries; `null` where it carries none to install, as an unpackaged app, or must not install, as a local-proof build. */
   carriedRuntimeInstall: CarriedRuntimeInstall | null;
   /** The desktop's terminal, which the window's Terminal opens on a stream's project folder. */
   terminalOpenedInAFolder: TerminalOpenedInAFolder;

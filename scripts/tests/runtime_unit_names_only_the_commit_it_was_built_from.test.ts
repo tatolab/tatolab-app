@@ -1,6 +1,7 @@
 // scripts/build-tatolab-runtime-unit.sh writes the unit's streamlib-commit only after a build that
 // succeeded from a clean checkout: a build that fails leaves no streamlib-commit vouching for a
 // unit it half rebuilt, and a checkout with uncommitted changes is refused before anything builds.
+// On Linux it also carries the checkout's systemd user unit, as streamlib's release tarball does.
 // A stand-in `cargo` first on PATH plays streamlib's `cargo xtask build-runtime`.
 
 import { execFile } from "node:child_process";
@@ -20,6 +21,7 @@ const GIT_IDENTITY_ENVIRONMENT = {
 };
 // Plays `cargo xtask build-runtime`: lays a whole unit into $CARGO_TARGET_DIR/tatolab-runtime, or
 // with STAND_IN_CARGO_FAILS=1 replaces only part of it and fails, as a build cut off part-way does.
+const PLANTED_SYSTEMD_USER_UNIT = "[Service]\nExecStart=%h/.local/share/tatolab/current/bin/tatolabd\n";
 const STAND_IN_CARGO_SCRIPT = `#!/bin/sh
 touch "$STAND_IN_CARGO_RAN_SENTINEL"
 unit="$CARGO_TARGET_DIR/tatolab-runtime"
@@ -88,6 +90,8 @@ beforeEach(async () => {
   await chmod(path.join(standInCargoDirectory, "cargo"), 0o755);
   await mkdir(path.join(plantedStreamlibCheckout, "xtask"), { recursive: true });
   await writeFile(path.join(plantedStreamlibCheckout, "xtask", "Cargo.toml"), "[package]\nname = \"xtask\"\n");
+  await mkdir(path.join(plantedStreamlibCheckout, "installer"), { recursive: true });
+  await writeFile(path.join(plantedStreamlibCheckout, "installer", "tatolabd.service"), PLANTED_SYSTEMD_USER_UNIT);
   await writeFile(path.join(plantedStreamlibCheckout, ".gitignore"), "/target\n");
   await runGitInTheCheckout(["init", "-q"]);
   await runGitInTheCheckout(["add", "."]);
@@ -120,4 +124,17 @@ test("a checkout with uncommitted changes is refused before anything builds", as
   expect(buildOutcome.exitCode).toBe(1);
   expect(buildOutcome.stderr).toContain("uncommitted changes");
   expect(await standInCargoRan()).toBe(false);
+});
+
+test.runIf(process.platform === "linux")("on Linux the unit carries the checkout's systemd user unit where install.sh takes it from", async () => {
+  expect(await buildTheRuntimeUnit()).toMatchObject({ exitCode: 0 });
+  expect(await readFile(path.join(plantedStreamlibCheckout, "target", "tatolab-runtime", "lib", "systemd", "user", "tatolabd.service"), "utf8")).toBe(
+    PLANTED_SYSTEMD_USER_UNIT,
+  );
+
+  await rm(path.join(plantedStreamlibCheckout, "installer", "tatolabd.service"));
+  await runGitInTheCheckout(["commit", "-q", "-am", "no systemd user unit"]);
+  const buildOutcome = await buildTheRuntimeUnit();
+  expect(buildOutcome.exitCode).toBe(1);
+  expect(buildOutcome.stderr).toContain("has no installer/tatolabd.service");
 });

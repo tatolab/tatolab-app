@@ -4,6 +4,7 @@
 // and Terminal.app opens a stream's project.
 
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
+import { CarriedRuntimeUnitInstalledByStreamlibsInstaller } from "../carried_runtime_unit_installed_by_streamlibs_installer.js";
 import { currentProcessUid } from "../current_process_uid.js";
 import { runProgramStreamingItsLines } from "../run_program_streaming_its_lines.js";
 import { runProgramToCompletion } from "../run_program_to_completion.js";
@@ -14,8 +15,12 @@ import { tatolabAppNotOpenedAtLogin, UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL } from
 import { OSASCRIPT_AT_ITS_SYSTEM_PATH, OsascriptAdministratorPrompt } from "./administrator_prompt.js";
 import { CommandLineToolLinksOnThisMac } from "./command_line_tool_links_on_this_mac.js";
 import { LAUNCHCTL_AT_ITS_SYSTEM_PATH, LaunchctlRuntimeLaunchAgent, OPEN_RUN_AT_ITS_SYSTEM_PATH } from "./launchctl_runtime_launch_agent.js";
-import { RuntimeHelperInstalledByStreamlibsInstaller } from "./runtime_helper_installed_by_streamlibs_installer.js";
-import { appBundleOfTheExecutable, installedCommandLineToolIn, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
+import {
+  appBundleOfTheExecutable,
+  carriedRuntimeUnitLayoutOfTheAppBundle,
+  installedCommandLineToolIn,
+  tatolabMachinePathsOnMacosForThisBuild,
+} from "./tatolab_machine_paths.js";
 import { TerminalAppOpenedByOpen } from "./terminal_app_opened_by_open.js";
 import { TatolabUninstallOnThisMac } from "./tatolab_uninstall_on_this_mac.js";
 import { LoginItemOfTheAppBundle } from "./login_item_of_the_app_bundle.js";
@@ -63,9 +68,8 @@ export async function macosTatolabPlatformForThisBuild(
     carriedRuntimeInstall:
       packagedAppBundle === null || machinePaths.localProofTestMachineRoot !== null
         ? null
-        : new RuntimeHelperInstalledByStreamlibsInstaller(
-            packagedAppBundle,
-            machinePaths.runtimeInstallDirectory,
+        : new CarriedRuntimeUnitInstalledByStreamlibsInstaller(
+            carriedRuntimeUnitLayoutOfTheAppBundle(packagedAppBundle, machinePaths.runtimeInstallDirectory),
             machinePaths.runtimeInstallerEnvironment,
             runProgramToCompletion,
             runProgramStreamingItsLines,

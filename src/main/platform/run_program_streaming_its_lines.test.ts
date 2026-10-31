@@ -23,3 +23,11 @@ test("the_program_runs_with_the_apps_environment_and_the_variables_added", async
   });
   expect(programLines).toEqual([`/tmp/tatolab-proof ${process.env["PATH"] ?? ""}`]);
 });
+
+test("the program runs with no controlling terminal, so nothing it runs can wait on the app's terminal", async () => {
+  const programLines: string[] = [];
+  await runProgramStreamingItsLines("/bin/sh", ["-c", "if (exec </dev/tty) 2>/dev/null; then echo has-a-terminal; else echo no-terminal; fi"], (programLine) =>
+    programLines.push(programLine),
+  );
+  expect(programLines).toEqual(["no-terminal"]);
+});

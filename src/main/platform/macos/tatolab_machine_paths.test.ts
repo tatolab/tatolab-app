@@ -3,6 +3,7 @@ import {
   appBundleContaining,
   carriedRuntimeInstallerIn,
   carriedRuntimeUnitIn,
+  carriedRuntimeUnitLayoutOfTheAppBundle,
   installedCommandLineToolIn,
   isABundledCommandLineToolPath,
   runtimeExecutableInARuntimeUnit,
@@ -66,6 +67,13 @@ test("the_carried_runtime_unit_installer_and_commit_sit_where_the_bundle_assembl
   expect(streamlibCommitFileTheAppCarriesBeside("/Applications/Tatolab.app/Contents/Resources")).toBe(
     "/Applications/Tatolab.app/Contents/Helpers/Tatolab Runtime.app/Contents/Resources/streamlib-commit",
   );
+  expect(carriedRuntimeUnitLayoutOfTheAppBundle("/Applications/Tatolab.app", "/Users/someone/Library/Application Support/com.tatolab.runtime")).toEqual({
+    carriedInstaller: "/Applications/Tatolab.app/Contents/Resources/install.sh",
+    carriedRuntimeUnit: "/Applications/Tatolab.app/Contents/Helpers",
+    carriedRuntimeExecutable: "/Applications/Tatolab.app/Contents/Helpers/Tatolab Runtime.app/Contents/MacOS/tatolabd",
+    carriedStreamlibCommitFile: "/Applications/Tatolab.app/Contents/Helpers/Tatolab Runtime.app/Contents/Resources/streamlib-commit",
+    runtimeInstallDirectory: "/Users/someone/Library/Application Support/com.tatolab.runtime",
+  });
 });
 
 test("the_installed_cli_is_reached_through_current_and_reads_as_a_bundled_cli", () => {

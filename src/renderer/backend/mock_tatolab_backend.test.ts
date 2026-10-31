@@ -376,8 +376,14 @@ describe("the mock backend's runtime install", () => {
     await tryAgain;
     expect((await statusOf(refusing)).installed_runtime?.build).toMatch(/^0\.56\.0-/);
 
-    const onLinux = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("platform=linux&runtime_install=installing")));
-    expect((await statusOf(onLinux)).runtime_install).toEqual({ kind: "none" });
-    expect((await statusOf(onLinux)).installed_runtime).toBeNull();
+    const onLinux = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("platform=linux&runtime_install=failed")));
+    await vi.advanceTimersByTimeAsync(10_000);
+    const refusedOnLinux = await statusOf(onLinux);
+    expect(refusedOnLinux.runtime_install).toMatchObject({
+      kind: "failed",
+      installer_lines: expect.arrayContaining(["Copying the runtime unit from /usr/lib/tatolab/resources/tatolab-runtime"]),
+      refusal: expect.stringMatching(/See `systemctl --user status tatolabd\.service`\.$/),
+    });
+    expect(refusedOnLinux.installed_runtime?.folder).toMatch(/^\/home\/[^/]+\/\.local\/share\/tatolab\/0\.55\.2-/);
   });
 });

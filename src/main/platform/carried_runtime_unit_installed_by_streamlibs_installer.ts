@@ -1,26 +1,23 @@
-// The runtime helper the app carries in `Contents/Helpers/`, installed by the `install.sh` it
-// carries in `Contents/Resources/`, which keeps each build in a folder named `<version>-<commit>`
-// and points `current` at the one it runs.
+// The runtime unit the app carries, installed by the streamlib `install.sh` it carries beside it,
+// which keeps each build in a folder named `<version>-<commit>` and points `current` at the one it
+// runs. Each platform lays the unit out its own way: the helper bundle in `Contents/Helpers/` on
+// macOS, the release tarball's `bin/`, `lib/` and `streamlib-commit` in the resources on Linux.
 
 import { readFile, readlink } from "node:fs/promises";
 import path from "node:path";
-import { describeCaughtFailure, failedWith, succeeded, type Result } from "../../result.js";
-import type { CarriedAndInstalledRuntimeBuilds, CarriedRuntimeInstall } from "../carried_runtime_install.js";
-import { programsOwnWordsOrHowItEnded, programSucceeded, type ProgramCompletion, type ProgramRunner } from "../run_program_to_completion.js";
-import type { ProgramRunnerStreamingItsLines } from "../run_program_streaming_its_lines.js";
-import {
-  carriedRuntimeInstallerIn,
-  carriedRuntimeUnitIn,
-  currentRuntimeBuildLinkIn,
-  runtimeExecutableInARuntimeUnit,
-  streamlibCommitFileInARuntimeUnit,
-} from "./tatolab_machine_paths.js";
+import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
+import type { CarriedAndInstalledRuntimeBuilds, CarriedRuntimeInstall } from "./carried_runtime_install.js";
+import { programsOwnWordsOrHowItEnded, programSucceeded, type ProgramCompletion, type ProgramRunner } from "./run_program_to_completion.js";
+import type { ProgramRunnerStreamingItsLines } from "./run_program_streaming_its_lines.js";
 
 /** The shell the installer runs under, at its system path. */
 const SYSTEM_SHELL = "/bin/sh";
 
 /** How `tatolabd --version` names its version: `tatolabd <version>`. */
 const RUNTIME_VERSION_LINE = /^tatolabd (\S+)$/;
+
+/** The link `install.sh` points at the build it runs, inside its install directory. */
+const CURRENT_RUNTIME_BUILD_LINK_NAME = "current";
 
 /** How the installer prefixes what it says on standard error. */
 const INSTALLER_SAYS_PREFIX = "tatolab install: ";
@@ -36,15 +33,28 @@ export function theInstallersOwnRefusal(installerRun: ProgramCompletion): string
   return refusalLines.length > 0 ? refusalLines.join("\n") : programsOwnWordsOrHowItEnded("install.sh", installerRun);
 }
 
-/** The carried runtime helper installed by the carried `install.sh` into `runtimeInstallDirectory`. */
-export class RuntimeHelperInstalledByStreamlibsInstaller implements CarriedRuntimeInstall {
+/** Where this build carries its runtime unit and streamlib's installer, and where the installer installs the unit. */
+export interface CarriedRuntimeUnitLayout {
+  /** Streamlib's `install.sh`, as the app carries it. */
+  readonly carriedInstaller: string;
+  /** The folder `install.sh --from-unit` is handed. */
+  readonly carriedRuntimeUnit: string;
+  /** The carried `tatolabd`, which names its version. */
+  readonly carriedRuntimeExecutable: string;
+  /** The file naming the streamlib commit the carried unit was built from. */
+  readonly carriedStreamlibCommitFile: string;
+  /** Where the installer keeps each build and its `current` link. */
+  readonly runtimeInstallDirectory: string;
+}
+
+/** The runtime unit this build carries, installed by the `install.sh` it carries. */
+export class CarriedRuntimeUnitInstalledByStreamlibsInstaller implements CarriedRuntimeInstall {
   /**
-   * The helper `appBundle` carries, installed into `runtimeInstallDirectory` by an installer run with
-   * `installerEnvironment` added; `programRunner` asks the carried `tatolabd` its version.
+   * The unit laid out as `carriedRuntimeUnitLayout`, installed by an installer run with `installerEnvironment` added;
+   * `programRunner` asks the carried `tatolabd` its version.
    */
   constructor(
-    private readonly appBundle: string,
-    private readonly runtimeInstallDirectory: string,
+    private readonly carriedRuntimeUnitLayout: CarriedRuntimeUnitLayout,
     private readonly installerEnvironment: Readonly<Record<string, string>>,
     private readonly programRunner: ProgramRunner,
     private readonly programRunnerStreamingItsLines: ProgramRunnerStreamingItsLines,
@@ -53,7 +63,7 @@ export class RuntimeHelperInstalledByStreamlibsInstaller implements CarriedRunti
   async carriedAndInstalledRuntimeBuilds(): Promise<Result<CarriedAndInstalledRuntimeBuilds, string>> {
     const carriedRuntimeBuild = await this.carriedRuntimeBuild();
     if (!carriedRuntimeBuild.ok) return carriedRuntimeBuild;
-    const installedRuntimeBuild = await readlink(currentRuntimeBuildLinkIn(this.runtimeInstallDirectory)).then(
+    const installedRuntimeBuild = await readlink(path.join(this.carriedRuntimeUnitLayout.runtimeInstallDirectory, CURRENT_RUNTIME_BUILD_LINK_NAME)).then(
       (currentLinkTarget) => path.basename(currentLinkTarget),
       () => null,
     );
@@ -64,14 +74,14 @@ export class RuntimeHelperInstalledByStreamlibsInstaller implements CarriedRunti
   }
 
   installedRuntimeFolderOf(installedRuntimeBuild: string): string {
-    return path.join(this.runtimeInstallDirectory, installedRuntimeBuild);
+    return path.join(this.carriedRuntimeUnitLayout.runtimeInstallDirectory, installedRuntimeBuild);
   }
 
   async installTheCarriedRuntime(onInstallerLine: (installerLine: string) => void): Promise<Result<void, string>> {
-    const installer = carriedRuntimeInstallerIn(this.appBundle);
+    const { carriedInstaller, carriedRuntimeUnit } = this.carriedRuntimeUnitLayout;
     const installerRun = await this.programRunnerStreamingItsLines(
       SYSTEM_SHELL,
-      [installer, "--from-unit", carriedRuntimeUnitIn(this.appBundle)],
+      [carriedInstaller, "--from-unit", carriedRuntimeUnit],
       onInstallerLine,
       this.installerEnvironment,
     );
@@ -81,8 +91,7 @@ export class RuntimeHelperInstalledByStreamlibsInstaller implements CarriedRunti
 
   /** The carried build, `<version>-<commit>`, as the installer will name it: the carried `tatolabd`'s version and the commit file beside it. */
   private async carriedRuntimeBuild(): Promise<Result<string, string>> {
-    const carriedRuntimeUnit = carriedRuntimeUnitIn(this.appBundle);
-    const runtimeExecutable = runtimeExecutableInARuntimeUnit(carriedRuntimeUnit);
+    const { carriedRuntimeExecutable: runtimeExecutable, carriedStreamlibCommitFile: streamlibCommitFile } = this.carriedRuntimeUnitLayout;
     const versionRun = await this.programRunner(runtimeExecutable, ["--version"]);
     if (!versionRun.ok) return failedWith(`the runtime the app carries could not be asked its version: ${versionRun.failure}`);
     if (!programSucceeded(versionRun.value)) {
@@ -90,7 +99,6 @@ export class RuntimeHelperInstalledByStreamlibsInstaller implements CarriedRunti
     }
     const runtimeVersion = RUNTIME_VERSION_LINE.exec(versionRun.value.standardOutput.trim())?.[1];
     if (runtimeVersion === undefined) return failedWith(`the runtime the app carries named no version: ${versionRun.value.standardOutput.trim()}`);
-    const streamlibCommitFile = streamlibCommitFileInARuntimeUnit(carriedRuntimeUnit);
     try {
       const streamlibCommit = (await readFile(streamlibCommitFile, "utf8")).trim();
       if (streamlibCommit === "") return failedWith(`${streamlibCommitFile} names no commit`);
