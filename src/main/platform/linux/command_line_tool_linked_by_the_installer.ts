@@ -21,10 +21,6 @@ export class CommandLineToolLinkedByTheInstaller implements TatolabCommandLineTo
     };
   }
 
-  async linkTheCommandLineToolInTheHomeFolder(): Promise<Result<void, CommandLineToolLinkRefusal>> {
-    return failedWith({ kind: "not_offered", reason: LINUX_INSTALLER_LINKS_THE_COMMAND });
-  }
-
   async linkTheCommandLineToolInUsrLocalBin(): Promise<Result<void, CommandLineToolLinkRefusal>> {
     return failedWith({ kind: "not_offered", reason: LINUX_INSTALLER_LINKS_THE_COMMAND });
   }

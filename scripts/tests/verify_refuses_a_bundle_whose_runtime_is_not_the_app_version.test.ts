@@ -1,4 +1,4 @@
-// scripts/verify-tatolab-app-bundle.sh fails a bundle whose tatolabd reports another version than
+// scripts/verify-tatolab-app-bundle.sh fails a bundle whose runtime helper's tatolabd reports another version than
 // the app's CFBundleShortVersionString, or that names no streamlib commit. It reads the plist with
 // macOS's plutil, so these run only where plutil is.
 
@@ -39,15 +39,17 @@ afterEach(async () => {
 
 async function appBundlePlantedWith(appShortVersion: string, tatolabdVersion: string, streamlibCommit: string | null): Promise<string> {
   const appBundle = path.join(scratchDirectory, "Tatolab.app");
+  const helperContents = path.join(appBundle, "Contents", "Helpers", "Tatolab Runtime.app", "Contents");
   await mkdir(path.join(appBundle, "Contents", "MacOS"), { recursive: true });
-  await mkdir(path.join(appBundle, "Contents", "Resources"), { recursive: true });
+  await mkdir(path.join(helperContents, "MacOS"), { recursive: true });
+  await mkdir(path.join(helperContents, "Resources"), { recursive: true });
   await writeFile(
     path.join(appBundle, "Contents", "Info.plist"),
     `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleShortVersionString</key><string>${appShortVersion}</string></dict></plist>\n`,
   );
-  await writeFile(path.join(appBundle, "Contents", "MacOS", "tatolabd"), `#!/bin/sh\necho "tatolabd ${tatolabdVersion}"\n`);
-  await chmod(path.join(appBundle, "Contents", "MacOS", "tatolabd"), 0o755);
-  if (streamlibCommit !== null) await writeFile(path.join(appBundle, "Contents", "Resources", "streamlib-commit"), `${streamlibCommit}\n`);
+  await writeFile(path.join(helperContents, "MacOS", "tatolabd"), `#!/bin/sh\necho "tatolabd ${tatolabdVersion}"\n`);
+  await chmod(path.join(helperContents, "MacOS", "tatolabd"), 0o755);
+  if (streamlibCommit !== null) await writeFile(path.join(helperContents, "Resources", "streamlib-commit"), `${streamlibCommit}\n`);
   return appBundle;
 }
 
@@ -66,5 +68,5 @@ test.runIf(PLUTIL_IS_AVAILABLE)("a bundle whose tatolabd is the app's version pa
 test.runIf(PLUTIL_IS_AVAILABLE)("a bundle that names no streamlib commit fails", async () => {
   const verifyOutcome = await runTheVerifyScript(await appBundlePlantedWith("0.55.4", "0.55.4", null));
   expect(verifyOutcome.exitCode).not.toBe(0);
-  expect(verifyOutcome.output).toContain("FAIL  Resources/streamlib-commit names no streamlib commit");
+  expect(verifyOutcome.output).toContain("FAIL  Tatolab Runtime.app's Resources/streamlib-commit names no streamlib commit");
 });

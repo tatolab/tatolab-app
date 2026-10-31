@@ -1,14 +1,14 @@
 // The seam between the "Run Tatolab" decision and the platform's service manager that runs the
-// runtime as the user's agent: Service Management's `SMAppService` launch agent on macOS, the
-// installer's systemd user unit on Linux.
+// installed runtime as the user's agent: the installer's launch agent on macOS, its systemd user
+// unit on Linux.
 
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../shared/tatolab_backend_contract.js";
 import type { Result } from "../result.js";
 
 /**
  * Why the service manager did not start the registered agent's runtime: `no_job_for_the_registered_agent`
- * is launchd holding no job for an agent Service Management still reads as registered (after `brew
- * uninstall` or `launchctl bootout`), which registering again restores, and only macOS reports it;
+ * is launchd holding no job for the agent (after `launchctl bootout`), which registering again
+ * restores, and only macOS reports it;
  * `refused` is any other refusal, in the service manager's words.
  */
 export type RuntimeAgentStartFailure = { kind: "no_job_for_the_registered_agent" } | { kind: "refused"; refusal: string };
@@ -20,12 +20,6 @@ export type RuntimeAgentStartFailure = { kind: "no_job_for_the_registered_agent"
 export interface RuntimeAgentGiveUp {
   readonly serviceManagerWords: string;
   readonly registeringAgainWaitsForTheNextSpawn: boolean;
-}
-
-/** Restarts the runtime the app's own bundle carries, so a runtime still running from the bundle before an update runs from the bundle as it is now. */
-export interface BundledRuntimeRestart {
-  /** Restart the agent's runtime, starting it if it was not running; refused in the service manager's words. */
-  restartTheBundledRuntime(): Promise<Result<void, string>>;
 }
 
 /** Registers and unregisters the agent that runs the machine's `tatolabd`. */
@@ -44,9 +38,8 @@ export interface RuntimeAgentRegistration {
   whyTheServiceManagerGaveUpOnTheRuntime(): Promise<RuntimeAgentGiveUp | null>;
 
   /**
-   * Start the registered agent's runtime unless it is already running. Service Management loads a newly
-   * registered agent but launchd may defer its first start, and systemd stops restarting a runtime that
-   * crashed past its start limit.
+   * Start the registered agent's runtime unless it is already running. launchd may defer a loaded
+   * agent's first start, and systemd stops restarting a runtime that crashed past its start limit.
    */
   startRuntimeAgentIfNotRunning(): Promise<Result<void, RuntimeAgentStartFailure>>;
 
@@ -56,6 +49,6 @@ export interface RuntimeAgentRegistration {
   /** Unregister the agent, which stops the runtime and keeps it from starting at login. */
   unregisterRuntimeAgent(): Promise<Result<void, string>>;
 
-  /** Open System Settings at Login Items, where a user approves the agent; refused where the platform has no approval step. */
+  /** Open System Settings at Login Items, where a user lets the agent run; refused where the platform has no such step. */
   openLoginItemsSettings(): Promise<Result<void, string>>;
 }

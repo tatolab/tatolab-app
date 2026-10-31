@@ -57,7 +57,7 @@ export class RefusalKeptForTheWindow {
 /** The DOM pages the window keeps until later tickets rebuild them in React. */
 export interface TatolabWindowHostedPages {
   streamsPage: StreamsPageView;
-  /** What fills the Linux window until the installer has put tatolabd.service in place; `null` on macOS, whose first run is the React getting-started view. */
+  /** What fills the Linux window while tatolabd.service is missing and the app is not installing it; `null` on macOS, whose first run is the React getting-started view. */
   linuxRuntimeInstallScreen: TatolabWindowPage | null;
 }
 

@@ -6,8 +6,8 @@
 // itself, less often each time, until the runtime answers.
 
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus, RuntimeState } from "../shared/tatolab_backend_contract.js";
-import type { BundledRuntimeRestart, RuntimeAgentGiveUp, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
-import { failedWith, succeeded, type Result } from "./result.js";
+import type { RuntimeAgentGiveUp, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "./platform/runtime_agent_registration.js";
+import { failedWith, type Result } from "./result.js";
 import type { RememberedSwitchFile } from "./remembered_switch_file.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { RuntimeHealthObservation } from "./tatolab_status.js";
@@ -202,15 +202,14 @@ export class RunTatolabSwitch {
   }
 
   /**
-   * With the switch on, restart the runtime the app's bundle carries through `bundledRuntimeRestart`, giving
-   * it the starting grace again from `nowMs`; with it off nothing runs, and the runtime starts from the
-   * bundle as it is whenever the switch next turns on.
+   * Bring the agent in line after the installer ran, which starts the installed runtime whatever the switch says: with
+   * the switch off the agent is unregistered again; with it on the runtime gets the starting grace from `nowMs` and the
+   * agent is reconciled.
    */
-  async restartTheBundledRuntime(bundledRuntimeRestart: BundledRuntimeRestart, nowMs: number): Promise<Result<"restarted" | "switch_off", string>> {
-    if (!this.runTatolabSwitchedOn) return succeeded("switch_off");
+  async bringTheAgentInLineAfterTheRuntimeInstall(nowMs: number): Promise<RunTatolabReconciliation> {
+    if (!this.runTatolabSwitchedOn) return this.unregisterTheAgentUnlessItIs();
     this.noteTheRuntimeStartedAfresh(nowMs);
-    const restarted = await bundledRuntimeRestart.restartTheBundledRuntime();
-    return restarted.ok ? succeeded("restarted") : restarted;
+    return this.reconcileTheAgentWithTheRunTatolabSwitch(nowMs);
   }
 
   /**
@@ -290,6 +289,10 @@ export class RunTatolabSwitch {
       this.tatolabAppLog.warn("the Run Tatolab switch could not be remembered", { failure: remembered.failure, run_tatolab: runTatolab });
     }
     if (runTatolab) return this.reconcileTheAgentWithTheRunTatolabSwitch(nowMs);
+    return this.unregisterTheAgentUnlessItIs();
+  }
+
+  private async unregisterTheAgentUnlessItIs(): Promise<RunTatolabReconciliation> {
     switch (await this.runtimeAgent.registrationStatus()) {
       case "not_registered":
       case "not_found":
@@ -330,8 +333,7 @@ export class RunTatolabSwitch {
   private async register(nowMs: number): Promise<RunTatolabReconciliation> {
     const registered = await this.runtimeAgent.registerRuntimeAgent();
     this.noteTheRuntimeStartedAfresh(nowMs);
-    // Service Management refuses the registration of an agent the user has not approved yet, while
-    // recording it as awaiting approval.
+    // A registration Login Items holds off is refused, and the agent then reads as needing approval.
     if ((await this.runtimeAgent.registrationStatus()) === "requires_approval") return this.needsApprovalInLoginItems();
     if (registered.ok) {
       await this.startTheRuntimeIfNotRunning(nowMs);

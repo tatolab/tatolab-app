@@ -20,9 +20,8 @@ paths:
   path, a prompt) is a new item on both modules or a new method on the existing interface — never an
   `execFile("launchctl")` in shared code, never a second registration path.
 - **Both platform modules load and test on either OS**: they import nothing that exists on only
-  one, and reach the OS through injected seams, so `npm test` runs both everywhere. The Service
-  Management addon is the one native piece; it is loaded only by the macOS module and only from
-  the path it is given.
+  one, and reach the OS through injected seams, so `npm test` runs both everywhere. The app has no
+  native piece of its own: the macOS module reaches launchd through `launchctl`.
 - **Every OS side effect is injected.** `launchctl`, `systemctl --user`, `osascript`'s
   administrator prompt, `SMAppService` and the filesystem roots reach the code through a seam a
   test fakes. A test that would show a real prompt, register a real agent or touch `/Library`,

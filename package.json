@@ -8,7 +8,6 @@
     "dev": "electron-vite dev --watch",
     "build": "npm run typecheck && electron-vite build && node scripts/tatolab_app_build_features.mjs write out/main/tatolab_app_build_features.json",
     "typecheck": "tsc -b",
-    "build:service-management-addon": "node-gyp rebuild --directory native/service_management_agent_services",
     "test": "vitest run",
     "lint": "eslint . && stylelint \"src/renderer/**/*.css\""
   },
@@ -39,7 +38,6 @@
     "eslint": "^10.13.0",
     "happy-dom": "^21.0.1",
     "lucide-react": "^1.61.0",
-    "node-gyp": "^12.4.0",
     "playwright": "^1.64.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

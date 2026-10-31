@@ -2,7 +2,7 @@
 export type TatolabPlatform = "macos" | "linux";
 
 /**
- * What the service manager says about the runtime: Service Management's launch agent on macOS; on Linux the
+ * What the service manager says about the runtime: on macOS launchd of the launch agent the installer writes; on Linux the
  * systemd user unit `tatolabd.service`, enabled, installed but disabled, or absent, and never `requires_approval`.
  */
 export type RuntimeAgentRegistration = "enabled" | "requires_approval" | "not_registered" | "not_found";
@@ -100,6 +100,23 @@ export interface TatolabAppBuild {
   built_with_uncommitted_changes: boolean;
 }
 
+/**
+ * Installing the runtime the app carries, which the app does when it opens and the installed build differs: nothing
+ * under way, the installer running with the lines it has written so far, or refused in the installer's own words.
+ * A build is named as the installer names its folder, `<version>-<commit>`.
+ */
+export type RuntimeInstall =
+  | { kind: "none" }
+  | { kind: "installing"; carried_runtime_build: string; installer_lines: string[] }
+  /** `carried_runtime_build` is `null` when the carried runtime could not name its build. */
+  | { kind: "failed"; carried_runtime_build: string | null; installer_lines: string[]; refusal: string };
+
+/** The runtime build the installer runs, `<version>-<commit>`, and the folder it installed it in. */
+export interface InstalledRuntime {
+  build: string;
+  folder: string;
+}
+
 /** What `get_tatolab_status` answers and `tatolab-status-changed` carries. */
 export interface TatolabStatus {
   app_version: string;
@@ -123,6 +140,9 @@ export interface TatolabStatus {
   stream_failure_notifications: StreamFailureNotificationsState;
   open_at_login: TatolabAppOpenAtLogin;
   command_line_tool_version: TatolabCommandLineToolVersion;
+  runtime_install: RuntimeInstall;
+  /** `null` before one is installed or where the app carries none. */
+  installed_runtime: InstalledRuntime | null;
 }
 
 /** What `describe_runtime` answers: the running runtime's version and build, how long it has been up, and the folder of its own log. */

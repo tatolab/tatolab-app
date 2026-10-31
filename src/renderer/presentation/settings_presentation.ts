@@ -129,7 +129,7 @@ export function presentAboutCopyright(wallClockNow: Date): string {
   return `© ${wallClockNow.getFullYear()} Jonathan Fontanez`;
 }
 
-/** Runtime › Login Items on macOS: what it says of the runtime's entry under Allow in the Background, as Service Management reports it. */
+/** Runtime › Login Items on macOS: what it says of the runtime's entry under Allow in the Background, as the app reads it from launchd. */
 export function presentLoginItemsRow(status: TatolabStatus): string {
   switch (status.runtime_agent) {
     case "enabled":

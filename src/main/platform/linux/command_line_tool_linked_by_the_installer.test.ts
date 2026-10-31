@@ -37,9 +37,6 @@ test("the_cli_reads_linked_only_while_the_installers_link_resolves", async () =>
 test("the_app_links_nothing_on_linux", async () => {
   const commandLineToolLinks = new CommandLineToolLinkedByTheInstaller(null);
 
-  expect(await commandLineToolLinks.linkTheCommandLineToolInTheHomeFolder()).toEqual(
-    failedWith({ kind: "not_offered", reason: LINUX_INSTALLER_LINKS_THE_COMMAND }),
-  );
   expect(await commandLineToolLinks.linkTheCommandLineToolInUsrLocalBin()).toEqual(
     failedWith({ kind: "not_offered", reason: LINUX_INSTALLER_LINKS_THE_COMMAND }),
   );

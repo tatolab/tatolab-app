@@ -10,6 +10,8 @@ import { isStreamLoaded } from "../presentation/stream_presentation";
 import { GettingStartedView } from "./getting_started_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
 import { LinuxRuntimeInstallView } from "./linux_runtime_install_view";
+import { RuntimeInstallOverlayView } from "./runtime_install_overlay_view";
+import { presentRuntimeInstallOverlay } from "../presentation/runtime_install_presentation";
 import { ControlTooltipProvider } from "../design_system/control_tooltip";
 import { readableExposedPorts } from "../presentation/stream_overview_presentation";
 import { AddStreamFlowOfTheWindow } from "../add_stream_flow_of_the_window";
@@ -46,10 +48,12 @@ function windowLocalStorage(): Storage | null {
   }
 }
 
-/** The shell and its pages, or what fills the window until Tatolab runs here: macOS's first run, or Linux's installer. */
+/** The shell and its pages, or what fills the window instead: the runtime install the app runs, then until Tatolab runs here, macOS's first run or Linux's installer. */
 function TatolabWindowRoot({ router, isUninstallUnderway }: { router: TatolabWindowRouter; isUninstallUnderway: () => boolean }) {
   const { hostedPages } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
+  const runtimeInstallOverlay = presentRuntimeInstallOverlay(status.runtime_install);
+  if (runtimeInstallOverlay !== null) return <RuntimeInstallOverlayView overlay={runtimeInstallOverlay} />;
   if (!isUninstallUnderway() && chooseTatolabWindowScreen(status) === "setup") {
     return hostedPages.linuxRuntimeInstallScreen === null ? (
       <GettingStartedView />
@@ -178,7 +182,15 @@ export function mountTatolabWindow(
 
   document.addEventListener("keydown", (keyboardEvent) => {
     const latestStatus = statusStore?.readLatestStatus() ?? null;
-    if (latestStatus === null || chooseTatolabWindowScreen(latestStatus) === "setup" || uninstallSheet.isOpen() || search.isOpen()) return;
+    if (
+      latestStatus === null ||
+      latestStatus.runtime_install.kind !== "none" ||
+      chooseTatolabWindowScreen(latestStatus) === "setup" ||
+      uninstallSheet.isOpen() ||
+      search.isOpen()
+    ) {
+      return;
+    }
     if (!holdsWindowShortcutModifier(platform, keyboardEvent)) return;
     const key = keyboardEvent.key.length === 1 ? keyboardEvent.key.toLowerCase() : keyboardEvent.key;
     if (runWindowShortcut(key)) keyboardEvent.preventDefault();
@@ -188,7 +200,7 @@ export function mountTatolabWindow(
 
   const showStatusOnTheHostedPages = (status: TatolabStatus) => {
     if (status.runtime_state === "running") runtimeLastAnsweredAt = new Date();
-    if (!uninstallSheet.isUninstallUnderway() && chooseTatolabWindowScreen(status) === "setup") search.close();
+    if (status.runtime_install.kind !== "none" || (!uninstallSheet.isUninstallUnderway() && chooseTatolabWindowScreen(status) === "setup")) search.close();
     hostedPages.linuxRuntimeInstallScreen?.showStatus?.(status);
     streamsPage.setRuntimeLastAnsweredAt(runtimeLastAnsweredAt);
     streamsPage.showStatus(status);

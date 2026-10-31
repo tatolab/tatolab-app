@@ -234,6 +234,11 @@ export function restartRuntime(sharedState: TatolabAppSharedState): Promise<Resu
   });
 }
 
+/** `install_the_carried_runtime_again`: "Try again" on a refused runtime install, answered once the installer ends and refused in its words. */
+export function installTheCarriedRuntimeAgain(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
+  return answerTheWindowThenRefreshTheStatus(sharedState, "install_the_carried_runtime_again", () => sharedState.controller.installTheCarriedRuntimeAgain());
+}
+
 /** `open_runtime_log_folder`: the folder the runtime names for its own log when asked now, in the file manager; refused naming why. */
 export function openRuntimeLogFolder(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
   return answerTheWindow("open_runtime_log_folder", async () =>
@@ -488,6 +493,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     },
     describe_runtime: async () => commandAnswerFrom(await describeRuntime(sharedState)),
     restart_runtime: async () => commandAnswerOfNothingFrom(await restartRuntime(sharedState)),
+    install_the_carried_runtime_again: async () => commandAnswerOfNothingFrom(await installTheCarriedRuntimeAgain(sharedState)),
     open_runtime_log_folder: async () => commandAnswerOfNothingFrom(await openRuntimeLogFolder(sharedState)),
     set_stream_failure_notifications: async (commandArguments) => {
       const enabledArguments = enabledArgumentsFrom("set_stream_failure_notifications", commandArguments);

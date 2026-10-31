@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./mock_tatolab_backend";
-import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, RelaysDescription, StreamActionFollowed } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, RelaysDescription, StreamActionFollowed, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type { TatolabBackend } from "./tatolab_backend";
 
 afterEach(() => {
@@ -394,5 +394,46 @@ describe("the mock backend's relays", () => {
     const outcome = await settled(backend.describeRelays());
 
     expect("refusal" in outcome && String(outcome.refusal).startsWith("no runtime answers at ")).toBe(true);
+  });
+});
+
+describe("the mock backend's runtime install", () => {
+  it("installs the carried runtime line by line as it opens, puts the old build back with ?runtime_install=failed, and Try again installs it", async () => {
+    vi.useFakeTimers();
+    const statusOf = async (backend: ReturnType<typeof createMockTatolabBackend>): Promise<TatolabStatus> => {
+      const status = backend.getTatolabStatus();
+      await vi.advanceTimersByTimeAsync(100);
+      return status;
+    };
+    const installing = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("runtime_install=installing")));
+    await vi.advanceTimersByTimeAsync(3 * 900 + 100);
+    const midway = await statusOf(installing);
+    expect(midway.runtime_install).toMatchObject({ kind: "installing", installer_lines: expect.arrayContaining(["Stopping the runtime"]) });
+    expect(midway.runtime_state).toBe("starting");
+    await vi.advanceTimersByTimeAsync(10_000);
+    const installed = await statusOf(installing);
+    expect(installed.runtime_install).toEqual({ kind: "none" });
+    expect(installed.installed_runtime?.build).toMatch(/^0\.56\.0-/);
+    expect(installed.runtime_state).toBe("running");
+
+    const refusing = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("runtime_install=failed")));
+    await vi.advanceTimersByTimeAsync(10_000);
+    const refused = await statusOf(refusing);
+    expect(refused.runtime_install).toMatchObject({ kind: "failed", refusal: expect.stringMatching(/^tatolab install: .* is back in place\./) });
+    expect(refused.installed_runtime?.build).toMatch(/^0\.55\.2-/);
+    const tryAgain = refusing.installTheCarriedRuntimeAgain();
+    await vi.advanceTimersByTimeAsync(10_000);
+    await tryAgain;
+    expect((await statusOf(refusing)).installed_runtime?.build).toMatch(/^0\.56\.0-/);
+
+    const onLinux = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("platform=linux&runtime_install=failed")));
+    await vi.advanceTimersByTimeAsync(10_000);
+    const refusedOnLinux = await statusOf(onLinux);
+    expect(refusedOnLinux.runtime_install).toMatchObject({
+      kind: "failed",
+      installer_lines: expect.arrayContaining(["Copying the runtime unit from /usr/lib/tatolab/resources/tatolab-runtime"]),
+      refusal: expect.stringMatching(/See `systemctl --user status tatolabd\.service`\.$/),
+    });
+    expect(refusedOnLinux.installed_runtime?.folder).toMatch(/^\/home\/[^/]+\/\.local\/share\/tatolab\/0\.55\.2-/);
   });
 });

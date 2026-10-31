@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import type {
   ListedStream,
   RuntimeAgentRegistration as RuntimeAgentRegistrationStatus,
+  RuntimeInstall,
   RuntimeState,
   TatolabStatus,
 } from "../shared/tatolab_backend_contract.js";
@@ -43,6 +44,8 @@ function statusWith(runtimeState: RuntimeState, runtimeAgent: RuntimeAgentRegist
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
+    runtime_install: { kind: "none" },
+    installed_runtime: null,
   };
 }
 
@@ -120,6 +123,17 @@ test("the_tray_line_names_the_runtime_state_and_stream_count", () => {
   expect(trayStatusLine(statusWith("never_answered", "enabled", null))).toBe("Runtime didn't start");
   expect(trayStatusLine(statusWith("blocked_by_the_service_manager", "enabled", null))).toBe("Runtime blocked by macOS");
   expect(trayStatusLine({ ...statusWith("blocked_by_the_service_manager", "enabled", null), platform: "linux" })).toBe("Runtime stopped by systemd");
+});
+
+test("the_tray_line_names_a_runtime_install_under_way_or_refused_over_the_runtime_state", () => {
+  const installing: RuntimeInstall = { kind: "installing", carried_runtime_build: "0.68.0-1111111", installer_lines: [] };
+  expect(trayStatusLine({ ...statusWith("starting", "enabled", null), runtime_install: installing })).toBe("Installing runtime…");
+  expect(
+    trayStatusLine({
+      ...statusWith("running", "enabled", 2),
+      runtime_install: { kind: "failed", carried_runtime_build: "0.68.0-1111111", installer_lines: [], refusal: "tatolab install: Tatolab 0.68.0 did not start" },
+    }),
+  ).toBe("Runtime install failed");
 });
 
 test("the_tray_offers_login_items_for_approval_and_nothing_for_a_runtime_the_app_recovers_itself", () => {

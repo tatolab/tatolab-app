@@ -32,6 +32,8 @@ export interface MainWindowHost {
   show(): void;
   focus(): void;
   hide(): void;
+  /** Whether the window is on screen: shown and not minimized. */
+  isShowing(): boolean;
   /** Send the window's page `eventPayload` on `eventChannel`; a page still loading misses it. */
   sendTheWindowAnEvent(eventChannel: string, eventPayload: unknown): void;
 }
@@ -67,6 +69,11 @@ export class TatolabMainWindow {
     mainWindowHost.unminimize();
     mainWindowHost.show();
     mainWindowHost.focus();
+  }
+
+  /** Whether the window is on screen; not before it is first shown. */
+  isShowing(): boolean {
+    return this.mainWindowHost?.isShowing() ?? false;
   }
 
   /** Send the window `status` as `tatolab-status-changed`; nothing, before the window is first shown. */

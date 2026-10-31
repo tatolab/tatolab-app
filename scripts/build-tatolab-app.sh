@@ -120,11 +120,10 @@ mkdir -p "$build_directory"
 
 echo "==> runtime unit (streamlib $streamlib_ref)"
 fetched_streamlib="$build_directory/streamlib"
+streamlib_commit="$("$scripts_directory/fetch-streamlib-for-the-app-build.sh" "$fetched_streamlib" --streamlib-ref "$streamlib_ref" | tail -1)"
 if [ -n "$prebuilt_runtime_unit" ]; then
-  streamlib_commit="$("$scripts_directory/fetch-streamlib-for-the-app-build.sh" "$fetched_streamlib" --streamlib-ref "$streamlib_ref" --resolve-only)"
   runtime_unit_directory="$(cd "$prebuilt_runtime_unit" && pwd)"
 else
-  streamlib_commit="$("$scripts_directory/fetch-streamlib-for-the-app-build.sh" "$fetched_streamlib" --streamlib-ref "$streamlib_ref" | tail -1)"
   runtime_unit_directory="$("$scripts_directory/build-tatolab-runtime-unit.sh" "$fetched_streamlib" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"})"
 fi
 unit_streamlib_commit="$(cat "$runtime_unit_directory/streamlib-commit" 2>/dev/null || true)"
@@ -146,14 +145,9 @@ cd "$repository_root"
 npm ci
 npm run build -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} \
   ${release_build_arguments[@]+"${release_build_arguments[@]}"}
-npm run build:service-management-addon -- --arch=arm64
-built_service_management_addon="$repository_root/native/service_management_agent_services/build/Release/service_management_agent_services.node"
-[ "$(lipo -archs "$built_service_management_addon")" = arm64 ] || { echo "$built_service_management_addon is not arm64-only" >&2; exit 1; }
 packaged_app="$(node scripts/package_tatolab_electron_app.mjs darwin "$app_version" "$build_directory/electron-packaging" | tail -1)"
 rm -rf "$assembled_app"
 ditto "$packaged_app" "$assembled_app"
-mkdir -p "$assembled_app/Contents/Frameworks/tatolab-app-native"
-install -m 0755 "$built_service_management_addon" "$assembled_app/Contents/Frameworks/tatolab-app-native/service_management_agent_services.node"
 info_plist="$assembled_app/Contents/Info.plist"
 plutil -replace LSMinimumSystemVersion -string 15.0 "$info_plist"
 # Electron's own Info.plist lets the main process load any http:// URL; the app loads none.
@@ -170,7 +164,7 @@ done < <(plutil -convert json -o - "$info_plist" | node -e 'process.stdout.write
 
 echo "==> assemble"
 "$scripts_directory/assemble-tatolab-app-bundle.sh" "$assembled_app" "$runtime_unit_directory" --streamlib-commit "$streamlib_commit" \
-  ${local_proof_arguments[@]+"${local_proof_arguments[@]}"}
+  --installer "$fetched_streamlib/installer/install.sh" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"}
 
 echo "==> sign (Developer ID)"
 "$scripts_directory/sign-tatolab-app-bundle.sh" "$assembled_app" "$signing_identity"
