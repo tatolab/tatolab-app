@@ -26,7 +26,7 @@ function afterEvents(state: AddStreamFlowState, events: readonly AddStreamFlowEv
 }
 
 const HALLWAYS = "/Users/someone/code/hallways";
-const HALLWAYS_LOAD = { action: "R1-3", projectDirectory: HALLWAYS };
+const HALLWAYS_LOAD = { action: "R1-3", projectDirectory: HALLWAYS, streamOfTheScaffold: null };
 
 /** `describe_stream_action` of `HALLWAYS_LOAD`, shaped as the runtime answered it recorded. */
 function hallwaysDescription(changes: Partial<StreamActionDescription>): StreamActionDescription {
@@ -100,9 +100,9 @@ describe("the add-project flow", () => {
   it("ends done with the load's streams, cancelled, or no longer held, and returns a failed load to the form in the runtime's words", () => {
     expect(advanceAddStreamFlow(importing, { kind: "load_described", description: HALLWAYS_DONE })).toMatchObject({ step: "ended", ending: { kind: "done", description: HALLWAYS_DONE } });
     expect(advanceAddStreamFlow(importing, { kind: "load_described", description: hallwaysDescription({ state: "cancelled" }) })).toMatchObject({ step: "ended", ending: { kind: "cancelled" } });
-    expect(advanceAddStreamFlow(importing, { kind: "load_not_held", words: "Invalid configuration: the stream action `R1-3` is not held" })).toMatchObject({
+    expect(advanceAddStreamFlow(importing, { kind: "load_no_longer_followed", action: "R1-3", words: "Invalid configuration: the stream action `R1-3` is not held" })).toMatchObject({
       step: "ended",
-      ending: { kind: "not_held", words: "Invalid configuration: the stream action `R1-3` is not held" },
+      ending: { kind: "no_longer_followed", words: "Invalid configuration: the stream action `R1-3` is not held" },
     });
 
     const failed = advanceAddStreamFlow(importing, {
@@ -114,24 +114,25 @@ describe("the add-project flow", () => {
       form: { source: "project_folder", chosenFolder: HALLWAYS, workUnderWay: null, refusal: { lead: "Importing the project failed:", words: `the project directory ${HALLWAYS} does not exist` } },
     });
     const createFailed = afterEvents(initialAddStreamFlowState("new_project"), [
+      { kind: "work_started", work: "queuing_the_load" },
       { kind: "load_queued", queued: HALLWAYS_LOAD },
       { kind: "load_described", description: hallwaysDescription({ state: "failed", failed_because: null }) },
     ]);
     expect(createFailed.form.refusal).toEqual({ lead: "Creating the project failed:", words: "The runtime gave no reason." });
   });
 
-  it("keeps a load under way whatever the dialog is opened on, and starts afresh once it ended", () => {
-    expect(advanceAddStreamFlow(importing, { kind: "source_chosen", source: "new_project" })).toBe(importing);
+  it("follows only a load the form is queuing, keeps one under way, ignores the end of another action, and starts afresh once it ended", () => {
+    expect(advanceAddStreamFlow(initialAddStreamFlowState("project_folder"), { kind: "load_queued", queued: HALLWAYS_LOAD })).toEqual(initialAddStreamFlowState("project_folder"));
     expect(advanceAddStreamFlow(importing, { kind: "add_another" })).toBe(importing);
     expect(advanceAddStreamFlow(importing, { kind: "folder_chosen", folder: "/elsewhere" })).toBe(importing);
+    expect(advanceAddStreamFlow(importing, { kind: "load_no_longer_followed", action: "R1-99", words: "gone" })).toBe(importing);
     const ended = advanceAddStreamFlow(importing, { kind: "load_described", description: HALLWAYS_DONE });
-    expect(advanceAddStreamFlow(ended, { kind: "source_chosen", source: "new_project" })).toEqual(initialAddStreamFlowState("new_project"));
     expect(advanceAddStreamFlow(ended, { kind: "add_another" })).toEqual(initialAddStreamFlowState("project_folder"));
   });
 
   it("words the following view: its heading and the request it sent", () => {
     expect(followingHeadingWords("project_folder", HALLWAYS_LOAD)).toBe("Importing hallways");
-    expect(followingHeadingWords("new_project", { action: "R1-7", projectDirectory: "/Users/someone/streams/kind-butte" })).toBe("Creating kind-butte");
+    expect(followingHeadingWords("new_project", { action: "R1-7", projectDirectory: "/Users/someone/streams/kind-butte", streamOfTheScaffold: "kind-butte-main-e51c2f" })).toBe("Creating kind-butte");
     expect(projectLoadRequestWords("new_project", null)).toBe("create_project  (a folder under ~/streams)");
     expect(projectLoadRequestWords("project_folder", HALLWAYS)).toBe(`run_project  ${HALLWAYS}`);
   });
@@ -161,7 +162,7 @@ describe("the add-project flow", () => {
     expect(projectLoadNotFinishedHeadingWords("project_folder", HALLWAYS_LOAD, { kind: "cancelled", description: hallwaysDescription({ state: "cancelled" }) })).toBe(
       "Importing hallways was cancelled",
     );
-    expect(projectLoadNotFinishedHeadingWords("new_project", HALLWAYS_LOAD, { kind: "not_held", words: "gone" })).toBe("Tatolab stopped following hallways");
+    expect(projectLoadNotFinishedHeadingWords("new_project", HALLWAYS_LOAD, { kind: "no_longer_followed", words: "gone" })).toBe("Tatolab stopped following hallways");
   });
 
   it("moves focus on a new step or folder, and announces a folder ready to import", () => {
@@ -194,12 +195,16 @@ describe("the notice of a load followed away from the dialog", () => {
     const failedNotice = addStreamRunNoticeOf(failed);
     expect(failedNotice === null ? null : presentAddStreamRunNotice(failedNotice, null)).toEqual({ title: "Importing the project failed", detail: "missing", tone: "failure", isUnderWay: false });
 
-    const notHeld = advanceAddStreamFlow(importing, { kind: "load_not_held", words: "Invalid configuration: not held" });
+    const notHeld = advanceAddStreamFlow(importing, { kind: "load_no_longer_followed", action: "R1-3", words: "Invalid configuration: not held" });
     const notHeldNotice = addStreamRunNoticeOf(notHeld);
     expect(notHeldNotice === null ? null : presentAddStreamRunNotice(notHeldNotice, null)).toMatchObject({ title: "Tatolab stopped following hallways", tone: "warning" });
 
     expect(addStreamRunNoticeOf(initialAddStreamFlowState("project_folder"))).toBeNull();
-    const refusedBeforeQueuing = afterEvents(initialAddStreamFlowState("project_folder"), [{ kind: "work_refused", lead: "Import was refused:", words: "no runtime answers" }]);
-    expect(addStreamRunNoticeOf(refusedBeforeQueuing)).toBeNull();
+    const refusedQueuing = afterEvents(initialAddStreamFlowState("project_folder"), [{ kind: "work_refused", lead: "Import was refused:", words: "no runtime answers" }]);
+    const refusedQueuingNotice = addStreamRunNoticeOf(refusedQueuing);
+    expect(refusedQueuingNotice === null ? null : presentAddStreamRunNotice(refusedQueuingNotice, null)).toMatchObject({ title: "Import was refused", detail: "no runtime answers", tone: "failure" });
+    const folderDialogRefused = afterEvents(initialAddStreamFlowState("project_folder"), [{ kind: "work_refused", lead: "The folder dialog was refused:", words: "no display" }]);
+    expect(addStreamRunNoticeOf(folderDialogRefused)).toBeNull();
+    expect(projectLoadDoneHeadingWords(HALLWAYS, [])).toBe("The runtime loaded no stream from hallways");
   });
 });

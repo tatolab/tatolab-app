@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import type { ListedStream, StreamLocation } from "../shared/tatolab_backend_contract.js";
+import type { ListedStream, StreamActionDescription, StreamActionFollowed, StreamLocation } from "../shared/tatolab_backend_contract.js";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
 import {
   httpRequestBytes,
@@ -569,6 +569,11 @@ test("running_a_project_calls_run_project_with_its_folder_and_reads_the_action_i
   expect(toolCallsReceivedBy(server)).toEqual([["run_project", { project_directory: "/tmp/tatolab-proof-projects/hallways" }]]);
 });
 
+/** The description `describe_stream_action` answered, failing the test when it answered anything else. */
+function describedOf(followed: StreamActionFollowed): StreamActionDescription {
+  return followed.kind === "described" ? followed.description : expect.unreachable(`the action was not described: ${followed.words}`);
+}
+
 test("describing_a_stream_action_reads_its_state_step_and_streams_from_queued_to_done", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-run-of-hallways-queued.json")),
@@ -577,34 +582,42 @@ test("describing_a_stream_action_reads_its_state_step_and_streams_from_queued_to
   ]);
 
   expect(answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-9"))).toEqual({
-    action: "Rj12j3eujz3zn0dposliv79k9-9",
-    project_directory: "/tmp/tatolab-proof-projects/hallways",
-    kind: "load",
-    state: "queued",
-    step: null,
-    streams: [],
-    failed_because: null,
+    kind: "described",
+    description: {
+      action: "Rj12j3eujz3zn0dposliv79k9-9",
+      project_directory: "/tmp/tatolab-proof-projects/hallways",
+      kind: "load",
+      state: "queued",
+      step: null,
+      streams: [],
+      failed_because: null,
+    },
   });
-  expect(answerOf(await server.client().describeStreamAction("Riioiuiuj7n1z3ghkm7s9n1xi-6"))).toMatchObject({ state: "in_progress", step: "making_the_venv" });
-  expect(answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-3")).streams).toEqual([
+  expect(describedOf(answerOf(await server.client().describeStreamAction("Riioiuiuj7n1z3ghkm7s9n1xi-6")))).toMatchObject({ state: "in_progress", step: "making_the_venv" });
+  expect(describedOf(answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-3"))).streams).toEqual([
     { stream: "hallways-front_door-58034f", display_name: "front_door", state: "running" },
     { stream: "hallways-back_door-2416d3", display_name: "back_door", state: "failed" },
   ]);
   expect(toolCallsReceivedBy(server)[0]).toEqual(["describe_stream_action", { action: "Rj12j3eujz3zn0dposliv79k9-9" }]);
 });
 
-test("a_failed_action_reads_its_reason_and_one_the_runtime_no_longer_holds_is_its_own_refusal", async () => {
+test("a_failed_action_reads_its_reason_one_the_tool_no_longer_holds_answers_its_words_and_a_json_rpc_error_stays_a_refusal", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-create-into-pattern-failed-on-its-files.json")),
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json")),
+    httpResponse("500 Internal Server Error", "application/json", '{"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"the runtime is shutting down"}}'),
   ]);
 
-  const failedCreation = answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-5"));
+  const failedCreation = describedOf(answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-5")));
   expect(failedCreation).toMatchObject({ state: "failed", streams: [] });
   expect(failedCreation.failed_because).toContain("already has .gitignore");
-  expect(failureOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-999"))).toEqual({
-    failureDescription:
+  expect(answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-999"))).toEqual({
+    kind: "not_held",
+    words:
       "Invalid configuration: the stream action `Rj12j3eujz3zn0dposliv79k9-999` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log",
+  });
+  expect(failureOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-5"))).toEqual({
+    failureDescription: "the runtime refused `describe_stream_action` (500): the runtime is shutting down",
     isTheRuntimesRefusal: true,
   });
 });

@@ -25,7 +25,7 @@ import type {
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
-  StreamActionDescription,
+  StreamActionFollowed,
   StreamGraphSummary,
   StreamLocation,
   TatolabStreamActionName,
@@ -314,11 +314,12 @@ export class LocalApiClient {
   }
 
   /** Where the stream action `action` is: its state and step, and the streams it took in; refused in the runtime's own words, as for an action it no longer holds. */
-  async describeStreamAction(action: string): Promise<Result<StreamActionDescription, LocalApiRequestFailure>> {
-    const toolResultText = await this.callMcpTool("describe_stream_action", { action });
-    if (!toolResultText.ok) return toolResultText;
-    const description = streamActionDescriptionFromTheDescribeStreamActionToolResult(toolResultText.value);
-    return description.ok ? description : localApiRequestFailure(description.failure);
+  async describeStreamAction(action: string): Promise<Result<StreamActionFollowed, LocalApiRequestFailure>> {
+    const toolAnswer = await this.callMcpToolKeepingItsRefusal("describe_stream_action", { action });
+    if (!toolAnswer.ok) return toolAnswer;
+    if (toolAnswer.value.kind === "refused_by_the_tool") return succeeded({ kind: "not_held", words: toolAnswer.value.words });
+    const description = streamActionDescriptionFromTheDescribeStreamActionToolResult(toolAnswer.value.text);
+    return description.ok ? succeeded({ kind: "described", description: description.value }) : localApiRequestFailure(description.failure);
   }
 
   /** The graph of the loaded stream `stream` from the runtime's `graph` tool, the text `tatolab graph --stream` prints, its readable outputs' preview pages at `runtimeLoopbackHttpOrigin`. */
@@ -385,6 +386,17 @@ export class LocalApiClient {
     toolArguments: Readonly<Record<string, unknown>>,
     responseTimeoutMs: number = this.requestTimeoutMs,
   ): Promise<Result<string, LocalApiRequestFailure>> {
+    const toolAnswer = await this.callMcpToolKeepingItsRefusal(toolName, toolArguments, responseTimeoutMs);
+    if (!toolAnswer.ok) return toolAnswer;
+    return toolAnswer.value.kind === "answered" ? succeeded(toolAnswer.value.text) : theRuntimesRefusal(toolAnswer.value.words);
+  }
+
+  /** As `callMcpTool`, but a tool that ran and failed answers its words apart from every other refusal, the JSON-RPC layer's included. */
+  private async callMcpToolKeepingItsRefusal(
+    toolName: string,
+    toolArguments: Readonly<Record<string, unknown>>,
+    responseTimeoutMs: number = this.requestTimeoutMs,
+  ): Promise<Result<McpToolAnswer, LocalApiRequestFailure>> {
     const requestBody = mcpToolCallRequestBody(toolName, toolArguments, this.appVersion);
     const response = await this.sendOneHttpRequestAndReadItsResponse(
       "POST",
@@ -491,7 +503,10 @@ function mcpToolCallRequestBody(toolName: string, toolArguments: Readonly<Record
   });
 }
 
-function firstTextBlockOfToolCallResponse(toolName: string, response: LocalApiHttpResponse): Result<string, LocalApiRequestFailure> {
+/** What a tool call answered: the text of its first content block, or the words of a tool that ran and failed (`isError`). */
+type McpToolAnswer = { kind: "answered"; text: string } | { kind: "refused_by_the_tool"; words: string };
+
+function firstTextBlockOfToolCallResponse(toolName: string, response: LocalApiHttpResponse): Result<McpToolAnswer, LocalApiRequestFailure> {
   const jsonRpcResponse = parseJsonOnTheWire(response.body.toString("utf8"));
   if (!jsonRpcResponse.ok) {
     return localApiRequestFailure(`\`${toolName}\` answered ${response.statusCode} with a body that is not JSON-RPC: ${jsonRpcResponse.failure}`);
@@ -508,8 +523,8 @@ function firstTextBlockOfToolCallResponse(toolName: string, response: LocalApiHt
   const content = toolResultFields["content"];
   const firstText = Array.isArray(content) ? content.map(textOfATextBlock).find((blockText) => blockText !== null) ?? null : null;
   const toolFailed = toolResultFields["isError"] === true;
-  if (toolFailed) return theRuntimesRefusal(firstText ?? `\`${toolName}\` failed and gave no reason`);
-  return firstText === null ? localApiRequestFailure(`\`${toolName}\` answered with no text`) : succeeded(firstText);
+  if (toolFailed) return succeeded({ kind: "refused_by_the_tool", words: firstText ?? `\`${toolName}\` failed and gave no reason` });
+  return firstText === null ? localApiRequestFailure(`\`${toolName}\` answered with no text`) : succeeded({ kind: "answered", text: firstText });
 }
 
 /** A content block's text when it is a text block carrying text. */

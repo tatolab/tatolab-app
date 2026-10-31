@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AddStreamFlowOfTheWindow, PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS, type AddStreamBackend } from "./add_stream_flow_of_the_window";
+import {
+  AddStreamFlowOfTheWindow,
+  MOST_FAILED_PROJECT_LOAD_READS_IN_A_ROW,
+  PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS,
+  type AddStreamBackend,
+} from "./add_stream_flow_of_the_window";
 import type { StreamActionDescription, StreamActionFollowed } from "../shared/tatolab_backend_contract";
 
 const HALLWAYS = "/Users/someone/code/hallways";
@@ -95,7 +100,10 @@ describe("the window's add-project flow", () => {
     addStreamFlow.performTheAction();
     await vi.advanceTimersByTimeAsync(0);
     expect(foldersCreated).toEqual([null]);
-    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", queued: { action: "R1-3", projectDirectory: "/Users/someone/streams/kind-butte" } });
+    expect(addStreamFlow.readFlowState()).toMatchObject({
+      step: "ended",
+      queued: { action: "R1-3", projectDirectory: "/Users/someone/streams/kind-butte", streamOfTheScaffold: "kind-butte-main-e51c2f" },
+    });
   });
 
   it("shows the load under way in a notice once the dialog closes, updates it each step, and says what it came to", async () => {
@@ -140,7 +148,12 @@ describe("the window's add-project flow", () => {
     addStreamFlow.dismissRunNotice();
 
     await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
-    expect(addStreamFlow.readRunNotice()).toEqual({ kind: "failed", source: "project_folder", words: `the project directory ${HALLWAYS} does not exist` });
+    expect(addStreamFlow.readRunNotice()).toEqual({
+      kind: "failed",
+      source: "project_folder",
+      lead: "Importing the project failed:",
+      words: `the project directory ${HALLWAYS} does not exist`,
+    });
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "form", form: { chosenFolder: HALLWAYS, refusal: { lead: "Importing the project failed:" } } });
   });
 
@@ -150,9 +163,77 @@ describe("the window's add-project flow", () => {
     const { backend, actionsDescribed } = scriptedBackend([{ kind: "not_held", words }]);
     const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
     await importHallways(addStreamFlow);
-    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", ending: { kind: "not_held", words } });
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", ending: { kind: "no_longer_followed", words } });
     await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS * 2);
     expect(actionsDescribed).toEqual(["R1-3"]);
+  });
+
+  it("stops following a load whose reads fail too many times in a row, saying why", async () => {
+    vi.useFakeTimers();
+    const { backend, actionsDescribed } = scriptedBackend([null]);
+    const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
+    await importHallways(addStreamFlow);
+    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS * (MOST_FAILED_PROJECT_LOAD_READS_IN_A_ROW - 2));
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following" });
+    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", ending: { kind: "no_longer_followed", words: "Tatolab could not read the load: no runtime answers" } });
+    expect(actionsDescribed).toHaveLength(MOST_FAILED_PROJECT_LOAD_READS_IN_A_ROW);
+  });
+
+  it("opens on the load under way however the dialog is opened, and follows a load queued while the dialog was closed and reopened", async () => {
+    vi.useFakeTimers();
+    const pendingRun: { answer: (() => void) | null } = { answer: null };
+    const { backend } = scriptedBackend([described(hallwaysDescription({ state: "queued" })), described(HALLWAYS_DONE)]);
+    const addStreamFlow = new AddStreamFlowOfTheWindow({
+      ...backend,
+      runStreamProject: (folder) =>
+        new Promise((resolve) => {
+          pendingRun.answer = () => resolve({ action: "R1-3", project_directory: folder });
+        }),
+    });
+    addStreamFlow.openDialog("project_folder", false);
+    addStreamFlow.chooseFolder();
+    await vi.advanceTimersByTimeAsync(0);
+    addStreamFlow.performTheAction();
+    addStreamFlow.closeDialog();
+    addStreamFlow.openDialog("new_project", false);
+    expect(addStreamFlow.readOpenDialog()).toEqual({ source: "project_folder", isOpenedFromARunNotice: false });
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "form", form: { source: "project_folder", chosenFolder: HALLWAYS, workUnderWay: "queuing_the_load" } });
+    addStreamFlow.performTheAction();
+
+    pendingRun.answer?.();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following", form: { source: "project_folder" }, queued: { action: "R1-3" } });
+    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", ending: { kind: "done" } });
+    expect(addStreamFlow.readOpenDialog()).toEqual({ source: "project_folder", isOpenedFromARunNotice: false });
+
+    addStreamFlow.closeDialog();
+    addStreamFlow.openDialog("new_project", false);
+    expect(addStreamFlow.readFlowState()).toEqual({ step: "form", form: { source: "new_project", chosenFolder: null, workUnderWay: null, refusal: null } });
+  });
+
+  it("says in a notice that the runtime refused to queue a load once the dialog was closed", async () => {
+    vi.useFakeTimers();
+    const { backend } = scriptedBackend([]);
+    const pendingRun: { refuse: (() => void) | null } = { refuse: null };
+    const addStreamFlow = new AddStreamFlowOfTheWindow({
+      ...backend,
+      runStreamProject: () =>
+        new Promise((_resolve, reject) => {
+          pendingRun.refuse = () => reject("no runtime answers at /tmp/local-api.sock");
+        }),
+    });
+    addStreamFlow.openDialog("project_folder", false);
+    addStreamFlow.chooseFolder();
+    await vi.advanceTimersByTimeAsync(0);
+    addStreamFlow.performTheAction();
+    addStreamFlow.closeDialog();
+    expect(addStreamFlow.readRunNotice()).toBeNull();
+
+    pendingRun.refuse?.();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(addStreamFlow.readRunNotice()).toEqual({ kind: "failed", source: "project_folder", lead: "Import was refused:", words: "no runtime answers at /tmp/local-api.sock" });
   });
 
   it("returns to the form with the runtime's refusal when it does not queue the load", async () => {

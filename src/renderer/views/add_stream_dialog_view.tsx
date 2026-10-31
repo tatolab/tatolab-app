@@ -108,8 +108,9 @@ function ProjectLoadFollowingView({ state }: { state: Extract<AddStreamFlowState
       <ProjectLoadOutputWell title={state.queued.projectDirectory} isWaiting>
         <ProjectLoadOutputLine isQuiet>{projectLoadRequestWords(state.form.source, state.form.chosenFolder)}</ProjectLoadOutputLine>
         <ProjectLoadOutputLine isQuiet>queued as {state.queued.action}</ProjectLoadOutputLine>
+        {state.queued.streamOfTheScaffold !== null && <ProjectLoadOutputLine isQuiet>its stream: {state.queued.streamOfTheScaffold}</ProjectLoadOutputLine>}
         {state.stepsSeen.map((stepWords, stepIndex) => (
-          <ProjectLoadOutputLine key={stepWords} isQuiet={stepIndex < state.stepsSeen.length - 1}>
+          <ProjectLoadOutputLine key={stepIndex} isQuiet={stepIndex < state.stepsSeen.length - 1}>
             {stepWords.toLowerCase()}
           </ProjectLoadOutputLine>
         ))}
@@ -200,7 +201,7 @@ export function AddStreamDialogView() {
       footer={openDialog !== null && <AddStreamDialogFooter />}
       data-add-stream-dialog={openDialog?.source}
     >
-      {openDialog !== null && <AddStreamDialogBody source={openDialog.source} />}
+      {openDialog !== null && <AddStreamDialogBody />}
     </FormDialog>
   );
 }
@@ -215,7 +216,7 @@ function useOpenTheStreamFromTheDialog(): (streamId: string, tab?: StreamPageTab
   };
 }
 
-function AddStreamDialogBody({ source }: { source: AddStreamSource }) {
+function AddStreamDialogBody() {
   const { addStreamFlow } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
   const flowState = useAddStreamFlowState();
@@ -223,11 +224,6 @@ function AddStreamDialogBody({ source }: { source: AddStreamSource }) {
   const form = flowState.form;
   const isTheRuntimeRunning = presentRuntimeStatus(status).displayState === "running";
   const blockerTheFormDoesNotShow = addStreamBlockerTheFormDoesNotShow(form, isTheRuntimeRunning);
-
-  // An opening while a load runs is ignored by the flow; once the load ends, the dialog catches up to its source.
-  useEffect(() => {
-    if (form.source !== source) addStreamFlow.dispatch({ kind: "source_chosen", source });
-  }, [addStreamFlow, form.source, source, flowState.step]);
 
   const dialogContent = useRef<HTMLDivElement>(null);
   const dialogSection = addStreamDialogSection(flowState);
@@ -237,7 +233,11 @@ function AddStreamDialogBody({ source }: { source: AddStreamSource }) {
     if (shownBefore.dialogSection === dialogSection) return;
     dialogSectionShownBefore.current = { dialogSection, step: flowState.step };
     const focusWasLost = document.activeElement === null || document.activeElement === document.body;
-    if (shownBefore.step !== flowState.step || focusWasLost) dialogContent.current?.querySelector<HTMLElement>("[data-add-stream-step-heading]")?.focus();
+    if (shownBefore.step !== flowState.step || focusWasLost) {
+      const focusTarget =
+        dialogContent.current?.querySelector<HTMLElement>("[data-add-stream-step-heading]") ?? dialogContent.current?.querySelector<HTMLElement>('[data-add-stream-action="choose_folder"]');
+      focusTarget?.focus();
+    }
   }, [dialogSection, flowState.step]);
 
   return (
@@ -246,7 +246,7 @@ function AddStreamDialogBody({ source }: { source: AddStreamSource }) {
         {addStreamStepAnnouncement(flowState, isTheRuntimeRunning)}
       </p>
       {form.refusal !== null && flowState.step === "form" && (
-        <div className="mb-4" data-add-stream-refusal="">
+        <div className="mb-4 focus-visible:shadow-none" tabIndex={-1} data-add-stream-refusal="" data-add-stream-step-heading="">
           <RefusalLine lead={form.refusal.lead} words={form.refusal.words} />
         </div>
       )}

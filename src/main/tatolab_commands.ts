@@ -204,11 +204,8 @@ export function runStreamProject(sharedState: TatolabAppSharedState, folder: str
 /** `describe_stream_action { action }`: where the action is, or the runtime's words that it no longer holds it; refused when the runtime could not be asked. */
 export function describeStreamAction(sharedState: TatolabAppSharedState, action: string): Promise<Result<StreamActionFollowed, string>> {
   return answerTheWindow("describe_stream_action", async (): Promise<Result<StreamActionFollowed, string>> => {
-    const description = await sharedState.controller.describeStreamAction(action);
-    if (description.ok) return succeeded({ kind: "described", description: description.value });
-    return description.failure.isTheRuntimesRefusal
-      ? succeeded({ kind: "not_held", words: description.failure.failureDescription })
-      : failedWith(description.failure.failureDescription);
+    const followed = await sharedState.controller.describeStreamAction(action);
+    return followed.ok ? followed : failedWith(followed.failure.failureDescription);
   });
 }
 

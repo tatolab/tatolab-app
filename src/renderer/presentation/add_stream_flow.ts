@@ -8,6 +8,8 @@ export type AddStreamSource = "project_folder" | "new_project";
 export interface QueuedProjectLoad {
   action: string;
   projectDirectory: string;
+  /** The scaffold's stream id `create_project` answered; `null` for `run_project`, whose streams are known only as it loads them. */
+  streamOfTheScaffold: string | null;
 }
 
 /** What the backend is doing for the form while it waits. */
@@ -23,11 +25,11 @@ export interface AddStreamForm {
   workUnderWay: AddStreamWorkUnderWay | null;
 }
 
-/** How a followed load ended, other than failing, which returns to the form: done with its streams, cancelled, or no longer held by the runtime. */
+/** How a followed load ended, other than failing, which returns to the form: done with its streams, cancelled, or no longer followed, as the runtime no longer holds it or its description cannot be read. */
 export type ProjectLoadEnding =
   | { kind: "done"; description: StreamActionDescription }
   | { kind: "cancelled"; description: StreamActionDescription }
-  | { kind: "not_held"; words: string };
+  | { kind: "no_longer_followed"; words: string };
 
 /** The add-project dialog: the form, a queued load followed through its steps, or how it ended. */
 export type AddStreamFlowState =
@@ -37,14 +39,13 @@ export type AddStreamFlowState =
 
 /** What happened in the dialog, from the person or from the backend's answer. */
 export type AddStreamFlowEvent =
-  | { kind: "source_chosen"; source: AddStreamSource }
   | { kind: "work_started"; work: AddStreamWorkUnderWay }
   | { kind: "folder_dialog_cancelled" }
   | { kind: "folder_chosen"; folder: string }
   | { kind: "work_refused"; lead: string; words: string }
   | { kind: "load_queued"; queued: QueuedProjectLoad }
   | { kind: "load_described"; description: StreamActionDescription }
-  | { kind: "load_not_held"; words: string }
+  | { kind: "load_no_longer_followed"; action: string; words: string }
   | { kind: "add_another" };
 
 /** The form as it first shows for `source`, nothing chosen yet. */
@@ -69,12 +70,21 @@ export const NEW_PROJECT_FOLDER_THE_RUNTIME_DRAWS_WORDS = "A new folder under ~/
 export const CREATING_THE_PROJECT_FAILED_LEAD = "Creating the project failed:";
 /** The lead of an import that failed, before the runtime's own words. */
 export const IMPORTING_THE_PROJECT_FAILED_LEAD = "Importing the project failed:";
+/** The lead of the runtime's refusal to queue a create, before its own words. */
+export const CREATE_WAS_REFUSED_LEAD = "Create was refused:";
+/** The lead of the runtime's refusal to queue an import, before its own words. */
+export const IMPORT_WAS_REFUSED_LEAD = "Import was refused:";
 /** What a failed load says when the runtime gave no reason. */
 const NO_REASON_GIVEN_WORDS = "The runtime gave no reason.";
 
 /** The lead a failed load of `source` gets. */
 export function projectLoadFailedLead(source: AddStreamSource): string {
   return source === "new_project" ? CREATING_THE_PROJECT_FAILED_LEAD : IMPORTING_THE_PROJECT_FAILED_LEAD;
+}
+
+/** The lead the runtime's refusal to queue a load of `source` gets. */
+export function projectLoadRefusedLead(source: AddStreamSource): string {
+  return source === "new_project" ? CREATE_WAS_REFUSED_LEAD : IMPORT_WAS_REFUSED_LEAD;
 }
 
 function withForm(state: AddStreamFlowState, changes: Partial<AddStreamForm>): AddStreamFlowState {
@@ -91,13 +101,12 @@ export function advanceAddStreamFlow(state: AddStreamFlowState, event: AddStream
   switch (event.kind) {
     case "load_described":
       return state.step === "following" && event.description.action === state.queued.action ? advanceTheFollowing(state, event.description) : state;
-    case "load_not_held":
-      return state.step === "following" ? { step: "ended", form: state.form, queued: state.queued, ending: { kind: "not_held", words: event.words } } : state;
+    case "load_no_longer_followed":
+      return state.step === "following" && event.action === state.queued.action
+        ? { step: "ended", form: state.form, queued: state.queued, ending: { kind: "no_longer_followed", words: event.words } }
+        : state;
     case "add_another":
       return state.step === "following" ? state : initialAddStreamFlowState(state.form.source);
-    case "source_chosen":
-      if (state.step === "ended") return initialAddStreamFlowState(event.source);
-      break;
   }
   return state.step === "form" ? advanceTheForm(state, event) : state;
 }
@@ -117,8 +126,6 @@ function advanceTheFollowing(state: Extract<AddStreamFlowState, { step: "followi
 
 function advanceTheForm(state: AddStreamFlowState, event: AddStreamFlowEvent): AddStreamFlowState {
   switch (event.kind) {
-    case "source_chosen":
-      return initialAddStreamFlowState(event.source);
     case "work_started":
       return withForm(state, { workUnderWay: event.work, refusal: null });
     case "folder_dialog_cancelled":
@@ -128,9 +135,10 @@ function advanceTheForm(state: AddStreamFlowState, event: AddStreamFlowEvent): A
     case "work_refused":
       return withForm(state, { refusal: { lead: event.lead, words: event.words }, workUnderWay: null });
     case "load_queued":
+      if (state.form.workUnderWay !== "queuing_the_load") return state;
       return { step: "following", form: { ...state.form, workUnderWay: null, refusal: null }, queued: event.queued, description: null, stepsSeen: [QUEUED_STEP_WORDS] };
     case "load_described":
-    case "load_not_held":
+    case "load_no_longer_followed":
     case "add_another":
       return state;
   }
@@ -237,13 +245,13 @@ export function projectLoadDoneLeadWords(streamsTakenIn: readonly StreamTakenInP
 /** The heading of a load that ended without loading: cancelled, or no longer held. */
 export function projectLoadNotFinishedHeadingWords(source: AddStreamSource, queued: QueuedProjectLoad, ending: Exclude<ProjectLoadEnding, { kind: "done" }>): string {
   const projectName = folderBaseName(queued.projectDirectory);
-  if (ending.kind === "not_held") return `Tatolab stopped following ${projectName}`;
+  if (ending.kind === "no_longer_followed") return `Tatolab stopped following ${projectName}`;
   return `${source === "new_project" ? "Creating" : "Importing"} ${projectName} was cancelled`;
 }
 
 /** What a load that ended without loading says under its heading. */
 export function projectLoadNotFinishedLeadWords(ending: Exclude<ProjectLoadEnding, { kind: "done" }>): string {
-  return ending.kind === "not_held" ? `${ending.words}. The Streams list shows where its streams are.` : "The runtime cancelled the load before it ended.";
+  return ending.kind === "no_longer_followed" ? `${ending.words}. The Streams list shows where its streams are.` : "The runtime cancelled the load before it ended.";
 }
 
 /**
@@ -264,9 +272,9 @@ export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntim
 export type AddStreamRunNotice =
   | { kind: "following"; source: AddStreamSource; queued: QueuedProjectLoad; description: StreamActionDescription | null }
   | { kind: "ended"; source: AddStreamSource; queued: QueuedProjectLoad; ending: ProjectLoadEnding }
-  | { kind: "failed"; source: AddStreamSource; words: string };
+  | { kind: "failed"; source: AddStreamSource; lead: string; words: string };
 
-/** The notice for the dialog as a load left it: under way, ended, or failed back to the form; `null` for a dialog no load left. */
+/** The notice for the dialog as a load left it: under way, ended, failed or refused back to the form; `null` for a dialog no load left. */
 export function addStreamRunNoticeOf(state: AddStreamFlowState): AddStreamRunNotice | null {
   const source = state.form.source;
   switch (state.step) {
@@ -276,7 +284,8 @@ export function addStreamRunNoticeOf(state: AddStreamFlowState): AddStreamRunNot
       return { kind: "ended", source, queued: state.queued, ending: state.ending };
     case "form": {
       const refusal = state.form.refusal;
-      return refusal !== null && refusal.lead === projectLoadFailedLead(source) ? { kind: "failed", source, words: refusal.words } : null;
+      const isTheLoadsFailure = refusal !== null && (refusal.lead === projectLoadFailedLead(source) || refusal.lead === projectLoadRefusedLead(source));
+      return isTheLoadsFailure ? { kind: "failed", source, lead: refusal.lead, words: refusal.words } : null;
     }
   }
 }
@@ -298,7 +307,7 @@ export function presentAddStreamRunNotice(notice: AddStreamRunNotice, listedStre
     case "following":
       return { title: followingHeadingWords(notice.source, notice.queued), detail: `${followedStepWords(notice.description)}…`, tone: "plain", isUnderWay: true };
     case "failed":
-      return { title: projectLoadFailedLead(notice.source).replace(/:$/, ""), detail: notice.words, tone: "failure", isUnderWay: false };
+      return { title: notice.lead.replace(/:$/, ""), detail: notice.words, tone: "failure", isUnderWay: false };
     case "ended": {
       const ending = notice.ending;
       if (ending.kind !== "done") {
@@ -314,7 +323,7 @@ export function presentAddStreamRunNotice(notice: AddStreamRunNotice, listedStre
       return {
         title: projectLoadDoneHeadingWords(notice.queued.projectDirectory, streamsTakenIn),
         detail: streamsTakenIn.map((streamTakenIn) => `${streamTakenIn.displayName}: ${streamTakenIn.stateLabel}`).join(" · "),
-        tone: failedCount === 0 && streamsTakenIn.length > 0 ? "plain" : failedCount === streamsTakenIn.length ? "failure" : "warning",
+        tone: streamsTakenIn.length === 0 ? "warning" : failedCount === 0 ? "plain" : failedCount === streamsTakenIn.length ? "failure" : "warning",
         isUnderWay: false,
       };
     }
