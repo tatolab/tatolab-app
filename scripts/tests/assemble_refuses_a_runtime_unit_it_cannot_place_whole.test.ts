@@ -1,9 +1,8 @@
 // scripts/assemble-tatolab-app-bundle.sh places everything the runtime unit ships: it refuses a
-// unit without moq-relay, which tatolabd runs from beside itself, or without the preview page
+// unit without moq-relay or uv, which tatolabd runs from beside itself, or without the preview page
 // tatolabd serves from Resources/watch, a unit whose bin/ or lib/tatolab/ holds something it does
-// not place, a unit built from any streamlib commit but the one the build resolved, and a Python
-// toolchain without uv or without exactly one built-in Python. Every refusal comes before it
-// touches the bundle.
+// not place, and a unit built from any streamlib commit but the one the build resolved. Every
+// refusal comes before it touches the bundle.
 
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -14,7 +13,7 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const ASSEMBLE_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "assemble-tatolab-app-bundle.sh");
-const PLACED_RUNTIME_UNIT_BINARIES = ["moq-relay", "tatolab", "tatolabd"];
+const PLACED_RUNTIME_UNIT_BINARIES = ["moq-relay", "tatolab", "tatolabd", "uv"];
 const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend", "watch"];
 const RESOLVED_STREAMLIB_COMMIT = "ef5c8b22995a90b1f7ae671e214c96480615c911";
 const AN_OLDER_STREAMLIB_COMMIT = "f2ec4338a0d1c2b3e4f5a6b7c8d9e0f1a2b3c4d5";
@@ -27,7 +26,7 @@ interface AssembleScriptOutcome {
 function runTheAssembleScript(
   appBundle: string,
   runtimeUnitDirectory: string,
-  assembleFlags: string[] = ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT, "--python-toolchain", path.join(scratchDirectory, "python-toolchain")],
+  assembleFlags: string[] = ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT],
 ): Promise<AssembleScriptOutcome> {
   return new Promise((resolveOutcome) => {
     execFile("bash", [ASSEMBLE_SCRIPT, appBundle, runtimeUnitDirectory, ...assembleFlags], { cwd: REPOSITORY_ROOT }, (scriptFailure, _stdout, stderr) => {
@@ -45,25 +44,8 @@ beforeEach(async () => {
   await mkdir(path.join(plantedAppBundle, "Contents", "MacOS"), { recursive: true });
   await writeFile(path.join(plantedAppBundle, "Contents", "MacOS", "Tatolab"), "");
   await chmod(path.join(plantedAppBundle, "Contents", "MacOS", "Tatolab"), 0o755);
-  await pythonToolchainPlantedWith({ hasUv: true, builtInPythonFolderNames: ["cpython-3.12.15+20261013"] });
 });
 
-/** A Python toolchain as the fetch script lays it out, with or without its uv, holding these built-in Python folders. */
-async function pythonToolchainPlantedWith({ hasUv, builtInPythonFolderNames }: { hasUv: boolean; builtInPythonFolderNames: string[] }): Promise<void> {
-  const pythonToolchainDirectory = path.join(scratchDirectory, "python-toolchain");
-  await rm(pythonToolchainDirectory, { recursive: true, force: true });
-  await mkdir(path.join(pythonToolchainDirectory, "python"), { recursive: true });
-  if (hasUv) {
-    await writeFile(path.join(pythonToolchainDirectory, "uv"), "");
-    await chmod(path.join(pythonToolchainDirectory, "uv"), 0o755);
-  }
-  for (const builtInPythonFolderName of builtInPythonFolderNames) {
-    const interpreter = path.join(pythonToolchainDirectory, "python", builtInPythonFolderName, "bin", "python3");
-    await mkdir(path.dirname(interpreter), { recursive: true });
-    await writeFile(interpreter, "");
-    await chmod(interpreter, 0o755);
-  }
-}
 afterEach(async () => {
   await rm(scratchDirectory, { recursive: true, force: true });
 });
@@ -92,12 +74,18 @@ async function runtimeUnitPlantedWith(
   return runtimeUnitDirectory;
 }
 
-test("a unit without moq-relay is refused and the bundle is untouched", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWith(["tatolab", "tatolabd"], PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
-  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
-  expect(assembleOutcome.exitCode).toBe(1);
-  expect(assembleOutcome.stderr).toContain("is missing bin/moq-relay");
-  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+test("a unit without moq-relay or without uv is refused and the bundle is untouched", async () => {
+  for (const missingBinaryName of ["moq-relay", "uv"]) {
+    await rm(path.join(scratchDirectory, "tatolab-runtime"), { recursive: true, force: true });
+    const runtimeUnitDirectory = await runtimeUnitPlantedWith(
+      PLACED_RUNTIME_UNIT_BINARIES.filter((binaryName) => binaryName !== missingBinaryName),
+      PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES,
+    );
+    const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
+    expect(assembleOutcome.exitCode).toBe(1);
+    expect(assembleOutcome.stderr).toContain(`is missing bin/${missingBinaryName}`);
+    expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
+  }
 });
 
 test("a unit whose bin/ holds a binary the bundle does not place is refused and the bundle is untouched", async () => {
@@ -156,32 +144,5 @@ test("a unit built from the resolved commit passes the commit check", async () =
   expect(assembleOutcome.exitCode).toBe(1);
   expect(assembleOutcome.stderr).toContain("refusing to ship a test-root runtime unit");
   expect(assembleOutcome.stderr).not.toContain("streamlib");
-  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
-});
-
-test("a Python toolchain with no uv is refused and the bundle is untouched", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
-  await pythonToolchainPlantedWith({ hasUv: false, builtInPythonFolderNames: ["cpython-3.12.15+20261013"] });
-  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
-  expect(assembleOutcome.exitCode).toBe(1);
-  expect(assembleOutcome.stderr).toContain("has no uv");
-  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
-});
-
-test("a Python toolchain with two built-in Pythons, or none, is refused and the bundle is untouched", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
-  for (const builtInPythonFolderNames of [["cpython-3.12.15+20261013", "cpython-3.13.9+20261013"], []]) {
-    await pythonToolchainPlantedWith({ hasUv: true, builtInPythonFolderNames });
-    const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
-    expect(assembleOutcome.exitCode).toBe(1);
-    expect(assembleOutcome.stderr).toContain(`holds ${builtInPythonFolderNames.length} built-in Pythons under python/, not one`);
-    expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
-  }
-});
-
-test("assembling without a Python toolchain is a usage error", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
-  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory, ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT]);
-  expect(assembleOutcome.exitCode).toBe(2);
   expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
 });

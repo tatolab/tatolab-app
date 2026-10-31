@@ -20,7 +20,6 @@ import { runtimeLoopbackHttpOriginForThisBuild } from "../runtime_loopback_watch
 import { electronApplicationMenu } from "./electron_application_menu.js";
 import { openAFolderInTheFileManagerThroughElectron } from "./electron_folder_in_the_file_manager.js";
 import { askThePersonForAStreamProjectFolderThroughElectron } from "./electron_stream_project_folder_dialog.js";
-import { askThePersonForAPythonInterpreterThroughElectron } from "./electron_python_interpreter_file_dialog.js";
 import { createElectronMainWindowHostFactory } from "./electron_main_window_host.js";
 import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_handlers.js";
 import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
@@ -47,7 +46,6 @@ const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   appExecutable: process.execPath,
   appIsPackaged: app.isPackaged,
   appConfigDirectory: path.join(app.getPath("appData"), TATOLAB_APP_IDENTIFIER),
-  appResourcesDirectory: process.resourcesPath,
   tatolabUninstallAppSurface: ELECTRON_TATOLAB_UNINSTALL_APP_SURFACE,
   appLoginItemSettings: ELECTRON_APP_LOGIN_ITEM_SETTINGS,
 };
@@ -94,7 +92,6 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   answerTheWindowsCommands: (tatolabWindowCommandHandlers) => answerTheWindowsCommandsOverIpc(windowPageUrl, tatolabWindowCommandHandlers, tatolabAppLog),
   openAFolderInTheFileManager: openAFolderInTheFileManagerThroughElectron,
   askThePersonForAStreamProjectFolder: askThePersonForAStreamProjectFolderThroughElectron,
-  askThePersonForAPythonInterpreter: askThePersonForAPythonInterpreterThroughElectron,
   homeDirectory: app.getPath("home"),
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
   systemNotifications: createElectronSystemNotifications(),

@@ -58,13 +58,12 @@ describe("StreamGraphReadings", () => {
     readings.setPollingAllowed(true);
     readings.showStream("main", true);
     await vi.advanceTimersByTimeAsync(0);
-    readings.rememberStreamInstance("main", "4");
 
     readings.showStream("main", false);
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(reads).toEqual(["main"]);
-    expect(readings.readingOf("main")).toEqual({ graph: graphNamed("main", "a"), graphSource: "as_of_the_last_load", readRefusal: null, streamInstance: null });
+    expect(readings.readingOf("main")).toEqual({ graph: graphNamed("main", "a"), graphSource: "as_of_the_last_load", readRefusal: null });
   });
 
   it("keeps the runtime's refusal of a read beside the last graph, and drops a read that answers after the stream moved on", async () => {

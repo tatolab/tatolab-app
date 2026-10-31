@@ -1,4 +1,3 @@
-import type { BundledPythonToolchain } from "./bundled_python_toolchain.js";
 import type { BundledRuntimeRestart, RuntimeAgentRegistration } from "./runtime_agent_registration.js";
 import type { TatolabCommandLineToolLinks } from "./tatolab_command_line_tool_links.js";
 import type { TatolabAppOpenedAtLogin } from "./tatolab_app_opened_at_login.js";
@@ -20,12 +19,10 @@ export interface TatolabPlatformForThisBuild {
   bundledRuntimeRestart: BundledRuntimeRestart | null;
   /** The desktop's terminal, which the window's Terminal opens on a stream's project folder. */
   terminalOpenedInAFolder: TerminalOpenedInAFolder;
-  /** The `tatolab` CLI the app runs `tatolab new` with. */
+  /** The `tatolab` CLI the build carries, whose version Settings › Command line reads. */
   tatolabCommandLineTool: TatolabCommandLineTool;
   /** "Open Tatolab at login": the bundle's login item on macOS, an XDG autostart entry on Linux; not offered by an unpackaged app. */
   tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin;
-  /** The uv and built-in Python the app makes a project's `.venv` with; not offered by an unpackaged app. */
-  bundledPythonToolchain: BundledPythonToolchain;
 }
 
 /** What a platform takes from the app around it to build its items; Linux takes only whether the app is packaged and its binary. */
@@ -40,8 +37,6 @@ export interface TatolabPlatformHostServices {
   appIsPackaged: boolean;
   /** The app's own config directory, named for `TATOLAB_APP_IDENTIFIER`. */
   appConfigDirectory: string;
-  /** The packaged app's resources folder, `process.resourcesPath`, where Linux finds the app's uv and built-in Python. */
-  appResourcesDirectory: string;
   /** The Trash and quitting, which uninstalling ends with. */
   tatolabUninstallAppSurface: TatolabUninstallAppSurface;
   /** Electron's login-item settings for the app's own bundle, which only macOS has. */

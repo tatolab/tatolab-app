@@ -6,10 +6,9 @@ import {
   countLabel,
   presentStreamPrimaryAction,
   presentStreamState,
-  presentStreamStateAfterAStopNotRecorded,
-  presentStreamStateAfterTheLastAction,
   listedStreamProjectDirectory,
   streamActionPendingWords,
+  streamActionInTheListingWords,
   streamActionRefusalLead,
   streamNotLoadedReason,
 } from "./stream_presentation";
@@ -23,15 +22,34 @@ function listedStream(displayName: string, state: string, nodeCount: number | nu
     state,
     node_count: nodeCount,
     failed_because: null,
+    action: null,
+    step: null,
   };
 }
 
+/** `displayName` while the action `action` works on it at `step`, or waits for its turn when `step` is `null`. */
+function streamUnderAnAction(displayName: string, state: "preparing" | "stopping", step: string | null): ListedStream {
+  return { ...listedStream(displayName, state, null), action: "Rnd53mwtsrixjyxk7h3jfq5j5-2", step };
+}
+
 describe("presentStreamState", () => {
-  it("words a loaded stream Running, one still loading Starting, and a stopped or failed one as it is", () => {
+  it("words a running, stopped or failed stream as it is", () => {
     expect(presentStreamState(listedStream("main", "running", 4))).toMatchObject({ label: "Running", emphasis: "plain" });
-    expect(presentStreamState(listedStream("main", "running", null))).toMatchObject({ label: "Starting", emphasis: "starting" });
     expect(presentStreamState(listedStream("main", "stopped", null))).toMatchObject({ label: "Stopped", emphasis: "quiet" });
     expect(presentStreamState(listedStream("main", "failed", null))).toMatchObject({ label: "Failed", emphasis: "failure" });
+  });
+
+  it("words a preparing or stopping stream with its step in plain words, a spinner beside it, and queued while it waits its turn", () => {
+    expect(
+      [null, "making_the_venv", "compiling", "starting", "linking_ports"].map((step) => presentStreamState(streamUnderAnAction("main", "preparing", step)).label),
+    ).toEqual(["Preparing · queued", "Preparing · making the environment", "Preparing · compiling", "Preparing · starting", "Preparing · linking ports"]);
+    expect(presentStreamState(streamUnderAnAction("main", "preparing", "compiling"))).toMatchObject({
+      emphasis: "starting",
+      iconTone: "idle",
+      meaning: "Preparing: compiling. It runs once it has loaded.",
+    });
+    expect(presentStreamState(streamUnderAnAction("main", "stopping", "stopping"))).toMatchObject({ label: "Stopping", emphasis: "starting" });
+    expect(presentStreamState(streamUnderAnAction("main", "stopping", null)).label).toBe("Stopping · queued");
   });
 
   it("says what each word means, and gives a failed stream's whole reason", () => {
@@ -43,7 +61,7 @@ describe("presentStreamState", () => {
 
   it("tones a stream's icon running only while loaded, failed once failed, and idle otherwise", () => {
     expect(
-      [listedStream("a", "running", 4), listedStream("c", "running", null), listedStream("d", "stopped", null), listedStream("e", "failed", null)].map(
+      [listedStream("a", "running", 4), streamUnderAnAction("c", "preparing", "starting"), listedStream("d", "stopped", null), listedStream("e", "failed", null)].map(
         (stream) => presentStreamState(stream).iconTone,
       ),
     ).toEqual(["running", "idle", "idle", "failed"]);
@@ -56,21 +74,6 @@ describe("presentStreamState", () => {
       iconTone: "idle",
     });
     expect(presentStreamState(listedStream("main", "", null)).label).toBe("Unknown");
-  });
-});
-
-describe("presentStreamStateAfterAStopNotRecorded", () => {
-  it("reads Stopped for the running stream the runtime unloaded but could not record stopped, and leaves any other state as it is", () => {
-    expect(presentStreamStateAfterAStopNotRecorded(listedStream("camera", "running", null))).toMatchObject({ label: "Stopped", emphasis: "quiet" });
-    expect(presentStreamStateAfterAStopNotRecorded(listedStream("camera", "running", 4))).toMatchObject({ label: "Running" });
-    expect(presentStreamStateAfterAStopNotRecorded(listedStream("camera", "stopped", null))).toMatchObject({ label: "Stopped" });
-  });
-});
-
-describe("presentStreamStateAfterTheLastAction", () => {
-  it("reads the listing's state, or Stopped once the last action was a stop the runtime could not record", () => {
-    expect(presentStreamStateAfterTheLastAction(listedStream("camera", "running", null), false).label).toBe("Starting");
-    expect(presentStreamStateAfterTheLastAction(listedStream("camera", "running", null), true).label).toBe("Stopped");
   });
 });
 
@@ -89,7 +92,9 @@ describe("presentStreamPrimaryAction", () => {
     });
   });
 
-  it("offers nothing for a state newer than this app", () => {
+  it("offers nothing while an action works on it, or for a state newer than this app", () => {
+    expect(presentStreamPrimaryAction(streamUnderAnAction("main", "preparing", "compiling"))).toBeNull();
+    expect(presentStreamPrimaryAction(streamUnderAnAction("main", "stopping", null))).toBeNull();
     expect(presentStreamPrimaryAction(listedStream("main", "awaiting_restart", 2))).toBeNull();
   });
 });
@@ -98,8 +103,17 @@ describe("a row's action words", () => {
   it("says what is under way, and leads a refusal with the action the person chose", () => {
     expect(streamActionPendingWords("stop_stream")).toBe("Stopping…");
     expect(streamActionPendingWords("start_stream")).toBe("Starting…");
-    expect(streamActionPendingWords("remove_stream")).toBe("Removing…");
+    expect(streamActionPendingWords("remove_project")).toBe("Removing…");
     expect(streamActionRefusalLead("Retry")).toBe("Retry was refused:");
+    expect(streamActionRefusalLead("Remove project")).toBe("Remove project was refused:");
+  });
+});
+
+describe("streamActionInTheListingWords", () => {
+  it("shows the listed action and its step while one works on the stream, and nothing otherwise", () => {
+    expect(streamActionInTheListingWords(streamUnderAnAction("main", "preparing", "making_the_venv"))).toBe("Preparing · making the environment");
+    expect(streamActionInTheListingWords(streamUnderAnAction("main", "stopping", "stopping"))).toBe("Stopping");
+    expect(streamActionInTheListingWords(listedStream("main", "running", 4))).toBeNull();
   });
 });
 
@@ -109,6 +123,8 @@ describe("streamNotLoadedReason", () => {
     expect(streamNotLoadedReason(listedStream("main", "stopped", null))).toBe("stopped");
     expect(streamNotLoadedReason(listedStream("main", "failed", null))).toBe("failed");
     expect(streamNotLoadedReason(listedStream("main", "running", null))).toBe("loading");
+    expect(streamNotLoadedReason(streamUnderAnAction("main", "preparing", "compiling"))).toBe("loading");
+    expect(streamNotLoadedReason(streamUnderAnAction("main", "stopping", "stopping"))).toBe("not_loaded");
     expect(streamNotLoadedReason(listedStream("main", "awaiting_restart", null))).toBe("not_loaded");
   });
 });

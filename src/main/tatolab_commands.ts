@@ -4,20 +4,22 @@
 // its answer or a refusal in words, never a thrown error.
 
 import type {
-  PythonForNewEnvironmentsChoice,
+  ProjectCreationQueued,
+  ProjectLogNarrowing,
+  ProjectLogRecordsPage,
+  ProjectRunQueued,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
+  StreamActionFollowed,
   StreamGraphSummary,
-  StreamLogRecordsPage,
   StreamProjectFolderChosenFor,
-  StreamProjectFolderReport,
-  StreamProjectRunOutcome,
   TatolabStatus,
   TatolabStreamActionName,
 } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
-import { isAJsonObject, isAnUnsignedInteger } from "./json_on_the_wire.js";
+import { isAJsonObject } from "./json_on_the_wire.js";
+import type { LocalApiRequestFailure } from "./local_api_client.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import {
   checkForTatolabAppUpdatesOnRequest,
@@ -89,10 +91,15 @@ export function uninstallTatolab(sharedState: TatolabAppSharedState): Promise<Re
   return answerTheWindow("uninstall_tatolab", () => sharedState.tatolabUninstall.uninstallTatolab(sharedState.controller));
 }
 
-/** `read_stream_log_records { stream, after }`: `stream`'s log records numbered after `after`; refused in the runtime's own words. */
-export function readStreamLogRecords(sharedState: TatolabAppSharedState, stream: string, after: number): Promise<Result<StreamLogRecordsPage, string>> {
-  return answerTheWindow("read_stream_log_records", async () => {
-    const page = await sharedState.controller.readStreamLogRecords(stream, after);
+/** `read_project_log_records { project_directory, stream, action, after }`: the project's log records after the cursor `after`, narrowed to `stream` and `action` when they are given; refused in the runtime's own words. */
+export function readProjectLogRecords(
+  sharedState: TatolabAppSharedState,
+  projectDirectory: string,
+  narrowing: ProjectLogNarrowing,
+  after: string | null,
+): Promise<Result<ProjectLogRecordsPage, string>> {
+  return answerTheWindow("read_project_log_records", async () => {
+    const page = await sharedState.controller.readProjectLogRecords(projectDirectory, narrowing, after);
     return page.ok ? page : failedWith(page.failure.failureDescription);
   });
 }
@@ -105,13 +112,34 @@ export function describeStreamGraph(sharedState: TatolabAppSharedState, stream: 
   });
 }
 
-/** `stop_stream`, `start_stream` or `remove_stream { stream }`: the runtime's tool of that name run on `stream`, then a status round whether it acted or refused; its notice or its refusal in its own words. */
-export function runStreamAction(sharedState: TatolabAppSharedState, streamAction: TatolabStreamActionName, stream: string): Promise<Result<string | null, string>> {
-  return answerTheWindow(streamAction, async () => {
-    const notice = await sharedState.controller.runStreamAction(streamAction, stream);
+/** The window's `commandName` answered once the runtime queued its action or refused it, then a status round either way, so the listing shows the action under way; the action's id is read only to check the answer. */
+function answerTheWindowOnceQueued(
+  sharedState: TatolabAppSharedState,
+  commandName: TatolabCommandName,
+  queueTheAction: () => Promise<Result<string, LocalApiRequestFailure>>,
+): Promise<Result<void, string>> {
+  return answerTheWindow(commandName, async () => {
+    const queued = await queueTheAction();
     sharedState.statusPublisher.requestRefresh();
-    return notice.ok ? notice : failedWith(notice.failure.failureDescription);
+    return queued.ok ? succeeded(undefined) : failedWith(queued.failure.failureDescription);
   });
+}
+
+/** `stop_stream` or `start_stream { stream }`: the runtime's tool of that name queued on `stream`, so the listing shows the stream `stopping` or `preparing`; refused in the runtime's own words. */
+export function runStreamAction(sharedState: TatolabAppSharedState, streamAction: TatolabStreamActionName, stream: string): Promise<Result<void, string>> {
+  return answerTheWindowOnceQueued(sharedState, streamAction, () => sharedState.controller.runStreamAction(streamAction, stream));
+}
+
+/** `remove_project { project_directory }`: the runtime's `remove_project` queued on the project, so the listing shows its streams `stopping`; refused in the runtime's own words. */
+export function removeProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<void, string>> {
+  return answerTheWindowOnceQueued(sharedState, "remove_project", () => sharedState.controller.removeProject(projectDirectory));
+}
+
+/** `projectDirectory` when a stream the runtime last listed is from it, so a command naming a folder acts only on a project the runtime holds; refused naming it otherwise. */
+export function projectDirectoryTheRuntimeLastListed(sharedState: TatolabAppSharedState, projectDirectory: string): Result<string, string> {
+  const listedStreams = sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
+  const isListed = listedStreams.some((listedStream) => listedStream.location?.project_directory === projectDirectory);
+  return isListed ? succeeded(projectDirectory) : failedWith(`The runtime lists no stream from ${projectDirectory}.`);
 }
 
 /** `rename_stream { stream, display_name }`: the runtime's `rename_stream` on `stream`, then a status round whether it renamed or refused; refused in the runtime's own words. */
@@ -149,32 +177,34 @@ export function openStreamProjectFolderOnRequest(
   );
 }
 
-/** `choose_stream_project_folder { chosen_for }`: the app's folder dialog, then what the chosen folder holds; `null` when the person cancels. */
-export function chooseStreamProjectFolder(sharedState: TatolabAppSharedState, chosenFor: StreamProjectFolderChosenFor): Promise<Result<StreamProjectFolderReport | null, string>> {
+/** `choose_stream_project_folder { chosen_for }`: the app's folder dialog, answering the chosen folder as the runtime lists a project's; `null` when the person cancels. */
+export function chooseStreamProjectFolder(sharedState: TatolabAppSharedState, chosenFor: StreamProjectFolderChosenFor): Promise<Result<string | null, string>> {
   return answerTheWindow("choose_stream_project_folder", () => sharedState.streamProjectAdding.chooseStreamProjectFolder(chosenFor));
 }
 
-/** `propose_new_stream_project_folder`: the first free `~/streams/hello[-N]` for a new project. */
-export function proposeNewStreamProjectFolder(sharedState: TatolabAppSharedState): Promise<Result<StreamProjectFolderReport, string>> {
-  return answerTheWindow("propose_new_stream_project_folder", async () => succeeded(await sharedState.streamProjectAdding.proposeNewStreamProjectFolder()));
-}
-
-/** `create_stream_project { folder }`: `tatolab new <folder>`, then what the folder holds; refused in the CLI's own words. */
-export function createStreamProject(sharedState: TatolabAppSharedState, folder: string): Promise<Result<StreamProjectFolderReport, string>> {
-  return answerTheWindow("create_stream_project", () => sharedState.streamProjectAdding.createStreamProject(folder));
-}
-
-/** `run_stream_project { folder, stream_function, name }`: `run_stream` on `folder` under the display name `name`, then a status round whether it loaded or was refused. */
-export function runStreamProject(
-  sharedState: TatolabAppSharedState,
-  folder: string,
-  streamFunction: string | null,
-  displayName: string | null,
-): Promise<Result<StreamProjectRunOutcome, string>> {
-  return answerTheWindow("run_stream_project", async () => {
-    const outcome = await sharedState.streamProjectAdding.runStreamProject(folder, streamFunction, displayName);
+/** `create_stream_project { folder }`: the runtime's `create_project` queued in `folder`, or with `null` in a folder it draws, then a status round; refused in the runtime's own words. */
+export function createStreamProject(sharedState: TatolabAppSharedState, folder: string | null): Promise<Result<ProjectCreationQueued, string>> {
+  return answerTheWindow("create_stream_project", async () => {
+    const queued = await sharedState.streamProjectAdding.createStreamProject(folder);
     sharedState.statusPublisher.requestRefresh();
-    return outcome;
+    return queued;
+  });
+}
+
+/** `run_stream_project { folder }`: the runtime's `run_project` queued on `folder`, then a status round; refused in the runtime's own words. */
+export function runStreamProject(sharedState: TatolabAppSharedState, folder: string): Promise<Result<ProjectRunQueued, string>> {
+  return answerTheWindow("run_stream_project", async () => {
+    const queued = await sharedState.streamProjectAdding.runStreamProject(folder);
+    sharedState.statusPublisher.requestRefresh();
+    return queued;
+  });
+}
+
+/** `describe_stream_action { action }`: where the action is, or the runtime's words that it no longer holds it; refused when the runtime could not be asked. */
+export function describeStreamAction(sharedState: TatolabAppSharedState, action: string): Promise<Result<StreamActionFollowed, string>> {
+  return answerTheWindow("describe_stream_action", async (): Promise<Result<StreamActionFollowed, string>> => {
+    const followed = await sharedState.controller.describeStreamAction(action);
+    return followed.ok ? followed : failedWith(followed.failure.failureDescription);
   });
 }
 
@@ -218,13 +248,6 @@ export function setOpenTatolabAtLogin(sharedState: TatolabAppSharedState, enable
     sharedState.statusPublisher.requestRefresh();
     return set;
   });
-}
-
-/** `choose_python_for_new_environments { python }`: make new environments from Tatolab's built-in Python, or from one the person picks in the app's file dialog, then a status round; refused naming why, the choice unchanged. */
-export function choosePythonForNewEnvironments(sharedState: TatolabAppSharedState, python: PythonForNewEnvironmentsChoice): Promise<Result<void, string>> {
-  return answerTheWindowThenRefreshTheStatus(sharedState, "choose_python_for_new_environments", () =>
-    sharedState.streamProjectPythonEnvironments.choosePythonForNewEnvironments(python),
-  );
 }
 
 /** `describe_relays`: every relay the runtime holds and every adapter it can join one through; refused in the runtime's own words. */
@@ -282,15 +305,6 @@ export function configureRelayArgumentsFrom(commandArguments: unknown): Result<{
   return settings.ok ? succeeded({ relay_id: relayId.value, settings: settings.value }) : settings;
 }
 
-/** `choose_python_for_new_environments`'s arguments as the window sends them, or why they are not. */
-export function choosePythonForNewEnvironmentsArgumentsFrom(commandArguments: unknown): Result<{ python: PythonForNewEnvironmentsChoice }, string> {
-  const python = isAJsonObject(commandArguments) ? commandArguments["python"] : undefined;
-  if (python !== "built_in" && python !== "chosen_in_a_file_dialog") {
-    return failedWith("choose_python_for_new_environments needs `python`, built_in or chosen_in_a_file_dialog");
-  }
-  return succeeded({ python });
-}
-
 /** The `{ enabled }` arguments of the command `commandName` as the window sends them, or why they are not. */
 export function enabledArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ enabled: boolean }, string> {
   if (!isAJsonObject(commandArguments) || typeof commandArguments["enabled"] !== "boolean") {
@@ -299,12 +313,30 @@ export function enabledArgumentsFrom(commandName: TatolabCommandName, commandArg
   return succeeded({ enabled: commandArguments["enabled"] });
 }
 
-/** `read_stream_log_records`'s arguments as the window sends them, or why they are not. */
-export function readStreamLogRecordsArgumentsFrom(commandArguments: unknown): Result<{ stream: string; after: number }, string> {
-  if (!isAJsonObject(commandArguments) || typeof commandArguments["stream"] !== "string" || !isAnUnsignedInteger(commandArguments["after"])) {
-    return failedWith("read_stream_log_records needs `stream`, a stream's id, and `after`, a sequence number from 0");
+function isTextOrNull(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+/** `read_project_log_records`'s arguments as the window sends them, or why they are not. */
+export function readProjectLogRecordsArgumentsFrom(
+  commandArguments: unknown,
+): Result<{ projectDirectory: string; narrowing: ProjectLogNarrowing; after: string | null }, string> {
+  if (
+    !isAJsonObject(commandArguments) ||
+    typeof commandArguments["project_directory"] !== "string" ||
+    !isTextOrNull(commandArguments["stream"]) ||
+    !isTextOrNull(commandArguments["action"]) ||
+    !isTextOrNull(commandArguments["after"])
+  ) {
+    return failedWith(
+      "read_project_log_records needs `project_directory`, a project's folder, and `stream`, `action` and `after`, each text or null: a stream's id, a stream action's id, and the cursor of the page before",
+    );
   }
-  return succeeded({ stream: commandArguments["stream"], after: commandArguments["after"] });
+  return succeeded({
+    projectDirectory: commandArguments["project_directory"],
+    narrowing: { stream: commandArguments["stream"], action: commandArguments["action"] },
+    after: commandArguments["after"],
+  });
 }
 
 /** The `{ stream }` arguments of the command `commandName` as the window sends them, or why they are not. */
@@ -342,20 +374,12 @@ export function chooseStreamProjectFolderArgumentsFrom(commandArguments: unknown
   return succeeded({ chosen_for: chosenFor });
 }
 
-/** `run_stream_project`'s arguments as the window sends them, or why they are not. */
-export function runStreamProjectArgumentsFrom(
-  commandArguments: unknown,
-): Result<{ folder: string; stream_function: string | null; name: string | null }, string> {
-  const isTextOrNull = (value: unknown): value is string | null => value === null || typeof value === "string";
-  if (
-    !isAJsonObject(commandArguments) ||
-    typeof commandArguments["folder"] !== "string" ||
-    !isTextOrNull(commandArguments["stream_function"]) ||
-    !isTextOrNull(commandArguments["name"])
-  ) {
-    return failedWith("run_stream_project needs `folder`, a folder chosen in the window, and `stream_function` and `name`, each text or null");
+/** `create_stream_project`'s arguments as the window sends them, or why they are not. */
+export function createStreamProjectArgumentsFrom(commandArguments: unknown): Result<{ folder: string | null }, string> {
+  if (!isAJsonObject(commandArguments) || !isTextOrNull(commandArguments["folder"])) {
+    return failedWith("create_stream_project needs `folder`, a folder chosen in the window, or null for one the runtime draws under ~/streams");
   }
-  return succeeded({ folder: commandArguments["folder"], stream_function: commandArguments["stream_function"], name: commandArguments["name"] });
+  return succeeded({ folder: commandArguments["folder"] });
 }
 
 /** Each command's handler, taking the arguments as the window sent them and answering in the contract's shape. */
@@ -389,11 +413,13 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       quitTheApp();
       return { ok: true, value: null };
     },
-    read_stream_log_records: async (commandArguments) => {
-      const readStreamLogRecordsArguments = readStreamLogRecordsArgumentsFrom(commandArguments);
-      if (!readStreamLogRecordsArguments.ok) return { ok: false, refusal: readStreamLogRecordsArguments.failure };
-      const { stream, after } = readStreamLogRecordsArguments.value;
-      return commandAnswerFrom(await readStreamLogRecords(sharedState, stream, after));
+    read_project_log_records: async (commandArguments) => {
+      const readArguments = readProjectLogRecordsArgumentsFrom(commandArguments);
+      if (!readArguments.ok) return { ok: false, refusal: readArguments.failure };
+      const { projectDirectory, narrowing, after } = readArguments.value;
+      const listedProjectDirectory = projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory);
+      if (!listedProjectDirectory.ok) return { ok: false, refusal: listedProjectDirectory.failure };
+      return commandAnswerFrom(await readProjectLogRecords(sharedState, listedProjectDirectory.value, narrowing, after));
     },
     check_for_tatolab_app_updates: async () => {
       checkForTatolabAppUpdatesOnRequest(sharedState, "window");
@@ -404,12 +430,15 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!describeStreamGraphArguments.ok) return { ok: false, refusal: describeStreamGraphArguments.failure };
       return commandAnswerFrom(await describeStreamGraph(sharedState, describeStreamGraphArguments.value.stream));
     },
-    stop_stream: async (commandArguments) => {
-      const notice = await streamActionOnTheStreamNamedIn(sharedState, "stop_stream", commandArguments);
-      return commandAnswerFrom(notice.ok ? succeeded({ not_recorded_because: notice.value }) : notice);
-    },
+    stop_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "stop_stream", commandArguments)),
     start_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "start_stream", commandArguments)),
-    remove_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "remove_stream", commandArguments)),
+    remove_project: async (commandArguments) => {
+      const projectDirectory = oneTextArgumentFrom("remove_project", commandArguments, "project_directory", "a project's folder as the runtime lists it");
+      if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
+      const listedProjectDirectory = projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory.value);
+      if (!listedProjectDirectory.ok) return { ok: false, refusal: listedProjectDirectory.failure };
+      return commandAnswerOfNothingFrom(await removeProject(sharedState, listedProjectDirectory.value));
+    },
     rename_stream: async (commandArguments) => {
       const renameStreamArguments = renameStreamArgumentsFrom(commandArguments);
       if (!renameStreamArguments.ok) return { ok: false, refusal: renameStreamArguments.failure };
@@ -426,17 +455,20 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!chooseArguments.ok) return { ok: false, refusal: chooseArguments.failure };
       return commandAnswerFrom(await chooseStreamProjectFolder(sharedState, chooseArguments.value.chosen_for));
     },
-    propose_new_stream_project_folder: async () => commandAnswerFrom(await proposeNewStreamProjectFolder(sharedState)),
     create_stream_project: async (commandArguments) => {
-      const folderArguments = folderArgumentsFrom("create_stream_project", commandArguments);
+      const folderArguments = createStreamProjectArgumentsFrom(commandArguments);
       if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
       return commandAnswerFrom(await createStreamProject(sharedState, folderArguments.value.folder));
     },
     run_stream_project: async (commandArguments) => {
-      const runArguments = runStreamProjectArgumentsFrom(commandArguments);
-      if (!runArguments.ok) return { ok: false, refusal: runArguments.failure };
-      const { folder, stream_function, name } = runArguments.value;
-      return commandAnswerFrom(await runStreamProject(sharedState, folder, stream_function, name));
+      const folderArguments = folderArgumentsFrom("run_stream_project", commandArguments);
+      if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
+      return commandAnswerFrom(await runStreamProject(sharedState, folderArguments.value.folder));
+    },
+    describe_stream_action: async (commandArguments) => {
+      const action = oneTextArgumentFrom("describe_stream_action", commandArguments, "action", "a stream action's id");
+      if (!action.ok) return { ok: false, refusal: action.failure };
+      return commandAnswerFrom(await describeStreamAction(sharedState, action.value));
     },
     describe_runtime: async () => commandAnswerFrom(await describeRuntime(sharedState)),
     restart_runtime: async () => commandAnswerOfNothingFrom(await restartRuntime(sharedState)),
@@ -450,11 +482,6 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const enabledArguments = enabledArgumentsFrom("set_open_tatolab_at_login", commandArguments);
       if (!enabledArguments.ok) return { ok: false, refusal: enabledArguments.failure };
       return commandAnswerOfNothingFrom(await setOpenTatolabAtLogin(sharedState, enabledArguments.value.enabled));
-    },
-    choose_python_for_new_environments: async (commandArguments) => {
-      const pythonArguments = choosePythonForNewEnvironmentsArgumentsFrom(commandArguments);
-      if (!pythonArguments.ok) return { ok: false, refusal: pythonArguments.failure };
-      return commandAnswerOfNothingFrom(await choosePythonForNewEnvironments(sharedState, pythonArguments.value.python));
     },
     describe_relays: async () => commandAnswerFrom(await describeRelays(sharedState)),
     add_relay: async (commandArguments) => {
@@ -488,7 +515,7 @@ async function streamActionOnTheStreamNamedIn(
   sharedState: TatolabAppSharedState,
   streamAction: TatolabStreamActionName,
   commandArguments: unknown,
-): Promise<Result<string | null, string>> {
+): Promise<Result<void, string>> {
   const streamArguments = streamArgumentsFrom(streamAction, commandArguments);
   return streamArguments.ok ? runStreamAction(sharedState, streamAction, streamArguments.value.stream) : streamArguments;
 }

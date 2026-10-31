@@ -5,7 +5,7 @@
 // choosing.
 
 import path from "node:path";
-import { STREAM_LOG_FOLDER_IN_THE_PROJECT, type ListedStream } from "../shared/tatolab_backend_contract.js";
+import { PROJECT_LOG_FOLDER_IN_THE_PROJECT, type ListedStream } from "../shared/tatolab_backend_contract.js";
 import type { TerminalOpenedInAFolder } from "./platform/terminal_opened_in_a_folder.js";
 import { failedWith, type Result } from "./result.js";
 
@@ -53,7 +53,7 @@ export async function openStreamProjectFolder(
       );
     case "log_folder_in_the_file_manager": {
       // Stat only: the runtime's log segments in it are never listed or read.
-      const logFolder = path.join(projectFolder, STREAM_LOG_FOLDER_IN_THE_PROJECT);
+      const logFolder = path.join(projectFolder, PROJECT_LOG_FOLDER_IN_THE_PROJECT);
       return openedWhenAnExistingFolder(streamProjectFolderOpeners, logFolder, `${streamDisplayName} has no log folder yet: ${logFolder} is not on this machine.`, openInTheFileManager);
     }
   }

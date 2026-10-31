@@ -5,6 +5,8 @@
 #                                                         would replace the app's own "Tatolab")
 #   Contents/MacOS/moq-relay                              the local relay, which tatolabd runs from
 #                                                         beside itself as two children
+#   Contents/MacOS/uv                                     the runtime's pinned uv, which tatolabd makes
+#                                                         a project's .venv with from beside itself
 #   Contents/Frameworks/tatolab-runtime/<path>            every Mach-O of lend/tatolab/runtime
 #   Contents/Resources/lend/                              the lend, each Mach-O a relative symlink
 #                                                         into Frameworks/tatolab-runtime, precompiled
@@ -13,22 +15,12 @@
 #                                                         loopback HTTP (lib/tatolab/watch)
 #   Contents/Library/LaunchAgents/com.tatolab.tatolabd.plist
 #   Contents/Resources/streamlib-commit                   the streamlib commit the runtime was built from
-#   Contents/MacOS/uv                                     the uv the app makes a project's .venv with
-#   Contents/Frameworks/tatolab-python/<flat name>        every Mach-O of the built-in Python, its path
-#                                                         under Resources/python with / as __: codesign
-#                                                         takes a folder in Frameworks/ whose name holds a
-#                                                         dot (cpython-3.12…, lib/python3.12) for a bundle
-#   Contents/Resources/python/<cpython-…>/                the built-in Python, each Mach-O a relative
-#                                                         symlink into Frameworks/tatolab-python
-# Code signing requires code under MacOS/ or Frameworks/; the lend and the built-in Python keep
-# their shape through the links, which the app follows when it copies the Python out.
+# Code signing requires code under MacOS/ or Frameworks/; the lend keeps its shape through the links.
 #
 # Usage: assemble-tatolab-app-bundle.sh <Tatolab.app> <runtime unit dir> --streamlib-commit SHA
-#                                      --python-toolchain DIR [--local-proof-test-root]
+#                                      [--local-proof-test-root]
 #   --streamlib-commit SHA   the streamlib commit the build resolved; the unit's streamlib-commit
 #                            must name it
-#   --python-toolchain DIR   uv and the built-in Python, as fetch-python-toolchain-for-the-app-build.sh
-#                            lays them out
 #   --local-proof-test-root  the unit must carry the machine-directories-under-a-test-root marker;
 #                            the agent gets TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof and the
 #                            test ports its local relay and loopback HTTP bind (14443, 14445,
@@ -42,18 +34,15 @@ runtime_unit_directory="$(cd "$2" && pwd)"
 shift 2
 local_proof_test_root=false
 resolved_streamlib_commit=""
-python_toolchain_directory=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --streamlib-commit) [ $# -ge 2 ] || usage; resolved_streamlib_commit="$2"; shift ;;
-    --python-toolchain) [ $# -ge 2 ] || usage; python_toolchain_directory="$2"; shift ;;
     --local-proof-test-root) local_proof_test_root=true ;;
     *) usage ;;
   esac
   shift
 done
 [[ "$resolved_streamlib_commit" =~ ^[0-9a-f]{40}$ ]] || usage
-[ -n "$python_toolchain_directory" ] || usage
 
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 launch_agent_template="$repository_root/packaging/launch-agent/com.tatolab.tatolabd.plist"
@@ -73,13 +62,13 @@ processor_interpreter_python_versions=(3.10 3.11 3.12 3.13 3.14)
 
 contents="$app_bundle/Contents"
 [ -x "$contents/MacOS/Tatolab" ] || { echo "$app_bundle has no Contents/MacOS/Tatolab: not a packaged Tatolab.app" >&2; exit 1; }
-for required in bin/tatolabd bin/tatolab bin/moq-relay "lib/tatolab/lend/$lent_runtime_package_relative_to_the_lend" lib/tatolab/watch/index.html; do
+for required in bin/tatolabd bin/tatolab bin/moq-relay bin/uv "lib/tatolab/lend/$lent_runtime_package_relative_to_the_lend" lib/tatolab/watch/index.html; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit $runtime_unit_directory is missing $required" >&2; exit 1; }
 done
 # Anything streamlib adds to the unit would otherwise be left out of the bundle without a word.
 for runtime_unit_entry in "$runtime_unit_directory"/bin/* "$runtime_unit_directory"/lib/tatolab/*; do
   case "${runtime_unit_entry#"$runtime_unit_directory/"}" in
-    bin/tatolabd|bin/tatolab|bin/moq-relay|lib/tatolab/lend|lib/tatolab/watch) ;;
+    bin/tatolabd|bin/tatolab|bin/moq-relay|bin/uv|lib/tatolab/lend|lib/tatolab/watch) ;;
     *) echo "runtime unit $runtime_unit_directory ships ${runtime_unit_entry#"$runtime_unit_directory/"}, which this script does not place in the bundle" >&2; exit 1 ;;
   esac
 done
@@ -105,19 +94,6 @@ else
   }
 fi
 
-[ -x "$python_toolchain_directory/uv" ] || { echo "python toolchain $python_toolchain_directory has no uv" >&2; exit 1; }
-built_in_python_folders=()
-while IFS= read -r -d '' built_in_python_folder; do
-  built_in_python_folders+=("$built_in_python_folder")
-done < <(find "$python_toolchain_directory/python" -mindepth 1 -maxdepth 1 -type d -name 'cpython-*' -print0 2>/dev/null)
-[ "${#built_in_python_folders[@]}" -eq 1 ] || {
-  echo "python toolchain $python_toolchain_directory holds ${#built_in_python_folders[@]} built-in Pythons under python/, not one" >&2
-  exit 1
-}
-built_in_python_source="${built_in_python_folders[0]}"
-built_in_python_folder_name="$(basename "$built_in_python_source")"
-[ -x "$built_in_python_source/bin/python3" ] || { echo "the built-in Python $built_in_python_source has no bin/python3" >&2; exit 1; }
-
 is_mach_o() { [[ "$(file -b "$1")" == Mach-O* ]]; }
 
 # The symlink target from Contents/<link_path_relative_to_contents> to Contents/<target_relative_to_contents>.
@@ -139,13 +115,14 @@ rm -rf "$contents/Frameworks/tatolab-runtime" "$contents/Resources/lend" "$conte
   "$contents/Library/LaunchAgents/com.tatolab.tatolabd.plist" "$contents/Resources/$marker_file_name" \
   "$contents/Resources/$streamlib_commit_file_name" \
   "$contents/MacOS/tatolabd" "$contents/MacOS/tatolab-cli" "$contents/MacOS/moq-relay" \
-  "$contents/MacOS/uv" "$contents/Frameworks/tatolab-python" "$contents/Resources/python"
-mkdir -p "$contents/Frameworks/tatolab-runtime" "$contents/Frameworks/tatolab-python" "$contents/Resources/python" \
+  "$contents/MacOS/uv"
+mkdir -p "$contents/Frameworks/tatolab-runtime" \
   "$contents/Resources" "$contents/Library/LaunchAgents"
 
 install -m 0755 "$runtime_unit_directory/bin/tatolabd" "$contents/MacOS/tatolabd"
 install -m 0755 "$runtime_unit_directory/bin/tatolab" "$contents/MacOS/tatolab-cli"
 install -m 0755 "$runtime_unit_directory/bin/moq-relay" "$contents/MacOS/moq-relay"
+install -m 0755 "$runtime_unit_directory/bin/uv" "$contents/MacOS/uv"
 
 ditto "$lend_source" "$contents/Resources/lend"
 ditto "$watch_page_source" "$contents/Resources/watch"
@@ -179,22 +156,6 @@ for python_version in "${processor_interpreter_python_versions[@]}"; do
     "$contents/Resources/lend"
 done
 
-install -m 0755 "$python_toolchain_directory/uv" "$contents/MacOS/uv"
-ditto "$built_in_python_source" "$contents/Resources/python/$built_in_python_folder_name"
-relocated_python_mach_o_count=0
-while IFS= read -r -d '' built_in_python_file; do
-  is_mach_o "$built_in_python_file" || continue
-  path_in_the_python="${built_in_python_file#"$contents/Resources/python/"}"
-  flat_name_in_frameworks="${path_in_the_python//\//__}"
-  framework_copy="$contents/Frameworks/tatolab-python/$flat_name_in_frameworks"
-  mv "$built_in_python_file" "$framework_copy"
-  ln -s "$(relative_path_from_contents_link "Resources/python/$path_in_the_python" \
-    "Frameworks/tatolab-python/$flat_name_in_frameworks")" "$built_in_python_file"
-  [ -f "$built_in_python_file" ] || { echo "the link at $built_in_python_file does not resolve" >&2; exit 1; }
-  relocated_python_mach_o_count=$((relocated_python_mach_o_count + 1))
-done < <(find "$contents/Resources/python/$built_in_python_folder_name" -type f -print0)
-[ "$relocated_python_mach_o_count" -gt 0 ] || { echo "the built-in Python carried no Mach-O: is $built_in_python_source a macOS build?" >&2; exit 1; }
-
 launch_agent_plist="$contents/Library/LaunchAgents/com.tatolab.tatolabd.plist"
 cp "$launch_agent_template" "$launch_agent_plist"
 if $local_proof_test_root; then
@@ -204,4 +165,4 @@ if $local_proof_test_root; then
 fi
 plutil -lint -s "$launch_agent_plist"
 
-echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: tatolabd, tatolab-cli, moq-relay, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}), preview page in Resources/watch, uv, $built_in_python_folder_name with $relocated_python_mach_o_count Mach-O in Frameworks/tatolab-python$($local_proof_test_root && echo ' (local proof, test root '"$local_proof_test_machine_root"')')"
+echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: tatolabd, tatolab-cli, moq-relay, uv, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}), preview page in Resources/watch$($local_proof_test_root && echo ' (local proof, test root '"$local_proof_test_machine_root"')')"

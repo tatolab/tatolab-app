@@ -4,19 +4,21 @@
 // interleave between the service manager's answers.
 
 import type {
-  PythonForNewEnvironments,
   RuntimeAgentRegistration as RuntimeAgentRegistrationStatus,
 } from "../shared/tatolab_backend_contract.js";
 import type {
   ListedStream,
+  ProjectCreationQueued,
+  ProjectLogNarrowing,
+  ProjectLogRecordsPage,
+  ProjectRunQueued,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
+  StreamActionFollowed,
   StreamGraphSummary,
-  StreamLogRecordsPage,
-  StreamRunAnswer,
   TatolabAppBuild,
   TatolabAppUpdateState,
   TatolabPlatform,
@@ -24,7 +26,7 @@ import type {
   TatolabStreamActionName,
 } from "../shared/tatolab_backend_contract.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
-import { LocalApiClient, type LocalApiRequestFailure, type StreamRunRequest } from "./local_api_client.js";
+import { LocalApiClient, type LocalApiRequestFailure } from "./local_api_client.js";
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { BundledRuntimeRestart } from "./platform/runtime_agent_registration.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
@@ -40,7 +42,7 @@ import { deriveRuntimeState, isARuntimeNotAnswering, theServiceManagerMayHaveGiv
 const LOCAL_API_REQUEST_TIMEOUT_MS = 3_000;
 
 /** How many log records one page the window reads holds. */
-const STREAM_LOG_RECORDS_PER_PAGE = 500;
+const PROJECT_LOG_RECORDS_PER_PAGE = 500;
 
 /** The machine's name, asked of the runtime once each time it comes up. */
 export class MachineNameAskedOncePerRuntimeUpEpisode {
@@ -78,8 +80,6 @@ export interface TatolabAppControllerSources {
   readStreamFailureNotifications: () => StreamFailureNotificationsState;
   /** The `tatolab` CLI's version as read so far this launch, which each status carries. */
   readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion;
-  /** The Python the app makes a project's `.venv` from, which each status carries. */
-  readPythonForNewEnvironments: () => PythonForNewEnvironments;
   tatolabAppLog: TatolabAppLog;
 }
 
@@ -108,7 +108,6 @@ export class TatolabAppController {
     private readonly readTheAppUpdateState: () => TatolabAppUpdateState,
     private readonly readStreamFailureNotifications: () => StreamFailureNotificationsState,
     private readonly readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion,
-    private readonly readPythonForNewEnvironments: () => PythonForNewEnvironments,
     private readonly tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin,
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
@@ -139,7 +138,6 @@ export class TatolabAppController {
       sources.readTheAppUpdateState,
       sources.readStreamFailureNotifications,
       sources.readTheCommandLineToolVersion,
-      sources.readPythonForNewEnvironments,
       sources.platformForThisBuild.tatolabAppOpenedAtLogin,
       sources.tatolabAppLog,
     );
@@ -354,7 +352,6 @@ export class TatolabAppController {
       stream_failure_notifications: this.readStreamFailureNotifications(),
       open_at_login: await this.tatolabAppOpenedAtLogin.readOpenAtLogin(),
       command_line_tool_version: this.readTheCommandLineToolVersion(),
-      python_for_new_environments: this.readPythonForNewEnvironments(),
     };
   }
 
@@ -363,14 +360,19 @@ export class TatolabAppController {
     return this.localApiClient.describeRuntime();
   }
 
-  /** The window's next page of `stream`'s log records: those numbered after `after`. */
-  readStreamLogRecords(stream: string, after: number): Promise<Result<StreamLogRecordsPage, LocalApiRequestFailure>> {
-    return this.localApiClient.readStreamLogRecords(stream, after, STREAM_LOG_RECORDS_PER_PAGE);
+  /** The window's next page of the log of the project in `projectDirectory`, narrowed as `narrowing` asks: the records after the cursor `after`, or the oldest held for `null`. */
+  readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null): Promise<Result<ProjectLogRecordsPage, LocalApiRequestFailure>> {
+    return this.localApiClient.readProjectLogRecords(projectDirectory, narrowing, after, PROJECT_LOG_RECORDS_PER_PAGE);
   }
 
-  /** Run the stream action `streamAction` on `stream`, answering the runtime's notice beside it or `null`. */
-  runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string | null, LocalApiRequestFailure>> {
+  /** Queue the stream action `streamAction` on `stream`, answering the id of the action the runtime queued. */
+  runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string, LocalApiRequestFailure>> {
     return this.localApiClient.runStreamAction(streamAction, stream);
+  }
+
+  /** Queue the removal of every stream the runtime holds from the project in `projectDirectory`, answering the id of the action the runtime queued. */
+  removeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.localApiClient.removeProject(projectDirectory);
   }
 
   /** Show the stream `stream` under `displayName`, through the runtime's `rename_stream`. */
@@ -378,9 +380,19 @@ export class TatolabAppController {
     return this.localApiClient.renameStream(stream, displayName);
   }
 
-  /** Compile the project `streamRunRequest` names and load it, answering `run_stream`'s reply. */
-  runStream(streamRunRequest: StreamRunRequest): Promise<Result<StreamRunAnswer, LocalApiRequestFailure>> {
-    return this.localApiClient.runStream(streamRunRequest);
+  /** Queue a new project's creation and run through the runtime's `create_project`, in `projectDirectory` or, with `null`, a folder the runtime draws. */
+  createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> {
+    return this.localApiClient.createProject(projectDirectory);
+  }
+
+  /** Queue a run of the project in `projectDirectory` through the runtime's `run_project`. */
+  runProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+    return this.localApiClient.runProject(projectDirectory);
+  }
+
+  /** The stream action `action` as the runtime's `describe_stream_action` describes it. */
+  describeStreamAction(action: string): Promise<Result<StreamActionFollowed, LocalApiRequestFailure>> {
+    return this.localApiClient.describeStreamAction(action);
   }
 
   /** Every stream the runtime lists now. */

@@ -13,11 +13,9 @@ export interface StreamGraphReading {
   graphSource: "loaded" | "as_of_the_last_load";
   /** The runtime's words when the last read of the loaded stream was refused; `null` once a read answers. */
   readRefusal: string | null;
-  /** Which load of the stream its log follower last read, as the runtime names it; `null` while it is not loaded. */
-  streamInstance: string | null;
 }
 
-const NOTHING_READ_YET: StreamGraphReading = { graph: null, graphSource: "as_of_the_last_load", readRefusal: null, streamInstance: null };
+const NOTHING_READ_YET: StreamGraphReading = { graph: null, graphSource: "as_of_the_last_load", readRefusal: null };
 
 /**
  * The one reader of the shown stream's graph, which the Overview, Inspect and the graph canvas all show: it reads the
@@ -52,7 +50,7 @@ export class StreamGraphReadings {
     const isTheSameLoadedStream = isLoaded && this.shownStream?.streamId === streamId && this.shownStream.isLoaded;
     this.shownStream = streamId === null ? null : { streamId, isLoaded };
     if (streamId !== null && !isLoaded) {
-      this.updateReading(streamId, { graphSource: "as_of_the_last_load", readRefusal: null, streamInstance: null });
+      this.updateReading(streamId, { graphSource: "as_of_the_last_load", readRefusal: null });
     }
     // Another stream, or a new load, is read at once rather than at the poll's next interval.
     if (!isTheSameLoadedStream) this.graphPoll.stop();
@@ -67,11 +65,6 @@ export class StreamGraphReadings {
   /** Read the shown stream's graph at once, as a new listing of it asks. */
   pollNow(): void {
     this.graphPoll.pollNow();
-  }
-
-  /** The load of `streamId` its log follower read, which the Overview's details name. */
-  rememberStreamInstance(streamId: string, streamInstance: string): void {
-    if (this.readingOf(streamId).streamInstance !== streamInstance) this.updateReading(streamId, { streamInstance });
   }
 
   private updatePolling(): void {
@@ -101,8 +94,7 @@ export class StreamGraphReadings {
     const isUnchanged =
       changedReading.graph === reading.graph &&
       changedReading.graphSource === reading.graphSource &&
-      changedReading.readRefusal === reading.readRefusal &&
-      changedReading.streamInstance === reading.streamInstance;
+      changedReading.readRefusal === reading.readRefusal;
     if (isUnchanged) return;
     this.readingsByStream.set(streamId, changedReading);
     for (const readingListener of this.readingListeners) readingListener();

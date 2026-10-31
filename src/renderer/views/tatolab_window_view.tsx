@@ -14,7 +14,7 @@ import { ControlTooltipProvider } from "../design_system/control_tooltip";
 import { readableExposedPorts } from "../presentation/stream_overview_presentation";
 import { AddStreamFlowOfTheWindow } from "../add_stream_flow_of_the_window";
 import { StreamGraphReadings } from "../stream_graph_readings";
-import { StreamLogReadings } from "../stream_log_readings";
+import { ProjectLogReadings } from "../project_log_readings";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "../window_visibility";
 import { isShowingAStreamPage, streamPagePath, streamPageTabShownAt, type StreamPageNavigationState, type StreamPageTab } from "./stream_page_path";
 import { StreamsPageView } from "./streams_page_view";
@@ -85,16 +85,16 @@ export function mountTatolabWindow(
   };
 
   const streamGraphReadings = new StreamGraphReadings(backend);
-  const streamLogReadings = new StreamLogReadings(backend, (streamId, streamInstance) => streamGraphReadings.rememberStreamInstance(streamId, streamInstance));
+  const projectLogReadings = new ProjectLogReadings(backend);
   const runtimeDescriptionReadings = new RuntimeDescriptionReadings(backend);
   const relayReadings = new RelayReadings(backend);
   streamGraphReadings.setPollingAllowed(isTatolabWindowVisible());
-  streamLogReadings.setPollingAllowed(isTatolabWindowVisible());
+  projectLogReadings.setPollingAllowed(isTatolabWindowVisible());
   runtimeDescriptionReadings.setPollingAllowed(isTatolabWindowVisible());
   relayReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => {
     streamGraphReadings.setPollingAllowed(isVisible);
-    streamLogReadings.setPollingAllowed(isVisible);
+    projectLogReadings.setPollingAllowed(isVisible);
     runtimeDescriptionReadings.setPollingAllowed(isVisible);
     relayReadings.setPollingAllowed(isVisible);
   });
@@ -202,7 +202,7 @@ export function mountTatolabWindow(
       platform,
       statusStore: firstStatusStore,
       streamGraphReadings,
-      streamLogReadings,
+      projectLogReadings,
       addStreamFlow,
       hostedPages,
       windowAppearance,

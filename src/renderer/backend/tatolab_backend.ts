@@ -1,13 +1,14 @@
 import type {
-  PythonForNewEnvironmentsChoice,
+  ProjectLogNarrowing,
+  ProjectLogRecordsPage,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
   StreamGraphSummary,
-  StreamLogRecordsPage,
+  ProjectCreationQueued,
+  ProjectRunQueued,
+  StreamActionFollowed,
   StreamProjectFolderChosenFor,
-  StreamProjectFolderReport,
-  StreamProjectRunOutcome,
   TatolabStatus,
   TatolabStreamActionName,
 } from "../../shared/tatolab_backend_contract";
@@ -32,12 +33,15 @@ export interface TatolabBackend {
   quitTatolabApp(): Promise<void>;
   /** On macOS uninstalls Tatolab and quits at the end, rejecting with the reason when it can't; on Linux rejects with how to. */
   uninstallTatolab(): Promise<void>;
-  readStreamLogRecords(streamId: string, afterSequence: number): Promise<StreamLogRecordsPage>;
+  /** The page of `projectDirectory`'s log after the cursor `after`, from its first record when `null`, narrowed as `narrowing` asks; rejects in the runtime's own words. */
+  readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null): Promise<ProjectLogRecordsPage>;
   describeStreamGraph(streamId: string): Promise<StreamGraphSummary>;
   /** Check for a newer Tatolab and take it if there is one; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
-  /** Stop, start (or retry) or remove `streamId`, resolving with the runtime's notice beside an action it carried out (a stop it could not record) or `null`, and rejecting with its refusal; the new listing arrives as the next status. */
-  runStreamAction(streamAction: TatolabStreamActionName, streamId: string): Promise<string | null>;
+  /** Queue a stop or a start (or retry) of `streamId`, resolving once the runtime has queued it and rejecting with its refusal; the stream's `stopping` or `preparing` arrives as the next status. */
+  runStreamAction(streamAction: TatolabStreamActionName, streamId: string): Promise<void>;
+  /** Queue the removal of every stream the runtime holds from `projectDirectory`, resolving once it is queued and rejecting with its refusal; the streams stopping, then gone, arrive as the next statuses. */
+  removeProject(projectDirectory: string): Promise<void>;
   /** Show the stream `streamId` under `displayName`, resolving once the runtime has recorded it and rejecting with its refusal; the new name arrives as the next status. */
   renameStream(streamId: string, displayName: string): Promise<void>;
   /** Show the project folder the runtime lists for `streamId` in the file manager, rejecting with why it could not. */
@@ -46,18 +50,14 @@ export interface TatolabBackend {
   openTerminalAtStreamProject(streamId: string): Promise<void>;
   /** Show the log folder under the project folder the runtime lists for `streamId` in the file manager, rejecting with why it could not. */
   openStreamLogFolder(streamId: string): Promise<void>;
-  /** Ask the person for a folder in the app's dialog and resolve with what it holds, or `null` when they cancel. A folder it answers is one the window may name. */
-  chooseStreamProjectFolder(chosenFor: StreamProjectFolderChosenFor): Promise<StreamProjectFolderReport | null>;
-  /** The first free `~/streams/hello[-N]` for a new project, which the window may name. */
-  proposeNewStreamProjectFolder(): Promise<StreamProjectFolderReport>;
-  /** Run `tatolab new` in `folder`, then resolve with what it holds; rejects in the CLI's own words. */
-  createStreamProject(folder: string): Promise<StreamProjectFolderReport>;
-  /**
-   * Make `folder`'s `.venv` with the app's uv when it has none that runs, then compile it and load it under `displayName`,
-   * resolving once the runtime answers; rejects with its refusal in its own words, except uv failing to make the `.venv`,
-   * which resolves `python_environment_not_made` in uv's own words.
-   */
-  runStreamProject(folder: string, streamFunction: string | null, displayName: string | null): Promise<StreamProjectRunOutcome>;
+  /** Ask the person for a folder in the app's dialog and resolve with it, its links resolved, or `null` when they cancel. A folder it answers is one the window may name. */
+  chooseStreamProjectFolder(chosenFor: StreamProjectFolderChosenFor): Promise<string | null>;
+  /** Queue `create_project` in `folder`, or with `null` in a folder the runtime draws under `~/streams`, resolving with the action queued and rejecting in the runtime's own words. */
+  createStreamProject(folder: string | null): Promise<ProjectCreationQueued>;
+  /** Queue `run_project` in `folder`, which loads every `@stream` in it, resolving with the action queued and rejecting in the runtime's own words. */
+  runStreamProject(folder: string): Promise<ProjectRunQueued>;
+  /** Where the stream action `action` has got to, or the runtime's words that it no longer holds it; rejects when the runtime does not answer. */
+  describeStreamAction(action: string): Promise<StreamActionFollowed>;
   /** How the running runtime describes itself, rejecting in its own words when it does not answer. */
   describeRuntime(): Promise<RuntimeDescription>;
   /** Stop the runtime and start it again through the service manager, resolving once the service manager has answered and rejecting in its words; the state that follows arrives as the next statuses. */
@@ -68,8 +68,6 @@ export interface TatolabBackend {
   setStreamFailureNotifications(enabled: boolean): Promise<void>;
   /** Have the desktop open Tatolab at login, or stop, resolving once it has and rejecting in its words; what it reports arrives as the next status. */
   setOpenTatolabAtLogin(enabled: boolean): Promise<void>;
-  /** Make new environments from Tatolab's built-in Python, or from one the person picks in the app's file dialog, resolving once it is remembered or the dialog is cancelled and rejecting with why; the choice arrives as the next status. */
-  choosePythonForNewEnvironments(python: PythonForNewEnvironmentsChoice): Promise<void>;
   /** Every relay the runtime holds and every adapter it can join one through, rejecting in the runtime's own words. */
   describeRelays(): Promise<RelaysDescription>;
   /** Add a relay of `adapter` with `settings`, its secrets among them, resolving with the id the runtime gave it and rejecting in the runtime's own words. */

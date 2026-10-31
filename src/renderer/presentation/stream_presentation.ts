@@ -1,9 +1,9 @@
 import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";
 
-/** How strongly a stream's state word reads: plain, with a spinner while it loads, dimmed while stopped, or red with an alert icon when failed. */
+/** How strongly a stream's state word reads: plain, with a spinner while an action works on it, dimmed while stopped, or red with an alert icon when failed. */
 export type StreamStateEmphasis = "plain" | "starting" | "quiet" | "failure";
 
-/** The colour a stream's icon takes: running, failed, or neither (stopped, starting, or a state newer than this app). */
+/** The colour a stream's icon takes: running, failed, or neither (stopped, preparing, stopping, or a state newer than this app). */
 export type StreamStateIconTone = "running" | "failed" | "idle";
 
 /** How a stream's row and title show its state: a word, its emphasis, its icon's tone, and what the word means. */
@@ -28,6 +28,24 @@ export function listedStreamProjectDirectory(stream: ListedStream): string | nul
   return stream.location?.project_directory ?? null;
 }
 
+/** A step of the action under way on a `preparing` or `stopping` stream, in plain words; `null` while the action waits in its project's queue. */
+export function streamActionStepWords(step: string | null): string {
+  switch (step) {
+    case null:
+      return "queued";
+    case "making_the_venv":
+      return "making the environment";
+    case "compiling":
+      return "compiling";
+    case "starting":
+      return "starting";
+    case "stopping":
+      return "stopping";
+    default:
+      return labelUnknownStreamState(step).toLowerCase();
+  }
+}
+
 /** `awaiting_restart` reads `Awaiting restart`. */
 export function labelUnknownStreamState(wireState: string): string {
   const spaced = wireState.replace(/[_-]+/g, " ").trim();
@@ -38,9 +56,20 @@ export function labelUnknownStreamState(wireState: string): string {
 export function presentStreamState(stream: ListedStream): StreamStatePresentation {
   switch (stream.state) {
     case "running":
-      return isStreamLoaded(stream)
-        ? { label: "Running", emphasis: "plain", iconTone: "running", meaning: "Running: its graph is loaded in the runtime." }
-        : { label: "Starting", emphasis: "starting", iconTone: "idle", meaning: "Starting: the runtime is loading its graph." };
+      return { label: "Running", emphasis: "plain", iconTone: "running", meaning: "Running: its graph is loaded in the runtime." };
+    case "preparing": {
+      const stepWords = streamActionStepWords(stream.step);
+      return {
+        label: `Preparing · ${stepWords}`,
+        emphasis: "starting",
+        iconTone: "idle",
+        meaning: stream.step === null ? "Preparing: queued behind its project's earlier actions." : `Preparing: ${stepWords}. It runs once it has loaded.`,
+      };
+    }
+    case "stopping":
+      return stream.step === null
+        ? { label: "Stopping · queued", emphasis: "starting", iconTone: "idle", meaning: "Stopping: queued behind its project's earlier actions." }
+        : { label: "Stopping", emphasis: "starting", iconTone: "idle", meaning: "Stopping: the runtime is unloading it." };
     case "stopped":
       return { label: "Stopped", emphasis: "quiet", iconTone: "idle", meaning: "Stopped: remembered, not loaded. Start loads it again." };
     case "failed":
@@ -52,18 +81,9 @@ export function presentStreamState(stream: ListedStream): StreamStatePresentatio
   }
 }
 
-/**
- * A row's state word once the runtime has answered a stop it could not record: it unloaded the stream, which
- * `list_streams` still lists as running with no graph, so the row reads Stopped rather than Starting.
- */
-export function presentStreamStateAfterAStopNotRecorded(stream: ListedStream): StreamStatePresentation {
-  if (stream.state !== "running" || isStreamLoaded(stream)) return presentStreamState(stream);
-  return { label: "Stopped", emphasis: "quiet", iconTone: "idle", meaning: "Stopped: unloaded, but not recorded stopped, so the runtime loads it again when it restarts." };
-}
-
-/** A stream's state as its row says it after the last action on it: the listing's, or Stopped once a stop could not be recorded. */
-export function presentStreamStateAfterTheLastAction(stream: ListedStream, wasTheLastActionAStopNotRecorded: boolean): StreamStatePresentation {
-  return wasTheLastActionAStopNotRecorded ? presentStreamStateAfterAStopNotRecorded(stream) : presentStreamState(stream);
+/** What a row and a stream page show in place of Stop or Start while the listing shows an action working on the stream, as `Preparing · compiling`; `null` while none does. */
+export function streamActionInTheListingWords(stream: ListedStream): string | null {
+  return stream.state === "preparing" || stream.state === "stopping" ? presentStreamState(stream).label : null;
 }
 
 /** The one action a stream's row leads with: what it asks of the runtime, its word, and what it does. */
@@ -73,7 +93,7 @@ export interface StreamPrimaryActionPresentation {
   meaning: string;
 }
 
-/** Stop for a loaded or loading stream, Start for a stopped one, Retry for a failed one; `null` for a state newer than this app. */
+/** Stop for a running stream, Start for a stopped one, Retry for a failed one; `null` while an action works on it, and for a state newer than this app. */
 export function presentStreamPrimaryAction(stream: ListedStream): StreamPrimaryActionPresentation | null {
   switch (stream.state) {
     case "running":
@@ -92,29 +112,29 @@ export function streamNotLoadedReason(stream: ListedStream): StreamNotLoadedReas
   if (stream.state === "stopped") return "stopped";
   if (stream.state === "failed") return "failed";
   if (isStreamLoaded(stream)) return null;
-  if (stream.state === "running") return "loading";
+  if (stream.state === "running" || stream.state === "preparing") return "loading";
   return "not_loaded";
 }
 
-/** What a row says while its stream action is under way. */
-export function streamActionPendingWords(streamAction: TatolabStreamActionName): string {
+/** An action the window asks of the runtime on a stream: a stop, a start, or the removal of its whole project. */
+export type StreamActionAskedByTheWindow = TatolabStreamActionName | "remove_project";
+
+/** What a row says while its stream action is being asked for, until the listing shows it under way. */
+export function streamActionPendingWords(streamAction: StreamActionAskedByTheWindow): string {
   switch (streamAction) {
     case "stop_stream":
       return "Stopping…";
     case "start_stream":
       return "Starting…";
-    case "remove_stream":
+    case "remove_project":
       return "Removing…";
   }
 }
 
 /** The lead before a refusal in the runtime's words: `Retry was refused:` for the action the person chose. */
-export function streamActionRefusalLead(chosenActionLabel: StreamPrimaryActionPresentation["label"] | "Remove"): string {
+export function streamActionRefusalLead(chosenActionLabel: StreamPrimaryActionPresentation["label"] | "Remove project"): string {
   return `${chosenActionLabel} was refused:`;
 }
-
-/** The lead before the runtime's reason when it stopped a stream but could not record it stopped. */
-export const STOP_NOT_RECORDED_LEAD = "Stopped, but not recorded, so it loads again when the runtime restarts:";
 
 /** `1 stream`, `2,000 lines`. */
 export function countLabel(count: number, singular: string, plural: string): string {
