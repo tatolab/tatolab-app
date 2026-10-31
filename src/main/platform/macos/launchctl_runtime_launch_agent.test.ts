@@ -2,9 +2,14 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { succeeded, type Result } from "../../result.js";
+import { failedWith, succeeded, type Result } from "../../result.js";
 import type { ProgramCompletion } from "../run_program_to_completion.js";
-import { LaunchctlRuntimeLaunchAgent, whyLaunchdGaveUpOnTheJob, type LaunchctlRunner } from "./launchctl_runtime_launch_agent.js";
+import {
+  LaunchctlRuntimeLaunchAgent,
+  whyLaunchdGaveUpOnTheJob,
+  type LaunchctlRunner,
+  type ProcessExitWaiter,
+} from "./launchctl_runtime_launch_agent.js";
 import type { OpenRunner } from "./terminal_app_opened_by_open.js";
 
 const LABEL = "com.tatolab.tatolabd";
@@ -21,7 +26,11 @@ function launchctlExiting(exitStatus: number, standardError = "", standardOutput
 
 const NO_SUCH_SERVICE = launchctlExiting(113, `Could not find service "${LABEL}" in domain for user gui: 501`);
 
-/** launchd's user domain as a fake: it loads the one plist, refuses to while `loginItemsHoldTheAgentOff`, and records every `launchctl` call. */
+/**
+ * launchd's user domain as a fake: it loads the one plist, refuses to while `loginItemsHoldTheAgentOff` or while it holds
+ * the job, and records every `launchctl` call. With `bootoutLeavesTheProcessExiting`, a bootout answers as macOS's does,
+ * with the job still held `SIGTERMed` until its process exits, which the fake's process-exit waiter stands for.
+ */
 class FakeLaunchdUserDomain {
   readonly launchctlCalls: string[] = [];
   jobLoaded = false;
@@ -29,6 +38,26 @@ class FakeLaunchdUserDomain {
   loginItemsHoldTheAgentOff = false;
   kickstartAnswer: Result<ProgramCompletion, string> | null = null;
   printedJob = "";
+  bootoutLeavesTheProcessExiting = false;
+  jobProcessExiting = false;
+  processExitWaiterAnswer: Result<void, string> = succeeded(undefined);
+
+  readonly processExitWaiter: ProcessExitWaiter = async (processId) => {
+    this.launchctlCalls.push(`wait for process ${processId} to exit`);
+    if (!this.processExitWaiterAnswer.ok) return this.processExitWaiterAnswer;
+    if (this.jobProcessExiting && processId === RUNNING_AGENT_PROCESS_ID) {
+      this.jobProcessExiting = false;
+      this.jobLoaded = false;
+    }
+    return succeeded(undefined);
+  };
+
+  private printedJobDescription(): string {
+    if (this.printedJob !== "") return this.printedJob;
+    return this.jobProcessExiting
+      ? LAUNCHCTL_PRINT_OF_THE_RUNNING_AGENT.replace("\tstate = running", "\tstate = SIGTERMed")
+      : LAUNCHCTL_PRINT_OF_THE_RUNNING_AGENT;
+  }
 
   readonly launchctlRunner: LaunchctlRunner = async (launchctlArguments) => {
     const call = launchctlArguments.join(" ");
@@ -36,7 +65,7 @@ class FakeLaunchdUserDomain {
     const [verb] = launchctlArguments;
     switch (verb) {
       case "print":
-        return this.jobLoaded ? launchctlExiting(0, "", this.printedJob) : NO_SUCH_SERVICE;
+        return this.jobLoaded ? launchctlExiting(0, "", this.printedJobDescription()) : NO_SUCH_SERVICE;
       case "enable":
         this.jobEnabled = true;
         return launchctlExiting(0);
@@ -50,7 +79,8 @@ class FakeLaunchdUserDomain {
         return launchctlExiting(0);
       case "bootout":
         if (!this.jobLoaded) return launchctlExiting(3, "Boot-out failed: 3: No such process");
-        this.jobLoaded = false;
+        if (this.bootoutLeavesTheProcessExiting) this.jobProcessExiting = true;
+        else this.jobLoaded = false;
         return launchctlExiting(0);
       case "kickstart":
         if (this.kickstartAnswer !== null) return this.kickstartAnswer;
@@ -79,7 +109,7 @@ async function launchAgentOver(launchd: FakeLaunchdUserDomain, withThePlist = tr
   const plistPath = await launchAgentsFolder(withThePlist);
   return {
     plistPath,
-    launchAgent: new LaunchctlRuntimeLaunchAgent(501, { label: LABEL, plistPath }, launchd.launchctlRunner, runOpen),
+    launchAgent: new LaunchctlRuntimeLaunchAgent(501, { label: LABEL, plistPath }, launchd.launchctlRunner, runOpen, launchd.processExitWaiter),
   };
 }
 
@@ -138,10 +168,74 @@ test("unregistering_disables_the_job_and_boots_it_out_and_a_job_not_loaded_is_al
   const { launchAgent } = await launchAgentOver(launchd);
 
   expect(await launchAgent.unregisterRuntimeAgent()).toEqual(succeeded(undefined));
-  expect(launchd.launchctlCalls).toEqual([`disable ${JOB}`, `bootout ${JOB}`]);
+  expect(launchd.launchctlCalls).toEqual([
+    `disable ${JOB}`,
+    `print ${JOB}`,
+    `bootout ${JOB}`,
+    `wait for process ${RUNNING_AGENT_PROCESS_ID} to exit`,
+    `print ${JOB}`,
+  ]);
   expect(await launchAgent.registrationStatus()).toBe("not_registered");
 
   expect(await launchAgent.unregisterRuntimeAgent()).toEqual(succeeded(undefined));
+});
+
+test("unregistering_answers_only_once_the_booted_out_jobs_process_has_exited_and_launchd_let_the_job_go", async () => {
+  const launchd = new FakeLaunchdUserDomain();
+  launchd.jobLoaded = true;
+  launchd.bootoutLeavesTheProcessExiting = true;
+  const { launchAgent } = await launchAgentOver(launchd);
+
+  expect(await launchAgent.unregisterRuntimeAgent()).toEqual(succeeded(undefined));
+
+  expect(launchd.jobLoaded).toBe(false);
+  expect(launchd.launchctlCalls.slice(2)).toEqual([`bootout ${JOB}`, `wait for process ${RUNNING_AGENT_PROCESS_ID} to exit`, `print ${JOB}`]);
+});
+
+test("unregistering_is_refused_in_words_when_launchd_still_holds_the_job_after_its_process_exited_or_the_exit_cannot_be_waited_for", async () => {
+  const launchd = new FakeLaunchdUserDomain();
+  launchd.jobLoaded = true;
+  launchd.bootoutLeavesTheProcessExiting = true;
+  launchd.printedJob = LAUNCHCTL_PRINT_OF_THE_RUNNING_AGENT.replace(`\tpid = ${RUNNING_AGENT_PROCESS_ID}`, "\tpid = 6000");
+  const { launchAgent } = await launchAgentOver(launchd);
+
+  expect(await launchAgent.unregisterRuntimeAgent()).toEqual(failedWith(`launchd still holds ${JOB} after booting it out`));
+
+  launchd.printedJob = "";
+  launchd.processExitWaiterAnswer = failedWith("caffeinate could not be run: spawn /usr/bin/caffeinate ENOENT");
+  expect(await launchAgent.unregisterRuntimeAgent()).toEqual(
+    failedWith("the runtime's exit could not be waited for: caffeinate could not be run: spawn /usr/bin/caffeinate ENOENT"),
+  );
+});
+
+test("registering_while_launchd_is_still_booting_out_the_job_waits_for_its_process_to_exit_then_bootstraps", async () => {
+  const launchd = new FakeLaunchdUserDomain();
+  launchd.jobLoaded = true;
+  launchd.jobProcessExiting = true;
+  const { launchAgent, plistPath } = await launchAgentOver(launchd);
+
+  expect(await launchAgent.registerRuntimeAgent()).toEqual(succeeded(undefined));
+
+  expect(launchd.launchctlCalls).toEqual([
+    `enable ${JOB}`,
+    `print ${JOB}`,
+    `wait for process ${RUNNING_AGENT_PROCESS_ID} to exit`,
+    `bootstrap gui/501 ${plistPath}`,
+  ]);
+  expect(launchd.jobLoaded && !launchd.jobProcessExiting).toBe(true);
+});
+
+test("unregistering_then_registering_again_loads_the_installers_plist_even_though_launchctl_bootout_answers_before_the_job_is_gone", async () => {
+  const launchd = new FakeLaunchdUserDomain();
+  launchd.jobLoaded = true;
+  launchd.bootoutLeavesTheProcessExiting = true;
+  const { launchAgent, plistPath } = await launchAgentOver(launchd);
+
+  expect(await launchAgent.unregisterRuntimeAgent()).toEqual(succeeded(undefined));
+  expect(await launchAgent.registerRuntimeAgent()).toEqual(succeeded(undefined));
+
+  expect(launchd.launchctlCalls).toContain(`bootstrap gui/501 ${plistPath}`);
+  expect(await launchAgent.registrationStatus()).toBe("enabled");
 });
 
 test("starting_kickstarts_the_job_restarting_kills_it_first_and_launchd_holding_no_job_is_told_apart", async () => {
@@ -182,6 +276,8 @@ test("login_items_opens_at_its_system_settings_pane", async () => {
   expect(await launchAgent.openLoginItemsSettings()).toEqual(succeeded(undefined));
   expect(openCalls).toEqual([["x-apple.systempreferences:com.apple.LoginItems-Settings.extension"]]);
 });
+
+const RUNNING_AGENT_PROCESS_ID = 5242;
 
 /** `launchctl print gui/501/com.tatolab.tatolabd`, trimmed, as macOS 26.7 printed it for the running agent. */
 const LAUNCHCTL_PRINT_OF_THE_RUNNING_AGENT = [
