@@ -36,6 +36,8 @@ function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
+    runtime_install: { kind: "none" },
+    installed_runtime: null,
     ...statusChanges,
   };
 }
@@ -183,7 +185,7 @@ describe("About and Login Items", () => {
     expect(presentAboutCopyright(new Date(2027, 0, 1, 0, 0))).toBe("© 2027 Jonathan Fontanez");
   });
 
-  it("says what Service Management reports of the runtime's entry: listed, waiting for approval, or not listed", () => {
+  it("says what launchd reports of the runtime's entry: listed, waiting for approval, or not listed", () => {
     expect(presentLoginItemsRow(statusWith({ runtime_agent: "requires_approval" }))).toBe(
       "Tatolab is waiting for you to switch it on under Allow in the Background.",
     );

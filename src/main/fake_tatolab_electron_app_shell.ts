@@ -8,7 +8,12 @@ import os from "node:os";
 import path from "node:path";
 import type { StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
-import { FakeRuntimeAgentRegistration, FakeTatolabCommandLineToolLinks, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import {
+  type FakeCarriedRuntimeInstall,
+  FakeRuntimeAgentRegistration,
+  FakeTatolabCommandLineToolLinks,
+  fakeTatolabPlatformForThisBuild,
+} from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { failedWith, succeeded } from "./result.js";
 import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
@@ -59,9 +64,13 @@ export class FakeTatolabElectronAppShell {
   /** The additional data each single-instance lock request handed over, as Electron would carry it. */
   readonly singleInstanceLockAdditionalData: unknown[] = [];
   mainWindowCreationFailure: string | null = null;
+  /** Whether the fake window is on screen: shown and not hidden since. */
+  mainWindowShowing = false;
   readonly runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
   commandLineToolLinks = new FakeTatolabCommandLineToolLinks("/Users/someone/.local/bin/tatolab");
   tatolabUninstall: TatolabUninstall | undefined = undefined;
+  /** The runtime this build carries for the installer, `null` for a build that carries none. */
+  carriedRuntimeInstall: FakeCarriedRuntimeInstall | null = null;
   appUpdatePackaging: TatolabAppUpdatePackaging = { kind: "not_offered", reason: "this fake platform updates nothing" };
   appUpdateFeedForThisBuild: TatolabAppUpdateFeedForThisBuild = { kind: "not_offered", reason: "this fake platform updates nothing" };
   /** The folder the fake dialog answers with; `null` reads as the person cancelling it. */
@@ -94,6 +103,7 @@ export class FakeTatolabElectronAppShell {
         path.join(this.appConfigDirectory, "no-runtime.sock"),
         this.tatolabUninstall,
         this.appUpdatePackaging,
+        this.carriedRuntimeInstall,
       ),
     answerTheWindowsCommands: (tatolabWindowCommandHandlers) => {
       this.tatolabWindowCommandHandlers = tatolabWindowCommandHandlers;
@@ -120,9 +130,16 @@ export class FakeTatolabElectronAppShell {
         this.answerCloseRequest = answerCloseRequest;
         return succeeded({
           unminimize: () => this.records.push({ asked: "unminimize" }),
-          show: () => this.records.push({ asked: "show" }),
+          show: () => {
+            this.mainWindowShowing = true;
+            this.records.push({ asked: "show" });
+          },
           focus: () => this.records.push({ asked: "focus" }),
-          hide: () => this.records.push({ asked: "hide" }),
+          hide: () => {
+            this.mainWindowShowing = false;
+            this.records.push({ asked: "hide" });
+          },
+          isShowing: () => this.mainWindowShowing,
           sendTheWindowAnEvent: (eventChannel, eventPayload) => this.records.push({ asked: "send_window_event", eventChannel, eventPayload }),
         });
       },

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Checks a signed Tatolab.app, or the Tatolab.app inside a .dmg, against the bundle contract:
 # a strict deep signature, every Mach-O and the image signed by Tatolab's Developer ID Application
-# identity with the hardened runtime (never ad-hoc, never another team), no Mach-O outside
-# Contents/MacOS and Contents/Frameworks, every symlink resolving inside the bundle, the launch
-# agent plist, the Info.plist usage strings, the bundled runtime's version against the app's and
-# the streamlib commit it was built from, the lend's CPython 3.10-3.14 bytecode, the runtime's
-# preview page, the runtime's uv beside tatolabd and no Python of the app's own, the entitlements of
-# tatolabd, moq-relay, uv, the app and Electron's helpers, Electron's
-# fuses, the build features the app was built with and the tatolab-app commit they name, and the
-# Service Management addon. Reading the
-# fuses and the build features needs this checkout's node_modules (npm ci).
+# identity with the hardened runtime (never ad-hoc, never another team), no Mach-O outside the app's
+# and the runtime helper's Contents/MacOS and Contents/Frameworks, every symlink resolving inside the
+# bundle, the runtime helper Contents/Helpers/Tatolab Runtime.app and its Info.plist, install.sh,
+# the Info.plist usage strings, the helper's runtime version against the app's and the streamlib
+# commit it was built from, the lend's CPython 3.10-3.14 bytecode, the runtime's preview page, the
+# runtime's uv beside the helper's tatolabd and no Python of the app's own, the entitlements of the
+# helper's tatolabd, moq-relay, uv and tatolab-cli, the app and Electron's helpers, Electron's
+# fuses, and the build features the app was built with and the tatolab-app commit they name.
+# Reading the fuses and the build features needs this checkout's node_modules (npm ci).
 # A stapled target must also pass Gatekeeper.
 #
 # Usage: verify-tatolab-app-bundle.sh <Tatolab.app|file.dmg> [--shipping]
@@ -104,6 +104,8 @@ verify_app_bundle() {
   app_bundle="$(cd "$1" && pwd)"
   canonical_app_bundle="$(cd "$app_bundle" && pwd -P)"
   contents="$app_bundle/Contents"
+  local helper_bundle="$contents/Helpers/Tatolab Runtime.app"
+  local helper_contents="$helper_bundle/Contents"
   echo "verifying $app_bundle"
 
   codesign --verify --deep --strict --verbose=2 "$app_bundle" 2>&1 | sed 's/^/        /' \
@@ -118,40 +120,54 @@ verify_app_bundle() {
   bundle_executable="$(plutil -extract CFBundleExecutable raw -o - "$info_plist" 2>/dev/null || true)"
   [ -n "$bundle_executable" ] && [ -x "$contents/MacOS/$bundle_executable" ] && is_mach_o "$contents/MacOS/$bundle_executable" \
     && pass "the app executable Contents/MacOS/$bundle_executable is present" || fail "the app executable '$bundle_executable' is missing"
+  [ -x "$helper_contents/MacOS/uv" ] && pass "Tatolab Runtime.app's MacOS/uv, beside its tatolabd, is present" \
+    || fail "Tatolab Runtime.app's MacOS/uv is missing: tatolabd makes no project's .venv without it"
+  [ -f "$contents/Resources/install.sh" ] && pass "Resources/install.sh, the runtime's installer, is present" \
+    || fail "Resources/install.sh is missing: the app cannot install its runtime"
+  local helper_info_plist="$helper_contents/Info.plist"
+  [ "$(plutil -extract CFBundleIdentifier raw -o - "$helper_info_plist" 2>/dev/null)" = com.tatolab.runtime ] \
+    && pass "Tatolab Runtime.app's CFBundleIdentifier is com.tatolab.runtime" \
+    || fail "Contents/Helpers/Tatolab Runtime.app is missing or its CFBundleIdentifier is not com.tatolab.runtime"
+  [ "$(plutil -extract CFBundleExecutable raw -o - "$helper_info_plist" 2>/dev/null)" = tatolabd ] \
+    && pass "Tatolab Runtime.app's executable is tatolabd" || fail "Tatolab Runtime.app's CFBundleExecutable is not tatolabd"
   local bundled_executable
   for bundled_executable in tatolabd tatolab-cli moq-relay uv; do
-    [ -x "$contents/MacOS/$bundled_executable" ] && pass "Contents/MacOS/$bundled_executable is present" \
-      || fail "Contents/MacOS/$bundled_executable is missing"
+    [ -x "$helper_contents/MacOS/$bundled_executable" ] && pass "Tatolab Runtime.app's Contents/MacOS/$bundled_executable is present" \
+      || fail "Tatolab Runtime.app's Contents/MacOS/$bundled_executable is missing"
   done
   local app_short_version bundled_tatolabd_version
   app_short_version="$(plutil -extract CFBundleShortVersionString raw -o - "$info_plist" 2>/dev/null || true)"
-  bundled_tatolabd_version="$("$contents/MacOS/tatolabd" --version 2>/dev/null || true)"
+  bundled_tatolabd_version="$("$helper_contents/MacOS/tatolabd" --version 2>/dev/null || true)"
   bundled_tatolabd_version="${bundled_tatolabd_version##* }"
   [ -n "$app_short_version" ] && [ "$bundled_tatolabd_version" = "$app_short_version" ] \
     && pass "the bundled tatolabd is $bundled_tatolabd_version, the app's version" \
     || fail "the bundled tatolabd is '$bundled_tatolabd_version', not the app's version '$app_short_version'"
+  [ "$(plutil -extract CFBundleShortVersionString raw -o - "$helper_info_plist" 2>/dev/null)" = "$app_short_version" ] \
+    && pass "Tatolab Runtime.app's version is the app's" || fail "Tatolab Runtime.app's CFBundleShortVersionString is not the app's '$app_short_version'"
   local bundled_streamlib_commit
-  bundled_streamlib_commit="$(cat "$contents/Resources/streamlib-commit" 2>/dev/null || true)"
+  bundled_streamlib_commit="$(cat "$helper_contents/Resources/streamlib-commit" 2>/dev/null || true)"
   [[ "$bundled_streamlib_commit" =~ ^[0-9a-f]{40}$ ]] \
     && pass "the runtime was built from streamlib $bundled_streamlib_commit" \
-    || fail "Resources/streamlib-commit names no streamlib commit: which runtime this bundles is unknown"
+    || fail "Tatolab Runtime.app's Resources/streamlib-commit names no streamlib commit: which runtime this bundles is unknown"
   plutil -extract NSAppTransportSecurity xml1 -o - "$info_plist" >/dev/null 2>&1 \
     && fail "Info.plist carries Electron's NSAppTransportSecurity exception" || pass "Info.plist carries no App Transport Security exception"
-  local usage_key usage_description
-  while IFS= read -r usage_key; do
-    [ -n "$usage_key" ] || continue
-    case "$(plutil -extract "$usage_key" raw -o - "$info_plist" 2>/dev/null)" in
-      *Tatolab*) ;;
-      *) fail "Info.plist's $usage_key does not name Tatolab" ;;
-    esac
-  done < <(plutil -convert xml1 -o - "$info_plist" | sed -n 's|.*<key>\([A-Za-z]*UsageDescription\)</key>.*|\1|p')
-  for usage_key in "${required_usage_description_keys[@]}"; do
-    usage_description="$(plutil -extract "$usage_key" raw -o - "$info_plist" 2>/dev/null || true)"
-    case "$usage_description" in
-      *Tatolab*) pass "$usage_key names Tatolab" ;;
-      "") fail "Info.plist has no $usage_key" ;;
-      *) fail "$usage_key does not name Tatolab: $usage_description" ;;
-    esac
+  local usage_key usage_description usage_info_plist
+  for usage_info_plist in "$info_plist" "$helper_info_plist"; do
+    while IFS= read -r usage_key; do
+      [ -n "$usage_key" ] || continue
+      case "$(plutil -extract "$usage_key" raw -o - "$usage_info_plist" 2>/dev/null)" in
+        *Tatolab*) ;;
+        *) fail "${usage_info_plist#"$contents/"}'s $usage_key does not name Tatolab" ;;
+      esac
+    done < <(plutil -convert xml1 -o - "$usage_info_plist" 2>/dev/null | sed -n 's|.*<key>\([A-Za-z]*UsageDescription\)</key>.*|\1|p')
+    for usage_key in "${required_usage_description_keys[@]}"; do
+      usage_description="$(plutil -extract "$usage_key" raw -o - "$usage_info_plist" 2>/dev/null || true)"
+      case "$usage_description" in
+        *Tatolab*) pass "${usage_info_plist#"$contents/"}'s $usage_key names Tatolab" ;;
+        "") fail "${usage_info_plist#"$contents/"} has no $usage_key" ;;
+        *) fail "${usage_info_plist#"$contents/"}'s $usage_key does not name Tatolab: $usage_description" ;;
+      esac
+    done
   done
 
   local mach_o_outside_code_directories=0 unhardened_mach_o_count=0 bundle_file path_in_contents
@@ -160,7 +176,7 @@ verify_app_bundle() {
     is_mach_o "$bundle_file" || continue
     path_in_contents="${bundle_file#"$contents/"}"
     case "$path_in_contents" in
-      MacOS/*|Frameworks/*) ;;
+      MacOS/*|Frameworks/*|"Helpers/Tatolab Runtime.app/Contents/MacOS/"*|"Helpers/Tatolab Runtime.app/Contents/Frameworks/"*) ;;
       *) fail "Mach-O outside MacOS/ and Frameworks/: Contents/$path_in_contents"
          mach_o_outside_code_directories=$((mach_o_outside_code_directories + 1)) ;;
     esac
@@ -175,7 +191,7 @@ verify_app_bundle() {
       unhardened_mach_o_count=$((unhardened_mach_o_count + 1))
     fi
   done < <(find "$contents" -type f -print0)
-  [ "$mach_o_outside_code_directories" -eq 0 ] && pass "every Mach-O sits in Contents/MacOS or Contents/Frameworks"
+  [ "$mach_o_outside_code_directories" -eq 0 ] && pass "every Mach-O sits in the app's or the runtime helper's Contents/MacOS or Contents/Frameworks"
   [ "$foreign_signature_count" -eq 0 ] && pass "every Mach-O is signed by Tatolab's Developer ID (team $tatolab_developer_id_team_identifier)"
   [ "$unhardened_mach_o_count" -eq 0 ] && pass "every Mach-O is signed with the hardened runtime"
 
@@ -193,20 +209,20 @@ verify_app_bundle() {
   local lend_mach_o_links=0 lend_link
   while IFS= read -r -d '' lend_link; do
     case "$(cd "$(dirname "$lend_link")" && realpath "$(readlink "$lend_link")")" in
-      "$canonical_app_bundle/Contents/Frameworks/tatolab-runtime/"*) lend_mach_o_links=$((lend_mach_o_links + 1)) ;;
-      *) fail "lend link points outside Frameworks/tatolab-runtime: ${lend_link#"$contents/"}" ;;
+      "$canonical_app_bundle/Contents/Helpers/Tatolab Runtime.app/Contents/Frameworks/tatolab-runtime/"*) lend_mach_o_links=$((lend_mach_o_links + 1)) ;;
+      *) fail "lend link points outside the helper's Frameworks/tatolab-runtime: ${lend_link#"$helper_contents/"}" ;;
     esac
-  done < <(find "$contents/Resources/lend" -type l -print0 2>/dev/null)
-  [ -f "$contents/Resources/lend/tatolab/runtime/_processor_interpreter_bootstrap.py" ] \
-    && pass "Resources/lend carries the runtime package" || fail "Resources/lend has no tatolab/runtime package"
+  done < <(find "$helper_contents/Resources/lend" -type l -print0 2>/dev/null)
+  [ -f "$helper_contents/Resources/lend/tatolab/runtime/_processor_interpreter_bootstrap.py" ] \
+    && pass "the helper's Resources/lend carries the runtime package" || fail "the helper's Resources/lend has no tatolab/runtime package"
 
-  [ ! -e "$contents/Resources/python" ] && [ ! -e "$contents/Frameworks/tatolab-python" ] \
-    && pass "the bundle carries no Python of the app's own" || fail "the bundle carries a Python of the app's own (Resources/python or Frameworks/tatolab-python)"
-  [ "$lend_mach_o_links" -gt 0 ] && pass "Resources/lend links $lend_mach_o_links Mach-O into Frameworks/tatolab-runtime" \
-    || fail "Resources/lend links no Mach-O into Frameworks/tatolab-runtime"
+  [ ! -e "$contents/Resources/python" ] && [ ! -e "$contents/Frameworks/tatolab-python" ] && [ ! -e "$contents/MacOS/uv" ] \
+    && pass "the bundle carries no Python or uv of the app's own" || fail "the bundle carries a Python or uv of the app's own (Resources/python, Frameworks/tatolab-python or MacOS/uv)"
+  [ "$lend_mach_o_links" -gt 0 ] && pass "the helper's Resources/lend links $lend_mach_o_links Mach-O into its Frameworks/tatolab-runtime" \
+    || fail "the helper's Resources/lend links no Mach-O into its Frameworks/tatolab-runtime"
 
-  [ -f "$contents/Resources/watch/index.html" ] \
-    && pass "Resources/watch carries the runtime's preview page" || fail "Resources/watch has no index.html: the runtime serves no preview page"
+  [ -f "$helper_contents/Resources/watch/index.html" ] \
+    && pass "the helper's Resources/watch carries the runtime's preview page" || fail "the helper's Resources/watch has no index.html: the runtime serves no preview page"
 
   local lend_python_source lend_bytecode_cache_tag lend_bytecode_file missing_lend_bytecode_count=0 first_missing_lend_bytecode=""
   while IFS= read -r -d '' lend_python_source; do
@@ -214,13 +230,13 @@ verify_app_bundle() {
       lend_bytecode_file="$(dirname "$lend_python_source")/__pycache__/$(basename "$lend_python_source" .py).$lend_bytecode_cache_tag.pyc"
       if [ ! -f "$lend_bytecode_file" ]; then
         missing_lend_bytecode_count=$((missing_lend_bytecode_count + 1))
-        [ -n "$first_missing_lend_bytecode" ] || first_missing_lend_bytecode="${lend_bytecode_file#"$contents/"}"
+        [ -n "$first_missing_lend_bytecode" ] || first_missing_lend_bytecode="${lend_bytecode_file#"$helper_contents/"}"
       fi
     done
-  done < <(find "$contents/Resources/lend/tatolab/runtime" -name '*.py' -type f -print0 2>/dev/null)
+  done < <(find "$helper_contents/Resources/lend/tatolab/runtime" -name '*.py' -type f -print0 2>/dev/null)
   [ "$missing_lend_bytecode_count" -eq 0 ] \
-    && pass "every .py under Resources/lend/tatolab/runtime has ${required_lend_bytecode_cache_tags[*]} bytecode" \
-    || fail "$missing_lend_bytecode_count .pyc missing under Resources/lend/tatolab/runtime (first: $first_missing_lend_bytecode); a processor interpreter would write it into the signed bundle"
+    && pass "every .py under the helper's Resources/lend/tatolab/runtime has ${required_lend_bytecode_cache_tags[*]} bytecode" \
+    || fail "$missing_lend_bytecode_count .pyc missing under the helper's Resources/lend/tatolab/runtime (first: $first_missing_lend_bytecode); a processor interpreter would write it into the signed bundle"
 
   # One read: stdout is the features, stderr the reasons this build may not ship.
   local packaged_build_features shipping_build_features_refusals_file shipping_build_features_refusals
@@ -234,43 +250,21 @@ verify_app_bundle() {
     && pass "app.asar carries the build features: $(tr '\n' ' ' <<<"$packaged_build_features")" \
     || fail "app.asar's build features are unreadable: $shipping_build_features_refusals"
 
-  local launch_agent_plist="$contents/Library/LaunchAgents/com.tatolab.tatolabd.plist"
-  if plutil -lint -s "$launch_agent_plist" 2>/dev/null; then
-    pass "launch agent plist is valid"
-    [ "$(plutil -extract Label raw -o - "$launch_agent_plist")" = com.tatolab.tatolabd ] \
-      && pass "launch agent Label is com.tatolab.tatolabd" || fail "launch agent Label is not com.tatolab.tatolabd"
-    local bundle_program
-    bundle_program="$(plutil -extract BundleProgram raw -o - "$launch_agent_plist" 2>/dev/null || true)"
-    [ "$bundle_program" = Contents/MacOS/tatolabd ] && [ -x "$app_bundle/$bundle_program" ] \
-      && pass "launch agent BundleProgram is the bundled tatolabd" || fail "launch agent BundleProgram is '$bundle_program'"
-    [ "$(plutil -extract AssociatedBundleIdentifiers.0 raw -o - "$launch_agent_plist" 2>/dev/null)" = com.tatolab.tatolab ] \
-      && pass "launch agent is associated with com.tatolab.tatolab" || fail "launch agent is not associated with com.tatolab.tatolab"
-    # launchd gives an agent 256 open files by default; a runtime with a few streams needs more.
-    agent_open_files_limit="$(plutil -extract SoftResourceLimits.NumberOfFiles raw -o - "$launch_agent_plist" 2>/dev/null || echo 0)"
-    [ "$agent_open_files_limit" -ge 10240 ] \
-      && pass "launch agent may open $agent_open_files_limit files" || fail "launch agent's SoftResourceLimits.NumberOfFiles is ${agent_open_files_limit}, below 10240"
-    if plutil -extract EnvironmentVariables.TATOLAB_TEST_MACHINE_ROOT raw -o - "$launch_agent_plist" >/dev/null 2>&1 \
-      || [ -e "$contents/Resources/machine-directories-under-a-test-root" ] \
-      || ! grep -qx "machineDirectoriesUnderATestRoot=false" <<<"$packaged_build_features"; then
-      if $shipping; then
-        fail "LOCAL PROOF build (test machine root): never ship it"
-      else
-        echo "  note  LOCAL PROOF build: every machine directory lives under TATOLAB_TEST_MACHINE_ROOT"
-        # The app reads the proof runtime's preview page at its test loopback HTTP port, which plays through its test relay.
-        for local_proof_port in TATOLAB_TEST_LOCAL_RELAY_LOOPBACK_PORT=14443 TATOLAB_TEST_LOCAL_RELAY_EVERY_INTERFACE_PORT=14445 TATOLAB_TEST_LOOPBACK_HTTP_PORT=14446; do
-          [ "$(plutil -extract "EnvironmentVariables.${local_proof_port%%=*}" raw -o - "$launch_agent_plist" 2>/dev/null)" = "${local_proof_port#*=}" ] \
-            && pass "local-proof launch agent sets $local_proof_port" || fail "local-proof launch agent does not set $local_proof_port"
-        done
-      fi
+  [ ! -e "$contents/Library/LaunchAgents" ] && pass "the app carries no launch agent of its own: install.sh writes the runtime's" \
+    || fail "Contents/Library/LaunchAgents is present: the runtime is installed by install.sh, never run from the bundle"
+  if [ -e "$helper_contents/Resources/machine-directories-under-a-test-root" ] \
+    || ! grep -qx "machineDirectoriesUnderATestRoot=false" <<<"$packaged_build_features"; then
+    if $shipping; then
+      fail "LOCAL PROOF build (test machine root): never ship it"
     else
-      pass "real machine directories (no test machine root)"
+      echo "  note  LOCAL PROOF build: every machine directory lives under TATOLAB_TEST_MACHINE_ROOT"
     fi
   else
-    fail "launch agent plist missing or invalid: Contents/Library/LaunchAgents/com.tatolab.tatolabd.plist"
+    pass "real machine directories (no test machine root)"
   fi
 
   local signed_code entitlement signed_code_entitlements
-  for signed_code in "$contents/MacOS/tatolabd" "$app_bundle"; do
+  for signed_code in "$helper_bundle" "$app_bundle"; do
     signed_code_entitlements="$(codesign -d --entitlements - --xml "$signed_code" 2>/dev/null || true)"
     for entitlement in "${required_device_entitlements[@]}"; do
       grep -q "<key>$entitlement</key><true/>" <<<"$signed_code_entitlements" \
@@ -281,16 +275,15 @@ verify_app_bundle() {
   signed_code_entitlement_keys="$(entitlement_keys_of "$app_bundle")"
   [ "$signed_code_entitlement_keys" = "$allowed_app_entitlements" ] \
     && pass "the app carries exactly: $allowed_app_entitlements" || fail "the app's entitlements are '$signed_code_entitlement_keys', not '$allowed_app_entitlements'"
-  signed_code_entitlement_keys="$(entitlement_keys_of "$contents/MacOS/tatolabd")"
+  signed_code_entitlement_keys="$(entitlement_keys_of "$helper_bundle")"
   [ "$signed_code_entitlement_keys" = "$allowed_tatolabd_entitlements" ] \
-    && pass "tatolabd carries exactly: $allowed_tatolabd_entitlements" || fail "tatolabd's entitlements are '$signed_code_entitlement_keys', not '$allowed_tatolabd_entitlements'"
-  signed_code_entitlement_keys="$(entitlement_keys_of "$contents/MacOS/uv")"
-  [ -z "$signed_code_entitlement_keys" ] && pass "uv carries no entitlements" || fail "uv's entitlements are '$signed_code_entitlement_keys', not none"
-  if [ -e "$contents/MacOS/moq-relay" ]; then
-    signed_code_entitlement_keys="$(entitlement_keys_of "$contents/MacOS/moq-relay")"
-    [ -z "$signed_code_entitlement_keys" ] \
-      && pass "moq-relay carries no entitlements" || fail "moq-relay's entitlements are '$signed_code_entitlement_keys', not none"
-  fi
+    && pass "Tatolab Runtime.app's tatolabd carries exactly: $allowed_tatolabd_entitlements" || fail "Tatolab Runtime.app's tatolabd's entitlements are '$signed_code_entitlement_keys', not '$allowed_tatolabd_entitlements'"
+  local unentitled_executable
+  for unentitled_executable in "$helper_contents/MacOS/uv" "$helper_contents/MacOS/moq-relay" "$helper_contents/MacOS/tatolab-cli"; do
+    signed_code_entitlement_keys="$(entitlement_keys_of "$unentitled_executable")"
+    [ -z "$signed_code_entitlement_keys" ] && pass "${unentitled_executable#"$contents/"} carries no entitlements" \
+      || fail "${unentitled_executable#"$contents/"}'s entitlements are '$signed_code_entitlement_keys', not none"
+  done
   local helper_app helper_app_count=0 allowed_helper_entitlements
   while IFS= read -r -d '' helper_app; do
     helper_app_count=$((helper_app_count + 1))
@@ -311,10 +304,6 @@ verify_app_bundle() {
     grep -qF "$electron_fuse_state" <<<"$electron_fuse_states" \
       && pass "Electron fuse: $electron_fuse_state" || fail "Electron fuse is not '$electron_fuse_state'"
   done
-  [ -f "$contents/Frameworks/tatolab-app-native/service_management_agent_services.node" ] \
-    && is_mach_o "$contents/Frameworks/tatolab-app-native/service_management_agent_services.node" \
-    && pass "the Service Management addon is in Frameworks/tatolab-app-native" \
-    || fail "no Service Management addon at Contents/Frameworks/tatolab-app-native/service_management_agent_services.node"
   # The asar's header is JSON naming every directory it holds.
   grep -aqF '"electron-updater":{"files"' "$contents/Resources/app.asar" \
     && pass "electron-updater is in app.asar" || fail "app.asar carries no electron-updater"

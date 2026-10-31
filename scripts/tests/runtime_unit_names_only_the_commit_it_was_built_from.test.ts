@@ -26,7 +26,7 @@ unit="$CARGO_TARGET_DIR/tatolab-runtime"
 mkdir -p "$unit/bin" "$unit/lib/tatolab/lend/tatolab/runtime" "$unit/lib/tatolab/watch"
 echo replaced > "$unit/lib/tatolab/watch/index.html"
 [ "$STAND_IN_CARGO_FAILS" = 1 ] && exit 1
-for binary in tatolabd tatolab moq-relay; do echo built > "$unit/bin/$binary"; done
+for binary in tatolabd tatolab moq-relay uv; do echo built > "$unit/bin/$binary"; done
 exit 0
 `;
 

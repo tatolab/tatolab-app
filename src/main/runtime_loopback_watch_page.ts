@@ -8,8 +8,8 @@ import { TATOLAB_APP_BUILD_FEATURES } from "./tatolab_app_build_features.js";
 /** The port a release runtime serves its loopback HTTP on. */
 const RUNTIME_LOOPBACK_HTTP_PORT = 4446;
 
-/** The port a local-proof runtime serves its loopback HTTP on: `assemble-tatolab-app-bundle.sh` gives the local-proof launch agent `TATOLAB_TEST_LOOPBACK_HTTP_PORT=14446`. */
-const LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT = 14446;
+/** The port a local-proof runtime serves its loopback HTTP on, which the app hands the installer as `TATOLAB_TEST_LOOPBACK_HTTP_PORT`. */
+export const LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT = 14446;
 
 /** The path every preview page sits under. */
 const RUNTIME_WATCH_PAGE_PATH_PREFIX = "/watch/";

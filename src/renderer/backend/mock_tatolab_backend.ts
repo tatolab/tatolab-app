@@ -26,6 +26,7 @@ import {
   type StreamActionFollowed,
   type StreamProjectFolderChosenFor,
   type TatolabAppUpdateState,
+  type InstalledRuntime,
   type TatolabPlatform,
   type TatolabStatus,
 } from "../../shared/tatolab_backend_contract";
@@ -117,6 +118,11 @@ const MOCK_CHOSEN_PROJECT_FOLDERS: readonly MockChosenProjectFolder[] = ["ready"
 
 /** The runtime the mock describes: the streamlib release the app bundles, and its build. */
 const MOCK_RUNTIME_VERSION = "0.55.2";
+/** The runtime build the mock's installer runs, and the newer one the mock app carries for `?runtime_install=`. */
+const MOCK_INSTALLED_RUNTIME_BUILD = "0.55.2-ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a";
+const MOCK_CARRIED_RUNTIME_BUILD = "0.56.0-4f1d0c3a9b8e7d6c5b4a39281706f5e4d3c2b1a0";
+/** How long the mock installer takes over each line it writes. */
+const MOCK_INSTALLER_LINE_MILLISECONDS = 900;
 const MOCK_RUNTIME_BUILD_ID = "0.55.2+ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a.eecdc9dbaa1025c25565ca507699ed60";
 
 /** How long the mock runtime has been up as the page opens: 3 days, 2 hours and 14 minutes. */
@@ -163,6 +169,8 @@ export interface MockTatolabOptions {
   doesTheRuntimeKeepNoOwnLog: boolean;
   /** `?restart=refused`: the service manager refuses to restart the runtime. */
   isTheRuntimeRestartRefused: boolean;
+  /** `?runtime_install=installing|failed`: on macOS, the app opens carrying a newer runtime and installs it, or its installer puts the old build back; Try again then installs it. */
+  runtimeInstallScenario: "none" | "installing" | "failed";
   /** `?open_at_login=on|approval|not_offered`: what the desktop reports of opening the app at login; off by default. */
   openAtLogin: TatolabAppOpenAtLogin;
   /** `?notifications=unsupported`: this desktop shows no notifications. */
@@ -262,6 +270,12 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isNoProjectLoadHeld: pageQuery.get("add_action") === "not_held",
     doesTheRuntimeKeepNoOwnLog: pageQuery.get("runtime_log") === "none",
     isTheRuntimeRestartRefused: pageQuery.get("restart") === "refused",
+    runtimeInstallScenario:
+      platform === "macos" && pageQuery.get("runtime_install") === "installing"
+        ? "installing"
+        : platform === "macos" && pageQuery.get("runtime_install") === "failed"
+          ? "failed"
+          : "none",
     openAtLogin: mockOpenAtLogin(pageQuery.get("open_at_login")),
     doesTheDesktopShowNoNotifications: pageQuery.get("notifications") === "unsupported",
     commandLineToolVersion: mockCommandLineToolVersion(pageQuery.get("cli_version")),
@@ -349,6 +363,8 @@ function initialMockStatus(
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: !doesTheDesktopShowNoNotifications },
     open_at_login: openAtLogin,
     command_line_tool_version: commandLineToolVersion,
+    runtime_install: { kind: "none" },
+    installed_runtime: platform === "macos" ? mockInstalledRuntime(machine, MOCK_INSTALLED_RUNTIME_BUILD) : null,
   };
   switch (scenario) {
     case "running":
@@ -397,6 +413,24 @@ function initialMockStatus(
   }
 }
 
+/** The build `runtimeBuild` installed where the installer keeps it on `machine`. */
+function mockInstalledRuntime(machine: MockMachine, runtimeBuild: string): InstalledRuntime {
+  return { build: runtimeBuild, folder: `${machine.homeDirectory}/Library/Application Support/com.tatolab.runtime/${runtimeBuild}` };
+}
+
+/** What the mock installer writes installing `carriedRuntimeBuild` on `machine`, as streamlib's install.sh words it, up to the runtime answering. */
+function mockInstallerLines(machine: MockMachine, carriedRuntimeBuild: string): string[] {
+  const installDirectory = `${machine.homeDirectory}/Library/Application Support/com.tatolab.runtime`;
+  return [
+    "Copying the runtime unit from /Applications/Tatolab.app/Contents/Helpers",
+    `Installing Tatolab ${carriedRuntimeBuild} into ${installDirectory}/${carriedRuntimeBuild}`,
+    "Stopping the runtime",
+    `Starting Tatolab ${carriedRuntimeBuild}`,
+    `Waiting for Tatolab ${carriedRuntimeBuild} to answer`,
+    `Tatolab ${carriedRuntimeBuild} answers, running as the launch agent com.tatolab.tatolabd`,
+  ];
+}
+
 function sleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
@@ -416,6 +450,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     isNoProjectLoadHeld,
     doesTheRuntimeKeepNoOwnLog,
     isTheRuntimeRestartRefused,
+    runtimeInstallScenario,
     streamPageRequestedByANotification,
     usrLocalBinLinkScenario,
     isRememberingFirstRunRefused,
@@ -904,7 +939,37 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }
   };
 
+  /** Install the carried runtime as the app does on opening: the installer's lines one by one, then the new build running, or with `refuses`, the old one put back and the refusal in the installer's words. */
+  const installTheCarriedRuntime = async (refuses: boolean): Promise<void> => {
+    const installedRuntimeBuild = mockStatus.installed_runtime?.build ?? MOCK_INSTALLED_RUNTIME_BUILD;
+    const allInstallerLines = mockInstallerLines(fixtures.machine, MOCK_CARRIED_RUNTIME_BUILD);
+    const installerLines = refuses ? [...allInstallerLines.slice(0, 5), `Tatolab ${MOCK_CARRIED_RUNTIME_BUILD} did not start; putting ${installedRuntimeBuild} back`] : allInstallerLines;
+    publishStatus({ runtime_install: { kind: "installing", carried_runtime_build: MOCK_CARRIED_RUNTIME_BUILD, installer_lines: [] } });
+    for (const [lineIndex, installerLine] of installerLines.entries()) {
+      await sleep(MOCK_INSTALLER_LINE_MILLISECONDS);
+      if (installerLine === "Stopping the runtime") takeRuntimeDown({ runtime_state: "starting" });
+      publishStatus({
+        runtime_install: { kind: "installing", carried_runtime_build: MOCK_CARRIED_RUNTIME_BUILD, installer_lines: installerLines.slice(0, lineIndex + 1) },
+      });
+    }
+    await sleep(MOCK_INSTALLER_LINE_MILLISECONDS);
+    if (refuses) {
+      publishStatus({
+        runtime_install: {
+          kind: "failed",
+          carried_runtime_build: MOCK_CARRIED_RUNTIME_BUILD,
+          installer_lines: installerLines,
+          refusal: `tatolab install: Tatolab ${MOCK_CARRIED_RUNTIME_BUILD}'s service did not start, so ${installedRuntimeBuild} is back in place. See \`launchctl print gui/501/com.tatolab.tatolabd\`.`,
+        },
+      });
+    } else {
+      publishStatus({ runtime_install: { kind: "none" }, installed_runtime: mockInstalledRuntime(fixtures.machine, MOCK_CARRIED_RUNTIME_BUILD) });
+    }
+    startRuntime();
+  };
+
   if (mockStatus.runtime_state === "running") bringRuntimeUp();
+  if (runtimeInstallScenario !== "none") void installTheCarriedRuntime(runtimeInstallScenario === "failed");
   // Opening the app registers the runtime's agent, so first run's runtime comes up as the real one does.
   if (scenario === "setup" && platform === "macos") startRuntime();
 
@@ -1071,6 +1136,13 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       }
       takeRuntimeDown({ runtime_state: "starting" });
       startRuntime();
+    },
+    installTheCarriedRuntimeAgain: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (platform === "linux") throw "This build of Tatolab carries no runtime to install.";
+      if (mockStatus.runtime_install.kind === "installing") throw "The runtime is already being installed.";
+      if (mockStatus.installed_runtime?.build === MOCK_CARRIED_RUNTIME_BUILD) return;
+      await installTheCarriedRuntime(false);
     },
     openRuntimeLogFolder: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

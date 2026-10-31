@@ -1,6 +1,6 @@
 // The tray item, in macOS's menu bar or a Linux panel: the Tatolab mark in this platform's tray
 // image, and a native menu on either click — a disabled status line, "Open Tatolab", the
-// "Run Tatolab" check, "Open Login Items…" while macOS waits for the person's approval, "Check
+// "Run Tatolab" check, held while the runtime installs, "Open Login Items…" while macOS waits for the person's approval, "Check
 // for Updates…" in a packaged app, and "Quit Tatolab".
 
 import type { TatolabAppUpdateState, TatolabStatus } from "../shared/tatolab_backend_contract.js";
@@ -84,6 +84,7 @@ export class TatolabTrayMenu {
   private trayStatusLine = "Starting…";
   private runtimeRemedyItem: TrayMenuItemDescription | null = null;
   private appUpdateItem: { label: string; enabled: boolean } | null = null;
+  private runtimeInstalling = false;
 
   private constructor(
     private readonly trayIconHost: TrayIconHost,
@@ -110,6 +111,7 @@ export class TatolabTrayMenu {
   showStatus(status: TatolabStatus): void {
     this.trayStatusLine = trayStatusLine(status);
     this.runTatolab = status.run_tatolab;
+    this.runtimeInstalling = status.runtime_install.kind === "installing";
     this.runtimeRemedyItem = trayRuntimeRemedyMenuItem(trayRuntimeRemedy(status));
     this.appUpdateItem = appUpdateTrayMenuItemPresentation(status.app_update);
     this.showTheMenu();
@@ -119,7 +121,7 @@ export class TatolabTrayMenu {
     const trayMenuItems: TrayMenuItemDescription[] = [
       { kind: "item", id: "tray_status_line", label: this.trayStatusLine, enabled: false },
       { kind: "item", id: "open_tatolab", label: "Open Tatolab", enabled: true },
-      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: this.runTatolab },
+      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: !this.runtimeInstalling, checked: this.runTatolab },
     ];
     if (this.runtimeRemedyItem !== null) trayMenuItems.push(this.runtimeRemedyItem);
     trayMenuItems.push({ kind: "separator" });

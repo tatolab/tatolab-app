@@ -1,39 +1,49 @@
-// "Uninstall Tatolab…" on macOS, as the installer's `--uninstall` does on Linux: the service and
-// the files go, and the runtime's state directory, `~/Library/Application Support/Tatolab`, stays.
-// A `/usr/local/bin/tatolab` linking into this bundle, which only root may remove, goes first,
-// behind one administrator prompt shown only when that link is there, so a cancelled prompt
-// changes nothing. Then the home folder's link goes, "Run Tatolab" is turned off, which unregisters the
-// runtime's agent and stops the runtime, the app's own config directory is removed, the bundle
-// goes to the Trash, and the app quits. A local-proof build removes its test root instead.
+// "Uninstall Tatolab…" on macOS: the runtime, its launch agent and its links go, and the runtime's
+// state directory, `~/Library/Application Support/Tatolab`, stays. A `/usr/local/bin/tatolab`
+// linking into this bundle or the installed runtime, which only root may remove, goes first, behind
+// one administrator prompt shown only when that link is there, so a cancelled prompt changes
+// nothing. Then "Run Tatolab" is turned off, which unloads the runtime's agent and stops the
+// runtime, the installer's `--uninstall` removes the installed runtime, its agent and its link, the
+// app's own config directory is removed, the bundle goes to the Trash, and the app quits. A
+// local-proof build removes its test root instead of running the installer.
 
 import type { RmOptions } from "node:fs";
 import { readlink, rm } from "node:fs/promises";
 import path from "node:path";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../../result.js";
+import { programSucceeded, type ProgramRunner } from "../run_program_to_completion.js";
 import type { RunTatolabReconciliation } from "../../run_tatolab_switch.js";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
 import type { RunTatolabSwitchToTurnOff, TatolabUninstall } from "../tatolab_uninstall.js";
 import { shellWordForPath, type AdministratorPrompt, type AdministratorPromptFailure } from "./administrator_prompt.js";
-import { appBundleOfTheExecutable, type TatolabMachinePathsOnMacos } from "./tatolab_machine_paths.js";
+import { theInstallersOwnRefusal } from "./runtime_helper_installed_by_streamlibs_installer.js";
+import { appBundleOfTheExecutable, carriedRuntimeInstallerIn, type TatolabMachinePathsOnMacos } from "./tatolab_machine_paths.js";
+
+/** The shell the installer runs under, at its system path. */
+const SYSTEM_SHELL = "/bin/sh";
 
 /** The words the uninstall's administrator prompt shows under "osascript wants to make changes." */
 export const UNINSTALL_ADMINISTRATOR_PROMPT_TEXT = "Tatolab needs to remove the tatolab command from /usr/local/bin to uninstall.";
 
 /**
- * What uninstalling removes outside the app's own folders: a real build's home-folder link while it links into the
- * bundle, with no prompt, after a root script behind one administrator prompt when `/usr/local/bin/tatolab` links into
- * it (`null` when it does not); or a local-proof build's test root, with no prompt.
+ * What uninstalling removes outside the app's own folders: for a real build, what the carried installer at
+ * `runtimeInstaller` installed, with no prompt, after a root script behind one administrator prompt when
+ * `/usr/local/bin/tatolab` links into Tatolab (`null` when it does not); or a local-proof build's test root, with no prompt.
  */
 export type MachineFilesToRemove =
-  | { kind: "this_users_and_the_machines"; homeFolderLink: string | null; removalScriptBehindTheAdministratorPrompt: string | null }
+  | {
+      kind: "this_users_and_the_machines";
+      runtimeInstaller: string;
+      removalScriptBehindTheAdministratorPrompt: string | null;
+    }
   | { kind: "local_proof_test_root"; testMachineRoot: string };
 
 /** The steps uninstalling takes, in the order `uninstallTatolabInOrder` takes them; a fake records them in tests. */
 export interface TatolabUninstallSteps {
   /** Run `removalScript` as root behind one administrator prompt. */
   runBehindTheAdministratorPrompt(removalScript: string): Promise<Result<void, AdministratorPromptFailure>>;
-  /** Remove the home folder's `tatolab` link at `homeFolderLink` while it links into this bundle, with no prompt. */
-  removeTheHomeFolderLink(homeFolderLink: string): Promise<Result<void, string>>;
+  /** Run the installer at `runtimeInstaller` with `--uninstall`, which removes the installed runtime, its agent and its link, with no prompt. */
+  uninstallTheInstalledRuntime(runtimeInstaller: string): Promise<Result<void, string>>;
   /** Remove a local-proof build's test root and everything under it, with no prompt. */
   removeTheLocalProofTestRoot(testMachineRoot: string): Promise<Result<void, string>>;
   /** Turn "Run Tatolab" off, which unregisters the runtime's agent and so stops the runtime. */
@@ -46,12 +56,22 @@ export interface TatolabUninstallSteps {
   quitTheApp(): void;
 }
 
-/** Uninstall Tatolab in order — `machineFiles` first, root's before the rest so a cancelled prompt changes nothing, then the runtime's agent, the app's config directory and its bundle — and quit. The first step that fails stops the rest and is the answer. */
+/**
+ * Uninstall Tatolab in order — root's files first so a cancelled prompt changes nothing, then the runtime's agent, the
+ * rest of `machineFiles`, the app's config directory and its bundle — and quit. The first step that fails stops the
+ * rest and is the answer.
+ */
 export async function uninstallTatolabInOrder(steps: TatolabUninstallSteps, machineFiles: MachineFilesToRemove): Promise<Result<void, string>> {
-  const machineFilesRemoved = await removeTheMachineFiles(steps, machineFiles);
-  if (!machineFilesRemoved.ok) return machineFilesRemoved;
+  if (machineFiles.kind === "this_users_and_the_machines") {
+    const rootsFilesRemoved = await removeWhatOnlyRootMayRemove(steps, machineFiles.removalScriptBehindTheAdministratorPrompt);
+    if (!rootsFilesRemoved.ok) return rootsFilesRemoved;
+  }
   for (const uninstallStep of [
     () => steps.turnRunTatolabOff(),
+    () =>
+      machineFiles.kind === "this_users_and_the_machines"
+        ? steps.uninstallTheInstalledRuntime(machineFiles.runtimeInstaller)
+        : steps.removeTheLocalProofTestRoot(machineFiles.testMachineRoot),
     () => steps.removeTheAppConfigDirectory(),
     () => steps.moveThisAppBundleToTheTrash(),
   ]) {
@@ -60,13 +80,6 @@ export async function uninstallTatolabInOrder(steps: TatolabUninstallSteps, mach
   }
   steps.quitTheApp();
   return succeeded(undefined);
-}
-
-async function removeTheMachineFiles(steps: TatolabUninstallSteps, machineFiles: MachineFilesToRemove): Promise<Result<void, string>> {
-  if (machineFiles.kind === "local_proof_test_root") return steps.removeTheLocalProofTestRoot(machineFiles.testMachineRoot);
-  const rootsFilesRemoved = await removeWhatOnlyRootMayRemove(steps, machineFiles.removalScriptBehindTheAdministratorPrompt);
-  if (!rootsFilesRemoved.ok) return rootsFilesRemoved;
-  return machineFiles.homeFolderLink === null ? succeeded(undefined) : steps.removeTheHomeFolderLink(machineFiles.homeFolderLink);
 }
 
 /** Run `removalScript` behind the administrator prompt; nothing, with no prompt, when there is no script. */
@@ -81,31 +94,49 @@ async function removeWhatOnlyRootMayRemove(steps: TatolabUninstallSteps, removal
   );
 }
 
-/** Whether the link at `linkPath` points into `appBundle`. */
-async function linksIntoTheBundle(linkPath: string, appBundle: string): Promise<boolean> {
+/** Whether the link at `linkPath` points into one of `tatolabFolders`. */
+async function linksIntoTatolab(linkPath: string, tatolabFolders: readonly string[]): Promise<boolean> {
   const linkTarget = await readlink(linkPath).catch(() => null);
-  return linkTarget !== null && linkTarget.startsWith(`${appBundle}/`);
+  return linkTarget !== null && tatolabFolders.some((tatolabFolder) => linkTarget.startsWith(`${tatolabFolder}/`));
 }
 
-/** What uninstalling removes outside the app's own folders for `machinePaths`, the bundle at `appBundle` being the one whose links go. */
+/** What uninstalling removes outside the app's own folders for `machinePaths`, the app being the bundle at `appBundle`. */
 export async function machineFilesToRemove(machinePaths: TatolabMachinePathsOnMacos, appBundle: string): Promise<MachineFilesToRemove> {
   if (machinePaths.localProofTestMachineRoot !== null) {
     return { kind: "local_proof_test_root", testMachineRoot: machinePaths.localProofTestMachineRoot };
   }
+  const tatolabFolders = [appBundle, machinePaths.runtimeInstallDirectory];
   const usrLocalBinLink = machinePaths.commandLineToolUsrLocalBinLink;
-  const usrLocalBinLinkToRemove = usrLocalBinLink !== null && (await linksIntoTheBundle(usrLocalBinLink, appBundle)) ? usrLocalBinLink : null;
+  const usrLocalBinLinkToRemove = usrLocalBinLink !== null && (await linksIntoTatolab(usrLocalBinLink, tatolabFolders)) ? usrLocalBinLink : null;
   return {
     kind: "this_users_and_the_machines",
-    homeFolderLink: machinePaths.commandLineToolHomeFolderLink,
-    removalScriptBehindTheAdministratorPrompt: tatolabUninstallAdministratorShellScript(usrLocalBinLinkToRemove, appBundle),
+    runtimeInstaller: carriedRuntimeInstallerIn(appBundle),
+    removalScriptBehindTheAdministratorPrompt: tatolabUninstallAdministratorShellScript(usrLocalBinLinkToRemove, tatolabFolders),
   };
 }
 
-/** The root shell script uninstalling runs, or `null` with no `/usr/local/bin` link to remove: it removes `usrLocalBinLink` only while it points into `appBundle`. */
-export function tatolabUninstallAdministratorShellScript(usrLocalBinLink: string | null, appBundle: string): string | null {
+/** The root shell script uninstalling runs, or `null` with no `/usr/local/bin` link to remove: it removes `usrLocalBinLink` only while it points into one of `tatolabFolders`. */
+export function tatolabUninstallAdministratorShellScript(usrLocalBinLink: string | null, tatolabFolders: readonly string[]): string | null {
   if (usrLocalBinLink === null) return null;
   const link = shellWordForPath(usrLocalBinLink);
-  return `case "$(readlink ${link})" in ${shellWordForPath(appBundle)}/*) rm -f ${link} ;; esac`;
+  const intoTatolab = tatolabFolders.map((tatolabFolder) => `${shellWordForPath(tatolabFolder)}/*`).join(" | ");
+  return `case "$(readlink ${link})" in ${intoTatolab}) rm -f ${link} ;; esac`;
+}
+
+/** Run the installer at `runtimeInstaller` with `--uninstall` and `installerEnvironment` through `programRunner`; refused in its own words. */
+async function uninstallTheRuntimeWithItsInstaller(
+  programRunner: ProgramRunner,
+  runtimeInstaller: string,
+  installerEnvironment: Readonly<Record<string, string>>,
+): Promise<Result<void, string>> {
+  const uninstalled = await programRunner(SYSTEM_SHELL, [runtimeInstaller, "--uninstall"], {
+    environmentVariablesLeftOut: [],
+    environmentVariablesAdded: installerEnvironment,
+  });
+  if (!uninstalled.ok) return failedWith(`the runtime's installer could not be run: ${uninstalled.failure}`);
+  return programSucceeded(uninstalled.value)
+    ? succeeded(undefined)
+    : failedWith(`the runtime could not be uninstalled: ${theInstallersOwnRefusal(uninstalled.value)}`);
 }
 
 /** Whether turning "Run Tatolab" off left the runtime's launch agent unregistered: only `unregistered` lets the uninstall go on, and any other reconciliation stops it, named. */
@@ -143,12 +174,6 @@ function removeTheDirectoryUnlessAbsent(directory: string): Promise<Result<void,
   return removedOrRefused(directory, { recursive: true, force: true });
 }
 
-/** Remove the link at `linkPath` while it points into `appBundle`; one that is not there, or links elsewhere, is left as it is. */
-async function removeTheLinkIntoTheBundle(linkPath: string, appBundle: string): Promise<Result<void, string>> {
-  if (!(await linksIntoTheBundle(linkPath, appBundle))) return succeeded(undefined);
-  return removedOrRefused(linkPath, { force: true });
-}
-
 /** What uninstalling needs from the app around it: the Trash and quitting. */
 export interface TatolabUninstallAppSurface {
   /** Move `itemPath` to the Trash; refused in the system's words. */
@@ -165,7 +190,7 @@ export class TatolabUninstallOnThisMac implements TatolabUninstall {
    * The uninstall of `machinePaths`, of the app binary at `packagedAppExecutable` — `null` for an
    * unpackaged app, whose bundle is Electron's own and never uninstalled — and of
    * `appConfigDirectory`, named for `appIdentifier`, its machine files removed behind
-   * `administratorPrompt`.
+   * `administratorPrompt` and by the installer `programRunner` runs.
    */
   constructor(
     private readonly machinePaths: TatolabMachinePathsOnMacos,
@@ -173,6 +198,7 @@ export class TatolabUninstallOnThisMac implements TatolabUninstall {
     private readonly appConfigDirectory: string,
     private readonly appIdentifier: string,
     private readonly administratorPrompt: AdministratorPrompt,
+    private readonly programRunner: ProgramRunner,
     private readonly tatolabUninstallAppSurface: TatolabUninstallAppSurface,
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
@@ -194,12 +220,13 @@ export class TatolabUninstallOnThisMac implements TatolabUninstall {
     if (appBundle === null) return failedWith("this Tatolab is not running from Tatolab.app, so there is no app to uninstall");
     const machineFiles = await machineFilesToRemove(this.machinePaths, appBundle);
     this.tatolabAppLog.info("uninstalling Tatolab", { app_bundle: appBundle, machine_files: machineFiles.kind });
-    const { administratorPrompt, tatolabUninstallAppSurface, appConfigDirectory, appIdentifier, tatolabAppLog } = this;
+    const { administratorPrompt, programRunner, machinePaths, tatolabUninstallAppSurface, appConfigDirectory, appIdentifier, tatolabAppLog } = this;
     return uninstallTatolabInOrder(
       {
         runBehindTheAdministratorPrompt: (removalScript) =>
           administratorPrompt.runBehindOneAdministratorPrompt(removalScript, UNINSTALL_ADMINISTRATOR_PROMPT_TEXT),
-        removeTheHomeFolderLink: (homeFolderLink) => removeTheLinkIntoTheBundle(homeFolderLink, appBundle),
+        uninstallTheInstalledRuntime: (runtimeInstaller) =>
+          uninstallTheRuntimeWithItsInstaller(programRunner, runtimeInstaller, machinePaths.runtimeInstallerEnvironment),
         removeTheLocalProofTestRoot: (testMachineRoot) => removeTheDirectoryUnlessAbsent(testMachineRoot),
         turnRunTatolabOff: async () => runTatolabTurnedOff(await runTatolabSwitch.setRunTatolab(false)),
         removeTheAppConfigDirectory: () => removeTheAppConfigDirectoryNamedFor(appConfigDirectory, appIdentifier),

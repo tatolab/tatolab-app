@@ -30,6 +30,7 @@ import { createElectronTrayIconHostFactory } from "./electron_tray_icon.js";
 import { registerTheWindowPageSchemeBeforeReady, serveTheBuiltWindow } from "./electron_window_page_protocol.js";
 
 const tatolabAppLog = createTatolabAppLogToStandardError();
+const tatolabPlatformItems = tatolabPlatformItemsForThisBuild();
 process.on("unhandledRejection", (unhandledRejection) => {
   tatolabAppLog.error("a promise was rejected and nothing handled it", { failure: describeCaughtFailure(unhandledRejection) });
 });
@@ -42,7 +43,6 @@ const builtWindowDirectory = path.join(app.getAppPath(), "out", "renderer");
 const builtWindowPreloadScript = path.join(app.getAppPath(), "out", "preload", "tatolab_window_preload.cjs");
 const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   homeDirectory: app.getPath("home"),
-  appPath: app.getAppPath(),
   appExecutable: process.execPath,
   appIsPackaged: app.isPackaged,
   appConfigDirectory: path.join(app.getPath("appData"), TATOLAB_APP_IDENTIFIER),
@@ -69,7 +69,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
     executableThatOpensTheCopy: process.env["APPIMAGE"] ?? process.execPath,
     appVersion: app.getVersion(),
     appBuild: tatolabAppBuildForTheWindow(TATOLAB_APP_BUILD_FEATURES.tatolabAppBuildId),
-    carriedStreamlibCommit: await streamlibCommitTheAppCarries(process.resourcesPath),
+    carriedStreamlibCommit: await streamlibCommitTheAppCarries(tatolabPlatformItems?.streamlibCommitFileTheAppCarries(process.resourcesPath) ?? null),
   }),
   requestTheSingleInstanceLock: (thisCopy) => app.requestSingleInstanceLock(tatolabAppCopyOnTheSingleInstanceLock(thisCopy)),
   whenReady: async () => {
@@ -117,7 +117,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
 /** The running app, held by this module for the life of the process so the tray is never collected. */
 export const tatolabRunningApp: Promise<TatolabRunningApp | null> = startTatolabApp(
   tatolabElectronAppShell,
-  tatolabPlatformItemsForThisBuild(),
+  tatolabPlatformItems,
   tatolabAppLog,
 ).catch((startFailure: unknown) => {
   tatolabAppLog.error("Tatolab could not start", { failure: describeCaughtFailure(startFailure) });

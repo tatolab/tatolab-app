@@ -1696,3 +1696,61 @@ describe("Settings › Relays", () => {
     expect(document.querySelector('[data-relays-section="runtime-not-running"]')?.textContent).toBe("Relays show here while the runtime runs.");
   });
 });
+
+describe("installing the runtime the app carries", () => {
+  const CARRIED_RUNTIME_BUILD = `0.56.0-4f1d0c3${"a".repeat(33)}`;
+
+  it("fills the window with the installer's lines while it runs, holding every action and shortcut, and gives the window back once it ends", async () => {
+    const { backend, showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=running");
+    const runningStatus = await backend.getTatolabStatus();
+
+    await showStatusAsTheBackendWould({
+      ...runningStatus,
+      runtime_install: { kind: "installing", carried_runtime_build: CARRIED_RUNTIME_BUILD, installer_lines: ["Stopping the runtime", `Starting Tatolab ${CARRIED_RUNTIME_BUILD}`] },
+    });
+
+    const overlay = document.querySelector<HTMLElement>('[data-runtime-install-overlay="installing"]') ?? expect.unreachable("no install overlay");
+    expect(within(overlay).getByRole("heading", { name: "Updating the runtime" })).toBeTruthy();
+    expect(overlay.textContent).toContain("Your streams stop for a moment and come back on it.");
+    expect(document.querySelector("[data-runtime-install-lines]")?.textContent).toBe(`Stopping the runtime\nStarting Tatolab ${CARRIED_RUNTIME_BUILD}`);
+    expect(document.querySelector("[data-runtime-install-action]")).toBeNull();
+    expect(document.querySelector('[data-window-navigation="settings"]')).toBeNull();
+    fireEvent.keyDown(document, { key: ",", metaKey: true });
+    expect(document.querySelector("[data-settings-page]")).toBeNull();
+
+    await showStatusAsTheBackendWould({ ...runningStatus, runtime_install: { kind: "none" } });
+    await waitFor(() => expect(document.querySelector("[data-runtime-install-overlay]")).toBeNull());
+    expect(document.querySelector('[data-window-navigation="settings"]')).not.toBeNull();
+  });
+
+  it("keeps a refusal up in the installer's own words, and Try again runs the installer again", async () => {
+    const installsAgain: string[] = [];
+    const { backend, showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=running", {
+      installTheCarriedRuntimeAgain: async () => {
+        installsAgain.push("try_again");
+      },
+    });
+    const refusal = `tatolab install: Tatolab ${CARRIED_RUNTIME_BUILD}'s service did not start, so 0.55.2 is back in place.`;
+
+    await showStatusAsTheBackendWould({
+      ...(await backend.getTatolabStatus()),
+      runtime_install: { kind: "failed", carried_runtime_build: CARRIED_RUNTIME_BUILD, installer_lines: ["Stopping the runtime"], refusal },
+    });
+
+    const overlay = document.querySelector<HTMLElement>('[data-runtime-install-overlay="failed"]') ?? expect.unreachable("no refused install");
+    expect(within(overlay).getByRole("heading", { name: "The runtime didn't update" })).toBeTruthy();
+    expect(within(overlay).getByRole("alert").textContent).toBe(`The installer said: ${refusal}`);
+    expect(document.querySelector('[data-runtime-install-action="open_log"]')).not.toBeNull();
+    fireEvent.click(document.querySelector<HTMLElement>('[data-runtime-install-action="try_again"]') ?? expect.unreachable("no Try again"));
+    await waitFor(() => expect(installsAgain).toEqual(["try_again"]));
+  });
+
+  it("shows the installed build and its folder in Settings › Runtime", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openSettingsOn("runtime");
+
+    const installedRuntimeRow = document.querySelector<HTMLElement>('[data-settings-row="installed-runtime"]') ?? expect.unreachable("no Installed runtime row");
+    expect(installedRuntimeRow.textContent).toContain("0.55.2 (ec6adf5)");
+    expect(installedRuntimeRow.textContent).toContain("/Users/jonathanf/Library/Application Support/com.tatolab.runtime/0.55.2-ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a");
+  });
+});

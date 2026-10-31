@@ -6,6 +6,7 @@
 // runtime left running from the bundle before an update, and starts checking for updates on its
 // own.
 
+import { notifyTheRuntimeInstallEnded } from "./runtime_install_notifications.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
@@ -93,7 +94,7 @@ export async function startTatolabApp(
 ): Promise<TatolabRunningApp | null> {
   if (platformItems === null) {
     tatolabAppLog.error(
-      "Tatolab runs on macOS and Linux only: on macOS it registers the runtime through Service Management, and on Linux it drives the installer's systemd user service, tatolabd.service",
+      "Tatolab runs on macOS and Linux only: it runs the runtime through the installer's launch agent on macOS and its systemd user service, tatolabd.service, on Linux",
     );
     tatolabElectronAppShell.exitTheApp(1);
     return null;
@@ -174,6 +175,7 @@ export async function startTatolabApp(
     readTheAppUpdateState: () => tatolabAppUpdater.state(),
     readStreamFailureNotifications: () => streamFailureNotifications.stateNow(),
     readTheCommandLineToolVersion: () => tatolabCommandLineToolVersion.versionNow(),
+    whenTheRuntimeInstallProgresses: () => statusPublisherOnceBuilt?.requestRefresh(),
     tatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(
@@ -244,11 +246,11 @@ export async function startTatolabApp(
   statusPublisher.attachTrayMenu(tatolabTrayMenu);
   showTheWindowWithTheLastStatus();
   runInTheBackgroundWithTheController(sharedState, "tatolab-app-opened", async (controller, statusPublisher) => {
-    await controller.reconcileTheAgentWithTheRunTatolabSwitch();
     statusPublisher.startPolling();
     tatolabAppUpdater.startCheckingOnItsOwn(tatolabElectronAppShell.repeatingTimer);
-    await controller.linkTheCommandLineToolInTheHomeFolderAsTheAppOpens();
-    await controller.restartTheBundledRuntimeIfTheAppChanged();
+    const runtimeInstallOutcome = await controller.installTheCarriedRuntimeIfItDiffers();
+    if (!tatolabMainWindow.isShowing()) notifyTheRuntimeInstallEnded(tatolabElectronAppShell.systemNotifications, runtimeInstallOutcome, showTheWindowWithTheLastStatus);
+    await controller.reconcileTheAgentWithTheRunTatolabSwitch();
     statusPublisher.requestRefresh();
   });
   return { tatolabMainWindow, tatolabTrayMenu, statusPublisher };

@@ -44,6 +44,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "describe_stream_action",
   "describe_runtime",
   "restart_runtime",
+  "install_the_carried_runtime_again",
   "open_runtime_log_folder",
   "set_stream_failure_notifications",
   "set_open_tatolab_at_login",
@@ -59,7 +60,7 @@ export const TATOLAB_COMMAND_NAMES = [
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` `{ action }`,
  * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, and `read_project_log_records` and `remove_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
- * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `open_runtime_log_folder` opens the
+ * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `install_the_carried_runtime_again` once the installer ends, refused in its words; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
  */
 export type TatolabCommandName = (typeof TATOLAB_COMMAND_NAMES)[number];
@@ -121,6 +122,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   describe_stream_action: { commandArguments: { action: string }; answer: StreamActionFollowed };
   describe_runtime: { commandArguments: undefined; answer: RuntimeDescription };
   restart_runtime: { commandArguments: undefined; answer: null };
+  install_the_carried_runtime_again: { commandArguments: undefined; answer: null };
   open_runtime_log_folder: { commandArguments: undefined; answer: null };
   /** Refused when the choice could not be remembered, though it holds until the app quits. */
   set_stream_failure_notifications: { commandArguments: { enabled: boolean }; answer: null };

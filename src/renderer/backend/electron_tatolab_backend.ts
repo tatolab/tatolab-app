@@ -67,6 +67,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     restartRuntime: async () => {
       await invokeTatolabCommand("restart_runtime", undefined);
     },
+    installTheCarriedRuntimeAgain: async () => {
+      await invokeTatolabCommand("install_the_carried_runtime_again", undefined);
+    },
     openRuntimeLogFolder: async () => {
       await invokeTatolabCommand("open_runtime_log_folder", undefined);
     },

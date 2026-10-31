@@ -12,6 +12,7 @@ import type { TrayIconImage } from "./tray_icon_image.js";
 import { MACOS_MAIN_WINDOW_CHROME, setMacosDockIconVisible } from "./macos/main_window_chrome.js";
 import { macosTatolabPlatformForThisBuild } from "./macos/macos_tatolab_platform_for_this_build.js";
 import { MACOS_TRAY_ICON_IMAGE } from "./macos/tray_icon_image.js";
+import { streamlibCommitFileTheAppCarriesBeside } from "./macos/tatolab_machine_paths.js";
 import { LINUX_MAIN_WINDOW_CHROME, setLinuxDockIconVisible } from "./linux/main_window_chrome.js";
 import { linuxTatolabPlatformForThisBuild } from "./linux/linux_tatolab_platform_for_this_build.js";
 import { LINUX_TRAY_ICON_IMAGE } from "./linux/tray_icon_image.js";
@@ -23,11 +24,13 @@ export interface TatolabPlatformItems {
   mainWindowChrome: MainWindowChrome;
   applicationMenu: ApplicationMenu;
   setDockIconVisible(dockIconHost: DockIconHost, dockIconVisible: boolean): void;
+  /** The file naming the streamlib commit of the runtime the app carries, found from the app's resources folder; `null` where the app carries none. */
+  streamlibCommitFileTheAppCarries(appResourcesDirectory: string): string | null;
   /** This platform's runtime agent, the command's links, local API socket and uninstall, built from the host's services. */
   tatolabPlatformForThisBuild(tatolabAppLog: TatolabAppLog, tatolabPlatformHostServices: TatolabPlatformHostServices): Promise<TatolabPlatformForThisBuild>;
 }
 
-/** This build's platform items, or `null` on an OS Tatolab does not run on: it registers the runtime through Service Management on macOS and drives the installer's systemd user service on Linux. */
+/** This build's platform items, or `null` on an OS Tatolab does not run on: it drives the launch agent the installer writes on macOS and the systemd user service it writes on Linux. */
 export function tatolabPlatformItemsForThisBuild(): TatolabPlatformItems | null {
   return tatolabPlatformItemsFor(process.platform);
 }
@@ -42,6 +45,7 @@ export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatfo
         mainWindowChrome: MACOS_MAIN_WINDOW_CHROME,
         applicationMenu: "macos_menu_bar",
         setDockIconVisible: setMacosDockIconVisible,
+        streamlibCommitFileTheAppCarries: streamlibCommitFileTheAppCarriesBeside,
         tatolabPlatformForThisBuild: macosTatolabPlatformForThisBuild,
       };
     case "linux":
@@ -51,6 +55,7 @@ export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatfo
         mainWindowChrome: LINUX_MAIN_WINDOW_CHROME,
         applicationMenu: "none",
         setDockIconVisible: setLinuxDockIconVisible,
+        streamlibCommitFileTheAppCarries: () => null,
         tatolabPlatformForThisBuild: linuxTatolabPlatformForThisBuild,
       };
     default:

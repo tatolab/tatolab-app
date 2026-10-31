@@ -45,6 +45,8 @@ function statusListing(streams: ListedStream[] | null): TatolabStatus {
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
+    runtime_install: { kind: "none" },
+    installed_runtime: null,
   };
 }
 

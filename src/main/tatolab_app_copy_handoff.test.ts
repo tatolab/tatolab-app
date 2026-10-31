@@ -5,7 +5,6 @@ import { afterEach, describe, expect, test } from "vitest";
 import type { TatolabAppBuild } from "../shared/tatolab_backend_contract.js";
 import {
   isAnotherBuildOfTatolab,
-  STREAMLIB_COMMIT_FILE_NAME,
   streamlibCommitTheAppCarries,
   tatolabAppCopyHandedOverOnTheSingleInstanceLock,
   tatolabAppCopyOnTheSingleInstanceLock,
@@ -75,19 +74,21 @@ describe("the streamlib commit the app carries", () => {
     for (const resourcesDirectory of resourcesDirectories.splice(0)) await rm(resourcesDirectory, { recursive: true, force: true });
   });
 
-  async function resourcesDirectoryHolding(streamlibCommitFileContents: string | null): Promise<string> {
+  async function streamlibCommitFileHolding(streamlibCommitFileContents: string | null): Promise<string> {
     const resourcesDirectory = await mkdtemp(path.join(os.tmpdir(), "tl-app-resources-"));
     resourcesDirectories.push(resourcesDirectory);
-    if (streamlibCommitFileContents !== null) await writeFile(path.join(resourcesDirectory, STREAMLIB_COMMIT_FILE_NAME), streamlibCommitFileContents);
-    return resourcesDirectory;
+    const streamlibCommitFile = path.join(resourcesDirectory, "streamlib-commit");
+    if (streamlibCommitFileContents !== null) await writeFile(streamlibCommitFile, streamlibCommitFileContents);
+    return streamlibCommitFile;
   }
 
   test("is the commit the file names, without its line ending", async () => {
-    expect(await streamlibCommitTheAppCarries(await resourcesDirectoryHolding("2222222222222222222222222222222222222222\n"))).toBe("2222222222222222222222222222222222222222");
+    expect(await streamlibCommitTheAppCarries(await streamlibCommitFileHolding("2222222222222222222222222222222222222222\n"))).toBe("2222222222222222222222222222222222222222");
   });
 
   test("is none when the app carries no file or an empty one", async () => {
-    expect(await streamlibCommitTheAppCarries(await resourcesDirectoryHolding(null))).toBeNull();
-    expect(await streamlibCommitTheAppCarries(await resourcesDirectoryHolding(""))).toBeNull();
+    expect(await streamlibCommitTheAppCarries(await streamlibCommitFileHolding(null))).toBeNull();
+    expect(await streamlibCommitTheAppCarries(await streamlibCommitFileHolding(""))).toBeNull();
+    expect(await streamlibCommitTheAppCarries(null), "a build that carries no runtime").toBeNull();
   });
 });

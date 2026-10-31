@@ -15,7 +15,7 @@ import { tatolabMachinePathsOnLinuxForThisBuild } from "./tatolab_machine_paths.
 import { LINUX_TATOLAB_UNINSTALL } from "./tatolab_uninstall_refused_on_linux.js";
 import { XTerminalEmulatorOnThePath } from "./x_terminal_emulator_on_the_path.js";
 
-/** The installer's systemd user unit, the command as the installer linked it, and how this package updates; the installer installs the runtime, so the app restarts none. */
+/** The installer's systemd user unit, the command as the installer linked it, and how this package updates; the installer installs the runtime, and the app carries none to install. */
 export async function linuxTatolabPlatformForThisBuild(
   tatolabAppLog: TatolabAppLog,
   { appIsPackaged, appExecutable }: TatolabPlatformHostServices,
@@ -34,7 +34,7 @@ export async function linuxTatolabPlatformForThisBuild(
     localApiSocket: machinePaths.localApiSocket,
     tatolabUninstall: LINUX_TATOLAB_UNINSTALL,
     appUpdatePackaging,
-    bundledRuntimeRestart: null,
+    carriedRuntimeInstall: null,
     terminalOpenedInAFolder: new XTerminalEmulatorOnThePath(),
     tatolabCommandLineTool: tatolabCommandLineToolAt(machinePaths.commandLineToolLink),
     tatolabAppOpenedAtLogin: tatolabAppOpenedAtLoginOnLinux(appUpdatePackaging, appExecutable, process.env["XDG_CONFIG_HOME"], os.homedir(), tatolabAppLog),

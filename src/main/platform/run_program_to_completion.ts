@@ -31,9 +31,10 @@ export function programsOwnWordsOrHowItEnded(programName: string, programComplet
   return standardError === "" ? `${programName} ended with ${describeHowTheProgramEnded(programCompletion)}` : standardError;
 }
 
-/** How a program runs beyond its arguments: the app's own environment variables it is started without. */
+/** How a program runs beyond its arguments: the app's own environment variables it is started without, and any it is started with besides. */
 export interface ProgramRunOptions {
   readonly environmentVariablesLeftOut: readonly string[];
+  readonly environmentVariablesAdded?: Readonly<Record<string, string>>;
 }
 
 /** Runs a program to its end, as `runProgramToCompletion` does; a test's fake answers as the program would. */
@@ -58,7 +59,7 @@ export function runProgramToCompletion(
     // execFile throws at once for arguments it refuses, such as one holding a NUL byte, and for a
     // spawn failure outside the few it reports through the callback.
     try {
-      const environment = environmentWithout(programRunOptions.environmentVariablesLeftOut);
+      const environment = { ...environmentWithout(programRunOptions.environmentVariablesLeftOut), ...programRunOptions.environmentVariablesAdded };
       execFile(programPath, programArguments, { encoding: "utf8", env: environment }, (executionFailure, standardOutput, standardError) => {
         if (executionFailure === null) {
           settle(succeeded({ exitStatus: 0, endingSignal: null, standardOutput, standardError }));

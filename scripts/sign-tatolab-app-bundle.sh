@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Signs an assembled Tatolab.app inside-out with the Developer ID, the hardened runtime and a secure
-# timestamp: every loose Mach-O in Contents/Frameworks (the runtime's dylibs, the app's Service
-# Management addon, Electron's libraries), each framework, each Electron helper app,
-# Contents/MacOS/tatolabd, Contents/MacOS/tatolab-cli, Contents/MacOS/moq-relay and the runtime's
-# Contents/MacOS/uv, then the app.
+# timestamp. The runtime's helper, Contents/Helpers/Tatolab Runtime.app, first: every Mach-O in its
+# Frameworks (the runtime's dylibs), its tatolab-cli, moq-relay and uv, then the helper itself, whose
+# main executable is tatolabd, with the device entitlements; install.sh copies it out whole, so its
+# own signature is what macOS checks the installed runtime against. Then the app: every loose Mach-O
+# in Contents/Frameworks (Electron's libraries), each framework, each Electron helper app, then the
+# app.
 #
 # Usage: sign-tatolab-app-bundle.sh <Tatolab.app> <identity>
 #   identity  the "Developer ID Application: … (TEAMID)" identity from Infisical, in a keychain
@@ -24,14 +26,30 @@ app_entitlements="$repository_root/packaging/entitlements/tatolab-app.entitlemen
 renderer_helper_entitlements="$repository_root/packaging/entitlements/tatolab-renderer-helper.entitlements"
 tatolabd_entitlements="$repository_root/packaging/entitlements/tatolabd.entitlements"
 
-for required in MacOS/Tatolab MacOS/tatolabd MacOS/tatolab-cli MacOS/moq-relay MacOS/uv Frameworks/tatolab-runtime Frameworks/tatolab-app-native \
-  "Frameworks/Electron Framework.framework" Library/LaunchAgents/com.tatolab.tatolabd.plist; do
+helper_bundle="$contents/Helpers/Tatolab Runtime.app"
+helper_contents="$helper_bundle/Contents"
+for required in MacOS/Tatolab "Frameworks/Electron Framework.framework" \
+  Resources/install.sh "Helpers/Tatolab Runtime.app/Contents/Info.plist" "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolabd" \
+  "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolab-cli" "Helpers/Tatolab Runtime.app/Contents/MacOS/moq-relay" \
+  "Helpers/Tatolab Runtime.app/Contents/MacOS/uv" "Helpers/Tatolab Runtime.app/Contents/Frameworks/tatolab-runtime"; do
   [ -e "$contents/$required" ] || { echo "$app_bundle is not assembled: Contents/$required is missing" >&2; exit 1; }
 done
 
 codesign_common_arguments=(--force --options runtime --timestamp --sign "$signing_identity")
 
 is_mach_o() { [[ "$(file -b "$1")" == Mach-O* ]]; }
+
+helper_mach_o_count=0
+while IFS= read -r -d '' helper_framework_file; do
+  is_mach_o "$helper_framework_file" || continue
+  codesign "${codesign_common_arguments[@]}" "$helper_framework_file"
+  helper_mach_o_count=$((helper_mach_o_count + 1))
+done < <(find "$helper_contents/Frameworks" -type f -print0)
+codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.tatolab-cli "$helper_contents/MacOS/tatolab-cli"
+codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.moq-relay "$helper_contents/MacOS/moq-relay"
+codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.runtime-uv "$helper_contents/MacOS/uv"
+codesign "${codesign_common_arguments[@]}" --entitlements "$tatolabd_entitlements" "$helper_bundle"
+codesign --verify --deep --strict "$helper_bundle"
 
 loose_framework_mach_o_count=0
 while IFS= read -r -d '' framework_file; do
@@ -57,12 +75,7 @@ while IFS= read -r -d '' helper_app; do
   helper_app_count=$((helper_app_count + 1))
 done < <(find "$contents/Frameworks" -maxdepth 1 -name '*.app' -print0)
 
-codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.tatolabd \
-  --entitlements "$tatolabd_entitlements" "$contents/MacOS/tatolabd"
-codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.tatolab-cli "$contents/MacOS/tatolab-cli"
-codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.moq-relay "$contents/MacOS/moq-relay"
-codesign "${codesign_common_arguments[@]}" --identifier com.tatolab.uv "$contents/MacOS/uv"
 codesign "${codesign_common_arguments[@]}" --entitlements "$app_entitlements" "$app_bundle"
 
 codesign --verify --deep --strict "$app_bundle"
-echo "signed $app_bundle with the Developer ID: $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count helper apps, tatolabd, tatolab-cli, moq-relay, uv, the app"
+echo "signed $app_bundle with the Developer ID: Tatolab Runtime.app ($helper_mach_o_count Mach-O in its Frameworks, tatolab-cli, moq-relay, uv, tatolabd), $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count Electron helper apps, the app"
