@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  AddStreamFlowOfTheWindow,
-  MOST_FAILED_PROJECT_LOAD_READS_IN_A_ROW,
-  PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS,
-  type AddStreamBackend,
-} from "./add_stream_flow_of_the_window";
+import { AddStreamFlowOfTheWindow, type AddStreamBackend } from "./add_stream_flow_of_the_window";
+import { MOST_FAILED_STREAM_ACTION_READS_IN_A_ROW, STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS } from "./stream_action_following";
 import type { StreamActionDescription, StreamActionFollowed } from "../shared/tatolab_backend_contract";
 
 const HALLWAYS = "/Users/someone/code/hallways";
@@ -78,15 +74,15 @@ describe("the window's add-project flow", () => {
     expect(foldersRun).toEqual([HALLWAYS]);
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following", stepsSeen: ["Queued"] });
 
-    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS);
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following", stepsSeen: ["Queued", "Compiling"] });
-    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS);
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following" });
-    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS);
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", ending: { kind: "done", description: HALLWAYS_DONE } });
 
     const readsAtTheEnd = actionsDescribed.length;
-    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS * 3);
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS * 3);
     expect(actionsDescribed).toHaveLength(readsAtTheEnd);
     expect(actionsDescribed.every((action) => action === "R1-3")).toBe(true);
     expect(addStreamFlow.readRunNotice()).toBeNull();
@@ -118,9 +114,9 @@ describe("the window's add-project flow", () => {
     addStreamFlow.closeDialog();
     expect(addStreamFlow.readRunNotice()).toMatchObject({ kind: "following", description: { state: "queued" } });
 
-    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS);
     expect(addStreamFlow.readRunNotice()).toMatchObject({ kind: "following", description: { step: "starting" } });
-    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS);
     expect(addStreamFlow.readRunNotice()).toMatchObject({ kind: "ended", ending: { kind: "done" } });
 
     addStreamFlow.openDialog("project_folder", true);
@@ -139,7 +135,7 @@ describe("the window's add-project flow", () => {
     await importHallways(addStreamFlow);
     addStreamFlow.closeDialog();
     addStreamFlow.dismissRunNotice();
-    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS);
     expect(addStreamFlow.readRunNotice()).toBeNull();
 
     addStreamFlow.openDialog("new_project", false);
@@ -147,7 +143,7 @@ describe("the window's add-project flow", () => {
     addStreamFlow.closeDialog();
     addStreamFlow.dismissRunNotice();
 
-    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS);
     expect(addStreamFlow.readRunNotice()).toEqual({
       kind: "failed",
       source: "project_folder",
@@ -164,7 +160,7 @@ describe("the window's add-project flow", () => {
     const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
     await importHallways(addStreamFlow);
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", ending: { kind: "no_longer_followed", words } });
-    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS * 2);
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS * 2);
     expect(actionsDescribed).toEqual(["R1-3"]);
   });
 
@@ -173,11 +169,11 @@ describe("the window's add-project flow", () => {
     const { backend, actionsDescribed } = scriptedBackend([null]);
     const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
     await importHallways(addStreamFlow);
-    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS * (MOST_FAILED_PROJECT_LOAD_READS_IN_A_ROW - 2));
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS * (MOST_FAILED_STREAM_ACTION_READS_IN_A_ROW - 2));
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following" });
-    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS);
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", ending: { kind: "no_longer_followed", words: "Tatolab could not read the load: no runtime answers" } });
-    expect(actionsDescribed).toHaveLength(MOST_FAILED_PROJECT_LOAD_READS_IN_A_ROW);
+    expect(actionsDescribed).toHaveLength(MOST_FAILED_STREAM_ACTION_READS_IN_A_ROW);
   });
 
   it("opens on the load under way however the dialog is opened, and follows a load queued while the dialog was closed and reopened", async () => {
@@ -204,7 +200,7 @@ describe("the window's add-project flow", () => {
     pendingRun.answer?.();
     await vi.advanceTimersByTimeAsync(0);
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following", form: { source: "project_folder" }, queued: { action: "R1-3" } });
-    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS);
     expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", ending: { kind: "done" } });
     expect(addStreamFlow.readOpenDialog()).toEqual({ source: "project_folder", isOpenedFromARunNotice: false });
 

@@ -570,15 +570,15 @@ export function createMockStreamRunFromAProjectFolder(machine: MockMachine, proj
 export const MOCK_RUNTIME_ID = "Rmockruntime7f3k2q9x4w1b8n";
 
 /** The record a draft of the log of the stream `streamId` becomes once stamped against the stream's load time under the stream action `action`, with its JSONL line as the runtime writes it. */
-export function stampMockLogRecord(draft: MockLogRecordDraft, action: string, loadedAtMilliseconds: number, streamId: string): ProjectLogRecord {
+export function stampMockLogRecord(draft: MockLogRecordDraft, action: string, loadedAtMilliseconds: number, streamId: string | null): ProjectLogRecord {
   const hostTimestampNanoseconds = Math.round((loadedAtMilliseconds + draft.millisecondsAfterLoad) * 1_000_000);
-  const processorId = draft.node === undefined ? null : mockNodeIdOf(streamId, draft.node);
+  const processorId = draft.node === undefined || streamId === null ? null : mockNodeIdOf(streamId, draft.node);
   const attrs = draft.attrs ?? {};
   const jsonlRecord = {
     schema_version: 2,
     host_ts: hostTimestampNanoseconds,
     runtime_id: MOCK_RUNTIME_ID,
-    stream: streamId,
+    ...(streamId === null ? {} : { stream: streamId }),
     action,
     source: draft.source,
     level: draft.level,

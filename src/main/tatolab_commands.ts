@@ -200,6 +200,15 @@ export function runStreamProject(sharedState: TatolabAppSharedState, folder: str
   });
 }
 
+/** `reload_project { project_directory }`: the runtime's `run_project` queued on a project it lists, which loads every `@stream` in it again, then a status round; refused in the runtime's own words. */
+export function reloadProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectRunQueued, string>> {
+  return answerTheWindow("reload_project", async () => {
+    const queued = await sharedState.controller.runProject(projectDirectory);
+    sharedState.statusPublisher.requestRefresh();
+    return queued.ok ? queued : failedWith(queued.failure.failureDescription);
+  });
+}
+
 /** `describe_stream_action { action }`: where the action is, or the runtime's words that it no longer holds it; refused when the runtime could not be asked. */
 export function describeStreamAction(sharedState: TatolabAppSharedState, action: string): Promise<Result<StreamActionFollowed, string>> {
   return answerTheWindow("describe_stream_action", async (): Promise<Result<StreamActionFollowed, string>> => {
@@ -469,6 +478,13 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const folderArguments = folderArgumentsFrom("run_stream_project", commandArguments);
       if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
       return commandAnswerFrom(await runStreamProject(sharedState, folderArguments.value.folder));
+    },
+    reload_project: async (commandArguments) => {
+      const projectDirectory = oneTextArgumentFrom("reload_project", commandArguments, "project_directory", "a project's folder as the runtime lists it");
+      if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
+      const listedProjectDirectory = projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory.value);
+      if (!listedProjectDirectory.ok) return { ok: false, refusal: listedProjectDirectory.failure };
+      return commandAnswerFrom(await reloadProject(sharedState, listedProjectDirectory.value));
     },
     describe_stream_action: async (commandArguments) => {
       const action = oneTextArgumentFrom("describe_stream_action", commandArguments, "action", "a stream action's id");

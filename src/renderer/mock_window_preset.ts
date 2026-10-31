@@ -138,6 +138,24 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
   return element !== null;
 }
 
+/** A project's page opened from its sidebar folder, on its tab, with Reload pressed and followed or Remove project… chosen, as the preset asks. */
+async function driveTheProjectPageToPreset(pageQuery: URLSearchParams): Promise<void> {
+  const projectFolderName = pageQuery.get("project");
+  if (projectFolderName === null) return;
+  await clickWhenShown(`[data-sidebar-project-folder$="/${CSS.escape(projectFolderName)}"] a`);
+  const projectTab = pageQuery.get("project_tab");
+  if (projectTab !== null) await clickWhenShown(`[data-project-page-header] [data-project-tab="${CSS.escape(projectTab)}"]`);
+  const projectAction = pageQuery.get("project_action");
+  if (projectAction === "reload" || projectAction === "reloaded") {
+    await clickWhenShown(`[data-project-page-header] [data-project-action="reload"]`);
+    if (projectAction === "reloaded") await waitForElement("[data-project-reload-outcome]", MOCK_PROJECT_LOAD_TIMEOUT_MILLISECONDS);
+  }
+  if (projectAction === "remove_project") {
+    await clickWhenShown(`[data-project-page-header] [data-project-action="more"]`);
+    await clickWhenShown(`[data-slot="dropdown-menu-item"][data-project-action="remove_project"]`);
+  }
+}
+
 /**
  * Browser-mock only: drives the window the way a person would, to the screen `?stream=<stream id>` (a mock stream's id, such as `pattern-main-645dbe`), `?tab=overview|graph|logs|inspect`,
  * `?stream_page_action=<action>` (a header or menu action of the stream's page, once its graph shows: `stop_stream` there gives
@@ -152,6 +170,8 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * the dialog closed while it loads and the load's notice shown once it ends) or
  * `?add=new|created` (opened on New project, then Create pressed, which has the runtime write it and load it), with the backend's `?add_folder=` (`no-venv` for a load that
  * makes the `.venv` first, `several` for two streams, one failing), `?add_new_folder=existing`, `?add_venv=refused` (the runtime's uv refusing to make it) and `?add_action=not_held`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove_project=<stream id>` (Remove project… chosen on that stream's row, its confirmation open), `?rename=<stream id>` (its sidebar row right-clicked and Rename… chosen, with `?rename_to=<name>` typed, and `?rename_step=menu` stopping on the menu or `pressed` pressing Rename), `?stream_action=stop_stream|start_stream:<stream id>`,
+ * `?project=<folder name>` (that project's page, from its sidebar folder) with `?project_tab=logs` and `?project_action=reload|reloaded|remove_project` (Reload pressed, then followed to
+ * its end, or Remove project… chosen, its confirmation open), and on a project's Logs `?stream_menu=open`,
  * `?sheet=uninstall|uninstalling|uninstalled`, on first run `?setup=getting_set_up` (Continue pressed on Welcome) or `?setup=get_started` (then
  * Get Started once the runtime answers) and `?setup_step_action=<action>` (a step's action pressed), with the backend's `?state=setup`, or
  * `?first_run=unfinished` over any runtime state, as `?state=approval|blocked|never-answered`, and its `?first_run_remember=refused`,
@@ -177,6 +197,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     await clickWhenShown(`[data-slot="dropdown-menu-item"][data-stream-action="remove_project"]`);
   }
   if (streamId !== null) await clickWhenShown(`[data-stream-row="${CSS.escape(streamId)}"]`);
+  await driveTheProjectPageToPreset(pageQuery);
   const tab = pageQuery.get("tab");
   if (tab !== null) await clickWhenShown(`[data-stream-page-header] [data-stream-tab="${CSS.escape(tab)}"]`);
   const streamPageAction = pageQuery.get("stream_page_action");
@@ -225,6 +246,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     await clickWhenShown(`[data-stream-log-step-choice="${CSS.escape(onlyStep)}"]`);
   }
   if (pageQuery.get("step_menu") === "open" && document.querySelector('[data-slot="dropdown-menu-content"]') === null) await clickWhenShown("[data-stream-log-step-filter]");
+  if (pageQuery.get("stream_menu") === "open" && document.querySelector('[data-slot="dropdown-menu-content"]') === null) await clickWhenShown("[data-stream-log-stream-filter]");
   if (pageQuery.get("action_menu") === "open" && document.querySelector('[data-slot="dropdown-menu-content"]') === null) await clickWhenShown("[data-stream-log-action-filter]");
   const page = pageQuery.get("page");
   if (page === "settings") await clickWhenShown(`[data-window-navigation="settings"]`);

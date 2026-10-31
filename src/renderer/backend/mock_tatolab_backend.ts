@@ -604,11 +604,14 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     await sleep(MOCK_STREAM_ACTION_STEP_MILLISECONDS);
     if (!project.hasAPythonEnvironment) {
       Object.assign(description, { state: "in_progress", step: "making_the_venv" });
+      writeProjectRecord(projectDirectory, description.action, "info", `${projectDirectory}/.venv/bin/python does not start, so ${projectDirectory}/.venv is made again`);
       await sleep(MOCK_PYTHON_ENVIRONMENT_MILLISECONDS);
       if (isMakingThePythonEnvironmentRefused) {
+        writeProjectRecord(projectDirectory, description.action, "error", MOCK_UV_SYNC_REFUSAL);
         Object.assign(description, { state: "failed", step: null, failed_because: MOCK_UV_SYNC_REFUSAL });
         return;
       }
+      writeProjectRecord(projectDirectory, description.action, "info", `\`uv sync\` made ${projectDirectory}/.venv`);
       project.hasAPythonEnvironment = true;
     }
     for (const step of ["compiling", "starting"]) {
@@ -657,6 +660,12 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const writeRuntimeRecord = (listing: ListedStream, action: string, level: MockLogRecordDraft["level"], message: string): void => {
     const draft: MockLogRecordDraft = { millisecondsAfterLoad: 0, source: "rust", level, target: "streamlib_engine::core::runtime::stream_actions", message };
     writeToTheProjectLog(listing.location?.project_directory ?? null, [stampMockLogRecord(draft, action, Date.now(), listing.stream)]);
+  };
+
+  /** Writes one record of the project's own, such as the `.venv`'s making, now, under `action`. */
+  const writeProjectRecord = (projectDirectory: string, action: string, level: MockLogRecordDraft["level"], message: string): void => {
+    const draft: MockLogRecordDraft = { millisecondsAfterLoad: 0, source: "rust", level, target: "streamlib_engine::core::runtime::project_venv_made_with_the_runtime_unit_uv", message };
+    writeToTheProjectLog(projectDirectory, [stampMockLogRecord(draft, action, Date.now(), null)]);
   };
 
   const holdRecords = (loadedStream: MockLoadedStream, drafts: MockLogRecordDraft[]): void => {
@@ -1118,6 +1127,15 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         return { action: queueAMockProjectLoadThatFails(folder, `Invalid configuration: ${folder} has no stream.py, so it is not a Tatolab project`), project_directory: folder };
       }
       return { action: queueAMockProjectLoad(folder), project_directory: folder };
+    },
+    reloadProject: async (projectDirectory) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      if (!(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) throw `The runtime lists no stream from ${projectDirectory}.`;
+      if (!projectFolders.has(projectDirectory)) {
+        return { action: queueAMockProjectLoadThatFails(projectDirectory, `the project directory ${projectDirectory} does not exist`), project_directory: projectDirectory };
+      }
+      return { action: queueAMockProjectLoad(projectDirectory), project_directory: projectDirectory };
     },
     describeStreamAction: async (action): Promise<StreamActionFollowed> => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

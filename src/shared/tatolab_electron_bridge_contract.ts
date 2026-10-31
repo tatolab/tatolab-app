@@ -41,6 +41,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "choose_stream_project_folder",
   "create_stream_project",
   "run_stream_project",
+  "reload_project",
   "describe_stream_action",
   "describe_runtime",
   "restart_runtime",
@@ -56,10 +57,10 @@ export const TATOLAB_COMMAND_NAMES = [
 
 /**
  * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
- * `remove_project` `{ project_directory }`, `describe_stream_graph`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
+ * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` `{ action }`,
  * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
- * acts only on a folder the app handed the window from its folder dialog, and `read_project_log_records` and `remove_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
+ * acts only on a folder the app handed the window from its folder dialog, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
  * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `install_the_carried_runtime_again` once the installer ends, refused in its words; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
  */
@@ -118,6 +119,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   create_stream_project: { commandArguments: { folder: string | null }; answer: ProjectCreationQueued };
   /** Answers once the runtime has queued the run of every `@stream` in the folder, which the window follows with `describe_stream_action`. */
   run_stream_project: { commandArguments: { folder: string }; answer: ProjectRunQueued };
+  /** Answers once the runtime has queued `run_project` on a project it lists, which the window follows with `describe_stream_action`. */
+  reload_project: { commandArguments: { project_directory: string }; answer: ProjectRunQueued };
   /** The action's description, or the runtime's words that it no longer holds it; refused when the runtime could not be asked. */
   describe_stream_action: { commandArguments: { action: string }; answer: StreamActionFollowed };
   describe_runtime: { commandArguments: undefined; answer: RuntimeDescription };

@@ -16,8 +16,11 @@ everything from the runtime's local API: `list_streams`, `logs` and `graph` over
 `GET /api/graph` for the machine's name. It queues a stop or a start (or retry) of a stream, and
 the removal of a whole project, with the MCP tools `stop_stream`, `start_stream` and
 `remove_project`, then shows the stream `stopping` or `preparing` at each step the runtime lists
-until it settles. A stream's Logs tab reads its project's log with `logs`, narrowed to the stream
-or showing the whole project; loading a new stream is the `tatolab` CLI's. A stream's Overview plays each output it exposes beyond itself that the runtime
+until it settles. New project and Import project queue `create_project` and `run_project`, and a
+project's Reload queues `run_project` again; the window follows each load with
+`describe_stream_action` until it ends. A stream's Logs tab reads its project's log with `logs`,
+narrowed to the stream or showing the whole project; a project's page lists its streams and reads
+its whole log, narrowed to one stream or one action. A stream's Overview plays each output it exposes beyond itself that the runtime
 gives a preview page, in a frame of `http://127.0.0.1:4446/watch/…`, the one origin the window's
 content security policy frames. "Open project" and "Open a terminal in the project" open the folder the runtime lists for
 the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-emulator`.

@@ -294,6 +294,96 @@ describe("renaming a stream", () => {
   });
 });
 
+/** The page of the project in `projectDirectory`, opened from its sidebar folder. */
+async function openTheProjectPageOf(projectDirectory: string): Promise<HTMLElement> {
+  const folderLink =
+    document.querySelector<HTMLElement>(`[data-sidebar-project-folder="${projectDirectory}"] a`) ?? expect.unreachable(`no sidebar folder for ${projectDirectory}`);
+  fireEvent.click(folderLink);
+  return waitFor(() => document.querySelector<HTMLElement>(`[data-project-page="${projectDirectory}"]`) ?? expect.unreachable(`no page for ${projectDirectory}`));
+}
+
+const PATTERN_PROJECT = "/Users/jonathanf/streams/pattern";
+
+describe("a project's page", () => {
+  it("opens from its sidebar folder, naming the folder and its path, and lists its streams with their states, each linking to its page", async () => {
+    await mountedWindowOverTheMock("state=running");
+
+    const projectPage = await openTheProjectPageOf(PATTERN_PROJECT);
+
+    expect(within(projectPage).getByRole("heading", { level: 1 }).textContent).toBe("pattern");
+    expect(projectPage.querySelector("[data-project-page-header]")?.textContent).toContain("~/streams");
+    expect(projectPage.querySelector("[data-project-path]")?.textContent).toBe("~/streams/pattern");
+    const streamsOfTheProject = within(within(projectPage).getByRole("list", { name: "Streams added from pattern" }));
+    expect(streamsOfTheProject.getAllByRole("link").map((streamLink) => streamLink.getAttribute("aria-label"))).toEqual(["main, Running", "recorder, Running", "pattern-two, Stopped"]);
+    expect(projectPage.querySelector("[data-project-tab='streams']")?.getAttribute("aria-current")).toBe("page");
+
+    fireEvent.click(streamsOfTheProject.getByRole("link", { name: "pattern-two, Stopped" }));
+    await waitFor(() => expect(document.querySelector(`[data-stream-page="${mockStreamIdOf("pattern-two")}"]`)).not.toBeNull());
+  });
+
+  it("opens from its folder's name on All streams", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const listSection = document.querySelector<HTMLElement>(`[data-streams-list-project-folder="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern section");
+
+    fireEvent.click(within(listSection).getByRole("link", { name: "pattern" }));
+
+    await waitFor(() => expect(document.querySelector(`[data-project-page="${PATTERN_PROJECT}"]`)).not.toBeNull());
+  });
+
+  it("reloads the project, showing its step while its streams are preparing, then what the reload came to once they settle", { timeout: 15_000 }, async () => {
+    await mountedWindowOverTheMock("state=running");
+    const projectPage = await openTheProjectPageOf(PATTERN_PROJECT);
+
+    fireEvent.click(projectPage.querySelector<HTMLElement>('[data-project-action="reload"]') ?? expect.unreachable("no Reload"));
+
+    await waitFor(() => expect(textOf("[data-project-page-header] [role=status]")).toMatch(/^Reloading/));
+    await waitFor(() => expect(within(projectPage).getByRole("link", { name: /^main, Preparing · / })).toBeTruthy(), MOCK_LOAD_WAIT);
+    const outcome = await waitFor(() => document.querySelector<HTMLElement>("[data-project-reload-outcome]") ?? expect.unreachable("no outcome yet"), MOCK_LOAD_WAIT);
+    expect(outcome.getAttribute("data-project-reload-outcome")).toBe("plain");
+    expect(outcome.textContent).toContain("Reloaded: pattern is running. Its 3 streams are loaded.");
+    expect(within(projectPage).getByRole("link", { name: "main, Running" })).toBeTruthy();
+    expect(projectPage.querySelector('[data-project-action="reload"]')).not.toBeNull();
+
+    fireEvent.click(outcome.querySelector<HTMLElement>('[data-project-action="dismiss_reload"]') ?? expect.unreachable("no Dismiss"));
+    expect(document.querySelector("[data-project-reload-outcome]")).toBeNull();
+  });
+
+  it("shows the runtime's refusal of a reload in its own words", async () => {
+    const refusal = "Resource not found: this runtime holds no stream of the project in /Users/jonathanf/streams/pattern";
+    await mountedWindowOverTheMock("state=running", {
+      reloadProject: async () => {
+        throw refusal;
+      },
+    });
+    const projectPage = await openTheProjectPageOf(PATTERN_PROJECT);
+
+    fireEvent.click(projectPage.querySelector<HTMLElement>('[data-project-action="reload"]') ?? expect.unreachable("no Reload"));
+
+    await waitFor(() => expect(textOf("[data-project-reload-outcome='refused'] [role=alert]")).toBe(`Reload was refused: ${refusal}`));
+  });
+
+  it("shows the whole project log on Logs, and narrows it to one stream", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const projectPage = await openTheProjectPageOf(PATTERN_PROJECT);
+
+    fireEvent.click(projectPage.querySelector<HTMLElement>("[data-project-tab='logs']") ?? expect.unreachable("no Logs tab"));
+
+    const logsPage = await waitFor(() => document.querySelector<HTMLElement>(`[data-project-logs-page="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no project log"));
+    expect(logsPage.querySelector("[data-stream-log-scope]")).toBeNull();
+    await waitFor(() => expect(logsPage.querySelectorAll("[data-stream-log-record]").length).toBeGreaterThan(0));
+    fireEvent.click(logsPage.querySelector<HTMLElement>("[data-stream-log-stream-filter]") ?? expect.unreachable("no stream filter"));
+    const streamChoices = await waitFor(() => {
+      const choices = [...document.querySelectorAll<HTMLElement>("[data-stream-log-stream-choice]")];
+      if (choices.length === 0) throw new Error("the stream menu is not open");
+      return choices;
+    });
+    expect(streamChoices.map((choice) => choice.textContent)).toContain("main");
+    fireEvent.click(streamChoices.find((choice) => choice.textContent === "main") ?? expect.unreachable("no main"));
+
+    await waitFor(() => expect(logsPage.querySelector("[data-stream-log-stream-filter]")?.textContent).toContain("main"));
+  });
+});
+
 describe("a record an earlier runtime wrote", () => {
   it("is listed failed under a folder named for it, with no project path or log folder path made up for it", async () => {
     await mountedWindowOverTheMock("state=running&streams=earlier_record");
@@ -444,11 +534,15 @@ describe("a stream's page", () => {
     Reflect.deleteProperty(navigator, "clipboard");
   });
 
-  it("asks before removing the stream's project from its bar's menu, and goes back to the list once it is gone", async () => {
+  it("links to its project's page, where Remove project asks first and goes back to the list once the project is gone", async () => {
     await mountedWindowOverTheMock("state=running");
     const streamPage = await openTheStreamPageOf("pattern-two");
 
     fireEvent.click(within(streamPage).getByRole("button", { name: "More for pattern-two" }));
+    expect(screen.queryByRole("menuitem", { name: "Remove project…" })).toBeNull();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Show project" }));
+    const projectPage = await waitFor(() => document.querySelector<HTMLElement>('[data-project-page="/Users/jonathanf/streams/pattern"]') ?? expect.unreachable("no project page"));
+    fireEvent.click(within(projectPage).getByRole("button", { name: "More for pattern" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Remove project…" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Remove the project pattern?")).toBeTruthy();
@@ -1023,17 +1117,18 @@ describe("the sidebar's project folders", () => {
     const folderRow =
       [...document.querySelectorAll<HTMLElement>("[data-sidebar-project-folder]")].find((row) => row.parentElement?.textContent?.includes("lobby-recorder")) ??
       expect.unreachable("no folder holds lobby-recorder");
-    expect(folderRow.getAttribute("aria-expanded")).toBe("true");
-    expect(folderRow.textContent).not.toContain("holds a failed stream");
+    const folderToggle = folderRow.querySelector<HTMLElement>("[data-sidebar-project-folder-toggle]") ?? expect.unreachable("no toggle on the folder");
+    expect(folderToggle.getAttribute("aria-expanded")).toBe("true");
+    expect(sidebar.getByRole("link", { name: "lobby-recorder" })).toBeTruthy();
 
-    fireEvent.click(folderRow);
+    fireEvent.click(folderToggle);
 
-    expect(folderRow.getAttribute("aria-expanded")).toBe("false");
+    expect(folderToggle.getAttribute("aria-expanded")).toBe("false");
     expect(sidebar.queryByRole("link", { name: "lobby-recorder, Failed" })).toBeNull();
-    expect(folderRow.textContent).toContain(", holds a failed stream");
+    expect(sidebar.getByRole("link", { name: "lobby-recorder, holds a failed stream" })).toBeTruthy();
     expect(sidebar.getByRole("link", { name: "camera, Running" })).toBeTruthy();
 
-    fireEvent.click(folderRow);
+    fireEvent.click(folderToggle);
 
     expect(sidebar.getByRole("link", { name: "lobby-recorder, Failed" })).toBeTruthy();
   });

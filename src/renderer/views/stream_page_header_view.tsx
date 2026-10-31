@@ -1,6 +1,5 @@
-import { CodeXml, Copy, PanelRight, Pencil, Play, Square, SquareTerminal, Trash2 } from "lucide-react";
-import { useState } from "react";
-import { describeBackendRejection } from "../backend/tatolab_backend";
+import { CodeXml, Copy, FolderOpen, PanelRight, Pencil, Play, Square, SquareTerminal } from "lucide-react";
+import { useNavigate } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { writeTextToClipboard } from "../clipboard";
 import { ActionButton } from "../design_system/action_button";
@@ -20,7 +19,8 @@ import {
   type StreamPrimaryActionPresentation,
 } from "../presentation/stream_presentation";
 import type { StreamActionUnderWay } from "../presentation/streams_list_presentation";
-import { StreamActionRefusalLine, type StreamActionRefusalWords } from "./stream_action_controls";
+import { StreamActionRefusalLine, useStreamProjectFolderOpening, type StreamActionRefusalWords } from "./stream_action_controls";
+import { projectPagePath } from "./project_page_path";
 import { streamPagePath, type StreamPageTab } from "./stream_page_path";
 import { useTatolabWindowEnvironment } from "./tatolab_window_context";
 
@@ -56,8 +56,6 @@ export interface StreamPageActions {
   actionUnderWay: StreamActionUnderWay | undefined;
   refusal: StreamActionRefusalWords | undefined;
   runPrimaryAction(chosenAction: StreamPrimaryActionPresentation): void;
-  /** Ask whether to remove the stream's whole project, naming the folder and every stream of it. */
-  askToRemoveTheProject(): void;
   askToRename(): void;
 }
 
@@ -74,17 +72,13 @@ export function StreamPageHeaderView({
   /** Whether Overview's Details slide-out is open, and how its toggle opens or closes it. */
   overviewDetailsPanel: { isOpen: boolean; onToggled: (isOpen: boolean) => void };
 }) {
-  const { backend, platform } = useTatolabWindowEnvironment();
-  /** Why the project folder or a terminal in it did not open, in the words of what refused it, which name what failed. */
-  const [projectOpeningRefusal, setProjectOpeningRefusal] = useState<string | null>(null);
-  const { actionUnderWay, refusal, runPrimaryAction, askToRemoveTheProject, askToRename } = streamPageActions;
+  const { platform } = useTatolabWindowEnvironment();
+  const { openProjectFolder, openTerminalAtProject, projectOpeningRefusal } = useStreamProjectFolderOpening(stream.stream);
+  const navigate = useNavigate();
+  const { actionUnderWay, refusal, runPrimaryAction, askToRename } = streamPageActions;
   const primaryAction = presentStreamPrimaryAction(stream);
   const listedActionWords = streamActionInTheListingWords(stream);
   const projectDirectory = listedStreamProjectDirectory(stream);
-  const openTheProject = (opening: Promise<void>) => {
-    setProjectOpeningRefusal(null);
-    opening.catch((rejection: unknown) => setProjectOpeningRefusal(describeBackendRejection(rejection)));
-  };
   return (
     <PageHeader
       title={stream.display_name}
@@ -127,19 +121,18 @@ export function StreamPageHeaderView({
             {projectDirectory !== null && (
               <>
                 <MenuSeparator />
-                <MenuItem icon={CodeXml} onChosen={() => openTheProject(backend.openStreamProjectFolder(stream.stream))} data-stream-action="open_stream_project_folder">
+                <MenuItem icon={FolderOpen} onChosen={() => void navigate(projectPagePath(projectDirectory))} data-stream-action="show_project">
+                  Show project
+                </MenuItem>
+                <MenuItem icon={CodeXml} onChosen={openProjectFolder} data-stream-action="open_stream_project_folder">
                   Open project
                 </MenuItem>
-                <MenuItem icon={SquareTerminal} onChosen={() => openTheProject(backend.openTerminalAtStreamProject(stream.stream))} data-stream-action="open_terminal_at_stream_project">
+                <MenuItem icon={SquareTerminal} onChosen={openTerminalAtProject} data-stream-action="open_terminal_at_stream_project">
                   Open a terminal in the project
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(projectDirectory)}>
                   Copy project folder path
-                </MenuItem>
-                <MenuSeparator />
-                <MenuItem icon={Trash2} isDestructive isDisabled={actionUnderWay !== undefined} onChosen={askToRemoveTheProject} data-stream-action="remove_project">
-                  Remove project…
                 </MenuItem>
               </>
             )}
