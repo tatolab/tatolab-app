@@ -9,15 +9,17 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import type {
   ListedStream,
+  ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
+  ProjectRunQueued,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
+  StreamActionFollowed,
   StreamGraphSummary,
-  StreamRunAnswer,
   TatolabAppBuild,
   TatolabAppUpdateState,
   TatolabPlatform,
@@ -25,7 +27,7 @@ import type {
   TatolabStreamActionName,
 } from "../shared/tatolab_backend_contract.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
-import { LocalApiClient, type LocalApiRequestFailure, type StreamRunRequest } from "./local_api_client.js";
+import { LocalApiClient, type LocalApiRequestFailure } from "./local_api_client.js";
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { BundledRuntimeRestart } from "./platform/runtime_agent_registration.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
@@ -384,9 +386,19 @@ export class TatolabAppController {
     return this.localApiClient.renameStream(stream, displayName);
   }
 
-  /** Compile the project `streamRunRequest` names and load it, answering `run_stream`'s reply. */
-  runStream(streamRunRequest: StreamRunRequest): Promise<Result<StreamRunAnswer, LocalApiRequestFailure>> {
-    return this.localApiClient.runStream(streamRunRequest);
+  /** Queue a new project's creation and run through the runtime's `create_project`, in `projectDirectory` or, with `null`, a folder the runtime draws. */
+  createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> {
+    return this.localApiClient.createProject(projectDirectory);
+  }
+
+  /** Queue a run of the project in `projectDirectory` through the runtime's `run_project`. */
+  runProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
+    return this.localApiClient.runProject(projectDirectory);
+  }
+
+  /** The stream action `action` as the runtime's `describe_stream_action` describes it. */
+  describeStreamAction(action: string): Promise<Result<StreamActionFollowed, LocalApiRequestFailure>> {
+    return this.localApiClient.describeStreamAction(action);
   }
 
   /** Every stream the runtime lists now. */

@@ -151,10 +151,7 @@ async function sharedStateOverFakes(
     streamProjectAdding: new StreamProjectAdding({
       homeDirectory: appConfigDirectory,
       streamProjectFolderDialog: async () => succeeded(folderTheDialogAnswers),
-      tatolabCommandLineTool: platformForThisBuild.tatolabCommandLineTool,
-      runProgramToCompletion: async () => failedWith("this fake runs no program"),
-      makePythonEnvironmentUnlessOneWorks: async () => succeeded(undefined),
-      streamRunsOnTheRuntime: controller,
+      projectLoadsOnTheRuntime: controller,
     }),
     streamProjectPythonEnvironments,
     tatolabAppLog: quietTatolabAppLog,
@@ -525,14 +522,17 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
   expect(sharedState.terminal.openedInFolders).toEqual(["/Users/jonathanf/streams/main"]);
 });
 
-/** The window's `StreamProjectFolderReport` and `StreamProjectRunOutcome` read exactly this JSON. */
-test("adding a stream answers the window in the contract's shape, from the chosen folder to the runtime's answer or its refusal", async () => {
+/** The window's `ProjectCreationQueued`, `ProjectRunQueued` and `StreamActionFollowed` read exactly this JSON. */
+test("adding a project answers the window in the contract's shape, from the chosen folder to the action queued and followed", async () => {
   const projectFolder = await realpath(await mkdtemp(path.join(os.tmpdir(), "tl-app-project-")));
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-answer-for-the-new-project-hello.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-refusal-for-the-project-no-venv-without-its-venv.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-project-answer-for-the-folder-hallways.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-project-answer-with-no-folder-drawn-kind-butte.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-the-create-of-kind-butte-starting.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json")),
+      httpResponse("503 Service Unavailable", "text/plain", "starting"),
     ],
     "macos",
     [projectFolder],
@@ -541,42 +541,44 @@ test("adding a stream answers the window in the contract's shape, from the chose
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(JSON.stringify(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" }))).toBe(
-    `{"ok":true,"value":{"folder":${JSON.stringify(projectFolder)},"folder_exists":true,"stream_file_present":false,"stream_functions":[],"python_environment":{"kind":"missing"}}}`,
+  expect(JSON.stringify(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" }))).toBe(`{"ok":true,"value":${JSON.stringify(projectFolder)}}`);
+  expect(JSON.stringify(await commandHandlers.run_stream_project({ folder: projectFolder }))).toBe(
+    '{"ok":true,"value":{"action":"Rj12j3eujz3zn0dposliv79k9-3","project_directory":"/tmp/tatolab-proof-projects/hallways"}}',
   );
-  expect(JSON.stringify(await commandHandlers.run_stream_project({ folder: projectFolder, stream_function: null, name: null }))).toBe(
-    '{"ok":true,"value":{"kind":"running","answer":{"stream":"hello-main-8d60ef","display_name":"main","stream_instance":"1",' +
-      '"location":{"project_directory":"/private/tmp/tatolab-proof/projects/hello","stream_function":"stream:main"},' +
-      '"node_count":4,"replaced_a_recorded_stream":false,"compile_warnings":[]}}}',
+  expect(JSON.stringify(await commandHandlers.create_stream_project({ folder: null }))).toBe(
+    '{"ok":true,"value":{"action":"Rj12j3eujz3zn0dposliv79k9-7","stream":"kind-butte-main-e51c2f","project_directory":"/tmp/tatolab-proof/streams/kind-butte"}}',
   );
-  expect(await commandHandlers.run_stream_project({ folder: projectFolder, stream_function: null, name: "no-venv" })).toEqual({
-    ok: false,
-    refusal: "Invalid configuration: /tmp/tatolab-proof/projects/no-venv has no .venv/bin/python; run `uv sync` in /tmp/tatolab-proof/projects/no-venv",
-  });
   expect(refreshRequests).toHaveBeenCalledTimes(2);
-
-  expect(await commandHandlers.open_terminal_at_stream_project({ folder: projectFolder })).toEqual({
-    ok: false,
-    refusal: "open_terminal_at_stream_project needs `stream`, a stream's id",
+  expect(JSON.stringify(await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-7" }))).toBe(
+    '{"ok":true,"value":{"kind":"described","description":{"action":"Rj12j3eujz3zn0dposliv79k9-7","project_directory":"/tmp/tatolab-proof/streams/kind-butte",' +
+      '"kind":"load","state":"in_progress","step":"starting","streams":[{"stream":"kind-butte-main-e51c2f","display_name":"main","state":null}],"failed_because":null}}}',
+  );
+  expect(await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-999" })).toEqual({
+    ok: true,
+    value: {
+      kind: "not_held",
+      words:
+        "Invalid configuration: the stream action `Rj12j3eujz3zn0dposliv79k9-999` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log",
+    },
   });
-  expect(sharedState.terminal.openedInFolders).toEqual([]);
-  expect(await commandHandlers.create_stream_project({ folder: projectFolder })).toEqual({ ok: false, refusal: "this fake platform has no tatolab command" });
-  const proposal = await commandHandlers.propose_new_stream_project_folder(undefined);
-  expect(proposal.ok && proposal.value.folder.endsWith(path.join("streams", "hello"))).toBe(true);
+  const unanswered = await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-7" });
+  expect(unanswered.ok).toBe(false);
 });
 
-test("the commands that add a stream read their arguments as the window sends them, and refuse anything else", async () => {
+test("the commands that add a project read their arguments as the window sends them, and refuse anything else", async () => {
   const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
   expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "anything" })).toEqual({
     ok: false,
     refusal: "choose_stream_project_folder needs `chosen_for`, project_to_run or new_project_directory",
   });
   expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.create_stream_project({ folder: 7 })).toEqual({ ok: false, refusal: "create_stream_project needs `folder`, a folder chosen in the window" });
-  expect(await commandHandlers.run_stream_project({ folder: "/tmp/a", stream_function: 3, name: null })).toEqual({
+  expect(await commandHandlers.create_stream_project({ folder: 7 })).toEqual({
     ok: false,
-    refusal: "run_stream_project needs `folder`, a folder chosen in the window, and `stream_function` and `name`, each text or null",
+    refusal: "create_stream_project needs `folder`, a folder chosen in the window, or null for one the runtime draws under ~/streams",
   });
+  expect(await commandHandlers.create_stream_project({ folder: "/etc" })).toEqual({ ok: false, refusal: "Tatolab acts only on a folder chosen in its window. Choose /etc again." });
+  expect(await commandHandlers.run_stream_project({ folder: null })).toEqual({ ok: false, refusal: "run_stream_project needs `folder`, a folder chosen in the window" });
+  expect(await commandHandlers.describe_stream_action({})).toEqual({ ok: false, refusal: "describe_stream_action needs `action`, a stream action's id" });
 });
 
 /** The window's `RuntimeDescription` reads exactly this JSON. */

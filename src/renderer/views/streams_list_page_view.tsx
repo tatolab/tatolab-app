@@ -178,7 +178,7 @@ function NoStreamsYet({ machineWords }: { machineWords: string }) {
         <h2 className="mt-4 text-lg font-semibold">No streams on {machineWords} yet</h2>
         <p className="mt-1 max-w-md text-fg-3">Projects contain streams. Create one or import your own.</p>
         <div className="mt-6 w-full overflow-hidden rounded-lg border text-left">
-          <FirstStreamChoice icon={Sparkles} title="Create the sample stream" explanation="A sample stream you can edit, made with tatolab new." source="new_project" />
+          <FirstStreamChoice icon={Sparkles} title="Create the sample project" explanation="A sample project you can edit, which the runtime writes under ~/streams." source="new_project" />
           <FirstStreamChoice icon={FolderOpen} title="Import a project" explanation="A project folder of yours." source="project_folder" />
         </div>
       </div>

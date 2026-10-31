@@ -55,7 +55,7 @@ export interface TatolabElectronAppShell {
   askThePersonForAStreamProjectFolder: StreamProjectFolderDialog;
   /** The desktop's file dialog over the window, which Settings picks a Python interpreter through. */
   askThePersonForAPythonInterpreter: PythonInterpreterFileDialog;
-  /** The person's home directory, under which new projects are proposed. */
+  /** The person's home directory, where the folder dialog opens, or at `~/streams` for a new project once that folder exists. */
   homeDirectory: string;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
   createTheAppUpdateFeed(appUpdatePackaging: TatolabAppUpdatePackaging): TatolabAppUpdateFeedForThisBuild;
@@ -190,10 +190,7 @@ export async function startTatolabApp(
     streamProjectAdding: new StreamProjectAdding({
       homeDirectory: tatolabElectronAppShell.homeDirectory,
       streamProjectFolderDialog: tatolabElectronAppShell.askThePersonForAStreamProjectFolder,
-      tatolabCommandLineTool: platformForThisBuild.tatolabCommandLineTool,
-      runProgramToCompletion,
-      makePythonEnvironmentUnlessOneWorks: (projectFolder) => streamProjectPythonEnvironments.makePythonEnvironmentUnlessOneWorks(projectFolder),
-      streamRunsOnTheRuntime: controller,
+      projectLoadsOnTheRuntime: controller,
     }),
     streamProjectPythonEnvironments,
     streamFailureNotifications,

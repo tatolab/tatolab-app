@@ -3,16 +3,17 @@
 // command answers.
 
 import type {
+  ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
+  ProjectRunQueued,
   PythonForNewEnvironmentsChoice,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
+  StreamActionFollowed,
   StreamGraphSummary,
   StreamProjectFolderChosenFor,
-  StreamProjectFolderReport,
-  StreamProjectRunOutcome,
   TatolabStatus,
 } from "./tatolab_backend_contract.js";
 
@@ -39,9 +40,9 @@ export const TATOLAB_COMMAND_NAMES = [
   "open_terminal_at_stream_project",
   "open_stream_log_folder",
   "choose_stream_project_folder",
-  "propose_new_stream_project_folder",
   "create_stream_project",
   "run_stream_project",
+  "describe_stream_action",
   "describe_runtime",
   "restart_runtime",
   "open_runtime_log_folder",
@@ -57,9 +58,9 @@ export const TATOLAB_COMMAND_NAMES = [
 /**
  * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` `{ project_directory }`, `describe_stream_graph`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
- * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` `{ folder }`, `run_stream_project` `{ folder, stream_function, name }`,
+ * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` `{ action }`,
  * `choose_python_for_new_environments` `{ python }`, `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
- * acts only on a folder the app handed the window, from its folder dialog or its proposal, and `read_project_log_records` and `remove_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
+ * acts only on a folder the app handed the window from its folder dialog, and `read_project_log_records` and `remove_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
  * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
  */
@@ -112,12 +113,14 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   open_stream_project_folder: { commandArguments: { stream: string }; answer: null };
   open_terminal_at_stream_project: { commandArguments: { stream: string }; answer: null };
   open_stream_log_folder: { commandArguments: { stream: string }; answer: null };
-  /** `null` when the person cancels the dialog. */
-  choose_stream_project_folder: { commandArguments: { chosen_for: StreamProjectFolderChosenFor }; answer: StreamProjectFolderReport | null };
-  propose_new_stream_project_folder: { commandArguments: undefined; answer: StreamProjectFolderReport };
-  create_stream_project: { commandArguments: { folder: string }; answer: StreamProjectFolderReport };
-  /** `stream_function` as `tatolab run` takes it, `null` for the project's sole `@stream`; `name` the display name to show the stream under, `null` for the function's own or the one a re-added folder's stream keeps. */
-  run_stream_project: { commandArguments: { folder: string; stream_function: string | null; name: string | null }; answer: StreamProjectRunOutcome };
+  /** The chosen folder, absolute with its links resolved; `null` when the person cancels the dialog. */
+  choose_stream_project_folder: { commandArguments: { chosen_for: StreamProjectFolderChosenFor }; answer: string | null };
+  /** `folder` `null` lets the runtime draw one under `~/streams`; answers once the runtime has queued the creation, which the window follows with `describe_stream_action`. */
+  create_stream_project: { commandArguments: { folder: string | null }; answer: ProjectCreationQueued };
+  /** Answers once the runtime has queued the run of every `@stream` in the folder, which the window follows with `describe_stream_action`. */
+  run_stream_project: { commandArguments: { folder: string }; answer: ProjectRunQueued };
+  /** The action's description, or the runtime's words that it no longer holds it; refused when the runtime could not be asked. */
+  describe_stream_action: { commandArguments: { action: string }; answer: StreamActionFollowed };
   describe_runtime: { commandArguments: undefined; answer: RuntimeDescription };
   restart_runtime: { commandArguments: undefined; answer: null };
   open_runtime_log_folder: { commandArguments: undefined; answer: null };

@@ -20,7 +20,7 @@ export interface TatolabPlatformForThisBuild {
   bundledRuntimeRestart: BundledRuntimeRestart | null;
   /** The desktop's terminal, which the window's Terminal opens on a stream's project folder. */
   terminalOpenedInAFolder: TerminalOpenedInAFolder;
-  /** The `tatolab` CLI the app runs `tatolab new` with. */
+  /** The `tatolab` CLI the build carries, whose version Settings › Command line reads. */
   tatolabCommandLineTool: TatolabCommandLineTool;
   /** "Open Tatolab at login": the bundle's login item on macOS, an XDG autostart entry on Linux; not offered by an unpackaged app. */
   tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin;

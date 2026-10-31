@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./mock_tatolab_backend";
-import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, RelaysDescription, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, RelaysDescription, StreamActionFollowed, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type { TatolabBackend } from "./tatolab_backend";
 
 afterEach(() => {
@@ -181,7 +181,7 @@ describe("the mock backend's project logs", () => {
   });
 });
 
-describe("the mock backend's Add stream", () => {
+describe("the mock backend's New project and Import project", () => {
   async function settled<Answer>(act: () => Promise<Answer>, waitMilliseconds = 3000): Promise<{ answer: Answer } | { refusal: unknown }> {
     const settledAnswer = act().then(
       (answer) => ({ answer }),
@@ -191,74 +191,102 @@ describe("the mock backend's Add stream", () => {
     return settledAnswer;
   }
 
-  it("runs the chosen folder under the id its location computes to, lists it running, and refuses a folder it never handed the window", async () => {
-    vi.useFakeTimers();
-    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_run=warning")));
-    const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
-    const folder = "answer" in chosen && chosen.answer !== null ? chosen.answer.folder : "";
-    expect(folder).toBe("/Users/jonathanf/code/heat-map");
+  /** Follows `action` until it ends, advancing the mock's clock a beat at a time, answering every description read along the way. */
+  async function followedToItsEnd(backend: ReturnType<typeof createMockTatolabBackend>, action: string): Promise<StreamActionFollowed[]> {
+    const followed: StreamActionFollowed[] = [];
+    for (let beat = 0; beat < 20; beat += 1) {
+      const description = await settled(() => backend.describeStreamAction(action), 500);
+      if (!("answer" in description)) throw new Error("the mock refused to describe the action");
+      followed.push(description.answer);
+      if (description.answer.kind === "not_held" || ["done", "failed", "cancelled"].includes(description.answer.description.state)) return followed;
+    }
+    return followed;
+  }
 
-    const run = await settled(() => backend.runStreamProject(folder, null, "heat map"));
-    expect(run).toEqual({
-      answer: {
-        kind: "running",
-        answer: expect.objectContaining({
-          stream: HEAT_MAP,
-          display_name: "heat map",
-          location: { project_directory: folder, stream_function: "stream:heat_map" },
-          node_count: 4,
-          replaced_a_recorded_stream: false,
-          compile_warnings: ["tatolab: the cross-floor check found 1 thing binding this app to one floor.", "  nodes/heat_render.py:4: imports `cupy`"],
-        }),
-      },
-    });
-    const status = await settled(() => backend.getTatolabStatus());
-    expect("answer" in status && listingWithTheId(status.answer.streams, HEAT_MAP)).toMatchObject({ display_name: "heat map", state: "running" });
+  function statesOf(followed: readonly StreamActionFollowed[]): string[] {
+    return [...new Set(followed.map((answer) => (answer.kind === "described" ? `${answer.description.state}:${answer.description.step ?? ""}` : answer.kind)))];
+  }
 
-    expect(await settled(() => backend.runStreamProject("/etc", null, "etc"))).toEqual({
-      refusal: "Tatolab acts only on a folder chosen in its window. Choose /etc again.",
-    });
-  });
-
-  it("replaces the stream a folder already runs when it runs again, under the same id, keeping its display name unless one is given", async () => {
-    vi.useFakeTimers();
-    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_folder=recorded")));
-    const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
-    const folder = "answer" in chosen && chosen.answer !== null ? chosen.answer.folder : "";
-
-    expect(await settled(() => backend.runStreamProject(folder, null, null))).toEqual({
-      answer: { kind: "running", answer: expect.objectContaining({ stream: MAIN, display_name: "main", replaced_a_recorded_stream: true }) },
-    });
-    expect(await settled(() => backend.runStreamProject(folder, null, "front door"))).toEqual({
-      answer: { kind: "running", answer: expect.objectContaining({ stream: MAIN, display_name: "front door", replaced_a_recorded_stream: true }) },
-    });
-    const status = await settled(() => backend.getTatolabStatus());
-    expect("answer" in status && status.answer.streams?.filter((stream) => stream.stream === MAIN).map((stream) => stream.display_name)).toEqual(["front door"]);
-  });
-
-  it("creates a project, then makes its .venv with the Python for new environments as it runs it", async () => {
+  it("imports the chosen folder as a queued load, lists its stream preparing then running, and refuses a folder it never handed the window", async () => {
     vi.useFakeTimers();
     const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
-    const proposal = await settled(() => backend.proposeNewStreamProjectFolder());
-    const folder = "answer" in proposal ? proposal.answer.folder : "";
-    expect(folder).toBe("/Users/jonathanf/streams/hello");
+    await settled(() => backend.getTatolabStatus());
+    const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
+    expect(chosen).toEqual({ answer: "/Users/jonathanf/code/heat-map" });
 
-    const created = await settled(() => backend.createStreamProject(folder));
-    expect(created).toEqual({ answer: expect.objectContaining({ stream_functions: ["main"], python_environment: { kind: "missing" } }) });
-    expect(await settled(() => backend.runStreamProject(folder, null, "hello"), 7000)).toEqual({ answer: expect.objectContaining({ kind: "running" }) });
+    const queued = await settled(() => backend.runStreamProject("/Users/jonathanf/code/heat-map"), 50);
+    if (!("answer" in queued)) throw new Error("the run was refused");
+    expect(queued.answer.project_directory).toBe("/Users/jonathanf/code/heat-map");
+    const followed = await followedToItsEnd(backend, queued.answer.action);
+    expect(statesOf(followed)).toEqual(["queued:", "in_progress:compiling", "in_progress:starting", "done:"]);
+    expect(followed.at(-1)).toEqual({
+      kind: "described",
+      description: expect.objectContaining({ state: "done", streams: [{ stream: HEAT_MAP, display_name: "heat_map", state: "running" }] }),
+    });
+    const status = await settled(() => backend.getTatolabStatus());
+    expect("answer" in status && listingWithTheId(status.answer.streams, HEAT_MAP)).toMatchObject({ state: "running" });
+
+    expect(await settled(() => backend.runStreamProject("/etc"))).toEqual({ refusal: "Tatolab acts only on a folder chosen in its window. Choose /etc again." });
   });
 
-  it("answers uv's refusal as python_environment_not_made with ?add_venv=refused, and a build with no Python with its reason", async () => {
+  it("imports a folder with two streams, one failing, and makes a .venv first for a folder with none", async () => {
     vi.useFakeTimers();
-    for (const [query, words] of [
-      ["add_venv=refused&add_folder=no-venv", expect.stringMatching(/^error: Failed to fetch: `https:\/\/pypi.org\/simple\/tatolab-stream\/`/)],
-      ["python=not_offered&add_folder=no-venv", expect.stringMatching(/^This build of Tatolab carries no uv or Python of its own/)],
-    ] as const) {
-      const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams(query)));
-      const chosen = await settled(() => backend.chooseStreamProjectFolder("project_to_run"));
-      const folder = "answer" in chosen && chosen.answer !== null ? chosen.answer.folder : "";
-      expect(await settled(() => backend.runStreamProject(folder, null, "heat_map"), 4000)).toEqual({ answer: { kind: "python_environment_not_made", words } });
-    }
+    const doorways = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_folder=several")));
+    await settled(() => doorways.getTatolabStatus());
+    await settled(() => doorways.chooseStreamProjectFolder("project_to_run"));
+    const queued = await settled(() => doorways.runStreamProject("/Users/jonathanf/code/doorways"), 50);
+    if (!("answer" in queued)) throw new Error("the run was refused");
+    const ending = (await followedToItsEnd(doorways, queued.answer.action)).at(-1);
+    expect(ending?.kind === "described" && ending.description.streams.map((stream) => [stream.display_name, stream.state])).toEqual([
+      ["front_door", "running"],
+      ["back_door", "failed"],
+    ]);
+
+    const noVenv = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_folder=no-venv")));
+    await settled(() => noVenv.getTatolabStatus());
+    await settled(() => noVenv.chooseStreamProjectFolder("project_to_run"));
+    const queuedWithNoVenv = await settled(() => noVenv.runStreamProject("/Users/jonathanf/code/heat-map"), 50);
+    if (!("answer" in queuedWithNoVenv)) throw new Error("the run was refused");
+    expect(statesOf(await followedToItsEnd(noVenv, queuedWithNoVenv.answer.action))).toContain("in_progress:making_the_venv");
+  });
+
+  it("creates a project in a folder it draws under ~/streams, or the chosen one, making its .venv; a folder holding a project fails the load in the runtime's words", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
+    await settled(() => backend.getTatolabStatus());
+    const drawn = await settled(() => backend.createStreamProject(null), 50);
+    expect(drawn).toEqual({ answer: { action: expect.any(String), stream: expect.stringMatching(/^kind-butte-main-/), project_directory: "/Users/jonathanf/streams/kind-butte" } });
+    if (!("answer" in drawn)) throw new Error("the creation was refused");
+    expect(statesOf(await followedToItsEnd(backend, drawn.answer.action))).toEqual(["queued:", "in_progress:making_the_venv", "in_progress:compiling", "in_progress:starting", "done:"]);
+    expect(await settled(() => backend.chooseStreamProjectFolder("new_project_directory"))).toEqual({ answer: "/Users/jonathanf/streams/lobby" });
+
+    const existing = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_new_folder=existing")));
+    await settled(() => existing.getTatolabStatus());
+    await settled(() => existing.chooseStreamProjectFolder("new_project_directory"));
+    const intoAProject = await settled(() => existing.createStreamProject("/Users/jonathanf/code/heat-map"), 50);
+    if (!("answer" in intoAProject)) throw new Error("the creation was refused");
+    expect((await followedToItsEnd(existing, intoAProject.answer.action)).at(-1)).toEqual({
+      kind: "described",
+      description: expect.objectContaining({ state: "failed", failed_because: expect.stringMatching(/already has pyproject.toml, stream.py, and a new project's files would overwrite it/) }),
+    });
+  });
+
+  it("fails the load when the runtime's uv cannot make the .venv with ?add_venv=refused, answers no load held with ?add_action=not_held, and a cancelled dialog with null", async () => {
+    vi.useFakeTimers();
+    const refused = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_venv=refused&add_folder=no-venv")));
+    await settled(() => refused.getTatolabStatus());
+    await settled(() => refused.chooseStreamProjectFolder("project_to_run"));
+    const queued = await settled(() => refused.runStreamProject("/Users/jonathanf/code/heat-map"), 50);
+    if (!("answer" in queued)) throw new Error("the run was refused");
+    expect((await followedToItsEnd(refused, queued.answer.action)).at(-1)).toEqual({
+      kind: "described",
+      description: expect.objectContaining({ state: "failed", failed_because: expect.stringMatching(/^error: Failed to fetch: `https:\/\/pypi.org\/simple\/tatolab-stream\/`/) }),
+    });
+
+    const notHeld = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_action=not_held&add_folder=cancel")));
+    await settled(() => notHeld.getTatolabStatus());
+    expect(await settled(() => notHeld.describeStreamAction("R-1"))).toEqual({ answer: { kind: "not_held", words: expect.stringMatching(/^Invalid configuration: the stream action `R-1` is not held/) } });
+    expect(await settled(() => notHeld.chooseStreamProjectFolder("project_to_run"))).toEqual({ answer: null });
   });
 
   it("chooses the Python for new environments: one the file dialog picks, Tatolab's again, and a pick that is no Python refused", async () => {
@@ -278,16 +306,6 @@ describe("the mock backend's Add stream", () => {
     });
   });
 
-  it("refuses creating a project in a build with no tatolab command, and answers a cancelled dialog with null", async () => {
-    vi.useFakeTimers();
-    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_cli=missing&add_folder=cancel")));
-    const proposal = await settled(() => backend.proposeNewStreamProjectFolder());
-    const folder = "answer" in proposal ? proposal.answer.folder : "";
-    expect(await settled(() => backend.createStreamProject(folder))).toEqual({
-      refusal: "This build of Tatolab has no tatolab command to run. Run tatolab new in a terminal instead.",
-    });
-    expect(await settled(() => backend.chooseStreamProjectFolder("project_to_run"))).toEqual({ answer: null });
-  });
 });
 
 describe("the mock backend's runtime", () => {

@@ -6,9 +6,10 @@ import type {
   RelaysDescription,
   RuntimeDescription,
   StreamGraphSummary,
+  ProjectCreationQueued,
+  ProjectRunQueued,
+  StreamActionFollowed,
   StreamProjectFolderChosenFor,
-  StreamProjectFolderReport,
-  StreamProjectRunOutcome,
   TatolabStatus,
   TatolabStreamActionName,
 } from "../../shared/tatolab_backend_contract";
@@ -50,18 +51,14 @@ export interface TatolabBackend {
   openTerminalAtStreamProject(streamId: string): Promise<void>;
   /** Show the log folder under the project folder the runtime lists for `streamId` in the file manager, rejecting with why it could not. */
   openStreamLogFolder(streamId: string): Promise<void>;
-  /** Ask the person for a folder in the app's dialog and resolve with what it holds, or `null` when they cancel. A folder it answers is one the window may name. */
-  chooseStreamProjectFolder(chosenFor: StreamProjectFolderChosenFor): Promise<StreamProjectFolderReport | null>;
-  /** The first free `~/streams/hello[-N]` for a new project, which the window may name. */
-  proposeNewStreamProjectFolder(): Promise<StreamProjectFolderReport>;
-  /** Run `tatolab new` in `folder`, then resolve with what it holds; rejects in the CLI's own words. */
-  createStreamProject(folder: string): Promise<StreamProjectFolderReport>;
-  /**
-   * Make `folder`'s `.venv` with the app's uv when it has none that runs, then compile it and load it under `displayName`,
-   * resolving once the runtime answers; rejects with its refusal in its own words, except uv failing to make the `.venv`,
-   * which resolves `python_environment_not_made` in uv's own words.
-   */
-  runStreamProject(folder: string, streamFunction: string | null, displayName: string | null): Promise<StreamProjectRunOutcome>;
+  /** Ask the person for a folder in the app's dialog and resolve with it, its links resolved, or `null` when they cancel. A folder it answers is one the window may name. */
+  chooseStreamProjectFolder(chosenFor: StreamProjectFolderChosenFor): Promise<string | null>;
+  /** Queue `create_project` in `folder`, or with `null` in a folder the runtime draws under `~/streams`, resolving with the action queued and rejecting in the runtime's own words. */
+  createStreamProject(folder: string | null): Promise<ProjectCreationQueued>;
+  /** Queue `run_project` in `folder`, which loads every `@stream` in it, resolving with the action queued and rejecting in the runtime's own words. */
+  runStreamProject(folder: string): Promise<ProjectRunQueued>;
+  /** Where the stream action `action` has got to, or the runtime's words that it no longer holds it; rejects when the runtime does not answer. */
+  describeStreamAction(action: string): Promise<StreamActionFollowed>;
   /** How the running runtime describes itself, rejecting in its own words when it does not answer. */
   describeRuntime(): Promise<RuntimeDescription>;
   /** Stop the runtime and start it again through the service manager, resolving once the service manager has answered and rejecting in its words; the state that follows arrives as the next statuses. */
