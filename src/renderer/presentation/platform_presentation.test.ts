@@ -30,7 +30,7 @@ function statusOn(platform: unknown): TatolabStatus {
     command_line_tool_version: { kind: "read", version: "0.55.2" },
     python_for_new_environments: { kind: "built_in", python_version: "3.12.12" },
     runtime_install: { kind: "none" },
-    installed_runtime_build: null,
+    installed_runtime: null,
   };
 }
 

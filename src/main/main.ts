@@ -6,6 +6,7 @@
 // runtime left running from the bundle before an update, and starts checking for updates on its
 // own.
 
+import { notifyTheRuntimeInstallEnded } from "./runtime_install_notifications.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
@@ -262,7 +263,8 @@ export async function startTatolabApp(
   runInTheBackgroundWithTheController(sharedState, "tatolab-app-opened", async (controller, statusPublisher) => {
     statusPublisher.startPolling();
     tatolabAppUpdater.startCheckingOnItsOwn(tatolabElectronAppShell.repeatingTimer);
-    await controller.installTheCarriedRuntimeIfItDiffers();
+    const runtimeInstallOutcome = await controller.installTheCarriedRuntimeIfItDiffers();
+    if (!tatolabMainWindow.isShowing()) notifyTheRuntimeInstallEnded(tatolabElectronAppShell.systemNotifications, runtimeInstallOutcome, showTheWindowWithTheLastStatus);
     await controller.reconcileTheAgentWithTheRunTatolabSwitch();
     statusPublisher.requestRefresh();
   });

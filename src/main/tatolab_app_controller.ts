@@ -206,10 +206,11 @@ export class TatolabAppController {
    * As the app opens: install the runtime it carries when the installed build differs, then bring the agent in line
    * with the switch, as one queued step, so no toggle or restart lands while the installer runs.
    */
-  async installTheCarriedRuntimeIfItDiffers(): Promise<void> {
-    await this.withTheRunTatolabSwitch(async (runTatolabSwitch) => {
+  async installTheCarriedRuntimeIfItDiffers(): Promise<CarriedRuntimeInstallOutcome> {
+    return this.withTheRunTatolabSwitch(async (runTatolabSwitch) => {
       const outcome = await this.carriedRuntimeInstallOnLaunch.installTheCarriedRuntimeIfItDiffers();
       await this.bringTheAgentInLineAfterTheInstaller(runTatolabSwitch, outcome);
+      return outcome;
     });
   }
 
@@ -329,7 +330,7 @@ export class TatolabAppController {
       command_line_tool_version: this.readTheCommandLineToolVersion(),
       python_for_new_environments: this.readPythonForNewEnvironments(),
       runtime_install: this.carriedRuntimeInstallOnLaunch.runtimeInstallNow(),
-      installed_runtime_build: this.carriedRuntimeInstallOnLaunch.installedRuntimeBuildNow(),
+      installed_runtime: this.carriedRuntimeInstallOnLaunch.installedRuntimeNow(),
     };
   }
 

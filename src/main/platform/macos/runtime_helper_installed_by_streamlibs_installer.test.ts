@@ -56,6 +56,7 @@ test("the_carried_build_is_its_tatolabds_version_and_its_commit_and_the_installe
     }),
   );
   expect(programRuns).toEqual([`${appBundle}/Contents/Helpers/Tatolab Runtime.app/Contents/MacOS/tatolabd --version`]);
+  expect(install.installedRuntimeFolderOf(`0.67.0-${"2".repeat(40)}`)).toBe(path.join(runtimeInstallDirectory, `0.67.0-${"2".repeat(40)}`));
 });
 
 test("nothing_is_installed_before_the_installer_made_current", async () => {

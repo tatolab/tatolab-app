@@ -359,7 +359,37 @@ describe("updating the app", () => {
 
     await expect.poll(() => carriedRuntimeInstall.installedBuilds).toEqual(["0.68.0-1111111"]);
     await expect
-      .poll(() => tatolabRunningApp?.statusPublisher.lastPublishedStatusWaitingUpTo(0).then((status) => status?.installed_runtime_build))
+      .poll(() => tatolabRunningApp?.statusPublisher.lastPublishedStatusWaitingUpTo(0).then((status) => status?.installed_runtime?.build))
       .toBe("0.68.0-1111111");
+  });
+
+  test("a runtime install that ends while the window is closed says so in a notification, and clicking it shows the window", async () => {
+    const fakeShell = fakeShellQuitAfterTheTest();
+    let releaseTheInstaller = () => {};
+    const carriedRuntimeInstall = new FakeCarriedRuntimeInstall("0.68.0-1111111", "0.67.0-2222222", fakeShell.runtimeAgent);
+    carriedRuntimeInstall.installerHeldUntil = new Promise((release) => {
+      releaseTheInstaller = release;
+    });
+    fakeShell.carriedRuntimeInstall = carriedRuntimeInstall;
+    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    await expect.poll(() => fakeShell.mainWindowShowing).toBe(true);
+    fakeShell.mainWindowShowing = false;
+    releaseTheInstaller();
+
+    await expect
+      .poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "notify"))
+      .toEqual([expect.objectContaining({ title: "Tatolab's runtime is updated", body: "Runtime 0.68.0-1111111 is running." })]);
+    fakeShell.systemNotifications.clickTheLastNotification();
+    expect(fakeShell.mainWindowShowing).toBe(true);
+  });
+
+  test("a runtime install that ends while the window shows sends no notification", async () => {
+    const fakeShell = fakeShellQuitAfterTheTest();
+    const carriedRuntimeInstall = new FakeCarriedRuntimeInstall("0.68.0-1111111", "0.67.0-2222222", fakeShell.runtimeAgent);
+    fakeShell.carriedRuntimeInstall = carriedRuntimeInstall;
+    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+
+    await expect.poll(() => carriedRuntimeInstall.installedBuilds).toEqual(["0.68.0-1111111"]);
+    expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "notify")).toEqual([]);
   });
 });

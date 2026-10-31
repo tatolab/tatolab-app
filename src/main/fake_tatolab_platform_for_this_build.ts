@@ -100,6 +100,10 @@ export class FakeCarriedRuntimeInstall implements CarriedRuntimeInstall {
     return succeeded({ carriedRuntimeBuild: this.carriedBuildAnswer.value, installedRuntimeBuild: this.installedRuntimeBuild });
   }
 
+  installedRuntimeFolderOf(installedRuntimeBuild: string): string {
+    return `/Users/someone/Library/Application Support/com.tatolab.runtime/${installedRuntimeBuild}`;
+  }
+
   async installTheCarriedRuntime(onInstallerLine: (installerLine: string) => void): Promise<Result<void, string>> {
     for (const installerLine of this.installerLines) onInstallerLine(installerLine);
     if (this.installerHeldUntil !== null) await this.installerHeldUntil;

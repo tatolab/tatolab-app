@@ -346,3 +346,38 @@ describe("the mock backend's relays", () => {
     expect("refusal" in outcome && String(outcome.refusal).startsWith("no runtime answers at ")).toBe(true);
   });
 });
+
+describe("the mock backend's runtime install", () => {
+  it("installs the carried runtime line by line as it opens, puts the old build back with ?runtime_install=failed, and Try again installs it", async () => {
+    vi.useFakeTimers();
+    const statusOf = async (backend: ReturnType<typeof createMockTatolabBackend>): Promise<TatolabStatus> => {
+      const status = backend.getTatolabStatus();
+      await vi.advanceTimersByTimeAsync(100);
+      return status;
+    };
+    const installing = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("runtime_install=installing")));
+    await vi.advanceTimersByTimeAsync(3 * 900 + 100);
+    const midway = await statusOf(installing);
+    expect(midway.runtime_install).toMatchObject({ kind: "installing", installer_lines: expect.arrayContaining(["Stopping the runtime"]) });
+    expect(midway.runtime_state).toBe("starting");
+    await vi.advanceTimersByTimeAsync(10_000);
+    const installed = await statusOf(installing);
+    expect(installed.runtime_install).toEqual({ kind: "none" });
+    expect(installed.installed_runtime?.build).toMatch(/^0\.56\.0-/);
+    expect(installed.runtime_state).toBe("running");
+
+    const refusing = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("runtime_install=failed")));
+    await vi.advanceTimersByTimeAsync(10_000);
+    const refused = await statusOf(refusing);
+    expect(refused.runtime_install).toMatchObject({ kind: "failed", refusal: expect.stringMatching(/^tatolab install: .* is back in place\./) });
+    expect(refused.installed_runtime?.build).toMatch(/^0\.55\.2-/);
+    const tryAgain = refusing.installTheCarriedRuntimeAgain();
+    await vi.advanceTimersByTimeAsync(10_000);
+    await tryAgain;
+    expect((await statusOf(refusing)).installed_runtime?.build).toMatch(/^0\.56\.0-/);
+
+    const onLinux = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("platform=linux&runtime_install=installing")));
+    expect((await statusOf(onLinux)).runtime_install).toEqual({ kind: "none" });
+    expect((await statusOf(onLinux)).installed_runtime).toBeNull();
+  });
+});

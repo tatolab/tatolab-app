@@ -62,6 +62,8 @@ export interface TatolabBackend {
   describeRuntime(): Promise<RuntimeDescription>;
   /** Stop the runtime and start it again through the service manager, resolving once the service manager has answered and rejecting in its words; the state that follows arrives as the next statuses. */
   restartRuntime(): Promise<void>;
+  /** Run the installer on the runtime the app carries again after it refused, resolving once it ends and rejecting in its words; where it stands arrives as the next statuses. */
+  installTheCarriedRuntimeAgain(): Promise<void>;
   /** Show the folder the runtime writes its own log to in the file manager, rejecting with why it could not. */
   openRuntimeLogFolder(): Promise<void>;
   /** Turn the notifications shown when a stream fails on or off, resolving once it is remembered and rejecting with why it was not; the switch arrives as the next status. */

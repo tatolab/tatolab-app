@@ -40,7 +40,7 @@ Evidence counts only when it was shot on what would ship now:
    Start `node scripts/serve_the_mock_window_in_a_browser.mjs` in the background (stop it at the
    end), then drive the page with Playwright at the URL it prints with the presets `index.html`, `src/renderer/feature_flags.ts`,
    `src/renderer/backend/mock_tatolab_backend.ts` and `src/renderer/mock_window_preset.ts` read:
-   `?theme=light|dark`, `?platform=linux`, `?state=` (running, empty, loading, node-error,
+   `?theme=light|dark`, `?platform=linux`, `?runtime_install=installing|failed`, `?state=` (running, empty, loading, node-error,
    not-listed, starting, stopped, unreachable, setup; macOS-only approval, missing,
    not-registered), `?uninstall=cancel`, and the screen keys `?stream=<stream id>`, `?tab=`,
    `?page=settings`, `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`,
@@ -59,14 +59,15 @@ Evidence counts only when it was shot on what would ship now:
    differently from what ships. Drive streams with that unit's own CLI
    (`build/streamlib/target/tatolab-runtime/bin/tatolab`, with `TATOLAB_TEST_MACHINE_ROOT` set) —
    test-pattern streams only. `build/streamlib` keeps cargo's cache between builds, so building
-   again at an unchanged commit is quick. **The proof build shares the installed app's bundle id and agent label,
-   so while it runs it replaces the owner's runtime.** Before: record
-   `launchctl print gui/$(id -u)/com.tatolab.tatolabd | head -5` and quit the installed Tatolab.
-   After: turn "Run Tatolab" off in the proof build and quit it. Never use its "Uninstall
-   Tatolab…" unless uninstall is what you are proving — it also deletes
+   again at an unchanged commit is quick. **The proof build shares the installed app's bundle id**, so
+   quit the installed Tatolab first. It drives only the launch agent
+   `com.tatolab.tatolabd.local-proof` under the test root, and installs no runtime: streamlib's
+   `install.sh` takes no test root yet, so run the unit's `tatolabd` by hand as below. Before: record
+   `launchctl print gui/$(id -u)/com.tatolab.tatolabd | head -5`. After: quit the proof build.
+   Never use its "Uninstall Tatolab…" unless uninstall is what you are proving — it also deletes
    `~/Library/Application Support/com.tatolab.tatolab`, the installed app's own settings. Then
-   `rm -rf /tmp/tatolab-proof`, reopen `/Applications/Tatolab.app` so it registers its own agent,
-   and show `launchctl print` matches the record. Label **Live (local proof)**.
+   `rm -rf /tmp/tatolab-proof`, reopen `/Applications/Tatolab.app`, and show `launchctl print`
+   matches the record. Label **Live (local proof)**.
 
    Without the packaged build — the unpackaged app over a runtime run by hand, as #37 and #38
    did:

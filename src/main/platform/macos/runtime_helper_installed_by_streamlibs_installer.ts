@@ -63,6 +63,10 @@ export class RuntimeHelperInstalledByStreamlibsInstaller implements CarriedRunti
     });
   }
 
+  installedRuntimeFolderOf(installedRuntimeBuild: string): string {
+    return path.join(this.runtimeInstallDirectory, installedRuntimeBuild);
+  }
+
   async installTheCarriedRuntime(onInstallerLine: (installerLine: string) => void): Promise<Result<void, string>> {
     const installer = carriedRuntimeInstallerIn(this.appBundle);
     const installerRun = await this.programRunnerStreamingItsLines(

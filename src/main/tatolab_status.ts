@@ -72,6 +72,14 @@ export function trayRuntimeRemedy(status: TatolabStatus): TrayRuntimeRemedy {
 
 /** The tray's one-line status, the disabled first item of its menu. */
 export function trayStatusLine(status: TatolabStatus): string {
+  switch (status.runtime_install.kind) {
+    case "installing":
+      return "Installing runtime…";
+    case "failed":
+      return "Runtime install failed";
+    case "none":
+      break;
+  }
   switch (status.runtime_state) {
     case "running":
       if (status.streams === null) return "Runtime running";

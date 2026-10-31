@@ -65,6 +65,8 @@ export class FakeTatolabElectronAppShell {
   /** The additional data each single-instance lock request handed over, as Electron would carry it. */
   readonly singleInstanceLockAdditionalData: unknown[] = [];
   mainWindowCreationFailure: string | null = null;
+  /** Whether the fake window is on screen: shown and not hidden since. */
+  mainWindowShowing = false;
   readonly runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
   commandLineToolLinks = new FakeTatolabCommandLineToolLinks("/Users/someone/.local/bin/tatolab");
   tatolabUninstall: TatolabUninstall | undefined = undefined;
@@ -133,9 +135,16 @@ export class FakeTatolabElectronAppShell {
         this.answerCloseRequest = answerCloseRequest;
         return succeeded({
           unminimize: () => this.records.push({ asked: "unminimize" }),
-          show: () => this.records.push({ asked: "show" }),
+          show: () => {
+            this.mainWindowShowing = true;
+            this.records.push({ asked: "show" });
+          },
           focus: () => this.records.push({ asked: "focus" }),
-          hide: () => this.records.push({ asked: "hide" }),
+          hide: () => {
+            this.mainWindowShowing = false;
+            this.records.push({ asked: "hide" });
+          },
+          isShowing: () => this.mainWindowShowing,
           sendTheWindowAnEvent: (eventChannel, eventPayload) => this.records.push({ asked: "send_window_event", eventChannel, eventPayload }),
         });
       },

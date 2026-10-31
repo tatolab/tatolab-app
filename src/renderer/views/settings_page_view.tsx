@@ -1,3 +1,4 @@
+import { presentRuntimeBuild } from "../presentation/runtime_install_presentation";
 import { Cpu, FolderOpen, Info, Paintbrush, RadioTower, RotateCw, SlidersHorizontal, SquareTerminal, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { useEffect, useState, type ReactNode } from "react";
@@ -306,6 +307,19 @@ function RuntimeSection() {
             label="Login Items"
             description={presentLoginItemsRow(status)}
             control={() => <ActionButton onPressed={() => void backend.openLoginItemsSettings()}>Open Login Items…</ActionButton>}
+          />
+        )}
+        {status.installed_runtime !== null && (
+          <SettingsRow
+            label="Installed runtime"
+            description={
+              <>
+                <span data-settings-installed-runtime-build="">{presentRuntimeBuild(status.installed_runtime.build)}</span>
+                <PathUnderTheWords>{status.installed_runtime.folder}</PathUnderTheWords>
+              </>
+            }
+            data-settings-row="installed-runtime"
+            control={() => <CopyIconButton label="Copy the installed runtime's folder" readTextToCopy={() => status.installed_runtime?.folder ?? ""} />}
           />
         )}
         <SettingsRow

@@ -2,7 +2,7 @@
 // opening an app is the choice of its runtime. It asks nothing, keeps the installer's lines for the
 // window as they come, and keeps a refusal in the installer's words until it is tried again.
 
-import type { RuntimeInstall } from "../shared/tatolab_backend_contract.js";
+import type { InstalledRuntime, RuntimeInstall } from "../shared/tatolab_backend_contract.js";
 import type { CarriedRuntimeInstall } from "./platform/carried_runtime_install.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
@@ -12,7 +12,7 @@ export type CarriedRuntimeInstallOutcome =
   | { kind: "nothing_carried" }
   | { kind: "carried_runtime_unreadable"; refusal: string }
   | { kind: "already_installed" }
-  | { kind: "installed" }
+  | { kind: "installed"; runtimeBuild: string }
   | { kind: "not_installed"; refusal: string };
 
 /** The app's install of its carried runtime, and where it stands for the window. */
@@ -32,9 +32,10 @@ export class CarriedRuntimeInstallOnLaunch {
     return this.runtimeInstall;
   }
 
-  /** The build the installer runs, as last read. */
-  installedRuntimeBuildNow(): string | null {
-    return this.installedRuntimeBuild;
+  /** The build the installer runs and its folder, as last read. */
+  installedRuntimeNow(): InstalledRuntime | null {
+    if (this.carriedRuntimeInstall === null || this.installedRuntimeBuild === null) return null;
+    return { build: this.installedRuntimeBuild, folder: this.carriedRuntimeInstall.installedRuntimeFolderOf(this.installedRuntimeBuild) };
   }
 
   /** Whether the installer is running now. */
@@ -99,7 +100,7 @@ export class CarriedRuntimeInstallOnLaunch {
     if (!installed.ok) return this.installRefused(carriedRuntimeBuild, installerLines, installed.failure);
     this.tatolabAppLog.info("the runtime this app carries is installed and answers", { runtime_build: carriedRuntimeBuild });
     this.settle({ kind: "none" });
-    return { kind: "installed" };
+    return { kind: "installed", runtimeBuild: carriedRuntimeBuild };
   }
 
   private installRefused(

@@ -53,7 +53,7 @@ function statusWith(
     command_line_tool_version: { kind: "read", version: "0.55.2" },
     python_for_new_environments: { kind: "built_in", python_version: "3.12.12" },
     runtime_install: { kind: "none" },
-    installed_runtime_build: null,
+    installed_runtime: null,
   };
 }
 
@@ -152,4 +152,17 @@ test("the updates item names a newer version once one is found, and waits while 
   });
   expect(appUpdateTrayMenuItemPresentation({ kind: "downloading", version: "0.47.0", percent: 42 })).toEqual({ label: "Downloading Tatolab 0.47.0…", enabled: false });
   expect(appUpdateTrayMenuItemPresentation({ kind: "installing", version: "0.47.0" })).toEqual({ label: "Installing Tatolab 0.47.0…", enabled: false });
+});
+
+test("while the runtime installs, the status line says so and the Run Tatolab check is held", () => {
+  const { tatolabTrayMenu, shownMenus } = buildTrayMenuOnAFakeTrayIconHost();
+  tatolabTrayMenu.showStatus({
+    ...statusWith(true, "starting"),
+    runtime_install: { kind: "installing", carried_runtime_build: "0.68.0-1111111", installer_lines: ["Stopping the runtime"] },
+  });
+  expect(shownMenus.at(-1)?.slice(0, 3)).toEqual([
+    { kind: "item", id: "tray_status_line", label: "Installing runtime…", enabled: false },
+    { kind: "item", id: "open_tatolab", label: "Open Tatolab", enabled: true },
+    { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: false, checked: true },
+  ]);
 });

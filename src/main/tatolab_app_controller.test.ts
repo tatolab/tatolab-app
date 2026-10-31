@@ -90,7 +90,7 @@ test("a healthy runtime's status names its streams and machine, read as the wind
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"},' +
-      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"},"runtime_install":{"kind":"none"},"installed_runtime_build":null}',
+      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"},"runtime_install":{"kind":"none"},"installed_runtime":null}',
   );
 });
 
@@ -304,7 +304,10 @@ test("opening an app whose runtime build differs from the installed one, older o
     expect(runtimeAgent.calls, "the installer started it; the switch, on, only makes sure").toEqual(["start_if_not_running"]);
     const status = await controller.composeStatus(61_000);
     expect(status.runtime_install).toEqual({ kind: "none" });
-    expect(status.installed_runtime_build).toBe(CARRIED_RUNTIME_BUILD);
+    expect(status.installed_runtime).toEqual({
+      build: CARRIED_RUNTIME_BUILD,
+      folder: `/Users/someone/Library/Application Support/com.tatolab.runtime/${CARRIED_RUNTIME_BUILD}`,
+    });
     expect(status.runtime_state, "the installed runtime gets the starting grace again").toBe("starting");
   }
 });
@@ -318,7 +321,7 @@ test("opening an app whose runtime is the installed build installs nothing", asy
 
   expect(carriedRuntimeInstall.installedBuilds).toEqual([]);
   expect(runtimeAgent.calls).toEqual([]);
-  expect((await controller.composeStatus(0)).installed_runtime_build).toBe(CARRIED_RUNTIME_BUILD);
+  expect((await controller.composeStatus(0)).installed_runtime?.build).toBe(CARRIED_RUNTIME_BUILD);
 });
 
 test("an app that carries no runtime installs none", async () => {
@@ -360,7 +363,7 @@ test("a refused install keeps the installer's words and lines until try again in
     installer_lines: ["Stopping the runtime", "Starting Tatolab", "Waiting for Tatolab to answer"],
     refusal: "tatolab install: Tatolab 0.68.0 did not start; Tatolab 0.67.0 is running again",
   });
-  expect(refused.installed_runtime_build).toBe(OLDER_RUNTIME_BUILD);
+  expect(refused.installed_runtime?.build).toBe(OLDER_RUNTIME_BUILD);
 
   carriedRuntimeInstall.installAnswer = succeeded(undefined);
   expect(await controller.installTheCarriedRuntimeAgain()).toEqual(succeeded(undefined));

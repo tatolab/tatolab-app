@@ -102,7 +102,6 @@ export interface TatolabAppBuild {
   built_with_uncommitted_changes: boolean;
 }
 
-/** What `get_tatolab_status` answers and `tatolab-status-changed` carries. */
 /**
  * Installing the runtime the app carries, which the app does when it opens and the installed build differs: nothing
  * under way, the installer running with the lines it has written so far, or refused in the installer's own words.
@@ -114,6 +113,13 @@ export type RuntimeInstall =
   /** `carried_runtime_build` is `null` when the carried runtime could not name its build. */
   | { kind: "failed"; carried_runtime_build: string | null; installer_lines: string[]; refusal: string };
 
+/** The runtime build the installer runs, `<version>-<commit>`, and the folder it installed it in. */
+export interface InstalledRuntime {
+  build: string;
+  folder: string;
+}
+
+/** What `get_tatolab_status` answers and `tatolab-status-changed` carries. */
 export interface TatolabStatus {
   app_version: string;
   /** `null` for a build that recorded none, which only `electron-vite dev` runs. */
@@ -138,8 +144,8 @@ export interface TatolabStatus {
   command_line_tool_version: TatolabCommandLineToolVersion;
   python_for_new_environments: PythonForNewEnvironments;
   runtime_install: RuntimeInstall;
-  /** The runtime build the installer runs, `<version>-<commit>`; `null` before one is installed or where the app carries none. */
-  installed_runtime_build: string | null;
+  /** `null` before one is installed or where the app carries none. */
+  installed_runtime: InstalledRuntime | null;
 }
 
 /** What `describe_runtime` answers: the running runtime's version and build, how long it has been up, and the folder of its own log. */
