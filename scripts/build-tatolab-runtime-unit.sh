@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds streamlib's runtime unit (bin/tatolabd, bin/tatolab, bin/moq-relay, lib/tatolab/lend,
+# Builds streamlib's runtime unit (bin/tatolabd, bin/tatolab, bin/moq-relay, bin/uv, lib/tatolab/lend,
 # lib/tatolab/watch) in a streamlib checkout, writes the checkout's commit into the unit's
 # streamlib-commit, and prints the unit's directory. The checkout's own target directory is used.
 #
@@ -32,7 +32,7 @@ runtime_unit_directory="$streamlib_checkout/target/tatolab-runtime"
 rm -f "$runtime_unit_directory/streamlib-commit"
 (cd "$streamlib_checkout" && cargo xtask "${xtask_arguments[@]}") >&2
 
-for required in bin/tatolabd bin/tatolab bin/moq-relay lib/tatolab/lend/tatolab/runtime lib/tatolab/watch/index.html; do
+for required in bin/tatolabd bin/tatolab bin/moq-relay bin/uv lib/tatolab/lend/tatolab/runtime lib/tatolab/watch/index.html; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit is missing $required" >&2; exit 1; }
 done
 echo "$streamlib_commit" >"$runtime_unit_directory/streamlib-commit"

@@ -121,11 +121,10 @@ mkdir -p "$build_directory"
 
 echo "==> runtime unit (streamlib $streamlib_ref)"
 fetched_streamlib="$build_directory/streamlib"
+streamlib_commit="$("$scripts_directory/fetch-streamlib-for-the-app-build.sh" "$fetched_streamlib" --streamlib-ref "$streamlib_ref" | tail -1)"
 if [ -n "$prebuilt_runtime_unit" ]; then
-  streamlib_commit="$("$scripts_directory/fetch-streamlib-for-the-app-build.sh" "$fetched_streamlib" --streamlib-ref "$streamlib_ref" --resolve-only)"
   runtime_unit_directory="$(cd "$prebuilt_runtime_unit" && pwd)"
 else
-  streamlib_commit="$("$scripts_directory/fetch-streamlib-for-the-app-build.sh" "$fetched_streamlib" --streamlib-ref "$streamlib_ref" | tail -1)"
   runtime_unit_directory="$("$scripts_directory/build-tatolab-runtime-unit.sh" "$fetched_streamlib" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"})"
 fi
 unit_streamlib_commit="$(cat "$runtime_unit_directory/streamlib-commit" 2>/dev/null || true)"
@@ -174,7 +173,7 @@ done < <(plutil -convert json -o - "$info_plist" | node -e 'process.stdout.write
 
 echo "==> assemble"
 "$scripts_directory/assemble-tatolab-app-bundle.sh" "$assembled_app" "$runtime_unit_directory" --streamlib-commit "$streamlib_commit" \
-  --python-toolchain "$python_toolchain_directory" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"}
+  --python-toolchain "$python_toolchain_directory" --installer "$fetched_streamlib/installer/install.sh" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"}
 
 echo "==> sign (Developer ID)"
 "$scripts_directory/sign-tatolab-app-bundle.sh" "$assembled_app" "$signing_identity"
