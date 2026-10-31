@@ -233,41 +233,47 @@ export interface StreamGraphSummary {
   graph_document_text: string;
 }
 
-/** What a project folder is chosen for in the app's folder dialog: a project to run, or the directory `tatolab new` creates. */
+/** What a project folder is chosen for in the app's folder dialog: a project to import, or the folder a new project is created in, which may not exist yet. */
 export type StreamProjectFolderChosenFor = "project_to_run" | "new_project_directory";
 
-/** A project's `.venv` as the app found it: its interpreter present, with the Python and `tatolab-stream` versions it names when it names them; or missing, which the app makes with its own uv when the project runs. */
-export type StreamProjectPythonEnvironment =
-  | { kind: "present"; python_version: string | null; tatolab_stream_version: string | null }
-  | { kind: "missing" };
-
-/** What the app found in a project folder the window may name: whether it exists, its `stream.py`, and its `.venv`. */
-export interface StreamProjectFolderReport {
-  /** An absolute path with its links resolved, as the runtime lists a stream's `project_directory`. */
-  folder: string;
-  folder_exists: boolean;
-  stream_file_present: boolean;
-  /** The functions `stream.py` marks `@stream`, in file order, found by reading its text; the runtime decides what compiles. */
-  stream_functions: string[];
-  python_environment: StreamProjectPythonEnvironment;
+/** What `create_project` answers at once: the action it queued, the stream id the new project's `main` runs under, and the project's folder resolved. */
+export interface ProjectCreationQueued {
+  action: string;
+  stream: string;
+  project_directory: string;
 }
 
-/** What `run_stream` answers for a load it carried out, field for field. */
-export interface StreamRunAnswer {
-  /** The stream id the runtime computed from the stream's location. */
+/** What `run_project` answers at once: the action it queued, and the project's folder. */
+export interface ProjectRunQueued {
+  action: string;
+  project_directory: string;
+}
+
+/** A stream a stream action took in, as `describe_stream_action` lists it: `running` or `failed`, or a state newer than this app. */
+export interface StreamTakenInByAnAction {
   stream: string;
   display_name: string;
-  stream_instance: string;
-  location: StreamLocation;
-  node_count: number;
-  /** Whether the load replaced the recorded stream of the same location, under the same id. */
-  replaced_a_recorded_stream: boolean;
-  /** Each line the compile wrote to its standard error, the cross-floor check's warnings among them. */
-  compile_warnings: string[];
+  /** The stream's state in the runtime's listing; `null` while the action has not yet started it. */
+  state: string | null;
 }
 
-/** What running a project folder came to: the stream running, or the app's uv failing to make the project's `.venv` first, in uv's own words. Any other refusal is the command's refusal. */
-export type StreamProjectRunOutcome = { kind: "running"; answer: StreamRunAnswer } | { kind: "python_environment_not_made"; words: string };
+/** What `describe_stream_action` answers, field for field. */
+export interface StreamActionDescription {
+  action: string;
+  project_directory: string;
+  /** `load`, or a kind newer than this app. */
+  kind: string;
+  /** `queued`, `in_progress`, `done`, `failed`, `cancelled`, or a state newer than this app. */
+  state: string;
+  /** `making_the_venv`, `compiling` or `starting` while `in_progress`; `null` otherwise. */
+  step: string | null;
+  streams: StreamTakenInByAnAction[];
+  /** Why a `failed` action failed, in the runtime's words; `null` otherwise. */
+  failed_because: string | null;
+}
+
+/** What following a stream action read: its description, or the runtime's words that it no longer holds the action. */
+export type StreamActionFollowed = { kind: "described"; description: StreamActionDescription } | { kind: "not_held"; words: string };
 
 /** The Python the app makes a project's `.venv` from: Tatolab's own, with its version; Tatolab's own in a build that carries none, with why; or the interpreter the person chose in Settings. */
 export type PythonForNewEnvironments =

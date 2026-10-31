@@ -190,10 +190,7 @@ export async function startTatolabApp(
     streamProjectAdding: new StreamProjectAdding({
       homeDirectory: tatolabElectronAppShell.homeDirectory,
       streamProjectFolderDialog: tatolabElectronAppShell.askThePersonForAStreamProjectFolder,
-      tatolabCommandLineTool: platformForThisBuild.tatolabCommandLineTool,
-      runProgramToCompletion,
-      makePythonEnvironmentUnlessOneWorks: (projectFolder) => streamProjectPythonEnvironments.makePythonEnvironmentUnlessOneWorks(projectFolder),
-      streamRunsOnTheRuntime: controller,
+      projectLoadsOnTheRuntime: controller,
     }),
     streamProjectPythonEnvironments,
     streamFailureNotifications,

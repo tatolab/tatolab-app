@@ -1,357 +1,205 @@
 import { describe, expect, it } from "vitest";
-import type { ListedStream, PythonForNewEnvironments, StreamProjectFolderReport, StreamRunAnswer } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, StreamActionDescription } from "../../shared/tatolab_backend_contract";
 import {
   addStreamActionOf,
-  addStreamRunNoticeOf,
-  presentAddStreamRunNotice,
-  addStreamDialogSection,
-  addStreamStepAnnouncement,
-  compilingStreamWords,
-  streamRunAnswerLines,
-  streamRunningFactsWords,
-  advanceAddStreamFlow,
-  compileWarningsHeading,
-  runRequestWords,
-  presentStreamFunctionChecks,
   addStreamActionUnavailableBecause,
   addStreamBlockerTheFormDoesNotShow,
-  compilingForWords,
-  displayNamePlaceholderOf,
-  streamAlreadyImportedFrom,
-  streamAlreadyImportedWords,
+  addStreamDialogSection,
+  addStreamRunNoticeOf,
+  addStreamStepAnnouncement,
+  advanceAddStreamFlow,
+  followedStepWords,
+  followingHeadingWords,
   initialAddStreamFlowState,
-  pythonEnvironmentSyncWords,
-  compilingHeadingVerb,
-  compileWaitingWords,
-  runRequestOf,
-  streamRunningSummary,
+  presentAddStreamRunNotice,
+  presentStreamsTakenIn,
+  projectLoadDoneHeadingWords,
+  projectLoadDoneLeadWords,
+  projectLoadNotFinishedHeadingWords,
+  projectLoadRequestWords,
   type AddStreamFlowEvent,
   type AddStreamFlowState,
 } from "./add_stream_flow";
 
-function folderReport(folder: string, changes: Partial<StreamProjectFolderReport> = {}): StreamProjectFolderReport {
+function afterEvents(state: AddStreamFlowState, events: readonly AddStreamFlowEvent[]): AddStreamFlowState {
+  return events.reduce(advanceAddStreamFlow, state);
+}
+
+const HALLWAYS = "/Users/someone/code/hallways";
+const HALLWAYS_LOAD = { action: "R1-3", projectDirectory: HALLWAYS };
+
+/** `describe_stream_action` of `HALLWAYS_LOAD`, shaped as the runtime answered it recorded. */
+function hallwaysDescription(changes: Partial<StreamActionDescription>): StreamActionDescription {
+  return { action: "R1-3", project_directory: HALLWAYS, kind: "load", state: "queued", step: null, streams: [], failed_because: null, ...changes };
+}
+
+const HALLWAYS_DONE = hallwaysDescription({
+  state: "done",
+  streams: [
+    { stream: "hallways-front_door-58034f", display_name: "front_door", state: "running" },
+    { stream: "hallways-back_door-2416d3", display_name: "back_door", state: "failed" },
+  ],
+});
+
+function listing(stream: string, changes: Partial<ListedStream>): ListedStream {
   return {
-    folder,
-    folder_exists: true,
-    stream_file_present: true,
-    stream_functions: ["heat_map"],
-    python_environment: { kind: "present", python_version: "3.12.10", tatolab_stream_version: "0.55.0" },
+    stream,
+    display_name: stream,
+    location: { project_directory: HALLWAYS, stream_function: "stream:x" },
+    state: "running",
+    node_count: 3,
+    failed_because: null,
+    action: null,
+    step: null,
     ...changes,
   };
 }
 
-const TATOLABS_OWN_PYTHON: PythonForNewEnvironments = { kind: "built_in", python_version: "3.12.12" };
+const importing = afterEvents(initialAddStreamFlowState("project_folder"), [
+  { kind: "work_started", work: "choosing_a_folder" },
+  { kind: "folder_chosen", folder: HALLWAYS },
+  { kind: "work_started", work: "queuing_the_load" },
+  { kind: "load_queued", queued: HALLWAYS_LOAD },
+]);
 
-const HEAT_MAP_ANSWER: StreamRunAnswer = {
-  stream: "heat-map-heat-map-2c71fa",
-  display_name: "heat_map",
-  stream_instance: "9",
-  location: { project_directory: "/Users/someone/code/heat-map", stream_function: "stream:heat_map" },
-  node_count: 4,
-  replaced_a_recorded_stream: false,
-  compile_warnings: [],
-};
+describe("the add-project flow", () => {
+  it("imports only once a folder is chosen, and creates a new project with or without one, the runtime drawing it", () => {
+    const form = initialAddStreamFlowState("project_folder").form;
+    expect(addStreamActionOf(form)).toBe("import");
+    expect(addStreamActionUnavailableBecause(form, true)).toBe("Choose a project folder first.");
+    expect(addStreamActionUnavailableBecause({ ...form, chosenFolder: HALLWAYS }, true)).toBeNull();
 
-function afterEvents(state: AddStreamFlowState, events: AddStreamFlowEvent[]): AddStreamFlowState {
-  return events.reduce(advanceAddStreamFlow, state);
-}
-
-describe("addStreamBlockerTheFormDoesNotShow", () => {
-  it("says the runtime is down or there is no Python to set the project up with, and nothing the form already shows", () => {
-    const noFolderYet = initialAddStreamFlowState("project_folder").form;
-    expect(addStreamBlockerTheFormDoesNotShow(noFolderYet, true, TATOLABS_OWN_PYTHON)).toBeNull();
-    expect(addStreamBlockerTheFormDoesNotShow(noFolderYet, false, TATOLABS_OWN_PYTHON)).toBe("The runtime isn't running, so it can't add a stream.");
-
-    const withNoVenv = afterEvents(initialAddStreamFlowState("project_folder"), [
-      { kind: "project_folder_answered", report: folderReport("/x", { python_environment: { kind: "missing" } }) },
-    ]).form;
-    expect(addStreamBlockerTheFormDoesNotShow(withNoVenv, true, { kind: "built_in_not_offered", reason: "No uv here." })).toBe(
-      "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.",
-    );
+    const newProjectForm = initialAddStreamFlowState("new_project").form;
+    expect(addStreamActionOf(newProjectForm)).toBe("create");
+    expect(addStreamActionUnavailableBecause(newProjectForm, true)).toBeNull();
+    expect(addStreamActionUnavailableBecause({ ...newProjectForm, workUnderWay: "choosing_a_folder" }, true)).toBe("Choose a folder in the dialog.");
+    expect(addStreamActionUnavailableBecause({ ...newProjectForm, workUnderWay: "queuing_the_load" }, true)).toBe("Wait for the runtime to queue it.");
   });
-});
 
-describe("running a project folder", () => {
-  it("leaves the name blank, its function's name its placeholder, so a run sends none and a re-run keeps the recorded one", () => {
-    const chosen = afterEvents(initialAddStreamFlowState("project_folder"), [
-      { kind: "work_started", work: "choosing_a_folder" },
-      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map") },
+  it("says the runtime is down in the body, and leaves a folder still to choose to the form", () => {
+    const form = initialAddStreamFlowState("project_folder").form;
+    expect(addStreamBlockerTheFormDoesNotShow(form, false)).toBe("The runtime isn't running, so it can't add a project.");
+    expect(addStreamBlockerTheFormDoesNotShow(form, true)).toBeNull();
+  });
+
+  it("follows a queued load through its steps, each seen once, and ignores a description of another action", () => {
+    expect(importing).toMatchObject({ step: "following", queued: HALLWAYS_LOAD, description: null, stepsSeen: ["Queued"], form: { workUnderWay: null } });
+    const compiling = afterEvents(importing, [
+      { kind: "load_described", description: hallwaysDescription({ state: "queued" }) },
+      { kind: "load_described", description: hallwaysDescription({ state: "in_progress", step: "making_the_venv" }) },
+      { kind: "load_described", description: hallwaysDescription({ state: "in_progress", step: "compiling" }) },
+      { kind: "load_described", description: hallwaysDescription({ state: "in_progress", step: "compiling" }) },
+      { kind: "load_described", description: { ...hallwaysDescription({ state: "done" }), action: "R1-99" } },
     ]);
-    expect(chosen.form.displayName).toBe("");
-    expect(displayNamePlaceholderOf(chosen.form)).toBe("heat_map");
-    expect(addStreamActionUnavailableBecause(chosen.form, true, TATOLABS_OWN_PYTHON)).toBeNull();
-    const request = runRequestOf(chosen.form);
-    expect(request).toEqual({ folder: "/Users/someone/code/heat-map", streamFunction: null, displayName: null });
+    expect(compiling).toMatchObject({ step: "following", stepsSeen: ["Queued", "Making the environment", "Compiling"] });
+    expect(compiling.step === "following" && followedStepWords(compiling.description)).toBe("Compiling");
+    expect(followedStepWords(null)).toBe("Queued");
+    expect(followedStepWords(hallwaysDescription({ state: "in_progress", step: "warming_up" }))).toBe("Warming up");
+  });
 
-    const compiling = advanceAddStreamFlow(chosen, { kind: "run_started", request: request ?? { folder: "", streamFunction: null, displayName: null }, nowMs: 100 });
-    expect(compiling).toMatchObject({ step: "compiling", startedAtMs: 100 });
-    expect(compilingForWords(100, 12_350)).toBe("12s");
-    expect(advanceAddStreamFlow(compiling, { kind: "run_answered", outcome: { kind: "running", answer: HEAT_MAP_ANSWER } })).toMatchObject({
-      step: "running",
-      answer: HEAT_MAP_ANSWER,
+  it("ends done with the load's streams, cancelled, or no longer held, and returns a failed load to the form in the runtime's words", () => {
+    expect(advanceAddStreamFlow(importing, { kind: "load_described", description: HALLWAYS_DONE })).toMatchObject({ step: "ended", ending: { kind: "done", description: HALLWAYS_DONE } });
+    expect(advanceAddStreamFlow(importing, { kind: "load_described", description: hallwaysDescription({ state: "cancelled" }) })).toMatchObject({ step: "ended", ending: { kind: "cancelled" } });
+    expect(advanceAddStreamFlow(importing, { kind: "load_not_held", words: "Invalid configuration: the stream action `R1-3` is not held" })).toMatchObject({
+      step: "ended",
+      ending: { kind: "not_held", words: "Invalid configuration: the stream action `R1-3` is not held" },
     });
-  });
 
-  it("finds the listed stream a chosen project folder and stream already run as, by its location, and none for another folder or stream", () => {
-    const listed = (projectDirectory: string, streamFunction: string): ListedStream => ({
-      stream: "doorways-front-door-b937b6",
-      display_name: "Front door",
-      location: { project_directory: projectDirectory, stream_function: streamFunction },
-      state: "running",
-      node_count: 4,
-      failed_because: null, action: null, step: null,
+    const failed = advanceAddStreamFlow(importing, {
+      kind: "load_described",
+      description: hallwaysDescription({ state: "failed", failed_because: `the project directory ${HALLWAYS} does not exist` }),
     });
-    const chosen = afterEvents(initialAddStreamFlowState("project_folder"), [
-      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/doorways", { stream_functions: ["front_door", "back_door"] }) },
-    ]);
-    const frontDoor = listed("/Users/someone/code/doorways", "stream:front_door");
-
-    expect(streamAlreadyImportedFrom(chosen.form, [frontDoor])).toBe(frontDoor);
-    expect(streamAlreadyImportedWords(frontDoor)).toBe("Already imported as Front door.");
-    expect(streamAlreadyImportedFrom(advanceAddStreamFlow(chosen, { kind: "stream_function_chosen", streamFunction: "back_door" }).form, [frontDoor])).toBeNull();
-    expect(streamAlreadyImportedFrom(chosen.form, [listed("/Users/someone/code/doorways-v2", "stream:front_door")])).toBeNull();
-    expect(streamAlreadyImportedFrom(chosen.form, null)).toBeNull();
-    expect(addStreamStepAnnouncement(chosen, true, TATOLABS_OWN_PYTHON, frontDoor)).toBe("Already imported as Front door.");
-  });
-
-  it("asks for the chosen function as module:function when a project has several streams, its name the placeholder", () => {
-    const chosen = afterEvents(initialAddStreamFlowState("project_folder"), [
-      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/doorways", { stream_functions: ["front_door", "back_door"] }) },
-      { kind: "stream_function_chosen", streamFunction: "back_door" },
-    ]);
-    expect(runRequestOf(chosen.form)).toEqual({ folder: "/Users/someone/code/doorways", streamFunction: "stream:back_door", displayName: null });
-    expect(displayNamePlaceholderOf(chosen.form)).toBe("back_door");
-    expect(displayNamePlaceholderOf(advanceAddStreamFlow(chosen, { kind: "source_chosen", source: "new_project" }).form)).toBe("");
-  });
-
-  it("keeps the person's name and function across a new answer for the same folder, and starts afresh for another folder", () => {
-    const renamed = afterEvents(initialAddStreamFlowState("project_folder"), [
-      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map", { python_environment: { kind: "missing" } }) },
-      { kind: "display_name_edited", displayName: "lobby-heat" },
-      { kind: "work_started", work: "choosing_a_folder" },
-      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map") },
-    ]);
-    expect(renamed.form).toMatchObject({ displayName: "lobby-heat", workUnderWay: null, projectFolder: { python_environment: { kind: "present" } } });
-    expect(addStreamActionUnavailableBecause(renamed.form, true, TATOLABS_OWN_PYTHON)).toBeNull();
-
-    const another = advanceAddStreamFlow(renamed, { kind: "project_folder_answered", report: folderReport("/Users/someone/code/doorways", { stream_functions: ["front_door"] }) });
-    expect(another.form.displayName).toBe("");
-  });
-
-  it("lets a folder with no .venv compile and run, which sets up its Python first, and returns uv's refusal to the form under its own lead", () => {
-    const withNoVenv = afterEvents(initialAddStreamFlowState("project_folder"), [
-      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map", { python_environment: { kind: "missing" } }) },
-    ]);
-    expect(addStreamActionUnavailableBecause(withNoVenv.form, true, TATOLABS_OWN_PYTHON)).toBeNull();
-    const compiling = advanceAddStreamFlow(withNoVenv, { kind: "run_started", request: { folder: "/Users/someone/code/heat-map", streamFunction: null, displayName: "heat_map" }, nowMs: 0 });
-    expect(compiling).toMatchObject({ step: "compiling", makesThePythonEnvironmentFirst: true });
-    const refused = advanceAddStreamFlow(compiling, { kind: "run_answered", outcome: { kind: "python_environment_not_made", words: "error: No interpreter found" } });
-    expect(refused).toMatchObject({ step: "form", form: { refusal: { lead: "Tatolab couldn't set up the project's Python:", words: "error: No interpreter found" } } });
-    expect(addStreamRunNoticeOf(refused)).toEqual({
-      kind: "refused",
-      source: "project_folder",
-      title: "Tatolab couldn't set up the project's Python",
-      words: "error: No interpreter found",
-    });
-    expect(addStreamActionUnavailableBecause(withNoVenv.form, true, { kind: "built_in_not_offered", reason: "No uv here." })).toBe(
-      "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.",
-    );
-    expect(addStreamActionUnavailableBecause(withNoVenv.form, true, { kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" })).toBeNull();
-
-    const withAVenv = afterEvents(initialAddStreamFlowState("project_folder"), [{ kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map") }]);
-    expect(advanceAddStreamFlow(withAVenv, { kind: "run_started", request: { folder: "/Users/someone/code/heat-map", streamFunction: null, displayName: "heat_map" }, nowMs: 0 })).toMatchObject({
-      makesThePythonEnvironmentFirst: false,
-    });
-  });
-
-  it("returns any other refusal to the form in the runtime's own words", () => {
-    const refused = afterEvents(initialAddStreamFlowState("project_folder"), [
-      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map") },
-      { kind: "run_started", request: { folder: "/Users/someone/code/heat-map", streamFunction: null, displayName: "heat_map" }, nowMs: 0 },
-      { kind: "run_refused", words: "Invalid configuration: the stream function in /Users/someone/code/heat-map failed to compile" },
-    ]);
-    expect(refused).toMatchObject({
+    expect(failed).toEqual({
       step: "form",
-      form: { refusal: { lead: "Adding the stream was refused:", words: "Invalid configuration: the stream function in /Users/someone/code/heat-map failed to compile" } },
+      form: { source: "project_folder", chosenFolder: HALLWAYS, workUnderWay: null, refusal: { lead: "Importing the project failed:", words: `the project directory ${HALLWAYS} does not exist` } },
     });
-  });
-
-  it("can't compile and run before a folder is chosen, or while the runtime is down", () => {
-    const empty = initialAddStreamFlowState("project_folder").form;
-    expect(addStreamActionUnavailableBecause(empty, true, TATOLABS_OWN_PYTHON)).toBe("Choose a project folder first.");
-    expect(addStreamActionUnavailableBecause(empty, false, TATOLABS_OWN_PYTHON)).toBe("The runtime isn't running, so it can't add a stream.");
-  });
-});
-
-describe("creating a new project", () => {
-  it("names the stream after the directory, offers Create until tatolab new wrote it and Add after, and keeps the name when the folder is answered again", () => {
-    const proposed = afterEvents(initialAddStreamFlowState("new_project"), [
-      { kind: "new_project_folder_answered", report: folderReport("/Users/someone/streams/hello", { folder_exists: false, stream_file_present: false, stream_functions: [], python_environment: { kind: "missing" } }) },
+    const createFailed = afterEvents(initialAddStreamFlowState("new_project"), [
+      { kind: "load_queued", queued: HALLWAYS_LOAD },
+      { kind: "load_described", description: hallwaysDescription({ state: "failed", failed_because: null }) },
     ]);
-    expect(proposed.form.displayName).toBe("hello");
-    expect(addStreamActionOf(proposed.form)).toBe("create");
-    expect(addStreamActionUnavailableBecause(proposed.form, true, TATOLABS_OWN_PYTHON)).toBeNull();
-    expect(addStreamActionUnavailableBecause(initialAddStreamFlowState("new_project").form, true, TATOLABS_OWN_PYTHON)).toBe("Choose a directory for the new project.");
-    expect(addStreamActionUnavailableBecause(proposed.form, true, { kind: "built_in_not_offered", reason: "No uv here." })).toBe(
-      "This build of Tatolab carries no Python, so it can't set up this project. Run uv sync in its folder.",
+    expect(createFailed.form.refusal).toEqual({ lead: "Creating the project failed:", words: "The runtime gave no reason." });
+  });
+
+  it("keeps a load under way whatever the dialog is opened on, and starts afresh once it ended", () => {
+    expect(advanceAddStreamFlow(importing, { kind: "source_chosen", source: "new_project" })).toBe(importing);
+    expect(advanceAddStreamFlow(importing, { kind: "add_another" })).toBe(importing);
+    expect(advanceAddStreamFlow(importing, { kind: "folder_chosen", folder: "/elsewhere" })).toBe(importing);
+    const ended = advanceAddStreamFlow(importing, { kind: "load_described", description: HALLWAYS_DONE });
+    expect(advanceAddStreamFlow(ended, { kind: "source_chosen", source: "new_project" })).toEqual(initialAddStreamFlowState("new_project"));
+    expect(advanceAddStreamFlow(ended, { kind: "add_another" })).toEqual(initialAddStreamFlowState("project_folder"));
+  });
+
+  it("words the following view: its heading and the request it sent", () => {
+    expect(followingHeadingWords("project_folder", HALLWAYS_LOAD)).toBe("Importing hallways");
+    expect(followingHeadingWords("new_project", { action: "R1-7", projectDirectory: "/Users/someone/streams/kind-butte" })).toBe("Creating kind-butte");
+    expect(projectLoadRequestWords("new_project", null)).toBe("create_project  (a folder under ~/streams)");
+    expect(projectLoadRequestWords("project_folder", HALLWAYS)).toBe(`run_project  ${HALLWAYS}`);
+  });
+
+  it("lists a done load's streams through the runtime's listing, with a failed one's reason, and heads it by how many failed", () => {
+    const listedStreams = [
+      listing("hallways-front_door-58034f", { display_name: "Front door" }),
+      listing("hallways-back_door-2416d3", { display_name: "back_door", state: "failed", node_count: null, failed_because: "RuntimeError: no camera at /dev/video0" }),
+    ];
+    const streamsTakenIn = presentStreamsTakenIn(HALLWAYS_DONE, listedStreams);
+    expect(streamsTakenIn).toEqual([
+      { stream: "hallways-front_door-58034f", displayName: "Front door", stateLabel: "Running", isRunning: true, isFailed: false, failedBecause: null },
+      { stream: "hallways-back_door-2416d3", displayName: "back_door", stateLabel: "Failed", isRunning: false, isFailed: true, failedBecause: "RuntimeError: no camera at /dev/video0" },
+    ]);
+    expect(projectLoadDoneHeadingWords(HALLWAYS, streamsTakenIn)).toBe("hallways is running, 1 of 2 streams failed");
+    expect(projectLoadDoneLeadWords(streamsTakenIn)).toBe("A failed stream's traceback is in its logs.");
+    expect(projectLoadDoneHeadingWords(HALLWAYS, streamsTakenIn.slice(0, 1))).toBe("hallways is running");
+    expect(projectLoadDoneLeadWords(streamsTakenIn.slice(0, 1))).toBe("Its stream is loaded.");
+    expect(projectLoadDoneHeadingWords(HALLWAYS, streamsTakenIn.slice(1))).toBe("hallways failed to start");
+    expect(projectLoadDoneHeadingWords(HALLWAYS, [streamsTakenIn[1], streamsTakenIn[1]])).toBe("Every stream of hallways failed");
+    expect(projectLoadDoneHeadingWords(HALLWAYS, [])).toBe("The runtime loaded no stream from hallways");
+
+    expect(presentStreamsTakenIn(HALLWAYS_DONE, null).map((streamTakenIn) => [streamTakenIn.displayName, streamTakenIn.stateLabel])).toEqual([
+      ["front_door", "Running"],
+      ["back_door", "Failed"],
+    ]);
+    expect(projectLoadNotFinishedHeadingWords("project_folder", HALLWAYS_LOAD, { kind: "cancelled", description: hallwaysDescription({ state: "cancelled" }) })).toBe(
+      "Importing hallways was cancelled",
     );
-    expect(runRequestOf(proposed.form)).toBeNull();
-
-    const created = afterEvents(proposed, [
-      { kind: "work_started", work: "creating_the_project" },
-      { kind: "new_project_created", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"], python_environment: { kind: "missing" } }) },
-      { kind: "new_project_folder_answered", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"] }) },
-    ]);
-    expect(created.form).toMatchObject({ hasCreatedTheNewProject: true, displayName: "hello" });
-    expect(runRequestOf(created.form)).toEqual({ folder: "/Users/someone/streams/hello", streamFunction: null, displayName: "hello" });
-    expect(addStreamActionOf(created.form)).toBe("add");
+    expect(projectLoadNotFinishedHeadingWords("new_project", HALLWAYS_LOAD, { kind: "not_held", words: "gone" })).toBe("Tatolab stopped following hallways");
   });
 
-  it("choosing another directory before creating renames the stream after it", () => {
-    const rechosen = afterEvents(initialAddStreamFlowState("new_project"), [
-      { kind: "new_project_folder_answered", report: folderReport("/Users/someone/streams/hello", { folder_exists: false }) },
-      { kind: "new_project_folder_answered", report: folderReport("/Users/someone/streams/lobby-wall", { folder_exists: false }) },
-    ]);
-    expect(rechosen.form.displayName).toBe("lobby-wall");
-  });
-
-  it("shows tatolab's refusal in its own words and stays on the form", () => {
-    const refused = advanceAddStreamFlow(initialAddStreamFlowState("new_project"), {
-      kind: "work_refused",
-      lead: "Create was refused:",
-      words: "This build of Tatolab has no tatolab command to run. Run tatolab new in a terminal instead.",
-    });
-    expect(refused.form.refusal).toEqual({ lead: "Create was refused:", words: "This build of Tatolab has no tatolab command to run. Run tatolab new in a terminal instead." });
+  it("moves focus on a new step or folder, and announces a folder ready to import", () => {
+    const chosen = afterEvents(initialAddStreamFlowState("project_folder"), [{ kind: "folder_chosen", folder: HALLWAYS }]);
+    expect(addStreamDialogSection(initialAddStreamFlowState("project_folder"))).toBe("form:project_folder:no_folder");
+    expect(addStreamDialogSection(chosen)).toBe("form:project_folder:folder");
+    expect(addStreamDialogSection(importing)).toBe("following:project_folder:folder");
+    expect(addStreamStepAnnouncement(chosen, true)).toBe(`${HALLWAYS} is ready to import.`);
+    expect(addStreamStepAnnouncement(chosen, false)).toBe("");
+    expect(addStreamStepAnnouncement(importing, true)).toBe("");
   });
 });
 
-describe("events that arrive outside the form", () => {
-  const running = afterEvents(initialAddStreamFlowState("project_folder"), [
-    { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map") },
-    { kind: "run_started", request: { folder: "/Users/someone/code/heat-map", streamFunction: null, displayName: "heat_map" }, nowMs: 0 },
-    { kind: "run_answered", outcome: { kind: "running", answer: HEAT_MAP_ANSWER } },
-  ]);
+describe("the notice of a load followed away from the dialog", () => {
+  it("says the step while under way, the streams once done, and a failure in the runtime's words", () => {
+    const followingNotice = addStreamRunNoticeOf(importing);
+    expect(followingNotice).toEqual({ kind: "following", source: "project_folder", queued: HALLWAYS_LOAD, description: null });
+    expect(followingNotice === null ? null : presentAddStreamRunNotice(followingNotice, null)).toEqual({ title: "Importing hallways", detail: "Queued…", tone: "plain", isUnderWay: true });
 
-  it("keeps the running view through a form event, and starts afresh when another source is chosen", () => {
-    expect(advanceAddStreamFlow(running, { kind: "display_name_edited", displayName: "x" })).toBe(running);
-    expect(advanceAddStreamFlow(running, { kind: "work_refused", lead: "No terminal opened:", words: "gone" })).toBe(running);
-    expect(advanceAddStreamFlow(running, { kind: "source_chosen", source: "new_project" })).toEqual(initialAddStreamFlowState("new_project"));
-  });
-
-  it("keeps a compile under way through a form event or a source chosen", () => {
-    const compiling = advanceAddStreamFlow(initialAddStreamFlowState("project_folder"), {
-      kind: "run_started",
-      request: { folder: "/Users/someone/code/heat-map", streamFunction: null, displayName: "heat_map" },
-      nowMs: 0,
-    });
-    expect(advanceAddStreamFlow(compiling, { kind: "source_chosen", source: "new_project" })).toBe(compiling);
-    expect(advanceAddStreamFlow(compiling, { kind: "project_folder_answered", report: folderReport("/elsewhere") })).toBe(compiling);
-  });
-
-  it("announces the form's milestones a focus move does not say, and leaves refusals to their own alert", () => {
-    expect(addStreamStepAnnouncement(running, true, TATOLABS_OWN_PYTHON, null)).toBe("");
-    expect(addStreamStepAnnouncement(initialAddStreamFlowState("project_folder"), true, TATOLABS_OWN_PYTHON, null)).toBe("");
-    const created = afterEvents(initialAddStreamFlowState("new_project"), [
-      { kind: "new_project_created", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"], python_environment: { kind: "missing" } }) },
-    ]);
-    expect(addStreamStepAnnouncement(created, true, TATOLABS_OWN_PYTHON, null)).toBe("tatolab new wrote /Users/someone/streams/hello. Add is ready.");
-    expect(addStreamStepAnnouncement(created, false, TATOLABS_OWN_PYTHON, null)).toBe("");
-    const chosenWithNoVenv = afterEvents(initialAddStreamFlowState("project_folder"), [
-      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/heat-map", { python_environment: { kind: "missing" } }) },
-    ]);
-    expect(addStreamStepAnnouncement(chosenWithNoVenv, true, TATOLABS_OWN_PYTHON, null)).toBe("/Users/someone/code/heat-map is ready to add.");
-    const synced = advanceAddStreamFlow(created, { kind: "new_project_folder_answered", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"] }) });
-    expect(addStreamStepAnnouncement(synced, true, TATOLABS_OWN_PYTHON, null)).toBe("tatolab new wrote /Users/someone/streams/hello. Add is ready.");
-    expect(addStreamStepAnnouncement(synced, false, TATOLABS_OWN_PYTHON, null)).toBe("");
-    expect(addStreamStepAnnouncement(advanceAddStreamFlow(synced, { kind: "work_refused", lead: "The folder dialog was refused:", words: "gone" }), true, TATOLABS_OWN_PYTHON, null)).toBe(
-      "tatolab new wrote /Users/someone/streams/hello. Add is ready.",
-    );
-    expect(addStreamDialogSection(created)).toBe(addStreamDialogSection(synced));
-    expect(addStreamDialogSection(synced)).toBe("form:new_project:created:folder");
-  });
-});
-
-describe("the commands and words the page shows", () => {
-  it("words each check, the request line and the warning count", () => {
-    expect(presentStreamFunctionChecks(folderReport("/x"))).toEqual([{ checked: "stream_function", name: "heat_map", isFound: true, detail: null }]);
-    expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: ["a", "b"] })).map((check) => check.name)).toEqual(["a", "b"]);
-    expect(presentStreamFunctionChecks(folderReport("/x", { stream_functions: [] }))).toEqual([
-      { checked: "stream_file", name: "Streams", isFound: true, detail: "The runtime finds them when it loads the project." },
-    ]);
-    expect(presentStreamFunctionChecks(folderReport("/x", { stream_file_present: false, stream_functions: [] }))).toEqual([
-      { checked: "stream_file", name: "Streams", isFound: false, detail: "This project has none." },
-    ]);
-    const builtIn = TATOLABS_OWN_PYTHON;
-    expect(pythonEnvironmentSyncWords(builtIn)).toBe("uv sync  python=Tatolab's Python 3.12.12");
-    expect(pythonEnvironmentSyncWords({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.12" })).toBe("uv sync  python=/opt/homebrew/bin/python3.12");
-    expect([compilingHeadingVerb(true), compilingHeadingVerb(false)]).toEqual(["Setting up Python, then starting", "Starting"]);
-    expect([compileWaitingWords(true, 0, 14_200), compileWaitingWords(false, 0, 3_000)]).toEqual([
-      "waiting for uv and the runtime · 14s",
-      "waiting for the runtime's answer · 3s",
-    ]);
-    expect(runRequestWords({ folder: "/x", streamFunction: "stream.py:a", displayName: "a" })).toBe("run_stream  /x  stream_function=stream.py:a  name=a");
-    expect(runRequestWords({ folder: "/x", streamFunction: null, displayName: null })).toBe("run_stream  /x");
-    expect([compileWarningsHeading(1), compileWarningsHeading(2)]).toEqual(["1 warning", "2 warnings"]);
-  });
-
-  it("words the compile view's name, the running facts and what the runtime did", () => {
-    expect(compilingStreamWords({ folder: "/x", streamFunction: null, displayName: null }, "heat_map")).toBe("heat_map");
-    expect(compilingStreamWords({ folder: "/x", streamFunction: null, displayName: "Heat map" }, "heat_map")).toBe("Heat map");
-    expect(compilingStreamWords({ folder: "/x", streamFunction: null, displayName: null }, "")).toBe("the stream");
-    expect(streamRunningFactsWords(HEAT_MAP_ANSWER)).toBe("4 nodes");
-    expect(streamRunAnswerLines({ ...HEAT_MAP_ANSWER, replaced_a_recorded_stream: true })).toEqual([
-      "loaded heat_map as heat-map-heat-map-2c71fa: 4 nodes, replacing its last run",
-      "heat_map is running and starts with the runtime",
-    ]);
-  });
-
-  it("says to wait while tatolab new writes the project", () => {
-    const chosen = afterEvents(initialAddStreamFlowState("project_folder"), [
-      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/main-v2", { stream_functions: ["main"] }) },
-    ]);
-    expect(addStreamActionUnavailableBecause({ ...chosen.form, workUnderWay: "creating_the_project" }, true, TATOLABS_OWN_PYTHON)).toBe("Wait for tatolab new to write the project.");
-  });
-
-  it("says whether the stream loaded cleanly, with warnings, or replaced its last run", () => {
-    expect(streamRunningSummary(HEAT_MAP_ANSWER)).toBe("It loaded cleanly.");
-    expect(streamRunningSummary({ ...HEAT_MAP_ANSWER, compile_warnings: ["a"] })).toBe("It loaded with a warning. Read it before you rely on this stream.");
-    expect(streamRunningSummary({ ...HEAT_MAP_ANSWER, compile_warnings: ["a", "b"], replaced_a_recorded_stream: true })).toBe(
-      "It replaced its last run. It loaded with 2 warnings. Read them before you rely on this stream.",
-    );
-  });
-});
-
-describe("the notice of a run that answered away from the page", () => {
-  it("names the running stream, and its warnings to read, or a refusal in the runtime's words", () => {
-    const running = afterEvents(initialAddStreamFlowState("new_project"), [
-      { kind: "new_project_created", report: folderReport("/Users/someone/streams/hello", { stream_functions: ["main"] }) },
-      { kind: "run_started", request: { folder: "/Users/someone/streams/hello", streamFunction: null, displayName: "hello" }, nowMs: 0 },
-      { kind: "run_answered", outcome: { kind: "running", answer: { ...HEAT_MAP_ANSWER, stream: "hello-main-56afa5", display_name: "hello", compile_warnings: ["a"] } } },
-    ]);
-    const runningNotice = addStreamRunNoticeOf(running);
-    expect(runningNotice).toMatchObject({ kind: "running", source: "new_project", answer: { stream: "hello-main-56afa5" } });
-    expect(runningNotice === null ? null : presentAddStreamRunNotice(runningNotice)).toEqual({
-      title: "hello is running",
-      detail: "It loaded with a warning. Read it before you rely on this stream.",
+    const ended = advanceAddStreamFlow(importing, { kind: "load_described", description: HALLWAYS_DONE });
+    const endedNotice = addStreamRunNoticeOf(ended);
+    expect(endedNotice === null ? null : presentAddStreamRunNotice(endedNotice, null)).toEqual({
+      title: "hallways is running, 1 of 2 streams failed",
+      detail: "front_door: Running · back_door: Failed",
       tone: "warning",
-    });
-    expect(presentAddStreamRunNotice({ kind: "running", source: "project_folder", answer: HEAT_MAP_ANSWER })).toEqual({
-      title: "heat_map is running",
-      detail: "It loaded cleanly.",
-      tone: "plain",
+      isUnderWay: false,
     });
 
-    const refused = afterEvents(initialAddStreamFlowState("project_folder"), [
-      { kind: "project_folder_answered", report: folderReport("/Users/someone/code/main-v2", { stream_functions: ["main"] }) },
-      { kind: "run_started", request: { folder: "/Users/someone/code/main-v2", streamFunction: null, displayName: "main" }, nowMs: 0 },
-      { kind: "run_refused", words: "Invalid configuration: /Users/someone/code/main-v2 has no .venv/bin/python" },
-    ]);
-    expect(addStreamRunNoticeOf(refused)).toMatchObject({ kind: "refused", source: "project_folder", words: "Invalid configuration: /Users/someone/code/main-v2 has no .venv/bin/python" });
-    expect(presentAddStreamRunNotice({ kind: "refused", source: "project_folder", title: "Adding the stream was refused", words: "held" })).toEqual({
-      title: "Adding the stream was refused",
-      detail: "held",
-      tone: "failure",
-    });
+    const failed = advanceAddStreamFlow(importing, { kind: "load_described", description: hallwaysDescription({ state: "failed", failed_because: "missing" }) });
+    const failedNotice = addStreamRunNoticeOf(failed);
+    expect(failedNotice === null ? null : presentAddStreamRunNotice(failedNotice, null)).toEqual({ title: "Importing the project failed", detail: "missing", tone: "failure", isUnderWay: false });
+
+    const notHeld = advanceAddStreamFlow(importing, { kind: "load_not_held", words: "Invalid configuration: not held" });
+    const notHeldNotice = addStreamRunNoticeOf(notHeld);
+    expect(notHeldNotice === null ? null : presentAddStreamRunNotice(notHeldNotice, null)).toMatchObject({ title: "Tatolab stopped following hallways", tone: "warning" });
+
     expect(addStreamRunNoticeOf(initialAddStreamFlowState("project_folder"))).toBeNull();
+    const refusedBeforeQueuing = afterEvents(initialAddStreamFlowState("project_folder"), [{ kind: "work_refused", lead: "Import was refused:", words: "no runtime answers" }]);
+    expect(addStreamRunNoticeOf(refusedBeforeQueuing)).toBeNull();
   });
 });

@@ -1,171 +1,168 @@
-import { describe, expect, it } from "vitest";
-import { AddStreamFlowOfTheWindow, type AddStreamBackend } from "./add_stream_flow_of_the_window";
-import { addStreamActionOf } from "./presentation/add_stream_flow";
-import type { StreamProjectFolderReport, StreamProjectRunOutcome, StreamRunAnswer } from "../shared/tatolab_backend_contract";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { AddStreamFlowOfTheWindow, PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS, type AddStreamBackend } from "./add_stream_flow_of_the_window";
+import type { StreamActionDescription, StreamActionFollowed } from "../shared/tatolab_backend_contract";
 
-const HEAT_MAP_FOLDER: StreamProjectFolderReport = {
-  folder: "/Users/someone/code/heat-map",
-  folder_exists: true,
-  stream_file_present: true,
-  stream_functions: ["heat_map"],
-  python_environment: { kind: "present", python_version: "3.12.10", tatolab_stream_version: "0.55.0" },
-};
+const HALLWAYS = "/Users/someone/code/hallways";
 
-const HEAT_MAP_ANSWER_WITH_TWO_WARNINGS: StreamRunAnswer = {
-  stream: "heat-map-heat-map-1acf70",
-  display_name: "heat_map",
-  stream_instance: "7",
-  location: { project_directory: HEAT_MAP_FOLDER.folder, stream_function: "stream:heat_map" },
-  node_count: 4,
-  replaced_a_recorded_stream: false,
-  compile_warnings: ["tatolab: the cross-floor check found 1 thing binding this app to one floor.", "  nodes/heat_render.py:4: imports `cupy`"],
-};
-
-const RUNNING_WITH_TWO_WARNINGS: StreamProjectRunOutcome = { kind: "running", answer: HEAT_MAP_ANSWER_WITH_TWO_WARNINGS };
-
-/** A backend whose run answers only when the test settles it. */
-function backendWithAPendingRun() {
-  let settleTheRun: { answer: (outcome: StreamProjectRunOutcome) => void; refuse: (words: string) => void } | null = null;
-  const backend: AddStreamBackend = {
-    chooseStreamProjectFolder: async () => HEAT_MAP_FOLDER,
-    proposeNewStreamProjectFolder: async () => HEAT_MAP_FOLDER,
-    createStreamProject: async () => HEAT_MAP_FOLDER,
-    runStreamProject: () =>
-      new Promise((resolve, reject) => {
-        settleTheRun = { answer: resolve, refuse: reject };
-      }),
-  };
-  return {
-    backend,
-    answerTheRun: async (outcome: StreamProjectRunOutcome) => {
-      settleTheRun?.answer(outcome);
-      await Promise.resolve();
-    },
-    refuseTheRun: async (words: string) => {
-      settleTheRun?.refuse(words);
-      await Promise.resolve();
-      await Promise.resolve();
-    },
-  };
+function hallwaysDescription(changes: Partial<StreamActionDescription>): StreamActionDescription {
+  return { action: "R1-3", project_directory: HALLWAYS, kind: "load", state: "queued", step: null, streams: [], failed_because: null, ...changes };
 }
 
-async function flowWithAFolderChosen() {
-  const pendingRun = backendWithAPendingRun();
-  const addStreamFlow = new AddStreamFlowOfTheWindow(pendingRun.backend, () => 1000);
+const HALLWAYS_DONE = hallwaysDescription({
+  state: "done",
+  streams: [
+    { stream: "hallways-front_door-58034f", display_name: "front_door", state: "running" },
+    { stream: "hallways-back_door-2416d3", display_name: "back_door", state: "failed" },
+  ],
+});
+
+/** A backend that chooses `HALLWAYS`, queues its load as `R1-3`, and answers each read of it with the next of `followedAnswers`, the last again once they run out; `null` rejects as the runtime not answering. */
+function scriptedBackend(followedAnswers: readonly (StreamActionFollowed | null)[]) {
+  const actionsDescribed: string[] = [];
+  const foldersRun: string[] = [];
+  const foldersCreated: (string | null)[] = [];
+  let answerIndex = 0;
+  const backend: AddStreamBackend = {
+    chooseStreamProjectFolder: async () => HALLWAYS,
+    createStreamProject: async (folder) => {
+      foldersCreated.push(folder);
+      return { action: "R1-3", stream: "kind-butte-main-e51c2f", project_directory: folder ?? "/Users/someone/streams/kind-butte" };
+    },
+    runStreamProject: async (folder) => {
+      foldersRun.push(folder);
+      return { action: "R1-3", project_directory: folder };
+    },
+    describeStreamAction: async (action) => {
+      actionsDescribed.push(action);
+      const answer = followedAnswers[Math.min(answerIndex, followedAnswers.length - 1)] ?? null;
+      answerIndex += 1;
+      if (answer === null) throw "no runtime answers";
+      return answer;
+    },
+  };
+  return { backend, actionsDescribed, foldersRun, foldersCreated };
+}
+
+function described(description: StreamActionDescription): StreamActionFollowed {
+  return { kind: "described", description };
+}
+
+async function importHallways(addStreamFlow: AddStreamFlowOfTheWindow): Promise<void> {
   addStreamFlow.openDialog("project_folder", false);
   addStreamFlow.chooseFolder();
-  await Promise.resolve();
-  return { addStreamFlow, ...pendingRun };
+  await vi.advanceTimersByTimeAsync(0);
+  addStreamFlow.performTheAction();
+  await vi.advanceTimersByTimeAsync(0);
 }
 
-describe("the window's Add stream flow", () => {
-  it("says which source the dialog is open on, and that it is closed once it closes", () => {
-    const addStreamFlow = new AddStreamFlowOfTheWindow(backendWithAPendingRun().backend);
-    expect(addStreamFlow.readOpenDialog()).toBeNull();
+afterEach(() => {
+  vi.useRealTimers();
+});
 
-    addStreamFlow.openDialog("new_project", false);
-    expect(addStreamFlow.readOpenDialog()).toEqual({ source: "new_project", isOpenedFromARunNotice: false });
+describe("the window's add-project flow", () => {
+  it("queues the chosen folder's import, follows the load each round to its end, then stops reading it", async () => {
+    vi.useFakeTimers();
+    const { backend, actionsDescribed, foldersRun } = scriptedBackend([
+      described(hallwaysDescription({ state: "queued" })),
+      described(hallwaysDescription({ state: "in_progress", step: "compiling" })),
+      null,
+      described(HALLWAYS_DONE),
+    ]);
+    const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
+    await importHallways(addStreamFlow);
+    expect(foldersRun).toEqual([HALLWAYS]);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following", stepsSeen: ["Queued"] });
 
-    addStreamFlow.closeDialog();
-    expect(addStreamFlow.readOpenDialog()).toBeNull();
-  });
+    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following", stepsSeen: ["Queued", "Compiling"] });
+    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following" });
+    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", ending: { kind: "done", description: HALLWAYS_DONE } });
 
-  it("shows a run that answers while the dialog is open in the dialog, with no notice", async () => {
-    const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
-    addStreamFlow.performTheAction();
-    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "compiling", startedAtMs: 1000, request: { displayName: null } });
-
-    await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
-
-    expect(addStreamFlow.readFlowState().step).toBe("running");
+    const readsAtTheEnd = actionsDescribed.length;
+    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS * 3);
+    expect(actionsDescribed).toHaveLength(readsAtTheEnd);
+    expect(actionsDescribed.every((action) => action === "R1-3")).toBe(true);
     expect(addStreamFlow.readRunNotice()).toBeNull();
   });
 
-  it("keeps a run that answers after the dialog closed, and leaves a notice of it until the dialog opens again", async () => {
-    const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
+  it("creates a new project with no folder chosen, letting the runtime draw one", async () => {
+    vi.useFakeTimers();
+    const { backend, foldersCreated } = scriptedBackend([described(HALLWAYS_DONE)]);
+    const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
+    addStreamFlow.openDialog("new_project", false);
     addStreamFlow.performTheAction();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(foldersCreated).toEqual([null]);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", queued: { action: "R1-3", projectDirectory: "/Users/someone/streams/kind-butte" } });
+  });
+
+  it("shows the load under way in a notice once the dialog closes, updates it each step, and says what it came to", async () => {
+    vi.useFakeTimers();
+    const { backend } = scriptedBackend([
+      described(hallwaysDescription({ state: "queued" })),
+      described(hallwaysDescription({ state: "in_progress", step: "starting" })),
+      described(HALLWAYS_DONE),
+    ]);
+    const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
+    await importHallways(addStreamFlow);
     addStreamFlow.closeDialog();
+    expect(addStreamFlow.readRunNotice()).toMatchObject({ kind: "following", description: { state: "queued" } });
 
-    await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
+    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    expect(addStreamFlow.readRunNotice()).toMatchObject({ kind: "following", description: { step: "starting" } });
+    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    expect(addStreamFlow.readRunNotice()).toMatchObject({ kind: "ended", ending: { kind: "done" } });
 
-    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "running", answer: { stream: "heat-map-heat-map-1acf70", display_name: "heat_map" } });
-    expect(addStreamFlow.readRunNotice()).toEqual({ kind: "running", source: "project_folder", answer: HEAT_MAP_ANSWER_WITH_TWO_WARNINGS });
     addStreamFlow.openDialog("project_folder", true);
     expect(addStreamFlow.readRunNotice()).toBeNull();
-    expect(addStreamFlow.readFlowState().step).toBe("running");
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended" });
   });
 
-  it("leaves a notice of a refusal in the runtime's own words, which Dismiss takes away", async () => {
-    const { addStreamFlow, refuseTheRun } = await flowWithAFolderChosen();
-    const listenedChanges: number[] = [];
-    addStreamFlow.subscribeToFlow(() => listenedChanges.push(1));
-    addStreamFlow.performTheAction();
+  it("keeps a dismissed notice of a load under way gone until the load ends, and reopens the dialog on the load still under way", async () => {
+    vi.useFakeTimers();
+    const { backend } = scriptedBackend([
+      described(hallwaysDescription({ state: "queued" })),
+      described(hallwaysDescription({ state: "in_progress", step: "compiling" })),
+      described(hallwaysDescription({ state: "failed", failed_because: `the project directory ${HALLWAYS} does not exist` })),
+    ]);
+    const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
+    await importHallways(addStreamFlow);
     addStreamFlow.closeDialog();
-
-    await refuseTheRun("Runtime error: the stream function in /Users/someone/code/heat-map failed to compile");
-
-    expect(addStreamFlow.readRunNotice()).toEqual({
-      kind: "refused",
-      source: "project_folder",
-      title: "Adding the stream was refused",
-      words: "Runtime error: the stream function in /Users/someone/code/heat-map failed to compile",
-    });
     addStreamFlow.dismissRunNotice();
+    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
     expect(addStreamFlow.readRunNotice()).toBeNull();
-    expect(listenedChanges.length).toBeGreaterThan(2);
+
+    addStreamFlow.openDialog("new_project", false);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following" });
+    addStreamFlow.closeDialog();
+    addStreamFlow.dismissRunNotice();
+
+    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+    expect(addStreamFlow.readRunNotice()).toEqual({ kind: "failed", source: "project_folder", words: `the project directory ${HALLWAYS} does not exist` });
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "form", form: { chosenFolder: HALLWAYS, refusal: { lead: "Importing the project failed:" } } });
   });
 
-  it("leaves a notice of uv failing to set up the folder's Python, titled so and in uv's own words", async () => {
-    const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
-    addStreamFlow.performTheAction();
-    addStreamFlow.closeDialog();
+  it("ends the following when the runtime no longer holds the load", async () => {
+    vi.useFakeTimers();
+    const words = "Invalid configuration: the stream action `R1-3` is not held: this runtime never queued it";
+    const { backend, actionsDescribed } = scriptedBackend([{ kind: "not_held", words }]);
+    const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
+    await importHallways(addStreamFlow);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", ending: { kind: "not_held", words } });
+    await vi.advanceTimersByTimeAsync(PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS * 2);
+    expect(actionsDescribed).toEqual(["R1-3"]);
+  });
 
-    await answerTheRun({ kind: "python_environment_not_made", words: "error: Failed to fetch: `https://pypi.org/simple/tatolab-stream/`" });
-
-    expect(addStreamFlow.readRunNotice()).toEqual({
-      kind: "refused",
-      source: "project_folder",
-      title: "Tatolab couldn't set up the project's Python",
-      words: "error: Failed to fetch: `https://pypi.org/simple/tatolab-stream/`",
+  it("returns to the form with the runtime's refusal when it does not queue the load", async () => {
+    vi.useFakeTimers();
+    const { backend } = scriptedBackend([]);
+    const addStreamFlow = new AddStreamFlowOfTheWindow({ ...backend, runStreamProject: async () => Promise.reject("no runtime answers at /tmp/local-api.sock") });
+    await importHallways(addStreamFlow);
+    expect(addStreamFlow.readFlowState()).toEqual({
+      step: "form",
+      form: { source: "project_folder", chosenFolder: HALLWAYS, workUnderWay: null, refusal: { lead: "Import was refused:", words: "no runtime answers at /tmp/local-api.sock" } },
     });
-  });
-
-  it("Create writes the new project and adds it with no second press, and a refused add leaves Add as the dialog's action", async () => {
-    const pendingRun = backendWithAPendingRun();
-    const addStreamFlow = new AddStreamFlowOfTheWindow(pendingRun.backend, () => 1000);
-    addStreamFlow.openDialog("new_project", false);
-    addStreamFlow.proposeNewProjectFolder();
-    await Promise.resolve();
-    expect(addStreamActionOf(addStreamFlow.readFlowState().form)).toBe("create");
-
-    addStreamFlow.performTheAction();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "compiling", form: { hasCreatedTheNewProject: true } });
-
-    await pendingRun.refuseTheRun("Runtime error: the stream function failed to compile");
-    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "form", form: { refusal: { lead: "Adding the stream was refused:" } } });
-    expect(addStreamActionOf(addStreamFlow.readFlowState().form)).toBe("add");
-  });
-
-  it("leaves no notice for work other than a run that finishes while the dialog is closed", async () => {
-    const { addStreamFlow } = await flowWithAFolderChosen();
-    addStreamFlow.closeDialog();
-    addStreamFlow.chooseFolder();
-    await Promise.resolve();
-    expect(addStreamFlow.readRunNotice()).toBeNull();
-  });
-
-  it("opened afresh, the dialog starts a new form unless a run is still compiling", async () => {
-    const { addStreamFlow, answerTheRun } = await flowWithAFolderChosen();
-    addStreamFlow.performTheAction();
-    addStreamFlow.closeDialog();
-    addStreamFlow.openDialog("new_project", false);
-    expect(addStreamFlow.readFlowState().step).toBe("compiling");
-
-    await answerTheRun(RUNNING_WITH_TWO_WARNINGS);
-    addStreamFlow.closeDialog();
-    addStreamFlow.openDialog("new_project", false);
-    expect(addStreamFlow.readFlowState()).toEqual({ step: "form", form: expect.objectContaining({ source: "new_project", projectFolder: null }) });
   });
 });

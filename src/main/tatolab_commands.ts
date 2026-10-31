@@ -4,16 +4,17 @@
 // its answer or a refusal in words, never a thrown error.
 
 import type {
+  ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
+  ProjectRunQueued,
   PythonForNewEnvironmentsChoice,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
+  StreamActionFollowed,
   StreamGraphSummary,
   StreamProjectFolderChosenFor,
-  StreamProjectFolderReport,
-  StreamProjectRunOutcome,
   TatolabStatus,
   TatolabStreamActionName,
 } from "../shared/tatolab_backend_contract.js";
@@ -177,32 +178,37 @@ export function openStreamProjectFolderOnRequest(
   );
 }
 
-/** `choose_stream_project_folder { chosen_for }`: the app's folder dialog, then what the chosen folder holds; `null` when the person cancels. */
-export function chooseStreamProjectFolder(sharedState: TatolabAppSharedState, chosenFor: StreamProjectFolderChosenFor): Promise<Result<StreamProjectFolderReport | null, string>> {
+/** `choose_stream_project_folder { chosen_for }`: the app's folder dialog, answering the chosen folder as the runtime lists a project's; `null` when the person cancels. */
+export function chooseStreamProjectFolder(sharedState: TatolabAppSharedState, chosenFor: StreamProjectFolderChosenFor): Promise<Result<string | null, string>> {
   return answerTheWindow("choose_stream_project_folder", () => sharedState.streamProjectAdding.chooseStreamProjectFolder(chosenFor));
 }
 
-/** `propose_new_stream_project_folder`: the first free `~/streams/hello[-N]` for a new project. */
-export function proposeNewStreamProjectFolder(sharedState: TatolabAppSharedState): Promise<Result<StreamProjectFolderReport, string>> {
-  return answerTheWindow("propose_new_stream_project_folder", async () => succeeded(await sharedState.streamProjectAdding.proposeNewStreamProjectFolder()));
-}
-
-/** `create_stream_project { folder }`: `tatolab new <folder>`, then what the folder holds; refused in the CLI's own words. */
-export function createStreamProject(sharedState: TatolabAppSharedState, folder: string): Promise<Result<StreamProjectFolderReport, string>> {
-  return answerTheWindow("create_stream_project", () => sharedState.streamProjectAdding.createStreamProject(folder));
-}
-
-/** `run_stream_project { folder, stream_function, name }`: `run_stream` on `folder` under the display name `name`, then a status round whether it loaded or was refused. */
-export function runStreamProject(
-  sharedState: TatolabAppSharedState,
-  folder: string,
-  streamFunction: string | null,
-  displayName: string | null,
-): Promise<Result<StreamProjectRunOutcome, string>> {
-  return answerTheWindow("run_stream_project", async () => {
-    const outcome = await sharedState.streamProjectAdding.runStreamProject(folder, streamFunction, displayName);
+/** `create_stream_project { folder }`: the runtime's `create_project` queued in `folder`, or with `null` in a folder it draws, then a status round; refused in the runtime's own words. */
+export function createStreamProject(sharedState: TatolabAppSharedState, folder: string | null): Promise<Result<ProjectCreationQueued, string>> {
+  return answerTheWindow("create_stream_project", async () => {
+    const queued = await sharedState.streamProjectAdding.createStreamProject(folder);
     sharedState.statusPublisher.requestRefresh();
-    return outcome;
+    return queued;
+  });
+}
+
+/** `run_stream_project { folder }`: the runtime's `run_project` queued on `folder`, then a status round; refused in the runtime's own words. */
+export function runStreamProject(sharedState: TatolabAppSharedState, folder: string): Promise<Result<ProjectRunQueued, string>> {
+  return answerTheWindow("run_stream_project", async () => {
+    const queued = await sharedState.streamProjectAdding.runStreamProject(folder);
+    sharedState.statusPublisher.requestRefresh();
+    return queued;
+  });
+}
+
+/** `describe_stream_action { action }`: where the action is, or the runtime's words that it no longer holds it; refused when the runtime could not be asked. */
+export function describeStreamAction(sharedState: TatolabAppSharedState, action: string): Promise<Result<StreamActionFollowed, string>> {
+  return answerTheWindow("describe_stream_action", async (): Promise<Result<StreamActionFollowed, string>> => {
+    const description = await sharedState.controller.describeStreamAction(action);
+    if (description.ok) return succeeded({ kind: "described", description: description.value });
+    return description.failure.isTheRuntimesRefusal
+      ? succeeded({ kind: "not_held", words: description.failure.failureDescription })
+      : failedWith(description.failure.failureDescription);
   });
 }
 
@@ -388,19 +394,12 @@ export function chooseStreamProjectFolderArgumentsFrom(commandArguments: unknown
   return succeeded({ chosen_for: chosenFor });
 }
 
-/** `run_stream_project`'s arguments as the window sends them, or why they are not. */
-export function runStreamProjectArgumentsFrom(
-  commandArguments: unknown,
-): Result<{ folder: string; stream_function: string | null; name: string | null }, string> {
-  if (
-    !isAJsonObject(commandArguments) ||
-    typeof commandArguments["folder"] !== "string" ||
-    !isTextOrNull(commandArguments["stream_function"]) ||
-    !isTextOrNull(commandArguments["name"])
-  ) {
-    return failedWith("run_stream_project needs `folder`, a folder chosen in the window, and `stream_function` and `name`, each text or null");
+/** `create_stream_project`'s arguments as the window sends them, or why they are not. */
+export function createStreamProjectArgumentsFrom(commandArguments: unknown): Result<{ folder: string | null }, string> {
+  if (!isAJsonObject(commandArguments) || !isTextOrNull(commandArguments["folder"])) {
+    return failedWith("create_stream_project needs `folder`, a folder chosen in the window, or null for one the runtime draws under ~/streams");
   }
-  return succeeded({ folder: commandArguments["folder"], stream_function: commandArguments["stream_function"], name: commandArguments["name"] });
+  return succeeded({ folder: commandArguments["folder"] });
 }
 
 /** Each command's handler, taking the arguments as the window sent them and answering in the contract's shape. */
@@ -476,17 +475,20 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!chooseArguments.ok) return { ok: false, refusal: chooseArguments.failure };
       return commandAnswerFrom(await chooseStreamProjectFolder(sharedState, chooseArguments.value.chosen_for));
     },
-    propose_new_stream_project_folder: async () => commandAnswerFrom(await proposeNewStreamProjectFolder(sharedState)),
     create_stream_project: async (commandArguments) => {
-      const folderArguments = folderArgumentsFrom("create_stream_project", commandArguments);
+      const folderArguments = createStreamProjectArgumentsFrom(commandArguments);
       if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
       return commandAnswerFrom(await createStreamProject(sharedState, folderArguments.value.folder));
     },
     run_stream_project: async (commandArguments) => {
-      const runArguments = runStreamProjectArgumentsFrom(commandArguments);
-      if (!runArguments.ok) return { ok: false, refusal: runArguments.failure };
-      const { folder, stream_function, name } = runArguments.value;
-      return commandAnswerFrom(await runStreamProject(sharedState, folder, stream_function, name));
+      const folderArguments = folderArgumentsFrom("run_stream_project", commandArguments);
+      if (!folderArguments.ok) return { ok: false, refusal: folderArguments.failure };
+      return commandAnswerFrom(await runStreamProject(sharedState, folderArguments.value.folder));
+    },
+    describe_stream_action: async (commandArguments) => {
+      const action = oneTextArgumentFrom("describe_stream_action", commandArguments, "action", "a stream action's id");
+      if (!action.ok) return { ok: false, refusal: action.failure };
+      return commandAnswerFrom(await describeStreamAction(sharedState, action.value));
     },
     describe_runtime: async () => commandAnswerFrom(await describeRuntime(sharedState)),
     restart_runtime: async () => commandAnswerOfNothingFrom(await restartRuntime(sharedState)),

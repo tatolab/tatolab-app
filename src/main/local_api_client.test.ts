@@ -12,9 +12,9 @@ import {
   runtimeDescriptionFromTheDescribeRuntimeToolResult,
   queuedStreamActionFromTheToolResult,
   streamRenameAnswerFromTheRenameStreamToolResult,
-  streamRunAnswerFromTheRunStreamToolResult,
 } from "./local_api_client.js";
 import type { Result } from "./result.js";
+import { projectCreationQueuedFromTheCreateProjectToolResult, streamActionDescriptionFromTheDescribeStreamActionToolResult } from "./stream_action_description.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
 
@@ -535,81 +535,86 @@ test("a_rename_stream_answer_missing_its_display_name_is_refused_naming_it", () 
   );
 });
 
-test("running_a_project_calls_run_stream_without_keep_and_reads_its_id_display_name_location_and_compile_warnings", async () => {
+test("creating_a_project_calls_create_project_with_its_folder_or_none_and_reads_the_action_the_stream_and_the_folder", async () => {
   const server = await fakeLocalApiServerAnswering([
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-answer-for-the-new-project-hello.json")),
-    httpResponse(
-      "200 OK",
-      "application/json",
-      await recordedResponseBody("local-api-run-stream-answer-for-the-project-warned-whose-stream-py-writes-a-line-to-stderr.json"),
-    ),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-project-answer-for-the-folder-lobby.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-project-answer-with-no-folder-drawn-kind-butte.json")),
   ]);
 
-  expect(answerOf(await server.client().runStream({ projectDirectory: "/tmp/tatolab-proof/projects/hello", streamFunction: null, displayName: null }))).toEqual({
-    stream: "hello-main-8d60ef",
-    display_name: "main",
-    stream_instance: "1",
-    location: { project_directory: "/private/tmp/tatolab-proof/projects/hello", stream_function: "stream:main" },
-    node_count: 4,
-    replaced_a_recorded_stream: false,
-    compile_warnings: [],
+  expect(answerOf(await server.client().createProject("/tmp/tatolab-proof-projects/lobby"))).toEqual({
+    action: "Rj12j3eujz3zn0dposliv79k9-2",
+    stream: "lobby-main-caa719",
+    project_directory: "/tmp/tatolab-proof-projects/lobby",
   });
-  expect(
-    answerOf(await server.client().runStream({ projectDirectory: "/tmp/tatolab-proof/projects/warned", streamFunction: "stream.py:main", displayName: null }))
-      .compile_warnings,
-  ).toEqual(["this project's stream.py writes this line to its standard error"]);
-
-  const toolArguments = server.receivedRequests().map((request) => JSON.parse(headAndBodyOf(request)[1]).params.arguments);
-  expect(toolArguments).toEqual([
-    { project_directory: "/tmp/tatolab-proof/projects/hello" },
-    { project_directory: "/tmp/tatolab-proof/projects/warned", stream_function: "stream.py:main" },
+  expect(answerOf(await server.client().createProject(null))).toEqual({
+    action: "Rj12j3eujz3zn0dposliv79k9-7",
+    stream: "kind-butte-main-e51c2f",
+    project_directory: "/tmp/tatolab-proof/streams/kind-butte",
+  });
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["create_project", { project_directory: "/tmp/tatolab-proof-projects/lobby" }],
+    ["create_project", {}],
   ]);
 });
 
-test("running_a_recorded_project_again_under_a_display_name_replaces_its_stream_under_the_same_id", async () => {
+test("running_a_project_calls_run_project_with_its_folder_and_reads_the_action_it_queued", async () => {
   const server = await fakeLocalApiServerAnswering([
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-answer-for-the-recorded-project-hello-run-again-as-hello.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-project-answer-for-the-folder-hallways.json")),
   ]);
 
-  expect(answerOf(await server.client().runStream({ projectDirectory: "/tmp/tatolab-proof/projects/hello", streamFunction: null, displayName: "hello" }))).toMatchObject({
-    stream: "hello-main-8d60ef",
-    display_name: "hello",
-    replaced_a_recorded_stream: true,
+  expect(answerOf(await server.client().runProject("/tmp/tatolab-proof-projects/hallways"))).toEqual({
+    action: "Rj12j3eujz3zn0dposliv79k9-3",
+    project_directory: "/tmp/tatolab-proof-projects/hallways",
   });
-  expect(JSON.parse(headAndBodyOf(server.receivedRequests()[0] ?? "")[1]).params.arguments).toEqual({ project_directory: "/tmp/tatolab-proof/projects/hello", name: "hello" });
+  expect(toolCallsReceivedBy(server)).toEqual([["run_project", { project_directory: "/tmp/tatolab-proof-projects/hallways" }]]);
 });
 
-test("a_run_the_runtime_refuses_is_its_own_refusal_and_one_that_never_answers_is_not", async () => {
+test("describing_a_stream_action_reads_its_state_step_and_streams_from_queued_to_done", async () => {
   const server = await fakeLocalApiServerAnswering([
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-refusal-for-the-project-no-venv-without-its-venv.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-run-of-hallways-queued.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-create-making-the-venv.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-the-run-of-hallways-done-one-running-one-failed.json")),
   ]);
-  const runOfNoVenv = { projectDirectory: "/tmp/tatolab-proof/projects/no-venv", streamFunction: null, displayName: null };
 
-  expect(failureOf(await server.client().runStream(runOfNoVenv))).toEqual({
-    failureDescription: "Invalid configuration: /tmp/tatolab-proof/projects/no-venv has no .venv/bin/python; run `uv sync` in /tmp/tatolab-proof/projects/no-venv",
+  expect(answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-9"))).toEqual({
+    action: "Rj12j3eujz3zn0dposliv79k9-9",
+    project_directory: "/tmp/tatolab-proof-projects/hallways",
+    kind: "load",
+    state: "queued",
+    step: null,
+    streams: [],
+    failed_because: null,
+  });
+  expect(answerOf(await server.client().describeStreamAction("Riioiuiuj7n1z3ghkm7s9n1xi-6"))).toMatchObject({ state: "in_progress", step: "making_the_venv" });
+  expect(answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-3")).streams).toEqual([
+    { stream: "hallways-front_door-58034f", display_name: "front_door", state: "running" },
+    { stream: "hallways-back_door-2416d3", display_name: "back_door", state: "failed" },
+  ]);
+  expect(toolCallsReceivedBy(server)[0]).toEqual(["describe_stream_action", { action: "Rj12j3eujz3zn0dposliv79k9-9" }]);
+});
+
+test("a_failed_action_reads_its_reason_and_one_the_runtime_no_longer_holds_is_its_own_refusal", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-a-create-into-pattern-failed-on-its-files.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json")),
+  ]);
+
+  const failedCreation = answerOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-5"));
+  expect(failedCreation).toMatchObject({ state: "failed", streams: [] });
+  expect(failedCreation.failed_because).toContain("already has .gitignore");
+  expect(failureOf(await server.client().describeStreamAction("Rj12j3eujz3zn0dposliv79k9-999"))).toEqual({
+    failureDescription:
+      "Invalid configuration: the stream action `Rj12j3eujz3zn0dposliv79k9-999` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log",
     isTheRuntimesRefusal: true,
   });
-  expect(failureOf(await server.client().runStream(runOfNoVenv)).isTheRuntimesRefusal).toBe(false);
 });
 
-test("a_compile_the_runtime_refuses_carries_its_traceback_as_its_own_refusal", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    httpResponse(
-      "200 OK",
-      "application/json",
-      await recordedResponseBody("local-api-run-stream-refusal-for-the-recorded-project-hello-whose-stream-py-no-longer-compiles.json"),
-    ),
-  ]);
-
-  const refusal = failureOf(await server.client().runStream({ projectDirectory: "/tmp/tatolab-proof/projects/hello", streamFunction: null, displayName: null }));
-  expect(refusal.isTheRuntimesRefusal).toBe(true);
-  expect(refusal.failureDescription).toMatch(/^Runtime error: the stream function in \/tmp\/tatolab-proof\/projects\/hello failed to compile: /);
-  expect(refusal.failureDescription).toContain("SyntaxError: invalid syntax");
-});
-
-test("a_run_stream_answer_missing_a_field_is_refused_naming_it", () => {
-  expect(failureOf(streamRunAnswerFromTheRunStreamToolResult('{"stream":"hello-main-8d60ef","display_name":"main","stream_instance":"1"}'))).toBe(
-    "the runtime's run_stream result could not be read: missing field `location`",
+test("a_describe_stream_action_result_missing_a_field_is_refused_naming_it", () => {
+  expect(failureOf(streamActionDescriptionFromTheDescribeStreamActionToolResult('{"action":"R1-2","project_directory":"/tmp/p","kind":"load"}'))).toBe(
+    "the runtime's describe_stream_action result could not be read: missing field `state`",
+  );
+  expect(failureOf(projectCreationQueuedFromTheCreateProjectToolResult('{"action":"R1-2","project_directory":"/tmp/p"}'))).toBe(
+    "the runtime's create_project result could not be read: missing field `stream`",
   );
 });
 

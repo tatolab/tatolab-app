@@ -7,8 +7,8 @@ const GRAPH_FIT_SETTLE_MILLISECONDS = 600;
 /** How long the first-run preset waits for the mock runtime to come up before it presses Get Started. */
 const MOCK_RUNTIME_STARTUP_WAIT_MILLISECONDS = 6000;
 
-/** How long the done preset waits for the mock runtime's answer to a run. */
-const MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS = 8000;
+/** How long a preset waits for the mock runtime to load a project, making its `.venv` first. */
+const MOCK_PROJECT_LOAD_TIMEOUT_MILLISECONDS = 10_000;
 
 /** Resolves with the first element `selector` matches once it is in the page, or `null` after `timeoutMilliseconds`. */
 function waitForElement<ElementType extends Element>(selector: string, timeoutMilliseconds = PRESET_STEP_TIMEOUT_MILLISECONDS): Promise<ElementType | null> {
@@ -44,18 +44,19 @@ async function driveAddStreamToPreset(addStep: string | null): Promise<void> {
     return;
   }
   await openTheAddStreamDialogOn("add-stream");
-  if (addStep !== "folder" && addStep !== "compiling" && addStep !== "done" && addStep !== "away") return;
+  if (addStep !== "folder" && addStep !== "following" && addStep !== "done" && addStep !== "away") return;
   await clickWhenShown(`[data-add-stream-action="choose_folder"]`);
   if (addStep === "folder") return;
-  await waitForElement(`[data-add-stream-checks]`);
-  await clickWhenShown(`[data-add-stream-action="add"]:not([disabled])`);
+  await waitForElement(`[data-add-stream-folder]:not([data-add-stream-folder=""])`);
+  await clickWhenShown(`[data-add-stream-action="import"]:not([disabled])`);
   if (addStep === "away") {
-    await waitForElement(`[data-add-stream-step="compiling"]`);
+    await waitForElement(`[data-add-stream-step="following"]`);
     await clickWhenShown(`[data-form-dialog-close]`);
-    await waitForElement(`[data-add-stream-run-notice]`, MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS);
+    await waitForElement(`[data-add-stream-run-notice="ended"]`, MOCK_PROJECT_LOAD_TIMEOUT_MILLISECONDS);
     return;
   }
-  if (addStep === "done") await waitForElement(`[data-add-stream-step="running"]`, MOCK_RUN_STREAM_ANSWER_TIMEOUT_MILLISECONDS);
+  if (addStep === "following") await waitForElement(`[data-add-stream-step="following"]`);
+  if (addStep === "done") await waitForElement(`[data-add-stream-step="ended"]`, MOCK_PROJECT_LOAD_TIMEOUT_MILLISECONDS);
 }
 
 /** Types `text` into the controlled field `field`, one line or several, as a person would, so React's onChange sees it. */
@@ -148,10 +149,10 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * `?restart=pressed` (Restart runtime pressed: Starting, then Running up 0m) or `?restart=refused` (the service manager refusing it),
  * `?choose_python=pressed` (Choose Your Own… pressed, with the backend's `?python=chosen|not_offered` and `?python_pick=cancel|not_python`), with the
  * backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream id>` (a
- * click on that stream's failure notification), on the add-stream dialog `?add=folder|compiling|done|away` (a folder chosen, compiling, the stream running, or
- * the dialog closed while it compiled and the run's notice shown once it answers) or
- * `?add=new|created` (opened on New project, a new project proposed, then Create pressed, which writes it with `tatolab new` and adds it), with the backend's `?add_folder=` (`no-venv` for a run that
- * makes the `.venv` first), `?add_venv=refused` (uv refusing to make it), `?add_run=warning` and `?add_cli=missing`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove_project=<stream id>` (Remove project… chosen on that stream's row, its confirmation open), `?rename=<stream id>` (its sidebar row right-clicked and Rename… chosen, with `?rename_to=<name>` typed, and `?rename_step=menu` stopping on the menu or `pressed` pressing Rename), `?stream_action=stop_stream|start_stream:<stream id>`,
+ * click on that stream's failure notification), on the add-project dialog `?add=folder|following|done|away` (a folder chosen, its import followed, ended, or
+ * the dialog closed while it loads and the load's notice shown once it ends) or
+ * `?add=new|created` (opened on New project, then Create pressed, which has the runtime write it and load it), with the backend's `?add_folder=` (`no-venv` for a load that
+ * makes the `.venv` first, `several` for two streams, one failing), `?add_new_folder=existing`, `?add_venv=refused` (the runtime's uv refusing to make it) and `?add_action=not_held`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove_project=<stream id>` (Remove project… chosen on that stream's row, its confirmation open), `?rename=<stream id>` (its sidebar row right-clicked and Rename… chosen, with `?rename_to=<name>` typed, and `?rename_step=menu` stopping on the menu or `pressed` pressing Rename), `?stream_action=stop_stream|start_stream:<stream id>`,
  * `?sheet=uninstall|uninstalling|uninstalled`, on first run `?setup=getting_set_up` (Continue pressed on Welcome) or `?setup=get_started` (then
  * Get Started once the runtime answers) and `?setup_step_action=<action>` (a step's action pressed), with the backend's `?state=setup`, or
  * `?first_run=unfinished` over any runtime state, as `?state=approval|blocked|never-answered`, and its `?first_run_remember=refused`,

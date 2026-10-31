@@ -122,33 +122,28 @@ describe("createElectronTatolabBackend", () => {
     ]);
   });
 
-  it("sends each command that adds a stream under its name, answering the main process's report and outcome", async () => {
-    const report = {
-      folder: "/Users/someone/code/heat-map",
-      folder_exists: true,
-      stream_file_present: true,
-      stream_functions: ["heat_map"],
-      python_environment: { kind: "missing" as const },
-    };
-    const outcome = { kind: "python_environment_not_made" as const, words: "error: No interpreter found at path `/opt/homebrew/bin/python3.11`" };
+  it("sends each command that adds a project under its name, answering what the main process answered", async () => {
+    const creationQueued = { action: "R1-7", stream: "kind-butte-main-e51c2f", project_directory: "/Users/someone/streams/kind-butte" };
+    const runQueued = { action: "R1-3", project_directory: "/Users/someone/code/hallways" };
+    const notHeld = { kind: "not_held" as const, words: "Invalid configuration: the stream action `R1-999` is not held" };
     const fakeBridge = fakeTatolabElectronBridge({
-      choose_stream_project_folder: { ok: true, value: null },
-      propose_new_stream_project_folder: { ok: true, value: report },
-      create_stream_project: { ok: true, value: report },
-      run_stream_project: { ok: true, value: outcome },
+      choose_stream_project_folder: { ok: true, value: "/Users/someone/code/hallways" },
+      create_stream_project: { ok: true, value: creationQueued },
+      run_stream_project: { ok: true, value: runQueued },
+      describe_stream_action: { ok: true, value: notHeld },
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
 
-    expect(await backend.chooseStreamProjectFolder("project_to_run")).toBeNull();
-    expect(await backend.proposeNewStreamProjectFolder()).toEqual(report);
-    expect(await backend.createStreamProject(report.folder)).toEqual(report);
-    expect(await backend.runStreamProject(report.folder, null, "heat_map")).toEqual(outcome);
+    expect(await backend.chooseStreamProjectFolder("project_to_run")).toBe("/Users/someone/code/hallways");
+    expect(await backend.createStreamProject(null)).toEqual(creationQueued);
+    expect(await backend.runStreamProject("/Users/someone/code/hallways")).toEqual(runQueued);
+    expect(await backend.describeStreamAction("R1-999")).toEqual(notHeld);
 
     expect(fakeBridge.invokedCommands).toEqual([
       ["choose_stream_project_folder", { chosen_for: "project_to_run" }],
-      ["propose_new_stream_project_folder", undefined],
-      ["create_stream_project", { folder: report.folder }],
-      ["run_stream_project", { folder: report.folder, stream_function: null, name: "heat_map" }],
+      ["create_stream_project", { folder: null }],
+      ["run_stream_project", { folder: "/Users/someone/code/hallways" }],
+      ["describe_stream_action", { action: "R1-999" }],
     ]);
   });
 
