@@ -82,7 +82,7 @@ required_device_entitlements=(com.apple.security.device.camera com.apple.securit
 # process and Blink's renderer (packaging/entitlements/).
 allowed_app_entitlements="com.apple.security.cs.allow-jit com.apple.security.device.audio-input com.apple.security.device.camera"
 allowed_renderer_helper_entitlements="com.apple.security.cs.allow-jit"
-allowed_tatolabd_entitlements="com.apple.security.device.audio-input com.apple.security.device.camera"
+allowed_tatolabd_entitlements="com.apple.application-identifier com.apple.developer.team-identifier com.apple.security.device.audio-input com.apple.security.device.camera keychain-access-groups"
 # A process could otherwise run the app as plain Node and inherit its camera and microphone grants.
 required_electron_fuse_states=(
   "RunAsNode is Disabled" "EnableNodeOptionsEnvironmentVariable is Disabled" "EnableNodeCliInspectArguments is Disabled"
@@ -278,6 +278,20 @@ verify_app_bundle() {
   signed_code_entitlement_keys="$(entitlement_keys_of "$helper_bundle")"
   [ "$signed_code_entitlement_keys" = "$allowed_tatolabd_entitlements" ] \
     && pass "Tatolab Runtime.app's tatolabd carries exactly: $allowed_tatolabd_entitlements" || fail "Tatolab Runtime.app's tatolabd's entitlements are '$signed_code_entitlement_keys', not '$allowed_tatolabd_entitlements'"
+  local runtime_keychain_access_group="$tatolab_developer_id_team_identifier.com.tatolab.runtime"
+  grep -q "<key>keychain-access-groups</key><array><string>$runtime_keychain_access_group</string></array>" \
+    <<<"$(codesign -d --entitlements - --xml "$helper_bundle" 2>/dev/null || true)" \
+    && pass "Tatolab Runtime.app keeps relay secrets in the keychain access group $runtime_keychain_access_group" \
+    || fail "Tatolab Runtime.app's keychain access group is not $runtime_keychain_access_group"
+  local embedded_runtime_profile_plist embedded_runtime_profile_application_identifier
+  embedded_runtime_profile_plist="$(mktemp)"
+  security cms -D -i "$helper_contents/embedded.provisionprofile" > "$embedded_runtime_profile_plist" 2>/dev/null || true
+  embedded_runtime_profile_application_identifier="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' \
+    "$embedded_runtime_profile_plist" 2>/dev/null || true)"
+  rm -f "$embedded_runtime_profile_plist"
+  [ "$embedded_runtime_profile_application_identifier" = "$runtime_keychain_access_group" ] \
+    && pass "Tatolab Runtime.app embeds the provisioning profile for $runtime_keychain_access_group" \
+    || fail "Tatolab Runtime.app embeds no provisioning profile for $runtime_keychain_access_group (found '${embedded_runtime_profile_application_identifier:-none}')"
   local unentitled_executable
   for unentitled_executable in "$helper_contents/MacOS/uv" "$helper_contents/MacOS/moq-relay" "$helper_contents/MacOS/tatolab-cli"; do
     signed_code_entitlement_keys="$(entitlement_keys_of "$unentitled_executable")"

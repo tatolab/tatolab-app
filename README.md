@@ -218,7 +218,7 @@ infisical run -- scripts/build-tatolab-app.sh
 
 Every bundle, a release and a local proof build alike, is signed with the Developer ID
 Application identity from Infisical (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
-`APPLE_SIGNING_IDENTITY`; pass `--env=<env>` to `infisical run` if they live in another
+`APPLE_SIGNING_IDENTITY`, `APPLE_RUNTIME_PROVISIONING_PROFILE`; pass `--env=<env>` to `infisical run` if they live in another
 environment). The build imports it into a temporary keychain and deletes that keychain, and
 restores the keychain search list, when it ends. Without it the build stops before it does
 anything, naming what is missing; there is no other way to sign. Only a release is notarized.
@@ -275,7 +275,7 @@ The individual steps are separate scripts in `scripts/`:
 | `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features and the build id a packaged app carries, and refuses one with no build id; `--shipping` refuses the test root or any feed but get.tatolab.com's |
 | `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
 | `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/moq-relay`, `lib/tatolab/lend` or `lib/tatolab/watch`, or ships anything else in `bin/` or `lib/tatolab/` |
-| `sign-tatolab-app-bundle.sh <Tatolab.app> <identity>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) with the hardened runtime; refuses any identity but a `Developer ID Application` |
+| `sign-tatolab-app-bundle.sh <Tatolab.app> <identity> <runtime-provisioning-profile>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) with the hardened runtime, embedding the `com.tatolab.runtime` provisioning profile in the runtime's helper; refuses any identity but a `Developer ID Application` and a profile for any other App ID |
 | `make-tatolab-dmg.sh <Tatolab.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless), signed with the app's own Developer ID; refuses an app signed any other way |
 | `notarize-and-staple.sh <Tatolab.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
 | `verify-tatolab-app-bundle.sh <Tatolab.app\|.dmg> [--shipping]` | checks the signature (every Mach-O and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
@@ -342,6 +342,7 @@ ID ones the macOS build stops; notarization needs the App Store Connect key:
 | `APPLE_CERTIFICATE` | base64 Developer ID Application `.p12` |
 | `APPLE_CERTIFICATE_PASSWORD` | its password |
 | `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: … (TEAMID)` |
+| `APPLE_RUNTIME_PROVISIONING_PROFILE` | base64 of the Developer ID provisioning profile for the App ID `com.tatolab.runtime`, embedded in the runtime's helper to authorize its keychain access group |
 | `APPLE_API_KEY_ID` | App Store Connect API key id (notarization) |
 | `APPLE_API_ISSUER` | its issuer id |
 | `APPLE_API_KEY_PATH` | path to the `AuthKey_<id>.p8` (notarization) |

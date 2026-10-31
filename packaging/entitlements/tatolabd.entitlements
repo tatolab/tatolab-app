@@ -7,5 +7,16 @@
   <true/>
   <key>com.apple.security.device.audio-input</key>
   <true/>
+  <!-- The runtime's relay secrets live in the data-protection keychain under this access group, which
+       macOS grants by signature and never prompts for. These are restricted entitlements: the helper
+       carries the Developer ID provisioning profile for com.tatolab.runtime that authorizes them. -->
+  <key>com.apple.application-identifier</key>
+  <string>QV2N7EDV53.com.tatolab.runtime</string>
+  <key>com.apple.developer.team-identifier</key>
+  <string>QV2N7EDV53</string>
+  <key>keychain-access-groups</key>
+  <array>
+    <string>QV2N7EDV53.com.tatolab.runtime</string>
+  </array>
 </dict>
 </plist>
