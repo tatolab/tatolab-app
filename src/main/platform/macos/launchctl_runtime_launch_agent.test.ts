@@ -37,6 +37,7 @@ class FakeLaunchdUserDomain {
   jobEnabled = true;
   loginItemsHoldTheAgentOff = false;
   kickstartAnswer: Result<ProgramCompletion, string> | null = null;
+  printAnswer: Result<ProgramCompletion, string> | null = null;
   printedJob = "";
   bootoutLeavesTheProcessExiting = false;
   jobProcessExiting = false;
@@ -65,6 +66,7 @@ class FakeLaunchdUserDomain {
     const [verb] = launchctlArguments;
     switch (verb) {
       case "print":
+        if (this.printAnswer !== null) return this.printAnswer;
         return this.jobLoaded ? launchctlExiting(0, "", this.printedJobDescription()) : NO_SUCH_SERVICE;
       case "enable":
         this.jobEnabled = true;
@@ -205,6 +207,12 @@ test("unregistering_is_refused_in_words_when_launchd_still_holds_the_job_after_i
   launchd.processExitWaiterAnswer = failedWith("caffeinate could not be run: spawn /usr/bin/caffeinate ENOENT");
   expect(await launchAgent.unregisterRuntimeAgent()).toEqual(
     failedWith("the runtime's exit could not be waited for: caffeinate could not be run: spawn /usr/bin/caffeinate ENOENT"),
+  );
+
+  launchd.processExitWaiterAnswer = succeeded(undefined);
+  launchd.printAnswer = launchctlExiting(1, "Unrecognized target specifier.");
+  expect(await launchAgent.unregisterRuntimeAgent()).toEqual(
+    failedWith(`launchd could not say whether it let go of ${JOB}: launchctl print ${JOB} failed (exit status: 1): Unrecognized target specifier.`),
   );
 });
 

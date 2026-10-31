@@ -182,8 +182,12 @@ export class LaunchctlRuntimeLaunchAgent implements RuntimeAgentRegistration {
       jobBeforeTheBootout === null ? null : launchdJobProcessId(jobBeforeTheBootout),
     );
     if (!waitedForTheBootout.ok) return waitedForTheBootout;
-    if (await this.launchdHoldsTheJob()) return failedWith(`launchd still holds ${this.launchdJob()} after booting it out`);
-    return succeeded(undefined);
+    const printArguments = ["print", this.launchdJob()];
+    const printedAfterTheBootout = await this.runLaunchctl(printArguments);
+    if (!printedAfterTheBootout.ok) return printedAfterTheBootout;
+    if (programSucceeded(printedAfterTheBootout.value)) return failedWith(`launchd still holds ${this.launchdJob()} after booting it out`);
+    if (printedAfterTheBootout.value.exitStatus === LAUNCHCTL_NO_SUCH_SERVICE_EXIT_STATUS) return succeeded(undefined);
+    return failedWith(`launchd could not say whether it let go of ${this.launchdJob()}: ${launchctlRefusal(printArguments, printedAfterTheBootout.value)}`);
   }
 
   async openLoginItemsSettings(): Promise<Result<void, string>> {
