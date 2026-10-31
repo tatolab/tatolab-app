@@ -7,6 +7,7 @@ import { TatolabTrayMenu } from "./tatolab_tray_menu.js";
 import { tatolabPlatformItemsFor } from "./platform/tatolab_platform_items.js";
 import { succeeded } from "./result.js";
 import { APP_UPDATE_CHECK_INTERVAL_MS, type TatolabAppUpdateFeed } from "./tatolab_app_updater.js";
+import { tatolabAppCopyOnTheSingleInstanceLock } from "./tatolab_app_copy_handoff.js";
 
 const MACOS_PLATFORM_ITEMS = tatolabPlatformItemsFor("darwin");
 const LINUX_PLATFORM_ITEMS = tatolabPlatformItemsFor("linux");
@@ -84,6 +85,49 @@ describe("the app on macOS", () => {
     fakeShell.requestTheWindowClose();
     fakeShell.forgetTheRecords();
     fakeShell.openTheAppAgain();
+    expect(fakeShell.askedFor()).toEqual(["set_activation_policy", "unminimize", "show", "focus", "send_window_event"]);
+  });
+
+  test("a second copy of the same build shows the running app's window and the running app stays", async () => {
+    await theFirstPublishedStatus(tatolabRunningApp);
+    fakeShell.requestTheWindowClose();
+    fakeShell.forgetTheRecords();
+    fakeShell.launchASecondCopy(tatolabAppCopyOnTheSingleInstanceLock({ ...fakeShell.thisCopyOfTatolab, executableThatOpensTheCopy: "/Users/someone/Downloads/Tatolab.app/Contents/MacOS/Tatolab" }));
+    expect(fakeShell.askedFor()).toEqual(["set_activation_policy", "unminimize", "show", "focus", "send_window_event"]);
+  });
+
+  test("a second copy of another version makes the running app open it and quit", async () => {
+    await theFirstPublishedStatus(tatolabRunningApp);
+    fakeShell.forgetTheRecords();
+    fakeShell.launchASecondCopy(tatolabAppCopyOnTheSingleInstanceLock({ ...fakeShell.thisCopyOfTatolab, appVersion: "0.46.0" }));
+    expect(fakeShell.records).toEqual([
+      { asked: "open_another_copy_once_this_one_exits", executable: "/Applications/Tatolab.app/Contents/MacOS/Tatolab" },
+      { asked: "exit", exitCode: 0 },
+    ]);
+    expect(fakeShell.requestTheWindowClose()).toBe("let_it_close");
+  });
+
+  test("a second copy of the same version carrying a runtime from another streamlib commit makes the running app open it and quit", async () => {
+    await theFirstPublishedStatus(tatolabRunningApp);
+    fakeShell.forgetTheRecords();
+    fakeShell.launchASecondCopy(
+      tatolabAppCopyOnTheSingleInstanceLock({
+        ...fakeShell.thisCopyOfTatolab,
+        executableThatOpensTheCopy: "/Users/someone/proof/Tatolab.app/Contents/MacOS/Tatolab",
+        carriedStreamlibCommit: "0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e",
+      }),
+    );
+    expect(fakeShell.records).toEqual([
+      { asked: "open_another_copy_once_this_one_exits", executable: "/Users/someone/proof/Tatolab.app/Contents/MacOS/Tatolab" },
+      { asked: "exit", exitCode: 0 },
+    ]);
+  });
+
+  test("a second copy older than the handoff hands over nothing and shows the running app's window", async () => {
+    await theFirstPublishedStatus(tatolabRunningApp);
+    fakeShell.requestTheWindowClose();
+    fakeShell.forgetTheRecords();
+    fakeShell.launchASecondCopy({});
     expect(fakeShell.askedFor()).toEqual(["set_activation_policy", "unminimize", "show", "focus", "send_window_event"]);
   });
 
@@ -180,6 +224,16 @@ describe("starting the app", () => {
     fakeShell.holdsTheSingleInstanceLock = false;
     expect(await startTatolabApp(fakeShell.tatolabElectronAppShell, LINUX_PLATFORM_ITEMS, fakeShell.tatolabAppLog)).toBeNull();
     expect(fakeShell.records).toEqual([{ asked: "exit", exitCode: 0 }]);
+    expect(fakeShell.singleInstanceLockAdditionalData).toEqual([
+      {
+        tatolab_app_copy: {
+          executable_that_opens_the_copy: "/Applications/Tatolab.app/Contents/MacOS/Tatolab",
+          app_version: "0.45.0",
+          app_build: { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", build_kind: "release", built_with_uncommitted_changes: false },
+          carried_streamlib_commit: "5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f",
+        },
+      },
+    ]);
   });
 
   test("an OS Tatolab does not run on is refused with why, and the app exits failed", async () => {

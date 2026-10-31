@@ -7,6 +7,11 @@ import { startTatolabApp, type TatolabElectronAppShell, type TatolabRunningApp }
 import { describeCaughtFailure } from "../result.js";
 import { createTatolabAppLogToStandardError } from "../tatolab_app_log.js";
 import { TATOLAB_APP_BUILD_FEATURES, tatolabAppBuildForTheWindow } from "../tatolab_app_build_features.js";
+import {
+  streamlibCommitTheAppCarries,
+  tatolabAppCopyHandedOverOnTheSingleInstanceLock,
+  tatolabAppCopyOnTheSingleInstanceLock,
+} from "../tatolab_app_copy_handoff.js";
 import { TATOLAB_APP_IDENTIFIER } from "../platform/tatolab_app_identifier.js";
 import { tatolabPlatformItemsForThisBuild } from "../platform/tatolab_platform_items.js";
 import type { TatolabPlatformHostServices } from "../platform/tatolab_platform_for_this_build.js";
@@ -59,15 +64,23 @@ function windowDevServerUrlNamedIn(windowDevServerUrlText: string | undefined): 
 }
 
 const tatolabElectronAppShell: TatolabElectronAppShell = {
-  requestTheSingleInstanceLock: () => app.requestSingleInstanceLock(),
+  readThisCopyOfTatolab: async () => ({
+    // An AppImage runs from a mount that goes when it exits; `APPIMAGE` names the file that opens it again.
+    executableThatOpensTheCopy: process.env["APPIMAGE"] ?? process.execPath,
+    appVersion: app.getVersion(),
+    appBuild: tatolabAppBuildForTheWindow(TATOLAB_APP_BUILD_FEATURES.tatolabAppBuildId),
+    carriedStreamlibCommit: await streamlibCommitTheAppCarries(process.resourcesPath),
+  }),
+  requestTheSingleInstanceLock: (thisCopy) => app.requestSingleInstanceLock(tatolabAppCopyOnTheSingleInstanceLock(thisCopy)),
   whenReady: async () => {
     await app.whenReady();
     if (windowDevServerUrl === null) await serveTheBuiltWindow(builtWindowDirectory, runtimeLoopbackHttpOrigin, tatolabAppLog);
   },
   onTheAppOpenedAgain: (listener) => {
-    app.on("second-instance", listener);
-    app.on("activate", listener);
+    app.on("second-instance", (_event, _argv, _workingDirectory, additionalData) => listener(tatolabAppCopyHandedOverOnTheSingleInstanceLock(additionalData)));
+    app.on("activate", () => listener(null));
   },
+  openAnotherCopyOnceThisOneExits: (executable) => app.relaunch({ execPath: executable, args: [] }),
   onTheAppQuitting: (listener) => {
     app.on("before-quit", listener);
     // An update's quitAndInstall closes the windows before `before-quit`, so the window learns here that it may close.
@@ -86,8 +99,6 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
     setInterval(work, intervalMs);
   },
   appConfigDirectory: tatolabPlatformHostServices.appConfigDirectory,
-  appVersion: app.getVersion(),
-  appBuild: tatolabAppBuildForTheWindow(TATOLAB_APP_BUILD_FEATURES.tatolabAppBuildId),
   runtimeLoopbackHttpOrigin,
   readMonotonicClockMs: () => performance.now(),
   mainWindowHostFactory: createElectronMainWindowHostFactory(
