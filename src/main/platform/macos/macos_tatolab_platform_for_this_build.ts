@@ -14,7 +14,12 @@ import type { TatolabPlatformForThisBuild, TatolabPlatformHostServices } from ".
 import { tatolabAppNotOpenedAtLogin, UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL } from "../tatolab_app_opened_at_login.js";
 import { OSASCRIPT_AT_ITS_SYSTEM_PATH, OsascriptAdministratorPrompt } from "./administrator_prompt.js";
 import { CommandLineToolLinksOnThisMac } from "./command_line_tool_links_on_this_mac.js";
-import { LAUNCHCTL_AT_ITS_SYSTEM_PATH, LaunchctlRuntimeLaunchAgent, OPEN_RUN_AT_ITS_SYSTEM_PATH } from "./launchctl_runtime_launch_agent.js";
+import {
+  CAFFEINATE_WAITING_FOR_THE_PROCESS_TO_EXIT,
+  LAUNCHCTL_AT_ITS_SYSTEM_PATH,
+  LaunchctlRuntimeLaunchAgent,
+  OPEN_RUN_AT_ITS_SYSTEM_PATH,
+} from "./launchctl_runtime_launch_agent.js";
 import {
   appBundleOfTheExecutable,
   carriedRuntimeUnitLayoutOfTheAppBundle,
@@ -45,7 +50,13 @@ export async function macosTatolabPlatformForThisBuild(
   });
   const administratorPrompt = new OsascriptAdministratorPrompt(OSASCRIPT_AT_ITS_SYSTEM_PATH);
   return {
-    runtimeAgent: new LaunchctlRuntimeLaunchAgent(uid, machinePaths.runtimeLaunchAgent, LAUNCHCTL_AT_ITS_SYSTEM_PATH, OPEN_RUN_AT_ITS_SYSTEM_PATH),
+    runtimeAgent: new LaunchctlRuntimeLaunchAgent(
+      uid,
+      machinePaths.runtimeLaunchAgent,
+      LAUNCHCTL_AT_ITS_SYSTEM_PATH,
+      OPEN_RUN_AT_ITS_SYSTEM_PATH,
+      CAFFEINATE_WAITING_FOR_THE_PROCESS_TO_EXIT,
+    ),
     commandLineToolLinks: new CommandLineToolLinksOnThisMac(machinePaths, installedCommandLineTool, administratorPrompt, tatolabAppLog),
     localApiSocket: machinePaths.localApiSocket,
     tatolabUninstall: new TatolabUninstallOnThisMac(
