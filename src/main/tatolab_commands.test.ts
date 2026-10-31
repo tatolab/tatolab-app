@@ -422,6 +422,31 @@ test("each queued action answers the window null, and a missing argument or a pr
   });
 });
 
+test("reloading a project the runtime lists queues run_project on its folder, answers the action, and observes again; one it does not list is refused", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "text/plain", "ok"),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
+      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-project-answer-for-the-folder-doorways.json")),
+    ],
+    "linux"
+  );
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  await sharedState.statusPublisher.refreshAndPublish();
+
+  expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" }))).toBe(
+    '{"ok":true,"value":{"action":"Rnd53mwtsrixjyxk7h3jfq5j5-7","project_directory":"/tmp/tatolab-proof-projects/doorways"}}',
+  );
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
+  expect(await commandHandlers.reload_project({ project_directory: "/etc" })).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
+  expect(await commandHandlers.reload_project({ folder: "/tmp/tatolab-proof-projects/doorways" })).toEqual({
+    ok: false,
+    refusal: "reload_project needs `project_directory`, a project's folder as the runtime lists it",
+  });
+});
+
 test("renaming a stream asks the runtime, then observes again whether it renamed or refused, answering null or its refusal", async () => {
   const sharedState = await sharedStateOverFakes(
     [

@@ -111,11 +111,13 @@ function fieldsOfLogRecord(record: HeldProjectLogRecord): StreamLogRecordField[]
   return Object.entries(record.attrs).map(([key, value]) => ({ key, valueText: formatLogAttrValue(value) }));
 }
 
-/** What narrows the Logs tab's rows: search text, a level, the steps chosen (none chosen shows every step), one stream action, and the records cleared. */
+/** What narrows the Logs tab's rows: search text, a level, the steps chosen (none chosen shows every step), one stream, one stream action, and the records cleared. */
 export interface StreamLogFilters {
   searchText: string;
   levelFilter: StreamLogLevelFilter;
   shownStepKeys: ReadonlySet<string>;
+  /** The key of the one stream whose records show, the project's own records under their own key; `null` shows every stream's. */
+  shownStreamKey: string | null;
   /** The key of the one stream action whose records show; `null` shows every action's. */
   shownActionKey: string | null;
   /** Records held up to this position were cleared from the view; 0 when none were. */
@@ -133,6 +135,23 @@ const ONE_ACTION_NO_LONGER_HELD_WORDS = "One action";
 
 function actionKeyOfLogRecord(record: HeldProjectLogRecord): string {
   return record.action ?? NO_ACTION_KEY;
+}
+
+/** The stream filter's key for the records of the project's own, such as the venv's making and the compile. */
+export const PROJECT_OWN_RECORDS_STREAM_KEY = "";
+
+/** What the project's own records show under in the stream filter. */
+export const PROJECT_OWN_RECORDS_WORDS = "The project itself";
+
+function streamKeyOfLogRecord(record: HeldProjectLogRecord): string {
+  return record.stream ?? PROJECT_OWN_RECORDS_STREAM_KEY;
+}
+
+/** One choice of the stream filter: a stream the records name, or the project's own records. */
+export interface StreamLogStreamChoice {
+  streamKey: string;
+  /** The stream's display name as the runtime lists it, its id once it is no longer listed, or `The project itself`. */
+  streamWords: string;
 }
 
 /** One choice of the action filter: a stream action the records name. */
@@ -192,6 +211,10 @@ export interface StreamLogPresentation {
   actionChoices: StreamLogActionChoice[];
   /** The action filter's words: `All actions`, or the one chosen. */
   actionFilterWords: string;
+  /** Each stream the records not cleared name, in the order their first records were written, the project's own records among them. */
+  streamChoices: StreamLogStreamChoice[];
+  /** The stream filter's words: `All streams`, or the one chosen. */
+  streamFilterWords: string;
   /** The step filter's words: `All steps`, the one step chosen, or `2 of 5`. */
   stepFilterWords: { words: string; isOneStepChosen: boolean };
   /** Why no row shows; `null` while some do. */
@@ -255,6 +278,25 @@ function actionChoicesOfRows(rows: readonly StreamLogRow[]): StreamLogActionChoi
     actionChoices.set(actionKey, { actionKey, actionWords: actionsWithTheseWords === 1 ? actionWords : `${actionWords} (${actionsWithTheseWords})` });
   }
   return [...actionChoices.values()];
+}
+
+function streamChoicesOfRows(rows: readonly StreamLogRow[], displayNamesByStreamId: ReadonlyMap<string, string>): StreamLogStreamChoice[] {
+  const streamChoices = new Map<string, StreamLogStreamChoice>();
+  for (const row of rows) {
+    const streamKey = streamKeyOfLogRecord(row.record);
+    if (streamChoices.has(streamKey)) continue;
+    streamChoices.set(streamKey, {
+      streamKey,
+      streamWords: streamKey === PROJECT_OWN_RECORDS_STREAM_KEY ? PROJECT_OWN_RECORDS_WORDS : (displayNamesByStreamId.get(streamKey) ?? streamKey),
+    });
+  }
+  return [...streamChoices.values()];
+}
+
+function streamFilterWordsOf(shownStreamKey: string | null, displayNamesByStreamId: ReadonlyMap<string, string>): string {
+  if (shownStreamKey === null) return "All streams";
+  if (shownStreamKey === PROJECT_OWN_RECORDS_STREAM_KEY) return PROJECT_OWN_RECORDS_WORDS;
+  return displayNamesByStreamId.get(shownStreamKey) ?? shownStreamKey;
 }
 
 /** The stream action that failed a stream, from its records: the action of its last error, else of its last record; `null` with no records. */
@@ -323,18 +365,25 @@ function stepChoicesOfRows(rows: readonly StreamLogRow[], graph: StreamGraphSumm
   return [...graphStepChoices, ...stepsNotInTheGraph, ...runtimeChoice];
 }
 
-/** The rows, counts and step choices of `records`, oldest first, narrowed by `filters`, with each step named from `graph`. */
-export function presentStreamLog(records: readonly HeldProjectLogRecord[], graph: StreamGraphSummary | null, filters: StreamLogFilters): StreamLogPresentation {
+/** The rows, counts and choices of `records`, oldest first, narrowed by `filters`, with each step named from `graph` and each stream by its listed display name. */
+export function presentStreamLog(
+  records: readonly HeldProjectLogRecord[],
+  graph: StreamGraphSummary | null,
+  filters: StreamLogFilters,
+  displayNamesByStreamId: ReadonlyMap<string, string> = new Map(),
+): StreamLogPresentation {
   const stepNamesByProcessorId = stepNamesByProcessorIdOf(graph);
   const rowsNotCleared = records.filter((record) => record.position > filters.clearedThroughPosition).map((record) => rowOfLogRecord(record, stepNamesByProcessorId));
   const rowsOfTheStepsSearched = rowsNotCleared.filter(
     (row) =>
       (filters.shownStepKeys.size === 0 || filters.shownStepKeys.has(row.step.stepKey)) &&
       (filters.shownActionKey === null || actionKeyOfLogRecord(row.record) === filters.shownActionKey) &&
+      (filters.shownStreamKey === null || streamKeyOfLogRecord(row.record) === filters.shownStreamKey) &&
       rowMatchesSearch(row, filters.searchText),
   );
   const actionChoices = actionChoicesOfRows(rowsNotCleared);
   const actionWordsByActionKey = new Map(actionChoices.map((actionChoice) => [actionChoice.actionKey, actionChoice.actionWords]));
+  const streamChoices = streamChoicesOfRows(rowsNotCleared, displayNamesByStreamId);
   const countsByLevelFilter: Record<StreamLogLevelFilter, number> = { all: rowsOfTheStepsSearched.length, info: 0, warn: 0, error: 0 };
   for (const row of rowsOfTheStepsSearched) countsByLevelFilter[levelFilterOfLogRecord(row.record.level)] += 1;
   const rows = rowsWithActionDividers(
@@ -360,6 +409,8 @@ export function presentStreamLog(records: readonly HeldProjectLogRecord[], graph
     stepChoices,
     actionChoices,
     actionFilterWords: filters.shownActionKey === null ? "All actions" : (actionWordsByActionKey.get(filters.shownActionKey) ?? ONE_ACTION_NO_LONGER_HELD_WORDS),
+    streamChoices,
+    streamFilterWords: streamFilterWordsOf(filters.shownStreamKey, displayNamesByStreamId),
     stepFilterWords: {
       words:
         filters.shownStepKeys.size === 0

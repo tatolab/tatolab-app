@@ -56,6 +56,8 @@ export interface TatolabBackend {
   createStreamProject(folder: string | null): Promise<ProjectCreationQueued>;
   /** Queue `run_project` in `folder`, which loads every `@stream` in it, resolving with the action queued and rejecting in the runtime's own words. */
   runStreamProject(folder: string): Promise<ProjectRunQueued>;
+  /** Queue `run_project` on `projectDirectory`, a project the runtime lists, which loads every `@stream` in it again, resolving with the action queued and rejecting in the runtime's own words. */
+  reloadProject(projectDirectory: string): Promise<ProjectRunQueued>;
   /** Where the stream action `action` has got to, or the runtime's words that it no longer holds it; rejects when the runtime does not answer. */
   describeStreamAction(action: string): Promise<StreamActionFollowed>;
   /** How the running runtime describes itself, rejecting in its own words when it does not answer. */

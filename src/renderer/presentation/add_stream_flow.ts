@@ -111,6 +111,11 @@ export function advanceAddStreamFlow(state: AddStreamFlowState, event: AddStream
   return state.step === "form" ? advanceTheForm(state, event) : state;
 }
 
+/** Whether a stream action has ended: done, cancelled or failed; any other state, one newer than this app among them, is still under way. */
+export function isStreamActionEnded(description: StreamActionDescription): boolean {
+  return description.state === "done" || description.state === "cancelled" || description.state === "failed";
+}
+
 function advanceTheFollowing(state: Extract<AddStreamFlowState, { step: "following" }>, description: StreamActionDescription): AddStreamFlowState {
   switch (description.state) {
     case "done":

@@ -13,6 +13,7 @@ import { LinuxRuntimeInstallView } from "./linux_runtime_install_view";
 import { ControlTooltipProvider } from "../design_system/control_tooltip";
 import { readableExposedPorts } from "../presentation/stream_overview_presentation";
 import { AddStreamFlowOfTheWindow } from "../add_stream_flow_of_the_window";
+import { ProjectReloadsOfTheWindow } from "../project_reloads_of_the_window";
 import { StreamGraphReadings } from "../stream_graph_readings";
 import { ProjectLogReadings } from "../project_log_readings";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "../window_visibility";
@@ -103,6 +104,7 @@ export function mountTatolabWindow(
   const firstRunFinishingRefusal = new RefusalKeptForTheWindow();
   backend.onStreamPageRequested((streamId) => void navigateTo(streamPagePath(streamId)));
   const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
+  const projectReloads = new ProjectReloadsOfTheWindow(backend);
   const streamsPage = new StreamsPageView(backend);
   const uninstallSheet = new UninstallSheetView(backend, platform, (flowState) =>
     uninstallTatolabRefusal.showRefusalReason(flowState.phase === "closed" ? flowState.refusalReason : null),
@@ -204,6 +206,7 @@ export function mountTatolabWindow(
       streamGraphReadings,
       projectLogReadings,
       addStreamFlow,
+      projectReloads,
       hostedPages,
       windowAppearance,
       runtimeDescriptionReadings,

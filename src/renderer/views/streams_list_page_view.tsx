@@ -36,6 +36,7 @@ import {
 import { StreamActionRefusalLine, useProjectRemovalDialog, useStreamActionsUnderWay, type StreamActionRefusalWords } from "./stream_action_controls";
 import { useStreamRenameDialog } from "./stream_rename_dialog_view";
 import { StreamRowRightClickMenu } from "./stream_row_right_click_menu";
+import { projectPagePath } from "./project_page_path";
 import { streamPagePath } from "./stream_page_path";
 import type { AddStreamSource } from "../presentation/add_stream_flow";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
@@ -90,7 +91,8 @@ function StreamRowActions({
   );
 }
 
-function StreamsListRow({
+/** A stream's line in a list of streams: its state, its name linking to its page, and its actions; why it failed, and the runtime's refusal of its last action, under it. */
+export function StreamsListRow({
   stream,
   actionUnderWay,
   refusal,
@@ -255,7 +257,13 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
               <section key={projectFolder.projectDirectory ?? ""} aria-label={projectFolder.folderName} data-streams-list-project-folder={projectFolder.projectDirectory ?? ""}>
                 <h2 className="flex h-8 items-center gap-2 px-2 font-normal">
                   <FolderOpen className="size-4 shrink-0 text-fg-3" strokeWidth={1.75} aria-hidden />
-                  <span className="truncate text-fg-2">{projectFolder.folderName}</span>
+                  {projectFolder.projectDirectory === null ? (
+                    <span className="truncate text-fg-2">{projectFolder.folderName}</span>
+                  ) : (
+                    <Link to={projectPagePath(projectFolder.projectDirectory)} className="truncate rounded-sm text-fg-2 hover:text-fg hover:underline" data-streams-list-project-link="">
+                      {projectFolder.folderName}
+                    </Link>
+                  )}
                   {projectFolder.projectDirectory !== null && (
                     <span className="min-w-0 truncate font-mono text-xs text-fg-3 select-text">{abbreviateHomeDirectory(projectFolder.projectDirectory)}</span>
                   )}

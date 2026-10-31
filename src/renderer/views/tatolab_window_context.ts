@@ -1,5 +1,6 @@
 import { createContext, useContext, useSyncExternalStore } from "react";
 import type { AddStreamFlowOfTheWindow, OpenAddStreamDialog } from "../add_stream_flow_of_the_window";
+import type { ProjectReload, ProjectReloadsOfTheWindow } from "../project_reloads_of_the_window";
 import type { TatolabBackend } from "../backend/tatolab_backend";
 import type { TatolabPlatform, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type { AddStreamFlowState, AddStreamRunNotice } from "../presentation/add_stream_flow";
@@ -69,6 +70,8 @@ export interface TatolabWindowEnvironment {
   projectLogReadings: ProjectLogReadings;
   /** Adding a stream, held by the window so a run outlives the page that started it. */
   addStreamFlow: AddStreamFlowOfTheWindow;
+  /** Each project's last Reload, held by the window so a reload is followed to its end wherever the person goes. */
+  projectReloads: ProjectReloadsOfTheWindow;
   hostedPages: TatolabWindowHostedPages;
   /** The person's choice of light, dark or the system's look, which the title bar and Settings › Appearance both change. */
   windowAppearance: WindowAppearanceChoice;
@@ -117,6 +120,12 @@ export function useProjectLogReading(scope: ProjectLogScope): ProjectLogReading 
 export function useAddStreamFlowState(): AddStreamFlowState {
   const { addStreamFlow } = useTatolabWindowEnvironment();
   return useSyncExternalStore(addStreamFlow.subscribeToFlow, addStreamFlow.readFlowState);
+}
+
+/** `projectDirectory`'s last Reload, `null` for none, re-rendering the caller on each change. */
+export function useProjectReload(projectDirectory: string): ProjectReload | null {
+  const { projectReloads } = useTatolabWindowEnvironment();
+  return useSyncExternalStore(projectReloads.subscribeToReloads, () => projectReloads.readReloadOf(projectDirectory));
 }
 
 /** The New project or Import project dialog while it is open, `null` while closed, re-rendering the caller on each change. */

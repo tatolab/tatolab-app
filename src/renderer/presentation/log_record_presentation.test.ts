@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 import type { HeldProjectLogRecord } from "../project_log_readings";
+import hallwaysLogsToolResultFirst45 from "../../main/test-fixtures/local-api-logs-tool-result-of-the-project-hallways-first-45-over-two-loads.json?raw";
 import {
   formatLogAttrValue,
   formatLogRecordDateAndTime,
@@ -13,6 +14,7 @@ import {
   presentLogLevelWord,
   presentStreamLog,
   presentStreamLogRecordDetails,
+  PROJECT_OWN_RECORDS_STREAM_KEY,
   prettyJsonLinesOf,
   searchMatchRangesOf,
   STREAM_LOG_LEVEL_FILTERS,
@@ -48,7 +50,7 @@ const FRONT_DOOR_GRAPH: StreamGraphSummary = {
   graph_document_text: "{}",
 };
 
-const EVERY_RECORD: StreamLogFilters = { searchText: "", levelFilter: "all", shownStepKeys: new Set(), shownActionKey: null, clearedThroughPosition: 0 };
+const EVERY_RECORD: StreamLogFilters = { searchText: "", levelFilter: "all", shownStepKeys: new Set(), shownStreamKey: null, shownActionKey: null, clearedThroughPosition: 0 };
 
 describe("formatLogRecordTime", () => {
   it("writes the local time to the millisecond", () => {
@@ -307,5 +309,84 @@ describe("the pointer to records not held", () => {
 
   it("names the project's log folder, home shortened", () => {
     expect(logFolderPathOfProject("/Users/jonathanf/streams/front-door")).toBe("~/streams/front-door/.streamlib/logs/");
+  });
+});
+
+/** The text field `fieldName` of a record on the wire; `null` when it is absent or not text. */
+function wireTextField(recordOnTheWire: Record<string, unknown>, fieldName: string): string | null {
+  const fieldValue = recordOnTheWire[fieldName];
+  return typeof fieldValue === "string" ? fieldValue : null;
+}
+
+/** The records of a recorded `logs` answer, held in the order read, keeping the fields the Logs tab narrows on. */
+function heldRecordsOfTheRecordedLogsAnswer(recordedAnswer: string): HeldProjectLogRecord[] {
+  const toolResultText: string = JSON.parse(recordedAnswer).result.content[0].text;
+  const recordsOnTheWire: Record<string, unknown>[] = JSON.parse(toolResultText).records;
+  return recordsOnTheWire.map((recordOnTheWire, recordIndex) => ({
+    position: recordIndex + 1,
+    host_ts_ns: typeof recordOnTheWire["host_ts"] === "number" ? recordOnTheWire["host_ts"] : null,
+    level: wireTextField(recordOnTheWire, "level"),
+    source: wireTextField(recordOnTheWire, "source"),
+    target: wireTextField(recordOnTheWire, "target"),
+    message: wireTextField(recordOnTheWire, "message") ?? "",
+    attrs: {},
+    processor_id: wireTextField(recordOnTheWire, "processor_id"),
+    sent_by_its_own_process: wireTextField(recordOnTheWire, "source") === "python",
+    action: wireTextField(recordOnTheWire, "action"),
+    stream: wireTextField(recordOnTheWire, "stream"),
+    jsonl_line: JSON.stringify(recordOnTheWire),
+  }));
+}
+
+describe("a project's whole log, recorded from a running runtime", () => {
+  const hallwaysRecords = heldRecordsOfTheRecordedLogsAnswer(hallwaysLogsToolResultFirst45);
+  const displayNamesByStreamId = new Map([
+    ["hallways-front_door-58034f", "front_door"],
+    ["hallways-back_door-2416d3", "back_door"],
+  ]);
+  const FIRST_LOAD = "Rj12j3eujz3zn0dposliv79k9-3";
+  const SECOND_LOAD = "Rj12j3eujz3zn0dposliv79k9-8";
+
+  it("shows one load's venv, compile and stream records together, and offers the project's own records beside each stream", () => {
+    const firstLoad = presentStreamLog(hallwaysRecords, null, { ...EVERY_RECORD, shownActionKey: FIRST_LOAD }, displayNamesByStreamId);
+
+    expect(firstLoad.rows).toHaveLength(39);
+    expect(firstLoad.rows[0]?.record.message).toContain("does not start");
+    expect(firstLoad.rows.some((row) => row.record.message === "`uv sync` made /tmp/tatolab-proof-projects/hallways/.venv")).toBe(true);
+    expect(firstLoad.rows.some((row) => row.record.message.startsWith("Compile complete"))).toBe(true);
+    expect(new Set(firstLoad.rows.map((row) => row.record.stream))).toEqual(new Set([null, "hallways-front_door-58034f", "hallways-back_door-2416d3"]));
+    expect(firstLoad.streamChoices).toEqual([
+      { streamKey: PROJECT_OWN_RECORDS_STREAM_KEY, streamWords: "The project itself" },
+      { streamKey: "hallways-front_door-58034f", streamWords: "front_door" },
+      { streamKey: "hallways-back_door-2416d3", streamWords: "back_door" },
+    ]);
+    expect(firstLoad.streamFilterWords).toBe("All streams");
+    expect(firstLoad.actionChoices.map((actionChoice) => actionChoice.actionKey)).toEqual([FIRST_LOAD, SECOND_LOAD]);
+  });
+
+  it("narrows to one stream, to the project's own records, and to one stream within one load", () => {
+    const backDoor = presentStreamLog(hallwaysRecords, null, { ...EVERY_RECORD, shownStreamKey: "hallways-back_door-2416d3" }, displayNamesByStreamId);
+    expect(backDoor.rows.map((row) => [row.record.level, row.record.action])).toEqual([["error", FIRST_LOAD]]);
+    expect(backDoor.streamFilterWords).toBe("back_door");
+
+    const projectItself = presentStreamLog(hallwaysRecords, null, { ...EVERY_RECORD, shownStreamKey: PROJECT_OWN_RECORDS_STREAM_KEY }, displayNamesByStreamId);
+    expect(projectItself.rows).toHaveLength(10);
+    expect(projectItself.streamFilterWords).toBe("The project itself");
+
+    const frontDoorSecondLoad = presentStreamLog(
+      hallwaysRecords,
+      null,
+      { ...EVERY_RECORD, shownStreamKey: "hallways-front_door-58034f", shownActionKey: SECOND_LOAD },
+      displayNamesByStreamId,
+    );
+    expect(frontDoorSecondLoad.rows).toHaveLength(6);
+    expect(frontDoorSecondLoad.rows[0]?.record.message).toBe("Loading the stream `hallways-front_door-58034f` from /tmp/tatolab-proof-projects/hallways");
+  });
+
+  it("names a stream no longer listed by its id, and the project's own records by their words once none is held", () => {
+    expect(presentStreamLog(hallwaysRecords, null, { ...EVERY_RECORD, shownStreamKey: "hallways-back_door-2416d3" }).streamFilterWords).toBe("hallways-back_door-2416d3");
+    expect(presentStreamLog(hallwaysRecords, null, { ...EVERY_RECORD, shownStreamKey: PROJECT_OWN_RECORDS_STREAM_KEY, clearedThroughPosition: 45 }).streamFilterWords).toBe(
+      "The project itself",
+    );
   });
 });

@@ -1,12 +1,12 @@
 import { cn } from "cn";
-import { Folder, FolderInput, FolderOpen, FolderPlus, List, Plus, Settings } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight, FolderInput, FolderOpen, FolderPlus, List, Plus, Settings } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Navigate, NavLink, Outlet, useNavigate, useParams, type RouteObject } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import { presentStreamState } from "../presentation/stream_presentation";
-import { streamProjectFoldersOf, type StreamProjectFolder } from "../presentation/streams_list_presentation";
+import { streamProjectFoldersOf, streamsOfTheProject, type StreamProjectFolder } from "../presentation/streams_list_presentation";
 import { IconButton } from "../design_system/icon_button";
 import { ListRowButton } from "../design_system/list_row_button";
 import { IconButtonMenu, MenuItem } from "../design_system/menus";
@@ -17,6 +17,8 @@ import { AddStreamDialogView } from "./add_stream_dialog_view";
 import { AddStreamRunNoticeView } from "./add_stream_run_notice_view";
 import { FirstRunFinishingRefusalNoticeView } from "./first_run_finishing_refusal_notice_view";
 import { HostedDomPageView } from "./hosted_dom_page_view";
+import { projectPagePath, projectPageTabNamed } from "./project_page_path";
+import { ProjectPageView } from "./project_page_view";
 import { StreamPageView } from "./stream_page_view";
 import { useStreamRenameDialog } from "./stream_rename_dialog_view";
 import { StreamRowRightClickMenu } from "./stream_row_right_click_menu";
@@ -85,22 +87,45 @@ function SidebarSectionHeading({ children, trailing }: { children: ReactNode; tr
 
 const SIDEBAR_ICON_CLASS_NAMES = "size-4 shrink-0 text-fg-3";
 
-/** A project folder's row, opening and closing the list of the streams added from it, each renamed from its right-click menu; a closed folder holding a failed stream says so. */
+/**
+ * A project folder's row, linking to the project's page, with a toggle opening and closing the list of the streams added
+ * from it, each renamed from its right-click menu; a closed folder holding a failed stream says so. The records of an
+ * earlier runtime name no folder, so their row only opens and closes.
+ */
 function StreamProjectFolderSidebarRows({ projectFolder, askToRename }: { projectFolder: StreamProjectFolder; askToRename: (stream: ListedStream) => void }) {
   const [isOpen, setIsOpen] = useState(true);
+  const { projectDirectory } = projectFolder;
+  const isFailureShownOnTheFolder = !isOpen && projectFolder.holdsAFailedStream;
   return (
     <li>
-      <ListRowButton
-        icon={isOpen ? FolderOpen : Folder}
-        iconTone={!isOpen && projectFolder.holdsAFailedStream ? "danger" : "quiet"}
-        aria-expanded={isOpen}
-        onPressed={() => setIsOpen((wasOpen) => !wasOpen)}
-        className="h-8 text-fg"
-        data-sidebar-project-folder={projectFolder.projectDirectory ?? ""}
-      >
-        <span className="min-w-0 flex-1 truncate">{projectFolder.folderName}</span>
-        {!isOpen && projectFolder.holdsAFailedStream && <span className="sr-only">, holds a failed stream</span>}
-      </ListRowButton>
+      <div className="flex items-center gap-0.5" data-sidebar-project-folder={projectDirectory ?? ""}>
+        <div className="min-w-0 flex-1">
+          {projectDirectory === null ? (
+            <div className="flex h-8 items-center gap-2 px-2 text-fg">
+              <FolderOpen className={cn(SIDEBAR_ICON_CLASS_NAMES, isFailureShownOnTheFolder && "text-danger")} strokeWidth={1.75} aria-hidden />
+              <span className="min-w-0 flex-1 truncate">{projectFolder.folderName}</span>
+            </div>
+          ) : (
+            <SidebarNavigationRow
+              to={projectPagePath(projectDirectory)}
+              icon={<FolderOpen className={cn(SIDEBAR_ICON_CLASS_NAMES, isFailureShownOnTheFolder && "text-danger")} strokeWidth={1.75} aria-hidden />}
+              label={projectFolder.folderName}
+              stateWordsForAScreenReader={isFailureShownOnTheFolder ? "holds a failed stream" : undefined}
+              windowNavigationName="project"
+            />
+          )}
+        </div>
+        <ListRowButton
+          icon={isOpen ? ChevronDown : ChevronRight}
+          aria-label={`Streams of ${projectFolder.folderName}`}
+          aria-expanded={isOpen}
+          onPressed={() => setIsOpen((wasOpen) => !wasOpen)}
+          className="h-8 w-7 shrink-0 justify-center px-0"
+          data-sidebar-project-folder-toggle=""
+        >
+          {null}
+        </ListRowButton>
+      </div>
       {isOpen && (
         <ul aria-label={`Streams added from ${projectFolder.folderName}`} className="mt-0.5 flex flex-col gap-0.5">
           {projectFolder.streams.map((stream) => (
@@ -233,13 +258,30 @@ function StreamRoute() {
   return <StreamPageView key={stream.stream} stream={stream} shownTab={shownTab} />;
 }
 
-/** The window's routes, in its memory router: the Streams list, a stream on one of its tabs, and Settings on one of its sections. */
+/** A project's page on the tab its path names, while the listing holds a stream from its folder; back to the list once it holds none. */
+function ProjectRoute() {
+  const listedStreams = useListedStreamsWhileTheRuntimeRuns();
+  const { projectDirectory, projectTab } = useParams();
+  const listedStreamsOfTheProject = useMemo((): readonly [ListedStream, ...ListedStream[]] | null => {
+    if (listedStreams === null || projectDirectory === undefined) return null;
+    const [firstStream, ...otherStreams] = streamsOfTheProject(listedStreams, projectDirectory);
+    return firstStream === undefined ? null : [firstStream, ...otherStreams];
+  }, [listedStreams, projectDirectory]);
+  if (listedStreams === null) return <StreamsPageWhileTheRuntimeListsNone />;
+  if (projectDirectory === undefined || listedStreamsOfTheProject === null) return <Navigate to="/" replace />;
+  const shownTab = projectPageTabNamed(projectTab);
+  if (shownTab === null) return <Navigate to={projectPagePath(projectDirectory)} replace />;
+  return <ProjectPageView key={projectDirectory} projectDirectory={projectDirectory} streamsOfTheProject={listedStreamsOfTheProject} shownTab={shownTab} />;
+}
+
+/** The window's routes, in its memory router: the Streams list, a project or a stream on one of its tabs, and Settings on one of its sections. */
 export const TATOLAB_WINDOW_ROUTES: RouteObject[] = [
   {
     element: <TatolabWindowShell />,
     children: [
       { index: true, element: <StreamsRoute /> },
       { path: "streams/:streamId/:streamTab?", element: <StreamRoute /> },
+      { path: "projects/:projectDirectory/:projectTab?", element: <ProjectRoute /> },
       { path: "settings/:settingsSection?", element: <SettingsPageView /> },
     ],
   },

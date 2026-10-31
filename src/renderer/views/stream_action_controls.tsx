@@ -102,6 +102,21 @@ export function useStreamActionsUnderWay(listedStreams: readonly ListedStream[])
   return { actionsUnderWay, refusalWords, runStreamAction, removeProject };
 }
 
+/** Opens the project folder the runtime lists for `streamId`, or a terminal in it, keeping why the last try was refused, in the words of what refused it, until the next. */
+export function useStreamProjectFolderOpening(streamId: string) {
+  const { backend } = useTatolabWindowEnvironment();
+  const [projectOpeningRefusal, setProjectOpeningRefusal] = useState<string | null>(null);
+  const openTheProject = (opening: Promise<void>) => {
+    setProjectOpeningRefusal(null);
+    opening.catch((rejection: unknown) => setProjectOpeningRefusal(describeBackendRejection(rejection)));
+  };
+  return {
+    openProjectFolder: () => openTheProject(backend.openStreamProjectFolder(streamId)),
+    openTerminalAtProject: () => openTheProject(backend.openTerminalAtStreamProject(streamId)),
+    projectOpeningRefusal,
+  };
+}
+
 /** The runtime's refusal of a stream action, in its own words. */
 export function StreamActionRefusalLine({ refusal }: { refusal: StreamActionRefusalWords }) {
   return <RefusalLine lead={streamActionRefusalLead(refusal.chosenActionLabel)} words={refusal.runtimeWords} />;
@@ -116,11 +131,13 @@ export function useProjectRemovalDialog(listedStreams: readonly ListedStream[], 
   const [isOpen, setIsOpen] = useState(false);
   const [projectAskedAbout, setProjectAskedAbout] = useState<{ projectDirectory: string; streams: readonly ListedStream[] } | null>(null);
   const confirmation = projectAskedAbout === null ? null : presentProjectRemovalConfirmation(projectAskedAbout.projectDirectory, projectAskedAbout.streams);
-  const askToRemoveTheProjectOf = (stream: ListedStream) => {
-    const projectDirectory = listedStreamProjectDirectory(stream);
-    if (projectDirectory === null) return;
+  const askToRemoveTheProjectAt = (projectDirectory: string) => {
     setProjectAskedAbout({ projectDirectory, streams: streamsOfTheProject(listedStreams, projectDirectory) });
     setIsOpen(true);
+  };
+  const askToRemoveTheProjectOf = (stream: ListedStream) => {
+    const projectDirectory = listedStreamProjectDirectory(stream);
+    if (projectDirectory !== null) askToRemoveTheProjectAt(projectDirectory);
   };
   const removalDialog = (
     <ConfirmationDialog
@@ -137,5 +154,5 @@ export function useProjectRemovalDialog(listedStreams: readonly ListedStream[], 
       data-project-removal-dialog=""
     />
   );
-  return { askToRemoveTheProjectOf, removalDialog };
+  return { askToRemoveTheProjectAt, askToRemoveTheProjectOf, removalDialog };
 }

@@ -10,16 +10,10 @@ import {
   type AddStreamSource,
   type QueuedProjectLoad,
 } from "./presentation/add_stream_flow";
-import { RepeatingBackendPoll } from "./repeating_backend_poll";
+import { StreamActionFollowing, type StreamActionFollowingRead } from "./stream_action_following";
 
 /** The backend's commands adding a project uses. */
 export type AddStreamBackend = Pick<TatolabBackend, "chooseStreamProjectFolder" | "createStreamProject" | "runStreamProject" | "describeStreamAction">;
-
-/** How often a queued load is read again while the flow follows it: as often as the app reads the runtime's status. */
-export const PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS = 2_000;
-
-/** How many reads of a followed load may fail in a row, a runtime restart among them, before the flow stops following it. */
-export const MOST_FAILED_PROJECT_LOAD_READS_IN_A_ROW = 5;
 
 /** Which source the open New project or Import project dialog starts from, and whether a load's notice opened it. */
 export interface OpenAddStreamDialog {
@@ -35,12 +29,13 @@ export class AddStreamFlowOfTheWindow {
   private flowState: AddStreamFlowState = initialAddStreamFlowState("project_folder");
   private runNotice: AddStreamRunNotice | null = null;
   private isTheNoticeOfTheLoadUnderWayDismissed = false;
-  private describeFailuresInARow = 0;
   private openDialogState: OpenAddStreamDialog | null = null;
   private readonly flowListeners = new Set<() => void>();
-  private readonly projectLoadFollowing = new RepeatingBackendPoll(() => this.describeTheFollowedLoad(), PROJECT_LOAD_FOLLOWING_INTERVAL_MILLISECONDS);
+  private readonly projectLoadFollowing: StreamActionFollowing;
 
-  constructor(private readonly backend: AddStreamBackend) {}
+  constructor(private readonly backend: AddStreamBackend) {
+    this.projectLoadFollowing = new StreamActionFollowing(backend, (action, read) => this.dispatchTheFollowedLoadsRead(action, read));
+  }
 
   readonly readFlowState = (): AddStreamFlowState => this.flowState;
 
@@ -114,7 +109,7 @@ export class AddStreamFlowOfTheWindow {
     queuing.then(
       (queued) => {
         this.dispatch({ kind: "load_queued", queued });
-        if (this.flowState.step === "following" && this.flowState.queued.action === queued.action) this.followTheLoad();
+        if (this.flowState.step === "following" && this.flowState.queued.action === queued.action) this.projectLoadFollowing.follow(queued.action);
       },
       (rejection: unknown) => this.dispatch({ kind: "work_refused", lead: projectLoadRefusedLead(form.source), words: describeBackendRejection(rejection) }),
     );
@@ -131,28 +126,8 @@ export class AddStreamFlowOfTheWindow {
     return this.backend.runStreamProject(chosenFolder).then((queued) => ({ action: queued.action, projectDirectory: queued.project_directory, streamOfTheScaffold: null }));
   }
 
-  private followTheLoad(): void {
-    this.describeFailuresInARow = 0;
-    this.projectLoadFollowing.start();
-  }
-
-  /** Reads the followed load once; one the runtime does not answer is read again next round, until `MOST_FAILED_PROJECT_LOAD_READS_IN_A_ROW` fail in a row. */
-  private describeTheFollowedLoad(): Promise<void> {
-    if (this.flowState.step !== "following") return Promise.resolve();
-    const action = this.flowState.queued.action;
-    return this.backend.describeStreamAction(action).then(
-      (followed) => {
-        this.describeFailuresInARow = 0;
-        this.dispatch(
-          followed.kind === "described" ? { kind: "load_described", description: followed.description } : { kind: "load_no_longer_followed", action, words: followed.words },
-        );
-      },
-      (rejection: unknown) => {
-        this.describeFailuresInARow += 1;
-        if (this.describeFailuresInARow < MOST_FAILED_PROJECT_LOAD_READS_IN_A_ROW) return;
-        this.dispatch({ kind: "load_no_longer_followed", action, words: `Tatolab could not read the load: ${describeBackendRejection(rejection)}` });
-      },
-    );
+  private dispatchTheFollowedLoadsRead(action: string, read: StreamActionFollowingRead): void {
+    this.dispatch(read.kind === "described" ? { kind: "load_described", description: read.description } : { kind: "load_no_longer_followed", action, words: read.words });
   }
 
   private showTheNoticeOfTheLoad(): void {
