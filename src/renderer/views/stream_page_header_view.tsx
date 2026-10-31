@@ -15,11 +15,12 @@ import {
   isStreamLoaded,
   listedStreamProjectDirectory,
   presentStreamPrimaryAction,
+  streamActionInTheListingWords,
   streamActionPendingWords,
   type StreamPrimaryActionPresentation,
 } from "../presentation/stream_presentation";
 import type { StreamActionUnderWay } from "../presentation/streams_list_presentation";
-import { StreamActionOutcomeLine, type StreamActionOutcomeWords } from "./stream_action_controls";
+import { StreamActionRefusalLine, type StreamActionRefusalWords } from "./stream_action_controls";
 import { streamPagePath, type StreamPageTab } from "./stream_page_path";
 import { useTatolabWindowEnvironment } from "./tatolab_window_context";
 
@@ -50,12 +51,13 @@ function StreamPageTabs({ stream, shownTab }: { stream: ListedStream; shownTab: 
   );
 }
 
-/** The stream's actions as its page runs them: the one under way, what the runtime last said, and how to run one. */
+/** The stream's actions as its page runs them: the one being asked for, the runtime's last refusal, and how to ask for one. */
 export interface StreamPageActions {
   actionUnderWay: StreamActionUnderWay | undefined;
-  outcome: StreamActionOutcomeWords | undefined;
+  refusal: StreamActionRefusalWords | undefined;
   runPrimaryAction(chosenAction: StreamPrimaryActionPresentation): void;
-  askToRemove(): void;
+  /** Ask whether to remove the stream's whole project, naming the folder and every stream of it. */
+  askToRemoveTheProject(): void;
   askToRename(): void;
 }
 
@@ -75,8 +77,9 @@ export function StreamPageHeaderView({
   const { backend, platform } = useTatolabWindowEnvironment();
   /** Why the project folder or a terminal in it did not open, in the words of what refused it, which name what failed. */
   const [projectOpeningRefusal, setProjectOpeningRefusal] = useState<string | null>(null);
-  const { actionUnderWay, outcome, runPrimaryAction, askToRemove, askToRename } = streamPageActions;
+  const { actionUnderWay, refusal, runPrimaryAction, askToRemoveTheProject, askToRename } = streamPageActions;
   const primaryAction = presentStreamPrimaryAction(stream);
+  const listedActionWords = streamActionInTheListingWords(stream);
   const projectDirectory = listedStreamProjectDirectory(stream);
   const openTheProject = (opening: Promise<void>) => {
     setProjectOpeningRefusal(null);
@@ -91,6 +94,8 @@ export function StreamPageHeaderView({
         <>
           {actionUnderWay !== undefined ? (
             <PendingActionWords words={streamActionPendingWords(actionUnderWay.streamAction)} />
+          ) : listedActionWords !== null ? (
+            <PendingActionWords words={listedActionWords} />
           ) : (
             primaryAction !== null && (
               <ActionButton
@@ -132,19 +137,19 @@ export function StreamPageHeaderView({
                 <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(projectDirectory)}>
                   Copy project folder path
                 </MenuItem>
+                <MenuSeparator />
+                <MenuItem icon={Trash2} isDestructive isDisabled={actionUnderWay !== undefined} onChosen={askToRemoveTheProject} data-stream-action="remove_project">
+                  Remove project…
+                </MenuItem>
               </>
             )}
-            <MenuSeparator />
-            <MenuItem icon={Trash2} isDestructive isDisabled={actionUnderWay !== undefined} onChosen={askToRemove} data-stream-action="remove_stream">
-              Remove…
-            </MenuItem>
           </MoreActionsMenu>
         </>
       }
       notices={
-        outcome !== undefined || projectOpeningRefusal !== null ? (
+        refusal !== undefined || projectOpeningRefusal !== null ? (
           <div className="border-b py-2">
-            {outcome !== undefined && <StreamActionOutcomeLine outcome={outcome} />}
+            {refusal !== undefined && <StreamActionRefusalLine refusal={refusal} />}
             {projectOpeningRefusal !== null && <RefusalLine words={projectOpeningRefusal} />}
           </div>
         ) : undefined

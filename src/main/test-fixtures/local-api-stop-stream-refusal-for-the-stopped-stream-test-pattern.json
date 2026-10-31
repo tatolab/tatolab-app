@@ -1,1 +1,0 @@
-{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"Runtime error: the stream `test-pattern-main-cab18a` is already stopped; `start` loads it again"}],"isError":true}}

@@ -25,7 +25,7 @@ export interface StreamLocation {
   stream_function: string;
 }
 
-/** One stream the runtime lists. `state` is running, stopped or failed, or a state newer than this app. */
+/** One stream the runtime lists. `state` is running, stopped, failed, preparing or stopping, or a state newer than this app. */
 export interface ListedStream {
   /** Its stream id, `<folder>-<function>-<hash>`, which every tool about one stream names it by. */
   stream: string;
@@ -37,16 +37,14 @@ export interface ListedStream {
   /** How many nodes its loaded graph holds; `null` while it is not loaded. */
   node_count: number | null;
   failed_because: string | null;
+  /** The stream action queued or under way on it while it is `preparing` or `stopping`; `null` otherwise. */
+  action: string | null;
+  /** That action's step, `making_the_venv`, `compiling`, `starting` or `stopping`, or one newer than this app; `null` while the action waits in its project's queue, and while no action works on it. */
+  step: string | null;
 }
 
-/** A stream action the window asks the runtime for, named as the runtime's tool and the window's command are. */
-export type TatolabStreamActionName = "stop_stream" | "start_stream" | "remove_stream";
-
-/** What `stop_stream` answers. */
-export interface StreamStopAnswer {
-  /** The runtime's words when it unloaded a stream but could not record it stopped, so a runtime restart loads it again; `null` otherwise. */
-  not_recorded_because: string | null;
-}
+/** A stream action the window asks the runtime to queue on one stream, named as the runtime's tool and the window's command are. */
+export type TatolabStreamActionName = "stop_stream" | "start_stream";
 
 /** How a newer Tatolab found by a check reaches the person: installed in place, then the app reopens; or its download opened, for a `.deb`, which only apt replaces. */
 export type TatolabAppUpdateDelivery = "install_and_relaunch" | "open_the_download";
@@ -139,9 +137,8 @@ export interface RuntimeDescription {
   runtime_log_directory: string | null;
 }
 
-/** One record of a stream's log, flattened by the backend from the runtime's JSONL record. */
-export interface StreamLogRecord {
-  sequence: number;
+/** One record of a project's log, flattened by the backend from the runtime's JSONL record. */
+export interface ProjectLogRecord {
   /** Nanoseconds since the Unix epoch; past 2^53, so it arrives rounded to a few hundred nanoseconds. */
   host_ts_ns: number | null;
   level: string | null;
@@ -153,22 +150,31 @@ export interface StreamLogRecord {
   processor_id: string | null;
   /** Whether a step's own helper process wrote it (it carries `source_seq`, or its `source` is `python`) rather than the runtime's process. */
   sent_by_its_own_process: boolean;
+  /** The id of the stream action it was written for; `null` for a record written outside one. */
+  action: string | null;
+  /** The id of the stream that wrote it; `null` for a record of the project's own, such as the venv's making and the compile. */
+  stream: string | null;
   /** The record as JSON text, every number in the digits the runtime wrote, so `host_ts` is exact. */
   jsonl_line: string;
 }
 
-/** The folder under a stream's project directory that the runtime writes the stream's log segments into. */
-export const STREAM_LOG_FOLDER_IN_THE_PROJECT = ".streamlib/logs";
+/** The folder under a project directory that the runtime writes the project's log segments into. */
+export const PROJECT_LOG_FOLDER_IN_THE_PROJECT = ".streamlib/logs";
 
-/** What `read_stream_log_records` answers: one loaded stream's records after the sequence asked for. */
-export interface StreamLogRecordsPage {
-  stream: string;
-  /** Which load of the stream; a page naming another instance than the last numbers its records from 1 again. */
-  stream_instance: string;
-  records: StreamLogRecord[];
-  next_after: number;
-  /** Records after the one asked for that the runtime dropped from its history before this read. */
-  records_no_longer_held: number;
+/** Which of a project's log records a read asks for: all of them, one stream's, one stream action's, or both narrowings at once. */
+export interface ProjectLogNarrowing {
+  stream: string | null;
+  action: string | null;
+}
+
+/** What `read_project_log_records` answers: a page of one project's log records after the cursor asked for. */
+export interface ProjectLogRecordsPage {
+  project_directory: string;
+  records: ProjectLogRecord[];
+  /** The opaque cursor the next page starts after. */
+  next_after: string;
+  /** Whether the log's retention deleted records between the cursor asked for and this page. */
+  records_no_longer_held: boolean;
 }
 
 /** A port a node declares under the graph's `ports.inputs` or `ports.outputs`. */

@@ -9,13 +9,14 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import type {
   ListedStream,
+  ProjectLogNarrowing,
+  ProjectLogRecordsPage,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
   StreamGraphSummary,
-  StreamLogRecordsPage,
   StreamRunAnswer,
   TatolabAppBuild,
   TatolabAppUpdateState,
@@ -40,7 +41,7 @@ import { deriveRuntimeState, isARuntimeNotAnswering, theServiceManagerMayHaveGiv
 const LOCAL_API_REQUEST_TIMEOUT_MS = 3_000;
 
 /** How many log records one page the window reads holds. */
-const STREAM_LOG_RECORDS_PER_PAGE = 500;
+const PROJECT_LOG_RECORDS_PER_PAGE = 500;
 
 /** The machine's name, asked of the runtime once each time it comes up. */
 export class MachineNameAskedOncePerRuntimeUpEpisode {
@@ -363,14 +364,19 @@ export class TatolabAppController {
     return this.localApiClient.describeRuntime();
   }
 
-  /** The window's next page of `stream`'s log records: those numbered after `after`. */
-  readStreamLogRecords(stream: string, after: number): Promise<Result<StreamLogRecordsPage, LocalApiRequestFailure>> {
-    return this.localApiClient.readStreamLogRecords(stream, after, STREAM_LOG_RECORDS_PER_PAGE);
+  /** The window's next page of the log of the project in `projectDirectory`, narrowed as `narrowing` asks: the records after the cursor `after`, or the oldest held for `null`. */
+  readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null): Promise<Result<ProjectLogRecordsPage, LocalApiRequestFailure>> {
+    return this.localApiClient.readProjectLogRecords(projectDirectory, narrowing, after, PROJECT_LOG_RECORDS_PER_PAGE);
   }
 
-  /** Run the stream action `streamAction` on `stream`, answering the runtime's notice beside it or `null`. */
-  runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string | null, LocalApiRequestFailure>> {
+  /** Queue the stream action `streamAction` on `stream`, answering the id of the action the runtime queued. */
+  runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string, LocalApiRequestFailure>> {
     return this.localApiClient.runStreamAction(streamAction, stream);
+  }
+
+  /** Queue the removal of every stream the runtime holds from the project in `projectDirectory`, answering the id of the action the runtime queued. */
+  removeProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.localApiClient.removeProject(projectDirectory);
   }
 
   /** Show the stream `stream` under `displayName`, through the runtime's `rename_stream`. */

@@ -18,25 +18,22 @@ import {
   abbreviateHomeDirectory,
   listedStreamProjectDirectory,
   presentStreamPrimaryAction,
-  presentStreamStateAfterTheLastAction,
+  presentStreamState,
+  streamActionInTheListingWords,
   streamActionPendingWords,
   type StreamPrimaryActionPresentation,
 } from "../presentation/stream_presentation";
 import {
   STREAMS_LIST_FILTERS,
   streamMatchesFilterText,
+  streamIsInListFilterState,
   streamMatchesListFilter,
   streamProjectFoldersOf,
   streamsListFilterWords,
   type StreamActionUnderWay,
   type StreamsListFilter,
 } from "../presentation/streams_list_presentation";
-import {
-  StreamActionOutcomeLine,
-  useStreamActionsUnderWay,
-  useStreamRemovalDialog,
-  type StreamActionOutcomeWords,
-} from "./stream_action_controls";
+import { StreamActionRefusalLine, useProjectRemovalDialog, useStreamActionsUnderWay, type StreamActionRefusalWords } from "./stream_action_controls";
 import { useStreamRenameDialog } from "./stream_rename_dialog_view";
 import { StreamRowRightClickMenu } from "./stream_row_right_click_menu";
 import { streamPagePath } from "./stream_page_path";
@@ -47,20 +44,22 @@ function StreamRowActions({
   stream,
   actionUnderWay,
   onPrimaryAction,
-  onRemoveAsked,
+  onRemoveProjectAsked,
   onRenameAsked,
 }: {
   stream: ListedStream;
   actionUnderWay: StreamActionUnderWay | undefined;
   onPrimaryAction: (primaryAction: StreamPrimaryActionPresentation) => void;
-  onRemoveAsked: () => void;
+  onRemoveProjectAsked: () => void;
   onRenameAsked: () => void;
 }) {
   const primaryAction = presentStreamPrimaryAction(stream);
   const projectDirectory = listedStreamProjectDirectory(stream);
+  const listedActionWords = streamActionInTheListingWords(stream);
   if (actionUnderWay !== undefined) return <PendingActionWords words={streamActionPendingWords(actionUnderWay.streamAction)} />;
   return (
     <div className="flex items-center justify-end gap-0.5">
+      {listedActionWords !== null && <PendingActionWords words={listedActionWords} />}
       {primaryAction !== null && (
         <IconButton
           icon={primaryAction.streamAction === "stop_stream" ? Square : Play}
@@ -74,18 +73,18 @@ function StreamRowActions({
         <MenuItem icon={Pencil} onChosen={onRenameAsked} data-stream-action="rename_stream">
           Rename…
         </MenuItem>
-        <MenuSeparator />
         {projectDirectory !== null && (
           <>
+            <MenuSeparator />
             <MenuItem icon={Copy} onChosen={() => void writeTextToClipboard(projectDirectory)}>
               Copy project folder path
             </MenuItem>
             <MenuSeparator />
+            <MenuItem icon={Trash2} isDestructive onChosen={onRemoveProjectAsked} data-stream-action="remove_project">
+              Remove project…
+            </MenuItem>
           </>
         )}
-        <MenuItem icon={Trash2} isDestructive onChosen={onRemoveAsked} data-stream-action="remove_stream">
-          Remove…
-        </MenuItem>
       </MoreActionsMenu>
     </div>
   );
@@ -94,20 +93,20 @@ function StreamRowActions({
 function StreamsListRow({
   stream,
   actionUnderWay,
-  outcome,
+  refusal,
   onPrimaryAction,
-  onRemoveAsked,
+  onRemoveProjectAsked,
   onRenameAsked,
 }: {
   stream: ListedStream;
   actionUnderWay: StreamActionUnderWay | undefined;
-  outcome: StreamActionOutcomeWords | undefined;
+  refusal: StreamActionRefusalWords | undefined;
   onPrimaryAction: (primaryAction: StreamPrimaryActionPresentation) => void;
-  onRemoveAsked: () => void;
+  onRemoveProjectAsked: () => void;
   onRenameAsked: () => void;
 }) {
   const navigate = useNavigate();
-  const statePresentation = presentStreamStateAfterTheLastAction(stream, outcome?.kind === "notice");
+  const statePresentation = presentStreamState(stream);
   return (
     <StreamRowRightClickMenu stream={stream} onRenameAsked={onRenameAsked}>
       <li
@@ -133,7 +132,7 @@ function StreamsListRow({
           <span className="flex-1" />
           {/* The row navigates on click, and React carries a click in the actions' portalled menu up to it. */}
           <div className="shrink-0" onClick={(clickEvent) => clickEvent.stopPropagation()}>
-            <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} onPrimaryAction={onPrimaryAction} onRemoveAsked={onRemoveAsked} onRenameAsked={onRenameAsked} />
+            <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} onPrimaryAction={onPrimaryAction} onRemoveProjectAsked={onRemoveProjectAsked} onRenameAsked={onRenameAsked} />
           </div>
         </div>
         {stream.state === "failed" && stream.failed_because !== null && (
@@ -141,9 +140,9 @@ function StreamsListRow({
             {stream.failed_because}
           </p>
         )}
-        {outcome !== undefined && (
+        {refusal !== undefined && (
           <div className="pl-7">
-            <StreamActionOutcomeLine outcome={outcome} />
+            <StreamActionRefusalLine refusal={refusal} />
           </div>
         )}
       </li>
@@ -205,7 +204,7 @@ function StreamsListStateFilterMenu({
           label: (
             <span className="flex w-full items-center gap-6">
               {streamsListFilterWords(filter)}
-              <span className="ml-auto text-fg-3 tabular">{listedStreams.filter((stream) => streamMatchesListFilter(stream, filter)).length}</span>
+              <span className="ml-auto text-fg-3 tabular">{listedStreams.filter((stream) => streamIsInListFilterState(stream, filter)).length}</span>
             </span>
           ),
         }))}
@@ -223,8 +222,8 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
   const status = useTatolabStatus();
   const [chosenFilter, setChosenFilter] = useState<StreamsListFilter>("all");
   const [filterText, setFilterText] = useState("");
-  const { actionsUnderWay, outcomeWords, runStreamAction } = useStreamActionsUnderWay(listedStreams);
-  const { askToRemove, removalDialog } = useStreamRemovalDialog((stream) => runStreamAction("remove_stream", "Remove", stream));
+  const { actionsUnderWay, refusalWords, runStreamAction, removeProject } = useStreamActionsUnderWay(listedStreams);
+  const { askToRemoveTheProjectOf, removalDialog } = useProjectRemovalDialog(listedStreams, removeProject);
   const { askToRename, renameDialog } = useStreamRenameDialog();
   const shownStreams = listedStreams.filter((stream) => streamMatchesListFilter(stream, chosenFilter) && streamMatchesFilterText(stream, filterText));
   const machineWords = status.machine_name ?? presentPlatform(platform).thisMachineMidSentence;
@@ -267,9 +266,9 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
                       key={stream.stream}
                       stream={stream}
                       actionUnderWay={actionsUnderWay.get(stream.stream)}
-                      outcome={outcomeWords.get(stream.stream)}
+                      refusal={refusalWords.get(stream.stream)}
                       onPrimaryAction={(primaryAction) => runStreamAction(primaryAction.streamAction, primaryAction.label, stream)}
-                      onRemoveAsked={() => askToRemove(stream)}
+                      onRemoveProjectAsked={() => askToRemoveTheProjectOf(stream)}
                       onRenameAsked={() => askToRename(stream)}
                     />
                   ))}

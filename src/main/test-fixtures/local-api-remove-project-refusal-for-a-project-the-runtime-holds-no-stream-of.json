@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"Resource not found: this runtime holds no stream of the project in /tmp/tatolab-proof-projects/doorways, so there is none to remove. Loaded: pattern-main-d76f70. Recorded: pattern-main-d76f70"}],"isError":true}}

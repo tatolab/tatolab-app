@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./mock_tatolab_backend";
-import type { ListedStream, RelaysDescription, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, RelaysDescription, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { TatolabBackend } from "./tatolab_backend";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -19,21 +20,31 @@ function listingWithTheId(streams: ListedStream[] | null, streamId: string): Lis
   return streams?.find((stream) => stream.stream === streamId);
 }
 
-async function runningMockBackend() {
+async function runningMockBackend(pageQuery = "") {
   vi.useFakeTimers();
-  const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
-  const streamsAfterEachChange = async (act: () => Promise<string | null>) => {
+  const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams(pageQuery)));
+  const streamsAfterEachChange = async (act: () => Promise<void>, millisecondsToWait = 100) => {
     const settledAnswer = act().then(
-      (notice) => ({ notice }),
+      () => ({ queued: true }),
       (refusal: unknown) => ({ refusal }),
     );
-    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(millisecondsToWait);
     const status = backend.getTatolabStatus();
     await vi.advanceTimersByTimeAsync(100);
     return { answer: await settledAnswer, streams: (await status).streams };
   };
   return { backend, streamsAfterEachChange };
 }
+
+/** Reads every record of `projectDirectory`'s log narrowed as asked, page after page. */
+async function everyProjectLogRecord(backend: TatolabBackend, projectDirectory: string, narrowing: ProjectLogNarrowing): Promise<ProjectLogRecord[]> {
+  const page = backend.readProjectLogRecords(projectDirectory, narrowing, null);
+  await vi.advanceTimersByTimeAsync(100);
+  return (await page).records;
+}
+
+const PATTERN_FOLDER = "/Users/jonathanf/streams/pattern";
+const LOBBY_RECORDER_FOLDER = "/Users/jonathanf/streams/lobby-recorder";
 
 describe("the mock backend's stream actions", () => {
   it("lists every stream by its id and display name, running, stopped or failed, and none attached", async () => {
@@ -50,25 +61,21 @@ describe("the mock backend's stream actions", () => {
     ]);
   });
 
-  it("stops a running stream as the runtime records it, and starts it again", async () => {
+  it("queues a stop, lists the stream stopping, then stopped; and queues a start, listing it preparing at each step, then running", async () => {
     const { backend, streamsAfterEachChange } = await runningMockBackend();
 
-    const stopped = await streamsAfterEachChange(() => backend.runStreamAction("stop_stream", CAMERA));
-    expect(stopped.answer).toEqual({ notice: null });
-    expect(listingWithTheId(stopped.streams, CAMERA)).toMatchObject({ state: "stopped", node_count: null });
+    const stopping = await streamsAfterEachChange(() => backend.runStreamAction("stop_stream", CAMERA));
+    expect(stopping.answer).toEqual({ queued: true });
+    expect(listingWithTheId(stopping.streams, CAMERA)).toMatchObject({ state: "stopping", step: "stopping", action: expect.stringMatching(/^Rmockruntime7f3k2q9x4w1b8n-\d+$/) });
+    const stopped = await streamsAfterEachChange(() => Promise.resolve(), 1000);
+    expect(listingWithTheId(stopped.streams, CAMERA)).toMatchObject({ state: "stopped", node_count: null, action: null, step: null });
 
-    const started = await streamsAfterEachChange(() => backend.runStreamAction("start_stream", CAMERA));
-    expect(started.answer).toEqual({ notice: null });
-    expect(listingWithTheId(started.streams, CAMERA)).toMatchObject({ state: "running", node_count: 4 });
-  });
-
-  it("stops the recorder that reads another stream like any other, and it stays listed stopped", async () => {
-    const { backend, streamsAfterEachChange } = await runningMockBackend();
-
-    const stopped = await streamsAfterEachChange(() => backend.runStreamAction("stop_stream", RECORDER));
-
-    expect(stopped.answer).toEqual({ notice: null });
-    expect(listingWithTheId(stopped.streams, RECORDER)).toMatchObject({ state: "stopped", node_count: null });
+    const compiling = await streamsAfterEachChange(() => backend.runStreamAction("start_stream", CAMERA));
+    expect(listingWithTheId(compiling.streams, CAMERA)).toMatchObject({ state: "preparing", step: "compiling" });
+    const starting = await streamsAfterEachChange(() => Promise.resolve(), 600);
+    expect(listingWithTheId(starting.streams, CAMERA)).toMatchObject({ state: "preparing", step: "starting" });
+    const running = await streamsAfterEachChange(() => Promise.resolve(), 1000);
+    expect(listingWithTheId(running.streams, CAMERA)).toMatchObject({ state: "running", node_count: 4, action: null, step: null });
   });
 
   it("refuses what the runtime refuses, in words shaped as the runtime's", async () => {
@@ -77,9 +84,13 @@ describe("the mock backend's stream actions", () => {
     const stoppedTwice = await streamsAfterEachChange(() => backend.runStreamAction("stop_stream", PATTERN_TWO));
     expect(stoppedTwice.answer).toEqual({ refusal: `Runtime error: the stream \`${PATTERN_TWO}\` is already stopped; \`start\` loads it again` });
     const startedWhileLoaded = await streamsAfterEachChange(() => backend.runStreamAction("start_stream", MAIN));
-    expect(startedWhileLoaded.answer).toEqual({ refusal: `Runtime error: the stream \`${MAIN}\` is already loaded in this runtime, running; only a stopped or failed stream starts` });
-    const removedByItsDisplayName = await streamsAfterEachChange(() => backend.runStreamAction("remove_stream", "main"));
-    expect(removedByItsDisplayName.answer).toEqual({ refusal: expect.stringMatching(/^Resource not found: no stream with the id `main` is loaded or recorded in this runtime\. Loaded: /) });
+    expect(startedWhileLoaded.answer).toEqual({
+      refusal: `Runtime error: the stream \`${MAIN}\` is already loaded in this runtime, recorded by the runtime; only a stopped or failed stream starts`,
+    });
+    const removedAFolderOfNoStream = await streamsAfterEachChange(() => backend.removeProject("/Users/jonathanf/streams/nothing-here"));
+    expect(removedAFolderOfNoStream.answer).toEqual({
+      refusal: expect.stringMatching(/^Resource not found: this runtime holds no stream of the project in \/Users\/jonathanf\/streams\/nothing-here, so there is none to remove\. Loaded: /),
+    });
   });
 
   it("renames a stream under the same id, and refuses a name that shows nothing or an id it does not hold, in the runtime's words", async () => {
@@ -100,7 +111,7 @@ describe("the mock backend's stream actions", () => {
     expect(await settledRename(CAMERA, "   ")).toEqual({
       refusal: `Invalid configuration: "   " cannot be a stream's display name: it shows nothing; a display name is any text with something to show`,
     });
-    expect(await settledRename("camera", "Desk")).toEqual({ refusal: expect.stringMatching(/^Resource not found: no stream with the id `camera` is loaded or recorded in this runtime\./) });
+    expect(await settledRename("camera", "Desk")).toEqual({ refusal: expect.stringMatching(/^Resource not found: no stream with the id \`camera\` is loaded or recorded in this runtime\./) });
   });
 
   it("lists a record an earlier runtime wrote, failed with no location, with ?streams=earlier_record", async () => {
@@ -112,22 +123,61 @@ describe("the mock backend's stream actions", () => {
     expect(listingWithTheId((await status).streams, "doorbell")).toMatchObject({ location: null, state: "failed", failed_because: expect.stringMatching(/^an earlier runtime recorded it/) });
   });
 
-  it("keeps a failed stream failed when its retry does not load, with the retry's reason", async () => {
+  it("queues a retry of a failed stream, which fails again with the retry's reason when it does not load", async () => {
     const { backend, streamsAfterEachChange } = await runningMockBackend();
 
     const retried = await streamsAfterEachChange(() => backend.runStreamAction("start_stream", LOBBY_RECORDER));
-
-    expect(retried.answer).toEqual({ refusal: expect.any(String) });
-    expect(listingWithTheId(retried.streams, LOBBY_RECORDER)?.failed_because).toMatch(/^`start` retried it, and it did not load: /);
+    expect(retried.answer).toEqual({ queued: true });
+    expect(listingWithTheId(retried.streams, LOBBY_RECORDER)).toMatchObject({ state: "preparing" });
+    const failedAgain = await streamsAfterEachChange(() => Promise.resolve(), 2000);
+    expect(listingWithTheId(failedAgain.streams, LOBBY_RECORDER)?.failed_because).toMatch(/^`start` retried it, and it did not load: /);
   });
 
-  it("forgets a removed stream", async () => {
+  it("removes a project: each of its streams stopping, then forgotten, and no other", async () => {
     const { backend, streamsAfterEachChange } = await runningMockBackend();
 
-    const removed = await streamsAfterEachChange(() => backend.runStreamAction("remove_stream", PATTERN_TWO));
+    const removing = await streamsAfterEachChange(() => backend.removeProject(PATTERN_FOLDER));
+    expect(removing.answer).toEqual({ queued: true });
+    expect([MAIN, RECORDER, PATTERN_TWO].map((streamId) => listingWithTheId(removing.streams, streamId)?.state)).toEqual(["stopping", "stopping", "stopping"]);
+    const removed = await streamsAfterEachChange(() => Promise.resolve(), 1000);
+    expect(removed.streams?.map((stream) => stream.stream)).toEqual([CAMERA, LOBBY_RECORDER]);
+  });
+});
 
-    expect(removed.answer).toEqual({ notice: null });
-    expect(listingWithTheId(removed.streams, PATTERN_TWO)).toBeUndefined();
+describe("the mock backend's project logs", () => {
+  it("holds a failed stream's error under the action that failed it", async () => {
+    const { backend } = await runningMockBackend();
+
+    const records = await everyProjectLogRecord(backend, LOBBY_RECORDER_FOLDER, { stream: LOBBY_RECORDER, action: null });
+
+    expect(records.map((record) => record.level)).toEqual(["info", "error"]);
+    expect(new Set(records.map((record) => record.action)).size).toBe(1);
+  });
+
+  it("narrows a project's log to one stream, and pages on from each cursor", async () => {
+    const { backend } = await runningMockBackend();
+
+    const wholeProject = await everyProjectLogRecord(backend, PATTERN_FOLDER, { stream: null, action: null });
+    const mainOnly = await everyProjectLogRecord(backend, PATTERN_FOLDER, { stream: MAIN, action: null });
+    expect(new Set(wholeProject.map((record) => record.stream))).toEqual(new Set([MAIN, RECORDER]));
+    expect(mainOnly.length).toBeGreaterThan(0);
+    expect(mainOnly.every((record) => record.stream === MAIN)).toBe(true);
+
+    const firstPage = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, null);
+    await vi.advanceTimersByTimeAsync(100);
+    const pageAfterIt = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, (await firstPage).next_after);
+    await vi.advanceTimersByTimeAsync(100);
+    expect((await pageAfterIt).records.length).toBeLessThan(wholeProject.length);
+  });
+
+  it("marks records no longer held once the log's retention deleted some, with ?held_records=", async () => {
+    const { backend } = await runningMockBackend("held_records=5");
+
+    const page = backend.readProjectLogRecords(PATTERN_FOLDER, { stream: null, action: null }, null);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(await page).toMatchObject({ records_no_longer_held: true });
+    expect((await page).records).toHaveLength(5);
   });
 });
 

@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import {
   isStreamActionStillUnderWay,
-  presentStreamRemovalConfirmation,
+  STREAMS_LIST_FILTERS,
+  presentProjectRemovalConfirmation,
+  streamsOfTheProject,
   streamMatchesFilterText,
+  streamIsInListFilterState,
   streamMatchesListFilter,
   streamProjectFoldersOf,
 } from "./streams_list_presentation";
@@ -17,6 +20,8 @@ function listedStream(displayName: string, state: string, nodeCount: number | nu
     state,
     node_count: nodeCount,
     failed_because: null,
+    action: null,
+    step: null,
   };
 }
 
@@ -34,6 +39,16 @@ describe("streamMatchesListFilter", () => {
     expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "running")).map((stream) => stream.display_name)).toEqual(["main", "dev"]);
     expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "stopped")).map((stream) => stream.display_name)).toEqual(["pattern-two"]);
     expect(listedStreams.filter((stream) => streamMatchesListFilter(stream, "failed")).map((stream) => stream.display_name)).toEqual(["lobby"]);
+  });
+
+  it("shows a stream preparing or stopping under every filter, so a row does not vanish while its action runs", () => {
+    const [someStream] = listedStreams;
+    if (someStream === undefined) return expect.unreachable("the listing holds no stream");
+    for (const state of ["preparing", "stopping"] as const) {
+      const streamUnderAnAction = { ...someStream, state, action: "R1-7", step: null };
+      expect(STREAMS_LIST_FILTERS.map(({ filter }) => streamMatchesListFilter(streamUnderAnAction, filter))).toEqual([true, true, true, true]);
+      expect(STREAMS_LIST_FILTERS.map(({ filter }) => streamIsInListFilterState(streamUnderAnAction, filter))).toEqual([true, false, false, false]);
+    }
   });
 });
 
@@ -99,18 +114,26 @@ describe("streamProjectFoldersOf", () => {
   });
 });
 
-describe("presentStreamRemovalConfirmation", () => {
-  it("names the stream by its display name, and says the runtime forgets it and its project folder stays", () => {
-    expect(presentStreamRemovalConfirmation(listedStream("main", "running", 4))).toEqual({
-      title: "Remove main?",
-      explanation:
-        "The runtime unloads it and forgets it, so it no longer loads when the runtime starts. Its project folder, ~/streams/main, stays as it is.",
-    });
+describe("presentProjectRemovalConfirmation", () => {
+  const patternFolder = "/Users/ada/streams/pattern";
+  const streamsOfPattern = [listedStream("main", "running", 4, patternFolder), listedStream("recorder", "stopped", null, patternFolder), listedStream("pattern-two", "failed", null, patternFolder)];
+
+  it("finds every stream the listing holds from the folder, in the order it lists them", () => {
+    expect(streamsOfTheProject([listedStream("camera", "running", 3), ...streamsOfPattern], patternFolder).map((stream) => stream.display_name)).toEqual([
+      "main",
+      "recorder",
+      "pattern-two",
+    ]);
   });
 
-  it("names no project folder for an earlier runtime's record, which has none", () => {
-    expect(presentStreamRemovalConfirmation({ ...listedStream("camera", "failed", null), location: null }).explanation).toBe(
-      "The runtime unloads it and forgets it, so it no longer loads when the runtime starts.",
+  it("names the folder and every stream the runtime forgets, and says the folder and its log stay", () => {
+    expect(presentProjectRemovalConfirmation(patternFolder, streamsOfPattern)).toEqual({
+      title: "Remove the project pattern?",
+      explanation:
+        "The runtime stops and forgets its 3 streams, main, recorder and pattern-two, so they no longer load when the runtime starts. The folder ~/streams/pattern and its log stay as they are.",
+    });
+    expect(presentProjectRemovalConfirmation(patternFolder, streamsOfPattern.slice(0, 1)).explanation).toBe(
+      "The runtime stops and forgets its stream main, so it no longer loads when the runtime starts. The folder ~/streams/pattern and its log stay as they are.",
     );
   });
 });
@@ -126,6 +149,6 @@ describe("isStreamActionStillUnderWay", () => {
   it("ends once the runtime has answered and the listing shows something else, or nothing", () => {
     expect(isStreamActionStillUnderWay({ streamAction: "stop_stream", listingWhenAsked: running, isAnswered: true }, running)).toBe(true);
     expect(isStreamActionStillUnderWay({ streamAction: "stop_stream", listingWhenAsked: running, isAnswered: true }, stopped)).toBe(false);
-    expect(isStreamActionStillUnderWay({ streamAction: "remove_stream", listingWhenAsked: running, isAnswered: true }, null)).toBe(false);
+    expect(isStreamActionStillUnderWay({ streamAction: "remove_project", listingWhenAsked: running, isAnswered: true }, null)).toBe(false);
   });
 });

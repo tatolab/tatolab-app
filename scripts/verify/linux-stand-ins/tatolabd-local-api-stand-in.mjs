@@ -1,8 +1,9 @@
 // A stand-in for tatolabd's local API, for proof in a Linux container where no runtime runs: it
 // answers on `<socket>` what the app reads — `GET /health`, the MCP tools `list_streams`, `logs`
-// and `graph`, and `GET /api/graph`'s machine name — and the stream actions `stop_stream`, `start_stream` and
-// `remove_stream`, changing its listing as the runtime does, from the responses recorded from a
-// real runtime under src/main/test-fixtures/. Usage: node tatolabd-local-api-stand-in.mjs <socket>
+// and `graph`, and `GET /api/graph`'s machine name — and the queued stream actions `stop_stream`,
+// `start_stream` and `remove_project`, changing its listing as the runtime does once an action
+// finishes, from the responses recorded from a real runtime under src/main/test-fixtures/.
+// Usage: node tatolabd-local-api-stand-in.mjs <socket>
 import { readFileSync, rmSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -10,58 +11,81 @@ import { fileURLToPath } from "node:url";
 
 const RECORDED_RESPONSES = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../src/main/test-fixtures");
 const STAND_IN_MACHINE_NAME = "linux-container-stand-in";
-const recorded = (fileName) => JSON.parse(readFileSync(path.join(RECORDED_RESPONSES, fileName), "utf8"));
+const RECORDED_PROJECTS_FOLDER = "/tmp/tatolab-proof-projects";
+const STAND_IN_PROJECTS_FOLDER = "/root/streams";
+const recordedText = (fileName) => readFileSync(path.join(RECORDED_RESPONSES, fileName), "utf8").replaceAll(RECORDED_PROJECTS_FOLDER, STAND_IN_PROJECTS_FOLDER);
+const recordedToolText = (fileName) => JSON.parse(recordedText(fileName)).result.content[0].text;
 
 /** The recorded graph of `main` as the `graph` tool's text, every number as the runtime wrote it. */
 const recordedGraphTextOfMain = readFileSync(path.join(RECORDED_RESPONSES, "local-api-graph-of-the-stream-main.json"), "utf8").replace(
   '"machine": "jonathanf-macbook"',
   `"machine": "${STAND_IN_MACHINE_NAME}"`,
 );
-const recordedLogRecordsOfMain = [
-  ...recorded("local-api-logs-tool-result-of-the-stream-main-after-0.json").records,
-  ...recorded("local-api-logs-tool-result-of-the-stream-main-after-79.json").records,
-].map((logRecord, index) => ({ ...logRecord, sequence: index + 1 }));
-const listedStreams = {
-  streams: [
-    { name: "main", state: "kept", project_directory: "/root/streams/pattern", node_count: 4, failed_because: null },
-    { name: "pattern-two", state: "stopped", project_directory: "/root/streams/pattern-two", node_count: null, failed_because: null },
-    {
-      name: "lobby-recorder",
-      state: "failed",
-      project_directory: "/root/streams/lobby-recorder",
-      node_count: null,
-      failed_because:
-        "it did not re-load at the runtime's start: Invalid configuration: the kept stream `lobby-recorder` was not loaded: its interpreter /root/streams/lobby-recorder/.venv/bin/python is gone; run `uv sync` in /root/streams/lobby-recorder",
-    },
-  ],
-};
-/** The first text block of a recorded tool-call response, with the recorded stream's name and project put in place of `streamName`'s. */
-const recordedToolText = (fileName, recordedStreamName, streamName) =>
-  recorded(fileName)
-    .result.content[0].text.replaceAll(recordedStreamName, streamName)
-    .replaceAll("/private/tmp/tatolab-proof/projects", "/root/streams");
-const listingOf = (streamName) => listedStreams.streams.find((listedStream) => listedStream.name === streamName);
+const listedStreams = JSON.parse(recordedToolText("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json"));
+/** Every recorded log record, in the order recorded, by its project. */
+const recordedProjectLogRecords = [
+  "local-api-logs-tool-result-of-the-project-pattern-narrowed-to-its-stream-main-first-4.json",
+  "local-api-logs-tool-result-of-the-project-pattern-narrowed-to-its-stream-main-3-python-records.json",
+  "local-api-logs-tool-result-of-the-project-doorways-narrowed-to-one-load-first-12.json",
+  "local-api-logs-tool-result-of-the-project-doorways-narrowed-to-its-failed-stream-back-door.json",
+].flatMap((fileName) => {
+  const recordsPage = JSON.parse(recordedToolText(fileName));
+  return recordsPage.records.map((logRecord) => ({ projectDirectory: recordsPage.project_directory, logRecord }));
+});
+const listingOf = (streamId) => listedStreams.streams.find((listedStream) => listedStream.stream === streamId);
+let standInActionCount = 100;
+const nextStandInAction = () => `Rstandin-${(standInActionCount += 1)}`;
+const STAND_IN_ACTION_MILLISECONDS = 1500;
 
-/** A stream action as the runtime takes it, answered with the response recorded for its case. */
-function streamActionToolResult(requestId, toolName, streamName) {
-  const listing = listingOf(streamName);
-  if (listing === undefined) return toolResult(requestId, `Resource not found: no stream named \`${streamName}\` is loaded or kept in this runtime`, true);
+/** Lists `listing` under `state` with its action at `step`, then, a beat later, as `finish` leaves it. */
+function workOnTheStreamAction(listing, state, step, finish) {
+  const action = nextStandInAction();
+  Object.assign(listing, { state, node_count: null, failed_because: null, action, step });
+  setTimeout(() => Object.assign(listing, { action: null, step: null }, finish()), STAND_IN_ACTION_MILLISECONDS);
+  return action;
+}
+
+/** A stream action as the runtime queues it, answered as recorded, or refused in the words recorded for its case. */
+function streamActionToolResult(requestId, toolName, toolArguments) {
+  if (toolName === "remove_project") {
+    const streamsOfTheProject = listedStreams.streams.filter((listedStream) => listedStream.location?.project_directory === toolArguments.project_directory);
+    if (streamsOfTheProject.length === 0) return toolResult(requestId, recordedToolText("local-api-remove-project-refusal-for-a-project-the-runtime-holds-no-stream-of.json"), true);
+    let action = "";
+    for (const listing of streamsOfTheProject) {
+      action = workOnTheStreamAction(listing, "stopping", "stopping", () => {
+        listedStreams.streams = listedStreams.streams.filter((listedStream) => listedStream !== listing);
+        return {};
+      });
+    }
+    return toolResult(requestId, JSON.stringify({ action, project_directory: toolArguments.project_directory }, null, 2));
+  }
+  const listing = listingOf(toolArguments.stream);
+  if (listing === undefined) return toolResult(requestId, `Resource not found: no stream with the id \`${toolArguments.stream}\` is loaded or recorded in this runtime`, true);
+  const recordedRefusal = (fileName) => toolResult(requestId, recordedToolText(fileName).replaceAll("pattern-main-d76f70", listing.stream), true);
   if (toolName === "stop_stream") {
-    if (listing.state === "stopped") {
-      return toolResult(requestId, recordedToolText("local-api-stop-stream-refusal-for-the-stopped-stream-test-pattern.json", "test-pattern", streamName), true);
-    }
-    Object.assign(listing, { state: "stopped", node_count: null });
-    return toolResult(requestId, recordedToolText("local-api-stop-stream-answer-for-the-kept-stream-test-pattern.json", "test-pattern", streamName));
+    if (listing.state !== "running") return recordedRefusal("local-api-stop-stream-refusal-for-the-stopped-stream-pattern-main.json");
+    const action = workOnTheStreamAction(listing, "stopping", "stopping", () => ({ state: "stopped" }));
+    return toolResult(requestId, JSON.stringify({ action, stream: listing.stream }, null, 2));
   }
-  if (toolName === "start_stream") {
-    if (listing.state === "failed") {
-      return toolResult(requestId, recordedToolText("local-api-start-stream-refusal-for-the-failed-stream-lobby-recorder.json", "lobby-recorder", streamName), true);
-    }
-    Object.assign(listing, { state: "kept", node_count: 4 });
-    return toolResult(requestId, recordedToolText("local-api-start-stream-answer-for-the-stopped-stream-test-pattern.json", "test-pattern", streamName));
+  if (listing.state === "running") return recordedRefusal("local-api-start-stream-refusal-for-the-running-stream-pattern-main.json");
+  const action = workOnTheStreamAction(listing, "preparing", "compiling", () => ({ state: "running", node_count: 4 }));
+  return toolResult(requestId, JSON.stringify({ action, stream: listing.stream }, null, 2));
+}
+
+/** `logs` as the runtime answers it, over the recorded records of the project, cursored by their index. */
+function logsToolResult(requestId, toolArguments) {
+  const afterIndex = toolArguments.after === undefined ? 0 : Number(String(toolArguments.after).split(":")[1] ?? 0);
+  const records = [];
+  let nextIndex = afterIndex;
+  for (; nextIndex < recordedProjectLogRecords.length && records.length < toolArguments.count; nextIndex++) {
+    const { projectDirectory, logRecord } = recordedProjectLogRecords[nextIndex];
+    const isAsked =
+      projectDirectory === toolArguments.project_directory &&
+      (toolArguments.stream === undefined || logRecord.stream === toolArguments.stream) &&
+      (toolArguments.action === undefined || logRecord.action === toolArguments.action);
+    if (isAsked) records.push(logRecord);
   }
-  listedStreams.streams = listedStreams.streams.filter((listedStream) => listedStream !== listing);
-  return toolResult(requestId, recordedToolText("local-api-remove-stream-answer-for-the-kept-stream-lobby-recorder.json", "lobby-recorder", streamName));
+  return toolResult(requestId, JSON.stringify({ project_directory: toolArguments.project_directory, records, next_after: `1:${nextIndex}`, records_no_longer_held: false }));
 }
 
 function httpResponse(statusCode, contentType, bodyText) {
@@ -86,22 +110,14 @@ function answer(method, requestTarget, requestBody) {
     const toolCall = JSON.parse(requestBody);
     const { name, arguments: toolArguments } = toolCall.params;
     if (name === "list_streams") return toolResult(toolCall.id, JSON.stringify(listedStreams));
-    if (name === "stop_stream" || name === "start_stream" || name === "remove_stream") return streamActionToolResult(toolCall.id, name, toolArguments.stream);
+    if (name === "stop_stream" || name === "start_stream" || name === "remove_project") return streamActionToolResult(toolCall.id, name, toolArguments);
     if (name === "graph") {
-      const isMainLoaded = listedStreams.streams.some((stream) => stream.name === "main" && stream.node_count !== null);
-      if (toolArguments.stream === "main" && isMainLoaded) return toolResult(toolCall.id, recordedGraphTextOfMain);
-      return toolResult(
-        toolCall.id,
-        recordedToolText("local-api-graph-tool-refusal-for-the-stopped-stream-front-door.json", "front-door", toolArguments.stream),
-        true,
-      );
+      const isTheStreamLoaded = listingOf(toolArguments.stream)?.node_count != null;
+      if (isTheStreamLoaded) return toolResult(toolCall.id, recordedGraphTextOfMain);
+      return toolResult(toolCall.id, recordedToolText("local-api-graph-tool-refusal-for-the-stopped-stream-front-door.json"), true);
     }
-    if (name === "logs" && toolArguments.stream === "main") {
-      const records = recordedLogRecordsOfMain.filter((logRecord) => logRecord.sequence > toolArguments.after).slice(0, toolArguments.count);
-      const nextAfter = records.at(-1)?.sequence ?? toolArguments.after;
-      return toolResult(toolCall.id, JSON.stringify({ stream: "main", stream_instance: "1", records, next_after: nextAfter, records_no_longer_held: 0 }));
-    }
-    return toolResult(toolCall.id, `stream \`${toolArguments.stream}\` is not loaded`, true);
+    if (name === "logs") return logsToolResult(toolCall.id, toolArguments);
+    return toolResult(toolCall.id, `the stand-in does not answer \`${name}\``, true);
   }
   return httpResponse(404, "text/plain", "not found");
 }

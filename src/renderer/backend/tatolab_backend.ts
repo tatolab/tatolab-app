@@ -1,10 +1,11 @@
 import type {
+  ProjectLogNarrowing,
+  ProjectLogRecordsPage,
   PythonForNewEnvironmentsChoice,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
   StreamGraphSummary,
-  StreamLogRecordsPage,
   StreamProjectFolderChosenFor,
   StreamProjectFolderReport,
   StreamProjectRunOutcome,
@@ -32,12 +33,15 @@ export interface TatolabBackend {
   quitTatolabApp(): Promise<void>;
   /** On macOS uninstalls Tatolab and quits at the end, rejecting with the reason when it can't; on Linux rejects with how to. */
   uninstallTatolab(): Promise<void>;
-  readStreamLogRecords(streamId: string, afterSequence: number): Promise<StreamLogRecordsPage>;
+  /** The page of `projectDirectory`'s log after the cursor `after`, from its first record when `null`, narrowed as `narrowing` asks; rejects in the runtime's own words. */
+  readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null): Promise<ProjectLogRecordsPage>;
   describeStreamGraph(streamId: string): Promise<StreamGraphSummary>;
   /** Check for a newer Tatolab and take it if there is one; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
-  /** Stop, start (or retry) or remove `streamId`, resolving with the runtime's notice beside an action it carried out (a stop it could not record) or `null`, and rejecting with its refusal; the new listing arrives as the next status. */
-  runStreamAction(streamAction: TatolabStreamActionName, streamId: string): Promise<string | null>;
+  /** Queue a stop or a start (or retry) of `streamId`, resolving once the runtime has queued it and rejecting with its refusal; the stream's `stopping` or `preparing` arrives as the next status. */
+  runStreamAction(streamAction: TatolabStreamActionName, streamId: string): Promise<void>;
+  /** Queue the removal of every stream the runtime holds from `projectDirectory`, resolving once it is queued and rejecting with its refusal; the streams stopping, then gone, arrive as the next statuses. */
+  removeProject(projectDirectory: string): Promise<void>;
   /** Show the stream `streamId` under `displayName`, resolving once the runtime has recorded it and rejecting with its refusal; the new name arrives as the next status. */
   renameStream(streamId: string, displayName: string): Promise<void>;
   /** Show the project folder the runtime lists for `streamId` in the file manager, rejecting with why it could not. */

@@ -34,15 +34,7 @@ export interface StreamLogRecordDetailsActions {
 }
 
 /** The selected record in full: its message, where it came from, where to go from it, its fields, and its JSON record exactly as the runtime wrote it. */
-export function StreamLogRecordDetailsView({
-  details,
-  streamDisplayName,
-  actions,
-}: {
-  details: StreamLogRecordDetails;
-  streamDisplayName: string;
-  actions: StreamLogRecordDetailsActions;
-}) {
+export function StreamLogRecordDetailsView({ details, actions }: { details: StreamLogRecordDetails; actions: StreamLogRecordDetailsActions }) {
   return (
     <SidePanel
       label="Selected record"
@@ -62,7 +54,8 @@ export function StreamLogRecordDetailsView({
           <KeyValueRows
             rows={[
               ["Time", <span className="font-mono text-xs tabular select-text">{details.dateAndTimeText}</span>],
-              ["Stream", <span className="select-text">{streamDisplayName}</span>],
+              ["Stream", <span className="select-text">{details.streamWords}</span>],
+              ["Action", <span className="tabular select-text">{details.actionWords}</span>],
               ["Node", <span className="font-mono text-xs select-text">{details.step.stepName}</span>],
             ]}
           />

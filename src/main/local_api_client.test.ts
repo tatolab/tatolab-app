@@ -10,6 +10,7 @@ import {
   LocalApiClient,
   parseHttpResponse,
   runtimeDescriptionFromTheDescribeRuntimeToolResult,
+  queuedStreamActionFromTheToolResult,
   streamRenameAnswerFromTheRenameStreamToolResult,
   streamRunAnswerFromTheRunStreamToolResult,
 } from "./local_api_client.js";
@@ -171,13 +172,26 @@ function listedStream(
   state: string,
   nodeCount: number | null,
   failedBecause: string | null,
+  actionUnderWay: { action: string; step: string | null } | null = null,
 ): ListedStream {
-  return { stream, display_name: displayName, location, state, node_count: nodeCount, failed_because: failedBecause };
+  return {
+    stream,
+    display_name: displayName,
+    location,
+    state,
+    node_count: nodeCount,
+    failed_because: failedBecause,
+    action: actionUnderWay?.action ?? null,
+    step: actionUnderWay?.step ?? null,
+  };
 }
 
 function locationOf(projectDirectory: string, streamFunction = "stream:main"): StreamLocation {
   return { project_directory: projectDirectory, stream_function: streamFunction };
 }
+
+const BACK_DOOR_TRACEBACK =
+  'Traceback (most recent call last):\n  File "/tmp/tatolab-proof-projects/doorways/stream.py", line 15, in back_door\n    raise RuntimeError("the back door\'s camera is not plugged in")\nRuntimeError: the back door\'s camera is not plugged in';
 
 test("a_real_list_streams_result_lists_a_running_a_stopped_and_a_failed_stream_by_id_and_display_name", async () => {
   const server = await fakeLocalApiServerAnswering([
@@ -185,31 +199,63 @@ test("a_real_list_streams_result_lists_a_running_a_stopped_and_a_failed_stream_b
   ]);
 
   expect(answerOf(await server.client().listStreams())).toEqual([
-    listedStream("hello-main-8d60ef", "main", locationOf("/private/tmp/tatolab-proof/projects/hello"), "running", 4, null),
-    listedStream(
-      "lobby-recorder-main-382ba0",
-      "lobby-recorder",
-      locationOf("/private/tmp/tatolab-proof/projects/lobby-recorder"),
-      "failed",
-      null,
-      "it did not re-load at the runtime's start: Invalid configuration: the stream `lobby-recorder-main-382ba0` was not loaded: its interpreter /private/tmp/tatolab-proof/projects/lobby-recorder/.venv/bin/python is gone; run `uv sync` in /private/tmp/tatolab-proof/projects/lobby-recorder",
-    ),
-    listedStream("test-pattern-main-cab18a", "test-pattern", locationOf("/private/tmp/tatolab-proof/projects/test-pattern"), "running", 4, null),
-    listedStream("warned-main-6c2608", "main", locationOf("/private/tmp/tatolab-proof/projects/warned"), "stopped", null, null),
+    listedStream("doorways-back_door-8630d0", "back_door", locationOf("/tmp/tatolab-proof-projects/doorways", "stream:back_door"), "failed", null, BACK_DOOR_TRACEBACK),
+    listedStream("doorways-front_door-2ff456", "front_door", locationOf("/tmp/tatolab-proof-projects/doorways", "stream:front_door"), "running", 1, null),
+    listedStream("pattern-main-d76f70", "main", locationOf("/tmp/tatolab-proof-projects/pattern"), "stopped", null, null),
   ]);
 });
 
-test("a_real_listing_after_the_runtime_restarted_lists_every_stream_it_loaded_running_again", async () => {
+test("a_real_listing_after_the_runtime_restarted_lists_every_stream_it_re_loaded_running_and_the_rest_as_recorded", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-after-the-runtime-restarted.json")),
   ]);
 
   const listedStreams = answerOf(await server.client().listStreams());
-  expect(listedStreams.map((listed) => [listed.stream, listed.state])).toEqual([
-    ["hello-main-8d60ef", "running"],
-    ["lobby-recorder-main-382ba0", "failed"],
-    ["test-pattern-main-cab18a", "running"],
-    ["warned-main-6c2608", "running"],
+  expect(listedStreams.map((listed) => [listed.stream, listed.state, listed.node_count])).toEqual([
+    ["doorways-back_door-8630d0", "failed", null],
+    ["doorways-front_door-2ff456", "running", 1],
+    ["pattern-main-d76f70", "stopped", null],
+  ]);
+});
+
+test("a_real_listing_names_the_action_and_step_of_a_stream_preparing_or_stopping", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-the-stream-pattern-main-preparing-on-its-starting-step.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-the-stream-pattern-main-stopping.json")),
+  ]);
+
+  expect(answerOf(await server.client().listStreams())).toEqual([
+    listedStream("pattern-main-d76f70", "main", locationOf("/tmp/tatolab-proof-projects/pattern"), "preparing", 4, null, {
+      action: "Rnd53mwtsrixjyxk7h3jfq5j5-2",
+      step: "starting",
+    }),
+  ]);
+  expect(answerOf(await server.client().listStreams())).toEqual([
+    listedStream("pattern-main-d76f70", "main", locationOf("/tmp/tatolab-proof-projects/pattern"), "stopping", 4, null, {
+      action: "Rnd53mwtsrixjyxk7h3jfq5j5-3",
+      step: "stopping",
+    }),
+  ]);
+});
+
+test("a_stream_waiting_in_its_projects_queue_is_listed_with_its_action_and_no_step", () => {
+  const toolResult = {
+    streams: [
+      {
+        stream: "pattern-main-d76f70",
+        display_name: "main",
+        location: { project_directory: "/tmp/p", stream_function: "stream:main" },
+        state: "stopping",
+        node_count: 4,
+        failed_because: null,
+        action: "Rabc-4",
+        step: null,
+      },
+    ],
+  };
+
+  expect(answerOf(listedStreamsFromTheListStreamsToolResult(JSON.stringify(toolResult)))).toEqual([
+    listedStream("pattern-main-d76f70", "main", locationOf("/tmp/p"), "stopping", 4, null, { action: "Rabc-4", step: null }),
   ]);
 });
 
@@ -289,33 +335,52 @@ test("a_tool_that_ran_and_failed_is_reported_with_its_text", async () => {
   expect(failureOf(await server.client().listStreams()).failureDescription).toBe("the stream action did not finish");
 });
 
-test("reading_log_records_asks_the_logs_tool_for_the_page_after_a_sequence_number", async () => {
+test("reading_a_projects_log_asks_the_logs_tool_for_the_project_narrowed_to_a_stream_and_reads_each_records_action_and_stream", async () => {
   const server = await fakeLocalApiServerAnswering([
-    toolResultResponse({
-      stream: "main",
-      stream_instance: "4",
-      records: [{ sequence: 8, record: { level: "info", message: "hello" } }],
-      next_after: 8,
-      records_no_longer_held: 0,
-    }),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-logs-tool-result-of-the-project-pattern-narrowed-to-its-stream-main-first-4.json")),
   ]);
 
-  const page = answerOf(await server.client().readStreamLogRecords("main", 7, 500));
+  const page = answerOf(await server.client().readProjectLogRecords("/tmp/tatolab-proof-projects/pattern", { stream: "pattern-main-d76f70", action: null }, null, 4));
 
-  expect(page.stream_instance).toBe("4");
-  expect(page.next_after).toBe(8);
-  expect(page.records[0]?.message).toBe("hello");
+  expect(page.project_directory).toBe("/tmp/tatolab-proof-projects/pattern");
+  expect(page.next_after).toBe("1:7830");
+  expect(page.records_no_longer_held).toBe(false);
+  expect(page.records.map((record) => [record.stream, record.action, record.message])).toEqual([
+    ["pattern-main-d76f70", "Rnd53mwtsrixjyxk7h3jfq5j5-2", "Loading the stream `pattern-main-d76f70` from /tmp/tatolab-proof-projects/pattern"],
+    ["pattern-main-d76f70", "Rnd53mwtsrixjyxk7h3jfq5j5-2", "node type described in the stream's processor interpreter registered"],
+    ["pattern-main-d76f70", "Rnd53mwtsrixjyxk7h3jfq5j5-2", "node type described in the stream's processor interpreter registered"],
+    ["pattern-main-d76f70", "Rnd53mwtsrixjyxk7h3jfq5j5-2", "[start] Starting the stream `pattern-main-d76f70`"],
+  ]);
   const [head, body] = headAndBodyOf(server.receivedRequests()[0]);
   expect(head).toContain("Mcp-Name: logs");
-  expect(JSON.parse(body)).toMatchObject({ params: { name: "logs", arguments: { stream: "main", after: 7, count: 500 } } });
+  expect(JSON.parse(body).params.arguments).toEqual({ project_directory: "/tmp/tatolab-proof-projects/pattern", stream: "pattern-main-d76f70", count: 4 });
+});
+
+test("reading_on_from_a_cursor_narrowed_to_an_action_sends_the_cursor_and_the_action_and_no_stream", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-logs-tool-result-of-the-project-doorways-narrowed-to-one-load-first-12.json")),
+  ]);
+
+  const page = answerOf(
+    await server.client().readProjectLogRecords("/tmp/tatolab-proof-projects/doorways", { stream: null, action: "Rnd53mwtsrixjyxk7h3jfq5j5-7" }, "1:0", 12),
+  );
+
+  expect(page.records).toHaveLength(12);
+  expect(new Set(page.records.map((record) => record.action))).toEqual(new Set(["Rnd53mwtsrixjyxk7h3jfq5j5-7"]));
+  expect(JSON.parse(headAndBodyOf(server.receivedRequests()[0])[1]).params.arguments).toEqual({
+    project_directory: "/tmp/tatolab-proof-projects/doorways",
+    action: "Rnd53mwtsrixjyxk7h3jfq5j5-7",
+    after: "1:0",
+    count: 12,
+  });
 });
 
 test("a_log_read_the_runtime_refuses_carries_its_own_words", async () => {
-  const refusal = "logs failed: Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
+  const refusal = "`project_directory` must be an absolute path; got `relative`";
   const body = { jsonrpc: "2.0", id: 1, result: { resultType: "complete", content: [{ type: "text", text: refusal }], isError: true } };
   const server = await fakeLocalApiServerAnswering([httpResponse("200 OK", "application/json", JSON.stringify(body))]);
 
-  expect(failureOf(await server.client().readStreamLogRecords("nope", 0, 500)).failureDescription).toBe(refusal);
+  expect(failureOf(await server.client().readProjectLogRecords("relative", { stream: null, action: null }, null, 500)).failureDescription).toBe(refusal);
 });
 
 /** The JSON-RPC response carrying `toolResultText` as the tool's one text block, exactly as written. */
@@ -382,49 +447,69 @@ test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", 
   );
 });
 
-test("a_stream_action_calls_the_runtimes_tool_of_the_same_name_with_the_stream", async () => {
+test("a_stream_action_queues_the_runtimes_tool_of_the_same_name_with_the_stream_and_answers_the_action_it_queued", async () => {
   const server = await fakeLocalApiServerAnswering([
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-answer-for-the-running-stream-test-pattern.json")),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-answer-for-the-stopped-stream-test-pattern.json")),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-stream-answer-for-the-failed-stream-lobby-recorder.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-answer-for-the-running-stream-pattern-main.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-answer-for-the-stopped-stream-pattern-main.json")),
   ]);
 
-  expect(answerOf(await server.client().runStreamAction("stop_stream", "test-pattern-main-cab18a"))).toBeNull();
-  expect(answerOf(await server.client().runStreamAction("start_stream", "test-pattern-main-cab18a"))).toBeNull();
-  expect(answerOf(await server.client().runStreamAction("remove_stream", "lobby-recorder-main-382ba0"))).toBeNull();
-
-  const toolCalls = server.receivedRequests().map((request) => {
-    const [head, body] = headAndBodyOf(request);
-    const toolName = /Mcp-Name: (\S+)/.exec(head)?.[1];
-    expect(JSON.parse(body)).toMatchObject({ params: { name: toolName } });
-    return [toolName, JSON.parse(body).params.arguments];
-  });
-  expect(toolCalls).toEqual([
-    ["stop_stream", { stream: "test-pattern-main-cab18a" }],
-    ["start_stream", { stream: "test-pattern-main-cab18a" }],
-    ["remove_stream", { stream: "lobby-recorder-main-382ba0" }],
+  expect(answerOf(await server.client().runStreamAction("stop_stream", "pattern-main-d76f70"))).toBe("Rnd53mwtsrixjyxk7h3jfq5j5-3");
+  expect(answerOf(await server.client().runStreamAction("start_stream", "pattern-main-d76f70"))).toBe("Rnd53mwtsrixjyxk7h3jfq5j5-5");
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["stop_stream", { stream: "pattern-main-d76f70" }],
+    ["start_stream", { stream: "pattern-main-d76f70" }],
   ]);
-});
-
-test("a_stop_the_runtime_could_not_record_answers_its_reason", async () => {
-  const notRecordedBecause = "the record of `camera-main-5e1d07` could not be written: Permission denied (os error 13)";
-  const server = await fakeLocalApiServerAnswering([toolResultResponse({ stream: "camera-main-5e1d07", stopped: true, not_recorded_because: notRecordedBecause })]);
-
-  expect(answerOf(await server.client().runStreamAction("stop_stream", "camera-main-5e1d07"))).toBe(notRecordedBecause);
 });
 
 test("a_stream_action_the_runtime_refuses_carries_its_own_words", async () => {
   const server = await fakeLocalApiServerAnswering([
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-refusal-for-the-stopped-stream-test-pattern.json")),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-refusal-for-the-failed-stream-lobby-recorder.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-refusal-for-the-stopped-stream-pattern-main.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-refusal-for-the-running-stream-pattern-main.json")),
   ]);
 
-  expect(failureOf(await server.client().runStreamAction("stop_stream", "test-pattern-main-cab18a")).failureDescription).toBe(
-    "Runtime error: the stream `test-pattern-main-cab18a` is already stopped; `start` loads it again",
+  expect(failureOf(await server.client().runStreamAction("stop_stream", "pattern-main-d76f70"))).toEqual({
+    failureDescription: "Runtime error: the stream `pattern-main-d76f70` is already stopped; `start` loads it again",
+    isTheRuntimesRefusal: true,
+  });
+  expect(failureOf(await server.client().runStreamAction("start_stream", "pattern-main-d76f70")).failureDescription).toBe(
+    "Runtime error: the stream `pattern-main-d76f70` is already loaded in this runtime, recorded by the runtime; only a stopped or failed stream starts",
   );
-  expect(failureOf(await server.client().runStreamAction("start_stream", "lobby-recorder-main-382ba0")).failureDescription).toMatch(
-    /^Invalid configuration: the stream `lobby-recorder-main-382ba0` was not loaded: its interpreter .* is gone; run `uv sync` in /,
+});
+
+test("a_stream_action_answers_within_the_ordinary_request_timeout_or_reads_as_not_answering", async () => {
+  const server = await FakeLocalApiServer.answering(
+    [httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-answer-for-the-running-stream-pattern-main.json"))],
+    300,
   );
+  cleanUps.push(() => server.close());
+  const clientWithAShortRequestTimeout = new LocalApiClient(server.localApiSocketPath, 100, "0.45.0");
+
+  expect(failureOf(await clientWithAShortRequestTimeout.runStreamAction("stop_stream", "pattern-main-d76f70"))).toEqual({
+    failureDescription: `POST /mcp to ${server.localApiSocketPath} did not answer within 100ms`,
+    isTheRuntimesRefusal: false,
+  });
+});
+
+test("a_stream_action_answer_naming_no_action_is_refused_naming_it", () => {
+  expect(failureOf(queuedStreamActionFromTheToolResult("stop_stream", '{"stream":"pattern-main-d76f70"}'))).toBe(
+    "the runtime's stop_stream result could not be read: missing field `action`",
+  );
+});
+
+test("removing_a_project_queues_remove_project_with_its_folder_and_a_project_the_runtime_holds_no_stream_of_is_refused_in_its_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-project-refusal-for-a-project-the-runtime-holds-no-stream-of.json")),
+  ]);
+
+  expect(answerOf(await server.client().removeProject("/tmp/tatolab-proof-projects/doorways"))).toBe("Rnd53mwtsrixjyxk7h3jfq5j5-8");
+  expect(failureOf(await server.client().removeProject("/tmp/tatolab-proof-projects/doorways")).failureDescription).toBe(
+    "Resource not found: this runtime holds no stream of the project in /tmp/tatolab-proof-projects/doorways, so there is none to remove. Loaded: pattern-main-d76f70. Recorded: pattern-main-d76f70",
+  );
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["remove_project", { project_directory: "/tmp/tatolab-proof-projects/doorways" }],
+    ["remove_project", { project_directory: "/tmp/tatolab-proof-projects/doorways" }],
+  ]);
 });
 
 test("renaming_a_stream_calls_rename_stream_with_its_id_and_the_display_name_and_a_refusal_is_the_runtimes_own_words", async () => {
@@ -448,21 +533,6 @@ test("a_rename_stream_answer_missing_its_display_name_is_refused_naming_it", () 
   expect(failureOf(streamRenameAnswerFromTheRenameStreamToolResult('{"stream":"heat-map-main-8eda1f"}'))).toBe(
     "the runtime's rename_stream result could not be read: missing field `display_name`",
   );
-});
-
-test("a_stream_action_waits_past_the_polling_limit_for_the_runtime_to_finish_it", async () => {
-  const server = await FakeLocalApiServer.answering(
-    [
-      httpResponse("200 OK", "text/plain", "ok"),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-answer-for-the-stopped-stream-test-pattern.json")),
-    ],
-    300,
-  );
-  cleanUps.push(() => server.close());
-  const clientWithAShortPollingLimit = new LocalApiClient(server.localApiSocketPath, 100, "0.45.0");
-
-  expect(failureOf(await clientWithAShortPollingLimit.checkHealth()).failureDescription).toMatch(/did not answer within 100ms$/);
-  expect(answerOf(await clientWithAShortPollingLimit.runStreamAction("start_stream", "test-pattern-main-cab18a"))).toBeNull();
 });
 
 test("running_a_project_calls_run_stream_without_keep_and_reads_its_id_display_name_location_and_compile_warnings", async () => {
@@ -564,7 +634,16 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
     const graph = answerOf(await client.describeStreamGraph(loadedStream.stream, "http://127.0.0.1:4446"));
     expect(graph.stream).toBe(loadedStream.stream);
     expect(graph.graph_document_text.startsWith("{\n")).toBe(true);
-    expect(answerOf(await client.readStreamLogRecords(loadedStream.stream, 0, 500)).stream).toBe(loadedStream.stream);
+  }
+  for (const projectDirectory of new Set(streams.flatMap((listedStream) => (listedStream.location === null ? [] : [listedStream.location.project_directory])))) {
+    const projectStreams = streams.filter((listedStream) => listedStream.location?.project_directory === projectDirectory);
+    const wholeLog = answerOf(await client.readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, 500));
+    expect(wholeLog.project_directory).toBe(projectDirectory);
+    expect(wholeLog.records.length).toBeGreaterThan(0);
+    for (const projectStream of projectStreams) {
+      const streamLog = answerOf(await client.readProjectLogRecords(projectDirectory, { stream: projectStream.stream, action: null }, null, 500));
+      expect(streamLog.records.every((record) => record.stream === projectStream.stream)).toBe(true);
+    }
   }
 
   const expectedStreamCount = process.env["TATOLAB_APP_LIVE_EXPECTED_STREAM_COUNT"];

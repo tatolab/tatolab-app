@@ -151,15 +151,15 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * click on that stream's failure notification), on the add-stream dialog `?add=folder|compiling|done|away` (a folder chosen, compiling, the stream running, or
  * the dialog closed while it compiled and the run's notice shown once it answers) or
  * `?add=new|created` (opened on New project, a new project proposed, then Create pressed, which writes it with `tatolab new` and adds it), with the backend's `?add_folder=` (`no-venv` for a run that
- * makes the `.venv` first), `?add_venv=refused` (uv refusing to make it), `?add_run=warning` and `?add_cli=missing`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove=<stream id>`, `?rename=<stream id>` (its sidebar row right-clicked and Rename… chosen, with `?rename_to=<name>` typed, and `?rename_step=menu` stopping on the menu or `pressed` pressing Rename), `?stream_action=stop_stream|start_stream:<stream id>` (with
- * `?stop_not_recorded=<stream id>`, the backend's option, for a stop the runtime could not record),
+ * makes the `.venv` first), `?add_venv=refused` (uv refusing to make it), `?add_run=warning` and `?add_cli=missing`, on Settings › Command line the backend's `?usr_local_bin=linked|cancel`, `?remove_project=<stream id>` (Remove project… chosen on that stream's row, its confirmation open), `?rename=<stream id>` (its sidebar row right-clicked and Rename… chosen, with `?rename_to=<name>` typed, and `?rename_step=menu` stopping on the menu or `pressed` pressing Rename), `?stream_action=stop_stream|start_stream:<stream id>`,
  * `?sheet=uninstall|uninstalling|uninstalled`, on first run `?setup=getting_set_up` (Continue pressed on Welcome) or `?setup=get_started` (then
  * Get Started once the runtime answers) and `?setup_step_action=<action>` (a step's action pressed), with the backend's `?state=setup`, or
  * `?first_run=unfinished` over any runtime state, as `?state=approval|blocked|never-answered`, and its `?first_run_remember=refused`,
  * on Settings › Command line `?link=pressed` (Link in /usr/local/bin… pressed), on Graph `?step=<step>` (selected), `?focus=<step>` (its card
  * holding keyboard focus), `?pin=<step>.<port>`
  * (its preview pinned), `?hover=<step>.<port>` (its hover preview open), `?previews=off` and `?counters=off`,
- * on Logs `?levels=info|warnings|errors`, `?held_records=<n>` and `?log_folder=missing` (the backend's options for the pointer row and a refused open), `?record=<sequence>` or `?record=problem` (the newest warning or error selected),
+ * on Logs `?levels=info|warnings|errors`, `?log_scope=whole_project`, `?held_records=<n>` and `?log_folder=missing` (the backend's options for the pointer row and a refused open), `?record=<position>` or `?record=problem` (the newest warning or error selected),
+ * `?action_menu=open`,
  * `?only_step=<step>` (that step alone chosen in the step menu) and `?step_menu=open`, and `?search=<query>` name, so each screen can be shown and pictured from its URL. `?theme=light|dark` is read by the page's first script, before first paint.
  */
 export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platform: TatolabPlatform): Promise<void> {
@@ -171,10 +171,10 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   }
   const streamToRename = pageQuery.get("rename");
   if (streamToRename !== null) await driveTheRightClickRenameToPreset(streamToRename, pageQuery.get("rename_step"), pageQuery.get("rename_to"));
-  const streamToRemove = pageQuery.get("remove");
-  if (streamToRemove !== null) {
-    await clickWhenShown(`[data-stream-row="${CSS.escape(streamToRemove)}"] [data-stream-action="more"]`);
-    await clickWhenShown(`[data-slot="dropdown-menu-item"][data-stream-action="remove_stream"]`);
+  const streamWhoseProjectToRemove = pageQuery.get("remove_project");
+  if (streamWhoseProjectToRemove !== null) {
+    await clickWhenShown(`[data-stream-row="${CSS.escape(streamWhoseProjectToRemove)}"] [data-stream-action="more"]`);
+    await clickWhenShown(`[data-slot="dropdown-menu-item"][data-stream-action="remove_project"]`);
   }
   if (streamId !== null) await clickWhenShown(`[data-stream-row="${CSS.escape(streamId)}"]`);
   const tab = pageQuery.get("tab");
@@ -203,6 +203,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     // React's onMouseEnter listens for the mouseover a pointer arriving on the port fires.
     outputPort?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
   }
+  if (pageQuery.get("log_scope") === "whole_project") await clickWhenShown(`[data-stream-log-scope="whole_project"]`);
   const shownLevels = pageQuery.get("levels");
   const levelFilterOfShownLevels: Record<string, string> = { info: "info", warnings: "warn", errors: "error" };
   if (shownLevels !== null && levelFilterOfShownLevels[shownLevels] !== undefined) {
@@ -224,6 +225,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
     await clickWhenShown(`[data-stream-log-step-choice="${CSS.escape(onlyStep)}"]`);
   }
   if (pageQuery.get("step_menu") === "open" && document.querySelector('[data-slot="dropdown-menu-content"]') === null) await clickWhenShown("[data-stream-log-step-filter]");
+  if (pageQuery.get("action_menu") === "open" && document.querySelector('[data-slot="dropdown-menu-content"]') === null) await clickWhenShown("[data-stream-log-action-filter]");
   const page = pageQuery.get("page");
   if (page === "settings") await clickWhenShown(`[data-window-navigation="settings"]`);
   if (page === "add-stream") await driveAddStreamToPreset(pageQuery.get("add"));

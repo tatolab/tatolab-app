@@ -109,38 +109,42 @@ describe("the Streams list", () => {
     await waitFor(() => expect(within(rowOf("camera")).getByRole("alert").textContent).toBe(`Stop was refused: ${refusal}`));
   });
 
-  it("retries a failed stream, and a retry the runtime refuses keeps it failed with the retry's reason", async () => {
+  it("queues a retry of a failed stream, shows it preparing with its step, and keeps it failed with the retry's reason when it does not load", async () => {
     await mountedWindowOverTheMock("state=running");
 
     fireEvent.click(within(rowOf("lobby-recorder")).getByRole("button", { name: "Retry: loads it again from its record" }));
 
-    await waitFor(() => expect(within(rowOf("lobby-recorder")).getByRole("alert").textContent).toMatch(/^Retry was refused: /));
-    expect(within(rowOf("lobby-recorder")).getByText(/^`start` retried it, and it did not load: /)).toBeTruthy();
+    await waitFor(() => expect(within(rowOf("lobby-recorder")).getByRole("status").textContent).toMatch(/^Preparing · (queued|compiling|starting)$/));
+    await waitFor(() => expect(within(rowOf("lobby-recorder")).getByText(/^`start` retried it, and it did not load: /)).toBeTruthy(), { timeout: 3000 });
+    expect(within(rowOf("lobby-recorder")).queryByRole("alert")).toBeNull();
   });
 
-  it("says in the runtime's words when it stopped a stream but could not record it stopped", async () => {
-    await mountedWindowOverTheMock("state=running&stop_not_recorded=camera-main-018da9");
+  it("shows a stop under way as the runtime lists it, stopping, then stopped", async () => {
+    await mountedWindowOverTheMock("state=running");
 
     fireEvent.click(within(rowOf("camera")).getByRole("button", { name: "Stop: unloads it and remembers it stopped" }));
 
-    await waitFor(() =>
-      expect(within(rowOf("camera")).getByRole("status").textContent).toBe(
-        "Stopped, but not recorded, so it loads again when the runtime restarts: Runtime error: the record of `camera-main-018da9` could not be written: Permission denied (os error 13)",
-      ),
-    );
-    expect(within(rowOf("camera")).getByRole("link", { name: "camera, Stopped" })).toBeTruthy();
+    await waitFor(() => expect(within(rowOf("camera")).getByRole("status").textContent).toMatch(/^Stopping/));
+    await waitFor(() => expect(within(rowOf("camera")).getByRole("link", { name: "camera, Stopped" })).toBeTruthy(), { timeout: 3000 });
+    expect(within(rowOf("camera")).queryByRole("status")).toBeNull();
   });
 
-  it("asks before removing a stream, and removes it only when told to", async () => {
+  it("asks before removing a project, naming its folder and every stream of it, and removes them only when told to", async () => {
     await mountedWindowOverTheMock("state=running");
 
     fireEvent.click(within(rowOf("pattern-two")).getByRole("button", { name: "More for pattern-two" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Remove/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Remove project…" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Remove pattern-two?")).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+    expect(within(dialog).getByText("Remove the project pattern?")).toBeTruthy();
+    expect(dialog.textContent).toContain("its 3 streams, main, recorder and pattern-two");
+    expect(dialog.textContent).toContain("The folder ~/streams/pattern and its log stay as they are.");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove project" }));
 
-    await waitFor(() => expect(document.querySelector(`[data-stream-row="${mockStreamIdOf("pattern-two")}"]`)).toBeNull());
+    await waitFor(
+      () => expect(["main", "recorder", "pattern-two"].map((displayName) => document.querySelector(`[data-stream-row="${mockStreamIdOf(displayName)}"]`))).toEqual([null, null, null]),
+      { timeout: 3000 },
+    );
+    expect(document.querySelector(`[data-stream-row="${mockStreamIdOf("camera")}"]`)).not.toBeNull();
   });
 
   it("guides a person with no streams to their first one", async () => {
@@ -297,8 +301,8 @@ describe("a record an earlier runtime wrote", () => {
 
     fireEvent.click(within(listSection).getByRole("link", { name: "doorbell, Failed" }));
     fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Logs" })));
-    await waitFor(() => expect(document.querySelector("[data-stream-logs-not-loaded='doorbell']")).not.toBeNull());
-    expect(document.querySelector("[data-stream-logs-not-loaded='doorbell']")?.textContent).not.toContain(".streamlib/logs");
+    await waitFor(() => expect(document.querySelector("[data-stream-logs-without-a-project='doorbell']")).not.toBeNull());
+    expect(document.querySelector("[data-stream-logs-without-a-project='doorbell']")?.textContent).not.toContain(".streamlib/logs");
     expect(document.querySelector('[data-stream-action="open_stream_log_folder"]')).toBeNull();
     fireEvent.click(document.querySelector<HTMLElement>('[data-stream-page-header] [data-stream-action="more"]') ?? expect.unreachable("no ⋯ in the bar"));
     await waitFor(() => expect(document.querySelector('[data-slot="dropdown-menu-item"][data-stream-action="rename_stream"]')).not.toBeNull());
@@ -388,7 +392,7 @@ describe("a stream's page", () => {
     expect(textOf("[data-stream-details]")).toContain("Nodes as of the last load");
   });
 
-  it("shows a failed stream's reason in the runtime's words and retries it from the bar, the banner offering no second Retry", async () => {
+  it("shows a failed stream's reason in the runtime's words and queues a retry from the bar, the banner offering no second Retry", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheStreamPageOf("lobby-recorder");
 
@@ -401,7 +405,7 @@ describe("a stream's page", () => {
     expect(within(banner ?? document.body).queryByRole("button")).toBeNull();
     fireEvent.click(document.querySelector<HTMLElement>('[data-stream-page-header] [data-stream-action="start_stream"]') ?? expect.unreachable("no Retry in the bar"));
 
-    await waitFor(() => expect(textOf("[data-stream-page-header] [role=alert]")).toMatch(/^Retry was refused: the stream's CameraSource could not open camera/));
+    await waitFor(() => expect(textOf("[data-stream-page-header] [role=status]")).toMatch(/^Preparing · /));
   });
 
   it("shows the graph document as the runtime wrote it in Inspect, raw or as a tree, with no outline beside it", async () => {
@@ -434,17 +438,17 @@ describe("a stream's page", () => {
     Reflect.deleteProperty(navigator, "clipboard");
   });
 
-  it("asks before removing the stream from its bar's menu, and goes back to the list once it is gone", async () => {
+  it("asks before removing the stream's project from its bar's menu, and goes back to the list once it is gone", async () => {
     await mountedWindowOverTheMock("state=running");
     const streamPage = await openTheStreamPageOf("pattern-two");
 
     fireEvent.click(within(streamPage).getByRole("button", { name: "More for pattern-two" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Remove…" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Remove project…" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Remove pattern-two?")).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+    expect(within(dialog).getByText("Remove the project pattern?")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove project" }));
 
-    await waitFor(() => expect(document.querySelector("[data-streams-list-page]")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-streams-list-page]")).not.toBeNull(), { timeout: 3000 });
     expect(document.querySelector(`[data-stream-row="${mockStreamIdOf("pattern-two")}"]`)).toBeNull();
   });
 
@@ -495,7 +499,7 @@ async function openTheLogsOf(displayName: string): Promise<void> {
   await openTheStreamPageOf(displayName);
   const streamId = mockStreamIdOf(displayName);
   fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Logs" })));
-  await waitFor(() => expect(document.querySelector(`[data-stream-logs-page="${streamId}"], [data-stream-logs-not-loaded="${streamId}"]`)).not.toBeNull());
+  await waitFor(() => expect(document.querySelector(`[data-stream-logs-page="${streamId}"], [data-stream-logs-without-a-project="${streamId}"]`)).not.toBeNull());
 }
 
 function logRowOf(message: string): HTMLElement {
@@ -512,8 +516,8 @@ describe("a stream's Logs tab", () => {
     await openTheLogsOf("main");
 
     await waitFor(() => expect(shownLogMessages().length).toBeGreaterThan(3));
-    const servedPage = await backend.readStreamLogRecords(mockStreamIdOf("main"), 0);
-    expect(document.querySelector("[data-stream-log-records]")?.querySelector("[data-stream-log-record]")?.getAttribute("data-stream-log-record")).toBe(String(servedPage.records[0]?.sequence));
+    const servedPage = await backend.readProjectLogRecords("/Users/jonathanf/streams/pattern", { stream: mockStreamIdOf("main"), action: null }, null);
+    expect(document.querySelector("[data-stream-log-records] [data-stream-log-record]")?.textContent).toContain(servedPage.records[0]?.message);
     const loadingRow = logRowOf("Loading the stream `pattern-main-645dbe`");
     expect(loadingRow.textContent).toMatch(/^\d{2}:\d{2}:\d{2}\.\d{3}INFOruntimeLoading the stream `pattern-main-645dbe`/);
     expect(logRowOf("mean=127.5").textContent).toMatch(/INFObrightnessmeterbrightness {2}height=720 {2}mean=127.5 {2}width=1280$/);
@@ -584,7 +588,7 @@ describe("a stream's Logs tab", () => {
     });
     await openTheLogsOf("main");
 
-    await waitFor(() => expect(textOf("[data-stream-log-earlier-records]")).toMatch(/^[\d,]+ earlier records? (is|are) in ~\/streams\/pattern\/\.streamlib\/logs\/Open$/));
+    await waitFor(() => expect(textOf("[data-stream-log-earlier-records]")).toBe("Earlier records are in ~/streams/pattern/.streamlib/logs/Open"));
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
 
     expect(openedLogFolders).toEqual([mockStreamIdOf("main")]);
@@ -636,13 +640,13 @@ describe("a stream's Logs tab", () => {
   });
 
   it("says why it cannot read new records in the runtime's words, keeping the rows it has", async () => {
-    const refusal = "no stream named `main` is loaded in this runtime. Loaded: none";
+    const refusal = "logs failed: Resource not found: this runtime holds no stream of the project in /Users/jonathanf/streams/pattern";
     const answeringBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=running")));
     let isRefusingReads = false;
     await mountedWindowOverTheMock("state=running", {
-      readStreamLogRecords: async (streamId, afterSequence) => {
+      readProjectLogRecords: async (projectDirectory, narrowing, after) => {
         if (isRefusingReads) throw refusal;
-        return answeringBackend.readStreamLogRecords(streamId, afterSequence);
+        return answeringBackend.readProjectLogRecords(projectDirectory, narrowing, after);
       },
     });
     await openTheLogsOf("main");
@@ -653,22 +657,28 @@ describe("a stream's Logs tab", () => {
     expect(logRowOf("Loading the stream `pattern-main-645dbe`")).toBeTruthy();
   });
 
-  it("gives a failed stream its reason and log folder with Retry, and a stopped one its log folder", async () => {
+  it("opens a failed stream on the records of the action that failed it, its error among them, and shows every action again from the action menu", async () => {
     await mountedWindowOverTheMock("state=running");
     await openTheLogsOf("lobby-recorder");
 
-    const failedLogs = within(document.querySelector<HTMLElement>("[data-stream-logs-not-loaded]") ?? document.body);
-    expect(failedLogs.getByText("Failed to load")).toBeTruthy();
-    expect(failedLogs.getByText(/the stream's CameraSource could not open camera/)).toBeTruthy();
-    expect(failedLogs.getByText("~/streams/lobby-recorder/.streamlib/logs/")).toBeTruthy();
-    expect(failedLogs.getByRole("button", { name: "Open log folder" })).toBeTruthy();
-    fireEvent.click(failedLogs.getByRole("button", { name: "Retry" }));
-    await waitFor(() => expect(textOf("[data-stream-page-header] [role=alert]")).toMatch(/^Retry was refused: /));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Actions shown: Action at \d\d:\d\d:\d\d$/ })).toBeTruthy());
+    await waitFor(() => expect(shownLogMessages().some((row) => row.includes("ERROR") && row.includes("could not open camera"))).toBe(true));
 
-    fireEvent.keyDown(document, { key: "ArrowUp", metaKey: true });
-    await waitFor(() => expect(document.querySelector("[data-stream-logs-not-loaded='pattern-pattern-two-e6043c']")).not.toBeNull());
-    expect(textOf("[data-stream-logs-not-loaded='pattern-pattern-two-e6043c']")).toContain("Not loaded");
-    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Actions shown: / }));
+    fireEvent.click(await waitFor(() => screen.getByRole("menuitemradio", { name: "All actions" })));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Actions shown: All actions" })).toBeTruthy());
+  });
+
+  it("shows a stopped stream's records too, and the whole project's records from the scope switch", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await openTheLogsOf("main");
+    await waitFor(() => expect(shownLogMessages().length).toBeGreaterThan(3));
+    expect(shownLogMessages().every((row) => !row.includes("recorder"))).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Whole project" }));
+
+    await waitFor(() => expect(document.querySelector("[data-stream-logs-page]")?.getAttribute("data-stream-log-scope-shown")).toBe("whole_project"));
+    await waitFor(() => expect(document.querySelectorAll("[data-stream-log-action-divider]").length).toBeGreaterThan(1));
   });
 });
 
@@ -807,7 +817,8 @@ describe("a stream's Graph tab", () => {
     areGraphReadsHeld = true;
 
     fireEvent.click(streamPageHeader().getByRole("button", { name: /Stop/ }));
-    fireEvent.click(await waitFor(() => streamPageHeader().getByRole("button", { name: /Start/ })));
+    fireEvent.click(await waitFor(() => streamPageHeader().getByRole("button", { name: /Start/ }), { timeout: 3000 }));
+    await waitFor(() => expect(streamPageHeader().getByRole("button", { name: /Stop/ })).toBeTruthy(), { timeout: 3000 });
     fireEvent.click(await waitFor(() => screen.getByRole("link", { name: "Graph" })));
 
     await waitFor(() => expect(textOf("[data-stream-graph-message]")).toBe("Reading its graph…"));
