@@ -15,6 +15,7 @@ import { MACOS_TRAY_ICON_IMAGE } from "./macos/tray_icon_image.js";
 import { streamlibCommitFileTheAppCarriesBeside } from "./macos/tatolab_machine_paths.js";
 import { LINUX_MAIN_WINDOW_CHROME, setLinuxDockIconVisible } from "./linux/main_window_chrome.js";
 import { linuxTatolabPlatformForThisBuild } from "./linux/linux_tatolab_platform_for_this_build.js";
+import { streamlibCommitFileTheAppCarriesInTheResources } from "./linux/tatolab_machine_paths.js";
 import { LINUX_TRAY_ICON_IMAGE } from "./linux/tray_icon_image.js";
 
 /** The platform items the app's lifecycle, window and tray use. */
@@ -55,7 +56,7 @@ export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatfo
         mainWindowChrome: LINUX_MAIN_WINDOW_CHROME,
         applicationMenu: "none",
         setDockIconVisible: setLinuxDockIconVisible,
-        streamlibCommitFileTheAppCarries: () => null,
+        streamlibCommitFileTheAppCarries: streamlibCommitFileTheAppCarriesInTheResources,
         tatolabPlatformForThisBuild: linuxTatolabPlatformForThisBuild,
       };
     default:

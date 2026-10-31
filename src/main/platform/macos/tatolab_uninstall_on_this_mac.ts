@@ -16,7 +16,7 @@ import type { RunTatolabReconciliation } from "../../run_tatolab_switch.js";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
 import type { RunTatolabSwitchToTurnOff, TatolabUninstall } from "../tatolab_uninstall.js";
 import { shellWordForPath, type AdministratorPrompt, type AdministratorPromptFailure } from "./administrator_prompt.js";
-import { theInstallersOwnRefusal } from "./runtime_helper_installed_by_streamlibs_installer.js";
+import { theInstallersOwnRefusal } from "../carried_runtime_unit_installed_by_streamlibs_installer.js";
 import { appBundleOfTheExecutable, carriedRuntimeInstallerIn, type TatolabMachinePathsOnMacos } from "./tatolab_machine_paths.js";
 
 /** The shell the installer runs under, at its system path. */

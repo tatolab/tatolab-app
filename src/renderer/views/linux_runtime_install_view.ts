@@ -6,7 +6,7 @@ import { createSpinner } from "./window_controls";
 
 const LINUX_INSTALL_COMMAND = "curl -fsSL https://get.tatolab.com/install.sh | sh";
 
-/** The whole window while Linux has no tatolabd.service: the installer's one line, and the wait for the service. */
+/** The whole window while Linux has no tatolabd.service and no install by the app under way, as in a build that carries no runtime: the installer's one line, and the wait for the service. */
 export class LinuxRuntimeInstallView {
   readonly element: HTMLElement;
 

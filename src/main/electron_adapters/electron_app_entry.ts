@@ -46,6 +46,7 @@ const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   appExecutable: process.execPath,
   appIsPackaged: app.isPackaged,
   appConfigDirectory: path.join(app.getPath("appData"), TATOLAB_APP_IDENTIFIER),
+  appResourcesDirectory: process.resourcesPath,
   tatolabUninstallAppSurface: ELECTRON_TATOLAB_UNINSTALL_APP_SURFACE,
   appLoginItemSettings: ELECTRON_APP_LOGIN_ITEM_SETTINGS,
 };

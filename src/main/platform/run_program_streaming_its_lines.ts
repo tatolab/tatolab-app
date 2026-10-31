@@ -30,8 +30,8 @@ class ProgramLinesInOrder {
 
 /**
  * Run `programPath` with `programArguments` and the app's environment with `environmentVariablesAdded`, never through a
- * shell, until it ends, handing each line of its standard output and standard error to `onProgramLine` as it comes;
- * refused only when it could not be started.
+ * shell and in a session of its own, until it ends, handing each line of its standard output and standard error to
+ * `onProgramLine` as it comes; refused only when it could not be started.
  */
 export function runProgramStreamingItsLines(
   programPath: string,
@@ -48,6 +48,9 @@ export function runProgramStreamingItsLines(
       const program = spawn(programPath, programArguments, {
         stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env, ...environmentVariablesAdded },
+        // A session of its own has no controlling terminal, so a program that asks on /dev/tty, as the installer's
+        // offer to keep the runtime running after logout does, never waits on the terminal the app was started from.
+        detached: true,
       });
       program.stdout.setEncoding("utf8");
       program.stderr.setEncoding("utf8");

@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
 # Builds Tatolab for Linux: the .deb and the AppImage of the Electron window and tray over the
-# runtime's systemd user service. Neither carries a runtime, nor a uv or Python of its own: the
-# installer (curl -fsSL https://get.tatolab.com/install.sh | sh) installs the runtime, its uv and its
-# service.
+# runtime's systemd user service. Each carries in its resources/ streamlib's runtime unit
+# (tatolab-runtime/: bin/, lib/ with the systemd user unit, streamlib-commit) and streamlib's
+# install.sh, which the app runs on that unit whenever the installed build differs, and no uv or
+# Python of its own: the runtime's uv sits beside its tatolabd.
+# The runtime is always streamlib's main, or --streamlib-ref, fetched by
+# fetch-streamlib-for-the-app-build.sh into build/linux-streamlib. The packages' version is the
+# version of the tatolabd they carry.
 # Outputs build/linux/Tatolab-<version>-amd64.deb, build/linux/Tatolab-<version>-x86_64.AppImage,
 # and the update feed's manifest listing both, build/linux/latest-linux.yml.
 #
-# Usage: build-tatolab-linux-app.sh [--app-version X.Y.Z] [--local-proof-test-root]
-#                                   [--app-update-feed-url URL] [--release]
-#   --app-version X.Y.Z      the packages' version (default: package.json's); a release passes
-#                            the streamlib release they go beside
+# Usage: build-tatolab-linux-app.sh [--streamlib-ref REF] [--runtime-unit DIR] [--app-version X.Y.Z]
+#                                   [--local-proof-test-root] [--app-update-feed-url URL] [--release]
+#   --streamlib-ref REF      the streamlib tag or commit to carry instead of main's head; a release
+#                            passes the release tag it builds
+#   --runtime-unit DIR       an already-built runtime unit, accepted only when its streamlib-commit
+#                            names the commit the build resolved; a release passes its own runtime
+#                            tarball, unpacked, which streamlib builds at the glibc floor it promises
+#   --app-version X.Y.Z      refuse unless the carried tatolabd is version X.Y.Z
 #   --local-proof-test-root  read the runtime under TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof;
 #                            for proving on a development machine, never shipped
 #   --app-update-feed-url URL  the feed the app checks for updates (default: get.tatolab.com's);
@@ -20,13 +28,18 @@ set -euo pipefail
 
 usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$0" >&2; exit 2; }
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
-app_version=""
+scripts_directory="$repository_root/scripts"
+streamlib_ref=main
+prebuilt_runtime_unit=""
+expected_app_version=""
 local_proof_test_root=false
 app_update_feed_url=""
 release_build=false
 while [ $# -gt 0 ]; do
   case "$1" in
-    --app-version) [ $# -ge 2 ] || usage; app_version="${2#v}"; shift ;;
+    --streamlib-ref) [ $# -ge 2 ] || usage; streamlib_ref="$2"; shift ;;
+    --runtime-unit) [ $# -ge 2 ] || usage; prebuilt_runtime_unit="$2"; shift ;;
+    --app-version) [ $# -ge 2 ] || usage; expected_app_version="${2#v}"; shift ;;
     --local-proof-test-root) local_proof_test_root=true ;;
     --app-update-feed-url) [ $# -ge 2 ] || usage; app_update_feed_url="$2"; shift ;;
     --release) release_build=true ;;
@@ -63,7 +76,7 @@ electron_package_dependencies=(
 )
 installed_app_directory="usr/lib/tatolab"
 short_description="The window and tray of this machine's Tatolab runtime"
-long_description="Tatolab shows the streams this machine's Tatolab runtime holds as they start and stop, each stream's graph and logs, and the Run Tatolab switch, from a window and the tray. It drives the systemd user service tatolabd.service that the Tatolab installer sets up (curl -fsSL https://get.tatolab.com/install.sh | sh); it installs no runtime itself."
+long_description="Tatolab shows the streams this machine's Tatolab runtime holds as they start and stop, each stream's graph and logs, and the Run Tatolab switch, from a window and the tray. It carries the Tatolab runtime and installs it for your user, as the systemd user service tatolabd.service, whenever the installed runtime is another build."
 
 for required_tool in dpkg-deb dpkg-shlibdeps desktop-file-validate; do
   command -v "$required_tool" >/dev/null || { echo "$required_tool is missing: sudo apt install dpkg-dev desktop-file-utils" >&2; exit 1; }
@@ -81,10 +94,31 @@ release_build_arguments=()
 $release_build && release_build_arguments=(--release)
 
 cd "$repository_root"
-if [ -z "$app_version" ]; then
-  app_version="$(node -p 'require("./package.json").version')"
+echo "==> runtime unit (streamlib $streamlib_ref)"
+fetched_streamlib="$repository_root/build/linux-streamlib"
+streamlib_commit="$("$scripts_directory/fetch-streamlib-for-the-app-build.sh" "$fetched_streamlib" --streamlib-ref "$streamlib_ref" | tail -1)"
+if [ -n "$prebuilt_runtime_unit" ]; then
+  runtime_unit_directory="$(cd "$prebuilt_runtime_unit" && pwd)"
+else
+  runtime_unit_directory="$("$scripts_directory/build-tatolab-runtime-unit.sh" "$fetched_streamlib" ${local_proof_arguments[@]+"${local_proof_arguments[@]}"})"
 fi
-[[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not an X.Y.Z app version: $app_version" >&2; exit 1; }
+unit_streamlib_commit="$(cat "$runtime_unit_directory/streamlib-commit" 2>/dev/null || true)"
+[ "$unit_streamlib_commit" = "$streamlib_commit" ] || {
+  echo "runtime unit $runtime_unit_directory was built from streamlib '${unit_streamlib_commit:-no recorded commit}', not $streamlib_commit ($streamlib_ref)" >&2
+  exit 1
+}
+# The unit as install.sh --from-unit takes it on Linux: the release tarball's top-level entries.
+for required in bin/tatolabd bin/tatolab lib/systemd/user/tatolabd.service streamlib-commit; do
+  [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit $runtime_unit_directory is missing $required" >&2; exit 1; }
+done
+tatolabd_version_output="$("$runtime_unit_directory/bin/tatolabd" --version)"
+app_version="${tatolabd_version_output##* }"
+[[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "the unit's tatolabd reports no X.Y.Z version: $tatolabd_version_output" >&2; exit 1; }
+[ -z "$expected_app_version" ] || [ "$expected_app_version" = "$app_version" ] \
+  || { echo "--app-version $expected_app_version, but the runtime unit's tatolabd is $app_version" >&2; exit 1; }
+streamlib_installer="$fetched_streamlib/installer/install.sh"
+[ -f "$streamlib_installer" ] || { echo "streamlib $streamlib_commit has no installer/install.sh" >&2; exit 1; }
+echo "    $runtime_unit_directory: streamlib $streamlib_commit, version $app_version"
 linux_build_directory="$repository_root/build/linux-packaging"
 output_directory="$repository_root/build/linux"
 output_deb="$output_directory/Tatolab-$app_version$local_proof_name_part-amd64.deb"
@@ -124,6 +158,12 @@ grep -aqF '"electron-updater":{"files"' "$packaged_app_directory/resources/app.a
   || { echo "the packaged app carries no electron-updater" >&2; exit 1; }
 grep -qx 'updaterCacheDirName: tatolab-app-updater' "$packaged_app_directory/resources/app-update.yml" \
   || { echo "the packaged app has no resources/app-update.yml naming the updater's cache" >&2; exit 1; }
+
+echo "==> the runtime unit and its installer"
+carried_runtime_unit="$packaged_app_directory/resources/tatolab-runtime"
+mkdir -p "$carried_runtime_unit"
+cp -a "$runtime_unit_directory/bin" "$runtime_unit_directory/lib" "$runtime_unit_directory/streamlib-commit" "$carried_runtime_unit/"
+install -m 0755 "$streamlib_installer" "$packaged_app_directory/resources/install.sh"
 
 # Lays the app, its desktop entry and its icons under <root>/usr.
 lay_out_the_app_under() {
@@ -211,6 +251,16 @@ grep -qE '[[:space:]]\./usr/bin/Tatolab -> \.\./lib/tatolab/Tatolab$' <<<"$deb_c
   || { echo "the .deb does not link usr/bin/Tatolab to the app" >&2; exit 1; }
 ! grep -qE '[[:space:]]\./usr/lib/tatolab/resources/(uv|python)(/|$)' <<<"$deb_contents" \
   || { echo "the .deb carries a uv or Python of the app's own under usr/lib/tatolab/resources" >&2; exit 1; }
+for carried_runtime_member in bin/tatolabd bin/tatolab bin/uv; do
+  grep -qE "^-rwxr-xr-x .*[[:space:]]\./usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member\$" <<<"$deb_contents" \
+    || { echo "the .deb carries no runnable usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member" >&2; exit 1; }
+done
+for carried_runtime_member in lib/systemd/user/tatolabd.service streamlib-commit; do
+  grep -qF "./usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member" <<<"$deb_contents" \
+    || { echo "the .deb carries no usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member" >&2; exit 1; }
+done
+grep -qE '^-rwxr-xr-x .*[[:space:]]\./usr/lib/tatolab/resources/install\.sh$' <<<"$deb_contents" \
+  || { echo "the .deb carries no usr/lib/tatolab/resources/install.sh" >&2; exit 1; }
 echo "    Depends: $deb_depends"
 
 echo "==> AppImage"
@@ -239,6 +289,6 @@ chmod 0755 "$output_appimage"
 echo "==> update"
 node scripts/write_tatolab_app_update_manifest.mjs "$output_update_manifest" "$app_version" "$output_appimage" "$output_deb"
 
-echo "built $output_deb"
+echo "built $output_deb (streamlib $streamlib_commit, version $app_version)"
 echo "built $output_appimage"
 echo "built $output_update_manifest"

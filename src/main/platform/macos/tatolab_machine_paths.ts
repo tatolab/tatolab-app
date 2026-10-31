@@ -9,6 +9,7 @@ import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT } from "../../runtime_loopback_watch_page.js";
 import { TATOLAB_APP_BUILD_FEATURES } from "../../tatolab_app_build_features.js";
+import type { CarriedRuntimeUnitLayout } from "../carried_runtime_unit_installed_by_streamlibs_installer.js";
 import type { RuntimeLaunchAgentOnThisMac } from "./launchctl_runtime_launch_agent.js";
 import {
   LOCAL_API_SOCKET_FILE_NAME,
@@ -152,6 +153,18 @@ export function streamlibCommitFileInARuntimeUnit(runtimeUnitDirectory: string):
 /** The streamlib commit file of the runtime the app carries, found from the app's `Contents/Resources/`. */
 export function streamlibCommitFileTheAppCarriesBeside(appResourcesDirectory: string): string {
   return streamlibCommitFileInARuntimeUnit(path.join(path.dirname(appResourcesDirectory), "Helpers"));
+}
+
+/** The runtime helper `appBundle` carries and the installer beside it, installed into `runtimeInstallDirectory`. */
+export function carriedRuntimeUnitLayoutOfTheAppBundle(appBundle: string, runtimeInstallDirectory: string): CarriedRuntimeUnitLayout {
+  const carriedRuntimeUnit = carriedRuntimeUnitIn(appBundle);
+  return {
+    carriedInstaller: carriedRuntimeInstallerIn(appBundle),
+    carriedRuntimeUnit,
+    carriedRuntimeExecutable: runtimeExecutableInARuntimeUnit(carriedRuntimeUnit),
+    carriedStreamlibCommitFile: streamlibCommitFileInARuntimeUnit(carriedRuntimeUnit),
+    runtimeInstallDirectory,
+  };
 }
 
 /** `<install directory>/current`, the link the installer points at the build it runs. */

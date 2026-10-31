@@ -2,6 +2,8 @@
 # Builds streamlib's runtime unit (bin/tatolabd, bin/tatolab, bin/moq-relay, bin/uv, lib/tatolab/lend,
 # lib/tatolab/watch) in a streamlib checkout, writes the checkout's commit into the unit's
 # streamlib-commit, and prints the unit's directory. The checkout's own target directory is used.
+# On Linux the unit also carries the checkout's systemd user unit in lib/systemd/user/, where
+# install.sh takes it from, as streamlib's release tarball does.
 #
 # Usage: build-tatolab-runtime-unit.sh <streamlib checkout> [--local-proof-test-root]
 #   --local-proof-test-root  both binaries keep every machine directory under
@@ -25,6 +27,11 @@ done
 streamlib_commit="$(git -C "$streamlib_checkout" rev-parse HEAD)"
 [ -z "$(git -C "$streamlib_checkout" status --porcelain --untracked-files=no)" ] \
   || { echo "streamlib checkout $streamlib_checkout has uncommitted changes: the unit would not be $streamlib_commit" >&2; exit 1; }
+systemd_user_unit_source=""
+if [ "$(uname -s)" = Linux ]; then
+  systemd_user_unit_source="$streamlib_checkout/installer/tatolabd.service"
+  [ -f "$systemd_user_unit_source" ] || { echo "streamlib checkout $streamlib_checkout has no installer/tatolabd.service for the unit to carry" >&2; exit 1; }
+fi
 export CARGO_TARGET_DIR="$streamlib_checkout/target"
 runtime_unit_directory="$streamlib_checkout/target/tatolab-runtime"
 # xtask rebuilds the unit in place, so a build that fails part-way must not leave the previous
@@ -35,5 +42,9 @@ rm -f "$runtime_unit_directory/streamlib-commit"
 for required in bin/tatolabd bin/tatolab bin/moq-relay bin/uv lib/tatolab/lend/tatolab/runtime lib/tatolab/watch/index.html; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit is missing $required" >&2; exit 1; }
 done
+if [ -n "$systemd_user_unit_source" ]; then
+  mkdir -p "$runtime_unit_directory/lib/systemd/user"
+  cp "$systemd_user_unit_source" "$runtime_unit_directory/lib/systemd/user/tatolabd.service"
+fi
 echo "$streamlib_commit" >"$runtime_unit_directory/streamlib-commit"
 echo "$runtime_unit_directory"

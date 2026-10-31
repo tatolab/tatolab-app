@@ -111,6 +111,10 @@ Evidence counts only when it was shot on what would ship now:
    answering on the socket) is allowed and **named as a stand-in**. Label **Linux** or **Linux (container, unbundled)**.
    On a Mac, `scripts/verify/run-the-window-in-an-ubuntu-container.sh <folder>` does this with the
    stand-ins in `scripts/verify/linux-stand-ins/`.
+   The carried runtime's install is proven only by a packaged `.deb` or AppImage of a real build,
+   opened where a systemd user manager runs and the installed build differs or is none: the
+   overlay shows the installer's lines, then the streams. A `--local-proof-test-root` package
+   installs nothing, since `install.sh` writes only into the real home folder.
 
 ## Capture
 

@@ -24,9 +24,9 @@ the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-em
 
 |  | macOS | Linux |
 |---|---|---|
-| The runtime | carried inside the app and installed by streamlib's installer whenever the app opens carrying another build, run as the launch agent `com.tatolab.tatolabd` | from the installer, run as the systemd user service `tatolabd.service` |
+| The runtime | carried inside the app and installed by streamlib's installer whenever the app opens carrying another build, run as the launch agent `com.tatolab.tatolabd` | carried in the package and installed the same way, run as the systemd user service `tatolabd.service` |
 | "Run Tatolab" | loads and unloads the launch agent (`launchctl bootstrap` / `bootout`) | `systemctl --user enable --now` / `disable --now tatolabd.service` |
-| First launch | Welcome and Getting set up, with no administrator password; the installer links `~/.local/bin/tatolab` | nothing: the installer set the machine up |
+| First launch | Welcome and Getting set up, with no administrator password; the installer links `~/.local/bin/tatolab` | the installer's lines while it installs the runtime, then the streams; it links `tatolab` and `tatolabd` into `~/.local/bin` |
 | Local API socket | `/tmp/streamlib-<uid>/local-api.sock` | `$XDG_RUNTIME_DIR/streamlib/local-api.sock`, else `/tmp/streamlib-<uid>/local-api.sock` |
 | Uninstall | the app's "Uninstall Tatolab…", or `brew uninstall --cask tatolab` | the installer's `--uninstall`, then remove the app's package |
 
@@ -44,8 +44,8 @@ package's download in the browser, since apt alone replaces it. The feed's manif
 
 The runtime and the `tatolab` CLI come from [tatolab/streamlib](https://github.com/tatolab/streamlib)
 (BUSL-1.1). This repository is proprietary (see `LICENSE`). It holds the app itself, the packaging
-that wraps streamlib's runtime unit into a signed, notarized `.app` and `.dmg`, and the Linux
-`.deb` and AppImage, which carry no runtime.
+that wraps streamlib's runtime unit into a signed, notarized `.app` and `.dmg`, and into the Linux
+`.deb` and AppImage.
 
 Requirements: macOS 15 (Sequoia) or later on Apple silicon; or x86_64 Linux with a systemd user
 session (Ubuntu 22.04 or later, Debian 12 or later). The window runs on the Chromium Electron
@@ -68,15 +68,8 @@ the runtime starting, asking for something only when macOS needs it: approval in
 Settings › Command line also offers a link in
 `/usr/local/bin`, which works in every terminal and asks for an administrator's password.
 
-**Linux.** The installer is the one way to install the runtime. It unpacks it to
-`~/.local/share/tatolab/<version>/`, links `tatolab` and `tatolabd` into `~/.local/bin`, and
-installs and starts the systemd user service `tatolabd.service`:
-
-```sh
-curl -fsSL https://get.tatolab.com/install.sh | sh
-```
-
-Then install the app from the same streamlib release, as the `.deb`:
+**Linux.** Install the app from the [streamlib release](https://github.com/tatolab/streamlib/releases),
+as the `.deb`:
 
 ```sh
 sudo apt install ./Tatolab-<version>-amd64.deb
@@ -88,8 +81,15 @@ or as the AppImage, which needs no installing:
 chmod +x Tatolab-<version>-x86_64.AppImage && ./Tatolab-<version>-x86_64.AppImage
 ```
 
-The app installs no runtime: with no `tatolabd.service` it has no runtime to show, and its
-status reads the agent as `not_found` until the installer has run.
+Each carries the runtime and streamlib's installer. Opening the app runs the installer on it
+whenever the installed runtime is another build, or none: it unpacks the runtime to
+`~/.local/share/tatolab/<version>-<commit>/`, links `tatolab` and `tatolabd` into `~/.local/bin`,
+and installs and starts the systemd user service `tatolabd.service`, asking nothing. A machine
+without the app installs the runtime with the installer alone:
+
+```sh
+curl -fsSL https://get.tatolab.com/install.sh | sh
+```
 
 ## Uninstalling
 
@@ -197,7 +197,10 @@ The `.deb` (package `tatolab`) installs the Electron app in `/usr/lib/tatolab/`,
 needs where unprivileged user namespaces are off. `Depends` names Electron's libraries without
 versions or `t64` suffixes, so one package installs on Ubuntu 22.04 and 24.04; the build fails if
 the app links a library the list does not name. It recommends `curl` for the installer's command.
-The AppImage carries the same app; it has no setuid sandbox helper, so it needs unprivileged user
+Its `resources/` carry streamlib's runtime unit in `tatolab-runtime/` (the release tarball's `bin/`,
+`lib/` with `lib/systemd/user/tatolabd.service`, and `streamlib-commit`) and streamlib's
+`install.sh`, which the app runs in a session of its own, so the installer never asks on the
+terminal the app was started from. The AppImage carries the same app; it has no setuid sandbox helper, so it needs unprivileged user
 namespaces (on by default on Ubuntu 22.04, restricted by AppArmor on 24.04).
 
 ## Building on macOS
@@ -283,19 +286,23 @@ whatever streamlib's runtime build needs (`brew install shaderc cmake ninja`).
 
 ## Building on Linux
 
-On x86_64 Linux, with Node 22+:
+On x86_64 Linux, with Node 22+, Rust, and whatever streamlib's runtime build needs:
 
 ```sh
 sudo apt install dpkg-dev desktop-file-utils curl
 scripts/build-tatolab-linux-app.sh
 ```
 
-It builds and packages the Electron app as on macOS, lays out the `.deb` and builds it with
+It fetches streamlib's `main`, or `--streamlib-ref REF`, into `build/linux-streamlib` and builds
+its runtime unit there (`--runtime-unit DIR` takes one already built, when its `streamlib-commit`
+names the commit the build resolved), adds the checkout's `installer/tatolabd.service` to the unit
+and carries the unit and `installer/install.sh` in the app's `resources/`. The packages' version
+is the version of the `tatolabd` they carry. It then builds and packages the Electron app as on macOS, lays out the `.deb` and builds it with
 `dpkg-deb`, builds the AppImage with a pinned `appimagetool` and AppImage runtime (checksums in
 the script), checks the fuses, the build features, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Tatolab-<version>-amd64.deb`,
 `build/linux/Tatolab-<version>-x86_64.AppImage` and the update manifest listing both,
-`build/linux/latest-linux.yml`. No streamlib checkout is needed. `--app-version
-X.Y.Z` sets the packages' version; `--local-proof-test-root` builds with
+`build/linux/latest-linux.yml`. `--app-version X.Y.Z` refuses a unit whose `tatolabd` is another
+version; `--local-proof-test-root` builds with
 `machineDirectoriesUnderATestRoot` on, so the app reads the runtime under
 `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, and names both packages `-local-proof`;
 `--app-update-feed-url URL`, only with it, points the app at a local update feed; `--release`, which
@@ -339,8 +346,9 @@ ID ones the macOS build stops; notarization needs the App Store Connect key:
 A release runs on a local release runner, outside this repository, once streamlib cuts release
 `vX.Y.Z`. It drives this repository's scripts: `scripts/build-tatolab-app.sh --streamlib-ref vX.Y.Z
 --release --notarize` builds, signs, notarizes and verifies Tatolab.app and its `.dmg`;
-`scripts/build-tatolab-linux-app.sh --app-version X.Y.Z --release` builds the `.deb` and the
-AppImage on x86_64 Linux; the release's assets go on streamlib's `vX.Y.Z` release; and
+`scripts/build-tatolab-linux-app.sh --streamlib-ref vX.Y.Z --runtime-unit <the release's Linux runtime tarball, unpacked> --release`
+builds the `.deb` and the AppImage on x86_64 Linux, carrying the runtime streamlib built at the
+glibc floor it promises; the release's assets go on streamlib's `vX.Y.Z` release; and
 `scripts/bump-homebrew-cask.sh` writes the new `Casks/tatolab.rb` for tatolab/homebrew-tap.
-`brew install --cask tatolab/tap/tatolab` installs it on macOS; on Linux the installer and the
-release's `.deb` or AppImage do.
+`brew install --cask tatolab/tap/tatolab` installs it on macOS; on Linux the release's `.deb` or
+AppImage does.

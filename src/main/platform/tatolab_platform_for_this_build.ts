@@ -16,7 +16,7 @@ export interface TatolabPlatformForThisBuild {
   localApiSocket: string;
   tatolabUninstall: TatolabUninstall;
   appUpdatePackaging: TatolabAppUpdatePackaging;
-  /** The install of the runtime the app carries; `null` where it carries none to install: an unpackaged app, and Linux, whose installer installs it. */
+  /** The install of the runtime the app carries; `null` where it carries none to install, as an unpackaged app, or must not install, as a local-proof build. */
   carriedRuntimeInstall: CarriedRuntimeInstall | null;
   /** The desktop's terminal, which the window's Terminal opens on a stream's project folder. */
   terminalOpenedInAFolder: TerminalOpenedInAFolder;
@@ -26,7 +26,7 @@ export interface TatolabPlatformForThisBuild {
   tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin;
 }
 
-/** What a platform takes from the app around it to build its items; Linux takes only whether the app is packaged and its binary. */
+/** What a platform takes from the app around it to build its items; Linux takes only whether the app is packaged, its binary and its resources folder. */
 export interface TatolabPlatformHostServices {
   /** The person's home folder, under which macOS's installer keeps the runtime, its launch agent and the `tatolab` link. */
   homeDirectory: string;
@@ -36,6 +36,8 @@ export interface TatolabPlatformHostServices {
   appIsPackaged: boolean;
   /** The app's own config directory, named for `TATOLAB_APP_IDENTIFIER`. */
   appConfigDirectory: string;
+  /** The packaged app's resources folder, `process.resourcesPath`, where Linux finds the runtime unit and installer it carries. */
+  appResourcesDirectory: string;
   /** The Trash and quitting, which uninstalling ends with. */
   tatolabUninstallAppSurface: TatolabUninstallAppSurface;
   /** Electron's login-item settings for the app's own bundle, which only macOS has. */
