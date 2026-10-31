@@ -37,6 +37,8 @@ export interface ListedStream {
   /** How many nodes its loaded graph holds; `null` while it is not loaded. */
   node_count: number | null;
   failed_because: string | null;
+  /** Each capture device, `camera` or `microphone` or one newer than this app, that a node of the loaded stream refused because nobody has asked the person for its access, as when the runtime brought the stream back on its own at its start; a stop then a start of the stream asks. Empty when it is not loaded. */
+  capture_devices_whose_access_was_never_asked_for: string[];
   /** The stream action queued or under way on it while it is `preparing` or `stopping`; `null` otherwise. */
   action: string | null;
   /** That action's step, `making_the_venv`, `compiling`, `starting` or `stopping`, or one newer than this app; `null` while the action waits in its project's queue, and while no action works on it. */

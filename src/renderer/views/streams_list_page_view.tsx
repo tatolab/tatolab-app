@@ -1,4 +1,4 @@
-import { ChevronRight, Copy, FolderOpen, type LucideIcon, Pencil, Play, Sparkles, Square, Trash2, X } from "lucide-react";
+import { ChevronRight, Copy, FolderOpen, type LucideIcon, Pencil, Sparkles, Square, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import mascotImageUrl from "../assets/tato_mascot_3d.png";
@@ -17,6 +17,8 @@ import { presentPlatform, windowDragRegionAttribute } from "../presentation/plat
 import {
   abbreviateHomeDirectory,
   listedStreamProjectDirectory,
+  presentCaptureDeviceAccessAwaited,
+  presentStopBesideAllow,
   presentStreamActionCancel,
   presentStreamPrimaryAction,
   presentStreamState,
@@ -35,6 +37,7 @@ import {
   type StreamsListFilter,
 } from "../presentation/streams_list_presentation";
 import { StreamActionRefusalLine, useProjectRemovalDialog, useStreamActionsUnderWay, type StreamActionRefusalWords } from "./stream_action_controls";
+import { streamPrimaryActionIcon } from "./stream_primary_action_icon";
 import { useStreamRenameDialog } from "./stream_rename_dialog_view";
 import { StreamRowRightClickMenu } from "./stream_row_right_click_menu";
 import { projectPagePath } from "./project_page_path";
@@ -53,6 +56,7 @@ export interface StreamsListRowActions {
 function StreamRowActions({ stream, actionUnderWay, rowActions }: { stream: ListedStream; actionUnderWay: StreamActionUnderWay | undefined; rowActions: StreamsListRowActions }) {
   const { onPrimaryAction, onCancelAsked, onRemoveProjectAsked, onRenameAsked } = rowActions;
   const primaryAction = presentStreamPrimaryAction(stream);
+  const stopBesideAllow = presentStopBesideAllow(stream);
   const cancel = presentStreamActionCancel(stream);
   const projectDirectory = listedStreamProjectDirectory(stream);
   const listedActionWords = streamActionInTheListingWords(stream);
@@ -63,8 +67,8 @@ function StreamRowActions({ stream, actionUnderWay, rowActions }: { stream: List
       {cancel !== null && <IconButton icon={X} label={cancel.meaning} onPressed={onCancelAsked} data-stream-action="cancel_stream_action" />}
       {primaryAction !== null && (
         <IconButton
-          icon={primaryAction.streamAction === "stop_stream" ? Square : Play}
-          isIconFilled
+          icon={streamPrimaryActionIcon(primaryAction.streamAction)}
+          isIconFilled={primaryAction.streamAction !== "restart_to_be_asked_for_capture_device_access"}
           label={primaryAction.meaning}
           onPressed={() => onPrimaryAction(primaryAction)}
           data-stream-action={primaryAction.streamAction}
@@ -74,6 +78,11 @@ function StreamRowActions({ stream, actionUnderWay, rowActions }: { stream: List
         <MenuItem icon={Pencil} onChosen={onRenameAsked} data-stream-action="rename_stream">
           Rename…
         </MenuItem>
+        {stopBesideAllow !== null && (
+          <MenuItem icon={Square} onChosen={() => onPrimaryAction(stopBesideAllow)} data-stream-action="stop_stream">
+            Stop
+          </MenuItem>
+        )}
         {projectDirectory !== null && (
           <>
             <MenuSeparator />
@@ -91,7 +100,7 @@ function StreamRowActions({ stream, actionUnderWay, rowActions }: { stream: List
   );
 }
 
-/** A stream's line in a list of streams: its state, its name linking to its page, and its actions; why it failed, and the runtime's refusal of its last action, under it. */
+/** A stream's line in a list of streams: its state, its name linking to its page, and its actions; the access it waits for or why it failed, and the runtime's refusal of its last action, under it. */
 export function StreamsListRow({
   stream,
   actionUnderWay,
@@ -105,6 +114,7 @@ export function StreamsListRow({
 }) {
   const navigate = useNavigate();
   const statePresentation = presentStreamState(stream);
+  const captureDeviceAccessAwaited = presentCaptureDeviceAccessAwaited(stream);
   return (
     <StreamRowRightClickMenu stream={stream} onRenameAsked={rowActions.onRenameAsked}>
       <li
@@ -133,6 +143,11 @@ export function StreamsListRow({
             <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} rowActions={rowActions} />
           </div>
         </div>
+        {captureDeviceAccessAwaited !== null && (
+          <p className="truncate pl-7 text-xs text-fg-2" title={captureDeviceAccessAwaited.explanation} data-capture-device-access-awaited="">
+            <span className="text-warn-text">{captureDeviceAccessAwaited.title}</span> — {captureDeviceAccessAwaited.explanation}
+          </p>
+        )}
         {stream.state === "failed" && stream.failed_because !== null && (
           <p className="truncate pl-7 text-xs text-fg-2 select-text" title={stream.failed_because}>
             {stream.failed_because}

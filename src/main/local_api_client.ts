@@ -32,6 +32,7 @@ import type {
   TatolabStreamActionName,
 } from "../shared/tatolab_backend_contract.js";
 import {
+  arrayOrEmpty,
   everyOneRead,
   isAJsonObject,
   jsonObject,
@@ -179,6 +180,8 @@ function listedStreamOnTheWire(listedStreamOnTheWire: unknown): Result<ListedStr
   if (!nodeCount.ok) return nodeCount;
   const failedBecause = optionalText(listedStream.value, "failed_because");
   if (!failedBecause.ok) return failedBecause;
+  const captureDevicesWhoseAccessWasNeverAskedFor = captureDevicesWhoseAccessWasNeverAskedForOnTheWire(listedStream.value);
+  if (!captureDevicesWhoseAccessWasNeverAskedFor.ok) return captureDevicesWhoseAccessWasNeverAskedFor;
   const action = optionalText(listedStream.value, "action");
   if (!action.ok) return action;
   const step = optionalText(listedStream.value, "step");
@@ -190,9 +193,18 @@ function listedStreamOnTheWire(listedStreamOnTheWire: unknown): Result<ListedStr
     state: state.value,
     node_count: nodeCount.value,
     failed_because: failedBecause.value,
+    capture_devices_whose_access_was_never_asked_for: captureDevicesWhoseAccessWasNeverAskedFor.value,
     action: action.value,
     step: step.value,
   });
+}
+
+/** The capture devices a listed stream waits on an access nobody has asked for, each kept as spelled; none when the field is absent. */
+function captureDevicesWhoseAccessWasNeverAskedForOnTheWire(listedStream: JsonObjectOnTheWire): Result<string[], string> {
+  const key = "capture_devices_whose_access_was_never_asked_for";
+  const captureDevices = arrayOrEmpty(listedStream, key);
+  if (!captureDevices.ok) return captureDevices;
+  return everyOneRead(captureDevices.value, (captureDevice) => (typeof captureDevice === "string" ? succeeded(captureDevice) : failedWith(`\`${key}\` holds a value that is not a string`)));
 }
 
 /** The action id a tool result that queued a stream action names, read from the result of `toolName`. */

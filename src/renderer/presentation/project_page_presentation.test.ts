@@ -16,6 +16,7 @@ function listedHallwaysStream(functionName: string, state: ListedStream["state"]
     state,
     node_count: null,
     failed_because: failedBecause,
+    capture_devices_whose_access_was_never_asked_for: [],
     action: null,
     step: null,
   };

@@ -51,6 +51,7 @@ function listing(stream: string, changes: Partial<ListedStream>): ListedStream {
     state: "running",
     node_count: 3,
     failed_because: null,
+    capture_devices_whose_access_was_never_asked_for: [],
     action: null,
     step: null,
     ...changes,

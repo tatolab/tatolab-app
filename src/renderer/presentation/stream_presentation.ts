@@ -1,7 +1,7 @@
 import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";
 
-/** How strongly a stream's state word reads: plain, with a spinner while an action works on it, dimmed while stopped, or red with an alert icon when failed. */
-export type StreamStateEmphasis = "plain" | "starting" | "quiet" | "failure";
+/** How strongly a stream's state word reads: plain, with a spinner while an action works on it, dimmed while stopped, amber with a warning icon while it waits for access, or red with an alert icon when failed. */
+export type StreamStateEmphasis = "plain" | "starting" | "quiet" | "warning" | "failure";
 
 /** The colour a stream's icon takes: running, failed, or neither (stopped, preparing, stopping, or a state newer than this app). */
 export type StreamStateIconTone = "running" | "failed" | "idle";
@@ -46,6 +46,28 @@ export function streamActionStepWords(step: string | null): string {
   }
 }
 
+/** The capture devices a running stream waits for access to, which nobody has asked the person for, in plain words such as `camera` or `camera and microphone`; `null` while it waits for none. */
+export function captureDevicesAwaitingAccessWords(stream: ListedStream): string | null {
+  if (stream.state !== "running" || stream.capture_devices_whose_access_was_never_asked_for.length === 0) return null;
+  return stream.capture_devices_whose_access_was_never_asked_for.map((captureDevice) => labelUnknownStreamState(captureDevice).toLowerCase()).join(" and ");
+}
+
+/** What a stream waiting for capture-device access says it waits for, and why macOS has not asked yet. */
+export interface CaptureDeviceAccessAwaitedPresentation {
+  title: string;
+  explanation: string;
+}
+
+/** `Waiting for camera access` and why, for a running stream waiting for access nobody has asked for; `null` while it waits for none. */
+export function presentCaptureDeviceAccessAwaited(stream: ListedStream): CaptureDeviceAccessAwaitedPresentation | null {
+  const captureDevicesWords = captureDevicesAwaitingAccessWords(stream);
+  if (captureDevicesWords === null) return null;
+  return {
+    title: `Waiting for ${captureDevicesWords} access`,
+    explanation: "The runtime brought this stream back on its own when it started, so macOS has not asked you yet. Allow restarts it, and macOS asks.",
+  };
+}
+
 /** `awaiting_restart` reads `Awaiting restart`. */
 export function labelUnknownStreamState(wireState: string): string {
   const spaced = wireState.replace(/[_-]+/g, " ").trim();
@@ -55,8 +77,18 @@ export function labelUnknownStreamState(wireState: string): string {
 /** The word, emphasis and meaning of a stream's state, including a state newer than this app. */
 export function presentStreamState(stream: ListedStream): StreamStatePresentation {
   switch (stream.state) {
-    case "running":
+    case "running": {
+      const captureDeviceAccessAwaited = presentCaptureDeviceAccessAwaited(stream);
+      if (captureDeviceAccessAwaited !== null) {
+        return {
+          label: captureDeviceAccessAwaited.title,
+          emphasis: "warning",
+          iconTone: "idle",
+          meaning: `${captureDeviceAccessAwaited.title}: ${captureDeviceAccessAwaited.explanation}`,
+        };
+      }
       return { label: "Running", emphasis: "plain", iconTone: "running", meaning: "Running: its graph is loaded in the runtime." };
+    }
     case "preparing": {
       const stepWords = streamActionStepWords(stream.step);
       return {
@@ -86,18 +118,34 @@ export function streamActionInTheListingWords(stream: ListedStream): string | nu
   return stream.state === "preparing" || stream.state === "stopping" ? presentStreamState(stream).label : null;
 }
 
+/** What a stream's leading action asks of the runtime: one stream action, or a stop then a start, so macOS asks for the capture devices the stream waits on. */
+export type StreamPrimaryActionName = TatolabStreamActionName | "restart_to_be_asked_for_capture_device_access";
+
 /** The one action a stream's row leads with: what it asks of the runtime, its word, and what it does. */
 export interface StreamPrimaryActionPresentation {
-  streamAction: Extract<TatolabStreamActionName, "stop_stream" | "start_stream">;
-  label: "Stop" | "Start" | "Retry";
+  streamAction: StreamPrimaryActionName;
+  label: "Stop" | "Start" | "Retry" | "Allow";
   meaning: string;
 }
 
-/** Stop for a running stream, Start for a stopped one, Retry for a failed one; `null` while an action works on it, and for a state newer than this app. */
+/** Stop: unloads a running stream and remembers it stopped. */
+export const STOP_STREAM_ACTION: StreamPrimaryActionPresentation = { streamAction: "stop_stream", label: "Stop", meaning: "Stop: unloads it and remembers it stopped" };
+
+/** Stop for a stream whose leading action is Allow, which a person may stop rather than allow; `null` for every other stream. */
+export function presentStopBesideAllow(stream: ListedStream): StreamPrimaryActionPresentation | null {
+  return presentStreamPrimaryAction(stream)?.streamAction === "restart_to_be_asked_for_capture_device_access" ? STOP_STREAM_ACTION : null;
+}
+
+/** Allow for a running stream waiting for access nobody has asked for, Stop for any other running stream, Start for a stopped one, Retry for a failed one; `null` while an action works on it, and for a state newer than this app. */
 export function presentStreamPrimaryAction(stream: ListedStream): StreamPrimaryActionPresentation | null {
   switch (stream.state) {
-    case "running":
-      return { streamAction: "stop_stream", label: "Stop", meaning: "Stop: unloads it and remembers it stopped" };
+    case "running": {
+      const captureDevicesWords = captureDevicesAwaitingAccessWords(stream);
+      if (captureDevicesWords !== null) {
+        return { streamAction: "restart_to_be_asked_for_capture_device_access", label: "Allow", meaning: `Allow: restarts it, and macOS asks for the ${captureDevicesWords}` };
+      }
+      return STOP_STREAM_ACTION;
+    }
     case "stopped":
       return { streamAction: "start_stream", label: "Start", meaning: "Start: loads it again from its record" };
     case "failed":
@@ -116,8 +164,8 @@ export function streamNotLoadedReason(stream: ListedStream): StreamNotLoadedReas
   return "not_loaded";
 }
 
-/** An action the window asks of the runtime on a stream: a stop, a start, the removal of its whole project, or the cancel of the action the listing names on it. */
-export type StreamActionAskedByTheWindow = TatolabStreamActionName | "remove_project" | "cancel_stream_action";
+/** An action the window asks of the runtime on a stream: a stop, a start, a restart so macOS asks for access, the removal of its whole project, or the cancel of the action the listing names on it. */
+export type StreamActionAskedByTheWindow = StreamPrimaryActionName | "remove_project" | "cancel_stream_action";
 
 /** What a row says while its stream action is being asked for, until the listing shows it under way. */
 export function streamActionPendingWords(streamAction: StreamActionAskedByTheWindow): string {
@@ -126,6 +174,8 @@ export function streamActionPendingWords(streamAction: StreamActionAskedByTheWin
       return "Stopping…";
     case "start_stream":
       return "Starting…";
+    case "restart_to_be_asked_for_capture_device_access":
+      return "Restarting…";
     case "remove_project":
       return "Removing…";
     case "cancel_stream_action":

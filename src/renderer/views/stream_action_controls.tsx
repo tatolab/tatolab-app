@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";
-import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";
+import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import {
   listedStreamProjectDirectory,
   presentStreamActionCancel,
   streamActionRefusalLead,
   type StreamActionAskedByTheWindow,
+  type StreamPrimaryActionName,
   type StreamPrimaryActionPresentation,
 } from "../presentation/stream_presentation";
 import {
@@ -18,7 +19,7 @@ import { ConfirmationDialog } from "../design_system/confirmation_dialog";
 import { RefusalLine } from "../design_system/refusal_line";
 import { useTatolabWindowEnvironment } from "./tatolab_window_context";
 
-/** The action a person chose on a row, by its word: Stop, Start, Retry, Remove project or Cancel. */
+/** The action a person chose on a row, by its word: Stop, Start, Retry, Allow, Remove project or Cancel. */
 export type ChosenStreamActionLabel = StreamPrimaryActionPresentation["label"] | "Remove project" | "Cancel";
 
 /** The runtime's refusal of a stream's last action, after the action the person chose. */
@@ -99,8 +100,12 @@ export function useStreamActionsUnderWay(listedStreams: readonly ListedStream[])
     );
   };
 
-  const runStreamAction = (streamAction: TatolabStreamActionName, chosenActionLabel: ChosenStreamActionLabel, stream: ListedStream): void =>
-    askTheRuntime(streamAction, chosenActionLabel, [stream], () => backend.runStreamAction(streamAction, stream.stream));
+  const runStreamAction = (streamAction: StreamPrimaryActionName, chosenActionLabel: ChosenStreamActionLabel, stream: ListedStream): void =>
+    askTheRuntime(streamAction, chosenActionLabel, [stream], () =>
+      streamAction === "restart_to_be_asked_for_capture_device_access"
+        ? backend.runStreamAction("stop_stream", stream.stream).then(() => backend.runStreamAction("start_stream", stream.stream))
+        : backend.runStreamAction(streamAction, stream.stream),
+    );
 
   const removeProject = (projectDirectory: string, streamsOfThatProject: readonly ListedStream[]): void =>
     askTheRuntime("remove_project", "Remove project", streamsOfThatProject, () => backend.removeProject(projectDirectory));

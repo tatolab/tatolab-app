@@ -34,7 +34,7 @@ export function mockStreamIdOf(location: StreamLocation): string {
 
 /** A stream listed running, its graph loaded with `nodeCount` nodes, under the id its location computes to. */
 function runningListing(location: StreamLocation, displayName: string, nodeCount: number): ListedStream {
-  return { stream: mockStreamIdOf(location), display_name: displayName, location, state: "running", node_count: nodeCount, failed_because: null, action: null, step: null };
+  return { stream: mockStreamIdOf(location), display_name: displayName, location, state: "running", node_count: nodeCount, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
 }
 
 /** A log record before the mock runtime numbers and stamps it. */
@@ -471,13 +471,13 @@ function patternProjectDirectory(machine: MockMachine): string {
 /** A stream its owner stopped with `tatolab stop`. */
 function stoppedPatternTwoListing(machine: MockMachine): ListedStream {
   const location = { project_directory: patternProjectDirectory(machine), stream_function: "stream:pattern_two" };
-  return { stream: mockStreamIdOf(location), display_name: "pattern-two", location, state: "stopped", node_count: null, failed_because: null, action: null, step: null };
+  return { stream: mockStreamIdOf(location), display_name: "pattern-two", location, state: "stopped", node_count: null, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
 }
 
 /** A stream that could not load at the runtime's start. */
 function failedLobbyRecorderListing(machine: MockMachine): ListedStream {
   const location = { project_directory: `${machine.homeDirectory}/streams/lobby-recorder`, stream_function: "stream:main" };
-  return { stream: mockStreamIdOf(location), display_name: "lobby-recorder", location, state: "failed", node_count: null, failed_because: machine.cameraFailure, action: null, step: null };
+  return { stream: mockStreamIdOf(location), display_name: "lobby-recorder", location, state: "failed", node_count: null, failed_because: machine.cameraFailure, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
 }
 
 /** The machine the mock runtime runs on for `platform`, and the streams it lists. */
@@ -488,6 +488,8 @@ export interface MockStreamFixtures {
   /** `main` with its meter falling behind, so a link drops frames. */
   mainStreamWithItsMeterFallingBehind: MockStreamFixture;
   cameraStream: MockStreamFixture;
+  /** The camera stream as the runtime re-loads it at its start before anyone has asked for camera access. */
+  cameraStreamWaitingForCameraAccess: MockStreamFixture;
   /** A recorder in the pattern folder reading `main`'s exposed effect, a link whose source is in another stream. */
   recorderOfMainStream: MockStreamFixture;
   stoppedPatternTwo: ListedStream;
@@ -532,6 +534,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     mainStreamWithDisplayWindowInError: createTestPatternStream(machine, { ...mainStreamOptions, withDisplayWindowInError: true }),
     mainStreamWithItsMeterFallingBehind: createTestPatternStream(machine, { ...mainStreamOptions, withTheMeterFallingBehind: true }),
     cameraStream,
+    cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },
     recorderOfMainStream,
     stoppedPatternTwo,
     patternTwoStream: createTestPatternStream(machine, { ...mainStreamOptions, streamFunction: "stream:pattern_two", displayName: "pattern-two", exposesItsEffect: false }),
@@ -544,6 +547,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
       node_count: null,
       failed_because:
         "an earlier runtime recorded it, under record schema 2, and this runtime does not load it; run it again with `tatolab run` in its project, and `tatolab rm doorbell` forgets this record",
+      capture_devices_whose_access_was_never_asked_for: [],
       action: null,
       step: null,
     },

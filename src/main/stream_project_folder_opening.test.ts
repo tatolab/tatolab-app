@@ -11,7 +11,7 @@ function listedStream(displayName: string, projectDirectory: string | null): Lis
     location: projectDirectory === null ? null : { project_directory: projectDirectory, stream_function: "stream:main" },
     state: "running",
     node_count: 3,
-    failed_because: null, action: null, step: null,
+    failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null,
   };
 }
 

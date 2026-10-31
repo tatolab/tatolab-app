@@ -4,6 +4,8 @@ import { chooseSelectedStreamId } from "./stream_selection";
 import {
   abbreviateHomeDirectory,
   countLabel,
+  presentCaptureDeviceAccessAwaited,
+  presentStopBesideAllow,
   presentStreamActionCancel,
   presentStreamPrimaryAction,
   presentStreamState,
@@ -23,6 +25,7 @@ function listedStream(displayName: string, state: string, nodeCount: number | nu
     state,
     node_count: nodeCount,
     failed_because: null,
+    capture_devices_whose_access_was_never_asked_for: [],
     action: null,
     step: null,
   };
@@ -75,6 +78,36 @@ describe("presentStreamState", () => {
       iconTone: "idle",
     });
     expect(presentStreamState(listedStream("main", "", null)).label).toBe("Unknown");
+  });
+});
+
+describe("a stream waiting for capture-device access nobody has asked for", () => {
+  const waitingForTheCameraAndMicrophone: ListedStream = {
+    ...listedStream("desk", "running", 3),
+    capture_devices_whose_access_was_never_asked_for: ["camera", "microphone"],
+  };
+
+  it("reads as waiting for that access, in amber, saying why macOS has not asked", () => {
+    expect(presentStreamState(waitingForTheCameraAndMicrophone)).toMatchObject({ label: "Waiting for camera and microphone access", emphasis: "warning", iconTone: "idle" });
+    expect(presentCaptureDeviceAccessAwaited(waitingForTheCameraAndMicrophone)?.explanation).toContain("Allow restarts it, and macOS asks.");
+    expect(presentCaptureDeviceAccessAwaited(listedStream("desk", "running", 3))).toBeNull();
+  });
+
+  it("leads with Allow, which restarts it, and keeps Stop beside it", () => {
+    expect(presentStreamPrimaryAction(waitingForTheCameraAndMicrophone)).toEqual({
+      streamAction: "restart_to_be_asked_for_capture_device_access",
+      label: "Allow",
+      meaning: "Allow: restarts it, and macOS asks for the camera and microphone",
+    });
+    expect(presentStopBesideAllow(waitingForTheCameraAndMicrophone)).toMatchObject({ streamAction: "stop_stream", label: "Stop" });
+    expect(presentStopBesideAllow(listedStream("desk", "running", 3))).toBeNull();
+    expect(streamActionPendingWords("restart_to_be_asked_for_capture_device_access")).toBe("Restarting…");
+  });
+
+  it("names a device newer than this app in plain words", () => {
+    expect(presentStreamState({ ...listedStream("desk", "running", 3), capture_devices_whose_access_was_never_asked_for: ["depth_camera"] }).label).toBe(
+      "Waiting for depth camera access",
+    );
   });
 });
 

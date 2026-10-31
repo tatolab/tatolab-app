@@ -20,6 +20,7 @@ function listedStream(displayName: string, state: string, nodeCount: number | nu
     state,
     node_count: nodeCount,
     failed_because: null,
+    capture_devices_whose_access_was_never_asked_for: [],
     action: null,
     step: null,
   };

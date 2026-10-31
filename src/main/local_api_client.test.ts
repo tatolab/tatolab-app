@@ -185,6 +185,7 @@ function listedStream(
     state,
     node_count: nodeCount,
     failed_because: failedBecause,
+    capture_devices_whose_access_was_never_asked_for: [],
     action: actionUnderWay?.action ?? null,
     step: actionUnderWay?.step ?? null,
   };
@@ -282,6 +283,35 @@ test("a_stream_in_a_state_or_with_fields_this_app_does_not_know_is_still_listed"
   expect(answerOf(listedStreamsFromTheListStreamsToolResult(JSON.stringify(toolResult)))).toEqual([
     listedStream("newer-main-1a2b3c", "main", locationOf("/Users/me/newer"), "migrating", 1, null),
   ]);
+});
+
+test("a_stream_waiting_for_capture_device_access_lists_each_device_as_spelled", () => {
+  const toolResult = {
+    streams: [
+      {
+        stream: "camera-main-018da9",
+        display_name: "camera",
+        location: { project_directory: "/Users/me/camera", stream_function: "stream:main" },
+        state: "running",
+        node_count: 4,
+        failed_because: null,
+        capture_devices_whose_access_was_never_asked_for: ["camera", "a_device_from_later"],
+        action: null,
+        step: null,
+      },
+    ],
+  };
+
+  expect(answerOf(listedStreamsFromTheListStreamsToolResult(JSON.stringify(toolResult)))).toEqual([
+    { ...listedStream("camera-main-018da9", "camera", locationOf("/Users/me/camera"), "running", 4, null), capture_devices_whose_access_was_never_asked_for: ["camera", "a_device_from_later"] },
+  ]);
+  expect(
+    failureOf(
+      listedStreamsFromTheListStreamsToolResult(
+        JSON.stringify({ streams: [{ ...toolResult.streams[0], capture_devices_whose_access_was_never_asked_for: [1] }] }),
+      ),
+    ),
+  ).toBe("the runtime's list_streams result could not be read: `capture_devices_whose_access_was_never_asked_for` holds a value that is not a string");
 });
 
 test("a_record_an_earlier_runtime_wrote_is_listed_without_a_location", () => {
