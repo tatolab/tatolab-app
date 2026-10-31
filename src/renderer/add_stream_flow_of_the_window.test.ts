@@ -17,9 +17,13 @@ const HALLWAYS_DONE = hallwaysDescription({
   ],
 });
 
-/** A backend that chooses `HALLWAYS`, queues its load as `R1-3`, and answers each read of it with the next of `followedAnswers`, the last again once they run out; `null` rejects as the runtime not answering. */
-function scriptedBackend(followedAnswers: readonly (StreamActionFollowed | null)[]) {
+/**
+ * A backend that chooses `HALLWAYS`, queues its load as `R1-3`, and answers each read of it with the next of `followedAnswers`, the last again once they run out;
+ * `null` rejects as the runtime not answering. A cancel is answered `in_progress`, or refused with `cancelRefusal`.
+ */
+function scriptedBackend(followedAnswers: readonly (StreamActionFollowed | null)[], cancelRefusal: string | null = null) {
   const actionsDescribed: string[] = [];
+  const actionsCancelled: string[] = [];
   const foldersRun: string[] = [];
   const foldersCreated: (string | null)[] = [];
   let answerIndex = 0;
@@ -40,8 +44,13 @@ function scriptedBackend(followedAnswers: readonly (StreamActionFollowed | null)
       if (answer === null) throw "no runtime answers";
       return answer;
     },
+    cancelStreamAction: async (action) => {
+      actionsCancelled.push(action);
+      if (cancelRefusal !== null) throw cancelRefusal;
+      return { action, state: "in_progress" };
+    },
   };
-  return { backend, actionsDescribed, foldersRun, foldersCreated };
+  return { backend, actionsDescribed, actionsCancelled, foldersRun, foldersCreated };
 }
 
 function described(description: StreamActionDescription): StreamActionFollowed {
@@ -241,5 +250,49 @@ describe("the window's add-project flow", () => {
       step: "form",
       form: { source: "project_folder", chosenFolder: HALLWAYS, workUnderWay: null, refusal: { lead: "Import was refused:", words: "no runtime answers at /tmp/local-api.sock" } },
     });
+  });
+
+  it("cancels the load it follows once, says Cancelling until the following reads it cancelled, and stays usable for another", async () => {
+    vi.useFakeTimers();
+    const { backend, actionsCancelled } = scriptedBackend([
+      described(hallwaysDescription({ state: "in_progress", step: "making_the_venv" })),
+      described(hallwaysDescription({ state: "in_progress", step: "making_the_venv" })),
+      described(hallwaysDescription({ state: "cancelled" })),
+    ]);
+    const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
+    await importHallways(addStreamFlow);
+    addStreamFlow.cancelTheLoad();
+    addStreamFlow.cancelTheLoad();
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following", cancel: { kind: "asking" } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(actionsCancelled).toEqual(["R1-3"]);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following", cancel: { kind: "answered" } });
+
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following", cancel: { kind: "answered" } });
+    await vi.advanceTimersByTimeAsync(STREAM_ACTION_FOLLOWING_INTERVAL_MILLISECONDS);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "ended", ending: { kind: "cancelled" } });
+
+    addStreamFlow.dispatch({ kind: "add_another" });
+    addStreamFlow.chooseFolder();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "form", form: { chosenFolder: HALLWAYS, workUnderWay: null } });
+  });
+
+  it("keeps a declined cancel in the runtime's words, on the dialog and on the notice, and lets Cancel be pressed again", async () => {
+    vi.useFakeTimers();
+    const refusal = "Invalid configuration: the stream action `R1-3` is already cancelled, so there is nothing to cancel";
+    const { backend, actionsCancelled } = scriptedBackend([described(hallwaysDescription({ state: "queued" }))], refusal);
+    const addStreamFlow = new AddStreamFlowOfTheWindow(backend);
+    await importHallways(addStreamFlow);
+    addStreamFlow.closeDialog();
+    addStreamFlow.cancelTheLoad();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(addStreamFlow.readFlowState()).toMatchObject({ step: "following", cancel: { kind: "refused", words: refusal } });
+    expect(addStreamFlow.readRunNotice()).toMatchObject({ kind: "following", cancel: { kind: "refused", words: refusal } });
+
+    addStreamFlow.cancelTheLoad();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(actionsCancelled).toEqual(["R1-3", "R1-3"]);
   });
 });

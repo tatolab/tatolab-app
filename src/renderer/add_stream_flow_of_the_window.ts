@@ -2,6 +2,7 @@ import { describeBackendRejection, type TatolabBackend } from "./backend/tatolab
 import {
   addStreamRunNoticeOf,
   advanceAddStreamFlow,
+  canCancelTheFollowedAction,
   initialAddStreamFlowState,
   projectLoadRefusedLead,
   type AddStreamFlowEvent,
@@ -13,7 +14,7 @@ import {
 import { StreamActionFollowing, type StreamActionFollowingRead } from "./stream_action_following";
 
 /** The backend's commands adding a project uses. */
-export type AddStreamBackend = Pick<TatolabBackend, "chooseStreamProjectFolder" | "createStreamProject" | "runStreamProject" | "describeStreamAction">;
+export type AddStreamBackend = Pick<TatolabBackend, "chooseStreamProjectFolder" | "createStreamProject" | "runStreamProject" | "describeStreamAction" | "cancelStreamAction">;
 
 /** Which source the open New project or Import project dialog starts from, and whether a load's notice opened it. */
 export interface OpenAddStreamDialog {
@@ -112,6 +113,18 @@ export class AddStreamFlowOfTheWindow {
         if (this.flowState.step === "following" && this.flowState.queued.action === queued.action) this.projectLoadFollowing.follow(queued.action);
       },
       (rejection: unknown) => this.dispatch({ kind: "work_refused", lead: projectLoadRefusedLead(form.source), words: describeBackendRejection(rejection) }),
+    );
+  }
+
+  /** Cancel the load being followed: the runtime drops it from its queue, or stops it at its step and removes a half-made `.venv`; the following reads it `cancelled`. */
+  cancelTheLoad(): void {
+    const flowState = this.flowState;
+    if (flowState.step !== "following" || !canCancelTheFollowedAction(flowState.cancel)) return;
+    const action = flowState.queued.action;
+    this.dispatch({ kind: "cancel_asked", action });
+    this.backend.cancelStreamAction(action).then(
+      () => this.dispatch({ kind: "cancel_answered", action }),
+      (rejection: unknown) => this.dispatch({ kind: "cancel_refused", action, words: describeBackendRejection(rejection) }),
     );
   }
 

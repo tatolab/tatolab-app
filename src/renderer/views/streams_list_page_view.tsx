@@ -1,4 +1,4 @@
-import { ChevronRight, Copy, FolderOpen, type LucideIcon, Pencil, Play, Sparkles, Square, Trash2 } from "lucide-react";
+import { ChevronRight, Copy, FolderOpen, type LucideIcon, Pencil, Play, Sparkles, Square, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import mascotImageUrl from "../assets/tato_mascot_3d.png";
@@ -17,6 +17,7 @@ import { presentPlatform, windowDragRegionAttribute } from "../presentation/plat
 import {
   abbreviateHomeDirectory,
   listedStreamProjectDirectory,
+  presentStreamActionCancel,
   presentStreamPrimaryAction,
   presentStreamState,
   streamActionInTheListingWords,
@@ -41,26 +42,25 @@ import { streamPagePath } from "./stream_page_path";
 import type { AddStreamSource } from "../presentation/add_stream_flow";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
-function StreamRowActions({
-  stream,
-  actionUnderWay,
-  onPrimaryAction,
-  onRemoveProjectAsked,
-  onRenameAsked,
-}: {
-  stream: ListedStream;
-  actionUnderWay: StreamActionUnderWay | undefined;
+/** What a stream's row does when a person chooses one of its actions. */
+export interface StreamsListRowActions {
   onPrimaryAction: (primaryAction: StreamPrimaryActionPresentation) => void;
+  onCancelAsked: () => void;
   onRemoveProjectAsked: () => void;
   onRenameAsked: () => void;
-}) {
+}
+
+function StreamRowActions({ stream, actionUnderWay, rowActions }: { stream: ListedStream; actionUnderWay: StreamActionUnderWay | undefined; rowActions: StreamsListRowActions }) {
+  const { onPrimaryAction, onCancelAsked, onRemoveProjectAsked, onRenameAsked } = rowActions;
   const primaryAction = presentStreamPrimaryAction(stream);
+  const cancel = presentStreamActionCancel(stream);
   const projectDirectory = listedStreamProjectDirectory(stream);
   const listedActionWords = streamActionInTheListingWords(stream);
   if (actionUnderWay !== undefined) return <PendingActionWords words={streamActionPendingWords(actionUnderWay.streamAction)} />;
   return (
     <div className="flex items-center justify-end gap-0.5">
       {listedActionWords !== null && <PendingActionWords words={listedActionWords} />}
+      {cancel !== null && <IconButton icon={X} label={cancel.meaning} onPressed={onCancelAsked} data-stream-action="cancel_stream_action" />}
       {primaryAction !== null && (
         <IconButton
           icon={primaryAction.streamAction === "stop_stream" ? Square : Play}
@@ -96,21 +96,17 @@ export function StreamsListRow({
   stream,
   actionUnderWay,
   refusal,
-  onPrimaryAction,
-  onRemoveProjectAsked,
-  onRenameAsked,
+  rowActions,
 }: {
   stream: ListedStream;
   actionUnderWay: StreamActionUnderWay | undefined;
   refusal: StreamActionRefusalWords | undefined;
-  onPrimaryAction: (primaryAction: StreamPrimaryActionPresentation) => void;
-  onRemoveProjectAsked: () => void;
-  onRenameAsked: () => void;
+  rowActions: StreamsListRowActions;
 }) {
   const navigate = useNavigate();
   const statePresentation = presentStreamState(stream);
   return (
-    <StreamRowRightClickMenu stream={stream} onRenameAsked={onRenameAsked}>
+    <StreamRowRightClickMenu stream={stream} onRenameAsked={rowActions.onRenameAsked}>
       <li
         data-stream-row={stream.stream}
         onClick={() => {
@@ -134,7 +130,7 @@ export function StreamsListRow({
           <span className="flex-1" />
           {/* The row navigates on click, and React carries a click in the actions' portalled menu up to it. */}
           <div className="shrink-0" onClick={(clickEvent) => clickEvent.stopPropagation()}>
-            <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} onPrimaryAction={onPrimaryAction} onRemoveProjectAsked={onRemoveProjectAsked} onRenameAsked={onRenameAsked} />
+            <StreamRowActions stream={stream} actionUnderWay={actionUnderWay} rowActions={rowActions} />
           </div>
         </div>
         {stream.state === "failed" && stream.failed_because !== null && (
@@ -224,7 +220,7 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
   const status = useTatolabStatus();
   const [chosenFilter, setChosenFilter] = useState<StreamsListFilter>("all");
   const [filterText, setFilterText] = useState("");
-  const { actionsUnderWay, refusalWords, runStreamAction, removeProject } = useStreamActionsUnderWay(listedStreams);
+  const { actionsUnderWay, refusalWords, runStreamAction, removeProject, cancelTheListedAction } = useStreamActionsUnderWay(listedStreams);
   const { askToRemoveTheProjectOf, removalDialog } = useProjectRemovalDialog(listedStreams, removeProject);
   const { askToRename, renameDialog } = useStreamRenameDialog();
   const shownStreams = listedStreams.filter((stream) => streamMatchesListFilter(stream, chosenFilter) && streamMatchesFilterText(stream, filterText));
@@ -275,9 +271,12 @@ export function StreamsListPageView({ listedStreams }: { listedStreams: readonly
                       stream={stream}
                       actionUnderWay={actionsUnderWay.get(stream.stream)}
                       refusal={refusalWords.get(stream.stream)}
-                      onPrimaryAction={(primaryAction) => runStreamAction(primaryAction.streamAction, primaryAction.label, stream)}
-                      onRemoveProjectAsked={() => askToRemoveTheProjectOf(stream)}
-                      onRenameAsked={() => askToRename(stream)}
+                      rowActions={{
+                        onPrimaryAction: (primaryAction) => runStreamAction(primaryAction.streamAction, primaryAction.label, stream),
+                        onCancelAsked: () => cancelTheListedAction(stream),
+                        onRemoveProjectAsked: () => askToRemoveTheProjectOf(stream),
+                        onRenameAsked: () => askToRename(stream),
+                      }}
                     />
                   ))}
                 </ul>

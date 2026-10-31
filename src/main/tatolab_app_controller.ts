@@ -17,6 +17,7 @@ import type {
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
+  StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamGraphSummary,
   TatolabAppBuild,
@@ -407,6 +408,11 @@ export class TatolabAppController {
   /** The stream action `action` as the runtime's `describe_stream_action` describes it. */
   describeStreamAction(action: string): Promise<Result<StreamActionFollowed, LocalApiRequestFailure>> {
     return this.localApiClient.describeStreamAction(action);
+  }
+
+  /** End the stream action `action` early through the runtime's `cancel_stream_action`. */
+  cancelStreamAction(action: string): Promise<Result<StreamActionCancelAnswer, LocalApiRequestFailure>> {
+    return this.localApiClient.cancelStreamAction(action);
   }
 
   /** Every stream the runtime lists now. */

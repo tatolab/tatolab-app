@@ -1,4 +1,4 @@
-import { CodeXml, Copy, RotateCw, SquareTerminal, Trash2 } from "lucide-react";
+import { CodeXml, Copy, RotateCw, SquareTerminal, Trash2, X } from "lucide-react";
 import { useEffect } from "react";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { writeTextToClipboard } from "../clipboard";
@@ -13,7 +13,7 @@ import { RefusalLine } from "../design_system/refusal_line";
 import { folderBaseName } from "../presentation/add_stream_flow";
 import { windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { presentProjectReload, type ProjectReloadPresentation } from "../presentation/project_page_presentation";
-import { abbreviateHomeDirectory } from "../presentation/stream_presentation";
+import { abbreviateHomeDirectory, streamActionRefusalLead } from "../presentation/stream_presentation";
 import { isProjectReloadUnderWay } from "../project_reloads_of_the_window";
 import { PROJECT_PAGE_TABS, projectPagePath, type ProjectPageTab } from "./project_page_path";
 import { StreamActionRefusalLine, useProjectRemovalDialog, useStreamActionsUnderWay, useStreamProjectFolderOpening } from "./stream_action_controls";
@@ -31,9 +31,16 @@ function parentFolderWords(projectDirectory: string): string {
   return abbreviateHomeDirectory(parentDirectory === "" ? "/" : parentDirectory);
 }
 
-/** What the project's last Reload came to, under its header, with Dismiss; nothing while it is under way. */
+/** What the project's last Reload came to, under its header, with Dismiss; while it is under way, only the runtime's refusal of its Cancel. */
 function ProjectReloadOutcomeLine({ presentation, onDismissed }: { presentation: ProjectReloadPresentation; onDismissed: () => void }) {
-  if (presentation.kind === "under_way") return null;
+  if (presentation.kind === "under_way") {
+    if (presentation.cancelRefusal === null) return null;
+    return (
+      <div data-project-reload-cancel-refusal="">
+        <RefusalLine lead={streamActionRefusalLead("Cancel")} words={presentation.cancelRefusal} />
+      </div>
+    );
+  }
   const dismissLink = (
     <InlineLink destination={{ onPressed: onDismissed }} tone="quiet" data-project-action="dismiss_reload">
       Dismiss
@@ -77,7 +84,7 @@ export function ProjectPageView({
   const { platform, projectReloads } = useTatolabWindowEnvironment();
   const listedStreams = useTatolabStatus().streams;
   const reload = useProjectReload(projectDirectory);
-  const { actionsUnderWay, refusalWords, runStreamAction, removeProject } = useStreamActionsUnderWay(streamsOfTheProject);
+  const { actionsUnderWay, refusalWords, runStreamAction, removeProject, cancelTheListedAction } = useStreamActionsUnderWay(streamsOfTheProject);
   const { askToRemoveTheProjectAt, removalDialog } = useProjectRemovalDialog(streamsOfTheProject, removeProject);
   const { askToRename, renameDialog } = useStreamRenameDialog();
   const [firstStream] = streamsOfTheProject;
@@ -85,11 +92,17 @@ export function ProjectPageView({
   const projectName = folderBaseName(projectDirectory);
   const reloadPresentation = reload === null ? null : presentProjectReload(projectDirectory, reload, listedStreams);
   const isRemovalUnderWay = streamsOfTheProject.some((stream) => actionsUnderWay.get(stream.stream)?.streamAction === "remove_project");
+  const isTheReloadCancellingFromARow =
+    reload?.kind === "following" &&
+    streamsOfTheProject.some((stream) => stream.action === reload.action && actionsUnderWay.get(stream.stream)?.streamAction === "cancel_stream_action");
   const removalRefusal = streamsOfTheProject.map((stream) => refusalWords.get(stream.stream)).find((refusal) => refusal?.chosenActionLabel === "Remove project");
 
   useEffect(() => () => projectReloads.putAwayTheEndedReloadOf(projectDirectory), [projectReloads, projectDirectory]);
 
-  const hasNotices = (reloadPresentation !== null && reloadPresentation.kind !== "under_way") || projectOpeningRefusal !== null || removalRefusal !== undefined;
+  const hasNotices =
+    (reloadPresentation !== null && (reloadPresentation.kind !== "under_way" || reloadPresentation.cancelRefusal !== null)) ||
+    projectOpeningRefusal !== null ||
+    removalRefusal !== undefined;
 
   return (
     <PageFrame
@@ -110,7 +123,18 @@ export function ProjectPageView({
               {isRemovalUnderWay ? (
                 <PendingActionWords words="Removing…" />
               ) : reloadPresentation?.kind === "under_way" ? (
-                <PendingActionWords words={reloadPresentation.words} />
+                <>
+                  <PendingActionWords words={reloadPresentation.words} />
+                  <ActionButton
+                    icon={X}
+                    isDisabled={!reloadPresentation.canCancel || isTheReloadCancellingFromARow}
+                    tooltip="The runtime stops the reload at the step it is on"
+                    onPressed={() => projectReloads.cancelTheReloadOf(projectDirectory)}
+                    data-project-action="cancel_reload"
+                  >
+                    Cancel
+                  </ActionButton>
+                </>
               ) : (
                 <ActionButton icon={RotateCw} tooltip={`Load every stream of ${projectName} again`} onPressed={() => projectReloads.reload(projectDirectory)} data-project-action="reload">
                   Reload
@@ -167,9 +191,12 @@ export function ProjectPageView({
                 stream={stream}
                 actionUnderWay={actionsUnderWay.get(stream.stream)}
                 refusal={refusalWords.get(stream.stream)}
-                onPrimaryAction={(primaryAction) => runStreamAction(primaryAction.streamAction, primaryAction.label, stream)}
-                onRemoveProjectAsked={() => askToRemoveTheProjectAt(projectDirectory)}
-                onRenameAsked={() => askToRename(stream)}
+                rowActions={{
+                  onPrimaryAction: (primaryAction) => runStreamAction(primaryAction.streamAction, primaryAction.label, stream),
+                  onCancelAsked: () => cancelTheListedAction(stream),
+                  onRemoveProjectAsked: () => askToRemoveTheProjectAt(projectDirectory),
+                  onRenameAsked: () => askToRename(stream),
+                }}
               />
             ))}
           </ul>

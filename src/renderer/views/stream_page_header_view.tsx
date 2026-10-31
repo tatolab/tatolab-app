@@ -1,4 +1,4 @@
-import { CodeXml, Copy, FolderOpen, PanelRight, Pencil, Play, Square, SquareTerminal } from "lucide-react";
+import { CodeXml, Copy, FolderOpen, PanelRight, Pencil, Play, Square, SquareTerminal, X } from "lucide-react";
 import { useNavigate } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { writeTextToClipboard } from "../clipboard";
@@ -13,6 +13,7 @@ import { shortcutHint, windowDragRegionAttribute } from "../presentation/platfor
 import {
   isStreamLoaded,
   listedStreamProjectDirectory,
+  presentStreamActionCancel,
   presentStreamPrimaryAction,
   streamActionInTheListingWords,
   streamActionPendingWords,
@@ -56,6 +57,7 @@ export interface StreamPageActions {
   actionUnderWay: StreamActionUnderWay | undefined;
   refusal: StreamActionRefusalWords | undefined;
   runPrimaryAction(chosenAction: StreamPrimaryActionPresentation): void;
+  cancelTheListedAction(): void;
   askToRename(): void;
 }
 
@@ -75,8 +77,9 @@ export function StreamPageHeaderView({
   const { platform } = useTatolabWindowEnvironment();
   const { openProjectFolder, openTerminalAtProject, projectOpeningRefusal } = useStreamProjectFolderOpening(stream.stream);
   const navigate = useNavigate();
-  const { actionUnderWay, refusal, runPrimaryAction, askToRename } = streamPageActions;
+  const { actionUnderWay, refusal, runPrimaryAction, cancelTheListedAction, askToRename } = streamPageActions;
   const primaryAction = presentStreamPrimaryAction(stream);
+  const cancel = presentStreamActionCancel(stream);
   const listedActionWords = streamActionInTheListingWords(stream);
   const projectDirectory = listedStreamProjectDirectory(stream);
   return (
@@ -89,7 +92,14 @@ export function StreamPageHeaderView({
           {actionUnderWay !== undefined ? (
             <PendingActionWords words={streamActionPendingWords(actionUnderWay.streamAction)} />
           ) : listedActionWords !== null ? (
-            <PendingActionWords words={listedActionWords} />
+            <>
+              <PendingActionWords words={listedActionWords} />
+              {cancel !== null && (
+                <ActionButton icon={X} tooltip={cancel.meaning} onPressed={cancelTheListedAction} data-stream-action="cancel_stream_action">
+                  Cancel
+                </ActionButton>
+              )}
+            </>
           ) : (
             primaryAction !== null && (
               <ActionButton

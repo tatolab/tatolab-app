@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import type { ListedStream, TatolabStreamActionName } from "../../shared/tatolab_backend_contract";
-import { listedStreamProjectDirectory, streamActionRefusalLead, type StreamActionAskedByTheWindow, type StreamPrimaryActionPresentation } from "../presentation/stream_presentation";
+import {
+  listedStreamProjectDirectory,
+  presentStreamActionCancel,
+  streamActionRefusalLead,
+  type StreamActionAskedByTheWindow,
+  type StreamPrimaryActionPresentation,
+} from "../presentation/stream_presentation";
 import {
   isStreamActionStillUnderWay,
   presentProjectRemovalConfirmation,
@@ -12,8 +18,8 @@ import { ConfirmationDialog } from "../design_system/confirmation_dialog";
 import { RefusalLine } from "../design_system/refusal_line";
 import { useTatolabWindowEnvironment } from "./tatolab_window_context";
 
-/** The action a person chose on a row, by its word: Stop, Start, Retry or Remove project. */
-export type ChosenStreamActionLabel = StreamPrimaryActionPresentation["label"] | "Remove project";
+/** The action a person chose on a row, by its word: Stop, Start, Retry, Remove project or Cancel. */
+export type ChosenStreamActionLabel = StreamPrimaryActionPresentation["label"] | "Remove project" | "Cancel";
 
 /** The runtime's refusal of a stream's last action, after the action the person chose. */
 export interface StreamActionRefusalWords {
@@ -99,7 +105,16 @@ export function useStreamActionsUnderWay(listedStreams: readonly ListedStream[])
   const removeProject = (projectDirectory: string, streamsOfThatProject: readonly ListedStream[]): void =>
     askTheRuntime("remove_project", "Remove project", streamsOfThatProject, () => backend.removeProject(projectDirectory));
 
-  return { actionsUnderWay, refusalWords, runStreamAction, removeProject };
+  const cancelTheListedAction = (stream: ListedStream): void => {
+    const cancel = presentStreamActionCancel(stream);
+    if (cancel === null) return;
+    const streamsUnderTheAction = latestListedStreams.current.filter((listedStream) => listedStream.action === cancel.action);
+    askTheRuntime("cancel_stream_action", "Cancel", streamsUnderTheAction.length > 0 ? streamsUnderTheAction : [stream], () =>
+      backend.cancelStreamAction(cancel.action).then(() => undefined),
+    );
+  };
+
+  return { actionsUnderWay, refusalWords, runStreamAction, removeProject, cancelTheListedAction };
 }
 
 /** Opens the project folder the runtime lists for `streamId`, or a terminal in it, keeping why the last try was refused, in the words of what refused it, until the next. */

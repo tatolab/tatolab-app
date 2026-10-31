@@ -1,5 +1,5 @@
 import type { ListedStream, StreamActionDescription, StreamTakenInByAnAction } from "../../shared/tatolab_backend_contract";
-import { labelUnknownStreamState, presentStreamState, streamActionStepWords } from "./stream_presentation";
+import { labelUnknownStreamState, presentStreamState, streamActionRefusalLead, streamActionStepWords } from "./stream_presentation";
 
 /** Where a new project comes from: a project folder the person has, or a new project the runtime writes. */
 export type AddStreamSource = "project_folder" | "new_project";
@@ -31,10 +31,33 @@ export type ProjectLoadEnding =
   | { kind: "cancelled"; description: StreamActionDescription }
   | { kind: "no_longer_followed"; words: string };
 
+/** A Cancel the window asked of a followed action: being asked, answered while the runtime ends the action, or refused in the runtime's words. */
+export type FollowedStreamActionCancel = { kind: "asking" } | { kind: "answered" } | { kind: "refused"; words: string };
+
+/** Whether Cancel can be pressed on a followed action: not while one is being asked or the runtime is ending the action. */
+export function canCancelTheFollowedAction(cancel: FollowedStreamActionCancel | null): boolean {
+  return cancel === null || cancel.kind === "refused";
+}
+
+/** Whether a Cancel of a followed action is being asked or the runtime is ending the action. */
+export function isTheFollowedActionCancelling(cancel: FollowedStreamActionCancel | null): boolean {
+  return !canCancelTheFollowedAction(cancel);
+}
+
+/** What a followed action says while it is being cancelled. */
+export const CANCELLING_WORDS = "Cancelling";
+
 /** The add-project dialog: the form, a queued load followed through its steps, or how it ended. */
 export type AddStreamFlowState =
   | { step: "form"; form: AddStreamForm }
-  | { step: "following"; form: AddStreamForm; queued: QueuedProjectLoad; description: StreamActionDescription | null; stepsSeen: readonly string[] }
+  | {
+      step: "following";
+      form: AddStreamForm;
+      queued: QueuedProjectLoad;
+      description: StreamActionDescription | null;
+      stepsSeen: readonly string[];
+      cancel: FollowedStreamActionCancel | null;
+    }
   | { step: "ended"; form: AddStreamForm; queued: QueuedProjectLoad; ending: ProjectLoadEnding };
 
 /** What happened in the dialog, from the person or from the backend's answer. */
@@ -46,6 +69,9 @@ export type AddStreamFlowEvent =
   | { kind: "load_queued"; queued: QueuedProjectLoad }
   | { kind: "load_described"; description: StreamActionDescription }
   | { kind: "load_no_longer_followed"; action: string; words: string }
+  | { kind: "cancel_asked"; action: string }
+  | { kind: "cancel_answered"; action: string }
+  | { kind: "cancel_refused"; action: string; words: string }
   | { kind: "add_another" };
 
 /** The form as it first shows for `source`, nothing chosen yet. */
@@ -105,10 +131,28 @@ export function advanceAddStreamFlow(state: AddStreamFlowState, event: AddStream
       return state.step === "following" && event.action === state.queued.action
         ? { step: "ended", form: state.form, queued: state.queued, ending: { kind: "no_longer_followed", words: event.words } }
         : state;
+    case "cancel_asked":
+    case "cancel_answered":
+    case "cancel_refused":
+      return state.step === "following" && event.action === state.queued.action ? { ...state, cancel: followedActionCancelAfter(event) } : state;
     case "add_another":
       return state.step === "following" ? state : initialAddStreamFlowState(state.form.source);
   }
   return state.step === "form" ? advanceTheForm(state, event) : state;
+}
+
+/** The Cancel of a followed action after the window asked for it, the runtime answered, or it refused. */
+export function followedActionCancelAfter(
+  event: { kind: "cancel_asked" } | { kind: "cancel_answered" } | { kind: "cancel_refused"; words: string },
+): FollowedStreamActionCancel {
+  switch (event.kind) {
+    case "cancel_asked":
+      return { kind: "asking" };
+    case "cancel_answered":
+      return { kind: "answered" };
+    case "cancel_refused":
+      return { kind: "refused", words: event.words };
+  }
 }
 
 /** Whether a stream action has ended: done, cancelled or failed; any other state, one newer than this app among them, is still under way. */
@@ -141,9 +185,19 @@ function advanceTheForm(state: AddStreamFlowState, event: AddStreamFlowEvent): A
       return withForm(state, { refusal: { lead: event.lead, words: event.words }, workUnderWay: null });
     case "load_queued":
       if (state.form.workUnderWay !== "queuing_the_load") return state;
-      return { step: "following", form: { ...state.form, workUnderWay: null, refusal: null }, queued: event.queued, description: null, stepsSeen: [QUEUED_STEP_WORDS] };
+      return {
+        step: "following",
+        form: { ...state.form, workUnderWay: null, refusal: null },
+        queued: event.queued,
+        description: null,
+        stepsSeen: [QUEUED_STEP_WORDS],
+        cancel: null,
+      };
     case "load_described":
     case "load_no_longer_followed":
+    case "cancel_asked":
+    case "cancel_answered":
+    case "cancel_refused":
     case "add_another":
       return state;
   }
@@ -191,6 +245,11 @@ export function followedStepWords(description: StreamActionDescription | null): 
   if (description === null || description.state === "queued") return QUEUED_STEP_WORDS;
   const stepWords = description.step === null ? labelUnknownStreamState(description.state).toLowerCase() : streamActionStepWords(description.step);
   return stepWords.charAt(0).toUpperCase() + stepWords.slice(1);
+}
+
+/** What a followed action's step line says: Cancelling while it is being cancelled, else its step. */
+export function followedStepOrCancellingWords(description: StreamActionDescription | null, cancel: FollowedStreamActionCancel | null): string {
+  return isTheFollowedActionCancelling(cancel) ? CANCELLING_WORDS : followedStepWords(description);
 }
 
 /** The heading of a load under way: Creating or Importing, and the project's folder name. */
@@ -275,7 +334,7 @@ export function addStreamStepAnnouncement(state: AddStreamFlowState, isTheRuntim
 
 /** A load the window followed while the dialog was closed, for the notice that says where it has got to or what it came to. */
 export type AddStreamRunNotice =
-  | { kind: "following"; source: AddStreamSource; queued: QueuedProjectLoad; description: StreamActionDescription | null }
+  | { kind: "following"; source: AddStreamSource; queued: QueuedProjectLoad; description: StreamActionDescription | null; cancel: FollowedStreamActionCancel | null }
   | { kind: "ended"; source: AddStreamSource; queued: QueuedProjectLoad; ending: ProjectLoadEnding }
   | { kind: "failed"; source: AddStreamSource; lead: string; words: string };
 
@@ -284,7 +343,7 @@ export function addStreamRunNoticeOf(state: AddStreamFlowState): AddStreamRunNot
   const source = state.form.source;
   switch (state.step) {
     case "following":
-      return { kind: "following", source, queued: state.queued, description: state.description };
+      return { kind: "following", source, queued: state.queued, description: state.description, cancel: state.cancel };
     case "ended":
       return { kind: "ended", source, queued: state.queued, ending: state.ending };
     case "form": {
@@ -298,21 +357,31 @@ export function addStreamRunNoticeOf(state: AddStreamFlowState): AddStreamRunNot
 /** How bad a notice's news is: plain, a warning to read, or a failure. */
 export type NoticeTone = "plain" | "warning" | "failure";
 
-/** A load's notice in words: its title, what it says under it, how bad it is, and whether it is still under way. */
+/** A load's notice in words: its title, what it says under it, how bad it is, whether it is still under way, and whether Cancel can be pressed on it. */
 export interface AddStreamRunNoticePresentation {
   title: string;
   detail: string;
   tone: NoticeTone;
   isUnderWay: boolean;
+  canCancel: boolean;
 }
 
 /** A load's notice in the dialog's own words: its step while under way, its streams once done, and a failure as the runtime gave it. */
 export function presentAddStreamRunNotice(notice: AddStreamRunNotice, listedStreams: readonly ListedStream[] | null): AddStreamRunNoticePresentation {
   switch (notice.kind) {
-    case "following":
-      return { title: followingHeadingWords(notice.source, notice.queued), detail: `${followedStepWords(notice.description)}…`, tone: "plain", isUnderWay: true };
+    case "following": {
+      const stepWords = `${followedStepOrCancellingWords(notice.description, notice.cancel)}…`;
+      const cancel = notice.cancel;
+      return {
+        title: followingHeadingWords(notice.source, notice.queued),
+        detail: cancel?.kind === "refused" ? `${stepWords} ${streamActionRefusalLead("Cancel")} ${cancel.words}` : stepWords,
+        tone: cancel?.kind === "refused" ? "warning" : "plain",
+        isUnderWay: true,
+        canCancel: canCancelTheFollowedAction(cancel),
+      };
+    }
     case "failed":
-      return { title: notice.lead.replace(/:$/, ""), detail: notice.words, tone: "failure", isUnderWay: false };
+      return { title: notice.lead.replace(/:$/, ""), detail: notice.words, tone: "failure", isUnderWay: false, canCancel: false };
     case "ended": {
       const ending = notice.ending;
       if (ending.kind !== "done") {
@@ -321,6 +390,7 @@ export function presentAddStreamRunNotice(notice: AddStreamRunNotice, listedStre
           detail: projectLoadNotFinishedLeadWords(ending),
           tone: "warning",
           isUnderWay: false,
+          canCancel: false,
         };
       }
       const streamsTakenIn = presentStreamsTakenIn(ending.description, listedStreams);
@@ -330,6 +400,7 @@ export function presentAddStreamRunNotice(notice: AddStreamRunNotice, listedStre
         detail: streamsTakenIn.map((streamTakenIn) => `${streamTakenIn.displayName}: ${streamTakenIn.stateLabel}`).join(" · "),
         tone: streamsTakenIn.length === 0 ? "warning" : failedCount === 0 ? "plain" : failedCount === streamsTakenIn.length ? "failure" : "warning",
         isUnderWay: false,
+        canCancel: false,
       };
     }
   }

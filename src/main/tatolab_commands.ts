@@ -11,6 +11,7 @@ import type {
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
+  StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamGraphSummary,
   StreamProjectFolderChosenFor,
@@ -214,6 +215,15 @@ export function describeStreamAction(sharedState: TatolabAppSharedState, action:
   return answerTheWindow("describe_stream_action", async (): Promise<Result<StreamActionFollowed, string>> => {
     const followed = await sharedState.controller.describeStreamAction(action);
     return followed.ok ? followed : failedWith(followed.failure.failureDescription);
+  });
+}
+
+/** `cancel_stream_action { action }`: the runtime's `cancel_stream_action`, then a status round; refused in the runtime's own words. */
+export function cancelStreamAction(sharedState: TatolabAppSharedState, action: string): Promise<Result<StreamActionCancelAnswer, string>> {
+  return answerTheWindow("cancel_stream_action", async () => {
+    const answer = await sharedState.controller.cancelStreamAction(action);
+    sharedState.statusPublisher.requestRefresh();
+    return answer.ok ? answer : failedWith(answer.failure.failureDescription);
   });
 }
 
@@ -490,6 +500,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const action = oneTextArgumentFrom("describe_stream_action", commandArguments, "action", "a stream action's id");
       if (!action.ok) return { ok: false, refusal: action.failure };
       return commandAnswerFrom(await describeStreamAction(sharedState, action.value));
+    },
+    cancel_stream_action: async (commandArguments) => {
+      const action = oneTextArgumentFrom("cancel_stream_action", commandArguments, "action", "a stream action's id");
+      if (!action.ok) return { ok: false, refusal: action.failure };
+      return commandAnswerFrom(await cancelStreamAction(sharedState, action.value));
     },
     describe_runtime: async () => commandAnswerFrom(await describeRuntime(sharedState)),
     restart_runtime: async () => commandAnswerOfNothingFrom(await restartRuntime(sharedState)),

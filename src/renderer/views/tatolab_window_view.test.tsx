@@ -135,6 +135,29 @@ describe("the Streams list", () => {
     expect(within(rowOf("camera")).queryByRole("status")).toBeNull();
   });
 
+  it("cancels a retry from its row while it prepares, the stream then failed in the runtime's words for the cancel", async () => {
+    await mountedWindowOverTheMock("state=running");
+
+    fireEvent.click(within(rowOf("lobby-recorder")).getByRole("button", { name: "Retry: loads it again from its record" }));
+    const cancel = await waitFor(() => within(rowOf("lobby-recorder")).getByRole("button", { name: /^Cancel: / }));
+    fireEvent.click(cancel);
+
+    expect(within(rowOf("lobby-recorder")).getByRole("status").textContent).toBe("Cancelling…");
+    await waitFor(() => expect(within(rowOf("lobby-recorder")).getByText(/was not loaded: its stream action was cancelled$/)).toBeTruthy(), { timeout: 3000 });
+    expect(within(rowOf("lobby-recorder")).getByRole("link", { name: "lobby-recorder, Failed" })).toBeTruthy();
+    expect(within(rowOf("lobby-recorder")).queryByRole("alert")).toBeNull();
+  });
+
+  it("shows the runtime's words for a stop past cancelling, and the stop runs to its end", async () => {
+    await mountedWindowOverTheMock("state=running");
+
+    fireEvent.click(within(rowOf("camera")).getByRole("button", { name: "Stop: unloads it and remembers it stopped" }));
+    fireEvent.click(await waitFor(() => within(rowOf("camera")).getByRole("button", { name: "Cancel: a stop that has begun unloading runs to its end" })));
+
+    await waitFor(() => expect(within(rowOf("camera")).getByRole("alert").textContent).toMatch(/^Cancel was refused: Invalid configuration: the stream action `.+` is a running stop, which has begun unloading its streams and cannot be cut short; it ends done$/));
+    await waitFor(() => expect(within(rowOf("camera")).getByRole("link", { name: "camera, Stopped" })).toBeTruthy(), { timeout: 3000 });
+  });
+
   it("asks before removing a project, naming its folder and every stream of it, and removes them only when told to", async () => {
     await mountedWindowOverTheMock("state=running");
 
@@ -346,6 +369,19 @@ describe("a project's page", () => {
 
     fireEvent.click(outcome.querySelector<HTMLElement>('[data-project-action="dismiss_reload"]') ?? expect.unreachable("no Dismiss"));
     expect(document.querySelector("[data-project-reload-outcome]")).toBeNull();
+  });
+
+  it("cancels a reload from the bar, saying it was cancelled, with Reload back", { timeout: 15_000 }, async () => {
+    await mountedWindowOverTheMock("state=running");
+    const projectPage = await openTheProjectPageOf(PATTERN_PROJECT);
+
+    fireEvent.click(projectPage.querySelector<HTMLElement>('[data-project-action="reload"]') ?? expect.unreachable("no Reload"));
+    const cancel = await waitFor(() => projectPage.querySelector<HTMLButtonElement>('[data-project-action="cancel_reload"]:not([disabled])') ?? expect.unreachable("no Cancel yet"));
+    fireEvent.click(cancel);
+
+    const outcome = await waitFor(() => document.querySelector<HTMLElement>("[data-project-reload-outcome]") ?? expect.unreachable("no outcome yet"), MOCK_LOAD_WAIT);
+    expect(outcome.textContent).toContain("The reload was cancelled.");
+    expect(projectPage.querySelector('[data-project-action="reload"]')).not.toBeNull();
   });
 
   it("shows the runtime's refusal of a reload in its own words", async () => {
@@ -1033,6 +1069,38 @@ describe("New project and Import project", () => {
     await waitFor(() => expect(document.querySelector('[data-add-stream-ending="done"] h2')?.textContent).toBe("kind-butte is running"), MOCK_LOAD_AFTER_MAKING_THE_VENV_WAIT);
     fireEvent.click(await addStreamControl("open_the_stream"));
     await waitFor(() => expect(document.querySelector(`[data-stream-page="${mockStreamIdOfTheProjectStream("main", "/Users/jonathanf/streams/kind-butte")}"]`)).not.toBeNull());
+  });
+
+  it("cancels a New project while it makes its environment, says so, and stays usable for another", { timeout: 20_000 }, async () => {
+    await mountedWindowOverTheMock("state=empty");
+    fireEvent.click(screen.getByRole("button", { name: /Create the sample project/ }));
+    fireEvent.click(await addStreamControl("create"));
+    await waitFor(() => expect(document.querySelector('[data-add-stream-step="following"]')?.getAttribute("data-add-stream-load-step")).toBe("making_the_venv"), MOCK_LOAD_WAIT);
+
+    fireEvent.click(await addStreamControl("cancel_the_load"));
+    await waitFor(() => expect(document.querySelector('[data-add-stream-step="following"] h2 + p')?.textContent).toBe("Cancelling…"));
+    expect((await addStreamControl("cancel_the_load")).hasAttribute("disabled")).toBe(true);
+    await waitFor(() => expect(document.querySelector('[data-add-stream-ending="cancelled"] h2')?.textContent).toBe("Creating kind-butte was cancelled"), MOCK_LOAD_AFTER_MAKING_THE_VENV_WAIT);
+
+    fireEvent.click(await addStreamControl("add_another"));
+    await waitFor(() => expect(document.querySelector('[data-add-stream-step="new_project"]')).not.toBeNull());
+    expect((await addStreamControl("create")).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("shows a declined cancel in the runtime's words and keeps following the load", { timeout: 15_000 }, async () => {
+    const refusal = "Invalid configuration: the stream action `R1-3` is already done, so there is nothing to cancel";
+    await mountedWindowOverTheMock("state=empty", {
+      cancelStreamAction: async () => {
+        throw refusal;
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Create the sample project/ }));
+    fireEvent.click(await addStreamControl("create"));
+    fireEvent.click(await addStreamControl("cancel_the_load"));
+
+    await waitFor(() => expect(textOf("[data-add-stream-cancel-refusal] [role=alert]")).toBe(`Cancel was refused: ${refusal}`));
+    expect(document.querySelector('[data-add-stream-step="following"]')).not.toBeNull();
+    expect((await addStreamControl("cancel_the_load")).hasAttribute("disabled")).toBe(false);
   });
 
   it("shows a failed load in the runtime's own words and keeps the form usable: a create into a folder holding a project", { timeout: 15_000 }, async () => {

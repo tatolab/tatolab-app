@@ -19,12 +19,13 @@ export function StreamPageView({ stream, shownTab }: { stream: ListedStream; sho
   const isLoaded = isStreamLoaded(stream);
   const [isOverviewDetailsPanelOpen, setIsOverviewDetailsPanelOpen] = useState(false);
   const thisStreamsListing = useMemo(() => [stream], [stream]);
-  const { actionsUnderWay, refusalWords, runStreamAction } = useStreamActionsUnderWay(thisStreamsListing);
+  const { actionsUnderWay, refusalWords, runStreamAction, cancelTheListedAction } = useStreamActionsUnderWay(thisStreamsListing);
   const { askToRename, renameDialog } = useStreamRenameDialog();
   const streamPageActions: StreamPageActions = {
     actionUnderWay: actionsUnderWay.get(stream.stream),
     refusal: refusalWords.get(stream.stream),
     runPrimaryAction: (chosenAction) => runStreamAction(chosenAction.streamAction, chosenAction.label, stream),
+    cancelTheListedAction: () => cancelTheListedAction(stream),
     askToRename: () => askToRename(stream),
   };
 

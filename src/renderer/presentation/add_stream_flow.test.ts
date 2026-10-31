@@ -8,6 +8,8 @@ import {
   addStreamRunNoticeOf,
   addStreamStepAnnouncement,
   advanceAddStreamFlow,
+  canCancelTheFollowedAction,
+  followedStepOrCancellingWords,
   followedStepWords,
   followingHeadingWords,
   initialAddStreamFlowState,
@@ -179,8 +181,14 @@ describe("the add-project flow", () => {
 describe("the notice of a load followed away from the dialog", () => {
   it("says the step while under way, the streams once done, and a failure in the runtime's words", () => {
     const followingNotice = addStreamRunNoticeOf(importing);
-    expect(followingNotice).toEqual({ kind: "following", source: "project_folder", queued: HALLWAYS_LOAD, description: null });
-    expect(followingNotice === null ? null : presentAddStreamRunNotice(followingNotice, null)).toEqual({ title: "Importing hallways", detail: "Queued…", tone: "plain", isUnderWay: true });
+    expect(followingNotice).toEqual({ kind: "following", source: "project_folder", queued: HALLWAYS_LOAD, description: null, cancel: null });
+    expect(followingNotice === null ? null : presentAddStreamRunNotice(followingNotice, null)).toEqual({
+      title: "Importing hallways",
+      detail: "Queued…",
+      tone: "plain",
+      isUnderWay: true,
+      canCancel: true,
+    });
 
     const ended = advanceAddStreamFlow(importing, { kind: "load_described", description: HALLWAYS_DONE });
     const endedNotice = addStreamRunNoticeOf(ended);
@@ -189,11 +197,18 @@ describe("the notice of a load followed away from the dialog", () => {
       detail: "front_door: Running · back_door: Failed",
       tone: "warning",
       isUnderWay: false,
+      canCancel: false,
     });
 
     const failed = advanceAddStreamFlow(importing, { kind: "load_described", description: hallwaysDescription({ state: "failed", failed_because: "missing" }) });
     const failedNotice = addStreamRunNoticeOf(failed);
-    expect(failedNotice === null ? null : presentAddStreamRunNotice(failedNotice, null)).toEqual({ title: "Importing the project failed", detail: "missing", tone: "failure", isUnderWay: false });
+    expect(failedNotice === null ? null : presentAddStreamRunNotice(failedNotice, null)).toEqual({
+      title: "Importing the project failed",
+      detail: "missing",
+      tone: "failure",
+      isUnderWay: false,
+      canCancel: false,
+    });
 
     const notHeld = advanceAddStreamFlow(importing, { kind: "load_no_longer_followed", action: "R1-3", words: "Invalid configuration: not held" });
     const notHeldNotice = addStreamRunNoticeOf(notHeld);
@@ -206,5 +221,45 @@ describe("the notice of a load followed away from the dialog", () => {
     const folderDialogRefused = afterEvents(initialAddStreamFlowState("project_folder"), [{ kind: "work_refused", lead: "The folder dialog was refused:", words: "no display" }]);
     expect(addStreamRunNoticeOf(folderDialogRefused)).toBeNull();
     expect(projectLoadDoneHeadingWords(HALLWAYS, [])).toBe("The runtime loaded no stream from hallways");
+  });
+});
+
+describe("Cancel on a followed load", () => {
+  const alreadyCancelledRefusal = "Invalid configuration: the stream action `R1-3` is already cancelled, so there is nothing to cancel";
+
+  it("says Cancelling while the cancel is asked or the runtime ends the load, then ends at cancelled when the following reads it", () => {
+    const asked = advanceAddStreamFlow(importing, { kind: "cancel_asked", action: "R1-3" });
+    expect(asked).toMatchObject({ step: "following", cancel: { kind: "asking" } });
+    expect(canCancelTheFollowedAction(asked.step === "following" ? asked.cancel : null)).toBe(false);
+    const answered = advanceAddStreamFlow(asked, { kind: "cancel_answered", action: "R1-3" });
+    expect(answered).toMatchObject({ step: "following", cancel: { kind: "answered" } });
+    expect(answered.step === "following" ? followedStepOrCancellingWords(answered.description, answered.cancel) : null).toBe("Cancelling");
+    const answeredNotice = addStreamRunNoticeOf(answered);
+    expect(answeredNotice === null ? null : presentAddStreamRunNotice(answeredNotice, null)).toMatchObject({ detail: "Cancelling…", canCancel: false, isUnderWay: true });
+
+    const cancelled = advanceAddStreamFlow(answered, { kind: "load_described", description: hallwaysDescription({ state: "cancelled" }) });
+    expect(cancelled).toMatchObject({ step: "ended", ending: { kind: "cancelled" } });
+    expect(advanceAddStreamFlow(cancelled, { kind: "cancel_answered", action: "R1-3" })).toBe(cancelled);
+    expect(advanceAddStreamFlow(cancelled, { kind: "add_another" })).toMatchObject({ step: "form", form: { source: "project_folder", chosenFolder: null } });
+  });
+
+  it("keeps a refused cancel's words under the step, Cancel pressable again, and ignores a cancel of another action", () => {
+    const refused = afterEvents(importing, [
+      { kind: "cancel_asked", action: "R1-3" },
+      { kind: "cancel_refused", action: "R1-3", words: alreadyCancelledRefusal },
+    ]);
+    expect(refused).toMatchObject({ step: "following", cancel: { kind: "refused", words: alreadyCancelledRefusal } });
+    expect(refused.step === "following" ? followedStepOrCancellingWords(refused.description, refused.cancel) : null).toBe("Queued");
+    expect(canCancelTheFollowedAction(refused.step === "following" ? refused.cancel : null)).toBe(true);
+    const refusedNotice = addStreamRunNoticeOf(refused);
+    expect(refusedNotice === null ? null : presentAddStreamRunNotice(refusedNotice, null)).toEqual({
+      title: "Importing hallways",
+      detail: `Queued… Cancel was refused: ${alreadyCancelledRefusal}`,
+      tone: "warning",
+      isUnderWay: true,
+      canCancel: true,
+    });
+    expect(advanceAddStreamFlow(importing, { kind: "cancel_asked", action: "R9-9" })).toBe(importing);
+    expect(advanceAddStreamFlow(initialAddStreamFlowState("new_project"), { kind: "cancel_asked", action: "R1-3" })).toEqual(initialAddStreamFlowState("new_project"));
   });
 });
