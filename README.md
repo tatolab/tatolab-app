@@ -148,6 +148,8 @@ Tatolab.app/Contents/
                                               ~/.local/bin/tatolab to it
   MacOS/moq-relay                             the local relay (streamlib bin/moq-relay); tatolabd
                                               runs it from beside itself as its two local relays
+  MacOS/uv                                    the runtime's pinned uv (streamlib bin/uv); tatolabd
+                                              makes each project's .venv with it from beside itself
   Frameworks/tatolab-runtime/                 every Mach-O of the lend's tatolab/runtime/, same paths
     _engine.abi3.so
     _vulkan_driver/libvulkan.1.dylib

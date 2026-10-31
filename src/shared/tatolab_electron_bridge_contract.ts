@@ -7,7 +7,6 @@ import type {
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
-  PythonForNewEnvironmentsChoice,
   RelaySettingsByName,
   RelaysDescription,
   RuntimeDescription,
@@ -48,7 +47,6 @@ export const TATOLAB_COMMAND_NAMES = [
   "open_runtime_log_folder",
   "set_stream_failure_notifications",
   "set_open_tatolab_at_login",
-  "choose_python_for_new_environments",
   "describe_relays",
   "add_relay",
   "configure_relay",
@@ -59,7 +57,7 @@ export const TATOLAB_COMMAND_NAMES = [
  * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` `{ project_directory }`, `describe_stream_graph`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` `{ action }`,
- * `choose_python_for_new_environments` `{ python }`, `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, and `read_project_log_records` and `remove_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
  * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
@@ -129,7 +127,6 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   /** Answers once the desktop has; refused in its words, or with why this build does not offer it. */
   set_open_tatolab_at_login: { commandArguments: { enabled: boolean }; answer: null };
   /** `chosen_in_a_file_dialog` opens the app's own file dialog and answers once the person picks or cancels; refused naming why, the choice unchanged. */
-  choose_python_for_new_environments: { commandArguments: { python: PythonForNewEnvironmentsChoice }; answer: null };
   /** The runtime's `list_relays` and its relay-adapter catalog, read together; refused in the runtime's own words. */
   describe_relays: { commandArguments: undefined; answer: RelaysDescription };
   /** `settings` as the adapter's settings take them, its secrets among them, sent once and kept by the app nowhere; answers the id the runtime gave the relay. */

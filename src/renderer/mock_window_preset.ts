@@ -147,8 +147,7 @@ async function clickWhenShown(selector: string, timeoutMilliseconds = PRESET_STE
  * `?relay_fill=<setting>:<text>` typed into it, `?relay_file=<setting>:<file name>` chosen as its file and `?relay_submit=pressed` (Add relay or
  * Save pressed), with the backend's `?relays=local|every-field-type` and `?adapter_names=none`, and on its Runtime
  * `?restart=pressed` (Restart runtime pressed: Starting, then Running up 0m) or `?restart=refused` (the service manager refusing it),
- * `?choose_python=pressed` (Choose Your Own… pressed, with the backend's `?python=chosen|not_offered` and `?python_pick=cancel|not_python`), with the
- * backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream id>` (a
+ * with the backend's `?runtime_log=none`, `?open_at_login=on|approval|not_offered`, `?notifications=unsupported` and `?cli_version=reading|unreadable`, on About the backend's `?app_build=release|modified|none`, the backend's `?stream_page_requested=<stream id>` (a
  * click on that stream's failure notification), on the add-project dialog `?add=folder|following|done|away` (a folder chosen, its import followed, ended, or
  * the dialog closed while it loads and the load's notice shown once it ends) or
  * `?add=new|created` (opened on New project, then Create pressed, which has the runtime write it and load it), with the backend's `?add_folder=` (`no-venv` for a load that
@@ -234,7 +233,6 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   if (page === "settings" && settingsSection !== null) await clickWhenShown(`[data-settings-section="${CSS.escape(settingsSection)}"]`);
   if (page === "settings" && settingsSection === "relays") await driveRelaysToPreset(pageQuery);
   if (pageQuery.get("restart") === "pressed" || pageQuery.get("restart") === "refused") await clickWhenShown(`[data-runtime-action="restart"]:not([disabled])`);
-  if (pageQuery.get("choose_python") === "pressed") await clickWhenShown(`[data-settings-action="choose-your-own-python"]:not([disabled])`);
   const sheet = pageQuery.get("sheet");
   if (sheet === "uninstall" || sheet === "uninstalling" || sheet === "uninstalled") {
     if (page !== "settings") await clickWhenShown(`[data-window-navigation="settings"]`);

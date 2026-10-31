@@ -40,7 +40,6 @@ import {
 } from "./tatolab_commands.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { StreamProjectAdding } from "./stream_project_adding.js";
-import { StreamProjectPythonEnvironments } from "./stream_project_python_environments.js";
 import { TatolabAppUpdater } from "./tatolab_app_updater.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
@@ -58,7 +57,6 @@ async function sharedStateOverFakes(
   platform: TatolabPlatform,
   existingFolders: readonly string[] = [],
   folderTheDialogAnswers: string | null = null,
-  interpreterTheDialogAnswers: string | null = null,
 ): Promise<
   TatolabAppSharedState & {
     commandLineToolLinks: FakeTatolabCommandLineToolLinks;
@@ -89,22 +87,6 @@ async function sharedStateOverFakes(
     undefined,
     tatolabAppOpenedAtLogin,
   );
-  const streamProjectPythonEnvironments = await StreamProjectPythonEnvironments.load({
-    bundledPythonToolchain: {
-      kind: "in_the_app",
-      uvPath: "/Applications/Tatolab.app/Contents/MacOS/uv",
-      builtInPythonInTheApp: "/Applications/Tatolab.app/Contents/Resources/python/cpython-3.12.12+20251014",
-      builtInPythonFolderName: "cpython-3.12.12+20251014",
-      builtInPythonCopiesFolder: path.join(appConfigDirectory, "python"),
-    },
-    appConfigDirectory,
-    pythonInterpreterFileDialog: async () => succeeded(interpreterTheDialogAnswers),
-    runProgramToCompletion: async (_programPath, programArguments) =>
-      programArguments[0] === "--version"
-        ? succeeded({ exitStatus: 0, endingSignal: null, standardOutput: "Python 3.11.9\n", standardError: "" })
-        : failedWith("this fake runs no program but a --version"),
-    tatolabAppLog: quietTatolabAppLog,
-  });
   const controller = await TatolabAppController.create({
     platform,
     platformForThisBuild,
@@ -117,7 +99,6 @@ async function sharedStateOverFakes(
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
-    readPythonForNewEnvironments: () => streamProjectPythonEnvironments.pythonForNewEnvironmentsNow(),
     tatolabAppLog: quietTatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(controller, () => {}, () => 0, quietTatolabAppLog);
@@ -153,7 +134,6 @@ async function sharedStateOverFakes(
       streamProjectFolderDialog: async () => succeeded(folderTheDialogAnswers),
       projectLoadsOnTheRuntime: controller,
     }),
-    streamProjectPythonEnvironments,
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLinks,
     runtimeAgent,
@@ -208,8 +188,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"app_update":{"kind":"not_checked"},' +
       `"local_api_socket":${JSON.stringify(runningRuntime.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
-      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"},' +
-      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"}}',
+      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
   );
   const runtimeThatIsDown = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux");
   runtimeThatIsDown.commandLineToolLinks.homeFolderLinkedAt = null;
@@ -224,8 +203,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"app_update":{"kind":"not_checked"},' +
       `"local_api_socket":${JSON.stringify(runtimeThatIsDown.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
-      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"},' +
-      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"}}',
+      '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
   );
 
   const page = projectLogRecordsPageFromTheLogsToolResult(
@@ -665,24 +643,6 @@ test("opening_tatolab_at_login_asks_the_desktop_then_observes_again_and_is_refus
     refusal: "Tatolab could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
   });
   expect(await commandHandlers.set_open_tatolab_at_login({})).toEqual({ ok: false, refusal: "set_open_tatolab_at_login needs `enabled`, true or false" });
-});
-
-test("choosing_the_python_for_new_environments_picks_through_the_apps_dialog_then_observes_again_and_never_takes_a_path", async () => {
-  const sharedState = await sharedStateOverFakes([], "macos", [], null, "/opt/homebrew/bin/python3.11");
-  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
-
-  expect(sharedState.streamProjectPythonEnvironments.pythonForNewEnvironmentsNow()).toEqual({ kind: "built_in", python_version: "3.12.12" });
-  expect(await commandHandlers.choose_python_for_new_environments({ python: "chosen_in_a_file_dialog" })).toEqual({ ok: true, value: null });
-  expect(sharedState.streamProjectPythonEnvironments.pythonForNewEnvironmentsNow()).toEqual({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.11" });
-  expect(refreshRequests).toHaveBeenCalledTimes(1);
-
-  expect(await commandHandlers.choose_python_for_new_environments({ python: "built_in" })).toEqual({ ok: true, value: null });
-  expect(sharedState.streamProjectPythonEnvironments.pythonForNewEnvironmentsNow()).toEqual({ kind: "built_in", python_version: "3.12.12" });
-
-  const refusal = { ok: false, refusal: "choose_python_for_new_environments needs `python`, built_in or chosen_in_a_file_dialog" };
-  expect(await commandHandlers.choose_python_for_new_environments({ python: "/usr/bin/python3" })).toEqual(refusal);
-  expect(await commandHandlers.choose_python_for_new_environments({})).toEqual(refusal);
 });
 
 /** The window's `RelaysDescription` reads exactly this JSON, recorded from a test-root runtime. */

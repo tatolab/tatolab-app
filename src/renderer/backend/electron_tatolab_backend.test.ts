@@ -182,18 +182,16 @@ describe("createElectronTatolabBackend", () => {
     expect(heardStatuses).toEqual([tatolabStatus]);
   });
 
-  it("sends the stream-failure notifications and open-at-login switches and the Python choice, and hands each stream page request to the listener until it stops listening", async () => {
+  it("sends the stream-failure notifications and open-at-login switches, and hands each stream page request to the listener until it stops listening", async () => {
     const fakeBridge = fakeTatolabElectronBridge({
       set_stream_failure_notifications: { ok: true, value: null },
       set_open_tatolab_at_login: { ok: true, value: null },
-      choose_python_for_new_environments: { ok: true, value: null },
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
     const requestedStreams: string[] = [];
 
     await backend.setStreamFailureNotifications(false);
     await backend.setOpenTatolabAtLogin(true);
-    await backend.choosePythonForNewEnvironments("chosen_in_a_file_dialog");
     const stopListening = backend.onStreamPageRequested((streamId) => requestedStreams.push(streamId));
     fakeBridge.streamPageRequestListeners.forEach((streamPageRequestListener) => streamPageRequestListener("camera"));
     stopListening();
@@ -202,7 +200,6 @@ describe("createElectronTatolabBackend", () => {
     expect(fakeBridge.invokedCommands).toEqual([
       ["set_stream_failure_notifications", { enabled: false }],
       ["set_open_tatolab_at_login", { enabled: true }],
-      ["choose_python_for_new_environments", { python: "chosen_in_a_file_dialog" }],
     ]);
     expect(requestedStreams).toEqual(["camera"]);
   });

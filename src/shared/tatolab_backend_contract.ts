@@ -123,7 +123,6 @@ export interface TatolabStatus {
   stream_failure_notifications: StreamFailureNotificationsState;
   open_at_login: TatolabAppOpenAtLogin;
   command_line_tool_version: TatolabCommandLineToolVersion;
-  python_for_new_environments: PythonForNewEnvironments;
 }
 
 /** What `describe_runtime` answers: the running runtime's version and build, how long it has been up, and the folder of its own log. */
@@ -274,15 +273,6 @@ export interface StreamActionDescription {
 
 /** What following a stream action read: its description, or the runtime's words that it no longer holds the action. */
 export type StreamActionFollowed = { kind: "described"; description: StreamActionDescription } | { kind: "not_held"; words: string };
-
-/** The Python the app makes a project's `.venv` from: Tatolab's own, with its version; Tatolab's own in a build that carries none, with why; or the interpreter the person chose in Settings. */
-export type PythonForNewEnvironments =
-  | { kind: "built_in"; python_version: string }
-  | { kind: "built_in_not_offered"; reason: string }
-  | { kind: "chosen"; interpreter: string };
-
-/** What Settings asks the Python for new environments to be: Tatolab's own, or one the person picks in the app's own file dialog, so the window never names a program for the app to run. */
-export type PythonForNewEnvironmentsChoice = "built_in" | "chosen_in_a_file_dialog";
 
 /** One value of a relay's settings on the wire: `add_relay` and `configure_relay` take them, `list_relays` lists the non-secret ones, a `string_list` is a list of text, and `null` returns a setting to its default. */
 export type RelaySettingValue = string | number | boolean | readonly string[] | null;
