@@ -50,7 +50,7 @@ describe("createElectronTatolabBackend", () => {
       link_command_line_tool_in_usr_local_bin: { ok: true, value: null },
       quit_tatolab_app: { ok: true, value: null },
       uninstall_tatolab: { ok: true, value: null },
-      read_stream_log_records: { ok: true, value: { stream: "camera", stream_instance: "camera-0", records: [], next_after: 7, records_no_longer_held: 0 } },
+      read_project_log_records: { ok: true, value: { project_directory: "/p", records: [], next_after: "1:90", records_no_longer_held: false } },
       describe_stream_graph: { ok: true, value: { stream: "camera", nodes: [], links: [], exposed: [], graph_document_text: "{}" } },
       open_stream_project_folder: { ok: true, value: null },
       open_terminal_at_stream_project: { ok: true, value: null },
@@ -64,7 +64,7 @@ describe("createElectronTatolabBackend", () => {
     await backend.linkCommandLineToolInUsrLocalBin();
     await backend.quitTatolabApp();
     await backend.uninstallTatolab();
-    await backend.readStreamLogRecords("camera", 7);
+    await backend.readProjectLogRecords("/p", { stream: "camera", action: null }, "1:40");
     await backend.describeStreamGraph("camera");
     await backend.openStreamProjectFolder("camera");
     await backend.openTerminalAtStreamProject("camera");
@@ -77,7 +77,7 @@ describe("createElectronTatolabBackend", () => {
       ["link_command_line_tool_in_usr_local_bin", undefined],
       ["quit_tatolab_app", undefined],
       ["uninstall_tatolab", undefined],
-      ["read_stream_log_records", { stream: "camera", after: 7 }],
+      ["read_project_log_records", { project_directory: "/p", stream: "camera", action: null, after: "1:40" }],
       ["describe_stream_graph", { stream: "camera" }],
       ["open_stream_project_folder", { stream: "camera" }],
       ["open_terminal_at_stream_project", { stream: "camera" }],
@@ -107,52 +107,46 @@ describe("createElectronTatolabBackend", () => {
     ]);
   });
 
-  it("sends each stream action under its command, answering a stop's notice and null for the rest", async () => {
-    const notRecordedBecause = "the record of `camera-main-018da9` could not be written: Permission denied (os error 13)";
+  it("sends each queued action under its command, rejecting a refusal in the main process's words", async () => {
     const fakeBridge = fakeTatolabElectronBridge({
-      stop_stream: { ok: true, value: { not_recorded_because: notRecordedBecause } },
-      start_stream: { ok: true, value: null },
-      remove_stream: { ok: true, value: null },
+      stop_stream: { ok: true, value: null },
+      start_stream: { ok: false, refusal: "Runtime error: the stream `camera` is already loaded in this runtime, recorded by the runtime; only a stopped or failed stream starts" },
+      remove_project: { ok: true, value: null },
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
 
-    expect(await backend.runStreamAction("stop_stream", "camera")).toBe(notRecordedBecause);
-    expect(await backend.runStreamAction("start_stream", "camera")).toBeNull();
-    expect(await backend.runStreamAction("remove_stream", "camera")).toBeNull();
+    await backend.runStreamAction("stop_stream", "camera");
+    await expect(backend.runStreamAction("start_stream", "camera")).rejects.toContain("already loaded");
+    await backend.removeProject("/p");
     expect(fakeBridge.invokedCommands).toEqual([
       ["stop_stream", { stream: "camera" }],
       ["start_stream", { stream: "camera" }],
-      ["remove_stream", { stream: "camera" }],
+      ["remove_project", { project_directory: "/p" }],
     ]);
   });
 
-  it("sends each command that adds a stream under its name, answering the main process's report and outcome", async () => {
-    const report = {
-      folder: "/Users/someone/code/heat-map",
-      folder_exists: true,
-      stream_file_present: true,
-      stream_functions: ["heat_map"],
-      python_environment: { kind: "missing" as const },
-    };
-    const outcome = { kind: "python_environment_not_made" as const, words: "error: No interpreter found at path `/opt/homebrew/bin/python3.11`" };
+  it("sends each command that adds a project under its name, answering what the main process answered", async () => {
+    const creationQueued = { action: "R1-7", stream: "kind-butte-main-e51c2f", project_directory: "/Users/someone/streams/kind-butte" };
+    const runQueued = { action: "R1-3", project_directory: "/Users/someone/code/hallways" };
+    const notHeld = { kind: "not_held" as const, words: "Invalid configuration: the stream action `R1-999` is not held" };
     const fakeBridge = fakeTatolabElectronBridge({
-      choose_stream_project_folder: { ok: true, value: null },
-      propose_new_stream_project_folder: { ok: true, value: report },
-      create_stream_project: { ok: true, value: report },
-      run_stream_project: { ok: true, value: outcome },
+      choose_stream_project_folder: { ok: true, value: "/Users/someone/code/hallways" },
+      create_stream_project: { ok: true, value: creationQueued },
+      run_stream_project: { ok: true, value: runQueued },
+      describe_stream_action: { ok: true, value: notHeld },
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
 
-    expect(await backend.chooseStreamProjectFolder("project_to_run")).toBeNull();
-    expect(await backend.proposeNewStreamProjectFolder()).toEqual(report);
-    expect(await backend.createStreamProject(report.folder)).toEqual(report);
-    expect(await backend.runStreamProject(report.folder, null, "heat_map")).toEqual(outcome);
+    expect(await backend.chooseStreamProjectFolder("project_to_run")).toBe("/Users/someone/code/hallways");
+    expect(await backend.createStreamProject(null)).toEqual(creationQueued);
+    expect(await backend.runStreamProject("/Users/someone/code/hallways")).toEqual(runQueued);
+    expect(await backend.describeStreamAction("R1-999")).toEqual(notHeld);
 
     expect(fakeBridge.invokedCommands).toEqual([
       ["choose_stream_project_folder", { chosen_for: "project_to_run" }],
-      ["propose_new_stream_project_folder", undefined],
-      ["create_stream_project", { folder: report.folder }],
-      ["run_stream_project", { folder: report.folder, stream_function: null, name: "heat_map" }],
+      ["create_stream_project", { folder: null }],
+      ["run_stream_project", { folder: "/Users/someone/code/hallways" }],
+      ["describe_stream_action", { action: "R1-999" }],
     ]);
   });
 
@@ -191,18 +185,16 @@ describe("createElectronTatolabBackend", () => {
     expect(heardStatuses).toEqual([tatolabStatus]);
   });
 
-  it("sends the stream-failure notifications and open-at-login switches and the Python choice, and hands each stream page request to the listener until it stops listening", async () => {
+  it("sends the stream-failure notifications and open-at-login switches, and hands each stream page request to the listener until it stops listening", async () => {
     const fakeBridge = fakeTatolabElectronBridge({
       set_stream_failure_notifications: { ok: true, value: null },
       set_open_tatolab_at_login: { ok: true, value: null },
-      choose_python_for_new_environments: { ok: true, value: null },
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
     const requestedStreams: string[] = [];
 
     await backend.setStreamFailureNotifications(false);
     await backend.setOpenTatolabAtLogin(true);
-    await backend.choosePythonForNewEnvironments("chosen_in_a_file_dialog");
     const stopListening = backend.onStreamPageRequested((streamId) => requestedStreams.push(streamId));
     fakeBridge.streamPageRequestListeners.forEach((streamPageRequestListener) => streamPageRequestListener("camera"));
     stopListening();
@@ -211,7 +203,6 @@ describe("createElectronTatolabBackend", () => {
     expect(fakeBridge.invokedCommands).toEqual([
       ["set_stream_failure_notifications", { enabled: false }],
       ["set_open_tatolab_at_login", { enabled: true }],
-      ["choose_python_for_new_environments", { python: "chosen_in_a_file_dialog" }],
     ]);
     expect(requestedStreams).toEqual(["camera"]);
   });

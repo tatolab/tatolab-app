@@ -25,8 +25,6 @@ import { TerminalAppOpenedByOpen } from "./terminal_app_opened_by_open.js";
 import { TatolabUninstallOnThisMac } from "./tatolab_uninstall_on_this_mac.js";
 import { LoginItemOfTheAppBundle } from "./login_item_of_the_app_bundle.js";
 import { tatolabAppUpdatePackagingOnMacos } from "./tatolab_app_update_packaging_on_macos.js";
-import { pythonToolchainInTheAppBundle } from "./python_toolchain_in_the_app_bundle.js";
-import { bundledPythonToolchainAsTheLogNamesIt } from "../bundled_python_toolchain.js";
 
 /** The installer's launch agent through `launchctl`, the install of the runtime helper a packaged app carries, the links of the installed CLI, and uninstalling them. */
 export async function macosTatolabPlatformForThisBuild(
@@ -37,14 +35,12 @@ export async function macosTatolabPlatformForThisBuild(
   const machinePaths = tatolabMachinePathsOnMacosForThisBuild(uid, homeDirectory);
   const installedCommandLineTool = installedCommandLineToolIn(machinePaths.runtimeInstallDirectory);
   const packagedAppBundle = appIsPackaged ? await appBundleOfTheExecutable(appExecutable) : null;
-  const bundledPythonToolchain = await pythonToolchainInTheAppBundle(appExecutable, appIsPackaged, appConfigDirectory);
   tatolabAppLog.info("Tatolab app paths", {
     local_api_socket: machinePaths.localApiSocket,
     runtime_install_directory: machinePaths.runtimeInstallDirectory,
     runtime_launch_agent: machinePaths.runtimeLaunchAgent.plistPath,
     installed_command_line_tool: installedCommandLineTool,
     carried_runtime_in: packagedAppBundle,
-    bundled_python_toolchain: bundledPythonToolchainAsTheLogNamesIt(bundledPythonToolchain),
     local_proof_test_machine_root: machinePaths.localProofTestMachineRoot,
   });
   const administratorPrompt = new OsascriptAdministratorPrompt(OSASCRIPT_AT_ITS_SYSTEM_PATH);
@@ -79,6 +75,5 @@ export async function macosTatolabPlatformForThisBuild(
     tatolabAppOpenedAtLogin: appIsPackaged
       ? new LoginItemOfTheAppBundle(appLoginItemSettings)
       : tatolabAppNotOpenedAtLogin(UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL),
-    bundledPythonToolchain,
   };
 }

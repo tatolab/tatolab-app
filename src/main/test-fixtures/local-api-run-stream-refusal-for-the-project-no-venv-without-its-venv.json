@@ -1,1 +1,0 @@
-{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"Invalid configuration: /tmp/tatolab-proof/projects/no-venv has no .venv/bin/python; run `uv sync` in /tmp/tatolab-proof/projects/no-venv"}],"isError":true}}

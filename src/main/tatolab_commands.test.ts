@@ -20,7 +20,7 @@ import { RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL } from "./run_tatolab_switch.js";
 import { RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL } from "./runtime_log_folder_opening.js";
 import { relayAdaptersFromTheRelayAdaptersAnswer } from "./relays_description.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
-import { streamLogRecordsPageFromTheLogsToolResult } from "./stream_log_records_page.js";
+import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
@@ -28,9 +28,10 @@ import {
   answerTheWindow,
   describeStreamGraph,
   getTatolabStatus,
-  readStreamLogRecords,
+  readProjectLogRecords,
   enabledArgumentsFrom,
-  readStreamLogRecordsArgumentsFrom,
+  readProjectLogRecordsArgumentsFrom,
+  removeProject,
   runStreamAction,
   streamArgumentsFrom,
   linkCommandLineToolInUsrLocalBin,
@@ -39,7 +40,6 @@ import {
 } from "./tatolab_commands.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { StreamProjectAdding } from "./stream_project_adding.js";
-import { StreamProjectPythonEnvironments } from "./stream_project_python_environments.js";
 import { TatolabAppUpdater } from "./tatolab_app_updater.js";
 
 const cleanUps: (() => Promise<void>)[] = [];
@@ -57,7 +57,6 @@ async function sharedStateOverFakes(
   platform: TatolabPlatform,
   existingFolders: readonly string[] = [],
   folderTheDialogAnswers: string | null = null,
-  interpreterTheDialogAnswers: string | null = null,
 ): Promise<
   TatolabAppSharedState & {
     commandLineToolLinks: FakeTatolabCommandLineToolLinks;
@@ -88,22 +87,6 @@ async function sharedStateOverFakes(
     undefined,
     tatolabAppOpenedAtLogin,
   );
-  const streamProjectPythonEnvironments = await StreamProjectPythonEnvironments.load({
-    bundledPythonToolchain: {
-      kind: "in_the_app",
-      uvPath: "/Applications/Tatolab.app/Contents/MacOS/uv",
-      builtInPythonInTheApp: "/Applications/Tatolab.app/Contents/Resources/python/cpython-3.12.12+20251014",
-      builtInPythonFolderName: "cpython-3.12.12+20251014",
-      builtInPythonCopiesFolder: path.join(appConfigDirectory, "python"),
-    },
-    appConfigDirectory,
-    pythonInterpreterFileDialog: async () => succeeded(interpreterTheDialogAnswers),
-    runProgramToCompletion: async (_programPath, programArguments) =>
-      programArguments[0] === "--version"
-        ? succeeded({ exitStatus: 0, endingSignal: null, standardOutput: "Python 3.11.9\n", standardError: "" })
-        : failedWith("this fake runs no program but a --version"),
-    tatolabAppLog: quietTatolabAppLog,
-  });
   const controller = await TatolabAppController.create({
     platform,
     platformForThisBuild,
@@ -116,7 +99,6 @@ async function sharedStateOverFakes(
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
-    readPythonForNewEnvironments: () => streamProjectPythonEnvironments.pythonForNewEnvironmentsNow(),
     whenTheRuntimeInstallProgresses: () => {},
     tatolabAppLog: quietTatolabAppLog,
   });
@@ -151,12 +133,8 @@ async function sharedStateOverFakes(
     streamProjectAdding: new StreamProjectAdding({
       homeDirectory: appConfigDirectory,
       streamProjectFolderDialog: async () => succeeded(folderTheDialogAnswers),
-      tatolabCommandLineTool: platformForThisBuild.tatolabCommandLineTool,
-      runProgramToCompletion: async () => failedWith("this fake runs no program"),
-      makePythonEnvironmentUnlessOneWorks: async () => succeeded(undefined),
-      streamRunsOnTheRuntime: controller,
+      projectLoadsOnTheRuntime: controller,
     }),
-    streamProjectPythonEnvironments,
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLinks,
     runtimeAgent,
@@ -170,7 +148,7 @@ async function sharedStateOverFakes(
 }
 
 test("an_awaited_command_answers_with_its_works_answer_or_why_it_has_none", async () => {
-  expect(await answerTheWindow("read_stream_log_records", async () => succeeded(7))).toEqual(succeeded(7));
+  expect(await answerTheWindow("read_project_log_records", async () => succeeded(7))).toEqual(succeeded(7));
   const refusal = await answerTheWindow<number>("describe_stream_graph", () => Promise.reject(new Error("the work failed unexpectedly")));
   expect(!refusal.ok && refusal.failure.startsWith("describe_stream_graph ended without an answer"), JSON.stringify(refusal)).toBe(true);
 });
@@ -189,6 +167,8 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
             state: "running",
             node_count: 4,
             failed_because: null,
+            action: null,
+            step: null,
             from_later: 1,
           },
         ],
@@ -204,13 +184,13 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"runtime_agent":"enabled","runtime_state":"running",' +
       '"machine_name":"jonathanf-macbook","streams":[' +
       '{"stream":"pattern-main-41d0c2","display_name":"main","location":{"project_directory":"/private/tmp/x/pattern","stream_function":"stream:main"},' +
-      '"state":"running","node_count":4,"failed_because":null}],"first_run_finished":false,' +
+      '"state":"running","node_count":4,"failed_because":null,"action":null,"step":null}],"first_run_finished":false,' +
       '"command_line_tool_linked_at":"/Users/someone/.local/bin/tatolab","command_line_tool_usr_local_bin_link":{"kind":"not_linked"},' +
       '"app_update":{"kind":"not_checked"},' +
       `"local_api_socket":${JSON.stringify(runningRuntime.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"},' +
-      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"},"runtime_install":{"kind":"none"},"installed_runtime":null}',
+      '"runtime_install":{"kind":"none"},"installed_runtime":null}',
   );
   const runtimeThatIsDown = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux");
   runtimeThatIsDown.commandLineToolLinks.homeFolderLinkedAt = null;
@@ -226,42 +206,43 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       `"local_api_socket":${JSON.stringify(runtimeThatIsDown.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
       '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"},' +
-      '"python_for_new_environments":{"kind":"built_in","python_version":"3.12.12"},"runtime_install":{"kind":"none"},"installed_runtime":null}',
+      '"runtime_install":{"kind":"none"},"installed_runtime":null}',
   );
 
-  const page = streamLogRecordsPageFromTheLogsToolResult(
+  const page = projectLogRecordsPageFromTheLogsToolResult(
     JSON.stringify({
-      stream: "main",
-      stream_instance: "4",
+      project_directory: "/private/tmp/x/pattern",
       records: [
         {
-          sequence: 7,
-          record: {
-            message: "Loading the stream `main`",
-            host_ts: 1791757115431254000,
-            target: "streamlib_engine::core::runtime::loaded_stream",
-            source: "rust",
-            attrs: { processor_class_import_path: "nodes.x:X" },
-            level: "info",
-          },
+          message: "Loading the stream `main`",
+          host_ts: 1791757115431254000,
+          target: "streamlib_engine::core::runtime::loaded_stream",
+          source: "rust",
+          attrs: { processor_class_import_path: "nodes.x:X" },
+          level: "info",
+          action: "R1-2",
+          stream: "pattern-main-41d0c2",
         },
-        { sequence: 8, record: {} },
+        {},
       ],
-      next_after: 8,
+      next_after: "1:90",
+      records_no_longer_held: false,
     }),
   );
   expect(page.ok && JSON.stringify(page.value)).toBe(
-    '{"stream":"main","stream_instance":"4","records":[' +
-      '{"sequence":7,"host_ts_ns":1791757115431254000,"level":"info","source":"rust",' +
+    '{"project_directory":"/private/tmp/x/pattern","records":[' +
+      '{"host_ts_ns":1791757115431254000,"level":"info","source":"rust",' +
       '"target":"streamlib_engine::core::runtime::loaded_stream",' +
       '"message":"Loading the stream `main`",' +
       '"attrs":{"processor_class_import_path":"nodes.x:X"},"processor_id":null,"sent_by_its_own_process":false,' +
+      '"action":"R1-2","stream":"pattern-main-41d0c2",' +
       '"jsonl_line":"{\\"message\\":\\"Loading the stream `main`\\",\\"host_ts\\":1791757115431254000,' +
       '\\"target\\":\\"streamlib_engine::core::runtime::loaded_stream\\",\\"source\\":\\"rust\\",' +
-      '\\"attrs\\":{\\"processor_class_import_path\\":\\"nodes.x:X\\"},\\"level\\":\\"info\\"}"},' +
-      '{"sequence":8,"host_ts_ns":null,"level":null,"source":null,"target":null,' +
-      '"message":"","attrs":{},"processor_id":null,"sent_by_its_own_process":false,"jsonl_line":"{}"}],' +
-      '"next_after":8,"records_no_longer_held":0}',
+      '\\"attrs\\":{\\"processor_class_import_path\\":\\"nodes.x:X\\"},\\"level\\":\\"info\\",' +
+      '\\"action\\":\\"R1-2\\",\\"stream\\":\\"pattern-main-41d0c2\\"}"},' +
+      '{"host_ts_ns":null,"level":null,"source":null,"target":null,' +
+      '"message":"","attrs":{},"processor_id":null,"sent_by_its_own_process":false,"action":null,"stream":null,"jsonl_line":"{}"}],' +
+      '"next_after":"1:90","records_no_longer_held":false}',
   );
 
   const graphToolResultText = JSON.stringify({
@@ -301,7 +282,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
 
 test("a refusal from the runtime reaches the window in the runtime's own words", async () => {
   const graphRefusal = "graph failed: Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
-  const logsRefusal = "logs failed: Resource not found: no stream named `nope` is loaded in this runtime. Loaded: main";
+  const logsRefusal = "logs failed: Resource not found: this runtime holds no stream of the project in /tmp/nope";
   const sharedState = await sharedStateOverFakes(
     [
       httpResponse("200 OK", "application/json", JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: graphRefusal }], isError: true } })),
@@ -315,7 +296,7 @@ test("a refusal from the runtime reaches the window in the runtime's own words",
   );
 
   expect(await describeStreamGraph(sharedState, "nope")).toEqual(failedWith(graphRefusal));
-  expect(await readStreamLogRecords(sharedState, "nope", 0)).toEqual(failedWith(logsRefusal));
+  expect(await readProjectLogRecords(sharedState, "/tmp/nope", { stream: null, action: null }, null)).toEqual(failedWith(logsRefusal));
 });
 
 test("the window asking for the status before the first round waits for it", async () => {
@@ -342,12 +323,13 @@ test("a command's arguments are read as the window sends them, and anything else
   expect(enabledArgumentsFrom("set_run_tatolab", { enabled: false })).toEqual(succeeded({ enabled: false }));
   expect(enabledArgumentsFrom("set_run_tatolab", { enabled: "yes" }).ok).toBe(false);
   expect(enabledArgumentsFrom("set_run_tatolab", null).ok).toBe(false);
-  expect(readStreamLogRecordsArgumentsFrom({ stream: "main", after: 79 })).toEqual(succeeded({ stream: "main", after: 79 }));
-  expect(readStreamLogRecordsArgumentsFrom({ stream: "main", after: -1 }).ok).toBe(false);
-  expect(readStreamLogRecordsArgumentsFrom({ stream: 7, after: 0 }).ok).toBe(false);
+  expect(readProjectLogRecordsArgumentsFrom({ project_directory: "/tmp/p", stream: "pattern-main-d76f70", action: null, after: "1:7830" })).toEqual(
+    succeeded({ projectDirectory: "/tmp/p", narrowing: { stream: "pattern-main-d76f70", action: null }, after: "1:7830" }),
+  );
+  expect(readProjectLogRecordsArgumentsFrom({ project_directory: "/tmp/p", stream: null, action: null, after: 79 }).ok).toBe(false);
+  expect(readProjectLogRecordsArgumentsFrom({ stream: null, action: null, after: null }).ok).toBe(false);
   expect(streamArgumentsFrom("describe_stream_graph", { stream: "main" })).toEqual(succeeded({ stream: "main" }));
   expect(streamArgumentsFrom("describe_stream_graph", {}).ok).toBe(false);
-  expect(streamArgumentsFrom("remove_stream", { stream: "main" })).toEqual(succeeded({ stream: "main" }));
 });
 
 test("each command answers the window in the contract's shape, a refusal in its own words and nothing as null", async () => {
@@ -367,49 +349,80 @@ test("each command answers the window in the contract's shape, a refusal in its 
   expect(await commandHandlers.quit_tatolab_app(undefined)).toEqual({ ok: true, value: null });
   expect(quitRequests).toBe(1);
   expect(await commandHandlers.set_run_tatolab({ enabled: "yes" })).toEqual({ ok: false, refusal: "set_run_tatolab needs `enabled`, true or false" });
-  expect(await commandHandlers.read_stream_log_records({ stream: "camera" })).toEqual({
+  expect(await commandHandlers.read_project_log_records({ stream: "camera" })).toEqual({
     ok: false,
-    refusal: "read_stream_log_records needs `stream`, a stream's id, and `after`, a sequence number from 0",
+    refusal:
+      "read_project_log_records needs `project_directory`, a project's folder, and `stream`, `action` and `after`, each text or null: a stream's id, a stream action's id, and the cursor of the page before",
   });
   expect(await commandHandlers.describe_stream_graph(null)).toEqual({ ok: false, refusal: "describe_stream_graph needs `stream`, a stream's id" });
 });
 
-test("a stream action asks the runtime, then observes again whether it was carried out or refused", async () => {
-  const refusal = "Runtime error: the stream `camera-main-5e1d07` is already stopped; `start` loads it again";
+test("a stream action queues on the runtime, then observes again whether it queued or was refused", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      toolResultResponse({ stream: "camera-main-5e1d07", stopped: true }),
-      httpResponse("200 OK", "application/json", JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: refusal }], isError: true } })),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-answer-for-the-running-stream-pattern-main.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-refusal-for-the-stopped-stream-pattern-main.json")),
     ],
     "macos"
   );
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
 
-  expect(await runStreamAction(sharedState, "stop_stream", "camera-main-5e1d07")).toEqual(succeeded(null));
+  expect(await runStreamAction(sharedState, "stop_stream", "pattern-main-d76f70")).toEqual(succeeded(undefined));
   expect(refreshRequests).toHaveBeenCalledTimes(1);
-  expect(await runStreamAction(sharedState, "stop_stream", "camera-main-5e1d07")).toEqual(failedWith(refusal));
+  expect(await runStreamAction(sharedState, "stop_stream", "pattern-main-d76f70")).toEqual(
+    failedWith("Runtime error: the stream `pattern-main-d76f70` is already stopped; `start` loads it again"),
+  );
   expect(refreshRequests).toHaveBeenCalledTimes(2);
 });
 
-/** The window's `StreamStopAnswer` reads exactly this JSON. */
-test("each stream action answers the window in the contract's shape", async () => {
-  const notRecordedBecause = "the record of `camera-main-5e1d07` could not be written: Permission denied (os error 13)";
+test("removing a project queues on the runtime, then observes again whether it queued or was refused", async () => {
   const sharedState = await sharedStateOverFakes(
     [
-      toolResultResponse({ stream: "camera-main-5e1d07", stopped: true, not_recorded_because: notRecordedBecause }),
-      toolResultResponse({ stream: "camera-main-5e1d07", node_count: 3 }),
-      toolResultResponse({ stream: "camera-main-5e1d07", unloaded: true, forgotten: true }),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-project-refusal-for-a-project-the-runtime-holds-no-stream-of.json")),
+    ],
+    "linux"
+  );
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+
+  expect(await removeProject(sharedState, "/tmp/tatolab-proof-projects/doorways")).toEqual(succeeded(undefined));
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
+  const refusal = await removeProject(sharedState, "/tmp/tatolab-proof-projects/doorways");
+  expect(!refusal.ok && refusal.failure).toContain("this runtime holds no stream of the project in /tmp/tatolab-proof-projects/doorways");
+  expect(refreshRequests).toHaveBeenCalledTimes(2);
+});
+
+test("each queued action answers the window null, and a missing argument or a project the runtime does not list is refused in the command's words", async () => {
+  const sharedState = await sharedStateOverFakes(
+    [
+      httpResponse("200 OK", "text/plain", "ok"),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
+      httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-answer-for-the-running-stream-pattern-main.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-answer-for-the-stopped-stream-pattern-main.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
     ],
     "linux"
   );
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  expect(await commandHandlers.remove_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" })).toEqual({
+    ok: false,
+    refusal: "The runtime lists no stream from /tmp/tatolab-proof-projects/doorways.",
+  });
+  await sharedState.statusPublisher.refreshAndPublish();
 
-  expect(JSON.stringify(await commandHandlers.stop_stream({ stream: "camera-main-5e1d07" }))).toBe(
-    `{"ok":true,"value":{"not_recorded_because":${JSON.stringify(notRecordedBecause)}}}`,
-  );
-  expect(await commandHandlers.start_stream({ stream: "camera-main-5e1d07" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.remove_stream({ stream: "camera-main-5e1d07" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.remove_stream({})).toEqual({ ok: false, refusal: "remove_stream needs `stream`, a stream's id" });
+  expect(await commandHandlers.stop_stream({ stream: "pattern-main-d76f70" })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.start_stream({ stream: "pattern-main-d76f70" })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.remove_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.remove_project({ stream: "pattern-main-d76f70" })).toEqual({
+    ok: false,
+    refusal: "remove_project needs `project_directory`, a project's folder as the runtime lists it",
+  });
+  expect(await commandHandlers.remove_project({ project_directory: "/etc" })).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
+  expect(await commandHandlers.read_project_log_records({ project_directory: "/etc", stream: null, action: null, after: null })).toEqual({
+    ok: false,
+    refusal: "The runtime lists no stream from /etc.",
+  });
 });
 
 test("renaming a stream asks the runtime, then observes again whether it renamed or refused, answering null or its refusal", async () => {
@@ -448,6 +461,8 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
             state: "running",
             node_count: 4,
             failed_because: null,
+            action: null,
+            step: null,
           },
         ],
       }),
@@ -488,14 +503,17 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
   expect(sharedState.terminal.openedInFolders).toEqual(["/Users/jonathanf/streams/main"]);
 });
 
-/** The window's `StreamProjectFolderReport` and `StreamProjectRunOutcome` read exactly this JSON. */
-test("adding a stream answers the window in the contract's shape, from the chosen folder to the runtime's answer or its refusal", async () => {
+/** The window's `ProjectCreationQueued`, `ProjectRunQueued` and `StreamActionFollowed` read exactly this JSON. */
+test("adding a project answers the window in the contract's shape, from the chosen folder to the action queued and followed", async () => {
   const projectFolder = await realpath(await mkdtemp(path.join(os.tmpdir(), "tl-app-project-")));
   cleanUps.push(() => rm(projectFolder, { recursive: true, force: true }));
   const sharedState = await sharedStateOverFakes(
     [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-answer-for-the-new-project-hello.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-stream-refusal-for-the-project-no-venv-without-its-venv.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-run-project-answer-for-the-folder-hallways.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-create-project-answer-with-no-folder-drawn-kind-butte.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-of-the-create-of-kind-butte-starting.json")),
+      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-describe-stream-action-refusal-for-an-action-not-held.json")),
+      httpResponse("503 Service Unavailable", "text/plain", "starting"),
     ],
     "macos",
     [projectFolder],
@@ -504,42 +522,44 @@ test("adding a stream answers the window in the contract's shape, from the chose
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(JSON.stringify(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" }))).toBe(
-    `{"ok":true,"value":{"folder":${JSON.stringify(projectFolder)},"folder_exists":true,"stream_file_present":false,"stream_functions":[],"python_environment":{"kind":"missing"}}}`,
+  expect(JSON.stringify(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" }))).toBe(`{"ok":true,"value":${JSON.stringify(projectFolder)}}`);
+  expect(JSON.stringify(await commandHandlers.run_stream_project({ folder: projectFolder }))).toBe(
+    '{"ok":true,"value":{"action":"Rj12j3eujz3zn0dposliv79k9-3","project_directory":"/tmp/tatolab-proof-projects/hallways"}}',
   );
-  expect(JSON.stringify(await commandHandlers.run_stream_project({ folder: projectFolder, stream_function: null, name: null }))).toBe(
-    '{"ok":true,"value":{"kind":"running","answer":{"stream":"hello-main-8d60ef","display_name":"main","stream_instance":"1",' +
-      '"location":{"project_directory":"/private/tmp/tatolab-proof/projects/hello","stream_function":"stream:main"},' +
-      '"node_count":4,"replaced_a_recorded_stream":false,"compile_warnings":[]}}}',
+  expect(JSON.stringify(await commandHandlers.create_stream_project({ folder: null }))).toBe(
+    '{"ok":true,"value":{"action":"Rj12j3eujz3zn0dposliv79k9-7","stream":"kind-butte-main-e51c2f","project_directory":"/tmp/tatolab-proof/streams/kind-butte"}}',
   );
-  expect(await commandHandlers.run_stream_project({ folder: projectFolder, stream_function: null, name: "no-venv" })).toEqual({
-    ok: false,
-    refusal: "Invalid configuration: /tmp/tatolab-proof/projects/no-venv has no .venv/bin/python; run `uv sync` in /tmp/tatolab-proof/projects/no-venv",
-  });
   expect(refreshRequests).toHaveBeenCalledTimes(2);
-
-  expect(await commandHandlers.open_terminal_at_stream_project({ folder: projectFolder })).toEqual({
-    ok: false,
-    refusal: "open_terminal_at_stream_project needs `stream`, a stream's id",
+  expect(JSON.stringify(await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-7" }))).toBe(
+    '{"ok":true,"value":{"kind":"described","description":{"action":"Rj12j3eujz3zn0dposliv79k9-7","project_directory":"/tmp/tatolab-proof/streams/kind-butte",' +
+      '"kind":"load","state":"in_progress","step":"starting","streams":[{"stream":"kind-butte-main-e51c2f","display_name":"main","state":null}],"failed_because":null}}}',
+  );
+  expect(await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-999" })).toEqual({
+    ok: true,
+    value: {
+      kind: "not_held",
+      words:
+        "Invalid configuration: the stream action `Rj12j3eujz3zn0dposliv79k9-999` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log",
+    },
   });
-  expect(sharedState.terminal.openedInFolders).toEqual([]);
-  expect(await commandHandlers.create_stream_project({ folder: projectFolder })).toEqual({ ok: false, refusal: "this fake platform has no tatolab command" });
-  const proposal = await commandHandlers.propose_new_stream_project_folder(undefined);
-  expect(proposal.ok && proposal.value.folder.endsWith(path.join("streams", "hello"))).toBe(true);
+  const unanswered = await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-7" });
+  expect(unanswered.ok).toBe(false);
 });
 
-test("the commands that add a stream read their arguments as the window sends them, and refuse anything else", async () => {
+test("the commands that add a project read their arguments as the window sends them, and refuse anything else", async () => {
   const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
   expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "anything" })).toEqual({
     ok: false,
     refusal: "choose_stream_project_folder needs `chosen_for`, project_to_run or new_project_directory",
   });
   expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.create_stream_project({ folder: 7 })).toEqual({ ok: false, refusal: "create_stream_project needs `folder`, a folder chosen in the window" });
-  expect(await commandHandlers.run_stream_project({ folder: "/tmp/a", stream_function: 3, name: null })).toEqual({
+  expect(await commandHandlers.create_stream_project({ folder: 7 })).toEqual({
     ok: false,
-    refusal: "run_stream_project needs `folder`, a folder chosen in the window, and `stream_function` and `name`, each text or null",
+    refusal: "create_stream_project needs `folder`, a folder chosen in the window, or null for one the runtime draws under ~/streams",
   });
+  expect(await commandHandlers.create_stream_project({ folder: "/etc" })).toEqual({ ok: false, refusal: "Tatolab acts only on a folder chosen in its window. Choose /etc again." });
+  expect(await commandHandlers.run_stream_project({ folder: null })).toEqual({ ok: false, refusal: "run_stream_project needs `folder`, a folder chosen in the window" });
+  expect(await commandHandlers.describe_stream_action({})).toEqual({ ok: false, refusal: "describe_stream_action needs `action`, a stream action's id" });
 });
 
 /** The window's `RuntimeDescription` reads exactly this JSON. */
@@ -626,24 +646,6 @@ test("opening_tatolab_at_login_asks_the_desktop_then_observes_again_and_is_refus
     refusal: "Tatolab could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
   });
   expect(await commandHandlers.set_open_tatolab_at_login({})).toEqual({ ok: false, refusal: "set_open_tatolab_at_login needs `enabled`, true or false" });
-});
-
-test("choosing_the_python_for_new_environments_picks_through_the_apps_dialog_then_observes_again_and_never_takes_a_path", async () => {
-  const sharedState = await sharedStateOverFakes([], "macos", [], null, "/opt/homebrew/bin/python3.11");
-  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
-
-  expect(sharedState.streamProjectPythonEnvironments.pythonForNewEnvironmentsNow()).toEqual({ kind: "built_in", python_version: "3.12.12" });
-  expect(await commandHandlers.choose_python_for_new_environments({ python: "chosen_in_a_file_dialog" })).toEqual({ ok: true, value: null });
-  expect(sharedState.streamProjectPythonEnvironments.pythonForNewEnvironmentsNow()).toEqual({ kind: "chosen", interpreter: "/opt/homebrew/bin/python3.11" });
-  expect(refreshRequests).toHaveBeenCalledTimes(1);
-
-  expect(await commandHandlers.choose_python_for_new_environments({ python: "built_in" })).toEqual({ ok: true, value: null });
-  expect(sharedState.streamProjectPythonEnvironments.pythonForNewEnvironmentsNow()).toEqual({ kind: "built_in", python_version: "3.12.12" });
-
-  const refusal = { ok: false, refusal: "choose_python_for_new_environments needs `python`, built_in or chosen_in_a_file_dialog" };
-  expect(await commandHandlers.choose_python_for_new_environments({ python: "/usr/bin/python3" })).toEqual(refusal);
-  expect(await commandHandlers.choose_python_for_new_environments({})).toEqual(refusal);
 });
 
 /** The window's `RelaysDescription` reads exactly this JSON, recorded from a test-root runtime. */

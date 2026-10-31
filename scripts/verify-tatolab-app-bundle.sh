@@ -5,9 +5,9 @@
 # and the runtime helper's Contents/MacOS and Contents/Frameworks, every symlink resolving inside the
 # bundle, the runtime helper Contents/Helpers/Tatolab Runtime.app and its Info.plist, install.sh,
 # the Info.plist usage strings, the helper's runtime version against the app's and the streamlib
-# commit it was built from, the lend's CPython 3.10-3.14 bytecode, the runtime's preview page, uv
-# and the built-in Python laid out as the app finds them, the entitlements of the helper's tatolabd,
-# moq-relay and uv, the app's uv, the built-in Python's interpreter, the app and Electron's helpers, Electron's
+# commit it was built from, the lend's CPython 3.10-3.14 bytecode, the runtime's preview page, the
+# runtime's uv beside the helper's tatolabd and no Python of the app's own, the entitlements of the
+# helper's tatolabd, moq-relay, uv and tatolab-cli, the app and Electron's helpers, Electron's
 # fuses, and the build features the app was built with and the tatolab-app commit they name.
 # Reading the fuses and the build features needs this checkout's node_modules (npm ci).
 # A stapled target must also pass Gatekeeper.
@@ -83,8 +83,6 @@ required_device_entitlements=(com.apple.security.device.camera com.apple.securit
 allowed_app_entitlements="com.apple.security.cs.allow-jit com.apple.security.device.audio-input com.apple.security.device.camera"
 allowed_renderer_helper_entitlements="com.apple.security.cs.allow-jit"
 allowed_tatolabd_entitlements="com.apple.security.device.audio-input com.apple.security.device.camera"
-# A project's .venv runs the built-in Python's interpreter, which loads wheels other teams signed.
-allowed_built_in_python_interpreter_entitlements="com.apple.security.cs.disable-library-validation"
 # A process could otherwise run the app as plain Node and inherit its camera and microphone grants.
 required_electron_fuse_states=(
   "RunAsNode is Disabled" "EnableNodeOptionsEnvironmentVariable is Disabled" "EnableNodeCliInspectArguments is Disabled"
@@ -122,7 +120,8 @@ verify_app_bundle() {
   bundle_executable="$(plutil -extract CFBundleExecutable raw -o - "$info_plist" 2>/dev/null || true)"
   [ -n "$bundle_executable" ] && [ -x "$contents/MacOS/$bundle_executable" ] && is_mach_o "$contents/MacOS/$bundle_executable" \
     && pass "the app executable Contents/MacOS/$bundle_executable is present" || fail "the app executable '$bundle_executable' is missing"
-  [ -x "$contents/MacOS/uv" ] && pass "Contents/MacOS/uv is present" || fail "Contents/MacOS/uv is missing"
+  [ -x "$helper_contents/MacOS/uv" ] && pass "Tatolab Runtime.app's MacOS/uv, beside its tatolabd, is present" \
+    || fail "Tatolab Runtime.app's MacOS/uv is missing: tatolabd makes no project's .venv without it"
   [ -f "$contents/Resources/install.sh" ] && pass "Resources/install.sh, the runtime's installer, is present" \
     || fail "Resources/install.sh is missing: the app cannot install its runtime"
   local helper_info_plist="$helper_contents/Info.plist"
@@ -217,24 +216,8 @@ verify_app_bundle() {
   [ -f "$helper_contents/Resources/lend/tatolab/runtime/_processor_interpreter_bootstrap.py" ] \
     && pass "the helper's Resources/lend carries the runtime package" || fail "the helper's Resources/lend has no tatolab/runtime package"
 
-  local built_in_python_folders=() built_in_python_folder built_in_python_interpreter_link built_in_python_interpreter=""
-  while IFS= read -r -d '' built_in_python_folder; do
-    built_in_python_folders+=("$built_in_python_folder")
-  done < <(find "$contents/Resources/python" -mindepth 1 -maxdepth 1 -type d -name 'cpython-*' -print0 2>/dev/null)
-  if [ "${#built_in_python_folders[@]}" -eq 1 ]; then
-    pass "Resources/python holds one built-in Python, $(basename "${built_in_python_folders[0]}")"
-    built_in_python_interpreter_link="${built_in_python_folders[0]}/bin/python3"
-    built_in_python_interpreter="$(cd "$(dirname "$built_in_python_interpreter_link")" && realpath "$built_in_python_interpreter_link" 2>/dev/null || true)"
-    case "$built_in_python_interpreter" in
-      "$canonical_app_bundle/Contents/Frameworks/tatolab-python/"*) is_mach_o "$built_in_python_interpreter" \
-        && pass "the built-in Python's bin/python3 links into Frameworks/tatolab-python" \
-        || fail "the built-in Python's bin/python3 resolves to no Mach-O" ;;
-      *) fail "the built-in Python's bin/python3 does not resolve into Frameworks/tatolab-python: ${built_in_python_interpreter:-unresolved}"
-         built_in_python_interpreter="" ;;
-    esac
-  else
-    fail "Resources/python holds ${#built_in_python_folders[@]} built-in Pythons, not one: the app would offer none"
-  fi
+  [ ! -e "$contents/Resources/python" ] && [ ! -e "$contents/Frameworks/tatolab-python" ] && [ ! -e "$contents/MacOS/uv" ] \
+    && pass "the bundle carries no Python or uv of the app's own" || fail "the bundle carries a Python or uv of the app's own (Resources/python, Frameworks/tatolab-python or MacOS/uv)"
   [ "$lend_mach_o_links" -gt 0 ] && pass "the helper's Resources/lend links $lend_mach_o_links Mach-O into its Frameworks/tatolab-runtime" \
     || fail "the helper's Resources/lend links no Mach-O into its Frameworks/tatolab-runtime"
 
@@ -296,17 +279,11 @@ verify_app_bundle() {
   [ "$signed_code_entitlement_keys" = "$allowed_tatolabd_entitlements" ] \
     && pass "Tatolab Runtime.app's tatolabd carries exactly: $allowed_tatolabd_entitlements" || fail "Tatolab Runtime.app's tatolabd's entitlements are '$signed_code_entitlement_keys', not '$allowed_tatolabd_entitlements'"
   local unentitled_executable
-  for unentitled_executable in "$contents/MacOS/uv" "$helper_contents/MacOS/uv" "$helper_contents/MacOS/moq-relay" "$helper_contents/MacOS/tatolab-cli"; do
+  for unentitled_executable in "$helper_contents/MacOS/uv" "$helper_contents/MacOS/moq-relay" "$helper_contents/MacOS/tatolab-cli"; do
     signed_code_entitlement_keys="$(entitlement_keys_of "$unentitled_executable")"
     [ -z "$signed_code_entitlement_keys" ] && pass "${unentitled_executable#"$contents/"} carries no entitlements" \
       || fail "${unentitled_executable#"$contents/"}'s entitlements are '$signed_code_entitlement_keys', not none"
   done
-  if [ -n "$built_in_python_interpreter" ]; then
-    signed_code_entitlement_keys="$(entitlement_keys_of "$built_in_python_interpreter")"
-    [ "$signed_code_entitlement_keys" = "$allowed_built_in_python_interpreter_entitlements" ] \
-      && pass "the built-in Python's interpreter carries exactly: $allowed_built_in_python_interpreter_entitlements" \
-      || fail "the built-in Python's interpreter's entitlements are '$signed_code_entitlement_keys', not '$allowed_built_in_python_interpreter_entitlements'"
-  fi
   local helper_app helper_app_count=0 allowed_helper_entitlements
   while IFS= read -r -d '' helper_app; do
     helper_app_count=$((helper_app_count + 1))

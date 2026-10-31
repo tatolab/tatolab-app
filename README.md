@@ -13,9 +13,11 @@ Tatolab". A runtime that didn't start, was blocked by the service manager or los
 registration the app recovers by itself, registering its agent afresh less often each time until
 it answers. The window reads
 everything from the runtime's local API: `list_streams`, `logs` and `graph` over MCP, and
-`GET /api/graph` for the machine's name. It stops, starts (or retries) and removes a stream with
-the MCP tools `stop_stream`, `start_stream` and `remove_stream`; loading a new stream is the
-`tatolab` CLI's. A stream's Overview plays each output it exposes beyond itself that the runtime
+`GET /api/graph` for the machine's name. It queues a stop or a start (or retry) of a stream, and
+the removal of a whole project, with the MCP tools `stop_stream`, `start_stream` and
+`remove_project`, then shows the stream `stopping` or `preparing` at each step the runtime lists
+until it settles. A stream's Logs tab reads its project's log with `logs`, narrowed to the stream
+or showing the whole project; loading a new stream is the `tatolab` CLI's. A stream's Overview plays each output it exposes beyond itself that the runtime
 gives a preview page, in a frame of `http://127.0.0.1:4446/watch/…`, the one origin the window's
 content security policy frames. "Open project" and "Open a terminal in the project" open the folder the runtime lists for
 the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-emulator`.
@@ -141,9 +143,6 @@ Tatolab.app/Contents/
                                               preload in Resources/app.asar
   Frameworks/Electron Framework.framework, Frameworks/Tatolab Helper*.app
                                               Electron, and its GPU, plugin and renderer helpers
-  MacOS/uv                                    the uv the app makes a project's .venv with
-  Frameworks/tatolab-python/, Resources/python/
-                                              the built-in Python, each Mach-O linked into Frameworks
   Resources/install.sh                        streamlib's installer, which installs the helper below
   Helpers/Tatolab Runtime.app/Contents/       the runtime, a bundle of its own (com.tatolab.runtime)
     Info.plist                                its id and the usage strings macOS credits it for

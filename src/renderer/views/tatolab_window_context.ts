@@ -9,7 +9,7 @@ import type { RelayReadings } from "../relay_readings";
 import type { RuntimeDescriptionReadings } from "../runtime_description_reading";
 import type { WindowAppearance, WindowAppearanceChoice, WindowTheme } from "../window_appearance";
 import type { StreamGraphReading, StreamGraphReadings } from "../stream_graph_readings";
-import type { StreamLogReading, StreamLogReadings } from "../stream_log_readings";
+import type { ProjectLogReading, ProjectLogReadings, ProjectLogScope } from "../project_log_readings";
 import type { StreamsPageView } from "./streams_page_view";
 import type { TatolabWindowPage } from "./tatolab_window_page";
 
@@ -60,13 +60,13 @@ export interface TatolabWindowHostedPages {
   linuxRuntimeInstallScreen: TatolabWindowPage | null;
 }
 
-/** What every part of the React window reads: the backend, the platform, the status, the shown stream's graph and log, the hosted DOM pages, the window's look, the runtime's description and uninstalling. */
+/** What every part of the React window reads: the backend, the platform, the status, the shown stream's graph, the shown project log, the hosted DOM pages, the window's look, the runtime's description and uninstalling. */
 export interface TatolabWindowEnvironment {
   backend: TatolabBackend;
   platform: TatolabPlatform;
   statusStore: TatolabWindowStatusStore;
   streamGraphReadings: StreamGraphReadings;
-  streamLogReadings: StreamLogReadings;
+  projectLogReadings: ProjectLogReadings;
   /** Adding a stream, held by the window so a run outlives the page that started it. */
   addStreamFlow: AddStreamFlowOfTheWindow;
   hostedPages: TatolabWindowHostedPages;
@@ -107,10 +107,10 @@ export function useStreamGraphReading(streamId: string): StreamGraphReading {
   return useSyncExternalStore(streamGraphReadings.subscribeToReadings, () => streamGraphReadings.readingOf(streamId));
 }
 
-/** What the window holds of `streamId`'s log, re-rendering the caller on each change. */
-export function useStreamLogReading(streamId: string): StreamLogReading {
-  const { streamLogReadings } = useTatolabWindowEnvironment();
-  return useSyncExternalStore(streamLogReadings.subscribeToReadings, () => streamLogReadings.readingOf(streamId));
+/** What the window holds of the project log in `scope`, re-rendering the caller on each change. */
+export function useProjectLogReading(scope: ProjectLogScope): ProjectLogReading {
+  const { projectLogReadings } = useTatolabWindowEnvironment();
+  return useSyncExternalStore(projectLogReadings.subscribeToReadings, () => projectLogReadings.readingOf(scope));
 }
 
 /** The Add stream flow, re-rendering the caller on each change. */

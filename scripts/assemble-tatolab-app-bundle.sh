@@ -16,23 +16,13 @@
 #                                                         loopback HTTP (lib/tatolab/watch)
 #   <helper>/Contents/Resources/streamlib-commit          the streamlib commit the runtime was built from
 # and, for the app itself:
-#   Contents/MacOS/uv                                     the uv the app makes a project's .venv with
-#   Contents/Frameworks/tatolab-python/<flat name>        every Mach-O of the built-in Python, its path
-#                                                         under Resources/python with / as __: codesign
-#                                                         takes a folder in Frameworks/ whose name holds a
-#                                                         dot (cpython-3.12…, lib/python3.12) for a bundle
-#   Contents/Resources/python/<cpython-…>/                the built-in Python, each Mach-O a relative
-#                                                         symlink into Frameworks/tatolab-python
 #   Contents/Resources/install.sh                         streamlib's installer, which installs the helper
-# Code signing requires code under MacOS/ or Frameworks/; the lend and the built-in Python keep
-# their shape through the links, which the app follows when it copies the Python out.
+# Code signing requires code under MacOS/ or Frameworks/; the lend keeps its shape through the links.
 #
 # Usage: assemble-tatolab-app-bundle.sh <Tatolab.app> <runtime unit dir> --streamlib-commit SHA
-#                                      --python-toolchain DIR --installer FILE [--local-proof-test-root]
+#                                      --installer FILE [--local-proof-test-root]
 #   --streamlib-commit SHA   the streamlib commit the build resolved; the unit's streamlib-commit
 #                            must name it
-#   --python-toolchain DIR   uv and the built-in Python, as fetch-python-toolchain-for-the-app-build.sh
-#                            lays them out
 #   --installer FILE         streamlib's installer/install.sh, from the checkout the unit was built in
 #   --local-proof-test-root  the unit must carry the machine-directories-under-a-test-root marker,
 #                            which the helper carries too
@@ -45,12 +35,10 @@ runtime_unit_directory="$(cd "$2" && pwd)"
 shift 2
 local_proof_test_root=false
 resolved_streamlib_commit=""
-python_toolchain_directory=""
 streamlib_installer=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --streamlib-commit) [ $# -ge 2 ] || usage; resolved_streamlib_commit="$2"; shift ;;
-    --python-toolchain) [ $# -ge 2 ] || usage; python_toolchain_directory="$2"; shift ;;
     --installer) [ $# -ge 2 ] || usage; streamlib_installer="$2"; shift ;;
     --local-proof-test-root) local_proof_test_root=true ;;
     *) usage ;;
@@ -58,7 +46,6 @@ while [ $# -gt 0 ]; do
   shift
 done
 [[ "$resolved_streamlib_commit" =~ ^[0-9a-f]{40}$ ]] || usage
-[ -n "$python_toolchain_directory" ] || usage
 [ -n "$streamlib_installer" ] || usage
 
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -106,19 +93,6 @@ else
   }
 fi
 
-[ -x "$python_toolchain_directory/uv" ] || { echo "python toolchain $python_toolchain_directory has no uv" >&2; exit 1; }
-built_in_python_folders=()
-while IFS= read -r -d '' built_in_python_folder; do
-  built_in_python_folders+=("$built_in_python_folder")
-done < <(find "$python_toolchain_directory/python" -mindepth 1 -maxdepth 1 -type d -name 'cpython-*' -print0 2>/dev/null)
-[ "${#built_in_python_folders[@]}" -eq 1 ] || {
-  echo "python toolchain $python_toolchain_directory holds ${#built_in_python_folders[@]} built-in Pythons under python/, not one" >&2
-  exit 1
-}
-built_in_python_source="${built_in_python_folders[0]}"
-built_in_python_folder_name="$(basename "$built_in_python_source")"
-[ -x "$built_in_python_source/bin/python3" ] || { echo "the built-in Python $built_in_python_source has no bin/python3" >&2; exit 1; }
-
 is_mach_o() { [[ "$(file -b "$1")" == Mach-O* ]]; }
 
 # The symlink target from Contents/<link_path_relative_to_contents> to Contents/<target_relative_to_contents>.
@@ -142,8 +116,7 @@ rm -rf "$contents/Helpers" "$contents/Frameworks/tatolab-runtime" "$contents/Res
   "$contents/Library/LaunchAgents" "$contents/Resources/$marker_file_name" "$contents/Resources/$streamlib_commit_file_name" \
   "$contents/MacOS/tatolabd" "$contents/MacOS/tatolab-cli" "$contents/MacOS/moq-relay" "$contents/Resources/install.sh" \
   "$contents/MacOS/uv" "$contents/Frameworks/tatolab-python" "$contents/Resources/python"
-mkdir -p "$helper_contents/MacOS" "$helper_contents/Frameworks/tatolab-runtime" "$helper_contents/Resources" \
-  "$contents/Frameworks/tatolab-python" "$contents/Resources/python"
+mkdir -p "$helper_contents/MacOS" "$helper_contents/Frameworks/tatolab-runtime" "$helper_contents/Resources"
 
 app_version="$(plutil -extract CFBundleShortVersionString raw -o - "$contents/Info.plist")"
 cp "$runtime_helper_info_plist_template" "$helper_contents/Info.plist"
@@ -189,24 +162,8 @@ for python_version in "${processor_interpreter_python_versions[@]}"; do
     "$helper_contents/Resources/lend"
 done
 
-install -m 0755 "$python_toolchain_directory/uv" "$contents/MacOS/uv"
-ditto "$built_in_python_source" "$contents/Resources/python/$built_in_python_folder_name"
-relocated_python_mach_o_count=0
-while IFS= read -r -d '' built_in_python_file; do
-  is_mach_o "$built_in_python_file" || continue
-  path_in_the_python="${built_in_python_file#"$contents/Resources/python/"}"
-  flat_name_in_frameworks="${path_in_the_python//\//__}"
-  framework_copy="$contents/Frameworks/tatolab-python/$flat_name_in_frameworks"
-  mv "$built_in_python_file" "$framework_copy"
-  ln -s "$(relative_path_from_contents_link "Resources/python/$path_in_the_python" \
-    "Frameworks/tatolab-python/$flat_name_in_frameworks")" "$built_in_python_file"
-  [ -f "$built_in_python_file" ] || { echo "the link at $built_in_python_file does not resolve" >&2; exit 1; }
-  relocated_python_mach_o_count=$((relocated_python_mach_o_count + 1))
-done < <(find "$contents/Resources/python/$built_in_python_folder_name" -type f -print0)
-[ "$relocated_python_mach_o_count" -gt 0 ] || { echo "the built-in Python carried no Mach-O: is $built_in_python_source a macOS build?" >&2; exit 1; }
-
 if $local_proof_test_root; then
   cp "$runtime_unit_directory/$marker_file_name" "$helper_contents/Resources/$marker_file_name"
 fi
 
-echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, moq-relay, uv, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}) and the preview page; the app's uv, $built_in_python_folder_name with $relocated_python_mach_o_count Mach-O in Frameworks/tatolab-python, and install.sh$($local_proof_test_root && echo ' (local proof)')"
+echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, moq-relay, uv, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}) and the preview page; and install.sh$($local_proof_test_root && echo ' (local proof)')"

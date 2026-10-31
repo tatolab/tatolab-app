@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"{\n  \"action\": \"Riioiuiuj7n1z3ghkm7s9n1xi-6\",\n  \"project_directory\": \"/tmp/tatolab-proof-projects/lobby\",\n  \"kind\": \"load\",\n  \"state\": \"in_progress\",\n  \"step\": \"making_the_venv\",\n  \"streams\": [],\n  \"failed_because\": null\n}"}],"isError":false}}

@@ -1,4 +1,3 @@
-import type { BundledPythonToolchain } from "./bundled_python_toolchain.js";
 import type { CarriedRuntimeInstall } from "./carried_runtime_install.js";
 import type { RuntimeAgentRegistration } from "./runtime_agent_registration.js";
 import type { TatolabCommandLineToolLinks } from "./tatolab_command_line_tool_links.js";
@@ -21,15 +20,13 @@ export interface TatolabPlatformForThisBuild {
   carriedRuntimeInstall: CarriedRuntimeInstall | null;
   /** The desktop's terminal, which the window's Terminal opens on a stream's project folder. */
   terminalOpenedInAFolder: TerminalOpenedInAFolder;
-  /** The `tatolab` CLI the app runs `tatolab new` with. */
+  /** The `tatolab` CLI the build carries, whose version Settings › Command line reads. */
   tatolabCommandLineTool: TatolabCommandLineTool;
   /** "Open Tatolab at login": the bundle's login item on macOS, an XDG autostart entry on Linux; not offered by an unpackaged app. */
   tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin;
-  /** The uv and built-in Python the app makes a project's `.venv` with; not offered by an unpackaged app. */
-  bundledPythonToolchain: BundledPythonToolchain;
 }
 
-/** What a platform takes from the app around it to build its items; Linux takes only whether the app is packaged and its binary. */
+/** What a platform takes from the app around it to build its items; Linux takes only whether the app is packaged, its binary and its resources folder. */
 export interface TatolabPlatformHostServices {
   /** The person's home folder, under which macOS's installer keeps the runtime, its launch agent and the `tatolab` link. */
   homeDirectory: string;
@@ -39,7 +36,7 @@ export interface TatolabPlatformHostServices {
   appIsPackaged: boolean;
   /** The app's own config directory, named for `TATOLAB_APP_IDENTIFIER`. */
   appConfigDirectory: string;
-  /** The packaged app's resources folder, `process.resourcesPath`, where Linux finds the app's uv and built-in Python. */
+  /** The packaged app's resources folder, `process.resourcesPath`, where Linux finds the runtime unit and installer it carries. */
   appResourcesDirectory: string;
   /** The Trash and quitting, which uninstalling ends with. */
   tatolabUninstallAppSurface: TatolabUninstallAppSurface;

@@ -22,7 +22,7 @@ function listedStreams(streamCount: number): ListedStream[] {
     location: { project_directory: `/projects/stream-${streamIndex}`, stream_function: "stream:main" },
     state: "running",
     node_count: 2,
-    failed_because: null,
+    failed_because: null, action: null, step: null,
   }));
 }
 
@@ -44,7 +44,6 @@ function statusWith(runtimeState: RuntimeState, runtimeAgent: RuntimeAgentRegist
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
-    python_for_new_environments: { kind: "built_in", python_version: "3.12.12" },
     runtime_install: { kind: "none" },
     installed_runtime: null,
   };
