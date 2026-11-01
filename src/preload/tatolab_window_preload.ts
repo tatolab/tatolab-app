@@ -4,6 +4,7 @@ import {
   TATOLAB_COMMAND_NAMES,
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
+  TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE,
   isATatolabStreamPageRequest,
   type TatolabElectronBridge,
 } from "../shared/tatolab_electron_bridge_contract.js";
@@ -42,6 +43,9 @@ const tatolabElectronBridge: TatolabElectronBridge = {
     return () => {
       ipcRenderer.removeListener(TATOLAB_STREAM_PAGE_REQUESTED_EVENT, streamPageRequestedListener);
     };
+  },
+  tellTheAppTheWindowDrewItsFirstStatus: () => {
+    ipcRenderer.send(TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE);
   },
 };
 

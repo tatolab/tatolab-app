@@ -7,6 +7,7 @@ const UNANSWERING_TATOLAB_ELECTRON_BRIDGE: TatolabElectronBridge = {
   invokeTatolabCommand: async () => ({ ok: false, refusal: "not under test" }),
   onTatolabStatusChanged: () => () => undefined,
   onStreamPageRequested: () => () => undefined,
+  tellTheAppTheWindowDrewItsFirstStatus: () => undefined,
 };
 
 afterEach(() => {

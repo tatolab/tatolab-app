@@ -33,6 +33,7 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
       streamPageRequestListeners.add(listener);
       return () => streamPageRequestListeners.delete(listener);
     },
+    tellTheAppTheWindowDrewItsFirstStatus() {},
   };
   return { tatolabElectronBridge, invokedCommands, statusListeners, streamPageRequestListeners };
 }

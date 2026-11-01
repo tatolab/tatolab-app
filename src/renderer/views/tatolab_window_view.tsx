@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import type { TatolabBackend } from "../backend/tatolab_backend";
@@ -49,8 +49,17 @@ function windowLocalStorage(): Storage | null {
 }
 
 /** The shell and its pages, or what fills the window instead: the runtime install the app runs, then until Tatolab runs here, macOS's first run or Linux's installer. */
-function TatolabWindowRoot({ router, isUninstallUnderway }: { router: TatolabWindowRouter; isUninstallUnderway: () => boolean }) {
+function TatolabWindowRoot({
+  router,
+  isUninstallUnderway,
+  noticeTheFirstStatusCommitted,
+}: {
+  router: TatolabWindowRouter;
+  isUninstallUnderway: () => boolean;
+  noticeTheFirstStatusCommitted: () => void;
+}) {
   const { hostedPages } = useTatolabWindowEnvironment();
+  useEffect(noticeTheFirstStatusCommitted, [noticeTheFirstStatusCommitted]);
   const status = useTatolabStatus();
   const runtimeInstallOverlay = presentRuntimeInstallOverlay(status.runtime_install);
   if (runtimeInstallOverlay !== null) return <RuntimeInstallOverlayView overlay={runtimeInstallOverlay} />;
@@ -64,15 +73,22 @@ function TatolabWindowRoot({ router, isUninstallUnderway }: { router: TatolabWin
   return <RouterProvider router={router} />;
 }
 
+/** Calls `afterTheFrame` once the frame holding what the page has committed so far has been drawn. */
+function afterTheNextFrameIsDrawn(afterTheFrame: () => void): void {
+  requestAnimationFrame(() => requestAnimationFrame(afterTheFrame));
+}
+
 /**
  * Mounts the main window, built for `platform` with `featureFlags`, into `rootElement`; the answer shows each status
  * the backend reports, first to every hosted DOM page, then to the React window, which renders on the first.
+ * `onTheFirstStatusDrawn` runs once, after the frame holding the first status has been drawn.
  */
 export function mountTatolabWindow(
   rootElement: HTMLElement,
   backend: TatolabBackend,
   platform: TatolabPlatform,
   featureFlags: TatolabFrontendFeatureFlags,
+  onTheFirstStatusDrawn?: () => void,
 ): (status: TatolabStatus) => void {
   document.documentElement.dataset.platform = platform;
   const router = createMemoryRouter(TATOLAB_WINDOW_ROUTES);
@@ -210,6 +226,12 @@ export function mountTatolabWindow(
     }
     runtimeStateLastShown = status.runtime_state;
   };
+  let firstStatusCommitNoticed = false;
+  const noticeTheFirstStatusCommitted = () => {
+    if (firstStatusCommitNoticed || onTheFirstStatusDrawn === undefined) return;
+    firstStatusCommitNoticed = true;
+    afterTheNextFrameIsDrawn(onTheFirstStatusDrawn);
+  };
   const renderTheWindowOn = (firstStatusStore: TatolabWindowStatusStore) => {
     const environment: TatolabWindowEnvironment = {
       backend,
@@ -232,7 +254,11 @@ export function mountTatolabWindow(
       <StrictMode>
         <TatolabWindowEnvironmentContext value={environment}>
           <ControlTooltipProvider>
-            <TatolabWindowRoot router={router} isUninstallUnderway={() => uninstallSheet.isUninstallUnderway()} />
+            <TatolabWindowRoot
+              router={router}
+              isUninstallUnderway={() => uninstallSheet.isUninstallUnderway()}
+              noticeTheFirstStatusCommitted={noticeTheFirstStatusCommitted}
+            />
           </ControlTooltipProvider>
         </TatolabWindowEnvironmentContext>
       </StrictMode>,

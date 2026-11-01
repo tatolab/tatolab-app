@@ -44,7 +44,7 @@ async function readFirstTatolabStatus(backend: TatolabBackend): Promise<TatolabS
   }
 }
 
-/** The window mounts once the first status names its platform; listening before that read misses no change after it. */
+/** The window mounts once the first status names its platform, and inside the app tells the app once that status is drawn; listening before that read misses no change after it. */
 async function startTatolabWindow(): Promise<void> {
   const rootElement = document.getElementById("app");
   if (!rootElement) return;
@@ -60,7 +60,9 @@ async function startTatolabWindow(): Promise<void> {
   let showTatolabStatus: ((status: TatolabStatus) => void) | null = null;
   await backend.onTatolabStatusChanged((status) => showTatolabStatus?.(status));
   const firstStatus = await readFirstTatolabStatus(backend);
-  showTatolabStatus = mountTatolabWindow(rootElement, backend, platformOf(firstStatus), featureFlags);
+  const tellTheAppTheWindowDrewItsFirstStatus =
+    windowHost.kind === "electron" ? () => windowHost.tatolabElectronBridge.tellTheAppTheWindowDrewItsFirstStatus() : undefined;
+  showTatolabStatus = mountTatolabWindow(rootElement, backend, platformOf(firstStatus), featureFlags, tellTheAppTheWindowDrewItsFirstStatus);
   showTatolabStatus(firstStatus);
   if (!insideTheApp && import.meta.env.DEV) {
     const { driveMockWindowToPreset } = await import("./mock_window_preset");
