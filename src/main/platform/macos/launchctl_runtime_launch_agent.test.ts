@@ -10,6 +10,7 @@ import {
   type LaunchctlRunner,
   type ProcessExitWaiter,
 } from "./launchctl_runtime_launch_agent.js";
+import type { LegacyLaunchAgentLoginItemsStatus, LegacyLaunchAgentLoginItemsStatusReader } from "./login_items_status_of_the_legacy_launch_agent.js";
 import type { OpenRunner } from "./terminal_app_opened_by_open.js";
 
 const LABEL = "com.tatolab.tatolabd";
@@ -42,6 +43,9 @@ class FakeLaunchdUserDomain {
   bootoutLeavesTheProcessExiting = false;
   jobProcessExiting = false;
   processExitWaiterAnswer: Result<void, string> = succeeded(undefined);
+  loginItemsStatusAnswer: Result<LegacyLaunchAgentLoginItemsStatus, string> = succeeded("enabled");
+
+  readonly loginItemsStatusReader: LegacyLaunchAgentLoginItemsStatusReader = async () => this.loginItemsStatusAnswer;
 
   readonly processExitWaiter: ProcessExitWaiter = async (processId) => {
     this.launchctlCalls.push(`wait for process ${processId} to exit`);
@@ -111,7 +115,7 @@ async function launchAgentOver(launchd: FakeLaunchdUserDomain, withThePlist = tr
   const plistPath = await launchAgentsFolder(withThePlist);
   return {
     plistPath,
-    launchAgent: new LaunchctlRuntimeLaunchAgent(501, { label: LABEL, plistPath }, launchd.launchctlRunner, runOpen, launchd.processExitWaiter),
+    launchAgent: new LaunchctlRuntimeLaunchAgent(501, { label: LABEL, plistPath }, launchd.launchctlRunner, runOpen, launchd.processExitWaiter, launchd.loginItemsStatusReader),
   };
 }
 
@@ -345,4 +349,17 @@ test("the_launch_agent_reads_launchds_give_up_from_launchctl_print_and_none_when
     serviceManagerWords: "launchd: last exit code = 78: EX_CONFIG",
     registeringAgainWaitsForTheNextSpawn: false,
   });
+});
+
+test("the_agent_needs_approval_while_login_items_holds_tatolab_off_even_when_launchd_still_runs_its_job", async () => {
+  const launchd = new FakeLaunchdUserDomain();
+  launchd.jobLoaded = true;
+  const { launchAgent } = await launchAgentOver(launchd);
+  expect(await launchAgent.registrationStatus()).toBe("enabled");
+
+  launchd.loginItemsStatusAnswer = succeeded("requires_approval");
+  expect(await launchAgent.registrationStatus()).toBe("requires_approval");
+
+  launchd.loginItemsStatusAnswer = failedWith("osascript could not be run: spawn /usr/bin/osascript ENOENT");
+  expect(await launchAgent.registrationStatus(), "a Login Items status that cannot be read leaves launchd's answer").toBe("enabled");
 });

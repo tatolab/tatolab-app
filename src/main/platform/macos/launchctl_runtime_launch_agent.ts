@@ -6,6 +6,7 @@ import { failedWith, succeeded, type Result } from "../../result.js";
 import type { RuntimeAgentRegistration as RuntimeAgentRegistrationStatus } from "../../../shared/tatolab_backend_contract.js";
 import type { RuntimeAgentGiveUp, RuntimeAgentRegistration, RuntimeAgentStartFailure } from "../runtime_agent_registration.js";
 import { describeHowTheProgramEnded, programSucceeded, runProgramToCompletion, type ProgramCompletion } from "../run_program_to_completion.js";
+import type { LegacyLaunchAgentLoginItemsStatusReader } from "./login_items_status_of_the_legacy_launch_agent.js";
 import { OPEN_AT_ITS_SYSTEM_PATH, type OpenRunner } from "./terminal_app_opened_by_open.js";
 
 /** launchctl's exit status when its domain holds no job for the service ("Could not find service"). */
@@ -111,10 +112,17 @@ export class LaunchctlRuntimeLaunchAgent implements RuntimeAgentRegistration {
     private readonly launchctlRunner: LaunchctlRunner,
     private readonly runOpen: OpenRunner,
     private readonly waitForTheProcessToExit: ProcessExitWaiter,
+    private readonly readLoginItemsStatus: LegacyLaunchAgentLoginItemsStatusReader,
   ) {}
 
+  /**
+   * `requires_approval` while the person has Tatolab off in Login Items, which launchd does not always enforce by refusing
+   * a bootstrap; a status Login Items cannot be asked for leaves launchd's answer to decide.
+   */
   async registrationStatus(): Promise<RuntimeAgentRegistrationStatus> {
     if (!(await this.theInstallerWroteTheAgentsPlist())) return "not_found";
+    const loginItemsStatus = await this.readLoginItemsStatus(this.runtimeLaunchAgent.plistPath);
+    if (loginItemsStatus.ok && loginItemsStatus.value === "requires_approval") return "requires_approval";
     if (await this.launchdHoldsTheJob()) {
       this.bootstrapRefusedWhileEnabled = false;
       return "enabled";

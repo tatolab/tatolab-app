@@ -103,6 +103,8 @@ interface FreshRegistrationsSinceTheRuntimeLastAnswered {
 /** The switch's remembered value, the agent it drives, and what this launch has already done. */
 export class RunTatolabSwitch {
   private loginItemsSettingsOpenedThisLaunch = false;
+  /** The app stopped the runtime because Login Items holds the agent off; cleared once the agent reads otherwise. */
+  private runtimeStoppedWhileLoginItemsHoldTheAgentOff = false;
   private runtimeAgentLastStartAttemptAtMs: number | null = null;
   private runtimeAnsweredSinceLastStarted = false;
   /** `null` while the app has not registered the agent afresh by itself since the runtime last answered. */
@@ -312,11 +314,16 @@ export class RunTatolabSwitch {
     return this.setRunTatolab(!this.runTatolabSwitchedOn, nowMs);
   }
 
-  /** React to the agent's status as the poller saw it: the first time this launch the switch is on and the agent needs approval, Login Items opens by itself. */
+  /**
+   * React to the agent's status as the poller saw it: with the switch on and the agent needing approval, the runtime is
+   * stopped, as turning Tatolab off in Login Items asks, and the first time this launch Login Items opens by itself.
+   */
   async noticeRuntimeAgentRegistrationStatus(runtimeAgent: RuntimeAgentRegistrationStatus): Promise<void> {
-    if (this.runTatolabSwitchedOn && runtimeAgent === "requires_approval") {
-      await this.needsApprovalInLoginItems();
+    if (runtimeAgent !== "requires_approval") {
+      this.runtimeStoppedWhileLoginItemsHoldTheAgentOff = false;
+      return;
     }
+    if (this.runTatolabSwitchedOn) await this.needsApprovalInLoginItems();
   }
 
   /**
@@ -466,6 +473,7 @@ export class RunTatolabSwitch {
   }
 
   private async needsApprovalInLoginItems(): Promise<RunTatolabReconciliation> {
+    await this.stopTheRuntimeWhileLoginItemsHoldTheAgentOff();
     const openedLoginItemsSettings = !this.loginItemsSettingsOpenedThisLaunch;
     if (openedLoginItemsSettings) {
       const opened = await this.runtimeAgent.openLoginItemsSettings();
@@ -473,6 +481,17 @@ export class RunTatolabSwitch {
       this.loginItemsSettingsOpenedThisLaunch = true;
     }
     return { kind: "needs_approval_in_login_items", openedLoginItemsSettings };
+  }
+
+  /** Unregister the agent once while Login Items holds it off, so a runtime launchd still runs stops and nothing restarts it. */
+  private async stopTheRuntimeWhileLoginItemsHoldTheAgentOff(): Promise<void> {
+    if (this.runtimeStoppedWhileLoginItemsHoldTheAgentOff) return;
+    const unregistered = await this.runtimeAgent.unregisterRuntimeAgent();
+    if (!unregistered.ok) {
+      this.tatolabAppLog.warn("the runtime could not be stopped while Login Items holds Tatolab off", { failure_description: unregistered.failure });
+      return;
+    }
+    this.runtimeStoppedWhileLoginItemsHoldTheAgentOff = true;
   }
 }
 

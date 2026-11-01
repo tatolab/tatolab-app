@@ -29,6 +29,7 @@ import {
 import { TerminalAppOpenedByOpen } from "./terminal_app_opened_by_open.js";
 import { TatolabUninstallOnThisMac } from "./tatolab_uninstall_on_this_mac.js";
 import { LoginItemOfTheAppBundle } from "./login_item_of_the_app_bundle.js";
+import { legacyLaunchAgentLoginItemsStatusReaderThrough } from "./login_items_status_of_the_legacy_launch_agent.js";
 import { tatolabAppUpdatePackagingOnMacos } from "./tatolab_app_update_packaging_on_macos.js";
 
 /** The installer's launch agent through `launchctl`, the install of the runtime helper a packaged app carries, the links of the installed CLI, and uninstalling them. */
@@ -56,6 +57,7 @@ export async function macosTatolabPlatformForThisBuild(
       LAUNCHCTL_AT_ITS_SYSTEM_PATH,
       OPEN_RUN_AT_ITS_SYSTEM_PATH,
       CAFFEINATE_WAITING_FOR_THE_PROCESS_TO_EXIT,
+      legacyLaunchAgentLoginItemsStatusReaderThrough(OSASCRIPT_AT_ITS_SYSTEM_PATH),
     ),
     commandLineToolLinks: new CommandLineToolLinksOnThisMac(machinePaths, installedCommandLineTool, administratorPrompt, tatolabAppLog),
     localApiSocket: machinePaths.localApiSocket,
