@@ -58,10 +58,20 @@ async function startTatolabWindow(): Promise<void> {
   const insideTheApp = windowHost.kind !== "browser";
   const featureFlags = readTatolabFrontendFeatureFlags(insideTheApp, pageQuery);
   let showTatolabStatus: ((status: TatolabStatus) => void) | null = null;
-  await backend.onTatolabStatusChanged((status) => showTatolabStatus?.(status));
+  await backend.onTatolabStatusChanged((status) => {
+    diag127(`status_event runtime_state=${status.runtime_state} install=${status.runtime_install.kind}`);
+    showTatolabStatus?.(status);
+  });
+  diag127("first_status_asked");
   const firstStatus = await readFirstTatolabStatus(backend);
+  diag127(`first_status_read runtime_state=${firstStatus.runtime_state} install=${firstStatus.runtime_install.kind}`);
   const tellTheAppTheWindowDrewItsFirstStatus =
-    windowHost.kind === "electron" ? () => windowHost.tatolabElectronBridge.tellTheAppTheWindowDrewItsFirstStatus() : undefined;
+    windowHost.kind === "electron"
+      ? () => {
+          diag127("notice_sent_after_two_frames");
+          windowHost.tatolabElectronBridge.tellTheAppTheWindowDrewItsFirstStatus();
+        }
+      : undefined;
   showTatolabStatus = mountTatolabWindow(rootElement, backend, platformOf(firstStatus), featureFlags, tellTheAppTheWindowDrewItsFirstStatus);
   showTatolabStatus(firstStatus);
   if (!insideTheApp && import.meta.env.DEV) {
@@ -69,5 +79,18 @@ async function startTatolabWindow(): Promise<void> {
     driveMockWindowToPreset(pageQuery, platformOf(firstStatus));
   }
 }
+
+const diag127EpochMs = () => Math.round((performance.timeOrigin + performance.now()) * 10) / 10;
+const diag127 = (diagEvent: string) => console.info(`diag127 ${diagEvent} renderer_epoch_ms=${diag127EpochMs()}`);
+diag127("main_ts_started");
+void document.fonts.ready.then(() => diag127(`fonts_ready status=${document.fonts.status}`));
+new PerformanceObserver((paintEntries) => {
+  for (const paintEntry of paintEntries.getEntries()) {
+    const presentedAt = "renderTime" in paintEntry && typeof paintEntry.renderTime === "number" && paintEntry.renderTime > 0 ? paintEntry.renderTime : paintEntry.startTime;
+    diag127(`${paintEntry.entryType}:${paintEntry.name} presented_epoch_ms=${Math.round((performance.timeOrigin + presentedAt) * 10) / 10}`);
+  }
+}).observe({ entryTypes: ["paint", "largest-contentful-paint"] });
+document.addEventListener("visibilitychange", () => diag127(`visibility=${document.visibilityState}`));
+diag127(`initial_visibility=${document.visibilityState}`);
 
 void startTatolabWindow();

@@ -75,7 +75,11 @@ function TatolabWindowRoot({
 
 /** Calls `afterTheFrame` once the frame holding what the page has committed so far has been drawn. */
 function afterTheNextFrameIsDrawn(afterTheFrame: () => void): void {
-  requestAnimationFrame(() => requestAnimationFrame(afterTheFrame));
+  console.info(`diag127 first_status_committed renderer_epoch_ms=${performance.timeOrigin + performance.now()}`);
+  requestAnimationFrame(() => {
+    console.info(`diag127 raf_1 renderer_epoch_ms=${performance.timeOrigin + performance.now()}`);
+    requestAnimationFrame(afterTheFrame);
+  });
 }
 
 /**
