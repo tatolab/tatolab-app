@@ -13,7 +13,14 @@ import {
 } from "../presentation/stream_overview_presentation";
 import { dataKindOfEachOutputPort, presentStreamGraphCanvas, type StreamGraphPortDataKind } from "../presentation/stream_graph_canvas_presentation";
 import { stepNamesInFlowOrder } from "../presentation/stream_graph_step_layout";
-import { abbreviateHomeDirectory, isStreamLoaded, listedStreamProjectDirectory, presentStreamPrimaryAction, streamNotLoadedReason } from "../presentation/stream_presentation";
+import {
+  abbreviateHomeDirectory,
+  isStreamLoaded,
+  listedStreamProjectDirectory,
+  presentCaptureDeviceAccessAwaited,
+  presentStreamPrimaryAction,
+  streamNotLoadedReason,
+} from "../presentation/stream_presentation";
 import type { StreamGraphReading } from "../stream_graph_readings";
 import { ActionButton } from "../design_system/action_button";
 import { CopyIconButton } from "../design_system/copy_icon_button";
@@ -37,6 +44,20 @@ function FailedStreamBanner({ stream }: { stream: ListedStream }) {
     <FailureBanner place="page" data-failed-stream-banner="">
       <span className="text-danger-text">Failed</span> — {stream.failed_because ?? "The runtime gave no reason."}
     </FailureBanner>
+  );
+}
+
+/** The amber line a stream waiting for capture-device access carries: what it waits for and why macOS has not asked; Allow is the bar's. */
+function CaptureDeviceAccessAwaitedLine({ stream }: { stream: ListedStream }) {
+  const captureDeviceAccessAwaited = presentCaptureDeviceAccessAwaited(stream);
+  if (captureDeviceAccessAwaited === null) return null;
+  return (
+    <div className="-mt-1.5 mb-2.5 flex min-h-8 max-w-[920px] items-center gap-2" data-capture-device-access-awaited="">
+      <TriangleAlert className="size-3.5 shrink-0 text-warn" strokeWidth={1.75} aria-hidden />
+      <span className="min-w-0 text-fg-2">
+        <span className="text-warn-text">{captureDeviceAccessAwaited.title}</span> — {captureDeviceAccessAwaited.explanation}
+      </span>
+    </div>
   );
 }
 
@@ -277,7 +298,7 @@ function StreamDetailsSidePanel({ stream, reading }: { stream: ListedStream; rea
   );
 }
 
-/** A stream's Overview: why it failed, the links dropping messages and its exposed outputs playing; its project, outputs and nodes in the Details slide-out. */
+/** A stream's Overview: why it failed or the access it waits for, the links dropping messages and its exposed outputs playing; its project, outputs and nodes in the Details slide-out. */
 export function StreamOverviewPageView({
   stream,
   streamPageActions,
@@ -294,6 +315,7 @@ export function StreamOverviewPageView({
       {stream.state === "failed" && <FailedStreamBanner stream={stream} />}
       <WorkAreaWithSidePanel sidePanel={isDetailsPanelOpen ? <StreamDetailsSidePanel stream={stream} reading={reading} /> : null}>
         <PageBody>
+          <CaptureDeviceAccessAwaitedLine stream={stream} />
           <DroppingLinkLines stream={stream} reading={reading} />
           <StreamOutputPreviews stream={stream} reading={reading} machineName={status.machine_name} streamPageActions={streamPageActions} />
         </PageBody>

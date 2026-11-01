@@ -102,6 +102,19 @@ describe("the Streams list", () => {
     expect(within(rowOf("camera")).getByRole("button", { name: "Start: loads it again from its record" })).toBeTruthy();
   });
 
+  it("shows a stream the runtime brought back before camera access was asked for as waiting, and Allow restarts it so macOS asks", async () => {
+    await mountedWindowOverTheMock("state=camera-access");
+
+    expect(within(rowOf("camera")).getByRole("link", { name: "camera, Waiting for camera access" })).toBeTruthy();
+    expect(rowOf("camera").querySelector("[data-capture-device-access-awaited]")?.textContent).toContain("Waiting for camera access");
+    fireEvent.click(within(rowOf("camera")).getByRole("button", { name: "Allow: restarts it, and macOS asks for the camera" }));
+
+    expect(within(rowOf("camera")).getByRole("status").textContent).toBe("Restarting…");
+    await waitFor(() => expect(within(rowOf("camera")).getByRole("link", { name: "camera, Running" })).toBeTruthy(), { timeout: 5000 });
+    expect(rowOf("camera").querySelector("[data-capture-device-access-awaited]")).toBeNull();
+    expect(within(rowOf("camera")).getByRole("button", { name: "Stop: unloads it and remembers it stopped" })).toBeTruthy();
+  });
+
   it("shows a refusal under its row in the runtime's own words", async () => {
     const refusal = "Runtime error: the stream `camera-main-018da9` is already stopped; `start` loads it again";
     await mountedWindowOverTheMock("state=running", {

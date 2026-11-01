@@ -8,7 +8,7 @@ const MAIN: ListedStream = {
   location: { project_directory: "/Users/ada/streams/heat-map", stream_function: "stream:main" },
   state: "running",
   node_count: 4,
-  failed_because: null, action: null, step: null,
+  failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null,
 };
 
 describe("the rename dialog", () => {

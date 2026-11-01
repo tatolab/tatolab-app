@@ -41,6 +41,7 @@ export type MockTatolabScenario =
   | "empty"
   | "loading"
   | "node-error"
+  | "camera-access"
   | "dropping"
   | "not-listed"
   | "starting"
@@ -58,6 +59,7 @@ const MOCK_TATOLAB_SCENARIOS: readonly MockTatolabScenario[] = [
   "empty",
   "loading",
   "node-error",
+  "camera-access",
   "dropping",
   "not-listed",
   "starting",
@@ -372,6 +374,7 @@ function initialMockStatus(
     case "empty":
     case "loading":
     case "node-error":
+    case "camera-access":
     case "dropping":
     case "not-listed":
       return runningStatus;
@@ -793,7 +796,8 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       } else if (loadsAtTheRuntimesStart(mainStream)) {
         loadStream(mainStream, now - mainStream.loadedForMillisecondsAtOpen);
       }
-      for (const fixture of [fixtures.cameraStream, fixtures.recorderOfMainStream]) {
+      const cameraStreamAtTheRuntimesStart = scenario === "camera-access" ? fixtures.cameraStreamWaitingForCameraAccess : fixtures.cameraStream;
+      for (const fixture of [cameraStreamAtTheRuntimesStart, fixtures.recorderOfMainStream]) {
         if (loadsAtTheRuntimesStart(fixture)) loadStream(fixture, now - fixture.loadedForMillisecondsAtOpen);
       }
     }
@@ -906,7 +910,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     });
   };
 
-  /** `start_stream` as the runtime does it: queued for a stopped or failed stream, which loads, or for the lobby recorder fails again as its camera is still missing; refused for one loaded. */
+  /** `start_stream` as the runtime does it: queued for a stopped or failed stream, which loads, asking for any capture device it waits on, or for the lobby recorder fails again as its camera is still missing; refused for one loaded. */
   const startMockStream = (streamId: string): void => {
     if (loadedStreams.has(streamId)) {
       throw `Runtime error: the stream \`${streamId}\` is already loaded in this runtime, recorded by the runtime; only a stopped or failed stream starts`;
@@ -921,7 +925,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       writeRuntimeRecord(listingNotLoaded, action, "info", `Loading the stream \`${streamId}\` from ${listingNotLoaded.location?.project_directory ?? ""}`);
       const fixture = recordedFixturesNotLoaded.get(streamId);
       if (fixture !== undefined) {
-        loadStream(fixture, Date.now(), action);
+        loadStream({ ...fixture, listing: { ...fixture.listing, capture_devices_whose_access_was_never_asked_for: [] } }, Date.now(), action);
         return;
       }
       const retryFailure = `\`start\` retried it, and it did not load: ${fixtures.machine.cameraFailure}`;

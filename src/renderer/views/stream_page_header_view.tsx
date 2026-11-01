@@ -1,4 +1,4 @@
-import { CodeXml, Copy, FolderOpen, PanelRight, Pencil, Play, Square, SquareTerminal, X } from "lucide-react";
+import { CodeXml, Copy, FolderOpen, PanelRight, Pencil, Square, SquareTerminal, X } from "lucide-react";
 import { useNavigate } from "react-router";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import { writeTextToClipboard } from "../clipboard";
@@ -13,6 +13,7 @@ import { shortcutHint, windowDragRegionAttribute } from "../presentation/platfor
 import {
   isStreamLoaded,
   listedStreamProjectDirectory,
+  presentStopBesideAllow,
   presentStreamActionCancel,
   presentStreamPrimaryAction,
   streamActionInTheListingWords,
@@ -21,6 +22,7 @@ import {
 } from "../presentation/stream_presentation";
 import type { StreamActionUnderWay } from "../presentation/streams_list_presentation";
 import { StreamActionRefusalLine, useStreamProjectFolderOpening, type StreamActionRefusalWords } from "./stream_action_controls";
+import { streamPrimaryActionIcon } from "./stream_primary_action_icon";
 import { projectPagePath } from "./project_page_path";
 import { streamPagePath, type StreamPageTab } from "./stream_page_path";
 import { useTatolabWindowEnvironment } from "./tatolab_window_context";
@@ -79,6 +81,7 @@ export function StreamPageHeaderView({
   const navigate = useNavigate();
   const { actionUnderWay, refusal, runPrimaryAction, cancelTheListedAction, askToRename } = streamPageActions;
   const primaryAction = presentStreamPrimaryAction(stream);
+  const stopBesideAllow = presentStopBesideAllow(stream);
   const cancel = presentStreamActionCancel(stream);
   const listedActionWords = streamActionInTheListingWords(stream);
   const projectDirectory = listedStreamProjectDirectory(stream);
@@ -104,7 +107,7 @@ export function StreamPageHeaderView({
             primaryAction !== null && (
               <ActionButton
                 appearance={primaryAction.streamAction === "stop_stream" ? "secondary" : "primary"}
-                icon={primaryAction.streamAction === "stop_stream" ? Square : Play}
+                icon={streamPrimaryActionIcon(primaryAction.streamAction)}
                 tooltip={primaryAction.meaning}
                 onPressed={() => runPrimaryAction(primaryAction)}
                 data-stream-action={primaryAction.streamAction}
@@ -128,6 +131,11 @@ export function StreamPageHeaderView({
             <MenuItem icon={Pencil} onChosen={askToRename} data-stream-action="rename_stream">
               Rename…
             </MenuItem>
+            {stopBesideAllow !== null && (
+              <MenuItem icon={Square} onChosen={() => runPrimaryAction(stopBesideAllow)} data-stream-action="stop_stream">
+                Stop
+              </MenuItem>
+            )}
             {projectDirectory !== null && (
               <>
                 <MenuSeparator />
