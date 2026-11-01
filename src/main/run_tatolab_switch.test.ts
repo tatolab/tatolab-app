@@ -68,7 +68,8 @@ class FakeServiceManagement implements RuntimeAgentRegistration {
 
   async unregisterRuntimeAgent(): Promise<Result<void, string>> {
     this.calls.push("unregister");
-    this.status = "not_registered";
+    // Login Items holding the agent off outlasts unregistering it, as macOS keeps the person's choice.
+    if (this.status !== "requires_approval") this.status = "not_registered";
     return succeeded(undefined);
   }
 
@@ -192,7 +193,7 @@ test("an_agent_needing_approval_opens_login_items_once_per_launch", async () => 
     kind: "needs_approval_in_login_items",
     openedLoginItemsSettings: false,
   });
-  expect(underTest.serviceManagement.calls).toEqual(["open_login_items_settings"]);
+  expect(underTest.serviceManagement.calls).toEqual(["unregister", "open_login_items_settings"]);
 });
 
 test("login_items_opened_on_request_is_not_opened_again_by_the_poller", async () => {
@@ -201,7 +202,7 @@ test("login_items_opened_on_request_is_not_opened_again_by_the_poller", async ()
   expect(await underTest.runTatolabSwitch.openLoginItemsSettingsOnRequest()).toEqual({ ok: true, value: undefined });
   await underTest.runTatolabSwitch.noticeRuntimeAgentRegistrationStatus("requires_approval");
 
-  expect(underTest.serviceManagement.calls).toEqual(["open_login_items_settings"]);
+  expect(underTest.serviceManagement.calls).toEqual(["open_login_items_settings", "unregister"]);
 });
 
 test("login_items_opens_on_request_even_after_this_launch_opened_it", async () => {
@@ -210,7 +211,25 @@ test("login_items_opens_on_request_even_after_this_launch_opened_it", async () =
 
   await underTest.runTatolabSwitch.openLoginItemsSettingsOnRequest();
 
-  expect(underTest.serviceManagement.calls).toEqual(["open_login_items_settings", "open_login_items_settings"]);
+  expect(underTest.serviceManagement.calls).toEqual(["unregister", "open_login_items_settings", "open_login_items_settings"]);
+});
+
+test("login_items_holding_tatolab_off_stops_the_runtime_once_and_again_after_the_agent_ran_in_between", async () => {
+  const underTest = await switchWith("enabled", null);
+
+  underTest.serviceManagement.status = "requires_approval";
+  await underTest.runTatolabSwitch.noticeRuntimeAgentRegistrationStatus("requires_approval");
+  await underTest.runTatolabSwitch.noticeRuntimeAgentRegistrationStatus("requires_approval");
+  expect(underTest.serviceManagement.calls, "turning Tatolab off in Login Items stops the runtime, once").toEqual([
+    "unregister",
+    "open_login_items_settings",
+  ]);
+
+  underTest.serviceManagement.status = "enabled";
+  await underTest.runTatolabSwitch.noticeRuntimeAgentRegistrationStatus("enabled");
+  underTest.serviceManagement.status = "requires_approval";
+  await underTest.runTatolabSwitch.noticeRuntimeAgentRegistrationStatus("requires_approval");
+  expect(underTest.serviceManagement.calls.slice(2), "turning it off again stops the runtime again").toEqual(["unregister"]);
 });
 
 test("setting_the_switch_on_while_it_is_on_starts_an_enabled_agent_again", async () => {
@@ -229,7 +248,7 @@ test("a_registration_refused_for_approval_reports_approval_rather_than_failure",
     kind: "needs_approval_in_login_items",
     openedLoginItemsSettings: true,
   });
-  expect(underTest.serviceManagement.calls).toEqual(["register", "open_login_items_settings"]);
+  expect(underTest.serviceManagement.calls).toEqual(["register", "unregister", "open_login_items_settings"]);
 });
 
 test("a_failed_registration_is_reported_and_the_next_attempt_registers_again", async () => {
