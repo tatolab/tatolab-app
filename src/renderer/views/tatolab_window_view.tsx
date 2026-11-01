@@ -36,6 +36,7 @@ import { RelayReadings } from "../relay_readings";
 import { RuntimeDescriptionReadings } from "../runtime_description_reading";
 import { SYSTEM_PREFERS_DARK_MEDIA_QUERY, WindowAppearanceChoice } from "../window_appearance";
 import { UninstallSheetView } from "./uninstall_sheet_view";
+import { afterTheFirstContentfulPaintIsPresented } from "../first_contentful_paint_presented";
 
 type TatolabWindowRouter = ReturnType<typeof createMemoryRouter>;
 
@@ -73,19 +74,10 @@ function TatolabWindowRoot({
   return <RouterProvider router={router} />;
 }
 
-/** Calls `afterTheFrame` once the frame holding what the page has committed so far has been drawn. */
-function afterTheNextFrameIsDrawn(afterTheFrame: () => void): void {
-  console.info(`diag127 first_status_committed renderer_epoch_ms=${performance.timeOrigin + performance.now()}`);
-  requestAnimationFrame(() => {
-    console.info(`diag127 raf_1 renderer_epoch_ms=${performance.timeOrigin + performance.now()}`);
-    requestAnimationFrame(afterTheFrame);
-  });
-}
-
 /**
  * Mounts the main window, built for `platform` with `featureFlags`, into `rootElement`; the answer shows each status
  * the backend reports, first to every hosted DOM page, then to the React window, which renders on the first.
- * `onTheFirstStatusDrawn` runs once, after the frame holding the first status has been drawn.
+ * `onTheFirstStatusDrawn` runs once, after the frame holding the first status has been presented.
  */
 export function mountTatolabWindow(
   rootElement: HTMLElement,
@@ -234,7 +226,7 @@ export function mountTatolabWindow(
   const noticeTheFirstStatusCommitted = () => {
     if (firstStatusCommitNoticed || onTheFirstStatusDrawn === undefined) return;
     firstStatusCommitNoticed = true;
-    afterTheNextFrameIsDrawn(onTheFirstStatusDrawn);
+    afterTheFirstContentfulPaintIsPresented(onTheFirstStatusDrawn);
   };
   const renderTheWindowOn = (firstStatusStore: TatolabWindowStatusStore) => {
     const environment: TatolabWindowEnvironment = {
