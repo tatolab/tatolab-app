@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend, readMockTatolabOptions } from "../backend/mock_tatolab_backend";
 import { mockStreamIdOf as mockStreamIdOfTheLocation } from "../backend/mock_stream_fixtures";
 import type { TatolabBackend } from "../backend/tatolab_backend";
@@ -9,6 +9,7 @@ import type { TatolabFrontendFeatureFlags } from "../feature_flags";
 import { mountTatolabWindow } from "./tatolab_window_view";
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   document.body.replaceChildren();
   document.documentElement.classList.remove("dark");
   localStorage.clear();
@@ -208,15 +209,30 @@ describe("the Streams list", () => {
 });
 
 describe("the window's first status", () => {
-  it("is announced once, after the frame holding it is drawn, and never again for a later status", async () => {
+  it("is announced once, when the first contentful paint is presented after it is in the page, and never again for a later status", async () => {
+    let presentTheFirstContentfulPaint: () => void = () => expect.unreachable("nothing observed the paints");
+    vi.stubGlobal(
+      "PerformanceObserver",
+      class {
+        constructor(paintCallback: (paintEntries: { getEntriesByName(paintName: string): unknown[] }) => void) {
+          presentTheFirstContentfulPaint = () => paintCallback({ getEntriesByName: (paintName) => (paintName === "first-contentful-paint" ? [{}] : []) });
+        }
+        observe() {}
+        disconnect() {
+          presentTheFirstContentfulPaint = () => undefined;
+        }
+      },
+    );
     const sidebarShownAtEachAnnouncement: boolean[] = [];
     const { showStatusAsTheBackendWould, backend } = await mountedWindowOverTheMock("state=running", {}, { watchExposedOutput: false }, () =>
       sidebarShownAtEachAnnouncement.push(screen.queryByRole("navigation", { name: "Tatolab" }) !== null),
     );
 
-    await waitFor(() => expect(sidebarShownAtEachAnnouncement).toEqual([true]));
+    expect(sidebarShownAtEachAnnouncement).toEqual([]);
+    presentTheFirstContentfulPaint();
+    expect(sidebarShownAtEachAnnouncement).toEqual([true]);
     await showStatusAsTheBackendWould(await backend.getTatolabStatus());
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    presentTheFirstContentfulPaint();
 
     expect(sidebarShownAtEachAnnouncement).toEqual([true]);
   });

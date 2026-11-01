@@ -1,5 +1,5 @@
 /** How long after its page first paints the window still waits for the page's first status before showing empty. */
-export const MAIN_WINDOW_FIRST_STATUS_DRAW_WAIT_LIMIT_MS = 1000;
+export const MAIN_WINDOW_FIRST_STATUS_DRAW_WAIT_LIMIT_MS = 2000;
 
 /** Holds the window's first show until its page has drawn its first status, will draw nothing, or has run past the wait limit; after that a show is immediate. */
 export class MainWindowFirstShowGate {
