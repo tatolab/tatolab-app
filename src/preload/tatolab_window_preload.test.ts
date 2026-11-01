@@ -6,7 +6,7 @@ const fakeElectron = vi.hoisted(() => {
   return {
     exposedInTheMainWorld,
     contextBridge: { exposeInMainWorld: (apiKey: string, api: unknown) => exposedInTheMainWorld.set(apiKey, api) },
-    ipcRenderer: { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
+    ipcRenderer: { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() },
   };
 });
 vi.mock("electron", () => ({ contextBridge: fakeElectron.contextBridge, ipcRenderer: fakeElectron.ipcRenderer }));
@@ -24,6 +24,7 @@ beforeEach(() => {
   fakeElectron.ipcRenderer.invoke.mockReset();
   fakeElectron.ipcRenderer.on.mockReset();
   fakeElectron.ipcRenderer.removeListener.mockReset();
+  fakeElectron.ipcRenderer.send.mockReset();
 });
 
 test("a command is sent on its own channel with its arguments, and its answer comes back as the main process gave it", async () => {
@@ -90,4 +91,13 @@ test("each stream page request reaches the listener with its stream, one naming 
   expect(streamPageChannel).toBe("tatolab-stream-page-requested");
   expect(requestedStreams).toEqual(["camera"]);
   expect(fakeElectron.ipcRenderer.removeListener).toHaveBeenCalledWith("tatolab-stream-page-requested", addedListener);
+});
+
+test("telling the app the window drew its first status sends the notice on its own channel, carrying nothing", async () => {
+  const tatolabElectronBridge = await exposedTatolabElectronBridge();
+
+  tatolabElectronBridge.tellTheAppTheWindowDrewItsFirstStatus();
+
+  expect(fakeElectron.ipcRenderer.send).toHaveBeenCalledWith("tatolab-window-drew-its-first-status");
+  expect(fakeElectron.ipcRenderer.invoke).not.toHaveBeenCalled();
 });

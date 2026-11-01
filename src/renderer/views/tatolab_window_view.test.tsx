@@ -19,6 +19,7 @@ async function mountedWindowOverTheMock(
   pageQuery: string,
   backendChanges: Partial<TatolabBackend> = {},
   featureFlags: TatolabFrontendFeatureFlags = { watchExposedOutput: false },
+  onTheFirstStatusDrawn?: () => void,
 ) {
   const backend: TatolabBackend = { ...createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams(pageQuery))), ...backendChanges };
   const rootElement = document.createElement("div");
@@ -27,7 +28,7 @@ async function mountedWindowOverTheMock(
   await backend.onTatolabStatusChanged((status) => showTatolabStatus?.(status));
   const firstStatus = await backend.getTatolabStatus();
   await act(async () => {
-    showTatolabStatus = mountTatolabWindow(rootElement, backend, firstStatus.platform, featureFlags);
+    showTatolabStatus = mountTatolabWindow(rootElement, backend, firstStatus.platform, featureFlags, onTheFirstStatusDrawn);
     showTatolabStatus(firstStatus);
   });
   const showStatusAsTheBackendWould = (status: TatolabStatus) => act(() => showTatolabStatus?.(status));
@@ -203,6 +204,21 @@ describe("the Streams list", () => {
     expect(document.querySelector("[data-hosted-dom-page] .streams-page")).not.toBeNull();
     expect(screen.getByRole("heading", { level: 1, name: "Streams" })).toBeTruthy();
     expect(document.querySelector("[data-hosted-dom-page] [role='status']")?.textContent).toBe("Tatolab is off");
+  });
+});
+
+describe("the window's first status", () => {
+  it("is announced once, after the frame holding it is drawn, and never again for a later status", async () => {
+    const sidebarShownAtEachAnnouncement: boolean[] = [];
+    const { showStatusAsTheBackendWould, backend } = await mountedWindowOverTheMock("state=running", {}, { watchExposedOutput: false }, () =>
+      sidebarShownAtEachAnnouncement.push(screen.queryByRole("navigation", { name: "Tatolab" }) !== null),
+    );
+
+    await waitFor(() => expect(sidebarShownAtEachAnnouncement).toEqual([true]));
+    await showStatusAsTheBackendWould(await backend.getTatolabStatus());
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+    expect(sidebarShownAtEachAnnouncement).toEqual([true]);
   });
 });
 

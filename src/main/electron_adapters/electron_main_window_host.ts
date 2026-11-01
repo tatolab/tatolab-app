@@ -2,7 +2,9 @@ import { BrowserWindow } from "electron";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
 import { isOnTheRuntimesWatchPage } from "../runtime_loopback_watch_page.js";
-import { isOnTheWindowPagesOwnLocation } from "../tatolab_window_page_source.js";
+import { isACommandFromTheWindowsOwnPage, isOnTheWindowPagesOwnLocation } from "../tatolab_window_page_source.js";
+import { MainWindowFirstShowGate } from "../main_window_first_show_gate.js";
+import { TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE } from "../../shared/tatolab_electron_bridge_contract.js";
 import type { MainWindowCloseRequestAnswer, MainWindowHost, MainWindowHostFactory, MainWindowSpecification } from "../tatolab_main_window.js";
 
 /**
@@ -62,16 +64,15 @@ export function createElectronMainWindowHostFactory(
         answerPermissionRequest(false),
       );
       windowContents.session.setPermissionCheckHandler(() => false);
-      // A window shown before its page first paints is a blank white rectangle until the renderer catches up.
-      let windowPageHasPaintedOrFailedToLoad = false;
-      let showWaitsForTheFirstPaint = false;
-      const showOnceThePageHasPaintedOrFailed = () => {
-        if (windowPageHasPaintedOrFailedToLoad) return;
-        windowPageHasPaintedOrFailedToLoad = true;
-        if (showWaitsForTheFirstPaint) mainBrowserWindow.show();
-      };
-      mainBrowserWindow.once("ready-to-show", showOnceThePageHasPaintedOrFailed);
-      windowContents.once("did-fail-load", showOnceThePageHasPaintedOrFailed);
+      const firstShowGate = new MainWindowFirstShowGate(() => mainBrowserWindow.show());
+      mainBrowserWindow.once("ready-to-show", () => firstShowGate.pageFirstPainted());
+      windowContents.ipc.on(TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE, (noticeEvent) => {
+        if (isACommandFromTheWindowsOwnPage(windowPageUrl, noticeEvent.senderFrame?.url ?? null, noticeEvent.senderFrame === windowContents.mainFrame)) {
+          firstShowGate.pageDrewItsFirstStatus();
+        }
+      });
+      windowContents.once("did-fail-load", () => firstShowGate.pageWillDrawNothing());
+      windowContents.once("render-process-gone", () => firstShowGate.pageWillDrawNothing());
       mainBrowserWindow.loadURL(windowPageUrl).catch((loadFailure: unknown) => {
         tatolabAppLog.error("the Tatolab window's page did not load", { window_page_url: windowPageUrl, failure: describeCaughtFailure(loadFailure) });
       });
@@ -79,17 +80,13 @@ export function createElectronMainWindowHostFactory(
         unminimize: () => {
           if (mainBrowserWindow.isMinimized()) mainBrowserWindow.restore();
         },
-        show: () => {
-          if (windowPageHasPaintedOrFailedToLoad) mainBrowserWindow.show();
-          else showWaitsForTheFirstPaint = true;
-        },
+        show: () => firstShowGate.show(),
         focus: () => mainBrowserWindow.focus(),
         hide: () => {
-          showWaitsForTheFirstPaint = false;
+          firstShowGate.hide();
           mainBrowserWindow.hide();
         },
-        isShowing: () =>
-          (showWaitsForTheFirstPaint && !windowPageHasPaintedOrFailedToLoad) || (mainBrowserWindow.isVisible() && !mainBrowserWindow.isMinimized()),
+        isShowing: () => firstShowGate.showIsWaitingForThePage() || (mainBrowserWindow.isVisible() && !mainBrowserWindow.isMinimized()),
         sendTheWindowAnEvent: (eventChannel, eventPayload) => {
           if (!windowContents.isDestroyed()) windowContents.send(eventChannel, eventPayload);
         },

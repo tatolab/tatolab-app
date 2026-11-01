@@ -74,6 +74,9 @@ export const TATOLAB_STATUS_CHANGED_EVENT = "tatolab-status-changed";
 /** The event the app asks the window to show a stream's page on, as a click on that stream's failure notification does; it carries a `TatolabStreamPageRequest`. */
 export const TATOLAB_STREAM_PAGE_REQUESTED_EVENT = "tatolab-stream-page-requested";
 
+/** The notice the window sends the main process once it has drawn its first status, carrying nothing; the window first goes on screen on it. */
+export const TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE = "tatolab-window-drew-its-first-status";
+
 /** What `tatolab-stream-page-requested` carries: the id of the stream whose page to show. */
 export interface TatolabStreamPageRequest {
   stream: string;
@@ -161,4 +164,6 @@ export interface TatolabElectronBridge {
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): () => void;
   /** Calls `listener` with the id of the stream each request to show a stream's page names; the returned function stops it. */
   onStreamPageRequested(listener: (stream: string) => void): () => void;
+  /** Tell the main process the window has drawn its first status, so it can put the window on screen. */
+  tellTheAppTheWindowDrewItsFirstStatus(): void;
 }
