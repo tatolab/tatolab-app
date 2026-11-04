@@ -8,16 +8,10 @@
 @import "./tokens.css";
 
 @import "./base.css" layer(base);
-@import "@xyflow/react/dist/base.css" layer(components);
-@import "./stream_graph_canvas.css" layer(components);
-@import "./streams_page.css" layer(components);
 @import "./first_launch_setup.css" layer(components);
-@import "./runtime_state_page.css" layer(components);
 @import "./uninstall_sheet.css" layer(components);
-@import "./search.css" layer(components);
-@import "./window_shell.css" layer(components);
 
-/* The theme is the `dark` class on <html>, set before first paint. */
+/* The studio is dark only: `dark` on <html> is set in index.html, so shadcn's `dark:` classes always apply. */
 @custom-variant dark (&:is(.dark *));
 
 @layer base {

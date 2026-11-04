@@ -23,6 +23,15 @@
   --color-studio-frame: var(--studio-frame);
   --color-studio-area: var(--studio-area);
   --color-studio-area-header: var(--studio-area-header);
+  --color-studio-area-header-line: var(--studio-area-header-line);
+  --color-studio-menu-bar: var(--studio-menu-bar);
+  --color-studio-stream-tabs: var(--studio-stream-tabs);
+  --color-studio-control: var(--studio-control);
+  --color-studio-control-open: var(--studio-control-open);
+  --color-studio-tree-guide: var(--studio-tree-guide);
+  --color-studio-tree-selected: var(--studio-tree-selected);
+  --color-studio-read-only: var(--studio-read-only);
+  --color-studio-imports: var(--studio-imports);
   --color-chrome: var(--chrome);
   --color-raised: var(--raised);
   --color-well: var(--well);
@@ -74,14 +83,14 @@
 
 :root {
   --page-bar-height: 44px;
-  --sidebar-width: 256px;
   --page-x: 24px;
   --page-top: 20px;
   --page-bottom: 40px;
   --page-readable-width: 720px;
-  --studio-menu-bar-height: 34px;
-  --studio-stream-tabs-height: 30px;
-  --studio-area-header-height: 28px;
+  --studio-menu-bar-height: 40px;
+  --studio-stream-tabs-height: 32px;
+  --studio-area-header-height: 30px;
+  --studio-area-gap: 3px;
   --studio-tree-row-height: 22px;
   --studio-tree-indent: 14px;
   --radius: 6px;
@@ -102,8 +111,17 @@
   --fg-3: #9a9aa3;
   --fg-4: #5a5a63;
   --studio-frame: #060607;
-  --studio-area: #161618;
-  --studio-area-header: #1c1c1f;
+  --studio-menu-bar: #161618;
+  --studio-stream-tabs: #0e0e10;
+  --studio-area: #1d1d20;
+  --studio-area-header: #202023;
+  --studio-area-header-line: #111113;
+  --studio-control: #2b2b2f;
+  --studio-control-open: #34343a;
+  --studio-tree-guide: #34343a;
+  --studio-tree-selected: #2a3a6a;
+  --studio-read-only: #b8963a;
+  --studio-imports: #f5d98a;
   --brand: #2a5bff;
   --brand-text: #7c9bff;
   --brand-soft: rgba(42, 91, 255, 0.16);
@@ -122,9 +140,8 @@
   --secondary: var(--well);
 }
 
-/* The macOS overlay title bar puts the traffic lights over the sidebar's top, centred level with the view's bar beside
-   it, and the sidebar's rows start just under them; Linux decorates the window natively, and its sidebar heading sits
-   level with the view's bar. */
-[data-platform="macos"] { --traffic-light-strip-height: 36px; }
-[data-platform="linux"] { --traffic-light-strip-height: 8px; }
+/* The macOS overlay title bar puts the traffic lights at the menu bar's left end, so its menus start after them; Linux
+   decorates the window natively. */
+[data-platform="macos"] { --studio-menu-bar-leading-inset: 80px; }
+[data-platform="linux"] { --studio-menu-bar-leading-inset: 10px; }
 

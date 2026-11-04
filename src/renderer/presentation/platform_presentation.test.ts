@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TatolabPlatform, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import {
+  abbreviateHomeDirectory,
   holdsWindowShortcutModifier,
   platformOf,
   presentCommandLineTool,
@@ -153,5 +154,15 @@ describe("presentCommandLineTool", () => {
       explanation: "The installer puts it in ~/.local/bin with the runtime.",
       pathLineToAdd: null,
     });
+  });
+});
+
+describe("abbreviateHomeDirectory", () => {
+  it("shortens a home directory to ~", () => {
+    expect(abbreviateHomeDirectory("/Users/ada/streams/pattern")).toBe("~/streams/pattern");
+    expect(abbreviateHomeDirectory("/home/ada/streams/pattern")).toBe("~/streams/pattern");
+    expect(abbreviateHomeDirectory("/home/ada")).toBe("~");
+    expect(abbreviateHomeDirectory("/private/tmp/pattern")).toBe("/private/tmp/pattern");
+    expect(abbreviateHomeDirectory("/srv/home/ada/pattern")).toBe("/srv/home/ada/pattern");
   });
 });

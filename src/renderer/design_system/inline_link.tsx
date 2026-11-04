@@ -1,13 +1,12 @@
 import { cn } from "cn";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import type { ControlDataAttributes } from "./control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
 
-/** Where an inline link goes: a page of the window, or an action run in place. */
-export type InlineLinkDestination = { to: string } | { onPressed: () => void };
+/** What an inline link does: an action run in place. */
+export type InlineLinkDestination = { onPressed: () => void };
 
 /** How an inline link reads: in Tatolab blue where it is the way on, or quiet beside a heading. */
 export type InlineLinkTone = "brand" | "quiet";
@@ -36,13 +35,6 @@ export function InlineLink({
       {children}
     </>
   );
-  if ("to" in destination) {
-    return (
-      <Link to={destination.to} className={linkClassNames} {...controlDataAttributes}>
-        {linkWords}
-      </Link>
-    );
-  }
   return (
     <Button
       variant="link"

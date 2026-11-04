@@ -10,44 +10,31 @@ import type {
 } from "../../shared/tatolab_backend_contract";
 import { presentRuntimeStatus, type StatusTone } from "./runtime_presentation";
 
-/** A section of Settings, by the name its path carries. */
-export type SettingsSection = "general" | "appearance" | "runtime" | "relays" | "command-line" | "about";
+/** A section of Preferences. */
+export type SettingsSection = "general" | "runtime" | "command-line" | "about";
 
-/** Settings' sections in the order its list shows them, under the group each sits in. */
+/** Preferences' sections in the order its list shows them, under the group each sits in. */
 export const SETTINGS_SECTION_GROUPS: readonly { groupLabel: string; sections: readonly { section: SettingsSection; label: string }[] }[] = [
   {
     groupLabel: "App",
     sections: [
       { section: "general", label: "General" },
-      { section: "appearance", label: "Appearance" },
     ],
   },
   {
     groupLabel: "This machine",
     sections: [
       { section: "runtime", label: "Runtime" },
-      { section: "relays", label: "Relays" },
       { section: "command-line", label: "Command line" },
     ],
   },
   { groupLabel: "Tatolab", sections: [{ section: "about", label: "About" }] },
 ];
 
-/** The section a path's `:settingsSection` names; General, the first, for none or one this window does not have. */
-export function settingsSectionNamed(sectionInThePath: string | undefined): SettingsSection {
-  const named = SETTINGS_SECTION_GROUPS.flatMap((sectionGroup) => sectionGroup.sections).find(({ section }) => section === sectionInThePath);
-  return named?.section ?? "general";
-}
-
-/** The words Settings' list names `section` by. */
+/** The words Preferences' list names `section` by. */
 export function settingsSectionLabel(section: SettingsSection): string {
   const named = SETTINGS_SECTION_GROUPS.flatMap((sectionGroup) => sectionGroup.sections).find((listedSection) => listedSection.section === section);
-  return named?.label ?? "Settings";
-}
-
-/** The path that shows `section` of Settings. */
-export function settingsSectionPath(section: SettingsSection): string {
-  return `/settings/${section}`;
+  return named?.label ?? "Preferences";
 }
 
 /** The licence the runtime the app runs is under, as streamlib states it. */
