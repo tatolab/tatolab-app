@@ -1,7 +1,8 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { OpenWorkspaceReading, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
   TATOLAB_COMMAND_NAMES,
+  TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT,
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
   TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE,
@@ -42,6 +43,13 @@ const tatolabElectronBridge: TatolabElectronBridge = {
     ipcRenderer.on(TATOLAB_STREAM_PAGE_REQUESTED_EVENT, streamPageRequestedListener);
     return () => {
       ipcRenderer.removeListener(TATOLAB_STREAM_PAGE_REQUESTED_EVENT, streamPageRequestedListener);
+    };
+  },
+  onOpenWorkspaceChanged: (listener) => {
+    const openWorkspaceChangedListener = (_openWorkspaceChangedEvent: IpcRendererEvent, reading: OpenWorkspaceReading) => listener(reading);
+    ipcRenderer.on(TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT, openWorkspaceChangedListener);
+    return () => {
+      ipcRenderer.removeListener(TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT, openWorkspaceChangedListener);
     };
   },
   tellTheAppTheWindowDrewItsFirstStatus: () => {

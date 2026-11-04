@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import type { StreamProjectFolderChosenFor, WorkspaceFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import {
   type FakeCarriedRuntimeInstall,
@@ -46,7 +46,8 @@ export type FakeShellRecord =
   | { asked: "repeat_every"; intervalMs: number }
   | { asked: "set_application_menu"; applicationMenu: ApplicationMenu }
   | { asked: "open_folder_in_the_file_manager"; folder: string }
-  | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string };
+  | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
+  | { asked: "ask_for_a_workspace_folder"; chosenFor: WorkspaceFolderChosenFor; defaultFolder: string };
 
 /** A fake Electron app shell for the lifecycle's tests. */
 export class FakeTatolabElectronAppShell {
@@ -75,6 +76,8 @@ export class FakeTatolabElectronAppShell {
   appUpdateFeedForThisBuild: TatolabAppUpdateFeedForThisBuild = { kind: "not_offered", reason: "this fake platform updates nothing" };
   /** The folder the fake dialog answers with; `null` reads as the person cancelling it. */
   streamProjectFolderTheDialogAnswers: string | null = null;
+  /** The folder the workspace dialog answers, or `null` for the person cancelling. */
+  workspaceFolderTheDialogAnswers: string | null = null;
   readonly systemNotifications = new FakeSystemNotifications((notificationShown) => this.records.push({ asked: "notify", ...notificationShown }));
   readonly appConfigDirectory = path.join(os.tmpdir(), `tl-app-config-${randomUUID()}`);
   private tatolabWindowCommandHandlers: TatolabWindowCommandHandlers | null = null;
@@ -116,6 +119,11 @@ export class FakeTatolabElectronAppShell {
       this.records.push({ asked: "ask_for_a_stream_project_folder", chosenFor, defaultFolder });
       return succeeded(this.streamProjectFolderTheDialogAnswers);
     },
+    askThePersonForAWorkspaceFolder: async (chosenFor, defaultFolder) => {
+      this.records.push({ asked: "ask_for_a_workspace_folder", chosenFor, defaultFolder });
+      return succeeded(this.workspaceFolderTheDialogAnswers);
+    },
+    watchFolderEntries: () => null,
     homeDirectory: path.join(this.appConfigDirectory, "home"),
     createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,
     systemNotifications: this.systemNotifications,

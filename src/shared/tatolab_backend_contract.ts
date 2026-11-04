@@ -374,3 +374,48 @@ export interface RelaysDescription {
   relays: ListedRelay[];
   adapters: RelayAdapter[];
 }
+
+/** A project folder as its `pyproject.toml` describes it. */
+export interface ProjectOnDisk {
+  /** The folder, absolute with its links resolved. */
+  folder: string;
+  /** `[project] name`. */
+  name: string;
+  /** `[project] dependencies`, each as `pyproject.toml` spells it. */
+  requirements: string[];
+}
+
+/** Where an imported project comes from: a folder a uv `path` source names, read or unreadable with why, or a package index. */
+export type ImportedProjectSource =
+  | { kind: "folder"; project: ProjectOnDisk }
+  | { kind: "folder_unreadable"; folder: string; refusal: string }
+  | { kind: "package_index" };
+
+/** One dependency of the workspace project, which the studio shows as an import. */
+export interface ImportedProject {
+  /** The requirement's name, normalized as PEP 503 normalizes a package name. */
+  name: string;
+  requirement: string;
+  source: ImportedProjectSource;
+}
+
+/** The workspace open in the studio: a folder that is itself the workspace project, and the projects it imports, in `pyproject.toml`'s order. */
+export interface OpenWorkspace {
+  workspace_project: ProjectOnDisk;
+  imports: ImportedProject[];
+}
+
+/** What `read_open_workspace` answers and `tatolab-open-workspace-changed` carries: no workspace open, the open one read, or its folder unreadable, with why in the words of what refused. */
+export type OpenWorkspaceReading =
+  | { kind: "none_open" }
+  | { kind: "read"; workspace: OpenWorkspace }
+  | { kind: "unreadable"; folder: string; refusal: string };
+
+/** What the workspace folder dialog is opened for: an existing workspace to open, or a new one's folder, which may not exist yet. */
+export type WorkspaceFolderChosenFor = "workspace_to_open" | "new_workspace";
+
+/** A folder chosen in the workspace dialog, now the open workspace, and for a new workspace the `create_project` the runtime queued in it. */
+export interface ChosenWorkspaceFolder {
+  folder: string;
+  project_creation: ProjectCreationQueued | null;
+}

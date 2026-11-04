@@ -12,8 +12,9 @@ import type { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import type { StreamProjectFolderOpeners } from "./stream_project_folder_opening.js";
 import type { StreamProjectAdding } from "./stream_project_adding.js";
 import type { StreamFailureNotifications } from "./stream_failure_notifications.js";
+import type { OpenWorkspaceFolder } from "./open_workspace.js";
 
-/** The controller, the status publisher, the updater, uninstalling, what opens a stream's project, adding a project and the stream-failure notifications, which the tray's choices and the window's commands reach. */
+/** The controller, the status publisher, the updater, uninstalling, what opens a stream's project, adding a project, the stream-failure notifications and the open workspace, which the tray's choices and the window's commands reach. */
 export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;
@@ -22,6 +23,7 @@ export interface TatolabAppSharedState {
   streamProjectFolderOpeners: StreamProjectFolderOpeners;
   streamProjectAdding: StreamProjectAdding;
   streamFailureNotifications: StreamFailureNotifications;
+  openWorkspaceFolder: OpenWorkspaceFolder;
   tatolabAppLog: TatolabAppLog;
 }
 

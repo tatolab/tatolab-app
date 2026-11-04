@@ -4,6 +4,7 @@
 // its answer or a refusal in words, never a thrown error.
 
 import type {
+  ChosenWorkspaceFolder,
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -17,6 +18,7 @@ import type {
   StreamProjectFolderChosenFor,
   TatolabStatus,
   TatolabStreamActionName,
+  WorkspaceFolderChosenFor,
 } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject } from "./json_on_the_wire.js";
@@ -406,6 +408,18 @@ export function createStreamProjectArgumentsFrom(commandArguments: unknown): Res
   return succeeded({ folder: commandArguments["folder"] });
 }
 
+/** `choose_workspace_folder { chosen_for }`: the app's folder dialog, the chosen folder opened as the workspace; `null` when the person cancels. */
+export function chooseWorkspaceFolder(sharedState: TatolabAppSharedState, chosenFor: WorkspaceFolderChosenFor): Promise<Result<ChosenWorkspaceFolder | null, string>> {
+  return answerTheWindow("choose_workspace_folder", () => sharedState.openWorkspaceFolder.chooseWorkspaceFolder(chosenFor));
+}
+
+/** `choose_workspace_folder`'s arguments as the window sends them, or why they are not. */
+export function chooseWorkspaceFolderArgumentsFrom(commandArguments: unknown): Result<{ chosen_for: WorkspaceFolderChosenFor }, string> {
+  const chosenFor = isAJsonObject(commandArguments) ? commandArguments["chosen_for"] : undefined;
+  if (chosenFor !== "workspace_to_open" && chosenFor !== "new_workspace") return failedWith("choose_workspace_folder needs `chosen_for`, workspace_to_open or new_workspace");
+  return succeeded({ chosen_for: chosenFor });
+}
+
 /** Each command's handler, taking the arguments as the window sent them and answering in the contract's shape. */
 export type TatolabWindowCommandHandlers = {
   readonly [CommandName in TatolabCommandName]: (commandArguments: unknown) => Promise<TatolabCommandAnswerTo<CommandName>>;
@@ -536,6 +550,12 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!relayId.ok) return { ok: false, refusal: relayId.failure };
       return commandAnswerOfNothingFrom(await removeRelay(sharedState, relayId.value));
     },
+    choose_workspace_folder: async (commandArguments) => {
+      const chooseArguments = chooseWorkspaceFolderArgumentsFrom(commandArguments);
+      if (!chooseArguments.ok) return { ok: false, refusal: chooseArguments.failure };
+      return commandAnswerFrom(await chooseWorkspaceFolder(sharedState, chooseArguments.value.chosen_for));
+    },
+    read_open_workspace: async () => ({ ok: true, value: sharedState.openWorkspaceFolder.readOpenWorkspace() }),
   };
 }
 

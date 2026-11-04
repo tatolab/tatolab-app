@@ -2,8 +2,9 @@
 // tray's "Open Tatolab"; closing it hides it and the app keeps running in the tray. On macOS the
 // Dock icon shows only while the window does.
 
-import type { TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { OpenWorkspaceReading, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
+  TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT,
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
   type TatolabStreamPageRequest,
@@ -79,6 +80,11 @@ export class TatolabMainWindow {
   /** Send the window `status` as `tatolab-status-changed`; nothing, before the window is first shown. */
   sendTheWindowTheStatus(status: TatolabStatus): void {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STATUS_CHANGED_EVENT, status);
+  }
+
+  /** Send the window `reading` as `tatolab-open-workspace-changed`; nothing, before the window is first shown, which reads the open workspace when it opens. */
+  sendTheWindowTheOpenWorkspace(reading: OpenWorkspaceReading): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT, reading);
   }
 
   /** Show the window on the page of the stream whose id is `streamId`, as a click on its failure notification asks. */
