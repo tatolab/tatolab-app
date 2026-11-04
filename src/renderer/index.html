@@ -1,23 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="dark" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232a5bff'/%3E%3Cpath d='M19 22h26M32 22v23' fill='none' stroke='%23fff' stroke-width='7' stroke-linecap='round'/%3E%3C/svg%3E" />
     <title>Tatolab</title>
-    <script>
-      (function () {
-        var queriedTheme = new URLSearchParams(location.search).get("theme");
-        var chosenTheme = null;
-        try {
-          chosenTheme = localStorage.getItem("tatolab-window-theme");
-        } catch (unreadableStorage) {}
-        var systemPrefersDark = chosenTheme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches;
-        var theme = queriedTheme === "light" || queriedTheme === "dark" ? queriedTheme : chosenTheme === "dark" || systemPrefersDark ? "dark" : "light";
-        document.documentElement.classList.toggle("dark", theme === "dark");
-      })();
-    </script>
   </head>
   <body>
     <div id="app"></div>
