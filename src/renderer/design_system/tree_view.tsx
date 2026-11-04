@@ -13,8 +13,6 @@ export interface TreeViewRow {
   depth: number;
   label: string;
   icon: StudioIconName;
-  /** Quiet words after the label: what the row is, or how much it holds. */
-  meta?: string;
   /** Code names, as a stream or a file, read in the monospace face. */
   isMachineWords?: boolean;
   /** A heading row: a workspace, a project, a folder. */
@@ -169,7 +167,6 @@ export function TreeView({
               <span className={cn("min-w-0 flex-1 truncate", row.isMachineWords && "font-mono text-2xs", row.isHeading && "font-semibold", row.tone === "imports" && "text-studio-imports")}>
                 {row.label}
               </span>
-              {row.meta !== undefined && <span className="max-w-24 shrink-0 truncate text-2xs text-fg-3">{row.meta}</span>}
             </span>
             <span className="flex w-5 shrink-0 justify-center text-studio-read-only">
               {row.isReadOnly === true && <Lock className="size-[11px]" strokeWidth={1.75} role="img" aria-label="Read only" />}

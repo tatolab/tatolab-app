@@ -112,11 +112,11 @@ describe("the studio", () => {
       "imports",
     ]);
     expect(outlinerRow("workspace").getAttribute("aria-level")).toBe("1");
-    expect(outlinerRow(`project:${PATTERN_PROJECT}`).textContent).toContain("workspace project");
-    expect(outlinerRow(`project:${PATTERN_PROJECT}/pyproject`).textContent).toContain("5 imports");
-    expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).textContent).toBe("mainrunning");
+    expect(outlinerRow(`project:${PATTERN_PROJECT}`).textContent).toBe("pattern");
+    expect(outlinerRow(`project:${PATTERN_PROJECT}/pyproject`).textContent).toBe("pyproject.toml");
+    expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).textContent).toBe("main");
     expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("false");
-    expect(outlinerRow("imports").textContent).toContain("5 projects");
+    expect(outlinerRow("imports").textContent).toBe("Imports");
     expect(within(outlinerRow("imports")).getByRole("img", { name: "Read only" })).toBeTruthy();
   });
 
@@ -131,13 +131,13 @@ describe("the studio", () => {
     expect(within(outlinerRow(`project:${CAMERA_PROJECT}`)).getByRole("img", { name: "Read only" })).toBeTruthy();
     expect(outlinerRow(`stream:${mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_function: "stream:main" })}`).getAttribute("aria-level")).toBe("4");
     expect(outlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights/refusal`).textContent).toBe(`${PATTERN_PROJECT}/imports/stage-lights has no pyproject.toml.`);
-    expect(outlinerRow("project:tatolab-testpattern/waiting").textContent).toContain("tatolab/streamlib#3152");
+    expect(outlinerRow("project:tatolab-testpattern/waiting").textContent).toBe("Streams and nodes not read yet");
   });
 
   it("shows a project's streams waiting on the runtime while it lists none", async () => {
     await mountedWindowOverTheMock("state=stopped");
     await waitFor(() => outlinerRow(`project:${PATTERN_PROJECT}/waiting`));
-    expect(outlinerRow(`project:${PATTERN_PROJECT}/waiting`).textContent).toBe("Streams and nodes not read yettatolab/streamlib#3152");
+    expect(outlinerRow(`project:${PATTERN_PROJECT}/waiting`).textContent).toBe("Streams and nodes not read yet");
   });
 
   it("moves through the outliner from the keyboard, opening and closing rows and selecting as it goes", async () => {

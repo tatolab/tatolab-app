@@ -4,9 +4,6 @@
 import type { TreeViewRow } from "../../design_system/tree_view";
 import type { ImportedProject, ListedStream, ListedStreamsReading, OpenWorkspace, ProjectOnDisk, StudioSelection } from "../../view_host/studio_view_contract";
 
-/** The streamlib issue that lets the runtime describe a project's streams and nodes without running it. */
-export const PROJECT_DESCRIPTION_FROM_SOURCE_ISSUE = "tatolab/streamlib#3152";
-
 /** What a row stands for, so choosing it selects or opens the right thing. */
 export type OutlinerRowMeaning =
   | { kind: "project"; project_name: string; project_folder: string | null }
@@ -50,7 +47,6 @@ function waitingNodeUnder(parentRowId: string): OutlinerTreeNode {
   return leafNode({
     row_id: `${parentRowId}/waiting`,
     label: "Streams and nodes not read yet",
-    meta: PROJECT_DESCRIPTION_FROM_SOURCE_ISSUE,
     icon: "waiting",
     tone: "waiting",
   });
@@ -61,7 +57,6 @@ function projectChildren(project: ProjectOnDisk, projectRowId: string, listedStr
   const descriptionNode = leafNode({
     row_id: `${projectRowId}/pyproject`,
     label: "pyproject.toml",
-    meta: `${project.requirements.length} ${project.requirements.length === 1 ? "import" : "imports"}`,
     icon: "file",
     isMachineWords: true,
   });
@@ -72,7 +67,7 @@ function projectChildren(project: ProjectOnDisk, projectRowId: string, listedStr
     descriptionNode,
     ...streamsOfTheProject.map(
       (stream): OutlinerTreeNode => ({
-        row: { row_id: `stream:${stream.stream}`, label: streamFunctionName(stream), meta: stream.state, icon: "stream", isMachineWords: true },
+        row: { row_id: `stream:${stream.stream}`, label: streamFunctionName(stream), icon: "stream", isMachineWords: true },
         meaning: { kind: "stream", stream: stream.stream, display_name: stream.display_name, project_name: project.name, project_folder: project.folder },
         isOpenByDefault: false,
         children: [],
@@ -105,7 +100,6 @@ function importNode(importedProject: ImportedProject, listedStreams: ListedStrea
     row: {
       row_id: rowId,
       label: importedProject.name,
-      meta: source.kind === "package_index" ? "package index" : source.kind === "folder" ? "folder" : "unreadable",
       icon: source.kind === "folder_unreadable" ? "unreadable" : "project",
       isHeading: true,
       isReadOnly: true,
@@ -130,7 +124,7 @@ function workspaceTree(workspace: OpenWorkspace, listedStreams: ListedStreamsRea
     isOpenByDefault: true,
     children: [
       {
-        row: { row_id: workspaceProjectRowId, label: workspaceProject.name, meta: "workspace project", icon: "project", isHeading: true },
+        row: { row_id: workspaceProjectRowId, label: workspaceProject.name, icon: "project", isHeading: true },
         meaning: { kind: "project", project_name: workspaceProject.name, project_folder: workspaceProject.folder },
         isOpenByDefault: true,
         children: projectChildren(workspaceProject, workspaceProjectRowId, listedStreams),
@@ -139,7 +133,6 @@ function workspaceTree(workspace: OpenWorkspace, listedStreams: ListedStreamsRea
         row: {
           row_id: "imports",
           label: "Imports",
-          meta: `${workspace.imports.length} ${workspace.imports.length === 1 ? "project" : "projects"}`,
           icon: "imports",
           tone: "imports",
           isHeading: true,
