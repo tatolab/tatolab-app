@@ -21,5 +21,3 @@ function viewTypeArrivingLater(viewTypeId: string, title: string, icon: StudioIc
 
 /** A port's live view, which tatolab-app#135 builds. */
 export const VIEWER_VIEW_TYPE = viewTypeArrivingLater("viewer", "Viewer", "viewer", "tatolab/tatolab-app#135");
-/** The agent panel, which tatolab-app#136 builds. */
-export const AGENT_VIEW_TYPE = viewTypeArrivingLater("agent", "Agent", "agent", "tatolab/tatolab-app#136");

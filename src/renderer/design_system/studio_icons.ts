@@ -9,7 +9,6 @@ import {
   MonitorPlay,
   Package,
   SlidersHorizontal,
-  Sparkles,
   TriangleAlert,
   Workflow,
   type LucideIcon,
@@ -22,7 +21,6 @@ export type StudioIconName =
   | "properties"
   | "viewer"
   | "code"
-  | "agent"
   | "workspace_view"
   | "workspace"
   | "project"
@@ -38,7 +36,6 @@ const STUDIO_ICONS: Record<StudioIconName, LucideIcon> = {
   properties: SlidersHorizontal,
   viewer: MonitorPlay,
   code: Code,
-  agent: Sparkles,
   workspace_view: Box,
   workspace: LayoutPanelTop,
   project: Package,
