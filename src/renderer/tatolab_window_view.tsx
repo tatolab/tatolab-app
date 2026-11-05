@@ -15,9 +15,10 @@ import { RUN_LIVE_KEY, type StudioMenuBarCommands } from "./studio_shell/studio_
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
 import { StudioWindowModel, streamsOfTheProjectToStop } from "./studio_shell/studio_window_model";
 import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studio_layouts";
-import { VIEWER_VIEW_TYPE } from "./studio_views/arriving_later/arriving_later_view_types";
+
 import { CODE_EDITOR_VIEW_TYPE } from "./studio_views/code_editor/code_editor_view_type";
 import { PROPERTIES_VIEW_TYPE } from "./studio_views/properties/properties_view_type";
+import { VIEWER_VIEW_TYPE } from "./studio_views/viewer/viewer_view_type";
 import { STREAM_GRAPH_VIEW_TYPE } from "./studio_views/stream_graph/stream_graph_view_type";
 import { OUTLINER_VIEW_TYPE } from "./studio_views/outliner/outliner_view_type";
 import { inWindowStudioViewHostServices } from "./view_host/in_window_view_host";

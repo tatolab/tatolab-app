@@ -203,10 +203,21 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("code");
   });
 
+  it("plays the open stream's exposed output in the Viewer, named under it", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+    fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+
+    const playing = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"] [data-viewer-playing]') ?? expect.unreachable("the Viewer plays nothing"));
+    expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
+    expect(playing.querySelector("iframe")?.getAttribute("src")).toMatch(/^data:text\/html/);
+    expect(textOf('[data-studio-area="viewer"] [data-viewer-output]')).toBe("Inverting Effect › video_to_downstream");
+  });
+
   it("shows the view an area's view-type menu chooses, and the project reopens with it", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
-    expect(within(viewerArea).getByText("Viewer isn't in this build yet")).toBeTruthy();
+    expect(within(viewerArea).getByText("No stream is open")).toBeTruthy();
 
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
     expect(await screen.findByText("Views a project brings arrive with users' own view types.")).toBeTruthy();
