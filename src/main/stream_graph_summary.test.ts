@@ -20,8 +20,9 @@ function node(
   counters: Pick<StreamGraphNode, "dropped_bags_by_link" | "refused_bags_by_output_port"> = { dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
   ports: Pick<StreamGraphNode, "input_ports" | "output_ports"> = { input_ports: [], output_ports: [] },
   nodeId = "",
+  config: StreamGraphNode["config"] = {},
 ): StreamGraphNode {
-  return { id: nodeId, name, type: nodeType, state, ...ports, ...counters };
+  return { id: nodeId, name, type: nodeType, state, config, ...ports, ...counters };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -67,6 +68,7 @@ test("a_real_graph_reads_as_its_nodes_links_counters_and_exposed_ports_beside_it
           { dropped_bags_by_link: { Lv5ujotcx5rnh9f4s6xewjot9: 0 }, refused_bags_by_output_port: {} },
           { input_ports: uncataloguedPorts("video"), output_ports: [] },
           "Pk79b96s4d8fumlitkntmn5dg",
+          { title: "Tatolab", scaling: "fit" },
         ),
       ],
       links: [

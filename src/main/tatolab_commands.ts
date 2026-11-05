@@ -15,6 +15,7 @@ import type {
   StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamGraphSummary,
+  NodeCatalog,
   StreamProjectFolderChosenFor,
   TatolabStatus,
   TatolabStreamActionName,
@@ -112,6 +113,14 @@ export function describeStreamGraph(sharedState: TatolabAppSharedState, stream: 
   return answerTheWindow("describe_stream_graph", async () => {
     const summary = await sharedState.controller.describeStreamGraph(stream);
     return summary.ok ? summary : failedWith(summary.failure.failureDescription);
+  });
+}
+
+/** `describe_node_catalog { stream }`: every node type the loaded stream `stream` can add; refused in the runtime's own words. */
+export function describeNodeCatalog(sharedState: TatolabAppSharedState, stream: string): Promise<Result<NodeCatalog, string>> {
+  return answerTheWindow("describe_node_catalog", async () => {
+    const nodeCatalog = await sharedState.controller.describeNodeCatalog(stream);
+    return nodeCatalog.ok ? nodeCatalog : failedWith(nodeCatalog.failure.failureDescription);
   });
 }
 
@@ -467,6 +476,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const describeStreamGraphArguments = streamArgumentsFrom("describe_stream_graph", commandArguments);
       if (!describeStreamGraphArguments.ok) return { ok: false, refusal: describeStreamGraphArguments.failure };
       return commandAnswerFrom(await describeStreamGraph(sharedState, describeStreamGraphArguments.value.stream));
+    },
+    describe_node_catalog: async (commandArguments) => {
+      const describeNodeCatalogArguments = streamArgumentsFrom("describe_node_catalog", commandArguments);
+      if (!describeNodeCatalogArguments.ok) return { ok: false, refusal: describeNodeCatalogArguments.failure };
+      return commandAnswerFrom(await describeNodeCatalog(sharedState, describeNodeCatalogArguments.value.stream));
     },
     stop_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "stop_stream", commandArguments)),
     start_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "start_stream", commandArguments)),

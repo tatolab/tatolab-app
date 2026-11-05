@@ -20,6 +20,7 @@ import type {
   StreamActionCancelAnswer,
   StreamActionFollowed,
   StreamGraphSummary,
+  NodeCatalog,
   TatolabAppBuild,
   TatolabAppUpdateState,
   TatolabPlatform,
@@ -423,6 +424,11 @@ export class TatolabAppController {
   /** The graph of the loaded stream `stream`, its readable outputs' preview pages at the runtime's loopback HTTP. */
   describeStreamGraph(stream: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
     return this.localApiClient.describeStreamGraph(stream, this.runtimeLoopbackHttpOrigin);
+  }
+
+  /** Every node type the loaded stream `stream` can add. */
+  describeNodeCatalog(stream: string): Promise<Result<NodeCatalog, LocalApiRequestFailure>> {
+    return this.localApiClient.describeNodeCatalog(stream);
   }
 
   /** Every relay the runtime holds and every adapter it can join one through. */

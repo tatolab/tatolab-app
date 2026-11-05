@@ -1,0 +1,50 @@
+/* The node graph canvas, React Flow drawn in the studio's tokens: Blueprint-style cards, pins at their edges, and
+   curved links between them. */
+.node-graph-canvas {
+  --xy-background-color: var(--studio-area);
+  --xy-edge-stroke: var(--studio-graph-link);
+  transition: opacity 120ms var(--ease);
+}
+.node-graph-canvas .react-flow__node { cursor: default; }
+.node-graph-canvas .react-flow__node:focus-visible { outline: none; }
+.node-graph-canvas .react-flow__node:focus-visible .node-graph-card { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.node-graph-card {
+  overflow: visible;
+  border: 1px solid var(--studio-graph-card-line);
+  border-radius: var(--radius-lg);
+  background: var(--studio-graph-card);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.node-graph-card-header {
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
+  background: var(--studio-graph-card-header);
+}
+.node-graph-card-selected {
+  border-color: var(--studio-graph-card-selected);
+  box-shadow: 0 0 0 1px var(--studio-graph-card-selected), 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* A pin whose family the runtime does not say yet: a short bar on the card's edge. */
+.node-graph-canvas .react-flow__handle.node-graph-pin {
+  width: 4px;
+  min-width: 0;
+  height: 10px;
+  min-height: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--studio-graph-pin);
+}
+.node-graph-pin-mark {
+  display: inline-block;
+  flex: none;
+  width: 4px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--studio-graph-pin);
+}
+
+.node-graph-link { stroke: var(--studio-graph-link); stroke-width: 2; }
+.node-graph-link-waiting { stroke-dasharray: 6 5; }
+.node-graph-link-ending { stroke-dasharray: 6 5; opacity: 0.5; }
+.node-graph-link-failed { stroke: var(--danger); stroke-width: 2.5; }

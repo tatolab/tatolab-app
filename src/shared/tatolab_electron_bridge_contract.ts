@@ -4,6 +4,7 @@
 
 import type {
   ChosenWorkspaceFolder,
+  NodeCatalog,
   OpenWorkspaceReading,
   ProjectCreationQueued,
   ProjectLogNarrowing,
@@ -34,6 +35,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "quit_tatolab_app",
   "read_project_log_records",
   "describe_stream_graph",
+  "describe_node_catalog",
   "check_for_tatolab_app_updates",
   "stop_stream",
   "start_stream",
@@ -64,7 +66,7 @@ export const TATOLAB_COMMAND_NAMES = [
 
 /**
  * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
- * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
+ * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
  * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, `choose_workspace_folder` `{ chosen_for }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
@@ -114,6 +116,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   /** `stream` and `action` narrow the read, `null` for no narrowing; `after` is the `next_after` of the page before, `null` for the oldest record held. */
   read_project_log_records: { commandArguments: { project_directory: string; after: string | null } & ProjectLogNarrowing; answer: ProjectLogRecordsPage };
   describe_stream_graph: { commandArguments: { stream: string }; answer: StreamGraphSummary };
+  describe_node_catalog: { commandArguments: { stream: string }; answer: NodeCatalog };
   check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };
   /** Answers once the runtime has queued the stop; the stream shows `stopping` in the listing until it has run. */
   stop_stream: { commandArguments: { stream: string }; answer: null };

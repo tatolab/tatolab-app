@@ -9,6 +9,8 @@ const HOST_SERVICES: StudioViewHostServices = {
   select: () => undefined,
   watchActiveStreamTab: () => () => undefined,
   openStreamTab: () => undefined,
+  watchStreamGraph: () => () => undefined,
+  watchNodeCatalog: () => () => undefined,
 };
 
 /** A view type keeping a number, which records each connection it is drawn on. */

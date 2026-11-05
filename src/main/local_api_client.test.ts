@@ -855,3 +855,25 @@ test("a_truncated_body_is_malformed", () => {
   expect(failureOf(parseHttpResponse(Buffer.from("HTTP/1.1 200 OK\r\ncontent-length: 10\r\n\r\nok")))).toContain("2 of its 10 bytes");
   expect(parseHttpResponse(Buffer.from("HTTP/1.1 200 OK\r\n")).ok).toBe(false);
 });
+
+test("the_node_catalog_is_read_from_the_registry_of_the_stream_asked_for", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-registry-answer-of-a-test-root-runtime-naming-no-stream.json")),
+  ]);
+
+  const nodeCatalog = answerOf(await server.client().describeNodeCatalog("pattern-main-3f2a1c"));
+
+  expect(server.receivedRequests()[0]?.startsWith("GET /api/registry?stream=pattern-main-3f2a1c HTTP/1.1\r\n")).toBe(true);
+  expect(nodeCatalog.stream).toBe("pattern-main-3f2a1c");
+  expect(nodeCatalog.node_types.map((nodeType) => nodeType.type)).toEqual(["tatolab.stream:RelayTrackSource"]);
+});
+
+test("a_node_catalog_of_a_stream_not_loaded_is_refused_in_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("404 Not Found", "application/json", await recordedResponseBody("local-api-registry-refusal-for-the-stream-front-door-not-loaded.json")),
+  ]);
+
+  expect(failureOf(await server.client().describeNodeCatalog("front-door")).failureDescription).toBe(
+    "Resource not found: no stream with the id `front-door` is loaded in this runtime. Loaded: none",
+  );
+});

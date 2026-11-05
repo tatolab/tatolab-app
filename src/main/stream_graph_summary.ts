@@ -1,9 +1,10 @@
 // A stream's graph as the window draws it, read from the runtime's `graph {stream}` tool: its
-// nodes by name with their type, state, declared ports and drop counters, its links by id, node and port, the
+// nodes by name with their type, state, config, declared ports and drop counters, its links by id, node and port, the
 // ports it exposes with the preview page of each one readable outside it, and the tool's text
 // itself. Every other key the runtime renders stays only in that text.
 
 import type {
+  JsonValue,
   StreamGraphDeclaredPort,
   StreamGraphExposedPort,
   StreamGraphLink,
@@ -14,6 +15,7 @@ import {
   arrayOrEmpty,
   everyOneRead,
   isAJsonObject,
+  isAJsonValue,
   jsonObject,
   objectOrEmpty,
   type JsonObjectOnTheWire,
@@ -102,6 +104,8 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   if (!nodeType.ok) return nodeType;
   const components = objectOrEmpty(node.value, "components");
   if (!components.ok) return components;
+  const config = objectOrEmpty(node.value, "config");
+  if (!config.ok) return config;
   const state = components.value["state"];
   const metrics = components.value["metrics"];
   const ports = objectOrEmpty(node.value, "ports");
@@ -115,6 +119,7 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
     name: name.value,
     type: nodeType.value,
     state: typeof state === "string" ? state : null,
+    config: Object.fromEntries(Object.entries(config.value).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))),
     input_ports: inputPorts.value,
     output_ports: outputPorts.value,
     dropped_bags_by_link: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "dropped_bags_by_link"),

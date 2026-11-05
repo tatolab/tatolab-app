@@ -54,6 +54,7 @@ export function mockStreamGraphSummary(streamId: string, machineName: string, gr
     name: node.name,
     type: node.type,
     state: nodeState(node.state),
+    config: node.config,
     input_ports: node.input_ports,
     output_ports: node.output_ports,
     dropped_bags_by_link: Object.fromEntries(

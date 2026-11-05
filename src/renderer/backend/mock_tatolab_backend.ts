@@ -1,3 +1,4 @@
+import { MOCK_NODE_CATALOG_ENTRIES } from "./mock_node_catalog";
 import {
   createMockStreamFixtures,
   createMockStreamRunFromAProjectFolder,
@@ -1133,6 +1134,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     describeStreamGraph: async (streamId) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return graphOfLoadedStream(loadedStreamOfTheId(streamId));
+    },
+    describeNodeCatalog: async (streamId) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      loadedStreamOfTheId(streamId);
+      return { stream: streamId, node_types: [...MOCK_NODE_CATALOG_ENTRIES] };
     },
     checkForTatolabAppUpdates: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

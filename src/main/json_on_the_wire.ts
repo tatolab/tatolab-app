@@ -2,6 +2,7 @@
 // optional one reads `null`, a defaulted one reads its default, and keys the app does not know are
 // ignored, so a newer runtime's additions never break the app.
 
+import type { JsonValue } from "../shared/tatolab_backend_contract.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 
 /** A JSON object as `JSON.parse` returns it. */
@@ -145,6 +146,14 @@ export function everyOneRead<ValueToRead, ReadValue>(values: readonly ValueToRea
     read.push(readValue.value);
   }
   return succeeded(read);
+}
+
+/** Whether `value` is a value JSON carries: `null`, true or false, a finite number, text, or an array or object of them. */
+export function isAJsonValue(value: unknown): value is JsonValue {
+  if (value === null || typeof value === "boolean" || typeof value === "string") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isAJsonValue);
+  return isAJsonObject(value) && Object.values(value).every(isAJsonValue);
 }
 
 /** `value`'s JSON text, compact, with every object's keys in sorted order so the same value always reads the same. */

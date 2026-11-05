@@ -1,5 +1,6 @@
 import type {
   ChosenWorkspaceFolder,
+  NodeCatalog,
   OpenWorkspaceReading,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -40,6 +41,8 @@ export interface TatolabBackend {
   /** The page of `projectDirectory`'s log after the cursor `after`, from its first record when `null`, narrowed as `narrowing` asks; rejects in the runtime's own words. */
   readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null): Promise<ProjectLogRecordsPage>;
   describeStreamGraph(streamId: string): Promise<StreamGraphSummary>;
+  /** Every node type the loaded stream `streamId` can add, rejecting in the runtime's own words. */
+  describeNodeCatalog(streamId: string): Promise<NodeCatalog>;
   /** Check for a newer Tatolab and take it if there is one; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
   /** Queue a stop or a start (or retry) of `streamId`, resolving once the runtime has queued it and rejecting with its refusal; the stream's `stopping` or `preparing` arrives as the next status. */

@@ -25,7 +25,7 @@ const SIZE_CLASS_NAMES = {
   small: "gap-1 rounded-md text-xs [&_svg:not([class*='size-'])]:size-3.5",
 } as const;
 
-/** A button that runs an action, named by its words and an optional icon before them. */
+/** A button that runs an action, named by its words and an optional icon before them; one that cannot act now reads dim and gives the reason in its tooltip. */
 export function ActionButton({
   appearance = "secondary",
   size = "regular",
@@ -33,6 +33,7 @@ export function ActionButton({
   label,
   tooltip,
   isDisabled = false,
+  disabledReason = null,
   hasFocusOnOpen = false,
   onPressed,
   className,
@@ -47,6 +48,8 @@ export function ActionButton({
   /** What the button does, said beside it while the pointer rests on it. */
   tooltip?: ReactNode;
   isDisabled?: boolean;
+  /** Why the button cannot act now; unlike `isDisabled` it keeps its focus and tooltip, so the reason can be read. */
+  disabledReason?: string | null;
   /** Takes keyboard focus when it first shows, as a dialog's safe choice does. */
   hasFocusOnOpen?: boolean;
   onPressed: () => void;
@@ -56,17 +59,20 @@ export function ActionButton({
 } & ControlDataAttributes) {
   return (
     <WithControlTooltip
-      tooltip={tooltip}
+      tooltip={disabledReason ?? tooltip}
       isWide
       control={
         <Button
           variant={STOCK_VARIANT_OF_APPEARANCE[appearance]}
           size={size === "regular" ? "sm" : "xs"}
-          aria-label={label}
+          aria-label={disabledReason === null ? label : `${label ?? ""}${label === undefined ? "" : ": "}${disabledReason}`}
+          aria-disabled={disabledReason !== null || undefined}
           disabled={isDisabled}
           autoFocus={hasFocusOnOpen}
-          onClick={onPressed}
-          className={cn(APPEARANCE_CLASS_NAMES[appearance], SIZE_CLASS_NAMES[size], FULL_STRENGTH_FOCUS_RING_CLASS_NAMES, className)}
+          onClick={() => {
+            if (disabledReason === null) onPressed();
+          }}
+          className={cn(APPEARANCE_CLASS_NAMES[appearance], SIZE_CLASS_NAMES[size], FULL_STRENGTH_FOCUS_RING_CLASS_NAMES, disabledReason !== null && "opacity-50", className)}
           {...controlDataAttributes}
         >
           {ButtonIcon !== undefined && <ButtonIcon strokeWidth={1.75} aria-hidden />}

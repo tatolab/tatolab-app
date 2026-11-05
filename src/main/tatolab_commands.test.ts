@@ -277,10 +277,10 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
   const graph = streamGraphSummaryFromTheGraphToolResult("main", graphToolResultText, "http://127.0.0.1:4446");
   expect(graph.ok && JSON.stringify(graph.value)).toBe(
     '{"stream":"main","nodes":[' +
-      '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running",' +
+      '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running","config":{},' +
       '"input_ports":[],"output_ports":[{"name":"video","catalog_section":"binary"}],' +
       '"dropped_bags_by_link":{},"refused_bags_by_output_port":{}},' +
-      '{"id":"","name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,' +
+      '{"id":"","name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,"config":{},' +
       '"input_ports":[],"output_ports":[],' +
       '"dropped_bags_by_link":{"L1":12},"refused_bags_by_output_port":{}}],' +
       '"links":[{"id":"L1","source_node":"testpatternsource","source_port":"video",' +

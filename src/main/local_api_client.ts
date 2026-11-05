@@ -5,7 +5,8 @@
 // `create_project` and `run_project` queue a project's load, which `describe_stream_action` follows,
 // `stop_stream` and `start_stream` queue an action on one stream, `remove_project` queues the
 // removal of a project's streams, `rename_stream`
-// renames one, and `GET /api/graph` names the machine. `GET /api/relay-adapters`
+// renames one, `GET /api/graph` names the machine, and `GET /api/registry` lists the node types a
+// stream can add. `GET /api/relay-adapters`
 // and `list_relays` describe the machine's relays, and `add_relay`, `configure_relay` and
 // `remove_relay` change them.
 //
@@ -18,6 +19,7 @@ import { isUtf8 } from "node:buffer";
 import net from "node:net";
 import type {
   ListedStream,
+  NodeCatalog,
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -51,6 +53,7 @@ import {
   type RelayChangeToolName,
 } from "./relays_description.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import {
@@ -350,6 +353,14 @@ export class LocalApiClient {
     if (!toolResultText.ok) return toolResultText;
     const summary = streamGraphSummaryFromTheGraphToolResult(stream, toolResultText.value, runtimeLoopbackHttpOrigin);
     return summary.ok ? summary : localApiRequestFailure(summary.failure);
+  }
+
+  /** Every node type the loaded stream `stream` can add, from `GET /api/registry?stream=`; refused in the runtime's own words. */
+  async describeNodeCatalog(stream: string): Promise<Result<NodeCatalog, LocalApiRequestFailure>> {
+    const registryBody = await this.getBodyOfAnOkAnswer(nodeCatalogRequestTarget(stream));
+    if (!registryBody.ok) return registryBody;
+    const nodeCatalog = nodeCatalogFromTheRegistryAnswer(stream, registryBody.value.toString("utf8"));
+    return nodeCatalog.ok ? nodeCatalog : localApiRequestFailure(nodeCatalog.failure);
   }
 
   /** Every relay the runtime holds, from its `list_relays` tool, and every adapter it can join one through, from `GET /api/relay-adapters`. */
