@@ -1,13 +1,15 @@
-import { FolderOpen, FolderPlus, LayoutGrid } from "lucide-react";
+import { FolderOpen, FolderPlus, LayoutGrid, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { RecentProject } from "../../shared/tatolab_backend_contract";
+import type { RecentProject, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import projectsBannerStillImageUrl from "../assets/projects_banner_still.jpg";
 import { ActionButton } from "../design_system/action_button";
 import { BANNER_HEADER_HEIGHT_PX, BannerHeader } from "../design_system/banner_header";
 import { EmptyState } from "../design_system/empty_state";
+import { IconButton } from "../design_system/icon_button";
 import { ProjectCard } from "../design_system/project_card";
 import { SearchField } from "../design_system/search_field";
 import { WaitingState } from "../design_system/waiting_state";
+import { shortcutHint } from "../presentation/platform_presentation";
 import { presentProjectsWithNoCards, presentRecentProjectCards } from "../presentation/projects_presentation";
 import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
 import { useWatchedStudioValue } from "../view_host/in_window_view_host";
@@ -73,8 +75,18 @@ function ProjectsBanner() {
   );
 }
 
-/** The Projects window, the app's project manager: the banner with Open… and New project, then the recent projects as cards, narrowed by a search. */
-export function ProjectsView({ model, projectsSources, commands }: { model: StudioWindowModel; projectsSources: ProjectsSources; commands: StudioMenuBarCommands }) {
+/** The Projects window, the app's project manager: the banner with Preferences, Open… and New project, then the recent projects as cards, narrowed by a search. */
+export function ProjectsView({
+  model,
+  projectsSources,
+  commands,
+  platform,
+}: {
+  model: StudioWindowModel;
+  projectsSources: ProjectsSources;
+  commands: StudioMenuBarCommands;
+  platform: TatolabPlatform;
+}) {
   const status = useTatolabStatus();
   const listedStreams = useWatchedStudioValue(model.listedStreams);
   const recentProjects = useRecentProjects(projectsSources, model);
@@ -94,6 +106,7 @@ export function ProjectsView({ model, projectsSources, commands }: { model: Stud
         banner={<ProjectsBanner />}
         actions={
           <>
+            <IconButton icon={Settings} label="Preferences" tooltip={`Preferences (${shortcutHint(platform, ",")})`} onPressed={commands.openPreferences} data-projects-action="preferences" />
             <ActionButton icon={FolderOpen} onPressed={commands.openAProject} data-projects-action="open">
               Open…
             </ActionButton>

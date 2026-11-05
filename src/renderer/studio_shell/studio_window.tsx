@@ -8,7 +8,7 @@ import { MenuGroup, MenuNote, MenuSingleChoiceGroup } from "../design_system/men
 import { StudioAreaFrame, StudioAreaHeaderMenu } from "../design_system/studio_area_frame";
 import { WaitingState } from "../design_system/waiting_state";
 import { WindowNotice } from "../design_system/window_notice";
-import { windowDragRegionAttribute } from "../presentation/platform_presentation";
+import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
 import { StudioViewFailureBoundary, useWatchedStudioValue } from "../view_host/in_window_view_host";
 import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
@@ -134,7 +134,7 @@ function StudioAreaLayoutNodeView({ node, layoutKey, sources }: { node: StudioAr
   );
 }
 
-/** The studio: its menus along the top, the open streams' tabs, and the chosen layout's areas, or the Projects window while no project is open or File › Projects shows it. */
+/** The studio: its menus along the top, the open streams' tabs, and the chosen layout's areas; or the Projects window, with no menus, while no project is open or File › Projects shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands } = sources;
   const openProject = useWatchedStudioValue(model.openProject);
@@ -148,12 +148,12 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null && !isProjectsShown;
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
-      <header
-        className="flex h-(--studio-menu-bar-height) shrink-0 items-center gap-2.5 border-b border-studio-frame bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
-        data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
-      >
-        <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts?.chosen_layout ?? null, commands)} />
-        {isAProjectShown && (
+      {isAProjectShown ? (
+        <header
+          className="flex h-(--studio-menu-bar-height) shrink-0 items-center gap-2.5 border-b border-studio-frame bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
+          data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
+        >
+          <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, commands)} />
           <ActionButton
             appearance="primary"
             size="small"
@@ -165,10 +165,19 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           >
             Live
           </ActionButton>
-        )}
-      </header>
+        </header>
+      ) : (
+        // macOS draws the window buttons over the content, so the Projects window keeps a bare strip for them to sit in and to drag the window by.
+        presentPlatform(platform).hasOverlayTitleBar && (
+          <div
+            className="h-(--studio-menu-bar-height) shrink-0 border-b border-studio-frame bg-studio-menu-bar"
+            data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
+            data-projects-title-bar=""
+          />
+        )
+      )}
       {!isAProjectShown ? (
-        <ProjectsView model={model} projectsSources={sources.projects} commands={commands} />
+        <ProjectsView model={model} projectsSources={sources.projects} commands={commands} platform={platform} />
       ) : (
         <>
           <DocumentTabs

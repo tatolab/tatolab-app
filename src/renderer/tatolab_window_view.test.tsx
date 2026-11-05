@@ -245,6 +245,24 @@ describe("the studio", () => {
     expect(document.querySelector("[data-projects]")).toBeNull();
   });
 
+  it("shows the Projects window with no menu bar, a bare strip for the window buttons on macOS only, and a gear that opens Preferences", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    await waitFor(() => expect(document.querySelector("[data-projects]")).not.toBeNull());
+    expect(document.querySelector("[data-studio-menu]")).toBeNull();
+    expect(document.querySelector("[data-projects-title-bar]")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Preferences" }));
+
+    await waitFor(() => expect(document.querySelector('[data-settings-page="general"]')).not.toBeNull());
+  });
+
+  it("shows the Linux Projects window under its own title bar, with no strip and no menu bar", async () => {
+    await mountedWindowOverTheMock("platform=linux&state=running&project=none");
+    await waitFor(() => expect(document.querySelector("[data-projects]")).not.toBeNull());
+    expect(document.querySelector("[data-studio-menu]")).toBeNull();
+    expect(document.querySelector("[data-projects-title-bar]")).toBeNull();
+  });
+
   it("narrows the Projects window to the projects a search names", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
     await waitFor(() => expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6));
