@@ -206,6 +206,8 @@ export interface MockTatolabOptions {
   doesTheRelayAdapterCatalogServeNoNamesOrLogos: boolean;
   /** `?workspace=none|unreadable`: no workspace open, or one whose `pyproject.toml` does not parse; the pattern workspace by default. */
   openWorkspaceScenario: MockOpenWorkspaceScenario;
+  /** `?port_families=served`: each port's family is served in the graph and the node catalog, as streamlib's strict-port-families will serve it; none by default, as the runtime serves today. */
+  arePortFamiliesServed: boolean;
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -297,6 +299,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     doesTheRuntimeListAnEarlierRuntimesRecord: pageQuery.get("streams") === "earlier_record",
     doesTheRelayAdapterCatalogServeNoNamesOrLogos: pageQuery.get("adapter_names") === "none",
     openWorkspaceScenario: mockOpenWorkspaceScenarioNamed(pageQuery.get("workspace")),
+    arePortFamiliesServed: pageQuery.get("port_families") === "served",
   };
 }
 
@@ -1002,7 +1005,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     return mockStreamGraphSummary(loadedStream.fixture.listing.stream, fixtures.machine.name, loadedStream.fixture.graph, {
       hasSettled: millisecondsSinceSettled >= 0,
       secondsSinceSettled: Math.max(0, millisecondsSinceSettled) / 1000,
-    });
+    }, mockTatolabOptions.arePortFamiliesServed);
   };
 
   /** The project folder the mock runtime lists for the stream `streamId`, as the main process looks it up before opening it. */
@@ -1138,7 +1141,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     describeNodeCatalog: async (streamId) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       loadedStreamOfTheId(streamId);
-      return { stream: streamId, node_types: [...MOCK_NODE_CATALOG_ENTRIES] };
+      const nodeTypes = mockTatolabOptions.arePortFamiliesServed
+        ? [...MOCK_NODE_CATALOG_ENTRIES]
+        : MOCK_NODE_CATALOG_ENTRIES.map((entry) => ({ ...entry, inputs: entry.inputs.map((port) => ({ ...port, family: null })), outputs: entry.outputs.map((port) => ({ ...port, family: null })) }));
+      return { stream: streamId, node_types: nodeTypes };
     },
     checkForTatolabAppUpdates: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

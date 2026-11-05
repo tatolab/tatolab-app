@@ -24,6 +24,7 @@ import {
   requiredText,
   textOrDefault,
 } from "./json_on_the_wire.js";
+import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { runtimeWatchPageUrl } from "./runtime_loopback_watch_page.js";
 
@@ -127,7 +128,7 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   });
 }
 
-/** The ports a node's `ports.<direction>` lists, each by name with its `catalog_entry.section` when it carries one. */
+/** The ports a node's `ports.<direction>` lists, each by name with its family and its `catalog_entry.section` when it carries them. */
 function declaredPortsUnder(ports: JsonObjectOnTheWire, direction: "inputs" | "outputs"): Result<StreamGraphDeclaredPort[], string> {
   const portsOnTheWire = arrayOrEmpty(ports, direction);
   if (!portsOnTheWire.ok) return portsOnTheWire;
@@ -139,7 +140,7 @@ function declaredPortsUnder(ports: JsonObjectOnTheWire, direction: "inputs" | "o
     const catalogEntry = port.value["catalog_entry"];
     // A section only picks the port's icon, so one of another shape draws as data rather than refusing the graph.
     const catalogSection = isAJsonObject(catalogEntry) ? catalogEntry["section"] : undefined;
-    return succeeded({ name: name.value, catalog_section: typeof catalogSection === "string" ? catalogSection : null });
+    return succeeded({ name: name.value, family: portFamilyOnTheWire(port.value), catalog_section: typeof catalogSection === "string" ? catalogSection : null });
   });
 }
 

@@ -17,7 +17,7 @@ test("a_real_registry_answer_reads_as_each_node_types_description_config_schema_
   expect(relayTrackSource?.type).toBe("tatolab.stream:RelayTrackSource");
   expect(relayTrackSource?.description.startsWith("Reads one track at a MoQ relay into the graph")).toBe(true);
   expect(relayTrackSource?.inputs).toEqual([]);
-  expect(relayTrackSource?.outputs).toEqual([{ name: "track", description: "Each object of the track, as the relay delivered it" }]);
+  expect(relayTrackSource?.outputs).toEqual([{ name: "track", description: "Each object of the track, as the relay delivered it", family: null }]);
   expect(relayTrackSource?.config_schema).toMatchObject({
     title: "RelayTrackSourceConfig",
     type: "object",
@@ -32,7 +32,7 @@ test("a_node_type_described_without_a_config_schema_reads_as_none", () => {
 
   expect(nodeCatalogFromTheRegistryAnswer("main", registryAnswer)).toEqual({
     ok: true,
-    value: { stream: "main", node_types: [{ type: "nodes.x:X", description: "", config_schema: null, inputs: [{ name: "a", description: "" }], outputs: [] }] },
+    value: { stream: "main", node_types: [{ type: "nodes.x:X", description: "", config_schema: null, inputs: [{ name: "a", description: "", family: null }], outputs: [] }] },
   });
 });
 
@@ -45,4 +45,23 @@ test("a_registry_answer_without_nodes_is_refused_naming_the_stream", () => {
 
 test("the_stream_is_named_in_the_query_as_a_uri_component", () => {
   expect(nodeCatalogRequestTarget("a stream/with&marks")).toBe("/api/registry?stream=a%20stream%2Fwith%26marks");
+});
+
+test("a_port_naming_one_of_the_five_families_reads_as_it_in_any_case_and_any_other_as_none", () => {
+  const registryAnswer = JSON.stringify({
+    nodes: [
+      {
+        type: "nodes.x:X",
+        description: "",
+        inputs: [
+          { name: "frames", description: "", family: "Image" },
+          { name: "levels", description: "", family: "channels" },
+        ],
+        outputs: [{ name: "mystery", description: "", family: "Volume" }],
+      },
+    ],
+  });
+  const catalog = nodeCatalogFromTheRegistryAnswer("main", registryAnswer);
+  expect(catalog.ok && catalog.value.node_types[0]?.inputs.map((port) => port.family)).toEqual(["image", "channels"]);
+  expect(catalog.ok && catalog.value.node_types[0]?.outputs.map((port) => port.family)).toEqual([null]);
 });

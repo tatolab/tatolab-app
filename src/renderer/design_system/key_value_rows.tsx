@@ -1,10 +1,9 @@
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import type { ControlDataAttributes } from "./control_data_attributes";
-import { WithControlTooltip } from "./control_tooltip";
 
-/** One row: what it names, its value, and what the name means, shown while the pointer rests on it. */
-export type KeyValueRow = readonly [key: string, value: ReactNode, keyMeaning?: string | null];
+/** One row: what it names, and its value. */
+export type KeyValueRow = readonly [key: string, value: ReactNode];
 
 /**
  * Named values, a name per row in a quiet column: facts in the window's words (a step's type, a stream's project), or
@@ -23,9 +22,9 @@ export function KeyValueRows({
       )}
       {...controlDataAttributes}
     >
-      {rows.map(([key, value, keyMeaning]) => (
+      {rows.map(([key, value]) => (
         <div key={key} className="contents">
-          <WithControlTooltip tooltip={keyMeaning ?? undefined} isWide control={<dt className="truncate text-fg-3">{key}</dt>} />
+          <dt className="truncate text-fg-3">{key}</dt>
           <dd className={cn("min-w-0 text-fg", look === "facts" ? "truncate" : "break-all select-text")}>{value}</dd>
         </div>
       ))}

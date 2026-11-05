@@ -201,9 +201,17 @@ export interface ProjectLogRecordsPage {
   records_no_longer_held: boolean;
 }
 
+/** The five families a runtime port carries, each one engine-owned memory layout, as streamlib's plan names them. */
+export const PORT_FAMILIES = ["image", "array", "channels", "packets", "records"] as const;
+
+/** One of the five port families. */
+export type PortFamily = (typeof PORT_FAMILIES)[number];
+
 /** A port a node declares under the graph's `ports.inputs` or `ports.outputs`. */
 export interface StreamGraphDeclaredPort {
   name: string;
+  /** The family the port carries, from its `family` key; `null` while the runtime serves none, or one this app does not know. */
+  family: PortFamily | null;
   /** What an output carries, as its `catalog_entry.section` names it (`video`, `audio`, `binary`, …); `null` when it declares none, as every input does. */
   catalog_section: string | null;
 }
@@ -263,6 +271,8 @@ export interface StreamGraphSummary {
 export interface NodeCatalogPort {
   name: string;
   description: string;
+  /** The family the port carries, from its `family` key; `null` while the runtime serves none, or one this app does not know. */
+  family: PortFamily | null;
 }
 
 /** One node type a stream can add, as the node catalog lists it under the `type` a graph node carries. */

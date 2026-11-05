@@ -1,8 +1,10 @@
-// A stream's graph as the node graph canvas draws it: a card per node by its name, its declared ports as
-// pins, and a link per link of the graph, drawn by its state.
+// A stream's graph as the node graph canvas draws it: a card per node keyed by its name and titled as the
+// studio writes it, its declared ports as pins of their families, and a link per link of the graph, drawn by
+// its state.
 
 import type { NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphLinkLook } from "../../design_system/node_graph_canvas";
 import type { StreamGraphLink, StreamGraphSummary } from "../../view_host/studio_view_contract";
+import { nodeTitle } from "../node_words";
 
 /** What the canvas draws of one stream's graph. */
 export interface StreamGraphCanvasContents {
@@ -48,9 +50,9 @@ export function streamGraphCanvasContents(graph: StreamGraphSummary): StreamGrap
   return {
     nodes: graph.nodes.map((node) => ({
       node_id: node.name,
-      title: node.name,
-      input_pin_names: node.input_ports.map((port) => port.name),
-      output_pin_names: node.output_ports.map((port) => port.name),
+      title: nodeTitle(node.name, node.type),
+      input_pins: node.input_ports.map((port) => ({ name: port.name, family: port.family })),
+      output_pins: node.output_ports.map((port) => ({ name: port.name, family: port.family })),
     })),
     links: graph.links.map(canvasLinkOf),
   };

@@ -463,3 +463,26 @@ describe("the mock backend's node catalog", () => {
     expect(graphsRead).toBeGreaterThan(0);
   });
 });
+
+describe("the mock backend's port families", () => {
+  it("serves no family by default, as the runtime does today, and each port's family when asked", async () => {
+    const familiesOfMain = async (pageQuery: string) => {
+      const { backend } = await runningMockBackend(pageQuery);
+      const graph = backend.describeStreamGraph(MAIN);
+      const catalog = backend.describeNodeCatalog(MAIN);
+      await vi.advanceTimersByTimeAsync(200);
+      const read = await graph;
+      const listed = await catalog;
+      return {
+        graph: read.nodes.flatMap((node) => [...node.input_ports, ...node.output_ports].map((port) => port.family)),
+        catalog: listed.node_types.flatMap((entry) => [...entry.inputs, ...entry.outputs].map((port) => port.family)),
+      };
+    };
+    const servedByDefault = await familiesOfMain("");
+    expect(new Set([...servedByDefault.graph, ...servedByDefault.catalog])).toEqual(new Set([null]));
+    const servedWhenAsked = await familiesOfMain("port_families=served");
+    expect(servedWhenAsked.graph).not.toContain(null);
+    expect(new Set(servedWhenAsked.graph)).toEqual(new Set(["image"]));
+    expect(servedWhenAsked.catalog).not.toContain(null);
+  });
+});

@@ -1,14 +1,14 @@
 // The browser mock's node catalog: every node type its streams name, each with the config schema the
 // runtime would serve for it — Python's spelling (`anyOf` with null, no `title`) for a node written in
 // Python, Rust's (`"type": [T, "null"]`, a root `title`, an enum under `$defs`) for a native one — and
-// its ports by name.
+// its ports by name and the family each carries, which the mock serves only when asked.
 
-import type { JsonValue, NodeCatalogEntry } from "../../shared/tatolab_backend_contract";
+import type { JsonValue, NodeCatalogEntry, PortFamily } from "../../shared/tatolab_backend_contract";
 
 /** What the runtime's Python deriver writes for a node that declares no config. */
 const THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG: JsonValue = { type: "object", description: "This node declares no configuration.", additionalProperties: false };
 
-const port = (name: string, description: string) => ({ name, description });
+const port = (name: string, description: string, family: PortFamily) => ({ name, description, family });
 
 /** Every node type the mock runtime's streams can add, in the order its catalog lists them. */
 export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
@@ -20,12 +20,12 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
       properties: {
         width: { type: "integer", description: "Frame width in pixels.", default: 1280 },
         height: { type: "integer", description: "Frame height in pixels.", default: 720 },
-        fps: { type: "integer", description: "Frames a second.", default: 30 },
+        fps: { type: "integer", description: "Frames a second.", default: 30, minimum: 1, maximum: 120 },
       },
       additionalProperties: false,
     },
     inputs: [],
-    outputs: [port("video", "Test-pattern video frames")],
+    outputs: [port("video", "Test-pattern video frames", "image")],
   },
   {
     type: "tatolab.stream:CameraSource",
@@ -44,7 +44,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
       additionalProperties: false,
     },
     inputs: [],
-    outputs: [port("video", "Camera frames")],
+    outputs: [port("video", "Camera frames", "image")],
   },
   {
     type: "tatolab.stream:MicrophoneSource",
@@ -59,7 +59,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
       additionalProperties: false,
     },
     inputs: [],
-    outputs: [port("audio", "Captured audio")],
+    outputs: [port("audio", "Captured audio", "channels")],
   },
   {
     type: "tatolab.stream:DisplayWindow",
@@ -74,7 +74,7 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
       },
       $defs: { DisplayWindowScaling: { type: "string", enum: ["fit", "fill", "stretch"] } },
     },
-    inputs: [port("video", "Frames to show")],
+    inputs: [port("video", "Frames to show", "image")],
     outputs: [],
   },
   {
@@ -89,28 +89,28 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
       additionalProperties: false,
       required: ["path"],
     },
-    inputs: [port("video", "Frames to write")],
+    inputs: [port("video", "Frames to write", "image")],
     outputs: [],
   },
   {
     type: "nodes.inverting_effect:InvertingEffect",
     description: "Inverts each frame's colours",
     config_schema: THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG,
-    inputs: [port("video_from_upstream", "")],
-    outputs: [port("video_to_downstream", "")],
+    inputs: [port("video_from_upstream", "", "image")],
+    outputs: [port("video_to_downstream", "", "image")],
   },
   {
     type: "nodes.brightness_meter:BrightnessMeter",
     description: "Logs each frame's mean brightness",
     config_schema: THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG,
-    inputs: [port("video_from_upstream", "")],
+    inputs: [port("video_from_upstream", "", "image")],
     outputs: [],
   },
   {
     type: "nodes.level_meter:LevelMeter",
     description: "Logs each audio block's peak level",
     config_schema: THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG,
-    inputs: [port("audio_from_upstream", "")],
+    inputs: [port("audio_from_upstream", "", "channels")],
     outputs: [],
   },
 ];

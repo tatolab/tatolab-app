@@ -10,7 +10,7 @@ type JsonObject = { [key: string]: JsonValue };
 /** How a field shows its value: text, a number, on or off, one of a fixed set, or JSON for a value no plainer control holds. */
 export type ConfigFormFieldControl =
   | { kind: "text" }
-  | { kind: "number"; is_whole_number: boolean }
+  | { kind: "number"; is_whole_number: boolean; minimum: number | null; maximum: number | null }
   | { kind: "toggle" }
   | { kind: "choice"; choices: JsonValue[] }
   | { kind: "json" };
@@ -68,6 +68,13 @@ function withNullUnionUnwrapped(schema: JsonObject, documentRoot: JsonObject): {
   return { schema: { ...nonNullBranches[0], ...ownKeywords }, isNullable: true };
 }
 
+/** The bounds a number schema sets, each `null` where it sets none. */
+function rangeOfTheSchema(schema: JsonObject): { minimum: number | null; maximum: number | null } {
+  const minimum = schema["minimum"];
+  const maximum = schema["maximum"];
+  return { minimum: typeof minimum === "number" ? minimum : null, maximum: typeof maximum === "number" ? maximum : null };
+}
+
 function controlOfTheSchema(schema: JsonObject): { control: ConfigFormFieldControl; isNullable: boolean } {
   const choices = schema["enum"];
   const { types, isNullable } = declaredTypes(schema);
@@ -78,9 +85,9 @@ function controlOfTheSchema(schema: JsonObject): { control: ConfigFormFieldContr
     case "string":
       return { control: { kind: "text" }, isNullable };
     case "integer":
-      return { control: { kind: "number", is_whole_number: true }, isNullable };
+      return { control: { kind: "number", is_whole_number: true, ...rangeOfTheSchema(schema) }, isNullable };
     case "number":
-      return { control: { kind: "number", is_whole_number: false }, isNullable };
+      return { control: { kind: "number", is_whole_number: false, ...rangeOfTheSchema(schema) }, isNullable };
     case "boolean":
       return { control: { kind: "toggle" }, isNullable };
     default:
@@ -92,7 +99,7 @@ function controlOfTheSchema(schema: JsonObject): { control: ConfigFormFieldContr
 function controlOfTheValue(value: JsonValue): ConfigFormFieldControl {
   if (typeof value === "string") return { kind: "text" };
   if (typeof value === "boolean") return { kind: "toggle" };
-  if (typeof value === "number") return { kind: "number", is_whole_number: Number.isInteger(value) };
+  if (typeof value === "number") return { kind: "number", is_whole_number: Number.isInteger(value), minimum: null, maximum: null };
   return { kind: "json" };
 }
 

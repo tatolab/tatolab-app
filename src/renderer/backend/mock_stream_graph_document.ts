@@ -4,7 +4,7 @@
 // is a stand-in drawn in the frame itself, since no runtime serves `/watch/` to a browser mock.
 
 import { mockNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
-import type { StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type { StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 
 /** Where a mock stream's run stands when its graph is read. */
 export interface MockStreamGraphMoment {
@@ -44,8 +44,16 @@ requestAnimationFrame(draw)}requestAnimationFrame(draw);
   return `data:text/html;charset=utf-8,${encodeURIComponent(standInPage)}`;
 }
 
-/** The `graph {stream}` document of `graph` for the stream `streamId` on `machineName` at `moment`, and the summary read from it. */
-export function mockStreamGraphSummary(streamId: string, machineName: string, graph: MockStreamGraph, moment: MockStreamGraphMoment): StreamGraphSummary {
+/** The `graph {stream}` document of `graph` for the stream `streamId` on `machineName` at `moment`, and the summary read from it; its ports name their families only when `arePortFamiliesServed`. */
+export function mockStreamGraphSummary(
+  streamId: string,
+  machineName: string,
+  graph: MockStreamGraph,
+  moment: MockStreamGraphMoment,
+  arePortFamiliesServed: boolean,
+): StreamGraphSummary {
+  const servedPorts = (ports: StreamGraphDeclaredPort[]): StreamGraphDeclaredPort[] => (arePortFamiliesServed ? ports : ports.map((port) => ({ ...port, family: null })));
+  const familyAsTheRuntimeRendersIt = (port: StreamGraphDeclaredPort) => (arePortFamiliesServed && port.family !== null ? { family: port.family } : {});
   const nodeState = (state: string) => (moment.hasSettled ? state : "Pending");
   const linkState = (state: string) => (moment.hasSettled ? state : "pending");
   const climbed = (perSecond: number) => (moment.hasSettled ? Math.floor(perSecond * moment.secondsSinceSettled) : 0);
@@ -55,8 +63,8 @@ export function mockStreamGraphSummary(streamId: string, machineName: string, gr
     type: node.type,
     state: nodeState(node.state),
     config: node.config,
-    input_ports: node.input_ports,
-    output_ports: node.output_ports,
+    input_ports: servedPorts(node.input_ports),
+    output_ports: servedPorts(node.output_ports),
     dropped_bags_by_link: Object.fromEntries(
       graph.links.filter((link) => link.target_node === node.name).map((link) => [link.id, climbed(graph.counterRates.droppedPerSecondByLinkId[link.id] ?? 0)]),
     ),
@@ -75,12 +83,13 @@ export function mockStreamGraphSummary(streamId: string, machineName: string, gr
       name: node.name,
       config: node.config,
       ports: {
-        inputs: node.input_ports.map((port) => ({ name: port.name, description: "", port_kind: "data", delivery_profile: "newest" })),
+        inputs: node.input_ports.map((port) => ({ name: port.name, description: "", port_kind: "data", delivery_profile: "newest", ...familyAsTheRuntimeRendersIt(port) })),
         outputs: node.output_ports.map((port) => ({
           name: port.name,
           description: "",
           port_kind: "data",
           delivery_profile: null,
+          ...familyAsTheRuntimeRendersIt(port),
           ...(port.catalog_section === null ? {} : { catalog_entry: { section: port.catalog_section, entry: {} } }),
         })),
       },

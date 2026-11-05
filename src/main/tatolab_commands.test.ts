@@ -278,7 +278,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
   expect(graph.ok && JSON.stringify(graph.value)).toBe(
     '{"stream":"main","nodes":[' +
       '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running","config":{},' +
-      '"input_ports":[],"output_ports":[{"name":"video","catalog_section":"binary"}],' +
+      '"input_ports":[],"output_ports":[{"name":"video","family":null,"catalog_section":"binary"}],' +
       '"dropped_bags_by_link":{},"refused_bags_by_output_port":{}},' +
       '{"id":"","name":"invertingeffect","type":"nodes.inverting_effect:InvertingEffect","state":null,"config":{},' +
       '"input_ports":[],"output_ports":[],' +

@@ -21,7 +21,7 @@ test("a_rust_spelled_schema_reads_its_nullable_its_default_and_its_referenced_ch
     kind: "fields",
     fields: [
       { key: "title", description: "The window's title.", control: { kind: "text" }, value: null, value_source: "unset", is_required: false, is_nullable: true },
-      { key: "width", description: null, control: { kind: "number", is_whole_number: true }, value: 1280, value_source: "default", is_required: true, is_nullable: false },
+      { key: "width", description: null, control: { kind: "number", is_whole_number: true, minimum: 0, maximum: null }, value: 1280, value_source: "default", is_required: true, is_nullable: false },
       { key: "scaling", description: "How a frame fits the window.", control: { kind: "choice", choices: ["fit", "fill", "stretch"] }, value: "fill", value_source: "config", is_required: false, is_nullable: false },
     ],
   });
@@ -34,7 +34,7 @@ test("a_python_spelled_nullable_reads_as_its_one_other_branch", () => {
   );
   expect(form).toEqual({
     kind: "fields",
-    fields: [{ key: "fps", description: "Frames a second.", control: { kind: "number", is_whole_number: false }, value: 30, value_source: "config", is_required: false, is_nullable: true }],
+    fields: [{ key: "fps", description: "Frames a second.", control: { kind: "number", is_whole_number: false, minimum: null, maximum: null }, value: 30, value_source: "config", is_required: false, is_nullable: true }],
   });
 });
 
@@ -50,7 +50,7 @@ test("a_node_type_with_no_schema_shows_its_config_as_the_graph_renders_it", () =
   const form = configFormOf(null, { path: "/tmp/out.mp4", frames: 12 });
   expect(form.kind === "fields" && form.fields.map((field) => [field.key, field.control])).toEqual([
     ["path", { kind: "text" }],
-    ["frames", { kind: "number", is_whole_number: true }],
+    ["frames", { kind: "number", is_whole_number: true, minimum: null, maximum: null }],
   ]);
 });
 

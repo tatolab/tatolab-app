@@ -452,10 +452,10 @@ test("a_real_graph_tool_result_reads_with_its_counters_preview_page_and_verbatim
     ["h264encoder", "tatolab.stream:H264Encoder", "Running"],
   ]);
   expect(summary.nodes.map((node) => [node.name, node.input_ports, node.output_ports])).toEqual([
-    ["testpatternsource", [], [{ name: "video", catalog_section: "binary" }]],
-    ["halftonelenseffect", [{ name: "video_from_upstream", catalog_section: null }], [{ name: "video_to_downstream", catalog_section: null }]],
-    ["brightnessmeter", [{ name: "video_from_upstream", catalog_section: null }], []],
-    ["h264encoder", [{ name: "video", catalog_section: null }], [{ name: "encoded_video", catalog_section: "video" }]],
+    ["testpatternsource", [], [{ name: "video", family: null, catalog_section: "binary" }]],
+    ["halftonelenseffect", [{ name: "video_from_upstream", family: null, catalog_section: null }], [{ name: "video_to_downstream", family: null, catalog_section: null }]],
+    ["brightnessmeter", [{ name: "video_from_upstream", family: null, catalog_section: null }], []],
+    ["h264encoder", [{ name: "video", family: null, catalog_section: null }], [{ name: "encoded_video", family: null, catalog_section: "video" }]],
   ]);
   expect(summary.nodes[1]?.dropped_bags_by_link).toEqual({ Lt12wev5nhhd2ankv0rrz1w3v: 0 });
   expect(summary.nodes[3]?.refused_bags_by_output_port).toEqual({ encoded_video: 0 });

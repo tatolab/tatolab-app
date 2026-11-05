@@ -6,11 +6,11 @@ function graphNode(name: string, inputs: string[], outputs: string[]): StreamGra
   return {
     id: name.toUpperCase(),
     name,
-    type: `nodes:${name}`,
+    type: `nodes.${name}:Effect`,
     state: "Running",
     config: {},
-    input_ports: inputs.map((port) => ({ name: port, catalog_section: null })),
-    output_ports: outputs.map((port) => ({ name: port, catalog_section: "video" })),
+    input_ports: inputs.map((port) => ({ name: port, family: "image" as const, catalog_section: null })),
+    output_ports: outputs.map((port) => ({ name: port, family: null, catalog_section: "video" })),
     dropped_bags_by_link: {},
     refused_bags_by_output_port: {},
   };
@@ -30,8 +30,8 @@ const GRAPH: StreamGraphSummary = {
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins", () => {
   expect(streamGraphCanvasContents(GRAPH).nodes).toEqual([
-    { node_id: "camera", title: "camera", input_pin_names: [], output_pin_names: ["video"] },
-    { node_id: "invert", title: "invert", input_pin_names: ["video_in"], output_pin_names: ["video_out"] },
+    { node_id: "camera", title: "camera", input_pins: [], output_pins: [{ name: "video", family: null }] },
+    { node_id: "invert", title: "invert", input_pins: [{ name: "video_in", family: "image" }], output_pins: [{ name: "video_out", family: null }] },
   ]);
 });
 

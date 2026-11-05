@@ -34,6 +34,7 @@
   --color-studio-imports: var(--studio-imports);
   --color-studio-graph-tools: var(--studio-graph-tools);
   --color-studio-read-only-banner: var(--studio-read-only-banner);
+  --color-studio-property-fill: var(--studio-property-fill);
   --color-chrome: var(--chrome);
   --color-raised: var(--raised);
   --color-well: var(--well);
@@ -133,6 +134,12 @@
   --studio-graph-card-selected: #f0f0f2;
   --studio-graph-pin: #9a9aa3;
   --studio-graph-link: #7a7a84;
+  --studio-family-image: #6f9bff;
+  --studio-family-array: #f0a845;
+  --studio-family-channels: #3fcf8e;
+  --studio-family-packets: #e07a5f;
+  --studio-family-records: #a0a4ad;
+  --studio-property-fill: #3d4f86;
   --brand: #2a5bff;
   --brand-text: #7c9bff;
   --brand-soft: rgba(42, 91, 255, 0.16);

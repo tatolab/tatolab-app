@@ -59,7 +59,7 @@ async function openEveryOutlinerRow(): Promise<void> {
  * (every row opened), `?select=<row id>` (that outliner row clicked, as `stream:<stream id>`), `?open_stream=<stream id>`
  * (its row double-clicked, opening its tab), `?select_node=<node name>` (that node's card clicked in the stream graph), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
  * `?submenu=<entry>` (that entry's submenu opened, as `Workspace layout`), and `?area_menu=<area id>` (that area's
- * view-type menu opened); with the backend's `?workspace=none|unreadable`. `?page=preferences` opens Preferences, on
+ * view-type menu opened); with the backend's `?workspace=none|unreadable` and `?port_families=served` (each port's family in the graph and the catalog). `?page=preferences` opens Preferences, on
  * `?section=general|runtime|command-line|about`; there `?restart=pressed|refused` presses Restart and `?link=pressed`
  * presses Link in /usr/local/bin…. `?sheet=uninstall|uninstalling|uninstalled` opens the uninstall sheet from
  * Preferences, pressing Uninstall for the latter two. On first run, with the backend's `?state=setup`,

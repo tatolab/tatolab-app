@@ -5,6 +5,7 @@
 
 import type { JsonValue, NodeCatalog, NodeCatalogEntry, NodeCatalogPort } from "../shared/tatolab_backend_contract.js";
 import { arrayOrEmpty, everyOneRead, isAJsonValue, jsonObject, type JsonObjectOnTheWire, parseJsonOnTheWire, requiredArray, requiredText, textOrDefault } from "./json_on_the_wire.js";
+import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 /** The request target of the node catalog of the loaded stream `stream`. */
@@ -65,6 +66,6 @@ function catalogPortsUnder(nodeType: JsonObjectOnTheWire, direction: "inputs" | 
     if (!name.ok) return name;
     const description = textOrDefault(port.value, "description", "");
     if (!description.ok) return description;
-    return succeeded({ name: name.value, description: description.value });
+    return succeeded({ name: name.value, description: description.value, family: portFamilyOnTheWire(port.value) });
   });
 }
