@@ -2,7 +2,6 @@ import { presentRuntimeBuild } from "../presentation/runtime_install_presentatio
 import { Cpu, FolderOpen, Info, RotateCw, SlidersHorizontal, SquareTerminal, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { useEffect, useState, type ReactNode } from "react";
-import mascotImageUrl from "../assets/tato_mascot_3d.png";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
 import { CodeBlock, CommandLine } from "../design_system/code_block";
@@ -113,7 +112,7 @@ function GeneralSection() {
   const openAtLoginSwitch = useSwitchSetThroughTheBackend(
     openAtLogin.isSwitchedOn ?? false,
     (isOn) => backend.setOpenTatolabAtLogin(isOn),
-    (isOn) => `Couldn't ${isOn ? "add Spudnik Studio to" : "remove Spudnik Studio from"} your login items:`,
+    (isOn) => `Couldn't ${isOn ? "add Tato Studio to" : "remove Tato Studio from"} your login items:`,
   );
   const streamFailureNotifications = presentStreamFailureNotifications(status.stream_failure_notifications);
   const notificationsSwitch = useSwitchSetThroughTheBackend(
@@ -126,7 +125,7 @@ function GeneralSection() {
     <>
       <SettingsGroup>
         <SettingsRow
-          label="Open Spudnik Studio at login"
+          label="Open Tato Studio at login"
           description={openAtLogin.description}
           refusal={openAtLoginSwitch.refusal}
           data-settings-row="open-at-login"
@@ -169,17 +168,17 @@ function GeneralSection() {
       </SettingsGroup>
       <SettingsGroup title="Quit or uninstall">
         <SettingsRow
-          label="Quit Spudnik Studio"
+          label="Quit Tato Studio"
           description={platformPresentation.quitTatolabExplanation}
           control={() => <ActionButton onPressed={() => void backend.quitTatolabApp()}>Quit Tatolab</ActionButton>}
         />
         <SettingsRow
-          label="Uninstall Spudnik Studio"
+          label="Uninstall Tato Studio"
           description={platformPresentation.uninstallTatolabExplanation}
           refusal={uninstallRefusalReason === null ? null : { lead: "Uninstall didn't finish:", words: uninstallRefusalReason }}
           control={() => (
             <ActionButton appearance="destructive" onPressed={openUninstallSheet} data-action="uninstall">
-              Uninstall Spudnik Studio…
+              Uninstall Tato Studio…
             </ActionButton>
           )}
         />
@@ -401,13 +400,12 @@ function AboutSection() {
   const status = useTatolabStatus();
   const runtimeDescription = useRuntimeDescriptionReading();
   const appUpdate = presentTatolabAppUpdate(status.app_update);
-  const checkForUpdates = useActionThroughTheBackend(() => backend.checkForTatolabAppUpdates(), "Couldn't update Spudnik Studio:");
+  const checkForUpdates = useActionThroughTheBackend(() => backend.checkForTatolabAppUpdates(), "Couldn't update Tato Studio:");
   const versions = presentAboutVersions(status, runtimeDescription);
   return (
     <div className="flex flex-col items-center gap-6 pt-6 text-center" data-settings-about="">
       <div className="flex flex-col items-center">
-        <img src={mascotImageUrl} alt="" className="size-24" />
-        <h2 className="mt-3 title-lg">Spudnik Studio</h2>
+        <h2 className="title-lg">Tato Studio</h2>
         <div className="text-fg-3 tabular select-text">
           <p>{versions}</p>
           <p data-about-build="">{presentAboutBuild(status.app_build)}</p>

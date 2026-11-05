@@ -38,7 +38,7 @@ export function applescriptStringLiteral(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
-/** The AppleScript that runs `shellScript` as root behind the administrator prompt, which shows `promptText` under "Spudnik Studio wants to make changes." */
+/** The AppleScript that runs `shellScript` as root behind the administrator prompt, which shows `promptText` under "Tato Studio wants to make changes." */
 export function administratorPromptApplescript(shellScript: string, promptText: string): string {
   return `do shell script ${applescriptStringLiteral(shellScript)} with prompt ${applescriptStringLiteral(promptText)} with administrator privileges`;
 }

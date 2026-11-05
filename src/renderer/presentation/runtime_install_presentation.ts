@@ -31,7 +31,7 @@ export function presentRuntimeInstallOverlay(runtimeInstall: RuntimeInstall): Ru
       return {
         stage: "installing",
         heading: "Updating the runtime",
-        explanation: `This copy of Spudnik Studio carries runtime ${presentRuntimeBuild(runtimeInstall.carried_runtime_build)}. Your streams stop for a moment and come back on it.`,
+        explanation: `This copy of Tato Studio carries runtime ${presentRuntimeBuild(runtimeInstall.carried_runtime_build)}. Your streams stop for a moment and come back on it.`,
         installerLines: runtimeInstall.installer_lines,
         refusal: null,
       };
@@ -41,7 +41,7 @@ export function presentRuntimeInstallOverlay(runtimeInstall: RuntimeInstall): Ru
         heading: "The runtime didn't update",
         explanation:
           runtimeInstall.carried_runtime_build === null
-            ? "Spudnik Studio couldn't read the runtime this copy carries, so nothing was installed."
+            ? "Tato Studio couldn't read the runtime this copy carries, so nothing was installed."
             : `Runtime ${presentRuntimeBuild(runtimeInstall.carried_runtime_build)} wasn't installed. The installer says why below.`,
         installerLines: runtimeInstall.installer_lines,
         refusal: runtimeInstall.refusal,

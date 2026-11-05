@@ -111,11 +111,11 @@ export function presentCommandLineTool(platform: TatolabPlatform, linkedAt: stri
         };
   }
   return linkedAt === null
-    ? { isLinked: false, shownValue: "Not linked", explanation: "Spudnik Studio links it in ~/.local/bin each time it opens.", pathLineToAdd: null }
+    ? { isLinked: false, shownValue: "Not linked", explanation: "Tato Studio links it in ~/.local/bin each time it opens.", pathLineToAdd: null }
     : {
         isLinked: true,
         shownValue: abbreviateHomeDirectory(linkedAt),
-        explanation: "Linked to the copy inside Spudnik Studio. It works in any terminal with ~/.local/bin on its PATH.",
+        explanation: "Linked to the copy inside Tato Studio. It works in any terminal with ~/.local/bin on its PATH.",
         pathLineToAdd: {
           lead: "If a terminal can't find it, add this line to ~/.zprofile and open a new terminal:",
           line: HOME_FOLDER_BIN_ON_THE_PATH_LINE,

@@ -18,7 +18,7 @@ export function answerTheWindowsCommandsOverIpc(
           command_name: commandName,
           sender_url: senderFrame?.url ?? null,
         });
-        return { ok: false, refusal: `${commandName} answers only the Spudnik Studio window` };
+        return { ok: false, refusal: `${commandName} answers only the Tato Studio window` };
       }
       return tatolabWindowCommandHandlers[commandName](commandArguments);
     });

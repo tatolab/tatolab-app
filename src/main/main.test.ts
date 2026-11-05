@@ -102,7 +102,7 @@ describe("the app on macOS", () => {
     fakeShell.forgetTheRecords();
     fakeShell.launchASecondCopy(tatolabAppCopyOnTheSingleInstanceLock({ ...fakeShell.thisCopyOfTatolab, appVersion: "0.46.0" }));
     expect(fakeShell.records).toEqual([
-      { asked: "open_another_copy_once_this_one_exits", executable: "/Applications/Spudnik Studio.app/Contents/MacOS/Spudnik Studio" },
+      { asked: "open_another_copy_once_this_one_exits", executable: "/Applications/Tato Studio.app/Contents/MacOS/Tato Studio" },
       { asked: "exit", exitCode: 0 },
     ]);
     expect(fakeShell.requestTheWindowClose()).toBe("let_it_close");
@@ -228,7 +228,7 @@ describe("starting the app", () => {
     expect(fakeShell.singleInstanceLockAdditionalData).toEqual([
       {
         tatolab_app_copy: {
-          executable_that_opens_the_copy: "/Applications/Spudnik Studio.app/Contents/MacOS/Spudnik Studio",
+          executable_that_opens_the_copy: "/Applications/Tato Studio.app/Contents/MacOS/Tato Studio",
           app_version: "0.45.0",
           app_build: { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", build_kind: "release", built_with_uncommitted_changes: false },
           carried_streamlib_commit: "5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f",
@@ -241,7 +241,7 @@ describe("starting the app", () => {
     const fakeShell = fakeShellQuitAfterTheTest();
     expect(await startTatolabApp(fakeShell.tatolabElectronAppShell, null, fakeShell.tatolabAppLog)).toBeNull();
     expect(fakeShell.records).toEqual([{ asked: "exit", exitCode: 1 }]);
-    expect(fakeShell.writtenLogLines[0]).toContain("Spudnik Studio runs on macOS and Linux only");
+    expect(fakeShell.writtenLogLines[0]).toContain("Tato Studio runs on macOS and Linux only");
   });
 
   test("a window that cannot be created is logged, the Dock icon goes again, and the tray still serves", async () => {
@@ -303,12 +303,12 @@ describe("updating the app", () => {
     fakeShell.appUpdateFeedForThisBuild = { kind: "offered", feed };
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await expect.poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "notify")).toEqual([
-      { asked: "notify", title: "Spudnik Studio 0.47.0 is available", body: "Click to open Settings and install it." },
+      { asked: "notify", title: "Tato Studio 0.47.0 is available", body: "Click to open Settings and install it." },
     ]);
     expect(fakeShell.records).toContainEqual({ asked: "repeat_every", intervalMs: APP_UPDATE_CHECK_INTERVAL_MS });
     await expect
       .poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "show_tray_menu").at(-1))
-      .toMatchObject({ trayMenuItems: expect.arrayContaining([{ kind: "item", id: "check_for_app_updates", label: "Install Spudnik Studio 0.47.0…", enabled: true }]) });
+      .toMatchObject({ trayMenuItems: expect.arrayContaining([{ kind: "item", id: "check_for_app_updates", label: "Install Tato Studio 0.47.0…", enabled: true }]) });
     expect(takenFrom.count).toBe(0);
     fakeShell.clickTheTrayMenuItem("check_for_app_updates");
     await expect.poll(() => takenFrom.count).toBe(1);

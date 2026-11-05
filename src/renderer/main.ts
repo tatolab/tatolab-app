@@ -14,10 +14,10 @@ async function createBrowserMockBackend(pageQuery: URLSearchParams): Promise<Tat
 }
 
 /** What the Electron app's window says when its preload did not load: it has no way to the app, and never shows the mock in its place. */
-const WINDOW_WITHOUT_ITS_BRIDGE_TEXT = "Spudnik Studio's window could not reach the app: its preload did not load. Reinstall Spudnik Studio.";
+const WINDOW_WITHOUT_ITS_BRIDGE_TEXT = "Tato Studio's window could not reach the app: its preload did not load. Reinstall Tato Studio.";
 
 /** What a built window says when opened in a browser: the mock is served only by the dev server. */
-const BUILT_WINDOW_IN_A_BROWSER_TEXT = "Spudnik Studio's window runs inside the packaged app. The mock window is served by node scripts/serve_the_mock_window_in_a_browser.mjs.";
+const BUILT_WINDOW_IN_A_BROWSER_TEXT = "Tato Studio's window runs inside the packaged app. The mock window is served by node scripts/serve_the_mock_window_in_a_browser.mjs.";
 
 /** The backend of the host this page runs in: the preload's bridge, or the browser mock under the dev server; `null` where the page has none. */
 async function createTatolabBackendFor(windowHost: TatolabWindowHost, pageQuery: URLSearchParams): Promise<TatolabBackend | null> {

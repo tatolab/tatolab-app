@@ -1,4 +1,4 @@
-// "Open Spudnik Studio at login" on macOS: the app bundle's own login item, which Electron registers
+// "Open Tato Studio at login" on macOS: the app bundle's own login item, which Electron registers
 // through `SMAppService.mainApp` on macOS 13 and later and reads back with its status.
 
 import type { TatolabAppOpenAtLogin } from "../../../shared/tatolab_backend_contract.js";
@@ -53,10 +53,10 @@ export class LoginItemOfTheAppBundle implements TatolabAppOpenedAtLogin {
       // A registration awaiting the person's approval in Login Items was carried out; the status says so.
       return readBack.kind === "on" || readBack.kind === "needs_approval_in_login_items"
         ? succeeded(undefined)
-        : failedWith("macOS did not add Spudnik Studio to your login items. Add it in System Settings › General › Login Items.");
+        : failedWith("macOS did not add Tato Studio to your login items. Add it in System Settings › General › Login Items.");
     }
     return readBack.kind === "off"
       ? succeeded(undefined)
-      : failedWith("macOS did not remove Spudnik Studio from your login items. Remove it in System Settings › General › Login Items.");
+      : failedWith("macOS did not remove Tato Studio from your login items. Remove it in System Settings › General › Login Items.");
   }
 }

@@ -1,6 +1,5 @@
 import { ChevronLeft } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import mascotImageUrl from "../assets/tato_mascot_3d.png";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
 import { PendingActionWords } from "../design_system/pending_action_words";
@@ -62,10 +61,9 @@ function GettingStartedStep({ step }: { step: GettingStartedStepPresentation }) 
 function WelcomeScreen() {
   return (
     <div className="flex flex-col items-center text-center" data-getting-started-screen="welcome">
-      <img src={mascotImageUrl} alt="" draggable={false} className="size-[140px] object-contain select-none" />
-      <h1 className="mt-5 title-xl">Welcome to Spudnik Studio</h1>
+      <h1 className="title-xl">Welcome to Tato Studio</h1>
       <p className="mt-2 max-w-sm text-[15px] leading-5 text-fg-2">
-        Spudnik Studio runs your live video, audio and AI streams in the Tatolab runtime, in the background. This window is where you see and control it.
+        Tato Studio runs your live video, audio and AI streams in the Tatolab runtime, in the background. This window is where you see and control it.
       </p>
     </div>
   );
@@ -80,7 +78,7 @@ function GettingSetUpScreen({ steps }: { steps: readonly GettingStartedStepPrese
       <h1 ref={headingRef} tabIndex={-1} className="title-lg focus-visible:shadow-none">
         Getting set up
       </h1>
-      <p className="mt-1 mb-5 text-fg-2">The runtime starts in the background. Spudnik Studio asks you for something only when macOS needs you.</p>
+      <p className="mt-1 mb-5 text-fg-2">The runtime starts in the background. Tato Studio asks you for something only when macOS needs you.</p>
       <ProgressChecklist label="Getting set up">
         {steps.map((step) => (
           // A step whose standing changes starts afresh, so a refusal never outlives the state it was refused in.

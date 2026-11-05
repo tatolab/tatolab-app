@@ -226,7 +226,7 @@ describe("the mock backend's New project and Import project", () => {
     const status = await settled(() => backend.getTatolabStatus());
     expect("answer" in status && listingWithTheId(status.answer.streams, HEAT_MAP)).toMatchObject({ state: "running" });
 
-    expect(await settled(() => backend.runStreamProject("/etc"))).toEqual({ refusal: "Spudnik Studio acts only on a folder chosen in its window. Choose /etc again." });
+    expect(await settled(() => backend.runStreamProject("/etc"))).toEqual({ refusal: "Tato Studio acts only on a folder chosen in its window. Choose /etc again." });
   });
 
   it("imports a folder with two streams, one failing, and makes a .venv first for a folder with none", async () => {

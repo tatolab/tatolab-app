@@ -139,12 +139,12 @@ describe("General", () => {
     expect(presentOpenAtLogin({ kind: "off" }, "linux").isSwitchedOn).toBe(false);
     expect(presentOpenAtLogin({ kind: "needs_approval_in_login_items" }, "macos")).toEqual({
       isSwitchedOn: true,
-      description: "macOS is waiting for you to allow Spudnik Studio under Login Items.",
+      description: "macOS is waiting for you to allow Tato Studio under Login Items.",
       needsApprovalInLoginItems: true,
     });
-    expect(presentOpenAtLogin({ kind: "not_offered", reason: "Only a packaged Spudnik Studio opens at login." }, "macos")).toEqual({
+    expect(presentOpenAtLogin({ kind: "not_offered", reason: "Only a packaged Tato Studio opens at login." }, "macos")).toEqual({
       isSwitchedOn: null,
-      description: "Only a packaged Spudnik Studio opens at login.",
+      description: "Only a packaged Tato Studio opens at login.",
       needsApprovalInLoginItems: false,
     });
   });
@@ -155,7 +155,7 @@ describe("General", () => {
       description: "Tells you when a stream fails to start. Clicking it opens the stream and why.",
     });
     expect(presentStreamFailureNotifications({ enabled: true, shown_by_this_desktop: false }).description).toBe(
-      "This desktop shows no notifications, so Spudnik Studio can't tell you here when a stream fails.",
+      "This desktop shows no notifications, so Tato Studio can't tell you here when a stream fails.",
     );
   });
 });

@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { failedWith } from "../../result.js";
 import { LINUX_TATOLAB_UNINSTALL } from "./tatolab_uninstall_refused_on_linux.js";
 
-test("Linux refuses Uninstall Spudnik Studio… and says the installer does it, turning nothing off", async () => {
+test("Linux refuses Uninstall Tato Studio… and says the installer does it, turning nothing off", async () => {
   const runTatolabSwitchCalls: boolean[] = [];
   expect(
     await LINUX_TATOLAB_UNINSTALL.uninstallTatolab({
@@ -11,6 +11,6 @@ test("Linux refuses Uninstall Spudnik Studio… and says the installer does it, 
         return { kind: "unregistered" };
       },
     }),
-  ).toEqual(failedWith("On Linux the installer uninstalls Tatolab: Settings › Uninstall Spudnik Studio… shows how."));
+  ).toEqual(failedWith("On Linux the installer uninstalls Tatolab: Settings › Uninstall Tato Studio… shows how."));
   expect(runTatolabSwitchCalls).toEqual([]);
 });

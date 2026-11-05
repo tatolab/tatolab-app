@@ -1,4 +1,4 @@
-// The seam between "Open Spudnik Studio at login" and the desktop's own login items: the app's login
+// The seam between "Open Tato Studio at login" and the desktop's own login items: the app's login
 // item on macOS, an XDG autostart entry on Linux. It opens the app; the runtime starts at login
 // through its own agent either way.
 
@@ -6,7 +6,7 @@ import type { TatolabAppOpenAtLogin } from "../../shared/tatolab_backend_contrac
 import { failedWith, type Result } from "../result.js";
 
 /** Why an unpackaged app does not offer to open at login: it runs from Electron's own bundle, which is not Tatolab. */
-export const UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL = "Only a packaged Spudnik Studio opens at login.";
+export const UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL = "Only a packaged Tato Studio opens at login.";
 
 /** Whether the desktop opens the app at login, and turning it on or off. */
 export interface TatolabAppOpenedAtLogin {

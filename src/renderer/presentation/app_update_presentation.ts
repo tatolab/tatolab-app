@@ -9,7 +9,7 @@ export interface TatolabAppUpdatePresentation {
 }
 
 /** What the Updates row says while nothing is under way. */
-export const APP_UPDATE_SCHEDULE_EXPLANATION = "Spudnik Studio checks for a newer version at launch and once a day.";
+export const APP_UPDATE_SCHEDULE_EXPLANATION = "Tato Studio checks for a newer version at launch and once a day.";
 
 /** The Updates row for `appUpdate`; a failure is shown in the updater's own words. */
 export function presentTatolabAppUpdate(appUpdate: TatolabAppUpdateState): TatolabAppUpdatePresentation {
@@ -19,28 +19,28 @@ export function presentTatolabAppUpdate(appUpdate: TatolabAppUpdateState): Tatol
     case "not_checked":
       return { description: APP_UPDATE_SCHEDULE_EXPLANATION, actionLabel: "Check for Updates…", isActionEnabled: true, failure: null };
     case "checking":
-      return { description: "Checking for a newer Spudnik Studio…", actionLabel: "Check for Updates…", isActionEnabled: false, failure: null };
+      return { description: "Checking for a newer Tato Studio…", actionLabel: "Check for Updates…", isActionEnabled: false, failure: null };
     case "up_to_date":
-      return { description: "Spudnik Studio is up to date.", actionLabel: "Check for Updates…", isActionEnabled: true, failure: null };
+      return { description: "Tato Studio is up to date.", actionLabel: "Check for Updates…", isActionEnabled: true, failure: null };
     case "available":
       return appUpdate.delivery === "install_and_relaunch"
-        ? { description: `Spudnik Studio ${appUpdate.version} is available.`, actionLabel: "Install and Relaunch", isActionEnabled: true, failure: null }
+        ? { description: `Tato Studio ${appUpdate.version} is available.`, actionLabel: "Install and Relaunch", isActionEnabled: true, failure: null }
         : {
-            description: `Spudnik Studio ${appUpdate.version} is available. Its download opens in your browser.`,
+            description: `Tato Studio ${appUpdate.version} is available. Its download opens in your browser.`,
             actionLabel: "Open Download",
             isActionEnabled: true,
             failure: null,
           };
     case "downloading":
       return {
-        description: `Downloading Spudnik Studio ${appUpdate.version}… ${appUpdate.percent}%`,
+        description: `Downloading Tato Studio ${appUpdate.version}… ${appUpdate.percent}%`,
         actionLabel: "Install and Relaunch",
         isActionEnabled: false,
         failure: null,
       };
     case "installing":
       return {
-        description: `Installing Spudnik Studio ${appUpdate.version}. Spudnik Studio reopens when it's done.`,
+        description: `Installing Tato Studio ${appUpdate.version}. Tato Studio reopens when it's done.`,
         actionLabel: "Install and Relaunch",
         isActionEnabled: false,
         failure: null,
@@ -50,7 +50,7 @@ export function presentTatolabAppUpdate(appUpdate: TatolabAppUpdateState): Tatol
         description: APP_UPDATE_SCHEDULE_EXPLANATION,
         actionLabel: "Check for Updates…",
         isActionEnabled: true,
-        failure: `Couldn't update Spudnik Studio: ${appUpdate.refusal}`,
+        failure: `Couldn't update Tato Studio: ${appUpdate.refusal}`,
       };
   }
 }

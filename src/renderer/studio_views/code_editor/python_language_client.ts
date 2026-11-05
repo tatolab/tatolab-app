@@ -164,7 +164,7 @@ export class PythonLanguageClient {
       method: "initialize",
       params: {
         processId: null,
-        clientInfo: { name: "Spudnik Studio" },
+        clientInfo: { name: "Tato Studio" },
         rootUri: projectUri,
         workspaceFolders: [{ uri: projectUri, name: this.projectFolder.split("/").at(-1) ?? this.projectFolder }],
         capabilities: {

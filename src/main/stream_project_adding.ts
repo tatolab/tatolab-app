@@ -30,7 +30,7 @@ export interface StreamProjectAddingSources {
 
 /** The refusal of a folder the window names that the app never handed it. */
 function folderNotHandedToTheWindowRefusal(folder: string): string {
-  return `Spudnik Studio acts only on a folder chosen in its window. Choose ${folder} again.`;
+  return `Tato Studio acts only on a folder chosen in its window. Choose ${folder} again.`;
 }
 
 /** The folders the window may name, and every command that names one. */

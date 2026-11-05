@@ -224,7 +224,7 @@ function mockOpenAtLogin(openAtLoginInTheQuery: string | null): TatolabAppOpenAt
     case "approval":
       return { kind: "needs_approval_in_login_items" };
     case "not_offered":
-      return { kind: "not_offered", reason: "Only a packaged Spudnik Studio opens at login." };
+      return { kind: "not_offered", reason: "Only a packaged Tato Studio opens at login." };
     default:
       return { kind: "off" };
   }
@@ -443,7 +443,7 @@ function mockInstalledRuntime(platform: TatolabPlatform, machine: MockMachine, r
 function mockInstallerLines(platform: TatolabPlatform, machine: MockMachine, carriedRuntimeBuild: string): string[] {
   const installDirectory = mockRuntimeInstallDirectory(platform, machine);
   return [
-    `Copying the runtime unit from ${platform === "macos" ? "/Applications/Spudnik Studio.app/Contents/Helpers" : "/usr/lib/tatolab/resources/tatolab-runtime"}`,
+    `Copying the runtime unit from ${platform === "macos" ? "/Applications/Tato Studio.app/Contents/Helpers" : "/usr/lib/tatolab/resources/tatolab-runtime"}`,
     `Installing Tatolab ${carriedRuntimeBuild} into ${installDirectory}/${carriedRuntimeBuild}`,
     "Stopping the runtime",
     `Starting Tatolab ${carriedRuntimeBuild}`,
@@ -573,7 +573,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }
   };
   const refuseAFolderNotHandedToTheWindow = (folder: string): void => {
-    if (!foldersHandedToTheWindow.has(folder)) throw `Spudnik Studio acts only on a folder chosen in its window. Choose ${folder} again.`;
+    if (!foldersHandedToTheWindow.has(folder)) throw `Tato Studio acts only on a folder chosen in its window. Choose ${folder} again.`;
   };
   const newProjectFolderTheRuntimeDraws = (): string => {
     const newProjectsFolder = `${fixtures.machine.homeDirectory}/streams`;
@@ -1021,7 +1021,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   /** The project folder the mock runtime lists for the stream `streamId`, as the main process looks it up before opening it. */
   const listedProjectFolderOf = (streamId: string): string => {
     const listedStream = listStreams()?.find((listing) => listing.stream === streamId) ?? null;
-    if (listedStream === null) throw `The runtime does not list ${streamId}, so Spudnik Studio has no project folder to open.`;
+    if (listedStream === null) throw `The runtime does not list ${streamId}, so Tato Studio has no project folder to open.`;
     if (listedStream.location === null) throw `The runtime lists no project folder for ${listedStream.display_name}.`;
     return listedStream.location.project_directory;
   };

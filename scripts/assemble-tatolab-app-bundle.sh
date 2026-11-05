@@ -59,7 +59,7 @@ lent_runtime_package_relative_to_the_lend="tatolab/runtime"
 processor_interpreter_python_versions=(3.10 3.11 3.12 3.13 3.14)
 
 contents="$app_bundle/Contents"
-[ -x "$contents/MacOS/Spudnik Studio" ] || { echo "$app_bundle has no Contents/MacOS/Spudnik Studio: not a packaged Spudnik Studio.app" >&2; exit 1; }
+[ -x "$contents/MacOS/Tato Studio" ] || { echo "$app_bundle has no Contents/MacOS/Tato Studio: not a packaged Tato Studio.app" >&2; exit 1; }
 [ -f "$streamlib_installer" ] || { echo "no streamlib installer at $streamlib_installer" >&2; exit 1; }
 for required in bin/tatolabd bin/tatolab bin/moq-relay bin/uv "lib/tatolab/lend/$lent_runtime_package_relative_to_the_lend" lib/tatolab/watch/index.html; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit $runtime_unit_directory is missing $required" >&2; exit 1; }

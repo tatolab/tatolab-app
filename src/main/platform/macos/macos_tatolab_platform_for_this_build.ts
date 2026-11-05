@@ -1,6 +1,6 @@
 // macOS: streamlib's installer installs the runtime helper the app carries and writes its launch
 // agent, which the app loads and unloads through `launchctl`; the app links the installed CLI in
-// `/usr/local/bin` behind the administrator prompt when asked, "Uninstall Spudnik Studio…" removes it all,
+// `/usr/local/bin` behind the administrator prompt when asked, "Uninstall Tato Studio…" removes it all,
 // and Terminal.app opens a stream's project.
 
 import type { TatolabAppLog } from "../../tatolab_app_log.js";

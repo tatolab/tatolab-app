@@ -31,7 +31,7 @@ function buildTrayMenuOnAFakeTrayIconHost() {
 function statusWith(
   runTatolab: boolean,
   runtimeState: RuntimeState,
-  appUpdate: TatolabAppUpdateState = { kind: "not_offered", reason: "Only a packaged Spudnik Studio updates itself." },
+  appUpdate: TatolabAppUpdateState = { kind: "not_offered", reason: "Only a packaged Tato Studio updates itself." },
   runtimeAgent: RuntimeAgentRegistration = "enabled",
 ): TatolabStatus {
   return {
@@ -58,14 +58,14 @@ function statusWith(
 
 test("the tray menu is the status line, Open Tatolab, the Run Tatolab check and Quit Tatolab", () => {
   const { shownMenus, trayIconTooltip } = buildTrayMenuOnAFakeTrayIconHost();
-  expect(trayIconTooltip).toBe("Spudnik Studio");
+  expect(trayIconTooltip).toBe("Tato Studio");
   expect(shownMenus).toEqual([
     [
       { kind: "item", id: "tray_status_line", label: "Starting…", enabled: false },
-      { kind: "item", id: "open_tatolab", label: "Open Spudnik Studio", enabled: true },
+      { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
       { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
       { kind: "separator" },
-      { kind: "item", id: "quit_tatolab", label: "Quit Spudnik Studio", enabled: true },
+      { kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true },
     ],
   ]);
 });
@@ -79,32 +79,32 @@ test("each status shows in the status line and the check, with login items after
   expect(shownMenus.slice(1)).toEqual([
     [
       { kind: "item", id: "tray_status_line", label: "Needs your approval in Login Items", enabled: false },
-      { kind: "item", id: "open_tatolab", label: "Open Spudnik Studio", enabled: true },
+      { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
       { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
       { kind: "item", id: "open_login_items_settings", label: "Open Login Items…", enabled: true },
       { kind: "separator" },
-      { kind: "item", id: "quit_tatolab", label: "Quit Spudnik Studio", enabled: true },
+      { kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true },
     ],
     [
       { kind: "item", id: "tray_status_line", label: "Runtime blocked by macOS", enabled: false },
-      { kind: "item", id: "open_tatolab", label: "Open Spudnik Studio", enabled: true },
+      { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
       { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
       { kind: "separator" },
-      { kind: "item", id: "quit_tatolab", label: "Quit Spudnik Studio", enabled: true },
+      { kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true },
     ],
     [
       { kind: "item", id: "tray_status_line", label: "Runtime didn't start", enabled: false },
-      { kind: "item", id: "open_tatolab", label: "Open Spudnik Studio", enabled: true },
+      { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
       { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
       { kind: "separator" },
-      { kind: "item", id: "quit_tatolab", label: "Quit Spudnik Studio", enabled: true },
+      { kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true },
     ],
     [
       { kind: "item", id: "tray_status_line", label: "Runtime running · 0 streams", enabled: false },
-      { kind: "item", id: "open_tatolab", label: "Open Spudnik Studio", enabled: true },
+      { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
       { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
       { kind: "separator" },
-      { kind: "item", id: "quit_tatolab", label: "Quit Spudnik Studio", enabled: true },
+      { kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true },
     ],
   ]);
 });
@@ -132,25 +132,25 @@ test("a packaged app shows Check for Updates… just above Quit Tatolab", () => 
   expect(shownMenus.at(-1)?.slice(-3)).toEqual([
     { kind: "separator" },
     { kind: "item", id: "check_for_app_updates", label: "Check for Updates…", enabled: true },
-    { kind: "item", id: "quit_tatolab", label: "Quit Spudnik Studio", enabled: true },
+    { kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true },
   ]);
 });
 
 test("the updates item names a newer version once one is found, and waits while an update is under way", () => {
-  expect(appUpdateTrayMenuItemPresentation({ kind: "not_offered", reason: "Only a packaged Spudnik Studio updates itself." })).toBeNull();
+  expect(appUpdateTrayMenuItemPresentation({ kind: "not_offered", reason: "Only a packaged Tato Studio updates itself." })).toBeNull();
   expect(appUpdateTrayMenuItemPresentation({ kind: "up_to_date" })).toEqual({ label: "Check for Updates…", enabled: true });
   expect(appUpdateTrayMenuItemPresentation({ kind: "failed", refusal: "HttpError: 404" })).toEqual({ label: "Check for Updates…", enabled: true });
   expect(appUpdateTrayMenuItemPresentation({ kind: "checking" })).toEqual({ label: "Checking for Updates…", enabled: false });
   expect(appUpdateTrayMenuItemPresentation({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" })).toEqual({
-    label: "Install Spudnik Studio 0.47.0…",
+    label: "Install Tato Studio 0.47.0…",
     enabled: true,
   });
   expect(appUpdateTrayMenuItemPresentation({ kind: "available", version: "0.47.0", delivery: "open_the_download" })).toEqual({
-    label: "Download Spudnik Studio 0.47.0…",
+    label: "Download Tato Studio 0.47.0…",
     enabled: true,
   });
-  expect(appUpdateTrayMenuItemPresentation({ kind: "downloading", version: "0.47.0", percent: 42 })).toEqual({ label: "Downloading Spudnik Studio 0.47.0…", enabled: false });
-  expect(appUpdateTrayMenuItemPresentation({ kind: "installing", version: "0.47.0" })).toEqual({ label: "Installing Spudnik Studio 0.47.0…", enabled: false });
+  expect(appUpdateTrayMenuItemPresentation({ kind: "downloading", version: "0.47.0", percent: 42 })).toEqual({ label: "Downloading Tato Studio 0.47.0…", enabled: false });
+  expect(appUpdateTrayMenuItemPresentation({ kind: "installing", version: "0.47.0" })).toEqual({ label: "Installing Tato Studio 0.47.0…", enabled: false });
 });
 
 test("while the runtime installs, the status line says so and the Run Tatolab check is held", () => {
@@ -161,7 +161,7 @@ test("while the runtime installs, the status line says so and the Run Tatolab ch
   });
   expect(shownMenus.at(-1)?.slice(0, 3)).toEqual([
     { kind: "item", id: "tray_status_line", label: "Installing runtime…", enabled: false },
-    { kind: "item", id: "open_tatolab", label: "Open Spudnik Studio", enabled: true },
+    { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
     { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: false, checked: true },
   ]);
 });

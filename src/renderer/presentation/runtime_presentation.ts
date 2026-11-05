@@ -165,8 +165,8 @@ export function presentRuntimeStatus(status: TatolabStatus): RuntimeDisplayPrese
         tone: "error",
         shortLabel: "Runtime missing",
         banner: {
-          title: "This copy of Spudnik Studio is missing its runtime",
-          explanation: "Download Spudnik Studio again and replace the app in Applications.",
+          title: "This copy of Tato Studio is missing its runtime",
+          explanation: "Download Tato Studio again and replace the app in Applications.",
           action: null,
         },
       };

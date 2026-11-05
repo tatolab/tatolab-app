@@ -22,7 +22,7 @@ export interface TatolabPlatformForThisBuild {
   terminalOpenedInAFolder: TerminalOpenedInAFolder;
   /** The `tatolab` CLI the build carries, whose version Settings › Command line reads. */
   tatolabCommandLineTool: TatolabCommandLineTool;
-  /** "Open Spudnik Studio at login": the bundle's login item on macOS, an XDG autostart entry on Linux; not offered by an unpackaged app. */
+  /** "Open Tato Studio at login": the bundle's login item on macOS, an XDG autostart entry on Linux; not offered by an unpackaged app. */
   tatolabAppOpenedAtLogin: TatolabAppOpenedAtLogin;
 }
 

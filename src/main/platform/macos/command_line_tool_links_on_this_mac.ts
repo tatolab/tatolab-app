@@ -15,7 +15,7 @@ import { shellWordForPath, type AdministratorPrompt } from "./administrator_prom
 import { isABundledCommandLineToolPath, type TatolabMachinePathsOnMacos } from "./tatolab_machine_paths.js";
 
 /** The words the `/usr/local/bin` link's administrator prompt shows under "osascript wants to make changes." */
-export const USR_LOCAL_BIN_LINK_ADMINISTRATOR_PROMPT_TEXT = "Spudnik Studio wants to link the tatolab command in /usr/local/bin, so it works in every terminal.";
+export const USR_LOCAL_BIN_LINK_ADMINISTRATOR_PROMPT_TEXT = "Tato Studio wants to link the tatolab command in /usr/local/bin, so it works in every terminal.";
 
 /** Why a local-proof build offers no `/usr/local/bin` link. */
 export const LOCAL_PROOF_USR_LOCAL_BIN_LINK_REFUSAL = "A local-proof build never links tatolab in /usr/local/bin.";
@@ -43,7 +43,7 @@ export async function commandLineToolLinkPlace(linkPath: string, installedComman
 
 /** Why `linkPath` was left alone. */
 export function commandLineToolLinkTakenRefusal(linkPath: string): string {
-  return `${linkPath} is not a link to Tatolab, so Spudnik Studio left it alone.`;
+  return `${linkPath} is not a link to Tatolab, so Tato Studio left it alone.`;
 }
 
 /** Whether a link at `linkPath` is still to be made: already made, or free to make; refused when something else holds the name. */

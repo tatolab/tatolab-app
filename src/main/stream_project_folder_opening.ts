@@ -38,7 +38,7 @@ export async function openStreamProjectFolder(
   streamProjectFolderOpeners: StreamProjectFolderOpeners,
 ): Promise<Result<void, string>> {
   const listedStream = listedStreams?.find((candidateListedStream) => candidateListedStream.stream === streamId) ?? null;
-  if (listedStream === null) return failedWith(`The runtime does not list ${streamId}, so Spudnik Studio has no project folder to open.`);
+  if (listedStream === null) return failedWith(`The runtime does not list ${streamId}, so Tato Studio has no project folder to open.`);
   const streamDisplayName = listedStream.display_name;
   if (listedStream.location === null) return failedWith(`The runtime lists no project folder for ${streamDisplayName}.`);
   const projectFolder = listedStream.location.project_directory;

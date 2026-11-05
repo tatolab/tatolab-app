@@ -2,7 +2,7 @@
 export type TatolabCommandLineTool = { kind: "at"; path: string } | { kind: "not_offered"; reason: string };
 
 /** Why a build without a `tatolab` CLI has no version of it to read. */
-export const NO_TATOLAB_COMMAND_LINE_TOOL_REFUSAL = "This build of Spudnik Studio carries no tatolab command.";
+export const NO_TATOLAB_COMMAND_LINE_TOOL_REFUSAL = "This build of Tato Studio carries no tatolab command.";
 
 /** The CLI at `path`, or not offered when there is none. */
 export function tatolabCommandLineToolAt(path: string | null): TatolabCommandLineTool {

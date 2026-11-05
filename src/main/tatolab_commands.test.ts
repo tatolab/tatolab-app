@@ -521,19 +521,19 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
   expect(await commandHandlers.open_stream_project_folder({ stream: "main-main-9e44b1" })).toEqual({
     ok: false,
-    refusal: "The runtime does not list main-main-9e44b1, so Spudnik Studio has no project folder to open.",
+    refusal: "The runtime does not list main-main-9e44b1, so Tato Studio has no project folder to open.",
   });
   await sharedState.statusPublisher.refreshAndPublish();
 
   expect(await commandHandlers.open_stream_project_folder({ stream: "main-main-9e44b1", project_directory: "/etc" })).toEqual({ ok: true, value: null });
   expect(await commandHandlers.open_stream_project_folder({ stream: "main" })).toEqual({
     ok: false,
-    refusal: "The runtime does not list main, so Spudnik Studio has no project folder to open.",
+    refusal: "The runtime does not list main, so Tato Studio has no project folder to open.",
   });
   expect(await commandHandlers.open_terminal_at_stream_project({ stream: "main-main-9e44b1" })).toEqual({ ok: true, value: null });
   expect(await commandHandlers.open_terminal_at_stream_project({ stream: "other" })).toEqual({
     ok: false,
-    refusal: "The runtime does not list other, so Spudnik Studio has no project folder to open.",
+    refusal: "The runtime does not list other, so Tato Studio has no project folder to open.",
   });
   expect(await commandHandlers.open_terminal_at_stream_project({})).toEqual({
     ok: false,
@@ -627,7 +627,7 @@ test("the commands that add a project read their arguments as the window sends t
     ok: false,
     refusal: "create_stream_project needs `folder`, a folder chosen in the window, or null for one the runtime draws under ~/streams",
   });
-  expect(await commandHandlers.create_stream_project({ folder: "/etc" })).toEqual({ ok: false, refusal: "Spudnik Studio acts only on a folder chosen in its window. Choose /etc again." });
+  expect(await commandHandlers.create_stream_project({ folder: "/etc" })).toEqual({ ok: false, refusal: "Tato Studio acts only on a folder chosen in its window. Choose /etc again." });
   expect(await commandHandlers.run_stream_project({ folder: null })).toEqual({ ok: false, refusal: "run_stream_project needs `folder`, a folder chosen in the window" });
   expect(await commandHandlers.describe_stream_action({})).toEqual({ ok: false, refusal: "describe_stream_action needs `action`, a stream action's id" });
 });
@@ -710,10 +710,10 @@ test("opening_tatolab_at_login_asks_the_desktop_then_observes_again_and_is_refus
   expect(sharedState.tatolabAppOpenedAtLogin.setsAsked).toEqual([true]);
   expect(refreshRequests).toHaveBeenCalledTimes(1);
 
-  sharedState.tatolabAppOpenedAtLogin.refusal = "Spudnik Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied";
+  sharedState.tatolabAppOpenedAtLogin.refusal = "Tato Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied";
   expect(await commandHandlers.set_open_tatolab_at_login({ enabled: false })).toEqual({
     ok: false,
-    refusal: "Spudnik Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
+    refusal: "Tato Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
   });
   expect(await commandHandlers.set_open_tatolab_at_login({})).toEqual({ ok: false, refusal: "set_open_tatolab_at_login needs `enabled`, true or false" });
 });

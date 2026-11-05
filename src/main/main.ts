@@ -1,4 +1,4 @@
-// Spudnik Studio: opening it shows its window and puts it in the tray, opening it again shows the
+// Tato Studio: opening it shows its window and puts it in the tray, opening it again shows the
 // window of the one app already running — or, when the copy opened is another build, quits the
 // running one and opens it — closing the window leaves the app in the tray, and
 // quitting quits only the app — the runtime stays on. Each opening reconciles the runtime's agent
@@ -106,7 +106,7 @@ export async function startTatolabApp(
 ): Promise<TatolabRunningApp | null> {
   if (platformItems === null) {
     tatolabAppLog.error(
-      "Spudnik Studio runs on macOS and Linux only: it runs the runtime through the installer's launch agent on macOS and its systemd user service, tatolabd.service, on Linux",
+      "Tato Studio runs on macOS and Linux only: it runs the runtime through the installer's launch agent on macOS and its systemd user service, tatolabd.service, on Linux",
     );
     tatolabElectronAppShell.exitTheApp(1);
     return null;

@@ -1,7 +1,7 @@
 // Packages the built Electron app (`npm ci` and `npm run build` first)
 // for one platform with @electron/packager: it stages exactly what the main process, the preload
 // and the window load, with the production dependencies the lockfile installed, packs it into the
-// asar, and flips Electron's fuses. Prints the packaged app's path (Spudnik Studio.app on macOS, the
+// asar, and flips Electron's fuses. Prints the packaged app's path (Tato Studio.app on macOS, the
 // app's directory on Linux) as its last line.
 //
 // The app keeps the build features `npm run build` wrote; a local-proof build passes its flags
@@ -34,7 +34,7 @@ await mkdir(stagedAppDirectory, { recursive: true });
 // productName names the bundle and the Linux window class; the main process sets userData itself.
 await writeFile(
   path.join(stagedAppDirectory, "package.json"),
-  `${JSON.stringify({ name: "tatolab", productName: "Spudnik Studio", version: appVersion, private: true, type: "module", main: repositoryPackageJson.main }, null, 2)}\n`,
+  `${JSON.stringify({ name: "tatolab", productName: "Tato Studio", version: appVersion, private: true, type: "module", main: repositoryPackageJson.main }, null, 2)}\n`,
 );
 // The mock backend and its presets are the dev server's alone; a window built with them could show made-up streams.
 const mockWindowModuleNames = ["mock_tatolab_backend", "mock_window_preset"];
@@ -69,7 +69,7 @@ await writeFile(appUpdateConfigFile, "updaterCacheDirName: tatolab-app-updater\n
 
 // Linux keeps the executable name earlier builds installed, /usr/lib/tatolab/Tatolab, which the
 // person's autostart entry and /usr/bin/Tatolab name.
-const packagedExecutableName = targetPlatform === "darwin" ? "Spudnik Studio" : "Tatolab";
+const packagedExecutableName = targetPlatform === "darwin" ? "Tato Studio" : "Tatolab";
 
 const [packagedDirectory] = await packager({
   dir: stagedAppDirectory,
@@ -78,7 +78,7 @@ const [packagedDirectory] = await packager({
   platform: targetPlatform,
   arch: targetPlatform === "darwin" ? "arm64" : "x64",
   electronVersion,
-  name: "Spudnik Studio",
+  name: "Tato Studio",
   executableName: packagedExecutableName,
   appVersion,
   buildVersion: appVersion,
@@ -93,7 +93,7 @@ const [packagedDirectory] = await packager({
   prune: false,
   extraResource: [appUpdateConfigFile],
 });
-const packagedApp = targetPlatform === "darwin" ? path.join(packagedDirectory, "Spudnik Studio.app") : packagedDirectory;
+const packagedApp = targetPlatform === "darwin" ? path.join(packagedDirectory, "Tato Studio.app") : packagedDirectory;
 
 // Any process could otherwise run the signed app as plain Node (ELECTRON_RUN_AS_NODE,
 // NODE_OPTIONS, --inspect) and inherit its camera and microphone grants.

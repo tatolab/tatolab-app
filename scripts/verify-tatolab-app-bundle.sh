@@ -354,8 +354,8 @@ case "$verification_target" in
       && pass "the image links Applications" || fail "the image has no Applications link"
     [ -f "$dmg_mount_point/.background.tiff" ] && pass "the image carries the installer background" \
       || fail "the image has no installer background"
-    [ -d "$dmg_mount_point/Spudnik Studio.app" ] || { fail "the image holds no Spudnik Studio.app"; exit 1; }
-    verify_app_bundle "$dmg_mount_point/Spudnik Studio.app"
+    [ -d "$dmg_mount_point/Tato Studio.app" ] || { fail "the image holds no Tato Studio.app"; exit 1; }
+    verify_app_bundle "$dmg_mount_point/Tato Studio.app"
     ;;
   *.app) verify_app_bundle "$verification_target" ;;
   *) echo "expected a .app or a .dmg: $verification_target" >&2; exit 1 ;;

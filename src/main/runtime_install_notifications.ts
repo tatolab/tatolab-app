@@ -11,7 +11,7 @@ export function notifyTheRuntimeInstallEnded(systemNotifications: SystemNotifica
       systemNotifications.showNotification("The Tatolab runtime is updated", `Runtime ${outcome.runtimeBuild} is running.`, onClicked);
       return;
     case "not_installed":
-      systemNotifications.showNotification("The Tatolab runtime didn't update", "Open Spudnik Studio to see what the installer said and try again.", onClicked);
+      systemNotifications.showNotification("The Tatolab runtime didn't update", "Open Tato Studio to see what the installer said and try again.", onClicked);
       return;
     case "nothing_carried":
     case "carried_runtime_unreadable":

@@ -8,7 +8,7 @@ import { tatolabAppOpenedAtLoginOnLinux } from "./tatolab_app_opened_at_login_on
 
 const quietTatolabAppLog = createTatolabAppLog("error", () => {});
 
-test("Open Spudnik Studio at login writes an autostart entry opening the AppImage or the installed binary, and an unpackaged app offers none", async () => {
+test("Open Tato Studio at login writes an autostart entry opening the AppImage or the installed binary, and an unpackaged app offers none", async () => {
   const configHome = await mkdtemp(path.join(os.tmpdir(), "tl-app-xdg-config-"));
   try {
     const appImage = tatolabAppOpenedAtLoginOnLinux(
@@ -29,12 +29,12 @@ test("Open Spudnik Studio at login writes an autostart entry opening the AppImag
   }
 
   const unpackaged = tatolabAppOpenedAtLoginOnLinux(
-    { kind: "not_offered", reason: "Only a packaged Spudnik Studio updates itself." },
+    { kind: "not_offered", reason: "Only a packaged Tato Studio updates itself." },
     "/home/ada/tatolab-app/node_modules/electron/dist/electron",
     undefined,
     "/home/ada",
     quietTatolabAppLog,
   );
-  expect(await unpackaged.readOpenAtLogin()).toEqual({ kind: "not_offered", reason: "Only a packaged Spudnik Studio opens at login." });
-  expect(await unpackaged.setOpenAtLogin(true)).toEqual(failedWith("Only a packaged Spudnik Studio opens at login."));
+  expect(await unpackaged.readOpenAtLogin()).toEqual({ kind: "not_offered", reason: "Only a packaged Tato Studio opens at login." });
+  expect(await unpackaged.setOpenAtLogin(true)).toEqual(failedWith("Only a packaged Tato Studio opens at login."));
 });

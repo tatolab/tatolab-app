@@ -123,7 +123,7 @@ const MOCK_MACHINES: Record<TatolabPlatform, MockMachine> = {
     commandLineToolLinkedAt: "/Users/jonathanf/.local/bin/tatolab",
     localApiSocket: "/tmp/streamlib-501/local-api.sock",
     runtimeLogDirectory: "/Users/jonathanf/Library/Application Support/Tatolab/logs",
-    vulkanLoaderLibrary: "/Applications/Spudnik Studio.app/Contents/Frameworks/tatolab-runtime/_vulkan_driver/libvulkan.1.dylib",
+    vulkanLoaderLibrary: "/Applications/Tato Studio.app/Contents/Frameworks/tatolab-runtime/_vulkan_driver/libvulkan.1.dylib",
     vulkanDeviceSelectedMessage: "Selected Vulkan device: Apple M1 Max (type: Integrated GPU)",
     cameraOpenedAttrs: { device: "FaceTime HD Camera", format: "1920x1080 nv12" },
     microphoneDevice: "MacBook Pro Microphone",
