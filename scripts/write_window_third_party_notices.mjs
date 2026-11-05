@@ -15,13 +15,19 @@ const LICENCE_FILE_NAMES = /^(licen[cs]e|copying|notice)(\.(md|txt|markdown))?$/
 /** The packages src/renderer/styles/window.css imports, which the JavaScript bundle's source maps do not name. */
 const STYLESHEET_PACKAGES = ["tailwindcss", "tw-animate-css", "shadcn", "@fontsource-variable/geist", "@fontsource-variable/geist-mono"];
 
-/** The package directory under node_modules a bundled source path comes from, scoped names included. */
+/**
+ * The package directory under node_modules a bundled source path comes from, scoped names included.
+ * A web worker's source map names its sources relative to where Vite first built the worker, not to
+ * the map, so a path that lands outside the repository is read from the repository's node_modules.
+ */
 function packageDirectoryOf(sourcePath) {
   const parts = sourcePath.split("/");
   const lastNodeModules = parts.lastIndexOf("node_modules");
   if (lastNodeModules === -1) return null;
   const nameParts = parts[lastNodeModules + 1]?.startsWith("@") ? 2 : 1;
-  return parts.slice(0, lastNodeModules + 1 + nameParts).join("/");
+  const packageDirectory = parts.slice(0, lastNodeModules + 1 + nameParts).join("/");
+  if (packageDirectory.startsWith(repositoryRoot + path.sep)) return packageDirectory;
+  return path.join(repositoryRoot, "node_modules", ...parts.slice(lastNodeModules + 1, lastNodeModules + 1 + nameParts));
 }
 
 try {

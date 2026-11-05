@@ -13,6 +13,8 @@ import {
 import { createMockRelays, mockRelaysScenarioNamed, type MockRelaysScenario } from "./mock_relays";
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import { mockOpenWorkspaceReading, mockOpenWorkspaceScenarioNamed, type MockOpenWorkspaceScenario } from "./mock_open_workspace";
+import { MockPythonLanguageServer } from "./mock_python_language_server";
+import { MockWorkspaceFiles } from "./mock_workspace_files";
 import type { TatolabBackend } from "./tatolab_backend";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
@@ -33,6 +35,7 @@ import {
   type InstalledRuntime,
   type TatolabPlatform,
   type TatolabStatus,
+  type PythonLanguageServerEvent,
 } from "../../shared/tatolab_backend_contract";
 
 /**
@@ -493,6 +496,13 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openWorkspaceListeners = new Set<(reading: OpenWorkspaceReading) => void>();
   let openWorkspaceReading = mockOpenWorkspaceReading(openWorkspaceScenario, fixtures.machine.homeDirectory);
+  const mockWorkspaceFiles = new MockWorkspaceFiles(`${fixtures.machine.homeDirectory}/streams`);
+  const languageServerEventListeners = new Set<(event: PythonLanguageServerEvent) => void>();
+  const mockLanguageServersBySession = new Map<string, MockPythonLanguageServer>();
+  let languageServerSessionCount = 0;
+  const refuseWithoutAnOpenWorkspace = (): void => {
+    if (openWorkspaceReading.kind !== "read") throw "No workspace is open, so its files cannot be read.";
+  };
   const loadedStreams = new Map<string, MockLoadedStream>();
   const listedStreamsNotLoaded = new Map<string, ListedStream>([
     [fixtures.stoppedPatternTwo.stream, fixtures.stoppedPatternTwo],
@@ -1131,7 +1141,8 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     readProjectLogRecords: async (projectDirectory, narrowing, after) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      if (!(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) throw `The runtime lists no stream from ${projectDirectory}.`;
+      const isTheWorkspaceProject = openWorkspaceReading.kind === "read" && openWorkspaceReading.workspace.workspace_project.folder === projectDirectory;
+      if (!isTheWorkspaceProject && !(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) throw `The runtime lists no stream from ${projectDirectory}.`;
       return readMockProjectLog(projectDirectory, narrowing, after);
     },
     describeStreamGraph: async (streamId) => {
@@ -1305,6 +1316,58 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);
       return () => statusListeners.delete(statusListener);
+    },
+    readWorkspaceFile: async (file) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      refuseWithoutAnOpenWorkspace();
+      return mockWorkspaceFiles.read(file);
+    },
+    saveWorkspaceFile: async (file, text, basedOnVersion) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      refuseWithoutAnOpenWorkspace();
+      return mockWorkspaceFiles.save(file, text, basedOnVersion);
+    },
+    listWorkspaceProjectFiles: async (projectFolder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      refuseWithoutAnOpenWorkspace();
+      return mockWorkspaceFiles.list(projectFolder);
+    },
+    runWorkspaceProject: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openWorkspaceReading.kind === "none_open") throw "No workspace is open to run.";
+      if (openWorkspaceReading.kind === "unreadable") throw openWorkspaceReading.refusal;
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const folder = openWorkspaceReading.workspace.workspace_project.folder;
+      return { action: queueAMockProjectLoad(folder), project_directory: folder };
+    },
+    startPythonLanguageServer: async (projectFolder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      refuseWithoutAnOpenWorkspace();
+      mockWorkspaceFiles.list(projectFolder);
+      languageServerSessionCount += 1;
+      const session = `python-language-server-${languageServerSessionCount}`;
+      mockLanguageServersBySession.set(
+        session,
+        new MockPythonLanguageServer((message) => {
+          window.setTimeout(() => {
+            if (!mockLanguageServersBySession.has(session)) return;
+            for (const listener of languageServerEventListeners) listener({ session, kind: "message", message });
+          }, MOCK_COMMAND_LATENCY_MILLISECONDS);
+        }),
+      );
+      return session;
+    },
+    sendToPythonLanguageServer: async (session, message) => {
+      const mockLanguageServer = mockLanguageServersBySession.get(session);
+      if (mockLanguageServer === undefined) throw `The language server ${session} has ended.`;
+      mockLanguageServer.receive(message);
+    },
+    stopPythonLanguageServer: async (session) => {
+      mockLanguageServersBySession.delete(session);
+    },
+    onPythonLanguageServerEvent: (listener) => {
+      languageServerEventListeners.add(listener);
+      return () => languageServerEventListeners.delete(listener);
     },
   };
 }

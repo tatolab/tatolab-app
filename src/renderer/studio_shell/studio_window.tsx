@@ -1,4 +1,4 @@
-import { FolderOpen, FolderPlus } from "lucide-react";
+import { FolderOpen, FolderPlus, Play } from "lucide-react";
 import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
 import { AreaSplit } from "../design_system/area_split";
@@ -15,7 +15,7 @@ import { PreferencesDialogView } from "../setup_and_preferences/preferences_dial
 import { StudioViewFailureBoundary, useWatchedStudioValue } from "../view_host/in_window_view_host";
 import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
-import { studioMenuBarMenus, type StudioMenuBarCommands } from "./studio_menu_bar_model";
+import { RUN_LIVE_KEY, studioMenuBarMenus, type StudioMenuBarCommands } from "./studio_menu_bar_model";
 import type { StudioWindowModel } from "./studio_window_model";
 
 /** The issue that brings users' own view types, the 3D scene among them. */
@@ -160,6 +160,8 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const openStreamTabs = useWatchedStudioValue(model.openStreamTabs);
   const preferencesSection = useWatchedStudioValue(model.preferencesSection);
   const workspaceOpeningRefusal = useWatchedStudioValue(model.workspaceOpeningRefusal);
+  const workspaceRunRefusal = useWatchedStudioValue(model.workspaceRunRefusal);
+  const isAWorkspaceShown = openWorkspace.kind !== "none_open" && workspaceLayouts !== null;
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       <header
@@ -167,8 +169,21 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
       >
         <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, workspaceLayouts?.chosen_layout ?? null, commands)} />
+        {isAWorkspaceShown && (
+          <ActionButton
+            appearance="primary"
+            size="small"
+            icon={Play}
+            tooltip={`Run the workspace's streams (${RUN_LIVE_KEY})`}
+            onPressed={commands.runTheWorkspaceLive}
+            className="ml-auto"
+            data-studio-run-live=""
+          >
+            Live
+          </ActionButton>
+        )}
       </header>
-      {openWorkspace.kind === "none_open" || workspaceLayouts === null ? (
+      {!isAWorkspaceShown ? (
         <StudioWelcome commands={commands} />
       ) : (
         <>
@@ -203,6 +218,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               detail={workspaceOpeningRefusal}
               onDismissed={() => model.workspaceOpeningRefusal.publish(null)}
               data-workspace-opening-refusal=""
+            />
+          )}
+          {workspaceRunRefusal !== null && (
+            <WindowNotice
+              tone="failure"
+              title={workspaceRunRefusal.asked_to === "run" ? "The workspace didn't run" : "The workspace didn't stop"}
+              detail={workspaceRunRefusal.because}
+              onDismissed={() => model.workspaceRunRefusal.publish(null)}
+              data-workspace-run-refusal=""
             />
           )}
         </div>

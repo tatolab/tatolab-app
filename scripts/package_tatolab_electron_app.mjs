@@ -83,7 +83,9 @@ const [packagedDirectory] = await packager({
   appCopyright: `Copyright (c) ${new Date().getFullYear()} Jonathan Fontanez`,
   extendInfo: path.join(repositoryRoot, "packaging", "macos", "Info.plist"),
   icon: path.join(repositoryRoot, "packaging", "icons", "icon.icns"),
-  asar: true,
+  // The code pane's Pyright runs from its files on disk beside the asar, where electron_app_entry
+  // names it, so its worker threads and bundled typeshed stubs are read as plain files.
+  asar: { unpack: "**/node_modules/pyright/**" },
   prune: false,
   extraResource: [appUpdateConfigFile],
 });

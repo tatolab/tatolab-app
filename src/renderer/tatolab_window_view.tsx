@@ -21,21 +21,20 @@ import {
   type TatolabWindowEnvironment,
 } from "./setup_and_preferences/tatolab_window_context";
 import { UninstallSheetView } from "./setup_and_preferences/uninstall_sheet_view";
-import type { StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
+import { RUN_LIVE_KEY, type StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
-import { StudioWindowModel } from "./studio_shell/studio_window_model";
+import { StudioWindowModel, streamsOfTheProjectToStop } from "./studio_shell/studio_window_model";
 import { WORKSPACE_LAYOUTS, WorkspaceLayoutsKeptInStorage } from "./studio_shell/workspace_layouts";
-import {
-  AGENT_VIEW_TYPE,
-  CODE_VIEW_TYPE,
-  VIEWER_VIEW_TYPE,
-} from "./studio_views/arriving_later/arriving_later_view_types";
+import { AGENT_VIEW_TYPE, VIEWER_VIEW_TYPE } from "./studio_views/arriving_later/arriving_later_view_types";
+import { CODE_EDITOR_VIEW_TYPE } from "./studio_views/code_editor/code_editor_view_type";
 import { PROPERTIES_VIEW_TYPE } from "./studio_views/properties/properties_view_type";
 import { STREAM_GRAPH_VIEW_TYPE } from "./studio_views/stream_graph/stream_graph_view_type";
 import { OUTLINER_VIEW_TYPE } from "./studio_views/outliner/outliner_view_type";
 import { inWindowStudioViewHostServices } from "./view_host/in_window_view_host";
 import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
 import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
+import { ProjectLogReadings } from "./view_host/project_log_readings";
+import { PythonLanguageServerConnections } from "./view_host/python_language_server_connections";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "./window_visibility";
 
 /** The page's storage, or `null` where the page may not use it. */
@@ -54,7 +53,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
     registeredStudioViewType(OUTLINER_VIEW_TYPE),
     registeredStudioViewType(PROPERTIES_VIEW_TYPE),
     registeredStudioViewType(VIEWER_VIEW_TYPE),
-    registeredStudioViewType(CODE_VIEW_TYPE),
+    registeredStudioViewType(CODE_EDITOR_VIEW_TYPE),
     registeredStudioViewType(AGENT_VIEW_TYPE),
   ]);
 }
@@ -98,6 +97,10 @@ export function mountTatolabWindow(
   const streamGraphAndCatalogReadings = new StreamGraphAndCatalogReadings(backend);
   streamGraphAndCatalogReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => streamGraphAndCatalogReadings.setPollingAllowed(isVisible));
+  const projectLogReadings = new ProjectLogReadings(backend);
+  projectLogReadings.setPollingAllowed(isTatolabWindowVisible());
+  onTatolabWindowVisibilityChanged((isVisible) => projectLogReadings.setPollingAllowed(isVisible));
+  const pythonLanguageServerConnections = new PythonLanguageServerConnections(backend);
   const studioWindowModel = new StudioWindowModel(new WorkspaceLayoutsKeptInStorage(windowLocalStorage()));
   const uninstallTatolabRefusal = new RefusalKeptForTheWindow();
   const firstRunFinishingRefusal = new RefusalKeptForTheWindow();
@@ -116,11 +119,37 @@ export function mountTatolabWindow(
     openPreferences: () => studioWindowModel.preferencesSection.publish("general"),
     openAbout: () => studioWindowModel.preferencesSection.publish("about"),
     chooseLayout: (layoutName) => studioWindowModel.chooseLayout(layoutName),
+    runTheWorkspaceLive: () => {
+      studioWindowModel.workspaceRunRefusal.publish(null);
+      backend.runWorkspaceProject().catch((rejection: unknown) => studioWindowModel.workspaceRunRefusal.publish({ asked_to: "run", because: describeBackendRejection(rejection) }));
+    },
+    stopTheWorkspace: () => {
+      studioWindowModel.workspaceRunRefusal.publish(null);
+      const openWorkspace = studioWindowModel.openWorkspace.readLatest();
+      if (openWorkspace.kind !== "read") return;
+      const { folder, name } = openWorkspace.workspace.workspace_project;
+      const streamsToStop = streamsOfTheProjectToStop(studioWindowModel.listedStreams.readLatest(), folder);
+      if (streamsToStop.length === 0) {
+        studioWindowModel.workspaceRunRefusal.publish({ asked_to: "stop", because: `No stream of ${name} is running.` });
+        return;
+      }
+      Promise.all(streamsToStop.map((stream) => backend.runStreamAction("stop_stream", stream))).catch((rejection: unknown) =>
+        studioWindowModel.workspaceRunRefusal.publish({ asked_to: "stop", because: describeBackendRejection(rejection) }),
+      );
+    },
+    openTheWorkspaceStreamPy: () => {
+      const openWorkspace = studioWindowModel.openWorkspace.readLatest();
+      if (openWorkspace.kind === "read") studioWindowModel.openCodeFile(`${openWorkspace.workspace.workspace_project.folder}/stream.py`);
+    },
   };
   const studioWindowSources: StudioWindowSources = {
     model: studioWindowModel,
     viewTypeRegistry: studioViewTypeRegistry(),
-    viewHostServices: inWindowStudioViewHostServices(studioWindowModel.viewHostSources(), streamGraphAndCatalogReadings),
+    viewHostServices: inWindowStudioViewHostServices(studioWindowModel.viewHostSources(), streamGraphAndCatalogReadings, {
+      backend,
+      projectLogReadings,
+      pythonLanguageServerConnections,
+    }),
     commands: studioMenuBarCommands,
     platform,
   };
@@ -156,6 +185,13 @@ export function mountTatolabWindow(
   document.addEventListener("keydown", (keyboardEvent) => {
     const latestStatus = statusStore?.readLatestStatus() ?? null;
     if (latestStatus === null || latestStatus.runtime_install.kind !== "none" || chooseTatolabWindowScreen(latestStatus) === "setup" || uninstallSheet.isOpen()) return;
+    if (keyboardEvent.key === RUN_LIVE_KEY && !keyboardEvent.metaKey && !keyboardEvent.ctrlKey && !keyboardEvent.altKey) {
+      if (studioWindowModel.workspaceLayouts.readLatest() === null) return;
+      keyboardEvent.preventDefault();
+      if (keyboardEvent.shiftKey) studioMenuBarCommands.stopTheWorkspace();
+      else studioMenuBarCommands.runTheWorkspaceLive();
+      return;
+    }
     if (!holdsWindowShortcutModifier(platform, keyboardEvent)) return;
     const key = keyboardEvent.key.length === 1 ? keyboardEvent.key.toLowerCase() : keyboardEvent.key;
     if (runStudioShortcut(key)) keyboardEvent.preventDefault();

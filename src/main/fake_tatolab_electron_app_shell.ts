@@ -124,6 +124,8 @@ export class FakeTatolabElectronAppShell {
       return succeeded(this.workspaceFolderTheDialogAnswers);
     },
     watchFolderEntries: () => null,
+    startANodeLanguageServer: () => failedWith("the fake shell starts no language server"),
+    pyrightLanguageServerModulePath: "/fake/node_modules/pyright/langserver.index.js",
     homeDirectory: path.join(this.appConfigDirectory, "home"),
     createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,
     systemNotifications: this.systemNotifications,

@@ -8,6 +8,7 @@ const UNANSWERING_TATOLAB_ELECTRON_BRIDGE: TatolabElectronBridge = {
   onTatolabStatusChanged: () => () => undefined,
   onStreamPageRequested: () => () => undefined,
   onOpenWorkspaceChanged: () => () => undefined,
+  onPythonLanguageServerEvent: () => () => undefined,
   tellTheAppTheWindowDrewItsFirstStatus: () => undefined,
 };
 

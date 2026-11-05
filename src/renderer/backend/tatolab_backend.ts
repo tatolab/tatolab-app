@@ -1,5 +1,10 @@
 import type {
   ChosenWorkspaceFolder,
+  JsonValue,
+  PythonLanguageServerEvent,
+  WorkspaceFileRead,
+  WorkspaceFileSaved,
+  WorkspaceProjectFiles,
   NodeCatalog,
   OpenWorkspaceReading,
   ProjectLogNarrowing,
@@ -98,6 +103,21 @@ export interface TatolabBackend {
   readOpenWorkspace(): Promise<OpenWorkspaceReading>;
   /** Calls `listener` with each reading of the open workspace: another folder opened, or a `pyproject.toml` it reads changed; the returned function stops it. */
   onOpenWorkspaceChanged(listener: (reading: OpenWorkspaceReading) => void): () => void;
+  /** `file` of the open workspace's projects, as read from disk, rejecting for a file outside them or in the filesystem's words. */
+  readWorkspaceFile(file: string): Promise<WorkspaceFileRead>;
+  /** Write `text` to `file` whole when the file on disk is still at `basedOnVersion` (`null` for a new file), rejecting with nothing written when it changed, belongs to an import, or the filesystem refuses. */
+  saveWorkspaceFile(file: string, text: string, basedOnVersion: string | null): Promise<WorkspaceFileSaved>;
+  /** The Python files and `pyproject.toml` of `projectFolder`, a project folder of the open workspace. */
+  listWorkspaceProjectFiles(projectFolder: string): Promise<WorkspaceProjectFiles>;
+  /** Queue `run_project` on the open workspace's folder, resolving with the action queued and rejecting in the runtime's own words. */
+  runWorkspaceProject(): Promise<ProjectRunQueued>;
+  /** Start Pyright's language server in `projectFolder`, resolving with the session its messages arrive under. */
+  startPythonLanguageServer(projectFolder: string): Promise<string>;
+  /** Send one JSON-RPC `message` to the language server of `session`, rejecting once it has ended. */
+  sendToPythonLanguageServer(session: string, message: JsonValue): Promise<void>;
+  stopPythonLanguageServer(session: string): Promise<void>;
+  /** Calls `listener` with each message a language server sends and each server's end; the returned function stops it. */
+  onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
 }
 
 /** Where the page runs: Tatolab.app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */

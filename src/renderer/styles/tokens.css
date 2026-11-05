@@ -140,6 +140,15 @@
   --studio-family-packets: #e07a5f;
   --studio-family-records: #a0a4ad;
   --studio-property-fill: #3d4f86;
+  --studio-code-text: #d6d6dc;
+  --studio-code-line-number: #5a5a63;
+  --studio-code-keyword: #8fa8ff;
+  --studio-code-string: #a5d6a7;
+  --studio-code-number: #e8b86d;
+  --studio-code-comment: #6b6b75;
+  --studio-code-decorator: #d0a2f7;
+  --studio-code-selection: rgba(124, 155, 255, 0.24);
+  --studio-code-current-line: rgba(255, 255, 255, 0.035);
   --brand: #2a5bff;
   --brand-text: #7c9bff;
   --brand-soft: rgba(42, 91, 255, 0.16);
