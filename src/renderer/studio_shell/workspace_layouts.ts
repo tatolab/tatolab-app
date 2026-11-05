@@ -60,7 +60,7 @@ export function defaultWorkspaceLayout(layoutName: WorkspaceLayoutName): StudioA
     case "code":
       return split("code-columns", "row", [
         [43, area("code", "code")],
-        [39, split("code-middle", "column", [[50, area("stream-graph", "stream_graph")], [50, area("agent", "agent")]])],
+        [39, split("code-middle", "column", [[50, area("stream-graph", "stream_graph")], [50, area("viewer", "viewer")]])],
         [18, sideColumn()],
       ]);
     case "perform":

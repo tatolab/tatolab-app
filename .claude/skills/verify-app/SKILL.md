@@ -42,12 +42,11 @@ Evidence counts only when it was shot on what would ship now:
    `src/renderer/backend/mock_tatolab_backend.ts` and `src/renderer/mock_window_preset.ts` read:
    `?platform=linux`, `?runtime_install=installing|failed`, `?state=` (running, empty, loading, node-error,
    not-listed, starting, stopped, unreachable, setup; macOS-only approval, missing,
-   not-registered), `?workspace=none|unreadable`, `?agents=none`, `?uninstall=cancel`, and the screen keys
+   not-registered), `?workspace=none|unreadable`, `?uninstall=cancel`, and the screen keys
    `?layout=build|compose|spatial|code|perform`, `?outliner=open`, `?select=<row id>`,
    `?open_stream=<stream id>`, `?menu=<menu>` with `?submenu=<entry>`, `?area_menu=<area id>`,
    `?page=preferences` with `?section=`, `?restart=`, `?link=pressed`,
-   `?sheet=uninstall|uninstalling|uninstalled`, `?agent_prompt=<words>` with `?permission=<option id>`,
-   `?setup=` and `?setup_step_action=`; the
+   `?sheet=uninstall|uninstalling|uninstalled`, `?setup=` and `?setup_step_action=`; the
    doc comment of `driveMockWindowToPreset` is the full list. A key it does not name is
    ignored without a word, so check each frame shows the state its URL asks for. The window is dark-only. Label every image **Mock**. A screen the
    presets cannot reach gets a preset in the same change.

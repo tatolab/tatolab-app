@@ -210,8 +210,7 @@ function CodeAreaBody({ connection }: { connection: CodeViewConnection }) {
     if (codeFileAsked === null || codeFileAsked.ask <= host.last_code_file_ask_taken) return;
     host.last_code_file_ask_taken = codeFileAsked.ask;
     connection.rememberSettings(withTheFileShown(settings, codeFileAsked.file));
-    void documents.checkForChangesOnDisk(codeFileAsked.file);
-  }, [codeFileAsked, connection, documents, settings]);
+  }, [codeFileAsked, connection, settings]);
 
   const shownDocument = settings.shown_file === null ? undefined : documents.documentOf(settings.shown_file);
   const workspaceProjectFolder = openWorkspace?.kind === "read" ? openWorkspace.workspace.workspace_project.folder : null;

@@ -18,8 +18,6 @@ const HOST_SERVICES: StudioViewHostServices = {
   listWorkspaceProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
   watchProjectLog: () => () => undefined,
   connectToPythonLanguageServer: () => ({ send: () => undefined, close: () => undefined }),
-  describeAgentsOnThisMachine: async () => ({ kind: "not_described", because: "no agents in this test" }),
-  connectToAgent: () => ({ send: () => undefined, close: () => undefined }),
 };
 
 /** A view type keeping a number, which records each connection it is drawn on. */

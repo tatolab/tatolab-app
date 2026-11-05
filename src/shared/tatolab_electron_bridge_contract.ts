@@ -3,9 +3,6 @@
 // command answers.
 
 import type {
-  AgentEvent,
-  AgentsOnThisMachine,
-  AgentStarted,
   ChosenWorkspaceFolder,
   NodeCatalog,
   JsonValue,
@@ -77,10 +74,6 @@ export const TATOLAB_COMMAND_NAMES = [
   "start_python_language_server",
   "send_to_python_language_server",
   "stop_python_language_server",
-  "describe_agents",
-  "start_agent",
-  "send_to_agent",
-  "stop_agent",
 ] as const;
 
 /**
@@ -105,9 +98,6 @@ export const TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT = "tatolab-open-workspace-chan
 
 /** The event each message a Python language server sends, and each server's end, arrives on; it carries a `PythonLanguageServerEvent`. */
 export const TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT = "tatolab-python-language-server-event";
-
-/** The event each message an agent sends, and each agent's end, arrives on; it carries an `AgentEvent`. */
-export const TATOLAB_AGENT_EVENT = "tatolab-agent-event";
 
 /** The notice the window sends the main process once it has drawn its first status, carrying nothing; the window first goes on screen on it. */
 export const TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE = "tatolab-window-drew-its-first-status";
@@ -200,13 +190,6 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   /** `message` one JSON-RPC message, framed onto the server's input; refused for a session that has ended. */
   send_to_python_language_server: { commandArguments: { session: string; message: JsonValue }; answer: null };
   stop_python_language_server: { commandArguments: { session: string }; answer: null };
-  /** Every agent the studio knows, each found on the person's login-shell `PATH` or not. */
-  describe_agents: { commandArguments: undefined; answer: AgentsOnThisMachine };
-  /** Starts the agent `agent_id` names in the open workspace project's folder, which the window never names; its messages arrive on `tatolab-agent-event` under the session answered. Refused while no workspace is open, or for an agent not installed, naming its install command. */
-  start_agent: { commandArguments: { agent_id: string }; answer: AgentStarted };
-  /** `message` one JSON-RPC message, written to the agent's input as one line; refused for a session that has ended. */
-  send_to_agent: { commandArguments: { session: string; message: JsonValue }; answer: null };
-  stop_agent: { commandArguments: { session: string }; answer: null };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */
@@ -228,8 +211,6 @@ export interface TatolabElectronBridge {
   onOpenWorkspaceChanged(listener: (reading: OpenWorkspaceReading) => void): () => void;
   /** Calls `listener` with each message a Python language server sends and each server's end; the returned function stops it. */
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
-  /** Calls `listener` with each message an agent sends and each agent's end; the returned function stops it. */
-  onAgentEvent(listener: (event: AgentEvent) => void): () => void;
   /** Tell the main process the window has drawn its first status, so it can put the window on screen. */
   tellTheAppTheWindowDrewItsFirstStatus(): void;
 }

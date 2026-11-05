@@ -470,16 +470,6 @@ export function sendToPythonLanguageServerArgumentsFrom(commandArguments: unknow
   return succeeded({ session, message });
 }
 
-/** `send_to_agent`'s arguments as the window sends them, or why they are not. */
-export function sendToAgentArgumentsFrom(commandArguments: unknown): Result<{ session: string; message: JsonValue }, string> {
-  const message = isAJsonObject(commandArguments) ? commandArguments["message"] : undefined;
-  const session = isAJsonObject(commandArguments) ? commandArguments["session"] : undefined;
-  if (typeof session !== "string" || !isAJsonObject(message) || !isAJsonValue(message)) {
-    return failedWith("send_to_agent needs `session`, an agent's session, and `message`, one JSON-RPC message");
-  }
-  return succeeded({ session, message });
-}
-
 /** Each command's handler, taking the arguments as the window sent them and answering in the contract's shape. */
 export type TatolabWindowCommandHandlers = {
   readonly [CommandName in TatolabCommandName]: (commandArguments: unknown) => Promise<TatolabCommandAnswerTo<CommandName>>;
@@ -652,23 +642,6 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const session = oneTextArgumentFrom("stop_python_language_server", commandArguments, "session", "a language server's session");
       if (!session.ok) return { ok: false, refusal: session.failure };
       sharedState.pythonLanguageServers.stopALanguageServer(session.value);
-      return { ok: true, value: null };
-    },
-    describe_agents: async () => ({ ok: true, value: await sharedState.agentClientProtocolAgents.describeAgentsOnThisMachine() }),
-    start_agent: async (commandArguments) => {
-      const agentId = oneTextArgumentFrom("start_agent", commandArguments, "agent_id", "an agent's id from describe_agents");
-      if (!agentId.ok) return { ok: false, refusal: agentId.failure };
-      return commandAnswerFrom(await answerTheWindow("start_agent", () => sharedState.agentClientProtocolAgents.startAnAgent(agentId.value)));
-    },
-    send_to_agent: async (commandArguments) => {
-      const sendArguments = sendToAgentArgumentsFrom(commandArguments);
-      if (!sendArguments.ok) return { ok: false, refusal: sendArguments.failure };
-      return commandAnswerOfNothingFrom(sharedState.agentClientProtocolAgents.sendToAnAgent(sendArguments.value.session, sendArguments.value.message));
-    },
-    stop_agent: async (commandArguments) => {
-      const session = oneTextArgumentFrom("stop_agent", commandArguments, "session", "an agent's session");
-      if (!session.ok) return { ok: false, refusal: session.failure };
-      sharedState.agentClientProtocolAgents.stopAnAgent(session.value);
       return { ok: true, value: null };
     },
   };

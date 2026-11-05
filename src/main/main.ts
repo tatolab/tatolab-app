@@ -30,16 +30,10 @@ import type { SystemNotifications } from "./system_notifications.js";
 import { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "./tatolab_tray_menu.js";
 import type { Result } from "./result.js";
-import { isAnExecutableFileOnThisMachine, isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
+import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
 import { OpenWorkspaceFolder, type FolderEntriesWatch, type WorkspaceFolderDialog } from "./open_workspace.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
-import { AgentClientProtocolAgents } from "./agent_client_protocol_agents.js";
-import type { AgentStdioMcpServer } from "../shared/tatolab_backend_contract.js";
-import { LoginShellProgramPath } from "./login_shell_program_path.js";
-import type { StartAProgramSpeakingOnItsStandardStreams } from "./platform/start_a_program_speaking_on_its_standard_streams.js";
-import { LOCAL_PROOF_TEST_MACHINE_ROOT } from "./platform/tatolab_machine_paths.js";
-import { TATOLAB_APP_BUILD_FEATURES } from "./tatolab_app_build_features.js";
 import { WorkspaceFiles } from "./workspace_files.js";
 import { rememberedOpenWorkspaceFileIn } from "./remembered_open_workspace_file.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
@@ -77,12 +71,6 @@ export interface TatolabElectronAppShell {
   startANodeLanguageServer: StartANodeLanguageServer;
   /** Pyright's `langserver.index.js` as this build carries it. */
   pyrightLanguageServerModulePath: string;
-  /** How the agent panel's agents start, each a program speaking on its standard streams. */
-  startAProgramSpeakingOnItsStandardStreams: StartAProgramSpeakingOnItsStandardStreams;
-  /** The person's login shell, `$SHELL`, whose `PATH` agents are found on; `null` when unset. */
-  loginShell: string | null;
-  /** The `PATH` the app was opened with. */
-  appsOwnPath: string;
   /** Watching the entries directly in one folder, which the open workspace reads again on. */
   watchFolderEntries: FolderEntriesWatch;
   /** The person's home directory, where the folder dialog opens, or at `~/streams` for a new project once that folder exists. */
@@ -108,14 +96,6 @@ export interface TatolabRunningApp {
   tatolabMainWindow: TatolabMainWindow;
   tatolabTrayMenu: TatolabTrayMenu;
   statusPublisher: TatolabStatusPublisher;
-}
-
-/** The runtime's MCP server as an agent starts it: this build's `tatolab mcp`, under a local-proof build's test root when it has one; none where the build carries no CLI. */
-export function runtimeMcpServersForAgents(platformForThisBuild: Pick<TatolabPlatformForThisBuild, "tatolabCommandLineTool">): AgentStdioMcpServer[] {
-  const commandLineTool = platformForThisBuild.tatolabCommandLineTool;
-  if (commandLineTool.kind === "not_offered") return [];
-  const env = TATOLAB_APP_BUILD_FEATURES.machineDirectoriesUnderATestRoot ? [{ name: "TATOLAB_TEST_MACHINE_ROOT", value: LOCAL_PROOF_TEST_MACHINE_ROOT }] : [];
-  return [{ name: "tatolab", command: commandLineTool.path, args: ["mcp"], env }];
 }
 
 /** Start the app on `tatolabElectronAppShell` with this build's platform items; `null` when it exits instead — a second launch, or an OS Tatolab does not run on. */
@@ -232,15 +212,6 @@ export async function startTatolabApp(
     sendTheWindowTheOpenWorkspace: (reading) => tatolabMainWindow.sendTheWindowTheOpenWorkspace(reading),
   });
   const workspaceFiles = new WorkspaceFiles(() => openWorkspaceFolder.readOpenWorkspace());
-  const loginShellProgramPath = new LoginShellProgramPath({
-    loginShell: tatolabElectronAppShell.loginShell,
-    appsOwnPath: tatolabElectronAppShell.appsOwnPath,
-    runProgram: runProgramToCompletion,
-    runAfter: (delayMs, work) => {
-      setTimeout(work, delayMs);
-    },
-    isAnExecutableFile: isAnExecutableFileOnThisMachine,
-  });
   const sharedState: TatolabAppSharedState = {
     controller,
     statusPublisher,
@@ -266,20 +237,10 @@ export async function startTatolabApp(
       sendTheWindowALanguageServerEvent: (event) => tatolabMainWindow.sendTheWindowALanguageServerEvent(event),
       tatolabAppLog,
     }),
-    agentClientProtocolAgents: new AgentClientProtocolAgents({
-      findProgram: (programName) => loginShellProgramPath.findProgram(programName),
-      readTheLoginShellPath: () => loginShellProgramPath.readThePath(),
-      startAProgram: tatolabElectronAppShell.startAProgramSpeakingOnItsStandardStreams,
-      workspaceProjectFolder: () => workspaceFiles.workspaceProjectFolder(),
-      runtimeMcpServers: () => runtimeMcpServersForAgents(platformForThisBuild),
-      sendTheWindowAnAgentEvent: (event) => tatolabMainWindow.sendTheWindowAnAgentEvent(event),
-      tatolabAppLog,
-    }),
     tatolabAppLog,
   };
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.openWorkspaceFolder.stopWatching());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.pythonLanguageServers.stopEveryLanguageServer());
-  tatolabElectronAppShell.onTheAppQuitting(() => sharedState.agentClientProtocolAgents.stopEveryAgent());
   const quitTheApp = () => quitTheTatolabApp(tatolabMainWindow, (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode), tatolabAppLog);
   const showTheWindowWithTheLastStatus = () => {
     tatolabMainWindow.show();

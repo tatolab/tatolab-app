@@ -6,7 +6,6 @@ import { describeBackendRejection, type TatolabBackend } from "../backend/tatola
 import { WaitingState } from "../design_system/waiting_state";
 import type { ProjectLogReadings } from "./project_log_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
-import type { AgentConnections } from "./agent_connections";
 import type { CodeFileAsked, ListedStreamsReading, OpenWorkspaceReading, StopWatching, StreamTabAddress, StudioSelection } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { StudioViewHostServices } from "./studio_view_type_registry";
@@ -51,12 +50,11 @@ export interface InWindowStudioViewHostSources {
   openCodeFile(file: string): void;
 }
 
-/** What the host reads and writes of the open workspace's projects for its views: their files through the backend, their logs, their language servers and their agents. */
+/** What the host reads and writes of the open workspace's projects for its views: their files through the backend, their logs, and their language servers. */
 export interface InWindowWorkspaceProjectServices {
   backend: Pick<TatolabBackend, "readWorkspaceFile" | "saveWorkspaceFile" | "listWorkspaceProjectFiles">;
   projectLogReadings: ProjectLogReadings;
   pythonLanguageServerConnections: PythonLanguageServerConnections;
-  agentConnections: AgentConnections;
 }
 
 /** The services every first-party view is handed, read from `sources`, for a stream's graph and catalog from `streamReadings`, and for the workspace's projects from `projectServices`. */
@@ -94,8 +92,6 @@ export function inWindowStudioViewHostServices(
       ),
     watchProjectLog: projectServices.projectLogReadings.watchProjectLog,
     connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,
-    describeAgentsOnThisMachine: projectServices.agentConnections.describeAgentsOnThisMachine,
-    connectToAgent: projectServices.agentConnections.connectToAgent,
   };
 }
 

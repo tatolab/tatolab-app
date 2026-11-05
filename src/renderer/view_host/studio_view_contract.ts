@@ -4,8 +4,6 @@
 
 import type { ReactNode } from "react";
 import type {
-  AgentOnThisMachine,
-  AgentStarted,
   JsonValue,
   ListedStream,
   NodeCatalog,
@@ -18,10 +16,6 @@ import type {
 import type { StudioIconName } from "../design_system/studio_icons";
 
 export type {
-  AgentInstallOnThisMachine,
-  AgentOnThisMachine,
-  AgentStarted,
-  AgentStdioMcpServer,
   ImportedProject,
   JsonValue,
   ListedStream,
@@ -98,20 +92,6 @@ export interface PythonLanguageServerConnection {
   close(): void;
 }
 
-/** The agents the studio runs, each installed on this machine or not, or why they could not be described. */
-export type AgentsOnThisMachineReading = { kind: "described"; agents: AgentOnThisMachine[] } | { kind: "not_described"; because: string };
-
-/** What an agent connection delivers: the agent started, with where it runs and the runtime's MCP servers for it; one JSON-RPC message it sent; or its end with why. */
-export type AgentConnectionEvent = { kind: "started"; started: AgentStarted } | { kind: "message"; message: JsonValue } | { kind: "ended"; because: string };
-
-/** One Agent Client Protocol agent, started in the workspace project's folder, its JSON-RPC messages carried both ways. */
-export interface AgentConnection {
-  /** Send one JSON-RPC message; messages sent before the agent has started are held and sent in order. */
-  send(message: JsonValue): void;
-  /** Stop the agent; nothing arrives after. */
-  close(): void;
-}
-
 /** Everything a view may read or ask for. */
 export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   /** The settings the view's area holds: restored from the layout, or the view type's defaults. */
@@ -140,9 +120,6 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void): StopWatching;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
-  describeAgentsOnThisMachine(): Promise<AgentsOnThisMachineReading>;
-  /** Start the agent `agentId` names in the open workspace project's folder, each event arriving on `onEvent`. */
-  connectToAgent(agentId: string, onEvent: (event: AgentConnectionEvent) => void): AgentConnection;
 }
 
 /** Who brought a view type: the studio itself, or a project of the open workspace. */

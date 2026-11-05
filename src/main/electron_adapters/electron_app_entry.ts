@@ -21,7 +21,6 @@ import { electronApplicationMenu } from "./electron_application_menu.js";
 import { openAFolderInTheFileManagerThroughElectron } from "./electron_folder_in_the_file_manager.js";
 import { askThePersonForAStreamProjectFolderThroughElectron } from "./electron_stream_project_folder_dialog.js";
 import { askThePersonForAWorkspaceFolderThroughElectron } from "./electron_workspace_folder_dialog.js";
-import { startAProgramSpeakingOnItsStandardStreams } from "../platform/start_a_program_speaking_on_its_standard_streams.js";
 import { startANodeLanguageServerInAUtilityProcess } from "./electron_node_language_server_in_a_utility_process.js";
 import { watchFolderEntriesOnThisMachine } from "../folder_entries_watch_on_this_machine.js";
 import { createElectronMainWindowHostFactory } from "./electron_main_window_host.js";
@@ -99,9 +98,6 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   askThePersonForAStreamProjectFolder: askThePersonForAStreamProjectFolderThroughElectron,
   askThePersonForAWorkspaceFolder: askThePersonForAWorkspaceFolderThroughElectron,
   startANodeLanguageServer: startANodeLanguageServerInAUtilityProcess,
-  startAProgramSpeakingOnItsStandardStreams,
-  loginShell: process.env["SHELL"] ?? null,
-  appsOwnPath: process.env["PATH"] ?? "",
   // A packaged app carries Pyright outside app.asar, in app.asar.unpacked, so its worker threads and typeshed stubs load from plain files.
   pyrightLanguageServerModulePath: path.join(app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getAppPath(), "node_modules", "pyright", "langserver.index.js"),
   watchFolderEntries: watchFolderEntriesOnThisMachine,

@@ -6,9 +6,6 @@ const PRESET_POLL_MILLISECONDS = 40;
 /** How long the first-run preset waits for the mock runtime to come up before it presses Get Started. */
 const MOCK_RUNTIME_STARTUP_WAIT_MILLISECONDS = 6000;
 
-/** How long the agent preset waits for the mock agent to reach its permission request. */
-const MOCK_AGENT_TURN_WAIT_MILLISECONDS = 6000;
-
 /** Resolves with the first element `selector` matches once it is in the page, or `null` after `timeoutMilliseconds`. */
 function waitForElement<ElementType extends Element>(selector: string, timeoutMilliseconds = PRESET_STEP_TIMEOUT_MILLISECONDS): Promise<ElementType | null> {
   const startedAt = performance.now();
@@ -45,17 +42,6 @@ function pressTheStudioShortcut(key: string, platform: TatolabPlatform): void {
   document.dispatchEvent(new KeyboardEvent("keydown", { key, metaKey: platform === "macos", ctrlKey: platform === "linux", bubbles: true }));
 }
 
-/** Types `text` into the text field `selector` matches as a person's keys would, so the field's owner hears each change. */
-async function typeWhenShown(selector: string, text: string): Promise<boolean> {
-  const field = await waitForElement<HTMLTextAreaElement>(selector);
-  const setTheFieldsValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
-  if (field === null || setTheFieldsValue === undefined) return false;
-  field.focus();
-  setTheFieldsValue.call(field, text);
-  field.dispatchEvent(new Event("input", { bubbles: true }));
-  return true;
-}
-
 /** Opens every closed row of the outliner, from the top, until none is left closed. */
 async function openEveryOutlinerRow(): Promise<void> {
   await waitForElement(`[data-outliner] [role="treeitem"]`);
@@ -73,9 +59,7 @@ async function openEveryOutlinerRow(): Promise<void> {
  * (every row opened), `?select=<row id>` (that outliner row clicked, as `stream:<stream id>`), `?open_stream=<stream id>`
  * (its row double-clicked, opening its tab), `?select_node=<node name>` (that node's card clicked in the stream graph), `?code_file=<file>` (Stream › Open stream.py chosen, then that file of the workspace project, as `nodes/inverting_effect.py`, opened from the code area's + menu), `?run=live` (Live pressed), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
  * `?submenu=<entry>` (that entry's submenu opened, as `Workspace layout`), and `?area_menu=<area id>` (that area's
- * view-type menu opened); `?agent_prompt=<words>` (those words sent to the first agent area's agent once it is ready), with
- * `?permission=<option id>` (that choice pressed on the agent's permission request, as `allow_once`); with the backend's
- * `?workspace=none|unreadable`, `?agents=none` (no agent installed) and `?port_families=served` (each port's family in the graph and the catalog). `?page=preferences` opens Preferences, on
+ * view-type menu opened); with the backend's `?workspace=none|unreadable` and `?port_families=served` (each port's family in the graph and the catalog). `?page=preferences` opens Preferences, on
  * `?section=general|runtime|command-line|about`; there `?restart=pressed|refused` presses Restart and `?link=pressed`
  * presses Link in /usr/local/bin…. `?sheet=uninstall|uninstalling|uninstalled` opens the uninstall sheet from
  * Preferences, pressing Uninstall for the latter two. On first run, with the backend's `?state=setup`,
@@ -112,12 +96,6 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
       await clickWhenShown(`[data-code-file-choice$="/${CSS.escape(codeFile)}"]`);
     }
   }
-  const agentPrompt = pageQuery.get("agent_prompt");
-  if (agentPrompt !== null && (await waitForElement(`[data-agent-phase="ready"]`)) !== null && (await typeWhenShown(`[data-agent-phase="ready"] [data-message-composer-text]`, agentPrompt))) {
-    await clickWhenShown(`[data-agent-phase="ready"] [data-message-composer-action="send"]:not([aria-disabled])`);
-  }
-  const permissionChoice = pageQuery.get("permission");
-  if (permissionChoice !== null) await clickWhenShown(`[data-agent-permission-answered="no"] [data-permission-choice="${CSS.escape(permissionChoice)}"]`, MOCK_AGENT_TURN_WAIT_MILLISECONDS);
   if (pageQuery.get("run") === "live") await clickWhenShown(`[data-studio-run-live]`);
   const areaMenu = pageQuery.get("area_menu");
   if (areaMenu !== null) await pressWhenShown(`[data-area-view-type-menu="${CSS.escape(areaMenu)}"]`);

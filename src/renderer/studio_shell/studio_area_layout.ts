@@ -1,7 +1,6 @@
 // A layout of the studio's areas, as data: a tree of splits whose leaves are areas, each showing one
 // view type with the settings it keeps. It is saved as JSON and read back with every field checked.
 
-import { isAJsonRecord, isAJsonValue } from "../backend/json_values_in_the_window";
 import type { JsonValue } from "../view_host/studio_view_contract";
 
 /** One area: its id, the view type it shows (`null` while it shows none), and the settings that view keeps. */
@@ -26,6 +25,17 @@ export type StudioAreaLayoutNode = StudioArea | StudioAreaSplit;
 /** The id a node is known by in its split. */
 export function studioAreaLayoutNodeId(node: StudioAreaLayoutNode): string {
   return node.kind === "area" ? node.area_id : node.split_id;
+}
+
+function isAJsonRecord(value: unknown): value is { [key: string]: unknown } {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isAJsonValue(value: unknown): value is JsonValue {
+  if (value === null || typeof value === "boolean" || typeof value === "string") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isAJsonValue);
+  return isAJsonRecord(value) && Object.values(value).every(isAJsonValue);
 }
 
 /** The layout `saved` holds, or `null` when it is not one: every split's parts are areas or splits, with ids unique across the tree. */
