@@ -1,3 +1,6 @@
+/** A value as JSON carries it. */
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
 /** The platform the app runs on, which decides the window's chrome and how Tatolab is installed and removed. */
 export type TatolabPlatform = "macos" | "linux";
 
@@ -198,9 +201,17 @@ export interface ProjectLogRecordsPage {
   records_no_longer_held: boolean;
 }
 
+/** The five families a runtime port carries, each one engine-owned memory layout, as streamlib's plan names them. */
+export const PORT_FAMILIES = ["image", "array", "channels", "packets", "records"] as const;
+
+/** One of the five port families. */
+export type PortFamily = (typeof PORT_FAMILIES)[number];
+
 /** A port a node declares under the graph's `ports.inputs` or `ports.outputs`. */
 export interface StreamGraphDeclaredPort {
   name: string;
+  /** The family the port carries, from its `family` key; `null` while the runtime serves none, or one this app does not know. */
+  family: PortFamily | null;
   /** What an output carries, as its `catalog_entry.section` names it (`video`, `audio`, `binary`, …); `null` when it declares none, as every input does. */
   catalog_section: string | null;
 }
@@ -213,6 +224,8 @@ export interface StreamGraphNode {
   type: string;
   /** The processor's state as the runtime names it, such as `Running`. */
   state: string | null;
+  /** Its config as the graph renders it, the keys its stream's code gave it; `{}` when it renders none. */
+  config: { [key: string]: JsonValue };
   /** The input ports it declares, in the graph's order; `[]` when the runtime lists none. */
   input_ports: StreamGraphDeclaredPort[];
   /** The output ports it declares, in the graph's order; `[]` when the runtime lists none. */
@@ -252,6 +265,30 @@ export interface StreamGraphSummary {
   exposed: StreamGraphExposedPort[];
   /** The `graph` tool's text exactly as the runtime wrote it, which `tatolab graph --stream` prints. */
   graph_document_text: string;
+}
+
+/** One port a node type declares, as the node catalog lists it. */
+export interface NodeCatalogPort {
+  name: string;
+  description: string;
+  /** The family the port carries, from its `family` key; `null` while the runtime serves none, or one this app does not know. */
+  family: PortFamily | null;
+}
+
+/** One node type a stream can add, as the node catalog lists it under the `type` a graph node carries. */
+export interface NodeCatalogEntry {
+  type: string;
+  description: string;
+  /** Its config's JSON Schema, draft 2020-12 with no `$schema` key; `null` for a type described without one. */
+  config_schema: JsonValue | null;
+  inputs: NodeCatalogPort[];
+  outputs: NodeCatalogPort[];
+}
+
+/** What `describe_node_catalog` answers: every node type the loaded stream `stream` can add, from `GET /api/registry?stream=`. */
+export interface NodeCatalog {
+  stream: string;
+  node_types: NodeCatalogEntry[];
 }
 
 /** What a project folder is chosen for in the app's folder dialog: a project to import, or the folder a new project is created in, which may not exist yet. */

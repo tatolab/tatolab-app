@@ -11,7 +11,7 @@ const summaryOfTheGraphToolResultAtTheReleaseOrigin = (requestedStream: string, 
 /** What a real runtime answered `GET /api/graph?stream=main` with, the same document its `graph {stream: "main"}` tool renders, for a stream of a test pattern, an inverting effect, a brightness meter and a display window. */
 const aRealGraphOfOneStream = () => readFile(new URL("./test-fixtures/local-api-graph-of-the-stream-main.json", import.meta.url), "utf8");
 
-const uncataloguedPorts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, catalog_section: null }));
+const uncataloguedPorts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family: null, catalog_section: null }));
 
 function node(
   name: string,
@@ -20,8 +20,9 @@ function node(
   counters: Pick<StreamGraphNode, "dropped_bags_by_link" | "refused_bags_by_output_port"> = { dropped_bags_by_link: {}, refused_bags_by_output_port: {} },
   ports: Pick<StreamGraphNode, "input_ports" | "output_ports"> = { input_ports: [], output_ports: [] },
   nodeId = "",
+  config: StreamGraphNode["config"] = {},
 ): StreamGraphNode {
-  return { id: nodeId, name, type: nodeType, state, ...ports, ...counters };
+  return { id: nodeId, name, type: nodeType, state, config, ...ports, ...counters };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -67,6 +68,7 @@ test("a_real_graph_reads_as_its_nodes_links_counters_and_exposed_ports_beside_it
           { dropped_bags_by_link: { Lv5ujotcx5rnh9f4s6xewjot9: 0 }, refused_bags_by_output_port: {} },
           { input_ports: uncataloguedPorts("video"), output_ports: [] },
           "Pk79b96s4d8fumlitkntmn5dg",
+          { title: "Tatolab", scaling: "fit" },
         ),
       ],
       links: [
@@ -182,4 +184,14 @@ test("a graph whose node names no name is refused naming the stream", () => {
   const summary = summaryOfTheGraphToolResultAtTheReleaseOrigin("main", JSON.stringify({ nodes: [{ type: "nodes.x:X" }] }));
 
   expect(!summary.ok && summary.failure).toBe("the runtime's graph of `main` could not be read: missing field `name`");
+});
+
+test("a_port_the_graph_names_a_family_of_reads_as_that_family", () => {
+  const graphText = JSON.stringify({
+    stream: "main",
+    nodes: [{ id: "P1", name: "camerasource", type: "tatolab.stream:CameraSource", ports: { inputs: [], outputs: [{ name: "video", family: "Image" }] } }],
+    links: [],
+  });
+  const graph = streamGraphSummaryFromTheGraphToolResult("main", graphText, "http://127.0.0.1:4446");
+  expect(graph.ok && graph.value.nodes[0]?.output_ports).toEqual([{ name: "video", family: "image", catalog_section: null }]);
 });

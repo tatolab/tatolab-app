@@ -28,12 +28,13 @@ import { WORKSPACE_LAYOUTS, WorkspaceLayoutsKeptInStorage } from "./studio_shell
 import {
   AGENT_VIEW_TYPE,
   CODE_VIEW_TYPE,
-  PROPERTIES_VIEW_TYPE,
-  STREAM_GRAPH_VIEW_TYPE,
   VIEWER_VIEW_TYPE,
 } from "./studio_views/arriving_later/arriving_later_view_types";
+import { PROPERTIES_VIEW_TYPE } from "./studio_views/properties/properties_view_type";
+import { STREAM_GRAPH_VIEW_TYPE } from "./studio_views/stream_graph/stream_graph_view_type";
 import { OUTLINER_VIEW_TYPE } from "./studio_views/outliner/outliner_view_type";
 import { inWindowStudioViewHostServices } from "./view_host/in_window_view_host";
+import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
 import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "./window_visibility";
 
@@ -94,6 +95,9 @@ export function mountTatolabWindow(
   const runtimeDescriptionReadings = new RuntimeDescriptionReadings(backend);
   runtimeDescriptionReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => runtimeDescriptionReadings.setPollingAllowed(isVisible));
+  const streamGraphAndCatalogReadings = new StreamGraphAndCatalogReadings(backend);
+  streamGraphAndCatalogReadings.setPollingAllowed(isTatolabWindowVisible());
+  onTatolabWindowVisibilityChanged((isVisible) => streamGraphAndCatalogReadings.setPollingAllowed(isVisible));
   const studioWindowModel = new StudioWindowModel(new WorkspaceLayoutsKeptInStorage(windowLocalStorage()));
   const uninstallTatolabRefusal = new RefusalKeptForTheWindow();
   const firstRunFinishingRefusal = new RefusalKeptForTheWindow();
@@ -116,7 +120,7 @@ export function mountTatolabWindow(
   const studioWindowSources: StudioWindowSources = {
     model: studioWindowModel,
     viewTypeRegistry: studioViewTypeRegistry(),
-    viewHostServices: inWindowStudioViewHostServices(studioWindowModel.viewHostSources()),
+    viewHostServices: inWindowStudioViewHostServices(studioWindowModel.viewHostSources(), streamGraphAndCatalogReadings),
     commands: studioMenuBarCommands,
     platform,
   };

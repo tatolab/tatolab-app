@@ -1,4 +1,4 @@
-import type { ListedStream, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 
 function fnv1aHashOf(text: string): number {
   let hash = 2166136261;
@@ -62,8 +62,8 @@ export interface MockGraphNode {
   output_ports: StreamGraphDeclaredPort[];
 }
 
-/** Ports declaring no catalog entry, as every input and a raw output do. */
-const uncataloguedPorts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, catalog_section: null }));
+/** Ports of `family` declaring no catalog entry, as every input and a raw output do. */
+const uncataloguedPorts = (family: PortFamily, ...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family, catalog_section: null }));
 
 /** An output port a mock stream exposes, at `internal`, `private` or `public`. */
 export interface MockExposedPort {
@@ -198,22 +198,22 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
     state: "Running",
     config: { width: 1280, height: 720, fps: 30 },
     input_ports: [],
-    output_ports: [{ name: "video", catalog_section: "binary" }],
+    output_ports: [{ name: "video", family: "image", catalog_section: "binary" }],
   },
   {
     name: "invertingeffect",
     type: "nodes.inverting_effect:InvertingEffect",
     state: "Running",
     config: {},
-    input_ports: uncataloguedPorts("video_from_upstream"),
-    output_ports: uncataloguedPorts("video_to_downstream"),
+    input_ports: uncataloguedPorts("image", "video_from_upstream"),
+    output_ports: uncataloguedPorts("image", "video_to_downstream"),
   },
   {
     name: "displaywindow",
     type: "tatolab.stream:DisplayWindow",
     state: "Running",
     config: { title: "Tatolab", scaling: "fit" },
-    input_ports: uncataloguedPorts("video"),
+    input_ports: uncataloguedPorts("image", "video"),
     output_ports: [],
   },
   {
@@ -221,7 +221,7 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
     type: "nodes.brightness_meter:BrightnessMeter",
     state: "Running",
     config: {},
-    input_ports: uncataloguedPorts("video_from_upstream"),
+    input_ports: uncataloguedPorts("image", "video_from_upstream"),
     output_ports: [],
   },
 ];
@@ -252,7 +252,7 @@ const RECORDER_OF_MAIN_NODE: MockGraphNode = {
   type: "tatolab.stream:Mp4Writer",
   state: "Running",
   config: { path: "recordings/main.mp4" },
-  input_ports: uncataloguedPorts("video"),
+  input_ports: uncataloguedPorts("image", "video"),
   output_ports: [],
 };
 
@@ -384,7 +384,7 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
           state: "Running",
           config: { device_id: "0", width: 1920, height: 1080 },
           input_ports: [],
-          output_ports: [{ name: "video", catalog_section: "binary" }],
+          output_ports: [{ name: "video", family: "image", catalog_section: "binary" }],
         },
         {
           name: "microphonesource",
@@ -392,14 +392,14 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
           state: "Running",
           config: { sample_rate: 48000 },
           input_ports: [],
-          output_ports: [{ name: "audio", catalog_section: "audio" }],
+          output_ports: [{ name: "audio", family: "channels", catalog_section: "audio" }],
         },
         {
           name: "displaywindow",
           type: "tatolab.stream:DisplayWindow",
           state: "Running",
           config: { title: "Camera", scaling: "fit" },
-          input_ports: uncataloguedPorts("video"),
+          input_ports: uncataloguedPorts("image", "video"),
           output_ports: [],
         },
         {
@@ -407,7 +407,7 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
           type: "nodes.level_meter:LevelMeter",
           state: "Running",
           config: {},
-          input_ports: uncataloguedPorts("audio_from_upstream"),
+          input_ports: uncataloguedPorts("channels", "audio_from_upstream"),
           output_ports: [],
         },
       ],

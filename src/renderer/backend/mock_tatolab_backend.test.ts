@@ -437,3 +437,52 @@ describe("the mock backend's runtime install", () => {
     expect(refusedOnLinux.installed_runtime?.folder).toMatch(/^\/home\/[^/]+\/\.local\/share\/tatolab\/0\.55\.2-/);
   });
 });
+
+describe("the mock backend's node catalog", () => {
+  it("lists every type its streams' graphs name, each graph node with its config", async () => {
+    const { backend } = await runningMockBackend();
+    let graphsRead = 0;
+    for (const streamId of [MAIN, CAMERA, RECORDER, PATTERN_TWO, LOBBY_RECORDER, HEAT_MAP]) {
+      const graph = backend.describeStreamGraph(streamId).then(
+        (summary) => summary,
+        () => null,
+      );
+      const catalog = backend.describeNodeCatalog(streamId).then(
+        (listed) => listed,
+        () => null,
+      );
+      await vi.advanceTimersByTimeAsync(200);
+      const graphRead = await graph;
+      const catalogListed = await catalog;
+      if (graphRead === null) continue;
+      graphsRead += 1;
+      expect(catalogListed?.stream).toBe(streamId);
+      const typesListed = new Set(catalogListed?.node_types.map((entry) => entry.type));
+      for (const node of graphRead.nodes) expect([node.name, typesListed.has(node.type)]).toEqual([node.name, true]);
+    }
+    expect(graphsRead).toBeGreaterThan(0);
+  });
+});
+
+describe("the mock backend's port families", () => {
+  it("serves no family by default, as the runtime does today, and each port's family when asked", async () => {
+    const familiesOfMain = async (pageQuery: string) => {
+      const { backend } = await runningMockBackend(pageQuery);
+      const graph = backend.describeStreamGraph(MAIN);
+      const catalog = backend.describeNodeCatalog(MAIN);
+      await vi.advanceTimersByTimeAsync(200);
+      const read = await graph;
+      const listed = await catalog;
+      return {
+        graph: read.nodes.flatMap((node) => [...node.input_ports, ...node.output_ports].map((port) => port.family)),
+        catalog: listed.node_types.flatMap((entry) => [...entry.inputs, ...entry.outputs].map((port) => port.family)),
+      };
+    };
+    const servedByDefault = await familiesOfMain("");
+    expect(new Set([...servedByDefault.graph, ...servedByDefault.catalog])).toEqual(new Set([null]));
+    const servedWhenAsked = await familiesOfMain("port_families=served");
+    expect(servedWhenAsked.graph).not.toContain(null);
+    expect(new Set(servedWhenAsked.graph)).toEqual(new Set(["image"]));
+    expect(servedWhenAsked.catalog).not.toContain(null);
+  });
+});

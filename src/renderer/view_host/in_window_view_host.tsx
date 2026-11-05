@@ -4,6 +4,7 @@
 import { Component, useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { WaitingState } from "../design_system/waiting_state";
 import type { ListedStreamsReading, OpenWorkspaceReading, StopWatching, StreamTabAddress, StudioSelection } from "./studio_view_contract";
+import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { StudioViewHostServices } from "./studio_view_type_registry";
 
 /** A value every watcher is told of: at once when it starts watching, then on each change. */
@@ -44,8 +45,8 @@ export interface InWindowStudioViewHostSources {
   openStreamTab(streamTab: StreamTabAddress): void;
 }
 
-/** The services every first-party view is handed, read from `sources`. */
-export function inWindowStudioViewHostServices(sources: InWindowStudioViewHostSources): StudioViewHostServices {
+/** The services every first-party view is handed, read from `sources` and, for a stream's graph and catalog, from `streamReadings`. */
+export function inWindowStudioViewHostServices(sources: InWindowStudioViewHostSources, streamReadings: StreamGraphAndCatalogReadings): StudioViewHostServices {
   return {
     watchOpenWorkspace: sources.openWorkspace.watch,
     watchListedStreams: sources.listedStreams.watch,
@@ -53,6 +54,8 @@ export function inWindowStudioViewHostServices(sources: InWindowStudioViewHostSo
     select: (selection) => sources.selection.publish(selection),
     watchActiveStreamTab: sources.activeStreamTab.watch,
     openStreamTab: (streamTab) => sources.openStreamTab(streamTab),
+    watchStreamGraph: streamReadings.watchStreamGraph,
+    watchNodeCatalog: streamReadings.watchNodeCatalog,
   };
 }
 

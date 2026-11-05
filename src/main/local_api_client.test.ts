@@ -452,10 +452,10 @@ test("a_real_graph_tool_result_reads_with_its_counters_preview_page_and_verbatim
     ["h264encoder", "tatolab.stream:H264Encoder", "Running"],
   ]);
   expect(summary.nodes.map((node) => [node.name, node.input_ports, node.output_ports])).toEqual([
-    ["testpatternsource", [], [{ name: "video", catalog_section: "binary" }]],
-    ["halftonelenseffect", [{ name: "video_from_upstream", catalog_section: null }], [{ name: "video_to_downstream", catalog_section: null }]],
-    ["brightnessmeter", [{ name: "video_from_upstream", catalog_section: null }], []],
-    ["h264encoder", [{ name: "video", catalog_section: null }], [{ name: "encoded_video", catalog_section: "video" }]],
+    ["testpatternsource", [], [{ name: "video", family: null, catalog_section: "binary" }]],
+    ["halftonelenseffect", [{ name: "video_from_upstream", family: null, catalog_section: null }], [{ name: "video_to_downstream", family: null, catalog_section: null }]],
+    ["brightnessmeter", [{ name: "video_from_upstream", family: null, catalog_section: null }], []],
+    ["h264encoder", [{ name: "video", family: null, catalog_section: null }], [{ name: "encoded_video", family: null, catalog_section: "video" }]],
   ]);
   expect(summary.nodes[1]?.dropped_bags_by_link).toEqual({ Lt12wev5nhhd2ankv0rrz1w3v: 0 });
   expect(summary.nodes[3]?.refused_bags_by_output_port).toEqual({ encoded_video: 0 });
@@ -854,4 +854,26 @@ test("a_request_carries_a_content_length_exactly_when_it_carries_a_body", () => 
 test("a_truncated_body_is_malformed", () => {
   expect(failureOf(parseHttpResponse(Buffer.from("HTTP/1.1 200 OK\r\ncontent-length: 10\r\n\r\nok")))).toContain("2 of its 10 bytes");
   expect(parseHttpResponse(Buffer.from("HTTP/1.1 200 OK\r\n")).ok).toBe(false);
+});
+
+test("the_node_catalog_is_read_from_the_registry_of_the_stream_asked_for", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-registry-answer-of-a-test-root-runtime-naming-no-stream.json")),
+  ]);
+
+  const nodeCatalog = answerOf(await server.client().describeNodeCatalog("pattern-main-3f2a1c"));
+
+  expect(server.receivedRequests()[0]?.startsWith("GET /api/registry?stream=pattern-main-3f2a1c HTTP/1.1\r\n")).toBe(true);
+  expect(nodeCatalog.stream).toBe("pattern-main-3f2a1c");
+  expect(nodeCatalog.node_types.map((nodeType) => nodeType.type)).toEqual(["tatolab.stream:RelayTrackSource"]);
+});
+
+test("a_node_catalog_of_a_stream_not_loaded_is_refused_in_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("404 Not Found", "application/json", await recordedResponseBody("local-api-registry-refusal-for-the-stream-front-door-not-loaded.json")),
+  ]);
+
+  expect(failureOf(await server.client().describeNodeCatalog("front-door")).failureDescription).toBe(
+    "Resource not found: no stream with the id `front-door` is loaded in this runtime. Loaded: none",
+  );
 });

@@ -3,14 +3,25 @@
 // view reaches in the window.
 
 import type { ReactNode } from "react";
-import type { ListedStream, OpenWorkspaceReading } from "../../shared/tatolab_backend_contract";
+import type { JsonValue, ListedStream, NodeCatalog, OpenWorkspaceReading, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 import type { StudioIconName } from "../design_system/studio_icons";
 
-export type { ImportedProject, ListedStream, OpenWorkspace, OpenWorkspaceReading, ProjectOnDisk } from "../../shared/tatolab_backend_contract";
+export type {
+  ImportedProject,
+  JsonValue,
+  ListedStream,
+  NodeCatalog,
+  NodeCatalogEntry,
+  NodeCatalogPort,
+  OpenWorkspace,
+  OpenWorkspaceReading,
+  ProjectOnDisk,
+  StreamGraphDeclaredPort,
+  StreamGraphLink,
+  StreamGraphNode,
+  StreamGraphSummary,
+} from "../../shared/tatolab_backend_contract";
 export type { StudioIconName } from "../design_system/studio_icons";
-
-/** A value that crosses a host connection unchanged as JSON. */
-export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 /** Stops a watch; calling it again does nothing. */
 export type StopWatching = () => void;
@@ -19,7 +30,8 @@ export type StopWatching = () => void;
 export type StudioSelection =
   | { kind: "nothing" }
   | { kind: "project"; project_name: string; project_folder: string | null }
-  | { kind: "stream"; stream: string; project_folder: string };
+  | { kind: "stream"; stream: string; project_folder: string }
+  | { kind: "node"; stream: string; node: string };
 
 /** A stream a tab is open on: its id, and the project and words its tab is labelled with. */
 export interface StreamTabAddress {
@@ -30,6 +42,12 @@ export interface StreamTabAddress {
 
 /** The streams the runtime lists, or why it lists none now, in its own words. */
 export type ListedStreamsReading = { kind: "listed"; streams: ListedStream[] } | { kind: "not_listed"; because: string };
+
+/** A stream's graph as the runtime renders it now, or why it renders none, in its own words. */
+export type StreamGraphReading = { kind: "read"; graph: StreamGraphSummary } | { kind: "not_read"; because: string };
+
+/** The node types a stream can add, or why the runtime lists none, in its own words. */
+export type NodeCatalogReading = { kind: "listed"; catalog: NodeCatalog } | { kind: "not_listed"; because: string };
 
 /** Everything a view may read or ask for. */
 export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
@@ -43,6 +61,10 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   select(selection: StudioSelection): void;
   watchActiveStreamTab(listener: (activeStreamTab: StreamTabAddress | null) => void): StopWatching;
   openStreamTab(streamTab: StreamTabAddress): void;
+  /** The graph of `stream`, read while any view watches it and the window is shown; the first reading arrives once read. */
+  watchStreamGraph(stream: string, listener: (reading: StreamGraphReading) => void): StopWatching;
+  /** The node types `stream` can add, read when first watched and again once its graph names a type the catalog lacks. */
+  watchNodeCatalog(stream: string, listener: (reading: NodeCatalogReading) => void): StopWatching;
 }
 
 /** Who brought a view type: the studio itself, or a project of the open workspace. */

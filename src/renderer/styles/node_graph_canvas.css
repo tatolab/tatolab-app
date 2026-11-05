@@ -1,0 +1,61 @@
+/* The node graph canvas, React Flow drawn in the studio's tokens: Blueprint-style cards, pins at their edges, and
+   curved links between them. */
+.node-graph-canvas {
+  --xy-background-color: var(--studio-area);
+  --xy-edge-stroke: var(--studio-graph-link);
+  transition: opacity 120ms var(--ease);
+}
+.node-graph-canvas .react-flow__node { cursor: default; }
+.node-graph-canvas .react-flow__node:focus-visible { outline: none; }
+.node-graph-canvas .react-flow__node:focus-visible .node-graph-card { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.node-graph-card {
+  overflow: visible;
+  border: 1px solid var(--studio-graph-card-line);
+  border-radius: var(--radius-lg);
+  background: var(--studio-graph-card);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.node-graph-card-header {
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
+  background: var(--studio-graph-card-header);
+}
+.node-graph-card-selected {
+  border-color: var(--studio-graph-card-selected);
+  box-shadow: 0 0 0 1px var(--studio-graph-card-selected), 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* A pin is a round socket on the card's edge, as Blender and Unreal draw one: its family's colour, filled while a link
+   joins it and hollow while none does; grey while the runtime says no family. */
+[data-family="image"] { --node-graph-family: var(--studio-family-image); }
+[data-family="array"] { --node-graph-family: var(--studio-family-array); }
+[data-family="channels"] { --node-graph-family: var(--studio-family-channels); }
+[data-family="packets"] { --node-graph-family: var(--studio-family-packets); }
+[data-family="records"] { --node-graph-family: var(--studio-family-records); }
+
+.node-graph-canvas .react-flow__handle.node-graph-pin {
+  width: 10px;
+  min-width: 0;
+  height: 10px;
+  min-height: 0;
+  border: 2px solid var(--node-graph-family, var(--studio-graph-pin));
+  border-radius: 50%;
+  background: var(--studio-graph-card);
+}
+.node-graph-canvas .react-flow__handle.node-graph-pin[data-linked] { background: var(--node-graph-family, var(--studio-graph-pin)); }
+.node-graph-pin-mark {
+  display: inline-block;
+  flex: none;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--node-graph-family, var(--studio-graph-pin));
+  border-radius: 50%;
+  background: var(--node-graph-family, var(--studio-graph-pin));
+}
+.node-graph-card-header[data-family] { background: color-mix(in srgb, var(--node-graph-family) 26%, var(--studio-graph-card-header)); }
+
+.node-graph-link { stroke: var(--node-graph-family, var(--studio-graph-link)); stroke-width: 2.2; }
+.node-graph-link-waiting { stroke-dasharray: 6 5; }
+.node-graph-link-ending { stroke-dasharray: 6 5; opacity: 0.5; }
+.node-graph-link-failed { stroke: var(--danger); stroke-width: 2.5; }

@@ -35,6 +35,7 @@ export function outlinerRowIdOfTheSelection(selection: StudioSelection): string 
     case "project":
       return `project:${selection.project_folder ?? selection.project_name}`;
     case "stream":
+    case "node":
       return `stream:${selection.stream}`;
   }
 }

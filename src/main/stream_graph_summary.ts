@@ -1,9 +1,10 @@
 // A stream's graph as the window draws it, read from the runtime's `graph {stream}` tool: its
-// nodes by name with their type, state, declared ports and drop counters, its links by id, node and port, the
+// nodes by name with their type, state, config, declared ports and drop counters, its links by id, node and port, the
 // ports it exposes with the preview page of each one readable outside it, and the tool's text
 // itself. Every other key the runtime renders stays only in that text.
 
 import type {
+  JsonValue,
   StreamGraphDeclaredPort,
   StreamGraphExposedPort,
   StreamGraphLink,
@@ -14,6 +15,7 @@ import {
   arrayOrEmpty,
   everyOneRead,
   isAJsonObject,
+  isAJsonValue,
   jsonObject,
   objectOrEmpty,
   type JsonObjectOnTheWire,
@@ -22,6 +24,7 @@ import {
   requiredText,
   textOrDefault,
 } from "./json_on_the_wire.js";
+import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 import { runtimeWatchPageUrl } from "./runtime_loopback_watch_page.js";
 
@@ -102,6 +105,8 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   if (!nodeType.ok) return nodeType;
   const components = objectOrEmpty(node.value, "components");
   if (!components.ok) return components;
+  const config = objectOrEmpty(node.value, "config");
+  if (!config.ok) return config;
   const state = components.value["state"];
   const metrics = components.value["metrics"];
   const ports = objectOrEmpty(node.value, "ports");
@@ -115,6 +120,7 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
     name: name.value,
     type: nodeType.value,
     state: typeof state === "string" ? state : null,
+    config: Object.fromEntries(Object.entries(config.value).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))),
     input_ports: inputPorts.value,
     output_ports: outputPorts.value,
     dropped_bags_by_link: nonNegativeCountsUnderTheNodesMetricsKey(metrics, "dropped_bags_by_link"),
@@ -122,7 +128,7 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   });
 }
 
-/** The ports a node's `ports.<direction>` lists, each by name with its `catalog_entry.section` when it carries one. */
+/** The ports a node's `ports.<direction>` lists, each by name with its family and its `catalog_entry.section` when it carries them. */
 function declaredPortsUnder(ports: JsonObjectOnTheWire, direction: "inputs" | "outputs"): Result<StreamGraphDeclaredPort[], string> {
   const portsOnTheWire = arrayOrEmpty(ports, direction);
   if (!portsOnTheWire.ok) return portsOnTheWire;
@@ -134,7 +140,7 @@ function declaredPortsUnder(ports: JsonObjectOnTheWire, direction: "inputs" | "o
     const catalogEntry = port.value["catalog_entry"];
     // A section only picks the port's icon, so one of another shape draws as data rather than refusing the graph.
     const catalogSection = isAJsonObject(catalogEntry) ? catalogEntry["section"] : undefined;
-    return succeeded({ name: name.value, catalog_section: typeof catalogSection === "string" ? catalogSection : null });
+    return succeeded({ name: name.value, family: portFamilyOnTheWire(port.value), catalog_section: typeof catalogSection === "string" ? catalogSection : null });
   });
 }
 

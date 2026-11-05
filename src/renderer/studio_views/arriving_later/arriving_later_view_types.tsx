@@ -19,10 +19,6 @@ function viewTypeArrivingLater(viewTypeId: string, title: string, icon: StudioIc
   };
 }
 
-/** The stream graph, which tatolab-app#130 builds. */
-export const STREAM_GRAPH_VIEW_TYPE = viewTypeArrivingLater("stream_graph", "Stream graph", "stream_graph", "tatolab/tatolab-app#130");
-/** The selection's properties, which tatolab-app#130 builds. */
-export const PROPERTIES_VIEW_TYPE = viewTypeArrivingLater("properties", "Properties", "properties", "tatolab/tatolab-app#130");
 /** A port's live view, which tatolab-app#135 builds. */
 export const VIEWER_VIEW_TYPE = viewTypeArrivingLater("viewer", "Viewer", "viewer", "tatolab/tatolab-app#135");
 /** The code pane, which tatolab-app#132 builds. */
