@@ -28,6 +28,7 @@ contents="$app_bundle/Contents"
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 app_entitlements="$repository_root/packaging/entitlements/tatolab-app.entitlements"
 renderer_helper_entitlements="$repository_root/packaging/entitlements/tatolab-renderer-helper.entitlements"
+utility_helper_entitlements="$repository_root/packaging/entitlements/tatolab-utility-helper.entitlements"
 tatolabd_entitlements="$repository_root/packaging/entitlements/tatolabd.entitlements"
 runtime_application_identifier="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.application-identifier' "$tatolabd_entitlements")"
 
@@ -87,6 +88,7 @@ helper_app_count=0
 while IFS= read -r -d '' helper_app; do
   case "$helper_app" in
     *"(Renderer).app") codesign "${codesign_common_arguments[@]}" --entitlements "$renderer_helper_entitlements" "$helper_app" ;;
+    *" Helper.app") codesign "${codesign_common_arguments[@]}" --entitlements "$utility_helper_entitlements" "$helper_app" ;;
     *) codesign "${codesign_common_arguments[@]}" "$helper_app" ;;
   esac
   helper_app_count=$((helper_app_count + 1))

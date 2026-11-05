@@ -153,9 +153,11 @@ bytecode they would write `__pycache__` into the signed bundle, which breaks its
 Entitlements: `packaging/entitlements/tatolab-app.entitlements` (the app) and
 `packaging/entitlements/tatolabd.entitlements` (the runtime) carry `device.camera` and
 `device.audio-input`. The hardened runtime refuses camera and microphone access without them. The
-app and `Tatolab Helper (Renderer).app` (`packaging/entitlements/tatolab-renderer-helper.entitlements`)
-also carry `cs.allow-jit`, because V8 maps its code writable and executable; Electron's other
-helpers, the CLI and the relay carry none. The packaged app's Electron fuses turn off `RunAsNode`,
+app, `Tato Studio Helper (Renderer).app` (`packaging/entitlements/tatolab-renderer-helper.entitlements`)
+and the plain `Tato Studio Helper.app`, which hosts utility processes such as the Python language
+server (`packaging/entitlements/tatolab-utility-helper.entitlements`), also carry `cs.allow-jit`,
+because V8 maps its code writable and executable; Electron's GPU and Plugin helpers, the CLI and
+the relay carry none. The packaged app's Electron fuses turn off `RunAsNode`,
 `NODE_OPTIONS` and `--inspect`, so no other process can run the signed app as plain Node and
 inherit its camera grant, and turn on asar integrity and asar-only loading. Electron's own
 Bluetooth and audio-capture usage strings and its `NSAllowsArbitraryLoads` exception are removed;

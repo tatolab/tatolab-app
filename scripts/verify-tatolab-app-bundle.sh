@@ -79,9 +79,10 @@ required_usage_description_keys=(
 )
 required_device_entitlements=(com.apple.security.device.camera com.apple.security.device.audio-input)
 # The only entitlements each piece of signed code may carry; allow-jit is V8's, in the main
-# process and Blink's renderer (packaging/entitlements/).
+# process, Blink's renderer and the plain helper that hosts utility processes (packaging/entitlements/).
 allowed_app_entitlements="com.apple.security.cs.allow-jit com.apple.security.device.audio-input com.apple.security.device.camera"
 allowed_renderer_helper_entitlements="com.apple.security.cs.allow-jit"
+allowed_utility_helper_entitlements="com.apple.security.cs.allow-jit"
 allowed_tatolabd_entitlements="com.apple.application-identifier com.apple.developer.team-identifier com.apple.security.device.audio-input com.apple.security.device.camera keychain-access-groups"
 # A process could otherwise run the app as plain Node and inherit its camera and microphone grants.
 required_electron_fuse_states=(
@@ -306,6 +307,7 @@ verify_app_bundle() {
     helper_app_count=$((helper_app_count + 1))
     case "$helper_app" in
       *"(Renderer).app") allowed_helper_entitlements="$allowed_renderer_helper_entitlements" ;;
+      *" Helper.app") allowed_helper_entitlements="$allowed_utility_helper_entitlements" ;;
       *) allowed_helper_entitlements="" ;;
     esac
     signed_code_entitlement_keys="$(entitlement_keys_of "$helper_app")"
