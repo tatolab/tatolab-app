@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import { FakeTatolabElectronAppShell } from "./fake_tatolab_electron_app_shell.js";
-import { startTatolabApp, type TatolabRunningApp } from "./main.js";
+import { runtimeMcpServersForAgents, startTatolabApp, type TatolabRunningApp } from "./main.js";
 import { TatolabMainWindow } from "./tatolab_main_window.js";
 import { TatolabTrayMenu } from "./tatolab_tray_menu.js";
 import { tatolabPlatformItemsFor } from "./platform/tatolab_platform_items.js";
@@ -392,4 +392,11 @@ describe("updating the app", () => {
     await expect.poll(() => carriedRuntimeInstall.installedBuilds).toEqual(["0.68.0-1111111"]);
     expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "notify")).toEqual([]);
   });
+});
+
+test("an agent reaches the runtime's tools through this build's tatolab CLI as `tatolab mcp`, and through nothing in a build that carries none", () => {
+  expect(runtimeMcpServersForAgents({ tatolabCommandLineTool: { kind: "at", path: "/Applications/Tatolab.app/Contents/Resources/bin/tatolab" } })).toEqual([
+    { name: "tatolab", command: "/Applications/Tatolab.app/Contents/Resources/bin/tatolab", args: ["mcp"], env: [] },
+  ]);
+  expect(runtimeMcpServersForAgents({ tatolabCommandLineTool: { kind: "not_offered", reason: "This build of Tatolab carries no tatolab command." } })).toEqual([]);
 });

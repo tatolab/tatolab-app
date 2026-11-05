@@ -54,6 +54,13 @@ function refusalOfAFileOutsideTheWorkspace(file: string): string {
 export class WorkspaceFiles {
   constructor(private readonly readOpenWorkspace: () => OpenWorkspaceReading) {}
 
+  /** The open workspace project's own folder, or why no workspace is open. */
+  workspaceProjectFolder(): Result<string, string> {
+    const reading = this.readOpenWorkspace();
+    if (reading.kind === "read") return succeeded(reading.workspace.workspace_project.folder);
+    return failedWith(reading.kind === "none_open" ? "No workspace is open." : `The workspace in ${reading.folder} could not be read: ${reading.refusal}`);
+  }
+
   /** `projectFolder` as a project folder of the open workspace, or why it is not one. */
   projectFolderOfTheOpenWorkspace(projectFolder: string): Result<string, string> {
     const resolvedFolder = path.resolve(projectFolder);

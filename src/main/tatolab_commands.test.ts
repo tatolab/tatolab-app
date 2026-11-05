@@ -16,6 +16,9 @@ import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { OpenWorkspaceFolder } from "./open_workspace.js";
 import { PythonLanguageServers } from "./python_language_servers.js";
+import { AgentClientProtocolAgents } from "./agent_client_protocol_agents.js";
+import type { ProgramOnItsStandardStreamsListeners, ProgramOnItsStandardStreamsStart } from "./platform/start_a_program_speaking_on_its_standard_streams.js";
+import type { AgentEvent } from "../shared/tatolab_backend_contract.js";
 import { WorkspaceFiles } from "./workspace_files.js";
 import { rememberedOpenWorkspaceFileIn } from "./remembered_open_workspace_file.js";
 import { failedWith, succeeded } from "./result.js";
@@ -70,6 +73,8 @@ async function sharedStateOverFakes(
     localApiSocketPath: string;
     systemNotifications: FakeSystemNotifications;
     tatolabAppOpenedAtLogin: FakeTatolabAppOpenedAtLogin;
+    agentProgramsStarted: FakeAgentProgram[];
+    agentEventsSent: AgentEvent[];
   }
 > {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
@@ -114,6 +119,8 @@ async function sharedStateOverFakes(
     quietTatolabAppLog,
   );
   const foldersShownInTheFileManager: string[] = [];
+  const agentProgramsStarted: FakeAgentProgram[] = [];
+  const agentEventsSent: AgentEvent[] = [];
   const systemNotifications = new FakeSystemNotifications();
   const streamFailureNotifications = await StreamFailureNotifications.load(
     RememberedSwitchFile.streamFailureNotificationsInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog),
@@ -157,6 +164,26 @@ async function sharedStateOverFakes(
       sendTheWindowALanguageServerEvent: () => {},
       tatolabAppLog: quietTatolabAppLog,
     }),
+    agentClientProtocolAgents: new AgentClientProtocolAgents({
+      findProgram: async (programName) => (programName === "claude-agent-acp" ? "/home/someone/.npm-global/bin/claude-agent-acp" : null),
+      readTheLoginShellPath: async () => "/home/someone/.npm-global/bin:/usr/bin:/bin",
+      startAProgram: (programPath, programArguments, programStart, listeners) => {
+        const agentProgram = { programPath, programArguments, programStart, listeners, linesWritten: [] as string[], wasStopped: false };
+        agentProgramsStarted.push(agentProgram);
+        return succeeded({
+          writeToItsInput: (bytes) => agentProgram.linesWritten.push(bytes.toString("utf8")),
+          stop: () => {
+            agentProgram.wasStopped = true;
+          },
+        });
+      },
+      workspaceProjectFolder: () => succeeded("/home/someone/studio"),
+      runtimeMcpServers: () => [{ name: "tatolab", command: "/usr/local/bin/tatolab", args: ["mcp"], env: [] }],
+      sendTheWindowAnAgentEvent: (event) => agentEventsSent.push(event),
+      tatolabAppLog: quietTatolabAppLog,
+    }),
+    agentProgramsStarted,
+    agentEventsSent,
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLinks,
     runtimeAgent,
@@ -168,6 +195,52 @@ async function sharedStateOverFakes(
     tatolabAppOpenedAtLogin,
   };
 }
+
+/** An agent program a test plays: how it was started, the lines it was sent, and its listeners to answer through. */
+interface FakeAgentProgram {
+  programPath: string;
+  programArguments: readonly string[];
+  programStart: ProgramOnItsStandardStreamsStart;
+  listeners: ProgramOnItsStandardStreamsListeners;
+  linesWritten: string[];
+  wasStopped: boolean;
+}
+
+test("the agent commands describe the agents, start one in the workspace project, carry its messages both ways, and stop it", async () => {
+  const sharedState = await sharedStateOverFakes([], "linux");
+  const handlers = tatolabWindowCommandHandlers(sharedState, () => {});
+
+  expect(await handlers.describe_agents(undefined)).toEqual({
+    ok: true,
+    value: {
+      agents: [
+        { agent_id: "claude_code", title: "Claude Code", install: { kind: "installed" } },
+        { agent_id: "gemini_cli", title: "Gemini CLI", install: { kind: "not_installed", install_command: "npm install -g @google/gemini-cli" } },
+        { agent_id: "codex", title: "Codex", install: { kind: "not_installed", install_command: "npm install -g @zed-industries/codex-acp" } },
+      ],
+    },
+  });
+  expect(await handlers.start_agent({ agent_id: "codex" })).toEqual({ ok: false, refusal: "Codex is not installed. Install it with: npm install -g @zed-industries/codex-acp" });
+  expect(await handlers.start_agent({})).toEqual({ ok: false, refusal: expect.stringContaining("start_agent needs `agent_id`") });
+
+  expect(await handlers.start_agent({ agent_id: "claude_code" })).toEqual({
+    ok: true,
+    value: { session: "agent-1", workspace_project_folder: "/home/someone/studio", runtime_mcp_servers: [{ name: "tatolab", command: "/usr/local/bin/tatolab", args: ["mcp"], env: [] }] },
+  });
+  const [agentProgram] = sharedState.agentProgramsStarted;
+  expect(agentProgram?.programPath).toBe("/home/someone/.npm-global/bin/claude-agent-acp");
+  expect(agentProgram?.programStart).toEqual({ workingFolder: "/home/someone/studio", environmentVariablesAdded: { PATH: "/home/someone/.npm-global/bin:/usr/bin:/bin" } });
+
+  expect(await handlers.send_to_agent({ session: "agent-1", message: { jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: 1 } } })).toEqual({ ok: true, value: null });
+  expect(agentProgram?.linesWritten).toEqual(['{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":1}}\n']);
+  agentProgram?.listeners.onOutput(Buffer.from('{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":1}}\n'));
+  expect(sharedState.agentEventsSent).toEqual([{ session: "agent-1", kind: "message", message: { jsonrpc: "2.0", id: 0, result: { protocolVersion: 1 } } }]);
+  expect(await handlers.send_to_agent({ session: "agent-1", message: "not an object" })).toEqual({ ok: false, refusal: expect.stringContaining("send_to_agent needs") });
+
+  expect(await handlers.stop_agent({ session: "agent-1" })).toEqual({ ok: true, value: null });
+  expect(agentProgram?.wasStopped).toBe(true);
+  expect(await handlers.send_to_agent({ session: "agent-1", message: { jsonrpc: "2.0", method: "session/cancel" } })).toEqual({ ok: false, refusal: "The agent agent-1 is no longer running." });
+});
 
 test("an_awaited_command_answers_with_its_works_answer_or_why_it_has_none", async () => {
   expect(await answerTheWindow("read_project_log_records", async () => succeeded(7))).toEqual(succeeded(7));

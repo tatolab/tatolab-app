@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { OpenWorkspaceReading, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { AgentEvent, OpenWorkspaceReading, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
+  TATOLAB_AGENT_EVENT,
   TATOLAB_COMMAND_NAMES,
   TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT,
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
@@ -58,6 +59,13 @@ const tatolabElectronBridge: TatolabElectronBridge = {
     ipcRenderer.on(TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT, pythonLanguageServerEventListener);
     return () => {
       ipcRenderer.removeListener(TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT, pythonLanguageServerEventListener);
+    };
+  },
+  onAgentEvent: (listener) => {
+    const agentEventListener = (_agentEvent: IpcRendererEvent, event: AgentEvent) => listener(event);
+    ipcRenderer.on(TATOLAB_AGENT_EVENT, agentEventListener);
+    return () => {
+      ipcRenderer.removeListener(TATOLAB_AGENT_EVENT, agentEventListener);
     };
   },
   tellTheAppTheWindowDrewItsFirstStatus: () => {

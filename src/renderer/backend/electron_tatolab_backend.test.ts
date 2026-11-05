@@ -41,6 +41,9 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
     onPythonLanguageServerEvent() {
       return () => undefined;
     },
+    onAgentEvent() {
+      return () => undefined;
+    },
     tellTheAppTheWindowDrewItsFirstStatus() {},
   };
   return { tatolabElectronBridge, invokedCommands, statusListeners, streamPageRequestListeners, openWorkspaceListeners };

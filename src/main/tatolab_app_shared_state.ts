@@ -14,9 +14,10 @@ import type { StreamProjectAdding } from "./stream_project_adding.js";
 import type { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import type { OpenWorkspaceFolder } from "./open_workspace.js";
 import type { PythonLanguageServers } from "./python_language_servers.js";
+import type { AgentClientProtocolAgents } from "./agent_client_protocol_agents.js";
 import type { WorkspaceFiles } from "./workspace_files.js";
 
-/** The controller, the status publisher, the updater, uninstalling, what opens a stream's project, adding a project, the stream-failure notifications, the open workspace, its files and its language servers, which the tray's choices and the window's commands reach. */
+/** The controller, the status publisher, the updater, uninstalling, what opens a stream's project, adding a project, the stream-failure notifications, the open workspace, its files, its language servers and the agent panel's agents, which the tray's choices and the window's commands reach. */
 export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;
@@ -30,6 +31,8 @@ export interface TatolabAppSharedState {
   workspaceFiles: WorkspaceFiles;
   /** The code pane's Pyright language servers. */
   pythonLanguageServers: PythonLanguageServers;
+  /** The agent panel's ACP agents. */
+  agentClientProtocolAgents: AgentClientProtocolAgents;
   tatolabAppLog: TatolabAppLog;
 }
 

@@ -485,3 +485,38 @@ export interface WorkspaceProjectFiles {
 export type PythonLanguageServerEvent =
   | { session: string; kind: "message"; message: JsonValue }
   | { session: string; kind: "ended"; because: string };
+
+/** Whether an agent the studio runs is on this machine: installed, or not, with the command that installs it. */
+export type AgentInstallOnThisMachine = { kind: "installed" } | { kind: "not_installed"; install_command: string };
+
+/** One Agent Client Protocol agent the studio knows how to run. */
+export interface AgentOnThisMachine {
+  /** The id `start_agent` takes, as `claude_code`. */
+  agent_id: string;
+  /** Its name as the person knows it, as `Claude Code`. */
+  title: string;
+  install: AgentInstallOnThisMachine;
+}
+
+/** What `describe_agents` answers: every agent the studio knows, in the order it offers them. */
+export interface AgentsOnThisMachine {
+  agents: AgentOnThisMachine[];
+}
+
+/** An MCP server an agent is told to start beside itself, in the shape ACP's `session/new` takes one over stdio. */
+export interface AgentStdioMcpServer {
+  name: string;
+  command: string;
+  args: string[];
+  env: { name: string; value: string }[];
+}
+
+/** What `start_agent` answers: the session its messages travel under, the folder it runs in, and the runtime's MCP server for it to reach the runtime's tools through, none where this build carries no CLI. */
+export interface AgentStarted {
+  session: string;
+  workspace_project_folder: string;
+  runtime_mcp_servers: AgentStdioMcpServer[];
+}
+
+/** What `tatolab-agent-event` carries: one JSON-RPC message a session's agent sent, or its end, with why. */
+export type AgentEvent = { session: string; kind: "message"; message: JsonValue } | { session: string; kind: "ended"; because: string };

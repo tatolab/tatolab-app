@@ -1,5 +1,5 @@
 import type { Stats } from "node:fs";
-import { realpath, stat } from "node:fs/promises";
+import { access, constants, realpath, stat } from "node:fs/promises";
 
 /** What is at `fileSystemPath`, links followed; `null` when nothing is there or it cannot be read. */
 async function fileSystemEntryAt(fileSystemPath: string): Promise<Stats | null> {
@@ -18,6 +18,17 @@ export async function somethingIsAt(fileSystemPath: string): Promise<boolean> {
 /** Whether `filePath` names a file on this machine. */
 export async function isAFileOnThisMachine(filePath: string): Promise<boolean> {
   return (await fileSystemEntryAt(filePath))?.isFile() ?? false;
+}
+
+/** Whether `filePath` names a file on this machine this process may run. */
+export async function isAnExecutableFileOnThisMachine(filePath: string): Promise<boolean> {
+  if (!(await isAFileOnThisMachine(filePath))) return false;
+  try {
+    await access(filePath, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Whether `folderPath` names a folder on this machine. */
