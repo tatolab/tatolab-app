@@ -1,4 +1,4 @@
-import type { TatolabPlatform, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { CommandLineToolLink, TatolabPlatform, TatolabStatus } from "../../shared/tatolab_backend_contract";
 
 /** The platform `status` names; macOS, the app's first platform, for a status that names none this window knows. */
 export function platformOf(status: TatolabStatus): TatolabPlatform {
@@ -9,40 +9,32 @@ export function platformOf(status: TatolabStatus): TatolabPlatform {
 export interface PlatformPresentation {
   /** macOS draws the traffic lights over the window: the sidebar keeps a strip clear for them, and it and the title bar drag the window. */
   hasOverlayTitleBar: boolean;
-  /** Login Items is where macOS approves the runtime's agent; Linux has no such list. */
-  showsLoginItems: boolean;
   /** The key the window's shortcuts are held with. */
   windowShortcutModifier: "meta" | "control";
   thisMachineMidSentence: string;
-  runTatolabExplanation: string;
   quitTatolabExplanation: string;
-  uninstallTatolabExplanation: string;
-  /** Where the runtime keeps each stream's records, which an uninstall leaves in place. */
+  /** Where the runtime keeps each stream's records. */
   streamRecordsDirectory: string;
+  /** The shell profile a terminal reads its PATH from at login, where `~/.local/bin` is added. */
+  loginShellProfile: string;
 }
 
 const PLATFORM_PRESENTATIONS: Record<TatolabPlatform, PlatformPresentation> = {
   macos: {
     hasOverlayTitleBar: true,
-    showsLoginItems: true,
     windowShortcutModifier: "meta",
     thisMachineMidSentence: "this Mac",
-    runTatolabExplanation: "Starts Tatolab at login and keeps the runtime running. Turning it off stops the runtime.",
-    quitTatolabExplanation: "Closes this app and its menu bar icon. The runtime and your streams keep running.",
-    uninstallTatolabExplanation: "Stops the runtime and removes Tatolab from this Mac. Your streams' records stay.",
+    quitTatolabExplanation: "Closes every window and the menu bar icon, and stops the runtime and your streams with it.",
     streamRecordsDirectory: "~/Library/Application Support/Tatolab",
+    loginShellProfile: "~/.zprofile",
   },
   linux: {
     hasOverlayTitleBar: false,
-    showsLoginItems: false,
     windowShortcutModifier: "control",
     thisMachineMidSentence: "this computer",
-    runTatolabExplanation:
-      "Runs tatolabd.service, your systemd user service, at login and keeps the runtime running. Turning it off stops the runtime.",
-    quitTatolabExplanation: "Closes this app and its tray icon. The runtime and your streams keep running.",
-    uninstallTatolabExplanation:
-      "The installer removes the runtime, and your package manager removes this app. Your streams' records stay.",
+    quitTatolabExplanation: "Closes every window and the tray icon, and stops the runtime and your streams with it.",
     streamRecordsDirectory: "~/.local/state/tatolab",
+    loginShellProfile: "~/.profile",
   },
 };
 
@@ -85,42 +77,55 @@ export function holdsWindowShortcutModifier(
     : keyboardEvent.ctrlKey && !keyboardEvent.metaKey;
 }
 
-/** The line that puts `~/.local/bin` on a zsh terminal's PATH, for `~/.zprofile`. */
+/** The line that puts `~/.local/bin` on a terminal's PATH, for its login shell profile. */
 export const HOME_FOLDER_BIN_ON_THE_PATH_LINE = 'export PATH="$HOME/.local/bin:$PATH"';
 
-/** What the Settings row shows for the `tatolab` command, and why it works in a terminal. */
+/** What the Settings row shows for the `tatolab` command, why it works in a terminal, and whether the row offers to link it. */
 export interface CommandLineToolPresentation {
-  isLinked: boolean;
+  /** The link's path while it is linked; `null` otherwise. */
+  linkedAt: string | null;
   /** The link's path, its home shortened to `~`, or what stands in for a missing one. */
   shownValue: string;
   explanation: string;
-  /** The line a terminal that can't find the app's link adds, under what says where; `null` where the installer's own link needs none. */
+  /** The line a terminal that can't find the link adds, under what says where; `null` while it is not linked. */
   pathLineToAdd: { lead: string; line: string } | null;
+  /** Whether the row offers its Link button: only while nothing is linked and nothing else holds the name. */
+  isLinkOffered: boolean;
 }
 
-/** The `tatolab` command as Settings shows it: the app's own link in `~/.local/bin` on macOS, the installer's on Linux. */
-export function presentCommandLineTool(platform: TatolabPlatform, linkedAt: string | null): CommandLineToolPresentation {
-  if (platform === "linux") {
-    return linkedAt === null
-      ? { isLinked: false, shownValue: "Not installed", explanation: "The installer puts it in ~/.local/bin with the runtime.", pathLineToAdd: null }
-      : {
-          isLinked: true,
-          shownValue: abbreviateHomeDirectory(linkedAt),
-          explanation: "Installed with the runtime. It works in any terminal with ~/.local/bin on its PATH.",
-          pathLineToAdd: null,
-        };
-  }
-  return linkedAt === null
-    ? { isLinked: false, shownValue: "Not linked", explanation: "Tato Studio links it in ~/.local/bin each time it opens.", pathLineToAdd: null }
-    : {
-        isLinked: true,
-        shownValue: abbreviateHomeDirectory(linkedAt),
+/** The `tatolab` command as Settings shows it on `platform`: `~/.local/bin/tatolab`, linked to the copy inside Tato Studio with no password. */
+export function presentCommandLineTool(platform: TatolabPlatform, commandLineToolLink: CommandLineToolLink): CommandLineToolPresentation {
+  switch (commandLineToolLink.kind) {
+    case "linked":
+      return {
+        linkedAt: commandLineToolLink.path,
+        shownValue: abbreviateHomeDirectory(commandLineToolLink.path),
         explanation: "Linked to the copy inside Tato Studio. It works in any terminal with ~/.local/bin on its PATH.",
         pathLineToAdd: {
-          lead: "If a terminal can't find it, add this line to ~/.zprofile and open a new terminal:",
+          lead: `If a terminal can't find it, add this line to ${presentPlatform(platform).loginShellProfile} and open a new terminal:`,
           line: HOME_FOLDER_BIN_ON_THE_PATH_LINE,
         },
+        isLinkOffered: false,
       };
+    case "not_linked":
+      return {
+        linkedAt: null,
+        shownValue: "Not linked",
+        explanation: `Link ${abbreviateHomeDirectory(commandLineToolLink.path)} to the copy inside Tato Studio. No password is asked.`,
+        pathLineToAdd: null,
+        isLinkOffered: true,
+      };
+    case "taken_by_something_else":
+      return {
+        linkedAt: null,
+        shownValue: "Not linked",
+        explanation: `${abbreviateHomeDirectory(commandLineToolLink.path)} is not a link to Tatolab, so Tato Studio leaves it alone.`,
+        pathLineToAdd: null,
+        isLinkOffered: false,
+      };
+    case "not_offered":
+      return { linkedAt: null, shownValue: "Not linked", explanation: commandLineToolLink.reason, pathLineToAdd: null, isLinkOffered: false };
+  }
 }
 
 /** A home directory where macOS (`/Users/<name>`) and Linux (`/home/<name>`) put one. */

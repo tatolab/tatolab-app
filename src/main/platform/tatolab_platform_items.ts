@@ -1,5 +1,5 @@
-// Everything that differs by platform: the service manager that runs the runtime, the machine's
-// paths, the `tatolab` command's links, uninstalling, and the window's and the tray's platform looks. Each platform
+// Everything that differs by platform: where the app carries the runtime and the CLI, the machine's
+// paths, the desktop's terminal, and the window's and the tray's platform looks. Each platform
 // module exposes the same items, picked here, so the rest of the app never asks which platform it
 // runs on; where a platform has nothing to do for one — Linux has no Dock icon — that item says so.
 
@@ -27,11 +27,11 @@ export interface TatolabPlatformItems {
   setDockIconVisible(dockIconHost: DockIconHost, dockIconVisible: boolean): void;
   /** The file naming the streamlib commit of the runtime the app carries, found from the app's resources folder; `null` where the app carries none. */
   streamlibCommitFileTheAppCarries(appResourcesDirectory: string): string | null;
-  /** This platform's runtime agent, the command's links, local API socket and uninstall, built from the host's services. */
+  /** This platform's carried runtime, the command's link and the local API socket, built from the host's services. */
   tatolabPlatformForThisBuild(tatolabAppLog: TatolabAppLog, tatolabPlatformHostServices: TatolabPlatformHostServices): Promise<TatolabPlatformForThisBuild>;
 }
 
-/** This build's platform items, or `null` on an OS Tatolab does not run on: it drives the launch agent the installer writes on macOS and the systemd user service it writes on Linux. */
+/** This build's platform items, or `null` on an OS Tato Studio does not run on: macOS and Linux only. */
 export function tatolabPlatformItemsForThisBuild(): TatolabPlatformItems | null {
   return tatolabPlatformItemsFor(process.platform);
 }

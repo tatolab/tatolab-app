@@ -17,23 +17,11 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
   }
   return {
     getTatolabStatus: () => invokeTatolabCommand("get_tatolab_status", undefined),
-    setRunTatolab: async (enabled) => {
-      await invokeTatolabCommand("set_run_tatolab", { enabled });
-    },
-    openLoginItemsSettings: async () => {
-      await invokeTatolabCommand("open_login_items_settings", undefined);
-    },
-    rememberFirstRunFinished: async () => {
-      await invokeTatolabCommand("remember_first_run_finished", undefined);
-    },
-    linkCommandLineToolInUsrLocalBin: async () => {
-      await invokeTatolabCommand("link_command_line_tool_in_usr_local_bin", undefined);
+    linkCommandLineTool: async () => {
+      await invokeTatolabCommand("link_command_line_tool", undefined);
     },
     quitTatolabApp: async () => {
       await invokeTatolabCommand("quit_tatolab_app", undefined);
-    },
-    uninstallTatolab: async () => {
-      await invokeTatolabCommand("uninstall_tatolab", undefined);
     },
     readProjectLogRecords: (projectDirectory, narrowing, after) =>
       invokeTatolabCommand("read_project_log_records", { project_directory: projectDirectory, stream: narrowing.stream, action: narrowing.action, after }),
@@ -69,9 +57,6 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     describeRuntime: () => invokeTatolabCommand("describe_runtime", undefined),
     restartRuntime: async () => {
       await invokeTatolabCommand("restart_runtime", undefined);
-    },
-    installTheCarriedRuntimeAgain: async () => {
-      await invokeTatolabCommand("install_the_carried_runtime_again", undefined);
     },
     openRuntimeLogFolder: async () => {
       await invokeTatolabCommand("open_runtime_log_folder", undefined);

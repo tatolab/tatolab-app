@@ -18,7 +18,7 @@ paths:
   banned — use `ask` and let the owner resolve it at the prompt. A hard wall outlives its reason
   and teaches the session to route around it.
 - **Guard only what a wrong edit makes expensive to undo** — here: the licence files, and what code
-  signing and notarization read (the entitlements, `Info.plist`, the launch agent plist). Never
+  signing and notarization read (the entitlements, `Info.plist`). Never
   guard prose. Judgement the session must exercise belongs in `CLAUDE.md`, not an `ask` entry.
 - **Adding an `ask` entry or a hook branch needs the same justification as an agent.** State what
   a wrong edit or command costs, why an always-on rule can't carry it, and what the session should

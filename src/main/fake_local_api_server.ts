@@ -17,6 +17,7 @@ export class FakeLocalApiServer {
     private readonly socketDirectory: string,
     private readonly server: net.Server,
     private readonly requestsReceived: string[],
+    private readonly responsesLeft: Buffer[],
   ) {}
 
   /** A server answering its connections with `scriptedResponses`, in order, each `answerDelayMs` after its request arrives. */
@@ -37,7 +38,12 @@ export class FakeLocalApiServer {
       });
     });
     await new Promise<void>((listening) => server.listen(localApiSocketPath, listening));
-    return new FakeLocalApiServer(localApiSocketPath, socketDirectory, server, requestsReceived);
+    return new FakeLocalApiServer(localApiSocketPath, socketDirectory, server, requestsReceived, responsesLeft);
+  }
+
+  /** Answer the next connections with `scriptedResponses`, after any still left, as a runtime that comes up does. */
+  answerNext(scriptedResponses: readonly Buffer[]): void {
+    this.responsesLeft.push(...scriptedResponses);
   }
 
   /** A client of this server. */

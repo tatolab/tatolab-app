@@ -35,15 +35,10 @@ declare global {
 /** The app backend's commands and status event, real inside the packaged app or mocked in a browser. */
 export interface TatolabBackend {
   getTatolabStatus(): Promise<TatolabStatus>;
-  setRunTatolab(enabled: boolean): Promise<void>;
-  openLoginItemsSettings(): Promise<void>;
-  /** "Get Started": end first run, resolving once it is remembered and rejecting with why it was not; the window shows the Streams list either way. */
-  rememberFirstRunFinished(): Promise<void>;
-  /** Link `tatolab` in `/usr/local/bin` behind macOS's administrator prompt, resolving once it is linked and rejecting in words when the prompt is cancelled or the link is not offered. */
-  linkCommandLineToolInUsrLocalBin(): Promise<void>;
+  /** Link `~/.local/bin/tatolab` to the CLI the app carries, resolving once it is linked and rejecting in words when something else holds the name or the build offers none. */
+  linkCommandLineTool(): Promise<void>;
+  /** Quit the app, stopping its runtime with it. */
   quitTatolabApp(): Promise<void>;
-  /** On macOS uninstalls Tatolab and quits at the end, rejecting with the reason when it can't; on Linux rejects with how to. */
-  uninstallTatolab(): Promise<void>;
   /** The page of `projectDirectory`'s log after the cursor `after`, from its first record when `null`, narrowed as `narrowing` asks; rejects in the runtime's own words. */
   readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null): Promise<ProjectLogRecordsPage>;
   describeStreamGraph(streamId: string): Promise<StreamGraphSummary>;
@@ -77,10 +72,8 @@ export interface TatolabBackend {
   cancelStreamAction(action: string): Promise<StreamActionCancelAnswer>;
   /** How the running runtime describes itself, rejecting in its own words when it does not answer. */
   describeRuntime(): Promise<RuntimeDescription>;
-  /** Stop the runtime and start it again through the service manager, resolving once the service manager has answered and rejecting in its words; the state that follows arrives as the next statuses. */
+  /** Stop the app's runtime and start it again, resolving once it is asked to and rejecting in words for a runtime the app did not start; the state that follows arrives as the next statuses. */
   restartRuntime(): Promise<void>;
-  /** Run the installer on the runtime the app carries again after it refused, resolving once it ends and rejecting in its words; where it stands arrives as the next statuses. */
-  installTheCarriedRuntimeAgain(): Promise<void>;
   /** Show the folder the runtime writes its own log to in the file manager, rejecting with why it could not. */
   openRuntimeLogFolder(): Promise<void>;
   /** Turn the notifications shown when a stream fails on or off, resolving once it is remembered and rejecting with why it was not; the switch arrives as the next status. */

@@ -15,7 +15,7 @@ export const CODE_VIEW_TYPE_ID = "code";
 /** The streams the runtime lists in `status`, or why it lists none now. */
 export function listedStreamsReadingOf(status: TatolabStatus): ListedStreamsReading {
   const runtimeStatus = presentRuntimeStatus(status);
-  if (runtimeStatus.displayState === "running" && status.streams !== null) return { kind: "listed", streams: status.streams };
+  if (runtimeStatus.runtimeState === "running" && status.streams !== null) return { kind: "listed", streams: status.streams };
   return { kind: "not_listed", because: runtimeStatus.banner?.title ?? runtimeStatus.shortLabel };
 }
 

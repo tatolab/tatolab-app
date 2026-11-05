@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Builds Tato Studio for Linux: the .deb and the AppImage of the Electron window and tray over the
-# runtime's systemd user service. Each carries in its resources/ streamlib's runtime unit
-# (tatolab-runtime/: bin/, lib/ with the systemd user unit, streamlib-commit) and streamlib's
-# install.sh, which the app runs on that unit whenever the installed build differs, and no uv or
-# Python of its own: the runtime's uv sits beside its tatolabd.
+# Builds Tato Studio for Linux: the .deb and the AppImage of the Electron window and tray. Each
+# carries in its resources/ streamlib's runtime unit (tatolab-runtime/: bin/, lib/,
+# streamlib-commit), whose tatolabd the app runs as its own child process, and streamlib's
+# install.sh, which the app no longer runs; no uv or Python of its own: the runtime's uv sits
+# beside its tatolabd.
 # The runtime is always streamlib's main, or --streamlib-ref, fetched by
 # fetch-streamlib-for-the-app-build.sh into build/linux-streamlib. The packages' version is the
 # version of the tatolabd they carry.
@@ -76,7 +76,7 @@ electron_package_dependencies=(
 )
 installed_app_directory="usr/lib/tatolab"
 short_description="A graph-first creative studio over this machine's Tatolab runtime"
-long_description="Tato Studio shows the streams this machine's Tatolab runtime holds as they start and stop, each stream's graph, code and logs, and the Run Tatolab switch, from a window and the tray. It carries the Tatolab runtime and installs it for your user, as the systemd user service tatolabd.service, whenever the installed runtime is another build."
+long_description="Tato Studio shows the streams this machine's Tatolab runtime holds as they start and stop, each stream's graph, code and logs, from a window and the tray. It carries the Tatolab runtime and runs it while the app is open, stopping it when you quit."
 
 for required_tool in dpkg-deb dpkg-shlibdeps desktop-file-validate; do
   command -v "$required_tool" >/dev/null || { echo "$required_tool is missing: sudo apt install dpkg-dev desktop-file-utils" >&2; exit 1; }

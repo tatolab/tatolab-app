@@ -8,12 +8,8 @@ import os from "node:os";
 import path from "node:path";
 import type { StreamProjectFolderChosenFor, ProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
-import {
-  type FakeCarriedRuntimeInstall,
-  FakeRuntimeAgentRegistration,
-  FakeTatolabCommandLineToolLinks,
-  fakeTatolabPlatformForThisBuild,
-} from "./fake_tatolab_platform_for_this_build.js";
+import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import type { CarriedRuntime } from "./platform/carried_runtime.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { failedWith, succeeded } from "./result.js";
 import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
@@ -21,7 +17,6 @@ import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabElectronAppShell } from "./main.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { MacosActivationPolicy } from "./platform/main_window_chrome.js";
-import type { TatolabUninstall } from "./platform/tatolab_uninstall.js";
 import type { TatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import type { MainWindowCloseRequestAnswer, MainWindowSpecification } from "./tatolab_main_window.js";
 import type { TrayMenuItemDescription, TrayMenuItemId } from "./tatolab_tray_menu.js";
@@ -67,11 +62,11 @@ export class FakeTatolabElectronAppShell {
   mainWindowCreationFailure: string | null = null;
   /** Whether the fake window is on screen: shown and not hidden since. */
   mainWindowShowing = false;
-  readonly runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
-  commandLineToolLinks = new FakeTatolabCommandLineToolLinks("/Users/someone/.local/bin/tatolab");
-  tatolabUninstall: TatolabUninstall | undefined = undefined;
-  /** The runtime this build carries for the installer, `null` for a build that carries none. */
-  carriedRuntimeInstall: FakeCarriedRuntimeInstall | null = null;
+  /** The runtimes the app started, which the test ends. */
+  readonly carriedRuntimeStarts = new FakeCarriedRuntimeStarts();
+  /** The runtime this build carries; `undefined` for the fake's own, `null` for a build that carries none. */
+  carriedRuntime: CarriedRuntime | null | undefined = undefined;
+  commandLineToolLink = new FakeTatolabCommandLineToolLink();
   appUpdatePackaging: TatolabAppUpdatePackaging = { kind: "not_offered", reason: "this fake platform updates nothing" };
   appUpdateFeedForThisBuild: TatolabAppUpdateFeedForThisBuild = { kind: "not_offered", reason: "this fake platform updates nothing" };
   /** The folder the fake dialog answers with; `null` reads as the person cancelling it. */
@@ -100,14 +95,13 @@ export class FakeTatolabElectronAppShell {
     openAnotherCopyOnceThisOneExits: (executable) => this.records.push({ asked: "open_another_copy_once_this_one_exits", executable }),
     setTheApplicationMenu: (applicationMenu) => this.records.push({ asked: "set_application_menu", applicationMenu }),
     buildTheTatolabPlatformForThisBuild: async () =>
-      fakeTatolabPlatformForThisBuild(
-        this.runtimeAgent,
-        this.commandLineToolLinks,
-        path.join(this.appConfigDirectory, "no-runtime.sock"),
-        this.tatolabUninstall,
-        this.appUpdatePackaging,
-        this.carriedRuntimeInstall,
-      ),
+      fakeTatolabPlatformForThisBuild({
+        localApiSocket: path.join(this.appConfigDirectory, "no-runtime.sock"),
+        carriedRuntime: this.carriedRuntime,
+        commandLineToolLink: this.commandLineToolLink,
+        appUpdatePackaging: this.appUpdatePackaging,
+      }),
+    startTheCarriedRuntime: (carriedRuntime, whenItExits) => this.carriedRuntimeStarts.startTheCarriedRuntime(carriedRuntime, whenItExits),
     answerTheWindowsCommands: (tatolabWindowCommandHandlers) => {
       this.tatolabWindowCommandHandlers = tatolabWindowCommandHandlers;
     },

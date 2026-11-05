@@ -5,13 +5,11 @@ import {
   presentAboutCopyright,
   presentAboutVersions,
   presentCommandLineToolVersion,
-  presentLoginItemsRow,
   presentOpenAtLogin,
   presentRuntimeLogFolder,
   presentRuntimeStatusRow,
   presentRuntimeUptime,
   presentStreamFailureNotifications,
-  presentUsrLocalBinLink,
   restartRuntimeUnavailableBecause,
   SETTINGS_SECTION_GROUPS,
   settingsSectionLabel,
@@ -22,21 +20,16 @@ function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
     app_version: "0.45.0",
     app_build: null,
     platform: "macos",
-    run_tatolab: true,
-    runtime_agent: "enabled",
     runtime_state: "running",
+    runtime_not_running_because: null,
     machine_name: "ada-macbook-pro",
     streams: [],
-    first_run_finished: true,
-    command_line_tool_linked_at: "/Users/ada/.local/bin/tatolab",
-    command_line_tool_usr_local_bin_link: { kind: "not_linked" },
+    command_line_tool_link: { kind: "linked", path: "/Users/ada/.local/bin/tatolab" },
     app_update: { kind: "not_checked" },
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
-    runtime_install: { kind: "none" },
-    installed_runtime: null,
     ...statusChanges,
   };
 }
@@ -90,16 +83,16 @@ describe("Runtime › Status", () => {
       problemExplanation: null,
       refusal: null,
     });
-    expect(presentRuntimeStatusRow(statusWith({ runtime_state: "unreachable" }), describedAs({}))).toEqual({
-      statusWords: "Not responding",
+    expect(
+      presentRuntimeStatusRow(
+        statusWith({ runtime_state: "not_running", runtime_not_running_because: "The runtime is running but not answering." }),
+        describedAs({}),
+      ),
+    ).toEqual({
+      statusWords: "Not running",
       tone: "error",
-      problemExplanation: "It was answering, then stopped, and hasn't answered for over 20 seconds. macOS restarts it if it exits.",
+      problemExplanation: "The runtime is running but not answering.",
       refusal: null,
-    });
-    expect(presentRuntimeStatusRow(statusWith({ run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped" }), describedAs({}))).toMatchObject({
-      statusWords: "Stopped",
-      tone: "idle",
-      problemExplanation: null,
     });
   });
 
@@ -109,13 +102,10 @@ describe("Runtime › Status", () => {
     );
   });
 
-  it("offers Restart runtime only while Run Tatolab is on and its agent enabled", () => {
+  it("offers Restart runtime except while the runtime is starting", () => {
     expect(restartRuntimeUnavailableBecause(statusWith({}))).toBeNull();
-    expect(restartRuntimeUnavailableBecause(statusWith({ runtime_state: "unreachable" }))).toBeNull();
-    expect(restartRuntimeUnavailableBecause(statusWith({ run_tatolab: false }))).toBe("Run Tatolab is off, so there is no runtime to restart.");
-    expect(restartRuntimeUnavailableBecause(statusWith({ runtime_agent: "requires_approval" }))).toBe(
-      "The runtime's login item isn't enabled, so there is no runtime to restart.",
-    );
+    expect(restartRuntimeUnavailableBecause(statusWith({ runtime_state: "not_running" }))).toBeNull();
+    expect(restartRuntimeUnavailableBecause(statusWith({ runtime_state: "starting" }))).toBe("The runtime is starting.");
   });
 });
 
@@ -126,7 +116,7 @@ describe("Runtime › Runtime logs", () => {
       openUnavailableBecause: null,
     });
     expect(presentRuntimeLogFolder(statusWith({}), describedAs({ runtime_log_directory: null })).openUnavailableBecause).toBe("The runtime keeps no log of its own.");
-    expect(presentRuntimeLogFolder(statusWith({ runtime_state: "stopped" }), describedAs({})).openUnavailableBecause).toBe(
+    expect(presentRuntimeLogFolder(statusWith({ runtime_state: "not_running" }), describedAs({})).openUnavailableBecause).toBe(
       "The runtime names its log folder while it runs.",
     );
     expect(presentRuntimeLogFolder(statusWith({}), { kind: "not_read" }).openUnavailableBecause).toBe("The runtime has not said where it writes its log.");
@@ -135,17 +125,18 @@ describe("Runtime › Runtime logs", () => {
 
 describe("General", () => {
   it("shows the open-at-login switch as the desktop reports it, and says why where it is not offered", () => {
-    expect(presentOpenAtLogin({ kind: "on" }, "macos")).toMatchObject({ isSwitchedOn: true, needsApprovalInLoginItems: false });
+    expect(presentOpenAtLogin({ kind: "on" }, "macos")).toEqual({
+      isSwitchedOn: true,
+      description: "Opens Tato Studio in the tray when you log in, with the runtime ready for the tatolab command.",
+    });
     expect(presentOpenAtLogin({ kind: "off" }, "linux").isSwitchedOn).toBe(false);
     expect(presentOpenAtLogin({ kind: "needs_approval_in_login_items" }, "macos")).toEqual({
       isSwitchedOn: true,
       description: "macOS is waiting for you to allow Tato Studio under Login Items.",
-      needsApprovalInLoginItems: true,
     });
     expect(presentOpenAtLogin({ kind: "not_offered", reason: "Only a packaged Tato Studio opens at login." }, "macos")).toEqual({
       isSwitchedOn: null,
       description: "Only a packaged Tato Studio opens at login.",
-      needsApprovalInLoginItems: false,
     });
   });
 
@@ -160,10 +151,10 @@ describe("General", () => {
   });
 });
 
-describe("About and Login Items", () => {
+describe("About", () => {
   it("names the runtime's version beside the app's only while it runs and has described itself", () => {
     expect(presentAboutVersions(statusWith({}), describedAs({}))).toBe("Version 0.45.0 · tatolabd 0.55.2");
-    expect(presentAboutVersions(statusWith({ runtime_state: "stopped" }), describedAs({}))).toBe("Version 0.45.0");
+    expect(presentAboutVersions(statusWith({ runtime_state: "not_running" }), describedAs({}))).toBe("Version 0.45.0");
     expect(presentAboutVersions(statusWith({}), { kind: "not_read" })).toBe("Version 0.45.0");
   });
 
@@ -179,18 +170,6 @@ describe("About and Login Items", () => {
     expect(presentAboutCopyright(new Date(2026, 9, 26, 13, 0))).toBe("© 2026 Tatolab LLC");
     expect(presentAboutCopyright(new Date(2027, 0, 1, 0, 0))).toBe("© 2027 Tatolab LLC");
   });
-
-  it("says what launchd reports of the runtime's entry: listed, waiting for approval, or not listed", () => {
-    expect(presentLoginItemsRow(statusWith({ runtime_agent: "requires_approval" }))).toBe(
-      "Tatolab is waiting for you to switch it on under Allow in the Background.",
-    );
-    expect(presentLoginItemsRow(statusWith({}))).toBe("Tatolab is listed under Allow in the Background. Run Tatolab and that entry are the same setting.");
-    for (const runtimeAgent of ["not_registered", "not_found"] as const) {
-      expect(presentLoginItemsRow(statusWith({ run_tatolab: false, runtime_agent: runtimeAgent }))).toBe(
-        "Tatolab isn't listed under Allow in the Background. Turning Run Tatolab on adds it.",
-      );
-    }
-  });
 });
 
 describe("Command line", () => {
@@ -202,24 +181,5 @@ describe("Command line", () => {
       unreadableLine: "Its version can't be read: /usr/local/bin/tatolab --version failed",
     });
     expect(presentCommandLineToolVersion({ kind: "not_offered", reason: "no CLI in this build" }, false).unreadableLine).toBeNull();
-  });
-});
-
-describe("Command line › Link in /usr/local/bin", () => {
-  it("offers the link behind the password, warning that the dialog says osascript, and shows it once linked", () => {
-    expect(presentUsrLocalBinLink("macos", { kind: "not_linked" })).toMatchObject({ isOffered: true });
-    expect(presentUsrLocalBinLink("macos", { kind: "not_linked" })?.description).toContain("osascript wants to make changes");
-    expect(presentUsrLocalBinLink("macos", { kind: "linked", path: "/usr/local/bin/tatolab" })).toEqual({
-      description: "Linked at /usr/local/bin/tatolab, so it works in every terminal.",
-      isOffered: false,
-    });
-  });
-
-  it("gives a build that does not link there its reason, and shows nothing on Linux", () => {
-    expect(presentUsrLocalBinLink("macos", { kind: "not_offered", reason: "A local-proof build never links tatolab in /usr/local/bin." })).toEqual({
-      description: "A local-proof build never links tatolab in /usr/local/bin.",
-      isOffered: false,
-    });
-    expect(presentUsrLocalBinLink("linux", { kind: "not_offered", reason: "On Linux the installer links tatolab." })).toBeNull();
   });
 });

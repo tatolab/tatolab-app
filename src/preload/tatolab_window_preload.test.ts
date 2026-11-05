@@ -31,8 +31,8 @@ test("a command is sent on its own channel with its arguments, and its answer co
   const tatolabElectronBridge = await exposedTatolabElectronBridge();
   fakeElectron.ipcRenderer.invoke.mockResolvedValue({ ok: true, value: null });
 
-  expect(await tatolabElectronBridge.invokeTatolabCommand("set_run_tatolab", { enabled: true })).toEqual({ ok: true, value: null });
-  expect(fakeElectron.ipcRenderer.invoke).toHaveBeenCalledWith("set_run_tatolab", { enabled: true });
+  expect(await tatolabElectronBridge.invokeTatolabCommand("set_stream_failure_notifications", { enabled: true })).toEqual({ ok: true, value: null });
+  expect(fakeElectron.ipcRenderer.invoke).toHaveBeenCalledWith("set_stream_failure_notifications", { enabled: true });
 });
 
 test("a name that is not one of the eight commands is refused and never reaches the main process", async () => {

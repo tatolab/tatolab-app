@@ -26,8 +26,8 @@ paths:
   `EnableNodeCliInspectArguments` off, `OnlyLoadAppFromAsar` on (and asar integrity on macOS):
   otherwise any process can run the signed app as plain Node and inherit its camera and
   microphone grants. `scripts/verify-tatolab-app-bundle.sh` and the Linux build check them.
-- **`appBundleId` (`com.tatolab.tatolab`) never changes** — the launch agent's
-  `AssociatedBundleIdentifiers`, the settings directory and TCC attribution all hang off it.
+- **`appBundleId` (`com.tatolab.tatolab`) never changes** — the settings directory and TCC
+  attribution hang off it.
 - **A command lands whole**: its signature in `TatolabCommandSignatures`, its handler in
   `tatolab_commands.ts` answering `{ ok, value }` or `{ ok: false, refusal }` — resolved, never
   rejected, so the refusal reaches the window word for word — with work that can wait off the

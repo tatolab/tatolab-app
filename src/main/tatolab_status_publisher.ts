@@ -11,7 +11,7 @@ import type { StreamFailureNotifications } from "./stream_failure_notifications.
 /** How often the poller observes the runtime when nothing asks it to sooner. */
 export const STATUS_POLL_INTERVAL_MS = 2_000;
 
-/** Where the status shows in the tray: its status line, the switch's check mark, and the item that brings the runtime back. */
+/** Where the status shows in the tray: its status line and its updates item. */
 export interface TatolabStatusShownInTheTray {
   showStatus(status: TatolabStatus): void;
 }
@@ -83,20 +83,15 @@ export class TatolabStatusPublisher {
     this.streamFailureNotifications = streamFailureNotifications;
   }
 
-  /** The poller's one round: observe everything, react to an agent needing approval or a runtime that is down, and publish the status if it changed. Everyone else asks for a round with `requestRefresh`. */
+  /** The poller's one round: observe everything, which starts the app's runtime when none answers, and publish the status if it changed. Everyone else asks for a round with `requestRefresh`. */
   async refreshAndPublish(): Promise<void> {
-    const nowMs = this.readMonotonicClockMs();
-    const status = await this.controller.composeStatus(nowMs);
-    await this.controller.openLoginItemsIfTheRuntimeAgentNeedsApproval(status.runtime_agent);
-    await this.controller.startTheRuntimeIfThePollerFoundItDown(status, nowMs);
+    const status = await this.controller.composeStatus(this.readMonotonicClockMs());
     if (!this.rememberIfChanged(status)) return;
     this.tatolabAppLog.info("Tatolab status changed", {
       runtime_state: status.runtime_state,
-      runtime_agent: status.runtime_agent,
-      run_tatolab: status.run_tatolab,
+      runtime_not_running_because: status.runtime_not_running_because,
       listed_stream_count: status.streams?.length ?? null,
       machine_name: status.machine_name,
-      first_run_finished: status.first_run_finished,
       app_update: status.app_update.kind,
     });
     this.sendTheLastPublishedStatusToTheWindow();

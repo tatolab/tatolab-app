@@ -33,11 +33,7 @@ export const TATOLAB_WINDOW_PAGE_SCHEME = "tatolab-app";
 /** Every command the window invokes, each an IPC channel the main process handles. */
 export const TATOLAB_COMMAND_NAMES = [
   "get_tatolab_status",
-  "set_run_tatolab",
-  "open_login_items_settings",
-  "remember_first_run_finished",
-  "link_command_line_tool_in_usr_local_bin",
-  "uninstall_tatolab",
+  "link_command_line_tool",
   "quit_tatolab_app",
   "read_project_log_records",
   "describe_stream_graph",
@@ -58,7 +54,6 @@ export const TATOLAB_COMMAND_NAMES = [
   "cancel_stream_action",
   "describe_runtime",
   "restart_runtime",
-  "install_the_carried_runtime_again",
   "open_runtime_log_folder",
   "set_stream_failure_notifications",
   "set_open_tatolab_at_login",
@@ -80,12 +75,12 @@ export const TATOLAB_COMMAND_NAMES = [
 ] as const;
 
 /**
- * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
+ * One command the window invokes. Arguments: `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
  * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, the project file and language server commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` only on one of the recent projects, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
- * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `install_the_carried_runtime_again` once the installer ends, refused in its words; `open_runtime_log_folder` opens the
+ * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
  */
 export type TatolabCommandName = (typeof TATOLAB_COMMAND_NAMES)[number];
@@ -123,13 +118,8 @@ type EveryCommandHasASignature<CommandSignatures extends Record<TatolabCommandNa
 /** Each command's arguments and answer, as the window sends and reads them. */
 export type TatolabCommandSignatures = EveryCommandHasASignature<{
   get_tatolab_status: { commandArguments: undefined; answer: TatolabStatus };
-  set_run_tatolab: { commandArguments: { enabled: boolean }; answer: null };
-  open_login_items_settings: { commandArguments: undefined; answer: null };
-  /** Refused when it could not be remembered, though first run stays finished until the app quits. */
-  remember_first_run_finished: { commandArguments: undefined; answer: null };
-  /** Answers once the administrator prompt closes; refused in words when cancelled or not offered. */
-  link_command_line_tool_in_usr_local_bin: { commandArguments: undefined; answer: null };
-  uninstall_tatolab: { commandArguments: undefined; answer: null };
+  /** Links `~/.local/bin/tatolab` to the CLI the app carries; refused in words when something else holds the name or the build offers none. */
+  link_command_line_tool: { commandArguments: undefined; answer: null };
   quit_tatolab_app: { commandArguments: undefined; answer: null };
   /** `stream` and `action` narrow the read, `null` for no narrowing; `after` is the `next_after` of the page before, `null` for the oldest record held. */
   read_project_log_records: { commandArguments: { project_directory: string; after: string | null } & ProjectLogNarrowing; answer: ProjectLogRecordsPage };
@@ -161,7 +151,6 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   cancel_stream_action: { commandArguments: { action: string }; answer: StreamActionCancelAnswer };
   describe_runtime: { commandArguments: undefined; answer: RuntimeDescription };
   restart_runtime: { commandArguments: undefined; answer: null };
-  install_the_carried_runtime_again: { commandArguments: undefined; answer: null };
   open_runtime_log_folder: { commandArguments: undefined; answer: null };
   /** Refused when the choice could not be remembered, though it holds until the app quits. */
   set_stream_failure_notifications: { commandArguments: { enabled: boolean }; answer: null };

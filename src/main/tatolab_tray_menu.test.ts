@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import type { RuntimeAgentRegistration, RuntimeState, TatolabAppUpdateState, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { RuntimeState, TatolabAppUpdateState, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
   appUpdateTrayMenuItemPresentation,
   TatolabTrayMenu,
@@ -22,90 +22,52 @@ function buildTrayMenuOnAFakeTrayIconHost() {
       },
     },
     { pngFileName: "tray-coloured.png", isATemplate: false },
-    true,
     (trayMenuChoice) => trayMenuChoices.push(trayMenuChoice),
   );
   return { tatolabTrayMenu, shownMenus, trayMenuChoices, clickTrayMenuItem, trayIconTooltip };
 }
 
 function statusWith(
-  runTatolab: boolean,
   runtimeState: RuntimeState,
   appUpdate: TatolabAppUpdateState = { kind: "not_offered", reason: "Only a packaged Tato Studio updates itself." },
-  runtimeAgent: RuntimeAgentRegistration = "enabled",
 ): TatolabStatus {
   return {
     app_version: "0.45.0",
     app_build: null,
     platform: "macos",
-    run_tatolab: runTatolab,
-    runtime_agent: runtimeAgent,
     runtime_state: runtimeState,
+    runtime_not_running_because: null,
     machine_name: null,
     streams: [],
-    first_run_finished: true,
-    command_line_tool_linked_at: null,
-    command_line_tool_usr_local_bin_link: { kind: "not_linked" },
+    command_line_tool_link: { kind: "linked", path: "/Users/someone/.local/bin/tatolab" },
     app_update: appUpdate,
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
-    runtime_install: { kind: "none" },
-    installed_runtime: null,
   };
 }
 
-test("the tray menu is the status line, Open Tatolab, the Run Tatolab check and Quit Tatolab", () => {
+test("the tray menu is the status line, Open Tato Studio and Quit Tato Studio, which stops the runtime with the app", () => {
   const { shownMenus, trayIconTooltip } = buildTrayMenuOnAFakeTrayIconHost();
   expect(trayIconTooltip).toBe("Tato Studio");
   expect(shownMenus).toEqual([
     [
-      { kind: "item", id: "tray_status_line", label: "Starting…", enabled: false },
+      { kind: "item", id: "tray_status_line", label: "Starting the runtime…", enabled: false },
       { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
-      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
       { kind: "separator" },
       { kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true },
     ],
   ]);
 });
 
-test("each status shows in the status line and the check, with login items after the check while macOS waits for approval and nothing to press while the app recovers the runtime", () => {
+test("each status shows in the status line", () => {
   const { tatolabTrayMenu, shownMenus } = buildTrayMenuOnAFakeTrayIconHost();
-  tatolabTrayMenu.showStatus(statusWith(true, "stopped", undefined, "requires_approval"));
-  tatolabTrayMenu.showStatus(statusWith(true, "blocked_by_the_service_manager"));
-  tatolabTrayMenu.showStatus(statusWith(true, "never_answered"));
-  tatolabTrayMenu.showStatus(statusWith(true, "running"));
-  expect(shownMenus.slice(1)).toEqual([
-    [
-      { kind: "item", id: "tray_status_line", label: "Needs your approval in Login Items", enabled: false },
-      { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
-      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
-      { kind: "item", id: "open_login_items_settings", label: "Open Login Items…", enabled: true },
-      { kind: "separator" },
-      { kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true },
-    ],
-    [
-      { kind: "item", id: "tray_status_line", label: "Runtime blocked by macOS", enabled: false },
-      { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
-      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
-      { kind: "separator" },
-      { kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true },
-    ],
-    [
-      { kind: "item", id: "tray_status_line", label: "Runtime didn't start", enabled: false },
-      { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
-      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
-      { kind: "separator" },
-      { kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true },
-    ],
-    [
-      { kind: "item", id: "tray_status_line", label: "Runtime running · 0 streams", enabled: false },
-      { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
-      { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: true, checked: true },
-      { kind: "separator" },
-      { kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true },
-    ],
+  tatolabTrayMenu.showStatus(statusWith("not_running"));
+  tatolabTrayMenu.showStatus(statusWith("running"));
+  expect(shownMenus.slice(1).map((trayMenuItems) => trayMenuItems[0])).toEqual([
+    { kind: "item", id: "tray_status_line", label: "Runtime not running", enabled: false },
+    { kind: "item", id: "tray_status_line", label: "Runtime running · 0 streams", enabled: false },
   ]);
 });
 
@@ -113,22 +75,14 @@ test("a click on an item is that item's choice, and the status line chooses noth
   const trayMenu = buildTrayMenuOnAFakeTrayIconHost();
   trayMenu.clickTrayMenuItem("tray_status_line");
   trayMenu.clickTrayMenuItem("open_tatolab");
-  trayMenu.clickTrayMenuItem("run_tatolab");
-  trayMenu.clickTrayMenuItem("open_login_items_settings");
   trayMenu.clickTrayMenuItem("check_for_app_updates");
   trayMenu.clickTrayMenuItem("quit_tatolab");
-  expect(trayMenu.trayMenuChoices).toEqual([
-    "open_tatolab",
-    "toggle_run_tatolab_switch",
-    "open_login_items_settings",
-    "check_for_app_updates",
-    "quit_the_app",
-  ]);
+  expect(trayMenu.trayMenuChoices).toEqual(["open_tatolab", "check_for_app_updates", "quit_the_app"]);
 });
 
 test("a packaged app shows Check for Updates… just above Quit Tatolab", () => {
   const { tatolabTrayMenu, shownMenus } = buildTrayMenuOnAFakeTrayIconHost();
-  tatolabTrayMenu.showStatus(statusWith(true, "running", { kind: "not_checked" }));
+  tatolabTrayMenu.showStatus(statusWith("running", { kind: "not_checked" }));
   expect(shownMenus.at(-1)?.slice(-3)).toEqual([
     { kind: "separator" },
     { kind: "item", id: "check_for_app_updates", label: "Check for Updates…", enabled: true },
@@ -151,17 +105,4 @@ test("the updates item names a newer version once one is found, and waits while 
   });
   expect(appUpdateTrayMenuItemPresentation({ kind: "downloading", version: "0.47.0", percent: 42 })).toEqual({ label: "Downloading Tato Studio 0.47.0…", enabled: false });
   expect(appUpdateTrayMenuItemPresentation({ kind: "installing", version: "0.47.0" })).toEqual({ label: "Installing Tato Studio 0.47.0…", enabled: false });
-});
-
-test("while the runtime installs, the status line says so and the Run Tatolab check is held", () => {
-  const { tatolabTrayMenu, shownMenus } = buildTrayMenuOnAFakeTrayIconHost();
-  tatolabTrayMenu.showStatus({
-    ...statusWith(true, "starting"),
-    runtime_install: { kind: "installing", carried_runtime_build: "0.68.0-1111111", installer_lines: ["Stopping the runtime"] },
-  });
-  expect(shownMenus.at(-1)?.slice(0, 3)).toEqual([
-    { kind: "item", id: "tray_status_line", label: "Installing runtime…", enabled: false },
-    { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
-    { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: false, checked: true },
-  ]);
 });

@@ -9,7 +9,6 @@ import { StudioAreaFrame, StudioAreaHeaderMenu } from "../design_system/studio_a
 import { WaitingState } from "../design_system/waiting_state";
 import { WindowNotice } from "../design_system/window_notice";
 import { windowDragRegionAttribute } from "../presentation/platform_presentation";
-import { FirstRunFinishingRefusalNoticeView } from "../setup_and_preferences/first_run_finishing_refusal_notice_view";
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
 import { StudioViewFailureBoundary, useWatchedStudioValue } from "../view_host/in_window_view_host";
 import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
@@ -211,7 +210,6 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
             />
           )}
         </div>
-        <FirstRunFinishingRefusalNoticeView />
       </div>
     </div>
   );

@@ -122,8 +122,8 @@ verify_app_bundle() {
     && pass "the app executable Contents/MacOS/$bundle_executable is present" || fail "the app executable '$bundle_executable' is missing"
   [ -x "$helper_contents/MacOS/uv" ] && pass "Tatolab Runtime.app's MacOS/uv, beside its tatolabd, is present" \
     || fail "Tatolab Runtime.app's MacOS/uv is missing: tatolabd makes no project's .venv without it"
-  [ -f "$contents/Resources/install.sh" ] && pass "Resources/install.sh, the runtime's installer, is present" \
-    || fail "Resources/install.sh is missing: the app cannot install its runtime"
+  [ -f "$contents/Resources/install.sh" ] && pass "Resources/install.sh, streamlib's installer, is present" \
+    || fail "Resources/install.sh is missing: the bundle assembly lays streamlib's installer there"
   local helper_info_plist="$helper_contents/Info.plist"
   [ "$(plutil -extract CFBundleIdentifier raw -o - "$helper_info_plist" 2>/dev/null)" = com.tatolab.runtime ] \
     && pass "Tatolab Runtime.app's CFBundleIdentifier is com.tatolab.runtime" \
@@ -253,8 +253,8 @@ verify_app_bundle() {
     && pass "app.asar carries the build features: $(tr '\n' ' ' <<<"$packaged_build_features")" \
     || fail "app.asar's build features are unreadable: $shipping_build_features_refusals"
 
-  [ ! -e "$contents/Library/LaunchAgents" ] && pass "the app carries no launch agent of its own: install.sh writes the runtime's" \
-    || fail "Contents/Library/LaunchAgents is present: the runtime is installed by install.sh, never run from the bundle"
+  [ ! -e "$contents/Library/LaunchAgents" ] && pass "the app carries no launch agent: it runs the runtime as its own child" \
+    || fail "Contents/Library/LaunchAgents is present: the app runs the runtime as its own child, never through launchd"
   if [ -e "$helper_contents/Resources/machine-directories-under-a-test-root" ] \
     || ! grep -qx "machineDirectoriesUnderATestRoot=false" <<<"$packaged_build_features"; then
     if $shipping; then

@@ -28,7 +28,6 @@ import type { LocalApiRequestFailure } from "./local_api_client.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import {
   checkForTatolabAppUpdatesOnRequest,
-  runInTheBackgroundWithTheController,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
 import { relaySettingsByNameFrom, WHAT_A_RELAY_SETTING_VALUE_CAN_BE } from "./relays_description.js";
@@ -68,32 +67,9 @@ export function getTatolabStatus(sharedState: TatolabAppSharedState): Promise<Re
   });
 }
 
-/** `set_run_tatolab { enabled }`: turn "Run Tatolab" on or off. */
-export function setRunTatolab(sharedState: TatolabAppSharedState, enabled: boolean): void {
-  runInTheBackgroundWithTheController(sharedState, "tatolab-run-tatolab-set", async (controller, statusPublisher) => {
-    await controller.setRunTatolab(enabled);
-    statusPublisher.requestRefresh();
-  });
-}
-
-/** `open_login_items_settings`: open System Settings at Login Items, where a user approves the runtime's login item; refused where the platform has no Login Items. */
-export function openLoginItemsSettings(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
-  return answerTheWindow("open_login_items_settings", () => sharedState.controller.openLoginItemsSettings());
-}
-
-/** `remember_first_run_finished`: "Get Started" ended first run, answered once it is remembered, then a status round; refused when it could not be remembered, though it holds until the app quits. */
-export function rememberFirstRunFinished(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
-  return answerTheWindowThenRefreshTheStatus(sharedState, "remember_first_run_finished", () => sharedState.controller.rememberFirstRunFinished());
-}
-
-/** `link_command_line_tool_in_usr_local_bin`: link `tatolab` in `/usr/local/bin` behind the administrator prompt, answered once it closes, then a status round; refused in words, and where it is not offered, with why. */
-export function linkCommandLineToolInUsrLocalBin(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
-  return answerTheWindowThenRefreshTheStatus(sharedState, "link_command_line_tool_in_usr_local_bin", () => sharedState.controller.linkTheCommandLineToolInUsrLocalBin());
-}
-
-/** `uninstall_tatolab`: uninstall Tatolab, turning "Run Tatolab" off first and ending with the app quitting; refused in words, leaving the app usable, and at once on Linux, where the installer uninstalls. */
-export function uninstallTatolab(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
-  return answerTheWindow("uninstall_tatolab", () => sharedState.tatolabUninstall.uninstallTatolab(sharedState.controller));
+/** `link_command_line_tool`: link `~/.local/bin/tatolab` to the CLI the app carries, then a status round; refused in words when something else holds the name or the build offers none. */
+export function linkCommandLineTool(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
+  return answerTheWindowThenRefreshTheStatus(sharedState, "link_command_line_tool", () => sharedState.controller.linkTheCommandLineTool());
 }
 
 /** `read_project_log_records { project_directory, stream, action, after }`: the project's log records after the cursor `after`, narrowed to `stream` and `action` when they are given; refused in the runtime's own words. */
@@ -253,18 +229,13 @@ export function describeRuntime(sharedState: TatolabAppSharedState): Promise<Res
   });
 }
 
-/** `restart_runtime`: stop the runtime and start it again through the service manager, then a status round whether it restarted or was refused; refused while Run Tatolab is off, and in the service manager's words. */
+/** `restart_runtime`: stop the app's runtime and start it again, then a status round whether it restarted or was refused; refused for a runtime the app did not start. */
 export function restartRuntime(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
   return answerTheWindow("restart_runtime", async () => {
     const restarted = await sharedState.controller.restartTheRuntimeOnRequest();
     sharedState.statusPublisher.requestRefresh();
     return restarted;
   });
-}
-
-/** `install_the_carried_runtime_again`: "Try again" on a refused runtime install, answered once the installer ends and refused in its words. */
-export function installTheCarriedRuntimeAgain(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
-  return answerTheWindowThenRefreshTheStatus(sharedState, "install_the_carried_runtime_again", () => sharedState.controller.installTheCarriedRuntimeAgain());
 }
 
 /** `open_runtime_log_folder`: the folder the runtime names for its own log when asked now, in the file manager; refused naming why. */
@@ -487,16 +458,7 @@ function commandAnswerOfNothingFrom(outcome: Result<unknown, string>): { ok: tru
 export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState, quitTheApp: () => void): TatolabWindowCommandHandlers {
   return {
     get_tatolab_status: async () => commandAnswerFrom(await getTatolabStatus(sharedState)),
-    set_run_tatolab: async (commandArguments) => {
-      const setRunTatolabArguments = enabledArgumentsFrom("set_run_tatolab", commandArguments);
-      if (!setRunTatolabArguments.ok) return { ok: false, refusal: setRunTatolabArguments.failure };
-      setRunTatolab(sharedState, setRunTatolabArguments.value.enabled);
-      return { ok: true, value: null };
-    },
-    open_login_items_settings: async () => commandAnswerOfNothingFrom(await openLoginItemsSettings(sharedState)),
-    remember_first_run_finished: async () => commandAnswerOfNothingFrom(await rememberFirstRunFinished(sharedState)),
-    link_command_line_tool_in_usr_local_bin: async () => commandAnswerOfNothingFrom(await linkCommandLineToolInUsrLocalBin(sharedState)),
-    uninstall_tatolab: async () => commandAnswerOfNothingFrom(await uninstallTatolab(sharedState)),
+    link_command_line_tool: async () => commandAnswerOfNothingFrom(await linkCommandLineTool(sharedState)),
     quit_tatolab_app: async () => {
       quitTheApp();
       return { ok: true, value: null };
@@ -577,7 +539,6 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     },
     describe_runtime: async () => commandAnswerFrom(await describeRuntime(sharedState)),
     restart_runtime: async () => commandAnswerOfNothingFrom(await restartRuntime(sharedState)),
-    install_the_carried_runtime_again: async () => commandAnswerOfNothingFrom(await installTheCarriedRuntimeAgain(sharedState)),
     open_runtime_log_folder: async () => commandAnswerOfNothingFrom(await openRuntimeLogFolder(sharedState)),
     set_stream_failure_notifications: async (commandArguments) => {
       const enabledArguments = enabledArgumentsFrom("set_stream_failure_notifications", commandArguments);

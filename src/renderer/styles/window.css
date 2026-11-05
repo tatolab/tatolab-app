@@ -8,8 +8,6 @@
 @import "./tokens.css";
 
 @import "./base.css" layer(base);
-@import "./first_launch_setup.css" layer(components);
-@import "./uninstall_sheet.css" layer(components);
 @import "@xyflow/react/dist/base.css" layer(components);
 @import "./node_graph_canvas.css" layer(components);
 

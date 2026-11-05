@@ -1,8 +1,6 @@
 // What the tray, the window's commands and the app's events reach once the app is set up: the
-// controller, the status publisher, the updater and uninstalling, and the requests the tray and
-// the window both make.
+// controller, the status publisher, the updater, and the requests the tray and the window both make.
 
-import type { TatolabUninstall } from "./platform/tatolab_uninstall.js";
 import { describeCaughtFailure } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
@@ -16,12 +14,11 @@ import type { OpenProjectFolder } from "./open_project.js";
 import type { PythonLanguageServers } from "./python_language_servers.js";
 import type { OpenProjectFiles } from "./open_project_files.js";
 
-/** The controller, the status publisher, the updater, uninstalling, what opens a stream's project, adding a project, the stream-failure notifications, the open project, its files and its language servers, which the tray's choices and the window's commands reach. */
+/** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, the open project, its files and its language servers, which the tray's choices and the window's commands reach. */
 export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;
   tatolabAppUpdater: TatolabAppUpdater;
-  tatolabUninstall: TatolabUninstall;
   streamProjectFolderOpeners: StreamProjectFolderOpeners;
   streamProjectAdding: StreamProjectAdding;
   streamFailureNotifications: StreamFailureNotifications;
@@ -34,8 +31,7 @@ export interface TatolabAppSharedState {
 }
 
 /**
- * Start `work` without waiting for it: it may wait on the service manager, the filesystem, the local
- * API or the administrator prompt, and its outcome reaches the window as the next status. A failure
+ * Start `work` without waiting for it: it may wait on the filesystem or the local API, and its outcome reaches the window as the next status. A failure
  * nothing expected is logged under `workName`.
  */
 export function runInTheBackgroundWithTheController(
@@ -61,13 +57,15 @@ export function checkForTatolabAppUpdatesOnRequest(sharedState: TatolabAppShared
   });
 }
 
-/** Quit the app from the tray or the window. The runtime is the service manager's, and keeps running. */
+/** Quit the app from the tray or the window, stopping its runtime with it. */
 export function quitTheTatolabApp(
   tatolabMainWindow: TatolabMainWindow,
+  stopTheRuntimeAsTheAppQuits: () => void,
   exitTheApp: (exitCode: number) => void,
   tatolabAppLog: TatolabAppLog,
 ): void {
-  tatolabAppLog.info("quitting the Tatolab app; the runtime keeps running");
+  tatolabAppLog.info("quitting Tato Studio and its runtime");
+  stopTheRuntimeAsTheAppQuits();
   tatolabMainWindow.letTheWindowCloseAsTheAppQuits();
   exitTheApp(0);
 }

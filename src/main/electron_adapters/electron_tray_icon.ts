@@ -20,15 +20,6 @@ export function createElectronTrayIconHostFactory(trayIconDirectory: string): Tr
                 return { type: "separator" };
               case "item":
                 return { id: trayMenuItem.id, label: trayMenuItem.label, enabled: trayMenuItem.enabled, click: () => onMenuItemClicked(trayMenuItem.id) };
-              case "check_item":
-                return {
-                  type: "checkbox",
-                  id: trayMenuItem.id,
-                  label: trayMenuItem.label,
-                  enabled: trayMenuItem.enabled,
-                  checked: trayMenuItem.checked,
-                  click: () => onMenuItemClicked(trayMenuItem.id),
-                };
             }
           });
           this.tray.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate));

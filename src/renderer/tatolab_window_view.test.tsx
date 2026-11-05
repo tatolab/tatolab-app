@@ -135,7 +135,7 @@ describe("the studio", () => {
   });
 
   it("shows a project's streams waiting on the runtime while it lists none", async () => {
-    await mountedWindowOverTheMock("state=stopped");
+    await mountedWindowOverTheMock("state=not-running");
     await waitFor(() => outlinerRow(`project:${PATTERN_PROJECT}/waiting`));
     expect(outlinerRow(`project:${PATTERN_PROJECT}/waiting`).textContent).toBe("Streams and nodes not read yet");
   });
@@ -352,7 +352,7 @@ describe("Preferences", () => {
     expect(settingsPage.textContent).not.toMatch(/Python/);
   });
 
-  it("shows a refused restart in the service manager's words, and offers none while Run Tatolab is off", { timeout: 5_000 }, async () => {
+  it("shows a refused restart in the app's words, and offers none while the runtime starts", { timeout: 5_000 }, async () => {
     await mountedWindowOverTheMock("state=running&restart=refused");
     await openSettingsOn("runtime");
 
@@ -360,13 +360,13 @@ describe("Preferences", () => {
 
     await waitFor(() =>
       expect(within(settingsRow("runtime-status")).getByRole("alert").textContent).toContain(
-        "launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 5): Input/output error",
+        "The runtime running now was not started by Tato Studio, so Tato Studio leaves it alone.",
       ),
     );
     document.body.replaceChildren();
-    await mountedWindowOverTheMock("state=stopped");
+    await mountedWindowOverTheMock("state=starting");
     await openSettingsOn("runtime");
-    expect(textOf("[data-runtime-status-words]")).toBe("Stopped");
+    expect(textOf("[data-runtime-status-words]")).toBe("Starting");
     expect(within(settingsRow("runtime-status")).getByRole("button", { name: "Restart runtime" }).hasAttribute("disabled")).toBe(true);
   });
 
@@ -434,14 +434,14 @@ describe("Preferences", () => {
     await waitFor(() => expect(notificationsSwitch.getAttribute("aria-checked")).toBe("true"), { timeout: 5_000 });
   });
 
-  it("colours a runtime that is not responding and says why", async () => {
-    await mountedWindowOverTheMock("state=unreachable");
+  it("colours a runtime that is not running and says why in the app's words", async () => {
+    await mountedWindowOverTheMock("state=not-running");
     await openSettingsOn("runtime");
 
     const statusWords = document.querySelector<HTMLElement>("[data-runtime-status-words]") ?? expect.unreachable("no status words");
-    expect(statusWords.textContent).toBe("Not responding");
+    expect(statusWords.textContent).toBe("Not running");
     expect(statusWords.classList.contains("text-danger-text")).toBe(true);
-    expect(within(settingsRow("runtime-status")).getByText(/hasn't answered for over 20 seconds/)).toBeTruthy();
+    expect(within(settingsRow("runtime-status")).getByText("The runtime stopped: it exited with status 1. Tato Studio starts it again shortly.")).toBeTruthy();
   });
 
   it("names the tatolab command's path and version, and how a coding agent starts tatolab mcp", async () => {
@@ -465,173 +465,36 @@ describe("Preferences", () => {
   });
 });
 
-
-function gettingStartedControl(action: string): HTMLElement {
-  return document.querySelector<HTMLElement>(`[data-getting-started-action="${action}"]`) ?? expect.unreachable(`no ${action} on first run`);
-}
-
-describe("first run on macOS", () => {
-  it("opens on Getting set up, ticks Start the runtime as it starts, and Get Started opens the studio", async () => {
-    const { showStatusAsTheBackendWould, backend } = await mountedWindowOverTheMock("state=setup");
-
-    expect(document.querySelector('[data-getting-started-screen="getting_set_up"]')).not.toBeNull();
-    expect(document.querySelector("[data-studio-window]")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Getting set up" })).toBeTruthy();
-    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Starting…");
-    expect(gettingStartedControl("get_started").hasAttribute("disabled")).toBe(true);
-
-    await showStatusAsTheBackendWould({ ...(await backend.getTatolabStatus()), runtime_state: "running", streams: [] });
-    expect(document.querySelector('[data-getting-started-step="start_the_runtime"]')?.getAttribute("data-checklist-step-progress")).toBe("done");
-    fireEvent.click(gettingStartedControl("get_started"));
-
-    await waitFor(() => expect(document.querySelector('[data-getting-started-screen]')).toBeNull());
-    expect(document.querySelector("[data-studio-window]")).not.toBeNull();
-  });
-
-  it("shows a step for macOS's approval with Open Login Items, and a blocked runtime as the start step retrying with nothing to press", async () => {
-    await mountedWindowOverTheMock("state=approval&first_run=unfinished");
-    expect(textOf('[data-getting-started-step="approve_in_login_items"]')).toContain("Allow in the Background");
-    expect(document.querySelector('[data-getting-started-step-action="open_login_items"]')?.textContent).toBe("Open Login Items…");
-    document.body.replaceChildren();
-
-    await mountedWindowOverTheMock("state=blocked&first_run=unfinished");
-    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Retrying…");
-    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Blocked by macOS");
-    expect(document.querySelector("[data-getting-started-step-action]")).toBeNull();
-  });
-
-  it("takes keyboard focus at Getting set up as first run opens", async () => {
-    await mountedWindowOverTheMock("state=setup");
-    await waitFor(() => expect(document.activeElement?.textContent).toBe("Getting set up"));
-  });
-
-  it("drops a step's refusal once the step has moved on", async () => {
-    const { showStatusAsTheBackendWould, backend } = await mountedWindowOverTheMock("state=stopped&first_run=unfinished", {
-      setRunTatolab: () => Promise.reject("the service manager refused it"),
-    });
-    fireEvent.click(document.querySelector<HTMLElement>('[data-getting-started-step-action="turn_on_run_tatolab"]') ?? expect.unreachable("no Turn On Tatolab"));
-    await waitFor(() => expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Couldn't turn Tatolab on: the service manager refused it"));
-
-    await showStatusAsTheBackendWould({ ...(await backend.getTatolabStatus()), runtime_state: "running", streams: [] });
-    expect(textOf('[data-getting-started-step="start_the_runtime"]')).not.toContain("refused");
-  });
-
-  it("opens the studio even when Get Started can't be remembered, and says so there", async () => {
-    const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=setup")));
-    const { showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=setup", {
-      rememberFirstRunFinished: async () => {
-        await mockBackend.rememberFirstRunFinished();
-        throw "EACCES: permission denied, open '/Users/ada/Library/Application Support/com.tatolab.tatolab/first-run-finished.json'";
-      },
-    });
-    await showStatusAsTheBackendWould({ ...(await mockBackend.getTatolabStatus()), runtime_state: "running", streams: [] });
-    fireEvent.click(gettingStartedControl("get_started"));
-    await showStatusAsTheBackendWould({ ...(await mockBackend.getTatolabStatus()), first_run_finished: true, runtime_state: "running", streams: [] });
-
-    await waitFor(() => expect(textOf("[data-first-run-finishing-refusal]")).toContain("Getting set up shows again next time it opens. EACCES"));
-    expect(document.querySelector("[data-studio-window]")).not.toBeNull();
-  });
-
-  it("never says not responding for a start that never answered", async () => {
-    await mountedWindowOverTheMock("state=never-answered&first_run=unfinished");
-    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("The runtime didn't start");
-    expect(document.body.textContent).not.toContain("not responding");
-  });
-
-  it("keeps Linux on its installer screen and never shows Getting set up", async () => {
-    await mountedWindowOverTheMock("platform=linux&state=setup");
-    expect(document.querySelector("[data-getting-started-screen]")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Install the Tatolab runtime" })).toBeTruthy();
+describe("opening the window", () => {
+  it("opens on the Projects window, with no setup screen, while the runtime runs, starts or is not running", async () => {
+    for (const pageQuery of ["state=running&project=none", "state=starting&project=none", "state=not-running&project=none", "platform=linux&state=starting&project=none"]) {
+      await mountedWindowOverTheMock(pageQuery);
+      await waitFor(() => expect(document.querySelector("[data-projects]")).not.toBeNull());
+      expect(document.body.textContent).not.toContain("Getting set up");
+      expect(document.body.textContent).not.toContain("Install the Tatolab runtime");
+      document.body.replaceChildren();
+    }
   });
 });
 
-
-const MOCK_ADMINISTRATOR_PROMPT_WAIT_MILLISECONDS = 6_000;
-
-describe("Preferences › Command line › Link in /usr/local/bin", () => {
-  it("warns that the prompt says osascript, waits for the password, then shows the link", async () => {
-    await mountedWindowOverTheMock("state=running");
+describe("Preferences › Command line › tatolab", () => {
+  it("links ~/.local/bin/tatolab with no password, then shows the link and the PATH line", async () => {
+    await mountedWindowOverTheMock("state=running&cli_link=not_linked");
     await openSettingsOn("command-line");
 
-    expect(settingsRow("usr-local-bin-link").textContent).toContain("osascript wants to make changes");
-    fireEvent.click(within(settingsRow("usr-local-bin-link")).getByRole("button", { name: "Link in /usr/local/bin…" }));
-    expect(within(settingsRow("usr-local-bin-link")).getByText("Waiting for your password…")).toBeTruthy();
-    await waitFor(() => expect(settingsRow("usr-local-bin-link").textContent).toContain("Linked at /usr/local/bin/tatolab"), {
-      timeout: MOCK_ADMINISTRATOR_PROMPT_WAIT_MILLISECONDS,
-    });
-  }, 10_000);
+    expect(settingsRow("command-line-tool").textContent).toContain("No password is asked.");
+    expect(document.querySelector("[data-command-line-path-line]")).toBeNull();
+    fireEvent.click(within(settingsRow("command-line-tool")).getByRole("button", { name: "Link tatolab" }));
+    await waitFor(() => expect(within(settingsRow("command-line-tool")).getByText("~/.local/bin/tatolab")).toBeTruthy());
+    expect(textOf("[data-command-line-path-line]")).toContain('export PATH="$HOME/.local/bin:$PATH"');
+    expect(within(settingsRow("command-line-tool")).queryByRole("button", { name: "Link tatolab" })).toBeNull();
+  });
 
-  it("says a cancelled prompt changed nothing", async () => {
-    await mountedWindowOverTheMock("state=running&usr_local_bin=cancel");
+  it("leaves a name something else holds alone and offers no link", async () => {
+    await mountedWindowOverTheMock("state=running&cli_link=taken");
     await openSettingsOn("command-line");
-    fireEvent.click(within(settingsRow("usr-local-bin-link")).getByRole("button", { name: "Link in /usr/local/bin…" }));
-    await waitFor(() => expect(settingsRow("usr-local-bin-link").textContent).toContain("The password prompt was cancelled, so nothing changed."), {
-      timeout: MOCK_ADMINISTRATOR_PROMPT_WAIT_MILLISECONDS,
-    });
-  }, 10_000);
 
-  it("is not shown on Linux, whose installer links the command", async () => {
-    await mountedWindowOverTheMock("platform=linux&state=running");
-    await openSettingsOn("command-line");
-    expect(document.querySelector('[data-settings-row="usr-local-bin-link"]')).toBeNull();
-  });
-});
-
-
-describe("installing the runtime the app carries", () => {
-  const CARRIED_RUNTIME_BUILD = `0.56.0-4f1d0c3${"a".repeat(33)}`;
-
-  it("fills the window with the installer's lines while it runs, holding every action and shortcut, and gives the window back once it ends", async () => {
-    const { backend, showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=running");
-    const runningStatus = await backend.getTatolabStatus();
-
-    await showStatusAsTheBackendWould({
-      ...runningStatus,
-      runtime_install: { kind: "installing", carried_runtime_build: CARRIED_RUNTIME_BUILD, installer_lines: ["Stopping the runtime", `Starting Tatolab ${CARRIED_RUNTIME_BUILD}`] },
-    });
-
-    const overlay = document.querySelector<HTMLElement>('[data-runtime-install-overlay="installing"]') ?? expect.unreachable("no install overlay");
-    expect(within(overlay).getByRole("heading", { name: "Updating the runtime" })).toBeTruthy();
-    expect(overlay.textContent).toContain("Your streams stop for a moment and come back on it.");
-    expect(document.querySelector("[data-runtime-install-lines]")?.textContent).toBe(`Stopping the runtime\nStarting Tatolab ${CARRIED_RUNTIME_BUILD}`);
-    expect(document.querySelector("[data-runtime-install-action]")).toBeNull();
-    expect(document.querySelector("[data-studio-window]")).toBeNull();
-    fireEvent.keyDown(document, { key: ",", metaKey: true });
-    expect(document.querySelector("[data-settings-page]")).toBeNull();
-
-    await showStatusAsTheBackendWould({ ...runningStatus, runtime_install: { kind: "none" } });
-    await waitFor(() => expect(document.querySelector("[data-runtime-install-overlay]")).toBeNull());
-    expect(document.querySelector("[data-studio-window]")).not.toBeNull();
-  });
-
-  it("keeps a refusal up in the installer's own words, and Try again runs the installer again", async () => {
-    const installsAgain: string[] = [];
-    const { backend, showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=running", {
-      installTheCarriedRuntimeAgain: async () => {
-        installsAgain.push("try_again");
-      },
-    });
-    const refusal = `tatolab install: Tatolab ${CARRIED_RUNTIME_BUILD}'s service did not start, so 0.55.2 is back in place.`;
-
-    await showStatusAsTheBackendWould({
-      ...(await backend.getTatolabStatus()),
-      runtime_install: { kind: "failed", carried_runtime_build: CARRIED_RUNTIME_BUILD, installer_lines: ["Stopping the runtime"], refusal },
-    });
-
-    const overlay = document.querySelector<HTMLElement>('[data-runtime-install-overlay="failed"]') ?? expect.unreachable("no refused install");
-    expect(within(overlay).getByRole("heading", { name: "The runtime didn't update" })).toBeTruthy();
-    expect(within(overlay).getByRole("alert").textContent).toBe(`The installer said: ${refusal}`);
-    expect(document.querySelector('[data-runtime-install-action="open_log"]')).not.toBeNull();
-    fireEvent.click(document.querySelector<HTMLElement>('[data-runtime-install-action="try_again"]') ?? expect.unreachable("no Try again"));
-    await waitFor(() => expect(installsAgain).toEqual(["try_again"]));
-  });
-
-  it("shows the installed build and its folder in Preferences › Runtime", async () => {
-    await mountedWindowOverTheMock("state=running");
-    await openSettingsOn("runtime");
-
-    const installedRuntimeRow = document.querySelector<HTMLElement>('[data-settings-row="installed-runtime"]') ?? expect.unreachable("no Installed runtime row");
-    expect(installedRuntimeRow.textContent).toContain("0.55.2 (ec6adf5)");
-    expect(installedRuntimeRow.textContent).toContain("/Users/jonathanf/Library/Application Support/com.tatolab.runtime/0.55.2-ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a");
+    expect(settingsRow("command-line-tool").textContent).toContain("is not a link to Tatolab, so Tato Studio leaves it alone.");
+    expect(within(settingsRow("command-line-tool")).queryByRole("button", { name: "Link tatolab" })).toBeNull();
   });
 });

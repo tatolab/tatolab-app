@@ -53,12 +53,8 @@ async function aTatolabStatus(): Promise<TatolabStatus> {
 describe("createElectronTatolabBackend", () => {
   it("sends each command under its name with its arguments", async () => {
     const fakeBridge = fakeTatolabElectronBridge({
-      set_run_tatolab: { ok: true, value: null },
-      open_login_items_settings: { ok: true, value: null },
-      remember_first_run_finished: { ok: true, value: null },
-      link_command_line_tool_in_usr_local_bin: { ok: true, value: null },
+      link_command_line_tool: { ok: true, value: null },
       quit_tatolab_app: { ok: true, value: null },
-      uninstall_tatolab: { ok: true, value: null },
       read_project_log_records: { ok: true, value: { project_directory: "/p", records: [], next_after: "1:90", records_no_longer_held: false } },
       describe_stream_graph: { ok: true, value: { stream: "camera", nodes: [], links: [], exposed: [], graph_document_text: "{}" } },
       open_stream_project_folder: { ok: true, value: null },
@@ -67,12 +63,8 @@ describe("createElectronTatolabBackend", () => {
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
 
-    await backend.setRunTatolab(false);
-    await backend.openLoginItemsSettings();
-    await backend.rememberFirstRunFinished();
-    await backend.linkCommandLineToolInUsrLocalBin();
+    await backend.linkCommandLineTool();
     await backend.quitTatolabApp();
-    await backend.uninstallTatolab();
     await backend.readProjectLogRecords("/p", { stream: "camera", action: null }, "1:40");
     await backend.describeStreamGraph("camera");
     await backend.openStreamProjectFolder("camera");
@@ -80,12 +72,8 @@ describe("createElectronTatolabBackend", () => {
     await backend.openStreamLogFolder("camera");
 
     expect(fakeBridge.invokedCommands).toEqual([
-      ["set_run_tatolab", { enabled: false }],
-      ["open_login_items_settings", undefined],
-      ["remember_first_run_finished", undefined],
-      ["link_command_line_tool_in_usr_local_bin", undefined],
+      ["link_command_line_tool", undefined],
       ["quit_tatolab_app", undefined],
-      ["uninstall_tatolab", undefined],
       ["read_project_log_records", { project_directory: "/p", stream: "camera", action: null, after: "1:40" }],
       ["describe_stream_graph", { stream: "camera" }],
       ["open_stream_project_folder", { stream: "camera" }],
@@ -99,19 +87,16 @@ describe("createElectronTatolabBackend", () => {
     const fakeBridge = fakeTatolabElectronBridge({
       describe_runtime: { ok: true, value: runtimeDescription },
       restart_runtime: { ok: true, value: null },
-      install_the_carried_runtime_again: { ok: false, refusal: "tatolab install: Tatolab 0.68.0 did not start; Tatolab 0.67.0 is running again" },
       open_runtime_log_folder: { ok: false, refusal: "The runtime keeps no log of its own, so there is no folder to open." },
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
 
     expect(await backend.describeRuntime()).toEqual(runtimeDescription);
     await backend.restartRuntime();
-    await expect(backend.installTheCarriedRuntimeAgain()).rejects.toBe("tatolab install: Tatolab 0.68.0 did not start; Tatolab 0.67.0 is running again");
     await expect(backend.openRuntimeLogFolder()).rejects.toBe("The runtime keeps no log of its own, so there is no folder to open.");
     expect(fakeBridge.invokedCommands).toEqual([
       ["describe_runtime", undefined],
       ["restart_runtime", undefined],
-      ["install_the_carried_runtime_again", undefined],
       ["open_runtime_log_folder", undefined],
     ]);
   });

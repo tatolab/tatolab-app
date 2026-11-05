@@ -15,6 +15,7 @@ import {
 import { TATOLAB_APP_IDENTIFIER } from "../platform/tatolab_app_identifier.js";
 import { tatolabPlatformItemsForThisBuild } from "../platform/tatolab_platform_items.js";
 import type { TatolabPlatformHostServices } from "../platform/tatolab_platform_for_this_build.js";
+import { startTheCarriedRuntimeAsAChildProcess } from "../platform/carried_runtime_child_process.js";
 import { TATOLAB_WINDOW_PAGE_URL } from "../tatolab_window_page_source.js";
 import { runtimeLoopbackHttpOriginForThisBuild } from "../runtime_loopback_watch_page.js";
 import { electronApplicationMenu } from "./electron_application_menu.js";
@@ -28,7 +29,6 @@ import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_hand
 import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
 import { createElectronSystemNotifications } from "./electron_system_notifications.js";
 import { ELECTRON_APP_LOGIN_ITEM_SETTINGS } from "./electron_app_login_item_settings.js";
-import { ELECTRON_TATOLAB_UNINSTALL_APP_SURFACE } from "./electron_tatolab_uninstall_app_surface.js";
 import { createElectronTrayIconHostFactory } from "./electron_tray_icon.js";
 import { registerTheWindowPageSchemeBeforeReady, serveTheBuiltWindow } from "./electron_window_page_protocol.js";
 
@@ -48,14 +48,13 @@ const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   homeDirectory: app.getPath("home"),
   appExecutable: process.execPath,
   appIsPackaged: app.isPackaged,
-  appConfigDirectory: path.join(app.getPath("appData"), TATOLAB_APP_IDENTIFIER),
   appResourcesDirectory: process.resourcesPath,
-  tatolabUninstallAppSurface: ELECTRON_TATOLAB_UNINSTALL_APP_SURFACE,
   appLoginItemSettings: ELECTRON_APP_LOGIN_ITEM_SETTINGS,
 };
+const appConfigDirectory = path.join(app.getPath("appData"), TATOLAB_APP_IDENTIFIER);
 // Chromium's profile would otherwise land in `<appData>/<productName>`, beside the app's own config
 // directory rather than in it.
-app.setPath("userData", tatolabPlatformHostServices.appConfigDirectory);
+app.setPath("userData", appConfigDirectory);
 registerTheWindowPageSchemeBeforeReady();
 
 function windowDevServerUrlNamedIn(windowDevServerUrlText: string | undefined): string | null {
@@ -107,7 +106,8 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   repeatingTimer: (intervalMs, work) => {
     setInterval(work, intervalMs);
   },
-  appConfigDirectory: tatolabPlatformHostServices.appConfigDirectory,
+  startTheCarriedRuntime: startTheCarriedRuntimeAsAChildProcess,
+  appConfigDirectory,
   runtimeLoopbackHttpOrigin,
   readMonotonicClockMs: () => performance.now(),
   // The one wall-clock read in the main process: it stamps when a project was opened, which the Projects window only displays.

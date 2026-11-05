@@ -1,90 +1,57 @@
-// macOS: streamlib's installer installs the runtime helper the app carries and writes its launch
-// agent, which the app loads and unloads through `launchctl`; the app links the installed CLI in
-// `/usr/local/bin` behind the administrator prompt when asked, "Uninstall Tato Studio…" removes it all,
-// and Terminal.app opens a stream's project.
+// macOS: the app runs the runtime helper its bundle carries as its own child, links the CLI beside
+// it at `~/.local/bin/tatolab`, and opens a stream's project in Terminal.app.
 
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import { CarriedRuntimeUnitInstalledByStreamlibsInstaller } from "../carried_runtime_unit_installed_by_streamlibs_installer.js";
+import { LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT } from "../../runtime_loopback_watch_page.js";
+import { CommandLineToolLinkInTheHomeFolder } from "../command_line_tool_link_in_the_home_folder.js";
 import { currentProcessUid } from "../current_process_uid.js";
-import { runProgramStreamingItsLines } from "../run_program_streaming_its_lines.js";
-import { runProgramToCompletion } from "../run_program_to_completion.js";
-import { TATOLAB_APP_IDENTIFIER } from "../tatolab_app_identifier.js";
-import { tatolabCommandLineToolAt } from "../tatolab_command_line_tool.js";
+import { NO_TATOLAB_COMMAND_LINE_TOOL_REFUSAL, tatolabCommandLineToolAt } from "../tatolab_command_line_tool.js";
+import { localProofRuntimeEnvironment } from "../tatolab_machine_paths.js";
 import type { TatolabPlatformForThisBuild, TatolabPlatformHostServices } from "../tatolab_platform_for_this_build.js";
 import { tatolabAppNotOpenedAtLogin, UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL } from "../tatolab_app_opened_at_login.js";
-import { OSASCRIPT_AT_ITS_SYSTEM_PATH, OsascriptAdministratorPrompt } from "./administrator_prompt.js";
-import { CommandLineToolLinksOnThisMac } from "./command_line_tool_links_on_this_mac.js";
-import {
-  CAFFEINATE_WAITING_FOR_THE_PROCESS_TO_EXIT,
-  LAUNCHCTL_AT_ITS_SYSTEM_PATH,
-  LaunchctlRuntimeLaunchAgent,
-  OPEN_RUN_AT_ITS_SYSTEM_PATH,
-} from "./launchctl_runtime_launch_agent.js";
-import {
-  appBundleOfTheExecutable,
-  carriedRuntimeUnitLayoutOfTheAppBundle,
-  installedCommandLineToolIn,
-  tatolabMachinePathsOnMacosForThisBuild,
-} from "./tatolab_machine_paths.js";
+import { appBundleOfTheExecutable, carriedCommandLineToolIn, carriedRuntimeExecutableIn, tatolabMachinePathsOnMacosForThisBuild } from "./tatolab_machine_paths.js";
 import { TerminalAppOpenedByOpen } from "./terminal_app_opened_by_open.js";
-import { TatolabUninstallOnThisMac } from "./tatolab_uninstall_on_this_mac.js";
 import { LoginItemOfTheAppBundle } from "./login_item_of_the_app_bundle.js";
-import { legacyLaunchAgentLoginItemsStatusReaderThrough } from "./login_items_status_of_the_legacy_launch_agent.js";
 import { tatolabAppUpdatePackagingOnMacos } from "./tatolab_app_update_packaging_on_macos.js";
 
-/** The installer's launch agent through `launchctl`, the install of the runtime helper a packaged app carries, the links of the installed CLI, and uninstalling them. */
+/** Why there is no `tatolab` link with no absolute home folder to make it in. */
+const NO_HOME_FOLDER_LINK_REFUSAL = "Tato Studio found no home folder to link tatolab in.";
+
+/** The runtime helper a packaged app's bundle carries, run as the app's child, and the CLI beside it linked in the home folder. */
 export async function macosTatolabPlatformForThisBuild(
   tatolabAppLog: TatolabAppLog,
-  { homeDirectory, appExecutable, appIsPackaged, appConfigDirectory, tatolabUninstallAppSurface, appLoginItemSettings }: TatolabPlatformHostServices,
+  { homeDirectory, appExecutable, appIsPackaged, appLoginItemSettings }: TatolabPlatformHostServices,
 ): Promise<TatolabPlatformForThisBuild> {
-  const uid = currentProcessUid();
-  const machinePaths = tatolabMachinePathsOnMacosForThisBuild(uid, homeDirectory);
-  const installedCommandLineTool = installedCommandLineToolIn(machinePaths.runtimeInstallDirectory);
+  const machinePaths = tatolabMachinePathsOnMacosForThisBuild(currentProcessUid(), homeDirectory);
   const packagedAppBundle = appIsPackaged ? await appBundleOfTheExecutable(appExecutable) : null;
+  const carriedCommandLineTool = packagedAppBundle === null ? null : carriedCommandLineToolIn(packagedAppBundle);
   tatolabAppLog.info("Tatolab app paths", {
     local_api_socket: machinePaths.localApiSocket,
-    runtime_install_directory: machinePaths.runtimeInstallDirectory,
-    runtime_launch_agent: machinePaths.runtimeLaunchAgent.plistPath,
-    installed_command_line_tool: installedCommandLineTool,
     carried_runtime_in: packagedAppBundle,
+    command_line_tool_link: machinePaths.commandLineToolHomeFolderLink,
     local_proof_test_machine_root: machinePaths.localProofTestMachineRoot,
   });
-  const administratorPrompt = new OsascriptAdministratorPrompt(OSASCRIPT_AT_ITS_SYSTEM_PATH);
   return {
-    runtimeAgent: new LaunchctlRuntimeLaunchAgent(
-      uid,
-      machinePaths.runtimeLaunchAgent,
-      LAUNCHCTL_AT_ITS_SYSTEM_PATH,
-      OPEN_RUN_AT_ITS_SYSTEM_PATH,
-      CAFFEINATE_WAITING_FOR_THE_PROCESS_TO_EXIT,
-      legacyLaunchAgentLoginItemsStatusReaderThrough(OSASCRIPT_AT_ITS_SYSTEM_PATH),
-    ),
-    commandLineToolLinks: new CommandLineToolLinksOnThisMac(machinePaths, installedCommandLineTool, administratorPrompt, tatolabAppLog),
-    localApiSocket: machinePaths.localApiSocket,
-    tatolabUninstall: new TatolabUninstallOnThisMac(
-      machinePaths,
-      appIsPackaged ? appExecutable : null,
-      appConfigDirectory,
-      TATOLAB_APP_IDENTIFIER,
-      administratorPrompt,
-      runProgramToCompletion,
-      tatolabUninstallAppSurface,
-      tatolabAppLog,
-    ),
-    appUpdatePackaging: tatolabAppUpdatePackagingOnMacos(appIsPackaged),
-    // streamlib's install.sh installs only into the person's home folder and their launch agents, so a
-    // local-proof build, which must never touch either, installs nothing.
-    carriedRuntimeInstall:
-      packagedAppBundle === null || machinePaths.localProofTestMachineRoot !== null
+    carriedRuntime:
+      packagedAppBundle === null
         ? null
-        : new CarriedRuntimeUnitInstalledByStreamlibsInstaller(
-            carriedRuntimeUnitLayoutOfTheAppBundle(packagedAppBundle, machinePaths.runtimeInstallDirectory),
-            machinePaths.runtimeInstallerEnvironment,
-            runProgramToCompletion,
-            runProgramStreamingItsLines,
-          ),
+        : {
+            runtimeExecutable: carriedRuntimeExecutableIn(packagedAppBundle),
+            runtimeEnvironment:
+              machinePaths.localProofTestMachineRoot === null
+                ? {}
+                : localProofRuntimeEnvironment(machinePaths.localProofTestMachineRoot, LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT),
+          },
+    commandLineToolLink:
+      carriedCommandLineTool === null
+        ? CommandLineToolLinkInTheHomeFolder.notOffered(NO_TATOLAB_COMMAND_LINE_TOOL_REFUSAL)
+        : machinePaths.commandLineToolHomeFolderLink === null
+          ? CommandLineToolLinkInTheHomeFolder.notOffered(NO_HOME_FOLDER_LINK_REFUSAL)
+          : CommandLineToolLinkInTheHomeFolder.at(machinePaths.commandLineToolHomeFolderLink, carriedCommandLineTool),
+    localApiSocket: machinePaths.localApiSocket,
+    appUpdatePackaging: tatolabAppUpdatePackagingOnMacos(appIsPackaged),
     terminalOpenedInAFolder: new TerminalAppOpenedByOpen(),
-    tatolabCommandLineTool: tatolabCommandLineToolAt(installedCommandLineTool),
+    tatolabCommandLineTool: tatolabCommandLineToolAt(carriedCommandLineTool),
     tatolabAppOpenedAtLogin: appIsPackaged
       ? new LoginItemOfTheAppBundle(appLoginItemSettings)
       : tatolabAppNotOpenedAtLogin(UNPACKAGED_APP_OPEN_AT_LOGIN_REFUSAL),
