@@ -15,7 +15,7 @@ function storageInMemory() {
 describe("the five layouts", () => {
   it("lays each out after the canvas, the outliner over properties down the right of every one", () => {
     expect(STUDIO_LAYOUTS.map(({ title, shortcut_digit }) => `${title} ${shortcut_digit}`)).toEqual(["Build 1", "Compose 2", "Spatial 3", "Code 4", "Perform 5"]);
-    expect(areaIdsOf(defaultStudioLayout("build"))).toEqual(["scene", "stream-graph", "viewer", "code", "outliner", "properties"]);
+    expect(areaIdsOf(defaultStudioLayout("build"))).toEqual(["viewer", "stream-graph", "outliner", "properties"]);
     expect(areaIdsOf(defaultStudioLayout("compose"))).toEqual(["stream-graph", "viewer", "code", "outliner", "properties"]);
     expect(areaIdsOf(defaultStudioLayout("spatial"))).toEqual(["scene", "viewer", "stream-graph", "outliner", "properties"]);
     expect(areaIdsOf(defaultStudioLayout("code"))).toEqual(["code", "stream-graph", "viewer", "outliner", "properties"]);
@@ -51,7 +51,7 @@ describe("a saved layout", () => {
     const build = defaultStudioLayout("build");
     const withOutlinerInTheViewer = layoutWithAreaSettings(layoutWithAreaShowing(build, "viewer", "outliner"), "viewer", { row_expansion: { imports: true } });
     const resized = layoutWithSplitSizes(withOutlinerInTheViewer, "side", { outliner: 70 });
-    const sideColumn = resized.kind === "split" ? resized.parts[2]?.part : undefined;
+    const sideColumn = resized.kind === "split" ? resized.parts[1]?.part : undefined;
     expect(sideColumn?.kind === "split" && sideColumn.parts.map(({ size_percent }) => size_percent)).toEqual([70, 58]);
     expect(JSON.stringify(resized)).toContain('{"kind":"area","area_id":"viewer","view_type_id":"outliner","settings":{"row_expansion":{"imports":true}}}');
     expect(areaIdsOf(resized)).toEqual(areaIdsOf(build));

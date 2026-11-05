@@ -141,7 +141,11 @@ export function mountTatolabWindow(
     },
     newProject: {
       chooseNewProjectLocation: (startingAt) => backend.chooseNewProjectLocation(startingAt),
-      createNewProject: (name, location) => backend.createNewProject(name, location),
+      createNewProject: async (name, location) => {
+        const created = await backend.createNewProject(name, location);
+        if (created.project_creation !== null) studioWindowModel.openTheNewProjectsStream(created.folder, created.project_creation.stream);
+        return created;
+      },
     },
     platform,
   };

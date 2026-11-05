@@ -187,6 +187,7 @@ describe("the studio", () => {
   it("switches layouts from Window › Layout and with ⌘1 to ⌘5, each keeping its own areas", async () => {
     await mountedWindowOverTheMock("state=running");
     expect(await shownLayout()).toBe("build");
+    expect([...document.querySelectorAll("[data-studio-area]")].map((area) => area.getAttribute("data-studio-area"))).toEqual(["viewer", "stream-graph", "outliner", "properties"]);
 
     fireEvent.keyDown(document, { key: "2", metaKey: true });
     expect(await shownLayout()).toBe("compose");
@@ -230,7 +231,7 @@ describe("the studio", () => {
     expect(screen.getByText("This area's view, venue-3d, isn't in this build")).toBeTruthy();
     fireEvent.keyDown(document, { key: "1", metaKey: true });
     expect(await shownLayout()).toBe("build");
-    expect(document.querySelector('[data-studio-area="scene"]')).not.toBeNull();
+    expect(document.querySelector('[data-studio-area="viewer"]')).not.toBeNull();
   });
 
   it("shows the Projects window with no project open, its recent projects as cards, and opens the one chosen", async () => {
@@ -322,6 +323,9 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-new-project-sheet]")).toBeNull();
     expect(document.querySelector("[data-projects]")).toBeNull();
+    const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true"]));
+    expect(streamTabs.getByRole("tab").textContent).toMatch(/^night-show \//);
   });
 
   it("refuses a name that is no folder name before Create, and a folder already there in the sheet, which stays open", async () => {

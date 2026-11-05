@@ -67,6 +67,9 @@ export class StudioWindowModel {
   /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
   readonly projectRunRefusal = new WatchedStudioValue<{ asked_to: "run" | "stop"; because: string } | null>(null);
 
+  /** The stream a project New project just made opens on, until that project is the open one. */
+  private streamOfTheNewProjectAwaitingItsOpening: { project_folder: string; stream: string } | null = null;
+
   constructor(private readonly layoutsKept: StudioLayoutsKeptInStorage) {}
 
   /** What the views are served from this model. */
@@ -99,11 +102,27 @@ export class StudioWindowModel {
     this.selection.publish({ kind: "nothing" });
     this.publishStreamTabs({ tabs: [], active_stream: null });
     this.studioLayouts.publish(folderNow === null ? null : this.layoutsKept.readLayoutsOf(folderNow));
+    this.openTheNewProjectsStreamOnceItsProjectIsOpen();
   }
 
-  /** Show the streams `status` lists; a tab whose stream the runtime no longer lists stays open on its last address. */
+  /** Open the tab of `stream`, the stream of the project New project just made in `projectFolder`, as that project opens, or now when it is already open. */
+  openTheNewProjectsStream(projectFolder: string, stream: string): void {
+    this.streamOfTheNewProjectAwaitingItsOpening = { project_folder: projectFolder, stream };
+    this.openTheNewProjectsStreamOnceItsProjectIsOpen();
+  }
+
+  /**
+   * Show the streams `status` lists; a tab whose stream the runtime no longer lists stays open on its last address, and a tab
+   * named by its stream's id until the runtime listed it takes the name the runtime lists it under.
+   */
   showStatus(status: TatolabStatus): void {
-    this.listedStreams.publish(listedStreamsReadingOf(status));
+    const listedStreams = listedStreamsReadingOf(status);
+    this.listedStreams.publish(listedStreams);
+    if (listedStreams.kind !== "listed") return;
+    const { tabs, active_stream } = this.openStreamTabs.readLatest();
+    const displayNameListedFor = (tab: StreamTabAddress) => listedStreams.streams.find((listing) => listing.stream === tab.stream)?.display_name ?? tab.display_name;
+    if (tabs.every((tab) => tab.display_name !== tab.stream || displayNameListedFor(tab) === tab.display_name)) return;
+    this.publishStreamTabs({ tabs: tabs.map((tab) => (tab.display_name === tab.stream ? { ...tab, display_name: displayNameListedFor(tab) } : tab)), active_stream });
   }
 
   /** Open `streamTab`, or show it where it is already open. */
@@ -158,6 +177,19 @@ export class StudioWindowModel {
   /** Keep the sizes a drag left split `splitId` of the chosen layout at. */
   keepSplitSizes(splitId: string, sizePercentByPartId: Readonly<Record<string, number>>): void {
     this.changeChosenLayoutTree((tree) => layoutWithSplitSizes(tree, splitId, sizePercentByPartId));
+  }
+
+  private openTheNewProjectsStreamOnceItsProjectIsOpen(): void {
+    const awaited = this.streamOfTheNewProjectAwaitingItsOpening;
+    if (awaited === null || openProjectFolderOf(this.openProject.readLatest()) !== awaited.project_folder) return;
+    this.streamOfTheNewProjectAwaitingItsOpening = null;
+    const listedStreams = this.listedStreams.readLatest();
+    const listedDisplayName = listedStreams.kind === "listed" ? listedStreams.streams.find((listing) => listing.stream === awaited.stream)?.display_name : undefined;
+    this.openStreamTab({
+      stream: awaited.stream,
+      project_name: this.projectNameOfTheFolder(awaited.project_folder) ?? awaited.project_folder.split(/[\\/]/).filter((pathPart) => pathPart !== "").at(-1) ?? awaited.project_folder,
+      display_name: listedDisplayName ?? awaited.stream,
+    });
   }
 
   private projectNameOfTheFolder(projectFolder: string): string | null {

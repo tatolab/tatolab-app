@@ -42,8 +42,7 @@ export function defaultStudioLayout(layoutName: StudioLayoutName): StudioAreaLay
   switch (layoutName) {
     case "build":
       return split("build-columns", "row", [
-        [57, split("build-left", "column", [[50, area("scene", null)], [50, area("stream-graph", "stream_graph")]])],
-        [25, split("build-middle", "column", [[50, area("viewer", "viewer")], [50, area("code", "code")]])],
+        [82, split("build-main", "column", [[42, area("viewer", "viewer")], [58, area("stream-graph", "stream_graph")]])],
         [18, sideColumn()],
       ]);
     case "compose":

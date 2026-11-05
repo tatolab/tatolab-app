@@ -1143,9 +1143,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (nameRefusal !== null) throw nameRefusal;
       const folder = `${location}/${name.trim()}`;
       if (mockFoldersOnDisk().includes(folder)) throw `${folder} already exists. Choose another name or location.`;
+      projectFolders.set(folder, { streamFunctions: ["main"], hasAPythonEnvironment: false });
+      const action = queueAMockProjectLoad(folder);
       const newReading = mockNewProjectReading(folder, name.trim());
       openTheProjectInTheMock(newReading, folder, newReading.kind === "read" ? newReading.open_project.project.name : null);
-      return { folder, project_creation: { action: nextStreamActionId(), stream: mockStreamIdOf({ project_directory: folder, stream_function: "stream:main" }), project_directory: folder } };
+      return { folder, project_creation: { action, stream: mockStreamIdOf({ project_directory: folder, stream_function: "stream:main" }), project_directory: folder } };
     },
     readOpenProject: async () => structuredClone(openProjectReading),
     readRecentProjects: async () => {
