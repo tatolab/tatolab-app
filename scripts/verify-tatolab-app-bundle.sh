@@ -151,21 +151,24 @@ verify_app_bundle() {
     || fail "Tatolab Runtime.app's Resources/streamlib-commit names no streamlib commit: which runtime this bundles is unknown"
   plutil -extract NSAppTransportSecurity xml1 -o - "$info_plist" >/dev/null 2>&1 \
     && fail "Info.plist carries Electron's NSAppTransportSecurity exception" || pass "Info.plist carries no App Transport Security exception"
-  local usage_key usage_description usage_info_plist
+  # Each privacy prompt names what asks: the app's own Info.plist names Tato Studio, the runtime
+  # helper's names the Tatolab runtime.
+  local usage_key usage_description usage_info_plist usage_names
   for usage_info_plist in "$info_plist" "$helper_info_plist"; do
+    if [ "$usage_info_plist" = "$info_plist" ]; then usage_names="Tato Studio"; else usage_names="Tatolab"; fi
     while IFS= read -r usage_key; do
       [ -n "$usage_key" ] || continue
       case "$(plutil -extract "$usage_key" raw -o - "$usage_info_plist" 2>/dev/null)" in
-        *Tatolab*) ;;
-        *) fail "${usage_info_plist#"$contents/"}'s $usage_key does not name Tatolab" ;;
+        *"$usage_names"*) ;;
+        *) fail "${usage_info_plist#"$contents/"}'s $usage_key does not name $usage_names" ;;
       esac
     done < <(plutil -convert xml1 -o - "$usage_info_plist" 2>/dev/null | sed -n 's|.*<key>\([A-Za-z]*UsageDescription\)</key>.*|\1|p')
     for usage_key in "${required_usage_description_keys[@]}"; do
       usage_description="$(plutil -extract "$usage_key" raw -o - "$usage_info_plist" 2>/dev/null || true)"
       case "$usage_description" in
-        *Tatolab*) pass "${usage_info_plist#"$contents/"}'s $usage_key names Tatolab" ;;
+        *"$usage_names"*) pass "${usage_info_plist#"$contents/"}'s $usage_key names $usage_names" ;;
         "") fail "${usage_info_plist#"$contents/"} has no $usage_key" ;;
-        *) fail "${usage_info_plist#"$contents/"}'s $usage_key does not name Tatolab: $usage_description" ;;
+        *) fail "${usage_info_plist#"$contents/"}'s $usage_key does not name $usage_names: $usage_description" ;;
       esac
     done
   done
