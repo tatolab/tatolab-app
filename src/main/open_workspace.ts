@@ -137,7 +137,7 @@ export class OpenWorkspaceFolder {
     const folder = await realPathOrAsGiven(path.resolve(projectCreation?.project_directory ?? chosenFolder.value));
     await this.openTheFolder(folder);
     const remembered = await this.sources.rememberedOpenWorkspaceFolder.rememberFolder(folder);
-    if (!remembered.ok) return failedWith(`${folder} is open, but Tatolab could not remember it for next time: ${remembered.failure}`);
+    if (!remembered.ok) return failedWith(`${folder} is open, but Spudnik Studio could not remember it for next time: ${remembered.failure}`);
     return succeeded({ folder, project_creation: projectCreation });
   }
 

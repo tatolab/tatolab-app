@@ -54,7 +54,7 @@ export interface TatolabWindowEnvironment {
   linuxRuntimeInstallScreen: TatolabWindowPage | null;
   /** The runtime's version, uptime and log folder, read while Preferences shows them. */
   runtimeDescriptionReadings: RuntimeDescriptionReadings;
-  /** Open the sheet "Uninstall Tatolab…" asks to confirm in. */
+  /** Open the sheet "Uninstall Spudnik Studio…" asks to confirm in. */
   openUninstallSheet(): void;
   /** Why the last uninstall was refused, which Preferences shows under Uninstall Tatolab…, until the sheet opens again. */
   uninstallTatolabRefusal: RefusalKeptForTheWindow;

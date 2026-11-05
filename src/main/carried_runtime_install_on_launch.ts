@@ -64,7 +64,7 @@ export class CarriedRuntimeInstallOnLaunch {
 
   /** "Try again" after a refused install; refused while one runs, and where the app carries no runtime. */
   async installTheCarriedRuntimeAgain(): Promise<Result<CarriedRuntimeInstallOutcome, string>> {
-    if (this.carriedRuntimeInstall === null) return failedWith("This build of Tatolab carries no runtime to install.");
+    if (this.carriedRuntimeInstall === null) return failedWith("This build of Spudnik Studio carries no runtime to install.");
     if (this.isInstalling()) return failedWith("The runtime is already being installed.");
     return succeeded(await this.installTheCarriedRuntimeIfItDiffers());
   }

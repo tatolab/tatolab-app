@@ -1,10 +1,10 @@
-cask "tatolab" do
+cask "spudnik-studio" do
   version "@VERSION@"
   sha256 "@SHA256@"
 
-  url "https://github.com/tatolab/streamlib/releases/download/v#{version}/Tatolab-#{version}-arm64.dmg"
-  name "Tatolab"
-  desc "Real-time streaming runtime for cameras, audio and GPU pipelines"
+  url "https://github.com/tatolab/streamlib/releases/download/v#{version}/Spudnik-Studio-#{version}-arm64.dmg"
+  name "Spudnik Studio"
+  desc "Graph-first creative studio for real-time camera, audio and GPU streams"
   homepage "https://tatolab.com/"
 
   livecheck do
@@ -16,7 +16,7 @@ cask "tatolab" do
   depends_on arch: :arm64
   depends_on macos: :sequoia
 
-  app "Tatolab.app"
+  app "Spudnik Studio.app"
 
   uninstall launchctl: "com.tatolab.tatolabd",
             quit:      "com.tatolab.tatolab",

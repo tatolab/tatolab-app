@@ -31,7 +31,7 @@ declare global {
   }
 }
 
-/** The app backend's commands and status event, real inside Tatolab.app or mocked in a browser. */
+/** The app backend's commands and status event, real inside the packaged app or mocked in a browser. */
 export interface TatolabBackend {
   getTatolabStatus(): Promise<TatolabStatus>;
   setRunTatolab(enabled: boolean): Promise<void>;
@@ -120,7 +120,7 @@ export interface TatolabBackend {
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
 }
 
-/** Where the page runs: Tatolab.app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */
+/** Where the page runs: the packaged app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */
 export type TatolabWindowHost =
   | { kind: "electron"; tatolabElectronBridge: TatolabElectronBridge }
   | { kind: "electron_without_its_bridge" }

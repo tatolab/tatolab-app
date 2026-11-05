@@ -1,4 +1,4 @@
-// "Open Tatolab at login" on Linux: an XDG autostart entry, `Tatolab.desktop` in
+// "Open Spudnik Studio at login" on Linux: an XDG autostart entry, `Tatolab.desktop` in
 // `$XDG_CONFIG_HOME/autostart/` (`~/.config/autostart/`), which the desktop session opens at login.
 // Electron has no login-item settings on Linux. The app writes the entry when the person turns the
 // switch on and removes it when they turn it off; nothing else of theirs is touched.
@@ -12,7 +12,7 @@ import { describeCaughtFailure, failedWith, succeeded, type Result } from "../..
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
 import type { TatolabAppOpenedAtLogin } from "../tatolab_app_opened_at_login.js";
 
-/** The autostart entry's file name, matching the installed desktop entry's. */
+/** The autostart entry's file name, matching the installed desktop entry's; it keeps the name earlier builds wrote, so an entry the person already has is still the one the switch reads. */
 export const TATOLAB_AUTOSTART_DESKTOP_ENTRY_FILE_NAME = "Tatolab.desktop";
 
 /** `$XDG_CONFIG_HOME/autostart`, or `$HOME/.config/autostart` where `$XDG_CONFIG_HOME` is unset, empty or relative, as the XDG Base Directory spec says. */
@@ -36,8 +36,8 @@ export function tatolabAutostartDesktopEntry(appProgramPath: string): string {
   return [
     "[Desktop Entry]",
     "Type=Application",
-    "Name=Tatolab",
-    "Comment=Opens Tatolab at login",
+    "Name=Spudnik Studio",
+    "Comment=Opens Spudnik Studio at login",
     `Exec=${desktopEntryExecArgument(appProgramPath)}`,
     "Icon=Tatolab",
     "Terminal=false",
@@ -71,7 +71,7 @@ export class XdgAutostartDesktopEntry implements TatolabAppOpenedAtLogin {
       desktopEntryText = await readFile(this.desktopEntryPath, "utf8");
     } catch (readFailure) {
       if (!isAMissingFileFailure(readFailure)) {
-        this.tatolabAppLog.warn("the autostart entry could not be read; Open Tatolab at login reads as off", {
+        this.tatolabAppLog.warn("the autostart entry could not be read; Open Spudnik Studio at login reads as off", {
           path: this.desktopEntryPath,
           failure: describeCaughtFailure(readFailure),
         });
@@ -87,14 +87,14 @@ export class XdgAutostartDesktopEntry implements TatolabAppOpenedAtLogin {
 
   private async writeTheAutostartEntry(): Promise<Result<void, string>> {
     const written = await replaceFileWhole(this.desktopEntryPath, tatolabAutostartDesktopEntry(this.appProgramPath));
-    return written.ok ? written : failedWith(`Tatolab could not write ${this.desktopEntryPath}: ${written.failure}`);
+    return written.ok ? written : failedWith(`Spudnik Studio could not write ${this.desktopEntryPath}: ${written.failure}`);
   }
 
   private async removeTheAutostartEntry(): Promise<Result<void, string>> {
     try {
       await rm(this.desktopEntryPath, { force: true });
     } catch (removalFailure) {
-      return failedWith(`Tatolab could not remove ${this.desktopEntryPath}: ${describeCaughtFailure(removalFailure)}`);
+      return failedWith(`Spudnik Studio could not remove ${this.desktopEntryPath}: ${describeCaughtFailure(removalFailure)}`);
     }
     return succeeded(undefined);
   }

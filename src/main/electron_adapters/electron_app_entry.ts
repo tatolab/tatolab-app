@@ -53,8 +53,8 @@ const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   tatolabUninstallAppSurface: ELECTRON_TATOLAB_UNINSTALL_APP_SURFACE,
   appLoginItemSettings: ELECTRON_APP_LOGIN_ITEM_SETTINGS,
 };
-// Chromium's profile would otherwise land in `<appData>/<productName>`, which is the runtime's own
-// state directory on macOS (`~/Library/Application Support/Tatolab`).
+// Chromium's profile would otherwise land in `<appData>/<productName>`, beside the app's own config
+// directory rather than in it.
 app.setPath("userData", tatolabPlatformHostServices.appConfigDirectory);
 registerTheWindowPageSchemeBeforeReady();
 

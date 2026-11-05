@@ -1,7 +1,7 @@
 // The tray item, in macOS's menu bar or a Linux panel: the Tatolab mark in this platform's tray
-// image, and a native menu on either click — a disabled status line, "Open Tatolab", the
+// image, and a native menu on either click — a disabled status line, "Open Spudnik Studio", the
 // "Run Tatolab" check, held while the runtime installs, "Open Login Items…" while macOS waits for the person's approval, "Check
-// for Updates…" in a packaged app, and "Quit Tatolab".
+// for Updates…" in a packaged app, and "Quit Spudnik Studio".
 
 import type { TatolabAppUpdateState, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import type { TrayIconImage } from "./platform/tray_icon_image.js";
@@ -62,11 +62,11 @@ export function appUpdateTrayMenuItemPresentation(appUpdate: TatolabAppUpdateSta
     case "checking":
       return { label: "Checking for Updates…", enabled: false };
     case "available":
-      return { label: appUpdate.delivery === "install_and_relaunch" ? `Install Tatolab ${appUpdate.version}…` : `Download Tatolab ${appUpdate.version}…`, enabled: true };
+      return { label: appUpdate.delivery === "install_and_relaunch" ? `Install Spudnik Studio ${appUpdate.version}…` : `Download Spudnik Studio ${appUpdate.version}…`, enabled: true };
     case "downloading":
-      return { label: `Downloading Tatolab ${appUpdate.version}…`, enabled: false };
+      return { label: `Downloading Spudnik Studio ${appUpdate.version}…`, enabled: false };
     case "installing":
-      return { label: `Installing Tatolab ${appUpdate.version}…`, enabled: false };
+      return { label: `Installing Spudnik Studio ${appUpdate.version}…`, enabled: false };
   }
 }
 
@@ -98,7 +98,7 @@ export class TatolabTrayMenu {
     runTatolab: boolean,
     onChoice: (trayMenuChoice: TrayMenuChoice) => void,
   ): TatolabTrayMenu {
-    const trayIconHost = trayIconHostFactory.createTrayIcon(trayIconImage, "Tatolab", (trayMenuItemId) => {
+    const trayIconHost = trayIconHostFactory.createTrayIcon(trayIconImage, "Spudnik Studio", (trayMenuItemId) => {
       const trayMenuChoice = TRAY_MENU_CHOICES_BY_ITEM_ID[trayMenuItemId];
       if (trayMenuChoice !== null) onChoice(trayMenuChoice);
     });
@@ -120,13 +120,13 @@ export class TatolabTrayMenu {
   private showTheMenu(): void {
     const trayMenuItems: TrayMenuItemDescription[] = [
       { kind: "item", id: "tray_status_line", label: this.trayStatusLine, enabled: false },
-      { kind: "item", id: "open_tatolab", label: "Open Tatolab", enabled: true },
+      { kind: "item", id: "open_tatolab", label: "Open Spudnik Studio", enabled: true },
       { kind: "check_item", id: "run_tatolab", label: "Run Tatolab", enabled: !this.runtimeInstalling, checked: this.runTatolab },
     ];
     if (this.runtimeRemedyItem !== null) trayMenuItems.push(this.runtimeRemedyItem);
     trayMenuItems.push({ kind: "separator" });
     if (this.appUpdateItem !== null) trayMenuItems.push({ kind: "item", id: "check_for_app_updates", ...this.appUpdateItem });
-    trayMenuItems.push({ kind: "item", id: "quit_tatolab", label: "Quit Tatolab", enabled: true });
+    trayMenuItems.push({ kind: "item", id: "quit_tatolab", label: "Quit Spudnik Studio", enabled: true });
     this.trayIconHost.showMenu(trayMenuItems);
   }
 }

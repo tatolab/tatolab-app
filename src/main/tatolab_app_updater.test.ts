@@ -53,11 +53,11 @@ function updaterOverAFeed(delivery: TatolabAppUpdateDelivery = "install_and_rela
 }
 
 test("an app that cannot update itself says why and checks nothing", async () => {
-  const { updater, statesSeen } = updaterOver({ kind: "not_offered", reason: "Only a packaged Tatolab updates itself." });
+  const { updater, statesSeen } = updaterOver({ kind: "not_offered", reason: "Only a packaged Spudnik Studio updates itself." });
   const repeatedIntervals: number[] = [];
   updater.startCheckingOnItsOwn((intervalMs) => repeatedIntervals.push(intervalMs));
   await updater.checkAndTakeANewerVersion("window");
-  expect(updater.state()).toEqual({ kind: "not_offered", reason: "Only a packaged Tatolab updates itself." });
+  expect(updater.state()).toEqual({ kind: "not_offered", reason: "Only a packaged Spudnik Studio updates itself." });
   expect(repeatedIntervals).toEqual([]);
   expect(statesSeen).toEqual([]);
 });
@@ -118,7 +118,7 @@ test("choosing Check for Updates… downloads a newer version, then installs it 
   ]);
 });
 
-test("choosing Check for Updates… with nothing newer says Tatolab is up to date, by notification only from the tray", async () => {
+test("choosing Check for Updates… with nothing newer says Spudnik Studio is up to date, by notification only from the tray", async () => {
   const { updater, notifications } = updaterOverAFeed();
   await updater.checkAndTakeANewerVersion("window");
   expect(updater.state()).toEqual({ kind: "up_to_date" });
@@ -167,8 +167,8 @@ test("each update notification reads as plain sentences, and the update's own wo
   notifier.notifyTheUpdateFailed();
 
   expect(systemNotifications.notificationsShown).toEqual([
-    { title: "Tatolab 0.56.0 is available", body: "Click to open Settings and install it." },
-    { title: "Tatolab is up to date", body: "You have the newest version." },
+    { title: "Spudnik Studio 0.56.0 is available", body: "Click to open Settings and install it." },
+    { title: "Spudnik Studio is up to date", body: "You have the newest version." },
     { title: "Tatolab couldn't update", body: "Something went wrong while updating. Open Settings to see what happened and try again." },
   ]);
 });

@@ -28,7 +28,7 @@ export const SETTINGS_SECTION_GROUPS: readonly { groupLabel: string; sections: r
       { section: "command-line", label: "Command line" },
     ],
   },
-  { groupLabel: "Tatolab", sections: [{ section: "about", label: "About" }] },
+  { groupLabel: "Spudnik Studio", sections: [{ section: "about", label: "About" }] },
 ];
 
 /** The words Preferences' list names `section` by. */
@@ -113,7 +113,7 @@ export function presentAboutBuild(appBuild: TatolabAppBuild | null): string {
 
 /** About's copyright, in the year `wallClockNow` reads. */
 export function presentAboutCopyright(wallClockNow: Date): string {
-  return `© ${wallClockNow.getFullYear()} Jonathan Fontanez`;
+  return `© ${wallClockNow.getFullYear()} Tatolab LLC`;
 }
 
 /** Runtime › Login Items on macOS: what it says of the runtime's entry under Allow in the Background, as the app reads it from launchd. */
@@ -150,7 +150,7 @@ export function presentRuntimeLogFolder(status: TatolabStatus, runtimeDescriptio
   return folder === null ? { folder: null, openUnavailableBecause: "The runtime keeps no log of its own." } : { folder, openUnavailableBecause: null };
 }
 
-/** General › Open Tatolab at login: whether the switch shows and how it is set, and what the row says under its name. */
+/** General › Open Spudnik Studio at login: whether the switch shows and how it is set, and what the row says under its name. */
 export interface OpenAtLoginPresentation {
   /** `null` where the build does not offer it, and the row says why instead. */
   isSwitchedOn: boolean | null;
@@ -158,7 +158,7 @@ export interface OpenAtLoginPresentation {
   needsApprovalInLoginItems: boolean;
 }
 
-/** General › Open Tatolab at login for what the desktop reports on `platform`. */
+/** General › Open Spudnik Studio at login for what the desktop reports on `platform`. */
 export function presentOpenAtLogin(openAtLogin: TatolabAppOpenAtLogin, platform: TatolabPlatform): OpenAtLoginPresentation {
   const runtimeEitherWay = "The runtime starts at login either way; this opens the app too.";
   switch (openAtLogin.kind) {
@@ -171,8 +171,8 @@ export function presentOpenAtLogin(openAtLogin: TatolabAppOpenAtLogin, platform:
         isSwitchedOn: true,
         description:
           platform === "macos"
-            ? "macOS is waiting for you to allow Tatolab under Login Items."
-            : "The desktop is waiting for you to allow Tatolab to open at login.",
+            ? "macOS is waiting for you to allow Spudnik Studio under Login Items."
+            : "The desktop is waiting for you to allow Spudnik Studio to open at login.",
         needsApprovalInLoginItems: true,
       };
     case "not_offered":
@@ -186,7 +186,7 @@ export function presentStreamFailureNotifications(streamFailureNotifications: St
     isSwitchedOn: streamFailureNotifications.enabled,
     description: streamFailureNotifications.shown_by_this_desktop
       ? "Tells you when a stream fails to start. Clicking it opens the stream and why."
-      : "This desktop shows no notifications, so Tatolab can't tell you here when a stream fails.",
+      : "This desktop shows no notifications, so Spudnik Studio can't tell you here when a stream fails.",
   };
 }
 

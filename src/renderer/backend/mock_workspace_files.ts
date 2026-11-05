@@ -151,14 +151,14 @@ export class MockWorkspaceFiles {
   read(file: string): WorkspaceFileRead {
     const projectFolder = this.projectFolderOf(file);
     const known = this.filesByPath.get(file);
-    if (projectFolder === null) throw `${file} is not a file of the open workspace's projects, so Tatolab does not open it.`;
+    if (projectFolder === null) throw `${file} is not a file of the open workspace's projects, so Spudnik Studio does not open it.`;
     if (known === undefined) throw `ENOENT: no such file or directory, open '${file}'`;
     return { file, project_folder: projectFolder, text: known.text, version: String(known.version), is_editable: projectFolder === this.workspaceProjectFolder };
   }
 
   save(file: string, text: string, basedOnVersion: string | null): WorkspaceFileSaved {
     const projectFolder = this.projectFolderOf(file);
-    if (projectFolder === null) throw `${file} is not a file of the open workspace's projects, so Tatolab does not open it.`;
+    if (projectFolder === null) throw `${file} is not a file of the open workspace's projects, so Spudnik Studio does not open it.`;
     if (projectFolder !== this.workspaceProjectFolder) throw `${file} belongs to an imported project, which the studio opens read-only.`;
     const known = this.filesByPath.get(file);
     const versionOnDisk = known === undefined ? null : String(known.version);

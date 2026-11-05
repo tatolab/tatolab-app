@@ -1,7 +1,7 @@
 import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
 
 /**
- * Where "Uninstall Tatolab…" stands. macOS confirms, then uninstalls until the app quits or the backend refuses, and a
+ * Where "Uninstall Spudnik Studio…" stands. macOS confirms, then uninstalls until the app quits or the backend refuses, and a
  * refusal closes the sheet with its reason left for Settings to show. Linux only shows the installer's two steps.
  */
 export type UninstallFlowState =

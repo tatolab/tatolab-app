@@ -329,7 +329,7 @@ test("an app that carries no runtime installs none", async () => {
 
   expect(runtimeAgent.calls).toEqual([]);
   expect((await controller.composeStatus(0)).runtime_install).toEqual({ kind: "none" });
-  expect(await controller.installTheCarriedRuntimeAgain()).toEqual(failedWith("This build of Tatolab carries no runtime to install."));
+  expect(await controller.installTheCarriedRuntimeAgain()).toEqual(failedWith("This build of Spudnik Studio carries no runtime to install."));
 });
 
 test("with Run Tatolab off the installed runtime the installer started is stopped again", async () => {

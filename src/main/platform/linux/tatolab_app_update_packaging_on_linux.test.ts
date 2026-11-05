@@ -8,5 +8,5 @@ test("an AppImage replaces its own file, the .deb opens its download, and an unp
   });
   expect(tatolabAppUpdatePackagingOnLinux(true, undefined)).toEqual({ kind: "deb" });
   expect(tatolabAppUpdatePackagingOnLinux(true, "")).toEqual({ kind: "deb" });
-  expect(tatolabAppUpdatePackagingOnLinux(false, "/tmp/.mount_Tatola/AppRun")).toEqual({ kind: "not_offered", reason: "Only a packaged Tatolab updates itself." });
+  expect(tatolabAppUpdatePackagingOnLinux(false, "/tmp/.mount_Tatola/AppRun")).toEqual({ kind: "not_offered", reason: "Only a packaged Spudnik Studio updates itself." });
 });

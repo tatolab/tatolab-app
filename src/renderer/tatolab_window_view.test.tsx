@@ -377,18 +377,18 @@ describe("Preferences", () => {
         switchesAsked.push(`notifications ${enabled}`);
       },
       setOpenTatolabAtLogin: async () => {
-        throw "Tatolab could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied";
+        throw "Spudnik Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied";
       },
     });
     await openSettingsOn("general");
 
     fireEvent.click(within(settingsRow("stream-failure-notifications")).getByRole("switch", { name: "When a stream fails" }));
     await waitFor(() => expect(switchesAsked).toEqual(["notifications false"]));
-    const openAtLoginSwitch = within(settingsRow("open-at-login")).getByRole("switch", { name: "Open Tatolab at login" });
+    const openAtLoginSwitch = within(settingsRow("open-at-login")).getByRole("switch", { name: "Open Spudnik Studio at login" });
     fireEvent.click(openAtLoginSwitch);
     await waitFor(() =>
       expect(within(settingsRow("open-at-login")).getByRole("alert").textContent).toContain(
-        "Tatolab could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
+        "Spudnik Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
       ),
     );
     expect(openAtLoginSwitch.getAttribute("aria-checked")).toBe("false");
@@ -397,7 +397,7 @@ describe("Preferences", () => {
     await mountedWindowOverTheMock("state=running&open_at_login=not_offered");
     await openSettingsOn("general");
     expect(within(settingsRow("open-at-login")).queryByRole("switch")).toBeNull();
-    expect(within(settingsRow("open-at-login")).getByText("Only a packaged Tatolab opens at login.")).toBeTruthy();
+    expect(within(settingsRow("open-at-login")).getByText("Only a packaged Spudnik Studio opens at login.")).toBeTruthy();
   });
 
   it("goes back to the status's position when the backend accepts a switch and no status follows", { timeout: 8_000 }, async () => {
@@ -452,7 +452,7 @@ describe("first run on macOS", () => {
     const { showStatusAsTheBackendWould, backend } = await mountedWindowOverTheMock("state=setup");
 
     expect(document.querySelector('[data-getting-started-screen="welcome"]')).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Welcome to Tatolab" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Welcome to Spudnik Studio" })).toBeTruthy();
     expect(document.querySelector("[data-studio-window]")).toBeNull();
     fireEvent.click(gettingStartedControl("continue"));
 

@@ -139,12 +139,12 @@ describe("General", () => {
     expect(presentOpenAtLogin({ kind: "off" }, "linux").isSwitchedOn).toBe(false);
     expect(presentOpenAtLogin({ kind: "needs_approval_in_login_items" }, "macos")).toEqual({
       isSwitchedOn: true,
-      description: "macOS is waiting for you to allow Tatolab under Login Items.",
+      description: "macOS is waiting for you to allow Spudnik Studio under Login Items.",
       needsApprovalInLoginItems: true,
     });
-    expect(presentOpenAtLogin({ kind: "not_offered", reason: "Only a packaged Tatolab opens at login." }, "macos")).toEqual({
+    expect(presentOpenAtLogin({ kind: "not_offered", reason: "Only a packaged Spudnik Studio opens at login." }, "macos")).toEqual({
       isSwitchedOn: null,
-      description: "Only a packaged Tatolab opens at login.",
+      description: "Only a packaged Spudnik Studio opens at login.",
       needsApprovalInLoginItems: false,
     });
   });
@@ -155,7 +155,7 @@ describe("General", () => {
       description: "Tells you when a stream fails to start. Clicking it opens the stream and why.",
     });
     expect(presentStreamFailureNotifications({ enabled: true, shown_by_this_desktop: false }).description).toBe(
-      "This desktop shows no notifications, so Tatolab can't tell you here when a stream fails.",
+      "This desktop shows no notifications, so Spudnik Studio can't tell you here when a stream fails.",
     );
   });
 });
@@ -176,8 +176,8 @@ describe("About and Login Items", () => {
   });
 
   it("dates the copyright in the year the clock reads as About is shown", () => {
-    expect(presentAboutCopyright(new Date(2026, 9, 26, 13, 0))).toBe("© 2026 Jonathan Fontanez");
-    expect(presentAboutCopyright(new Date(2027, 0, 1, 0, 0))).toBe("© 2027 Jonathan Fontanez");
+    expect(presentAboutCopyright(new Date(2026, 9, 26, 13, 0))).toBe("© 2026 Tatolab LLC");
+    expect(presentAboutCopyright(new Date(2027, 0, 1, 0, 0))).toBe("© 2027 Tatolab LLC");
   });
 
   it("says what launchd reports of the runtime's entry: listed, waiting for approval, or not listed", () => {

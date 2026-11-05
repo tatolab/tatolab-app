@@ -45,8 +45,8 @@ export interface TatolabAppUpdateNotifier {
 export function tatolabAppUpdateNotifierOver(systemNotifications: SystemNotifications, onNotificationClicked: () => void): TatolabAppUpdateNotifier {
   return {
     notifyANewerVersionIsAvailable: (version) =>
-      systemNotifications.showNotification(`Tatolab ${version} is available`, "Click to open Settings and install it.", onNotificationClicked),
-    notifyTheAppIsUpToDate: () => systemNotifications.showNotification("Tatolab is up to date", "You have the newest version.", onNotificationClicked),
+      systemNotifications.showNotification(`Spudnik Studio ${version} is available`, "Click to open Settings and install it.", onNotificationClicked),
+    notifyTheAppIsUpToDate: () => systemNotifications.showNotification("Spudnik Studio is up to date", "You have the newest version.", onNotificationClicked),
     notifyTheUpdateFailed: () =>
       systemNotifications.showNotification(
         "Tatolab couldn't update",

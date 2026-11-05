@@ -325,7 +325,7 @@ test("an unpackaged app has no bundle to uninstall and changes nothing", async (
   };
 
   expect(await tatolabUninstall.uninstallTatolab(runTatolabSwitch)).toEqual(
-    failedWith("this Tatolab is not running from Tatolab.app, so there is no app to uninstall"),
+    failedWith("this copy of Spudnik Studio is not running from its app bundle, so there is no app to uninstall"),
   );
   expect(appSurfaceCalls).toEqual([]);
 });
@@ -365,7 +365,7 @@ test("a second uninstall while one is under way is refused, and a refused one ca
 
   const firstUninstall = tatolabUninstall.uninstallTatolab(runTatolabSwitch);
   await expect.poll(() => promptsShowing.length).toBe(1);
-  expect(await tatolabUninstall.uninstallTatolab(runTatolabSwitch)).toEqual(failedWith("Tatolab is already being uninstalled"));
+  expect(await tatolabUninstall.uninstallTatolab(runTatolabSwitch)).toEqual(failedWith("Spudnik Studio is already being uninstalled"));
   promptsShowing[0]?.(failedWith({ kind: "cancelled" }));
   expect(await firstUninstall).toEqual(failedWith("the administrator prompt was cancelled, so nothing was uninstalled"));
   expect(appSurfaceCalls).toEqual([]);

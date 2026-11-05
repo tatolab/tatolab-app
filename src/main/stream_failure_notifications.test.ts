@@ -135,6 +135,6 @@ test.skipIf(process.getuid?.() === 0)("a_switch_that_cannot_be_remembered_holds_
   const set = await streamFailureNotifications.setNotifyWhenAStreamFails(false);
   await chmod(appConfigDirectory, 0o700);
 
-  expect(!set.ok && set.failure.startsWith("Tatolab couldn't remember this, so it holds only until Tatolab quits: ")).toBe(true);
+  expect(!set.ok && set.failure.startsWith("Spudnik Studio couldn't remember this, so it holds only until Spudnik Studio quits: ")).toBe(true);
   expect(streamFailureNotifications.stateNow().enabled).toBe(false);
 });

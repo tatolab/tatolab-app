@@ -1,15 +1,15 @@
-# Tatolab.app
+# Spudnik Studio
 
-The desktop app for [Tatolab](https://tatolab.com), on macOS and Linux: a menu-bar (tray) app
+Spudnik Studio, made by Tatolab LLC, is the desktop app for the [Tatolab](https://tatolab.com) runtime, on macOS and Linux: a menu-bar (tray) app
 with a window. The window lists the streams the Tatolab runtime (`tatolabd`) holds as they start
 and stop, and shows each stream's graph and logs. The "Run Tatolab" switch turns the runtime's
 login service on and off. Closing the window leaves the app in the menu bar or panel, where "Open
-Tatolab" brings the window back. Quitting the app closes the window and the tray item; the runtime
+Spudnik Studio" brings the window back. Quitting the app closes the window and the tray item; the runtime
 keeps running.
 
-The tray menu shows a one-line status, "Open Tatolab", the "Run Tatolab" switch, "Open Login
+The tray menu shows a one-line status, "Open Spudnik Studio", the "Run Tatolab" switch, "Open Login
 Items…" while macOS waits for approval, "Check for Updates…" in a packaged app, and "Quit
-Tatolab". A runtime that didn't start, was blocked by the service manager or lost its
+Spudnik Studio". A runtime that didn't start, was blocked by the service manager or lost its
 registration the app recovers by itself, registering its agent afresh less often each time until
 it answers. The window reads
 everything from the runtime's local API: `list_streams`, `logs` and `graph` over MCP, and
@@ -59,12 +59,12 @@ item only with the AppIndicator extension, which Ubuntu ships.
 
 ## Installing
 
-**macOS.** Open `Tatolab-<version>-arm64.dmg` from the
-[streamlib release](https://github.com/tatolab/streamlib/releases) and drag Tatolab into
+**macOS.** Open `Spudnik-Studio-<version>-arm64.dmg` from the
+[streamlib release](https://github.com/tatolab/streamlib/releases) and drag Spudnik Studio into
 Applications, or:
 
 ```sh
-brew install --cask tatolab/tap/tatolab
+brew install --cask tatolab/tap/spudnik-studio
 ```
 
 Opening the app registers the runtime's login item and links the `tatolab` command into
@@ -77,13 +77,13 @@ Settings › Command line also offers a link in
 as the `.deb`:
 
 ```sh
-sudo apt install ./Tatolab-<version>-amd64.deb
+sudo apt install ./Spudnik-Studio-<version>-amd64.deb
 ```
 
 or as the AppImage, which needs no installing:
 
 ```sh
-chmod +x Tatolab-<version>-x86_64.AppImage && ./Tatolab-<version>-x86_64.AppImage
+chmod +x Spudnik-Studio-<version>-x86_64.AppImage && ./Spudnik-Studio-<version>-x86_64.AppImage
 ```
 
 Each carries the runtime and streamlib's installer. Opening the app runs the installer on it
@@ -109,7 +109,7 @@ runtime keeps your streams and logs.
 3. runs the installer it carries with `--uninstall`, which removes the installed runtime, its
    launch agent and `~/.local/bin/tatolab`;
 4. removes the app's own settings, `~/Library/Application Support/com.tatolab.tatolab`;
-5. moves Tatolab.app to the Trash, and quits.
+5. moves Spudnik Studio.app to the Trash, and quits.
 
 `~/Library/Application Support/Tatolab`, the state directory, stays. `brew uninstall --cask
 tatolab` removes the same service and files; `brew uninstall --zap --cask tatolab` removes the
@@ -142,7 +142,7 @@ launch agent it writes with `launchctl`, and the administrator prompt with `osas
 ## macOS bundle layout
 
 ```
-Tatolab.app/Contents/
+Spudnik Studio.app/Contents/
   Info.plist                                  LSUIElement, usage strings (packaging/macos/Info.plist)
   MacOS/Tatolab                               the app (Electron); its window, main process and
                                               preload in Resources/app.asar
@@ -235,8 +235,8 @@ the preload into `out/preload/` and the window into `out/renderer/`, then writes
 tatolab-app commit the checkout is at, which Settings › About shows as `Build 22b07a1-dev`),
 and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
 `@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
-branded `.dmg` and checks the result. The output is `build/Tatolab.app`,
-`build/Tatolab-<version>-arm64.dmg`, and the update: `build/Tatolab-<version>-arm64-mac.zip` and its
+branded `.dmg` and checks the result. The output is `build/Spudnik Studio.app`,
+`build/Spudnik-Studio-<version>-arm64.dmg`, and the update: `build/Spudnik-Studio-<version>-arm64-mac.zip` and its
 manifest `build/latest-mac.yml`.
 
 | Option | |
@@ -274,13 +274,13 @@ The individual steps are separate scripts in `scripts/`:
 | `tatolab_app_build_features.mjs write <features.json> [--release] [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features and the build id (the commit this checkout is at, dev or release, and whether it has uncommitted changes); `npm run build -- <flags>` runs it last, and refuses outside a git checkout |
 | `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features and the build id a packaged app carries, and refuses one with no build id; `--shipping` refuses the test root or any feed but get.tatolab.com's |
 | `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
-| `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/moq-relay`, `lib/tatolab/lend` or `lib/tatolab/watch`, or ships anything else in `bin/` or `lib/tatolab/` |
-| `sign-tatolab-app-bundle.sh <Tatolab.app> <identity> <runtime-provisioning-profile>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) with the hardened runtime, embedding the `com.tatolab.runtime` provisioning profile in the runtime's helper; refuses any identity but a `Developer ID Application` and a profile for any other App ID |
-| `make-tatolab-dmg.sh <Tatolab.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless), signed with the app's own Developer ID; refuses an app signed any other way |
-| `notarize-and-staple.sh <Tatolab.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
-| `verify-tatolab-app-bundle.sh <Tatolab.app\|.dmg> [--shipping]` | checks the signature (every Mach-O and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
+| `assemble-tatolab-app-bundle.sh <Spudnik Studio.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/moq-relay`, `lib/tatolab/lend` or `lib/tatolab/watch`, or ships anything else in `bin/` or `lib/tatolab/` |
+| `sign-tatolab-app-bundle.sh <Spudnik Studio.app> <identity> <runtime-provisioning-profile>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) with the hardened runtime, embedding the `com.tatolab.runtime` provisioning profile in the runtime's helper; refuses any identity but a `Developer ID Application` and a profile for any other App ID |
+| `make-tatolab-dmg.sh <Spudnik Studio.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless), signed with the app's own Developer ID; refuses an app signed any other way |
+| `notarize-and-staple.sh <Spudnik Studio.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
+| `verify-tatolab-app-bundle.sh <Spudnik Studio.app\|.dmg> [--shipping]` | checks the signature (every Mach-O and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
 | `write_tatolab_app_update_manifest.mjs <manifest.yml> <version> <file>...` | writes the update feed's manifest for those files: sizes, SHA-512s, and URLs under `../releases/<version>/` |
-| `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tatolab.rb` from `packaging/homebrew/tatolab.rb.template` |
+| `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/spudnik-studio.rb` from `packaging/homebrew/spudnik-studio.rb.template`, and the tap's `cask_renames.json` entry `tatolab` → `spudnik-studio` |
 
 The installer background is `packaging/dmg/tatolab-dmg-background.svg`, rendered to the
 committed `@1x`/`@2x` PNGs by `packaging/dmg/render-dmg-background.sh` (needs `rsvg-convert`; it
@@ -304,8 +304,8 @@ names the commit the build resolved), adds the checkout's `installer/tatolabd.se
 and carries the unit and `installer/install.sh` in the app's `resources/`. The packages' version
 is the version of the `tatolabd` they carry. It then builds and packages the Electron app as on macOS, lays out the `.deb` and builds it with
 `dpkg-deb`, builds the AppImage with a pinned `appimagetool` and AppImage runtime (checksums in
-the script), checks the fuses, the build features, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Tatolab-<version>-amd64.deb`,
-`build/linux/Tatolab-<version>-x86_64.AppImage` and the update manifest listing both,
+the script), checks the fuses, the build features, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Spudnik-Studio-<version>-amd64.deb`,
+`build/linux/Spudnik-Studio-<version>-x86_64.AppImage` and the update manifest listing both,
 `build/linux/latest-linux.yml`. `--app-version X.Y.Z` refuses a unit whose `tatolabd` is another
 version; `--local-proof-test-root` builds with
 `machineDirectoriesUnderATestRoot` on, so the app reads the runtime under
@@ -351,10 +351,10 @@ ID ones the macOS build stops; notarization needs the App Store Connect key:
 
 A release runs on a local release runner, outside this repository, once streamlib cuts release
 `vX.Y.Z`. It drives this repository's scripts: `scripts/build-tatolab-app.sh --streamlib-ref vX.Y.Z
---release --notarize` builds, signs, notarizes and verifies Tatolab.app and its `.dmg`;
+--release --notarize` builds, signs, notarizes and verifies Spudnik Studio.app and its `.dmg`;
 `scripts/build-tatolab-linux-app.sh --streamlib-ref vX.Y.Z --runtime-unit <the release's Linux runtime tarball, unpacked> --release`
 builds the `.deb` and the AppImage on x86_64 Linux, carrying the runtime streamlib built at the
 glibc floor it promises; the release's assets go on streamlib's `vX.Y.Z` release; and
-`scripts/bump-homebrew-cask.sh` writes the new `Casks/tatolab.rb` for tatolab/homebrew-tap.
-`brew install --cask tatolab/tap/tatolab` installs it on macOS; on Linux the release's `.deb` or
+`scripts/bump-homebrew-cask.sh` writes the new `Casks/spudnik-studio.rb` for tatolab/homebrew-tap.
+`brew install --cask tatolab/tap/spudnik-studio` installs it on macOS; on Linux the release's `.deb` or
 AppImage does.

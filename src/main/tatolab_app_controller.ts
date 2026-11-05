@@ -247,7 +247,7 @@ export class TatolabAppController {
     return restarted;
   }
 
-  /** "Open Tatolab at login": have the desktop open the app at login, or stop; refused in the desktop's words. */
+  /** "Open Spudnik Studio at login": have the desktop open the app at login, or stop; refused in the desktop's words. */
   async setOpenTatolabAtLogin(openAtLogin: boolean): Promise<Result<void, string>> {
     const set = await this.tatolabAppOpenedAtLogin.setOpenAtLogin(openAtLogin);
     if (set.ok) this.tatolabAppLog.info("Open Tatolab at login set", { open_at_login: openAtLogin });

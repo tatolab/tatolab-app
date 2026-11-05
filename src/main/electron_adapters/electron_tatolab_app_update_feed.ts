@@ -99,7 +99,7 @@ class ElectronInstallingTatolabAppUpdateFeed implements TatolabAppUpdateFeed {
     const installFailure = new Promise<Result<void, string>>((answer) => {
       this.appUpdater.once("error", (updaterError: Error) => answer(failedWith(describeCaughtFailure(updaterError))));
       if (this.installLimitMs !== null) {
-        setTimeout(() => answer(failedWith("the update downloaded, but Tatolab did not reopen to install it")), this.installLimitMs);
+        setTimeout(() => answer(failedWith("the update downloaded, but Spudnik Studio did not reopen to install it")), this.installLimitMs);
       }
     });
     try {
@@ -126,7 +126,7 @@ class ElectronDownloadOpeningTatolabAppUpdateFeed implements TatolabAppUpdateFee
     if (!updateCheck.ok) return updateCheck;
     if (updateCheck.value === null) return succeeded(null);
     const debFile = updateCheck.value.updateInfo.files.find((updateFile) => updateFile.url.endsWith(".deb"));
-    if (debFile === undefined) return failedWith(`the feed lists no .deb for Tatolab ${updateCheck.value.updateInfo.version}`);
+    if (debFile === undefined) return failedWith(`the feed lists no .deb for Spudnik Studio ${updateCheck.value.updateInfo.version}`);
     this.newerDebUrl = new URL(debFile.url, this.appUpdateFeedUrl).toString();
     return succeeded(updateCheck.value.updateInfo.version);
   }

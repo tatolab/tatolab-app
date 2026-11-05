@@ -43,12 +43,12 @@ test("turning_it_on_registers_the_bundles_login_item_and_a_status_awaiting_appro
 test("a_registration_macos_did_not_carry_out_or_electron_refused_is_refused", async () => {
   const notCarriedOut = new LoginItemOfTheAppBundle(fakeAppLoginItemSettings(() => "not-registered").appLoginItemSettings);
   expect(await notCarriedOut.setOpenAtLogin(true)).toEqual(
-    failedWith("macOS did not add Tatolab to your login items. Add it in System Settings › General › Login Items."),
+    failedWith("macOS did not add Spudnik Studio to your login items. Add it in System Settings › General › Login Items."),
   );
 
   const stillAwaitingApproval = new LoginItemOfTheAppBundle(fakeAppLoginItemSettings(() => "requires-approval").appLoginItemSettings);
   expect(await stillAwaitingApproval.setOpenAtLogin(false)).toEqual(
-    failedWith("macOS did not remove Tatolab from your login items. Remove it in System Settings › General › Login Items."),
+    failedWith("macOS did not remove Spudnik Studio from your login items. Remove it in System Settings › General › Login Items."),
   );
 
   const refused = new LoginItemOfTheAppBundle(fakeAppLoginItemSettings(() => "enabled", "Operation not permitted").appLoginItemSettings);

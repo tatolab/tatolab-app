@@ -39,7 +39,7 @@ function createKeptRecordsNote(streamRecordsDirectory: string): HTMLElement {
     createElement("span", {}, [
       "Your streams' records stay in ",
       createElement("code", { class: "selectable-text" }, [streamRecordsDirectory]),
-      ". Reinstall Tatolab and they come back.",
+      ". Reinstall Spudnik Studio and they come back.",
     ]),
   ]);
 }
@@ -54,7 +54,7 @@ interface MacosUninstallProgressControls {
   uninstallButtonLabel: HTMLElement;
 }
 
-/** The sheet "Uninstall Tatolab…" opens: macOS's confirmation under the band, or the steps Linux takes in a terminal. */
+/** The sheet "Uninstall Spudnik Studio…" opens: macOS's confirmation under the band, or the steps Linux takes in a terminal. */
 export class UninstallSheetView {
   readonly element: HTMLDialogElement;
   private flowState: UninstallFlowState = UNINSTALL_FLOW_AT_REST;
@@ -117,11 +117,11 @@ export class UninstallSheetView {
       { type: "button", class: "button button-destructive", onClick: () => this.confirmUninstall() },
       [uninstallButtonSpinner, uninstallButtonLabel],
     );
-    const lede = createElement("p", { class: "uninstall-sheet-lede" }, ["Your streams stop now. Tatolab will:"]);
+    const lede = createElement("p", { class: "uninstall-sheet-lede" }, ["Your streams stop now. Spudnik Studio will:"]);
     const confirmationBody = createElement("div", { class: "uninstall-sheet-body" }, [
       createElement("header", { class: "uninstall-sheet-head" }, [
         createMark(),
-        createElement("div", {}, [createElement("h2", { class: "uninstall-sheet-title", id: UNINSTALL_SHEET_TITLE_ID }, ["Uninstall Tatolab?"]), lede]),
+        createElement("div", {}, [createElement("h2", { class: "uninstall-sheet-title", id: UNINSTALL_SHEET_TITLE_ID }, ["Uninstall Spudnik Studio?"]), lede]),
       ]),
       createElement("ul", { class: "uninstall-sheet-rows", "aria-label": "What uninstalling does" }, [
         createRemovalRow(POWER_ICON_SVG, ["Stop the runtime and remove it from Login Items"], null),
@@ -135,14 +135,14 @@ export class UninstallSheetView {
             " if you linked it there. macOS asks for your password only for that one.",
           ],
         ),
-        createRemovalRow(TRASH_ICON_SVG, ["Move Tatolab to the Trash"], ["Then it quits."]),
+        createRemovalRow(TRASH_ICON_SVG, ["Move Spudnik Studio to the Trash"], ["Then it quits."]),
       ]),
       createKeptRecordsNote(presentPlatform(this.platform).streamRecordsDirectory),
       createElement("div", { class: "uninstall-sheet-actions" }, [this.dismissButton, uninstallButton]),
     ]);
     const uninstalledBody = createElement("div", { class: "uninstall-sheet-body uninstall-sheet-uninstalled", hidden: true }, [
       createMark(),
-      createElement("h2", { class: "uninstall-sheet-title" }, ["Tatolab is uninstalled"]),
+      createElement("h2", { class: "uninstall-sheet-title" }, ["Spudnik Studio is uninstalled"]),
       createElement("p", { class: "uninstall-sheet-lede" }, ["It quits now."]),
     ]);
     return { confirmationBody, uninstalledBody, lede, uninstallButton, uninstallButtonSpinner, uninstallButtonLabel };
@@ -158,9 +158,9 @@ export class UninstallSheetView {
           title: "Close",
           onClick: () => this.advance({ kind: "sheet_dismissed" }),
         }, [createIcon(CLOSE_ICON_SVG, 16)]),
-        createElement("h2", { class: "uninstall-sheet-title", id: UNINSTALL_SHEET_TITLE_ID }, ["Uninstall Tatolab"]),
+        createElement("h2", { class: "uninstall-sheet-title", id: UNINSTALL_SHEET_TITLE_ID }, ["Uninstall Spudnik Studio"]),
         createElement("p", { class: "uninstall-sheet-lede" }, ["Two steps, both from your own hands:"]),
-        createElement("ol", { class: "uninstall-sheet-steps", "aria-label": "How to uninstall Tatolab" }, [
+        createElement("ol", { class: "uninstall-sheet-steps", "aria-label": "How to uninstall Spudnik Studio" }, [
           createElement("li", { class: "uninstall-sheet-step" }, [
             createElement("span", { class: "uninstall-sheet-step-number", "aria-hidden": "true" }, ["1"]),
             createElement("div", { class: "uninstall-sheet-step-copy" }, [
@@ -173,7 +173,7 @@ export class UninstallSheetView {
             createElement("div", { class: "uninstall-sheet-step-copy" }, [
               createElement("p", { class: "uninstall-sheet-row-title" }, ["Remove this app"]),
               createElement("p", { class: "uninstall-sheet-row-note" }, [
-                "Uninstall the Tatolab package with your package manager, or delete the AppImage.",
+                "Uninstall the tatolab package with your package manager, or delete the AppImage.",
               ]),
             ]),
           ]),
@@ -236,7 +236,7 @@ export class UninstallSheetView {
     uninstallButton.disabled = isUninstalling;
     uninstallButtonSpinner.hidden = !isUninstalling;
     setTextIfChanged(uninstallButtonLabel, isUninstalling ? "Uninstalling…" : "Uninstall");
-    setTextIfChanged(lede, isUninstalling ? "macOS asks for your password now." : "Your streams stop now. Tatolab will:");
+    setTextIfChanged(lede, isUninstalling ? "macOS asks for your password now." : "Your streams stop now. Spudnik Studio will:");
   }
 
   /** Esc follows Cancel while the sheet can be dismissed, and Tab stays inside the sheet. */

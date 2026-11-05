@@ -22,7 +22,7 @@ describe("presentRuntimeInstallOverlay", () => {
     ).toEqual({
       stage: "installing",
       heading: "Updating the runtime",
-      explanation: "This copy of Tatolab carries runtime 0.68.0 (1a2b3c4). Your streams stop for a moment and come back on it.",
+      explanation: "This copy of Spudnik Studio carries runtime 0.68.0 (1a2b3c4). Your streams stop for a moment and come back on it.",
       installerLines: ["Stopping the runtime"],
       refusal: null,
     });
@@ -42,6 +42,6 @@ describe("presentRuntimeInstallOverlay", () => {
     expect(
       presentRuntimeInstallOverlay({ kind: "failed", carried_runtime_build: null, installer_lines: [], refusal: "The runtime this app carries could not be read: …" })
         ?.explanation,
-    ).toBe("Tatolab couldn't read the runtime this copy carries, so nothing was installed.");
+    ).toBe("Spudnik Studio couldn't read the runtime this copy carries, so nothing was installed.");
   });
 });

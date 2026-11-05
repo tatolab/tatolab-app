@@ -55,7 +55,7 @@ export class StreamFailureNotifications {
     const remembered = await this.rememberedSwitch.saveRememberedSwitch(notifyWhenAStreamFails);
     if (remembered.ok) return succeeded(undefined);
     this.tatolabAppLog.warn("the stream-failure notifications switch could not be remembered", { failure: remembered.failure });
-    return failedWith(`Tatolab couldn't remember this, so it holds only until Tatolab quits: ${remembered.failure}`);
+    return failedWith(`Spudnik Studio couldn't remember this, so it holds only until Spudnik Studio quits: ${remembered.failure}`);
   }
 
   /** Notify each stream that `status` lists as newly failed, when the switch is on; a status listing no streams changes nothing. */

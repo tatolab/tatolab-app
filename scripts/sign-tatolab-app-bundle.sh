@@ -33,7 +33,7 @@ runtime_application_identifier="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.a
 
 helper_bundle="$contents/Helpers/Tatolab Runtime.app"
 helper_contents="$helper_bundle/Contents"
-for required in MacOS/Tatolab "Frameworks/Electron Framework.framework" \
+for required in "MacOS/Spudnik Studio" "Frameworks/Electron Framework.framework" \
   Resources/install.sh "Helpers/Tatolab Runtime.app/Contents/Info.plist" "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolabd" \
   "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolab-cli" "Helpers/Tatolab Runtime.app/Contents/MacOS/moq-relay" \
   "Helpers/Tatolab Runtime.app/Contents/MacOS/uv" "Helpers/Tatolab Runtime.app/Contents/Frameworks/tatolab-runtime"; do

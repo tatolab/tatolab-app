@@ -63,9 +63,9 @@ function WelcomeScreen() {
   return (
     <div className="flex flex-col items-center text-center" data-getting-started-screen="welcome">
       <img src={mascotImageUrl} alt="" draggable={false} className="size-[140px] object-contain select-none" />
-      <h1 className="mt-5 title-xl">Welcome to Tatolab</h1>
+      <h1 className="mt-5 title-xl">Welcome to Spudnik Studio</h1>
       <p className="mt-2 max-w-sm text-[15px] leading-5 text-fg-2">
-        Tatolab runs your live video, audio and AI streams in a runtime in the background. This window is where you see and control it.
+        Spudnik Studio runs your live video, audio and AI streams in the Tatolab runtime, in the background. This window is where you see and control it.
       </p>
     </div>
   );
@@ -80,7 +80,7 @@ function GettingSetUpScreen({ steps }: { steps: readonly GettingStartedStepPrese
       <h1 ref={headingRef} tabIndex={-1} className="title-lg focus-visible:shadow-none">
         Getting set up
       </h1>
-      <p className="mt-1 mb-5 text-fg-2">The runtime starts in the background. Tatolab asks you for something only when macOS needs you.</p>
+      <p className="mt-1 mb-5 text-fg-2">The runtime starts in the background. Spudnik Studio asks you for something only when macOS needs you.</p>
       <ProgressChecklist label="Getting set up">
         {steps.map((step) => (
           // A step whose standing changes starts afresh, so a refusal never outlives the state it was refused in.

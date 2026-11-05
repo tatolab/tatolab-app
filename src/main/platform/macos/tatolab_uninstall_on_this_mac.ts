@@ -1,4 +1,4 @@
-// "Uninstall Tatolab…" on macOS: the runtime, its launch agent and its links go, and the runtime's
+// "Uninstall Spudnik Studio…" on macOS: the runtime, its launch agent and its links go, and the runtime's
 // state directory, `~/Library/Application Support/Tatolab`, stays. A `/usr/local/bin/tatolab`
 // linking into this bundle or the installed runtime, which only root may remove, goes first, behind
 // one administrator prompt shown only when that link is there, so a cancelled prompt changes
@@ -23,7 +23,7 @@ import { appBundleOfTheExecutable, carriedRuntimeInstallerIn, type TatolabMachin
 const SYSTEM_SHELL = "/bin/sh";
 
 /** The words the uninstall's administrator prompt shows under "osascript wants to make changes." */
-export const UNINSTALL_ADMINISTRATOR_PROMPT_TEXT = "Tatolab needs to remove the tatolab command from /usr/local/bin to uninstall.";
+export const UNINSTALL_ADMINISTRATOR_PROMPT_TEXT = "Spudnik Studio needs to remove the tatolab command from /usr/local/bin to uninstall.";
 
 /**
  * What uninstalling removes outside the app's own folders: for a real build, what the carried installer at
@@ -205,7 +205,7 @@ export class TatolabUninstallOnThisMac implements TatolabUninstall {
 
   /** Uninstall Tatolab from this Mac, ending with the app quitting; refused with the reason when the administrator prompt is cancelled, a step fails, or an uninstall is already under way. */
   async uninstallTatolab(runTatolabSwitch: RunTatolabSwitchToTurnOff): Promise<Result<void, string>> {
-    if (this.uninstallInProgress) return failedWith("Tatolab is already being uninstalled");
+    if (this.uninstallInProgress) return failedWith("Spudnik Studio is already being uninstalled");
     this.uninstallInProgress = true;
     const uninstalled = await this.uninstallTatolabFromThisMac(runTatolabSwitch);
     if (!uninstalled.ok) {
@@ -217,7 +217,7 @@ export class TatolabUninstallOnThisMac implements TatolabUninstall {
 
   private async uninstallTatolabFromThisMac(runTatolabSwitch: RunTatolabSwitchToTurnOff): Promise<Result<void, string>> {
     const appBundle = this.packagedAppExecutable === null ? null : await appBundleOfTheExecutable(this.packagedAppExecutable);
-    if (appBundle === null) return failedWith("this Tatolab is not running from Tatolab.app, so there is no app to uninstall");
+    if (appBundle === null) return failedWith("this copy of Spudnik Studio is not running from its app bundle, so there is no app to uninstall");
     const machineFiles = await machineFilesToRemove(this.machinePaths, appBundle);
     this.tatolabAppLog.info("uninstalling Tatolab", { app_bundle: appBundle, machine_files: machineFiles.kind });
     const { administratorPrompt, programRunner, machinePaths, tatolabUninstallAppSurface, appConfigDirectory, appIdentifier, tatolabAppLog } = this;

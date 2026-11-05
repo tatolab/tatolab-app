@@ -44,7 +44,7 @@ test("turning_it_on_writes_an_entry_that_opens_the_app_and_off_removes_it", asyn
 
   expect(await autostartEntry.setOpenAtLogin(true)).toEqual(succeeded(undefined));
   const desktopEntryText = await readFile(path.join(autostartDirectory, "Tatolab.desktop"), "utf8");
-  expect(desktopEntryText).toContain("[Desktop Entry]\nType=Application\nName=Tatolab\n");
+  expect(desktopEntryText).toContain("[Desktop Entry]\nType=Application\nName=Spudnik Studio\n");
   expect(desktopEntryText).toContain("\nExec=/home/u/Apps/Tatolab.AppImage\n");
   expect(await autostartEntry.readOpenAtLogin()).toEqual({ kind: "on" });
 
@@ -70,5 +70,5 @@ test.skipIf(process.getuid?.() === 0)("an_entry_that_cannot_be_written_is_refuse
   const set = await new XdgAutostartDesktopEntry(path.join(configHome, "autostart"), "/usr/lib/tatolab/Tatolab", quietTatolabAppLog).setOpenAtLogin(true);
   await chmod(configHome, 0o700);
 
-  expect(!set.ok && set.failure.startsWith(`Tatolab could not write ${path.join(configHome, "autostart", "Tatolab.desktop")}: `)).toBe(true);
+  expect(!set.ok && set.failure.startsWith(`Spudnik Studio could not write ${path.join(configHome, "autostart", "Tatolab.desktop")}: `)).toBe(true);
 });

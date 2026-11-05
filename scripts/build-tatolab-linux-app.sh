@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds Tatolab for Linux: the .deb and the AppImage of the Electron window and tray over the
+# Builds Spudnik Studio for Linux: the .deb and the AppImage of the Electron window and tray over the
 # runtime's systemd user service. Each carries in its resources/ streamlib's runtime unit
 # (tatolab-runtime/: bin/, lib/ with the systemd user unit, streamlib-commit) and streamlib's
 # install.sh, which the app runs on that unit whenever the installed build differs, and no uv or
@@ -7,7 +7,7 @@
 # The runtime is always streamlib's main, or --streamlib-ref, fetched by
 # fetch-streamlib-for-the-app-build.sh into build/linux-streamlib. The packages' version is the
 # version of the tatolabd they carry.
-# Outputs build/linux/Tatolab-<version>-amd64.deb, build/linux/Tatolab-<version>-x86_64.AppImage,
+# Outputs build/linux/Spudnik-Studio-<version>-amd64.deb, build/linux/Spudnik-Studio-<version>-x86_64.AppImage,
 # and the update feed's manifest listing both, build/linux/latest-linux.yml.
 #
 # Usage: build-tatolab-linux-app.sh [--streamlib-ref REF] [--runtime-unit DIR] [--app-version X.Y.Z]
@@ -54,7 +54,7 @@ if $release_build && $local_proof_test_root; then
   exit 1
 fi
 
-[ "$(uname -s)" = Linux ] || { echo "this builds the Linux app on Linux; on macOS, scripts/build-tatolab-app.sh builds Tatolab.app" >&2; exit 1; }
+[ "$(uname -s)" = Linux ] || { echo "this builds the Linux app on Linux; on macOS, scripts/build-tatolab-app.sh builds Spudnik Studio.app" >&2; exit 1; }
 case "$(uname -m)" in
   x86_64|amd64) ;;
   *) echo "the Tatolab runtime has only an x86_64 Linux build, so the app is built for x86_64 only, not $(uname -m)" >&2; exit 1 ;;
@@ -75,8 +75,8 @@ electron_package_dependencies=(
   libxext6 libxfixes3 libxkbcommon0 libxrandr2 libc6
 )
 installed_app_directory="usr/lib/tatolab"
-short_description="The window and tray of this machine's Tatolab runtime"
-long_description="Tatolab shows the streams this machine's Tatolab runtime holds as they start and stop, each stream's graph and logs, and the Run Tatolab switch, from a window and the tray. It carries the Tatolab runtime and installs it for your user, as the systemd user service tatolabd.service, whenever the installed runtime is another build."
+short_description="A graph-first creative studio over this machine's Tatolab runtime"
+long_description="Spudnik Studio shows the streams this machine's Tatolab runtime holds as they start and stop, each stream's graph, code and logs, and the Run Tatolab switch, from a window and the tray. It carries the Tatolab runtime and installs it for your user, as the systemd user service tatolabd.service, whenever the installed runtime is another build."
 
 for required_tool in dpkg-deb dpkg-shlibdeps desktop-file-validate; do
   command -v "$required_tool" >/dev/null || { echo "$required_tool is missing: sudo apt install dpkg-dev desktop-file-utils" >&2; exit 1; }
@@ -121,8 +121,8 @@ streamlib_installer="$fetched_streamlib/installer/install.sh"
 echo "    $runtime_unit_directory: streamlib $streamlib_commit, version $app_version"
 linux_build_directory="$repository_root/build/linux-packaging"
 output_directory="$repository_root/build/linux"
-output_deb="$output_directory/Tatolab-$app_version$local_proof_name_part-amd64.deb"
-output_appimage="$output_directory/Tatolab-$app_version$local_proof_name_part-x86_64.AppImage"
+output_deb="$output_directory/Spudnik-Studio-$app_version$local_proof_name_part-amd64.deb"
+output_appimage="$output_directory/Spudnik-Studio-$app_version$local_proof_name_part-x86_64.AppImage"
 output_update_manifest="$output_directory/latest-linux.yml"
 rm -rf "$linux_build_directory"
 mkdir -p "$linux_build_directory" "$output_directory"
@@ -172,17 +172,20 @@ lay_out_the_app_under() {
   cp -a "$packaged_app_directory/." "$install_root/$installed_app_directory/"
   # @electron/packager leaves its output directory 0700, which would lock every other user out.
   chmod -R u+rwX,go+rX,go-w "$install_root/$installed_app_directory"
+  # The package, its paths, the executable and the desktop entry keep the names earlier builds
+  # installed, so apt upgrades the tatolab package in place and the person's autostart entry still
+  # opens the app; only the names a person reads are Spudnik Studio's.
   ln -s "../lib/tatolab/Tatolab" "$install_root/usr/bin/Tatolab"
   cat > "$install_root/usr/share/applications/Tatolab.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=Tatolab
+Name=Spudnik Studio
 Comment=$short_description
 Exec=Tatolab
 Icon=Tatolab
 Terminal=false
 Categories=Development;
-StartupWMClass=Tatolab
+StartupWMClass=Spudnik Studio
 DESKTOP
   desktop-file-validate "$install_root/usr/share/applications/Tatolab.desktop"
   local icon_size icon_file
@@ -225,7 +228,7 @@ cat > "$deb_root/DEBIAN/control" <<CONTROL
 Package: tatolab
 Version: $app_version
 Architecture: amd64
-Maintainer: Tatolab <https://tatolab.com/>
+Maintainer: Tatolab LLC <https://tatolab.com/>
 Section: devel
 Priority: optional
 Homepage: https://tatolab.com/
@@ -271,7 +274,7 @@ curl -fsSL -o "$appimage_tools_directory/runtime-x86_64" "$appimage_runtime_url"
 printf '%s  %s\n%s  %s\n' "$appimagetool_sha256" "$appimage_tools_directory/appimagetool" \
   "$appimage_runtime_sha256" "$appimage_tools_directory/runtime-x86_64" | sha256sum --check --quiet
 chmod 0755 "$appimage_tools_directory/appimagetool"
-app_directory="$linux_build_directory/Tatolab.AppDir"
+app_directory="$linux_build_directory/Spudnik-Studio.AppDir"
 lay_out_the_app_under "$app_directory"
 cp "$app_directory/usr/share/applications/Tatolab.desktop" "$app_directory/Tatolab.desktop"
 cp "$app_directory/usr/share/icons/hicolor/256x256/apps/Tatolab.png" "$app_directory/Tatolab.png"

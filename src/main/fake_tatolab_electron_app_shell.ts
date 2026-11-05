@@ -57,7 +57,7 @@ export class FakeTatolabElectronAppShell {
   holdsTheSingleInstanceLock = true;
   /** The copy this app reads itself as. */
   thisCopyOfTatolab: TatolabAppCopy = {
-    executableThatOpensTheCopy: "/Applications/Tatolab.app/Contents/MacOS/Tatolab",
+    executableThatOpensTheCopy: "/Applications/Spudnik Studio.app/Contents/MacOS/Spudnik Studio",
     appVersion: "0.45.0",
     appBuild: { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", build_kind: "release", built_with_uncommitted_changes: false },
     carriedStreamlibCommit: "5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f",

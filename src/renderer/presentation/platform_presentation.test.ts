@@ -127,7 +127,7 @@ describe("presentCommandLineTool", () => {
     expect(presentCommandLineTool("macos", "/Users/ada/.local/bin/tatolab")).toEqual({
       isLinked: true,
       shownValue: "~/.local/bin/tatolab",
-      explanation: "Linked to the copy inside Tatolab.app. It works in any terminal with ~/.local/bin on its PATH.",
+      explanation: "Linked to the copy inside Spudnik Studio. It works in any terminal with ~/.local/bin on its PATH.",
       pathLineToAdd: {
         lead: "If a terminal can't find it, add this line to ~/.zprofile and open a new terminal:",
         line: 'export PATH="$HOME/.local/bin:$PATH"',
@@ -136,7 +136,7 @@ describe("presentCommandLineTool", () => {
     expect(presentCommandLineTool("macos", null)).toEqual({
       isLinked: false,
       shownValue: "Not linked",
-      explanation: "Tatolab links it in ~/.local/bin each time it opens.",
+      explanation: "Spudnik Studio links it in ~/.local/bin each time it opens.",
       pathLineToAdd: null,
     });
   });

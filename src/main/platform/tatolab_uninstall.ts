@@ -6,7 +6,7 @@ export interface RunTatolabSwitchToTurnOff {
   setRunTatolab(runTatolab: boolean): Promise<RunTatolabReconciliation>;
 }
 
-/** "Uninstall Tatolab…": on macOS the service and the files go and the app quits; on Linux it is refused, since the installer uninstalls. */
+/** "Uninstall Spudnik Studio…": on macOS the service and the files go and the app quits; on Linux it is refused, since the installer uninstalls. */
 export interface TatolabUninstall {
   /** Uninstall Tatolab, ending with the app quitting; refused with the reason in its own words, leaving the app usable. */
   uninstallTatolab(runTatolabSwitch: RunTatolabSwitchToTurnOff): Promise<Result<void, string>>;
