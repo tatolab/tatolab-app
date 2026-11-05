@@ -25,7 +25,7 @@ import { RUN_LIVE_KEY, type StudioMenuBarCommands } from "./studio_shell/studio_
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
 import { StudioWindowModel, streamsOfTheProjectToStop } from "./studio_shell/studio_window_model";
 import { WORKSPACE_LAYOUTS, WorkspaceLayoutsKeptInStorage } from "./studio_shell/workspace_layouts";
-import { AGENT_VIEW_TYPE, VIEWER_VIEW_TYPE } from "./studio_views/arriving_later/arriving_later_view_types";
+import { VIEWER_VIEW_TYPE } from "./studio_views/arriving_later/arriving_later_view_types";
 import { CODE_EDITOR_VIEW_TYPE } from "./studio_views/code_editor/code_editor_view_type";
 import { PROPERTIES_VIEW_TYPE } from "./studio_views/properties/properties_view_type";
 import { STREAM_GRAPH_VIEW_TYPE } from "./studio_views/stream_graph/stream_graph_view_type";
@@ -54,7 +54,6 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
     registeredStudioViewType(PROPERTIES_VIEW_TYPE),
     registeredStudioViewType(VIEWER_VIEW_TYPE),
     registeredStudioViewType(CODE_EDITOR_VIEW_TYPE),
-    registeredStudioViewType(AGENT_VIEW_TYPE),
   ]);
 }
 
