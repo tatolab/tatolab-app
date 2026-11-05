@@ -1,6 +1,6 @@
 import { FolderOpen, FolderPlus, LayoutGrid, Play } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { RecentWorkspace } from "../../shared/tatolab_backend_contract";
+import type { RecentProject } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
 import { EmptyState } from "../design_system/empty_state";
 import { ProjectCard } from "../design_system/project_card";
@@ -16,45 +16,45 @@ import { WelcomeSplashView } from "./welcome_splash_view";
 
 /** What Home reads its projects from and opens them through. */
 export interface HomeSources {
-  /** The workspaces opened before, recent first. */
-  readRecentWorkspaces(): Promise<RecentWorkspace[]>;
+  /** The projects opened before, recent first. */
+  readRecentProjects(): Promise<RecentProject[]>;
   /** Open `folder`, one of them, in the studio. */
-  openARecentWorkspace(folder: string): void;
+  openARecentProject(folder: string): void;
 }
 
 const HOME_FILTER_TITLES: Record<HomeProjectFilter, string> = { all_projects: "All projects", running_now: "Running now" };
 
-/** The recent workspaces, read as Home shows and again each time the open workspace changes; `null` until the first read answers. */
-function useRecentWorkspaces(homeSources: HomeSources, model: StudioWindowModel): RecentWorkspace[] | null {
-  const openWorkspace = useWatchedStudioValue(model.openWorkspace);
-  const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[] | null>(null);
+/** The recent projects, read as Home shows and again each time the open project changes; `null` until the first read answers. */
+function useRecentProjects(homeSources: HomeSources, model: StudioWindowModel): RecentProject[] | null {
+  const openProject = useWatchedStudioValue(model.openProject);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[] | null>(null);
   useEffect(() => {
     let isStillShown = true;
-    homeSources.readRecentWorkspaces().then(
-      (readRecentWorkspaces) => isStillShown && setRecentWorkspaces(readRecentWorkspaces),
-      () => isStillShown && setRecentWorkspaces([]),
+    homeSources.readRecentProjects().then(
+      (readRecentProjects) => isStillShown && setRecentProjects(readRecentProjects),
+      () => isStillShown && setRecentProjects([]),
     );
     return () => {
       isStillShown = false;
     };
-  }, [homeSources, openWorkspace]);
-  return recentWorkspaces;
+  }, [homeSources, openProject]);
+  return recentProjects;
 }
 
 /** Home, the app's project manager: the recent projects as cards, narrowed by running and by a search, with New project and Open a project folder…; on first run, the Welcome splash over it. */
 export function HomeView({ model, homeSources, commands }: { model: StudioWindowModel; homeSources: HomeSources; commands: StudioMenuBarCommands }) {
   const status = useTatolabStatus();
   const listedStreams = useWatchedStudioValue(model.listedStreams);
-  const recentWorkspaces = useRecentWorkspaces(homeSources, model);
+  const recentProjects = useRecentProjects(homeSources, model);
   const [filter, setFilter] = useState<HomeProjectFilter>("all_projects");
   const [searchText, setSearchText] = useState("");
   const [isTheWelcomeDismissed, setIsTheWelcomeDismissed] = useState(false);
   const wallClockNowMs = Date.now();
-  const allCards = presentRecentProjectCards(recentWorkspaces ?? [], listedStreams, wallClockNowMs, "all_projects", "");
-  const cardsShown = presentRecentProjectCards(recentWorkspaces ?? [], listedStreams, wallClockNowMs, filter, searchText);
+  const allCards = presentRecentProjectCards(recentProjects ?? [], listedStreams, wallClockNowMs, "all_projects", "");
+  const cardsShown = presentRecentProjectCards(recentProjects ?? [], listedStreams, wallClockNowMs, filter, searchText);
   const openTheProject = (folder: string) => {
     model.isHomeShown.publish(false);
-    homeSources.openARecentWorkspace(folder);
+    homeSources.openARecentProject(folder);
   };
   const noCards = presentHomeWithNoCards(filter, searchText);
   return (
@@ -78,14 +78,14 @@ export function HomeView({ model, homeSources, commands }: { model: StudioWindow
         <div className="flex flex-wrap items-center gap-2.5">
           <h1 className="mr-auto title-lg">{HOME_FILTER_TITLES[filter]}</h1>
           <SearchField label="Search projects" placeholder="Search projects" text={searchText} onTextChanged={setSearchText} data-home-search="" />
-          <ActionButton icon={FolderOpen} onPressed={commands.openAWorkspace} data-home-action="open">
+          <ActionButton icon={FolderOpen} onPressed={commands.openAProject} data-home-action="open">
             Open a project folder…
           </ActionButton>
-          <ActionButton appearance="primary" icon={FolderPlus} onPressed={commands.createAWorkspace} data-home-action="new">
+          <ActionButton appearance="primary" icon={FolderPlus} onPressed={commands.createAProject} data-home-action="new">
             New project
           </ActionButton>
         </div>
-        {recentWorkspaces === null ? (
+        {recentProjects === null ? (
           <WaitingState title="Reading your projects…" />
         ) : cardsShown.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
@@ -109,12 +109,12 @@ export function HomeView({ model, homeSources, commands }: { model: StudioWindow
         )}
       </main>
       <WelcomeSplashView
-        isOpen={recentWorkspaces !== null && recentWorkspaces.length === 0 && !isTheWelcomeDismissed}
+        isOpen={recentProjects !== null && recentProjects.length === 0 && !isTheWelcomeDismissed}
         onClosed={() => setIsTheWelcomeDismissed(true)}
         appVersion={status.app_version}
         recentProjects={allCards}
-        onNewProject={commands.createAWorkspace}
-        onOpenAProjectFolder={commands.openAWorkspace}
+        onNewProject={commands.createAProject}
+        onOpenAProjectFolder={commands.openAProject}
         onAllProjects={() => setFilter("all_projects")}
         onRecentProjectOpened={openTheProject}
       />

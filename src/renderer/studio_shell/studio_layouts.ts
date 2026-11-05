@@ -1,13 +1,13 @@
 // The studio's five layouts, after the concept canvas's grids, and each one's edited tree, kept per
-// workspace folder in the page's storage so a workspace reopens as it was left.
+// project folder in the page's storage so a project reopens as it was left.
 
 import { studioAreaLayoutFromSaved, type StudioArea, type StudioAreaLayoutNode, type StudioAreaSplit } from "./studio_area_layout";
 
 /** A layout by the name it is saved under. */
-export type WorkspaceLayoutName = "build" | "compose" | "spatial" | "code" | "perform";
+export type StudioLayoutName = "build" | "compose" | "spatial" | "code" | "perform";
 
-/** The layouts in Window › Workspace layout's order, each with its title and the digit held with Ctrl or ⌘ that chooses it. */
-export const WORKSPACE_LAYOUTS: readonly { name: WorkspaceLayoutName; title: string; shortcut_digit: string }[] = [
+/** The layouts in Window › Layout's order, each with its title and the digit held with Ctrl or ⌘ that chooses it. */
+export const STUDIO_LAYOUTS: readonly { name: StudioLayoutName; title: string; shortcut_digit: string }[] = [
   { name: "build", title: "Build", shortcut_digit: "1" },
   { name: "compose", title: "Compose", shortcut_digit: "2" },
   { name: "spatial", title: "Spatial", shortcut_digit: "3" },
@@ -16,9 +16,9 @@ export const WORKSPACE_LAYOUTS: readonly { name: WorkspaceLayoutName; title: str
 ];
 
 /** Each layout's tree as the person left it, and the one chosen. */
-export interface WorkspaceLayoutsOfAFolder {
-  chosen_layout: WorkspaceLayoutName;
-  layouts: Record<WorkspaceLayoutName, StudioAreaLayoutNode>;
+export interface StudioLayoutsOfAFolder {
+  chosen_layout: StudioLayoutName;
+  layouts: Record<StudioLayoutName, StudioAreaLayoutNode>;
 }
 
 function area(areaId: string, viewTypeId: string | null): StudioArea {
@@ -37,8 +37,8 @@ function sideColumn(): StudioAreaSplit {
   ]);
 }
 
-/** `layoutName` as the studio first lays it out; an area on `null` waits for a view a workspace project brings. */
-export function defaultWorkspaceLayout(layoutName: WorkspaceLayoutName): StudioAreaLayoutNode {
+/** `layoutName` as the studio first lays it out; an area on `null` waits for a view an open project brings. */
+export function defaultStudioLayout(layoutName: StudioLayoutName): StudioAreaLayoutNode {
   switch (layoutName) {
     case "build":
       return split("build-columns", "row", [
@@ -71,8 +71,8 @@ export function defaultWorkspaceLayout(layoutName: WorkspaceLayoutName): StudioA
   }
 }
 
-function isAWorkspaceLayoutName(candidate: unknown): candidate is WorkspaceLayoutName {
-  return WORKSPACE_LAYOUTS.some((layout) => layout.name === candidate);
+function isAStudioLayoutName(candidate: unknown): candidate is StudioLayoutName {
+  return STUDIO_LAYOUTS.some((layout) => layout.name === candidate);
 }
 
 /** `saved`'s field `fieldName`, or `undefined` when `saved` is not an object or has none. */
@@ -82,44 +82,44 @@ function savedField(saved: unknown, fieldName: string): unknown {
 }
 
 /** The layouts `saved` holds; any layout it does not hold, or holds in a shape that does not parse, is that layout's default. */
-export function workspaceLayoutsFromSaved(saved: unknown): WorkspaceLayoutsOfAFolder {
+export function studioLayoutsFromSaved(saved: unknown): StudioLayoutsOfAFolder {
   const chosenLayout = savedField(saved, "chosen_layout");
   const savedLayouts = savedField(saved, "layouts");
-  const layoutOf = (layoutName: WorkspaceLayoutName) => studioAreaLayoutFromSaved(savedField(savedLayouts, layoutName)) ?? defaultWorkspaceLayout(layoutName);
+  const layoutOf = (layoutName: StudioLayoutName) => studioAreaLayoutFromSaved(savedField(savedLayouts, layoutName)) ?? defaultStudioLayout(layoutName);
   return {
-    chosen_layout: isAWorkspaceLayoutName(chosenLayout) ? chosenLayout : "build",
+    chosen_layout: isAStudioLayoutName(chosenLayout) ? chosenLayout : "build",
     layouts: { build: layoutOf("build"), compose: layoutOf("compose"), spatial: layoutOf("spatial"), code: layoutOf("code"), perform: layoutOf("perform") },
   };
 }
 
-/** The page storage a workspace's layouts are kept in: the window's `localStorage`, or none where the page may not use it. */
-export type WorkspaceLayoutsStorage = Pick<Storage, "getItem" | "setItem"> | null;
+/** The page storage a project's layouts are kept in: the window's `localStorage`, or none where the page may not use it. */
+export type StudioLayoutsStorage = Pick<Storage, "getItem" | "setItem"> | null;
 
-/** The key `workspaceFolder`'s layouts are kept under. */
-export function workspaceLayoutsStorageKey(workspaceFolder: string): string {
-  return `studio-workspace-layouts:${workspaceFolder}`;
+/** The key `projectFolder`'s layouts are kept under. */
+export function studioLayoutsStorageKey(projectFolder: string): string {
+  return `studio-layouts:${projectFolder}`;
 }
 
-/** Each workspace folder's layouts, read from and kept in the page's storage. */
-export class WorkspaceLayoutsKeptInStorage {
-  constructor(private readonly storage: WorkspaceLayoutsStorage) {}
+/** Each project folder's layouts, read from and kept in the page's storage. */
+export class StudioLayoutsKeptInStorage {
+  constructor(private readonly storage: StudioLayoutsStorage) {}
 
-  /** The layouts kept for `workspaceFolder`, each a default where none is kept or what is kept does not parse. */
-  readLayoutsOf(workspaceFolder: string): WorkspaceLayoutsOfAFolder {
+  /** The layouts kept for `projectFolder`, each a default where none is kept or what is kept does not parse. */
+  readLayoutsOf(projectFolder: string): StudioLayoutsOfAFolder {
     let saved: unknown = undefined;
     try {
-      const savedText = this.storage?.getItem(workspaceLayoutsStorageKey(workspaceFolder)) ?? null;
+      const savedText = this.storage?.getItem(studioLayoutsStorageKey(projectFolder)) ?? null;
       saved = savedText === null ? undefined : JSON.parse(savedText);
     } catch {
       saved = undefined;
     }
-    return workspaceLayoutsFromSaved(saved);
+    return studioLayoutsFromSaved(saved);
   }
 
-  /** Keep `layouts` for `workspaceFolder`; a page that may not store keeps them only while it is open. */
-  keepLayoutsOf(workspaceFolder: string, layouts: WorkspaceLayoutsOfAFolder): void {
+  /** Keep `layouts` for `projectFolder`; a page that may not store keeps them only while it is open. */
+  keepLayoutsOf(projectFolder: string, layouts: StudioLayoutsOfAFolder): void {
     try {
-      this.storage?.setItem(workspaceLayoutsStorageKey(workspaceFolder), JSON.stringify(layouts));
+      this.storage?.setItem(studioLayoutsStorageKey(projectFolder), JSON.stringify(layouts));
     } catch {
       return;
     }

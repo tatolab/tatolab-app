@@ -15,11 +15,11 @@ export interface TreeViewRow {
   icon: StudioIconName;
   /** Code names, as a stream or a file, read in the monospace face. */
   isMachineWords?: boolean;
-  /** A heading row: a workspace, a project, a folder. */
+  /** A heading row: a project, a project, a folder. */
   isHeading?: boolean;
   /** Rows the person cannot change from here, as an imported project, marked with a lock. */
   isReadOnly?: boolean;
-  /** How the row reads: plainly, as the workspace's imports, or as something unreadable or waiting. */
+  /** How the row reads: plainly, as the project's imports, or as something unreadable or waiting. */
   tone?: "plain" | "imports" | "unreadable" | "waiting";
   expansion: TreeRowExpansion;
 }

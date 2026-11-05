@@ -1,13 +1,13 @@
-// What the studio window holds between renders: the open workspace and the runtime's streams it
-// serves its views, the selection, the open stream tabs, and the open workspace's layouts.
+// What the studio window holds between renders: the open project and the runtime's streams it
+// serves its views, the selection, the open stream tabs, and the open project's layouts.
 
-import type { OpenWorkspaceReading, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { OpenProjectReading, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import { WatchedStudioValue, type InWindowStudioViewHostSources } from "../view_host/in_window_view_host";
 import type { CodeFileAsked, JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection } from "../view_host/studio_view_contract";
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
-import type { WorkspaceLayoutName, WorkspaceLayoutsKeptInStorage, WorkspaceLayoutsOfAFolder } from "./workspace_layouts";
+import type { StudioLayoutName, StudioLayoutsKeptInStorage, StudioLayoutsOfAFolder } from "./studio_layouts";
 
 /** The view type id of the code pane, which Stream › Open stream.py shows a file in. */
 export const CODE_VIEW_TYPE_ID = "code";
@@ -33,44 +33,44 @@ export interface OpenStreamTabs {
   active_stream: string | null;
 }
 
-/** The open workspace's folder, when one is read or unreadable; `null` while none is open. */
-function openWorkspaceFolderOf(reading: OpenWorkspaceReading): string | null {
+/** The open project's folder, when one is read or unreadable; `null` while none is open. */
+function openProjectFolderOf(reading: OpenProjectReading): string | null {
   switch (reading.kind) {
     case "none_open":
       return null;
     case "unreadable":
       return reading.folder;
     case "read":
-      return reading.workspace.workspace_project.folder;
+      return reading.open_project.project.folder;
   }
 }
 
 /** The studio window's state, each part watched by the shell and served to the views through the in-window host. */
 export class StudioWindowModel {
-  readonly openWorkspace = new WatchedStudioValue<OpenWorkspaceReading>({ kind: "none_open" });
+  readonly openProject = new WatchedStudioValue<OpenProjectReading>({ kind: "none_open" });
   readonly listedStreams = new WatchedStudioValue<ListedStreamsReading>({ kind: "not_listed", because: "" });
   readonly selection = new WatchedStudioValue<StudioSelection>({ kind: "nothing" });
   readonly openStreamTabs = new WatchedStudioValue<OpenStreamTabs>({ tabs: [], active_stream: null });
   readonly activeStreamTab = new WatchedStudioValue<StreamTabAddress | null>(null);
-  /** Whether Home is shown over the open workspace, as File › Home shows it; Home shows anyway while none is open. */
+  /** Whether Home is shown over the open project, as File › Home shows it; Home shows anyway while none is open. */
   readonly isHomeShown = new WatchedStudioValue<boolean>(false);
   /** The section Preferences shows while it is open; `null` while it is closed. */
   readonly preferencesSection = new WatchedStudioValue<SettingsSection | null>(null);
-  /** Why the last workspace asked for did not open, until it is dismissed or another opens. */
-  readonly workspaceOpeningRefusal = new WatchedStudioValue<string | null>(null);
-  /** The open workspace's layouts; `null` while none is open. */
-  readonly workspaceLayouts = new WatchedStudioValue<WorkspaceLayoutsOfAFolder | null>(null);
+  /** Why the last project asked for did not open, until it is dismissed or another opens. */
+  readonly projectOpeningRefusal = new WatchedStudioValue<string | null>(null);
+  /** The open project's layouts; `null` while none is open. */
+  readonly studioLayouts = new WatchedStudioValue<StudioLayoutsOfAFolder | null>(null);
   /** The file a code view was last asked to show. */
   readonly codeFileAsked = new WatchedStudioValue<CodeFileAsked | null>(null);
-  /** Why the last run or stop of the workspace project was refused, until it is dismissed or another is asked for. */
-  readonly workspaceRunRefusal = new WatchedStudioValue<{ asked_to: "run" | "stop"; because: string } | null>(null);
+  /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
+  readonly projectRunRefusal = new WatchedStudioValue<{ asked_to: "run" | "stop"; because: string } | null>(null);
 
-  constructor(private readonly layoutsKept: WorkspaceLayoutsKeptInStorage) {}
+  constructor(private readonly layoutsKept: StudioLayoutsKeptInStorage) {}
 
   /** What the views are served from this model. */
   viewHostSources(): InWindowStudioViewHostSources {
     return {
-      openWorkspace: this.openWorkspace,
+      openProject: this.openProject,
       listedStreams: this.listedStreams,
       selection: this.selection,
       activeStreamTab: this.activeStreamTab,
@@ -82,21 +82,21 @@ export class StudioWindowModel {
 
   /** Ask the code view to show `file`; a layout with no code area switches to Code, which has one. */
   openCodeFile(file: string): void {
-    const layouts = this.workspaceLayouts.readLatest();
+    const layouts = this.studioLayouts.readLatest();
     if (layouts !== null && !layoutShowsTheViewType(layouts.layouts[layouts.chosen_layout], CODE_VIEW_TYPE_ID)) this.chooseLayout("code");
     this.codeFileAsked.publish({ file, ask: (this.codeFileAsked.readLatest()?.ask ?? 0) + 1 });
   }
 
-  /** Show `reading`; a workspace in another folder brings its own layouts and starts with no tabs and nothing selected. */
-  showOpenWorkspace(reading: OpenWorkspaceReading): void {
-    const folderBefore = openWorkspaceFolderOf(this.openWorkspace.readLatest());
-    const folderNow = openWorkspaceFolderOf(reading);
-    this.openWorkspace.publish(reading);
-    if (folderNow === folderBefore && this.workspaceLayouts.readLatest() !== null) return;
+  /** Show `reading`; a project in another folder brings its own layouts and starts with no tabs and nothing selected. */
+  showOpenProject(reading: OpenProjectReading): void {
+    const folderBefore = openProjectFolderOf(this.openProject.readLatest());
+    const folderNow = openProjectFolderOf(reading);
+    this.openProject.publish(reading);
+    if (folderNow === folderBefore && this.studioLayouts.readLatest() !== null) return;
     if (folderNow !== folderBefore) this.isHomeShown.publish(false);
     this.selection.publish({ kind: "nothing" });
     this.publishStreamTabs({ tabs: [], active_stream: null });
-    this.workspaceLayouts.publish(folderNow === null ? null : this.layoutsKept.readLayoutsOf(folderNow));
+    this.studioLayouts.publish(folderNow === null ? null : this.layoutsKept.readLayoutsOf(folderNow));
   }
 
   /** Show the streams `status` lists; a tab whose stream the runtime no longer lists stays open on its last address. */
@@ -111,7 +111,7 @@ export class StudioWindowModel {
     this.publishStreamTabs({ tabs: isOpen ? tabs : [...tabs, streamTab], active_stream: streamTab.stream });
   }
 
-  /** Open the tab of `streamId` as the runtime lists it, named by its project in the open workspace or by its project's folder; as asked from the tray. */
+  /** Open the tab of `streamId` as the runtime lists it, named by its project when that is the open project or one of its imports, or else by its folder; as asked from the tray. */
   openStreamTabOfAListedStream(streamId: string): void {
     const listedStreams = this.listedStreams.readLatest();
     const listedStream = listedStreams.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamId) : undefined;
@@ -138,8 +138,8 @@ export class StudioWindowModel {
     this.publishStreamTabs({ tabs: tabsLeft, active_stream: nextActive });
   }
 
-  /** Show `layoutName`, as it was last left in this workspace. */
-  chooseLayout(layoutName: WorkspaceLayoutName): void {
+  /** Show `layoutName`, as it was last left in this project. */
+  chooseLayout(layoutName: StudioLayoutName): void {
     this.changeLayouts((layouts) => ({ ...layouts, chosen_layout: layoutName }));
   }
 
@@ -159,10 +159,10 @@ export class StudioWindowModel {
   }
 
   private projectNameOfTheFolder(projectFolder: string): string | null {
-    const reading = this.openWorkspace.readLatest();
+    const reading = this.openProject.readLatest();
     if (reading.kind !== "read") return null;
-    if (reading.workspace.workspace_project.folder === projectFolder) return reading.workspace.workspace_project.name;
-    for (const importedProject of reading.workspace.imports) {
+    if (reading.open_project.project.folder === projectFolder) return reading.open_project.project.name;
+    for (const importedProject of reading.open_project.imports) {
       if (importedProject.source.kind === "folder" && importedProject.source.project.folder === projectFolder) return importedProject.name;
     }
     return null;
@@ -177,12 +177,12 @@ export class StudioWindowModel {
     this.changeLayouts((layouts) => ({ ...layouts, layouts: { ...layouts.layouts, [layouts.chosen_layout]: change(layouts.layouts[layouts.chosen_layout]) } }));
   }
 
-  private changeLayouts(change: (layouts: WorkspaceLayoutsOfAFolder) => WorkspaceLayoutsOfAFolder): void {
-    const layouts = this.workspaceLayouts.readLatest();
-    const folder = openWorkspaceFolderOf(this.openWorkspace.readLatest());
+  private changeLayouts(change: (layouts: StudioLayoutsOfAFolder) => StudioLayoutsOfAFolder): void {
+    const layouts = this.studioLayouts.readLatest();
+    const folder = openProjectFolderOf(this.openProject.readLatest());
     if (layouts === null || folder === null) return;
     const changedLayouts = change(layouts);
-    this.workspaceLayouts.publish(changedLayouts);
+    this.studioLayouts.publish(changedLayouts);
     this.layoutsKept.keepLayoutsOf(folder, changedLayouts);
   }
 }

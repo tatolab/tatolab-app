@@ -57,9 +57,9 @@ async function openEveryOutlinerRow(): Promise<void> {
  * Drives the mock window to the screen the page's query names, as a person would get there, once the window has
  * mounted. In the studio: `?layout=build|compose|spatial|code|perform` (chosen with its shortcut), `?outliner=open`
  * (every row opened), `?select=<row id>` (that outliner row clicked, as `stream:<stream id>`), `?open_stream=<stream id>`
- * (its row double-clicked, opening its tab), `?select_node=<node name>` (that node's card clicked in the stream graph), `?code_file=<file>` (Stream › Open stream.py chosen, then that file of the workspace project, as `nodes/inverting_effect.py`, opened from the code area's + menu), `?run=live` (Live pressed), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
- * `?submenu=<entry>` (that entry's submenu opened, as `Workspace layout`), and `?area_menu=<area id>` (that area's
- * view-type menu opened); with the backend's `?workspace=none|unreadable` (none shows Home, and with `?recent=none` the Welcome splash over it) and `?port_families=served` (each port's family in the graph and the catalog). `?page=home` opens Home from File › Home, `?home_filter=running_now` narrows it to the running projects; `?page=preferences` opens Preferences, on
+ * (its row double-clicked, opening its tab), `?select_node=<node name>` (that node's card clicked in the stream graph), `?code_file=<file>` (Stream › Open stream.py chosen, then that file of the open project, as `nodes/inverting_effect.py`, opened from the code area's + menu), `?run=live` (Live pressed), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
+ * `?submenu=<entry>` (that entry's submenu opened, as `Layout`), and `?area_menu=<area id>` (that area's
+ * view-type menu opened); with the backend's `?project=none|unreadable` (none shows Home, and with `?recent=none` the Welcome splash over it) and `?port_families=served` (each port's family in the graph and the catalog). `?page=home` opens Home from File › Home, `?home_filter=running_now` narrows it to the running projects; `?page=preferences` opens Preferences, on
  * `?section=general|runtime|command-line|about`; there `?restart=pressed|refused` presses Restart and `?link=pressed`
  * presses Link in /usr/local/bin…. `?sheet=uninstall|uninstalling|uninstalled` opens the uninstall sheet from
  * Preferences, pressing Uninstall for the latter two. On first run, with the backend's `?state=setup`,
@@ -73,7 +73,7 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
 
   const layout = pageQuery.get("layout");
   const layoutDigit = { build: "1", compose: "2", spatial: "3", code: "4", perform: "5" }[layout ?? ""];
-  if (layoutDigit !== undefined && (await waitForElement("[data-workspace-layout]")) !== null) pressTheStudioShortcut(layoutDigit, platform);
+  if (layoutDigit !== undefined && (await waitForElement("[data-studio-layout]")) !== null) pressTheStudioShortcut(layoutDigit, platform);
   if (pageQuery.get("outliner") === "open") await openEveryOutlinerRow();
   const selectedRow = pageQuery.get("select");
   if (selectedRow !== null) await clickWhenShown(`[data-outliner] [data-tree-row-id="${CSS.escape(selectedRow)}"]`);

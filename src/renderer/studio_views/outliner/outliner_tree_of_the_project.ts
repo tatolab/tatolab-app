@@ -1,8 +1,8 @@
-// The outliner's tree, derived from what the view is handed: the workspace's shape as its
+// The outliner's tree, derived from what the view is handed: the project's shape as its
 // pyproject.toml files describe it, and each project's streams as the runtime lists them.
 
 import type { TreeViewRow } from "../../design_system/tree_view";
-import type { ImportedProject, ListedStream, ListedStreamsReading, OpenWorkspace, ProjectOnDisk, StudioSelection } from "../../view_host/studio_view_contract";
+import type { ImportedProject, ListedStream, ListedStreamsReading, OpenProject, ProjectOnDisk, StudioSelection } from "../../view_host/studio_view_contract";
 
 /** What a row stands for, so choosing it selects or opens the right thing. */
 export type OutlinerRowMeaning =
@@ -111,24 +111,24 @@ function importNode(importedProject: ImportedProject, listedStreams: ListedStrea
   };
 }
 
-/** The base name of `folder`, the workspace's name in the tree. */
+/** The base name of `folder`, the project's name in the tree. */
 function folderBaseName(folder: string): string {
   return folder.split(/[\\/]/).filter((pathPart) => pathPart !== "").at(-1) ?? folder;
 }
 
-function workspaceTree(workspace: OpenWorkspace, listedStreams: ListedStreamsReading): OutlinerTreeNode {
-  const workspaceProject = workspace.workspace_project;
-  const workspaceProjectRowId = `project:${workspaceProject.folder}`;
+function projectTree(project: OpenProject, listedStreams: ListedStreamsReading): OutlinerTreeNode {
+  const openProject = project.project;
+  const openProjectRowId = `project:${openProject.folder}`;
   return {
-    row: { row_id: "workspace", label: folderBaseName(workspaceProject.folder), icon: "workspace", isHeading: true },
+    row: { row_id: "open_project_folder", label: folderBaseName(openProject.folder), icon: "project_folder", isHeading: true },
     meaning: { kind: "nothing_to_select" },
     isOpenByDefault: true,
     children: [
       {
-        row: { row_id: workspaceProjectRowId, label: workspaceProject.name, icon: "project", isHeading: true },
-        meaning: { kind: "project", project_name: workspaceProject.name, project_folder: workspaceProject.folder },
+        row: { row_id: openProjectRowId, label: openProject.name, icon: "project", isHeading: true },
+        meaning: { kind: "project", project_name: openProject.name, project_folder: openProject.folder },
         isOpenByDefault: true,
-        children: projectChildren(workspaceProject, workspaceProjectRowId, listedStreams),
+        children: projectChildren(openProject, openProjectRowId, listedStreams),
       },
       {
         row: {
@@ -141,15 +141,15 @@ function workspaceTree(workspace: OpenWorkspace, listedStreams: ListedStreamsRea
         },
         meaning: { kind: "nothing_to_select" },
         isOpenByDefault: false,
-        children: workspace.imports.map((importedProject) => importNode(importedProject, listedStreams)),
+        children: project.imports.map((importedProject) => importNode(importedProject, listedStreams)),
       },
     ],
   };
 }
 
-/** The outliner's rows that show for `workspace`, with what each stands for: a row shows when every row above it is open. */
-export function outlinerTreeOfTheWorkspace(
-  workspace: OpenWorkspace,
+/** The outliner's rows that show for `project`, with what each stands for: a row shows when every row above it is open. */
+export function outlinerTreeOfTheProject(
+  project: OpenProject,
   listedStreams: ListedStreamsReading,
   expansionChoices: OutlinerRowExpansionChoices,
 ): OutlinerRow[] {
@@ -162,6 +162,6 @@ export function outlinerTreeOfTheWorkspace(
     });
     if (isOpen) for (const child of node.children) walk(child, depth + 1);
   };
-  walk(workspaceTree(workspace, listedStreams), 0);
+  walk(projectTree(project, listedStreams), 0);
   return shownRows;
 }

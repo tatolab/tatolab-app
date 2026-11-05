@@ -81,7 +81,7 @@ export function CodeFileTabStrip({
           );
         })}
         <IconButtonMenu icon={Plus} label="Open a file" size="compact" menuAlignment="start" data-code-file-menu="open">
-          {openableFileGroups.length === 0 && <MenuNote>No workspace is open.</MenuNote>}
+          {openableFileGroups.length === 0 && <MenuNote>No project is open.</MenuNote>}
           {openableFileGroups.map((group, groupIndex) => (
             <Fragment key={group.project_name}>
               {groupIndex > 0 && <MenuSeparator />}

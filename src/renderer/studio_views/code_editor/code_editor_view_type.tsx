@@ -30,13 +30,13 @@ const OPENING_A_NODES_FILE_WAITS_ON = "tatolab/streamlib#2918";
  * The host hands every area the same functions, so the documents open behind them are found by one of
  * those functions: every code area of the window shares one set of open files, as split editors do.
  */
-const openCodeDocumentsOfEachHost = new WeakMap<CodeViewConnection["readWorkspaceFile"], { documents: OpenCodeDocuments; last_code_file_ask_taken: number }>();
+const openCodeDocumentsOfEachHost = new WeakMap<CodeViewConnection["readProjectFile"], { documents: OpenCodeDocuments; last_code_file_ask_taken: number }>();
 
 function openCodeDocumentsOf(connection: CodeViewConnection): { documents: OpenCodeDocuments; last_code_file_ask_taken: number } {
-  const known = openCodeDocumentsOfEachHost.get(connection.readWorkspaceFile);
+  const known = openCodeDocumentsOfEachHost.get(connection.readProjectFile);
   if (known !== undefined) return known;
   const created = { documents: new OpenCodeDocuments(connection, forgetCodeEditorDocument), last_code_file_ask_taken: 0 };
-  openCodeDocumentsOfEachHost.set(connection.readWorkspaceFile, created);
+  openCodeDocumentsOfEachHost.set(connection.readProjectFile, created);
   return created;
 }
 
@@ -46,16 +46,16 @@ function useOpenCodeDocuments(connection: CodeViewConnection): OpenCodeDocuments
   return documents;
 }
 
-/** The files each of the workspace's projects offers to open, listed again whenever the workspace is read again. */
+/** The files each of the open project and its imports offers to open, listed again whenever the project is read again. */
 function useOpenableFileGroups(connection: CodeViewConnection): OpenableCodeFileGroup[] {
-  const openWorkspace = useStudioViewReading(connection.watchOpenWorkspace);
-  const projects = useMemo(() => projectsWithFilesToOffer(openWorkspace), [openWorkspace]);
+  const openProject = useStudioViewReading(connection.watchOpenProject);
+  const projects = useMemo(() => projectsWithFilesToOffer(openProject), [openProject]);
   const [groups, setGroups] = useState<OpenableCodeFileGroup[]>([]);
   useEffect(() => {
     let isStale = false;
     void Promise.all(
       projects.map(async ({ project_name: projectName, project_folder: projectFolder }): Promise<OpenableCodeFileGroup> => {
-        const listing = await connection.listWorkspaceProjectFiles(projectFolder);
+        const listing = await connection.listProjectFiles(projectFolder);
         if (listing.kind === "not_listed") return { project_name: projectName, files: [], not_listed_because: listing.because };
         return { project_name: projectName, files: listing.project_files.files.map((name) => ({ file: `${projectFolder}/${name}`, name })), not_listed_because: null };
       }),
@@ -204,7 +204,7 @@ function CodeAreaBody({ connection }: { connection: CodeViewConnection }) {
   const documents = useOpenCodeDocuments(connection);
   const { settings } = connection;
   const codeFileAsked = useStudioViewReading(connection.watchCodeFileAsked);
-  const openWorkspace = useStudioViewReading(connection.watchOpenWorkspace);
+  const openProject = useStudioViewReading(connection.watchOpenProject);
   useEffect(() => {
     const host = openCodeDocumentsOf(connection);
     if (codeFileAsked === null || codeFileAsked.ask <= host.last_code_file_ask_taken) return;
@@ -213,14 +213,14 @@ function CodeAreaBody({ connection }: { connection: CodeViewConnection }) {
   }, [codeFileAsked, connection, settings]);
 
   const shownDocument = settings.shown_file === null ? undefined : documents.documentOf(settings.shown_file);
-  const workspaceProjectFolder = openWorkspace?.kind === "read" ? openWorkspace.workspace.workspace_project.folder : null;
-  const loggedProjectFolder = shownDocument?.kind === "read" ? shownDocument.project_folder : workspaceProjectFolder;
+  const openProjectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
+  const loggedProjectFolder = shownDocument?.kind === "read" ? shownDocument.project_folder : openProjectFolder;
 
   const code =
     settings.shown_file === null ? (
       <WaitingState
         title="No file open"
-        explanation="Open stream.py from the Stream menu, or a file of the workspace from + above. A node's own file opens from the graph once the runtime names it."
+        explanation="Open stream.py from the Stream menu, or a file of the project from + above. A node's own file opens from the graph once the runtime names it."
         waitsOn={OPENING_A_NODES_FILE_WAITS_ON}
         data-code-document-state="none_open"
       />
@@ -244,7 +244,7 @@ function CodeAreaBody({ connection }: { connection: CodeViewConnection }) {
   );
 }
 
-/** Code: the workspace's files in Monaco with Pyright's diagnostics and completion, saved straight to disk, the project's log under them. */
+/** Code: the project's files in Monaco with Pyright's diagnostics and completion, saved straight to disk, the project's log under them. */
 export const CODE_EDITOR_VIEW_TYPE: StudioViewType<CodeViewSettings> = {
   view_type_id: "code",
   title: "Code",

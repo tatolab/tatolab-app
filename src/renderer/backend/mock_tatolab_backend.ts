@@ -13,19 +13,19 @@ import {
 import { createMockRelays, mockRelaysScenarioNamed, type MockRelaysScenario } from "./mock_relays";
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import {
-  mockOpenWorkspaceReading,
-  mockOpenWorkspaceScenarioNamed,
-  mockRecentWorkspaceReading,
-  mockRecentWorkspaces,
-  type MockOpenWorkspaceScenario,
-} from "./mock_open_workspace";
+  mockOpenProjectReading,
+  mockOpenProjectScenarioNamed,
+  mockRecentProjectReading,
+  mockRecentProjects,
+  type MockOpenProjectScenario,
+} from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
-import { MockWorkspaceFiles } from "./mock_workspace_files";
+import { MockProjectFiles } from "./mock_project_files";
 import type { TatolabBackend } from "./tatolab_backend";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
-  type OpenWorkspaceReading,
+  type OpenProjectReading,
   type ProjectLogRecord,
   type ProjectLogRecordsPage,
   type RuntimeDescription,
@@ -213,10 +213,10 @@ export interface MockTatolabOptions {
   doesTheRuntimeListAnEarlierRuntimesRecord: boolean;
   /** `?adapter_names=none`: the relay-adapter catalog of a runtime older than adapter names and logos, which serves neither. */
   doesTheRelayAdapterCatalogServeNoNamesOrLogos: boolean;
-  /** `?workspace=none|unreadable`: no workspace open, or one whose `pyproject.toml` does not parse; the pattern workspace by default. */
-  openWorkspaceScenario: MockOpenWorkspaceScenario;
-  /** `?recent=none`: no workspace opened before, as on first run; six recent ones by default. */
-  recentWorkspacesInTheQuery: string | null;
+  /** `?project=none|unreadable`: no project open, or one whose `pyproject.toml` does not parse; the pattern project by default. */
+  openProjectScenario: MockOpenProjectScenario;
+  /** `?recent=none`: no project opened before, as on first run; six recent ones by default. */
+  recentProjectsInTheQuery: string | null;
   /** `?port_families=served`: each port's family is served in the graph and the node catalog, as streamlib's strict-port-families will serve it; none by default, as the runtime serves today. */
   arePortFamiliesServed: boolean;
 }
@@ -309,8 +309,8 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     relaysScenario: mockRelaysScenarioNamed(pageQuery.get("relays")),
     doesTheRuntimeListAnEarlierRuntimesRecord: pageQuery.get("streams") === "earlier_record",
     doesTheRelayAdapterCatalogServeNoNamesOrLogos: pageQuery.get("adapter_names") === "none",
-    openWorkspaceScenario: mockOpenWorkspaceScenarioNamed(pageQuery.get("workspace")),
-    recentWorkspacesInTheQuery: pageQuery.get("recent"),
+    openProjectScenario: mockOpenProjectScenarioNamed(pageQuery.get("project")),
+    recentProjectsInTheQuery: pageQuery.get("recent"),
     arePortFamiliesServed: pageQuery.get("port_families") === "served",
   };
 }
@@ -493,8 +493,8 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     relaysScenario,
     doesTheRuntimeListAnEarlierRuntimesRecord,
     doesTheRelayAdapterCatalogServeNoNamesOrLogos,
-    openWorkspaceScenario,
-    recentWorkspacesInTheQuery,
+    openProjectScenario,
+    recentProjectsInTheQuery,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -504,20 +504,20 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         ? fixtures.mainStreamWithItsMeterFallingBehind
         : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
-  const openWorkspaceListeners = new Set<(reading: OpenWorkspaceReading) => void>();
-  let openWorkspaceReading = mockOpenWorkspaceReading(openWorkspaceScenario, fixtures.machine.homeDirectory);
-  let recentWorkspaces = mockRecentWorkspaces(recentWorkspacesInTheQuery, fixtures.machine.homeDirectory, Date.now());
-  const openTheWorkspaceInTheMock = (reading: OpenWorkspaceReading, folder: string, projectName: string | null) => {
-    openWorkspaceReading = reading;
-    recentWorkspaces = [{ folder, project_name: projectName, last_opened_at_wall_clock_ms: Date.now() }, ...recentWorkspaces.filter((recent) => recent.folder !== folder)];
-    for (const openWorkspaceListener of openWorkspaceListeners) openWorkspaceListener(structuredClone(openWorkspaceReading));
+  const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
+  let openProjectReading = mockOpenProjectReading(openProjectScenario, fixtures.machine.homeDirectory);
+  let recentProjects = mockRecentProjects(recentProjectsInTheQuery, fixtures.machine.homeDirectory, Date.now());
+  const openTheProjectInTheMock = (reading: OpenProjectReading, folder: string, projectName: string | null) => {
+    openProjectReading = reading;
+    recentProjects = [{ folder, project_name: projectName, last_opened_at_wall_clock_ms: Date.now() }, ...recentProjects.filter((recent) => recent.folder !== folder)];
+    for (const openProjectListener of openProjectListeners) openProjectListener(structuredClone(openProjectReading));
   };
-  const mockWorkspaceFiles = new MockWorkspaceFiles(`${fixtures.machine.homeDirectory}/streams`);
+  const mockProjectFiles = new MockProjectFiles(`${fixtures.machine.homeDirectory}/streams`);
   const languageServerEventListeners = new Set<(event: PythonLanguageServerEvent) => void>();
   const mockLanguageServersBySession = new Map<string, MockPythonLanguageServer>();
   let languageServerSessionCount = 0;
-  const refuseWithoutAnOpenWorkspace = (): void => {
-    if (openWorkspaceReading.kind !== "read") throw "No workspace is open, so its files cannot be read.";
+  const refuseWithoutAnOpenProject = (): void => {
+    if (openProjectReading.kind !== "read") throw "No project is open, so its files cannot be read.";
   };
   const loadedStreams = new Map<string, MockLoadedStream>();
   const listedStreamsNotLoaded = new Map<string, ListedStream>([
@@ -1157,8 +1157,8 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     readProjectLogRecords: async (projectDirectory, narrowing, after) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const isTheWorkspaceProject = openWorkspaceReading.kind === "read" && openWorkspaceReading.workspace.workspace_project.folder === projectDirectory;
-      if (!isTheWorkspaceProject && !(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) throw `The runtime lists no stream from ${projectDirectory}.`;
+      const isTheOpenProject = openProjectReading.kind === "read" && openProjectReading.open_project.project.folder === projectDirectory;
+      if (!isTheOpenProject && !(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) throw `The runtime lists no stream from ${projectDirectory}.`;
       return readMockProjectLog(projectDirectory, narrowing, after);
     },
     describeStreamGraph: async (streamId) => {
@@ -1317,59 +1317,59 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const notificationClickTimer = window.setTimeout(() => streamPageRequestListener(streamPageRequestedByANotification), MOCK_NOTIFICATION_CLICK_MILLISECONDS);
       return () => window.clearTimeout(notificationClickTimer);
     },
-    chooseWorkspaceFolder: async (chosenFor) => {
+    chooseProjectFolder: async (chosenFor) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      const chosenReading = mockOpenWorkspaceReading("read", fixtures.machine.homeDirectory);
-      const folder = chosenReading.kind === "read" ? chosenReading.workspace.workspace_project.folder : fixtures.machine.homeDirectory;
-      openTheWorkspaceInTheMock(chosenReading, folder, chosenReading.kind === "read" ? chosenReading.workspace.workspace_project.name : null);
-      return { folder, project_creation: chosenFor === "new_workspace" ? { action: nextStreamActionId(), stream: mockStreamIdOf({ project_directory: folder, stream_function: "stream:main" }), project_directory: folder } : null };
+      const chosenReading = mockOpenProjectReading("read", fixtures.machine.homeDirectory);
+      const folder = chosenReading.kind === "read" ? chosenReading.open_project.project.folder : fixtures.machine.homeDirectory;
+      openTheProjectInTheMock(chosenReading, folder, chosenReading.kind === "read" ? chosenReading.open_project.project.name : null);
+      return { folder, project_creation: chosenFor === "new_project" ? { action: nextStreamActionId(), stream: mockStreamIdOf({ project_directory: folder, stream_function: "stream:main" }), project_directory: folder } : null };
     },
-    readOpenWorkspace: async () => structuredClone(openWorkspaceReading),
-    readRecentWorkspaces: async () => {
+    readOpenProject: async () => structuredClone(openProjectReading),
+    readRecentProjects: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      return structuredClone(recentWorkspaces);
+      return structuredClone(recentProjects);
     },
-    openRecentWorkspace: async (folder) => {
+    openRecentProject: async (folder) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      const recentWorkspace = recentWorkspaces.find((recent) => recent.folder === folder);
-      if (recentWorkspace === undefined) throw `${folder} is not one of the recent workspaces.`;
-      openTheWorkspaceInTheMock(mockRecentWorkspaceReading(recentWorkspace, fixtures.machine.homeDirectory), folder, recentWorkspace.project_name);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      openTheProjectInTheMock(mockRecentProjectReading(recentProject, fixtures.machine.homeDirectory), folder, recentProject.project_name);
     },
-    onOpenWorkspaceChanged: (openWorkspaceListener) => {
-      openWorkspaceListeners.add(openWorkspaceListener);
-      return () => openWorkspaceListeners.delete(openWorkspaceListener);
+    onOpenProjectChanged: (openProjectListener) => {
+      openProjectListeners.add(openProjectListener);
+      return () => openProjectListeners.delete(openProjectListener);
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);
       return () => statusListeners.delete(statusListener);
     },
-    readWorkspaceFile: async (file) => {
+    readProjectFile: async (file) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      refuseWithoutAnOpenWorkspace();
-      return mockWorkspaceFiles.read(file);
+      refuseWithoutAnOpenProject();
+      return mockProjectFiles.read(file);
     },
-    saveWorkspaceFile: async (file, text, basedOnVersion) => {
+    saveProjectFile: async (file, text, basedOnVersion) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      refuseWithoutAnOpenWorkspace();
-      return mockWorkspaceFiles.save(file, text, basedOnVersion);
+      refuseWithoutAnOpenProject();
+      return mockProjectFiles.save(file, text, basedOnVersion);
     },
-    listWorkspaceProjectFiles: async (projectFolder) => {
+    listProjectFiles: async (projectFolder) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      refuseWithoutAnOpenWorkspace();
-      return mockWorkspaceFiles.list(projectFolder);
+      refuseWithoutAnOpenProject();
+      return mockProjectFiles.list(projectFolder);
     },
-    runWorkspaceProject: async () => {
+    runOpenProject: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (openWorkspaceReading.kind === "none_open") throw "No workspace is open to run.";
-      if (openWorkspaceReading.kind === "unreadable") throw openWorkspaceReading.refusal;
+      if (openProjectReading.kind === "none_open") throw "No project is open to run.";
+      if (openProjectReading.kind === "unreadable") throw openProjectReading.refusal;
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const folder = openWorkspaceReading.workspace.workspace_project.folder;
+      const folder = openProjectReading.open_project.project.folder;
       return { action: queueAMockProjectLoad(folder), project_directory: folder };
     },
     startPythonLanguageServer: async (projectFolder) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      refuseWithoutAnOpenWorkspace();
-      mockWorkspaceFiles.list(projectFolder);
+      refuseWithoutAnOpenProject();
+      mockProjectFiles.list(projectFolder);
       languageServerSessionCount += 1;
       const session = `python-language-server-${languageServerSessionCount}`;
       mockLanguageServersBySession.set(

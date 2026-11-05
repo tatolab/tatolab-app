@@ -1,6 +1,6 @@
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import type { TatolabPlatform, TatolabStatus, WorkspaceFolderChosenFor } from "../shared/tatolab_backend_contract";
+import type { TatolabPlatform, TatolabStatus, ProjectFolderChosenFor } from "../shared/tatolab_backend_contract";
 import { describeBackendRejection, type TatolabBackend } from "./backend/tatolab_backend";
 import { ControlTooltipProvider } from "./design_system/control_tooltip";
 import { afterTheFirstContentfulPaintIsPresented } from "./first_contentful_paint_presented";
@@ -24,7 +24,7 @@ import { UninstallSheetView } from "./setup_and_preferences/uninstall_sheet_view
 import { RUN_LIVE_KEY, type StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
 import { StudioWindowModel, streamsOfTheProjectToStop } from "./studio_shell/studio_window_model";
-import { WORKSPACE_LAYOUTS, WorkspaceLayoutsKeptInStorage } from "./studio_shell/workspace_layouts";
+import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studio_layouts";
 import { VIEWER_VIEW_TYPE } from "./studio_views/arriving_later/arriving_later_view_types";
 import { CODE_EDITOR_VIEW_TYPE } from "./studio_views/code_editor/code_editor_view_type";
 import { PROPERTIES_VIEW_TYPE } from "./studio_views/properties/properties_view_type";
@@ -100,7 +100,7 @@ export function mountTatolabWindow(
   projectLogReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectLogReadings.setPollingAllowed(isVisible));
   const pythonLanguageServerConnections = new PythonLanguageServerConnections(backend);
-  const studioWindowModel = new StudioWindowModel(new WorkspaceLayoutsKeptInStorage(windowLocalStorage()));
+  const studioWindowModel = new StudioWindowModel(new StudioLayoutsKeptInStorage(windowLocalStorage()));
   const uninstallTatolabRefusal = new RefusalKeptForTheWindow();
   const firstRunFinishingRefusal = new RefusalKeptForTheWindow();
   const uninstallSheet = new UninstallSheetView(backend, platform, (flowState) =>
@@ -108,38 +108,38 @@ export function mountTatolabWindow(
   );
   const linuxRuntimeInstallScreen = platform === "linux" ? new LinuxRuntimeInstallView() : null;
 
-  const chooseWorkspaceFolder = (chosenFor: WorkspaceFolderChosenFor) => {
-    studioWindowModel.workspaceOpeningRefusal.publish(null);
-    backend.chooseWorkspaceFolder(chosenFor).catch((rejection: unknown) => studioWindowModel.workspaceOpeningRefusal.publish(describeBackendRejection(rejection)));
+  const chooseProjectFolder = (chosenFor: ProjectFolderChosenFor) => {
+    studioWindowModel.projectOpeningRefusal.publish(null);
+    backend.chooseProjectFolder(chosenFor).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
   };
   const studioMenuBarCommands: StudioMenuBarCommands = {
     showHome: () => studioWindowModel.isHomeShown.publish(true),
-    openAWorkspace: () => chooseWorkspaceFolder("workspace_to_open"),
-    createAWorkspace: () => chooseWorkspaceFolder("new_workspace"),
+    openAProject: () => chooseProjectFolder("project_to_open"),
+    createAProject: () => chooseProjectFolder("new_project"),
     openPreferences: () => studioWindowModel.preferencesSection.publish("general"),
     openAbout: () => studioWindowModel.preferencesSection.publish("about"),
     chooseLayout: (layoutName) => studioWindowModel.chooseLayout(layoutName),
-    runTheWorkspaceLive: () => {
-      studioWindowModel.workspaceRunRefusal.publish(null);
-      backend.runWorkspaceProject().catch((rejection: unknown) => studioWindowModel.workspaceRunRefusal.publish({ asked_to: "run", because: describeBackendRejection(rejection) }));
+    runTheProjectLive: () => {
+      studioWindowModel.projectRunRefusal.publish(null);
+      backend.runOpenProject().catch((rejection: unknown) => studioWindowModel.projectRunRefusal.publish({ asked_to: "run", because: describeBackendRejection(rejection) }));
     },
-    stopTheWorkspace: () => {
-      studioWindowModel.workspaceRunRefusal.publish(null);
-      const openWorkspace = studioWindowModel.openWorkspace.readLatest();
-      if (openWorkspace.kind !== "read") return;
-      const { folder, name } = openWorkspace.workspace.workspace_project;
+    stopTheProject: () => {
+      studioWindowModel.projectRunRefusal.publish(null);
+      const openProject = studioWindowModel.openProject.readLatest();
+      if (openProject.kind !== "read") return;
+      const { folder, name } = openProject.open_project.project;
       const streamsToStop = streamsOfTheProjectToStop(studioWindowModel.listedStreams.readLatest(), folder);
       if (streamsToStop.length === 0) {
-        studioWindowModel.workspaceRunRefusal.publish({ asked_to: "stop", because: `No stream of ${name} is running.` });
+        studioWindowModel.projectRunRefusal.publish({ asked_to: "stop", because: `No stream of ${name} is running.` });
         return;
       }
       Promise.all(streamsToStop.map((stream) => backend.runStreamAction("stop_stream", stream))).catch((rejection: unknown) =>
-        studioWindowModel.workspaceRunRefusal.publish({ asked_to: "stop", because: describeBackendRejection(rejection) }),
+        studioWindowModel.projectRunRefusal.publish({ asked_to: "stop", because: describeBackendRejection(rejection) }),
       );
     },
-    openTheWorkspaceStreamPy: () => {
-      const openWorkspace = studioWindowModel.openWorkspace.readLatest();
-      if (openWorkspace.kind === "read") studioWindowModel.openCodeFile(`${openWorkspace.workspace.workspace_project.folder}/stream.py`);
+    openTheProjectStreamPy: () => {
+      const openProject = studioWindowModel.openProject.readLatest();
+      if (openProject.kind === "read") studioWindowModel.openCodeFile(`${openProject.open_project.project.folder}/stream.py`);
     },
   };
   const studioWindowSources: StudioWindowSources = {
@@ -152,18 +152,18 @@ export function mountTatolabWindow(
     }),
     commands: studioMenuBarCommands,
     home: {
-      readRecentWorkspaces: () => backend.readRecentWorkspaces(),
-      openARecentWorkspace: (folder) => {
-        studioWindowModel.workspaceOpeningRefusal.publish(null);
-        backend.openRecentWorkspace(folder).catch((rejection: unknown) => studioWindowModel.workspaceOpeningRefusal.publish(describeBackendRejection(rejection)));
+      readRecentProjects: () => backend.readRecentProjects(),
+      openARecentProject: (folder) => {
+        studioWindowModel.projectOpeningRefusal.publish(null);
+        backend.openRecentProject(folder).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
       },
     },
     platform,
   };
-  backend.onOpenWorkspaceChanged((reading) => studioWindowModel.showOpenWorkspace(reading));
-  void backend.readOpenWorkspace().then(
-    (reading) => studioWindowModel.showOpenWorkspace(reading),
-    (rejection: unknown) => studioWindowModel.workspaceOpeningRefusal.publish(describeBackendRejection(rejection)),
+  backend.onOpenProjectChanged((reading) => studioWindowModel.showOpenProject(reading));
+  void backend.readOpenProject().then(
+    (reading) => studioWindowModel.showOpenProject(reading),
+    (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
   );
   backend.onStreamPageRequested((streamId) => studioWindowModel.openStreamTabOfAListedStream(streamId));
 
@@ -171,15 +171,15 @@ export function mountTatolabWindow(
 
   /** Runs the studio's shortcut for `key`, held with ⌘ on macOS and Ctrl on Linux; false when `key` has none. */
   function runStudioShortcut(key: string): boolean {
-    const layoutOfTheDigit = WORKSPACE_LAYOUTS.find((layout) => layout.shortcut_digit === key);
+    const layoutOfTheDigit = STUDIO_LAYOUTS.find((layout) => layout.shortcut_digit === key);
     if (layoutOfTheDigit !== undefined) {
-      if (studioWindowModel.workspaceLayouts.readLatest() === null) return false;
+      if (studioWindowModel.studioLayouts.readLatest() === null) return false;
       studioWindowModel.chooseLayout(layoutOfTheDigit.name);
       return true;
     }
     switch (key) {
       case "o":
-        studioMenuBarCommands.openAWorkspace();
+        studioMenuBarCommands.openAProject();
         return true;
       case ",":
         studioMenuBarCommands.openPreferences();
@@ -193,10 +193,10 @@ export function mountTatolabWindow(
     const latestStatus = statusStore?.readLatestStatus() ?? null;
     if (latestStatus === null || latestStatus.runtime_install.kind !== "none" || chooseTatolabWindowScreen(latestStatus) === "setup" || uninstallSheet.isOpen()) return;
     if (keyboardEvent.key === RUN_LIVE_KEY && !keyboardEvent.metaKey && !keyboardEvent.ctrlKey && !keyboardEvent.altKey) {
-      if (studioWindowModel.workspaceLayouts.readLatest() === null) return;
+      if (studioWindowModel.studioLayouts.readLatest() === null) return;
       keyboardEvent.preventDefault();
-      if (keyboardEvent.shiftKey) studioMenuBarCommands.stopTheWorkspace();
-      else studioMenuBarCommands.runTheWorkspaceLive();
+      if (keyboardEvent.shiftKey) studioMenuBarCommands.stopTheProject();
+      else studioMenuBarCommands.runTheProjectLive();
       return;
     }
     if (!holdsWindowShortcutModifier(platform, keyboardEvent)) return;

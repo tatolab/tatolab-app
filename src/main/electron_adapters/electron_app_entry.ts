@@ -20,7 +20,7 @@ import { runtimeLoopbackHttpOriginForThisBuild } from "../runtime_loopback_watch
 import { electronApplicationMenu } from "./electron_application_menu.js";
 import { openAFolderInTheFileManagerThroughElectron } from "./electron_folder_in_the_file_manager.js";
 import { askThePersonForAStreamProjectFolderThroughElectron } from "./electron_stream_project_folder_dialog.js";
-import { askThePersonForAWorkspaceFolderThroughElectron } from "./electron_workspace_folder_dialog.js";
+import { askThePersonForAProjectFolderThroughElectron } from "./electron_project_folder_dialog.js";
 import { startANodeLanguageServerInAUtilityProcess } from "./electron_node_language_server_in_a_utility_process.js";
 import { watchFolderEntriesOnThisMachine } from "../folder_entries_watch_on_this_machine.js";
 import { createElectronMainWindowHostFactory } from "./electron_main_window_host.js";
@@ -96,7 +96,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   answerTheWindowsCommands: (tatolabWindowCommandHandlers) => answerTheWindowsCommandsOverIpc(windowPageUrl, tatolabWindowCommandHandlers, tatolabAppLog),
   openAFolderInTheFileManager: openAFolderInTheFileManagerThroughElectron,
   askThePersonForAStreamProjectFolder: askThePersonForAStreamProjectFolderThroughElectron,
-  askThePersonForAWorkspaceFolder: askThePersonForAWorkspaceFolderThroughElectron,
+  askThePersonForAProjectFolder: askThePersonForAProjectFolderThroughElectron,
   startANodeLanguageServer: startANodeLanguageServerInAUtilityProcess,
   // A packaged app carries Pyright outside app.asar, in app.asar.unpacked, so its worker threads and typeshed stubs load from plain files.
   pyrightLanguageServerModulePath: path.join(app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getAppPath(), "node_modules", "pyright", "langserver.index.js"),
@@ -110,7 +110,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   appConfigDirectory: tatolabPlatformHostServices.appConfigDirectory,
   runtimeLoopbackHttpOrigin,
   readMonotonicClockMs: () => performance.now(),
-  // The one wall-clock read in the main process: it stamps when a workspace was opened, which Home only displays.
+  // The one wall-clock read in the main process: it stamps when a project was opened, which Home only displays.
   // eslint-disable-next-line no-restricted-properties
   readWallClockMsForDisplay: () => Date.now(),
   mainWindowHostFactory: createElectronMainWindowHostFactory(

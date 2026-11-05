@@ -14,10 +14,10 @@ import {
 } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
-import { OpenWorkspaceFolder } from "./open_workspace.js";
+import { OpenProjectFolder } from "./open_project.js";
 import { PythonLanguageServers } from "./python_language_servers.js";
-import { WorkspaceFiles } from "./workspace_files.js";
-import { recentWorkspaceFoldersFileIn } from "./recent_workspace_folders_file.js";
+import { OpenProjectFiles } from "./open_project_files.js";
+import { recentProjectFoldersFileIn } from "./recent_project_folders_file.js";
 import { failedWith, succeeded } from "./result.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import { RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL } from "./run_tatolab_switch.js";
@@ -121,15 +121,15 @@ async function sharedStateOverFakes(
     () => {},
     quietTatolabAppLog,
   );
-  const openWorkspaceFolder = new OpenWorkspaceFolder({
+  const openProjectFolder = new OpenProjectFolder({
     homeDirectory: appConfigDirectory,
-    workspaceFolderDialog: async () => succeeded(null),
-    recentWorkspaceFolders: recentWorkspaceFoldersFileIn(appConfigDirectory, quietTatolabAppLog),
+    projectFolderDialog: async () => succeeded(null),
+    recentProjectFolders: recentProjectFoldersFileIn(appConfigDirectory, quietTatolabAppLog),
     readWallClockNowMs: () => 1_790_000_000_000,
-    workspaceProjectCreation: controller,
+    newProjectCreation: controller,
     watchFolderEntries: () => null,
     runAfter: () => () => {},
-    sendTheWindowTheOpenWorkspace: () => {},
+    sendTheWindowTheOpenProject: () => {},
   });
   return {
     controller,
@@ -149,12 +149,12 @@ async function sharedStateOverFakes(
       streamProjectFolderDialog: async () => succeeded(folderTheDialogAnswers),
       projectLoadsOnTheRuntime: controller,
     }),
-    openWorkspaceFolder,
-    workspaceFiles: new WorkspaceFiles(() => openWorkspaceFolder.readOpenWorkspace()),
+    openProjectFolder,
+    openProjectFiles: new OpenProjectFiles(() => openProjectFolder.readOpenProject()),
     pythonLanguageServers: new PythonLanguageServers({
       startANodeLanguageServer: () => failedWith("these tests start no language server"),
       pyrightLanguageServerModulePath: "/fake/pyright/langserver.index.js",
-      projectFolderOfTheOpenWorkspace: () => failedWith("no workspace is open"),
+      projectFolderOfTheOpenProject: () => failedWith("no project is open"),
       sendTheWindowALanguageServerEvent: () => {},
       tatolabAppLog: quietTatolabAppLog,
     }),
@@ -633,11 +633,11 @@ test("the commands that add a project read their arguments as the window sends t
   expect(await commandHandlers.describe_stream_action({})).toEqual({ ok: false, refusal: "describe_stream_action needs `action`, a stream action's id" });
 });
 
-test("Home's commands list no recent workspace on a fresh install, and open only a recent one", async () => {
+test("Home's commands list no recent project on a fresh install, and open only a recent one", async () => {
   const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
-  expect(await commandHandlers.read_recent_workspaces(undefined)).toEqual({ ok: true, value: [] });
-  expect(await commandHandlers.open_recent_workspace({})).toEqual({ ok: false, refusal: "open_recent_workspace needs `folder`, one of the recent workspaces' folders" });
-  expect(await commandHandlers.open_recent_workspace({ folder: "/etc" })).toEqual({ ok: false, refusal: "/etc is not one of the recent workspaces." });
+  expect(await commandHandlers.read_recent_projects(undefined)).toEqual({ ok: true, value: [] });
+  expect(await commandHandlers.open_recent_project({})).toEqual({ ok: false, refusal: "open_recent_project needs `folder`, one of the recent projects' folders" });
+  expect(await commandHandlers.open_recent_project({ folder: "/etc" })).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
 });
 
 /** The window's `RuntimeDescription` reads exactly this JSON. */

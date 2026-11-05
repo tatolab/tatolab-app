@@ -3,7 +3,7 @@ import { TreeView } from "../../design_system/tree_view";
 import { WaitingState } from "../../design_system/waiting_state";
 import { useStudioViewReading } from "../../view_host/in_window_view_host";
 import type { JsonValue, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
-import { outlinerRowIdOfTheSelection, outlinerTreeOfTheWorkspace, type OutlinerRowExpansionChoices } from "./outliner_tree_of_the_workspace";
+import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject, type OutlinerRowExpansionChoices } from "./outliner_tree_of_the_project";
 
 /** What an outliner area keeps with the layout: the rows the person opened or closed. */
 export type OutlinerSettings = { row_expansion: { [rowId: string]: boolean } };
@@ -20,19 +20,19 @@ function outlinerSettingsFrom(savedSettings: JsonValue): OutlinerSettings | null
   return { row_expansion: choices };
 }
 
-/** The open workspace as a tree: the workspace project and its streams, then its read-only imports. */
+/** The open project as a tree: the open project and its streams, then its read-only imports. */
 function OutlinerBody({ connection }: { connection: StudioViewHostConnection<OutlinerSettings> }) {
-  const openWorkspace = useStudioViewReading(connection.watchOpenWorkspace);
+  const openProject = useStudioViewReading(connection.watchOpenProject);
   const listedStreams = useStudioViewReading(connection.watchListedStreams);
   const selection = useStudioViewReading(connection.watchSelection);
   const expansionChoices: OutlinerRowExpansionChoices = connection.settings.row_expansion;
   const outlinerRows = useMemo(
-    () => (openWorkspace?.kind === "read" ? outlinerTreeOfTheWorkspace(openWorkspace.workspace, listedStreams ?? { kind: "not_listed", because: "" }, expansionChoices) : []),
-    [openWorkspace, listedStreams, expansionChoices],
+    () => (openProject?.kind === "read" ? outlinerTreeOfTheProject(openProject.open_project, listedStreams ?? { kind: "not_listed", because: "" }, expansionChoices) : []),
+    [openProject, listedStreams, expansionChoices],
   );
-  if (openWorkspace === null) return null;
-  if (openWorkspace.kind === "none_open") return <WaitingState title="No workspace is open" explanation="Open or create one from the File menu." />;
-  if (openWorkspace.kind === "unreadable") return <WaitingState isFailure title={`${openWorkspace.folder} can't be read`} explanation={openWorkspace.refusal} />;
+  if (openProject === null) return null;
+  if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
+  if (openProject.kind === "unreadable") return <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} />;
   const meaningOfRow = (rowId: string) => outlinerRows.find((outlinerRow) => outlinerRow.row.row_id === rowId)?.meaning ?? { kind: "nothing_to_select" as const };
   return (
     <div className="scrollbar-thin min-h-0 flex-1 overflow-auto" data-outliner="">
@@ -55,7 +55,7 @@ function OutlinerBody({ connection }: { connection: StudioViewHostConnection<Out
   );
 }
 
-/** The outliner: the open workspace's projects, streams and imports. */
+/** The outliner: the open project, its streams and its imports. */
 export const OUTLINER_VIEW_TYPE: StudioViewType<OutlinerSettings> = {
   view_type_id: "outliner",
   title: "Outliner",

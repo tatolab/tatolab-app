@@ -1,8 +1,8 @@
-// The mock's files of the open workspace: the pattern project's `stream.py`, its two node modules
+// The mock's files of the open project: the pattern project's `stream.py`, its two node modules
 // and `pyproject.toml`, and the camera import's `stream.py`, which the code pane reads and saves as
 // it would on disk. A save at a version the mock no longer holds is refused as a change on disk.
 
-import type { WorkspaceFileRead, WorkspaceFileSaved, WorkspaceProjectFiles } from "../../shared/tatolab_backend_contract";
+import type { ProjectFileRead, ProjectFileSaved, ProjectFiles } from "../../shared/tatolab_backend_contract";
 
 const PATTERN_STREAM_PY = `from tatolab.stream import Exposure, RelayTrackSource, StreamBuilder, stream
 from tatolab.stream import DisplayWindow, Mp4Writer, TestPatternSource
@@ -122,44 +122,44 @@ def camera(stream_builder: StreamBuilder) -> None:
     stream_builder.connect(microphone.output("audio"), meter.input("audio_from_upstream"))
 `;
 
-interface MockWorkspaceFile {
+interface MockProjectFile {
   text: string;
   version: number;
 }
 
-/** The mock workspace's project files in `streamsFolder`, read and saved as the app does on disk. */
-export class MockWorkspaceFiles {
-  private readonly filesByPath = new Map<string, MockWorkspaceFile>();
+/** The mock open project's files in `streamsFolder`, read and saved as the app does on disk. */
+export class MockProjectFiles {
+  private readonly filesByPath = new Map<string, MockProjectFile>();
   private versionCount = 0;
-  readonly workspaceProjectFolder: string;
+  readonly openProjectFolder: string;
   private readonly importFolders: string[];
 
   constructor(streamsFolder: string) {
-    this.workspaceProjectFolder = `${streamsFolder}/pattern`;
+    this.openProjectFolder = `${streamsFolder}/pattern`;
     this.importFolders = [`${streamsFolder}/camera`, `${streamsFolder}/lobby-recorder`];
     const initialTexts: [string, string][] = [
-      [`${this.workspaceProjectFolder}/stream.py`, PATTERN_STREAM_PY],
-      [`${this.workspaceProjectFolder}/nodes/__init__.py`, ""],
-      [`${this.workspaceProjectFolder}/nodes/inverting_effect.py`, INVERTING_EFFECT_PY],
-      [`${this.workspaceProjectFolder}/nodes/brightness_meter.py`, BRIGHTNESS_METER_PY],
-      [`${this.workspaceProjectFolder}/pyproject.toml`, PATTERN_PYPROJECT_TOML],
+      [`${this.openProjectFolder}/stream.py`, PATTERN_STREAM_PY],
+      [`${this.openProjectFolder}/nodes/__init__.py`, ""],
+      [`${this.openProjectFolder}/nodes/inverting_effect.py`, INVERTING_EFFECT_PY],
+      [`${this.openProjectFolder}/nodes/brightness_meter.py`, BRIGHTNESS_METER_PY],
+      [`${this.openProjectFolder}/pyproject.toml`, PATTERN_PYPROJECT_TOML],
       [`${streamsFolder}/camera/stream.py`, CAMERA_STREAM_PY],
     ];
     for (const [file, text] of initialTexts) this.filesByPath.set(file, { text, version: this.nextVersion() });
   }
 
-  read(file: string): WorkspaceFileRead {
+  read(file: string): ProjectFileRead {
     const projectFolder = this.projectFolderOf(file);
     const known = this.filesByPath.get(file);
-    if (projectFolder === null) throw `${file} is not a file of the open workspace's projects, so Tato Studio does not open it.`;
+    if (projectFolder === null) throw `${file} is not a file of the open project or its imports, so Tato Studio does not open it.`;
     if (known === undefined) throw `ENOENT: no such file or directory, open '${file}'`;
-    return { file, project_folder: projectFolder, text: known.text, version: String(known.version), is_editable: projectFolder === this.workspaceProjectFolder };
+    return { file, project_folder: projectFolder, text: known.text, version: String(known.version), is_editable: projectFolder === this.openProjectFolder };
   }
 
-  save(file: string, text: string, basedOnVersion: string | null): WorkspaceFileSaved {
+  save(file: string, text: string, basedOnVersion: string | null): ProjectFileSaved {
     const projectFolder = this.projectFolderOf(file);
-    if (projectFolder === null) throw `${file} is not a file of the open workspace's projects, so Tato Studio does not open it.`;
-    if (projectFolder !== this.workspaceProjectFolder) throw `${file} belongs to an imported project, which the studio opens read-only.`;
+    if (projectFolder === null) throw `${file} is not a file of the open project or its imports, so Tato Studio does not open it.`;
+    if (projectFolder !== this.openProjectFolder) throw `${file} belongs to an imported project, which the studio opens read-only.`;
     const known = this.filesByPath.get(file);
     const versionOnDisk = known === undefined ? null : String(known.version);
     if (versionOnDisk !== basedOnVersion) throw `${file.split("/").at(-1) ?? file} changed on disk since it was opened, so it was not saved.`;
@@ -168,9 +168,9 @@ export class MockWorkspaceFiles {
     return { version: String(saved.version) };
   }
 
-  list(projectFolder: string): WorkspaceProjectFiles {
-    if (projectFolder !== this.workspaceProjectFolder && !this.importFolders.includes(projectFolder)) {
-      throw `${projectFolder} is not a project folder of the open workspace.`;
+  list(projectFolder: string): ProjectFiles {
+    if (projectFolder !== this.openProjectFolder && !this.importFolders.includes(projectFolder)) {
+      throw `${projectFolder} is not the folder of the open project or of one of its imports.`;
     }
     const files = [...this.filesByPath.keys()]
       .filter((file) => file.startsWith(`${projectFolder}/`))
@@ -180,7 +180,7 @@ export class MockWorkspaceFiles {
   }
 
   private projectFolderOf(file: string): string | null {
-    return [this.workspaceProjectFolder, ...this.importFolders].find((folder) => file.startsWith(`${folder}/`)) ?? null;
+    return [this.openProjectFolder, ...this.importFolders].find((folder) => file.startsWith(`${folder}/`)) ?? null;
   }
 
   private nextVersion(): number {

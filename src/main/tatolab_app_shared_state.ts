@@ -12,11 +12,11 @@ import type { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import type { StreamProjectFolderOpeners } from "./stream_project_folder_opening.js";
 import type { StreamProjectAdding } from "./stream_project_adding.js";
 import type { StreamFailureNotifications } from "./stream_failure_notifications.js";
-import type { OpenWorkspaceFolder } from "./open_workspace.js";
+import type { OpenProjectFolder } from "./open_project.js";
 import type { PythonLanguageServers } from "./python_language_servers.js";
-import type { WorkspaceFiles } from "./workspace_files.js";
+import type { OpenProjectFiles } from "./open_project_files.js";
 
-/** The controller, the status publisher, the updater, uninstalling, what opens a stream's project, adding a project, the stream-failure notifications, the open workspace, its files and its language servers, which the tray's choices and the window's commands reach. */
+/** The controller, the status publisher, the updater, uninstalling, what opens a stream's project, adding a project, the stream-failure notifications, the open project, its files and its language servers, which the tray's choices and the window's commands reach. */
 export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;
@@ -25,9 +25,9 @@ export interface TatolabAppSharedState {
   streamProjectFolderOpeners: StreamProjectFolderOpeners;
   streamProjectAdding: StreamProjectAdding;
   streamFailureNotifications: StreamFailureNotifications;
-  openWorkspaceFolder: OpenWorkspaceFolder;
-  /** The open workspace's project files, which the code pane reads and saves. */
-  workspaceFiles: WorkspaceFiles;
+  openProjectFolder: OpenProjectFolder;
+  /** The files of the open project and its imports, which the code pane reads and saves. */
+  openProjectFiles: OpenProjectFiles;
   /** The code pane's Pyright language servers. */
   pythonLanguageServers: PythonLanguageServers;
   tatolabAppLog: TatolabAppLog;

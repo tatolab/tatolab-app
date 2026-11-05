@@ -30,7 +30,7 @@ export function registeredStudioViewType<ViewSettings extends JsonValue>(viewTyp
   };
 }
 
-/** Every view type an area can show, by id: the studio's own, then those the open workspace brings. */
+/** Every view type an area can show, by id: the studio's own, then those the open project brings. */
 export class StudioViewTypeRegistry {
   private readonly viewTypesById = new Map<string, RegisteredStudioViewType>();
 
@@ -48,8 +48,8 @@ export class StudioViewTypeRegistry {
     return [...this.viewTypesById.values()].filter((viewType) => viewType.brought_by.kind === "built_in");
   }
 
-  /** The view types the open workspace's projects bring. */
-  workspaceViewTypes(): RegisteredStudioViewType[] {
-    return [...this.viewTypesById.values()].filter((viewType) => viewType.brought_by.kind === "workspace_project");
+  /** The view types the open project and its imports bring. */
+  projectViewTypes(): RegisteredStudioViewType[] {
+    return [...this.viewTypesById.values()].filter((viewType) => viewType.brought_by.kind === "project");
   }
 }

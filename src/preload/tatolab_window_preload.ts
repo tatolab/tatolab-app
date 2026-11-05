@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { OpenWorkspaceReading, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { OpenProjectReading, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
   TATOLAB_COMMAND_NAMES,
-  TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT,
+  TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
@@ -46,11 +46,11 @@ const tatolabElectronBridge: TatolabElectronBridge = {
       ipcRenderer.removeListener(TATOLAB_STREAM_PAGE_REQUESTED_EVENT, streamPageRequestedListener);
     };
   },
-  onOpenWorkspaceChanged: (listener) => {
-    const openWorkspaceChangedListener = (_openWorkspaceChangedEvent: IpcRendererEvent, reading: OpenWorkspaceReading) => listener(reading);
-    ipcRenderer.on(TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT, openWorkspaceChangedListener);
+  onOpenProjectChanged: (listener) => {
+    const openProjectChangedListener = (_openProjectChangedEvent: IpcRendererEvent, reading: OpenProjectReading) => listener(reading);
+    ipcRenderer.on(TATOLAB_OPEN_PROJECT_CHANGED_EVENT, openProjectChangedListener);
     return () => {
-      ipcRenderer.removeListener(TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT, openWorkspaceChangedListener);
+      ipcRenderer.removeListener(TATOLAB_OPEN_PROJECT_CHANGED_EVENT, openProjectChangedListener);
     };
   },
   onPythonLanguageServerEvent: (listener) => {

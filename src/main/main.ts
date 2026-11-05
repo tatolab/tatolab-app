@@ -32,10 +32,10 @@ import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "
 import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
-import { OpenWorkspaceFolder, type FolderEntriesWatch, type WorkspaceFolderDialog } from "./open_workspace.js";
+import { OpenProjectFolder, type FolderEntriesWatch, type ProjectFolderDialog } from "./open_project.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
-import { WorkspaceFiles } from "./workspace_files.js";
-import { recentWorkspaceFoldersFileIn } from "./recent_workspace_folders_file.js";
+import { OpenProjectFiles } from "./open_project_files.js";
+import { recentProjectFoldersFileIn } from "./recent_project_folders_file.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
 import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy_handoff.js";
 
@@ -65,13 +65,13 @@ export interface TatolabElectronAppShell {
   openAFolderInTheFileManager(folder: string): Promise<Result<void, string>>;
   /** The desktop's folder dialog over the window, which the window's Add stream asks through. */
   askThePersonForAStreamProjectFolder: StreamProjectFolderDialog;
-  /** The desktop's folder dialog over the window, which the studio opens and creates a workspace through. */
-  askThePersonForAWorkspaceFolder: WorkspaceFolderDialog;
+  /** The desktop's folder dialog over the window, which the studio opens and creates a project through. */
+  askThePersonForAProjectFolder: ProjectFolderDialog;
   /** How the code pane's language servers start, each in its own process. */
   startANodeLanguageServer: StartANodeLanguageServer;
   /** Pyright's `langserver.index.js` as this build carries it. */
   pyrightLanguageServerModulePath: string;
-  /** Watching the entries directly in one folder, which the open workspace reads again on. */
+  /** Watching the entries directly in one folder, which the open project reads again on. */
   watchFolderEntries: FolderEntriesWatch;
   /** The person's home directory, where the folder dialog opens, or at `~/streams` for a new project once that folder exists. */
   homeDirectory: string;
@@ -86,7 +86,7 @@ export interface TatolabElectronAppShell {
   /** Where the runtime this build reads serves its loopback HTTP: the window's content security policy frames it, and the graph's preview pages sit under it. */
   runtimeLoopbackHttpOrigin: string;
   readMonotonicClockMs(): number;
-  /** The wall clock, in milliseconds since the epoch, only ever shown to the person, as when Home says a workspace was opened. */
+  /** The wall clock, in milliseconds since the epoch, only ever shown to the person, as when Home says a project was opened. */
   readWallClockMsForDisplay(): number;
   mainWindowHostFactory: MainWindowHostFactory;
   trayIconHostFactory: TrayIconHostFactory;
@@ -201,20 +201,20 @@ export async function startTatolabApp(
   statusPublisherOnceBuilt = statusPublisher;
   statusPublisher.attachStreamFailureNotifications(streamFailureNotifications);
   tatolabElectronAppShell.onTheAppQuitting(() => statusPublisher.stopPolling());
-  const openWorkspaceFolder = new OpenWorkspaceFolder({
+  const openProjectFolder = new OpenProjectFolder({
     homeDirectory: tatolabElectronAppShell.homeDirectory,
-    workspaceFolderDialog: tatolabElectronAppShell.askThePersonForAWorkspaceFolder,
-    recentWorkspaceFolders: recentWorkspaceFoldersFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
+    projectFolderDialog: tatolabElectronAppShell.askThePersonForAProjectFolder,
+    recentProjectFolders: recentProjectFoldersFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
     readWallClockNowMs: () => tatolabElectronAppShell.readWallClockMsForDisplay(),
-    workspaceProjectCreation: controller,
+    newProjectCreation: controller,
     watchFolderEntries: tatolabElectronAppShell.watchFolderEntries,
     runAfter: (delayMs, work) => {
       const timer = setTimeout(work, delayMs);
       return () => clearTimeout(timer);
     },
-    sendTheWindowTheOpenWorkspace: (reading) => tatolabMainWindow.sendTheWindowTheOpenWorkspace(reading),
+    sendTheWindowTheOpenProject: (reading) => tatolabMainWindow.sendTheWindowTheOpenProject(reading),
   });
-  const workspaceFiles = new WorkspaceFiles(() => openWorkspaceFolder.readOpenWorkspace());
+  const openProjectFiles = new OpenProjectFiles(() => openProjectFolder.readOpenProject());
   const sharedState: TatolabAppSharedState = {
     controller,
     statusPublisher,
@@ -231,18 +231,18 @@ export async function startTatolabApp(
       projectLoadsOnTheRuntime: controller,
     }),
     streamFailureNotifications,
-    openWorkspaceFolder,
-    workspaceFiles,
+    openProjectFolder,
+    openProjectFiles,
     pythonLanguageServers: new PythonLanguageServers({
       startANodeLanguageServer: tatolabElectronAppShell.startANodeLanguageServer,
       pyrightLanguageServerModulePath: tatolabElectronAppShell.pyrightLanguageServerModulePath,
-      projectFolderOfTheOpenWorkspace: (projectFolder) => workspaceFiles.projectFolderOfTheOpenWorkspace(projectFolder),
+      projectFolderOfTheOpenProject: (projectFolder) => openProjectFiles.projectFolderOfTheOpenProject(projectFolder),
       sendTheWindowALanguageServerEvent: (event) => tatolabMainWindow.sendTheWindowALanguageServerEvent(event),
       tatolabAppLog,
     }),
     tatolabAppLog,
   };
-  tatolabElectronAppShell.onTheAppQuitting(() => sharedState.openWorkspaceFolder.stopWatching());
+  tatolabElectronAppShell.onTheAppQuitting(() => sharedState.openProjectFolder.stopWatching());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.pythonLanguageServers.stopEveryLanguageServer());
   const quitTheApp = () => quitTheTatolabApp(tatolabMainWindow, (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode), tatolabAppLog);
   const showTheWindowWithTheLastStatus = () => {

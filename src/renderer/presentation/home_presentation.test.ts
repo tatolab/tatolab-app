@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { ListedStream, RecentWorkspace } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, RecentProject } from "../../shared/tatolab_backend_contract";
 import type { ListedStreamsReading } from "../view_host/studio_view_contract";
 import { presentHomeWithNoCards, presentRecentProjectCards, presentTimeSince } from "./home_presentation";
 
 const NOW_MS = 1_790_000_000_000;
 const HOUR_MS = 3_600_000;
 
-const RECENT_WORKSPACES: RecentWorkspace[] = [
+const RECENT_PROJECTS: RecentProject[] = [
   { folder: "/Users/ada/streams/pattern", project_name: "pattern", last_opened_at_wall_clock_ms: NOW_MS - 2 * HOUR_MS },
   { folder: "/home/ada/streams/lobby", project_name: "lobby-recorder", last_opened_at_wall_clock_ms: NOW_MS - 30 * HOUR_MS },
   { folder: "/Users/ada/Desktop/old-sketch/", project_name: null, last_opened_at_wall_clock_ms: NOW_MS - 40 * 24 * HOUR_MS },
@@ -41,7 +41,7 @@ describe("when a project was last opened", () => {
 
 describe("Home's project cards", () => {
   it("name each project, its folder under home and when it was opened, and mark one that doesn't read", () => {
-    const cards = presentRecentProjectCards(RECENT_WORKSPACES, { kind: "not_listed", because: "Tatolab is off" }, NOW_MS, "all_projects", "");
+    const cards = presentRecentProjectCards(RECENT_PROJECTS, { kind: "not_listed", because: "Tatolab is off" }, NOW_MS, "all_projects", "");
     expect(cards.map(({ name, folderWords, lastOpenedWords, isRunning, isUnreadable }) => [name, folderWords, lastOpenedWords, isRunning, isUnreadable])).toEqual([
       ["pattern", "~/streams/pattern", "2 hours ago", false, false],
       ["lobby-recorder", "~/streams/lobby", "yesterday", false, false],
@@ -51,14 +51,14 @@ describe("Home's project cards", () => {
 
   it("mark a project running while a stream of it runs or prepares, and Running now lists only those", () => {
     const running = listedWithAStreamOf("/Users/ada/streams/pattern", "preparing");
-    expect(presentRecentProjectCards(RECENT_WORKSPACES, running, NOW_MS, "running_now", "").map((card) => [card.name, card.isRunning])).toEqual([["pattern", true]]);
-    expect(presentRecentProjectCards(RECENT_WORKSPACES, listedWithAStreamOf("/Users/ada/streams/pattern", "stopped"), NOW_MS, "running_now", "")).toEqual([]);
+    expect(presentRecentProjectCards(RECENT_PROJECTS, running, NOW_MS, "running_now", "").map((card) => [card.name, card.isRunning])).toEqual([["pattern", true]]);
+    expect(presentRecentProjectCards(RECENT_PROJECTS, listedWithAStreamOf("/Users/ada/streams/pattern", "stopped"), NOW_MS, "running_now", "")).toEqual([]);
   });
 
   it("narrow to a search of the name or the folder, ignoring case", () => {
     const listedNone: ListedStreamsReading = { kind: "listed", streams: [] };
-    expect(presentRecentProjectCards(RECENT_WORKSPACES, listedNone, NOW_MS, "all_projects", " LOBBY ").map((card) => card.name)).toEqual(["lobby-recorder"]);
-    expect(presentRecentProjectCards(RECENT_WORKSPACES, listedNone, NOW_MS, "all_projects", "desktop").map((card) => card.name)).toEqual(["old-sketch"]);
+    expect(presentRecentProjectCards(RECENT_PROJECTS, listedNone, NOW_MS, "all_projects", " LOBBY ").map((card) => card.name)).toEqual(["lobby-recorder"]);
+    expect(presentRecentProjectCards(RECENT_PROJECTS, listedNone, NOW_MS, "all_projects", "desktop").map((card) => card.name)).toEqual(["old-sketch"]);
   });
 });
 

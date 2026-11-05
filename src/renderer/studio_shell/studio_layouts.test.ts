@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, studioAreaLayoutFromSaved, type StudioAreaLayoutNode } from "./studio_area_layout";
-import { defaultWorkspaceLayout, WORKSPACE_LAYOUTS, WorkspaceLayoutsKeptInStorage, workspaceLayoutsFromSaved, workspaceLayoutsStorageKey } from "./workspace_layouts";
+import { defaultStudioLayout, STUDIO_LAYOUTS, StudioLayoutsKeptInStorage, studioLayoutsFromSaved, studioLayoutsStorageKey } from "./studio_layouts";
 
 function areaIdsOf(node: StudioAreaLayoutNode): string[] {
   return node.kind === "area" ? [node.area_id] : node.parts.flatMap(({ part }) => areaIdsOf(part));
@@ -14,16 +14,16 @@ function storageInMemory() {
 
 describe("the five layouts", () => {
   it("lays each out after the canvas, the outliner over properties down the right of every one", () => {
-    expect(WORKSPACE_LAYOUTS.map(({ title, shortcut_digit }) => `${title} ${shortcut_digit}`)).toEqual(["Build 1", "Compose 2", "Spatial 3", "Code 4", "Perform 5"]);
-    expect(areaIdsOf(defaultWorkspaceLayout("build"))).toEqual(["scene", "stream-graph", "viewer", "code", "outliner", "properties"]);
-    expect(areaIdsOf(defaultWorkspaceLayout("compose"))).toEqual(["stream-graph", "viewer", "code", "outliner", "properties"]);
-    expect(areaIdsOf(defaultWorkspaceLayout("spatial"))).toEqual(["scene", "viewer", "stream-graph", "outliner", "properties"]);
-    expect(areaIdsOf(defaultWorkspaceLayout("code"))).toEqual(["code", "stream-graph", "viewer", "outliner", "properties"]);
-    expect(areaIdsOf(defaultWorkspaceLayout("perform"))).toEqual(["viewer", "scene", "stream-graph", "outliner", "properties"]);
+    expect(STUDIO_LAYOUTS.map(({ title, shortcut_digit }) => `${title} ${shortcut_digit}`)).toEqual(["Build 1", "Compose 2", "Spatial 3", "Code 4", "Perform 5"]);
+    expect(areaIdsOf(defaultStudioLayout("build"))).toEqual(["scene", "stream-graph", "viewer", "code", "outliner", "properties"]);
+    expect(areaIdsOf(defaultStudioLayout("compose"))).toEqual(["stream-graph", "viewer", "code", "outliner", "properties"]);
+    expect(areaIdsOf(defaultStudioLayout("spatial"))).toEqual(["scene", "viewer", "stream-graph", "outliner", "properties"]);
+    expect(areaIdsOf(defaultStudioLayout("code"))).toEqual(["code", "stream-graph", "viewer", "outliner", "properties"]);
+    expect(areaIdsOf(defaultStudioLayout("perform"))).toEqual(["viewer", "scene", "stream-graph", "outliner", "properties"]);
   });
 
   it("reads every default back as it was saved", () => {
-    for (const { name } of WORKSPACE_LAYOUTS) expect(studioAreaLayoutFromSaved(JSON.parse(JSON.stringify(defaultWorkspaceLayout(name))))).toEqual(defaultWorkspaceLayout(name));
+    for (const { name } of STUDIO_LAYOUTS) expect(studioAreaLayoutFromSaved(JSON.parse(JSON.stringify(defaultStudioLayout(name))))).toEqual(defaultStudioLayout(name));
   });
 });
 
@@ -40,15 +40,15 @@ describe("a saved layout", () => {
 
   it("falls back, layout by layout, to the default of any it does not hold or that does not parse", () => {
     const saved = { chosen_layout: "perform", layouts: { code: { kind: "area", area_id: "only", view_type_id: "code" }, build: { kind: "split" } } };
-    const layouts = workspaceLayoutsFromSaved(saved);
+    const layouts = studioLayoutsFromSaved(saved);
     expect(layouts.chosen_layout).toBe("perform");
     expect(layouts.layouts.code).toEqual({ kind: "area", area_id: "only", view_type_id: "code" });
-    expect(layouts.layouts.build).toEqual(defaultWorkspaceLayout("build"));
-    expect(workspaceLayoutsFromSaved({ chosen_layout: "dance" }).chosen_layout).toBe("build");
+    expect(layouts.layouts.build).toEqual(defaultStudioLayout("build"));
+    expect(studioLayoutsFromSaved({ chosen_layout: "dance" }).chosen_layout).toBe("build");
   });
 
   it("changes an area's view, its settings and a split's sizes without touching the rest", () => {
-    const build = defaultWorkspaceLayout("build");
+    const build = defaultStudioLayout("build");
     const withOutlinerInTheViewer = layoutWithAreaSettings(layoutWithAreaShowing(build, "viewer", "outliner"), "viewer", { row_expansion: { imports: true } });
     const resized = layoutWithSplitSizes(withOutlinerInTheViewer, "side", { outliner: 70 });
     const sideColumn = resized.kind === "split" ? resized.parts[2]?.part : undefined;
@@ -58,16 +58,16 @@ describe("a saved layout", () => {
   });
 });
 
-describe("layouts kept per workspace folder", () => {
+describe("layouts kept per project folder", () => {
   it("keeps each folder's layouts under its own key, and reads defaults for a folder with none or text that is not JSON", () => {
     const storage = storageInMemory();
-    const layoutsKept = new WorkspaceLayoutsKeptInStorage(storage);
-    layoutsKept.keepLayoutsOf("/a", { ...workspaceLayoutsFromSaved(undefined), chosen_layout: "code" });
-    storage.setItem(workspaceLayoutsStorageKey("/c"), "{not json");
+    const layoutsKept = new StudioLayoutsKeptInStorage(storage);
+    layoutsKept.keepLayoutsOf("/a", { ...studioLayoutsFromSaved(undefined), chosen_layout: "code" });
+    storage.setItem(studioLayoutsStorageKey("/c"), "{not json");
 
     expect(layoutsKept.readLayoutsOf("/a").chosen_layout).toBe("code");
     expect(layoutsKept.readLayoutsOf("/b").chosen_layout).toBe("build");
     expect(layoutsKept.readLayoutsOf("/c").chosen_layout).toBe("build");
-    expect(new WorkspaceLayoutsKeptInStorage(null).readLayoutsOf("/a").chosen_layout).toBe("build");
+    expect(new StudioLayoutsKeptInStorage(null).readLayoutsOf("/a").chosen_layout).toBe("build");
   });
 });

@@ -147,7 +147,7 @@ export class PythonLanguageClient {
     private readonly listeners: PythonLanguageClientListeners,
   ) {}
 
-  /** Open the session: `initialize` with the project folder as the workspace; everything sent before the server answers waits for it. */
+  /** Open the session: `initialize` with the project folder as its LSP workspace; everything sent before the server answers waits for it. */
   start(): void {
     const projectUri = fileUriOf(this.projectFolder);
     const requestId = this.nextRequestId++;

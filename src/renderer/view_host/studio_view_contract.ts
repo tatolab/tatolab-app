@@ -7,11 +7,11 @@ import type {
   JsonValue,
   ListedStream,
   NodeCatalog,
-  OpenWorkspaceReading,
+  OpenProjectReading,
   ProjectLogRecord,
   StreamGraphSummary,
-  WorkspaceFileRead,
-  WorkspaceProjectFiles,
+  ProjectFileRead,
+  ProjectFiles,
 } from "../../shared/tatolab_backend_contract";
 import type { StudioIconName } from "../design_system/studio_icons";
 
@@ -22,16 +22,16 @@ export type {
   NodeCatalog,
   NodeCatalogEntry,
   NodeCatalogPort,
-  OpenWorkspace,
-  OpenWorkspaceReading,
+  OpenProject,
+  OpenProjectReading,
   ProjectLogRecord,
   ProjectOnDisk,
   StreamGraphDeclaredPort,
   StreamGraphLink,
   StreamGraphNode,
   StreamGraphSummary,
-  WorkspaceFileRead,
-  WorkspaceProjectFiles,
+  ProjectFileRead,
+  ProjectFiles,
 } from "../../shared/tatolab_backend_contract";
 export type { StudioIconName } from "../design_system/studio_icons";
 
@@ -61,14 +61,14 @@ export type StreamGraphReading = { kind: "read"; graph: StreamGraphSummary } | {
 /** The node types a stream can add, or why the runtime lists none, in its own words. */
 export type NodeCatalogReading = { kind: "listed"; catalog: NodeCatalog } | { kind: "not_listed"; because: string };
 
-/** A file of the open workspace's projects as read from disk, or why it was not, in the words of what refused. */
-export type WorkspaceFileReading = { kind: "read"; file_read: WorkspaceFileRead } | { kind: "not_read"; because: string };
+/** A file of the open project and its imports as read from disk, or why it was not, in the words of what refused. */
+export type ProjectFileReading = { kind: "read"; file_read: ProjectFileRead } | { kind: "not_read"; because: string };
 
 /** A file saved, with the version it now has on disk, or why nothing was written. */
-export type WorkspaceFileSaving = { kind: "saved"; version: string } | { kind: "not_saved"; because: string };
+export type ProjectFileSaving = { kind: "saved"; version: string } | { kind: "not_saved"; because: string };
 
 /** A project's files, or why they were not listed. */
-export type WorkspaceProjectFilesListing = { kind: "listed"; project_files: WorkspaceProjectFiles } | { kind: "not_listed"; because: string };
+export type ProjectFilesListing = { kind: "listed"; project_files: ProjectFiles } | { kind: "not_listed"; because: string };
 
 /** A project's log as read so far, its latest records last, or why the runtime gives none now, in its own words. */
 export type ProjectLogReading =
@@ -98,7 +98,7 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   readonly settings: ViewSettings;
   /** Keep `nextSettings` with the area, saved with the layout. */
   rememberSettings(nextSettings: ViewSettings): void;
-  watchOpenWorkspace(listener: (reading: OpenWorkspaceReading) => void): StopWatching;
+  watchOpenProject(listener: (reading: OpenProjectReading) => void): StopWatching;
   watchListedStreams(listener: (reading: ListedStreamsReading) => void): StopWatching;
   watchSelection(listener: (selection: StudioSelection) => void): StopWatching;
   select(selection: StudioSelection): void;
@@ -110,20 +110,20 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   watchNodeCatalog(stream: string, listener: (reading: NodeCatalogReading) => void): StopWatching;
   /** The file the studio last asked a code view to show; `null` until one is asked for. */
   watchCodeFileAsked(listener: (codeFileAsked: CodeFileAsked | null) => void): StopWatching;
-  /** Ask the studio's code view to show `file`, an absolute path in the open workspace. */
+  /** Ask the studio's code view to show `file`, an absolute path in the open project. */
   openCodeFile(file: string): void;
-  readWorkspaceFile(file: string): Promise<WorkspaceFileReading>;
+  readProjectFile(file: string): Promise<ProjectFileReading>;
   /** Write `text` to `file` whole when it is still at `basedOnVersion` on disk (`null` for a new file); never over a file changed since, or an import's. */
-  saveWorkspaceFile(file: string, text: string, basedOnVersion: string | null): Promise<WorkspaceFileSaving>;
-  listWorkspaceProjectFiles(projectFolder: string): Promise<WorkspaceProjectFilesListing>;
+  saveProjectFile(file: string, text: string, basedOnVersion: string | null): Promise<ProjectFileSaving>;
+  listProjectFiles(projectFolder: string): Promise<ProjectFilesListing>;
   /** `projectFolder`'s log, read while any view watches it and the window is shown; the first reading arrives once read. */
   watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void): StopWatching;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
 }
 
-/** Who brought a view type: the studio itself, or a project of the open workspace. */
-export type StudioViewTypeSource = { kind: "built_in" } | { kind: "workspace_project"; project_name: string };
+/** Who brought a view type: the studio itself, or the open project or one of its imports. */
+export type StudioViewTypeSource = { kind: "built_in" } | { kind: "project"; project_name: string };
 
 /** What a view draws: tools in its area's header, after the view-type menu, and its body. */
 export interface StudioViewRendering {

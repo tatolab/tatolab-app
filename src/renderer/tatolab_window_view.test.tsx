@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenWorkspaceReading, TatolabStatus } from "../shared/tatolab_backend_contract";
+import type { OpenProjectReading, TatolabStatus } from "../shared/tatolab_backend_contract";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./backend/mock_tatolab_backend";
 import { mockStreamIdOf } from "./backend/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
-import { workspaceLayoutsStorageKey } from "./studio_shell/workspace_layouts";
+import { studioLayoutsStorageKey } from "./studio_shell/studio_layouts";
 import { mountTatolabWindow } from "./tatolab_window_view";
 
 /** The keydown listeners each mounted window added to the document, removed after each test so a window from an earlier test never answers a shortcut. */
@@ -93,17 +93,17 @@ function openTheOutlinerRow(rowId: string): void {
 }
 
 async function shownLayout(): Promise<string> {
-  return waitFor(() => document.querySelector<HTMLElement>("[data-workspace-layout]")?.dataset.workspaceLayout ?? expect.unreachable("no layout shown"));
+  return waitFor(() => document.querySelector<HTMLElement>("[data-studio-layout]")?.dataset.studioLayout ?? expect.unreachable("no layout shown"));
 }
 
 describe("the studio", () => {
-  it("opens the remembered workspace in Build, the outliner showing the workspace project, its streams and its closed, read-only imports", async () => {
+  it("opens the project in Build, the outliner showing the open project, its streams and its closed, read-only imports", async () => {
     await mountedWindowOverTheMock("state=running");
 
     expect(await shownLayout()).toBe("build");
     await waitFor(() => expect(outlinerRowIds()).toContain(`project:${PATTERN_PROJECT}`));
     expect(outlinerRowIds()).toEqual([
-      "workspace",
+      "open_project_folder",
       `project:${PATTERN_PROJECT}`,
       `project:${PATTERN_PROJECT}/pyproject`,
       `stream:${PATTERN_MAIN_STREAM}`,
@@ -111,7 +111,7 @@ describe("the studio", () => {
       `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_function: "stream:pattern_two" })}`,
       "imports",
     ]);
-    expect(outlinerRow("workspace").getAttribute("aria-level")).toBe("1");
+    expect(outlinerRow("open_project_folder").getAttribute("aria-level")).toBe("1");
     expect(outlinerRow(`project:${PATTERN_PROJECT}`).textContent).toBe("pattern");
     expect(outlinerRow(`project:${PATTERN_PROJECT}/pyproject`).textContent).toBe("pyproject.toml");
     expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).textContent).toBe("main");
@@ -184,7 +184,7 @@ describe("the studio", () => {
     expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true"]);
   });
 
-  it("switches layouts from Window › Workspace layout and with ⌘1 to ⌘5, each keeping its own areas", async () => {
+  it("switches layouts from Window › Layout and with ⌘1 to ⌘5, each keeping its own areas", async () => {
     await mountedWindowOverTheMock("state=running");
     expect(await shownLayout()).toBe("build");
 
@@ -196,23 +196,23 @@ describe("the studio", () => {
     expect(document.querySelector('[data-studio-area="scene"]')).not.toBeNull();
 
     pressAsAPointerDoes(await waitFor(() => document.querySelector<HTMLElement>('[data-studio-menu="Window"]') ?? expect.unreachable("no Window menu")));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Workspace layout" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Layout" }));
     expect((await screen.findByRole("menuitemcheckbox", { name: "Perform ⌘5" })).getAttribute("aria-checked")).toBe("true");
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Code ⌘4" }));
     expect(await shownLayout()).toBe("code");
   });
 
-  it("shows the view an area's view-type menu chooses, and the workspace reopens with it", async () => {
+  it("shows the view an area's view-type menu chooses, and the project reopens with it", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     expect(within(viewerArea).getByText("Viewer isn't in this build yet")).toBeTruthy();
 
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
-    expect(await screen.findByText("Views a workspace project brings arrive with users' own view types.")).toBeTruthy();
+    expect(await screen.findByText("Views a project brings arrive with users' own view types.")).toBeTruthy();
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Outliner/ }));
 
     await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-outliner]')).not.toBeNull());
-    expect(localStorage.getItem(workspaceLayoutsStorageKey(PATTERN_PROJECT))).toContain('"area_id":"viewer","view_type_id":"outliner"');
+    expect(localStorage.getItem(studioLayoutsStorageKey(PATTERN_PROJECT))).toContain('"area_id":"viewer","view_type_id":"outliner"');
     document.body.replaceChildren();
 
     await mountedWindowOverTheMock("state=running");
@@ -221,7 +221,7 @@ describe("the studio", () => {
 
   it("opens a saved layout that does not parse on its default, and says when an area names a view this build lacks", async () => {
     localStorage.setItem(
-      workspaceLayoutsStorageKey(PATTERN_PROJECT),
+      studioLayoutsStorageKey(PATTERN_PROJECT),
       JSON.stringify({ chosen_layout: "code", layouts: { code: { kind: "area", area_id: "venue", view_type_id: "venue-3d" }, build: { kind: "split", parts: [] } } }),
     );
     await mountedWindowOverTheMock("state=running");
@@ -233,8 +233,8 @@ describe("the studio", () => {
     expect(document.querySelector('[data-studio-area="scene"]')).not.toBeNull();
   });
 
-  it("shows Home with no workspace open, its recent projects as cards, and opens the one chosen", async () => {
-    await mountedWindowOverTheMock("state=running&workspace=none");
+  it("shows Home with no project open, its recent projects as cards, and opens the one chosen", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
     const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-home-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
     expect(patternCard.textContent).toContain("Running");
     expect(document.querySelectorAll("[data-home-project]")).toHaveLength(6);
@@ -247,7 +247,7 @@ describe("the studio", () => {
   });
 
   it("narrows Home to the running projects, and to the ones a search names", async () => {
-    await mountedWindowOverTheMock("state=running&workspace=none");
+    await mountedWindowOverTheMock("state=running&project=none");
     await waitFor(() => expect(document.querySelectorAll("[data-home-project]")).toHaveLength(6));
     fireEvent.click(document.querySelector<HTMLElement>('[data-home-filter="running_now"]') ?? expect.unreachable("no Running now"));
     expect([...document.querySelectorAll("[data-home-project]")].map((card) => card.getAttribute("data-home-project"))).toEqual([PATTERN_PROJECT, CAMERA_PROJECT]);
@@ -257,7 +257,7 @@ describe("the studio", () => {
   });
 
   it("greets first run with the Welcome splash over Home, its banner a still picture where WebGL is not offered, and Open… opens the one chosen", async () => {
-    await mountedWindowOverTheMock("state=running&workspace=none&recent=none");
+    await mountedWindowOverTheMock("state=running&project=none&recent=none");
     const welcome = await screen.findByRole("dialog", { name: "Welcome to Tato Studio" });
     expect(welcome.querySelector('[data-welcome-banner="still"] img')).not.toBeNull();
     expect(within(welcome).getByText("v0.45.0")).toBeTruthy();
@@ -269,21 +269,21 @@ describe("the studio", () => {
     expect(screen.queryByRole("dialog", { name: "Welcome to Tato Studio" })).toBeNull();
   });
 
-  it("says why an unreadable workspace can't be read, in the reader's words", async () => {
-    await mountedWindowOverTheMock("state=running&workspace=unreadable");
+  it("says why an unreadable project can't be read, in the reader's words", async () => {
+    await mountedWindowOverTheMock("state=running&project=unreadable");
     await waitFor(() => expect(screen.getByText(`${PATTERN_PROJECT} can't be read`)).toBeTruthy());
     expect(screen.getByText(/pyproject\.toml is not TOML: Invalid TOML document/)).toBeTruthy();
   });
 
-  it("shows a refused workspace choice in its own words, and the open workspace stays as it was", async () => {
-    const reading: OpenWorkspaceReading = { kind: "none_open" };
-    await mountedWindowOverTheMock("state=running&workspace=none", {
-      readOpenWorkspace: async () => reading,
-      chooseWorkspaceFolder: () => Promise.reject("the folder already holds a project"),
+  it("shows a refused project choice in its own words, and the open project stays as it was", async () => {
+    const reading: OpenProjectReading = { kind: "none_open" };
+    await mountedWindowOverTheMock("state=running&project=none", {
+      readOpenProject: async () => reading,
+      chooseProjectFolder: () => Promise.reject("the folder already holds a project"),
     });
     fireEvent.click(await screen.findByRole("button", { name: "New project" }));
 
-    await waitFor(() => expect(textOf("[data-workspace-opening-refusal]")).toContain("the folder already holds a project"));
+    await waitFor(() => expect(textOf("[data-project-opening-refusal]")).toContain("the folder already holds a project"));
     expect(document.querySelector("[data-home]")).not.toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import type { RecentWorkspace } from "../../shared/tatolab_backend_contract";
+import type { RecentProject } from "../../shared/tatolab_backend_contract";
 import type { ListedStreamsReading } from "../view_host/studio_view_contract";
 
 /** What Home lists: every recent project, or only those with a stream running now. */
@@ -47,24 +47,24 @@ function isAStreamOfTheProjectRunning(listedStreams: ListedStreamsReading, folde
   return listedStreams.streams.some((listing) => listing.location?.project_directory === folder && (listing.state === "running" || listing.state === "preparing"));
 }
 
-/** The cards for `recentWorkspaces`, recent first, as `filter` and the search text `searchText` narrow them. */
+/** The cards for `recentProjects`, recent first, as `filter` and the search text `searchText` narrow them. */
 export function presentRecentProjectCards(
-  recentWorkspaces: readonly RecentWorkspace[],
+  recentProjects: readonly RecentProject[],
   listedStreams: ListedStreamsReading,
   wallClockNowMs: number,
   filter: HomeProjectFilter,
   searchText: string,
 ): RecentProjectCardPresentation[] {
   const searchedFor = searchText.trim().toLowerCase();
-  return recentWorkspaces
+  return recentProjects
     .map(
-      (recentWorkspace): RecentProjectCardPresentation => ({
-        folder: recentWorkspace.folder,
-        name: recentWorkspace.project_name ?? recentWorkspace.folder.split("/").filter((segment) => segment !== "").at(-1) ?? recentWorkspace.folder,
-        lastOpenedWords: presentTimeSince(recentWorkspace.last_opened_at_wall_clock_ms, wallClockNowMs),
-        folderWords: folderUnderHome(recentWorkspace.folder),
-        isRunning: isAStreamOfTheProjectRunning(listedStreams, recentWorkspace.folder),
-        isUnreadable: recentWorkspace.project_name === null,
+      (recentProject): RecentProjectCardPresentation => ({
+        folder: recentProject.folder,
+        name: recentProject.project_name ?? recentProject.folder.split("/").filter((segment) => segment !== "").at(-1) ?? recentProject.folder,
+        lastOpenedWords: presentTimeSince(recentProject.last_opened_at_wall_clock_ms, wallClockNowMs),
+        folderWords: folderUnderHome(recentProject.folder),
+        isRunning: isAStreamOfTheProjectRunning(listedStreams, recentProject.folder),
+        isUnreadable: recentProject.project_name === null,
       }),
     )
     .filter((card) => filter === "all_projects" || card.isRunning)

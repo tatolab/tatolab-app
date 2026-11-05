@@ -428,7 +428,7 @@ export type ImportedProjectSource =
   | { kind: "folder_unreadable"; folder: string; refusal: string }
   | { kind: "package_index" };
 
-/** One dependency of the workspace project, which the studio shows as an import. */
+/** One dependency of the open project, which the studio shows as an import. */
 export interface ImportedProject {
   /** The requirement's name, normalized as PEP 503 normalizes a package name. */
   name: string;
@@ -436,29 +436,29 @@ export interface ImportedProject {
   source: ImportedProjectSource;
 }
 
-/** The workspace open in the studio: a folder that is itself the workspace project, and the projects it imports, in `pyproject.toml`'s order. */
-export interface OpenWorkspace {
-  workspace_project: ProjectOnDisk;
+/** The project open in the studio: its folder's own project, and the projects it imports, in `pyproject.toml`'s order. */
+export interface OpenProject {
+  project: ProjectOnDisk;
   imports: ImportedProject[];
 }
 
-/** What `read_open_workspace` answers and `tatolab-open-workspace-changed` carries: no workspace open, the open one read, or its folder unreadable, with why in the words of what refused. */
-export type OpenWorkspaceReading =
+/** What `read_open_project` answers and `tatolab-open-project-changed` carries: no project open, the open one read, or its folder unreadable, with why in the words of what refused. */
+export type OpenProjectReading =
   | { kind: "none_open" }
-  | { kind: "read"; workspace: OpenWorkspace }
+  | { kind: "read"; open_project: OpenProject }
   | { kind: "unreadable"; folder: string; refusal: string };
 
-/** What the workspace folder dialog is opened for: an existing workspace to open, or a new one's folder, which may not exist yet. */
-export type WorkspaceFolderChosenFor = "workspace_to_open" | "new_workspace";
+/** What the project folder dialog is opened for: an existing project to open, or a new one's folder, which may not exist yet. */
+export type ProjectFolderChosenFor = "project_to_open" | "new_project";
 
-/** A folder chosen in the workspace dialog, now the open workspace, and for a new workspace the `create_project` the runtime queued in it. */
-export interface ChosenWorkspaceFolder {
+/** A folder chosen in the project dialog, now the open project, and for a new project the `create_project` the runtime queued in it. */
+export interface ChosenProjectFolder {
   folder: string;
   project_creation: ProjectCreationQueued | null;
 }
 
-/** One workspace opened before, as `read_recent_workspaces` answers it for Home, recent first. */
-export interface RecentWorkspace {
+/** One project opened before, as `read_recent_projects` answers it for Home, recent first. */
+export interface RecentProject {
   folder: string;
   /** The `[project]` name its `pyproject.toml` gives, or `null` when the folder or the file does not read now. */
   project_name: string | null;
@@ -466,26 +466,26 @@ export interface RecentWorkspace {
   last_opened_at_wall_clock_ms: number;
 }
 
-/** What `read_workspace_file` answers: a file of the open workspace's projects, as read from disk. */
-export interface WorkspaceFileRead {
+/** What `read_project_file` answers: a file of the open project or its imports, as read from disk. */
+export interface ProjectFileRead {
   /** The file, absolute, as the window named it. */
   file: string;
   /** The folder of the project the file belongs to. */
   project_folder: string;
   text: string;
-  /** The SHA-256 of the bytes read, in hex, which `save_workspace_file` takes back as `based_on_version`. */
+  /** The SHA-256 of the bytes read, in hex, which `save_project_file` takes back as `based_on_version`. */
   version: string;
-  /** Whether the file belongs to the workspace project, whose files the studio saves; an import's are read-only. */
+  /** Whether the file belongs to the open project, whose files the studio saves; an import's are read-only. */
   is_editable: boolean;
 }
 
-/** What `save_workspace_file` answers: the version the file now has on disk. */
-export interface WorkspaceFileSaved {
+/** What `save_project_file` answers: the version the file now has on disk. */
+export interface ProjectFileSaved {
   version: string;
 }
 
-/** What `list_workspace_project_files` answers: a project's Python files and `pyproject.toml`, relative to its folder, in name order. */
-export interface WorkspaceProjectFiles {
+/** What `list_project_files` answers: a project's Python files and `pyproject.toml`, relative to its folder, in name order. */
+export interface ProjectFiles {
   project_folder: string;
   files: string[];
 }

@@ -3,7 +3,7 @@
 
 import type { CodeFileTab } from "../../design_system/code_file_tab_strip";
 import type { LogRecordLine } from "../../design_system/log_record_lines";
-import type { JsonValue, OpenWorkspaceReading, ProjectLogRecord } from "../../view_host/studio_view_contract";
+import type { JsonValue, OpenProjectReading, ProjectLogRecord } from "../../view_host/studio_view_contract";
 
 /** A code area's settings: the files it has open, in tab order, the one it shows, and whether the project's log shows under it. */
 export interface CodeViewSettings {
@@ -70,13 +70,13 @@ export function codeFileTabsOf(openFiles: readonly string[], documentStateOf: (f
   return openFiles.map((file) => ({ file, name: names.get(file) ?? file, ...documentStateOf(file) }));
 }
 
-/** The workspace's projects whose files the file menu offers: the workspace project first, then each folder import. */
-export function projectsWithFilesToOffer(reading: OpenWorkspaceReading | null): { project_name: string; project_folder: string }[] {
+/** The projects whose files the file menu offers: the open project first, then each folder import. */
+export function projectsWithFilesToOffer(reading: OpenProjectReading | null): { project_name: string; project_folder: string }[] {
   if (reading?.kind !== "read") return [];
-  const { workspace } = reading;
+  const { open_project } = reading;
   return [
-    { project_name: workspace.workspace_project.name, project_folder: workspace.workspace_project.folder },
-    ...workspace.imports.flatMap((importedProject) =>
+    { project_name: open_project.project.name, project_folder: open_project.project.folder },
+    ...open_project.imports.flatMap((importedProject) =>
       importedProject.source.kind === "folder" ? [{ project_name: importedProject.source.project.name, project_folder: importedProject.source.project.folder }] : [],
     ),
   ];

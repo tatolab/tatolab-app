@@ -42,7 +42,7 @@ Evidence counts only when it was shot on what would ship now:
    `src/renderer/backend/mock_tatolab_backend.ts` and `src/renderer/mock_window_preset.ts` read:
    `?platform=linux`, `?runtime_install=installing|failed`, `?state=` (running, empty, loading, node-error,
    not-listed, starting, stopped, unreachable, setup; macOS-only approval, missing,
-   not-registered), `?workspace=none|unreadable`, `?uninstall=cancel`, and the screen keys
+   not-registered), `?project=none|unreadable`, `?uninstall=cancel`, and the screen keys
    `?layout=build|compose|spatial|code|perform`, `?outliner=open`, `?select=<row id>`,
    `?open_stream=<stream id>`, `?menu=<menu>` with `?submenu=<entry>`, `?area_menu=<area id>`,
    `?page=preferences` with `?section=`, `?restart=`, `?link=pressed`,

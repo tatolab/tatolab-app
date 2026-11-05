@@ -1,6 +1,6 @@
 // The code pane's Python language servers: one Pyright language server per session the window
 // starts, each a Node program in its own process, its working folder a project folder of the open
-// workspace. The window speaks JSON-RPC; this module frames and unframes it.
+// project. The window speaks JSON-RPC; this module frames and unframes it.
 
 import type { JsonValue, PythonLanguageServerEvent } from "../shared/tatolab_backend_contract.js";
 import { isAJsonValue } from "./json_on_the_wire.js";
@@ -30,8 +30,8 @@ export interface PythonLanguageServersSources {
   startANodeLanguageServer: StartANodeLanguageServer;
   /** Pyright's `langserver.index.js`, as this build carries it. */
   pyrightLanguageServerModulePath: string;
-  /** `projectFolder` as a project folder of the open workspace, or why it is not one. */
-  projectFolderOfTheOpenWorkspace(projectFolder: string): Result<string, string>;
+  /** `projectFolder` as the folder of the open project or of one of its imports, or why it is not one. */
+  projectFolderOfTheOpenProject(projectFolder: string): Result<string, string>;
   sendTheWindowALanguageServerEvent(event: PythonLanguageServerEvent): void;
   tatolabAppLog: TatolabAppLog;
 }
@@ -43,9 +43,9 @@ export class PythonLanguageServers {
 
   constructor(private readonly sources: PythonLanguageServersSources) {}
 
-  /** Start a language server for `projectFolder`, answering the session its messages are sent and arrive under; refused for a folder outside the open workspace, or in the platform's words. */
+  /** Start a language server for `projectFolder`, answering the session its messages are sent and arrive under; refused for a folder outside the open project, or in the platform's words. */
   startALanguageServer(projectFolder: string): Result<{ session: string }, string> {
-    const servedFolder = this.sources.projectFolderOfTheOpenWorkspace(projectFolder);
+    const servedFolder = this.sources.projectFolderOfTheOpenProject(projectFolder);
     if (!servedFolder.ok) return servedFolder;
     this.sessionsStarted += 1;
     const session = `python-language-server-${this.sessionsStarted}`;
