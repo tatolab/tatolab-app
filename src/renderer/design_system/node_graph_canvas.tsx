@@ -44,15 +44,6 @@ export type NodeGraphPinFamily =
   | "packets"
   | "records";
 
-/** The families in the order a legend lists them. */
-const NODE_GRAPH_PIN_FAMILIES_IN_LEGEND_ORDER: readonly NodeGraphPinFamily[] = [
-  "image",
-  "array",
-  "channels",
-  "packets",
-  "records",
-];
-
 const NODE_GRAPH_PIN_FAMILY_WORDS: Record<NodeGraphPinFamily, string> = {
   image: "Image",
   array: "Array",
@@ -143,6 +134,7 @@ function NodeGraphPinHandle({
       isConnectable={false}
       className="node-graph-pin"
       data-family={pin.family ?? undefined}
+      title={pin.family === null ? pin.name : `${pin.name} · ${NODE_GRAPH_PIN_FAMILY_WORDS[pin.family]}`}
       data-linked={
         linkedPins.has(linkedPinKey(nodeId, side, pin.name)) || undefined
       }
@@ -500,8 +492,7 @@ function NodeGraphFlow({
               data-node-graph-tool="frame_all"
             />
           </div>
-          <NodeGraphFamilyLegend nodes={nodes} />
-          {overlay}
+            {overlay}
         </ReactFlow>
       </NodeGraphLinkedPinsContext>
     </NodeGraphSelectionContext>
@@ -560,38 +551,7 @@ export function NodeGraphPinMark({
   );
 }
 
-/** A family's name as a legend and Properties write it. */
+/** A family's name as a socket's tooltip and Properties write it. */
 export function nodeGraphPinFamilyWords(family: NodeGraphPinFamily): string {
   return NODE_GRAPH_PIN_FAMILY_WORDS[family];
-}
-
-/** The families the graph's pins carry, each by its mark and name; nothing while no pin's family is known. */
-function NodeGraphFamilyLegend({
-  nodes,
-}: {
-  nodes: readonly NodeGraphCanvasNode[];
-}) {
-  const familiesCarried = new Set(
-    nodes.flatMap((node) =>
-      [...node.input_pins, ...node.output_pins].map((pin) => pin.family),
-    ),
-  );
-  const familiesInTheLegend = NODE_GRAPH_PIN_FAMILIES_IN_LEGEND_ORDER.filter(
-    (family) => familiesCarried.has(family),
-  );
-  if (familiesInTheLegend.length === 0) return null;
-  return (
-    <ul
-      className="absolute bottom-2 left-2 z-10 flex gap-2.5 rounded-md bg-studio-graph-tools px-2 py-1 text-[10.5px] text-fg-2"
-      aria-label="Port families"
-      data-node-graph-legend
-    >
-      {familiesInTheLegend.map((family) => (
-        <li key={family} className="flex items-center gap-1.5">
-          <NodeGraphPinMark family={family} />
-          {nodeGraphPinFamilyWords(family)}
-        </li>
-      ))}
-    </ul>
-  );
 }
