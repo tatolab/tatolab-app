@@ -3,9 +3,8 @@ import "./styles/window.css";
 import { tatolabWindowHost, type TatolabBackend, type TatolabWindowHost } from "./backend/tatolab_backend";
 import type { TatolabStatus } from "../shared/tatolab_backend_contract";
 import { createElectronTatolabBackend } from "./backend/electron_tatolab_backend";
-import { readTatolabFrontendFeatureFlags } from "./feature_flags";
 import { platformOf } from "./presentation/platform_presentation";
-import { mountTatolabWindow } from "./views/tatolab_window_view";
+import { mountTatolabWindow } from "./tatolab_window_view";
 
 const FIRST_STATUS_RETRY_MILLISECONDS = 1000;
 
@@ -56,13 +55,12 @@ async function startTatolabWindow(): Promise<void> {
     return;
   }
   const insideTheApp = windowHost.kind !== "browser";
-  const featureFlags = readTatolabFrontendFeatureFlags(insideTheApp, pageQuery);
   let showTatolabStatus: ((status: TatolabStatus) => void) | null = null;
   await backend.onTatolabStatusChanged((status) => showTatolabStatus?.(status));
   const firstStatus = await readFirstTatolabStatus(backend);
   const tellTheAppTheWindowDrewItsFirstStatus =
     windowHost.kind === "electron" ? () => windowHost.tatolabElectronBridge.tellTheAppTheWindowDrewItsFirstStatus() : undefined;
-  showTatolabStatus = mountTatolabWindow(rootElement, backend, platformOf(firstStatus), featureFlags, tellTheAppTheWindowDrewItsFirstStatus);
+  showTatolabStatus = mountTatolabWindow(rootElement, backend, platformOf(firstStatus), tellTheAppTheWindowDrewItsFirstStatus);
   showTatolabStatus(firstStatus);
   if (!insideTheApp && import.meta.env.DEV) {
     const { driveMockWindowToPreset } = await import("./mock_window_preset");

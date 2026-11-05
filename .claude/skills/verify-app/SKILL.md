@@ -36,18 +36,19 @@ Evidence counts only when it was shot on what would ship now:
 
 ## Pick the lowest rung that proves the claim
 
-1. **Mock (browser).** Pure window changes — layout, copy, a new state's presentation, light/dark.
+1. **Mock (browser).** Pure window changes — layout, copy, a new state's presentation.
    Start `node scripts/serve_the_mock_window_in_a_browser.mjs` in the background (stop it at the
-   end), then drive the page with Playwright at the URL it prints with the presets `index.html`, `src/renderer/feature_flags.ts`,
+   end), then drive the page with Playwright at the URL it prints with the presets
    `src/renderer/backend/mock_tatolab_backend.ts` and `src/renderer/mock_window_preset.ts` read:
-   `?theme=light|dark`, `?platform=linux`, `?runtime_install=installing|failed`, `?state=` (running, empty, loading, node-error,
+   `?platform=linux`, `?runtime_install=installing|failed`, `?state=` (running, empty, loading, node-error,
    not-listed, starting, stopped, unreachable, setup; macOS-only approval, missing,
-   not-registered), `?uninstall=cancel`, and the screen keys `?stream=<stream id>`, `?tab=`,
-   `?page=settings`, `?sheet=uninstall|uninstalling|uninstalled`, `?setup=waiting`,
-   `?levels=errors`, `?search=<query>`, and on Graph `?step=<step>`, `?focus=<step>`,
-   `?pin=<step>.<port>`, `?hover=<step>.<port>`, `?previews=off` and `?counters=off`; the
+   not-registered), `?workspace=none|unreadable`, `?uninstall=cancel`, and the screen keys
+   `?layout=build|compose|spatial|code|perform`, `?outliner=open`, `?select=<row id>`,
+   `?open_stream=<stream id>`, `?menu=<menu>` with `?submenu=<entry>`, `?area_menu=<area id>`,
+   `?page=preferences` with `?section=`, `?restart=`, `?link=pressed`,
+   `?sheet=uninstall|uninstalling|uninstalled`, `?setup=` and `?setup_step_action=`; the
    doc comment of `driveMockWindowToPreset` is the full list. A key it does not name is
-   ignored without a word, so check each frame shows the state its URL asks for. Shoot both themes. Label every image **Mock**. A screen the
+   ignored without a word, so check each frame shows the state its URL asks for. The window is dark-only. Label every image **Mock**. A screen the
    presets cannot reach gets a preset in the same change.
 2. **Local-proof live (macOS).** Anything that talks to a runtime — streams appearing and going,
    graph, logs, the switch, setup. `infisical run -- scripts/build-tatolab-app.sh --local-proof-test-root`

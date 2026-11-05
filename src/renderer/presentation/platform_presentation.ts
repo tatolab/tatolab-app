@@ -1,5 +1,4 @@
 import type { TatolabPlatform, TatolabStatus } from "../../shared/tatolab_backend_contract";
-import { abbreviateHomeDirectory } from "./stream_presentation";
 
 /** The platform `status` names; macOS, the app's first platform, for a status that names none this window knows. */
 export function platformOf(status: TatolabStatus): TatolabPlatform {
@@ -122,4 +121,12 @@ export function presentCommandLineTool(platform: TatolabPlatform, linkedAt: stri
           line: HOME_FOLDER_BIN_ON_THE_PATH_LINE,
         },
       };
+}
+
+/** A home directory where macOS (`/Users/<name>`) and Linux (`/home/<name>`) put one. */
+const HOME_DIRECTORY_PREFIX = /^\/(?:Users|home)\/[^/]+(?=\/|$)/;
+
+/** Shortens `/Users/<name>/…` or `/home/<name>/…` to `~/…` for display. */
+export function abbreviateHomeDirectory(absolutePath: string): string {
+  return absolutePath.replace(HOME_DIRECTORY_PREFIX, "~");
 }

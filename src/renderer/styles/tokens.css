@@ -1,5 +1,5 @@
-/* The window's design language: one value per theme for every colour, the type ladder, radii and the window's
-   structural sizes. */
+/* The window's design language: the studio is dark only, so one value for every colour, the type ladder, radii and
+   the window's structural sizes. */
 
 @theme inline {
   --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -16,7 +16,22 @@
   --text-lg: 15px;
   --text-lg--line-height: 20px;
 
+  --text-studio: 12.5px;
+  --text-studio--line-height: 18px;
+
   --color-window: var(--window);
+  --color-studio-frame: var(--studio-frame);
+  --color-studio-area: var(--studio-area);
+  --color-studio-area-header: var(--studio-area-header);
+  --color-studio-area-header-line: var(--studio-area-header-line);
+  --color-studio-menu-bar: var(--studio-menu-bar);
+  --color-studio-stream-tabs: var(--studio-stream-tabs);
+  --color-studio-control: var(--studio-control);
+  --color-studio-control-open: var(--studio-control-open);
+  --color-studio-tree-guide: var(--studio-tree-guide);
+  --color-studio-tree-selected: var(--studio-tree-selected);
+  --color-studio-read-only: var(--studio-read-only);
+  --color-studio-imports: var(--studio-imports);
   --color-chrome: var(--chrome);
   --color-raised: var(--raised);
   --color-well: var(--well);
@@ -68,54 +83,19 @@
 
 :root {
   --page-bar-height: 44px;
-  --sidebar-width: 256px;
   --page-x: 24px;
   --page-top: 20px;
   --page-bottom: 40px;
   --page-readable-width: 720px;
+  --studio-menu-bar-height: 40px;
+  --studio-stream-tabs-height: 32px;
+  --studio-area-header-height: 30px;
+  --studio-area-gap: 3px;
+  --studio-tree-row-height: 22px;
+  --studio-tree-indent: 14px;
   --radius: 6px;
   --ease: cubic-bezier(.2, .7, .2, 1);
 
-  color-scheme: light;
-  --window: #ffffff;
-  --chrome: #f7f7f8;
-  --raised: #ffffff;
-  --well: #f4f4f5;
-  --popover: #ffffff;
-  --hover: rgba(0, 0, 0, 0.05);
-  --selected: rgba(0, 0, 0, 0.095);
-  --line: #e8e8ea;
-  --line-strong: #d9d9dc;
-  --fg: #111113;
-  --fg-2: #46464e;
-  --fg-3: #606068;
-  --fg-4: #a8a8b0;
-  --brand: #2a5bff;
-  --brand-text: #2a5bff;
-  --brand-soft: rgba(42, 91, 255, 0.08);
-  --on-brand: #ffffff;
-  --warn: #c2700a;
-  --danger: #dc2b2b;
-  /* Problem colours as text: warn and danger clear 4.5:1 as icons' 3:1, not as text on hover, well and chrome. */
-  --warn-text: #8a5300;
-  --danger-text: #b42323;
-  --danger-soft: rgba(220, 43, 43, 0.08);
-  --ring: rgba(42, 91, 255, 0.85);
-  --scrim: rgba(0, 0, 0, 0.1);
-  --background: var(--window);
-  --foreground: var(--fg);
-  --secondary: var(--well);
-  --shadow-pop: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
-  --shadow-segment: 0 0 0 0.5px var(--line-strong), 0 1px 2px rgba(0, 0, 0, 0.15);
-}
-
-/* The macOS overlay title bar puts the traffic lights over the sidebar's top, centred level with the view's bar beside
-   it, and the sidebar's rows start just under them; Linux decorates the window natively, and its sidebar heading sits
-   level with the view's bar. */
-[data-platform="macos"] { --traffic-light-strip-height: 36px; }
-[data-platform="linux"] { --traffic-light-strip-height: 8px; }
-
-.dark {
   color-scheme: dark;
   --window: #0c0c0d;
   --chrome: #121214;
@@ -130,9 +110,22 @@
   --fg-2: #b8b8c0;
   --fg-3: #9a9aa3;
   --fg-4: #5a5a63;
+  --studio-frame: #060607;
+  --studio-menu-bar: #161618;
+  --studio-stream-tabs: #0e0e10;
+  --studio-area: #1d1d20;
+  --studio-area-header: #202023;
+  --studio-area-header-line: #111113;
+  --studio-control: #2b2b2f;
+  --studio-control-open: #34343a;
+  --studio-tree-guide: #34343a;
+  --studio-tree-selected: #2a3a6a;
+  --studio-read-only: #b8963a;
+  --studio-imports: #f5d98a;
   --brand: #2a5bff;
   --brand-text: #7c9bff;
   --brand-soft: rgba(42, 91, 255, 0.16);
+  --on-brand: #ffffff;
   --warn: #f0a63a;
   --danger: #f2554d;
   --warn-text: #f0a63a;
@@ -142,4 +135,13 @@
   --scrim: rgba(0, 0, 0, 0.4);
   --shadow-pop: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
   --shadow-segment: 0 0 0 0.5px var(--line-strong), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --background: var(--window);
+  --foreground: var(--fg);
+  --secondary: var(--well);
 }
+
+/* The macOS overlay title bar puts the traffic lights at the menu bar's left end, so its menus start after them; Linux
+   decorates the window natively. */
+[data-platform="macos"] { --studio-menu-bar-leading-inset: 80px; }
+[data-platform="linux"] { --studio-menu-bar-leading-inset: 10px; }
+

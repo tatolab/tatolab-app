@@ -90,6 +90,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("remove_relay", { relay_id: relayId });
     },
     onStreamPageRequested: (listener) => tatolabElectronBridge.onStreamPageRequested(listener),
+    chooseWorkspaceFolder: (chosenFor) => invokeTatolabCommand("choose_workspace_folder", { chosen_for: chosenFor }),
+    readOpenWorkspace: () => invokeTatolabCommand("read_open_workspace", undefined),
+    onOpenWorkspaceChanged: (listener) => tatolabElectronBridge.onOpenWorkspaceChanged(listener),
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
   };
 }

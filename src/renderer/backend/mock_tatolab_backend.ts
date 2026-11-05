@@ -11,10 +11,12 @@ import {
 } from "./mock_stream_fixtures";
 import { createMockRelays, mockRelaysScenarioNamed, type MockRelaysScenario } from "./mock_relays";
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
+import { mockOpenWorkspaceReading, mockOpenWorkspaceScenarioNamed, type MockOpenWorkspaceScenario } from "./mock_open_workspace";
 import type { TatolabBackend } from "./tatolab_backend";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
+  type OpenWorkspaceReading,
   type ProjectLogRecord,
   type ProjectLogRecordsPage,
   type RuntimeDescription,
@@ -201,6 +203,8 @@ export interface MockTatolabOptions {
   doesTheRuntimeListAnEarlierRuntimesRecord: boolean;
   /** `?adapter_names=none`: the relay-adapter catalog of a runtime older than adapter names and logos, which serves neither. */
   doesTheRelayAdapterCatalogServeNoNamesOrLogos: boolean;
+  /** `?workspace=none|unreadable`: no workspace open, or one whose `pyproject.toml` does not parse; the pattern workspace by default. */
+  openWorkspaceScenario: MockOpenWorkspaceScenario;
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -291,6 +295,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     relaysScenario: mockRelaysScenarioNamed(pageQuery.get("relays")),
     doesTheRuntimeListAnEarlierRuntimesRecord: pageQuery.get("streams") === "earlier_record",
     doesTheRelayAdapterCatalogServeNoNamesOrLogos: pageQuery.get("adapter_names") === "none",
+    openWorkspaceScenario: mockOpenWorkspaceScenarioNamed(pageQuery.get("workspace")),
   };
 }
 
@@ -472,6 +477,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     relaysScenario,
     doesTheRuntimeListAnEarlierRuntimesRecord,
     doesTheRelayAdapterCatalogServeNoNamesOrLogos,
+    openWorkspaceScenario,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -481,6 +487,8 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         ? fixtures.mainStreamWithItsMeterFallingBehind
         : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
+  const openWorkspaceListeners = new Set<(reading: OpenWorkspaceReading) => void>();
+  let openWorkspaceReading = mockOpenWorkspaceReading(openWorkspaceScenario, fixtures.machine.homeDirectory);
   const loadedStreams = new Map<string, MockLoadedStream>();
   const listedStreamsNotLoaded = new Map<string, ListedStream>([
     [fixtures.stoppedPatternTwo.stream, fixtures.stoppedPatternTwo],
@@ -1269,6 +1277,18 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (streamPageRequestedByANotification === null) return () => {};
       const notificationClickTimer = window.setTimeout(() => streamPageRequestListener(streamPageRequestedByANotification), MOCK_NOTIFICATION_CLICK_MILLISECONDS);
       return () => window.clearTimeout(notificationClickTimer);
+    },
+    chooseWorkspaceFolder: async (chosenFor) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      openWorkspaceReading = mockOpenWorkspaceReading("read", fixtures.machine.homeDirectory);
+      for (const openWorkspaceListener of openWorkspaceListeners) openWorkspaceListener(structuredClone(openWorkspaceReading));
+      const folder = openWorkspaceReading.kind === "read" ? openWorkspaceReading.workspace.workspace_project.folder : fixtures.machine.homeDirectory;
+      return { folder, project_creation: chosenFor === "new_workspace" ? { action: nextStreamActionId(), stream: mockStreamIdOf({ project_directory: folder, stream_function: "stream:main" }), project_directory: folder } : null };
+    },
+    readOpenWorkspace: async () => structuredClone(openWorkspaceReading),
+    onOpenWorkspaceChanged: (openWorkspaceListener) => {
+      openWorkspaceListeners.add(openWorkspaceListener);
+      return () => openWorkspaceListeners.delete(openWorkspaceListener);
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);

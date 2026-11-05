@@ -1,4 +1,6 @@
 import type {
+  ChosenWorkspaceFolder,
+  OpenWorkspaceReading,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   RelaySettingsByName,
@@ -12,6 +14,7 @@ import type {
   StreamProjectFolderChosenFor,
   TatolabStatus,
   TatolabStreamActionName,
+  WorkspaceFolderChosenFor,
 } from "../../shared/tatolab_backend_contract";
 import { TATOLAB_WINDOW_PAGE_SCHEME, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
 
@@ -86,6 +89,12 @@ export interface TatolabBackend {
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
   /** Calls `listener` with the stream each request from the app to show a stream's page names; the returned function stops it. */
   onStreamPageRequested(listener: (streamId: string) => void): () => void;
+  /** Ask the person for a workspace folder in the app's dialog and open it, a new one's project queued with the runtime first; `null` when they cancel, rejecting in the dialog's or the runtime's own words. The workspace read arrives as the next open-workspace change. */
+  chooseWorkspaceFolder(chosenFor: WorkspaceFolderChosenFor): Promise<ChosenWorkspaceFolder | null>;
+  /** The open workspace as the app last read it from disk. */
+  readOpenWorkspace(): Promise<OpenWorkspaceReading>;
+  /** Calls `listener` with each reading of the open workspace: another folder opened, or a `pyproject.toml` it reads changed; the returned function stops it. */
+  onOpenWorkspaceChanged(listener: (reading: OpenWorkspaceReading) => void): () => void;
 }
 
 /** Where the page runs: Tatolab.app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */

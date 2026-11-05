@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createElectronTatolabBackend } from "./electron_tatolab_backend";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./mock_tatolab_backend";
 import { describeBackendRejection } from "./tatolab_backend";
-import type { TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { OpenWorkspaceReading, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type {
   TatolabCommandAnswerTo,
   TatolabCommandName,
@@ -17,6 +17,7 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
   const invokedCommands: [TatolabCommandName, unknown][] = [];
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const streamPageRequestListeners = new Set<(streamId: string) => void>();
+  const openWorkspaceListeners = new Set<(reading: OpenWorkspaceReading) => void>();
   const tatolabElectronBridge: TatolabElectronBridge = {
     async invokeTatolabCommand<CommandName extends TatolabCommandName>(
       commandName: CommandName,
@@ -33,9 +34,13 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
       streamPageRequestListeners.add(listener);
       return () => streamPageRequestListeners.delete(listener);
     },
+    onOpenWorkspaceChanged(listener) {
+      openWorkspaceListeners.add(listener);
+      return () => openWorkspaceListeners.delete(listener);
+    },
     tellTheAppTheWindowDrewItsFirstStatus() {},
   };
-  return { tatolabElectronBridge, invokedCommands, statusListeners, streamPageRequestListeners };
+  return { tatolabElectronBridge, invokedCommands, statusListeners, streamPageRequestListeners, openWorkspaceListeners };
 }
 
 async function aTatolabStatus(): Promise<TatolabStatus> {

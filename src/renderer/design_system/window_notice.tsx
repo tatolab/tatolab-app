@@ -1,12 +1,11 @@
 import { cn } from "cn";
 import { SquareX, TriangleAlert, X } from "lucide-react";
 import type { ReactNode } from "react";
-import type { NoticeTone } from "../presentation/add_stream_flow";
 import type { ControlDataAttributes } from "./control_data_attributes";
 import { IconButton } from "./icon_button";
 
 /** How a notice reads: plain news, a warning to read (amber), or a failure (red). Plain carries no icon, as a healthy state does not. */
-export type WindowNoticeTone = NoticeTone;
+export type WindowNoticeTone = "plain" | "warning" | "failure";
 
 /**
  * A notice raised over the bottom right of the window, about work that finished out of sight: its title, what it says

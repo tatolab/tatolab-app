@@ -247,3 +247,8 @@ export function MenuGroup({ label, children }: { label: string; children: ReactN
 export function MenuSeparator() {
   return <DropdownMenuSeparator />;
 }
+
+/** A line of a menu that is read, not chosen: what a group holds when it holds nothing yet. */
+export function MenuNote({ children }: { children: ReactNode }) {
+  return <p className="px-2 py-1 text-xs text-fg-3">{children}</p>;
+}

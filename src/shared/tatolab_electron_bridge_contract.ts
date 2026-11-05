@@ -3,6 +3,8 @@
 // command answers.
 
 import type {
+  ChosenWorkspaceFolder,
+  OpenWorkspaceReading,
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -15,6 +17,7 @@ import type {
   StreamGraphSummary,
   StreamProjectFolderChosenFor,
   TatolabStatus,
+  WorkspaceFolderChosenFor,
 } from "./tatolab_backend_contract.js";
 
 /** The scheme the Electron app serves its window's page under: a page on it with no bridge is the app's window whose preload did not load. */
@@ -55,13 +58,15 @@ export const TATOLAB_COMMAND_NAMES = [
   "add_relay",
   "configure_relay",
   "remove_relay",
+  "choose_workspace_folder",
+  "read_open_workspace",
 ] as const;
 
 /**
  * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
- * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, `choose_workspace_folder` `{ chosen_for }`, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
  * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `install_the_carried_runtime_again` once the installer ends, refused in its words; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
@@ -73,6 +78,9 @@ export const TATOLAB_STATUS_CHANGED_EVENT = "tatolab-status-changed";
 
 /** The event the app asks the window to show a stream's page on, as a click on that stream's failure notification does; it carries a `TatolabStreamPageRequest`. */
 export const TATOLAB_STREAM_PAGE_REQUESTED_EVENT = "tatolab-stream-page-requested";
+
+/** The event each change of the open workspace arrives on: another folder opened, or a `pyproject.toml` it reads changed on disk; it carries an `OpenWorkspaceReading`. */
+export const TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT = "tatolab-open-workspace-changed";
 
 /** The notice the window sends the main process once it has drawn its first status, carrying nothing; the window first goes on screen on it. */
 export const TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE = "tatolab-window-drew-its-first-status";
@@ -147,6 +155,10 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   configure_relay: { commandArguments: { relay_id: string; settings: RelaySettingsByName }; answer: null };
   /** Refused by the runtime for a built-in relay. */
   remove_relay: { commandArguments: { relay_id: string }; answer: null };
+  /** The app's folder dialog; the chosen folder becomes the open workspace, remembered for the next launch, and a new workspace's project is queued with the runtime's `create_project` first. `null` when the person cancels; refused in the dialog's or the runtime's own words. */
+  choose_workspace_folder: { commandArguments: { chosen_for: WorkspaceFolderChosenFor }; answer: ChosenWorkspaceFolder | null };
+  /** The open workspace as last read from disk. */
+  read_open_workspace: { commandArguments: undefined; answer: OpenWorkspaceReading };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */
@@ -164,6 +176,8 @@ export interface TatolabElectronBridge {
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): () => void;
   /** Calls `listener` with the id of the stream each request to show a stream's page names; the returned function stops it. */
   onStreamPageRequested(listener: (stream: string) => void): () => void;
+  /** Calls `listener` with each reading of the open workspace the main process sends; the returned function stops it. */
+  onOpenWorkspaceChanged(listener: (reading: OpenWorkspaceReading) => void): () => void;
   /** Tell the main process the window has drawn its first status, so it can put the window on screen. */
   tellTheAppTheWindowDrewItsFirstStatus(): void;
 }

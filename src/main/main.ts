@@ -32,6 +32,8 @@ import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "
 import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
+import { OpenWorkspaceFolder, type FolderEntriesWatch, type WorkspaceFolderDialog } from "./open_workspace.js";
+import { rememberedOpenWorkspaceFileIn } from "./remembered_open_workspace_file.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
 import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy_handoff.js";
 
@@ -61,6 +63,10 @@ export interface TatolabElectronAppShell {
   openAFolderInTheFileManager(folder: string): Promise<Result<void, string>>;
   /** The desktop's folder dialog over the window, which the window's Add stream asks through. */
   askThePersonForAStreamProjectFolder: StreamProjectFolderDialog;
+  /** The desktop's folder dialog over the window, which the studio opens and creates a workspace through. */
+  askThePersonForAWorkspaceFolder: WorkspaceFolderDialog;
+  /** Watching the entries directly in one folder, which the open workspace reads again on. */
+  watchFolderEntries: FolderEntriesWatch;
   /** The person's home directory, where the folder dialog opens, or at `~/streams` for a new project once that folder exists. */
   homeDirectory: string;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
@@ -203,8 +209,21 @@ export async function startTatolabApp(
       projectLoadsOnTheRuntime: controller,
     }),
     streamFailureNotifications,
+    openWorkspaceFolder: new OpenWorkspaceFolder({
+      homeDirectory: tatolabElectronAppShell.homeDirectory,
+      workspaceFolderDialog: tatolabElectronAppShell.askThePersonForAWorkspaceFolder,
+      rememberedOpenWorkspaceFolder: rememberedOpenWorkspaceFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
+      workspaceProjectCreation: controller,
+      watchFolderEntries: tatolabElectronAppShell.watchFolderEntries,
+      runAfter: (delayMs, work) => {
+        const timer = setTimeout(work, delayMs);
+        return () => clearTimeout(timer);
+      },
+      sendTheWindowTheOpenWorkspace: (reading) => tatolabMainWindow.sendTheWindowTheOpenWorkspace(reading),
+    }),
     tatolabAppLog,
   };
+  tatolabElectronAppShell.onTheAppQuitting(() => sharedState.openWorkspaceFolder.stopWatching());
   const quitTheApp = () => quitTheTatolabApp(tatolabMainWindow, (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode), tatolabAppLog);
   const showTheWindowWithTheLastStatus = () => {
     tatolabMainWindow.show();
@@ -212,6 +231,7 @@ export async function startTatolabApp(
   };
   tatolabElectronAppShell.answerTheWindowsCommands(tatolabWindowCommandHandlers(sharedState, quitTheApp));
   sharedStateOnceBuilt = sharedState;
+  void sharedState.openWorkspaceFolder.openTheRememberedWorkspace();
   const onTrayMenuChoice = (trayMenuChoice: TrayMenuChoice) => {
     switch (trayMenuChoice) {
       case "open_tatolab":

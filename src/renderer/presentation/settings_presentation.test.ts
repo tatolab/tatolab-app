@@ -13,9 +13,8 @@ import {
   presentStreamFailureNotifications,
   presentUsrLocalBinLink,
   restartRuntimeUnavailableBecause,
+  SETTINGS_SECTION_GROUPS,
   settingsSectionLabel,
-  settingsSectionNamed,
-  settingsSectionPath,
 } from "./settings_presentation";
 
 function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
@@ -55,13 +54,9 @@ function describedAs(runtimeDescriptionChanges: Partial<RuntimeDescription>) {
   };
 }
 
-describe("Settings' sections", () => {
-  it("names a section by its path, General for none or one it does not have", () => {
-    expect(settingsSectionNamed("runtime")).toBe("runtime");
-    expect(settingsSectionNamed("command-line")).toBe("command-line");
-    expect(settingsSectionNamed(undefined)).toBe("general");
-    expect(settingsSectionNamed("permissions")).toBe("general");
-    expect(settingsSectionPath("about")).toBe("/settings/about");
+describe("Preferences' sections", () => {
+  it("lists General, Runtime, Command line and About, in that order", () => {
+    expect(SETTINGS_SECTION_GROUPS.flatMap((group) => group.sections.map(({ section }) => section))).toEqual(["general", "runtime", "command-line", "about"]);
   });
 
   it("titles a section with the words its list names it by", () => {

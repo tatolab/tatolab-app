@@ -14,6 +14,8 @@ import {
 } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
+import { OpenWorkspaceFolder } from "./open_workspace.js";
+import { rememberedOpenWorkspaceFileIn } from "./remembered_open_workspace_file.js";
 import { failedWith, succeeded } from "./result.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import { RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL } from "./run_tatolab_switch.js";
@@ -134,6 +136,15 @@ async function sharedStateOverFakes(
       homeDirectory: appConfigDirectory,
       streamProjectFolderDialog: async () => succeeded(folderTheDialogAnswers),
       projectLoadsOnTheRuntime: controller,
+    }),
+    openWorkspaceFolder: new OpenWorkspaceFolder({
+      homeDirectory: appConfigDirectory,
+      workspaceFolderDialog: async () => succeeded(null),
+      rememberedOpenWorkspaceFolder: rememberedOpenWorkspaceFileIn(appConfigDirectory, quietTatolabAppLog),
+      workspaceProjectCreation: controller,
+      watchFolderEntries: () => null,
+      runAfter: () => () => {},
+      sendTheWindowTheOpenWorkspace: () => {},
     }),
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLinks,
