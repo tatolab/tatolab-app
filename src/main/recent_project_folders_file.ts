@@ -1,5 +1,5 @@
 // The projects the studio has opened, recent first, remembered between launches in one JSON file
-// in the app's config directory, so Home can list them.
+// in the app's config directory, so the Projects window can list them.
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";

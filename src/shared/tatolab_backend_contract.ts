@@ -457,7 +457,7 @@ export interface ChosenProjectFolder {
   project_creation: ProjectCreationQueued | null;
 }
 
-/** One project opened before, as `read_recent_projects` answers it for Home, recent first. */
+/** One project opened before, as `read_recent_projects` answers it for the Projects window, recent first. */
 export interface RecentProject {
   folder: string;
   /** The `[project]` name its `pyproject.toml` gives, or `null` when the folder or the file does not read now. */

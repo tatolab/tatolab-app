@@ -633,7 +633,7 @@ test("the commands that add a project read their arguments as the window sends t
   expect(await commandHandlers.describe_stream_action({})).toEqual({ ok: false, refusal: "describe_stream_action needs `action`, a stream action's id" });
 });
 
-test("Home's commands list no recent project on a fresh install, and open only a recent one", async () => {
+test("The Projects window's commands list no recent project on a fresh install, and open only a recent one", async () => {
   const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
   expect(await commandHandlers.read_recent_projects(undefined)).toEqual({ ok: true, value: [] });
   expect(await commandHandlers.open_recent_project({})).toEqual({ ok: false, refusal: "open_recent_project needs `folder`, one of the recent projects' folders" });

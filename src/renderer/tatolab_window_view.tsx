@@ -113,7 +113,7 @@ export function mountTatolabWindow(
     backend.chooseProjectFolder(chosenFor).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
   };
   const studioMenuBarCommands: StudioMenuBarCommands = {
-    showHome: () => studioWindowModel.isHomeShown.publish(true),
+    showProjects: () => studioWindowModel.isProjectsShown.publish(true),
     openAProject: () => chooseProjectFolder("project_to_open"),
     createAProject: () => chooseProjectFolder("new_project"),
     openPreferences: () => studioWindowModel.preferencesSection.publish("general"),
@@ -151,7 +151,7 @@ export function mountTatolabWindow(
       pythonLanguageServerConnections,
     }),
     commands: studioMenuBarCommands,
-    home: {
+    projects: {
       readRecentProjects: () => backend.readRecentProjects(),
       openARecentProject: (folder) => {
         studioWindowModel.projectOpeningRefusal.publish(null);

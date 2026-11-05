@@ -1,5 +1,5 @@
 // The project open in the studio: a folder that is itself a project, chosen in the
-// app's own dialog or from Home's recent projects, and remembered among them. It is read from each `pyproject.toml` it and
+// app's own dialog or from the Projects window's recent projects, and remembered among them. It is read from each `pyproject.toml` it and
 // its folder imports hold, and read again whenever one of those folders changes, so the window
 // always shows what is on disk.
 
@@ -50,7 +50,7 @@ export interface OpenProjectSources {
   homeDirectory: string;
   projectFolderDialog: ProjectFolderDialog;
   recentProjectFolders: RecentProjectFolders;
-  /** The wall clock, in milliseconds since the epoch, stamped on a project as it opens for Home to show. */
+  /** The wall clock, in milliseconds since the epoch, stamped on a project as it opens for the Projects window to show. */
   readWallClockNowMs: () => number;
   newProjectCreation: NewProjectCreation;
   watchFolderEntries: FolderEntriesWatch;

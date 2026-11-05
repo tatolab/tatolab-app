@@ -13,7 +13,7 @@ import { FirstRunFinishingRefusalNoticeView } from "../setup_and_preferences/fir
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
 import { StudioViewFailureBoundary, useWatchedStudioValue } from "../view_host/in_window_view_host";
 import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
-import { HomeView, type HomeSources } from "./home_view";
+import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { RUN_LIVE_KEY, studioMenuBarMenus, type StudioMenuBarCommands } from "./studio_menu_bar_model";
 import type { StudioWindowModel } from "./studio_window_model";
@@ -27,8 +27,8 @@ export interface StudioWindowSources {
   viewTypeRegistry: StudioViewTypeRegistry;
   viewHostServices: StudioViewHostServices;
   commands: StudioMenuBarCommands;
-  /** What Home reads its projects from and opens them through. */
-  home: HomeSources;
+  /** What the Projects window reads its projects from and opens them through. */
+  projects: ProjectsSources;
   platform: TatolabPlatform;
 }
 
@@ -132,7 +132,7 @@ function StudioAreaLayoutNodeView({ node, layoutKey, sources }: { node: StudioAr
   );
 }
 
-/** The studio: its menus along the top, the open streams' tabs, and the chosen layout's areas, or Home while no project is open or File › Home shows it. */
+/** The studio: its menus along the top, the open streams' tabs, and the chosen layout's areas, or the Projects window while no project is open or File › Projects shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands } = sources;
   const openProject = useWatchedStudioValue(model.openProject);
@@ -141,8 +141,8 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const preferencesSection = useWatchedStudioValue(model.preferencesSection);
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
   const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
-  const isHomeShown = useWatchedStudioValue(model.isHomeShown);
-  const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null && !isHomeShown;
+  const isProjectsShown = useWatchedStudioValue(model.isProjectsShown);
+  const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null && !isProjectsShown;
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       <header
@@ -165,7 +165,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         )}
       </header>
       {!isAProjectShown ? (
-        <HomeView model={model} homeSources={sources.home} commands={commands} />
+        <ProjectsView model={model} projectsSources={sources.projects} commands={commands} />
       ) : (
         <>
           <DocumentTabs

@@ -1,7 +1,7 @@
 // The mock's open project: the pattern project the mock runtime lists streams from, importing the
 // camera and lobby-recorder projects by folder, one folder import whose pyproject does not parse,
 // and a package from the index. `?project=none|unreadable` opens none, or one that cannot be read.
-// Home lists the recent projects: the pattern, camera and lobby-recorder projects and three more,
+// The Projects window lists the recent projects: the pattern, camera and lobby-recorder projects and three more,
 // one gone from disk; `?recent=none` lists none, as on first run.
 
 import type { OpenProjectReading, ProjectOnDisk, RecentProject } from "../../shared/tatolab_backend_contract";

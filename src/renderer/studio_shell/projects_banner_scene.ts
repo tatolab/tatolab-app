@@ -1,4 +1,4 @@
-// The Welcome splash's banner: an original three.js scene of a point-cloud portrait peeling away into
+// The Projects window's banner: an original three.js scene of a point-cloud portrait peeling away into
 // a pulsing orb ringed by bars, over a moving aurora, with sparks, ribbons of light, motion trails,
 // bloom, and a lens pass of streaks, fringing, vignette and grain.
 
@@ -38,7 +38,7 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 
 /** The moment of the scene a still frame shows, under reduced motion: the portrait half peeled away. */
-export const WELCOME_BANNER_STILL_SECONDS = 5;
+export const PROJECTS_BANNER_STILL_SECONDS = 5;
 
 const FULL_SCREEN_VERTEX_SHADER = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }";
 
@@ -122,10 +122,12 @@ function softPointSprite(): Texture | null {
 }
 
 /** The banner's scene, drawn into its own canvas at the size of the element it is mounted in. */
-export class WelcomeBannerScene {
+export class ProjectsBannerScene {
   readonly canvas: HTMLCanvasElement;
   private readonly composer: EffectComposer;
   private readonly camera: PerspectiveCamera;
+  private readonly bloomPass: UnrealBloomPass;
+  private readonly lensPass: ShaderPass;
   private readonly drawEachFrame: Array<(seconds: number) => void> = [];
   private readonly disposeEverything: Array<() => void> = [];
   private animationFrameRequest: number | null = null;
@@ -148,7 +150,8 @@ export class WelcomeBannerScene {
     this.composer = new EffectComposer(renderer);
     this.composer.addPass(new RenderPass(scene, this.camera));
     this.composer.addPass(new AfterimagePass(0.6));
-    this.composer.addPass(new UnrealBloomPass(new Vector2(widthPx, heightPx), 0.8, 0.5, 0.4));
+    this.bloomPass = new UnrealBloomPass(new Vector2(widthPx, heightPx), 0.8, 0.5, 0.4);
+    this.composer.addPass(this.bloomPass);
     const lensPass = new ShaderPass({
       uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uAspect: { value: widthPx / heightPx } },
       vertexShader: FULL_SCREEN_VERTEX_SHADER,
@@ -158,13 +161,14 @@ export class WelcomeBannerScene {
       const timeUniform = lensPass.uniforms["uTime"];
       if (timeUniform !== undefined) timeUniform.value = seconds;
     });
+    this.lensPass = lensPass;
     this.composer.addPass(lensPass);
     this.composer.addPass(new OutputPass());
     this.disposeEverything.push(() => pointSprite.dispose());
   }
 
   /** The scene at `widthPx` by `heightPx`, or `null` where the window cannot draw WebGL. */
-  static create(widthPx: number, heightPx: number): WelcomeBannerScene | null {
+  static create(widthPx: number, heightPx: number): ProjectsBannerScene | null {
     const pointSprite = softPointSprite();
     if (pointSprite === null || widthPx <= 0 || heightPx <= 0) return null;
     let renderer: WebGLRenderer;
@@ -174,7 +178,19 @@ export class WelcomeBannerScene {
       pointSprite.dispose();
       return null;
     }
-    return new WelcomeBannerScene(renderer, widthPx, heightPx, pointSprite);
+    return new ProjectsBannerScene(renderer, widthPx, heightPx, pointSprite);
+  }
+
+  /** Draw from now on at `widthPx` by `heightPx`, as the element it is mounted in is resized. */
+  resize(widthPx: number, heightPx: number): void {
+    if (widthPx <= 0 || heightPx <= 0) return;
+    this.renderer.setSize(widthPx, heightPx, false);
+    this.composer.setSize(widthPx, heightPx);
+    this.bloomPass.setSize(widthPx, heightPx);
+    this.camera.aspect = widthPx / heightPx;
+    this.camera.updateProjectionMatrix();
+    const aspectUniform = this.lensPass.uniforms["uAspect"];
+    if (aspectUniform !== undefined) aspectUniform.value = widthPx / heightPx;
   }
 
   /** Draw the scene as it stands `seconds` in. */
@@ -188,7 +204,7 @@ export class WelcomeBannerScene {
 
   /** Draw a frame each time the display refreshes, timed by `readMonotonicClockMs`, until `stop`. */
   play(readMonotonicClockMs: () => number): void {
-    const startedAtMs = readMonotonicClockMs() - WELCOME_BANNER_STILL_SECONDS * 1000;
+    const startedAtMs = readMonotonicClockMs() - PROJECTS_BANNER_STILL_SECONDS * 1000;
     const drawTheNextFrame = () => {
       this.drawAt((readMonotonicClockMs() - startedAtMs) / 1000);
       this.animationFrameRequest = window.requestAnimationFrame(drawTheNextFrame);

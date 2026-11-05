@@ -180,7 +180,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   choose_project_folder: { commandArguments: { chosen_for: ProjectFolderChosenFor }; answer: ChosenProjectFolder | null };
   /** The open project as last read from disk. */
   read_open_project: { commandArguments: undefined; answer: OpenProjectReading };
-  /** The projects opened before, recent first, for Home. */
+  /** The projects opened before, recent first, for the Projects window. */
   read_recent_projects: { commandArguments: undefined; answer: RecentProject[] };
   /** `folder` one of the recent projects; it becomes the open project and moves first among them. */
   open_recent_project: { commandArguments: { folder: string }; answer: null };

@@ -52,8 +52,8 @@ export class StudioWindowModel {
   readonly selection = new WatchedStudioValue<StudioSelection>({ kind: "nothing" });
   readonly openStreamTabs = new WatchedStudioValue<OpenStreamTabs>({ tabs: [], active_stream: null });
   readonly activeStreamTab = new WatchedStudioValue<StreamTabAddress | null>(null);
-  /** Whether Home is shown over the open project, as File › Home shows it; Home shows anyway while none is open. */
-  readonly isHomeShown = new WatchedStudioValue<boolean>(false);
+  /** Whether the Projects window shows over the open project, as File › Projects shows it; it shows anyway while none is open. */
+  readonly isProjectsShown = new WatchedStudioValue<boolean>(false);
   /** The section Preferences shows while it is open; `null` while it is closed. */
   readonly preferencesSection = new WatchedStudioValue<SettingsSection | null>(null);
   /** Why the last project asked for did not open, until it is dismissed or another opens. */
@@ -93,7 +93,7 @@ export class StudioWindowModel {
     const folderNow = openProjectFolderOf(reading);
     this.openProject.publish(reading);
     if (folderNow === folderBefore && this.studioLayouts.readLatest() !== null) return;
-    if (folderNow !== folderBefore) this.isHomeShown.publish(false);
+    if (folderNow !== folderBefore) this.isProjectsShown.publish(false);
     this.selection.publish({ kind: "nothing" });
     this.publishStreamTabs({ tabs: [], active_stream: null });
     this.studioLayouts.publish(folderNow === null ? null : this.layoutsKept.readLayoutsOf(folderNow));

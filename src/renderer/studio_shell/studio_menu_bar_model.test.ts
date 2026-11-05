@@ -6,7 +6,7 @@ import { streamsOfTheProjectToStop } from "./studio_window_model";
 
 function commandsCounted(): StudioMenuBarCommands {
   return {
-    showHome: vi.fn(),
+    showProjects: vi.fn(),
     openAProject: vi.fn(),
     createAProject: vi.fn(),
     openPreferences: vi.fn(),
@@ -23,14 +23,14 @@ function entryOf(menus: ReturnType<typeof studioMenuBarMenus>, menuLabel: string
 }
 
 describe("the studio's File menu", () => {
-  it("leads with Home, which shows Home with or without a project open", () => {
+  it("leads with Projects, which shows the Projects window with or without a project open", () => {
     for (const chosenLayout of [null, "code" as const]) {
       const commands = commandsCounted();
       const fileMenu = studioMenuBarMenus("macos", chosenLayout, commands).find((menu) => menu.label === "File");
-      const home = fileMenu?.entries[0];
-      expect(home).toMatchObject({ kind: "command", label: "Home" });
-      if (home?.kind === "command") home.onChosen();
-      expect(commands.showHome).toHaveBeenCalledOnce();
+      const projects = fileMenu?.entries[0];
+      expect(projects).toMatchObject({ kind: "command", label: "Projects" });
+      if (projects?.kind === "command") projects.onChosen();
+      expect(commands.showProjects).toHaveBeenCalledOnce();
     }
   });
 });

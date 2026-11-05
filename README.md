@@ -31,7 +31,7 @@ the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-em
 |---|---|---|
 | The runtime | carried inside the app and installed by streamlib's installer whenever the app opens carrying another build, run as the launch agent `com.tatolab.tatolabd` | carried in the package and installed the same way, run as the systemd user service `tatolabd.service` |
 | "Run Tatolab" | loads and unloads the launch agent (`launchctl bootstrap` / `bootout`) | `systemctl --user enable --now` / `disable --now tatolabd.service` |
-| First launch | Getting set up, with no administrator password, then Home with the Welcome splash over it; the installer links `~/.local/bin/tatolab` | the installer's lines while it installs the runtime, then Home with the Welcome splash over it; it links `tatolab` and `tatolabd` into `~/.local/bin` |
+| First launch | Getting set up, with no administrator password, then the empty Projects window; the installer links `~/.local/bin/tatolab` | the installer's lines while it installs the runtime, then the empty Projects window; it links `tatolab` and `tatolabd` into `~/.local/bin` |
 | Local API socket | `/tmp/streamlib-<uid>/local-api.sock` | `$XDG_RUNTIME_DIR/streamlib/local-api.sock`, else `/tmp/streamlib-<uid>/local-api.sock` |
 | Uninstall | the app's "Uninstall Tatolab…", or `brew uninstall --cask tatolab` | the installer's `--uninstall`, then remove the app's package |
 

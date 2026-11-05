@@ -233,40 +233,38 @@ describe("the studio", () => {
     expect(document.querySelector('[data-studio-area="scene"]')).not.toBeNull();
   });
 
-  it("shows Home with no project open, its recent projects as cards, and opens the one chosen", async () => {
+  it("shows the Projects window with no project open, its recent projects as cards, and opens the one chosen", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
-    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-home-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
+    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
     expect(patternCard.textContent).toContain("Running");
-    expect(document.querySelectorAll("[data-home-project]")).toHaveLength(6);
-    expect(document.querySelector("[data-welcome-splash]")).toBeNull();
+    expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6);
 
     fireEvent.click(patternCard);
 
     expect(await shownLayout()).toBe("build");
-    expect(document.querySelector("[data-home]")).toBeNull();
+    expect(document.querySelector("[data-projects]")).toBeNull();
   });
 
-  it("narrows Home to the running projects, and to the ones a search names", async () => {
+  it("narrows the Projects window to the projects a search names", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
-    await waitFor(() => expect(document.querySelectorAll("[data-home-project]")).toHaveLength(6));
-    fireEvent.click(document.querySelector<HTMLElement>('[data-home-filter="running_now"]') ?? expect.unreachable("no Running now"));
-    expect([...document.querySelectorAll("[data-home-project]")].map((card) => card.getAttribute("data-home-project"))).toEqual([PATTERN_PROJECT, CAMERA_PROJECT]);
-    fireEvent.change(screen.getByRole("textbox", { name: "Search projects" }), { target: { value: "lobby" } });
-    expect(document.querySelectorAll("[data-home-project]")).toHaveLength(0);
-    expect(textOf("[data-home-empty]")).toContain("No project matches");
+    await waitFor(() => expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6));
+    fireEvent.change(screen.getByRole("textbox", { name: "Search projects" }), { target: { value: "camera" } });
+    expect([...document.querySelectorAll("[data-projects-project]")].map((card) => card.getAttribute("data-projects-project"))).toEqual([CAMERA_PROJECT]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Search projects" }), { target: { value: "nothing-like-it" } });
+    expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(0);
+    expect(textOf("[data-projects-empty]")).toContain("No project matches");
   });
 
-  it("greets first run with the Welcome splash over Home, its banner a still picture where WebGL is not offered, and Open… opens the one chosen", async () => {
+  it("opens first run on the empty Projects window, its banner a still picture where WebGL is not offered, and Open… opens the one chosen", async () => {
     await mountedWindowOverTheMock("state=running&project=none&recent=none");
-    const welcome = await screen.findByRole("dialog", { name: "Welcome to Tato Studio" });
-    expect(welcome.querySelector('[data-welcome-banner="still"] img')).not.toBeNull();
-    expect(within(welcome).getByText("v0.45.0")).toBeTruthy();
-    expect(within(welcome).getByText("None yet")).toBeTruthy();
+    await waitFor(() => expect(textOf("[data-projects-empty]")).toContain("No projects yet"));
+    expect(document.querySelector('[data-projects-banner="still"] img')).not.toBeNull();
+    expect(screen.getByText("v0.45.0")).toBeTruthy();
 
-    fireEvent.click(within(welcome).getByRole("button", { name: "Open…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open…" }));
 
     expect(await shownLayout()).toBe("build");
-    expect(screen.queryByRole("dialog", { name: "Welcome to Tato Studio" })).toBeNull();
+    expect(document.querySelector("[data-projects]")).toBeNull();
   });
 
   it("says why an unreadable project can't be read, in the reader's words", async () => {
@@ -284,7 +282,7 @@ describe("the studio", () => {
     fireEvent.click(await screen.findByRole("button", { name: "New project" }));
 
     await waitFor(() => expect(textOf("[data-project-opening-refusal]")).toContain("the folder already holds a project"));
-    expect(document.querySelector("[data-home]")).not.toBeNull();
+    expect(document.querySelector("[data-projects]")).not.toBeNull();
   });
 });
 

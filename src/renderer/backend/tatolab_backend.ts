@@ -102,7 +102,7 @@ export interface TatolabBackend {
   chooseProjectFolder(chosenFor: ProjectFolderChosenFor): Promise<ChosenProjectFolder | null>;
   /** The open project as the app last read it from disk. */
   readOpenProject(): Promise<OpenProjectReading>;
-  /** The projects opened before, recent first, for Home. */
+  /** The projects opened before, recent first, for the Projects window. */
   readRecentProjects(): Promise<RecentProject[]>;
   /** Open `folder`, one of the recent projects, rejecting for any other folder or in the words of what refused; the project read arrives as the next open-project change. */
   openRecentProject(folder: string): Promise<void>;

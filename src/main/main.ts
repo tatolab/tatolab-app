@@ -86,7 +86,7 @@ export interface TatolabElectronAppShell {
   /** Where the runtime this build reads serves its loopback HTTP: the window's content security policy frames it, and the graph's preview pages sit under it. */
   runtimeLoopbackHttpOrigin: string;
   readMonotonicClockMs(): number;
-  /** The wall clock, in milliseconds since the epoch, only ever shown to the person, as when Home says a project was opened. */
+  /** The wall clock, in milliseconds since the epoch, only ever shown to the person, as when the Projects window says a project was opened. */
   readWallClockMsForDisplay(): number;
   mainWindowHostFactory: MainWindowHostFactory;
   trayIconHostFactory: TrayIconHostFactory;

@@ -17,7 +17,7 @@ function ProjectGraphThumbnail({ isRunning }: { isRunning: boolean }) {
   );
 }
 
-/** One project on Home: its graph's picture, its name, where it is and when it was last opened, marked while it runs or doesn't read; pressing it opens it. */
+/** One project in the Projects window: its graph's picture, its name, where it is and when it was last opened, marked while it runs or doesn't read; pressing it opens it. */
 export function ProjectCard({
   name,
   detail,

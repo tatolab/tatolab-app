@@ -59,7 +59,7 @@ async function openEveryOutlinerRow(): Promise<void> {
  * (every row opened), `?select=<row id>` (that outliner row clicked, as `stream:<stream id>`), `?open_stream=<stream id>`
  * (its row double-clicked, opening its tab), `?select_node=<node name>` (that node's card clicked in the stream graph), `?code_file=<file>` (Stream › Open stream.py chosen, then that file of the open project, as `nodes/inverting_effect.py`, opened from the code area's + menu), `?run=live` (Live pressed), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
  * `?submenu=<entry>` (that entry's submenu opened, as `Layout`), and `?area_menu=<area id>` (that area's
- * view-type menu opened); with the backend's `?project=none|unreadable` (none shows Home, and with `?recent=none` the Welcome splash over it) and `?port_families=served` (each port's family in the graph and the catalog). `?page=home` opens Home from File › Home, `?home_filter=running_now` narrows it to the running projects; `?page=preferences` opens Preferences, on
+ * view-type menu opened); with the backend's `?project=none|unreadable` (none shows the Projects window, empty with `?recent=none`) and `?port_families=served` (each port's family in the graph and the catalog). `?page=projects` opens the Projects window from File › Projects; `?page=preferences` opens Preferences, on
  * `?section=general|runtime|command-line|about`; there `?restart=pressed|refused` presses Restart and `?link=pressed`
  * presses Link in /usr/local/bin…. `?sheet=uninstall|uninstalling|uninstalled` opens the uninstall sheet from
  * Preferences, pressing Uninstall for the latter two. On first run, with the backend's `?state=setup`,
@@ -106,12 +106,10 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   }
 
   const page = pageQuery.get("page");
-  if (page === "home") {
+  if (page === "projects") {
     await pressWhenShown(`[data-studio-menu="File"]`);
-    [...document.querySelectorAll<HTMLElement>(`[role="menuitem"]`)].find((menuItem) => menuItem.textContent?.trim() === "Home")?.click();
+    [...document.querySelectorAll<HTMLElement>(`[role="menuitem"]`)].find((menuItem) => menuItem.textContent?.trim() === "Projects")?.click();
   }
-  const homeFilter = pageQuery.get("home_filter");
-  if (homeFilter !== null) await clickWhenShown(`[data-home-filter="${CSS.escape(homeFilter)}"]`);
   const sheet = pageQuery.get("sheet");
   if (page === "preferences" || sheet !== null) pressTheStudioShortcut(",", platform);
   const section = pageQuery.get("section");
