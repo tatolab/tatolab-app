@@ -35,7 +35,7 @@ import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_pr
 import { OpenWorkspaceFolder, type FolderEntriesWatch, type WorkspaceFolderDialog } from "./open_workspace.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { WorkspaceFiles } from "./workspace_files.js";
-import { rememberedOpenWorkspaceFileIn } from "./remembered_open_workspace_file.js";
+import { recentWorkspaceFoldersFileIn } from "./recent_workspace_folders_file.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
 import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy_handoff.js";
 
@@ -86,6 +86,8 @@ export interface TatolabElectronAppShell {
   /** Where the runtime this build reads serves its loopback HTTP: the window's content security policy frames it, and the graph's preview pages sit under it. */
   runtimeLoopbackHttpOrigin: string;
   readMonotonicClockMs(): number;
+  /** The wall clock, in milliseconds since the epoch, only ever shown to the person, as when Home says a workspace was opened. */
+  readWallClockMsForDisplay(): number;
   mainWindowHostFactory: MainWindowHostFactory;
   trayIconHostFactory: TrayIconHostFactory;
   dockIconHost: DockIconHost;
@@ -202,7 +204,8 @@ export async function startTatolabApp(
   const openWorkspaceFolder = new OpenWorkspaceFolder({
     homeDirectory: tatolabElectronAppShell.homeDirectory,
     workspaceFolderDialog: tatolabElectronAppShell.askThePersonForAWorkspaceFolder,
-    rememberedOpenWorkspaceFolder: rememberedOpenWorkspaceFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
+    recentWorkspaceFolders: recentWorkspaceFoldersFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
+    readWallClockNowMs: () => tatolabElectronAppShell.readWallClockMsForDisplay(),
     workspaceProjectCreation: controller,
     watchFolderEntries: tatolabElectronAppShell.watchFolderEntries,
     runAfter: (delayMs, work) => {
@@ -248,7 +251,6 @@ export async function startTatolabApp(
   };
   tatolabElectronAppShell.answerTheWindowsCommands(tatolabWindowCommandHandlers(sharedState, quitTheApp));
   sharedStateOnceBuilt = sharedState;
-  void sharedState.openWorkspaceFolder.openTheRememberedWorkspace();
   const onTrayMenuChoice = (trayMenuChoice: TrayMenuChoice) => {
     switch (trayMenuChoice) {
       case "open_tatolab":

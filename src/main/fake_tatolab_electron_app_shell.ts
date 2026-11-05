@@ -133,6 +133,7 @@ export class FakeTatolabElectronAppShell {
     appConfigDirectory: this.appConfigDirectory,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readMonotonicClockMs: () => 0,
+    readWallClockMsForDisplay: () => 1_790_000_000_000,
     mainWindowHostFactory: {
       createMainWindowHost: (mainWindowSpecification, answerCloseRequest) => {
         if (this.mainWindowCreationFailure !== null) return failedWith(this.mainWindowCreationFailure);

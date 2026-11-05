@@ -457,6 +457,15 @@ export interface ChosenWorkspaceFolder {
   project_creation: ProjectCreationQueued | null;
 }
 
+/** One workspace opened before, as `read_recent_workspaces` answers it for Home, recent first. */
+export interface RecentWorkspace {
+  folder: string;
+  /** The `[project]` name its `pyproject.toml` gives, or `null` when the folder or the file does not read now. */
+  project_name: string | null;
+  /** When it was last opened, in milliseconds since the epoch on the wall clock: for display only. */
+  last_opened_at_wall_clock_ms: number;
+}
+
 /** What `read_workspace_file` answers: a file of the open workspace's projects, as read from disk. */
 export interface WorkspaceFileRead {
   /** The file, absolute, as the window named it. */

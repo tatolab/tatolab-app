@@ -59,16 +59,14 @@ async function openEveryOutlinerRow(): Promise<void> {
  * (every row opened), `?select=<row id>` (that outliner row clicked, as `stream:<stream id>`), `?open_stream=<stream id>`
  * (its row double-clicked, opening its tab), `?select_node=<node name>` (that node's card clicked in the stream graph), `?code_file=<file>` (Stream › Open stream.py chosen, then that file of the workspace project, as `nodes/inverting_effect.py`, opened from the code area's + menu), `?run=live` (Live pressed), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
  * `?submenu=<entry>` (that entry's submenu opened, as `Workspace layout`), and `?area_menu=<area id>` (that area's
- * view-type menu opened); with the backend's `?workspace=none|unreadable` and `?port_families=served` (each port's family in the graph and the catalog). `?page=preferences` opens Preferences, on
+ * view-type menu opened); with the backend's `?workspace=none|unreadable` (none shows Home, and with `?recent=none` the Welcome splash over it) and `?port_families=served` (each port's family in the graph and the catalog). `?page=home` opens Home from File › Home, `?home_filter=running_now` narrows it to the running projects; `?page=preferences` opens Preferences, on
  * `?section=general|runtime|command-line|about`; there `?restart=pressed|refused` presses Restart and `?link=pressed`
  * presses Link in /usr/local/bin…. `?sheet=uninstall|uninstalling|uninstalled` opens the uninstall sheet from
  * Preferences, pressing Uninstall for the latter two. On first run, with the backend's `?state=setup`,
- * `?setup=getting_set_up` (Continue pressed on Welcome) or `?setup=get_started` (then Get Started once the runtime
- * answers) and `?setup_step_action=<action>` (a step's action pressed).
+ * `?setup=get_started` (Get Started pressed once the runtime answers) and `?setup_step_action=<action>` (a step's action pressed).
  */
 export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platform: TatolabPlatform): Promise<void> {
   const firstRunStep = pageQuery.get("setup");
-  if (firstRunStep === "getting_set_up" || firstRunStep === "get_started") await clickWhenShown(`[data-getting-started-action="continue"]`);
   if (firstRunStep === "get_started") await clickWhenShown(`[data-getting-started-action="get_started"]:not([disabled])`, MOCK_RUNTIME_STARTUP_WAIT_MILLISECONDS);
   const setupStepAction = pageQuery.get("setup_step_action");
   if (setupStepAction !== null) await clickWhenShown(`[data-getting-started-step-action="${CSS.escape(setupStepAction)}"]`);
@@ -108,6 +106,12 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   }
 
   const page = pageQuery.get("page");
+  if (page === "home") {
+    await pressWhenShown(`[data-studio-menu="File"]`);
+    [...document.querySelectorAll<HTMLElement>(`[role="menuitem"]`)].find((menuItem) => menuItem.textContent?.trim() === "Home")?.click();
+  }
+  const homeFilter = pageQuery.get("home_filter");
+  if (homeFilter !== null) await clickWhenShown(`[data-home-filter="${CSS.escape(homeFilter)}"]`);
   const sheet = pageQuery.get("sheet");
   if (page === "preferences" || sheet !== null) pressTheStudioShortcut(",", platform);
   const section = pageQuery.get("section");

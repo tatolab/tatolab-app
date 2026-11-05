@@ -611,6 +611,12 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       return commandAnswerFrom(await chooseWorkspaceFolder(sharedState, chooseArguments.value.chosen_for));
     },
     read_open_workspace: async () => ({ ok: true, value: sharedState.openWorkspaceFolder.readOpenWorkspace() }),
+    read_recent_workspaces: async () => ({ ok: true, value: await sharedState.openWorkspaceFolder.readRecentWorkspaces() }),
+    open_recent_workspace: async (commandArguments) => {
+      const folder = oneTextArgumentFrom("open_recent_workspace", commandArguments, "folder", "one of the recent workspaces' folders");
+      if (!folder.ok) return { ok: false, refusal: folder.failure };
+      return commandAnswerOfNothingFrom(await answerTheWindow("open_recent_workspace", () => sharedState.openWorkspaceFolder.openRecentWorkspace(folder.value)));
+    },
     read_workspace_file: async (commandArguments) => {
       const file = oneTextArgumentFrom("read_workspace_file", commandArguments, "file", "an absolute path in the open workspace");
       if (!file.ok) return { ok: false, refusal: file.failure };

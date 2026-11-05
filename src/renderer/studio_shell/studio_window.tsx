@@ -1,9 +1,8 @@
-import { FolderOpen, FolderPlus, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
 import { AreaSplit } from "../design_system/area_split";
 import { DocumentTabs } from "../design_system/document_tabs";
-import { EmptyState } from "../design_system/empty_state";
 import { StudioMenuBar } from "../design_system/menu_bar";
 import { MenuGroup, MenuNote, MenuSingleChoiceGroup } from "../design_system/menus";
 import { StudioAreaFrame, StudioAreaHeaderMenu } from "../design_system/studio_area_frame";
@@ -14,6 +13,7 @@ import { FirstRunFinishingRefusalNoticeView } from "../setup_and_preferences/fir
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
 import { StudioViewFailureBoundary, useWatchedStudioValue } from "../view_host/in_window_view_host";
 import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
+import { HomeView, type HomeSources } from "./home_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { RUN_LIVE_KEY, studioMenuBarMenus, type StudioMenuBarCommands } from "./studio_menu_bar_model";
 import type { StudioWindowModel } from "./studio_window_model";
@@ -27,6 +27,8 @@ export interface StudioWindowSources {
   viewTypeRegistry: StudioViewTypeRegistry;
   viewHostServices: StudioViewHostServices;
   commands: StudioMenuBarCommands;
+  /** What Home reads its projects from and opens them through. */
+  home: HomeSources;
   platform: TatolabPlatform;
 }
 
@@ -130,29 +132,7 @@ function StudioAreaLayoutNodeView({ node, layoutKey, sources }: { node: StudioAr
   );
 }
 
-/** What the studio shows with no workspace open: what a workspace is, and the two ways to have one. */
-function StudioWelcome({ commands }: { commands: StudioMenuBarCommands }) {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-1" data-studio-welcome="">
-      <EmptyState
-        icon={FolderOpen}
-        title="Open a workspace"
-        explanation="A workspace is a folder holding a project: its pyproject.toml, its streams, and the projects it imports."
-      >
-        <div className="flex gap-2">
-          <ActionButton appearance="primary" icon={FolderOpen} onPressed={commands.openAWorkspace} data-studio-welcome-action="open">
-            Open a workspace…
-          </ActionButton>
-          <ActionButton appearance="secondary" icon={FolderPlus} onPressed={commands.createAWorkspace} data-studio-welcome-action="new">
-            New workspace…
-          </ActionButton>
-        </div>
-      </EmptyState>
-    </div>
-  );
-}
-
-/** The studio: its menus along the top, the open streams' tabs, and the chosen layout's areas, or a welcome while no workspace is open. */
+/** The studio: its menus along the top, the open streams' tabs, and the chosen layout's areas, or Home while no workspace is open or File › Home shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands } = sources;
   const openWorkspace = useWatchedStudioValue(model.openWorkspace);
@@ -161,7 +141,8 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const preferencesSection = useWatchedStudioValue(model.preferencesSection);
   const workspaceOpeningRefusal = useWatchedStudioValue(model.workspaceOpeningRefusal);
   const workspaceRunRefusal = useWatchedStudioValue(model.workspaceRunRefusal);
-  const isAWorkspaceShown = openWorkspace.kind !== "none_open" && workspaceLayouts !== null;
+  const isHomeShown = useWatchedStudioValue(model.isHomeShown);
+  const isAWorkspaceShown = openWorkspace.kind !== "none_open" && workspaceLayouts !== null && !isHomeShown;
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       <header
@@ -184,7 +165,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
         )}
       </header>
       {!isAWorkspaceShown ? (
-        <StudioWelcome commands={commands} />
+        <HomeView model={model} homeSources={sources.home} commands={commands} />
       ) : (
         <>
           <DocumentTabs

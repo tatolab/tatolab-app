@@ -11,6 +11,8 @@ export const NOT_IN_THIS_BUILD_REASON = "Not in this build yet";
 
 /** What the studio's menus do. */
 export interface StudioMenuBarCommands {
+  /** File › Home: show Home, the recent projects, over the open workspace. */
+  showHome(): void;
   openAWorkspace(): void;
   createAWorkspace(): void;
   openPreferences(): void;
@@ -61,6 +63,8 @@ export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: Work
     {
       label: "File",
       entries: [
+        { kind: "command", label: "Home", onChosen: commands.showHome },
+        { kind: "separator" },
         { kind: "command", label: "Open workspace…", shortcutHint: shortcutHint(platform, "O"), onChosen: commands.openAWorkspace },
         { kind: "command", label: "New workspace…", onChosen: commands.createAWorkspace },
         { kind: "separator" },

@@ -113,6 +113,7 @@ export function mountTatolabWindow(
     backend.chooseWorkspaceFolder(chosenFor).catch((rejection: unknown) => studioWindowModel.workspaceOpeningRefusal.publish(describeBackendRejection(rejection)));
   };
   const studioMenuBarCommands: StudioMenuBarCommands = {
+    showHome: () => studioWindowModel.isHomeShown.publish(true),
     openAWorkspace: () => chooseWorkspaceFolder("workspace_to_open"),
     createAWorkspace: () => chooseWorkspaceFolder("new_workspace"),
     openPreferences: () => studioWindowModel.preferencesSection.publish("general"),
@@ -150,6 +151,13 @@ export function mountTatolabWindow(
       pythonLanguageServerConnections,
     }),
     commands: studioMenuBarCommands,
+    home: {
+      readRecentWorkspaces: () => backend.readRecentWorkspaces(),
+      openARecentWorkspace: (folder) => {
+        studioWindowModel.workspaceOpeningRefusal.publish(null);
+        backend.openRecentWorkspace(folder).catch((rejection: unknown) => studioWindowModel.workspaceOpeningRefusal.publish(describeBackendRejection(rejection)));
+      },
+    },
     platform,
   };
   backend.onOpenWorkspaceChanged((reading) => studioWindowModel.showOpenWorkspace(reading));

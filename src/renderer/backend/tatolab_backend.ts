@@ -7,6 +7,7 @@ import type {
   WorkspaceProjectFiles,
   NodeCatalog,
   OpenWorkspaceReading,
+  RecentWorkspace,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   RelaySettingsByName,
@@ -101,6 +102,10 @@ export interface TatolabBackend {
   chooseWorkspaceFolder(chosenFor: WorkspaceFolderChosenFor): Promise<ChosenWorkspaceFolder | null>;
   /** The open workspace as the app last read it from disk. */
   readOpenWorkspace(): Promise<OpenWorkspaceReading>;
+  /** The workspaces opened before, recent first, for Home. */
+  readRecentWorkspaces(): Promise<RecentWorkspace[]>;
+  /** Open `folder`, one of the recent workspaces, rejecting for any other folder or in the words of what refused; the workspace read arrives as the next open-workspace change. */
+  openRecentWorkspace(folder: string): Promise<void>;
   /** Calls `listener` with each reading of the open workspace: another folder opened, or a `pyproject.toml` it reads changed; the returned function stops it. */
   onOpenWorkspaceChanged(listener: (reading: OpenWorkspaceReading) => void): () => void;
   /** `file` of the open workspace's projects, as read from disk, rejecting for a file outside them or in the filesystem's words. */

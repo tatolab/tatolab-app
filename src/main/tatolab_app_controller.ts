@@ -182,7 +182,7 @@ export class TatolabAppController {
       this.tatolabAppLog.info("first run finished");
       return succeeded(undefined);
     }
-    this.tatolabAppLog.warn("first run finishing could not be remembered; Welcome shows again next launch", { failure: remembered.failure });
+    this.tatolabAppLog.warn("first run finishing could not be remembered; Getting set up shows again next launch", { failure: remembered.failure });
     return failedWith(remembered.failure);
   }
 

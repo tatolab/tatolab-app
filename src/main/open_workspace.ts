@@ -1,5 +1,5 @@
 // The workspace open in the studio: a folder that is itself the workspace project, chosen in the
-// app's own dialog and remembered between launches. It is read from each `pyproject.toml` it and
+// app's own dialog or from Home's recent workspaces, and remembered among them. It is read from each `pyproject.toml` it and
 // its folder imports hold, and read again whenever one of those folders changes, so the window
 // always shows what is on disk.
 
@@ -9,6 +9,7 @@ import type {
   ImportedProject,
   OpenWorkspaceReading,
   ProjectCreationQueued,
+  RecentWorkspace,
   WorkspaceFolderChosenFor,
 } from "../shared/tatolab_backend_contract.js";
 import { realPathOrAsGiven } from "./file_system_entries_on_this_machine.js";
@@ -25,12 +26,18 @@ export type WorkspaceFolderDialog = (chosenFor: WorkspaceFolderChosenFor, defaul
 /** Calls `onChange` whenever an entry directly in `folder` changes; the answer stops watching, and is `null` for a folder that cannot be watched. */
 export type FolderEntriesWatch = (folder: string, onChange: () => void) => (() => void) | null;
 
-/** Where the open workspace's folder is remembered between launches. */
-export interface RememberedOpenWorkspaceFolder {
-  /** The folder remembered, or `null` when none is. */
-  readRememberedFolder(): Promise<string | null>;
-  /** Remember `folder`; refused in words when it could not be written, though it stays open until the app quits. */
-  rememberFolder(folder: string): Promise<Result<void, string>>;
+/** A workspace folder opened before, and when, in milliseconds since the epoch on the wall clock, for display. */
+export interface RecentWorkspaceFolderOpened {
+  folder: string;
+  opened_at_wall_clock_ms: number;
+}
+
+/** Where the workspaces opened are remembered between launches, recent first. */
+export interface RecentWorkspaceFolders {
+  /** The folders remembered, recent first; none when none are. */
+  readRecentFolders(): Promise<RecentWorkspaceFolderOpened[]>;
+  /** Put `folder` first, opened at `openedAtWallClockMs`; refused in words when it could not be written, though it stays open until the app quits. */
+  rememberOpened(folder: string, openedAtWallClockMs: number): Promise<Result<void, string>>;
 }
 
 /** The runtime's `create_project`, which makes a new workspace's project. */
@@ -38,11 +45,13 @@ export interface WorkspaceProjectCreation {
   createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>>;
 }
 
-/** What the open workspace reaches: the person's home, the dialog, the remembered folder, the runtime, a folder watch, a timer, and the window. */
+/** What the open workspace reaches: the person's home, the dialog, the recent workspaces, the wall clock, the runtime, a folder watch, a timer, and the window. */
 export interface OpenWorkspaceSources {
   homeDirectory: string;
   workspaceFolderDialog: WorkspaceFolderDialog;
-  rememberedOpenWorkspaceFolder: RememberedOpenWorkspaceFolder;
+  recentWorkspaceFolders: RecentWorkspaceFolders;
+  /** The wall clock, in milliseconds since the epoch, stamped on a workspace as it opens for Home to show. */
+  readWallClockNowMs: () => number;
   workspaceProjectCreation: WorkspaceProjectCreation;
   watchFolderEntries: FolderEntriesWatch;
   /** Runs `work` once after `delayMs`; the answer cancels it. */
@@ -109,21 +118,15 @@ export class OpenWorkspaceFolder {
 
   constructor(private readonly sources: OpenWorkspaceSources) {}
 
-  /** Open the workspace remembered from the last launch, when one is. */
-  async openTheRememberedWorkspace(): Promise<void> {
-    const rememberedFolder = await this.sources.rememberedOpenWorkspaceFolder.readRememberedFolder();
-    if (rememberedFolder !== null) await this.openTheFolder(rememberedFolder);
-  }
-
   /** The open workspace as last read. */
   readOpenWorkspace(): OpenWorkspaceReading {
     return this.lastReading;
   }
 
   /**
-   * Ask the person for a workspace folder and open it, remembering it for the next launch; for a new workspace,
-   * queue the runtime's `create_project` in it first. `null` when they cancel; refused in the dialog's or the
-   * runtime's own words, the open workspace unchanged.
+   * Ask the person for a workspace folder and open it, remembering it among the recent workspaces; for a new
+   * workspace, queue the runtime's `create_project` in it first. `null` when they cancel; refused in the dialog's or
+   * the runtime's own words, the open workspace unchanged.
    */
   async chooseWorkspaceFolder(chosenFor: WorkspaceFolderChosenFor): Promise<Result<ChosenWorkspaceFolder | null, string>> {
     const chosenFolder = await this.sources.workspaceFolderDialog(chosenFor, this.openFolder === null ? this.sources.homeDirectory : path.dirname(this.openFolder));
@@ -135,10 +138,26 @@ export class OpenWorkspaceFolder {
       projectCreation = queued.value;
     }
     const folder = await realPathOrAsGiven(path.resolve(projectCreation?.project_directory ?? chosenFolder.value));
-    await this.openTheFolder(folder);
-    const remembered = await this.sources.rememberedOpenWorkspaceFolder.rememberFolder(folder);
-    if (!remembered.ok) return failedWith(`${folder} is open, but Tato Studio could not remember it for next time: ${remembered.failure}`);
-    return succeeded({ folder, project_creation: projectCreation });
+    const opened = await this.openAndRememberTheFolder(folder);
+    return opened.ok ? succeeded({ folder, project_creation: projectCreation }) : opened;
+  }
+
+  /** Open `folder`, one of the recent workspaces, and put it first among them; refused for any other folder, and in words when it could not be remembered, though it opens. */
+  async openRecentWorkspace(folder: string): Promise<Result<void, string>> {
+    const recentFolders = await this.sources.recentWorkspaceFolders.readRecentFolders();
+    if (!recentFolders.some((recentFolder) => recentFolder.folder === folder)) return failedWith(`${folder} is not one of the recent workspaces.`);
+    return this.openAndRememberTheFolder(folder);
+  }
+
+  /** The recent workspaces, recent first, each with its project's name as its `pyproject.toml` reads now. */
+  async readRecentWorkspaces(): Promise<RecentWorkspace[]> {
+    const recentFolders = await this.sources.recentWorkspaceFolders.readRecentFolders();
+    return Promise.all(
+      recentFolders.map(async ({ folder, opened_at_wall_clock_ms }): Promise<RecentWorkspace> => {
+        const project = await readProjectFromItsFolder(folder);
+        return { folder, project_name: project.ok ? project.value.project.name : null, last_opened_at_wall_clock_ms: opened_at_wall_clock_ms };
+      }),
+    );
   }
 
   /** Stop watching the open workspace's folders, as the app quits. */
@@ -149,9 +168,11 @@ export class OpenWorkspaceFolder {
     this.stopWatchingTheFolders = [];
   }
 
-  private async openTheFolder(folder: string): Promise<void> {
+  private async openAndRememberTheFolder(folder: string): Promise<Result<void, string>> {
     this.openFolder = folder;
     await this.readAgainAndSend();
+    const remembered = await this.sources.recentWorkspaceFolders.rememberOpened(folder, this.sources.readWallClockNowMs());
+    return remembered.ok ? succeeded(undefined) : failedWith(`${folder} is open, but Tato Studio could not remember it for next time: ${remembered.failure}`);
   }
 
   private async readAgainAndSend(): Promise<void> {

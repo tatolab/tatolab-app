@@ -17,7 +17,7 @@ import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { OpenWorkspaceFolder } from "./open_workspace.js";
 import { PythonLanguageServers } from "./python_language_servers.js";
 import { WorkspaceFiles } from "./workspace_files.js";
-import { rememberedOpenWorkspaceFileIn } from "./remembered_open_workspace_file.js";
+import { recentWorkspaceFoldersFileIn } from "./recent_workspace_folders_file.js";
 import { failedWith, succeeded } from "./result.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import { RESTART_WITH_RUN_TATOLAB_OFF_REFUSAL } from "./run_tatolab_switch.js";
@@ -124,7 +124,8 @@ async function sharedStateOverFakes(
   const openWorkspaceFolder = new OpenWorkspaceFolder({
     homeDirectory: appConfigDirectory,
     workspaceFolderDialog: async () => succeeded(null),
-    rememberedOpenWorkspaceFolder: rememberedOpenWorkspaceFileIn(appConfigDirectory, quietTatolabAppLog),
+    recentWorkspaceFolders: recentWorkspaceFoldersFileIn(appConfigDirectory, quietTatolabAppLog),
+    readWallClockNowMs: () => 1_790_000_000_000,
     workspaceProjectCreation: controller,
     watchFolderEntries: () => null,
     runAfter: () => () => {},
@@ -630,6 +631,13 @@ test("the commands that add a project read their arguments as the window sends t
   expect(await commandHandlers.create_stream_project({ folder: "/etc" })).toEqual({ ok: false, refusal: "Tato Studio acts only on a folder chosen in its window. Choose /etc again." });
   expect(await commandHandlers.run_stream_project({ folder: null })).toEqual({ ok: false, refusal: "run_stream_project needs `folder`, a folder chosen in the window" });
   expect(await commandHandlers.describe_stream_action({})).toEqual({ ok: false, refusal: "describe_stream_action needs `action`, a stream action's id" });
+});
+
+test("Home's commands list no recent workspace on a fresh install, and open only a recent one", async () => {
+  const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
+  expect(await commandHandlers.read_recent_workspaces(undefined)).toEqual({ ok: true, value: [] });
+  expect(await commandHandlers.open_recent_workspace({})).toEqual({ ok: false, refusal: "open_recent_workspace needs `folder`, one of the recent workspaces' folders" });
+  expect(await commandHandlers.open_recent_workspace({ folder: "/etc" })).toEqual({ ok: false, refusal: "/etc is not one of the recent workspaces." });
 });
 
 /** The window's `RuntimeDescription` reads exactly this JSON. */

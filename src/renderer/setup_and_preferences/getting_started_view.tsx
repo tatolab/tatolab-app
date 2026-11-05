@@ -1,4 +1,3 @@
-import { ChevronLeft } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
@@ -10,9 +9,6 @@ import { windowDragRegionAttribute } from "../presentation/platform_presentation
 import { RUNTIME_BANNER_ACTION_LABELS, RUNTIME_BANNER_ACTION_REFUSAL_LEADS, type RuntimeBannerAction } from "../presentation/runtime_presentation";
 import { runBannerAction, useActionThroughTheBackend } from "./action_through_the_backend";
 import { useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
-
-/** The two screens of first run: Welcome, then Getting set up. */
-export type GettingStartedScreen = "welcome" | "getting_set_up";
 
 /** The action that moves a step on, waiting for the backend's answer in its place, and its refusal under the step. */
 function GettingStartedStepWithAction({ step, action }: { step: GettingStartedStepPresentation; action: RuntimeBannerAction }) {
@@ -58,18 +54,7 @@ function GettingStartedStep({ step }: { step: GettingStartedStepPresentation }) 
   );
 }
 
-function WelcomeScreen() {
-  return (
-    <div className="flex flex-col items-center text-center" data-getting-started-screen="welcome">
-      <h1 className="title-xl">Welcome to Tato Studio</h1>
-      <p className="mt-2 max-w-sm text-[15px] leading-5 text-fg-2">
-        Tato Studio runs your live video, audio and AI streams in the Tatolab runtime, in the background. This window is where you see and control it.
-      </p>
-    </div>
-  );
-}
-
-/** Getting set up, taking keyboard focus at its heading as it opens, so focus never falls to the page when Continue goes. */
+/** Getting set up, taking keyboard focus at its heading as it opens. */
 function GettingSetUpScreen({ steps }: { steps: readonly GettingStartedStepPresentation[] }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => headingRef.current?.focus(), []);
@@ -89,11 +74,10 @@ function GettingSetUpScreen({ steps }: { steps: readonly GettingStartedStepPrese
   );
 }
 
-/** First run on macOS, filling the window until Get Started: Welcome, then Getting set up, whose checklist ticks as the runtime comes up. */
+/** First run on macOS, filling the window until Get Started: Getting set up, whose checklist ticks as the runtime comes up. */
 export function GettingStartedView() {
   const { backend, platform, firstRunFinishingRefusal } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
-  const [screen, setScreen] = useState<GettingStartedScreen>("welcome");
   const [isGetStartedPending, setIsGetStartedPending] = useState(false);
   const gettingStarted = presentGettingStarted(status);
   const getStarted = () => {
@@ -108,39 +92,24 @@ export function GettingStartedView() {
     <div className="flex h-screen flex-col bg-window text-fg">
       <div className="h-(--page-bar-height) shrink-0" data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined} />
       <main className="scrollbar-thin flex min-h-0 flex-1 overflow-y-auto">
-        <div className={screen === "welcome" ? "m-auto w-[560px] max-w-full px-8 py-10" : "mx-auto w-[560px] max-w-full px-8 pt-[8vh] pb-10"}>
-          {screen === "welcome" ? <WelcomeScreen /> : <GettingSetUpScreen steps={gettingStarted.steps} />}
+        <div className="mx-auto w-[560px] max-w-full px-8 pt-[8vh] pb-10">
+          <GettingSetUpScreen steps={gettingStarted.steps} />
         </div>
       </main>
       <footer className="shrink-0 border-t bg-chrome">
         <div className="mx-auto flex h-14 w-[560px] max-w-full items-center gap-2 px-8">
-          {screen === "welcome" ? (
-            <span className="text-fg-3">Takes about a minute.</span>
-          ) : (
-            <>
-              <ActionButton appearance="quiet" icon={ChevronLeft} onPressed={() => setScreen("welcome")} data-getting-started-action="back">
-                Back
-              </ActionButton>
-              <span className="text-xs text-fg-3" role="status">
-                {gettingStarted.footerWords}
-              </span>
-            </>
-          )}
+          <span className="text-xs text-fg-3" role="status">
+            {gettingStarted.footerWords}
+          </span>
           <div className="ml-auto">
-            {screen === "welcome" ? (
-              <ActionButton appearance="primary" hasFocusOnOpen onPressed={() => setScreen("getting_set_up")} data-getting-started-action="continue">
-                Continue
-              </ActionButton>
-            ) : (
-              <ActionButton
-                appearance="primary"
-                isDisabled={!gettingStarted.getStartedIsOffered || isGetStartedPending}
-                onPressed={getStarted}
-                data-getting-started-action="get_started"
-              >
-                Get Started
-              </ActionButton>
-            )}
+            <ActionButton
+              appearance="primary"
+              isDisabled={!gettingStarted.getStartedIsOffered || isGetStartedPending}
+              onPressed={getStarted}
+              data-getting-started-action="get_started"
+            >
+              Get Started
+            </ActionButton>
           </div>
         </div>
       </footer>

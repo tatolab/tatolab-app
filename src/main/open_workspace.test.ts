@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import type { OpenWorkspaceReading, ProjectCreationQueued, WorkspaceFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
-import { OPEN_WORKSPACE_REREAD_QUIET_MS, OpenWorkspaceFolder, readTheWorkspaceIn } from "./open_workspace.js";
+import { OPEN_WORKSPACE_REREAD_QUIET_MS, OpenWorkspaceFolder, readTheWorkspaceIn, type RecentWorkspaceFolderOpened } from "./open_workspace.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 const foldersMade: string[] = [];
@@ -85,26 +85,28 @@ test("a workspace whose pyproject.toml is missing, is not TOML, or names no proj
   });
 });
 
-/** An open workspace over a scripted dialog, a remembered folder in memory, a runtime that creates projects on disk, watches the test fires by hand, and timers it runs by hand. */
-async function anOpenWorkspace(options: { dialogAnswers: string | null; rememberedFolder?: string | null; creationRefusal?: string }) {
+/** An open workspace over a scripted dialog, recent workspaces in memory, a wall clock the test sets, a runtime that creates projects on disk, watches the test fires by hand, and timers it runs by hand. */
+async function anOpenWorkspace(options: { dialogAnswers: string | null; recentFolders?: RecentWorkspaceFolderOpened[]; creationRefusal?: string }) {
   const sentReadings: OpenWorkspaceReading[] = [];
   const dialogsAsked: WorkspaceFolderChosenFor[] = [];
   const watchedFolders = new Map<string, () => void>();
   const pendingTimers: Array<() => void> = [];
-  let rememberedFolder = options.rememberedFolder ?? null;
+  let recentFolders = options.recentFolders ?? [];
+  let wallClockNowMs = 1_790_000_000_000;
   const openWorkspace = new OpenWorkspaceFolder({
     homeDirectory: await aFolder(),
     workspaceFolderDialog: async (chosenFor) => {
       dialogsAsked.push(chosenFor);
       return succeeded(options.dialogAnswers);
     },
-    rememberedOpenWorkspaceFolder: {
-      readRememberedFolder: async () => rememberedFolder,
-      rememberFolder: async (folder) => {
-        rememberedFolder = folder;
+    recentWorkspaceFolders: {
+      readRecentFolders: async () => recentFolders,
+      rememberOpened: async (folder, openedAtWallClockMs) => {
+        recentFolders = [{ folder, opened_at_wall_clock_ms: openedAtWallClockMs }, ...recentFolders.filter((recentFolder) => recentFolder.folder !== folder)];
         return succeeded(undefined);
       },
     },
+    readWallClockNowMs: () => wallClockNowMs,
     workspaceProjectCreation: {
       createProject: async (projectDirectory): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> => {
         if (options.creationRefusal !== undefined) return failedWith({ failureDescription: options.creationRefusal, isTheRuntimesRefusal: true });
@@ -123,12 +125,21 @@ async function anOpenWorkspace(options: { dialogAnswers: string | null; remember
     },
     sendTheWindowTheOpenWorkspace: (reading) => sentReadings.push(reading),
   });
-  return { openWorkspace, sentReadings, dialogsAsked, watchedFolders, pendingTimers, rememberedFolder: () => rememberedFolder };
+  return {
+    openWorkspace,
+    sentReadings,
+    dialogsAsked,
+    watchedFolders,
+    pendingTimers,
+    rememberedFolder: () => recentFolders[0]?.folder ?? null,
+    setTheWallClock: (nowMs: number) => {
+      wallClockNowMs = nowMs;
+    },
+  };
 }
 
-test("no workspace is open until one is chosen, and a cancelled dialog opens none", async () => {
-  const { openWorkspace, sentReadings } = await anOpenWorkspace({ dialogAnswers: null });
-  await openWorkspace.openTheRememberedWorkspace();
+test("no workspace is open at launch, even with recent ones, until one is chosen, and a cancelled dialog opens none", async () => {
+  const { openWorkspace, sentReadings } = await anOpenWorkspace({ dialogAnswers: null, recentFolders: [{ folder: "/somewhere/opened-before", opened_at_wall_clock_ms: 1 }] });
   expect(openWorkspace.readOpenWorkspace()).toEqual({ kind: "none_open" });
   expect(await openWorkspace.chooseWorkspaceFolder("workspace_to_open")).toEqual(succeeded(null));
   expect(sentReadings).toEqual([]);
@@ -169,11 +180,35 @@ test("a new workspace has the runtime create its project first, and a refusal op
   expect(refused.rememberedFolder()).toBeNull();
 });
 
-test("the remembered workspace opens at launch, and one that is gone reads as unreadable, watched from its parent", async () => {
+test("a recent workspace opens, moves first, and one that is gone reads as unreadable, watched from its parent", async () => {
   const parentFolder = await aFolder();
   const goneFolder = path.join(parentFolder, "gone");
-  const { openWorkspace, watchedFolders } = await anOpenWorkspace({ dialogAnswers: null, rememberedFolder: goneFolder });
-  await openWorkspace.openTheRememberedWorkspace();
+  const studioFolder = await aFolder();
+  await writeAProject(studioFolder, `[project]\nname = "studio"\ndependencies = []\n`);
+  const { openWorkspace, watchedFolders, setTheWallClock } = await anOpenWorkspace({
+    dialogAnswers: null,
+    recentFolders: [
+      { folder: studioFolder, opened_at_wall_clock_ms: 200 },
+      { folder: goneFolder, opened_at_wall_clock_ms: 100 },
+    ],
+  });
+  expect(await openWorkspace.readRecentWorkspaces()).toEqual([
+    { folder: studioFolder, project_name: "studio", last_opened_at_wall_clock_ms: 200 },
+    { folder: goneFolder, project_name: null, last_opened_at_wall_clock_ms: 100 },
+  ]);
+
+  setTheWallClock(300);
+  expect(await openWorkspace.openRecentWorkspace(goneFolder)).toEqual(succeeded(undefined));
   expect(openWorkspace.readOpenWorkspace()).toEqual({ kind: "unreadable", folder: goneFolder, refusal: `${goneFolder} has no pyproject.toml.` });
   expect([...watchedFolders.keys()]).toEqual([goneFolder, parentFolder]);
+  expect((await openWorkspace.readRecentWorkspaces()).map(({ folder, last_opened_at_wall_clock_ms }) => [folder, last_opened_at_wall_clock_ms])).toEqual([
+    [goneFolder, 300],
+    [studioFolder, 200],
+  ]);
+});
+
+test("a folder that is not a recent workspace is refused, and the open workspace stays as it was", async () => {
+  const { openWorkspace } = await anOpenWorkspace({ dialogAnswers: null });
+  expect(await openWorkspace.openRecentWorkspace("/etc")).toEqual(failedWith("/etc is not one of the recent workspaces."));
+  expect(openWorkspace.readOpenWorkspace()).toEqual({ kind: "none_open" });
 });

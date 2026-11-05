@@ -233,15 +233,40 @@ describe("the studio", () => {
     expect(document.querySelector('[data-studio-area="scene"]')).not.toBeNull();
   });
 
-  it("welcomes with no workspace open, and opens the one chosen", async () => {
+  it("shows Home with no workspace open, its recent projects as cards, and opens the one chosen", async () => {
     await mountedWindowOverTheMock("state=running&workspace=none");
-    const welcome = await waitFor(() => document.querySelector<HTMLElement>("[data-studio-welcome]") ?? expect.unreachable("no welcome"));
-    expect(within(welcome).getByRole("button", { name: "New workspace…" })).toBeTruthy();
+    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-home-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
+    expect(patternCard.textContent).toContain("Running");
+    expect(document.querySelectorAll("[data-home-project]")).toHaveLength(6);
+    expect(document.querySelector("[data-welcome-splash]")).toBeNull();
 
-    fireEvent.click(within(welcome).getByRole("button", { name: "Open a workspace…" }));
+    fireEvent.click(patternCard);
 
     expect(await shownLayout()).toBe("build");
-    expect(document.querySelector("[data-studio-welcome]")).toBeNull();
+    expect(document.querySelector("[data-home]")).toBeNull();
+  });
+
+  it("narrows Home to the running projects, and to the ones a search names", async () => {
+    await mountedWindowOverTheMock("state=running&workspace=none");
+    await waitFor(() => expect(document.querySelectorAll("[data-home-project]")).toHaveLength(6));
+    fireEvent.click(document.querySelector<HTMLElement>('[data-home-filter="running_now"]') ?? expect.unreachable("no Running now"));
+    expect([...document.querySelectorAll("[data-home-project]")].map((card) => card.getAttribute("data-home-project"))).toEqual([PATTERN_PROJECT, CAMERA_PROJECT]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Search projects" }), { target: { value: "lobby" } });
+    expect(document.querySelectorAll("[data-home-project]")).toHaveLength(0);
+    expect(textOf("[data-home-empty]")).toContain("No project matches");
+  });
+
+  it("greets first run with the Welcome splash over Home, its banner a still picture where WebGL is not offered, and Open… opens the one chosen", async () => {
+    await mountedWindowOverTheMock("state=running&workspace=none&recent=none");
+    const welcome = await screen.findByRole("dialog", { name: "Welcome to Tato Studio" });
+    expect(welcome.querySelector('[data-welcome-banner="still"] img')).not.toBeNull();
+    expect(within(welcome).getByText("v0.45.0")).toBeTruthy();
+    expect(within(welcome).getByText("None yet")).toBeTruthy();
+
+    fireEvent.click(within(welcome).getByRole("button", { name: "Open…" }));
+
+    expect(await shownLayout()).toBe("build");
+    expect(screen.queryByRole("dialog", { name: "Welcome to Tato Studio" })).toBeNull();
   });
 
   it("says why an unreadable workspace can't be read, in the reader's words", async () => {
@@ -256,10 +281,10 @@ describe("the studio", () => {
       readOpenWorkspace: async () => reading,
       chooseWorkspaceFolder: () => Promise.reject("the folder already holds a project"),
     });
-    fireEvent.click(await screen.findByRole("button", { name: "New workspace…" }));
+    fireEvent.click(await screen.findByRole("button", { name: "New project" }));
 
     await waitFor(() => expect(textOf("[data-workspace-opening-refusal]")).toContain("the folder already holds a project"));
-    expect(document.querySelector("[data-studio-welcome]")).not.toBeNull();
+    expect(document.querySelector("[data-home]")).not.toBeNull();
   });
 });
 
@@ -448,14 +473,11 @@ function gettingStartedControl(action: string): HTMLElement {
 }
 
 describe("first run on macOS", () => {
-  it("says what Tatolab is, then ticks Start the runtime as it starts, and Get Started opens the studio", async () => {
+  it("opens on Getting set up, ticks Start the runtime as it starts, and Get Started opens the studio", async () => {
     const { showStatusAsTheBackendWould, backend } = await mountedWindowOverTheMock("state=setup");
 
-    expect(document.querySelector('[data-getting-started-screen="welcome"]')).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Welcome to Tato Studio" })).toBeTruthy();
+    expect(document.querySelector('[data-getting-started-screen="getting_set_up"]')).not.toBeNull();
     expect(document.querySelector("[data-studio-window]")).toBeNull();
-    fireEvent.click(gettingStartedControl("continue"));
-
     expect(screen.getByRole("heading", { name: "Getting set up" })).toBeTruthy();
     expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Starting…");
     expect(gettingStartedControl("get_started").hasAttribute("disabled")).toBe(true);
@@ -470,21 +492,18 @@ describe("first run on macOS", () => {
 
   it("shows a step for macOS's approval with Open Login Items, and a blocked runtime as the start step retrying with nothing to press", async () => {
     await mountedWindowOverTheMock("state=approval&first_run=unfinished");
-    fireEvent.click(gettingStartedControl("continue"));
     expect(textOf('[data-getting-started-step="approve_in_login_items"]')).toContain("Allow in the Background");
     expect(document.querySelector('[data-getting-started-step-action="open_login_items"]')?.textContent).toBe("Open Login Items…");
     document.body.replaceChildren();
 
     await mountedWindowOverTheMock("state=blocked&first_run=unfinished");
-    fireEvent.click(gettingStartedControl("continue"));
     expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Retrying…");
     expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Blocked by macOS");
     expect(document.querySelector("[data-getting-started-step-action]")).toBeNull();
   });
 
-  it("moves keyboard focus to Getting set up as Continue goes", async () => {
+  it("takes keyboard focus at Getting set up as first run opens", async () => {
     await mountedWindowOverTheMock("state=setup");
-    fireEvent.click(gettingStartedControl("continue"));
     await waitFor(() => expect(document.activeElement?.textContent).toBe("Getting set up"));
   });
 
@@ -492,7 +511,6 @@ describe("first run on macOS", () => {
     const { showStatusAsTheBackendWould, backend } = await mountedWindowOverTheMock("state=stopped&first_run=unfinished", {
       setRunTatolab: () => Promise.reject("the service manager refused it"),
     });
-    fireEvent.click(gettingStartedControl("continue"));
     fireEvent.click(document.querySelector<HTMLElement>('[data-getting-started-step-action="turn_on_run_tatolab"]') ?? expect.unreachable("no Turn On Tatolab"));
     await waitFor(() => expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Couldn't turn Tatolab on: the service manager refused it"));
 
@@ -508,23 +526,21 @@ describe("first run on macOS", () => {
         throw "EACCES: permission denied, open '/Users/ada/Library/Application Support/com.tatolab.tatolab/first-run-finished.json'";
       },
     });
-    fireEvent.click(gettingStartedControl("continue"));
     await showStatusAsTheBackendWould({ ...(await mockBackend.getTatolabStatus()), runtime_state: "running", streams: [] });
     fireEvent.click(gettingStartedControl("get_started"));
     await showStatusAsTheBackendWould({ ...(await mockBackend.getTatolabStatus()), first_run_finished: true, runtime_state: "running", streams: [] });
 
-    await waitFor(() => expect(textOf("[data-first-run-finishing-refusal]")).toContain("Welcome shows again next time it opens. EACCES"));
+    await waitFor(() => expect(textOf("[data-first-run-finishing-refusal]")).toContain("Getting set up shows again next time it opens. EACCES"));
     expect(document.querySelector("[data-studio-window]")).not.toBeNull();
   });
 
   it("never says not responding for a start that never answered", async () => {
     await mountedWindowOverTheMock("state=never-answered&first_run=unfinished");
-    fireEvent.click(gettingStartedControl("continue"));
     expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("The runtime didn't start");
     expect(document.body.textContent).not.toContain("not responding");
   });
 
-  it("keeps Linux on its installer screen and never shows Welcome", async () => {
+  it("keeps Linux on its installer screen and never shows Getting set up", async () => {
     await mountedWindowOverTheMock("platform=linux&state=setup");
     expect(document.querySelector("[data-getting-started-screen]")).toBeNull();
     expect(screen.getByRole("heading", { name: "Install the Tatolab runtime" })).toBeTruthy();

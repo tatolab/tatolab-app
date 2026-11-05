@@ -93,6 +93,10 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     onStreamPageRequested: (listener) => tatolabElectronBridge.onStreamPageRequested(listener),
     chooseWorkspaceFolder: (chosenFor) => invokeTatolabCommand("choose_workspace_folder", { chosen_for: chosenFor }),
     readOpenWorkspace: () => invokeTatolabCommand("read_open_workspace", undefined),
+    readRecentWorkspaces: () => invokeTatolabCommand("read_recent_workspaces", undefined),
+    openRecentWorkspace: async (folder) => {
+      await invokeTatolabCommand("open_recent_workspace", { folder });
+    },
     onOpenWorkspaceChanged: (listener) => tatolabElectronBridge.onOpenWorkspaceChanged(listener),
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
     readWorkspaceFile: (file) => invokeTatolabCommand("read_workspace_file", { file }),

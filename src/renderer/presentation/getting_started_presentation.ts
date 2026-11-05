@@ -89,7 +89,7 @@ export function presentGettingStarted(status: TatolabStatus): GettingStartedPres
   }
 }
 
-/** The notice over the Streams list when Get Started could not be remembered: first run is over for this launch, and Welcome comes back at the next. */
+/** The notice over the studio when Get Started could not be remembered: first run is over for this launch, and Getting set up comes back at the next. */
 export function presentFirstRunFinishingRefusal(refusalReason: string): { title: string; detail: string } {
-  return { title: "Setup wasn't saved", detail: `Tato Studio couldn't remember that you've set it up, so Welcome shows again next time it opens. ${refusalReason}` };
+  return { title: "Setup wasn't saved", detail: `Tato Studio couldn't remember that you've set it up, so Getting set up shows again next time it opens. ${refusalReason}` };
 }

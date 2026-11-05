@@ -52,6 +52,8 @@ export class StudioWindowModel {
   readonly selection = new WatchedStudioValue<StudioSelection>({ kind: "nothing" });
   readonly openStreamTabs = new WatchedStudioValue<OpenStreamTabs>({ tabs: [], active_stream: null });
   readonly activeStreamTab = new WatchedStudioValue<StreamTabAddress | null>(null);
+  /** Whether Home is shown over the open workspace, as File › Home shows it; Home shows anyway while none is open. */
+  readonly isHomeShown = new WatchedStudioValue<boolean>(false);
   /** The section Preferences shows while it is open; `null` while it is closed. */
   readonly preferencesSection = new WatchedStudioValue<SettingsSection | null>(null);
   /** Why the last workspace asked for did not open, until it is dismissed or another opens. */
@@ -91,6 +93,7 @@ export class StudioWindowModel {
     const folderNow = openWorkspaceFolderOf(reading);
     this.openWorkspace.publish(reading);
     if (folderNow === folderBefore && this.workspaceLayouts.readLatest() !== null) return;
+    if (folderNow !== folderBefore) this.isHomeShown.publish(false);
     this.selection.publish({ kind: "nothing" });
     this.publishStreamTabs({ tabs: [], active_stream: null });
     this.workspaceLayouts.publish(folderNow === null ? null : this.layoutsKept.readLayoutsOf(folderNow));
