@@ -81,7 +81,7 @@ test("a_real_graph_reads_as_its_nodes_links_counters_and_exposed_ports_beside_it
           node: "invertingeffect",
           port: "video_to_downstream",
           level: "private",
-          watch_page_url: "http://127.0.0.1:4446/watch/jonathanf-macbook/main/invertingeffect/video_to_downstream",
+          watch_page_url: "http://127.0.0.1:4446/watch/jonathanf-macbook/main/invertingeffect/video_to_downstream?video_only",
         },
       ],
       graph_document_text: graphText,
@@ -108,7 +108,7 @@ test("an_internal_port_has_no_preview_page_and_a_graph_naming_no_machine_has_non
     { node: "effect", port: "video_to_downstream", level: "internal" },
   ];
 
-  expect(exposedPorts({ machine: "desk", exposed })).toEqual(["http://127.0.0.1:4446/watch/desk/two%20words/encoder/encoded_video", null]);
+  expect(exposedPorts({ machine: "desk", exposed })).toEqual(["http://127.0.0.1:4446/watch/desk/two%20words/encoder/encoded_video?video_only", null]);
   expect(exposedPorts({ exposed })).toEqual([null, null]);
 });
 

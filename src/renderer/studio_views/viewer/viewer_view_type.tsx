@@ -56,7 +56,7 @@ function ExposedOutputWatchPageFrame({
   );
 }
 
-/** The Viewer of the stream tab shown: its exposed output's preview, with the output it plays named under it. */
+/** The Viewer of the stream tab shown: its exposed output's video, alone. */
 function ViewerOfTheTab({
   connection,
   streamTab,
@@ -101,21 +101,13 @@ function ViewerOfTheTab({
   const outputWords = `${playedNode === undefined ? playedOutput.node : nodeTitle(playedNode.name, playedNode.type)} › ${playedOutput.port}`;
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col"
+      className="min-h-0 flex-1"
       data-viewer-playing={`${playedOutput.node}/${playedOutput.port}`}
     >
-      <div className="min-h-0 flex-1">
-        <ExposedOutputWatchPageFrame
-          watchPageUrl={playedOutput.watch_page_url}
-          outputWords={outputWords}
-        />
-      </div>
-      <p
-        className="shrink-0 truncate border-t border-studio-frame px-3 py-1.5 text-xs text-fg-3"
-        data-viewer-output=""
-      >
-        {outputWords}
-      </p>
+      <ExposedOutputWatchPageFrame
+        watchPageUrl={playedOutput.watch_page_url}
+        outputWords={outputWords}
+      />
     </div>
   );
 }

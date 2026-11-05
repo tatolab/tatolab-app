@@ -284,7 +284,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"links":[{"id":"L1","source_node":"testpatternsource","source_port":"video",' +
       '"target_node":"invertingeffect","target_port":"video_from_upstream","state":"wired"}],' +
       '"exposed":[{"node":"invertingeffect","port":"video_to_downstream","level":"private",' +
-      '"watch_page_url":"http://127.0.0.1:4446/watch/jonathanf-macbook/main/invertingeffect/video_to_downstream"}],' +
+      '"watch_page_url":"http://127.0.0.1:4446/watch/jonathanf-macbook/main/invertingeffect/video_to_downstream?video_only"}],' +
       `"graph_document_text":${JSON.stringify(graphToolResultText)}}`,
   );
 });

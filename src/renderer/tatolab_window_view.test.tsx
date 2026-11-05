@@ -170,7 +170,7 @@ describe("the studio", () => {
       },
     });
     await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
-    expect(screen.getByText("Open a stream from the outliner to see it here.")).toBeTruthy();
+    await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["pattern /main"]));
 
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
     fireEvent.keyDown(screen.getByRole("tree", { name: "Outliner" }), { key: "Enter" });
@@ -203,7 +203,7 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("code");
   });
 
-  it("plays the open stream's exposed output in the Viewer, named under it", async () => {
+  it("plays the open stream's exposed output in the Viewer, with nothing beside the video", async () => {
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
@@ -211,13 +211,14 @@ describe("the studio", () => {
     const playing = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"] [data-viewer-playing]') ?? expect.unreachable("the Viewer plays nothing"));
     expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
     expect(playing.querySelector("iframe")?.getAttribute("src")).toMatch(/^data:text\/html/);
-    expect(textOf('[data-studio-area="viewer"] [data-viewer-output]')).toBe("Inverting Effect › video_to_downstream");
+    expect(playing.querySelector("iframe")?.getAttribute("title")).toBe("Preview of Inverting Effect › video_to_downstream");
+    expect(playing.textContent).toBe("");
   });
 
   it("shows the view an area's view-type menu chooses, and the project reopens with it", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
-    expect(within(viewerArea).getByText("No stream is open")).toBeTruthy();
+    await waitFor(() => expect(viewerArea.querySelector("[data-viewer-playing]")).not.toBeNull());
 
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
     expect(await screen.findByText("Views a project brings arrive with users' own view types.")).toBeTruthy();
@@ -245,7 +246,7 @@ describe("the studio", () => {
     expect(document.querySelector('[data-studio-area="viewer"]')).not.toBeNull();
   });
 
-  it("shows the Projects window with no project open, its recent projects as cards, and opens the one chosen", async () => {
+  it("shows the Projects window with no project open, its recent projects as cards, and opens the one chosen on its stream", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
     const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
     expect(patternCard.textContent).toContain("Running");
@@ -255,6 +256,9 @@ describe("the studio", () => {
 
     expect(await shownLayout()).toBe("build");
     expect(document.querySelector("[data-projects]")).toBeNull();
+    const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["pattern /main true"]));
+    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-viewer-playing]')).not.toBeNull());
   });
 
   it("shows the Projects window with no menu bar, a bare strip for the window buttons on macOS only, and a gear that opens Preferences", async () => {

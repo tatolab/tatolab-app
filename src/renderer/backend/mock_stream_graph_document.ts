@@ -29,16 +29,16 @@ function linkSourceAsTheRuntimeRendersIt(sourceNode: string, sourcePort: string)
   return { stream: sourceNode.slice(0, streamSeparator), node: sourceNode.slice(streamSeparator + 1), port: sourcePort };
 }
 
-/** A stand-in for the runtime's preview page of `address`: moving colour bars and the address, drawn in the frame. */
+/** A stand-in for the runtime's video-only preview page of `address`: moving 16:9 colour bars, fitted to the frame with black around them. */
 function mockWatchPageUrl(address: string): string {
-  const standInPage = `<!doctype html><html><body style="margin:0;background:#000;overflow:hidden">
+  const standInPage = `<!doctype html><html><head><title>Mock preview of ${address}</title></head><body style="margin:0;background:#000;overflow:hidden">
 <canvas id="c" style="width:100vw;height:100vh;display:block"></canvas>
 <script>
 const c=document.getElementById("c"),g=c.getContext("2d"),bars=["#c0c0c0","#c0c000","#00c0c0","#00c000","#c000c0","#c00000","#0000c0"];
-function draw(t){c.width=innerWidth*devicePixelRatio;c.height=innerHeight*devicePixelRatio;const w=c.width,h=c.height;
-bars.forEach((b,i)=>{g.fillStyle=b;g.fillRect(i*w/7,0,w/7+1,h*.72)});
-const s=(t/1000)%1;g.fillStyle="#111";g.fillRect(0,h*.72,w,h*.28);g.fillStyle="#fff";g.fillRect(s*w,h*.72,w/40,h*.28);
-g.font=(18*devicePixelRatio)+"px ui-monospace,monospace";g.fillStyle="#fff";g.fillText("Mock preview · "+${JSON.stringify(address)},16*devicePixelRatio,h-18*devicePixelRatio);
+function draw(t){c.width=innerWidth*devicePixelRatio;c.height=innerHeight*devicePixelRatio;g.fillStyle="#000";g.fillRect(0,0,c.width,c.height);
+const w=Math.min(c.width,c.height*16/9),h=w*9/16,x=(c.width-w)/2,y=(c.height-h)/2;
+bars.forEach((b,i)=>{g.fillStyle=b;g.fillRect(x+i*w/7,y,w/7+1,h*.72)});
+const s=(t/1000)%1;g.fillStyle="#111";g.fillRect(x,y+h*.72,w,h*.28);g.fillStyle="#fff";g.fillRect(x+s*w,y+h*.72,w/40,h*.28);
 requestAnimationFrame(draw)}requestAnimationFrame(draw);
 </script></body></html>`;
   return `data:text/html;charset=utf-8,${encodeURIComponent(standInPage)}`;
