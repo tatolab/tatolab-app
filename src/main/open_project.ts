@@ -3,25 +3,37 @@
 // its folder imports hold, and read again whenever one of those folders changes, so the window
 // always shows what is on disk.
 
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { newProjectFolderNameRefusal, untitledProjectNameNumbered } from "../shared/new_project_folder_name.js";
 import type {
   ChosenProjectFolder,
   ImportedProject,
+  NewProjectDefaults,
   OpenProjectReading,
   ProjectCreationQueued,
   RecentProject,
   ProjectFolderChosenFor,
 } from "../shared/tatolab_backend_contract.js";
-import { realPathOrAsGiven } from "./file_system_entries_on_this_machine.js";
+import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
 import { readProjectFromItsFolder, requirementsPackageName } from "./project_on_disk.js";
-import { failedWith, succeeded, type Result } from "./result.js";
+import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 
 /** How long the folders must stay quiet after a change before they are read again, so one save that touches a file several times reads once. */
 export const OPEN_PROJECT_REREAD_QUIET_MS = 150;
 
-/** Asks the person for a folder in the desktop's dialog, opened at `defaultFolder`: an existing project, or a new one's folder, which may not exist yet. `null` when they cancel. */
-export type ProjectFolderDialog = (chosenFor: ProjectFolderChosenFor, defaultFolder: string) => Promise<Result<string | null, string>>;
+/** What the app's project folder dialog is opened for: an existing project, or the folder a new project goes in. */
+export type ProjectFolderDialogPurpose = ProjectFolderChosenFor | "new_project_location";
+
+/** Asks the person for a folder in the desktop's dialog, opened at `defaultFolder`. `null` when they cancel. */
+export type ProjectFolderDialog = (purpose: ProjectFolderDialogPurpose, defaultFolder: string) => Promise<Result<string | null, string>>;
+
+/** The folder new projects go in, inside the platform's Documents folder. */
+export const NEW_PROJECTS_FOLDER_INSIDE_DOCUMENTS = "Tato Studio";
+
+/** How many numbered `Untitled project` names are tried before the sheet suggests the plain one and lets the creation refuse it. */
+const UNTITLED_PROJECT_NAMES_TRIED = 1_000;
 
 /** Calls `onChange` whenever an entry directly in `folder` changes; the answer stops watching, and is `null` for a folder that cannot be watched. */
 export type FolderEntriesWatch = (folder: string, onChange: () => void) => (() => void) | null;
@@ -45,9 +57,11 @@ export interface NewProjectCreation {
   createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>>;
 }
 
-/** What the open project reaches: the person's home, the dialog, the recent projects, the wall clock, the runtime, a folder watch, a timer, and the window. */
+/** What the open project reaches: the person's home and Documents folders, the dialog, the recent projects, the wall clock, the runtime, a folder watch, a timer, and the window. */
 export interface OpenProjectSources {
   homeDirectory: string;
+  /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
+  documentsDirectory: string;
   projectFolderDialog: ProjectFolderDialog;
   recentProjectFolders: RecentProjectFolders;
   /** The wall clock, in milliseconds since the epoch, stamped on a project as it opens for the Projects window to show. */
@@ -123,23 +137,51 @@ export class OpenProjectFolder {
     return this.lastReading;
   }
 
-  /**
-   * Ask the person for a project folder and open it, remembering it among the recent projects; for a new
-   * project, queue the runtime's `create_project` in it first. `null` when they cancel; refused in the dialog's or
-   * the runtime's own words, the open project unchanged.
-   */
+  /** Ask the person for a project folder and open it, remembering it among the recent projects. `null` when they cancel; refused in the dialog's own words, the open project unchanged. */
   async chooseProjectFolder(chosenFor: ProjectFolderChosenFor): Promise<Result<ChosenProjectFolder | null, string>> {
     const chosenFolder = await this.sources.projectFolderDialog(chosenFor, this.openFolder === null ? this.sources.homeDirectory : path.dirname(this.openFolder));
     if (!chosenFolder.ok || chosenFolder.value === null) return chosenFolder.ok ? succeeded(null) : chosenFolder;
-    let projectCreation: ProjectCreationQueued | null = null;
-    if (chosenFor === "new_project") {
-      const queued = await this.sources.newProjectCreation.createProject(chosenFolder.value);
-      if (!queued.ok) return failedWith(queued.failure.failureDescription);
-      projectCreation = queued.value;
-    }
-    const folder = await realPathOrAsGiven(path.resolve(projectCreation?.project_directory ?? chosenFolder.value));
+    const folder = await realPathOrAsGiven(path.resolve(chosenFolder.value));
     const opened = await this.openAndRememberTheFolder(folder);
-    return opened.ok ? succeeded({ folder, project_creation: projectCreation }) : opened;
+    return opened.ok ? succeeded({ folder, project_creation: null }) : opened;
+  }
+
+  /** `<Documents>/Tato Studio`, and the first of `Untitled project`, `Untitled project 2`, … that nothing there holds. */
+  async readNewProjectDefaults(): Promise<NewProjectDefaults> {
+    const location = this.defaultNewProjectLocation();
+    for (let number = 1; number <= UNTITLED_PROJECT_NAMES_TRIED; number += 1) {
+      const name = untitledProjectNameNumbered(number);
+      if (!(await somethingIsAt(path.join(location, name)))) return { location, name };
+    }
+    return { location, name: untitledProjectNameNumbered(1) };
+  }
+
+  /** Ask the person for the folder a new project goes in, the dialog opened at `startingAt`, or at the default location when that is not absolute. `null` when they cancel. */
+  chooseNewProjectLocation(startingAt: string): Promise<Result<string | null, string>> {
+    return this.sources.projectFolderDialog("new_project_location", path.isAbsolute(startingAt) ? startingAt : this.defaultNewProjectLocation());
+  }
+
+  /**
+   * Create the project `name` in `location` with the runtime's `create_project`, making `location` when it is missing, and open it, remembering it among
+   * the recent projects. Refused with nothing created for a name that is no folder name or that something in `location` already holds; the runtime's
+   * refusal in its own words.
+   */
+  async createNewProject(name: string, location: string): Promise<Result<ChosenProjectFolder, string>> {
+    const nameRefusal = newProjectFolderNameRefusal(name);
+    if (nameRefusal !== null) return failedWith(nameRefusal);
+    if (!path.isAbsolute(location)) return failedWith(`${location} is not a full path to a folder.`);
+    const projectDirectory = path.join(location, name.trim());
+    if (await somethingIsAt(projectDirectory)) return failedWith(`${projectDirectory} already exists. Choose another name or location.`);
+    try {
+      await mkdir(location, { recursive: true });
+    } catch (mkdirFailure) {
+      return failedWith(`Tato Studio couldn't make the folder ${location}: ${describeCaughtFailure(mkdirFailure)}`);
+    }
+    const queued = await this.sources.newProjectCreation.createProject(projectDirectory);
+    if (!queued.ok) return failedWith(queued.failure.failureDescription);
+    const folder = await realPathOrAsGiven(path.resolve(queued.value.project_directory));
+    const opened = await this.openAndRememberTheFolder(folder);
+    return opened.ok ? succeeded({ folder, project_creation: queued.value }) : opened;
   }
 
   /** Open `folder`, one of the recent projects, and put it first among them; refused for any other folder, and in words when it could not be remembered, though it opens. */
@@ -166,6 +208,10 @@ export class OpenProjectFolder {
     this.cancelThePendingReread = null;
     for (const stopWatching of this.stopWatchingTheFolders) stopWatching();
     this.stopWatchingTheFolders = [];
+  }
+
+  private defaultNewProjectLocation(): string {
+    return path.join(this.sources.documentsDirectory, NEW_PROJECTS_FOLDER_INSIDE_DOCUMENTS);
   }
 
   private async openAndRememberTheFolder(folder: string): Promise<Result<void, string>> {

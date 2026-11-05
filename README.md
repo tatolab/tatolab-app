@@ -12,7 +12,9 @@ Studio" brings the window back. Quitting the app closes the window and the tray 
 runtime and its streams.
 
 The tray menu shows a one-line status, "Open Tato Studio", "Check for Updates…" in a packaged app,
-and "Quit Tato Studio". The window opens on the Projects window. It reads
+and "Quit Tato Studio". The window opens on the Projects window, whose New project asks for a
+name and a location, `Tato Studio` in the Documents folder until Browse… picks another, and has the
+runtime make the project in that folder. It reads
 everything from the runtime's local API: `list_streams`, `logs` and `graph` over MCP, and
 `GET /api/graph` for the machine's name. It queues a stop or a start (or retry) of a stream, and
 the removal of a whole project, with the MCP tools `stop_stream`, `start_stream` and

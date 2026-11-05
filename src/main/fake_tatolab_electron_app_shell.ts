@@ -6,7 +6,8 @@ import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { StreamProjectFolderChosenFor, ProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import type { StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import type { ProjectFolderDialogPurpose } from "./open_project.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
@@ -42,7 +43,7 @@ export type FakeShellRecord =
   | { asked: "set_application_menu"; applicationMenu: ApplicationMenu }
   | { asked: "open_folder_in_the_file_manager"; folder: string }
   | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
-  | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderChosenFor; defaultFolder: string };
+  | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderDialogPurpose; defaultFolder: string };
 
 /** A fake Electron app shell for the lifecycle's tests. */
 export class FakeTatolabElectronAppShell {
@@ -121,6 +122,7 @@ export class FakeTatolabElectronAppShell {
     startANodeLanguageServer: () => failedWith("the fake shell starts no language server"),
     pyrightLanguageServerModulePath: "/fake/node_modules/pyright/langserver.index.js",
     homeDirectory: path.join(this.appConfigDirectory, "home"),
+    documentsDirectory: path.join(this.appConfigDirectory, "home", "Documents"),
     createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,
     systemNotifications: this.systemNotifications,
     repeatingTimer: (intervalMs) => this.records.push({ asked: "repeat_every", intervalMs }),

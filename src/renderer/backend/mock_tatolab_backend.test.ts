@@ -288,6 +288,23 @@ describe("the mock backend's New project and Import project", () => {
     expect(await settled(() => notHeld.describeStreamAction("R-1"))).toEqual({ answer: { kind: "not_held", words: expect.stringMatching(/^Invalid configuration: the stream action `R-1` is not held/) } });
     expect(await settled(() => notHeld.chooseStreamProjectFolder("project_to_run"))).toEqual({ answer: null });
   });
+
+  it("suggests an untitled project in Documents/Tato Studio past the one there, makes and opens a new one, and refuses a taken folder or a name that is no folder name", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("project=none")));
+    const tatoStudioFolder = "/Users/jonathanf/Documents/Tato Studio";
+    expect(await settled(() => backend.readNewProjectDefaults())).toEqual({ answer: { location: tatoStudioFolder, name: "Untitled project 2" } });
+    expect(await settled(() => backend.chooseNewProjectLocation(tatoStudioFolder))).toEqual({ answer: "/Users/jonathanf/Shows" });
+    expect(await settled(() => backend.createNewProject("Untitled project", tatoStudioFolder))).toEqual({
+      refusal: `${tatoStudioFolder}/Untitled project already exists. Choose another name or location.`,
+    });
+    expect(await settled(() => backend.createNewProject(".hidden", tatoStudioFolder))).toEqual({ refusal: "A project's name can't start with a dot, which hides its folder." });
+
+    const created = await settled(() => backend.createNewProject("Night Show", tatoStudioFolder));
+    expect(created).toMatchObject({ answer: { folder: `${tatoStudioFolder}/Night Show`, project_creation: { project_directory: `${tatoStudioFolder}/Night Show` } } });
+    expect(await backend.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: `${tatoStudioFolder}/Night Show`, name: "night-show" } } });
+    expect(await settled(() => backend.readNewProjectDefaults())).toEqual({ answer: { location: tatoStudioFolder, name: "Untitled project 2" } });
+  });
 });
 
 describe("the mock backend's runtime", () => {

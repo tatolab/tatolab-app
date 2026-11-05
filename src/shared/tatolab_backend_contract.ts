@@ -424,10 +424,18 @@ export type OpenProjectReading =
   | { kind: "read"; open_project: OpenProject }
   | { kind: "unreadable"; folder: string; refusal: string };
 
-/** What the project folder dialog is opened for: an existing project to open, or a new one's folder, which may not exist yet. */
-export type ProjectFolderChosenFor = "project_to_open" | "new_project";
+/** What the project folder dialog is opened for from the window: an existing project to open. */
+export type ProjectFolderChosenFor = "project_to_open";
 
-/** A folder chosen in the project dialog, now the open project, and for a new project the `create_project` the runtime queued in it. */
+/** What the New project sheet starts from: the folder new projects go in, and a name no folder there holds yet. */
+export interface NewProjectDefaults {
+  /** `<Documents>/Tato Studio`, absolute; made the first time a project is created in it. */
+  location: string;
+  /** `Untitled project`, or `Untitled project 2`, `3`, … where that is taken in `location`. */
+  name: string;
+}
+
+/** A folder now the open project, and for a new project the `create_project` the runtime queued in it. */
 export interface ChosenProjectFolder {
   folder: string;
   project_creation: ProjectCreationQueued | null;

@@ -13,6 +13,10 @@ import {
 import { createMockRelays, mockRelaysScenarioNamed, type MockRelaysScenario } from "./mock_relays";
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import {
+  mockFoldersInDocumentsTatoStudio,
+  mockNewProjectDefaults,
+  mockNewProjectLocationTheDialogAnswers,
+  mockNewProjectReading,
   mockOpenProjectReading,
   mockOpenProjectScenarioNamed,
   mockRecentProjectReading,
@@ -21,6 +25,7 @@ import {
 } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
 import { MockProjectFiles } from "./mock_project_files";
+import { newProjectFolderNameRefusal } from "../../shared/new_project_folder_name";
 import type { TatolabBackend } from "./tatolab_backend";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
@@ -385,6 +390,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
   let openProjectReading = mockOpenProjectReading(openProjectScenario, fixtures.machine.homeDirectory);
   let recentProjects = mockRecentProjects(recentProjectsInTheQuery, fixtures.machine.homeDirectory, Date.now());
+  const mockFoldersOnDisk = () => [...mockFoldersInDocumentsTatoStudio(fixtures.machine.homeDirectory), ...recentProjects.map((recent) => recent.folder)];
   const openTheProjectInTheMock = (reading: OpenProjectReading, folder: string, projectName: string | null) => {
     openProjectReading = reading;
     recentProjects = [{ folder, project_name: projectName, last_opened_at_wall_clock_ms: Date.now() }, ...recentProjects.filter((recent) => recent.folder !== folder)];
@@ -1116,12 +1122,30 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const notificationClickTimer = window.setTimeout(() => streamPageRequestListener(streamPageRequestedByANotification), MOCK_NOTIFICATION_CLICK_MILLISECONDS);
       return () => window.clearTimeout(notificationClickTimer);
     },
-    chooseProjectFolder: async (chosenFor) => {
+    chooseProjectFolder: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       const chosenReading = mockOpenProjectReading("read", fixtures.machine.homeDirectory);
       const folder = chosenReading.kind === "read" ? chosenReading.open_project.project.folder : fixtures.machine.homeDirectory;
       openTheProjectInTheMock(chosenReading, folder, chosenReading.kind === "read" ? chosenReading.open_project.project.name : null);
-      return { folder, project_creation: chosenFor === "new_project" ? { action: nextStreamActionId(), stream: mockStreamIdOf({ project_directory: folder, stream_function: "stream:main" }), project_directory: folder } : null };
+      return { folder, project_creation: null };
+    },
+    readNewProjectDefaults: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      return mockNewProjectDefaults(fixtures.machine.homeDirectory, mockFoldersOnDisk());
+    },
+    chooseNewProjectLocation: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      return mockNewProjectLocationTheDialogAnswers(fixtures.machine.homeDirectory);
+    },
+    createNewProject: async (name, location) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const nameRefusal = newProjectFolderNameRefusal(name);
+      if (nameRefusal !== null) throw nameRefusal;
+      const folder = `${location}/${name.trim()}`;
+      if (mockFoldersOnDisk().includes(folder)) throw `${folder} already exists. Choose another name or location.`;
+      const newReading = mockNewProjectReading(folder, name.trim());
+      openTheProjectInTheMock(newReading, folder, newReading.kind === "read" ? newReading.open_project.project.name : null);
+      return { folder, project_creation: { action: nextStreamActionId(), stream: mockStreamIdOf({ project_directory: folder, stream_function: "stream:main" }), project_directory: folder } };
     },
     readOpenProject: async () => structuredClone(openProjectReading),
     readRecentProjects: async () => {

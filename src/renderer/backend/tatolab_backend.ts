@@ -22,6 +22,7 @@ import type {
   TatolabStatus,
   TatolabStreamActionName,
   ProjectFolderChosenFor,
+  NewProjectDefaults,
 } from "../../shared/tatolab_backend_contract";
 import { TATOLAB_WINDOW_PAGE_SCHEME, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
 
@@ -91,8 +92,14 @@ export interface TatolabBackend {
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
   /** Calls `listener` with the stream each request from the app to show a stream's page names; the returned function stops it. */
   onStreamPageRequested(listener: (streamId: string) => void): () => void;
-  /** Ask the person for a project folder in the app's dialog and open it, a new one's project queued with the runtime first; `null` when they cancel, rejecting in the dialog's or the runtime's own words. The project read arrives as the next open-project change. */
+  /** Ask the person for a project folder in the app's dialog and open it; `null` when they cancel, rejecting in the dialog's own words. The project read arrives as the next open-project change. */
   chooseProjectFolder(chosenFor: ProjectFolderChosenFor): Promise<ChosenProjectFolder | null>;
+  /** The location and name the New project sheet opens with: `<Documents>/Tato Studio` and the first untitled name free there. */
+  readNewProjectDefaults(): Promise<NewProjectDefaults>;
+  /** Ask the person for the folder a new project goes in, in the app's dialog opened at `startingAt`; `null` when they cancel. */
+  chooseNewProjectLocation(startingAt: string): Promise<string | null>;
+  /** Create the project `name` in `location` with the runtime and open it, rejecting with nothing made in the app's or the runtime's own words. The project read arrives as the next open-project change. */
+  createNewProject(name: string, location: string): Promise<ChosenProjectFolder>;
   /** The open project as the app last read it from disk. */
   readOpenProject(): Promise<OpenProjectReading>;
   /** The projects opened before, recent first, for the Projects window. */

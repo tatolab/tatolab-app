@@ -4,6 +4,7 @@
 
 import type {
   ChosenProjectFolder,
+  NewProjectDefaults,
   NodeCatalog,
   JsonValue,
   OpenProjectReading,
@@ -47,6 +48,9 @@ export const TATOLAB_COMMAND_NAMES = [
   "open_terminal_at_stream_project",
   "open_stream_log_folder",
   "choose_stream_project_folder",
+  "read_new_project_defaults",
+  "choose_new_project_location",
+  "create_new_project",
   "create_stream_project",
   "run_stream_project",
   "reload_project",
@@ -78,7 +82,7 @@ export const TATOLAB_COMMAND_NAMES = [
  * One command the window invokes. Arguments: `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
- * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, the project file and language server commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, the project file and language server commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` only on one of the recent projects, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
  * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
@@ -165,8 +169,14 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   configure_relay: { commandArguments: { relay_id: string; settings: RelaySettingsByName }; answer: null };
   /** Refused by the runtime for a built-in relay. */
   remove_relay: { commandArguments: { relay_id: string }; answer: null };
-  /** The app's folder dialog; the chosen folder becomes the open project, first among the recent projects, and a new project is queued with the runtime's `create_project` first. `null` when the person cancels; refused in the dialog's or the runtime's own words. */
+  /** The app's folder dialog; the chosen project folder becomes the open project, first among the recent projects. `null` when the person cancels; refused in the dialog's own words. */
   choose_project_folder: { commandArguments: { chosen_for: ProjectFolderChosenFor }; answer: ChosenProjectFolder | null };
+  /** Where the New project sheet starts, and the name it suggests. */
+  read_new_project_defaults: { commandArguments: undefined; answer: NewProjectDefaults };
+  /** The desktop's folder dialog, opened at `starting_at`, for the folder a new project goes in; `null` when the person cancels. */
+  choose_new_project_location: { commandArguments: { starting_at: string }; answer: string | null };
+  /** `name` a folder name and `location` absolute: `<location>/<name>` is created with the runtime's `create_project` and becomes the open project; refused with nothing created for a name that is no folder name or is taken there, and in the runtime's own words. */
+  create_new_project: { commandArguments: { name: string; location: string }; answer: ChosenProjectFolder };
   /** The open project as last read from disk. */
   read_open_project: { commandArguments: undefined; answer: OpenProjectReading };
   /** The projects opened before, recent first, for the Projects window. */

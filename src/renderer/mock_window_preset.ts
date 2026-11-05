@@ -39,6 +39,14 @@ function pressTheStudioShortcut(key: string, platform: TatolabPlatform): void {
   document.dispatchEvent(new KeyboardEvent("keydown", { key, metaKey: platform === "macos", ctrlKey: platform === "linux", bubbles: true }));
 }
 
+/** Types `text` into the input `selector` matches as a person would, so React sees the change. */
+async function typeWhenShown(selector: string, text: string): Promise<void> {
+  const input = await waitForElement<HTMLInputElement>(selector);
+  if (input === null) return;
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, text);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 /** Opens every closed row of the outliner, from the top, until none is left closed. */
 async function openEveryOutlinerRow(): Promise<void> {
   await waitForElement(`[data-outliner] [role="treeitem"]`);
@@ -58,7 +66,8 @@ async function openEveryOutlinerRow(): Promise<void> {
  * `?submenu=<entry>` (that entry's submenu opened, as `Layout`), and `?area_menu=<area id>` (that area's
  * view-type menu opened); with the backend's `?project=none|unreadable` (none shows the Projects window, empty with `?recent=none`) and `?port_families=served` (each port's family in the graph and the catalog). `?page=projects` opens the Projects window from File › Projects; `?page=preferences` opens Preferences, on
  * `?section=general|runtime|command-line|about`; there `?restart=pressed|refused` presses Restart and `?link=pressed`
- * presses Link tatolab, with the backend's `?cli_link=not_linked`.
+ * presses Link tatolab, with the backend's `?cli_link=not_linked`. `?sheet=new_project` presses the Projects window's New project, then
+ * `?new_project_name=<name>` types that name and `?new_project=browse|create` presses Browse… or Create.
  */
 export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platform: TatolabPlatform): Promise<void> {
   const layout = pageQuery.get("layout");
@@ -105,4 +114,11 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   if (page === "preferences" && section !== null) await clickWhenShown(`[data-settings-section="${CSS.escape(section)}"]`);
   if (pageQuery.get("restart") === "pressed" || pageQuery.get("restart") === "refused") await clickWhenShown(`[data-runtime-action="restart"]:not([disabled])`);
   if (pageQuery.get("link") === "pressed") await clickWhenShown(`[data-settings-action="link-command-line-tool"]`);
+  if (pageQuery.get("sheet") === "new_project") {
+    await clickWhenShown(`[data-projects-action="new"]`);
+    const newProjectName = pageQuery.get("new_project_name");
+    if (newProjectName !== null) await typeWhenShown(`[data-new-project-name]`, newProjectName);
+    const newProjectAction = pageQuery.get("new_project");
+    if (newProjectAction === "browse" || newProjectAction === "create") await clickWhenShown(`[data-new-project-action="${newProjectAction}"]`);
+  }
 }

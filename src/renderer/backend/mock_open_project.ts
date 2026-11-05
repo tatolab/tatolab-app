@@ -2,9 +2,11 @@
 // camera and lobby-recorder projects by folder, one folder import whose pyproject does not parse,
 // and a package from the index. `?project=none|unreadable` opens none, or one that cannot be read.
 // The Projects window lists the recent projects: the pattern, camera and lobby-recorder projects and three more,
-// one gone from disk; `?recent=none` lists none, as on first run.
+// one gone from disk; `?recent=none` lists none, as on first run. Documents/Tato Studio already
+// holds an `Untitled project`, so New project suggests `Untitled project 2`, and Browse… answers ~/Shows.
 
-import type { OpenProjectReading, ProjectOnDisk, RecentProject } from "../../shared/tatolab_backend_contract";
+import { untitledProjectNameNumbered } from "../../shared/new_project_folder_name";
+import type { NewProjectDefaults, OpenProjectReading, ProjectOnDisk, RecentProject } from "../../shared/tatolab_backend_contract";
 
 /** What `?project=` names. */
 export type MockOpenProjectScenario = "read" | "none" | "unreadable";
@@ -86,6 +88,42 @@ export function mockRecentProjectReading(recentProject: RecentProject, homeDirec
     kind: "read",
     open_project: {
       project: mockProject(recentProject.folder, recentProject.project_name, ["tatolab-stream>=0.55"]),
+      imports: [{ name: "tatolab-stream", requirement: "tatolab-stream>=0.55", source: { kind: "package_index" } }],
+    },
+  };
+}
+
+/** The mock's `Documents/Tato Studio` under `homeDirectory`, where New project suggests a project goes. */
+function mockNewProjectsFolder(homeDirectory: string): string {
+  return `${homeDirectory}/Documents/Tato Studio`;
+}
+
+/** The folders the mock's `Documents/Tato Studio` already holds. */
+export function mockFoldersInDocumentsTatoStudio(homeDirectory: string): string[] {
+  return [`${mockNewProjectsFolder(homeDirectory)}/${untitledProjectNameNumbered(1)}`];
+}
+
+/** `Documents/Tato Studio` and the first untitled name no folder in `foldersOnDisk` holds there. */
+export function mockNewProjectDefaults(homeDirectory: string, foldersOnDisk: readonly string[]): NewProjectDefaults {
+  const location = mockNewProjectsFolder(homeDirectory);
+  for (let number = 1; ; number += 1) {
+    const name = untitledProjectNameNumbered(number);
+    if (!foldersOnDisk.includes(`${location}/${name}`)) return { location, name };
+  }
+}
+
+/** The folder the mock's location dialog answers. */
+export function mockNewProjectLocationTheDialogAnswers(homeDirectory: string): string {
+  return `${homeDirectory}/Shows`;
+}
+
+/** A project just made in `folder` as `name`, read with the name its pyproject.toml carries and importing only tatolab-stream. */
+export function mockNewProjectReading(folder: string, name: string): OpenProjectReading {
+  const pyprojectName = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "project";
+  return {
+    kind: "read",
+    open_project: {
+      project: mockProject(folder, pyprojectName, ["tatolab-stream>=0.55"]),
       imports: [{ name: "tatolab-stream", requirement: "tatolab-stream>=0.55", source: { kind: "package_index" } }],
     },
   };

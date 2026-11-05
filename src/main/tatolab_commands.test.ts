@@ -115,6 +115,7 @@ async function sharedStateOverFakes(
   );
   const openProjectFolder = new OpenProjectFolder({
     homeDirectory: appConfigDirectory,
+    documentsDirectory: path.join(appConfigDirectory, "Documents"),
     projectFolderDialog: async () => succeeded(null),
     recentProjectFolders: recentProjectFoldersFileIn(appConfigDirectory, quietTatolabAppLog),
     readWallClockNowMs: () => 1_790_000_000_000,
@@ -628,6 +629,22 @@ test("The Projects window's commands list no recent project on a fresh install, 
   expect(await commandHandlers.read_recent_projects(undefined)).toEqual({ ok: true, value: [] });
   expect(await commandHandlers.open_recent_project({})).toEqual({ ok: false, refusal: "open_recent_project needs `folder`, one of the recent projects' folders" });
   expect(await commandHandlers.open_recent_project({ folder: "/etc" })).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
+});
+
+test("New project's commands suggest an untitled project in Documents/Tato Studio and read their arguments as the window sends them", async () => {
+  const sharedState = await sharedStateOverFakes([], "linux");
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const readDefaults = await commandHandlers.read_new_project_defaults(undefined);
+  expect(readDefaults).toMatchObject({ ok: true, value: { name: "Untitled project" } });
+  expect(readDefaults.ok && readDefaults.value.location.endsWith(path.join("Documents", "Tato Studio"))).toBe(true);
+  expect(await commandHandlers.choose_project_folder({ chosen_for: "new_project" })).toEqual({ ok: false, refusal: "choose_project_folder needs `chosen_for`, project_to_open" });
+  expect(await commandHandlers.choose_new_project_location({})).toEqual({ ok: false, refusal: "choose_new_project_location needs `starting_at`, the folder the dialog opens in" });
+  expect(await commandHandlers.choose_new_project_location({ starting_at: "/Users/someone" })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.create_new_project({ location: "/tmp" })).toEqual({ ok: false, refusal: "create_new_project needs `name`, the new project's name" });
+  expect(await commandHandlers.create_new_project({ name: "Show" })).toEqual({ ok: false, refusal: "create_new_project needs `location`, the full path of the folder it goes in" });
+  expect(await commandHandlers.create_new_project({ name: "a/b", location: "/tmp" })).toEqual({ ok: false, refusal: "A project's name can't hold a /." });
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
 });
 
 /** The window's `RuntimeDescription` reads exactly this JSON. */

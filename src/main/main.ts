@@ -72,8 +72,10 @@ export interface TatolabElectronAppShell {
   pyrightLanguageServerModulePath: string;
   /** Watching the entries directly in one folder, which the open project reads again on. */
   watchFolderEntries: FolderEntriesWatch;
-  /** The person's home directory, where the folder dialog opens, or at `~/streams` for a new project once that folder exists. */
+  /** The person's home directory, where the folder dialog opens, or at `~/streams` for a new stream project once that folder exists. */
   homeDirectory: string;
+  /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
+  documentsDirectory: string;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
   createTheAppUpdateFeed(appUpdatePackaging: TatolabAppUpdatePackaging): TatolabAppUpdateFeedForThisBuild;
   /** The desktop's notifications, which updates and failing streams are told through. */
@@ -203,6 +205,7 @@ export async function startTatolabApp(
   tatolabElectronAppShell.onTheAppQuitting(() => controller.stopTheRuntimeAsTheAppQuits());
   const openProjectFolder = new OpenProjectFolder({
     homeDirectory: tatolabElectronAppShell.homeDirectory,
+    documentsDirectory: tatolabElectronAppShell.documentsDirectory,
     projectFolderDialog: tatolabElectronAppShell.askThePersonForAProjectFolder,
     recentProjectFolders: recentProjectFoldersFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
     readWallClockNowMs: () => tatolabElectronAppShell.readWallClockMsForDisplay(),

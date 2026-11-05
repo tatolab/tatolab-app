@@ -403,8 +403,25 @@ export function chooseProjectFolder(sharedState: TatolabAppSharedState, chosenFo
 /** `choose_project_folder`'s arguments as the window sends them, or why they are not. */
 export function chooseProjectFolderArgumentsFrom(commandArguments: unknown): Result<{ chosen_for: ProjectFolderChosenFor }, string> {
   const chosenFor = isAJsonObject(commandArguments) ? commandArguments["chosen_for"] : undefined;
-  if (chosenFor !== "project_to_open" && chosenFor !== "new_project") return failedWith("choose_project_folder needs `chosen_for`, project_to_open or new_project");
+  if (chosenFor !== "project_to_open") return failedWith("choose_project_folder needs `chosen_for`, project_to_open");
   return succeeded({ chosen_for: chosenFor });
+}
+
+/** `create_new_project { name, location }`: the runtime's `create_project` at `<location>/<name>`, opened as the project, then a status round; refused in the app's words or the runtime's own. */
+export function createNewProject(sharedState: TatolabAppSharedState, name: string, location: string): Promise<Result<ChosenProjectFolder, string>> {
+  return answerTheWindow("create_new_project", async () => {
+    const created = await sharedState.openProjectFolder.createNewProject(name, location);
+    sharedState.statusPublisher.requestRefresh();
+    return created;
+  });
+}
+
+/** `create_new_project`'s arguments as the window sends them, or why they are not. */
+export function createNewProjectArgumentsFrom(commandArguments: unknown): Result<{ name: string; location: string }, string> {
+  const name = oneTextArgumentFrom("create_new_project", commandArguments, "name", "the new project's name");
+  if (!name.ok) return name;
+  const location = oneTextArgumentFrom("create_new_project", commandArguments, "location", "the full path of the folder it goes in");
+  return location.ok ? succeeded({ name: name.value, location: location.value }) : location;
 }
 
 /** `run_open_project`: the runtime's `run_project` queued on the open project's folder, then a status round; refused while no project is open, or in the runtime's own words. */
@@ -570,6 +587,17 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const chooseArguments = chooseProjectFolderArgumentsFrom(commandArguments);
       if (!chooseArguments.ok) return { ok: false, refusal: chooseArguments.failure };
       return commandAnswerFrom(await chooseProjectFolder(sharedState, chooseArguments.value.chosen_for));
+    },
+    read_new_project_defaults: async () => ({ ok: true, value: await sharedState.openProjectFolder.readNewProjectDefaults() }),
+    choose_new_project_location: async (commandArguments) => {
+      const startingAt = oneTextArgumentFrom("choose_new_project_location", commandArguments, "starting_at", "the folder the dialog opens in");
+      if (!startingAt.ok) return { ok: false, refusal: startingAt.failure };
+      return commandAnswerFrom(await answerTheWindow("choose_new_project_location", () => sharedState.openProjectFolder.chooseNewProjectLocation(startingAt.value)));
+    },
+    create_new_project: async (commandArguments) => {
+      const createArguments = createNewProjectArgumentsFrom(commandArguments);
+      if (!createArguments.ok) return { ok: false, refusal: createArguments.failure };
+      return commandAnswerFrom(await createNewProject(sharedState, createArguments.value.name, createArguments.value.location));
     },
     read_open_project: async () => ({ ok: true, value: sharedState.openProjectFolder.readOpenProject() }),
     read_recent_projects: async () => ({ ok: true, value: await sharedState.openProjectFolder.readRecentProjects() }),

@@ -90,7 +90,13 @@ export function mountTatolabWindow(
   const studioMenuBarCommands: StudioMenuBarCommands = {
     showProjects: () => studioWindowModel.isProjectsShown.publish(true),
     openAProject: () => chooseProjectFolder("project_to_open"),
-    createAProject: () => chooseProjectFolder("new_project"),
+    createAProject: () => {
+      studioWindowModel.projectOpeningRefusal.publish(null);
+      backend.readNewProjectDefaults().then(
+        (newProjectDefaults) => studioWindowModel.newProjectSheetOpenedWith.publish(newProjectDefaults),
+        (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
+      );
+    },
     openPreferences: () => studioWindowModel.preferencesSection.publish("general"),
     openAbout: () => studioWindowModel.preferencesSection.publish("about"),
     chooseLayout: (layoutName) => studioWindowModel.chooseLayout(layoutName),
@@ -132,6 +138,10 @@ export function mountTatolabWindow(
         studioWindowModel.projectOpeningRefusal.publish(null);
         backend.openRecentProject(folder).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
       },
+    },
+    newProject: {
+      chooseNewProjectLocation: (startingAt) => backend.chooseNewProjectLocation(startingAt),
+      createNewProject: (name, location) => backend.createNewProject(name, location),
     },
     platform,
   };

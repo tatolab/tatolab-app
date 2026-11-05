@@ -77,6 +77,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     },
     onStreamPageRequested: (listener) => tatolabElectronBridge.onStreamPageRequested(listener),
     chooseProjectFolder: (chosenFor) => invokeTatolabCommand("choose_project_folder", { chosen_for: chosenFor }),
+    readNewProjectDefaults: () => invokeTatolabCommand("read_new_project_defaults", undefined),
+    chooseNewProjectLocation: (startingAt) => invokeTatolabCommand("choose_new_project_location", { starting_at: startingAt }),
+    createNewProject: (name, location) => invokeTatolabCommand("create_new_project", { name, location }),
     readOpenProject: () => invokeTatolabCommand("read_open_project", undefined),
     readRecentProjects: () => invokeTatolabCommand("read_recent_projects", undefined),
     openRecentProject: async (folder) => {

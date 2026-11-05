@@ -1,7 +1,7 @@
 // What the studio window holds between renders: the open project and the runtime's streams it
 // serves its views, the selection, the open stream tabs, and the open project's layouts.
 
-import type { OpenProjectReading, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { NewProjectDefaults, OpenProjectReading, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import { WatchedStudioValue, type InWindowStudioViewHostSources } from "../view_host/in_window_view_host";
@@ -56,6 +56,8 @@ export class StudioWindowModel {
   readonly isProjectsShown = new WatchedStudioValue<boolean>(false);
   /** The section Preferences shows while it is open; `null` while it is closed. */
   readonly preferencesSection = new WatchedStudioValue<SettingsSection | null>(null);
+  /** The name and location the New project sheet opened with while it shows; `null` while it is closed. */
+  readonly newProjectSheetOpenedWith = new WatchedStudioValue<NewProjectDefaults | null>(null);
   /** Why the last project asked for did not open, until it is dismissed or another opens. */
   readonly projectOpeningRefusal = new WatchedStudioValue<string | null>(null);
   /** The open project's layouts; `null` while none is open. */

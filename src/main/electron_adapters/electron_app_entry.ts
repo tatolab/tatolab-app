@@ -101,6 +101,8 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   pyrightLanguageServerModulePath: path.join(app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getAppPath(), "node_modules", "pyright", "langserver.index.js"),
   watchFolderEntries: watchFolderEntriesOnThisMachine,
   homeDirectory: app.getPath("home"),
+  // On Linux Electron reads XDG_DOCUMENTS_DIR from user-dirs.dirs, falling back to ~/Documents.
+  documentsDirectory: app.getPath("documents"),
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
   systemNotifications: createElectronSystemNotifications(),
   repeatingTimer: (intervalMs, work) => {

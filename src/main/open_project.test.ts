@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import type { OpenProjectReading, ProjectCreationQueued, ProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import type { OpenProjectReading, ProjectCreationQueued } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
-import { OPEN_PROJECT_REREAD_QUIET_MS, OpenProjectFolder, readTheProjectIn, type RecentProjectFolderOpened } from "./open_project.js";
+import { OPEN_PROJECT_REREAD_QUIET_MS, OpenProjectFolder, readTheProjectIn, type ProjectFolderDialogPurpose, type RecentProjectFolderOpened } from "./open_project.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 const foldersMade: string[] = [];
@@ -85,18 +85,21 @@ test("a project whose pyproject.toml is missing, is not TOML, or names no projec
   });
 });
 
-/** An open project over a scripted dialog, recent projects in memory, a wall clock the test sets, a runtime that creates projects on disk, watches the test fires by hand, and timers it runs by hand. */
+/** An open project over a scripted dialog, a Documents folder of its own, recent projects in memory, a wall clock the test sets, a runtime that creates projects on disk, watches the test fires by hand, and timers it runs by hand. */
 async function anOpenProject(options: { dialogAnswers: string | null; recentFolders?: RecentProjectFolderOpened[]; creationRefusal?: string }) {
   const sentReadings: OpenProjectReading[] = [];
-  const dialogsAsked: ProjectFolderChosenFor[] = [];
+  const dialogsAsked: Array<{ purpose: ProjectFolderDialogPurpose; defaultFolder: string }> = [];
+  const projectDirectoriesCreated: string[] = [];
+  const documentsDirectory = path.join(await aFolder(), "Documents");
   const watchedFolders = new Map<string, () => void>();
   const pendingTimers: Array<() => void> = [];
   let recentFolders = options.recentFolders ?? [];
   let wallClockNowMs = 1_790_000_000_000;
   const openProject = new OpenProjectFolder({
     homeDirectory: await aFolder(),
-    projectFolderDialog: async (chosenFor) => {
-      dialogsAsked.push(chosenFor);
+    documentsDirectory,
+    projectFolderDialog: async (purpose, defaultFolder) => {
+      dialogsAsked.push({ purpose, defaultFolder });
       return succeeded(options.dialogAnswers);
     },
     recentProjectFolders: {
@@ -110,6 +113,7 @@ async function anOpenProject(options: { dialogAnswers: string | null; recentFold
     newProjectCreation: {
       createProject: async (projectDirectory): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> => {
         if (options.creationRefusal !== undefined) return failedWith({ failureDescription: options.creationRefusal, isTheRuntimesRefusal: true });
+        projectDirectoriesCreated.push(projectDirectory ?? "");
         await writeAProject(projectDirectory ?? "", `[project]\nname = "fresh"\ndependencies = []\n`);
         return succeeded({ action: "action-1", stream: "fresh-main-0a1b2c", project_directory: projectDirectory ?? "" });
       },
@@ -127,8 +131,10 @@ async function anOpenProject(options: { dialogAnswers: string | null; recentFold
   });
   return {
     openProject,
+    documentsDirectory,
     sentReadings,
     dialogsAsked,
+    projectDirectoriesCreated,
     watchedFolders,
     pendingTimers,
     rememberedFolder: () => recentFolders[0]?.folder ?? null,
@@ -151,7 +157,7 @@ test("a chosen project opens, is sent to the window, is remembered, and is read 
   const { openProject, sentReadings, dialogsAsked, watchedFolders, pendingTimers, rememberedFolder } = await anOpenProject({ dialogAnswers: projectFolder });
 
   expect(await openProject.chooseProjectFolder("project_to_open")).toEqual(succeeded({ folder: projectFolder, project_creation: null }));
-  expect(dialogsAsked).toEqual(["project_to_open"]);
+  expect(dialogsAsked.map((dialogAsked) => dialogAsked.purpose)).toEqual(["project_to_open"]);
   expect(rememberedFolder()).toBe(projectFolder);
   expect(sentReadings.map((reading) => reading.kind === "read" && reading.open_project.project.name)).toEqual(["studio"]);
   expect([...watchedFolders.keys()]).toEqual([projectFolder]);
@@ -165,17 +171,58 @@ test("a chosen project opens, is sent to the window, is remembered, and is read 
   expect(openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { imports: [{ name: "tatolab-camera" }] } });
 });
 
-test("a new project is created by the runtime first, and a refusal opens nothing", async () => {
-  const parentFolder = await aFolder();
-  const newProjectFolder = path.join(parentFolder, "night-show");
-  const created = await anOpenProject({ dialogAnswers: newProjectFolder });
-  expect(await created.openProject.chooseProjectFolder("new_project")).toEqual(
-    succeeded({ folder: newProjectFolder, project_creation: { action: "action-1", stream: "fresh-main-0a1b2c", project_directory: newProjectFolder } }),
-  );
-  expect(created.openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { name: "fresh" } } });
+test("a new project is suggested in Documents/Tato Studio, numbered past the names already taken there", async () => {
+  const { openProject, documentsDirectory } = await anOpenProject({ dialogAnswers: null });
+  const tatoStudioFolder = path.join(documentsDirectory, "Tato Studio");
+  expect(await openProject.readNewProjectDefaults()).toEqual({ location: tatoStudioFolder, name: "Untitled project" });
 
-  const refused = await anOpenProject({ dialogAnswers: path.join(parentFolder, "taken"), creationRefusal: "the folder already holds a project" });
-  expect(await refused.openProject.chooseProjectFolder("new_project")).toEqual(failedWith("the folder already holds a project"));
+  await mkdir(path.join(tatoStudioFolder, "Untitled project"), { recursive: true });
+  await writeFile(path.join(tatoStudioFolder, "Untitled project 2"), "");
+  expect(await openProject.readNewProjectDefaults()).toEqual({ location: tatoStudioFolder, name: "Untitled project 3" });
+});
+
+test("Browse… opens the folder dialog where the sheet's location is, or at the default for a location that is no full path", async () => {
+  const { openProject, documentsDirectory, dialogsAsked } = await anOpenProject({ dialogAnswers: "/Volumes/Show/projects" });
+  expect(await openProject.chooseNewProjectLocation("/Users/someone/Work")).toEqual(succeeded("/Volumes/Show/projects"));
+  expect(await openProject.chooseNewProjectLocation("somewhere relative")).toEqual(succeeded("/Volumes/Show/projects"));
+  expect(dialogsAsked).toEqual([
+    { purpose: "new_project_location", defaultFolder: "/Users/someone/Work" },
+    { purpose: "new_project_location", defaultFolder: path.join(documentsDirectory, "Tato Studio") },
+  ]);
+  expect(openProject.readOpenProject()).toEqual({ kind: "none_open" });
+});
+
+test("a new project is made in its location, which is made when missing, created by the runtime, opened and remembered", async () => {
+  const { openProject, documentsDirectory, projectDirectoriesCreated, rememberedFolder } = await anOpenProject({ dialogAnswers: null });
+  const location = path.join(documentsDirectory, "Tato Studio");
+  const projectFolder = path.join(location, "Night Show");
+
+  expect(await openProject.createNewProject("  Night Show ", location)).toEqual(
+    succeeded({ folder: projectFolder, project_creation: { action: "action-1", stream: "fresh-main-0a1b2c", project_directory: projectFolder } }),
+  );
+  expect(projectDirectoriesCreated).toEqual([projectFolder]);
+  expect(rememberedFolder()).toBe(projectFolder);
+  expect(openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: projectFolder, name: "fresh" } } });
+});
+
+test("a new project is refused before the runtime is asked for a name that is no folder name, a location that is no full path, or a folder already there", async () => {
+  const { openProject, documentsDirectory, projectDirectoriesCreated } = await anOpenProject({ dialogAnswers: null });
+  await mkdir(path.join(documentsDirectory, "Taken"), { recursive: true });
+
+  expect(await openProject.createNewProject("   ", documentsDirectory)).toEqual(failedWith("Give the project a name."));
+  expect(await openProject.createNewProject("lights/left", documentsDirectory)).toEqual(failedWith("A project's name can't hold a /."));
+  expect(await openProject.createNewProject(".hidden", documentsDirectory)).toEqual(failedWith("A project's name can't start with a dot, which hides its folder."));
+  expect(await openProject.createNewProject("Show", "Documents")).toEqual(failedWith("Documents is not a full path to a folder."));
+  expect(await openProject.createNewProject("Taken", documentsDirectory)).toEqual(
+    failedWith(`${path.join(documentsDirectory, "Taken")} already exists. Choose another name or location.`),
+  );
+  expect(projectDirectoriesCreated).toEqual([]);
+  expect(openProject.readOpenProject()).toEqual({ kind: "none_open" });
+});
+
+test("a new project the runtime refuses is refused in its own words and opens nothing", async () => {
+  const refused = await anOpenProject({ dialogAnswers: null, creationRefusal: "the folder already holds a project" });
+  expect(await refused.openProject.createNewProject("Night Show", refused.documentsDirectory)).toEqual(failedWith("the folder already holds a project"));
   expect(refused.openProject.readOpenProject()).toEqual({ kind: "none_open" });
   expect(refused.rememberedFolder()).toBeNull();
 });

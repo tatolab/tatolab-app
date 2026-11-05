@@ -12,6 +12,7 @@ import { windowDragRegionAttribute } from "../presentation/platform_presentation
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
 import { StudioViewFailureBoundary, useWatchedStudioValue } from "../view_host/in_window_view_host";
 import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
+import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet_view";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { RUN_LIVE_KEY, studioMenuBarMenus, type StudioMenuBarCommands } from "./studio_menu_bar_model";
@@ -28,6 +29,8 @@ export interface StudioWindowSources {
   commands: StudioMenuBarCommands;
   /** What the Projects window reads its projects from and opens them through. */
   projects: ProjectsSources;
+  /** What the New project sheet chooses a location through and makes the project with. */
+  newProject: NewProjectSources;
   platform: TatolabPlatform;
 }
 
@@ -141,6 +144,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
   const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
   const isProjectsShown = useWatchedStudioValue(model.isProjectsShown);
+  const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
   const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null && !isProjectsShown;
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
@@ -184,6 +188,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           </main>
         </>
       )}
+      <NewProjectSheetView openedWith={newProjectSheetOpenedWith} sources={sources.newProject} onClosed={() => model.newProjectSheetOpenedWith.publish(null)} />
       <PreferencesDialogView
         shownSection={preferencesSection}
         onSectionChosen={(section) => model.preferencesSection.publish(section)}

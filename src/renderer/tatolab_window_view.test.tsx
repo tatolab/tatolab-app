@@ -277,11 +277,63 @@ describe("the studio", () => {
     const reading: OpenProjectReading = { kind: "none_open" };
     await mountedWindowOverTheMock("state=running&project=none", {
       readOpenProject: async () => reading,
-      chooseProjectFolder: () => Promise.reject("the folder already holds a project"),
+      chooseProjectFolder: () => Promise.reject("The project dialog did not open: no window"),
     });
-    fireEvent.click(await screen.findByRole("button", { name: "New project" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open…" }));
 
-    await waitFor(() => expect(textOf("[data-project-opening-refusal]")).toContain("the folder already holds a project"));
+    await waitFor(() => expect(textOf("[data-project-opening-refusal]")).toContain("The project dialog did not open: no window"));
+    expect(document.querySelector("[data-projects]")).not.toBeNull();
+  });
+
+  it("opens New project on a sheet with an untitled name in Documents/Tato Studio, its full path following the name and Browse…, and Create opens the project made", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    fireEvent.click(await screen.findByRole("button", { name: "New project" }));
+    const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-new-project-name]") ?? expect.unreachable("no New project sheet"));
+    expect(nameField.value).toBe("Untitled project 2");
+    expect(textOf("[data-new-project-location]")).toBe("~/Documents/Tato Studio");
+    expect(textOf("[data-new-project-folder]")).toBe("~/Documents/Tato Studio/Untitled project 2");
+
+    fireEvent.change(nameField, { target: { value: "Night Show" } });
+    expect(textOf("[data-new-project-folder]")).toBe("~/Documents/Tato Studio/Night Show");
+    fireEvent.click(screen.getByRole("button", { name: "Browse…" }));
+    await waitFor(() => expect(textOf("[data-new-project-location]")).toBe("~/Shows"));
+    expect(textOf("[data-new-project-folder]")).toBe("~/Shows/Night Show");
+
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(await shownLayout()).toBe("build");
+    expect(document.querySelector("[data-new-project-sheet]")).toBeNull();
+    expect(document.querySelector("[data-projects]")).toBeNull();
+  });
+
+  it("refuses a name that is no folder name before Create, and a folder already there in the sheet, which stays open", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    fireEvent.click(await screen.findByRole("button", { name: "New project" }));
+    const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-new-project-name]") ?? expect.unreachable("no New project sheet"));
+
+    fireEvent.change(nameField, { target: { value: "lights/left" } });
+    expect(screen.getByRole("alert").textContent).toBe("A project's name can't hold a /.");
+    expect(document.querySelector('[data-new-project-action="create"]')?.getAttribute("aria-disabled")).toBe("true");
+
+    fireEvent.change(nameField, { target: { value: "Untitled project" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() =>
+      expect(textOf("[data-new-project-refusal]")).toBe("The project wasn't created: /Users/jonathanf/Documents/Tato Studio/Untitled project already exists. Choose another name or location."),
+    );
+    expect(document.querySelector("[data-new-project-sheet]")).not.toBeNull();
+    expect(document.querySelector("[data-projects]")).not.toBeNull();
+  });
+
+  it("shows the runtime's refusal to create a project in the sheet, in its own words, and Cancel closes it with nothing opened", async () => {
+    await mountedWindowOverTheMock("state=running&project=none", { createNewProject: () => Promise.reject("the folder already holds a project") });
+    fireEvent.click(await screen.findByRole("button", { name: "New project" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(textOf("[data-new-project-refusal]")).toBe("The project wasn't created: the folder already holds a project"));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(document.querySelector("[data-new-project-sheet]")).toBeNull());
     expect(document.querySelector("[data-projects]")).not.toBeNull();
   });
 });
