@@ -486,3 +486,17 @@ describe("the mock backend's port families", () => {
     expect(servedWhenAsked.catalog).not.toContain(null);
   });
 });
+
+describe("the mock's agents", () => {
+  it("Claude Code and Gemini CLI are installed and Codex is not, unless ?agents=none says none is", async () => {
+    vi.useRealTimers();
+    const installedOf = async (pageQuery: string) =>
+      (await createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams(pageQuery))).describeAgents()).agents.map((agent) => [agent.agent_id, agent.install.kind]);
+    expect(await installedOf("")).toEqual([
+      ["claude_code", "installed"],
+      ["gemini_cli", "installed"],
+      ["codex", "not_installed"],
+    ]);
+    expect((await installedOf("agents=none")).every(([, install]) => install === "not_installed")).toBe(true);
+  });
+});

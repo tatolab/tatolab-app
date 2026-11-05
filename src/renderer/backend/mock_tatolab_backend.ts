@@ -14,6 +14,7 @@ import { createMockRelays, mockRelaysScenarioNamed, type MockRelaysScenario } fr
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import { mockOpenWorkspaceReading, mockOpenWorkspaceScenarioNamed, type MockOpenWorkspaceScenario } from "./mock_open_workspace";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
+import { MockAgentClientProtocolAgent } from "./mock_agent_client_protocol_agent";
 import { MockWorkspaceFiles } from "./mock_workspace_files";
 import type { TatolabBackend } from "./tatolab_backend";
 import {
@@ -36,6 +37,7 @@ import {
   type TatolabPlatform,
   type TatolabStatus,
   type PythonLanguageServerEvent,
+  type AgentEvent,
 } from "../../shared/tatolab_backend_contract";
 
 /**
@@ -211,6 +213,8 @@ export interface MockTatolabOptions {
   openWorkspaceScenario: MockOpenWorkspaceScenario;
   /** `?port_families=served`: each port's family is served in the graph and the node catalog, as streamlib's strict-port-families will serve it; none by default, as the runtime serves today. */
   arePortFamiliesServed: boolean;
+  /** `?agents=none`: no agent the studio runs is installed; Claude Code and Gemini CLI are by default, and Codex is not. */
+  isNoAgentInstalled: boolean;
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -303,6 +307,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     doesTheRelayAdapterCatalogServeNoNamesOrLogos: pageQuery.get("adapter_names") === "none",
     openWorkspaceScenario: mockOpenWorkspaceScenarioNamed(pageQuery.get("workspace")),
     arePortFamiliesServed: pageQuery.get("port_families") === "served",
+    isNoAgentInstalled: pageQuery.get("agents") === "none",
   };
 }
 
@@ -457,6 +462,19 @@ function mockHowToSeeTheRuntimeService(platform: TatolabPlatform): string {
   return platform === "macos" ? "`launchctl print gui/501/com.tatolab.tatolabd`" : "`systemctl --user status tatolabd.service`";
 }
 
+/** The agents the mock studio offers, as the main process's list names them. */
+const MOCK_AGENTS_THE_STUDIO_RUNS = [
+  { agent_id: "claude_code", title: "Claude Code" },
+  { agent_id: "gemini_cli", title: "Gemini CLI" },
+  { agent_id: "codex", title: "Codex" },
+];
+
+const MOCK_AGENT_INSTALL_COMMANDS: Record<string, string> = {
+  claude_code: "npm install -g @agentclientprotocol/claude-agent-acp",
+  gemini_cli: "npm install -g @google/gemini-cli",
+  codex: "npm install -g @zed-industries/codex-acp",
+};
+
 function sleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
@@ -485,6 +503,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     doesTheRuntimeListAnEarlierRuntimesRecord,
     doesTheRelayAdapterCatalogServeNoNamesOrLogos,
     openWorkspaceScenario,
+    isNoAgentInstalled,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -500,6 +519,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const languageServerEventListeners = new Set<(event: PythonLanguageServerEvent) => void>();
   const mockLanguageServersBySession = new Map<string, MockPythonLanguageServer>();
   let languageServerSessionCount = 0;
+  const agentEventListeners = new Set<(event: AgentEvent) => void>();
+  const mockAgentsBySession = new Map<string, MockAgentClientProtocolAgent>();
+  let agentSessionCount = 0;
   const refuseWithoutAnOpenWorkspace = (): void => {
     if (openWorkspaceReading.kind !== "read") throw "No workspace is open, so its files cannot be read.";
   };
@@ -1368,6 +1390,43 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     onPythonLanguageServerEvent: (listener) => {
       languageServerEventListeners.add(listener);
       return () => languageServerEventListeners.delete(listener);
+    },
+    describeAgents: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      return { agents: MOCK_AGENTS_THE_STUDIO_RUNS.map((mockAgent) => ({ ...mockAgent, install: isNoAgentInstalled || mockAgent.agent_id === "codex" ? { kind: "not_installed", install_command: MOCK_AGENT_INSTALL_COMMANDS[mockAgent.agent_id] ?? "" } : { kind: "installed" } })) };
+    },
+    startAgent: async (agentId) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openWorkspaceReading.kind === "none_open") throw "No workspace is open.";
+      if (openWorkspaceReading.kind === "unreadable") throw `The workspace in ${openWorkspaceReading.folder} could not be read: ${openWorkspaceReading.refusal}`;
+      const mockAgent = MOCK_AGENTS_THE_STUDIO_RUNS.find((candidate) => candidate.agent_id === agentId);
+      if (mockAgent === undefined) throw `${agentId} is not an agent the studio runs.`;
+      if (isNoAgentInstalled || agentId === "codex") throw `${mockAgent.title} is not installed. Install it with: ${MOCK_AGENT_INSTALL_COMMANDS[agentId] ?? ""}`;
+      agentSessionCount += 1;
+      const session = `agent-${agentSessionCount}`;
+      const workspaceProjectFolder = openWorkspaceReading.workspace.workspace_project.folder;
+      mockAgentsBySession.set(
+        session,
+        new MockAgentClientProtocolAgent(workspaceProjectFolder, (message) => {
+          window.setTimeout(() => {
+            if (!mockAgentsBySession.has(session)) return;
+            for (const listener of agentEventListeners) listener({ session, kind: "message", message });
+          }, 0);
+        }),
+      );
+      return { session, workspace_project_folder: workspaceProjectFolder, runtime_mcp_servers: [{ name: "tatolab", command: "/usr/local/bin/tatolab", args: ["mcp"], env: [] }] };
+    },
+    sendToAgent: async (session, message) => {
+      const mockAgent = mockAgentsBySession.get(session);
+      if (mockAgent === undefined) throw `The agent ${session} is no longer running.`;
+      mockAgent.receive(message);
+    },
+    stopAgent: async (session) => {
+      mockAgentsBySession.delete(session);
+    },
+    onAgentEvent: (listener) => {
+      agentEventListeners.add(listener);
+      return () => agentEventListeners.delete(listener);
     },
   };
 }

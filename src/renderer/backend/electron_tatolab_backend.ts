@@ -107,5 +107,14 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("stop_python_language_server", { session });
     },
     onPythonLanguageServerEvent: (listener) => tatolabElectronBridge.onPythonLanguageServerEvent(listener),
+    describeAgents: () => invokeTatolabCommand("describe_agents", undefined),
+    startAgent: (agentId) => invokeTatolabCommand("start_agent", { agent_id: agentId }),
+    sendToAgent: async (session, message) => {
+      await invokeTatolabCommand("send_to_agent", { session, message });
+    },
+    stopAgent: async (session) => {
+      await invokeTatolabCommand("stop_agent", { session });
+    },
+    onAgentEvent: (listener) => tatolabElectronBridge.onAgentEvent(listener),
   };
 }

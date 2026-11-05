@@ -1,4 +1,7 @@
 import type {
+  AgentEvent,
+  AgentsOnThisMachine,
+  AgentStarted,
   ChosenWorkspaceFolder,
   JsonValue,
   PythonLanguageServerEvent,
@@ -118,6 +121,15 @@ export interface TatolabBackend {
   stopPythonLanguageServer(session: string): Promise<void>;
   /** Calls `listener` with each message a language server sends and each server's end; the returned function stops it. */
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
+  /** Every agent the studio runs, each installed on this machine or not. */
+  describeAgents(): Promise<AgentsOnThisMachine>;
+  /** Start the agent `agentId` in the open workspace project's folder, resolving with its session; rejecting while no workspace is open or for an agent not installed, naming its install command. */
+  startAgent(agentId: string): Promise<AgentStarted>;
+  /** Send one JSON-RPC `message` to the agent of `session`, rejecting once it has ended. */
+  sendToAgent(session: string, message: JsonValue): Promise<void>;
+  stopAgent(session: string): Promise<void>;
+  /** Calls `listener` with each message an agent sends and each agent's end; the returned function stops it. */
+  onAgentEvent(listener: (event: AgentEvent) => void): () => void;
 }
 
 /** Where the page runs: Tatolab.app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */

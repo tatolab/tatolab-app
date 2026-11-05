@@ -25,7 +25,8 @@ import { RUN_LIVE_KEY, type StudioMenuBarCommands } from "./studio_shell/studio_
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
 import { StudioWindowModel, streamsOfTheProjectToStop } from "./studio_shell/studio_window_model";
 import { WORKSPACE_LAYOUTS, WorkspaceLayoutsKeptInStorage } from "./studio_shell/workspace_layouts";
-import { AGENT_VIEW_TYPE, VIEWER_VIEW_TYPE } from "./studio_views/arriving_later/arriving_later_view_types";
+import { AGENT_VIEW_TYPE } from "./studio_views/agent/agent_view_type";
+import { VIEWER_VIEW_TYPE } from "./studio_views/arriving_later/arriving_later_view_types";
 import { CODE_EDITOR_VIEW_TYPE } from "./studio_views/code_editor/code_editor_view_type";
 import { PROPERTIES_VIEW_TYPE } from "./studio_views/properties/properties_view_type";
 import { STREAM_GRAPH_VIEW_TYPE } from "./studio_views/stream_graph/stream_graph_view_type";
@@ -35,6 +36,7 @@ import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_cata
 import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
 import { PythonLanguageServerConnections } from "./view_host/python_language_server_connections";
+import { AgentConnections } from "./view_host/agent_connections";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "./window_visibility";
 
 /** The page's storage, or `null` where the page may not use it. */
@@ -101,6 +103,7 @@ export function mountTatolabWindow(
   projectLogReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectLogReadings.setPollingAllowed(isVisible));
   const pythonLanguageServerConnections = new PythonLanguageServerConnections(backend);
+  const agentConnections = new AgentConnections(backend);
   const studioWindowModel = new StudioWindowModel(new WorkspaceLayoutsKeptInStorage(windowLocalStorage()));
   const uninstallTatolabRefusal = new RefusalKeptForTheWindow();
   const firstRunFinishingRefusal = new RefusalKeptForTheWindow();
@@ -149,6 +152,7 @@ export function mountTatolabWindow(
       backend,
       projectLogReadings,
       pythonLanguageServerConnections,
+      agentConnections,
     }),
     commands: studioMenuBarCommands,
     platform,

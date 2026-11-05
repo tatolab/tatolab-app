@@ -18,7 +18,7 @@ describe("the five layouts", () => {
     expect(areaIdsOf(defaultWorkspaceLayout("build"))).toEqual(["scene", "stream-graph", "viewer", "code", "outliner", "properties"]);
     expect(areaIdsOf(defaultWorkspaceLayout("compose"))).toEqual(["stream-graph", "viewer", "code", "outliner", "properties"]);
     expect(areaIdsOf(defaultWorkspaceLayout("spatial"))).toEqual(["scene", "viewer", "stream-graph", "outliner", "properties"]);
-    expect(areaIdsOf(defaultWorkspaceLayout("code"))).toEqual(["code", "stream-graph", "viewer", "outliner", "properties"]);
+    expect(areaIdsOf(defaultWorkspaceLayout("code"))).toEqual(["code", "stream-graph", "agent", "outliner", "properties"]);
     expect(areaIdsOf(defaultWorkspaceLayout("perform"))).toEqual(["viewer", "scene", "stream-graph", "outliner", "properties"]);
   });
 
