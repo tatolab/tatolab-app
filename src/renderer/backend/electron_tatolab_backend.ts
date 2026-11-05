@@ -95,5 +95,17 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     readOpenWorkspace: () => invokeTatolabCommand("read_open_workspace", undefined),
     onOpenWorkspaceChanged: (listener) => tatolabElectronBridge.onOpenWorkspaceChanged(listener),
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
+    readWorkspaceFile: (file) => invokeTatolabCommand("read_workspace_file", { file }),
+    saveWorkspaceFile: (file, text, basedOnVersion) => invokeTatolabCommand("save_workspace_file", { file, text, based_on_version: basedOnVersion }),
+    listWorkspaceProjectFiles: (projectFolder) => invokeTatolabCommand("list_workspace_project_files", { project_folder: projectFolder }),
+    runWorkspaceProject: () => invokeTatolabCommand("run_workspace_project", undefined),
+    startPythonLanguageServer: async (projectFolder) => (await invokeTatolabCommand("start_python_language_server", { project_folder: projectFolder })).session,
+    sendToPythonLanguageServer: async (session, message) => {
+      await invokeTatolabCommand("send_to_python_language_server", { session, message });
+    },
+    stopPythonLanguageServer: async (session) => {
+      await invokeTatolabCommand("stop_python_language_server", { session });
+    },
+    onPythonLanguageServerEvent: (listener) => tatolabElectronBridge.onPythonLanguageServerEvent(listener),
   };
 }

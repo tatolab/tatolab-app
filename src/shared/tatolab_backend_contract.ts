@@ -456,3 +456,32 @@ export interface ChosenWorkspaceFolder {
   folder: string;
   project_creation: ProjectCreationQueued | null;
 }
+
+/** What `read_workspace_file` answers: a file of the open workspace's projects, as read from disk. */
+export interface WorkspaceFileRead {
+  /** The file, absolute, as the window named it. */
+  file: string;
+  /** The folder of the project the file belongs to. */
+  project_folder: string;
+  text: string;
+  /** The SHA-256 of the bytes read, in hex, which `save_workspace_file` takes back as `based_on_version`. */
+  version: string;
+  /** Whether the file belongs to the workspace project, whose files the studio saves; an import's are read-only. */
+  is_editable: boolean;
+}
+
+/** What `save_workspace_file` answers: the version the file now has on disk. */
+export interface WorkspaceFileSaved {
+  version: string;
+}
+
+/** What `list_workspace_project_files` answers: a project's Python files and `pyproject.toml`, relative to its folder, in name order. */
+export interface WorkspaceProjectFiles {
+  project_folder: string;
+  files: string[];
+}
+
+/** What `tatolab-python-language-server-message` carries: one JSON-RPC message a session's language server sent, or its end, with why. */
+export type PythonLanguageServerEvent =
+  | { session: string; kind: "message"; message: JsonValue }
+  | { session: string; kind: "ended"; because: string };

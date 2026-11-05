@@ -33,6 +33,8 @@ import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
 import { OpenWorkspaceFolder, type FolderEntriesWatch, type WorkspaceFolderDialog } from "./open_workspace.js";
+import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
+import { WorkspaceFiles } from "./workspace_files.js";
 import { rememberedOpenWorkspaceFileIn } from "./remembered_open_workspace_file.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
 import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy_handoff.js";
@@ -65,6 +67,10 @@ export interface TatolabElectronAppShell {
   askThePersonForAStreamProjectFolder: StreamProjectFolderDialog;
   /** The desktop's folder dialog over the window, which the studio opens and creates a workspace through. */
   askThePersonForAWorkspaceFolder: WorkspaceFolderDialog;
+  /** How the code pane's language servers start, each in its own process. */
+  startANodeLanguageServer: StartANodeLanguageServer;
+  /** Pyright's `langserver.index.js` as this build carries it. */
+  pyrightLanguageServerModulePath: string;
   /** Watching the entries directly in one folder, which the open workspace reads again on. */
   watchFolderEntries: FolderEntriesWatch;
   /** The person's home directory, where the folder dialog opens, or at `~/streams` for a new project once that folder exists. */
@@ -193,6 +199,19 @@ export async function startTatolabApp(
   statusPublisherOnceBuilt = statusPublisher;
   statusPublisher.attachStreamFailureNotifications(streamFailureNotifications);
   tatolabElectronAppShell.onTheAppQuitting(() => statusPublisher.stopPolling());
+  const openWorkspaceFolder = new OpenWorkspaceFolder({
+    homeDirectory: tatolabElectronAppShell.homeDirectory,
+    workspaceFolderDialog: tatolabElectronAppShell.askThePersonForAWorkspaceFolder,
+    rememberedOpenWorkspaceFolder: rememberedOpenWorkspaceFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
+    workspaceProjectCreation: controller,
+    watchFolderEntries: tatolabElectronAppShell.watchFolderEntries,
+    runAfter: (delayMs, work) => {
+      const timer = setTimeout(work, delayMs);
+      return () => clearTimeout(timer);
+    },
+    sendTheWindowTheOpenWorkspace: (reading) => tatolabMainWindow.sendTheWindowTheOpenWorkspace(reading),
+  });
+  const workspaceFiles = new WorkspaceFiles(() => openWorkspaceFolder.readOpenWorkspace());
   const sharedState: TatolabAppSharedState = {
     controller,
     statusPublisher,
@@ -209,21 +228,19 @@ export async function startTatolabApp(
       projectLoadsOnTheRuntime: controller,
     }),
     streamFailureNotifications,
-    openWorkspaceFolder: new OpenWorkspaceFolder({
-      homeDirectory: tatolabElectronAppShell.homeDirectory,
-      workspaceFolderDialog: tatolabElectronAppShell.askThePersonForAWorkspaceFolder,
-      rememberedOpenWorkspaceFolder: rememberedOpenWorkspaceFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
-      workspaceProjectCreation: controller,
-      watchFolderEntries: tatolabElectronAppShell.watchFolderEntries,
-      runAfter: (delayMs, work) => {
-        const timer = setTimeout(work, delayMs);
-        return () => clearTimeout(timer);
-      },
-      sendTheWindowTheOpenWorkspace: (reading) => tatolabMainWindow.sendTheWindowTheOpenWorkspace(reading),
+    openWorkspaceFolder,
+    workspaceFiles,
+    pythonLanguageServers: new PythonLanguageServers({
+      startANodeLanguageServer: tatolabElectronAppShell.startANodeLanguageServer,
+      pyrightLanguageServerModulePath: tatolabElectronAppShell.pyrightLanguageServerModulePath,
+      projectFolderOfTheOpenWorkspace: (projectFolder) => workspaceFiles.projectFolderOfTheOpenWorkspace(projectFolder),
+      sendTheWindowALanguageServerEvent: (event) => tatolabMainWindow.sendTheWindowALanguageServerEvent(event),
+      tatolabAppLog,
     }),
     tatolabAppLog,
   };
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.openWorkspaceFolder.stopWatching());
+  tatolabElectronAppShell.onTheAppQuitting(() => sharedState.pythonLanguageServers.stopEveryLanguageServer());
   const quitTheApp = () => quitTheTatolabApp(tatolabMainWindow, (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode), tatolabAppLog);
   const showTheWindowWithTheLastStatus = () => {
     tatolabMainWindow.show();

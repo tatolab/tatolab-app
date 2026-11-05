@@ -2,8 +2,11 @@
 // synchronously from what the studio holds.
 
 import { Component, useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
 import { WaitingState } from "../design_system/waiting_state";
-import type { ListedStreamsReading, OpenWorkspaceReading, StopWatching, StreamTabAddress, StudioSelection } from "./studio_view_contract";
+import type { ProjectLogReadings } from "./project_log_readings";
+import type { PythonLanguageServerConnections } from "./python_language_server_connections";
+import type { CodeFileAsked, ListedStreamsReading, OpenWorkspaceReading, StopWatching, StreamTabAddress, StudioSelection } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { StudioViewHostServices } from "./studio_view_type_registry";
 
@@ -43,10 +46,24 @@ export interface InWindowStudioViewHostSources {
   selection: WatchedStudioValue<StudioSelection>;
   activeStreamTab: WatchedStudioValue<StreamTabAddress | null>;
   openStreamTab(streamTab: StreamTabAddress): void;
+  codeFileAsked: WatchedStudioValue<CodeFileAsked | null>;
+  openCodeFile(file: string): void;
 }
 
-/** The services every first-party view is handed, read from `sources` and, for a stream's graph and catalog, from `streamReadings`. */
-export function inWindowStudioViewHostServices(sources: InWindowStudioViewHostSources, streamReadings: StreamGraphAndCatalogReadings): StudioViewHostServices {
+/** What the host reads and writes of the open workspace's projects for its views: their files through the backend, their logs, and their language servers. */
+export interface InWindowWorkspaceProjectServices {
+  backend: Pick<TatolabBackend, "readWorkspaceFile" | "saveWorkspaceFile" | "listWorkspaceProjectFiles">;
+  projectLogReadings: ProjectLogReadings;
+  pythonLanguageServerConnections: PythonLanguageServerConnections;
+}
+
+/** The services every first-party view is handed, read from `sources`, for a stream's graph and catalog from `streamReadings`, and for the workspace's projects from `projectServices`. */
+export function inWindowStudioViewHostServices(
+  sources: InWindowStudioViewHostSources,
+  streamReadings: StreamGraphAndCatalogReadings,
+  projectServices: InWindowWorkspaceProjectServices,
+): StudioViewHostServices {
+  const { backend } = projectServices;
   return {
     watchOpenWorkspace: sources.openWorkspace.watch,
     watchListedStreams: sources.listedStreams.watch,
@@ -56,6 +73,25 @@ export function inWindowStudioViewHostServices(sources: InWindowStudioViewHostSo
     openStreamTab: (streamTab) => sources.openStreamTab(streamTab),
     watchStreamGraph: streamReadings.watchStreamGraph,
     watchNodeCatalog: streamReadings.watchNodeCatalog,
+    watchCodeFileAsked: sources.codeFileAsked.watch,
+    openCodeFile: (file) => sources.openCodeFile(file),
+    readWorkspaceFile: (file) =>
+      backend.readWorkspaceFile(file).then(
+        (fileRead) => ({ kind: "read", file_read: fileRead }),
+        (rejection: unknown) => ({ kind: "not_read", because: describeBackendRejection(rejection) }),
+      ),
+    saveWorkspaceFile: (file, text, basedOnVersion) =>
+      backend.saveWorkspaceFile(file, text, basedOnVersion).then(
+        (fileSaved) => ({ kind: "saved", version: fileSaved.version }),
+        (rejection: unknown) => ({ kind: "not_saved", because: describeBackendRejection(rejection) }),
+      ),
+    listWorkspaceProjectFiles: (projectFolder) =>
+      backend.listWorkspaceProjectFiles(projectFolder).then(
+        (projectFiles) => ({ kind: "listed", project_files: projectFiles }),
+        (rejection: unknown) => ({ kind: "not_listed", because: describeBackendRejection(rejection) }),
+      ),
+    watchProjectLog: projectServices.projectLogReadings.watchProjectLog,
+    connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,
   };
 }
 

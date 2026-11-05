@@ -15,6 +15,8 @@ import {
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
 import { OpenWorkspaceFolder } from "./open_workspace.js";
+import { PythonLanguageServers } from "./python_language_servers.js";
+import { WorkspaceFiles } from "./workspace_files.js";
 import { rememberedOpenWorkspaceFileIn } from "./remembered_open_workspace_file.js";
 import { failedWith, succeeded } from "./result.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
@@ -119,6 +121,15 @@ async function sharedStateOverFakes(
     () => {},
     quietTatolabAppLog,
   );
+  const openWorkspaceFolder = new OpenWorkspaceFolder({
+    homeDirectory: appConfigDirectory,
+    workspaceFolderDialog: async () => succeeded(null),
+    rememberedOpenWorkspaceFolder: rememberedOpenWorkspaceFileIn(appConfigDirectory, quietTatolabAppLog),
+    workspaceProjectCreation: controller,
+    watchFolderEntries: () => null,
+    runAfter: () => () => {},
+    sendTheWindowTheOpenWorkspace: () => {},
+  });
   return {
     controller,
     statusPublisher,
@@ -137,14 +148,14 @@ async function sharedStateOverFakes(
       streamProjectFolderDialog: async () => succeeded(folderTheDialogAnswers),
       projectLoadsOnTheRuntime: controller,
     }),
-    openWorkspaceFolder: new OpenWorkspaceFolder({
-      homeDirectory: appConfigDirectory,
-      workspaceFolderDialog: async () => succeeded(null),
-      rememberedOpenWorkspaceFolder: rememberedOpenWorkspaceFileIn(appConfigDirectory, quietTatolabAppLog),
-      workspaceProjectCreation: controller,
-      watchFolderEntries: () => null,
-      runAfter: () => () => {},
-      sendTheWindowTheOpenWorkspace: () => {},
+    openWorkspaceFolder,
+    workspaceFiles: new WorkspaceFiles(() => openWorkspaceFolder.readOpenWorkspace()),
+    pythonLanguageServers: new PythonLanguageServers({
+      startANodeLanguageServer: () => failedWith("these tests start no language server"),
+      pyrightLanguageServerModulePath: "/fake/pyright/langserver.index.js",
+      projectFolderOfTheOpenWorkspace: () => failedWith("no workspace is open"),
+      sendTheWindowALanguageServerEvent: () => {},
+      tatolabAppLog: quietTatolabAppLog,
     }),
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLinks,

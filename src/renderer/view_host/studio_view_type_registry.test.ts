@@ -11,6 +11,13 @@ const HOST_SERVICES: StudioViewHostServices = {
   openStreamTab: () => undefined,
   watchStreamGraph: () => () => undefined,
   watchNodeCatalog: () => () => undefined,
+  watchCodeFileAsked: () => () => undefined,
+  openCodeFile: () => undefined,
+  readWorkspaceFile: async () => ({ kind: "not_read", because: "no files in this test" }),
+  saveWorkspaceFile: async () => ({ kind: "not_saved", because: "no files in this test" }),
+  listWorkspaceProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
+  watchProjectLog: () => () => undefined,
+  connectToPythonLanguageServer: () => ({ send: () => undefined, close: () => undefined }),
 };
 
 /** A view type keeping a number, which records each connection it is drawn on. */

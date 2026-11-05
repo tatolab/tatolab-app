@@ -1,0 +1,102 @@
+// The code pane's Python language servers: one Pyright language server per session the window
+// starts, each a Node program in its own process, its working folder a project folder of the open
+// workspace. The window speaks JSON-RPC; this module frames and unframes it.
+
+import type { JsonValue, PythonLanguageServerEvent } from "../shared/tatolab_backend_contract.js";
+import { isAJsonValue } from "./json_on_the_wire.js";
+import { frameLanguageServerMessage, LanguageServerMessageReader } from "./language_server_message_framing.js";
+import { failedWith, succeeded, type Result } from "./result.js";
+import type { TatolabAppLog } from "./tatolab_app_log.js";
+
+/** A Node language server running in its own process, with the byte stream its messages travel on. */
+export interface RunningNodeProgram {
+  writeToItsInput(bytes: Buffer): void;
+  /** End the program; its exit still arrives on `onExit`. */
+  stop(): void;
+}
+
+/** Where the bytes a language server writes, and its exit, are told. */
+export interface NodeProgramListeners {
+  onOutput(chunk: Buffer): void;
+  /** The program ended, with how, in words. */
+  onExit(exitWords: string): void;
+}
+
+/** Start the Node language server module at `modulePath` in `workingFolder`, over whichever byte stream the platform gives it; refused in the platform's words. */
+export type StartANodeLanguageServer = (modulePath: string, workingFolder: string, listeners: NodeProgramListeners) => Result<RunningNodeProgram, string>;
+
+/** What the language servers reach: how a Node language server starts, Pyright's language server module, which project folders may be served, and the window. */
+export interface PythonLanguageServersSources {
+  startANodeLanguageServer: StartANodeLanguageServer;
+  /** Pyright's `langserver.index.js`, as this build carries it. */
+  pyrightLanguageServerModulePath: string;
+  /** `projectFolder` as a project folder of the open workspace, or why it is not one. */
+  projectFolderOfTheOpenWorkspace(projectFolder: string): Result<string, string>;
+  sendTheWindowALanguageServerEvent(event: PythonLanguageServerEvent): void;
+  tatolabAppLog: TatolabAppLog;
+}
+
+/** Every Python language server the window has started and not stopped, by session. */
+export class PythonLanguageServers {
+  private readonly runningProgramsBySession = new Map<string, RunningNodeProgram>();
+  private sessionsStarted = 0;
+
+  constructor(private readonly sources: PythonLanguageServersSources) {}
+
+  /** Start a language server for `projectFolder`, answering the session its messages are sent and arrive under; refused for a folder outside the open workspace, or in the platform's words. */
+  startALanguageServer(projectFolder: string): Result<{ session: string }, string> {
+    const servedFolder = this.sources.projectFolderOfTheOpenWorkspace(projectFolder);
+    if (!servedFolder.ok) return servedFolder;
+    this.sessionsStarted += 1;
+    const session = `python-language-server-${this.sessionsStarted}`;
+    const messageReader = new LanguageServerMessageReader();
+    const program = this.sources.startANodeLanguageServer(this.sources.pyrightLanguageServerModulePath, servedFolder.value, {
+      onOutput: (chunk) => this.forwardTheMessagesIn(session, messageReader, chunk),
+      onExit: (exitWords) => this.endTheSession(session, `The Python language server ended: ${exitWords}`),
+    });
+    if (!program.ok) return failedWith(`The Python language server did not start: ${program.failure}`);
+    this.runningProgramsBySession.set(session, program.value);
+    this.sources.tatolabAppLog.info("started a Python language server", { session, project_folder: servedFolder.value });
+    return succeeded({ session });
+  }
+
+  /** Send `message` to the language server of `session`; refused for a session that has ended. */
+  sendToALanguageServer(session: string, message: JsonValue): Result<void, string> {
+    const program = this.runningProgramsBySession.get(session);
+    if (program === undefined) return failedWith(`The Python language server ${session} is no longer running.`);
+    program.writeToItsInput(frameLanguageServerMessage(message));
+    return succeeded(undefined);
+  }
+
+  /** Stop the language server of `session`; a session already ended is left as it is. */
+  stopALanguageServer(session: string): void {
+    const program = this.runningProgramsBySession.get(session);
+    this.runningProgramsBySession.delete(session);
+    program?.stop();
+  }
+
+  /** Stop every language server, as the app quits or the window's page loads again. */
+  stopEveryLanguageServer(): void {
+    for (const session of [...this.runningProgramsBySession.keys()]) this.stopALanguageServer(session);
+  }
+
+  private forwardTheMessagesIn(session: string, messageReader: LanguageServerMessageReader, chunk: Buffer): void {
+    if (!this.runningProgramsBySession.has(session)) return;
+    const read = messageReader.readChunk(chunk);
+    for (const message of read.messages) {
+      if (isAJsonValue(message)) this.sources.sendTheWindowALanguageServerEvent({ session, kind: "message", message });
+    }
+    if (read.framing_failure !== null) {
+      this.sources.tatolabAppLog.warn("a Python language server wrote output that is not the Language Server Protocol; stopped", { session, failure: read.framing_failure });
+      this.endTheSession(session, `The Python language server wrote something the studio cannot read: ${read.framing_failure}`);
+    }
+  }
+
+  private endTheSession(session: string, because: string): void {
+    const program = this.runningProgramsBySession.get(session);
+    if (program === undefined) return;
+    this.runningProgramsBySession.delete(session);
+    program.stop();
+    this.sources.sendTheWindowALanguageServerEvent({ session, kind: "ended", because });
+  }
+}

@@ -57,7 +57,7 @@ async function openEveryOutlinerRow(): Promise<void> {
  * Drives the mock window to the screen the page's query names, as a person would get there, once the window has
  * mounted. In the studio: `?layout=build|compose|spatial|code|perform` (chosen with its shortcut), `?outliner=open`
  * (every row opened), `?select=<row id>` (that outliner row clicked, as `stream:<stream id>`), `?open_stream=<stream id>`
- * (its row double-clicked, opening its tab), `?select_node=<node name>` (that node's card clicked in the stream graph), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
+ * (its row double-clicked, opening its tab), `?select_node=<node name>` (that node's card clicked in the stream graph), `?code_file=<file>` (Stream › Open stream.py chosen, then that file of the workspace project, as `nodes/inverting_effect.py`, opened from the code area's + menu), `?run=live` (Live pressed), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
  * `?submenu=<entry>` (that entry's submenu opened, as `Workspace layout`), and `?area_menu=<area id>` (that area's
  * view-type menu opened); with the backend's `?workspace=none|unreadable` and `?port_families=served` (each port's family in the graph and the catalog). `?page=preferences` opens Preferences, on
  * `?section=general|runtime|command-line|about`; there `?restart=pressed|refused` presses Restart and `?link=pressed`
@@ -86,6 +86,17 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   }
   const selectedNode = pageQuery.get("select_node");
   if (selectedNode !== null) await clickWhenShown(`[data-stream-graph] .react-flow__node:has([data-node-graph-card="${CSS.escape(selectedNode)}"])`);
+  const codeFile = pageQuery.get("code_file");
+  if (codeFile !== null) {
+    await pressWhenShown(`[data-studio-menu="Stream"]`);
+    const openStreamPy = [...document.querySelectorAll<HTMLElement>(`[role="menuitem"]`)].find((menuItem) => menuItem.textContent?.includes("Open stream.py") === true);
+    openStreamPy?.click();
+    if (codeFile !== "stream.py") {
+      await pressWhenShown(`[data-code-file-menu="open"]`);
+      await clickWhenShown(`[data-code-file-choice$="/${CSS.escape(codeFile)}"]`);
+    }
+  }
+  if (pageQuery.get("run") === "live") await clickWhenShown(`[data-studio-run-live]`);
   const areaMenu = pageQuery.get("area_menu");
   if (areaMenu !== null) await pressWhenShown(`[data-area-view-type-menu="${CSS.escape(areaMenu)}"]`);
   const menu = pageQuery.get("menu");

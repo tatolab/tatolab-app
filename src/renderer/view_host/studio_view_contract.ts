@@ -3,7 +3,16 @@
 // view reaches in the window.
 
 import type { ReactNode } from "react";
-import type { JsonValue, ListedStream, NodeCatalog, OpenWorkspaceReading, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type {
+  JsonValue,
+  ListedStream,
+  NodeCatalog,
+  OpenWorkspaceReading,
+  ProjectLogRecord,
+  StreamGraphSummary,
+  WorkspaceFileRead,
+  WorkspaceProjectFiles,
+} from "../../shared/tatolab_backend_contract";
 import type { StudioIconName } from "../design_system/studio_icons";
 
 export type {
@@ -15,11 +24,14 @@ export type {
   NodeCatalogPort,
   OpenWorkspace,
   OpenWorkspaceReading,
+  ProjectLogRecord,
   ProjectOnDisk,
   StreamGraphDeclaredPort,
   StreamGraphLink,
   StreamGraphNode,
   StreamGraphSummary,
+  WorkspaceFileRead,
+  WorkspaceProjectFiles,
 } from "../../shared/tatolab_backend_contract";
 export type { StudioIconName } from "../design_system/studio_icons";
 
@@ -49,6 +61,37 @@ export type StreamGraphReading = { kind: "read"; graph: StreamGraphSummary } | {
 /** The node types a stream can add, or why the runtime lists none, in its own words. */
 export type NodeCatalogReading = { kind: "listed"; catalog: NodeCatalog } | { kind: "not_listed"; because: string };
 
+/** A file of the open workspace's projects as read from disk, or why it was not, in the words of what refused. */
+export type WorkspaceFileReading = { kind: "read"; file_read: WorkspaceFileRead } | { kind: "not_read"; because: string };
+
+/** A file saved, with the version it now has on disk, or why nothing was written. */
+export type WorkspaceFileSaving = { kind: "saved"; version: string } | { kind: "not_saved"; because: string };
+
+/** A project's files, or why they were not listed. */
+export type WorkspaceProjectFilesListing = { kind: "listed"; project_files: WorkspaceProjectFiles } | { kind: "not_listed"; because: string };
+
+/** A project's log as read so far, its latest records last, or why the runtime gives none now, in its own words. */
+export type ProjectLogReading =
+  | { kind: "read"; records: ProjectLogRecord[]; records_no_longer_held: boolean }
+  | { kind: "not_read"; because: string };
+
+/** The file the studio asked a code view to show, as Stream › Open stream.py does; `ask` counts up so asking for the same file again is a new ask. */
+export interface CodeFileAsked {
+  file: string;
+  ask: number;
+}
+
+/** What a Python language server connection delivers: one JSON-RPC message the server sent, or the server's end with why. */
+export type PythonLanguageServerConnectionEvent = { kind: "message"; message: JsonValue } | { kind: "ended"; because: string };
+
+/** One Python language server, started for a project folder, its JSON-RPC messages carried both ways. */
+export interface PythonLanguageServerConnection {
+  /** Send one JSON-RPC message; messages sent before the server has started are held and sent in order. */
+  send(message: JsonValue): void;
+  /** Stop the server; nothing arrives after. */
+  close(): void;
+}
+
 /** Everything a view may read or ask for. */
 export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   /** The settings the view's area holds: restored from the layout, or the view type's defaults. */
@@ -65,6 +108,18 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   watchStreamGraph(stream: string, listener: (reading: StreamGraphReading) => void): StopWatching;
   /** The node types `stream` can add, read when first watched and again once its graph names a type the catalog lacks. */
   watchNodeCatalog(stream: string, listener: (reading: NodeCatalogReading) => void): StopWatching;
+  /** The file the studio last asked a code view to show; `null` until one is asked for. */
+  watchCodeFileAsked(listener: (codeFileAsked: CodeFileAsked | null) => void): StopWatching;
+  /** Ask the studio's code view to show `file`, an absolute path in the open workspace. */
+  openCodeFile(file: string): void;
+  readWorkspaceFile(file: string): Promise<WorkspaceFileReading>;
+  /** Write `text` to `file` whole when it is still at `basedOnVersion` on disk (`null` for a new file); never over a file changed since, or an import's. */
+  saveWorkspaceFile(file: string, text: string, basedOnVersion: string | null): Promise<WorkspaceFileSaving>;
+  listWorkspaceProjectFiles(projectFolder: string): Promise<WorkspaceProjectFilesListing>;
+  /** `projectFolder`'s log, read while any view watches it and the window is shown; the first reading arrives once read. */
+  watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void): StopWatching;
+  /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
+  connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
 }
 
 /** Who brought a view type: the studio itself, or a project of the open workspace. */

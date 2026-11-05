@@ -5,6 +5,7 @@
 
 import type {
   ChosenWorkspaceFolder,
+  JsonValue,
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -22,7 +23,7 @@ import type {
   WorkspaceFolderChosenFor,
 } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
-import { isAJsonObject } from "./json_on_the_wire.js";
+import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import {
@@ -152,6 +153,12 @@ export function projectDirectoryTheRuntimeLastListed(sharedState: TatolabAppShar
   const listedStreams = sharedState.statusPublisher.lastPublishedStatusNow()?.streams ?? [];
   const isListed = listedStreams.some((listedStream) => listedStream.location?.project_directory === projectDirectory);
   return isListed ? succeeded(projectDirectory) : failedWith(`The runtime lists no stream from ${projectDirectory}.`);
+}
+
+/** `projectDirectory` when the runtime last listed a stream from it or it is a project folder of the open workspace, whose log the code pane reads before its first run; refused otherwise. */
+export function projectDirectoryWhoseLogTheWindowMayRead(sharedState: TatolabAppSharedState, projectDirectory: string): Result<string, string> {
+  const workspaceProjectFolder = sharedState.workspaceFiles.projectFolderOfTheOpenWorkspace(projectDirectory);
+  return workspaceProjectFolder.ok ? workspaceProjectFolder : projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory);
 }
 
 /** `rename_stream { stream, display_name }`: the runtime's `rename_stream` on `stream`, then a status round whether it renamed or refused; refused in the runtime's own words. */
@@ -429,6 +436,40 @@ export function chooseWorkspaceFolderArgumentsFrom(commandArguments: unknown): R
   return succeeded({ chosen_for: chosenFor });
 }
 
+/** `run_workspace_project`: the runtime's `run_project` queued on the open workspace's folder, then a status round; refused while no workspace is open, or in the runtime's own words. */
+export function runWorkspaceProject(sharedState: TatolabAppSharedState): Promise<Result<ProjectRunQueued, string>> {
+  return answerTheWindow("run_workspace_project", async () => {
+    const reading = sharedState.openWorkspaceFolder.readOpenWorkspace();
+    if (reading.kind !== "read") return failedWith(reading.kind === "none_open" ? "No workspace is open to run." : `The workspace in ${reading.folder} could not be read: ${reading.refusal}`);
+    const queued = await sharedState.controller.runProject(reading.workspace.workspace_project.folder);
+    sharedState.statusPublisher.requestRefresh();
+    return queued.ok ? queued : failedWith(queued.failure.failureDescription);
+  });
+}
+
+/** `save_workspace_file`'s arguments as the window sends them, or why they are not. */
+export function saveWorkspaceFileArgumentsFrom(commandArguments: unknown): Result<{ file: string; text: string; based_on_version: string | null }, string> {
+  if (
+    !isAJsonObject(commandArguments) ||
+    typeof commandArguments["file"] !== "string" ||
+    typeof commandArguments["text"] !== "string" ||
+    !isTextOrNull(commandArguments["based_on_version"])
+  ) {
+    return failedWith("save_workspace_file needs `file`, an absolute path, `text`, and `based_on_version`, the version it was read at or null for a new file");
+  }
+  return succeeded({ file: commandArguments["file"], text: commandArguments["text"], based_on_version: commandArguments["based_on_version"] });
+}
+
+/** `send_to_python_language_server`'s arguments as the window sends them, or why they are not. */
+export function sendToPythonLanguageServerArgumentsFrom(commandArguments: unknown): Result<{ session: string; message: JsonValue }, string> {
+  const message = isAJsonObject(commandArguments) ? commandArguments["message"] : undefined;
+  const session = isAJsonObject(commandArguments) ? commandArguments["session"] : undefined;
+  if (typeof session !== "string" || !isAJsonObject(message) || !isAJsonValue(message)) {
+    return failedWith("send_to_python_language_server needs `session`, a language server's session, and `message`, one JSON-RPC message");
+  }
+  return succeeded({ session, message });
+}
+
 /** Each command's handler, taking the arguments as the window sent them and answering in the contract's shape. */
 export type TatolabWindowCommandHandlers = {
   readonly [CommandName in TatolabCommandName]: (commandArguments: unknown) => Promise<TatolabCommandAnswerTo<CommandName>>;
@@ -464,9 +505,9 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const readArguments = readProjectLogRecordsArgumentsFrom(commandArguments);
       if (!readArguments.ok) return { ok: false, refusal: readArguments.failure };
       const { projectDirectory, narrowing, after } = readArguments.value;
-      const listedProjectDirectory = projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory);
-      if (!listedProjectDirectory.ok) return { ok: false, refusal: listedProjectDirectory.failure };
-      return commandAnswerFrom(await readProjectLogRecords(sharedState, listedProjectDirectory.value, narrowing, after));
+      const readableProjectDirectory = projectDirectoryWhoseLogTheWindowMayRead(sharedState, projectDirectory);
+      if (!readableProjectDirectory.ok) return { ok: false, refusal: readableProjectDirectory.failure };
+      return commandAnswerFrom(await readProjectLogRecords(sharedState, readableProjectDirectory.value, narrowing, after));
     },
     check_for_tatolab_app_updates: async () => {
       checkForTatolabAppUpdatesOnRequest(sharedState, "window");
@@ -570,6 +611,39 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       return commandAnswerFrom(await chooseWorkspaceFolder(sharedState, chooseArguments.value.chosen_for));
     },
     read_open_workspace: async () => ({ ok: true, value: sharedState.openWorkspaceFolder.readOpenWorkspace() }),
+    read_workspace_file: async (commandArguments) => {
+      const file = oneTextArgumentFrom("read_workspace_file", commandArguments, "file", "an absolute path in the open workspace");
+      if (!file.ok) return { ok: false, refusal: file.failure };
+      return commandAnswerFrom(await answerTheWindow("read_workspace_file", () => sharedState.workspaceFiles.readWorkspaceFile(file.value)));
+    },
+    save_workspace_file: async (commandArguments) => {
+      const saveArguments = saveWorkspaceFileArgumentsFrom(commandArguments);
+      if (!saveArguments.ok) return { ok: false, refusal: saveArguments.failure };
+      const { file, text, based_on_version } = saveArguments.value;
+      return commandAnswerFrom(await answerTheWindow("save_workspace_file", () => sharedState.workspaceFiles.saveWorkspaceFile(file, text, based_on_version)));
+    },
+    list_workspace_project_files: async (commandArguments) => {
+      const projectFolder = oneTextArgumentFrom("list_workspace_project_files", commandArguments, "project_folder", "a project folder of the open workspace");
+      if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };
+      return commandAnswerFrom(await answerTheWindow("list_workspace_project_files", () => sharedState.workspaceFiles.listWorkspaceProjectFiles(projectFolder.value)));
+    },
+    run_workspace_project: async () => commandAnswerFrom(await runWorkspaceProject(sharedState)),
+    start_python_language_server: async (commandArguments) => {
+      const projectFolder = oneTextArgumentFrom("start_python_language_server", commandArguments, "project_folder", "a project folder of the open workspace");
+      if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };
+      return commandAnswerFrom(sharedState.pythonLanguageServers.startALanguageServer(projectFolder.value));
+    },
+    send_to_python_language_server: async (commandArguments) => {
+      const sendArguments = sendToPythonLanguageServerArgumentsFrom(commandArguments);
+      if (!sendArguments.ok) return { ok: false, refusal: sendArguments.failure };
+      return commandAnswerOfNothingFrom(sharedState.pythonLanguageServers.sendToALanguageServer(sendArguments.value.session, sendArguments.value.message));
+    },
+    stop_python_language_server: async (commandArguments) => {
+      const session = oneTextArgumentFrom("stop_python_language_server", commandArguments, "session", "a language server's session");
+      if (!session.ok) return { ok: false, refusal: session.failure };
+      sharedState.pythonLanguageServers.stopALanguageServer(session.value);
+      return { ok: true, value: null };
+    },
   };
 }
 

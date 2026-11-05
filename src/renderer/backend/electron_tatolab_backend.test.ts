@@ -38,6 +38,9 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
       openWorkspaceListeners.add(listener);
       return () => openWorkspaceListeners.delete(listener);
     },
+    onPythonLanguageServerEvent() {
+      return () => undefined;
+    },
     tellTheAppTheWindowDrewItsFirstStatus() {},
   };
   return { tatolabElectronBridge, invokedCommands, statusListeners, streamPageRequestListeners, openWorkspaceListeners };

@@ -5,15 +5,26 @@ import type { OpenWorkspaceReading, TatolabStatus } from "../../shared/tatolab_b
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import { WatchedStudioValue, type InWindowStudioViewHostSources } from "../view_host/in_window_view_host";
-import type { JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection } from "../view_host/studio_view_contract";
-import { layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
+import type { CodeFileAsked, JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection } from "../view_host/studio_view_contract";
+import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
 import type { WorkspaceLayoutName, WorkspaceLayoutsKeptInStorage, WorkspaceLayoutsOfAFolder } from "./workspace_layouts";
+
+/** The view type id of the code pane, which Stream › Open stream.py shows a file in. */
+export const CODE_VIEW_TYPE_ID = "code";
 
 /** The streams the runtime lists in `status`, or why it lists none now. */
 export function listedStreamsReadingOf(status: TatolabStatus): ListedStreamsReading {
   const runtimeStatus = presentRuntimeStatus(status);
   if (runtimeStatus.displayState === "running" && status.streams !== null) return { kind: "listed", streams: status.streams };
   return { kind: "not_listed", because: runtimeStatus.banner?.title ?? runtimeStatus.shortLabel };
+}
+
+/** The streams of the project in `projectFolder` that Run › Stop stops: each one running or on its way to running. */
+export function streamsOfTheProjectToStop(listedStreams: ListedStreamsReading, projectFolder: string): string[] {
+  if (listedStreams.kind !== "listed") return [];
+  return listedStreams.streams
+    .filter((listing) => listing.location?.project_directory === projectFolder && (listing.state === "running" || listing.state === "preparing"))
+    .map((listing) => listing.stream);
 }
 
 /** The open stream tabs, in the strip's order, and the one shown. */
@@ -47,6 +58,10 @@ export class StudioWindowModel {
   readonly workspaceOpeningRefusal = new WatchedStudioValue<string | null>(null);
   /** The open workspace's layouts; `null` while none is open. */
   readonly workspaceLayouts = new WatchedStudioValue<WorkspaceLayoutsOfAFolder | null>(null);
+  /** The file a code view was last asked to show. */
+  readonly codeFileAsked = new WatchedStudioValue<CodeFileAsked | null>(null);
+  /** Why the last run or stop of the workspace project was refused, until it is dismissed or another is asked for. */
+  readonly workspaceRunRefusal = new WatchedStudioValue<{ asked_to: "run" | "stop"; because: string } | null>(null);
 
   constructor(private readonly layoutsKept: WorkspaceLayoutsKeptInStorage) {}
 
@@ -58,7 +73,16 @@ export class StudioWindowModel {
       selection: this.selection,
       activeStreamTab: this.activeStreamTab,
       openStreamTab: (streamTab) => this.openStreamTab(streamTab),
+      codeFileAsked: this.codeFileAsked,
+      openCodeFile: (file) => this.openCodeFile(file),
     };
+  }
+
+  /** Ask the code view to show `file`; a layout with no code area switches to Code, which has one. */
+  openCodeFile(file: string): void {
+    const layouts = this.workspaceLayouts.readLatest();
+    if (layouts !== null && !layoutShowsTheViewType(layouts.layouts[layouts.chosen_layout], CODE_VIEW_TYPE_ID)) this.chooseLayout("code");
+    this.codeFileAsked.publish({ file, ask: (this.codeFileAsked.readLatest()?.ask ?? 0) + 1 });
   }
 
   /** Show `reading`; a workspace in another folder brings its own layouts and starts with no tabs and nothing selected. */

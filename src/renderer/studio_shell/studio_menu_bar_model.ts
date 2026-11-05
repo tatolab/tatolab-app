@@ -16,7 +16,20 @@ export interface StudioMenuBarCommands {
   openPreferences(): void;
   openAbout(): void;
   chooseLayout(layoutName: WorkspaceLayoutName): void;
+  /** Run › Live: run the workspace project, which loads every `@stream` in it again. */
+  runTheWorkspaceLive(): void;
+  /** Run › Stop: stop the workspace project's running streams. */
+  stopTheWorkspace(): void;
+  /** Stream › Open stream.py: show the workspace project's `stream.py` in a code area. */
+  openTheWorkspaceStreamPy(): void;
 }
+
+/** Why an entry that acts on the open workspace cannot run while none is open. */
+export const NO_WORKSPACE_OPEN_REASON = "Open a workspace first";
+
+/** The keys that run the workspace live, and stop it. */
+export const RUN_LIVE_KEY = "F5";
+export const STOP_KEY_HINT = "Shift F5";
 
 function laterCommand(label: string, shortcut?: string): StudioMenuEntry {
   return shortcut === undefined
@@ -26,6 +39,10 @@ function laterCommand(label: string, shortcut?: string): StudioMenuEntry {
 
 /** The studio's menus on `platform`, Window › Workspace layout ticking `chosenLayout`, or naming why it waits while no workspace is open. */
 export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: WorkspaceLayoutName | null, commands: StudioMenuBarCommands): StudioMenu[] {
+  const workspaceCommand = (label: string, onChosen: () => void, shortcut?: string): StudioMenuEntry => {
+    if (chosenLayout === null) return shortcut === undefined ? { kind: "unavailable_command", label, unavailableBecause: NO_WORKSPACE_OPEN_REASON } : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause: NO_WORKSPACE_OPEN_REASON };
+    return shortcut === undefined ? { kind: "command", label, onChosen } : { kind: "command", label, shortcutHint: shortcut, onChosen };
+  };
   const workspaceLayoutEntry: StudioMenuEntry =
     chosenLayout === null
       ? { kind: "unavailable_command", label: "Workspace layout", unavailableBecause: "Open a workspace to lay out its areas" }
@@ -63,8 +80,11 @@ export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: Work
       ],
     },
     { label: "Add", entries: [laterCommand("Node…", "Shift A"), laterCommand("Connection…"), laterCommand("Variable…"), laterCommand("Frame")] },
-    { label: "Stream", entries: [laterCommand("Run on…"), laterCommand("Stream clock"), laterCommand("Open stream.py")] },
-    { label: "Run", entries: [laterCommand("Live", "F5"), laterCommand("Stop", "Shift F5"), laterCommand("Render to file…")] },
+    { label: "Stream", entries: [laterCommand("Run on…"), laterCommand("Stream clock"), workspaceCommand("Open stream.py", commands.openTheWorkspaceStreamPy)] },
+    {
+      label: "Run",
+      entries: [workspaceCommand("Live", commands.runTheWorkspaceLive, RUN_LIVE_KEY), workspaceCommand("Stop", commands.stopTheWorkspace, STOP_KEY_HINT), laterCommand("Render to file…")],
+    },
     { label: "Window", entries: [workspaceLayoutEntry, laterCommand("Save layout as…"), laterCommand("Maximise area"), laterCommand("New window")] },
     { label: "Help", entries: [{ kind: "command", label: "About Tatolab", onChosen: commands.openAbout }, laterCommand("Documentation")] },
   ];
