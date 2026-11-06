@@ -89,7 +89,9 @@ export function mountTatolabWindow(
     backend.chooseProjectFolder(chosenFor).catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
   };
   const studioMenuBarCommands: StudioMenuBarCommands = {
-    showProjects: () => studioWindowModel.isProjectsShown.publish(true),
+    showProjects: () => {
+      backend.showTheProjectsWindow().catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
+    },
     openAProject: () => chooseProjectFolder("project_to_open"),
     createAProject: () => {
       studioWindowModel.projectOpeningRefusal.publish(null);

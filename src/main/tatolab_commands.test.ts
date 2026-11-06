@@ -14,9 +14,10 @@ import {
 } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
-import { OpenProjectFolder } from "./open_project.js";
+import { ProjectOpening } from "./open_project.js";
 import { PythonLanguageServers } from "./python_language_servers.js";
-import { OpenProjectFiles } from "./open_project_files.js";
+import { TatolabAppWindows } from "./tatolab_app_windows.js";
+import { FakeTatolabElectronAppShell, PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { recentProjectFoldersFileIn } from "./recent_project_folders_file.js";
 import { failedWith, succeeded } from "./result.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
@@ -28,6 +29,9 @@ import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_record
 import { TatolabAppController } from "./tatolab_app_controller.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
+
+/** A command as the Projects window sends it. */
+const FROM_THE_PROJECTS_WINDOW = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID };
 import {
   answerTheWindow,
   describeStreamGraph,
@@ -113,16 +117,25 @@ async function sharedStateOverFakes(
     () => {},
     quietTatolabAppLog,
   );
-  const openProjectFolder = new OpenProjectFolder({
+  const fakeShellForTheWindows = new FakeTatolabElectronAppShell();
+  const appWindows = new TatolabAppWindows({
+    mainWindowHostFactory: fakeShellForTheWindows.tatolabElectronAppShell.mainWindowHostFactory,
+    platformItems: { mainWindowChrome: { titleBarStyle: "default" }, setDockIconVisible: () => {} },
+    dockIconHost: fakeShellForTheWindows.tatolabElectronAppShell.dockIconHost,
+    watchFolderEntries: () => null,
+    runAfter: () => () => {},
+    whenAStudioWindowClosed: () => {},
+    tatolabAppLog: quietTatolabAppLog,
+  });
+  appWindows.showTheProjectsWindow();
+  const projectOpening = new ProjectOpening({
     homeDirectory: appConfigDirectory,
     documentsDirectory: path.join(appConfigDirectory, "Documents"),
     projectFolderDialog: async () => succeeded(null),
     recentProjectFolders: recentProjectFoldersFileIn(appConfigDirectory, quietTatolabAppLog),
     readWallClockNowMs: () => 1_790_000_000_000,
     newProjectCreation: controller,
-    watchFolderEntries: () => null,
-    runAfter: () => () => {},
-    sendTheWindowTheOpenProject: () => {},
+    openTheProjectInItsStudioWindow: (folder) => appWindows.openTheProjectInItsStudioWindow(folder),
   });
   return {
     controller,
@@ -141,13 +154,11 @@ async function sharedStateOverFakes(
       streamProjectFolderDialog: async () => succeeded(folderTheDialogAnswers),
       projectLoadsOnTheRuntime: controller,
     }),
-    openProjectFolder,
-    openProjectFiles: new OpenProjectFiles(() => openProjectFolder.readOpenProject()),
+    projectOpening,
+    appWindows,
     pythonLanguageServers: new PythonLanguageServers({
       startANodeLanguageServer: () => failedWith("these tests start no language server"),
       pyrightLanguageServerModulePath: "/fake/pyright/langserver.index.js",
-      projectFolderOfTheOpenProject: () => failedWith("no project is open"),
-      sendTheWindowALanguageServerEvent: () => {},
       tatolabAppLog: quietTatolabAppLog,
     }),
     tatolabAppLog: quietTatolabAppLog,
@@ -355,20 +366,20 @@ test("each command answers the window in the contract's shape, a refusal in its 
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {
     quitRequests += 1;
   });
-  expect(await commandHandlers.describe_stream_graph({ stream: "nope" })).toEqual({ ok: false, refusal: graphRefusal });
-  expect(await commandHandlers.link_command_line_tool(undefined)).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.quit_tatolab_app(undefined)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.describe_stream_graph({ stream: "nope" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: graphRefusal });
+  expect(await commandHandlers.link_command_line_tool(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.quit_tatolab_app(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(quitRequests).toBe(1);
-  expect(await commandHandlers.set_stream_failure_notifications({ enabled: "yes" })).toEqual({
+  expect(await commandHandlers.set_stream_failure_notifications({ enabled: "yes" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "set_stream_failure_notifications needs `enabled`, true or false",
   });
-  expect(await commandHandlers.read_project_log_records({ stream: "camera" })).toEqual({
+  expect(await commandHandlers.read_project_log_records({ stream: "camera" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal:
       "read_project_log_records needs `project_directory`, a project's folder, and `stream`, `action` and `after`, each text or null: a stream's id, a stream action's id, and the cursor of the page before",
   });
-  expect(await commandHandlers.describe_stream_graph(null)).toEqual({ ok: false, refusal: "describe_stream_graph needs `stream`, a stream's id" });
+  expect(await commandHandlers.describe_stream_graph(null, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "describe_stream_graph needs `stream`, a stream's id" });
 });
 
 test("a stream action queues on the runtime, then observes again whether it queued or was refused", async () => {
@@ -419,21 +430,21 @@ test("each queued action answers the window null, and a missing argument or a pr
     "linux"
   );
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
-  expect(await commandHandlers.remove_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" })).toEqual({
+  expect(await commandHandlers.remove_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "The runtime lists no stream from /tmp/tatolab-proof-projects/doorways.",
   });
   await sharedState.statusPublisher.refreshAndPublish();
 
-  expect(await commandHandlers.stop_stream({ stream: "pattern-main-d76f70" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.start_stream({ stream: "pattern-main-d76f70" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.remove_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.remove_project({ stream: "pattern-main-d76f70" })).toEqual({
+  expect(await commandHandlers.stop_stream({ stream: "pattern-main-d76f70" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.start_stream({ stream: "pattern-main-d76f70" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.remove_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.remove_project({ stream: "pattern-main-d76f70" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "remove_project needs `project_directory`, a project's folder as the runtime lists it",
   });
-  expect(await commandHandlers.remove_project({ project_directory: "/etc" })).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
-  expect(await commandHandlers.read_project_log_records({ project_directory: "/etc", stream: null, action: null, after: null })).toEqual({
+  expect(await commandHandlers.remove_project({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
+  expect(await commandHandlers.read_project_log_records({ project_directory: "/etc", stream: null, action: null, after: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "The runtime lists no stream from /etc.",
   });
@@ -453,12 +464,12 @@ test("reloading a project the runtime lists queues run_project on its folder, an
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
   await sharedState.statusPublisher.refreshAndPublish();
 
-  expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" }))).toBe(
+  expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" }, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"action":"Rnd53mwtsrixjyxk7h3jfq5j5-7","project_directory":"/tmp/tatolab-proof-projects/doorways"}}',
   );
   expect(refreshRequests).toHaveBeenCalledTimes(1);
-  expect(await commandHandlers.reload_project({ project_directory: "/etc" })).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
-  expect(await commandHandlers.reload_project({ folder: "/tmp/tatolab-proof-projects/doorways" })).toEqual({
+  expect(await commandHandlers.reload_project({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
+  expect(await commandHandlers.reload_project({ folder: "/tmp/tatolab-proof-projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "reload_project needs `project_directory`, a project's folder as the runtime lists it",
   });
@@ -475,13 +486,13 @@ test("renaming a stream asks the runtime, then observes again whether it renamed
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(JSON.stringify(await commandHandlers.rename_stream({ stream: "heat-map-main-8eda1f", display_name: "Heat map" }))).toBe('{"ok":true,"value":null}');
-  expect(await commandHandlers.rename_stream({ stream: "heat-map-main-8eda1f", display_name: "   " })).toEqual({
+  expect(JSON.stringify(await commandHandlers.rename_stream({ stream: "heat-map-main-8eda1f", display_name: "Heat map" }, FROM_THE_PROJECTS_WINDOW))).toBe('{"ok":true,"value":null}');
+  expect(await commandHandlers.rename_stream({ stream: "heat-map-main-8eda1f", display_name: "   " }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: `Invalid configuration: "   " cannot be a stream's display name: it shows nothing; a display name is any text with something to show`,
   });
   expect(refreshRequests).toHaveBeenCalledTimes(2);
-  expect(await commandHandlers.rename_stream({ stream: "heat-map-main-8eda1f" })).toEqual({
+  expect(await commandHandlers.rename_stream({ stream: "heat-map-main-8eda1f" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "rename_stream needs `display_name`, the display name to show it under",
   });
@@ -511,29 +522,29 @@ test("opening_a_streams_project_opens_the_folder_the_runtime_last_listed_for_it_
     ["/Users/jonathanf/streams/main", "/Users/jonathanf/streams/main/.streamlib/logs"],
   );
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
-  expect(await commandHandlers.open_stream_project_folder({ stream: "main-main-9e44b1" })).toEqual({
+  expect(await commandHandlers.open_stream_project_folder({ stream: "main-main-9e44b1" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "The runtime does not list main-main-9e44b1, so Tato Studio has no project folder to open.",
   });
   await sharedState.statusPublisher.refreshAndPublish();
 
-  expect(await commandHandlers.open_stream_project_folder({ stream: "main-main-9e44b1", project_directory: "/etc" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.open_stream_project_folder({ stream: "main" })).toEqual({
+  expect(await commandHandlers.open_stream_project_folder({ stream: "main-main-9e44b1", project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.open_stream_project_folder({ stream: "main" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "The runtime does not list main, so Tato Studio has no project folder to open.",
   });
-  expect(await commandHandlers.open_terminal_at_stream_project({ stream: "main-main-9e44b1" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.open_terminal_at_stream_project({ stream: "other" })).toEqual({
+  expect(await commandHandlers.open_terminal_at_stream_project({ stream: "main-main-9e44b1" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.open_terminal_at_stream_project({ stream: "other" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "The runtime does not list other, so Tato Studio has no project folder to open.",
   });
-  expect(await commandHandlers.open_terminal_at_stream_project({})).toEqual({
+  expect(await commandHandlers.open_terminal_at_stream_project({}, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "open_terminal_at_stream_project needs `stream`, a stream's id",
   });
 
-  expect(await commandHandlers.open_stream_log_folder({ stream: "main-main-9e44b1" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.open_stream_log_folder({})).toEqual({
+  expect(await commandHandlers.open_stream_log_folder({ stream: "main-main-9e44b1" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.open_stream_log_folder({}, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "open_stream_log_folder needs `stream`, a stream's id",
   });
@@ -561,19 +572,19 @@ test("adding a project answers the window in the contract's shape, from the chos
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(JSON.stringify(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" }))).toBe(`{"ok":true,"value":${JSON.stringify(projectFolder)}}`);
-  expect(JSON.stringify(await commandHandlers.run_stream_project({ folder: projectFolder }))).toBe(
+  expect(JSON.stringify(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" }, FROM_THE_PROJECTS_WINDOW))).toBe(`{"ok":true,"value":${JSON.stringify(projectFolder)}}`);
+  expect(JSON.stringify(await commandHandlers.run_stream_project({ folder: projectFolder }, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"action":"Rj12j3eujz3zn0dposliv79k9-3","project_directory":"/tmp/tatolab-proof-projects/hallways"}}',
   );
-  expect(JSON.stringify(await commandHandlers.create_stream_project({ folder: null }))).toBe(
+  expect(JSON.stringify(await commandHandlers.create_stream_project({ folder: null }, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"action":"Rj12j3eujz3zn0dposliv79k9-7","stream":"kind-butte-main-e51c2f","project_directory":"/tmp/tatolab-proof/streams/kind-butte"}}',
   );
   expect(refreshRequests).toHaveBeenCalledTimes(2);
-  expect(JSON.stringify(await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-7" }))).toBe(
+  expect(JSON.stringify(await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-7" }, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"kind":"described","description":{"action":"Rj12j3eujz3zn0dposliv79k9-7","project_directory":"/tmp/tatolab-proof/streams/kind-butte",' +
       '"kind":"load","state":"in_progress","step":"starting","streams":[{"stream":"kind-butte-main-e51c2f","display_name":"main","state":null}],"failed_because":null}}}',
   );
-  expect(await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-999" })).toEqual({
+  expect(await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-999" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: true,
     value: {
       kind: "not_held",
@@ -581,7 +592,7 @@ test("adding a project answers the window in the contract's shape, from the chos
         "Invalid configuration: the stream action `Rj12j3eujz3zn0dposliv79k9-999` is not held: this runtime never queued it, or it is older than the last 64 finished actions of its project; its records stay in the project's log",
     },
   });
-  const unanswered = await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-7" });
+  const unanswered = await commandHandlers.describe_stream_action({ action: "Rj12j3eujz3zn0dposliv79k9-7" }, FROM_THE_PROJECTS_WINDOW);
   expect(unanswered.ok).toBe(false);
 });
 
@@ -597,53 +608,53 @@ test("cancel_stream_action answers the window in the contract's shape, asks for 
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(JSON.stringify(await commandHandlers.cancel_stream_action({ action: "Ra19ljkh20wimdvgya5udt9v1-9" }))).toBe(
+  expect(JSON.stringify(await commandHandlers.cancel_stream_action({ action: "Ra19ljkh20wimdvgya5udt9v1-9" }, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"action":"Ra19ljkh20wimdvgya5udt9v1-9","state":"in_progress"}}',
   );
-  expect(await commandHandlers.cancel_stream_action({ action: "Ra19ljkh20wimdvgya5udt9v1-13" })).toEqual({
+  expect(await commandHandlers.cancel_stream_action({ action: "Ra19ljkh20wimdvgya5udt9v1-13" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "Invalid configuration: the stream action `Ra19ljkh20wimdvgya5udt9v1-13` is a running stop, which has begun unloading its streams and cannot be cut short; it ends done",
   });
   expect(refreshRequests).toHaveBeenCalledTimes(2);
-  expect(await commandHandlers.cancel_stream_action({})).toEqual({ ok: false, refusal: "cancel_stream_action needs `action`, a stream action's id" });
+  expect(await commandHandlers.cancel_stream_action({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "cancel_stream_action needs `action`, a stream action's id" });
 });
 
 test("the commands that add a project read their arguments as the window sends them, and refuse anything else", async () => {
   const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
-  expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "anything" })).toEqual({
+  expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "anything" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "choose_stream_project_folder needs `chosen_for`, project_to_run or new_project_directory",
   });
-  expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.create_stream_project({ folder: 7 })).toEqual({
+  expect(await commandHandlers.choose_stream_project_folder({ chosen_for: "project_to_run" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.create_stream_project({ folder: 7 }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "create_stream_project needs `folder`, a folder chosen in the window, or null for one the runtime draws under ~/streams",
   });
-  expect(await commandHandlers.create_stream_project({ folder: "/etc" })).toEqual({ ok: false, refusal: "Tato Studio acts only on a folder chosen in its window. Choose /etc again." });
-  expect(await commandHandlers.run_stream_project({ folder: null })).toEqual({ ok: false, refusal: "run_stream_project needs `folder`, a folder chosen in the window" });
-  expect(await commandHandlers.describe_stream_action({})).toEqual({ ok: false, refusal: "describe_stream_action needs `action`, a stream action's id" });
+  expect(await commandHandlers.create_stream_project({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "Tato Studio acts only on a folder chosen in its window. Choose /etc again." });
+  expect(await commandHandlers.run_stream_project({ folder: null }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "run_stream_project needs `folder`, a folder chosen in the window" });
+  expect(await commandHandlers.describe_stream_action({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "describe_stream_action needs `action`, a stream action's id" });
 });
 
 test("The Projects window's commands list no recent project on a fresh install, and open only a recent one", async () => {
   const commandHandlers = tatolabWindowCommandHandlers(await sharedStateOverFakes([], "linux"), () => {});
-  expect(await commandHandlers.read_recent_projects(undefined)).toEqual({ ok: true, value: [] });
-  expect(await commandHandlers.open_recent_project({})).toEqual({ ok: false, refusal: "open_recent_project needs `folder`, one of the recent projects' folders" });
-  expect(await commandHandlers.open_recent_project({ folder: "/etc" })).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
+  expect(await commandHandlers.read_recent_projects(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: [] });
+  expect(await commandHandlers.open_recent_project({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "open_recent_project needs `folder`, one of the recent projects' folders" });
+  expect(await commandHandlers.open_recent_project({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "/etc is not one of the recent projects." });
 });
 
 test("New project's commands suggest an untitled project in Documents/Tato Studio and read their arguments as the window sends them", async () => {
   const sharedState = await sharedStateOverFakes([], "linux");
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
-  const readDefaults = await commandHandlers.read_new_project_defaults(undefined);
+  const readDefaults = await commandHandlers.read_new_project_defaults(undefined, FROM_THE_PROJECTS_WINDOW);
   expect(readDefaults).toMatchObject({ ok: true, value: { name: "Untitled project" } });
   expect(readDefaults.ok && readDefaults.value.location.endsWith(path.join("Documents", "Tato Studio"))).toBe(true);
-  expect(await commandHandlers.choose_project_folder({ chosen_for: "new_project" })).toEqual({ ok: false, refusal: "choose_project_folder needs `chosen_for`, project_to_open" });
-  expect(await commandHandlers.choose_new_project_location({})).toEqual({ ok: false, refusal: "choose_new_project_location needs `starting_at`, the folder the dialog opens in" });
-  expect(await commandHandlers.choose_new_project_location({ starting_at: "/Users/someone" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.create_new_project({ location: "/tmp" })).toEqual({ ok: false, refusal: "create_new_project needs `name`, the new project's name" });
-  expect(await commandHandlers.create_new_project({ name: "Show" })).toEqual({ ok: false, refusal: "create_new_project needs `location`, the full path of the folder it goes in" });
-  expect(await commandHandlers.create_new_project({ name: "a/b", location: "/tmp" })).toEqual({ ok: false, refusal: "A project's name can't hold a /." });
+  expect(await commandHandlers.choose_project_folder({ chosen_for: "new_project" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "choose_project_folder needs `chosen_for`, project_to_open" });
+  expect(await commandHandlers.choose_new_project_location({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "choose_new_project_location needs `starting_at`, the folder the dialog opens in" });
+  expect(await commandHandlers.choose_new_project_location({ starting_at: "/Users/someone" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.create_new_project({ location: "/tmp" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "create_new_project needs `name`, the new project's name" });
+  expect(await commandHandlers.create_new_project({ name: "Show" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "create_new_project needs `location`, the full path of the folder it goes in" });
+  expect(await commandHandlers.create_new_project({ name: "a/b", location: "/tmp" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "A project's name can't hold a /." });
   expect(refreshRequests).toHaveBeenCalledTimes(1);
 });
 
@@ -658,10 +669,10 @@ test("describing_the_runtime_answers_the_window_in_the_contracts_shape_and_a_run
   );
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(JSON.stringify(await commandHandlers.describe_runtime(undefined))).toBe(
+  expect(JSON.stringify(await commandHandlers.describe_runtime(undefined, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"version":"0.55.2","build_id":"0.55.2+ec6adf522.7f3a91","up_for_ms":4000,"runtime_log_directory":null}}',
   );
-  expect(await commandHandlers.describe_runtime(undefined)).toEqual({
+  expect(await commandHandlers.describe_runtime(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "`describe_runtime` answered 503 with a body that is not JSON-RPC: Unexpected end of JSON input",
   });
@@ -676,12 +687,12 @@ test("restarting_the_runtime_stops_the_apps_runtime_to_start_it_again_then_obser
   await sharedState.controller.composeStatus(0);
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
 
-  expect(await commandHandlers.restart_runtime(undefined)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.restart_runtime(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(sharedState.carriedRuntimeStarts.lastRuntimeStarted()?.askedToStop).toBe(true);
   expect(refreshRequests).toHaveBeenCalledTimes(1);
 
   const runtimeTheCommandLineStarted = await sharedStateOverFakes([httpResponse("200 OK", "text/plain", "ok")], "linux");
-  expect(await tatolabWindowCommandHandlers(runtimeTheCommandLineStarted, () => {}).restart_runtime(undefined)).toEqual({
+  expect(await tatolabWindowCommandHandlers(runtimeTheCommandLineStarted, () => {}).restart_runtime(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL,
   });
@@ -700,8 +711,8 @@ test("opening_the_runtimes_log_folder_opens_the_folder_the_runtime_names_and_nev
   );
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(await commandHandlers.open_runtime_log_folder({ folder: "/etc" })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.open_runtime_log_folder(undefined)).toEqual({ ok: false, refusal: RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL });
+  expect(await commandHandlers.open_runtime_log_folder({ folder: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.open_runtime_log_folder(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL });
   expect(sharedState.foldersShownInTheFileManager).toEqual([runtimeLogFolder]);
 });
 
@@ -710,10 +721,10 @@ test("turning_stream_failure_notifications_off_is_remembered_shown_in_the_next_s
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(await commandHandlers.set_stream_failure_notifications({ enabled: false })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.set_stream_failure_notifications({ enabled: false }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(refreshRequests).toHaveBeenCalledTimes(1);
   expect(sharedState.streamFailureNotifications.stateNow()).toEqual({ enabled: false, shown_by_this_desktop: true });
-  expect(await commandHandlers.set_stream_failure_notifications({ enabled: "no" })).toEqual({
+  expect(await commandHandlers.set_stream_failure_notifications({ enabled: "no" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "set_stream_failure_notifications needs `enabled`, true or false",
   });
@@ -724,16 +735,16 @@ test("opening_tatolab_at_login_asks_the_desktop_then_observes_again_and_is_refus
   const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(await commandHandlers.set_open_tatolab_at_login({ enabled: true })).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.set_open_tatolab_at_login({ enabled: true }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(sharedState.tatolabAppOpenedAtLogin.setsAsked).toEqual([true]);
   expect(refreshRequests).toHaveBeenCalledTimes(1);
 
   sharedState.tatolabAppOpenedAtLogin.refusal = "Tato Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied";
-  expect(await commandHandlers.set_open_tatolab_at_login({ enabled: false })).toEqual({
+  expect(await commandHandlers.set_open_tatolab_at_login({ enabled: false }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "Tato Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
   });
-  expect(await commandHandlers.set_open_tatolab_at_login({})).toEqual({ ok: false, refusal: "set_open_tatolab_at_login needs `enabled`, true or false" });
+  expect(await commandHandlers.set_open_tatolab_at_login({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "set_open_tatolab_at_login needs `enabled`, true or false" });
 });
 
 /** The window's `RelaysDescription` reads exactly this JSON, recorded from a test-root runtime. */
@@ -749,7 +760,7 @@ test("describing_the_relays_answers_the_window_in_the_contracts_shape", async ()
   const recordedAdapters = relayAdaptersFromTheRelayAdaptersAnswer(await recordedResponseBody("local-api-relay-adapters-answer-of-a-test-root-runtime.json"));
   const recordedLocalRelayIcon = recordedAdapters.ok ? recordedAdapters.value[0]?.display_icon_data_uri : expect.unreachable(recordedAdapters.failure);
 
-  const answer = JSON.stringify(await commandHandlers.describe_relays(undefined));
+  const answer = JSON.stringify(await commandHandlers.describe_relays(undefined, FROM_THE_PROJECTS_WINDOW));
 
   expect(answer.startsWith('{"ok":true,"value":{"relays":[{"relay_id":"local-loopback","adapter":"local","built_in":true,"settings":{"port":14443},"secrets":{},"connection_state":{"state":"joined"}},')).toBe(true);
   expect(answer).toContain('{"relay_id":"cloudflare-1","adapter":"cloudflare","built_in":false,"settings":{},"secrets":{"relay_url":"set"},"connection_state":{"state":"joining"}}');
@@ -770,11 +781,11 @@ test("adding_configuring_and_removing_a_relay_answer_the_window_in_the_contracts
   );
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(JSON.stringify(await commandHandlers.add_relay({ adapter: "test-secret-holder", settings: { token: "typed-in-the-test", label: null } }))).toBe(
+  expect(JSON.stringify(await commandHandlers.add_relay({ adapter: "test-secret-holder", settings: { token: "typed-in-the-test", label: null } }, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"relay_id":"test-secret-holder-1"}}',
   );
-  expect(await commandHandlers.configure_relay({ relay_id: "local-every-interface", settings: { port: 14447 } })).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.remove_relay({ relay_id: "local-every-interface" })).toEqual({
+  expect(await commandHandlers.configure_relay({ relay_id: "local-every-interface", settings: { port: 14447 } }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.remove_relay({ relay_id: "local-every-interface" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "the relay `local-every-interface` is built in and is never removed",
   });
@@ -784,16 +795,16 @@ test("the_relay_commands_read_their_arguments_as_the_window_sends_them_and_never
   const sharedState = await sharedStateOverFakes([], "macos");
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
 
-  expect(await commandHandlers.add_relay({ settings: {} })).toEqual({ ok: false, refusal: "add_relay needs `adapter`, an adapter's kind" });
-  expect(await commandHandlers.add_relay({ adapter: "cloudflare" })).toEqual({ ok: false, refusal: "add_relay needs `settings`, each setting by name" });
-  expect(await commandHandlers.add_relay({ adapter: "cloudflare", settings: { relay_url: { url: "typed-in-the-test" } } })).toEqual({
+  expect(await commandHandlers.add_relay({ settings: {} }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "add_relay needs `adapter`, an adapter's kind" });
+  expect(await commandHandlers.add_relay({ adapter: "cloudflare" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "add_relay needs `settings`, each setting by name" });
+  expect(await commandHandlers.add_relay({ adapter: "cloudflare", settings: { relay_url: { url: "typed-in-the-test" } } }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "add_relay needs the setting `relay_url` as text, a number, true or false, a list of text, or null",
   });
-  expect(await commandHandlers.configure_relay({ settings: { port: 1 } })).toEqual({ ok: false, refusal: "configure_relay needs `relay_id`, a relay's id" });
-  expect(await commandHandlers.configure_relay({ relay_id: "local-every-interface", settings: { port: Number.NaN } })).toEqual({
+  expect(await commandHandlers.configure_relay({ settings: { port: 1 } }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "configure_relay needs `relay_id`, a relay's id" });
+  expect(await commandHandlers.configure_relay({ relay_id: "local-every-interface", settings: { port: Number.NaN } }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "configure_relay needs the setting `port` as text, a number, true or false, a list of text, or null",
   });
-  expect(await commandHandlers.remove_relay({ relay: "cloudflare-1" })).toEqual({ ok: false, refusal: "remove_relay needs `relay_id`, a relay's id" });
+  expect(await commandHandlers.remove_relay({ relay: "cloudflare-1" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "remove_relay needs `relay_id`, a relay's id" });
 });

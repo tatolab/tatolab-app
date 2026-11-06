@@ -95,7 +95,6 @@ export function ProjectsView({
   const cardsShown = presentRecentProjectCards(recentProjects ?? [], listedStreams, wallClockNowMs, searchText);
   const noCards = presentProjectsWithNoCards(searchText);
   const openTheProject = (folder: string) => {
-    model.isProjectsShown.publish(false);
     projectsSources.openARecentProject(folder);
   };
   return (

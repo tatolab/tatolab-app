@@ -69,6 +69,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "read_open_project",
   "read_recent_projects",
   "open_recent_project",
+  "show_projects_window",
   "read_project_file",
   "save_project_file",
   "list_project_files",
@@ -175,14 +176,16 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   read_new_project_defaults: { commandArguments: undefined; answer: NewProjectDefaults };
   /** The desktop's folder dialog, opened at `starting_at`, for the folder a new project goes in; `null` when the person cancels. */
   choose_new_project_location: { commandArguments: { starting_at: string }; answer: string | null };
-  /** `name` a folder name and `location` absolute: `<location>/<name>` is created with the runtime's `create_project` and becomes the open project; refused with nothing created for a name that is no folder name or is taken there, and in the runtime's own words. */
+  /** `name` a folder name and `location` absolute: `<location>/<name>` is created with the runtime's `create_project` and opens in its own studio window; refused with nothing created for a name that is no folder name or is taken there, and in the runtime's own words. */
   create_new_project: { commandArguments: { name: string; location: string }; answer: ChosenProjectFolder };
-  /** The open project as last read from disk. */
+  /** The asking window's project as last read from disk; `none_open` for the Projects window. */
   read_open_project: { commandArguments: undefined; answer: OpenProjectReading };
   /** The projects opened before, recent first, for the Projects window. */
   read_recent_projects: { commandArguments: undefined; answer: RecentProject[] };
-  /** `folder` one of the recent projects; it becomes the open project and moves first among them. */
+  /** `folder` one of the recent projects; it opens in its own studio window, or that window comes forward, and it moves first among them. */
   open_recent_project: { commandArguments: { folder: string }; answer: null };
+  /** Shows the Projects window and brings it forward. */
+  show_projects_window: { commandArguments: undefined; answer: null };
   /** `file` absolute, inside the open project's folder or a folder import's, links resolved; refused for any other file, or in the filesystem's words. */
   read_project_file: { commandArguments: { file: string }; answer: ProjectFileRead };
   /** Written whole when the file on disk still has `based_on_version` (`null` for a new file), and only inside the open project's own folder; refused with nothing written otherwise. */

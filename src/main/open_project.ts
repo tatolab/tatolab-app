@@ -1,7 +1,8 @@
-// The project open in the studio: a folder that is itself a project, chosen in the
-// app's own dialog or from the Projects window's recent projects, and remembered among them. It is read from each `pyproject.toml` it and
-// its folder imports hold, and read again whenever one of those folders changes, so the window
-// always shows what is on disk.
+// Opening projects, each in its own studio window: a folder that is itself a project, chosen in the
+// app's own dialog, from the Projects window's recent projects, or made new, and remembered among
+// the recent projects. A studio window's project is read from each `pyproject.toml` it and its
+// folder imports hold, and read again whenever one of those folders changes, so the window always
+// shows what is on disk.
 
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -57,8 +58,8 @@ export interface NewProjectCreation {
   createProject(projectDirectory: string | null): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>>;
 }
 
-/** What the open project reaches: the person's home and Documents folders, the dialog, the recent projects, the wall clock, the runtime, a folder watch, a timer, and the window. */
-export interface OpenProjectSources {
+/** What opening a project reaches: the person's home and Documents folders, the dialog, the recent projects, the wall clock, the runtime, and the studio window each project opens in. */
+export interface ProjectOpeningSources {
   homeDirectory: string;
   /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
   documentsDirectory: string;
@@ -67,6 +68,12 @@ export interface OpenProjectSources {
   /** The wall clock, in milliseconds since the epoch, stamped on a project as it opens for the Projects window to show. */
   readWallClockNowMs: () => number;
   newProjectCreation: NewProjectCreation;
+  /** Open the project in `folder` in its own studio window, or bring that window forward when it is open; answers once the window shows the project. */
+  openTheProjectInItsStudioWindow: (folder: string) => Promise<void>;
+}
+
+/** What a studio window's project reaches: a folder watch, a timer, and its window. */
+export interface OpenProjectOfAStudioWindowSources {
   watchFolderEntries: FolderEntriesWatch;
   /** Runs `work` once after `delayMs`; the answer cancels it. */
   runAfter: (delayMs: number, work: () => void) => () => void;
@@ -123,23 +130,13 @@ function foldersTheReadingDependsOn(projectFolder: string, reading: OpenProjectR
   return [...new Set([reading.open_project.project.folder, ...importFolders])];
 }
 
-/** The one project the studio has open, which the window reads and is sent each change of. */
-export class OpenProjectFolder {
-  private openFolder: string | null = null;
-  private lastReading: OpenProjectReading = { kind: "none_open" };
-  private stopWatchingTheFolders: Array<() => void> = [];
-  private cancelThePendingReread: (() => void) | null = null;
+/** Opening a project, from any window: a folder chosen in the dialog, a recent project, or a new one the runtime creates, each in its own studio window and remembered among the recent projects. */
+export class ProjectOpening {
+  constructor(private readonly sources: ProjectOpeningSources) {}
 
-  constructor(private readonly sources: OpenProjectSources) {}
-
-  /** The open project as last read. */
-  readOpenProject(): OpenProjectReading {
-    return this.lastReading;
-  }
-
-  /** Ask the person for a project folder and open it, remembering it among the recent projects. `null` when they cancel; refused in the dialog's own words, the open project unchanged. */
-  async chooseProjectFolder(chosenFor: ProjectFolderChosenFor): Promise<Result<ChosenProjectFolder | null, string>> {
-    const chosenFolder = await this.sources.projectFolderDialog(chosenFor, this.openFolder === null ? this.sources.homeDirectory : path.dirname(this.openFolder));
+  /** Ask the person for a project folder, the dialog opened beside `openProjectFolder` (the asking window's) or at home, and open it. `null` when they cancel; refused in the dialog's own words. */
+  async chooseProjectFolder(chosenFor: ProjectFolderChosenFor, openProjectFolder: string | null): Promise<Result<ChosenProjectFolder | null, string>> {
+    const chosenFolder = await this.sources.projectFolderDialog(chosenFor, openProjectFolder === null ? this.sources.homeDirectory : path.dirname(openProjectFolder));
     if (!chosenFolder.ok || chosenFolder.value === null) return chosenFolder.ok ? succeeded(null) : chosenFolder;
     const folder = await realPathOrAsGiven(path.resolve(chosenFolder.value));
     const opened = await this.openAndRememberTheFolder(folder);
@@ -162,9 +159,8 @@ export class OpenProjectFolder {
   }
 
   /**
-   * Create the project `name` in `location` with the runtime's `create_project`, making `location` when it is missing, and open it, remembering it among
-   * the recent projects. Refused with nothing created for a name that is no folder name or that something in `location` already holds; the runtime's
-   * refusal in its own words.
+   * Create the project `name` in `location` with the runtime's `create_project`, making `location` when it is missing, and open it. Refused with nothing
+   * created for a name that is no folder name or that something in `location` already holds; the runtime's refusal in its own words.
    */
   async createNewProject(name: string, location: string): Promise<Result<ChosenProjectFolder, string>> {
     const nameRefusal = newProjectFolderNameRefusal(name);
@@ -202,38 +198,65 @@ export class OpenProjectFolder {
     );
   }
 
-  /** Stop watching the open project's folders, as the app quits. */
+  private defaultNewProjectLocation(): string {
+    return path.join(this.sources.documentsDirectory, NEW_PROJECTS_FOLDER_INSIDE_DOCUMENTS);
+  }
+
+  private async openAndRememberTheFolder(folder: string): Promise<Result<void, string>> {
+    await this.sources.openTheProjectInItsStudioWindow(folder);
+    const remembered = await this.sources.recentProjectFolders.rememberOpened(folder, this.sources.readWallClockNowMs());
+    return remembered.ok ? succeeded(undefined) : failedWith(`${folder} is open, but Tato Studio could not remember it for next time: ${remembered.failure}`);
+  }
+}
+
+/** The project one studio window shows, read from its folder and read again whenever one of its folders changes. */
+export class OpenProjectOfAStudioWindow {
+  private lastReading: OpenProjectReading;
+  private stopWatchingTheFolders: Array<() => void> = [];
+  private cancelThePendingReread: (() => void) | null = null;
+  private hasStopped = false;
+
+  constructor(
+    readonly projectFolder: string,
+    private readonly sources: OpenProjectOfAStudioWindowSources,
+  ) {
+    this.lastReading = { kind: "unreadable", folder: projectFolder, refusal: "The project has not been read yet." };
+  }
+
+  /** The project as last read. */
+  readOpenProject(): OpenProjectReading {
+    return this.lastReading;
+  }
+
+  /** Read the project, send it to the window and watch its folders; answers once it is read. */
+  readAndWatch(): Promise<void> {
+    return this.readAgainAndSend();
+  }
+
+  /** Stop watching the project's folders, as its window closes or the app quits. */
   stopWatching(): void {
+    this.hasStopped = true;
+    this.stopWatchingWhatIsWatched();
+  }
+
+  private stopWatchingWhatIsWatched(): void {
     this.cancelThePendingReread?.();
     this.cancelThePendingReread = null;
     for (const stopWatching of this.stopWatchingTheFolders) stopWatching();
     this.stopWatchingTheFolders = [];
   }
 
-  private defaultNewProjectLocation(): string {
-    return path.join(this.sources.documentsDirectory, NEW_PROJECTS_FOLDER_INSIDE_DOCUMENTS);
-  }
-
-  private async openAndRememberTheFolder(folder: string): Promise<Result<void, string>> {
-    this.openFolder = folder;
-    await this.readAgainAndSend();
-    const remembered = await this.sources.recentProjectFolders.rememberOpened(folder, this.sources.readWallClockNowMs());
-    return remembered.ok ? succeeded(undefined) : failedWith(`${folder} is open, but Tato Studio could not remember it for next time: ${remembered.failure}`);
-  }
-
   private async readAgainAndSend(): Promise<void> {
-    const folderRead = this.openFolder;
-    if (folderRead === null) return;
-    const reading = await readTheProjectIn(folderRead);
-    if (this.openFolder !== folderRead) return;
+    const reading = await readTheProjectIn(this.projectFolder);
+    if (this.hasStopped) return;
     this.lastReading = reading;
-    this.watchTheFoldersOf(folderRead, reading);
+    this.watchTheFoldersOf(reading);
     this.sources.sendTheWindowTheOpenProject(reading);
   }
 
-  private watchTheFoldersOf(projectFolder: string, reading: OpenProjectReading): void {
-    this.stopWatching();
-    this.stopWatchingTheFolders = foldersTheReadingDependsOn(projectFolder, reading).flatMap((folder) => {
+  private watchTheFoldersOf(reading: OpenProjectReading): void {
+    this.stopWatchingWhatIsWatched();
+    this.stopWatchingTheFolders = foldersTheReadingDependsOn(this.projectFolder, reading).flatMap((folder) => {
       const stopWatching = this.sources.watchFolderEntries(folder, () => this.readAgainOnceQuiet());
       return stopWatching === null ? [] : [stopWatching];
     });

@@ -92,7 +92,9 @@ export interface TatolabBackend {
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
   /** Calls `listener` with the stream each request from the app to show a stream's page names; the returned function stops it. */
   onStreamPageRequested(listener: (streamId: string) => void): () => void;
-  /** Ask the person for a project folder in the app's dialog and open it; `null` when they cancel, rejecting in the dialog's own words. The project read arrives as the next open-project change. */
+  /** Show the Projects window and bring it forward. */
+  showTheProjectsWindow(): Promise<void>;
+  /** Ask the person for a project folder in the app's dialog and open it in its own window, or bring forward the window it has; `null` when they cancel, rejecting in the dialog's own words. */
   chooseProjectFolder(chosenFor: ProjectFolderChosenFor): Promise<ChosenProjectFolder | null>;
   /** The location and name the New project sheet opens with: `<Documents>/Tato Studio` and the first untitled name free there. */
   readNewProjectDefaults(): Promise<NewProjectDefaults>;
@@ -100,11 +102,11 @@ export interface TatolabBackend {
   chooseNewProjectLocation(startingAt: string): Promise<string | null>;
   /** Create the project `name` in `location` with the runtime and open it, rejecting with nothing made in the app's or the runtime's own words. The project read arrives as the next open-project change. */
   createNewProject(name: string, location: string): Promise<ChosenProjectFolder>;
-  /** The open project as the app last read it from disk. */
+  /** This window's project as the app last read it from disk; `none_open` in the Projects window. */
   readOpenProject(): Promise<OpenProjectReading>;
   /** The projects opened before, recent first, for the Projects window. */
   readRecentProjects(): Promise<RecentProject[]>;
-  /** Open `folder`, one of the recent projects, rejecting for any other folder or in the words of what refused; the project read arrives as the next open-project change. */
+  /** Open `folder`, one of the recent projects, in its own window, rejecting for any other folder or in the words of what refused. */
   openRecentProject(folder: string): Promise<void>;
   /** Calls `listener` with each reading of the open project: another folder opened, or a `pyproject.toml` it reads changed; the returned function stops it. */
   onOpenProjectChanged(listener: (reading: OpenProjectReading) => void): () => void;
