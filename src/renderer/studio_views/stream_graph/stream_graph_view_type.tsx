@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { ActionButton } from "../../design_system/action_button";
 import { NodeGraphCanvas } from "../../design_system/node_graph_canvas";
 import { ReadOnlyBanner } from "../../design_system/read_only_banner";
+import { RuntimeFailureWords } from "../../design_system/runtime_failure_words";
 import { WaitingState } from "../../design_system/waiting_state";
 import { useStudioViewReading } from "../../view_host/in_window_view_host";
 import type { ListedStreamsReading, OpenProjectReading, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
@@ -40,9 +41,25 @@ function StreamGraphOfTheTab({ connection, streamTab }: { connection: StudioView
     [connection, listedStreams, streamTab.stream],
   );
 
+  const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
+  if (listedStream?.state === "failed") {
+    return (
+      <WaitingState
+        isFailure
+        title={`${streamTab.display_name} failed`}
+        explanation={
+          listedStream.failed_because === null
+            ? "The runtime lists it failed and gives no reason. Press Live to run it again."
+            : "Fix what the runtime says below, then press Live to run it again."
+        }
+        data-stream-graph-state="failed"
+      >
+        {listedStream.failed_because !== null && <RuntimeFailureWords words={listedStream.failed_because} data-stream-graph-failure={streamTab.stream} />}
+      </WaitingState>
+    );
+  }
   if (graphReading === null) return null;
   if (graphReading.kind === "not_read") {
-    const listedStream = listedStreams?.kind === "listed" ? listedStreams.streams.find((stream) => stream.stream === streamTab.stream) : undefined;
     const isRunning = listedStream?.state === "running";
     return (
       <WaitingState

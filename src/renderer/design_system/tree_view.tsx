@@ -19,8 +19,8 @@ export interface TreeViewRow {
   isHeading?: boolean;
   /** Rows the person cannot change from here, as an imported project, marked with a lock. */
   isReadOnly?: boolean;
-  /** How the row reads: plainly, as the project's imports, or as something unreadable or waiting. */
-  tone?: "plain" | "imports" | "unreadable" | "waiting";
+  /** How the row reads: plainly, as the project's imports, or as something unreadable, failed or waiting. */
+  tone?: "plain" | "imports" | "unreadable" | "failed" | "waiting";
   expansion: TreeRowExpansion;
 }
 
@@ -28,6 +28,7 @@ const TREE_ROW_TONE_CLASS_NAMES: Record<NonNullable<TreeViewRow["tone"]>, string
   plain: "text-fg-2",
   imports: "text-studio-imports",
   unreadable: "text-danger-text",
+  failed: "text-danger-text",
   waiting: "text-fg-3 italic",
 };
 

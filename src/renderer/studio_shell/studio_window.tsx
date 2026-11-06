@@ -9,6 +9,7 @@ import { StudioAreaFrame, StudioAreaHeaderMenu } from "../design_system/studio_a
 import { WaitingState } from "../design_system/waiting_state";
 import { WindowNotice } from "../design_system/window_notice";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
+import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
 import { StudioViewFailureBoundary, useWatchedStudioValue } from "../view_host/in_window_view_host";
 import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
@@ -143,6 +144,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const preferencesSection = useWatchedStudioValue(model.preferencesSection);
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
   const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
+  const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
   const isProjectsShown = useWatchedStudioValue(model.isProjectsShown);
   const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
   const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null && !isProjectsShown;
@@ -221,6 +223,27 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               detail={projectRunRefusal.because}
               onDismissed={() => model.projectRunRefusal.publish(null)}
               data-project-run-refusal=""
+            />
+          )}
+          {openProjectStreamFailureRaised !== null && isAProjectShown && (
+            <WindowNotice
+              tone="failure"
+              title={`${openProjectStreamFailureRaised.display_name} failed`}
+              detail={streamFailureWords(openProjectStreamFailureRaised.failed_because)}
+              actions={
+                <ActionButton
+                  size="small"
+                  onPressed={() => {
+                    model.openStreamTabOfAListedStream(openProjectStreamFailureRaised.stream);
+                    model.openProjectStreamFailureRaised.publish(null);
+                  }}
+                  data-open-project-stream-failure-action="show_stream"
+                >
+                  Show stream
+                </ActionButton>
+              }
+              onDismissed={() => model.openProjectStreamFailureRaised.publish(null)}
+              data-open-project-stream-failure={openProjectStreamFailureRaised.stream}
             />
           )}
         </div>

@@ -27,9 +27,18 @@ export function streamsOfTheProjectToStop(listedStreams: ListedStreamsReading, p
     .map((listing) => listing.stream);
 }
 
-/** Whether `streamFunction` names no function: the one failed record the runtime keeps for a project whose `stream.py` it could not load any `@stream` from, its id `<folder>-<hash>`. */
-export function isAProjectsStreamPyRecord(streamFunction: string): boolean {
-  return streamFunction === "";
+/** A stream of the open project the runtime lists failed, and why in its own words; `null` when it gives no reason. */
+export interface OpenProjectStreamFailure {
+  stream: string;
+  display_name: string;
+  failed_because: string | null;
+}
+
+/** The failures `listedStreams` lists for streams of the project in `projectFolder`, each in the runtime's words. */
+export function streamFailuresOfTheProject(listedStreams: readonly ListedStream[], projectFolder: string): OpenProjectStreamFailure[] {
+  return listedStreams
+    .filter((listing) => listing.location?.project_directory === projectFolder && listing.state === "failed")
+    .map((listing) => ({ stream: listing.stream, display_name: listing.display_name, failed_because: listing.failed_because }));
 }
 
 /** The open stream tabs, in the strip's order, and the one shown. */
@@ -71,12 +80,17 @@ export class StudioWindowModel {
   readonly codeFileAsked = new WatchedStudioValue<CodeFileAsked | null>(null);
   /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
   readonly projectRunRefusal = new WatchedStudioValue<{ asked_to: "run" | "stop"; because: string } | null>(null);
+  /** The open project's stream whose failure the window raises over the studio, until it is dismissed, the stream leaves `failed`, or another project opens. */
+  readonly openProjectStreamFailureRaised = new WatchedStudioValue<OpenProjectStreamFailure | null>(null);
 
   /** The tab a project opens on once it is open and the runtime lists the stream: the stream New project just made, or with `stream` `null` the first the runtime lists from the folder; cleared when any tab is opened. */
   private streamTabAwaitedByTheOpeningProject: { project_folder: string; stream: string | null } | null = null;
 
-  /** The project folder of each open tab's stream the runtime last listed as its project's `stream.py` record, by the tab's stream id. */
-  private readonly projectFolderOfEachTabsStreamPyRecord = new Map<string, string>();
+  /** Each failure of the open project's streams already raised, as its stream id and its words, so the window raises a failure once until the stream leaves `failed`. */
+  private readonly openProjectStreamFailuresRaised = new Set<string>();
+
+  /** The project folder of each open tab's stream, by the tab's stream id, as the runtime last listed it or New project made it, and whether it was the project's `stream.py` record. */
+  private readonly projectOfEachTabsStream = new Map<string, { project_folder: string; is_the_stream_py_record: boolean }>();
 
   constructor(private readonly layoutsKept: StudioLayoutsKeptInStorage) {}
 
@@ -106,7 +120,11 @@ export class StudioWindowModel {
     const folderNow = openProjectFolderOf(reading);
     this.openProject.publish(reading);
     if (folderNow === folderBefore && this.studioLayouts.readLatest() !== null) return;
-    if (folderNow !== folderBefore) this.isProjectsShown.publish(false);
+    if (folderNow !== folderBefore) {
+      this.isProjectsShown.publish(false);
+      this.openProjectStreamFailuresRaised.clear();
+      this.openProjectStreamFailureRaised.publish(null);
+    }
     this.selection.publish({ kind: "nothing" });
     this.publishStreamTabs({ tabs: [], active_stream: null });
     this.studioLayouts.publish(folderNow === null ? null : this.layoutsKept.readLayoutsOf(folderNow));
@@ -114,6 +132,8 @@ export class StudioWindowModel {
       this.streamTabAwaitedByTheOpeningProject = { project_folder: folderNow, stream: null };
     }
     this.openTheStreamTabTheOpeningProjectAwaits();
+    const listedStreams = this.listedStreams.readLatest();
+    if (listedStreams.kind === "listed") this.raiseEachNewFailureOfTheOpenProjectsStreams(listedStreams.streams);
   }
 
   /** Open the tab of `stream`, the stream of the project New project just made in `projectFolder`, as that project opens, or now when it is already open. */
@@ -123,17 +143,18 @@ export class StudioWindowModel {
   }
 
   /**
-   * Show the streams `status` lists. A tab on a project's `stream.py` record follows the project's first stream once a load
-   * replaces the record with the project's streams; any other tab whose stream the runtime no longer lists stays open on its
-   * last address, and a tab named by its stream's id until the runtime listed it takes the name the runtime lists it under.
+   * Show the streams `status` lists. A tab follows its project's `stream.py` record or, from the record, the project's first
+   * stream when a load lists one in place of the other; any other tab whose stream the runtime no longer lists stays open on
+   * its last address, and a tab named by its stream's id until the runtime listed it takes the name the runtime lists it under.
    */
   showStatus(status: TatolabStatus): void {
     const listedStreams = listedStreamsReadingOf(status);
     this.listedStreams.publish(listedStreams);
     if (listedStreams.kind !== "listed") return;
     this.openTheStreamTabTheOpeningProjectAwaits();
-    this.rememberTheProjectFolderOfEachTabOnAStreamPyRecord(listedStreams.streams);
-    this.followEachTabWhoseStreamPyRecordALoadReplaced(listedStreams.streams);
+    this.raiseEachNewFailureOfTheOpenProjectsStreams(listedStreams.streams);
+    this.rememberTheProjectOfEachTabsStream(listedStreams.streams);
+    this.followEachTabWhoseStreamALoadReplaced(listedStreams.streams);
     const { tabs, active_stream } = this.openStreamTabs.readLatest();
     const displayNameListedFor = (tab: StreamTabAddress) => listedStreams.streams.find((listing) => listing.stream === tab.stream)?.display_name ?? tab.display_name;
     if (tabs.every((tab) => tab.display_name !== tab.stream || displayNameListedFor(tab) === tab.display_name)) return;
@@ -195,25 +216,43 @@ export class StudioWindowModel {
     this.changeChosenLayoutTree((tree) => layoutWithSplitSizes(tree, splitId, sizePercentByPartId));
   }
 
-  private rememberTheProjectFolderOfEachTabOnAStreamPyRecord(listedStreams: readonly ListedStream[]): void {
+  private raiseEachNewFailureOfTheOpenProjectsStreams(listedStreams: readonly ListedStream[]): void {
+    const projectFolder = openProjectFolderOf(this.openProject.readLatest());
+    const failures = projectFolder === null ? [] : streamFailuresOfTheProject(listedStreams, projectFolder);
+    const failureKey = (failure: OpenProjectStreamFailure) => `${failure.stream}\n${failure.failed_because ?? ""}`;
+    const failureKeysListed = new Set(failures.map(failureKey));
+    for (const raisedKey of this.openProjectStreamFailuresRaised) if (!failureKeysListed.has(raisedKey)) this.openProjectStreamFailuresRaised.delete(raisedKey);
+    const failuresNotRaisedYet = failures.filter((failure) => !this.openProjectStreamFailuresRaised.has(failureKey(failure)));
+    for (const failure of failuresNotRaisedYet) this.openProjectStreamFailuresRaised.add(failureKey(failure));
+    const failureShown = this.openProjectStreamFailureRaised.readLatest();
+    const failureToShow = failuresNotRaisedYet.at(-1) ?? (failureShown !== null && failureKeysListed.has(failureKey(failureShown)) ? failureShown : null);
+    if (failureToShow !== failureShown) this.openProjectStreamFailureRaised.publish(failureToShow);
+  }
+
+  private rememberTheProjectOfEachTabsStream(listedStreams: readonly ListedStream[]): void {
     const tabStreams = new Set(this.openStreamTabs.readLatest().tabs.map((tab) => tab.stream));
-    for (const tabStream of this.projectFolderOfEachTabsStreamPyRecord.keys()) {
-      if (!tabStreams.has(tabStream)) this.projectFolderOfEachTabsStreamPyRecord.delete(tabStream);
+    for (const tabStream of this.projectOfEachTabsStream.keys()) {
+      if (!tabStreams.has(tabStream)) this.projectOfEachTabsStream.delete(tabStream);
     }
     for (const listing of listedStreams) {
-      if (tabStreams.has(listing.stream) && listing.location !== null && isAProjectsStreamPyRecord(listing.location.stream_function)) {
-        this.projectFolderOfEachTabsStreamPyRecord.set(listing.stream, listing.location.project_directory);
-      }
+      if (!tabStreams.has(listing.stream) || listing.location === null) continue;
+      this.projectOfEachTabsStream.set(listing.stream, { project_folder: listing.location.project_directory, is_the_stream_py_record: listing.location.stream_function === "" });
     }
   }
 
-  private followEachTabWhoseStreamPyRecordALoadReplaced(listedStreams: readonly ListedStream[]): void {
+  /**
+   * A tab whose stream the runtime does not list follows its project's `stream.py` record when the runtime lists that in its
+   * place, as for a new project whose first load failed; a tab on the record follows the project's first stream once a load
+   * replaces the record.
+   */
+  private followEachTabWhoseStreamALoadReplaced(listedStreams: readonly ListedStream[]): void {
     const { tabs, active_stream } = this.openStreamTabs.readLatest();
     const replacementByReplacedStream = new Map<string, ListedStream>();
     for (const tab of tabs) {
-      const projectFolder = this.projectFolderOfEachTabsStreamPyRecord.get(tab.stream);
-      if (projectFolder === undefined || listedStreams.some((listing) => listing.stream === tab.stream)) continue;
-      const replacement = listedStreams.find((listing) => listing.location?.project_directory === projectFolder);
+      const projectOfTheTab = this.projectOfEachTabsStream.get(tab.stream);
+      if (projectOfTheTab === undefined || listedStreams.some((listing) => listing.stream === tab.stream)) continue;
+      const listedStreamsOfTheProject = listedStreams.filter((listing) => listing.location?.project_directory === projectOfTheTab.project_folder);
+      const replacement = projectOfTheTab.is_the_stream_py_record ? listedStreamsOfTheProject[0] : listedStreamsOfTheProject.find((listing) => listing.location?.stream_function === "");
       if (replacement !== undefined) replacementByReplacedStream.set(tab.stream, replacement);
     }
     if (replacementByReplacedStream.size === 0) return;
@@ -223,7 +262,7 @@ export class StudioWindowModel {
       const tabFollowed = replacement === undefined ? tab : { stream: replacement.stream, project_name: tab.project_name, display_name: replacement.display_name };
       if (!tabsFollowed.some((tabKept) => tabKept.stream === tabFollowed.stream)) tabsFollowed.push(tabFollowed);
     }
-    for (const replacedStream of replacementByReplacedStream.keys()) this.projectFolderOfEachTabsStreamPyRecord.delete(replacedStream);
+    for (const replacedStream of replacementByReplacedStream.keys()) this.projectOfEachTabsStream.delete(replacedStream);
     const activeReplacement = active_stream === null ? undefined : replacementByReplacedStream.get(active_stream);
     this.publishStreamTabs({ tabs: tabsFollowed, active_stream: activeReplacement?.stream ?? active_stream });
     const selection = this.selection.readLatest();
@@ -245,6 +284,7 @@ export class StudioWindowModel {
       project_name: this.projectNameOfTheFolder(awaited.project_folder) ?? awaited.project_folder.split(/[\\/]/).filter((pathPart) => pathPart !== "").at(-1) ?? awaited.project_folder,
       display_name: listedStreamsOfTheProject.find((listing) => listing.stream === stream)?.display_name ?? stream,
     });
+    if (!this.projectOfEachTabsStream.has(stream)) this.projectOfEachTabsStream.set(stream, { project_folder: awaited.project_folder, is_the_stream_py_record: false });
   }
 
   private projectNameOfTheFolder(projectFolder: string): string | null {
@@ -260,7 +300,7 @@ export class StudioWindowModel {
   private publishStreamTabs(openStreamTabs: OpenStreamTabs): void {
     this.openStreamTabs.publish(openStreamTabs);
     const listedStreams = this.listedStreams.readLatest();
-    if (listedStreams.kind === "listed") this.rememberTheProjectFolderOfEachTabOnAStreamPyRecord(listedStreams.streams);
+    if (listedStreams.kind === "listed") this.rememberTheProjectOfEachTabsStream(listedStreams.streams);
     this.activeStreamTab.publish(openStreamTabs.tabs.find((tab) => tab.stream === openStreamTabs.active_stream) ?? null);
   }
 

@@ -68,7 +68,13 @@ function projectChildren(project: ProjectOnDisk, projectRowId: string, listedStr
     descriptionNode,
     ...streamsOfTheProject.map(
       (stream): OutlinerTreeNode => ({
-        row: { row_id: `stream:${stream.stream}`, label: streamFunctionName(stream), icon: "stream", isMachineWords: true },
+        row: {
+          row_id: `stream:${stream.stream}`,
+          label: streamFunctionName(stream),
+          icon: stream.state === "failed" ? "failed" : "stream",
+          tone: stream.state === "failed" ? "failed" : undefined,
+          isMachineWords: true,
+        },
         meaning: { kind: "stream", stream: stream.stream, display_name: stream.display_name, project_name: project.name, project_folder: project.folder },
         isOpenByDefault: false,
         children: [],
@@ -77,10 +83,12 @@ function projectChildren(project: ProjectOnDisk, projectRowId: string, listedStr
   ];
 }
 
-/** The function a stream runs, without its module: `main` for `stream:main`; its display name for a record that names none. */
+/** The function a stream runs, without its module: `main` for `stream:main`; `stream.py` for the project's record that names none; its display name for a record with no location. */
 function streamFunctionName(stream: ListedStream): string {
   const streamFunction = stream.location?.stream_function;
-  return streamFunction === undefined ? stream.display_name : (streamFunction.split(":").at(-1) ?? streamFunction);
+  if (streamFunction === undefined) return stream.display_name;
+  if (streamFunction === "") return "stream.py";
+  return streamFunction.split(":").at(-1) ?? streamFunction;
 }
 
 function importNode(importedProject: ImportedProject, listedStreams: ListedStreamsReading): OutlinerTreeNode {

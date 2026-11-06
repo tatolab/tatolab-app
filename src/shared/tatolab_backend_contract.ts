@@ -14,6 +14,7 @@ export type RuntimeState = "running" | "starting" | "not_running";
 /** Where a stream's code lives, which its stream id is computed from: its project directory, symlinks resolved, and its stream function as `module:qualname`. */
 export interface StreamLocation {
   project_directory: string;
+  /** `""` for the one failed record the runtime keeps for a project whose `stream.py` loads no `@stream`, its id `<folder>-<hash>`, until a load replaces it with the project's streams. */
   stream_function: string;
 }
 
