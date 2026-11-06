@@ -70,8 +70,8 @@ test("a chosen folder comes back with its links resolved, and only a folder hand
   const choosingThroughALink = await (await streamProjectAddingOverFakes(succeeded(path.join(homeDirectory, "hallways-link")))).streamProjectAdding.chooseStreamProjectFolder("project_to_run");
   expect(choosingThroughALink).toEqual(succeeded(hallways));
 
-  expect(await streamProjectAdding.runStreamProject(hallways)).toEqual(failedWith(`Tatolab acts only on a folder chosen in its window. Choose ${hallways} again.`));
-  expect(await streamProjectAdding.createStreamProject("/etc")).toEqual(failedWith("Tatolab acts only on a folder chosen in its window. Choose /etc again."));
+  expect(await streamProjectAdding.runStreamProject(hallways)).toEqual(failedWith(`Tato Studio acts only on a folder chosen in its window. Choose ${hallways} again.`));
+  expect(await streamProjectAdding.createStreamProject("/etc")).toEqual(failedWith("Tato Studio acts only on a folder chosen in its window. Choose /etc again."));
   expect(projectLoads.runsAsked).toEqual([]);
   expect(projectLoads.creationsAsked).toEqual([]);
 });

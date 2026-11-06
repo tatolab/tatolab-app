@@ -31,10 +31,13 @@ export function runtimeLoopbackHttpOriginFor(machineDirectoriesUnderATestRoot: b
   return machineDirectoriesUnderATestRoot ? runtimeLoopbackHttpOriginOnPort(LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT) : RUNTIME_LOOPBACK_HTTP_ORIGIN;
 }
 
-/** The preview page of the output `<machine>/<stream>/<node>/<port>` at `runtimeLoopbackHttpOrigin`, each part one path segment. */
+/** The query that has the preview page show the playing video alone, fitted to the frame, with no status lines or track list. */
+const RUNTIME_WATCH_PAGE_VIDEO_ONLY_QUERY = "?video_only";
+
+/** The preview page of the output `<machine>/<stream>/<node>/<port>` at `runtimeLoopbackHttpOrigin`, each part one path segment, showing the video alone. */
 export function runtimeWatchPageUrl(runtimeLoopbackHttpOrigin: string, addressParts: { machine: string; stream: string; node: string; port: string }): string {
   const { machine, stream, node, port } = addressParts;
-  return `${runtimeLoopbackHttpOrigin}${RUNTIME_WATCH_PAGE_PATH_PREFIX}${[machine, stream, node, port].map((addressPart) => encodeURIComponent(addressPart)).join("/")}`;
+  return `${runtimeLoopbackHttpOrigin}${RUNTIME_WATCH_PAGE_PATH_PREFIX}${[machine, stream, node, port].map((addressPart) => encodeURIComponent(addressPart)).join("/")}${RUNTIME_WATCH_PAGE_VIDEO_ONLY_QUERY}`;
 }
 
 /** Whether `navigationUrl` is a preview page at `runtimeLoopbackHttpOrigin`: the one place a frame the window embeds may go. */

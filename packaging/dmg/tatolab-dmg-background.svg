@@ -17,12 +17,12 @@
   <rect width="660" height="420" fill="url(#window-wash)"/>
   <ellipse cx="170" cy="205" rx="105" ry="100" fill="url(#mark-glow)"/>
 
-  <g transform="translate(272 44)">
+  <g transform="translate(251 44)">
     <g transform="scale(0.03125)">
       <rect x="100" y="100" width="824" height="824" rx="185" fill="#2a5bff"/>
       <path d="M343 384h338M512 384v300" stroke="#fff" stroke-width="90" stroke-linecap="round" fill="none"/>
     </g>
-    <text x="40" y="23.5" font-family="'Instrument Sans SemiBold', 'Instrument Sans', sans-serif" font-weight="600" font-size="22" letter-spacing="-0.3" fill="#0e0e10">Tatolab</text>
+    <text x="40" y="23.5" font-family="'Instrument Sans SemiBold', 'Instrument Sans', sans-serif" font-weight="600" font-size="22" letter-spacing="-0.3" fill="#0e0e10">Tato Studio</text>
   </g>
 
   <g fill="none" stroke="url(#arrow-stroke)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -30,6 +30,6 @@
     <path d="M384 193l14 12-14 12" stroke="#2a5bff"/>
   </g>
 
-  <text x="330" y="360" text-anchor="middle" font-family="'Instrument Sans Medium', 'Instrument Sans', sans-serif" font-weight="500" font-size="15" fill="#5b5e66">Drag Tatolab to Applications</text>
+  <text x="330" y="360" text-anchor="middle" font-family="'Instrument Sans Medium', 'Instrument Sans', sans-serif" font-weight="500" font-size="15" fill="#5b5e66">Drag Tato Studio to Applications</text>
   <text x="330" y="382" text-anchor="middle" font-family="'Instrument Sans Medium', 'Instrument Sans', sans-serif" font-weight="500" font-size="11.5" fill="#9a9ca3">then open it once to start the runtime</text>
 </svg>

@@ -3,7 +3,7 @@
 // a project's `.venv` costs nothing.
 
 import { watch } from "node:fs";
-import type { FolderEntriesWatch } from "./open_workspace.js";
+import type { FolderEntriesWatch } from "./open_project.js";
 
 /** `fs.watch` on `folder` alone; `null` for a folder that cannot be watched, as one not made yet. */
 export const watchFolderEntriesOnThisMachine: FolderEntriesWatch = (folder, onChange) => {

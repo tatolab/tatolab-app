@@ -6,7 +6,7 @@ import { describeBackendRejection, type TatolabBackend } from "../backend/tatola
 import { WaitingState } from "../design_system/waiting_state";
 import type { ProjectLogReadings } from "./project_log_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
-import type { CodeFileAsked, ListedStreamsReading, OpenWorkspaceReading, StopWatching, StreamTabAddress, StudioSelection } from "./studio_view_contract";
+import type { CodeFileAsked, ListedStreamsReading, OpenProjectReading, StopWatching, StreamTabAddress, StudioSelection } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { StudioViewHostServices } from "./studio_view_type_registry";
 
@@ -41,7 +41,7 @@ export function useWatchedStudioValue<Value>(watched: WatchedStudioValue<Value>)
 
 /** What the studio publishes to its views, and what it does when a view opens a stream's tab. */
 export interface InWindowStudioViewHostSources {
-  openWorkspace: WatchedStudioValue<OpenWorkspaceReading>;
+  openProject: WatchedStudioValue<OpenProjectReading>;
   listedStreams: WatchedStudioValue<ListedStreamsReading>;
   selection: WatchedStudioValue<StudioSelection>;
   activeStreamTab: WatchedStudioValue<StreamTabAddress | null>;
@@ -50,22 +50,22 @@ export interface InWindowStudioViewHostSources {
   openCodeFile(file: string): void;
 }
 
-/** What the host reads and writes of the open workspace's projects for its views: their files through the backend, their logs, and their language servers. */
-export interface InWindowWorkspaceProjectServices {
-  backend: Pick<TatolabBackend, "readWorkspaceFile" | "saveWorkspaceFile" | "listWorkspaceProjectFiles">;
+/** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, and their language servers. */
+export interface InWindowProjectServices {
+  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "listProjectFiles">;
   projectLogReadings: ProjectLogReadings;
   pythonLanguageServerConnections: PythonLanguageServerConnections;
 }
 
-/** The services every first-party view is handed, read from `sources`, for a stream's graph and catalog from `streamReadings`, and for the workspace's projects from `projectServices`. */
+/** The services every first-party view is handed, read from `sources`, for a stream's graph and catalog from `streamReadings`, and for the open project and its imports from `projectServices`. */
 export function inWindowStudioViewHostServices(
   sources: InWindowStudioViewHostSources,
   streamReadings: StreamGraphAndCatalogReadings,
-  projectServices: InWindowWorkspaceProjectServices,
+  projectServices: InWindowProjectServices,
 ): StudioViewHostServices {
   const { backend } = projectServices;
   return {
-    watchOpenWorkspace: sources.openWorkspace.watch,
+    watchOpenProject: sources.openProject.watch,
     watchListedStreams: sources.listedStreams.watch,
     watchSelection: sources.selection.watch,
     select: (selection) => sources.selection.publish(selection),
@@ -75,18 +75,18 @@ export function inWindowStudioViewHostServices(
     watchNodeCatalog: streamReadings.watchNodeCatalog,
     watchCodeFileAsked: sources.codeFileAsked.watch,
     openCodeFile: (file) => sources.openCodeFile(file),
-    readWorkspaceFile: (file) =>
-      backend.readWorkspaceFile(file).then(
+    readProjectFile: (file) =>
+      backend.readProjectFile(file).then(
         (fileRead) => ({ kind: "read", file_read: fileRead }),
         (rejection: unknown) => ({ kind: "not_read", because: describeBackendRejection(rejection) }),
       ),
-    saveWorkspaceFile: (file, text, basedOnVersion) =>
-      backend.saveWorkspaceFile(file, text, basedOnVersion).then(
+    saveProjectFile: (file, text, basedOnVersion) =>
+      backend.saveProjectFile(file, text, basedOnVersion).then(
         (fileSaved) => ({ kind: "saved", version: fileSaved.version }),
         (rejection: unknown) => ({ kind: "not_saved", because: describeBackendRejection(rejection) }),
       ),
-    listWorkspaceProjectFiles: (projectFolder) =>
-      backend.listWorkspaceProjectFiles(projectFolder).then(
+    listProjectFiles: (projectFolder) =>
+      backend.listProjectFiles(projectFolder).then(
         (projectFiles) => ({ kind: "listed", project_files: projectFiles }),
         (rejection: unknown) => ({ kind: "not_listed", because: describeBackendRejection(rejection) }),
       ),

@@ -1,12 +1,12 @@
 ---
 name: verify-app
-description: Prove a change to Tatolab.app works the way a person meets it — the window, the tray, first-launch setup, the Run Tatolab switch, uninstall — with labelled screenshots (Live, Linux, Mock) and a written description of each. Use before claiming any visible or machine-facing change done, when the owner asks to see the app, or to audit a PR's claimed evidence.
+description: Prove a change to Tatolab.app works the way a person meets it — the window, the tray, the runtime the app runs as its child, the tatolab link — with labelled screenshots (Live, Linux, Mock) and a written description of each. Use before claiming any visible or machine-facing change done, when the owner asks to see the app, or to audit a PR's claimed evidence.
 ---
 
 # verify-app — done means seen
 
 Tests catch logic; they cannot show that the window says the right thing, that the tray follows,
-or that launchd and systemd do what the platform layer assumes. This skill produces the evidence
+or that the runtime the app starts comes up and stops with it. This skill produces the evidence
 `review-pr` requires for any visible or machine-facing change. The evidence lives in the pull
 request and never reaches `main`.
 
@@ -40,18 +40,18 @@ Evidence counts only when it was shot on what would ship now:
    Start `node scripts/serve_the_mock_window_in_a_browser.mjs` in the background (stop it at the
    end), then drive the page with Playwright at the URL it prints with the presets
    `src/renderer/backend/mock_tatolab_backend.ts` and `src/renderer/mock_window_preset.ts` read:
-   `?platform=linux`, `?runtime_install=installing|failed`, `?state=` (running, empty, loading, node-error,
-   not-listed, starting, stopped, unreachable, setup; macOS-only approval, missing,
-   not-registered), `?workspace=none|unreadable`, `?uninstall=cancel`, and the screen keys
+   `?platform=linux`, `?state=` (running, empty, loading, node-error, camera-access, dropping,
+   not-listed, starting, not-running), `?project=none|unreadable`, `?cli_link=not_linked|taken`,
+   `?restart=refused`, and the screen keys
    `?layout=build|compose|spatial|code|perform`, `?outliner=open`, `?select=<row id>`,
    `?open_stream=<stream id>`, `?menu=<menu>` with `?submenu=<entry>`, `?area_menu=<area id>`,
-   `?page=preferences` with `?section=`, `?restart=`, `?link=pressed`,
-   `?sheet=uninstall|uninstalling|uninstalled`, `?setup=` and `?setup_step_action=`; the
+   `?page=preferences` with `?section=`, `?restart=pressed`, `?link=pressed`,
+   `?sheet=new_project` with `?new_project_name=<name>` and `?new_project=browse|create`; the
    doc comment of `driveMockWindowToPreset` is the full list. A key it does not name is
    ignored without a word, so check each frame shows the state its URL asks for. The window is dark-only. Label every image **Mock**. A screen the
    presets cannot reach gets a preset in the same change.
 2. **Local-proof live (macOS).** Anything that talks to a runtime — streams appearing and going,
-   graph, logs, the switch, setup. `infisical run -- scripts/build-tatolab-app.sh --local-proof-test-root`
+   graph, logs, the runtime starting and stopping with the app. `infisical run -- scripts/build-tatolab-app.sh --local-proof-test-root`
    builds a runtime unit and an app signed with the Developer ID from Infisical — the identity and
    team the installed release carries — whose machine lock, state and socket live under
    `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`: no administrator prompt, nothing written to
@@ -61,14 +61,10 @@ Evidence counts only when it was shot on what would ship now:
    (`build/streamlib/target/tatolab-runtime/bin/tatolab`, with `TATOLAB_TEST_MACHINE_ROOT` set) —
    test-pattern streams only. `build/streamlib` keeps cargo's cache between builds, so building
    again at an unchanged commit is quick. **The proof build shares the installed app's bundle id**, so
-   quit the installed Tatolab first. It drives only the launch agent
-   `com.tatolab.tatolabd.local-proof` under the test root, and installs no runtime: streamlib's
-   `install.sh` takes no test root yet, so run the unit's `tatolabd` by hand as below. Before: record
-   `launchctl print gui/$(id -u)/com.tatolab.tatolabd | head -5`. After: quit the proof build.
-   Never use its "Uninstall Tatolab…" unless uninstall is what you are proving — it also deletes
-   `~/Library/Application Support/com.tatolab.tatolab`, the installed app's own settings. Then
-   `rm -rf /tmp/tatolab-proof`, reopen `/Applications/Tatolab.app`, and show `launchctl print`
-   matches the record. Label **Live (local proof)**.
+   quit the installed Tato Studio first, which stops its runtime. The proof build starts its own
+   carried `tatolabd` under the test root as its child and stops it when it quits. After: quit the
+   proof build, `rm -rf /tmp/tatolab-proof`, and reopen `/Applications/Tato Studio.app`. Label
+   **Live (local proof)**.
 
    Without the packaged build — the unpackaged app over a runtime run by hand, as #37 and #38
    did:
@@ -86,19 +82,16 @@ Evidence counts only when it was shot on what would ship now:
      never edit the built `.js`), and run `npx electron . --remote-debugging-port=<port>` with `TATOLAB_TEST_MACHINE_ROOT` and `CFFIXED_USER_HOME` (a
      scratch home) set. Drive it with Playwright over the DevTools protocol; Electron answers no
      window-bounds command there, so a larger page is an emulated viewport, said in the caption.
-   - **The local-proof app drives launchd at launch**: it asks only about
-     `com.tatolab.tatolabd.local-proof`, whose plist would sit under the test root, never the
-     owner's `com.tatolab.tatolabd`, and a local-proof build installs no runtime. Record
-     `launchctl print gui/$(id -u)/com.tatolab.tatolabd` and the owner's runtime pid before, and
-     show both unchanged after.
+   - An unpackaged app carries no runtime and starts none: it uses the `tatolabd` you ran, and
+     says no runtime is running while none answers.
    - After: quit the app, stop the unit's `tatolabd`, `rm -rf /tmp/tatolab-proof`, and run
      `npm run build` again so `out/` holds the shipping features.
 
    A change to what the app reads from the local API also runs the live contract test against
    that runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=/tmp/tatolab-proof/run/local-api.sock npx vitest
    run src/main/local_api_client.test.ts`.
-3. **Live on the machine.** Only for what the test root cannot reach: the real administrator
-   prompt, the carried runtime installing over the owner's after a `brew` reinstall, Gatekeeper, TCC prompts. This
+3. **Live on the machine.** Only for what the test root cannot reach: Gatekeeper, TCC prompts,
+   the real `~/.local/bin/tatolab` link. This
    acts on the owner's real runtime — the `machine-brake` hook notes it — so say what you will
    run, run it only when the owner asked for this proof, and restore what you changed. Label
    **Live**.
@@ -112,10 +105,8 @@ Evidence counts only when it was shot on what would ship now:
    answering on the socket) is allowed and **named as a stand-in**. Label **Linux** or **Linux (container, unbundled)**.
    On a Mac, `scripts/verify/run-the-window-in-an-ubuntu-container.sh <folder>` does this with the
    stand-ins in `scripts/verify/linux-stand-ins/`.
-   The carried runtime's install is proven only by a packaged `.deb` or AppImage of a real build,
-   opened where a systemd user manager runs and the installed build differs or is none: the
-   overlay shows the installer's lines, then the streams. A `--local-proof-test-root` package
-   installs nothing, since `install.sh` writes only into the real home folder.
+   The carried runtime running as the app's child is proven only by a packaged `.deb` or AppImage
+   of a real build.
 
 ## Capture
 

@@ -8,7 +8,7 @@ import type { StudioViewHostConnection, JsonValue, PythonLanguageServerConnectio
 import { PythonLanguageClient } from "./python_language_client";
 
 /** What the open documents ask of the host. */
-export type OpenCodeDocumentsHost = Pick<StudioViewHostConnection<JsonValue>, "readWorkspaceFile" | "saveWorkspaceFile" | "connectToPythonLanguageServer">;
+export type OpenCodeDocumentsHost = Pick<StudioViewHostConnection<JsonValue>, "readProjectFile" | "saveProjectFile" | "connectToPythonLanguageServer">;
 
 /** How a document's last save went, or one under way. */
 export type OpenCodeDocumentSave = { kind: "none" } | { kind: "saving" } | { kind: "refused"; because: string };
@@ -109,7 +109,7 @@ export class OpenCodeDocuments {
   async saveOverTheFileOnDisk(file: string): Promise<void> {
     const document = this.documentsByFile.get(file);
     if (document?.kind !== "read" || !document.is_editable) return;
-    const reading = await this.host.readWorkspaceFile(file);
+    const reading = await this.host.readProjectFile(file);
     if (reading.kind === "not_read") {
       this.replaceTheReadDocument(file, (latest) => ({ ...latest, save: { kind: "refused", because: reading.because } }));
       return;
@@ -155,7 +155,7 @@ export class OpenCodeDocuments {
   }
 
   private async readFromDisk(file: string, why: "first_read" | "reload" | "check"): Promise<void> {
-    const reading = await this.host.readWorkspaceFile(file);
+    const reading = await this.host.readProjectFile(file);
     const before = this.documentsByFile.get(file);
     if (before === undefined) return;
     if (reading.kind === "not_read") {
@@ -212,7 +212,7 @@ export class OpenCodeDocuments {
   private async writeToDisk(document: Extract<OpenCodeDocument, { kind: "read" }>, basedOnVersion: string): Promise<void> {
     const { file, text } = document;
     this.replaceTheReadDocument(file, (latest) => ({ ...latest, save: { kind: "saving" } }));
-    const saving = await this.host.saveWorkspaceFile(file, text, basedOnVersion);
+    const saving = await this.host.saveProjectFile(file, text, basedOnVersion);
     if (saving.kind === "not_saved") {
       this.replaceTheReadDocument(file, (latest) => ({ ...latest, save: { kind: "refused", because: saving.because } }));
       return;

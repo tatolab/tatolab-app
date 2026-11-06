@@ -32,21 +32,16 @@ function statusListing(streams: ListedStream[] | null): TatolabStatus {
     app_version: "0.45.0",
     app_build: null,
     platform: "macos",
-    run_tatolab: true,
-    runtime_agent: "enabled",
     runtime_state: streams === null ? "starting" : "running",
+    runtime_not_running_because: null,
     machine_name: streams === null ? null : "jonathanf-macbook",
     streams,
-    first_run_finished: true,
-    command_line_tool_linked_at: "/Users/ada/.local/bin/tatolab",
-    command_line_tool_usr_local_bin_link: { kind: "not_linked" },
+    command_line_tool_link: { kind: "linked", path: "/Users/ada/.local/bin/tatolab" },
     app_update: { kind: "not_checked" },
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
-    runtime_install: { kind: "none" },
-    installed_runtime: null,
   };
 }
 
@@ -135,6 +130,6 @@ test.skipIf(process.getuid?.() === 0)("a_switch_that_cannot_be_remembered_holds_
   const set = await streamFailureNotifications.setNotifyWhenAStreamFails(false);
   await chmod(appConfigDirectory, 0o700);
 
-  expect(!set.ok && set.failure.startsWith("Tatolab couldn't remember this, so it holds only until Tatolab quits: ")).toBe(true);
+  expect(!set.ok && set.failure.startsWith("Tato Studio couldn't remember this, so it holds only until Tato Studio quits: ")).toBe(true);
   expect(streamFailureNotifications.stateNow().enabled).toBe(false);
 });

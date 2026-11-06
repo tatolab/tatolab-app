@@ -17,15 +17,15 @@ paths:
   its doc. No `process.platform` or `os.platform()` outside `platform/` —
   ESLint (`eslint.config.js`) enforces it.
 - **Extend the platform seam, never bypass it.** A new OS mechanism (a service-manager call, a
-  path, a prompt) is a new item on both modules or a new method on the existing interface — never an
-  `execFile("launchctl")` in shared code, never a second registration path.
+  path) is a new item on both modules or a new method on the existing interface — never a
+  `spawn` in shared code, never a second way to start the runtime.
 - **Both platform modules load and test on either OS**: they import nothing that exists on only
   one, and reach the OS through injected seams, so `npm test` runs both everywhere. The app has no
-  native piece of its own: the macOS module reaches launchd through `launchctl`.
-- **Every OS side effect is injected.** `launchctl`, `systemctl --user`, `osascript`'s
-  administrator prompt, `SMAppService` and the filesystem roots reach the code through a seam a
-  test fakes. A test that would show a real prompt, register a real agent or touch `/Library`,
-  `/usr/local/bin` or `~/.config/systemd` is a defect.
+  native piece of its own.
+- **Every OS side effect is injected.** Starting the carried runtime, `SMAppService` and the
+  filesystem roots reach the code through a seam a test fakes. A test that would start a real
+  runtime or touch the real `~/.local/bin` is a defect. The app never asks for an administrator's
+  password.
 - **`machineDirectoriesUnderATestRoot` is for local proof only.** It moves the machine lock,
   state and socket under `TATOLAB_TEST_MACHINE_ROOT`; with it, `--app-update-feed-url` may point
   the app at a local update feed. Never ship either: the bundle scripts refuse a test-root unit
@@ -51,13 +51,14 @@ paths:
   Tatolab.app, whose login item it is. A protected resource the runtime reads needs its usage
   string in `packaging/macos/Info.plist` and, where the hardened runtime gates it, the entitlement
   on both `packaging/entitlements/tatolab-app.entitlements` and `tatolabd.entitlements`. Every key added to `Info.plist`, an
-  entitlement or the agent plist gets its assertion in `verify-tatolab-app-bundle.sh` in the same
+  or an entitlement gets its assertion in `verify-tatolab-app-bundle.sh` in the same
   PR.
-- **The app's lifecycle is a contract.** Closing the window hides it and the app stays in the tray
-  (on macOS the Dock icon follows the window); "Quit Tatolab" quits only the app and never stops
-  or unregisters the runtime; opening the app again shows the one window. The tray menu is the
-  status line · Open Tatolab · Run Tatolab · Set Up Tatolab… (macOS, while setup is unfinished) ·
-  Check for Updates… (a packaged app) · Quit Tatolab. An update installs only when the person
+- **The app's lifecycle is a contract.** The app runs the runtime it carries as its child: it
+  starts it when no runtime answers and stops it on Quit, and leaves a runtime it did not start
+  alone. Closing the window hides it and the app and the runtime stay in the tray (on macOS the
+  Dock icon follows the window); opening the app again shows the one window, which opens on the
+  Projects window with no setup screen. The tray menu is the status line · Open Tato Studio ·
+  Check for Updates… (a packaged app) · Quit Tato Studio. An update installs only when the person
   chooses it. Changing any of these is a decision.
 - **macOS changes are proven on macOS, Linux changes on Linux.** A Mac cannot run the Linux module
   against a real systemd or desktop; an x86_64 Linux machine or an `ubuntu:22.04` container is the

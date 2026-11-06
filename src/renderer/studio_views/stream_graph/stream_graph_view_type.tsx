@@ -4,18 +4,18 @@ import { NodeGraphCanvas } from "../../design_system/node_graph_canvas";
 import { ReadOnlyBanner } from "../../design_system/read_only_banner";
 import { WaitingState } from "../../design_system/waiting_state";
 import { useStudioViewReading } from "../../view_host/in_window_view_host";
-import type { ListedStreamsReading, OpenWorkspaceReading, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
+import type { ListedStreamsReading, OpenProjectReading, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 
-/** The issue that opens an import as a workspace of its own, where it can be edited. */
+/** The issue that opens an import as a project of its own, where it can be edited. */
 const OPENING_AN_IMPORT_TO_EDIT_ARRIVES_WITH = "tatolab/tatolab-app#133";
 
-/** The import a stream's project is, by its name, when the open workspace imports the project the runtime lists it from; `null` for the workspace's own. */
-function importedProjectNameOfTheStream(stream: string, openWorkspace: OpenWorkspaceReading | null, listedStreams: ListedStreamsReading | null): string | null {
-  if (openWorkspace?.kind !== "read" || listedStreams?.kind !== "listed") return null;
+/** The import a stream's project is, by its name, when the open project imports the project the runtime lists it from; `null` for the project's own. */
+function importedProjectNameOfTheStream(stream: string, openProject: OpenProjectReading | null, listedStreams: ListedStreamsReading | null): string | null {
+  if (openProject?.kind !== "read" || listedStreams?.kind !== "listed") return null;
   const projectDirectory = listedStreams.streams.find((listedStream) => listedStream.stream === stream)?.location?.project_directory;
-  if (projectDirectory === undefined || projectDirectory === openWorkspace.workspace.workspace_project.folder) return null;
-  const importedProject = openWorkspace.workspace.imports.find((imported) => imported.source.kind === "folder" && imported.source.project.folder === projectDirectory);
+  if (projectDirectory === undefined || projectDirectory === openProject.open_project.project.folder) return null;
+  const importedProject = openProject.open_project.imports.find((imported) => imported.source.kind === "folder" && imported.source.project.folder === projectDirectory);
   return importedProject === undefined ? null : importedProject.name;
 }
 
@@ -27,7 +27,7 @@ function StreamGraphOfTheTab({ connection, streamTab }: { connection: StudioView
   );
   const graphReading = useStudioViewReading(watchTheTabsGraph);
   const selection = useStudioViewReading(connection.watchSelection);
-  const openWorkspace = useStudioViewReading(connection.watchOpenWorkspace);
+  const openProject = useStudioViewReading(connection.watchOpenProject);
   const listedStreams = useStudioViewReading(connection.watchListedStreams);
   const canvasContents = useMemo(() => (graphReading?.kind === "read" ? streamGraphCanvasContents(graphReading.graph) : null), [graphReading]);
   const onNodeSelected = useCallback(
@@ -56,7 +56,7 @@ function StreamGraphOfTheTab({ connection, streamTab }: { connection: StudioView
   if (canvasContents === null || canvasContents.nodes.length === 0) {
     return <WaitingState title={`${streamTab.display_name} has no nodes`} explanation="Its stream function added none." data-stream-graph-state="empty" />;
   }
-  const importedProjectName = importedProjectNameOfTheStream(streamTab.stream, openWorkspace, listedStreams);
+  const importedProjectName = importedProjectNameOfTheStream(streamTab.stream, openProject, listedStreams);
   return (
     <NodeGraphCanvas
       label={`Graph of ${streamTab.display_name}`}
@@ -76,7 +76,7 @@ function StreamGraphOfTheTab({ connection, streamTab }: { connection: StudioView
               action={
                 <ActionButton
                   size="small"
-                  disabledReason={`Opening an import as its own workspace arrives with ${OPENING_AN_IMPORT_TO_EDIT_ARRIVES_WITH}`}
+                  disabledReason={`Opening an import as its own project arrives with ${OPENING_AN_IMPORT_TO_EDIT_ARRIVES_WITH}`}
                   onPressed={() => undefined}
                   data-stream-graph-action="open_to_edit"
                 >

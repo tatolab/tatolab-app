@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Builds Tatolab.app and its installer end to end: streamlib's runtime unit, the Electron app, the
 # assembled bundle, signatures, the branded .dmg, optional notarization, and the bundle checks.
-# Outputs build/Tatolab.app, build/Tatolab-<version>-arm64.dmg, and the update Squirrel.Mac takes:
-# build/Tatolab-<version>-arm64-mac.zip and its feed manifest build/latest-mac.yml.
+# Outputs build/Tato Studio.app, build/Tato-Studio-<version>-arm64.dmg, and the update Squirrel.Mac takes:
+# build/Tato-Studio-<version>-arm64-mac.zip and its feed manifest build/latest-mac.yml.
 # The runtime is always streamlib's main, or --streamlib-ref, fetched by
 # fetch-streamlib-for-the-app-build.sh into build/streamlib; nothing outside this repository is read.
 # The app's version is the version of the tatolabd it bundles. When it finishes it checks
@@ -71,13 +71,13 @@ for developer_id_variable in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_
 done
 if [ ${#missing_developer_id_variables[@]} -gt 0 ]; then
   echo "no Developer ID to sign with: ${missing_developer_id_variables[*]} not set." >&2
-  echo "Every Tatolab.app is signed with the Developer ID from Infisical: run the build under" >&2
+  echo "Every Tato Studio.app is signed with the Developer ID from Infisical: run the build under" >&2
   echo "'infisical run -- scripts/build-tatolab-app.sh …' (with --env=<env> if the Apple secrets live in another environment)." >&2
   exit 1
 fi
 case "$APPLE_SIGNING_IDENTITY" in
   "Developer ID Application: "*) signing_identity="$APPLE_SIGNING_IDENTITY" ;;
-  *) echo "APPLE_SIGNING_IDENTITY is not a 'Developer ID Application: …' identity: Tatolab.app is signed with nothing else" >&2; exit 1 ;;
+  *) echo "APPLE_SIGNING_IDENTITY is not a 'Developer ID Application: …' identity: Tato Studio.app is signed with nothing else" >&2; exit 1 ;;
 esac
 
 echo "==> Developer ID"
@@ -140,9 +140,9 @@ tatolabd_version_output="$("$runtime_unit_directory/bin/tatolabd" --version)"
 app_version="${tatolabd_version_output##* }"
 [[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "the unit's tatolabd reports no X.Y.Z version: $tatolabd_version_output" >&2; exit 1; }
 echo "    $runtime_unit_directory: streamlib $streamlib_commit, version $app_version"
-assembled_app="$build_directory/Tatolab.app"
-output_dmg="$build_directory/Tatolab-$app_version-arm64.dmg"
-output_update_zip="$build_directory/Tatolab-$app_version-arm64-mac.zip"
+assembled_app="$build_directory/Tato Studio.app"
+output_dmg="$build_directory/Tato-Studio-$app_version-arm64.dmg"
+output_update_zip="$build_directory/Tato-Studio-$app_version-arm64-mac.zip"
 output_update_manifest="$build_directory/latest-mac.yml"
 
 echo "==> Electron app"
@@ -158,11 +158,11 @@ plutil -replace LSMinimumSystemVersion -string 15.0 "$info_plist"
 # Electron's own Info.plist lets the main process load any http:// URL; the app loads none.
 plutil -remove NSAppTransportSecurity "$info_plist"
 # Electron's own Info.plist asks for Bluetooth and system audio capture in words that do not name
-# Tatolab; the app uses neither, so those strings go.
+# Tato Studio; the app uses neither, so those strings go.
 while IFS= read -r usage_description_key; do
   [ -n "$usage_description_key" ] || continue
   case "$(plutil -extract "$usage_description_key" raw -o - "$info_plist")" in
-    *Tatolab*) ;;
+    *"Tato Studio"*) ;;
     *) plutil -remove "$usage_description_key" "$info_plist"; echo "    removed Electron's $usage_description_key" ;;
   esac
 done < <(plutil -convert json -o - "$info_plist" | node -e 'process.stdout.write(Object.keys(JSON.parse(require("node:fs").readFileSync(0, "utf8"))).filter((key) => key.endsWith("UsageDescription")).join("\n") + "\n")')

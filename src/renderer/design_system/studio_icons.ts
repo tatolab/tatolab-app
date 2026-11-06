@@ -21,8 +21,8 @@ export type StudioIconName =
   | "properties"
   | "viewer"
   | "code"
-  | "workspace_view"
-  | "workspace"
+  | "project_view"
+  | "project_folder"
   | "project"
   | "imports"
   | "file"
@@ -36,8 +36,8 @@ const STUDIO_ICONS: Record<StudioIconName, LucideIcon> = {
   properties: SlidersHorizontal,
   viewer: MonitorPlay,
   code: Code,
-  workspace_view: Box,
-  workspace: LayoutPanelTop,
+  project_view: Box,
+  project_folder: LayoutPanelTop,
   project: Package,
   imports: FolderInput,
   file: FileText,

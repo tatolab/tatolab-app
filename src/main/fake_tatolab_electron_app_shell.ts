@@ -6,14 +6,11 @@ import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { StreamProjectFolderChosenFor, WorkspaceFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import type { StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import type { ProjectFolderDialogPurpose } from "./open_project.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
-import {
-  type FakeCarriedRuntimeInstall,
-  FakeRuntimeAgentRegistration,
-  FakeTatolabCommandLineToolLinks,
-  fakeTatolabPlatformForThisBuild,
-} from "./fake_tatolab_platform_for_this_build.js";
+import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
+import type { CarriedRuntime } from "./platform/carried_runtime.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { failedWith, succeeded } from "./result.js";
 import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
@@ -21,7 +18,6 @@ import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabElectronAppShell } from "./main.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { MacosActivationPolicy } from "./platform/main_window_chrome.js";
-import type { TatolabUninstall } from "./platform/tatolab_uninstall.js";
 import type { TatolabWindowCommandHandlers } from "./tatolab_commands.js";
 import type { MainWindowCloseRequestAnswer, MainWindowSpecification } from "./tatolab_main_window.js";
 import type { TrayMenuItemDescription, TrayMenuItemId } from "./tatolab_tray_menu.js";
@@ -47,7 +43,7 @@ export type FakeShellRecord =
   | { asked: "set_application_menu"; applicationMenu: ApplicationMenu }
   | { asked: "open_folder_in_the_file_manager"; folder: string }
   | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
-  | { asked: "ask_for_a_workspace_folder"; chosenFor: WorkspaceFolderChosenFor; defaultFolder: string };
+  | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderDialogPurpose; defaultFolder: string };
 
 /** A fake Electron app shell for the lifecycle's tests. */
 export class FakeTatolabElectronAppShell {
@@ -57,7 +53,7 @@ export class FakeTatolabElectronAppShell {
   holdsTheSingleInstanceLock = true;
   /** The copy this app reads itself as. */
   thisCopyOfTatolab: TatolabAppCopy = {
-    executableThatOpensTheCopy: "/Applications/Tatolab.app/Contents/MacOS/Tatolab",
+    executableThatOpensTheCopy: "/Applications/Tato Studio.app/Contents/MacOS/Tato Studio",
     appVersion: "0.45.0",
     appBuild: { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", build_kind: "release", built_with_uncommitted_changes: false },
     carriedStreamlibCommit: "5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f",
@@ -67,17 +63,17 @@ export class FakeTatolabElectronAppShell {
   mainWindowCreationFailure: string | null = null;
   /** Whether the fake window is on screen: shown and not hidden since. */
   mainWindowShowing = false;
-  readonly runtimeAgent = new FakeRuntimeAgentRegistration("enabled");
-  commandLineToolLinks = new FakeTatolabCommandLineToolLinks("/Users/someone/.local/bin/tatolab");
-  tatolabUninstall: TatolabUninstall | undefined = undefined;
-  /** The runtime this build carries for the installer, `null` for a build that carries none. */
-  carriedRuntimeInstall: FakeCarriedRuntimeInstall | null = null;
+  /** The runtimes the app started, which the test ends. */
+  readonly carriedRuntimeStarts = new FakeCarriedRuntimeStarts();
+  /** The runtime this build carries; `undefined` for the fake's own, `null` for a build that carries none. */
+  carriedRuntime: CarriedRuntime | null | undefined = undefined;
+  commandLineToolLink = new FakeTatolabCommandLineToolLink();
   appUpdatePackaging: TatolabAppUpdatePackaging = { kind: "not_offered", reason: "this fake platform updates nothing" };
   appUpdateFeedForThisBuild: TatolabAppUpdateFeedForThisBuild = { kind: "not_offered", reason: "this fake platform updates nothing" };
   /** The folder the fake dialog answers with; `null` reads as the person cancelling it. */
   streamProjectFolderTheDialogAnswers: string | null = null;
-  /** The folder the workspace dialog answers, or `null` for the person cancelling. */
-  workspaceFolderTheDialogAnswers: string | null = null;
+  /** The folder the project dialog answers, or `null` for the person cancelling. */
+  projectFolderTheDialogAnswers: string | null = null;
   readonly systemNotifications = new FakeSystemNotifications((notificationShown) => this.records.push({ asked: "notify", ...notificationShown }));
   readonly appConfigDirectory = path.join(os.tmpdir(), `tl-app-config-${randomUUID()}`);
   private tatolabWindowCommandHandlers: TatolabWindowCommandHandlers | null = null;
@@ -100,14 +96,13 @@ export class FakeTatolabElectronAppShell {
     openAnotherCopyOnceThisOneExits: (executable) => this.records.push({ asked: "open_another_copy_once_this_one_exits", executable }),
     setTheApplicationMenu: (applicationMenu) => this.records.push({ asked: "set_application_menu", applicationMenu }),
     buildTheTatolabPlatformForThisBuild: async () =>
-      fakeTatolabPlatformForThisBuild(
-        this.runtimeAgent,
-        this.commandLineToolLinks,
-        path.join(this.appConfigDirectory, "no-runtime.sock"),
-        this.tatolabUninstall,
-        this.appUpdatePackaging,
-        this.carriedRuntimeInstall,
-      ),
+      fakeTatolabPlatformForThisBuild({
+        localApiSocket: path.join(this.appConfigDirectory, "no-runtime.sock"),
+        carriedRuntime: this.carriedRuntime,
+        commandLineToolLink: this.commandLineToolLink,
+        appUpdatePackaging: this.appUpdatePackaging,
+      }),
+    startTheCarriedRuntime: (carriedRuntime, whenItExits) => this.carriedRuntimeStarts.startTheCarriedRuntime(carriedRuntime, whenItExits),
     answerTheWindowsCommands: (tatolabWindowCommandHandlers) => {
       this.tatolabWindowCommandHandlers = tatolabWindowCommandHandlers;
     },
@@ -119,20 +114,22 @@ export class FakeTatolabElectronAppShell {
       this.records.push({ asked: "ask_for_a_stream_project_folder", chosenFor, defaultFolder });
       return succeeded(this.streamProjectFolderTheDialogAnswers);
     },
-    askThePersonForAWorkspaceFolder: async (chosenFor, defaultFolder) => {
-      this.records.push({ asked: "ask_for_a_workspace_folder", chosenFor, defaultFolder });
-      return succeeded(this.workspaceFolderTheDialogAnswers);
+    askThePersonForAProjectFolder: async (chosenFor, defaultFolder) => {
+      this.records.push({ asked: "ask_for_a_project_folder", chosenFor, defaultFolder });
+      return succeeded(this.projectFolderTheDialogAnswers);
     },
     watchFolderEntries: () => null,
     startANodeLanguageServer: () => failedWith("the fake shell starts no language server"),
     pyrightLanguageServerModulePath: "/fake/node_modules/pyright/langserver.index.js",
     homeDirectory: path.join(this.appConfigDirectory, "home"),
+    documentsDirectory: path.join(this.appConfigDirectory, "home", "Documents"),
     createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,
     systemNotifications: this.systemNotifications,
     repeatingTimer: (intervalMs) => this.records.push({ asked: "repeat_every", intervalMs }),
     appConfigDirectory: this.appConfigDirectory,
     runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readMonotonicClockMs: () => 0,
+    readWallClockMsForDisplay: () => 1_790_000_000_000,
     mainWindowHostFactory: {
       createMainWindowHost: (mainWindowSpecification, answerCloseRequest) => {
         if (this.mainWindowCreationFailure !== null) return failedWith(this.mainWindowCreationFailure);

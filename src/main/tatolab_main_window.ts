@@ -2,9 +2,9 @@
 // tray's "Open Tatolab"; closing it hides it and the app keeps running in the tray. On macOS the
 // Dock icon shows only while the window does.
 
-import type { OpenWorkspaceReading, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { OpenProjectReading, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
-  TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT,
+  TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
@@ -83,9 +83,9 @@ export class TatolabMainWindow {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STATUS_CHANGED_EVENT, status);
   }
 
-  /** Send the window `reading` as `tatolab-open-workspace-changed`; nothing, before the window is first shown, which reads the open workspace when it opens. */
-  sendTheWindowTheOpenWorkspace(reading: OpenWorkspaceReading): void {
-    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT, reading);
+  /** Send the window `reading` as `tatolab-open-project-changed`; nothing, before the window is first shown, which reads the open project when it opens. */
+  sendTheWindowTheOpenProject(reading: OpenProjectReading): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_OPEN_PROJECT_CHANGED_EVENT, reading);
   }
 
   /** Send the window `event` as `tatolab-python-language-server-event`; nothing, before the window is first shown. */

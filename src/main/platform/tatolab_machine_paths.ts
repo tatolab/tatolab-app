@@ -21,3 +21,17 @@ export function perUserStreamlibRuntimeDirectoryUnderTmp(uid: number): string {
 export function localApiSocketUnderALocalProofTestRoot(testMachineRoot: string): string {
   return path.join(testMachineRoot, "run", LOCAL_API_SOCKET_FILE_NAME);
 }
+
+/** The test ports a local-proof runtime's local relays bind, without which a test-root runtime runs none. */
+const LOCAL_PROOF_LOCAL_RELAY_LOOPBACK_PORT = 14443;
+const LOCAL_PROOF_LOCAL_RELAY_EVERY_INTERFACE_PORT = 14445;
+
+/** What a runtime under `testMachineRoot` is run with: its test root, and the test ports of its local relays and loopback HTTP. */
+export function localProofRuntimeEnvironment(testMachineRoot: string, loopbackHttpPort: number): Readonly<Record<string, string>> {
+  return {
+    TATOLAB_TEST_MACHINE_ROOT: testMachineRoot,
+    TATOLAB_TEST_LOCAL_RELAY_LOOPBACK_PORT: String(LOCAL_PROOF_LOCAL_RELAY_LOOPBACK_PORT),
+    TATOLAB_TEST_LOCAL_RELAY_EVERY_INTERFACE_PORT: String(LOCAL_PROOF_LOCAL_RELAY_EVERY_INTERFACE_PORT),
+    TATOLAB_TEST_LOOPBACK_HTTP_PORT: String(loopbackHttpPort),
+  };
+}

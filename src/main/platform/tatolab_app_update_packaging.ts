@@ -9,4 +9,4 @@ export type TatolabAppUpdatePackaging =
   | { kind: "not_offered"; reason: string };
 
 /** Why an unpackaged app offers no updates. */
-export const UNPACKAGED_APP_UPDATE_REFUSAL = "Only a packaged Tatolab updates itself.";
+export const UNPACKAGED_APP_UPDATE_REFUSAL = "Only a packaged Tato Studio updates itself.";

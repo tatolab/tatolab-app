@@ -1,14 +1,13 @@
-// Tatolab.app: opening it shows its window and puts it in the tray, opening it again shows the
-// window of the one app already running — or, when the copy opened is another build, quits the
-// running one and opens it — closing the window leaves the app in the tray, and
-// quitting quits only the app — the runtime stays on. Each opening reconciles the runtime's agent
-// with "Run Tatolab"; the first also links the `tatolab` command in the home folder, restarts a
-// runtime left running from the bundle before an update, and starts checking for updates on its
-// own.
+// Tato Studio: opening it starts the runtime it carries as its own child, shows its window and puts
+// it in the tray; opening it again shows the window of the one app already running — or, when the
+// copy opened is another build, quits the running one and opens it. Closing the window leaves the
+// app and its runtime in the tray, so the CLI and MCP keep working; quitting stops both. The first
+// opening also links the `tatolab` command in the home folder and starts checking for updates on
+// its own.
 
-import { notifyTheRuntimeInstallEnded } from "./runtime_install_notifications.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
+import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
 import type { TatolabAppUpdatePackaging } from "./platform/tatolab_app_update_packaging.js";
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
@@ -32,10 +31,10 @@ import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "
 import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
-import { OpenWorkspaceFolder, type FolderEntriesWatch, type WorkspaceFolderDialog } from "./open_workspace.js";
+import { OpenProjectFolder, type FolderEntriesWatch, type ProjectFolderDialog } from "./open_project.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
-import { WorkspaceFiles } from "./workspace_files.js";
-import { rememberedOpenWorkspaceFileIn } from "./remembered_open_workspace_file.js";
+import { OpenProjectFiles } from "./open_project_files.js";
+import { recentProjectFoldersFileIn } from "./recent_project_folders_file.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
 import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy_handoff.js";
 
@@ -57,7 +56,7 @@ export interface TatolabElectronAppShell {
   onTheAppQuitting(listener: () => void): void;
   exitTheApp(exitCode: number): void;
   setTheApplicationMenu(applicationMenu: ApplicationMenu): void;
-  /** This platform's runtime agent, machine setup, local API socket and uninstall, built from `platformItems` with the app's host services. */
+  /** This platform's carried runtime, the command's link and the local API socket, built from `platformItems` with the app's host services. */
   buildTheTatolabPlatformForThisBuild(platformItems: TatolabPlatformItems): Promise<TatolabPlatformForThisBuild>;
   /** Answer each command the window invokes with its handler. */
   answerTheWindowsCommands(tatolabWindowCommandHandlers: TatolabWindowCommandHandlers): void;
@@ -65,27 +64,33 @@ export interface TatolabElectronAppShell {
   openAFolderInTheFileManager(folder: string): Promise<Result<void, string>>;
   /** The desktop's folder dialog over the window, which the window's Add stream asks through. */
   askThePersonForAStreamProjectFolder: StreamProjectFolderDialog;
-  /** The desktop's folder dialog over the window, which the studio opens and creates a workspace through. */
-  askThePersonForAWorkspaceFolder: WorkspaceFolderDialog;
+  /** The desktop's folder dialog over the window, which the studio opens and creates a project through. */
+  askThePersonForAProjectFolder: ProjectFolderDialog;
   /** How the code pane's language servers start, each in its own process. */
   startANodeLanguageServer: StartANodeLanguageServer;
   /** Pyright's `langserver.index.js` as this build carries it. */
   pyrightLanguageServerModulePath: string;
-  /** Watching the entries directly in one folder, which the open workspace reads again on. */
+  /** Watching the entries directly in one folder, which the open project reads again on. */
   watchFolderEntries: FolderEntriesWatch;
-  /** The person's home directory, where the folder dialog opens, or at `~/streams` for a new project once that folder exists. */
+  /** The person's home directory, where the folder dialog opens, or at `~/streams` for a new stream project once that folder exists. */
   homeDirectory: string;
+  /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
+  documentsDirectory: string;
   /** The update feed `appUpdatePackaging` reads and takes from, or why this app cannot update itself. */
   createTheAppUpdateFeed(appUpdatePackaging: TatolabAppUpdatePackaging): TatolabAppUpdateFeedForThisBuild;
   /** The desktop's notifications, which updates and failing streams are told through. */
   systemNotifications: SystemNotifications;
   /** The timer the daily update check repeats on. */
   repeatingTimer: RepeatingTimer;
-  /** The app's own config directory, where "Run Tatolab" is remembered. */
+  /** How the carried runtime is started as the app's child. */
+  startTheCarriedRuntime: StartTheCarriedRuntimeAsAChildProcess;
+  /** The app's own config directory, where its switches and recent projects are remembered. */
   appConfigDirectory: string;
   /** Where the runtime this build reads serves its loopback HTTP: the window's content security policy frames it, and the graph's preview pages sit under it. */
   runtimeLoopbackHttpOrigin: string;
   readMonotonicClockMs(): number;
+  /** The wall clock, in milliseconds since the epoch, only ever shown to the person, as when the Projects window says a project was opened. */
+  readWallClockMsForDisplay(): number;
   mainWindowHostFactory: MainWindowHostFactory;
   trayIconHostFactory: TrayIconHostFactory;
   dockIconHost: DockIconHost;
@@ -105,9 +110,7 @@ export async function startTatolabApp(
   tatolabAppLog: TatolabAppLog,
 ): Promise<TatolabRunningApp | null> {
   if (platformItems === null) {
-    tatolabAppLog.error(
-      "Tatolab runs on macOS and Linux only: it runs the runtime through the installer's launch agent on macOS and its systemd user service, tatolabd.service, on Linux",
-    );
+    tatolabAppLog.error("Tato Studio runs on macOS and Linux only");
     tatolabElectronAppShell.exitTheApp(1);
     return null;
   }
@@ -120,7 +123,6 @@ export async function startTatolabApp(
     tatolabElectronAppShell.exitTheApp(0);
     return null;
   }
-  const appLaunchedAtMs = tatolabElectronAppShell.readMonotonicClockMs();
   const tatolabMainWindow = new TatolabMainWindow(
     tatolabElectronAppShell.mainWindowHostFactory,
     platformItems,
@@ -139,16 +141,18 @@ export async function startTatolabApp(
         opened_executable: openedCopy.executableThatOpensTheCopy,
       });
       tatolabElectronAppShell.openAnotherCopyOnceThisOneExits(openedCopy.executableThatOpensTheCopy);
-      quitTheTatolabApp(tatolabMainWindow, (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode), tatolabAppLog);
+      quitTheTatolabApp(
+        tatolabMainWindow,
+        () => sharedStateOnceBuilt?.controller.stopTheRuntimeAsTheAppQuits(),
+        (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode),
+        tatolabAppLog,
+      );
       return;
     }
     tatolabMainWindow.show();
     if (sharedStateOnceBuilt === null) return;
     sharedStateOnceBuilt.statusPublisher.sendTheLastPublishedStatusToTheWindow();
-    runInTheBackgroundWithTheController(sharedStateOnceBuilt, "tatolab-app-reopened", async (controller, statusPublisher) => {
-      await controller.reconcileTheAgentWithTheRunTatolabSwitch();
-      statusPublisher.requestRefresh();
-    });
+    sharedStateOnceBuilt.statusPublisher.requestRefresh();
   });
   const platformForThisBuild = await tatolabElectronAppShell.buildTheTatolabPlatformForThisBuild(platformItems);
   let statusPublisherOnceBuilt: TatolabStatusPublisher | null = null;
@@ -175,11 +179,10 @@ export async function startTatolabApp(
     runProgramToCompletion,
     tatolabAppLog,
   );
-  const controller = await TatolabAppController.create({
+  const controller = TatolabAppController.create({
     platform: platformItems.platform,
     platformForThisBuild,
-    appConfigDirectory: tatolabElectronAppShell.appConfigDirectory,
-    appLaunchedAtMs,
+    startTheCarriedRuntime: tatolabElectronAppShell.startTheCarriedRuntime,
     appVersion: thisCopyOfTatolab.appVersion,
     appBuild: thisCopyOfTatolab.appBuild,
     runtimeLoopbackHttpOrigin: tatolabElectronAppShell.runtimeLoopbackHttpOrigin,
@@ -187,7 +190,7 @@ export async function startTatolabApp(
     readTheAppUpdateState: () => tatolabAppUpdater.state(),
     readStreamFailureNotifications: () => streamFailureNotifications.stateNow(),
     readTheCommandLineToolVersion: () => tatolabCommandLineToolVersion.versionNow(),
-    whenTheRuntimeInstallProgresses: () => statusPublisherOnceBuilt?.requestRefresh(),
+    whenTheRuntimeExits: () => statusPublisherOnceBuilt?.requestRefresh(),
     tatolabAppLog,
   });
   const statusPublisher = new TatolabStatusPublisher(
@@ -199,24 +202,26 @@ export async function startTatolabApp(
   statusPublisherOnceBuilt = statusPublisher;
   statusPublisher.attachStreamFailureNotifications(streamFailureNotifications);
   tatolabElectronAppShell.onTheAppQuitting(() => statusPublisher.stopPolling());
-  const openWorkspaceFolder = new OpenWorkspaceFolder({
+  tatolabElectronAppShell.onTheAppQuitting(() => controller.stopTheRuntimeAsTheAppQuits());
+  const openProjectFolder = new OpenProjectFolder({
     homeDirectory: tatolabElectronAppShell.homeDirectory,
-    workspaceFolderDialog: tatolabElectronAppShell.askThePersonForAWorkspaceFolder,
-    rememberedOpenWorkspaceFolder: rememberedOpenWorkspaceFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
-    workspaceProjectCreation: controller,
+    documentsDirectory: tatolabElectronAppShell.documentsDirectory,
+    projectFolderDialog: tatolabElectronAppShell.askThePersonForAProjectFolder,
+    recentProjectFolders: recentProjectFoldersFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
+    readWallClockNowMs: () => tatolabElectronAppShell.readWallClockMsForDisplay(),
+    newProjectCreation: controller,
     watchFolderEntries: tatolabElectronAppShell.watchFolderEntries,
     runAfter: (delayMs, work) => {
       const timer = setTimeout(work, delayMs);
       return () => clearTimeout(timer);
     },
-    sendTheWindowTheOpenWorkspace: (reading) => tatolabMainWindow.sendTheWindowTheOpenWorkspace(reading),
+    sendTheWindowTheOpenProject: (reading) => tatolabMainWindow.sendTheWindowTheOpenProject(reading),
   });
-  const workspaceFiles = new WorkspaceFiles(() => openWorkspaceFolder.readOpenWorkspace());
+  const openProjectFiles = new OpenProjectFiles(() => openProjectFolder.readOpenProject());
   const sharedState: TatolabAppSharedState = {
     controller,
     statusPublisher,
     tatolabAppUpdater,
-    tatolabUninstall: platformForThisBuild.tatolabUninstall,
     streamProjectFolderOpeners: {
       openAFolderInTheFileManager: (folder) => tatolabElectronAppShell.openAFolderInTheFileManager(folder),
       terminalOpenedInAFolder: platformForThisBuild.terminalOpenedInAFolder,
@@ -228,43 +233,36 @@ export async function startTatolabApp(
       projectLoadsOnTheRuntime: controller,
     }),
     streamFailureNotifications,
-    openWorkspaceFolder,
-    workspaceFiles,
+    openProjectFolder,
+    openProjectFiles,
     pythonLanguageServers: new PythonLanguageServers({
       startANodeLanguageServer: tatolabElectronAppShell.startANodeLanguageServer,
       pyrightLanguageServerModulePath: tatolabElectronAppShell.pyrightLanguageServerModulePath,
-      projectFolderOfTheOpenWorkspace: (projectFolder) => workspaceFiles.projectFolderOfTheOpenWorkspace(projectFolder),
+      projectFolderOfTheOpenProject: (projectFolder) => openProjectFiles.projectFolderOfTheOpenProject(projectFolder),
       sendTheWindowALanguageServerEvent: (event) => tatolabMainWindow.sendTheWindowALanguageServerEvent(event),
       tatolabAppLog,
     }),
     tatolabAppLog,
   };
-  tatolabElectronAppShell.onTheAppQuitting(() => sharedState.openWorkspaceFolder.stopWatching());
+  tatolabElectronAppShell.onTheAppQuitting(() => sharedState.openProjectFolder.stopWatching());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.pythonLanguageServers.stopEveryLanguageServer());
-  const quitTheApp = () => quitTheTatolabApp(tatolabMainWindow, (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode), tatolabAppLog);
+  const quitTheApp = () =>
+    quitTheTatolabApp(
+      tatolabMainWindow,
+      () => controller.stopTheRuntimeAsTheAppQuits(),
+      (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode),
+      tatolabAppLog,
+    );
   const showTheWindowWithTheLastStatus = () => {
     tatolabMainWindow.show();
     statusPublisher.sendTheLastPublishedStatusToTheWindow();
   };
   tatolabElectronAppShell.answerTheWindowsCommands(tatolabWindowCommandHandlers(sharedState, quitTheApp));
   sharedStateOnceBuilt = sharedState;
-  void sharedState.openWorkspaceFolder.openTheRememberedWorkspace();
   const onTrayMenuChoice = (trayMenuChoice: TrayMenuChoice) => {
     switch (trayMenuChoice) {
       case "open_tatolab":
         showTheWindowWithTheLastStatus();
-        return;
-      case "toggle_run_tatolab_switch":
-        runInTheBackgroundWithTheController(sharedState, "tatolab-run-tatolab-toggled", async (controller, statusPublisher) => {
-          await controller.toggleRunTatolab();
-          statusPublisher.requestRefresh();
-        });
-        return;
-      case "open_login_items_settings":
-        runInTheBackgroundWithTheController(sharedState, "tatolab-tray-opened-login-items", async (controller) => {
-          const opened = await controller.openLoginItemsSettings();
-          if (!opened.ok) tatolabAppLog.warn("Login Items could not be opened from the tray", { failure: opened.failure });
-        });
         return;
       case "check_for_app_updates":
         checkForTatolabAppUpdatesOnRequest(sharedState, "tray");
@@ -274,20 +272,13 @@ export async function startTatolabApp(
         return;
     }
   };
-  const tatolabTrayMenu = TatolabTrayMenu.build(
-    tatolabElectronAppShell.trayIconHostFactory,
-    platformItems.trayIconImage,
-    controller.runTatolab(),
-    onTrayMenuChoice,
-  );
+  const tatolabTrayMenu = TatolabTrayMenu.build(tatolabElectronAppShell.trayIconHostFactory, platformItems.trayIconImage, onTrayMenuChoice);
   statusPublisher.attachTrayMenu(tatolabTrayMenu);
   showTheWindowWithTheLastStatus();
   runInTheBackgroundWithTheController(sharedState, "tatolab-app-opened", async (controller, statusPublisher) => {
     statusPublisher.startPolling();
     tatolabAppUpdater.startCheckingOnItsOwn(tatolabElectronAppShell.repeatingTimer);
-    const runtimeInstallOutcome = await controller.installTheCarriedRuntimeIfItDiffers();
-    if (!tatolabMainWindow.isShowing()) notifyTheRuntimeInstallEnded(tatolabElectronAppShell.systemNotifications, runtimeInstallOutcome, showTheWindowWithTheLastStatus);
-    await controller.reconcileTheAgentWithTheRunTatolabSwitch();
+    await controller.linkTheCommandLineToolUnlessSomethingElseHoldsTheName();
     statusPublisher.requestRefresh();
   });
   return { tatolabMainWindow, tatolabTrayMenu, statusPublisher };

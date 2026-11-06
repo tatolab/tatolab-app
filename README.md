@@ -1,17 +1,20 @@
-# Tatolab.app
+# Tato Studio
 
-The desktop app for [Tatolab](https://tatolab.com), on macOS and Linux: a menu-bar (tray) app
+Tato Studio, made by Tatolab LLC, is the desktop app for the [Tatolab](https://tatolab.com) runtime, on macOS and Linux: a menu-bar (tray) app
 with a window. The window lists the streams the Tatolab runtime (`tatolabd`) holds as they start
-and stop, and shows each stream's graph and logs. The "Run Tatolab" switch turns the runtime's
-login service on and off. Closing the window leaves the app in the menu bar or panel, where "Open
-Tatolab" brings the window back. Quitting the app closes the window and the tray item; the runtime
-keeps running.
+and stop, and shows each stream's graph and logs. The app runs the runtime it carries as its own
+child process, the way an editor runs a language server: it starts it when the app opens and no
+runtime answers, starts it again after it exits (waiting 1 second, doubling up to 30), and stops it
+when the app quits. A runtime that already answers, such as one the `tatolab` CLI started, is used
+as it is and never restarted by the app. Nothing is installed and nothing asks for a password.
+Closing the window leaves the app and the runtime in the menu bar or panel, where "Open Tato
+Studio" brings the window back. Quitting the app closes the window and the tray item and stops the
+runtime and its streams.
 
-The tray menu shows a one-line status, "Open Tatolab", the "Run Tatolab" switch, "Open Login
-Items…" while macOS waits for approval, "Check for Updates…" in a packaged app, and "Quit
-Tatolab". A runtime that didn't start, was blocked by the service manager or lost its
-registration the app recovers by itself, registering its agent afresh less often each time until
-it answers. The window reads
+The tray menu shows a one-line status, "Open Tato Studio", "Check for Updates…" in a packaged app,
+and "Quit Tato Studio". The window opens on the Projects window, whose New project asks for a
+name and a location, `Tato Studio` in the Documents folder until Browse… picks another, and has the
+runtime make the project in that folder. It reads
 everything from the runtime's local API: `list_streams`, `logs` and `graph` over MCP, and
 `GET /api/graph` for the machine's name. It queues a stop or a start (or retry) of a stream, and
 the removal of a whole project, with the MCP tools `stop_stream`, `start_stream` and
@@ -29,11 +32,10 @@ the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-em
 
 |  | macOS | Linux |
 |---|---|---|
-| The runtime | carried inside the app and installed by streamlib's installer whenever the app opens carrying another build, run as the launch agent `com.tatolab.tatolabd` | carried in the package and installed the same way, run as the systemd user service `tatolabd.service` |
-| "Run Tatolab" | loads and unloads the launch agent (`launchctl bootstrap` / `bootout`) | `systemctl --user enable --now` / `disable --now tatolabd.service` |
-| First launch | Welcome and Getting set up, with no administrator password; the installer links `~/.local/bin/tatolab` | the installer's lines while it installs the runtime, then the streams; it links `tatolab` and `tatolabd` into `~/.local/bin` |
+| The runtime | `Contents/Helpers/Tatolab Runtime.app/Contents/MacOS/tatolabd`, run from the bundle as the app's child | `resources/tatolab-runtime/bin/tatolabd`, run from the package as the app's child |
+| The `tatolab` command | `~/.local/bin/tatolab`, linked to the bundle's `tatolab-cli` as the app opens when nothing else holds the name | `~/.local/bin/tatolab`, linked to the package's `bin/tatolab` the same way |
 | Local API socket | `/tmp/streamlib-<uid>/local-api.sock` | `$XDG_RUNTIME_DIR/streamlib/local-api.sock`, else `/tmp/streamlib-<uid>/local-api.sock` |
-| Uninstall | the app's "Uninstall Tatolab…", or `brew uninstall --cask tatolab` | the installer's `--uninstall`, then remove the app's package |
+| Uninstall | move Tato Studio.app to the Trash, or `brew uninstall --cask tato-studio` | remove the package, or delete the AppImage |
 
 ## Updates
 
@@ -41,9 +43,8 @@ A packaged app checks the feed at `https://get.tatolab.com/app/` at launch and o
 [electron-updater](https://github.com/electron-userland/electron-builder/tree/master/packages/electron-updater)'s
 generic provider. A check on its own only notifies that a newer version is available; nothing
 downloads or installs until the person chooses "Check for Updates…" in the tray, or its button in
-Settings. On macOS Squirrel.Mac replaces the bundle from the signed `.zip` and reopens it, and the
-app then registers the runtime's agent again, so launchd runs the
-version the bundle ships with and the runtime reloads its streams; the AppImage replaces its own file and reopens; a `.deb` opens the newer
+Settings. On macOS Squirrel.Mac replaces the bundle from the signed `.zip` and reopens it, which
+stops the old runtime with the old app and starts the new bundle's; the AppImage replaces its own file and reopens; a `.deb` opens the newer
 package's download in the browser, since apt alone replaces it. The feed's manifests are
 `app/latest-mac.yml` and `app/latest-linux.yml`, which point at `releases/<version>/`.
 
@@ -59,38 +60,34 @@ item only with the AppIndicator extension, which Ubuntu ships.
 
 ## Installing
 
-**macOS.** Open `Tatolab-<version>-arm64.dmg` from the
-[streamlib release](https://github.com/tatolab/streamlib/releases) and drag Tatolab into
+**macOS.** Open `Tato-Studio-<version>-arm64.dmg` from the
+[streamlib release](https://github.com/tatolab/streamlib/releases) and drag Tato Studio into
 Applications, or:
 
 ```sh
-brew install --cask tatolab/tap/tatolab
+brew install --cask tatolab/tap/tato-studio
 ```
 
-Opening the app registers the runtime's login item and links the `tatolab` command into
-`~/.local/bin`, with no administrator password. The first time, it says what Tatolab is and shows
-the runtime starting, asking for something only when macOS needs it: approval in Login Items.
-Settings › Command line also offers a link in
-`/usr/local/bin`, which works in every terminal and asks for an administrator's password.
+Opening the app starts the runtime and links the `tatolab` command into `~/.local/bin`, with no
+administrator password and no setup screen. A terminal whose PATH lacks `~/.local/bin` needs
+`export PATH="$HOME/.local/bin:$PATH"` in `~/.zprofile`; Settings › Command line shows the line.
 
 **Linux.** Install the app from the [streamlib release](https://github.com/tatolab/streamlib/releases),
 as the `.deb`:
 
 ```sh
-sudo apt install ./Tatolab-<version>-amd64.deb
+sudo apt install ./Tato-Studio-<version>-amd64.deb
 ```
 
 or as the AppImage, which needs no installing:
 
 ```sh
-chmod +x Tatolab-<version>-x86_64.AppImage && ./Tatolab-<version>-x86_64.AppImage
+chmod +x Tato-Studio-<version>-x86_64.AppImage && ./Tato-Studio-<version>-x86_64.AppImage
 ```
 
-Each carries the runtime and streamlib's installer. Opening the app runs the installer on it
-whenever the installed runtime is another build, or none: it unpacks the runtime to
-`~/.local/share/tatolab/<version>-<commit>/`, links `tatolab` and `tatolabd` into `~/.local/bin`,
-and installs and starts the systemd user service `tatolabd.service`, asking nothing. A machine
-without the app installs the runtime with the installer alone:
+Each carries the runtime. Opening the app starts it from the package and links `tatolab` into
+`~/.local/bin`, asking nothing. A machine without the app installs the runtime with streamlib's
+installer alone:
 
 ```sh
 curl -fsSL https://get.tatolab.com/install.sh | sh
@@ -98,57 +95,35 @@ curl -fsSL https://get.tatolab.com/install.sh | sh
 
 ## Uninstalling
 
-Uninstalling removes the runtime's service and files and never its state directory, where the
-runtime keeps your streams and logs.
-
-**macOS.** The app's "Uninstall Tatolab…":
-
-1. removes `/usr/local/bin/tatolab` if it links into this app or the installed runtime, behind
-   one administrator prompt shown only then. Cancelling the prompt changes nothing;
-2. unloads the launch agent, which stops the runtime;
-3. runs the installer it carries with `--uninstall`, which removes the installed runtime, its
-   launch agent and `~/.local/bin/tatolab`;
-4. removes the app's own settings, `~/Library/Application Support/com.tatolab.tatolab`;
-5. moves Tatolab.app to the Trash, and quits.
-
-`~/Library/Application Support/Tatolab`, the state directory, stays. `brew uninstall --cask
-tatolab` removes the same service and files; `brew uninstall --zap --cask tatolab` removes the
-state directory and the app's settings too.
-
-**Linux.** The installer uninstalls what it installed: the service and the files, never the state
-directory (`$XDG_STATE_HOME/tatolab`, else `~/.local/state/tatolab`). Then remove the app:
-
-```sh
-curl -fsSL https://get.tatolab.com/install.sh | sh -s -- --uninstall
-sudo apt remove tatolab        # the .deb; for the AppImage, delete the file
-```
-
-On Linux the app's "Uninstall Tatolab…" shows these steps and removes nothing itself.
+The app installs nothing outside itself but the `~/.local/bin/tatolab` link and its own settings,
+`~/Library/Application Support/com.tatolab.tatolab` (Linux: `~/.config/com.tatolab.tatolab`).
+Quit it and move Tato Studio.app to the Trash, or remove the Linux package. The runtime's state
+directory, where it keeps your streams and logs (`~/Library/Application Support/Tatolab`; Linux
+`$XDG_STATE_HOME/tatolab`, else `~/.local/state/tatolab`), stays. `brew uninstall --zap --cask
+tato-studio` removes the state directory and the app's settings too.
 
 ## The app's platform layer
 
 Everything that differs by platform sits in `src/main/platform/`, behind the interfaces
-the rest of the main process uses: `RuntimeAgentRegistration` (the service manager that runs the
-runtime), `CarriedRuntimeInstall` (the runtime the app carries and the installer that installs it),
-`TatolabCommandLineToolLinks` (the `tatolab` command's links: the installer's in the home folder,
-and on macOS the app's own in `/usr/local/bin`), and
-each platform's window chrome, Dock icon, tray image, menu and uninstall. Both platform modules
-expose the same items, and only `platform/` reads `process.platform`
-(ESLint, `eslint.config.js`). `platform/macos/` runs the carried `install.sh` and drives the
-launch agent it writes with `launchctl`, and the administrator prompt with `osascript`; `platform/linux/` drives
-`systemctl --user` and reads the machine's paths. Neither module needs its OS to run its tests, so
+the rest of the main process uses: `CarriedRuntime` (the `tatolabd` the build carries, and the
+environment it runs in), `startTheCarriedRuntimeAsAChildProcess` (which runs it with a raised
+open-file limit and keeps its last line on stderr), `TatolabCommandLineToolLink` (the
+`~/.local/bin/tatolab` link), and each platform's window chrome, Dock icon, tray image and menu.
+Both platform modules expose the same items, and only `platform/` reads `process.platform`
+(ESLint, `eslint.config.js`). `CarriedRuntimeRunAsTheAppsChild` keeps the runtime running from the
+status rounds and stops it as the app quits. Neither platform module needs its OS to run its tests, so
 `npm test` on either platform runs both. On any other OS the app refuses to start.
 
 ## macOS bundle layout
 
 ```
-Tatolab.app/Contents/
+Tato Studio.app/Contents/
   Info.plist                                  LSUIElement, usage strings (packaging/macos/Info.plist)
   MacOS/Tatolab                               the app (Electron); its window, main process and
                                               preload in Resources/app.asar
   Frameworks/Electron Framework.framework, Frameworks/Tatolab Helper*.app
                                               Electron, and its GPU, plugin and renderer helpers
-  Resources/install.sh                        streamlib's installer, which installs the helper below
+  Resources/install.sh                        streamlib's installer, carried but no longer run by the app
   Helpers/Tatolab Runtime.app/Contents/       the runtime, a bundle of its own (com.tatolab.runtime)
     Info.plist                                its id and the usage strings macOS credits it for
                                               (packaging/runtime-helper/Info.plist)
@@ -164,14 +139,9 @@ Tatolab.app/Contents/
     Resources/streamlib-commit                the streamlib commit the runtime was built from
 ```
 
-Each time the app opens it compares the build it carries, `<version>-<commit>` from the helper's
-`tatolabd --version` and `streamlib-commit`, with the build `current` names in
-`~/Library/Application Support/com.tatolab.runtime/`. When they differ it runs
-`install.sh --from-unit Contents/Helpers`, which copies the helper there as its own build, writes
-`~/Library/LaunchAgents/com.tatolab.tatolabd.plist`, links `~/.local/bin/tatolab` to that build's
-CLI, and restarts the runtime on it, rolling back to the build before when the new one will not
-start. The runtime never runs from inside the app, so replacing or trashing the app leaves the
-running runtime alone until the next build installs.
+The app runs `Helpers/Tatolab Runtime.app/Contents/MacOS/tatolabd` from inside the bundle as its
+child process, and links `~/.local/bin/tatolab` to the helper's `tatolab-cli`. Replacing or
+trashing the app while it runs leaves the runtime running until the app quits.
 
 The CLI is named `tatolab-cli` inside the bundle because APFS is case-insensitive by default, so a
 file called `tatolab` would overwrite `Tatolab`. Code signing only accepts code under `MacOS/` and
@@ -183,9 +153,11 @@ bytecode they would write `__pycache__` into the signed bundle, which breaks its
 Entitlements: `packaging/entitlements/tatolab-app.entitlements` (the app) and
 `packaging/entitlements/tatolabd.entitlements` (the runtime) carry `device.camera` and
 `device.audio-input`. The hardened runtime refuses camera and microphone access without them. The
-app and `Tatolab Helper (Renderer).app` (`packaging/entitlements/tatolab-renderer-helper.entitlements`)
-also carry `cs.allow-jit`, because V8 maps its code writable and executable; Electron's other
-helpers, the CLI and the relay carry none. The packaged app's Electron fuses turn off `RunAsNode`,
+app, `Tato Studio Helper (Renderer).app` (`packaging/entitlements/tatolab-renderer-helper.entitlements`)
+and the plain `Tato Studio Helper.app`, which hosts utility processes such as the Python language
+server (`packaging/entitlements/tatolab-utility-helper.entitlements`), also carry `cs.allow-jit`,
+because V8 maps its code writable and executable; Electron's GPU and Plugin helpers, the CLI and
+the relay carry none. The packaged app's Electron fuses turn off `RunAsNode`,
 `NODE_OPTIONS` and `--inspect`, so no other process can run the signed app as plain Node and
 inherit its camera grant, and turn on asar integrity and asar-only loading. Electron's own
 Bluetooth and audio-capture usage strings and its `NSAllowsArbitraryLoads` exception are removed;
@@ -203,9 +175,8 @@ needs where unprivileged user namespaces are off. `Depends` names Electron's lib
 versions or `t64` suffixes, so one package installs on Ubuntu 22.04 and 24.04; the build fails if
 the app links a library the list does not name. It recommends `curl` for the installer's command.
 Its `resources/` carry streamlib's runtime unit in `tatolab-runtime/` (the release tarball's `bin/`,
-`lib/` with `lib/systemd/user/tatolabd.service`, and `streamlib-commit`) and streamlib's
-`install.sh`, which the app runs in a session of its own, so the installer never asks on the
-terminal the app was started from. The AppImage carries the same app; it has no setuid sandbox helper, so it needs unprivileged user
+`lib/` with `lib/systemd/user/tatolabd.service`, and `streamlib-commit`), whose `bin/tatolabd` the
+app runs as its child, and streamlib's `install.sh`, which the app no longer runs. The AppImage carries the same app; it has no setuid sandbox helper, so it needs unprivileged user
 namespaces (on by default on Ubuntu 22.04, restricted by AppArmor on 24.04).
 
 ## Building on macOS
@@ -235,8 +206,8 @@ the preload into `out/preload/` and the window into `out/renderer/`, then writes
 tatolab-app commit the checkout is at, which Settings › About shows as `Build 22b07a1-dev`),
 and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
 `@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
-branded `.dmg` and checks the result. The output is `build/Tatolab.app`,
-`build/Tatolab-<version>-arm64.dmg`, and the update: `build/Tatolab-<version>-arm64-mac.zip` and its
+branded `.dmg` and checks the result. The output is `build/Tato Studio.app`,
+`build/Tato-Studio-<version>-arm64.dmg`, and the update: `build/Tato-Studio-<version>-arm64-mac.zip` and its
 manifest `build/latest-mac.yml`.
 
 | Option | |
@@ -253,16 +224,15 @@ manifest `build/latest-mac.yml`.
 `npm run build -- --local-proof-test-root`, which writes
 `machineDirectoriesUnderATestRoot: true` into the build features the main process imports,
 `out/main/tatolab_app_build_features.json` (`src/main/tatolab_app_build_features.json` holds the
-shipping ones). The agent plist sets
+shipping ones). The app starts the runtime with
 `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, so the state directory and the socket live under
-that root, and gives the runtime its test ports: its local relay on 14443 and
+that root, and with its test ports: its local relay on 14443 and
 14445 and its loopback HTTP on 14446, where the app reads the preview page. That page reads the
 relay only at 4443 until tatolab/streamlib#2917, so a local-proof bundle's preview stays dark. The app links `tatolab` under
-the root's `home/.local/bin` and never in `/usr/local/bin`. Uninstalling a local-proof build removes
-`/tmp/tatolab-proof` instead of prompting. Use it to prove the app on a development Mac. It is
+the root's `home/.local/bin`. Use it to prove the app on a development Mac. It is
 never shipped: `assemble-tatolab-app-bundle.sh` refuses a test-root unit without the flag, and
-`verify-tatolab-app-bundle.sh --shipping` fails such a bundle, whether the marker, the agent's
-environment or the build features inside the asar give it away, and fails one that checks any
+`verify-tatolab-app-bundle.sh --shipping` fails such a bundle, whether the marker or the build
+features inside the asar give it away, and fails one that checks any
 update feed but get.tatolab.com's.
 
 The individual steps are separate scripts in `scripts/`:
@@ -274,13 +244,13 @@ The individual steps are separate scripts in `scripts/`:
 | `tatolab_app_build_features.mjs write <features.json> [--release] [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features and the build id (the commit this checkout is at, dev or release, and whether it has uncommitted changes); `npm run build -- <flags>` runs it last, and refuses outside a git checkout |
 | `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features and the build id a packaged app carries, and refuses one with no build id; `--shipping` refuses the test root or any feed but get.tatolab.com's |
 | `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
-| `assemble-tatolab-app-bundle.sh <Tatolab.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/moq-relay`, `lib/tatolab/lend` or `lib/tatolab/watch`, or ships anything else in `bin/` or `lib/tatolab/` |
-| `sign-tatolab-app-bundle.sh <Tatolab.app> <identity> <runtime-provisioning-profile>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) with the hardened runtime, embedding the `com.tatolab.runtime` provisioning profile in the runtime's helper; refuses any identity but a `Developer ID Application` and a profile for any other App ID |
-| `make-tatolab-dmg.sh <Tatolab.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless), signed with the app's own Developer ID; refuses an app signed any other way |
-| `notarize-and-staple.sh <Tatolab.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
-| `verify-tatolab-app-bundle.sh <Tatolab.app\|.dmg> [--shipping]` | checks the signature (every Mach-O and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
+| `assemble-tatolab-app-bundle.sh <Tato Studio.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/moq-relay`, `lib/tatolab/lend` or `lib/tatolab/watch`, or ships anything else in `bin/` or `lib/tatolab/` |
+| `sign-tatolab-app-bundle.sh <Tato Studio.app> <identity> <runtime-provisioning-profile>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) with the hardened runtime, embedding the `com.tatolab.runtime` provisioning profile in the runtime's helper; refuses any identity but a `Developer ID Application` and a profile for any other App ID |
+| `make-tatolab-dmg.sh <Tato Studio.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless), signed with the app's own Developer ID; refuses an app signed any other way |
+| `notarize-and-staple.sh <Tato Studio.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
+| `verify-tatolab-app-bundle.sh <Tato Studio.app\|.dmg> [--shipping]` | checks the signature (every Mach-O and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
 | `write_tatolab_app_update_manifest.mjs <manifest.yml> <version> <file>...` | writes the update feed's manifest for those files: sizes, SHA-512s, and URLs under `../releases/<version>/` |
-| `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tatolab.rb` from `packaging/homebrew/tatolab.rb.template` |
+| `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tato-studio.rb` from `packaging/homebrew/tato-studio.rb.template`, and the tap's `cask_renames.json` entry `tatolab` → `tato-studio` |
 
 The installer background is `packaging/dmg/tatolab-dmg-background.svg`, rendered to the
 committed `@1x`/`@2x` PNGs by `packaging/dmg/render-dmg-background.sh` (needs `rsvg-convert`; it
@@ -304,8 +274,8 @@ names the commit the build resolved), adds the checkout's `installer/tatolabd.se
 and carries the unit and `installer/install.sh` in the app's `resources/`. The packages' version
 is the version of the `tatolabd` they carry. It then builds and packages the Electron app as on macOS, lays out the `.deb` and builds it with
 `dpkg-deb`, builds the AppImage with a pinned `appimagetool` and AppImage runtime (checksums in
-the script), checks the fuses, the build features, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Tatolab-<version>-amd64.deb`,
-`build/linux/Tatolab-<version>-x86_64.AppImage` and the update manifest listing both,
+the script), checks the fuses, the build features, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Tato-Studio-<version>-amd64.deb`,
+`build/linux/Tato-Studio-<version>-x86_64.AppImage` and the update manifest listing both,
 `build/linux/latest-linux.yml`. `--app-version X.Y.Z` refuses a unit whose `tatolabd` is another
 version; `--local-proof-test-root` builds with
 `machineDirectoriesUnderATestRoot` on, so the app reads the runtime under
@@ -320,9 +290,8 @@ The window is React with Tailwind and shadcn (base-ui). Its design system is the
 `src/renderer/design_system/`. `npm run dev` runs the app unpackaged with electron-vite: the window reloads as it changes, and the
 app restarts when the main process or the preload changes. It shows whatever
 runtime is already running on the machine's local API socket; only a `--local-proof-test-root`
-build reads a local-proof runtime's `/tmp/tatolab-proof/run/local-api.sock`. On macOS an
-unpackaged app finds no launch agent, so "Run Tatolab" registers nothing there; on Linux it drives the installer's `tatolabd.service` as the
-packaged app does. `node scripts/serve_the_mock_window_in_a_browser.mjs` serves the window alone, in a browser at the URL it prints, against a mock backend; a build leaves the mock
+build reads a local-proof runtime's `/tmp/tatolab-proof/run/local-api.sock`. An unpackaged app
+carries no runtime, so it starts none and says so while no runtime answers. `node scripts/serve_the_mock_window_in_a_browser.mjs` serves the window alone, in a browser at the URL it prints, against a mock backend; a build leaves the mock
 out, and packaging refuses an `out/renderer/` that carries it.
 
 ## Checks
@@ -351,10 +320,10 @@ ID ones the macOS build stops; notarization needs the App Store Connect key:
 
 A release runs on a local release runner, outside this repository, once streamlib cuts release
 `vX.Y.Z`. It drives this repository's scripts: `scripts/build-tatolab-app.sh --streamlib-ref vX.Y.Z
---release --notarize` builds, signs, notarizes and verifies Tatolab.app and its `.dmg`;
+--release --notarize` builds, signs, notarizes and verifies Tato Studio.app and its `.dmg`;
 `scripts/build-tatolab-linux-app.sh --streamlib-ref vX.Y.Z --runtime-unit <the release's Linux runtime tarball, unpacked> --release`
 builds the `.deb` and the AppImage on x86_64 Linux, carrying the runtime streamlib built at the
 glibc floor it promises; the release's assets go on streamlib's `vX.Y.Z` release; and
-`scripts/bump-homebrew-cask.sh` writes the new `Casks/tatolab.rb` for tatolab/homebrew-tap.
-`brew install --cask tatolab/tap/tatolab` installs it on macOS; on Linux the release's `.deb` or
+`scripts/bump-homebrew-cask.sh` writes the new `Casks/tato-studio.rb` for tatolab/homebrew-tap.
+`brew install --cask tatolab/tap/tato-studio` installs it on macOS; on Linux the release's `.deb` or
 AppImage does.

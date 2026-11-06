@@ -3,7 +3,6 @@ import type { TatolabBackend } from "../backend/tatolab_backend";
 import type { TatolabPlatform, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import type { RuntimeDescriptionReading } from "../presentation/settings_presentation";
 import type { RuntimeDescriptionReadings } from "../runtime_description_reading";
-import type { TatolabWindowPage } from "./tatolab_window_page";
 
 /** The latest status the backend reported, which React reads and re-renders on. */
 export class TatolabWindowStatusStore {
@@ -25,41 +24,13 @@ export class TatolabWindowStatusStore {
   }
 }
 
-/** A refusal the window keeps after the place that asked has gone, for another place to show: why the last uninstall was refused, or why first run's finishing was not remembered. */
-export class RefusalKeptForTheWindow {
-  private refusalReason: string | null = null;
-  private readonly refusalListeners = new Set<() => void>();
-
-  readonly readRefusalReason = (): string | null => this.refusalReason;
-
-  readonly subscribeToRefusal = (refusalListener: () => void): (() => void) => {
-    this.refusalListeners.add(refusalListener);
-    return () => this.refusalListeners.delete(refusalListener);
-  };
-
-  /** Keep `refusalReason`, `null` to clear it, and tell every subscriber. */
-  showRefusalReason(refusalReason: string | null): void {
-    if (this.refusalReason === refusalReason) return;
-    this.refusalReason = refusalReason;
-    for (const refusalListener of this.refusalListeners) refusalListener();
-  }
-}
-
-/** What every part of the React window reads: the backend, the platform, the status, the Linux installer's DOM page, the runtime's description and uninstalling. */
+/** What every part of the React window reads: the backend, the platform, the status and the runtime's description. */
 export interface TatolabWindowEnvironment {
   backend: TatolabBackend;
   platform: TatolabPlatform;
   statusStore: TatolabWindowStatusStore;
-  /** What fills the Linux window while tatolabd.service is missing and the app is not installing it; `null` on macOS, whose first run is the React getting-started view. */
-  linuxRuntimeInstallScreen: TatolabWindowPage | null;
   /** The runtime's version, uptime and log folder, read while Preferences shows them. */
   runtimeDescriptionReadings: RuntimeDescriptionReadings;
-  /** Open the sheet "Uninstall Tatolab…" asks to confirm in. */
-  openUninstallSheet(): void;
-  /** Why the last uninstall was refused, which Preferences shows under Uninstall Tatolab…, until the sheet opens again. */
-  uninstallTatolabRefusal: RefusalKeptForTheWindow;
-  /** Why Get Started could not be remembered, which a notice shows over the studio once first run is over. */
-  firstRunFinishingRefusal: RefusalKeptForTheWindow;
 }
 
 /** Carries the window's environment to every component under `mountTatolabWindow`'s root. */
@@ -82,16 +53,4 @@ export function useTatolabStatus(): TatolabStatus {
 export function useRuntimeDescriptionReading(): RuntimeDescriptionReading {
   const { runtimeDescriptionReadings } = useTatolabWindowEnvironment();
   return useSyncExternalStore(runtimeDescriptionReadings.subscribeToReading, runtimeDescriptionReadings.readLatestReading);
-}
-
-/** Why the last uninstall was refused, `null` for none, re-rendering the caller on each change. */
-export function useUninstallTatolabRefusalReason(): string | null {
-  const { uninstallTatolabRefusal } = useTatolabWindowEnvironment();
-  return useSyncExternalStore(uninstallTatolabRefusal.subscribeToRefusal, uninstallTatolabRefusal.readRefusalReason);
-}
-
-/** Why Get Started could not be remembered, `null` with no refusal or once dismissed. */
-export function useFirstRunFinishingRefusalReason(): string | null {
-  const { firstRunFinishingRefusal } = useTatolabWindowEnvironment();
-  return useSyncExternalStore(firstRunFinishingRefusal.subscribeToRefusal, firstRunFinishingRefusal.readRefusalReason);
 }

@@ -45,10 +45,10 @@ test("a_stream_the_runtime_does_not_list_or_names_no_folder_for_or_whose_folder_
   const { openers, foldersShownInTheFileManager, terminal } = openersOverFakes([]);
 
   expect(await openStreamProjectFolder(LISTED_STREAMS, "gone", "terminal", openers)).toEqual(
-    failedWith("The runtime does not list gone, so Tatolab has no project folder to open."),
+    failedWith("The runtime does not list gone, so Tato Studio has no project folder to open."),
   );
   expect(await openStreamProjectFolder(null, "front-door-main-7a03be", "file_manager", openers)).toEqual(
-    failedWith("The runtime does not list front-door-main-7a03be, so Tatolab has no project folder to open."),
+    failedWith("The runtime does not list front-door-main-7a03be, so Tato Studio has no project folder to open."),
   );
   expect(await openStreamProjectFolder(LISTED_STREAMS, "nowhere-main-7a03be", "file_manager", openers)).toEqual(
     failedWith("The runtime lists no project folder for nowhere."),

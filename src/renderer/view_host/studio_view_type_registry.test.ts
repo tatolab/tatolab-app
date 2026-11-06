@@ -3,7 +3,7 @@ import type { JsonValue, StudioViewHostConnection, StudioViewType } from "./stud
 import { registeredStudioViewType, StudioViewTypeRegistry, type StudioViewHostServices } from "./studio_view_type_registry";
 
 const HOST_SERVICES: StudioViewHostServices = {
-  watchOpenWorkspace: () => () => undefined,
+  watchOpenProject: () => () => undefined,
   watchListedStreams: () => () => undefined,
   watchSelection: () => () => undefined,
   select: () => undefined,
@@ -13,9 +13,9 @@ const HOST_SERVICES: StudioViewHostServices = {
   watchNodeCatalog: () => () => undefined,
   watchCodeFileAsked: () => () => undefined,
   openCodeFile: () => undefined,
-  readWorkspaceFile: async () => ({ kind: "not_read", because: "no files in this test" }),
-  saveWorkspaceFile: async () => ({ kind: "not_saved", because: "no files in this test" }),
-  listWorkspaceProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
+  readProjectFile: async () => ({ kind: "not_read", because: "no files in this test" }),
+  saveProjectFile: async () => ({ kind: "not_saved", because: "no files in this test" }),
+  listProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
   watchProjectLog: () => () => undefined,
   connectToPythonLanguageServer: () => ({ send: () => undefined, close: () => undefined }),
 };
@@ -37,15 +37,15 @@ function countingViewType(viewTypeId: string, broughtBy: StudioViewType<number>[
 }
 
 describe("the view-type registry", () => {
-  it("answers a view type by id, none for one this build lacks, and lists the studio's apart from the workspace's", () => {
+  it("answers a view type by id, none for one this build lacks, and lists the studio's apart from the project's", () => {
     const registry = new StudioViewTypeRegistry([
       registeredStudioViewType(countingViewType("outliner", { kind: "built_in" }, [])),
-      registeredStudioViewType(countingViewType("venue-3d", { kind: "workspace_project", project_name: "hall-of-light" }, [])),
+      registeredStudioViewType(countingViewType("venue-3d", { kind: "project", project_name: "hall-of-light" }, [])),
     ]);
     expect(registry.viewTypeWithId("outliner")?.title).toBe("outliner");
     expect(registry.viewTypeWithId("rocket-assembly")).toBeNull();
     expect(registry.studioViewTypes().map((viewType) => viewType.view_type_id)).toEqual(["outliner"]);
-    expect(registry.workspaceViewTypes().map((viewType) => viewType.view_type_id)).toEqual(["venue-3d"]);
+    expect(registry.projectViewTypes().map((viewType) => viewType.view_type_id)).toEqual(["venue-3d"]);
   });
 
   it("draws a view on the settings its area saved, on its defaults where they no longer fit, and keeps the next ones with the area", () => {

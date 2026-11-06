@@ -4,7 +4,7 @@
 // its answer or a refusal in words, never a thrown error.
 
 import type {
-  ChosenWorkspaceFolder,
+  ChosenProjectFolder,
   JsonValue,
   ProjectCreationQueued,
   ProjectLogNarrowing,
@@ -20,7 +20,7 @@ import type {
   StreamProjectFolderChosenFor,
   TatolabStatus,
   TatolabStreamActionName,
-  WorkspaceFolderChosenFor,
+  ProjectFolderChosenFor,
 } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
@@ -28,7 +28,6 @@ import type { LocalApiRequestFailure } from "./local_api_client.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import {
   checkForTatolabAppUpdatesOnRequest,
-  runInTheBackgroundWithTheController,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
 import { relaySettingsByNameFrom, WHAT_A_RELAY_SETTING_VALUE_CAN_BE } from "./relays_description.js";
@@ -68,32 +67,9 @@ export function getTatolabStatus(sharedState: TatolabAppSharedState): Promise<Re
   });
 }
 
-/** `set_run_tatolab { enabled }`: turn "Run Tatolab" on or off. */
-export function setRunTatolab(sharedState: TatolabAppSharedState, enabled: boolean): void {
-  runInTheBackgroundWithTheController(sharedState, "tatolab-run-tatolab-set", async (controller, statusPublisher) => {
-    await controller.setRunTatolab(enabled);
-    statusPublisher.requestRefresh();
-  });
-}
-
-/** `open_login_items_settings`: open System Settings at Login Items, where a user approves the runtime's login item; refused where the platform has no Login Items. */
-export function openLoginItemsSettings(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
-  return answerTheWindow("open_login_items_settings", () => sharedState.controller.openLoginItemsSettings());
-}
-
-/** `remember_first_run_finished`: "Get Started" ended first run, answered once it is remembered, then a status round; refused when it could not be remembered, though it holds until the app quits. */
-export function rememberFirstRunFinished(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
-  return answerTheWindowThenRefreshTheStatus(sharedState, "remember_first_run_finished", () => sharedState.controller.rememberFirstRunFinished());
-}
-
-/** `link_command_line_tool_in_usr_local_bin`: link `tatolab` in `/usr/local/bin` behind the administrator prompt, answered once it closes, then a status round; refused in words, and where it is not offered, with why. */
-export function linkCommandLineToolInUsrLocalBin(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
-  return answerTheWindowThenRefreshTheStatus(sharedState, "link_command_line_tool_in_usr_local_bin", () => sharedState.controller.linkTheCommandLineToolInUsrLocalBin());
-}
-
-/** `uninstall_tatolab`: uninstall Tatolab, turning "Run Tatolab" off first and ending with the app quitting; refused in words, leaving the app usable, and at once on Linux, where the installer uninstalls. */
-export function uninstallTatolab(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
-  return answerTheWindow("uninstall_tatolab", () => sharedState.tatolabUninstall.uninstallTatolab(sharedState.controller));
+/** `link_command_line_tool`: link `~/.local/bin/tatolab` to the CLI the app carries, then a status round; refused in words when something else holds the name or the build offers none. */
+export function linkCommandLineTool(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
+  return answerTheWindowThenRefreshTheStatus(sharedState, "link_command_line_tool", () => sharedState.controller.linkTheCommandLineTool());
 }
 
 /** `read_project_log_records { project_directory, stream, action, after }`: the project's log records after the cursor `after`, narrowed to `stream` and `action` when they are given; refused in the runtime's own words. */
@@ -155,10 +131,10 @@ export function projectDirectoryTheRuntimeLastListed(sharedState: TatolabAppShar
   return isListed ? succeeded(projectDirectory) : failedWith(`The runtime lists no stream from ${projectDirectory}.`);
 }
 
-/** `projectDirectory` when the runtime last listed a stream from it or it is a project folder of the open workspace, whose log the code pane reads before its first run; refused otherwise. */
+/** `projectDirectory` when the runtime last listed a stream from it or it is the folder of the open project or of one of its imports, whose log the code pane reads before its first run; refused otherwise. */
 export function projectDirectoryWhoseLogTheWindowMayRead(sharedState: TatolabAppSharedState, projectDirectory: string): Result<string, string> {
-  const workspaceProjectFolder = sharedState.workspaceFiles.projectFolderOfTheOpenWorkspace(projectDirectory);
-  return workspaceProjectFolder.ok ? workspaceProjectFolder : projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory);
+  const openProjectFolder = sharedState.openProjectFiles.projectFolderOfTheOpenProject(projectDirectory);
+  return openProjectFolder.ok ? openProjectFolder : projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory);
 }
 
 /** `rename_stream { stream, display_name }`: the runtime's `rename_stream` on `stream`, then a status round whether it renamed or refused; refused in the runtime's own words. */
@@ -253,18 +229,13 @@ export function describeRuntime(sharedState: TatolabAppSharedState): Promise<Res
   });
 }
 
-/** `restart_runtime`: stop the runtime and start it again through the service manager, then a status round whether it restarted or was refused; refused while Run Tatolab is off, and in the service manager's words. */
+/** `restart_runtime`: stop the app's runtime and start it again, then a status round whether it restarted or was refused; refused for a runtime the app did not start. */
 export function restartRuntime(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
   return answerTheWindow("restart_runtime", async () => {
     const restarted = await sharedState.controller.restartTheRuntimeOnRequest();
     sharedState.statusPublisher.requestRefresh();
     return restarted;
   });
-}
-
-/** `install_the_carried_runtime_again`: "Try again" on a refused runtime install, answered once the installer ends and refused in its words. */
-export function installTheCarriedRuntimeAgain(sharedState: TatolabAppSharedState): Promise<Result<void, string>> {
-  return answerTheWindowThenRefreshTheStatus(sharedState, "install_the_carried_runtime_again", () => sharedState.controller.installTheCarriedRuntimeAgain());
 }
 
 /** `open_runtime_log_folder`: the folder the runtime names for its own log when asked now, in the file manager; refused naming why. */
@@ -424,38 +395,55 @@ export function createStreamProjectArgumentsFrom(commandArguments: unknown): Res
   return succeeded({ folder: commandArguments["folder"] });
 }
 
-/** `choose_workspace_folder { chosen_for }`: the app's folder dialog, the chosen folder opened as the workspace; `null` when the person cancels. */
-export function chooseWorkspaceFolder(sharedState: TatolabAppSharedState, chosenFor: WorkspaceFolderChosenFor): Promise<Result<ChosenWorkspaceFolder | null, string>> {
-  return answerTheWindow("choose_workspace_folder", () => sharedState.openWorkspaceFolder.chooseWorkspaceFolder(chosenFor));
+/** `choose_project_folder { chosen_for }`: the app's folder dialog, the chosen folder opened as the project; `null` when the person cancels. */
+export function chooseProjectFolder(sharedState: TatolabAppSharedState, chosenFor: ProjectFolderChosenFor): Promise<Result<ChosenProjectFolder | null, string>> {
+  return answerTheWindow("choose_project_folder", () => sharedState.openProjectFolder.chooseProjectFolder(chosenFor));
 }
 
-/** `choose_workspace_folder`'s arguments as the window sends them, or why they are not. */
-export function chooseWorkspaceFolderArgumentsFrom(commandArguments: unknown): Result<{ chosen_for: WorkspaceFolderChosenFor }, string> {
+/** `choose_project_folder`'s arguments as the window sends them, or why they are not. */
+export function chooseProjectFolderArgumentsFrom(commandArguments: unknown): Result<{ chosen_for: ProjectFolderChosenFor }, string> {
   const chosenFor = isAJsonObject(commandArguments) ? commandArguments["chosen_for"] : undefined;
-  if (chosenFor !== "workspace_to_open" && chosenFor !== "new_workspace") return failedWith("choose_workspace_folder needs `chosen_for`, workspace_to_open or new_workspace");
+  if (chosenFor !== "project_to_open") return failedWith("choose_project_folder needs `chosen_for`, project_to_open");
   return succeeded({ chosen_for: chosenFor });
 }
 
-/** `run_workspace_project`: the runtime's `run_project` queued on the open workspace's folder, then a status round; refused while no workspace is open, or in the runtime's own words. */
-export function runWorkspaceProject(sharedState: TatolabAppSharedState): Promise<Result<ProjectRunQueued, string>> {
-  return answerTheWindow("run_workspace_project", async () => {
-    const reading = sharedState.openWorkspaceFolder.readOpenWorkspace();
-    if (reading.kind !== "read") return failedWith(reading.kind === "none_open" ? "No workspace is open to run." : `The workspace in ${reading.folder} could not be read: ${reading.refusal}`);
-    const queued = await sharedState.controller.runProject(reading.workspace.workspace_project.folder);
+/** `create_new_project { name, location }`: the runtime's `create_project` at `<location>/<name>`, opened as the project, then a status round; refused in the app's words or the runtime's own. */
+export function createNewProject(sharedState: TatolabAppSharedState, name: string, location: string): Promise<Result<ChosenProjectFolder, string>> {
+  return answerTheWindow("create_new_project", async () => {
+    const created = await sharedState.openProjectFolder.createNewProject(name, location);
+    sharedState.statusPublisher.requestRefresh();
+    return created;
+  });
+}
+
+/** `create_new_project`'s arguments as the window sends them, or why they are not. */
+export function createNewProjectArgumentsFrom(commandArguments: unknown): Result<{ name: string; location: string }, string> {
+  const name = oneTextArgumentFrom("create_new_project", commandArguments, "name", "the new project's name");
+  if (!name.ok) return name;
+  const location = oneTextArgumentFrom("create_new_project", commandArguments, "location", "the full path of the folder it goes in");
+  return location.ok ? succeeded({ name: name.value, location: location.value }) : location;
+}
+
+/** `run_open_project`: the runtime's `run_project` queued on the open project's folder, then a status round; refused while no project is open, or in the runtime's own words. */
+export function runOpenProject(sharedState: TatolabAppSharedState): Promise<Result<ProjectRunQueued, string>> {
+  return answerTheWindow("run_open_project", async () => {
+    const reading = sharedState.openProjectFolder.readOpenProject();
+    if (reading.kind !== "read") return failedWith(reading.kind === "none_open" ? "No project is open to run." : `The project in ${reading.folder} could not be read: ${reading.refusal}`);
+    const queued = await sharedState.controller.runProject(reading.open_project.project.folder);
     sharedState.statusPublisher.requestRefresh();
     return queued.ok ? queued : failedWith(queued.failure.failureDescription);
   });
 }
 
-/** `save_workspace_file`'s arguments as the window sends them, or why they are not. */
-export function saveWorkspaceFileArgumentsFrom(commandArguments: unknown): Result<{ file: string; text: string; based_on_version: string | null }, string> {
+/** `save_project_file`'s arguments as the window sends them, or why they are not. */
+export function saveProjectFileArgumentsFrom(commandArguments: unknown): Result<{ file: string; text: string; based_on_version: string | null }, string> {
   if (
     !isAJsonObject(commandArguments) ||
     typeof commandArguments["file"] !== "string" ||
     typeof commandArguments["text"] !== "string" ||
     !isTextOrNull(commandArguments["based_on_version"])
   ) {
-    return failedWith("save_workspace_file needs `file`, an absolute path, `text`, and `based_on_version`, the version it was read at or null for a new file");
+    return failedWith("save_project_file needs `file`, an absolute path, `text`, and `based_on_version`, the version it was read at or null for a new file");
   }
   return succeeded({ file: commandArguments["file"], text: commandArguments["text"], based_on_version: commandArguments["based_on_version"] });
 }
@@ -487,16 +475,7 @@ function commandAnswerOfNothingFrom(outcome: Result<unknown, string>): { ok: tru
 export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState, quitTheApp: () => void): TatolabWindowCommandHandlers {
   return {
     get_tatolab_status: async () => commandAnswerFrom(await getTatolabStatus(sharedState)),
-    set_run_tatolab: async (commandArguments) => {
-      const setRunTatolabArguments = enabledArgumentsFrom("set_run_tatolab", commandArguments);
-      if (!setRunTatolabArguments.ok) return { ok: false, refusal: setRunTatolabArguments.failure };
-      setRunTatolab(sharedState, setRunTatolabArguments.value.enabled);
-      return { ok: true, value: null };
-    },
-    open_login_items_settings: async () => commandAnswerOfNothingFrom(await openLoginItemsSettings(sharedState)),
-    remember_first_run_finished: async () => commandAnswerOfNothingFrom(await rememberFirstRunFinished(sharedState)),
-    link_command_line_tool_in_usr_local_bin: async () => commandAnswerOfNothingFrom(await linkCommandLineToolInUsrLocalBin(sharedState)),
-    uninstall_tatolab: async () => commandAnswerOfNothingFrom(await uninstallTatolab(sharedState)),
+    link_command_line_tool: async () => commandAnswerOfNothingFrom(await linkCommandLineTool(sharedState)),
     quit_tatolab_app: async () => {
       quitTheApp();
       return { ok: true, value: null };
@@ -577,7 +556,6 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
     },
     describe_runtime: async () => commandAnswerFrom(await describeRuntime(sharedState)),
     restart_runtime: async () => commandAnswerOfNothingFrom(await restartRuntime(sharedState)),
-    install_the_carried_runtime_again: async () => commandAnswerOfNothingFrom(await installTheCarriedRuntimeAgain(sharedState)),
     open_runtime_log_folder: async () => commandAnswerOfNothingFrom(await openRuntimeLogFolder(sharedState)),
     set_stream_failure_notifications: async (commandArguments) => {
       const enabledArguments = enabledArgumentsFrom("set_stream_failure_notifications", commandArguments);
@@ -605,31 +583,48 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!relayId.ok) return { ok: false, refusal: relayId.failure };
       return commandAnswerOfNothingFrom(await removeRelay(sharedState, relayId.value));
     },
-    choose_workspace_folder: async (commandArguments) => {
-      const chooseArguments = chooseWorkspaceFolderArgumentsFrom(commandArguments);
+    choose_project_folder: async (commandArguments) => {
+      const chooseArguments = chooseProjectFolderArgumentsFrom(commandArguments);
       if (!chooseArguments.ok) return { ok: false, refusal: chooseArguments.failure };
-      return commandAnswerFrom(await chooseWorkspaceFolder(sharedState, chooseArguments.value.chosen_for));
+      return commandAnswerFrom(await chooseProjectFolder(sharedState, chooseArguments.value.chosen_for));
     },
-    read_open_workspace: async () => ({ ok: true, value: sharedState.openWorkspaceFolder.readOpenWorkspace() }),
-    read_workspace_file: async (commandArguments) => {
-      const file = oneTextArgumentFrom("read_workspace_file", commandArguments, "file", "an absolute path in the open workspace");
+    read_new_project_defaults: async () => ({ ok: true, value: await sharedState.openProjectFolder.readNewProjectDefaults() }),
+    choose_new_project_location: async (commandArguments) => {
+      const startingAt = oneTextArgumentFrom("choose_new_project_location", commandArguments, "starting_at", "the folder the dialog opens in");
+      if (!startingAt.ok) return { ok: false, refusal: startingAt.failure };
+      return commandAnswerFrom(await answerTheWindow("choose_new_project_location", () => sharedState.openProjectFolder.chooseNewProjectLocation(startingAt.value)));
+    },
+    create_new_project: async (commandArguments) => {
+      const createArguments = createNewProjectArgumentsFrom(commandArguments);
+      if (!createArguments.ok) return { ok: false, refusal: createArguments.failure };
+      return commandAnswerFrom(await createNewProject(sharedState, createArguments.value.name, createArguments.value.location));
+    },
+    read_open_project: async () => ({ ok: true, value: sharedState.openProjectFolder.readOpenProject() }),
+    read_recent_projects: async () => ({ ok: true, value: await sharedState.openProjectFolder.readRecentProjects() }),
+    open_recent_project: async (commandArguments) => {
+      const folder = oneTextArgumentFrom("open_recent_project", commandArguments, "folder", "one of the recent projects' folders");
+      if (!folder.ok) return { ok: false, refusal: folder.failure };
+      return commandAnswerOfNothingFrom(await answerTheWindow("open_recent_project", () => sharedState.openProjectFolder.openRecentProject(folder.value)));
+    },
+    read_project_file: async (commandArguments) => {
+      const file = oneTextArgumentFrom("read_project_file", commandArguments, "file", "an absolute path in the open project");
       if (!file.ok) return { ok: false, refusal: file.failure };
-      return commandAnswerFrom(await answerTheWindow("read_workspace_file", () => sharedState.workspaceFiles.readWorkspaceFile(file.value)));
+      return commandAnswerFrom(await answerTheWindow("read_project_file", () => sharedState.openProjectFiles.readProjectFile(file.value)));
     },
-    save_workspace_file: async (commandArguments) => {
-      const saveArguments = saveWorkspaceFileArgumentsFrom(commandArguments);
+    save_project_file: async (commandArguments) => {
+      const saveArguments = saveProjectFileArgumentsFrom(commandArguments);
       if (!saveArguments.ok) return { ok: false, refusal: saveArguments.failure };
       const { file, text, based_on_version } = saveArguments.value;
-      return commandAnswerFrom(await answerTheWindow("save_workspace_file", () => sharedState.workspaceFiles.saveWorkspaceFile(file, text, based_on_version)));
+      return commandAnswerFrom(await answerTheWindow("save_project_file", () => sharedState.openProjectFiles.saveProjectFile(file, text, based_on_version)));
     },
-    list_workspace_project_files: async (commandArguments) => {
-      const projectFolder = oneTextArgumentFrom("list_workspace_project_files", commandArguments, "project_folder", "a project folder of the open workspace");
+    list_project_files: async (commandArguments) => {
+      const projectFolder = oneTextArgumentFrom("list_project_files", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
       if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };
-      return commandAnswerFrom(await answerTheWindow("list_workspace_project_files", () => sharedState.workspaceFiles.listWorkspaceProjectFiles(projectFolder.value)));
+      return commandAnswerFrom(await answerTheWindow("list_project_files", () => sharedState.openProjectFiles.listProjectFiles(projectFolder.value)));
     },
-    run_workspace_project: async () => commandAnswerFrom(await runWorkspaceProject(sharedState)),
+    run_open_project: async () => commandAnswerFrom(await runOpenProject(sharedState)),
     start_python_language_server: async (commandArguments) => {
-      const projectFolder = oneTextArgumentFrom("start_python_language_server", commandArguments, "project_folder", "a project folder of the open workspace");
+      const projectFolder = oneTextArgumentFrom("start_python_language_server", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
       if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };
       return commandAnswerFrom(sharedState.pythonLanguageServers.startALanguageServer(projectFolder.value));
     },

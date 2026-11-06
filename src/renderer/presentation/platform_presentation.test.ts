@@ -16,21 +16,16 @@ function statusOn(platform: unknown): TatolabStatus {
     app_version: "0.45.0",
     app_build: null,
     platform: platform as TatolabPlatform,
-    run_tatolab: true,
-    runtime_agent: "enabled",
     runtime_state: "running",
+    runtime_not_running_because: null,
     machine_name: "ada-workstation",
     streams: [],
-    first_run_finished: true,
-    command_line_tool_linked_at: null,
-    command_line_tool_usr_local_bin_link: { kind: "not_linked" },
+    command_line_tool_link: { kind: "not_linked", path: "/Users/ada/.local/bin/tatolab" },
     app_update: { kind: "not_checked" },
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
-    runtime_install: { kind: "none" },
-    installed_runtime: null,
   };
 }
 
@@ -58,28 +53,15 @@ describe("presentPlatform", () => {
     expect(windowDragRegionAttribute("linux", "self")).toBeNull();
   });
 
-  it("offers Login Items on macOS only", () => {
-    expect(presentPlatform("macos").showsLoginItems).toBe(true);
-    expect(presentPlatform("linux").showsLoginItems).toBe(false);
-  });
-
-  it("says what Run Tatolab runs in the platform's own words", () => {
-    expect(presentPlatform("macos").runTatolabExplanation).toMatch(/^Starts Tatolab at login/);
-    expect(presentPlatform("linux").runTatolabExplanation).toMatch(/^Runs tatolabd\.service, your systemd user service, at login/);
-  });
-
-  it("says what uninstalling does: macOS's app does it, Linux points at the installer and the package manager", () => {
-    expect(presentPlatform("macos").uninstallTatolabExplanation).toBe(
-      "Stops the runtime and removes Tatolab from this Mac. Your streams' records stay.",
-    );
-    expect(presentPlatform("linux").uninstallTatolabExplanation).toBe(
-      "The installer removes the runtime, and your package manager removes this app. Your streams' records stay.",
-    );
-  });
-
   it("names the machine, and where the app's icon lives, as each platform does", () => {
     expect(presentPlatform("macos").quitTatolabExplanation).toContain("menu bar icon");
     expect(presentPlatform("linux").quitTatolabExplanation).toContain("tray icon");
+    expect(presentPlatform("macos").quitTatolabExplanation).toContain("stops the runtime");
+  });
+
+  it("names the shell profile a login terminal reads its PATH from", () => {
+    expect(presentPlatform("macos").loginShellProfile).toBe("~/.zprofile");
+    expect(presentPlatform("linux").loginShellProfile).toBe("~/.profile");
   });
 });
 
@@ -123,36 +105,46 @@ describe("holdsWindowShortcutModifier", () => {
 });
 
 describe("presentCommandLineTool", () => {
-  it("shows macOS's home-folder link to the copy inside the app, and says the app links it when it is missing", () => {
-    expect(presentCommandLineTool("macos", "/Users/ada/.local/bin/tatolab")).toEqual({
-      isLinked: true,
+  it("shows the home-folder link to the copy inside the app, with the PATH line for the platform's login profile", () => {
+    expect(presentCommandLineTool("macos", { kind: "linked", path: "/Users/ada/.local/bin/tatolab" })).toEqual({
+      linkedAt: "/Users/ada/.local/bin/tatolab",
       shownValue: "~/.local/bin/tatolab",
-      explanation: "Linked to the copy inside Tatolab.app. It works in any terminal with ~/.local/bin on its PATH.",
+      explanation: "Linked to the copy inside Tato Studio. It works in any terminal with ~/.local/bin on its PATH.",
       pathLineToAdd: {
         lead: "If a terminal can't find it, add this line to ~/.zprofile and open a new terminal:",
         line: 'export PATH="$HOME/.local/bin:$PATH"',
       },
+      isLinkOffered: false,
     });
-    expect(presentCommandLineTool("macos", null)).toEqual({
-      isLinked: false,
+    expect(presentCommandLineTool("linux", { kind: "linked", path: "/home/ada/.local/bin/tatolab" }).pathLineToAdd?.lead).toBe(
+      "If a terminal can't find it, add this line to ~/.profile and open a new terminal:",
+    );
+  });
+
+  it("offers to link a free name with no password, and leaves a name something else holds alone", () => {
+    expect(presentCommandLineTool("macos", { kind: "not_linked", path: "/Users/ada/.local/bin/tatolab" })).toEqual({
+      linkedAt: null,
       shownValue: "Not linked",
-      explanation: "Tatolab links it in ~/.local/bin each time it opens.",
+      explanation: "Link ~/.local/bin/tatolab to the copy inside Tato Studio. No password is asked.",
       pathLineToAdd: null,
+      isLinkOffered: true,
+    });
+    expect(presentCommandLineTool("linux", { kind: "taken_by_something_else", path: "/home/ada/.local/bin/tatolab" })).toEqual({
+      linkedAt: null,
+      shownValue: "Not linked",
+      explanation: "~/.local/bin/tatolab is not a link to Tatolab, so Tato Studio leaves it alone.",
+      pathLineToAdd: null,
+      isLinkOffered: false,
     });
   });
 
-  it("shows the installer's link on Linux with its home shortened", () => {
-    expect(presentCommandLineTool("linux", "/home/ada/.local/bin/tatolab")).toEqual({
-      isLinked: true,
-      shownValue: "~/.local/bin/tatolab",
-      explanation: "Installed with the runtime. It works in any terminal with ~/.local/bin on its PATH.",
+  it("says why a build offers no link, in the words it gives", () => {
+    expect(presentCommandLineTool("macos", { kind: "not_offered", reason: "This build of Tato Studio carries no tatolab command." })).toEqual({
+      linkedAt: null,
+      shownValue: "Not linked",
+      explanation: "This build of Tato Studio carries no tatolab command.",
       pathLineToAdd: null,
-    });
-    expect(presentCommandLineTool("linux", null)).toEqual({
-      isLinked: false,
-      shownValue: "Not installed",
-      explanation: "The installer puts it in ~/.local/bin with the runtime.",
-      pathLineToAdd: null,
+      isLinkOffered: false,
     });
   });
 });

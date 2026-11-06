@@ -79,9 +79,10 @@ required_usage_description_keys=(
 )
 required_device_entitlements=(com.apple.security.device.camera com.apple.security.device.audio-input)
 # The only entitlements each piece of signed code may carry; allow-jit is V8's, in the main
-# process and Blink's renderer (packaging/entitlements/).
+# process, Blink's renderer and the plain helper that hosts utility processes (packaging/entitlements/).
 allowed_app_entitlements="com.apple.security.cs.allow-jit com.apple.security.device.audio-input com.apple.security.device.camera"
 allowed_renderer_helper_entitlements="com.apple.security.cs.allow-jit"
+allowed_utility_helper_entitlements="com.apple.security.cs.allow-jit"
 allowed_tatolabd_entitlements="com.apple.application-identifier com.apple.developer.team-identifier com.apple.security.device.audio-input com.apple.security.device.camera keychain-access-groups"
 # A process could otherwise run the app as plain Node and inherit its camera and microphone grants.
 required_electron_fuse_states=(
@@ -122,8 +123,8 @@ verify_app_bundle() {
     && pass "the app executable Contents/MacOS/$bundle_executable is present" || fail "the app executable '$bundle_executable' is missing"
   [ -x "$helper_contents/MacOS/uv" ] && pass "Tatolab Runtime.app's MacOS/uv, beside its tatolabd, is present" \
     || fail "Tatolab Runtime.app's MacOS/uv is missing: tatolabd makes no project's .venv without it"
-  [ -f "$contents/Resources/install.sh" ] && pass "Resources/install.sh, the runtime's installer, is present" \
-    || fail "Resources/install.sh is missing: the app cannot install its runtime"
+  [ -f "$contents/Resources/install.sh" ] && pass "Resources/install.sh, streamlib's installer, is present" \
+    || fail "Resources/install.sh is missing: the bundle assembly lays streamlib's installer there"
   local helper_info_plist="$helper_contents/Info.plist"
   [ "$(plutil -extract CFBundleIdentifier raw -o - "$helper_info_plist" 2>/dev/null)" = com.tatolab.runtime ] \
     && pass "Tatolab Runtime.app's CFBundleIdentifier is com.tatolab.runtime" \
@@ -151,21 +152,24 @@ verify_app_bundle() {
     || fail "Tatolab Runtime.app's Resources/streamlib-commit names no streamlib commit: which runtime this bundles is unknown"
   plutil -extract NSAppTransportSecurity xml1 -o - "$info_plist" >/dev/null 2>&1 \
     && fail "Info.plist carries Electron's NSAppTransportSecurity exception" || pass "Info.plist carries no App Transport Security exception"
-  local usage_key usage_description usage_info_plist
+  # Each privacy prompt names what asks: the app's own Info.plist names Tato Studio, the runtime
+  # helper's names the Tatolab runtime.
+  local usage_key usage_description usage_info_plist usage_names
   for usage_info_plist in "$info_plist" "$helper_info_plist"; do
+    if [ "$usage_info_plist" = "$info_plist" ]; then usage_names="Tato Studio"; else usage_names="Tatolab"; fi
     while IFS= read -r usage_key; do
       [ -n "$usage_key" ] || continue
       case "$(plutil -extract "$usage_key" raw -o - "$usage_info_plist" 2>/dev/null)" in
-        *Tatolab*) ;;
-        *) fail "${usage_info_plist#"$contents/"}'s $usage_key does not name Tatolab" ;;
+        *"$usage_names"*) ;;
+        *) fail "${usage_info_plist#"$contents/"}'s $usage_key does not name $usage_names" ;;
       esac
     done < <(plutil -convert xml1 -o - "$usage_info_plist" 2>/dev/null | sed -n 's|.*<key>\([A-Za-z]*UsageDescription\)</key>.*|\1|p')
     for usage_key in "${required_usage_description_keys[@]}"; do
       usage_description="$(plutil -extract "$usage_key" raw -o - "$usage_info_plist" 2>/dev/null || true)"
       case "$usage_description" in
-        *Tatolab*) pass "${usage_info_plist#"$contents/"}'s $usage_key names Tatolab" ;;
+        *"$usage_names"*) pass "${usage_info_plist#"$contents/"}'s $usage_key names $usage_names" ;;
         "") fail "${usage_info_plist#"$contents/"} has no $usage_key" ;;
-        *) fail "${usage_info_plist#"$contents/"}'s $usage_key does not name Tatolab: $usage_description" ;;
+        *) fail "${usage_info_plist#"$contents/"}'s $usage_key does not name $usage_names: $usage_description" ;;
       esac
     done
   done
@@ -250,8 +254,8 @@ verify_app_bundle() {
     && pass "app.asar carries the build features: $(tr '\n' ' ' <<<"$packaged_build_features")" \
     || fail "app.asar's build features are unreadable: $shipping_build_features_refusals"
 
-  [ ! -e "$contents/Library/LaunchAgents" ] && pass "the app carries no launch agent of its own: install.sh writes the runtime's" \
-    || fail "Contents/Library/LaunchAgents is present: the runtime is installed by install.sh, never run from the bundle"
+  [ ! -e "$contents/Library/LaunchAgents" ] && pass "the app carries no launch agent: it runs the runtime as its own child" \
+    || fail "Contents/Library/LaunchAgents is present: the app runs the runtime as its own child, never through launchd"
   if [ -e "$helper_contents/Resources/machine-directories-under-a-test-root" ] \
     || ! grep -qx "machineDirectoriesUnderATestRoot=false" <<<"$packaged_build_features"; then
     if $shipping; then
@@ -303,6 +307,7 @@ verify_app_bundle() {
     helper_app_count=$((helper_app_count + 1))
     case "$helper_app" in
       *"(Renderer).app") allowed_helper_entitlements="$allowed_renderer_helper_entitlements" ;;
+      *" Helper.app") allowed_helper_entitlements="$allowed_utility_helper_entitlements" ;;
       *) allowed_helper_entitlements="" ;;
     esac
     signed_code_entitlement_keys="$(entitlement_keys_of "$helper_app")"
@@ -354,8 +359,8 @@ case "$verification_target" in
       && pass "the image links Applications" || fail "the image has no Applications link"
     [ -f "$dmg_mount_point/.background.tiff" ] && pass "the image carries the installer background" \
       || fail "the image has no installer background"
-    [ -d "$dmg_mount_point/Tatolab.app" ] || { fail "the image holds no Tatolab.app"; exit 1; }
-    verify_app_bundle "$dmg_mount_point/Tatolab.app"
+    [ -d "$dmg_mount_point/Tato Studio.app" ] || { fail "the image holds no Tato Studio.app"; exit 1; }
+    verify_app_bundle "$dmg_mount_point/Tato Studio.app"
     ;;
   *.app) verify_app_bundle "$verification_target" ;;
   *) echo "expected a .app or a .dmg: $verification_target" >&2; exit 1 ;;

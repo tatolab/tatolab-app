@@ -1,19 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ListedStream } from "../../shared/tatolab_backend_contract";
 import type { StudioMenuEntry } from "../design_system/menu_bar";
-import { NO_WORKSPACE_OPEN_REASON, studioMenuBarMenus, type StudioMenuBarCommands } from "./studio_menu_bar_model";
+import { NO_PROJECT_OPEN_REASON, studioMenuBarMenus, type StudioMenuBarCommands } from "./studio_menu_bar_model";
 import { streamsOfTheProjectToStop } from "./studio_window_model";
 
 function commandsCounted(): StudioMenuBarCommands {
   return {
-    openAWorkspace: vi.fn(),
-    createAWorkspace: vi.fn(),
+    showProjects: vi.fn(),
+    openAProject: vi.fn(),
+    createAProject: vi.fn(),
     openPreferences: vi.fn(),
     openAbout: vi.fn(),
     chooseLayout: vi.fn(),
-    runTheWorkspaceLive: vi.fn(),
-    stopTheWorkspace: vi.fn(),
-    openTheWorkspaceStreamPy: vi.fn(),
+    runTheProjectLive: vi.fn(),
+    stopTheProject: vi.fn(),
+    openTheProjectStreamPy: vi.fn(),
   };
 }
 
@@ -21,8 +22,21 @@ function entryOf(menus: ReturnType<typeof studioMenuBarMenus>, menuLabel: string
   return menus.find((menu) => menu.label === menuLabel)?.entries.find((entry) => entry.kind !== "separator" && entry.label === entryLabel);
 }
 
+describe("the studio's File menu", () => {
+  it("leads with Projects, which shows the Projects window with or without a project open", () => {
+    for (const chosenLayout of [null, "code" as const]) {
+      const commands = commandsCounted();
+      const fileMenu = studioMenuBarMenus("macos", chosenLayout, commands).find((menu) => menu.label === "File");
+      const projects = fileMenu?.entries[0];
+      expect(projects).toMatchObject({ kind: "command", label: "Projects" });
+      if (projects?.kind === "command") projects.onChosen();
+      expect(commands.showProjects).toHaveBeenCalledOnce();
+    }
+  });
+});
+
 describe("the studio's Run and Stream menus", () => {
-  it("runs, stops and opens stream.py while a workspace is open", () => {
+  it("runs, stops and opens stream.py while a project is open", () => {
     const commands = commandsCounted();
     const menus = studioMenuBarMenus("linux", "code", commands);
     for (const [menuLabel, entryLabel] of [
@@ -36,15 +50,15 @@ describe("the studio's Run and Stream menus", () => {
     }
     expect(entryOf(menus, "Run", "Live")).toMatchObject({ shortcutHint: "F5" });
     expect(entryOf(menus, "Run", "Stop")).toMatchObject({ shortcutHint: "Shift F5" });
-    expect(commands.runTheWorkspaceLive).toHaveBeenCalledOnce();
-    expect(commands.stopTheWorkspace).toHaveBeenCalledOnce();
-    expect(commands.openTheWorkspaceStreamPy).toHaveBeenCalledOnce();
+    expect(commands.runTheProjectLive).toHaveBeenCalledOnce();
+    expect(commands.stopTheProject).toHaveBeenCalledOnce();
+    expect(commands.openTheProjectStreamPy).toHaveBeenCalledOnce();
   });
 
-  it("says why they wait while no workspace is open", () => {
+  it("says why they wait while no project is open", () => {
     const menus = studioMenuBarMenus("macos", null, commandsCounted());
-    expect(entryOf(menus, "Run", "Live")).toEqual({ kind: "unavailable_command", label: "Live", shortcutHint: "F5", unavailableBecause: NO_WORKSPACE_OPEN_REASON });
-    expect(entryOf(menus, "Stream", "Open stream.py")).toEqual({ kind: "unavailable_command", label: "Open stream.py", unavailableBecause: NO_WORKSPACE_OPEN_REASON });
+    expect(entryOf(menus, "Run", "Live")).toEqual({ kind: "unavailable_command", label: "Live", shortcutHint: "F5", unavailableBecause: NO_PROJECT_OPEN_REASON });
+    expect(entryOf(menus, "Stream", "Open stream.py")).toEqual({ kind: "unavailable_command", label: "Open stream.py", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
 
@@ -63,7 +77,7 @@ describe("Run › Stop", () => {
     };
   }
 
-  it("stops the workspace project's running and preparing streams, and nothing of another project", () => {
+  it("stops the open project's running and preparing streams, and nothing of another project", () => {
     const streams = [listing("main", "/p", "running"), listing("two", "/p", "preparing"), listing("old", "/p", "stopped"), listing("cam", "/camera", "running")];
     expect(streamsOfTheProjectToStop({ kind: "listed", streams }, "/p")).toEqual(["main", "two"]);
     expect(streamsOfTheProjectToStop({ kind: "not_listed", because: "Stopped" }, "/p")).toEqual([]);

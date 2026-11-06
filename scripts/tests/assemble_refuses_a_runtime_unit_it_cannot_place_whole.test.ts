@@ -40,10 +40,10 @@ let scratchDirectory = "";
 let plantedAppBundle = "";
 beforeEach(async () => {
   scratchDirectory = await mkdtemp(path.join(tmpdir(), "tatolab-assemble-"));
-  plantedAppBundle = path.join(scratchDirectory, "Tatolab.app");
+  plantedAppBundle = path.join(scratchDirectory, "Tato Studio.app");
   await mkdir(path.join(plantedAppBundle, "Contents", "MacOS"), { recursive: true });
-  await writeFile(path.join(plantedAppBundle, "Contents", "MacOS", "Tatolab"), "");
-  await chmod(path.join(plantedAppBundle, "Contents", "MacOS", "Tatolab"), 0o755);
+  await writeFile(path.join(plantedAppBundle, "Contents", "MacOS", "Tato Studio"), "");
+  await chmod(path.join(plantedAppBundle, "Contents", "MacOS", "Tato Studio"), 0o755);
   await writeFile(path.join(scratchDirectory, "install.sh"), "#!/bin/sh\n");
 });
 

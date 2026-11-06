@@ -12,14 +12,25 @@ import {
 } from "./mock_stream_fixtures";
 import { createMockRelays, mockRelaysScenarioNamed, type MockRelaysScenario } from "./mock_relays";
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
-import { mockOpenWorkspaceReading, mockOpenWorkspaceScenarioNamed, type MockOpenWorkspaceScenario } from "./mock_open_workspace";
+import {
+  mockFoldersInDocumentsTatoStudio,
+  mockNewProjectDefaults,
+  mockNewProjectLocationTheDialogAnswers,
+  mockNewProjectReading,
+  mockOpenProjectReading,
+  mockOpenProjectScenarioNamed,
+  mockRecentProjectReading,
+  mockRecentProjects,
+  type MockOpenProjectScenario,
+} from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
-import { MockWorkspaceFiles } from "./mock_workspace_files";
+import { MockProjectFiles } from "./mock_project_files";
+import { newProjectFolderNameRefusal } from "../../shared/new_project_folder_name";
 import type { TatolabBackend } from "./tatolab_backend";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
-  type OpenWorkspaceReading,
+  type OpenProjectReading,
   type ProjectLogRecord,
   type ProjectLogRecordsPage,
   type RuntimeDescription,
@@ -32,16 +43,12 @@ import {
   type StreamActionFollowed,
   type StreamProjectFolderChosenFor,
   type TatolabAppUpdateState,
-  type InstalledRuntime,
   type TatolabPlatform,
   type TatolabStatus,
   type PythonLanguageServerEvent,
 } from "../../shared/tatolab_backend_contract";
 
-/**
- * Browser-only stand-ins for the app backend, picked with `?state=`. `approval`, `missing` and `not-registered` exist
- * only on macOS. `setup` is first run on macOS, its runtime starting as the app opens, and Linux's missing installer.
- */
+/** Browser-only stand-ins for the app backend, picked with `?state=`: `starting` is the app's runtime coming up, `not-running` one that exited. */
 export type MockTatolabScenario =
   | "running"
   | "empty"
@@ -51,14 +58,7 @@ export type MockTatolabScenario =
   | "dropping"
   | "not-listed"
   | "starting"
-  | "stopped"
-  | "approval"
-  | "missing"
-  | "not-registered"
-  | "setup"
-  | "unreachable"
-  | "never-answered"
-  | "blocked";
+  | "not-running";
 
 const MOCK_TATOLAB_SCENARIOS: readonly MockTatolabScenario[] = [
   "running",
@@ -69,29 +69,16 @@ const MOCK_TATOLAB_SCENARIOS: readonly MockTatolabScenario[] = [
   "dropping",
   "not-listed",
   "starting",
-  "stopped",
-  "approval",
-  "missing",
-  "not-registered",
-  "setup",
-  "unreachable",
-  "never-answered",
-  "blocked",
+  "not-running",
 ];
 
-const MACOS_ONLY_SCENARIOS: readonly MockTatolabScenario[] = ["approval", "missing", "not-registered"];
-
-/** Where the mock links the `tatolab` command behind the administrator prompt. */
-const MOCK_USR_LOCAL_BIN_LINK = "/usr/local/bin/tatolab";
-
-/** Why the mock refuses a `/usr/local/bin` link on Linux, as the app does. */
-const MOCK_LINUX_INSTALLER_LINKS_THE_COMMAND = "On Linux the installer links tatolab into ~/.local/bin with the runtime.";
+/** Why the mock's runtime is not running in `not-running`, as the app says of one that exited. */
+const MOCK_RUNTIME_NOT_RUNNING_BECAUSE = "The runtime stopped: it exited with status 1. Tato Studio starts it again shortly.";
 
 const MOCK_COMMAND_LATENCY_MILLISECONDS = 30;
 const MOCK_RUNTIME_STARTUP_MILLISECONDS = 2400;
-const MOCK_ADMINISTRATOR_PROMPT_MILLISECONDS = 1600;
-/** How long the mock administrator takes to answer the prompt an uninstall shows, long enough to see the sheet wait. */
-const MOCK_UNINSTALL_ADMINISTRATOR_PROMPT_MILLISECONDS = 4000;
+/** How long the mock takes to link the `tatolab` command. */
+const MOCK_COMMAND_LINE_TOOL_LINK_MILLISECONDS = 400;
 const MOCK_LIVE_TICK_MILLISECONDS = 700;
 const MOCK_STREAM_SETTLE_MILLISECONDS = 1600;
 /** How long `main` stays listed but not loaded in the `loading` scenario. */
@@ -127,17 +114,12 @@ const MOCK_CHOSEN_PROJECT_FOLDERS: readonly MockChosenProjectFolder[] = ["ready"
 
 /** The runtime the mock describes: the streamlib release the app bundles, and its build. */
 const MOCK_RUNTIME_VERSION = "0.55.2";
-/** The runtime build the mock's installer runs, and the newer one the mock app carries for `?runtime_install=`. */
-const MOCK_INSTALLED_RUNTIME_BUILD = "0.55.2-ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a";
-const MOCK_CARRIED_RUNTIME_BUILD = "0.56.0-4f1d0c3a9b8e7d6c5b4a39281706f5e4d3c2b1a0";
-/** How long the mock installer takes over each line it writes. */
-const MOCK_INSTALLER_LINE_MILLISECONDS = 900;
 const MOCK_RUNTIME_BUILD_ID = "0.55.2+ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a.eecdc9dbaa1025c25565ca507699ed60";
 
 /** How long the mock runtime has been up as the page opens: 3 days, 2 hours and 14 minutes. */
 const MOCK_RUNTIME_UP_FOR_AT_OPEN_MILLISECONDS = ((3 * 24 + 2) * 60 + 14) * 60_000;
 
-/** How long the mock service manager takes to answer a restart. */
+/** How long the mock takes to stop its runtime for a restart. */
 const MOCK_RUNTIME_RESTART_MILLISECONDS = 700;
 
 /** How long the mock runtime's uv takes to make a project's `.venv`, before it compiles it. */
@@ -159,8 +141,6 @@ const MOCK_UV_SYNC_REFUSAL = [
 export interface MockTatolabOptions {
   scenario: MockTatolabScenario;
   platform: TatolabPlatform;
-  /** `?uninstall=cancel`: the administrator cancels the prompt an uninstall shows, so the uninstall is refused. */
-  isUninstallPromptCancelled: boolean;
   appUpdateScenario: MockTatolabAppUpdateScenario;
   /** `?terminal=missing`: the desktop has no terminal to open, as a Linux desktop without `x-terminal-emulator`. */
   isTheTerminalMissing: boolean;
@@ -176,10 +156,8 @@ export interface MockTatolabOptions {
   isNoProjectLoadHeld: boolean;
   /** `?runtime_log=none`: the runtime keeps no log of its own, so `describe_runtime` names no folder. */
   doesTheRuntimeKeepNoOwnLog: boolean;
-  /** `?restart=refused`: the service manager refuses to restart the runtime. */
+  /** `?restart=refused`: the runtime running was not started by the app, so a restart is refused. */
   isTheRuntimeRestartRefused: boolean;
-  /** `?runtime_install=installing|failed`: the app opens carrying a newer runtime and installs it, or its installer puts the old build back; Try again then installs it. */
-  runtimeInstallScenario: "none" | "installing" | "failed";
   /** `?open_at_login=on|approval|not_offered`: what the desktop reports of opening the app at login; off by default. */
   openAtLogin: TatolabAppOpenAtLogin;
   /** `?notifications=unsupported`: this desktop shows no notifications. */
@@ -188,12 +166,8 @@ export interface MockTatolabOptions {
   commandLineToolVersion: TatolabCommandLineToolVersion;
   /** `?stream_page_requested=<stream id>`: a click on that stream's failure notification, a moment after the window listens. */
   streamPageRequestedByANotification: string | null;
-  /** `?first_run=unfinished`: Get Started has not ended first run, so macOS shows Welcome over whatever state the runtime is in. */
-  isFirstRunUnfinished: boolean;
-  /** `?usr_local_bin=linked|cancel`: the `tatolab` command already linked in `/usr/local/bin`, or the prompt that links it cancelled. */
-  usrLocalBinLinkScenario: "not_linked" | "linked" | "cancel";
-  /** `?first_run_remember=refused`: Get Started ends first run but its file cannot be written, as when the app's config folder refuses it. */
-  isRememberingFirstRunRefused: boolean;
+  /** `?cli_link=not_linked|taken`: `~/.local/bin/tatolab` not linked yet, or held by a file that is not Tatolab's; linked by default. */
+  commandLineToolLinkScenario: "linked" | "not_linked" | "taken";
   /** `?app_build=release|modified|none`: a release build, a dev build with uncommitted changes, or one that recorded none; a dev build by default. */
   appBuild: TatolabAppBuild | null;
   /** `?add_venv=refused`: the runtime's uv fails to make a project's `.venv`, as with the package index out of reach, so its load fails. */
@@ -207,8 +181,10 @@ export interface MockTatolabOptions {
   doesTheRuntimeListAnEarlierRuntimesRecord: boolean;
   /** `?adapter_names=none`: the relay-adapter catalog of a runtime older than adapter names and logos, which serves neither. */
   doesTheRelayAdapterCatalogServeNoNamesOrLogos: boolean;
-  /** `?workspace=none|unreadable`: no workspace open, or one whose `pyproject.toml` does not parse; the pattern workspace by default. */
-  openWorkspaceScenario: MockOpenWorkspaceScenario;
+  /** `?project=none|unreadable`: no project open, or one whose `pyproject.toml` does not parse; the pattern project by default. */
+  openProjectScenario: MockOpenProjectScenario;
+  /** `?recent=none`: no project opened before, as on first run; six recent ones by default. */
+  recentProjectsInTheQuery: string | null;
   /** `?port_families=served`: each port's family is served in the graph and the node catalog, as streamlib's strict-port-families will serve it; none by default, as the runtime serves today. */
   arePortFamiliesServed: boolean;
 }
@@ -224,7 +200,7 @@ function mockOpenAtLogin(openAtLoginInTheQuery: string | null): TatolabAppOpenAt
     case "approval":
       return { kind: "needs_approval_in_login_items" };
     case "not_offered":
-      return { kind: "not_offered", reason: "Only a packaged Tatolab opens at login." };
+      return { kind: "not_offered", reason: "Only a packaged Tato Studio opens at login." };
     default:
       return { kind: "off" };
   }
@@ -259,21 +235,17 @@ function mockCommandLineToolVersion(commandLineToolVersionInTheQuery: string | n
 
 /**
  * `?platform=` (`macos` unless it names `linux`), the scenario `?state=` names (`running` when it names none this
- * mock knows on that platform), `?uninstall=`, and `?update=` (`up-to-date` when it names none this mock knows).
+ * mock knows), and `?update=` (`up-to-date` when it names none this mock knows).
  */
 export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabOptions {
   const platform: TatolabPlatform = pageQuery.get("platform") === "linux" ? "linux" : "macos";
   const requestedScenario = pageQuery.get("state");
-  const scenario = MOCK_TATOLAB_SCENARIOS.find(
-    (knownScenario) =>
-      knownScenario === requestedScenario && !(platform === "linux" && MACOS_ONLY_SCENARIOS.includes(knownScenario)),
-  );
+  const scenario = MOCK_TATOLAB_SCENARIOS.find((knownScenario) => knownScenario === requestedScenario);
   const requestedAppUpdateScenario = pageQuery.get("update");
   const appUpdateScenario = MOCK_TATOLAB_APP_UPDATE_SCENARIOS.find((knownScenario) => knownScenario === requestedAppUpdateScenario);
   return {
     scenario: scenario ?? "running",
     platform,
-    isUninstallPromptCancelled: pageQuery.get("uninstall") === "cancel",
     appUpdateScenario: appUpdateScenario ?? "up-to-date",
     isTheTerminalMissing: pageQuery.get("terminal") === "missing",
     isTheLogFolderMissing: pageQuery.get("log_folder") === "missing",
@@ -283,25 +255,18 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     isNoProjectLoadHeld: pageQuery.get("add_action") === "not_held",
     doesTheRuntimeKeepNoOwnLog: pageQuery.get("runtime_log") === "none",
     isTheRuntimeRestartRefused: pageQuery.get("restart") === "refused",
-    runtimeInstallScenario:
-      pageQuery.get("runtime_install") === "installing"
-        ? "installing"
-        : pageQuery.get("runtime_install") === "failed"
-          ? "failed"
-          : "none",
     openAtLogin: mockOpenAtLogin(pageQuery.get("open_at_login")),
     doesTheDesktopShowNoNotifications: pageQuery.get("notifications") === "unsupported",
     commandLineToolVersion: mockCommandLineToolVersion(pageQuery.get("cli_version")),
     streamPageRequestedByANotification: pageQuery.get("stream_page_requested"),
-    isFirstRunUnfinished: pageQuery.get("first_run") === "unfinished",
-    usrLocalBinLinkScenario: pageQuery.get("usr_local_bin") === "linked" ? "linked" : pageQuery.get("usr_local_bin") === "cancel" ? "cancel" : "not_linked",
-    isRememberingFirstRunRefused: pageQuery.get("first_run_remember") === "refused",
+    commandLineToolLinkScenario: pageQuery.get("cli_link") === "not_linked" ? "not_linked" : pageQuery.get("cli_link") === "taken" ? "taken" : "linked",
     appBuild: mockAppBuild(pageQuery.get("app_build")),
     isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
     relaysScenario: mockRelaysScenarioNamed(pageQuery.get("relays")),
     doesTheRuntimeListAnEarlierRuntimesRecord: pageQuery.get("streams") === "earlier_record",
     doesTheRelayAdapterCatalogServeNoNamesOrLogos: pageQuery.get("adapter_names") === "none",
-    openWorkspaceScenario: mockOpenWorkspaceScenarioNamed(pageQuery.get("workspace")),
+    openProjectScenario: mockOpenProjectScenarioNamed(pageQuery.get("project")),
+    recentProjectsInTheQuery: pageQuery.get("recent"),
     arePortFamiliesServed: pageQuery.get("port_families") === "served",
   };
 }
@@ -310,9 +275,6 @@ function positiveWholeNumberOrNull(text: string | null): number | null {
   const number = Number(text);
   return text !== null && Number.isInteger(number) && number > 0 ? number : null;
 }
-
-const LINUX_INSTALL_COMMAND = "curl -fsSL https://get.tatolab.com/install.sh | sh";
-const LINUX_UNINSTALL_COMMAND = "curl -fsSL https://get.tatolab.com/install.sh | sh -s -- --uninstall";
 
 interface MockLoadedStream {
   fixture: MockStreamFixture;
@@ -351,8 +313,7 @@ function initialMockStatus(
     openAtLogin,
     doesTheDesktopShowNoNotifications,
     commandLineToolVersion,
-    isFirstRunUnfinished,
-    usrLocalBinLinkScenario,
+    commandLineToolLinkScenario,
     appBuild,
   }: MockTatolabOptions,
 ): TatolabStatus {
@@ -360,26 +321,21 @@ function initialMockStatus(
     app_version: "0.45.0",
     app_build: appBuild,
     platform,
-    run_tatolab: true,
-    runtime_agent: "enabled",
     runtime_state: "running",
+    runtime_not_running_because: null,
     machine_name: machine.name,
     streams: [],
-    first_run_finished: !isFirstRunUnfinished,
-    command_line_tool_linked_at: machine.commandLineToolLinkedAt,
-    command_line_tool_usr_local_bin_link:
-      platform === "linux"
-        ? { kind: "not_offered", reason: MOCK_LINUX_INSTALLER_LINKS_THE_COMMAND }
-        : usrLocalBinLinkScenario === "linked"
-          ? { kind: "linked", path: MOCK_USR_LOCAL_BIN_LINK }
-          : { kind: "not_linked" },
+    command_line_tool_link:
+      commandLineToolLinkScenario === "linked"
+        ? { kind: "linked", path: machine.commandLineToolLinkedAt }
+        : commandLineToolLinkScenario === "taken"
+          ? { kind: "taken_by_something_else", path: machine.commandLineToolLinkedAt }
+          : { kind: "not_linked", path: machine.commandLineToolLinkedAt },
     app_update: initialMockAppUpdateState(appUpdateScenario),
     local_api_socket: machine.localApiSocket,
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: !doesTheDesktopShowNoNotifications },
     open_at_login: openAtLogin,
     command_line_tool_version: commandLineToolVersion,
-    runtime_install: { kind: "none" },
-    installed_runtime: mockInstalledRuntime(platform, machine, MOCK_INSTALLED_RUNTIME_BUILD),
   };
   switch (scenario) {
     case "running":
@@ -392,69 +348,9 @@ function initialMockStatus(
       return runningStatus;
     case "starting":
       return { ...runningStatus, runtime_state: "starting", machine_name: null, streams: null };
-    case "stopped":
-      return {
-        ...runningStatus,
-        run_tatolab: false,
-        runtime_agent: "not_registered",
-        runtime_state: "stopped",
-        machine_name: null,
-        streams: null,
-      };
-    case "approval":
-      return { ...runningStatus, runtime_agent: "requires_approval", runtime_state: "stopped", machine_name: null, streams: null };
-    case "missing":
-      return { ...runningStatus, runtime_agent: "not_found", runtime_state: "stopped", machine_name: null, streams: null };
-    case "not-registered":
-      return { ...runningStatus, runtime_agent: "not_registered", runtime_state: "stopped", machine_name: null, streams: null };
-    case "unreachable":
-      return { ...runningStatus, runtime_state: "unreachable", streams: null };
-    case "never-answered":
-      return { ...runningStatus, runtime_state: "never_answered", machine_name: null, streams: null };
-    case "blocked":
-      return { ...runningStatus, runtime_state: "blocked_by_the_service_manager", machine_name: null, streams: null };
-    case "setup":
-      if (platform === "linux") {
-        return {
-          ...runningStatus,
-          run_tatolab: false,
-          runtime_agent: "not_found",
-          runtime_state: "stopped",
-          machine_name: null,
-          streams: null,
-          command_line_tool_linked_at: null,
-        };
-      }
-      return { ...runningStatus, runtime_state: "starting", machine_name: null, streams: null, first_run_finished: false };
+    case "not-running":
+      return { ...runningStatus, runtime_state: "not_running", runtime_not_running_because: MOCK_RUNTIME_NOT_RUNNING_BECAUSE, machine_name: null, streams: null };
   }
-}
-
-/** Where streamlib's installer keeps each build on `machine`, by `platform`. */
-function mockRuntimeInstallDirectory(platform: TatolabPlatform, machine: MockMachine): string {
-  return platform === "macos" ? `${machine.homeDirectory}/Library/Application Support/com.tatolab.runtime` : `${machine.homeDirectory}/.local/share/tatolab`;
-}
-
-/** The build `runtimeBuild` installed where the installer keeps it on `machine`. */
-function mockInstalledRuntime(platform: TatolabPlatform, machine: MockMachine, runtimeBuild: string): InstalledRuntime {
-  return { build: runtimeBuild, folder: `${mockRuntimeInstallDirectory(platform, machine)}/${runtimeBuild}` };
-}
-
-/** What the mock installer writes installing `carriedRuntimeBuild` on `machine`, as streamlib's install.sh words it on `platform`, up to the runtime answering. */
-function mockInstallerLines(platform: TatolabPlatform, machine: MockMachine, carriedRuntimeBuild: string): string[] {
-  const installDirectory = mockRuntimeInstallDirectory(platform, machine);
-  return [
-    `Copying the runtime unit from ${platform === "macos" ? "/Applications/Tatolab.app/Contents/Helpers" : "/usr/lib/tatolab/resources/tatolab-runtime"}`,
-    `Installing Tatolab ${carriedRuntimeBuild} into ${installDirectory}/${carriedRuntimeBuild}`,
-    "Stopping the runtime",
-    `Starting Tatolab ${carriedRuntimeBuild}`,
-    `Waiting for Tatolab ${carriedRuntimeBuild} to answer`,
-    `Tatolab ${carriedRuntimeBuild} answers, running as ${platform === "macos" ? "the launch agent com.tatolab.tatolabd" : "the systemd user service tatolabd.service"}`,
-  ];
-}
-
-/** How the mock installer says to look at a runtime service that did not start, on `platform`. */
-function mockHowToSeeTheRuntimeService(platform: TatolabPlatform): string {
-  return platform === "macos" ? "`launchctl print gui/501/com.tatolab.tatolabd`" : "`systemctl --user status tatolabd.service`";
 }
 
 function sleep(milliseconds: number): Promise<void> {
@@ -466,7 +362,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const {
     scenario,
     platform,
-    isUninstallPromptCancelled,
     appUpdateScenario,
     isTheTerminalMissing,
     isTheLogFolderMissing,
@@ -476,15 +371,13 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     isNoProjectLoadHeld,
     doesTheRuntimeKeepNoOwnLog,
     isTheRuntimeRestartRefused,
-    runtimeInstallScenario,
     streamPageRequestedByANotification,
-    usrLocalBinLinkScenario,
-    isRememberingFirstRunRefused,
     isMakingThePythonEnvironmentRefused,
     relaysScenario,
     doesTheRuntimeListAnEarlierRuntimesRecord,
     doesTheRelayAdapterCatalogServeNoNamesOrLogos,
-    openWorkspaceScenario,
+    openProjectScenario,
+    recentProjectsInTheQuery,
   } = mockTatolabOptions;
   const fixtures = createMockStreamFixtures(platform);
   const mainStream =
@@ -494,14 +387,21 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         ? fixtures.mainStreamWithItsMeterFallingBehind
         : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
-  const openWorkspaceListeners = new Set<(reading: OpenWorkspaceReading) => void>();
-  let openWorkspaceReading = mockOpenWorkspaceReading(openWorkspaceScenario, fixtures.machine.homeDirectory);
-  const mockWorkspaceFiles = new MockWorkspaceFiles(`${fixtures.machine.homeDirectory}/streams`);
+  const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
+  let openProjectReading = mockOpenProjectReading(openProjectScenario, fixtures.machine.homeDirectory);
+  let recentProjects = mockRecentProjects(recentProjectsInTheQuery, fixtures.machine.homeDirectory, Date.now());
+  const mockFoldersOnDisk = () => [...mockFoldersInDocumentsTatoStudio(fixtures.machine.homeDirectory), ...recentProjects.map((recent) => recent.folder)];
+  const openTheProjectInTheMock = (reading: OpenProjectReading, folder: string, projectName: string | null) => {
+    openProjectReading = reading;
+    recentProjects = [{ folder, project_name: projectName, last_opened_at_wall_clock_ms: Date.now() }, ...recentProjects.filter((recent) => recent.folder !== folder)];
+    for (const openProjectListener of openProjectListeners) openProjectListener(structuredClone(openProjectReading));
+  };
+  const mockProjectFiles = new MockProjectFiles(`${fixtures.machine.homeDirectory}/streams`);
   const languageServerEventListeners = new Set<(event: PythonLanguageServerEvent) => void>();
   const mockLanguageServersBySession = new Map<string, MockPythonLanguageServer>();
   let languageServerSessionCount = 0;
-  const refuseWithoutAnOpenWorkspace = (): void => {
-    if (openWorkspaceReading.kind !== "read") throw "No workspace is open, so its files cannot be read.";
+  const refuseWithoutAnOpenProject = (): void => {
+    if (openProjectReading.kind !== "read") throw "No project is open, so its files cannot be read.";
   };
   const loadedStreams = new Map<string, MockLoadedStream>();
   const listedStreamsNotLoaded = new Map<string, ListedStream>([
@@ -523,7 +423,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     return `${MOCK_RUNTIME_ID}-${streamActionCount}`;
   };
   let mockStatus = initialMockStatus(scenario, platform, fixtures.machine, mockTatolabOptions);
-  let isLoginItemsApproved = scenario !== "approval";
   let runtimeUpSinceMilliseconds: number | null = null;
   /** When the mock runtime's engine started, which its uptime counts from: long before the page opened, until a restart. */
   let runtimeEngineStartedAtMilliseconds = Date.now() - MOCK_RUNTIME_UP_FOR_AT_OPEN_MILLISECONDS;
@@ -573,7 +472,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }
   };
   const refuseAFolderNotHandedToTheWindow = (folder: string): void => {
-    if (!foldersHandedToTheWindow.has(folder)) throw `Tatolab acts only on a folder chosen in its window. Choose ${folder} again.`;
+    if (!foldersHandedToTheWindow.has(folder)) throw `Tato Studio acts only on a folder chosen in its window. Choose ${folder} again.`;
   };
   const newProjectFolderTheRuntimeDraws = (): string => {
     const newProjectsFolder = `${fixtures.machine.homeDirectory}/streams`;
@@ -836,9 +735,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   };
 
   const startRuntime = (): void => {
-    publishStatus({ run_tatolab: true, runtime_agent: "enabled", runtime_state: "starting", machine_name: null, streams: null });
+    publishStatus({ runtime_state: "starting", runtime_not_running_because: null, machine_name: null, streams: null });
     window.setTimeout(() => {
-      if (!mockStatus.run_tatolab || mockStatus.runtime_state !== "starting") return;
+      if (mockStatus.runtime_state !== "starting") return;
       runtimeEngineStartedAtMilliseconds = Date.now();
       bringRuntimeUp();
     }, MOCK_RUNTIME_STARTUP_MILLISECONDS);
@@ -1021,7 +920,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   /** The project folder the mock runtime lists for the stream `streamId`, as the main process looks it up before opening it. */
   const listedProjectFolderOf = (streamId: string): string => {
     const listedStream = listStreams()?.find((listing) => listing.stream === streamId) ?? null;
-    if (listedStream === null) throw `The runtime does not list ${streamId}, so Tatolab has no project folder to open.`;
+    if (listedStream === null) throw `The runtime does not list ${streamId}, so Tato Studio has no project folder to open.`;
     if (listedStream.location === null) throw `The runtime lists no project folder for ${listedStream.display_name}.`;
     return listedStream.location.project_directory;
   };
@@ -1052,97 +951,30 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }
   };
 
-  /** Install the carried runtime as the app does on opening: the installer's lines one by one, then the new build running, or with `refuses`, the old one put back and the refusal in the installer's words. */
-  const installTheCarriedRuntime = async (refuses: boolean): Promise<void> => {
-    const installedRuntimeBuild = mockStatus.installed_runtime?.build ?? MOCK_INSTALLED_RUNTIME_BUILD;
-    const allInstallerLines = mockInstallerLines(platform, fixtures.machine, MOCK_CARRIED_RUNTIME_BUILD);
-    const installerLines = refuses ? [...allInstallerLines.slice(0, 5), `Tatolab ${MOCK_CARRIED_RUNTIME_BUILD} did not start; putting ${installedRuntimeBuild} back`] : allInstallerLines;
-    publishStatus({ runtime_install: { kind: "installing", carried_runtime_build: MOCK_CARRIED_RUNTIME_BUILD, installer_lines: [] } });
-    for (const [lineIndex, installerLine] of installerLines.entries()) {
-      await sleep(MOCK_INSTALLER_LINE_MILLISECONDS);
-      if (installerLine === "Stopping the runtime") takeRuntimeDown({ runtime_state: "starting" });
-      publishStatus({
-        runtime_install: { kind: "installing", carried_runtime_build: MOCK_CARRIED_RUNTIME_BUILD, installer_lines: installerLines.slice(0, lineIndex + 1) },
-      });
-    }
-    await sleep(MOCK_INSTALLER_LINE_MILLISECONDS);
-    if (refuses) {
-      publishStatus({
-        runtime_install: {
-          kind: "failed",
-          carried_runtime_build: MOCK_CARRIED_RUNTIME_BUILD,
-          installer_lines: installerLines,
-          refusal: `tatolab install: Tatolab ${MOCK_CARRIED_RUNTIME_BUILD}'s service did not start, so ${installedRuntimeBuild} is back in place. See ${mockHowToSeeTheRuntimeService(platform)}.`,
-        },
-      });
-    } else {
-      publishStatus({ runtime_install: { kind: "none" }, installed_runtime: mockInstalledRuntime(platform, fixtures.machine, MOCK_CARRIED_RUNTIME_BUILD) });
-    }
-    startRuntime();
-  };
-
   if (mockStatus.runtime_state === "running") bringRuntimeUp();
-  if (runtimeInstallScenario !== "none") void installTheCarriedRuntime(runtimeInstallScenario === "failed");
-  // Opening the app registers the runtime's agent, so first run's runtime comes up as the real one does.
-  if (scenario === "setup" && platform === "macos") startRuntime();
+  // The app starts its runtime as it opens, so a starting runtime comes up as the real one does.
+  if (scenario === "starting") startRuntime();
 
   return {
     getTatolabStatus: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return structuredClone(mockStatus);
     },
-    setRunTatolab: async (enabled) => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (platform === "linux" && mockStatus.runtime_agent === "not_found") {
-        throw `tatolabd.service is not installed; install the runtime with \`${LINUX_INSTALL_COMMAND}\``;
-      }
-      if (!enabled) {
-        takeRuntimeDown({ run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped" });
-      } else if (!isLoginItemsApproved) {
-        publishStatus({ run_tatolab: true, runtime_agent: "requires_approval", runtime_state: "stopped" });
-      } else {
-        startRuntime();
-      }
-    },
-    openLoginItemsSettings: async () => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (platform === "linux") throw "Login Items are a macOS setting";
-      if (isLoginItemsApproved) return;
-      isLoginItemsApproved = true;
-      window.setTimeout(startRuntime, MOCK_ADMINISTRATOR_PROMPT_MILLISECONDS);
-    },
-    rememberFirstRunFinished: async () => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      publishStatus({ first_run_finished: true });
-      if (isRememberingFirstRunRefused) {
-        throw "EACCES: permission denied, open '/Users/jonathanf/Library/Application Support/com.tatolab.tatolab/first-run-finished.json'";
-      }
-    },
-    linkCommandLineToolInUsrLocalBin: async () => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (platform === "linux") throw MOCK_LINUX_INSTALLER_LINKS_THE_COMMAND;
-      await sleep(MOCK_ADMINISTRATOR_PROMPT_MILLISECONDS);
-      if (usrLocalBinLinkScenario === "cancel") throw "The password prompt was cancelled, so nothing changed.";
-      publishStatus({ command_line_tool_usr_local_bin_link: { kind: "linked", path: MOCK_USR_LOCAL_BIN_LINK } });
+    linkCommandLineTool: async () => {
+      await sleep(MOCK_COMMAND_LINE_TOOL_LINK_MILLISECONDS);
+      const commandLineToolLink = mockStatus.command_line_tool_link;
+      if (commandLineToolLink.kind === "not_offered") throw commandLineToolLink.reason;
+      if (commandLineToolLink.kind === "taken_by_something_else") throw `${commandLineToolLink.path} is not a link to Tatolab, so Tato Studio left it alone.`;
+      publishStatus({ command_line_tool_link: { kind: "linked", path: commandLineToolLink.path } });
     },
     quitTatolabApp: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
     },
-    uninstallTatolab: async () => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (platform === "linux") {
-        throw `remove the runtime with \`${LINUX_UNINSTALL_COMMAND}\`, then this app with your package manager`;
-      }
-      await sleep(MOCK_UNINSTALL_ADMINISTRATOR_PROMPT_MILLISECONDS);
-      if (isUninstallPromptCancelled) throw "the administrator prompt was cancelled, so nothing was removed";
-      publishStatus({ command_line_tool_linked_at: null, command_line_tool_usr_local_bin_link: { kind: "not_linked" } });
-      takeRuntimeDown({ run_tatolab: false, runtime_agent: "not_registered", runtime_state: "stopped" });
-    },
     readProjectLogRecords: async (projectDirectory, narrowing, after) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const isTheWorkspaceProject = openWorkspaceReading.kind === "read" && openWorkspaceReading.workspace.workspace_project.folder === projectDirectory;
-      if (!isTheWorkspaceProject && !(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) throw `The runtime lists no stream from ${projectDirectory}.`;
+      const isTheOpenProject = openProjectReading.kind === "read" && openProjectReading.open_project.project.folder === projectDirectory;
+      if (!isTheOpenProject && !(listStreams() ?? []).some((listing) => listing.location?.project_directory === projectDirectory)) throw `The runtime lists no stream from ${projectDirectory}.`;
       return readMockProjectLog(projectDirectory, narrowing, after);
     },
     describeStreamGraph: async (streamId) => {
@@ -1264,20 +1096,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     restartRuntime: async () => {
       await sleep(MOCK_RUNTIME_RESTART_MILLISECONDS);
-      if (!mockStatus.run_tatolab) throw "Run Tatolab is off, so there is no runtime to restart. Turn Run Tatolab on to start it.";
-      if (isTheRuntimeRestartRefused) {
-        throw platform === "linux"
-          ? "systemctl --user restart tatolabd.service failed (exit 1): Job for tatolabd.service failed because the control process exited with error code."
-          : "launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 5): Input/output error";
-      }
+      if (isTheRuntimeRestartRefused) throw "The runtime running now was not started by Tato Studio, so Tato Studio leaves it alone.";
       takeRuntimeDown({ runtime_state: "starting" });
       startRuntime();
-    },
-    installTheCarriedRuntimeAgain: async () => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (mockStatus.runtime_install.kind === "installing") throw "The runtime is already being installed.";
-      if (mockStatus.installed_runtime?.build === MOCK_CARRIED_RUNTIME_BUILD) return;
-      await installTheCarriedRuntime(false);
     },
     openRuntimeLogFolder: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -1301,49 +1122,79 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const notificationClickTimer = window.setTimeout(() => streamPageRequestListener(streamPageRequestedByANotification), MOCK_NOTIFICATION_CLICK_MILLISECONDS);
       return () => window.clearTimeout(notificationClickTimer);
     },
-    chooseWorkspaceFolder: async (chosenFor) => {
+    chooseProjectFolder: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      openWorkspaceReading = mockOpenWorkspaceReading("read", fixtures.machine.homeDirectory);
-      for (const openWorkspaceListener of openWorkspaceListeners) openWorkspaceListener(structuredClone(openWorkspaceReading));
-      const folder = openWorkspaceReading.kind === "read" ? openWorkspaceReading.workspace.workspace_project.folder : fixtures.machine.homeDirectory;
-      return { folder, project_creation: chosenFor === "new_workspace" ? { action: nextStreamActionId(), stream: mockStreamIdOf({ project_directory: folder, stream_function: "stream:main" }), project_directory: folder } : null };
+      const chosenReading = mockOpenProjectReading("read", fixtures.machine.homeDirectory);
+      const folder = chosenReading.kind === "read" ? chosenReading.open_project.project.folder : fixtures.machine.homeDirectory;
+      openTheProjectInTheMock(chosenReading, folder, chosenReading.kind === "read" ? chosenReading.open_project.project.name : null);
+      return { folder, project_creation: null };
     },
-    readOpenWorkspace: async () => structuredClone(openWorkspaceReading),
-    onOpenWorkspaceChanged: (openWorkspaceListener) => {
-      openWorkspaceListeners.add(openWorkspaceListener);
-      return () => openWorkspaceListeners.delete(openWorkspaceListener);
+    readNewProjectDefaults: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      return mockNewProjectDefaults(fixtures.machine.homeDirectory, mockFoldersOnDisk());
+    },
+    chooseNewProjectLocation: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      return mockNewProjectLocationTheDialogAnswers(fixtures.machine.homeDirectory);
+    },
+    createNewProject: async (name, location) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const nameRefusal = newProjectFolderNameRefusal(name);
+      if (nameRefusal !== null) throw nameRefusal;
+      const folder = `${location}/${name.trim()}`;
+      if (mockFoldersOnDisk().includes(folder)) throw `${folder} already exists. Choose another name or location.`;
+      projectFolders.set(folder, { streamFunctions: ["main"], hasAPythonEnvironment: false });
+      const action = queueAMockProjectLoad(folder);
+      const newReading = mockNewProjectReading(folder, name.trim());
+      openTheProjectInTheMock(newReading, folder, newReading.kind === "read" ? newReading.open_project.project.name : null);
+      return { folder, project_creation: { action, stream: mockStreamIdOf({ project_directory: folder, stream_function: "stream:main" }), project_directory: folder } };
+    },
+    readOpenProject: async () => structuredClone(openProjectReading),
+    readRecentProjects: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      return structuredClone(recentProjects);
+    },
+    openRecentProject: async (folder) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const recentProject = recentProjects.find((recent) => recent.folder === folder);
+      if (recentProject === undefined) throw `${folder} is not one of the recent projects.`;
+      openTheProjectInTheMock(mockRecentProjectReading(recentProject, fixtures.machine.homeDirectory), folder, recentProject.project_name);
+    },
+    onOpenProjectChanged: (openProjectListener) => {
+      openProjectListeners.add(openProjectListener);
+      return () => openProjectListeners.delete(openProjectListener);
     },
     onTatolabStatusChanged: async (statusListener) => {
       statusListeners.add(statusListener);
       return () => statusListeners.delete(statusListener);
     },
-    readWorkspaceFile: async (file) => {
+    readProjectFile: async (file) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      refuseWithoutAnOpenWorkspace();
-      return mockWorkspaceFiles.read(file);
+      refuseWithoutAnOpenProject();
+      return mockProjectFiles.read(file);
     },
-    saveWorkspaceFile: async (file, text, basedOnVersion) => {
+    saveProjectFile: async (file, text, basedOnVersion) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      refuseWithoutAnOpenWorkspace();
-      return mockWorkspaceFiles.save(file, text, basedOnVersion);
+      refuseWithoutAnOpenProject();
+      return mockProjectFiles.save(file, text, basedOnVersion);
     },
-    listWorkspaceProjectFiles: async (projectFolder) => {
+    listProjectFiles: async (projectFolder) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      refuseWithoutAnOpenWorkspace();
-      return mockWorkspaceFiles.list(projectFolder);
+      refuseWithoutAnOpenProject();
+      return mockProjectFiles.list(projectFolder);
     },
-    runWorkspaceProject: async () => {
+    runOpenProject: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (openWorkspaceReading.kind === "none_open") throw "No workspace is open to run.";
-      if (openWorkspaceReading.kind === "unreadable") throw openWorkspaceReading.refusal;
+      if (openProjectReading.kind === "none_open") throw "No project is open to run.";
+      if (openProjectReading.kind === "unreadable") throw openProjectReading.refusal;
       if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
-      const folder = openWorkspaceReading.workspace.workspace_project.folder;
+      const folder = openProjectReading.open_project.project.folder;
       return { action: queueAMockProjectLoad(folder), project_directory: folder };
     },
     startPythonLanguageServer: async (projectFolder) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      refuseWithoutAnOpenWorkspace();
-      mockWorkspaceFiles.list(projectFolder);
+      refuseWithoutAnOpenProject();
+      mockProjectFiles.list(projectFolder);
       languageServerSessionCount += 1;
       const session = `python-language-server-${languageServerSessionCount}`;
       mockLanguageServersBySession.set(

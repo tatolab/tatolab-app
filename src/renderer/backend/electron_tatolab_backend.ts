@@ -17,23 +17,11 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
   }
   return {
     getTatolabStatus: () => invokeTatolabCommand("get_tatolab_status", undefined),
-    setRunTatolab: async (enabled) => {
-      await invokeTatolabCommand("set_run_tatolab", { enabled });
-    },
-    openLoginItemsSettings: async () => {
-      await invokeTatolabCommand("open_login_items_settings", undefined);
-    },
-    rememberFirstRunFinished: async () => {
-      await invokeTatolabCommand("remember_first_run_finished", undefined);
-    },
-    linkCommandLineToolInUsrLocalBin: async () => {
-      await invokeTatolabCommand("link_command_line_tool_in_usr_local_bin", undefined);
+    linkCommandLineTool: async () => {
+      await invokeTatolabCommand("link_command_line_tool", undefined);
     },
     quitTatolabApp: async () => {
       await invokeTatolabCommand("quit_tatolab_app", undefined);
-    },
-    uninstallTatolab: async () => {
-      await invokeTatolabCommand("uninstall_tatolab", undefined);
     },
     readProjectLogRecords: (projectDirectory, narrowing, after) =>
       invokeTatolabCommand("read_project_log_records", { project_directory: projectDirectory, stream: narrowing.stream, action: narrowing.action, after }),
@@ -70,9 +58,6 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     restartRuntime: async () => {
       await invokeTatolabCommand("restart_runtime", undefined);
     },
-    installTheCarriedRuntimeAgain: async () => {
-      await invokeTatolabCommand("install_the_carried_runtime_again", undefined);
-    },
     openRuntimeLogFolder: async () => {
       await invokeTatolabCommand("open_runtime_log_folder", undefined);
     },
@@ -91,14 +76,21 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("remove_relay", { relay_id: relayId });
     },
     onStreamPageRequested: (listener) => tatolabElectronBridge.onStreamPageRequested(listener),
-    chooseWorkspaceFolder: (chosenFor) => invokeTatolabCommand("choose_workspace_folder", { chosen_for: chosenFor }),
-    readOpenWorkspace: () => invokeTatolabCommand("read_open_workspace", undefined),
-    onOpenWorkspaceChanged: (listener) => tatolabElectronBridge.onOpenWorkspaceChanged(listener),
+    chooseProjectFolder: (chosenFor) => invokeTatolabCommand("choose_project_folder", { chosen_for: chosenFor }),
+    readNewProjectDefaults: () => invokeTatolabCommand("read_new_project_defaults", undefined),
+    chooseNewProjectLocation: (startingAt) => invokeTatolabCommand("choose_new_project_location", { starting_at: startingAt }),
+    createNewProject: (name, location) => invokeTatolabCommand("create_new_project", { name, location }),
+    readOpenProject: () => invokeTatolabCommand("read_open_project", undefined),
+    readRecentProjects: () => invokeTatolabCommand("read_recent_projects", undefined),
+    openRecentProject: async (folder) => {
+      await invokeTatolabCommand("open_recent_project", { folder });
+    },
+    onOpenProjectChanged: (listener) => tatolabElectronBridge.onOpenProjectChanged(listener),
     onTatolabStatusChanged: async (listener) => tatolabElectronBridge.onTatolabStatusChanged(listener),
-    readWorkspaceFile: (file) => invokeTatolabCommand("read_workspace_file", { file }),
-    saveWorkspaceFile: (file, text, basedOnVersion) => invokeTatolabCommand("save_workspace_file", { file, text, based_on_version: basedOnVersion }),
-    listWorkspaceProjectFiles: (projectFolder) => invokeTatolabCommand("list_workspace_project_files", { project_folder: projectFolder }),
-    runWorkspaceProject: () => invokeTatolabCommand("run_workspace_project", undefined),
+    readProjectFile: (file) => invokeTatolabCommand("read_project_file", { file }),
+    saveProjectFile: (file, text, basedOnVersion) => invokeTatolabCommand("save_project_file", { file, text, based_on_version: basedOnVersion }),
+    listProjectFiles: (projectFolder) => invokeTatolabCommand("list_project_files", { project_folder: projectFolder }),
+    runOpenProject: () => invokeTatolabCommand("run_open_project", undefined),
     startPythonLanguageServer: async (projectFolder) => (await invokeTatolabCommand("start_python_language_server", { project_folder: projectFolder })).session,
     sendToPythonLanguageServer: async (session, message) => {
       await invokeTatolabCommand("send_to_python_language_server", { session, message });

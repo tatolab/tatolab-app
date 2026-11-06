@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenWorkspaceReading, TatolabStatus } from "../shared/tatolab_backend_contract";
+import type { OpenProjectReading, TatolabStatus } from "../shared/tatolab_backend_contract";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./backend/mock_tatolab_backend";
 import { mockStreamIdOf } from "./backend/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
-import { workspaceLayoutsStorageKey } from "./studio_shell/workspace_layouts";
+import { studioLayoutsStorageKey } from "./studio_shell/studio_layouts";
 import { mountTatolabWindow } from "./tatolab_window_view";
 
 /** The keydown listeners each mounted window added to the document, removed after each test so a window from an earlier test never answers a shortcut. */
@@ -93,17 +93,17 @@ function openTheOutlinerRow(rowId: string): void {
 }
 
 async function shownLayout(): Promise<string> {
-  return waitFor(() => document.querySelector<HTMLElement>("[data-workspace-layout]")?.dataset.workspaceLayout ?? expect.unreachable("no layout shown"));
+  return waitFor(() => document.querySelector<HTMLElement>("[data-studio-layout]")?.dataset.studioLayout ?? expect.unreachable("no layout shown"));
 }
 
 describe("the studio", () => {
-  it("opens the remembered workspace in Build, the outliner showing the workspace project, its streams and its closed, read-only imports", async () => {
+  it("opens the project in Build, the outliner showing the open project, its streams and its closed, read-only imports", async () => {
     await mountedWindowOverTheMock("state=running");
 
     expect(await shownLayout()).toBe("build");
     await waitFor(() => expect(outlinerRowIds()).toContain(`project:${PATTERN_PROJECT}`));
     expect(outlinerRowIds()).toEqual([
-      "workspace",
+      "open_project_folder",
       `project:${PATTERN_PROJECT}`,
       `project:${PATTERN_PROJECT}/pyproject`,
       `stream:${PATTERN_MAIN_STREAM}`,
@@ -111,7 +111,7 @@ describe("the studio", () => {
       `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_function: "stream:pattern_two" })}`,
       "imports",
     ]);
-    expect(outlinerRow("workspace").getAttribute("aria-level")).toBe("1");
+    expect(outlinerRow("open_project_folder").getAttribute("aria-level")).toBe("1");
     expect(outlinerRow(`project:${PATTERN_PROJECT}`).textContent).toBe("pattern");
     expect(outlinerRow(`project:${PATTERN_PROJECT}/pyproject`).textContent).toBe("pyproject.toml");
     expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).textContent).toBe("main");
@@ -135,7 +135,7 @@ describe("the studio", () => {
   });
 
   it("shows a project's streams waiting on the runtime while it lists none", async () => {
-    await mountedWindowOverTheMock("state=stopped");
+    await mountedWindowOverTheMock("state=not-running");
     await waitFor(() => outlinerRow(`project:${PATTERN_PROJECT}/waiting`));
     expect(outlinerRow(`project:${PATTERN_PROJECT}/waiting`).textContent).toBe("Streams and nodes not read yet");
   });
@@ -170,7 +170,7 @@ describe("the studio", () => {
       },
     });
     await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
-    expect(screen.getByText("Open a stream from the outliner to see it here.")).toBeTruthy();
+    await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["pattern /main"]));
 
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
     fireEvent.keyDown(screen.getByRole("tree", { name: "Outliner" }), { key: "Enter" });
@@ -184,9 +184,10 @@ describe("the studio", () => {
     expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true"]);
   });
 
-  it("switches layouts from Window › Workspace layout and with ⌘1 to ⌘5, each keeping its own areas", async () => {
+  it("switches layouts from Window › Layout and with ⌘1 to ⌘5, each keeping its own areas", async () => {
     await mountedWindowOverTheMock("state=running");
     expect(await shownLayout()).toBe("build");
+    expect([...document.querySelectorAll("[data-studio-area]")].map((area) => area.getAttribute("data-studio-area"))).toEqual(["viewer", "stream-graph", "outliner", "properties"]);
 
     fireEvent.keyDown(document, { key: "2", metaKey: true });
     expect(await shownLayout()).toBe("compose");
@@ -196,23 +197,35 @@ describe("the studio", () => {
     expect(document.querySelector('[data-studio-area="scene"]')).not.toBeNull();
 
     pressAsAPointerDoes(await waitFor(() => document.querySelector<HTMLElement>('[data-studio-menu="Window"]') ?? expect.unreachable("no Window menu")));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Workspace layout" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Layout" }));
     expect((await screen.findByRole("menuitemcheckbox", { name: "Perform ⌘5" })).getAttribute("aria-checked")).toBe("true");
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Code ⌘4" }));
     expect(await shownLayout()).toBe("code");
   });
 
-  it("shows the view an area's view-type menu chooses, and the workspace reopens with it", async () => {
+  it("plays the open stream's exposed output in the Viewer, with nothing beside the video", async () => {
+    await mountedWindowOverTheMock("state=running");
+    await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+    fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
+
+    const playing = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"] [data-viewer-playing]') ?? expect.unreachable("the Viewer plays nothing"));
+    expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
+    expect(playing.querySelector("iframe")?.getAttribute("src")).toMatch(/^data:text\/html/);
+    expect(playing.querySelector("iframe")?.getAttribute("title")).toBe("Preview of Inverting Effect › video_to_downstream");
+    expect(playing.textContent).toBe("");
+  });
+
+  it("shows the view an area's view-type menu chooses, and the project reopens with it", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
-    expect(within(viewerArea).getByText("Viewer isn't in this build yet")).toBeTruthy();
+    await waitFor(() => expect(viewerArea.querySelector("[data-viewer-playing]")).not.toBeNull());
 
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
-    expect(await screen.findByText("Views a workspace project brings arrive with users' own view types.")).toBeTruthy();
+    expect(await screen.findByText("Views a project brings arrive with users' own view types.")).toBeTruthy();
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Outliner/ }));
 
     await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-outliner]')).not.toBeNull());
-    expect(localStorage.getItem(workspaceLayoutsStorageKey(PATTERN_PROJECT))).toContain('"area_id":"viewer","view_type_id":"outliner"');
+    expect(localStorage.getItem(studioLayoutsStorageKey(PATTERN_PROJECT))).toContain('"area_id":"viewer","view_type_id":"outliner"');
     document.body.replaceChildren();
 
     await mountedWindowOverTheMock("state=running");
@@ -221,7 +234,7 @@ describe("the studio", () => {
 
   it("opens a saved layout that does not parse on its default, and says when an area names a view this build lacks", async () => {
     localStorage.setItem(
-      workspaceLayoutsStorageKey(PATTERN_PROJECT),
+      studioLayoutsStorageKey(PATTERN_PROJECT),
       JSON.stringify({ chosen_layout: "code", layouts: { code: { kind: "area", area_id: "venue", view_type_id: "venue-3d" }, build: { kind: "split", parts: [] } } }),
     );
     await mountedWindowOverTheMock("state=running");
@@ -230,36 +243,135 @@ describe("the studio", () => {
     expect(screen.getByText("This area's view, venue-3d, isn't in this build")).toBeTruthy();
     fireEvent.keyDown(document, { key: "1", metaKey: true });
     expect(await shownLayout()).toBe("build");
-    expect(document.querySelector('[data-studio-area="scene"]')).not.toBeNull();
+    expect(document.querySelector('[data-studio-area="viewer"]')).not.toBeNull();
   });
 
-  it("welcomes with no workspace open, and opens the one chosen", async () => {
-    await mountedWindowOverTheMock("state=running&workspace=none");
-    const welcome = await waitFor(() => document.querySelector<HTMLElement>("[data-studio-welcome]") ?? expect.unreachable("no welcome"));
-    expect(within(welcome).getByRole("button", { name: "New workspace…" })).toBeTruthy();
+  it("shows the Projects window with no project open, its recent projects as cards, and opens the one chosen on its stream", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
+    expect(patternCard.textContent).toContain("Running");
+    expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6);
 
-    fireEvent.click(within(welcome).getByRole("button", { name: "Open a workspace…" }));
+    fireEvent.click(patternCard);
 
     expect(await shownLayout()).toBe("build");
-    expect(document.querySelector("[data-studio-welcome]")).toBeNull();
+    expect(document.querySelector("[data-projects]")).toBeNull();
+    const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => `${tab.textContent} ${tab.getAttribute("aria-selected")}`)).toEqual(["pattern /main true"]));
+    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-viewer-playing]')).not.toBeNull());
   });
 
-  it("says why an unreadable workspace can't be read, in the reader's words", async () => {
-    await mountedWindowOverTheMock("state=running&workspace=unreadable");
+  it("shows the Projects window with no menu bar, a bare strip for the window buttons on macOS only, and a gear that opens Preferences", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    await waitFor(() => expect(document.querySelector("[data-projects]")).not.toBeNull());
+    expect(document.querySelector("[data-studio-menu]")).toBeNull();
+    expect(document.querySelector("[data-projects-title-bar]")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Preferences" }));
+
+    await waitFor(() => expect(document.querySelector('[data-settings-page="general"]')).not.toBeNull());
+  });
+
+  it("shows the Linux Projects window under its own title bar, with no strip and no menu bar", async () => {
+    await mountedWindowOverTheMock("platform=linux&state=running&project=none");
+    await waitFor(() => expect(document.querySelector("[data-projects]")).not.toBeNull());
+    expect(document.querySelector("[data-studio-menu]")).toBeNull();
+    expect(document.querySelector("[data-projects-title-bar]")).toBeNull();
+  });
+
+  it("narrows the Projects window to the projects a search names", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    await waitFor(() => expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6));
+    fireEvent.change(screen.getByRole("textbox", { name: "Search projects" }), { target: { value: "camera" } });
+    expect([...document.querySelectorAll("[data-projects-project]")].map((card) => card.getAttribute("data-projects-project"))).toEqual([CAMERA_PROJECT]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Search projects" }), { target: { value: "nothing-like-it" } });
+    expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(0);
+    expect(textOf("[data-projects-empty]")).toContain("No project matches");
+  });
+
+  it("opens first run on the empty Projects window, its banner a still picture where WebGL is not offered, and Open… opens the one chosen", async () => {
+    await mountedWindowOverTheMock("state=running&project=none&recent=none");
+    await waitFor(() => expect(textOf("[data-projects-empty]")).toContain("No projects yet"));
+    expect(document.querySelector('[data-projects-banner="still"] img')).not.toBeNull();
+    expect(screen.getByText("v0.45.0")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open…" }));
+
+    expect(await shownLayout()).toBe("build");
+    expect(document.querySelector("[data-projects]")).toBeNull();
+  });
+
+  it("says why an unreadable project can't be read, in the reader's words", async () => {
+    await mountedWindowOverTheMock("state=running&project=unreadable");
     await waitFor(() => expect(screen.getByText(`${PATTERN_PROJECT} can't be read`)).toBeTruthy());
     expect(screen.getByText(/pyproject\.toml is not TOML: Invalid TOML document/)).toBeTruthy();
   });
 
-  it("shows a refused workspace choice in its own words, and the open workspace stays as it was", async () => {
-    const reading: OpenWorkspaceReading = { kind: "none_open" };
-    await mountedWindowOverTheMock("state=running&workspace=none", {
-      readOpenWorkspace: async () => reading,
-      chooseWorkspaceFolder: () => Promise.reject("the folder already holds a project"),
+  it("shows a refused project choice in its own words, and the open project stays as it was", async () => {
+    const reading: OpenProjectReading = { kind: "none_open" };
+    await mountedWindowOverTheMock("state=running&project=none", {
+      readOpenProject: async () => reading,
+      chooseProjectFolder: () => Promise.reject("The project dialog did not open: no window"),
     });
-    fireEvent.click(await screen.findByRole("button", { name: "New workspace…" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open…" }));
 
-    await waitFor(() => expect(textOf("[data-workspace-opening-refusal]")).toContain("the folder already holds a project"));
-    expect(document.querySelector("[data-studio-welcome]")).not.toBeNull();
+    await waitFor(() => expect(textOf("[data-project-opening-refusal]")).toContain("The project dialog did not open: no window"));
+    expect(document.querySelector("[data-projects]")).not.toBeNull();
+  });
+
+  it("opens New project on a sheet with an untitled name in Documents/Tato Studio, its full path following the name and Browse…, and Create opens the project made", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    fireEvent.click(await screen.findByRole("button", { name: "New project" }));
+    const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-new-project-name]") ?? expect.unreachable("no New project sheet"));
+    expect(nameField.value).toBe("Untitled project 2");
+    expect(textOf("[data-new-project-location]")).toBe("~/Documents/Tato Studio");
+    expect(textOf("[data-new-project-folder]")).toBe("~/Documents/Tato Studio/Untitled project 2");
+
+    fireEvent.change(nameField, { target: { value: "Night Show" } });
+    expect(textOf("[data-new-project-folder]")).toBe("~/Documents/Tato Studio/Night Show");
+    fireEvent.click(screen.getByRole("button", { name: "Browse…" }));
+    await waitFor(() => expect(textOf("[data-new-project-location]")).toBe("~/Shows"));
+    expect(textOf("[data-new-project-folder]")).toBe("~/Shows/Night Show");
+
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(await shownLayout()).toBe("build");
+    expect(document.querySelector("[data-new-project-sheet]")).toBeNull();
+    expect(document.querySelector("[data-projects]")).toBeNull();
+    const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
+    await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true"]));
+    expect(streamTabs.getByRole("tab").textContent).toMatch(/^night-show \//);
+  });
+
+  it("refuses a name that is no folder name before Create, and a folder already there in the sheet, which stays open", async () => {
+    await mountedWindowOverTheMock("state=running&project=none");
+    fireEvent.click(await screen.findByRole("button", { name: "New project" }));
+    const nameField = await waitFor(() => document.querySelector<HTMLInputElement>("[data-new-project-name]") ?? expect.unreachable("no New project sheet"));
+
+    fireEvent.change(nameField, { target: { value: "lights/left" } });
+    expect(screen.getByRole("alert").textContent).toBe("A project's name can't hold a /.");
+    expect(document.querySelector('[data-new-project-action="create"]')?.getAttribute("aria-disabled")).toBe("true");
+
+    fireEvent.change(nameField, { target: { value: "Untitled project" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() =>
+      expect(textOf("[data-new-project-refusal]")).toBe("The project wasn't created: /Users/jonathanf/Documents/Tato Studio/Untitled project already exists. Choose another name or location."),
+    );
+    expect(document.querySelector("[data-new-project-sheet]")).not.toBeNull();
+    expect(document.querySelector("[data-projects]")).not.toBeNull();
+  });
+
+  it("shows the runtime's refusal to create a project in the sheet, in its own words, and Cancel closes it with nothing opened", async () => {
+    await mountedWindowOverTheMock("state=running&project=none", { createNewProject: () => Promise.reject("the folder already holds a project") });
+    fireEvent.click(await screen.findByRole("button", { name: "New project" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(textOf("[data-new-project-refusal]")).toBe("The project wasn't created: the folder already holds a project"));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(document.querySelector("[data-new-project-sheet]")).toBeNull());
+    expect(document.querySelector("[data-projects]")).not.toBeNull();
   });
 });
 
@@ -329,7 +441,7 @@ describe("Preferences", () => {
     expect(settingsPage.textContent).not.toMatch(/Python/);
   });
 
-  it("shows a refused restart in the service manager's words, and offers none while Run Tatolab is off", { timeout: 5_000 }, async () => {
+  it("shows a refused restart in the app's words, and offers none while the runtime starts", { timeout: 5_000 }, async () => {
     await mountedWindowOverTheMock("state=running&restart=refused");
     await openSettingsOn("runtime");
 
@@ -337,13 +449,13 @@ describe("Preferences", () => {
 
     await waitFor(() =>
       expect(within(settingsRow("runtime-status")).getByRole("alert").textContent).toContain(
-        "launchctl kickstart -k gui/501/com.tatolab.tatolabd failed (exit status: 5): Input/output error",
+        "The runtime running now was not started by Tato Studio, so Tato Studio leaves it alone.",
       ),
     );
     document.body.replaceChildren();
-    await mountedWindowOverTheMock("state=stopped");
+    await mountedWindowOverTheMock("state=starting");
     await openSettingsOn("runtime");
-    expect(textOf("[data-runtime-status-words]")).toBe("Stopped");
+    expect(textOf("[data-runtime-status-words]")).toBe("Starting");
     expect(within(settingsRow("runtime-status")).getByRole("button", { name: "Restart runtime" }).hasAttribute("disabled")).toBe(true);
   });
 
@@ -377,18 +489,18 @@ describe("Preferences", () => {
         switchesAsked.push(`notifications ${enabled}`);
       },
       setOpenTatolabAtLogin: async () => {
-        throw "Tatolab could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied";
+        throw "Tato Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied";
       },
     });
     await openSettingsOn("general");
 
     fireEvent.click(within(settingsRow("stream-failure-notifications")).getByRole("switch", { name: "When a stream fails" }));
     await waitFor(() => expect(switchesAsked).toEqual(["notifications false"]));
-    const openAtLoginSwitch = within(settingsRow("open-at-login")).getByRole("switch", { name: "Open Tatolab at login" });
+    const openAtLoginSwitch = within(settingsRow("open-at-login")).getByRole("switch", { name: "Open Tato Studio at login" });
     fireEvent.click(openAtLoginSwitch);
     await waitFor(() =>
       expect(within(settingsRow("open-at-login")).getByRole("alert").textContent).toContain(
-        "Tatolab could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
+        "Tato Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
       ),
     );
     expect(openAtLoginSwitch.getAttribute("aria-checked")).toBe("false");
@@ -397,7 +509,7 @@ describe("Preferences", () => {
     await mountedWindowOverTheMock("state=running&open_at_login=not_offered");
     await openSettingsOn("general");
     expect(within(settingsRow("open-at-login")).queryByRole("switch")).toBeNull();
-    expect(within(settingsRow("open-at-login")).getByText("Only a packaged Tatolab opens at login.")).toBeTruthy();
+    expect(within(settingsRow("open-at-login")).getByText("Only a packaged Tato Studio opens at login.")).toBeTruthy();
   });
 
   it("goes back to the status's position when the backend accepts a switch and no status follows", { timeout: 8_000 }, async () => {
@@ -411,14 +523,14 @@ describe("Preferences", () => {
     await waitFor(() => expect(notificationsSwitch.getAttribute("aria-checked")).toBe("true"), { timeout: 5_000 });
   });
 
-  it("colours a runtime that is not responding and says why", async () => {
-    await mountedWindowOverTheMock("state=unreachable");
+  it("colours a runtime that is not running and says why in the app's words", async () => {
+    await mountedWindowOverTheMock("state=not-running");
     await openSettingsOn("runtime");
 
     const statusWords = document.querySelector<HTMLElement>("[data-runtime-status-words]") ?? expect.unreachable("no status words");
-    expect(statusWords.textContent).toBe("Not responding");
+    expect(statusWords.textContent).toBe("Not running");
     expect(statusWords.classList.contains("text-danger-text")).toBe(true);
-    expect(within(settingsRow("runtime-status")).getByText(/hasn't answered for over 20 seconds/)).toBeTruthy();
+    expect(within(settingsRow("runtime-status")).getByText("The runtime stopped: it exited with status 1. Tato Studio starts it again shortly.")).toBeTruthy();
   });
 
   it("names the tatolab command's path and version, and how a coding agent starts tatolab mcp", async () => {
@@ -442,182 +554,36 @@ describe("Preferences", () => {
   });
 });
 
-
-function gettingStartedControl(action: string): HTMLElement {
-  return document.querySelector<HTMLElement>(`[data-getting-started-action="${action}"]`) ?? expect.unreachable(`no ${action} on first run`);
-}
-
-describe("first run on macOS", () => {
-  it("says what Tatolab is, then ticks Start the runtime as it starts, and Get Started opens the studio", async () => {
-    const { showStatusAsTheBackendWould, backend } = await mountedWindowOverTheMock("state=setup");
-
-    expect(document.querySelector('[data-getting-started-screen="welcome"]')).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Welcome to Tatolab" })).toBeTruthy();
-    expect(document.querySelector("[data-studio-window]")).toBeNull();
-    fireEvent.click(gettingStartedControl("continue"));
-
-    expect(screen.getByRole("heading", { name: "Getting set up" })).toBeTruthy();
-    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Starting…");
-    expect(gettingStartedControl("get_started").hasAttribute("disabled")).toBe(true);
-
-    await showStatusAsTheBackendWould({ ...(await backend.getTatolabStatus()), runtime_state: "running", streams: [] });
-    expect(document.querySelector('[data-getting-started-step="start_the_runtime"]')?.getAttribute("data-checklist-step-progress")).toBe("done");
-    fireEvent.click(gettingStartedControl("get_started"));
-
-    await waitFor(() => expect(document.querySelector('[data-getting-started-screen]')).toBeNull());
-    expect(document.querySelector("[data-studio-window]")).not.toBeNull();
-  });
-
-  it("shows a step for macOS's approval with Open Login Items, and a blocked runtime as the start step retrying with nothing to press", async () => {
-    await mountedWindowOverTheMock("state=approval&first_run=unfinished");
-    fireEvent.click(gettingStartedControl("continue"));
-    expect(textOf('[data-getting-started-step="approve_in_login_items"]')).toContain("Allow in the Background");
-    expect(document.querySelector('[data-getting-started-step-action="open_login_items"]')?.textContent).toBe("Open Login Items…");
-    document.body.replaceChildren();
-
-    await mountedWindowOverTheMock("state=blocked&first_run=unfinished");
-    fireEvent.click(gettingStartedControl("continue"));
-    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Retrying…");
-    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Blocked by macOS");
-    expect(document.querySelector("[data-getting-started-step-action]")).toBeNull();
-  });
-
-  it("moves keyboard focus to Getting set up as Continue goes", async () => {
-    await mountedWindowOverTheMock("state=setup");
-    fireEvent.click(gettingStartedControl("continue"));
-    await waitFor(() => expect(document.activeElement?.textContent).toBe("Getting set up"));
-  });
-
-  it("drops a step's refusal once the step has moved on", async () => {
-    const { showStatusAsTheBackendWould, backend } = await mountedWindowOverTheMock("state=stopped&first_run=unfinished", {
-      setRunTatolab: () => Promise.reject("the service manager refused it"),
-    });
-    fireEvent.click(gettingStartedControl("continue"));
-    fireEvent.click(document.querySelector<HTMLElement>('[data-getting-started-step-action="turn_on_run_tatolab"]') ?? expect.unreachable("no Turn On Tatolab"));
-    await waitFor(() => expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("Couldn't turn Tatolab on: the service manager refused it"));
-
-    await showStatusAsTheBackendWould({ ...(await backend.getTatolabStatus()), runtime_state: "running", streams: [] });
-    expect(textOf('[data-getting-started-step="start_the_runtime"]')).not.toContain("refused");
-  });
-
-  it("opens the studio even when Get Started can't be remembered, and says so there", async () => {
-    const mockBackend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=setup")));
-    const { showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=setup", {
-      rememberFirstRunFinished: async () => {
-        await mockBackend.rememberFirstRunFinished();
-        throw "EACCES: permission denied, open '/Users/ada/Library/Application Support/com.tatolab.tatolab/first-run-finished.json'";
-      },
-    });
-    fireEvent.click(gettingStartedControl("continue"));
-    await showStatusAsTheBackendWould({ ...(await mockBackend.getTatolabStatus()), runtime_state: "running", streams: [] });
-    fireEvent.click(gettingStartedControl("get_started"));
-    await showStatusAsTheBackendWould({ ...(await mockBackend.getTatolabStatus()), first_run_finished: true, runtime_state: "running", streams: [] });
-
-    await waitFor(() => expect(textOf("[data-first-run-finishing-refusal]")).toContain("Welcome shows again next time it opens. EACCES"));
-    expect(document.querySelector("[data-studio-window]")).not.toBeNull();
-  });
-
-  it("never says not responding for a start that never answered", async () => {
-    await mountedWindowOverTheMock("state=never-answered&first_run=unfinished");
-    fireEvent.click(gettingStartedControl("continue"));
-    expect(textOf('[data-getting-started-step="start_the_runtime"]')).toContain("The runtime didn't start");
-    expect(document.body.textContent).not.toContain("not responding");
-  });
-
-  it("keeps Linux on its installer screen and never shows Welcome", async () => {
-    await mountedWindowOverTheMock("platform=linux&state=setup");
-    expect(document.querySelector("[data-getting-started-screen]")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Install the Tatolab runtime" })).toBeTruthy();
+describe("opening the window", () => {
+  it("opens on the Projects window, with no setup screen, while the runtime runs, starts or is not running", async () => {
+    for (const pageQuery of ["state=running&project=none", "state=starting&project=none", "state=not-running&project=none", "platform=linux&state=starting&project=none"]) {
+      await mountedWindowOverTheMock(pageQuery);
+      await waitFor(() => expect(document.querySelector("[data-projects]")).not.toBeNull());
+      expect(document.body.textContent).not.toContain("Getting set up");
+      expect(document.body.textContent).not.toContain("Install the Tatolab runtime");
+      document.body.replaceChildren();
+    }
   });
 });
 
-
-const MOCK_ADMINISTRATOR_PROMPT_WAIT_MILLISECONDS = 6_000;
-
-describe("Preferences › Command line › Link in /usr/local/bin", () => {
-  it("warns that the prompt says osascript, waits for the password, then shows the link", async () => {
-    await mountedWindowOverTheMock("state=running");
+describe("Preferences › Command line › tatolab", () => {
+  it("links ~/.local/bin/tatolab with no password, then shows the link and the PATH line", async () => {
+    await mountedWindowOverTheMock("state=running&cli_link=not_linked");
     await openSettingsOn("command-line");
 
-    expect(settingsRow("usr-local-bin-link").textContent).toContain("osascript wants to make changes");
-    fireEvent.click(within(settingsRow("usr-local-bin-link")).getByRole("button", { name: "Link in /usr/local/bin…" }));
-    expect(within(settingsRow("usr-local-bin-link")).getByText("Waiting for your password…")).toBeTruthy();
-    await waitFor(() => expect(settingsRow("usr-local-bin-link").textContent).toContain("Linked at /usr/local/bin/tatolab"), {
-      timeout: MOCK_ADMINISTRATOR_PROMPT_WAIT_MILLISECONDS,
-    });
-  }, 10_000);
+    expect(settingsRow("command-line-tool").textContent).toContain("No password is asked.");
+    expect(document.querySelector("[data-command-line-path-line]")).toBeNull();
+    fireEvent.click(within(settingsRow("command-line-tool")).getByRole("button", { name: "Link tatolab" }));
+    await waitFor(() => expect(within(settingsRow("command-line-tool")).getByText("~/.local/bin/tatolab")).toBeTruthy());
+    expect(textOf("[data-command-line-path-line]")).toContain('export PATH="$HOME/.local/bin:$PATH"');
+    expect(within(settingsRow("command-line-tool")).queryByRole("button", { name: "Link tatolab" })).toBeNull();
+  });
 
-  it("says a cancelled prompt changed nothing", async () => {
-    await mountedWindowOverTheMock("state=running&usr_local_bin=cancel");
+  it("leaves a name something else holds alone and offers no link", async () => {
+    await mountedWindowOverTheMock("state=running&cli_link=taken");
     await openSettingsOn("command-line");
-    fireEvent.click(within(settingsRow("usr-local-bin-link")).getByRole("button", { name: "Link in /usr/local/bin…" }));
-    await waitFor(() => expect(settingsRow("usr-local-bin-link").textContent).toContain("The password prompt was cancelled, so nothing changed."), {
-      timeout: MOCK_ADMINISTRATOR_PROMPT_WAIT_MILLISECONDS,
-    });
-  }, 10_000);
 
-  it("is not shown on Linux, whose installer links the command", async () => {
-    await mountedWindowOverTheMock("platform=linux&state=running");
-    await openSettingsOn("command-line");
-    expect(document.querySelector('[data-settings-row="usr-local-bin-link"]')).toBeNull();
-  });
-});
-
-
-describe("installing the runtime the app carries", () => {
-  const CARRIED_RUNTIME_BUILD = `0.56.0-4f1d0c3${"a".repeat(33)}`;
-
-  it("fills the window with the installer's lines while it runs, holding every action and shortcut, and gives the window back once it ends", async () => {
-    const { backend, showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=running");
-    const runningStatus = await backend.getTatolabStatus();
-
-    await showStatusAsTheBackendWould({
-      ...runningStatus,
-      runtime_install: { kind: "installing", carried_runtime_build: CARRIED_RUNTIME_BUILD, installer_lines: ["Stopping the runtime", `Starting Tatolab ${CARRIED_RUNTIME_BUILD}`] },
-    });
-
-    const overlay = document.querySelector<HTMLElement>('[data-runtime-install-overlay="installing"]') ?? expect.unreachable("no install overlay");
-    expect(within(overlay).getByRole("heading", { name: "Updating the runtime" })).toBeTruthy();
-    expect(overlay.textContent).toContain("Your streams stop for a moment and come back on it.");
-    expect(document.querySelector("[data-runtime-install-lines]")?.textContent).toBe(`Stopping the runtime\nStarting Tatolab ${CARRIED_RUNTIME_BUILD}`);
-    expect(document.querySelector("[data-runtime-install-action]")).toBeNull();
-    expect(document.querySelector("[data-studio-window]")).toBeNull();
-    fireEvent.keyDown(document, { key: ",", metaKey: true });
-    expect(document.querySelector("[data-settings-page]")).toBeNull();
-
-    await showStatusAsTheBackendWould({ ...runningStatus, runtime_install: { kind: "none" } });
-    await waitFor(() => expect(document.querySelector("[data-runtime-install-overlay]")).toBeNull());
-    expect(document.querySelector("[data-studio-window]")).not.toBeNull();
-  });
-
-  it("keeps a refusal up in the installer's own words, and Try again runs the installer again", async () => {
-    const installsAgain: string[] = [];
-    const { backend, showStatusAsTheBackendWould } = await mountedWindowOverTheMock("state=running", {
-      installTheCarriedRuntimeAgain: async () => {
-        installsAgain.push("try_again");
-      },
-    });
-    const refusal = `tatolab install: Tatolab ${CARRIED_RUNTIME_BUILD}'s service did not start, so 0.55.2 is back in place.`;
-
-    await showStatusAsTheBackendWould({
-      ...(await backend.getTatolabStatus()),
-      runtime_install: { kind: "failed", carried_runtime_build: CARRIED_RUNTIME_BUILD, installer_lines: ["Stopping the runtime"], refusal },
-    });
-
-    const overlay = document.querySelector<HTMLElement>('[data-runtime-install-overlay="failed"]') ?? expect.unreachable("no refused install");
-    expect(within(overlay).getByRole("heading", { name: "The runtime didn't update" })).toBeTruthy();
-    expect(within(overlay).getByRole("alert").textContent).toBe(`The installer said: ${refusal}`);
-    expect(document.querySelector('[data-runtime-install-action="open_log"]')).not.toBeNull();
-    fireEvent.click(document.querySelector<HTMLElement>('[data-runtime-install-action="try_again"]') ?? expect.unreachable("no Try again"));
-    await waitFor(() => expect(installsAgain).toEqual(["try_again"]));
-  });
-
-  it("shows the installed build and its folder in Preferences › Runtime", async () => {
-    await mountedWindowOverTheMock("state=running");
-    await openSettingsOn("runtime");
-
-    const installedRuntimeRow = document.querySelector<HTMLElement>('[data-settings-row="installed-runtime"]') ?? expect.unreachable("no Installed runtime row");
-    expect(installedRuntimeRow.textContent).toContain("0.55.2 (ec6adf5)");
-    expect(installedRuntimeRow.textContent).toContain("/Users/jonathanf/Library/Application Support/com.tatolab.runtime/0.55.2-ec6adf522d2bf3a42b3ee9878bdc2717e9388d7a");
+    expect(settingsRow("command-line-tool").textContent).toContain("is not a link to Tatolab, so Tato Studio leaves it alone.");
+    expect(within(settingsRow("command-line-tool")).queryByRole("button", { name: "Link tatolab" })).toBeNull();
   });
 });

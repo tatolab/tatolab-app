@@ -1,12 +1,13 @@
 import type {
-  ChosenWorkspaceFolder,
+  ChosenProjectFolder,
   JsonValue,
   PythonLanguageServerEvent,
-  WorkspaceFileRead,
-  WorkspaceFileSaved,
-  WorkspaceProjectFiles,
+  ProjectFileRead,
+  ProjectFileSaved,
+  ProjectFiles,
   NodeCatalog,
-  OpenWorkspaceReading,
+  OpenProjectReading,
+  RecentProject,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   RelaySettingsByName,
@@ -20,7 +21,8 @@ import type {
   StreamProjectFolderChosenFor,
   TatolabStatus,
   TatolabStreamActionName,
-  WorkspaceFolderChosenFor,
+  ProjectFolderChosenFor,
+  NewProjectDefaults,
 } from "../../shared/tatolab_backend_contract";
 import { TATOLAB_WINDOW_PAGE_SCHEME, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
 
@@ -31,18 +33,13 @@ declare global {
   }
 }
 
-/** The app backend's commands and status event, real inside Tatolab.app or mocked in a browser. */
+/** The app backend's commands and status event, real inside the packaged app or mocked in a browser. */
 export interface TatolabBackend {
   getTatolabStatus(): Promise<TatolabStatus>;
-  setRunTatolab(enabled: boolean): Promise<void>;
-  openLoginItemsSettings(): Promise<void>;
-  /** "Get Started": end first run, resolving once it is remembered and rejecting with why it was not; the window shows the Streams list either way. */
-  rememberFirstRunFinished(): Promise<void>;
-  /** Link `tatolab` in `/usr/local/bin` behind macOS's administrator prompt, resolving once it is linked and rejecting in words when the prompt is cancelled or the link is not offered. */
-  linkCommandLineToolInUsrLocalBin(): Promise<void>;
+  /** Link `~/.local/bin/tatolab` to the CLI the app carries, resolving once it is linked and rejecting in words when something else holds the name or the build offers none. */
+  linkCommandLineTool(): Promise<void>;
+  /** Quit the app, stopping its runtime with it. */
   quitTatolabApp(): Promise<void>;
-  /** On macOS uninstalls Tatolab and quits at the end, rejecting with the reason when it can't; on Linux rejects with how to. */
-  uninstallTatolab(): Promise<void>;
   /** The page of `projectDirectory`'s log after the cursor `after`, from its first record when `null`, narrowed as `narrowing` asks; rejects in the runtime's own words. */
   readProjectLogRecords(projectDirectory: string, narrowing: ProjectLogNarrowing, after: string | null): Promise<ProjectLogRecordsPage>;
   describeStreamGraph(streamId: string): Promise<StreamGraphSummary>;
@@ -76,10 +73,8 @@ export interface TatolabBackend {
   cancelStreamAction(action: string): Promise<StreamActionCancelAnswer>;
   /** How the running runtime describes itself, rejecting in its own words when it does not answer. */
   describeRuntime(): Promise<RuntimeDescription>;
-  /** Stop the runtime and start it again through the service manager, resolving once the service manager has answered and rejecting in its words; the state that follows arrives as the next statuses. */
+  /** Stop the app's runtime and start it again, resolving once it is asked to and rejecting in words for a runtime the app did not start; the state that follows arrives as the next statuses. */
   restartRuntime(): Promise<void>;
-  /** Run the installer on the runtime the app carries again after it refused, resolving once it ends and rejecting in its words; where it stands arrives as the next statuses. */
-  installTheCarriedRuntimeAgain(): Promise<void>;
   /** Show the folder the runtime writes its own log to in the file manager, rejecting with why it could not. */
   openRuntimeLogFolder(): Promise<void>;
   /** Turn the notifications shown when a stream fails on or off, resolving once it is remembered and rejecting with why it was not; the switch arrives as the next status. */
@@ -97,20 +92,30 @@ export interface TatolabBackend {
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
   /** Calls `listener` with the stream each request from the app to show a stream's page names; the returned function stops it. */
   onStreamPageRequested(listener: (streamId: string) => void): () => void;
-  /** Ask the person for a workspace folder in the app's dialog and open it, a new one's project queued with the runtime first; `null` when they cancel, rejecting in the dialog's or the runtime's own words. The workspace read arrives as the next open-workspace change. */
-  chooseWorkspaceFolder(chosenFor: WorkspaceFolderChosenFor): Promise<ChosenWorkspaceFolder | null>;
-  /** The open workspace as the app last read it from disk. */
-  readOpenWorkspace(): Promise<OpenWorkspaceReading>;
-  /** Calls `listener` with each reading of the open workspace: another folder opened, or a `pyproject.toml` it reads changed; the returned function stops it. */
-  onOpenWorkspaceChanged(listener: (reading: OpenWorkspaceReading) => void): () => void;
-  /** `file` of the open workspace's projects, as read from disk, rejecting for a file outside them or in the filesystem's words. */
-  readWorkspaceFile(file: string): Promise<WorkspaceFileRead>;
+  /** Ask the person for a project folder in the app's dialog and open it; `null` when they cancel, rejecting in the dialog's own words. The project read arrives as the next open-project change. */
+  chooseProjectFolder(chosenFor: ProjectFolderChosenFor): Promise<ChosenProjectFolder | null>;
+  /** The location and name the New project sheet opens with: `<Documents>/Tato Studio` and the first untitled name free there. */
+  readNewProjectDefaults(): Promise<NewProjectDefaults>;
+  /** Ask the person for the folder a new project goes in, in the app's dialog opened at `startingAt`; `null` when they cancel. */
+  chooseNewProjectLocation(startingAt: string): Promise<string | null>;
+  /** Create the project `name` in `location` with the runtime and open it, rejecting with nothing made in the app's or the runtime's own words. The project read arrives as the next open-project change. */
+  createNewProject(name: string, location: string): Promise<ChosenProjectFolder>;
+  /** The open project as the app last read it from disk. */
+  readOpenProject(): Promise<OpenProjectReading>;
+  /** The projects opened before, recent first, for the Projects window. */
+  readRecentProjects(): Promise<RecentProject[]>;
+  /** Open `folder`, one of the recent projects, rejecting for any other folder or in the words of what refused; the project read arrives as the next open-project change. */
+  openRecentProject(folder: string): Promise<void>;
+  /** Calls `listener` with each reading of the open project: another folder opened, or a `pyproject.toml` it reads changed; the returned function stops it. */
+  onOpenProjectChanged(listener: (reading: OpenProjectReading) => void): () => void;
+  /** `file` of the open project and its imports, as read from disk, rejecting for a file outside them or in the filesystem's words. */
+  readProjectFile(file: string): Promise<ProjectFileRead>;
   /** Write `text` to `file` whole when the file on disk is still at `basedOnVersion` (`null` for a new file), rejecting with nothing written when it changed, belongs to an import, or the filesystem refuses. */
-  saveWorkspaceFile(file: string, text: string, basedOnVersion: string | null): Promise<WorkspaceFileSaved>;
-  /** The Python files and `pyproject.toml` of `projectFolder`, a project folder of the open workspace. */
-  listWorkspaceProjectFiles(projectFolder: string): Promise<WorkspaceProjectFiles>;
-  /** Queue `run_project` on the open workspace's folder, resolving with the action queued and rejecting in the runtime's own words. */
-  runWorkspaceProject(): Promise<ProjectRunQueued>;
+  saveProjectFile(file: string, text: string, basedOnVersion: string | null): Promise<ProjectFileSaved>;
+  /** The Python files and `pyproject.toml` of `projectFolder`, the folder of the open project or of one of its imports. */
+  listProjectFiles(projectFolder: string): Promise<ProjectFiles>;
+  /** Queue `run_project` on the open project's folder, resolving with the action queued and rejecting in the runtime's own words. */
+  runOpenProject(): Promise<ProjectRunQueued>;
   /** Start Pyright's language server in `projectFolder`, resolving with the session its messages arrive under. */
   startPythonLanguageServer(projectFolder: string): Promise<string>;
   /** Send one JSON-RPC `message` to the language server of `session`, rejecting once it has ended. */
@@ -120,7 +125,7 @@ export interface TatolabBackend {
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
 }
 
-/** Where the page runs: Tatolab.app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */
+/** Where the page runs: the packaged app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */
 export type TatolabWindowHost =
   | { kind: "electron"; tatolabElectronBridge: TatolabElectronBridge }
   | { kind: "electron_without_its_bridge" }

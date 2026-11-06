@@ -1,166 +1,53 @@
 import { describe, expect, it } from "vitest";
 import type { TatolabStatus } from "../../shared/tatolab_backend_contract";
-import { chooseTatolabWindowScreen, deriveRuntimeDisplayState, presentRuntimeStatus } from "./runtime_presentation";
+import { presentRuntimeStatus } from "./runtime_presentation";
 
 function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
   return {
     app_version: "0.45.0",
     app_build: null,
     platform: "macos",
-    run_tatolab: true,
-    runtime_agent: "enabled",
     runtime_state: "running",
+    runtime_not_running_because: null,
     machine_name: "ada-macbook-pro",
     streams: [],
-    first_run_finished: true,
-    command_line_tool_linked_at: "/Users/ada/.local/bin/tatolab",
-    command_line_tool_usr_local_bin_link: { kind: "not_linked" },
+    command_line_tool_link: { kind: "linked", path: "/Users/ada/.local/bin/tatolab" },
     app_update: { kind: "not_checked" },
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
-    runtime_install: { kind: "none" },
-    installed_runtime: null,
     ...statusChanges,
   };
 }
 
-function linuxStatusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
-  return statusWith({
-    platform: "linux",
-    machine_name: "ada-workstation",
-    command_line_tool_linked_at: "/home/ada/.local/bin/tatolab",
-    ...statusChanges,
-  });
-}
-
-const RUNTIME_AGENT_REGISTRATIONS = ["enabled", "requires_approval", "not_registered", "not_found"] as const;
-
-describe("deriveRuntimeDisplayState", () => {
-  it("shows a running runtime as running whatever the agent says", () => {
-    expect(deriveRuntimeDisplayState(statusWith({ runtime_agent: "requires_approval" }))).toBe("running");
-  });
-
-  it("explains a stopped runtime by the switch first, then the agent's registration", () => {
-    expect(deriveRuntimeDisplayState(statusWith({ runtime_state: "stopped", run_tatolab: false }))).toBe("switched_off");
-    expect(deriveRuntimeDisplayState(statusWith({ runtime_state: "stopped", runtime_agent: "requires_approval" }))).toBe(
-      "needs_login_items_approval",
-    );
-    expect(deriveRuntimeDisplayState(statusWith({ runtime_state: "stopped", runtime_agent: "not_found" }))).toBe(
-      "runtime_missing_from_app",
-    );
-    expect(deriveRuntimeDisplayState(statusWith({ runtime_state: "stopped", runtime_agent: "not_registered" }))).toBe(
-      "not_registered",
-    );
-  });
-
-  it("passes starting, unreachable, never answered and blocked through", () => {
-    for (const runtimeState of ["starting", "unreachable", "never_answered", "blocked_by_the_service_manager"] as const) {
-      expect(deriveRuntimeDisplayState(statusWith({ runtime_state: runtimeState }))).toBe(runtimeState);
-    }
-  });
-});
-
 describe("presentRuntimeStatus", () => {
-  it("offers the person an action only for what only they can do, and none where the app recovers the runtime itself", () => {
-    expect(presentRuntimeStatus(statusWith({})).banner).toBeNull();
-    expect(presentRuntimeStatus(statusWith({ runtime_state: "stopped", run_tatolab: false })).banner?.action).toBe(
-      "turn_on_run_tatolab",
-    );
-    expect(
-      presentRuntimeStatus(statusWith({ runtime_state: "stopped", runtime_agent: "requires_approval" })).banner?.action,
-    ).toBe("open_login_items");
-    expect(presentRuntimeStatus(statusWith({ runtime_state: "unreachable" })).banner?.action).toBeNull();
-    expect(presentRuntimeStatus(statusWith({ runtime_state: "never_answered" })).banner?.action).toBeNull();
-    expect(presentRuntimeStatus(statusWith({ runtime_state: "blocked_by_the_service_manager" })).banner?.action).toBeNull();
-    expect(presentRuntimeStatus(statusWith({ runtime_state: "stopped", runtime_agent: "not_registered" })).banner?.action).toBeNull();
+  it("shows a running runtime with no banner", () => {
+    expect(presentRuntimeStatus(statusWith({}))).toEqual({ runtimeState: "running", tone: "ok", shortLabel: "Running", banner: null });
   });
 
-  it("says not responding only of a runtime that answered, and gives a start that never answered its own words", () => {
-    expect(presentRuntimeStatus(statusWith({ runtime_state: "unreachable" }))).toMatchObject({
-      shortLabel: "Not responding",
-      banner: { title: "The runtime isn't responding" },
-    });
-    expect(presentRuntimeStatus(statusWith({ runtime_state: "never_answered" }))).toMatchObject({
-      shortLabel: "Didn't start",
-      banner: { title: "The runtime didn't start", explanation: "Retrying automatically." },
+  it("shows a runtime the app is starting as in progress", () => {
+    expect(presentRuntimeStatus(statusWith({ runtime_state: "starting", machine_name: null, streams: null }))).toEqual({
+      runtimeState: "starting",
+      tone: "progress",
+      shortLabel: "Starting",
+      banner: { title: "Starting the runtime", explanation: "Tato Studio is starting it. This usually takes a few seconds." },
     });
   });
 
-  it("names macOS for a blocked runtime and the switch to turn on for an approval", () => {
-    expect(presentRuntimeStatus(statusWith({ runtime_state: "blocked_by_the_service_manager" })).banner?.title).toBe("Blocked by macOS");
-    expect(presentRuntimeStatus(statusWith({ runtime_state: "stopped", runtime_agent: "requires_approval" })).banner).toMatchObject({
-      title: "Needs your approval",
-      explanation: expect.stringContaining("turn on Tatolab under Allow in the Background"),
+  it("explains a runtime that is not running in the words the app gave", () => {
+    const notRunning = statusWith({
+      runtime_state: "not_running",
+      runtime_not_running_because: "The runtime stopped: it exited with status 1. Tato Studio starts it again shortly.",
+      machine_name: null,
+      streams: null,
     });
-  });
-});
-
-describe("on Linux", () => {
-  it("explains a stopped runtime with no tatolabd.service by the missing install, whatever the switch says", () => {
-    for (const runTatolab of [true, false]) {
-      expect(
-        deriveRuntimeDisplayState(linuxStatusWith({ runtime_state: "stopped", runtime_agent: "not_found", run_tatolab: runTatolab })),
-      ).toBe("runtime_not_installed");
-    }
-  });
-
-  it("shows a disabled unit as Tatolab is off, with the button that turns Run Tatolab on", () => {
-    for (const runTatolab of [true, false]) {
-      const presentation = presentRuntimeStatus(
-        linuxStatusWith({ runtime_state: "stopped", runtime_agent: "not_registered", run_tatolab: runTatolab }),
-      );
-      expect(presentation.displayState).toBe("switched_off");
-      expect(presentation.banner?.title).toBe("Tatolab is off");
-      expect(presentation.banner?.action).toBe("turn_on_run_tatolab");
-    }
-  });
-
-  it("never asks for Login Items approval", () => {
-    for (const runtimeAgent of RUNTIME_AGENT_REGISTRATIONS) {
-      for (const runTatolab of [true, false]) {
-        const presentation = presentRuntimeStatus(
-          linuxStatusWith({ runtime_state: "stopped", runtime_agent: runtimeAgent, run_tatolab: runTatolab }),
-        );
-        expect(presentation.displayState).not.toBe("needs_login_items_approval");
-        expect(presentation.banner?.action).not.toBe("open_login_items");
-      }
-    }
-  });
-
-  it("shows a runtime that answers as running, even one no unit started", () => {
-    expect(deriveRuntimeDisplayState(linuxStatusWith({ runtime_agent: "not_found" }))).toBe("running");
-  });
-
-  it("says what systemd does where macOS's banners name macOS", () => {
-    expect(presentRuntimeStatus(linuxStatusWith({ runtime_state: "starting" })).banner?.explanation).toBe(
-      "systemd is starting tatolabd.service. This usually takes a few seconds.",
-    );
-    expect(presentRuntimeStatus(linuxStatusWith({ runtime_state: "unreachable" })).banner?.explanation).toContain(
-      "systemd restarts tatolabd.service if it fails",
-    );
-    expect(presentRuntimeStatus(statusWith({ runtime_state: "starting" })).banner?.explanation).toBe(
-      "macOS is launching it. This usually takes a few seconds.",
-    );
-    expect(presentRuntimeStatus(linuxStatusWith({ runtime_state: "blocked_by_the_service_manager" })).banner?.title).toBe("systemd stopped the runtime");
-    expect(presentRuntimeStatus(linuxStatusWith({ runtime_state: "never_answered" })).banner?.title).toBe("The runtime didn't start");
-  });
-});
-
-describe("chooseTatolabWindowScreen", () => {
-  it("holds macOS on Welcome and Getting set up until Get Started ends first run, whatever the runtime does", () => {
-    expect(chooseTatolabWindowScreen(statusWith({ first_run_finished: false }))).toBe("setup");
-    expect(chooseTatolabWindowScreen(statusWith({ first_run_finished: false, runtime_state: "starting" }))).toBe("setup");
-    expect(chooseTatolabWindowScreen(statusWith({ runtime_state: "stopped", runtime_agent: "not_found" }))).toBe("pages");
-    expect(chooseTatolabWindowScreen(statusWith({}))).toBe("pages");
-  });
-
-  it("holds Linux on the installer until tatolabd.service exists", () => {
-    expect(chooseTatolabWindowScreen(linuxStatusWith({ runtime_state: "stopped", runtime_agent: "not_found" }))).toBe("setup");
-    expect(chooseTatolabWindowScreen(linuxStatusWith({ runtime_state: "stopped", runtime_agent: "not_registered" }))).toBe("pages");
-    expect(chooseTatolabWindowScreen(linuxStatusWith({ runtime_state: "starting", runtime_agent: "enabled" }))).toBe("pages");
-    expect(chooseTatolabWindowScreen(linuxStatusWith({ runtime_agent: "not_found" }))).toBe("pages");
-    expect(chooseTatolabWindowScreen(linuxStatusWith({ first_run_finished: false })), "Linux has no first run").toBe("pages");
+    expect(presentRuntimeStatus(notRunning)).toEqual({
+      runtimeState: "not_running",
+      tone: "error",
+      shortLabel: "Not running",
+      banner: { title: "The runtime isn't running", explanation: "The runtime stopped: it exited with status 1. Tato Studio starts it again shortly." },
+    });
+    expect(presentRuntimeStatus(statusWith({ runtime_state: "not_running" })).banner?.explanation).toBe("No runtime is answering.");
   });
 });

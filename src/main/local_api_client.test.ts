@@ -432,7 +432,7 @@ test("describing_a_stream_graph_calls_the_graph_tool_and_keeps_its_text_as_the_r
   expect(summary.stream).toBe("main");
   expect(summary.graph_document_text).toBe(graphText);
   expect(summary.graph_document_text).toContain('"config_checksum": 15071898633716066277');
-  expect(summary.exposed[0]?.watch_page_url).toBe("http://127.0.0.1:4446/watch/jonathanf-macbook/main/invertingeffect/video_to_downstream");
+  expect(summary.exposed[0]?.watch_page_url).toBe("http://127.0.0.1:4446/watch/jonathanf-macbook/main/invertingeffect/video_to_downstream?video_only");
   const [head, body] = headAndBodyOf(server.receivedRequests()[0]);
   expect(head).toContain("Mcp-Name: graph\r\n");
   expect(JSON.parse(body).params.arguments).toEqual({ stream: "main" });
@@ -465,7 +465,7 @@ test("a_real_graph_tool_result_reads_with_its_counters_preview_page_and_verbatim
       node: "h264encoder",
       port: "encoded_video",
       level: "public",
-      watch_page_url: "http://127.0.0.1:4446/watch/jonathanf-macbook/front-door/h264encoder/encoded_video",
+      watch_page_url: "http://127.0.0.1:4446/watch/jonathanf-macbook/front-door/h264encoder/encoded_video?video_only",
     },
   ]);
   expect(JSON.parse(summary.graph_document_text).stream).toBe("front-door");

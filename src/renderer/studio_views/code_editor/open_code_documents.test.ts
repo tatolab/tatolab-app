@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { JsonValue, PythonLanguageServerConnectionEvent, WorkspaceFileReading, WorkspaceFileSaving } from "../../view_host/studio_view_contract";
+import type { JsonValue, PythonLanguageServerConnectionEvent, ProjectFileReading, ProjectFileSaving } from "../../view_host/studio_view_contract";
 import { hasEditsNotSaved, OpenCodeDocuments, type OpenCodeDocumentsHost } from "./open_code_documents";
 
 const PROJECT_FOLDER = "/home/jonathanf/streams/pattern";
@@ -17,13 +17,13 @@ function fakeHost() {
   let versionCount = 3;
   const sessions: { project_folder: string; sent: JsonValue[]; closed: boolean; onEvent: (event: PythonLanguageServerConnectionEvent) => void }[] = [];
   const host: OpenCodeDocumentsHost = {
-    readWorkspaceFile: async (file): Promise<WorkspaceFileReading> => {
+    readProjectFile: async (file): Promise<ProjectFileReading> => {
       const onDisk = disk.get(file);
-      if (onDisk === undefined) return { kind: "not_read", because: `${file} is not a file of the open workspace's projects` };
+      if (onDisk === undefined) return { kind: "not_read", because: `${file} is not a file of the open project or its imports` };
       const projectFolder = file.startsWith(`${PROJECT_FOLDER}/`) ? PROJECT_FOLDER : "/home/jonathanf/streams/camera";
       return { kind: "read", file_read: { file, project_folder: projectFolder, text: onDisk.text, version: String(onDisk.version), is_editable: projectFolder === PROJECT_FOLDER } };
     },
-    saveWorkspaceFile: async (file, text, basedOnVersion): Promise<WorkspaceFileSaving> => {
+    saveProjectFile: async (file, text, basedOnVersion): Promise<ProjectFileSaving> => {
       const onDisk = disk.get(file);
       if (onDisk !== undefined && String(onDisk.version) !== basedOnVersion) return { kind: "not_saved", because: "stream.py changed on disk since it was opened, so it was not saved." };
       versionCount += 1;
@@ -120,7 +120,7 @@ describe("the code pane's open documents", () => {
     const documents = new OpenCodeDocuments(fakeHost().host, () => undefined);
     documents.open("/etc/passwd");
     await settled();
-    expect(documents.documentOf("/etc/passwd")).toEqual({ kind: "not_read", file: "/etc/passwd", because: "/etc/passwd is not a file of the open workspace's projects" });
+    expect(documents.documentOf("/etc/passwd")).toEqual({ kind: "not_read", file: "/etc/passwd", because: "/etc/passwd is not a file of the open project or its imports" });
   });
 
   it("takes Pyright's diagnostics, says when its session ended, and closes it with the project's last file", async () => {

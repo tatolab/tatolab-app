@@ -1,26 +1,15 @@
 /** A value as JSON carries it. */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
-/** The platform the app runs on, which decides the window's chrome and how Tatolab is installed and removed. */
+/** The platform the app runs on, which decides the window's chrome. */
 export type TatolabPlatform = "macos" | "linux";
 
 /**
- * What the service manager says about the runtime: on macOS launchd of the launch agent the installer writes; on Linux the
- * systemd user unit `tatolabd.service`, enabled, installed but disabled, or absent, and never `requires_approval`.
+ * Whether the runtime answers its local API. `starting` is the runtime the app started not answering yet; `not_running`
+ * is no runtime answering, with why in `TatolabStatus.runtime_not_running_because`: the app's own runtime exited and is
+ * started again shortly, or an app that carries none (an unpackaged one) finding none running.
  */
-export type RuntimeAgentRegistration = "enabled" | "requires_approval" | "not_registered" | "not_found";
-
-/**
- * Whether the runtime answers its local API. `starting` is the agent enabled and the runtime not answering yet,
- * within the start timeout; past it, `unreachable` is a runtime that answered since it was last started and then
- * stopped, and `never_answered` one that has not answered once since. `blocked_by_the_service_manager` is launchd
- * giving up on the agent (a spawn it refused, exit 78 EX_CONFIG, or a code-signing kill such as a Launch Constraint
- * Violation), or systemd holding `tatolabd.service` failed.
- */
-export type RuntimeState = "running" | "starting" | "stopped" | "unreachable" | "never_answered" | "blocked_by_the_service_manager";
-
-/** `/usr/local/bin/tatolab` on macOS: linked to this app's CLI, not linked, or not offered with why (Linux, whose installer links the command; a local-proof build; an app with no CLI in it). */
-export type CommandLineToolUsrLocalBinLink = { kind: "linked"; path: string } | { kind: "not_linked" } | { kind: "not_offered"; reason: string };
+export type RuntimeState = "running" | "starting" | "not_running";
 
 /** Where a stream's code lives, which its stream id is computed from: its project directory, symlinks resolved, and its stream function as `module:qualname`. */
 export interface StreamLocation {
@@ -89,6 +78,17 @@ export type TatolabCommandLineToolVersion =
   | { kind: "unreadable"; reason: string }
   | { kind: "not_offered"; reason: string };
 
+/**
+ * `~/.local/bin/tatolab`, which the app links to the CLI it carries only when the person asks: linked there; not
+ * linked; taken by a file that is not Tatolab's, which the app leaves alone; or not offered, with why, by a build that
+ * carries no CLI or has no home folder to link in.
+ */
+export type CommandLineToolLink =
+  | { kind: "linked"; path: string }
+  | { kind: "not_linked"; path: string }
+  | { kind: "taken_by_something_else"; path: string }
+  | { kind: "not_offered"; reason: string };
+
 /** Notifications when a stream fails: whether the person wants them, and whether this desktop shows notifications at all. */
 export interface StreamFailureNotificationsState {
   enabled: boolean;
@@ -105,49 +105,25 @@ export interface TatolabAppBuild {
   built_with_uncommitted_changes: boolean;
 }
 
-/**
- * Installing the runtime the app carries, which the app does when it opens and the installed build differs: nothing
- * under way, the installer running with the lines it has written so far, or refused in the installer's own words.
- * A build is named as the installer names its folder, `<version>-<commit>`.
- */
-export type RuntimeInstall =
-  | { kind: "none" }
-  | { kind: "installing"; carried_runtime_build: string; installer_lines: string[] }
-  /** `carried_runtime_build` is `null` when the carried runtime could not name its build. */
-  | { kind: "failed"; carried_runtime_build: string | null; installer_lines: string[]; refusal: string };
-
-/** The runtime build the installer runs, `<version>-<commit>`, and the folder it installed it in. */
-export interface InstalledRuntime {
-  build: string;
-  folder: string;
-}
-
 /** What `get_tatolab_status` answers and `tatolab-status-changed` carries. */
 export interface TatolabStatus {
   app_version: string;
   /** `null` for a build that recorded none, which only `electron-vite dev` runs. */
   app_build: TatolabAppBuild | null;
   platform: TatolabPlatform;
-  run_tatolab: boolean;
-  runtime_agent: RuntimeAgentRegistration;
   runtime_state: RuntimeState;
+  /** Why no runtime answers while `runtime_state` is `not_running`, in words the window shows; `null` otherwise. */
+  runtime_not_running_because: string | null;
   machine_name: string | null;
   /** `null` when the streams were not listed: the runtime is down or listing them failed. */
   streams: ListedStream[] | null;
-  /** Whether "Get Started" ended first run; the macOS window shows Welcome until it has. Linux has no first run, so its window never reads it. */
-  first_run_finished: boolean;
-  /** The absolute path of `~/.local/bin/tatolab` while it is linked: on macOS to this app's CLI, on Linux by the installer. */
-  command_line_tool_linked_at: string | null;
-  command_line_tool_usr_local_bin_link: CommandLineToolUsrLocalBinLink;
+  command_line_tool_link: CommandLineToolLink;
   app_update: TatolabAppUpdateState;
   /** The socket this build reads the runtime's local API at. */
   local_api_socket: string;
   stream_failure_notifications: StreamFailureNotificationsState;
   open_at_login: TatolabAppOpenAtLogin;
   command_line_tool_version: TatolabCommandLineToolVersion;
-  runtime_install: RuntimeInstall;
-  /** `null` before one is installed or where the app carries none. */
-  installed_runtime: InstalledRuntime | null;
 }
 
 /** What `describe_runtime` answers: the running runtime's version and build, how long it has been up, and the folder of its own log. */
@@ -253,7 +229,7 @@ export interface StreamGraphExposedPort {
   node: string;
   port: string;
   level: string;
-  /** The runtime's loopback preview page playing this output, `<origin>/watch/<machine>/<stream>/<node>/<port>`; `null` for an `internal` port, which is never served, and for every port of a graph that names no machine. */
+  /** The runtime's loopback preview page playing this output, `<origin>/watch/<machine>/<stream>/<node>/<port>?video_only`, showing the video alone; `null` for an `internal` port, which is never served, and for every port of a graph that names no machine. */
   watch_page_url: string | null;
 }
 
@@ -428,7 +404,7 @@ export type ImportedProjectSource =
   | { kind: "folder_unreadable"; folder: string; refusal: string }
   | { kind: "package_index" };
 
-/** One dependency of the workspace project, which the studio shows as an import. */
+/** One dependency of the open project, which the studio shows as an import. */
 export interface ImportedProject {
   /** The requirement's name, normalized as PEP 503 normalizes a package name. */
   name: string;
@@ -436,47 +412,64 @@ export interface ImportedProject {
   source: ImportedProjectSource;
 }
 
-/** The workspace open in the studio: a folder that is itself the workspace project, and the projects it imports, in `pyproject.toml`'s order. */
-export interface OpenWorkspace {
-  workspace_project: ProjectOnDisk;
+/** The project open in the studio: its folder's own project, and the projects it imports, in `pyproject.toml`'s order. */
+export interface OpenProject {
+  project: ProjectOnDisk;
   imports: ImportedProject[];
 }
 
-/** What `read_open_workspace` answers and `tatolab-open-workspace-changed` carries: no workspace open, the open one read, or its folder unreadable, with why in the words of what refused. */
-export type OpenWorkspaceReading =
+/** What `read_open_project` answers and `tatolab-open-project-changed` carries: no project open, the open one read, or its folder unreadable, with why in the words of what refused. */
+export type OpenProjectReading =
   | { kind: "none_open" }
-  | { kind: "read"; workspace: OpenWorkspace }
+  | { kind: "read"; open_project: OpenProject }
   | { kind: "unreadable"; folder: string; refusal: string };
 
-/** What the workspace folder dialog is opened for: an existing workspace to open, or a new one's folder, which may not exist yet. */
-export type WorkspaceFolderChosenFor = "workspace_to_open" | "new_workspace";
+/** What the project folder dialog is opened for from the window: an existing project to open. */
+export type ProjectFolderChosenFor = "project_to_open";
 
-/** A folder chosen in the workspace dialog, now the open workspace, and for a new workspace the `create_project` the runtime queued in it. */
-export interface ChosenWorkspaceFolder {
+/** What the New project sheet starts from: the folder new projects go in, and a name no folder there holds yet. */
+export interface NewProjectDefaults {
+  /** `<Documents>/Tato Studio`, absolute; made the first time a project is created in it. */
+  location: string;
+  /** `Untitled project`, or `Untitled project 2`, `3`, … where that is taken in `location`. */
+  name: string;
+}
+
+/** A folder now the open project, and for a new project the `create_project` the runtime queued in it. */
+export interface ChosenProjectFolder {
   folder: string;
   project_creation: ProjectCreationQueued | null;
 }
 
-/** What `read_workspace_file` answers: a file of the open workspace's projects, as read from disk. */
-export interface WorkspaceFileRead {
+/** One project opened before, as `read_recent_projects` answers it for the Projects window, recent first. */
+export interface RecentProject {
+  folder: string;
+  /** The `[project]` name its `pyproject.toml` gives, or `null` when the folder or the file does not read now. */
+  project_name: string | null;
+  /** When it was last opened, in milliseconds since the epoch on the wall clock: for display only. */
+  last_opened_at_wall_clock_ms: number;
+}
+
+/** What `read_project_file` answers: a file of the open project or its imports, as read from disk. */
+export interface ProjectFileRead {
   /** The file, absolute, as the window named it. */
   file: string;
   /** The folder of the project the file belongs to. */
   project_folder: string;
   text: string;
-  /** The SHA-256 of the bytes read, in hex, which `save_workspace_file` takes back as `based_on_version`. */
+  /** The SHA-256 of the bytes read, in hex, which `save_project_file` takes back as `based_on_version`. */
   version: string;
-  /** Whether the file belongs to the workspace project, whose files the studio saves; an import's are read-only. */
+  /** Whether the file belongs to the open project, whose files the studio saves; an import's are read-only. */
   is_editable: boolean;
 }
 
-/** What `save_workspace_file` answers: the version the file now has on disk. */
-export interface WorkspaceFileSaved {
+/** What `save_project_file` answers: the version the file now has on disk. */
+export interface ProjectFileSaved {
   version: string;
 }
 
-/** What `list_workspace_project_files` answers: a project's Python files and `pyproject.toml`, relative to its folder, in name order. */
-export interface WorkspaceProjectFiles {
+/** What `list_project_files` answers: a project's Python files and `pyproject.toml`, relative to its folder, in name order. */
+export interface ProjectFiles {
   project_folder: string;
   files: string[];
 }

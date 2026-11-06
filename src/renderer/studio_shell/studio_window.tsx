@@ -1,19 +1,19 @@
-import { FolderOpen, FolderPlus, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
 import { AreaSplit } from "../design_system/area_split";
 import { DocumentTabs } from "../design_system/document_tabs";
-import { EmptyState } from "../design_system/empty_state";
 import { StudioMenuBar } from "../design_system/menu_bar";
 import { MenuGroup, MenuNote, MenuSingleChoiceGroup } from "../design_system/menus";
 import { StudioAreaFrame, StudioAreaHeaderMenu } from "../design_system/studio_area_frame";
 import { WaitingState } from "../design_system/waiting_state";
 import { WindowNotice } from "../design_system/window_notice";
-import { windowDragRegionAttribute } from "../presentation/platform_presentation";
-import { FirstRunFinishingRefusalNoticeView } from "../setup_and_preferences/first_run_finishing_refusal_notice_view";
+import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
 import { StudioViewFailureBoundary, useWatchedStudioValue } from "../view_host/in_window_view_host";
 import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
+import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet_view";
+import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
 import { RUN_LIVE_KEY, studioMenuBarMenus, type StudioMenuBarCommands } from "./studio_menu_bar_model";
 import type { StudioWindowModel } from "./studio_window_model";
@@ -27,12 +27,16 @@ export interface StudioWindowSources {
   viewTypeRegistry: StudioViewTypeRegistry;
   viewHostServices: StudioViewHostServices;
   commands: StudioMenuBarCommands;
+  /** What the Projects window reads its projects from and opens them through. */
+  projects: ProjectsSources;
+  /** What the New project sheet chooses a location through and makes the project with. */
+  newProject: NewProjectSources;
   platform: TatolabPlatform;
 }
 
-/** An area's view-type menu: the studio's views, each ticked when the area shows it, then the views the workspace's projects bring. */
+/** An area's view-type menu: the studio's views, each ticked when the area shows it, then the views the open project and its imports bring. */
 function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources: StudioWindowSources; words: string }) {
-  const workspaceViewTypes = sources.viewTypeRegistry.workspaceViewTypes();
+  const projectViewTypes = sources.viewTypeRegistry.projectViewTypes();
   const viewTypeChoice = (viewTypeId: string, title: string, broughtBy: string) => ({
     choice: viewTypeId,
     label: (
@@ -43,7 +47,7 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
     ),
   });
   const onChosen = (viewTypeId: string) => sources.model.showViewTypeInArea(area.area_id, viewTypeId);
-  const iconOfTheArea = area.view_type_id === null ? "workspace_view" : (sources.viewTypeRegistry.viewTypeWithId(area.view_type_id)?.icon ?? "unreadable");
+  const iconOfTheArea = area.view_type_id === null ? "project_view" : (sources.viewTypeRegistry.viewTypeWithId(area.view_type_id)?.icon ?? "unreadable");
   return (
     <StudioAreaHeaderMenu icon={iconOfTheArea} words={words} label={`${words}: change this area's view`} data-area-view-type-menu={area.area_id}>
       <MenuGroup label="Studio views">
@@ -54,13 +58,13 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
           dataAttributeOfEachChoice="data-view-type-choice"
         />
       </MenuGroup>
-      <MenuGroup label="Workspace views">
-        {workspaceViewTypes.length === 0 ? (
-          <MenuNote>Views a workspace project brings arrive with users' own view types.</MenuNote>
+      <MenuGroup label="Project views">
+        {projectViewTypes.length === 0 ? (
+          <MenuNote>Views a project brings arrive with users' own view types.</MenuNote>
         ) : (
           <MenuSingleChoiceGroup
-            choices={workspaceViewTypes.map((viewType) =>
-              viewTypeChoice(viewType.view_type_id, viewType.title, viewType.brought_by.kind === "workspace_project" ? viewType.brought_by.project_name : "built in"),
+            choices={projectViewTypes.map((viewType) =>
+              viewTypeChoice(viewType.view_type_id, viewType.title, viewType.brought_by.kind === "project" ? viewType.brought_by.project_name : "built in"),
             )}
             chosen={area.view_type_id ?? ""}
             onChosen={onChosen}
@@ -76,10 +80,10 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
 function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWindowSources }) {
   if (area.view_type_id === null) {
     return (
-      <StudioAreaFrame label="Workspace view" header={<AreaViewTypeMenu area={area} sources={sources} words="Workspace view" />} data-studio-area={area.area_id}>
+      <StudioAreaFrame label="Project view" header={<AreaViewTypeMenu area={area} sources={sources} words="Project view" />} data-studio-area={area.area_id}>
         <WaitingState
-          title="A workspace project's view shows here"
-          explanation="A 3D scene, or any view a project in the workspace brings, opens in this area."
+          title="A project's view shows here"
+          explanation="A 3D scene, or any view the project or its imports bring, opens in this area."
           waitsOn={USERS_VIEW_TYPES_ISSUE}
         />
       </StudioAreaFrame>
@@ -130,61 +134,50 @@ function StudioAreaLayoutNodeView({ node, layoutKey, sources }: { node: StudioAr
   );
 }
 
-/** What the studio shows with no workspace open: what a workspace is, and the two ways to have one. */
-function StudioWelcome({ commands }: { commands: StudioMenuBarCommands }) {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-1" data-studio-welcome="">
-      <EmptyState
-        icon={FolderOpen}
-        title="Open a workspace"
-        explanation="A workspace is a folder holding a project: its pyproject.toml, its streams, and the projects it imports."
-      >
-        <div className="flex gap-2">
-          <ActionButton appearance="primary" icon={FolderOpen} onPressed={commands.openAWorkspace} data-studio-welcome-action="open">
-            Open a workspace…
-          </ActionButton>
-          <ActionButton appearance="secondary" icon={FolderPlus} onPressed={commands.createAWorkspace} data-studio-welcome-action="new">
-            New workspace…
-          </ActionButton>
-        </div>
-      </EmptyState>
-    </div>
-  );
-}
-
-/** The studio: its menus along the top, the open streams' tabs, and the chosen layout's areas, or a welcome while no workspace is open. */
+/** The studio: its menus along the top, the open streams' tabs, and the chosen layout's areas; or the Projects window, with no menus, while no project is open or File › Projects shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands } = sources;
-  const openWorkspace = useWatchedStudioValue(model.openWorkspace);
-  const workspaceLayouts = useWatchedStudioValue(model.workspaceLayouts);
+  const openProject = useWatchedStudioValue(model.openProject);
+  const studioLayouts = useWatchedStudioValue(model.studioLayouts);
   const openStreamTabs = useWatchedStudioValue(model.openStreamTabs);
   const preferencesSection = useWatchedStudioValue(model.preferencesSection);
-  const workspaceOpeningRefusal = useWatchedStudioValue(model.workspaceOpeningRefusal);
-  const workspaceRunRefusal = useWatchedStudioValue(model.workspaceRunRefusal);
-  const isAWorkspaceShown = openWorkspace.kind !== "none_open" && workspaceLayouts !== null;
+  const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
+  const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
+  const isProjectsShown = useWatchedStudioValue(model.isProjectsShown);
+  const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
+  const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null && !isProjectsShown;
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
-      <header
-        className="flex h-(--studio-menu-bar-height) shrink-0 items-center gap-2.5 border-b border-studio-frame bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
-        data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
-      >
-        <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, workspaceLayouts?.chosen_layout ?? null, commands)} />
-        {isAWorkspaceShown && (
+      {isAProjectShown ? (
+        <header
+          className="flex h-(--studio-menu-bar-height) shrink-0 items-center gap-2.5 border-b border-studio-frame bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
+          data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
+        >
+          <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, commands)} />
           <ActionButton
             appearance="primary"
             size="small"
             icon={Play}
-            tooltip={`Run the workspace's streams (${RUN_LIVE_KEY})`}
-            onPressed={commands.runTheWorkspaceLive}
+            tooltip={`Run the project's streams (${RUN_LIVE_KEY})`}
+            onPressed={commands.runTheProjectLive}
             className="ml-auto"
             data-studio-run-live=""
           >
             Live
           </ActionButton>
-        )}
-      </header>
-      {!isAWorkspaceShown ? (
-        <StudioWelcome commands={commands} />
+        </header>
+      ) : (
+        // macOS draws the window buttons over the content, so the Projects window keeps a bare strip for them to sit in and to drag the window by.
+        presentPlatform(platform).hasOverlayTitleBar && (
+          <div
+            className="h-(--studio-menu-bar-height) shrink-0 border-b border-studio-frame bg-studio-menu-bar"
+            data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
+            data-projects-title-bar=""
+          />
+        )
+      )}
+      {!isAProjectShown ? (
+        <ProjectsView model={model} projectsSources={sources.projects} commands={commands} platform={platform} />
       ) : (
         <>
           <DocumentTabs
@@ -195,15 +188,16 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
             onTabClosed={(stream) => model.closeStreamTab(stream)}
             whenNoneIsOpen="Open a stream from the outliner to see it here."
           />
-          <main className="flex min-h-0 flex-1 px-(--studio-area-gap) pb-(--studio-area-gap)" data-workspace-layout={workspaceLayouts.chosen_layout}>
+          <main className="flex min-h-0 flex-1 px-(--studio-area-gap) pb-(--studio-area-gap)" data-studio-layout={studioLayouts.chosen_layout}>
             <StudioAreaLayoutNodeView
-              node={workspaceLayouts.layouts[workspaceLayouts.chosen_layout]}
-              layoutKey={workspaceLayouts.chosen_layout}
+              node={studioLayouts.layouts[studioLayouts.chosen_layout]}
+              layoutKey={studioLayouts.chosen_layout}
               sources={sources}
             />
           </main>
         </>
       )}
+      <NewProjectSheetView openedWith={newProjectSheetOpenedWith} sources={sources.newProject} onClosed={() => model.newProjectSheetOpenedWith.publish(null)} />
       <PreferencesDialogView
         shownSection={preferencesSection}
         onSectionChosen={(section) => model.preferencesSection.publish(section)}
@@ -211,26 +205,25 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
       />
       <div className="pointer-events-none absolute right-4 bottom-4 z-40 flex flex-col-reverse gap-2">
         <div aria-live="assertive" aria-atomic="true">
-          {workspaceOpeningRefusal !== null && (
+          {projectOpeningRefusal !== null && (
             <WindowNotice
               tone="failure"
-              title="The workspace didn't open"
-              detail={workspaceOpeningRefusal}
-              onDismissed={() => model.workspaceOpeningRefusal.publish(null)}
-              data-workspace-opening-refusal=""
+              title="The project didn't open"
+              detail={projectOpeningRefusal}
+              onDismissed={() => model.projectOpeningRefusal.publish(null)}
+              data-project-opening-refusal=""
             />
           )}
-          {workspaceRunRefusal !== null && (
+          {projectRunRefusal !== null && (
             <WindowNotice
               tone="failure"
-              title={workspaceRunRefusal.asked_to === "run" ? "The workspace didn't run" : "The workspace didn't stop"}
-              detail={workspaceRunRefusal.because}
-              onDismissed={() => model.workspaceRunRefusal.publish(null)}
-              data-workspace-run-refusal=""
+              title={projectRunRefusal.asked_to === "run" ? "The project didn't run" : "The project didn't stop"}
+              detail={projectRunRefusal.because}
+              onDismissed={() => model.projectRunRefusal.publish(null)}
+              data-project-run-refusal=""
             />
           )}
         </div>
-        <FirstRunFinishingRefusalNoticeView />
       </div>
     </div>
   );

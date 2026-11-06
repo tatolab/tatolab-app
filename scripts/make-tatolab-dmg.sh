@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Builds the branded drag-to-Applications installer for a Developer ID-signed Tatolab.app with
+# Builds the branded drag-to-Applications installer for a Developer ID-signed Tato Studio.app with
 # dmgbuild (headless: no Finder scripting), then signs the image with the app's own Developer ID.
 #
-# Usage: make-tatolab-dmg.sh <Tatolab.app> <out.dmg>
+# Usage: make-tatolab-dmg.sh <Tato Studio.app> <out.dmg>
 set -euo pipefail
 
 usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$0" >&2; exit 2; }
@@ -13,7 +13,7 @@ repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 dmg_packaging_directory="$repository_root/packaging/dmg"
 pinned_dmgbuild="dmgbuild==1.6.7"
 
-[ "$(basename "$app_bundle")" = "Tatolab.app" ] || { echo "expected a Tatolab.app, got $app_bundle" >&2; exit 1; }
+[ "$(basename "$app_bundle")" = "Tato Studio.app" ] || { echo "expected a Tato Studio.app, got $app_bundle" >&2; exit 1; }
 signing_identity="$(codesign -dvv "$app_bundle" 2>&1 | sed -n "/^Authority=/{s/^Authority=//p;q;}" || true)"
 case "$signing_identity" in
   "Developer ID Application: "*) ;;
@@ -28,7 +28,7 @@ uvx --from "$pinned_dmgbuild" dmgbuild \
   -s "$dmg_packaging_directory/dmgbuild-settings.py" \
   -D app="$app_bundle" \
   -D background="$dmg_packaging_directory/tatolab-dmg-background.png" \
-  "Tatolab" "$output_dmg"
+  "Tato Studio" "$output_dmg"
 
 codesign --force --timestamp --sign "$signing_identity" "$output_dmg"
 codesign --verify --strict "$output_dmg"

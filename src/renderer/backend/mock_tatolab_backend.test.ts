@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./mock_tatolab_backend";
-import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, RelaysDescription, StreamActionFollowed, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, RelaysDescription, StreamActionFollowed } from "../../shared/tatolab_backend_contract";
 import type { TatolabBackend } from "./tatolab_backend";
 
 afterEach(() => {
@@ -226,7 +226,7 @@ describe("the mock backend's New project and Import project", () => {
     const status = await settled(() => backend.getTatolabStatus());
     expect("answer" in status && listingWithTheId(status.answer.streams, HEAT_MAP)).toMatchObject({ state: "running" });
 
-    expect(await settled(() => backend.runStreamProject("/etc"))).toEqual({ refusal: "Tatolab acts only on a folder chosen in its window. Choose /etc again." });
+    expect(await settled(() => backend.runStreamProject("/etc"))).toEqual({ refusal: "Tato Studio acts only on a folder chosen in its window. Choose /etc again." });
   });
 
   it("imports a folder with two streams, one failing, and makes a .venv first for a folder with none", async () => {
@@ -288,6 +288,23 @@ describe("the mock backend's New project and Import project", () => {
     expect(await settled(() => notHeld.describeStreamAction("R-1"))).toEqual({ answer: { kind: "not_held", words: expect.stringMatching(/^Invalid configuration: the stream action `R-1` is not held/) } });
     expect(await settled(() => notHeld.chooseStreamProjectFolder("project_to_run"))).toEqual({ answer: null });
   });
+
+  it("suggests an untitled project in Documents/Tato Studio past the one there, makes and opens a new one, and refuses a taken folder or a name that is no folder name", async () => {
+    vi.useFakeTimers();
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("project=none")));
+    const tatoStudioFolder = "/Users/jonathanf/Documents/Tato Studio";
+    expect(await settled(() => backend.readNewProjectDefaults())).toEqual({ answer: { location: tatoStudioFolder, name: "Untitled project 2" } });
+    expect(await settled(() => backend.chooseNewProjectLocation(tatoStudioFolder))).toEqual({ answer: "/Users/jonathanf/Shows" });
+    expect(await settled(() => backend.createNewProject("Untitled project", tatoStudioFolder))).toEqual({
+      refusal: `${tatoStudioFolder}/Untitled project already exists. Choose another name or location.`,
+    });
+    expect(await settled(() => backend.createNewProject(".hidden", tatoStudioFolder))).toEqual({ refusal: "A project's name can't start with a dot, which hides its folder." });
+
+    const created = await settled(() => backend.createNewProject("Night Show", tatoStudioFolder));
+    expect(created).toMatchObject({ answer: { folder: `${tatoStudioFolder}/Night Show`, project_creation: { project_directory: `${tatoStudioFolder}/Night Show` } } });
+    expect(await backend.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: `${tatoStudioFolder}/Night Show`, name: "night-show" } } });
+    expect(await settled(() => backend.readNewProjectDefaults())).toEqual({ answer: { location: tatoStudioFolder, name: "Untitled project 2" } });
+  });
 });
 
 describe("the mock backend's runtime", () => {
@@ -313,12 +330,12 @@ describe("the mock backend's runtime", () => {
     expect((await settled(backend.describeRuntime(), 100)).up_for_ms).toBeLessThan(5_000);
   });
 
-  it("refuses a restart while Run Tatolab is off, and names no log folder for a runtime keeping none", async () => {
+  it("refuses a restart of a runtime Tato Studio did not start with ?restart=refused, and names no log folder for a runtime keeping none", async () => {
     vi.useFakeTimers();
-    const stopped = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=stopped")));
-    const restart = stopped.restartRuntime().catch((refusal: unknown) => refusal);
+    const notStartedByTheApp = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("restart=refused")));
+    const restart = notStartedByTheApp.restartRuntime().catch((refusal: unknown) => refusal);
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(await restart).toBe("Run Tatolab is off, so there is no runtime to restart. Turn Run Tatolab on to start it.");
+    expect(await restart).toBe("The runtime running now was not started by Tato Studio, so Tato Studio leaves it alone.");
 
     const withoutAnOwnLog = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("runtime_log=none")));
     const described = withoutAnOwnLog.describeRuntime();
@@ -389,52 +406,11 @@ describe("the mock backend's relays", () => {
 
   it("refuses every relay call while the runtime is down", async () => {
     vi.useFakeTimers();
-    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=stopped")));
+    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=not-running")));
 
     const outcome = await settled(backend.describeRelays());
 
     expect("refusal" in outcome && String(outcome.refusal).startsWith("no runtime answers at ")).toBe(true);
-  });
-});
-
-describe("the mock backend's runtime install", () => {
-  it("installs the carried runtime line by line as it opens, puts the old build back with ?runtime_install=failed, and Try again installs it", async () => {
-    vi.useFakeTimers();
-    const statusOf = async (backend: ReturnType<typeof createMockTatolabBackend>): Promise<TatolabStatus> => {
-      const status = backend.getTatolabStatus();
-      await vi.advanceTimersByTimeAsync(100);
-      return status;
-    };
-    const installing = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("runtime_install=installing")));
-    await vi.advanceTimersByTimeAsync(3 * 900 + 100);
-    const midway = await statusOf(installing);
-    expect(midway.runtime_install).toMatchObject({ kind: "installing", installer_lines: expect.arrayContaining(["Stopping the runtime"]) });
-    expect(midway.runtime_state).toBe("starting");
-    await vi.advanceTimersByTimeAsync(10_000);
-    const installed = await statusOf(installing);
-    expect(installed.runtime_install).toEqual({ kind: "none" });
-    expect(installed.installed_runtime?.build).toMatch(/^0\.56\.0-/);
-    expect(installed.runtime_state).toBe("running");
-
-    const refusing = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("runtime_install=failed")));
-    await vi.advanceTimersByTimeAsync(10_000);
-    const refused = await statusOf(refusing);
-    expect(refused.runtime_install).toMatchObject({ kind: "failed", refusal: expect.stringMatching(/^tatolab install: .* is back in place\./) });
-    expect(refused.installed_runtime?.build).toMatch(/^0\.55\.2-/);
-    const tryAgain = refusing.installTheCarriedRuntimeAgain();
-    await vi.advanceTimersByTimeAsync(10_000);
-    await tryAgain;
-    expect((await statusOf(refusing)).installed_runtime?.build).toMatch(/^0\.56\.0-/);
-
-    const onLinux = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("platform=linux&runtime_install=failed")));
-    await vi.advanceTimersByTimeAsync(10_000);
-    const refusedOnLinux = await statusOf(onLinux);
-    expect(refusedOnLinux.runtime_install).toMatchObject({
-      kind: "failed",
-      installer_lines: expect.arrayContaining(["Copying the runtime unit from /usr/lib/tatolab/resources/tatolab-runtime"]),
-      refusal: expect.stringMatching(/See `systemctl --user status tatolabd\.service`\.$/),
-    });
-    expect(refusedOnLinux.installed_runtime?.folder).toMatch(/^\/home\/[^/]+\/\.local\/share\/tatolab\/0\.55\.2-/);
   });
 });
 

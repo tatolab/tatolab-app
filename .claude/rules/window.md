@@ -47,8 +47,8 @@ paths:
   defect. Its presets (`?state=`, `?platform=`, and the screen keys in
   `mock_window_preset.ts`) exist so every screen can be pictured from a URL — add one when you add
   a screen.
-- **Copy is plain and specific.** Name the thing and the action ("Run Tatolab", "Uninstall
-  Tatolab…"); a runtime refusal is shown in its own words.
+- **Copy is plain and specific.** Name the thing and the action ("Restart runtime", "Link
+  tatolab"); a runtime refusal is shown in its own words.
 - Presentation logic is tested in `src/renderer/presentation/*.test.ts`; DOM behaviour that has a seam is
   tested with happy-dom; time is driven through injected clocks or fake timers, as the existing
   tests do.

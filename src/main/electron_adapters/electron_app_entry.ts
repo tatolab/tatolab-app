@@ -15,12 +15,13 @@ import {
 import { TATOLAB_APP_IDENTIFIER } from "../platform/tatolab_app_identifier.js";
 import { tatolabPlatformItemsForThisBuild } from "../platform/tatolab_platform_items.js";
 import type { TatolabPlatformHostServices } from "../platform/tatolab_platform_for_this_build.js";
+import { startTheCarriedRuntimeAsAChildProcess } from "../platform/carried_runtime_child_process.js";
 import { TATOLAB_WINDOW_PAGE_URL } from "../tatolab_window_page_source.js";
 import { runtimeLoopbackHttpOriginForThisBuild } from "../runtime_loopback_watch_page.js";
 import { electronApplicationMenu } from "./electron_application_menu.js";
 import { openAFolderInTheFileManagerThroughElectron } from "./electron_folder_in_the_file_manager.js";
 import { askThePersonForAStreamProjectFolderThroughElectron } from "./electron_stream_project_folder_dialog.js";
-import { askThePersonForAWorkspaceFolderThroughElectron } from "./electron_workspace_folder_dialog.js";
+import { askThePersonForAProjectFolderThroughElectron } from "./electron_project_folder_dialog.js";
 import { startANodeLanguageServerInAUtilityProcess } from "./electron_node_language_server_in_a_utility_process.js";
 import { watchFolderEntriesOnThisMachine } from "../folder_entries_watch_on_this_machine.js";
 import { createElectronMainWindowHostFactory } from "./electron_main_window_host.js";
@@ -28,7 +29,6 @@ import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_hand
 import { createElectronTatolabAppUpdateFeed } from "./electron_tatolab_app_update_feed.js";
 import { createElectronSystemNotifications } from "./electron_system_notifications.js";
 import { ELECTRON_APP_LOGIN_ITEM_SETTINGS } from "./electron_app_login_item_settings.js";
-import { ELECTRON_TATOLAB_UNINSTALL_APP_SURFACE } from "./electron_tatolab_uninstall_app_surface.js";
 import { createElectronTrayIconHostFactory } from "./electron_tray_icon.js";
 import { registerTheWindowPageSchemeBeforeReady, serveTheBuiltWindow } from "./electron_window_page_protocol.js";
 
@@ -48,14 +48,13 @@ const tatolabPlatformHostServices: TatolabPlatformHostServices = {
   homeDirectory: app.getPath("home"),
   appExecutable: process.execPath,
   appIsPackaged: app.isPackaged,
-  appConfigDirectory: path.join(app.getPath("appData"), TATOLAB_APP_IDENTIFIER),
   appResourcesDirectory: process.resourcesPath,
-  tatolabUninstallAppSurface: ELECTRON_TATOLAB_UNINSTALL_APP_SURFACE,
   appLoginItemSettings: ELECTRON_APP_LOGIN_ITEM_SETTINGS,
 };
-// Chromium's profile would otherwise land in `<appData>/<productName>`, which is the runtime's own
-// state directory on macOS (`~/Library/Application Support/Tatolab`).
-app.setPath("userData", tatolabPlatformHostServices.appConfigDirectory);
+const appConfigDirectory = path.join(app.getPath("appData"), TATOLAB_APP_IDENTIFIER);
+// Chromium's profile would otherwise land in `<appData>/<productName>`, beside the app's own config
+// directory rather than in it.
+app.setPath("userData", appConfigDirectory);
 registerTheWindowPageSchemeBeforeReady();
 
 function windowDevServerUrlNamedIn(windowDevServerUrlText: string | undefined): string | null {
@@ -96,20 +95,26 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   answerTheWindowsCommands: (tatolabWindowCommandHandlers) => answerTheWindowsCommandsOverIpc(windowPageUrl, tatolabWindowCommandHandlers, tatolabAppLog),
   openAFolderInTheFileManager: openAFolderInTheFileManagerThroughElectron,
   askThePersonForAStreamProjectFolder: askThePersonForAStreamProjectFolderThroughElectron,
-  askThePersonForAWorkspaceFolder: askThePersonForAWorkspaceFolderThroughElectron,
+  askThePersonForAProjectFolder: askThePersonForAProjectFolderThroughElectron,
   startANodeLanguageServer: startANodeLanguageServerInAUtilityProcess,
   // A packaged app carries Pyright outside app.asar, in app.asar.unpacked, so its worker threads and typeshed stubs load from plain files.
   pyrightLanguageServerModulePath: path.join(app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getAppPath(), "node_modules", "pyright", "langserver.index.js"),
   watchFolderEntries: watchFolderEntriesOnThisMachine,
   homeDirectory: app.getPath("home"),
+  // On Linux Electron reads XDG_DOCUMENTS_DIR from user-dirs.dirs, falling back to ~/Documents.
+  documentsDirectory: app.getPath("documents"),
   createTheAppUpdateFeed: (appUpdatePackaging) => createElectronTatolabAppUpdateFeed(appUpdatePackaging, TATOLAB_APP_BUILD_FEATURES.appUpdateFeedUrl, tatolabAppLog),
   systemNotifications: createElectronSystemNotifications(),
   repeatingTimer: (intervalMs, work) => {
     setInterval(work, intervalMs);
   },
-  appConfigDirectory: tatolabPlatformHostServices.appConfigDirectory,
+  startTheCarriedRuntime: startTheCarriedRuntimeAsAChildProcess,
+  appConfigDirectory,
   runtimeLoopbackHttpOrigin,
   readMonotonicClockMs: () => performance.now(),
+  // The one wall-clock read in the main process: it stamps when a project was opened, which the Projects window only displays.
+  // eslint-disable-next-line no-restricted-properties
+  readWallClockMsForDisplay: () => Date.now(),
   mainWindowHostFactory: createElectronMainWindowHostFactory(
     windowPageUrl,
     builtWindowPreloadScript,

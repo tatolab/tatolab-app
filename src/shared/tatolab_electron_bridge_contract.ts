@@ -3,10 +3,12 @@
 // command answers.
 
 import type {
-  ChosenWorkspaceFolder,
+  ChosenProjectFolder,
+  NewProjectDefaults,
   NodeCatalog,
   JsonValue,
-  OpenWorkspaceReading,
+  OpenProjectReading,
+  RecentProject,
   ProjectCreationQueued,
   PythonLanguageServerEvent,
   ProjectLogNarrowing,
@@ -20,10 +22,10 @@ import type {
   StreamGraphSummary,
   StreamProjectFolderChosenFor,
   TatolabStatus,
-  WorkspaceFileRead,
-  WorkspaceFileSaved,
-  WorkspaceFolderChosenFor,
-  WorkspaceProjectFiles,
+  ProjectFileRead,
+  ProjectFileSaved,
+  ProjectFolderChosenFor,
+  ProjectFiles,
 } from "./tatolab_backend_contract.js";
 
 /** The scheme the Electron app serves its window's page under: a page on it with no bridge is the app's window whose preload did not load. */
@@ -32,11 +34,7 @@ export const TATOLAB_WINDOW_PAGE_SCHEME = "tatolab-app";
 /** Every command the window invokes, each an IPC channel the main process handles. */
 export const TATOLAB_COMMAND_NAMES = [
   "get_tatolab_status",
-  "set_run_tatolab",
-  "open_login_items_settings",
-  "remember_first_run_finished",
-  "link_command_line_tool_in_usr_local_bin",
-  "uninstall_tatolab",
+  "link_command_line_tool",
   "quit_tatolab_app",
   "read_project_log_records",
   "describe_stream_graph",
@@ -50,6 +48,9 @@ export const TATOLAB_COMMAND_NAMES = [
   "open_terminal_at_stream_project",
   "open_stream_log_folder",
   "choose_stream_project_folder",
+  "read_new_project_defaults",
+  "choose_new_project_location",
+  "create_new_project",
   "create_stream_project",
   "run_stream_project",
   "reload_project",
@@ -57,7 +58,6 @@ export const TATOLAB_COMMAND_NAMES = [
   "cancel_stream_action",
   "describe_runtime",
   "restart_runtime",
-  "install_the_carried_runtime_again",
   "open_runtime_log_folder",
   "set_stream_failure_notifications",
   "set_open_tatolab_at_login",
@@ -65,24 +65,26 @@ export const TATOLAB_COMMAND_NAMES = [
   "add_relay",
   "configure_relay",
   "remove_relay",
-  "choose_workspace_folder",
-  "read_open_workspace",
-  "read_workspace_file",
-  "save_workspace_file",
-  "list_workspace_project_files",
-  "run_workspace_project",
+  "choose_project_folder",
+  "read_open_project",
+  "read_recent_projects",
+  "open_recent_project",
+  "read_project_file",
+  "save_project_file",
+  "list_project_files",
+  "run_open_project",
   "start_python_language_server",
   "send_to_python_language_server",
   "stop_python_language_server",
 ] as const;
 
 /**
- * One command the window invokes. Arguments: `set_run_tatolab`, `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
+ * One command the window invokes. Arguments: `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
- * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, `choose_workspace_folder` `{ chosen_for }`, the workspace file and language server commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
- * acts only on a folder the app handed the window from its folder dialog, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
- * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the service manager has; `install_the_carried_runtime_again` once the installer ends, refused in its words; `open_runtime_log_folder` opens the
+ * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, the project file and language server commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` only on one of the recent projects, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
+ * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
  */
 export type TatolabCommandName = (typeof TATOLAB_COMMAND_NAMES)[number];
@@ -93,8 +95,8 @@ export const TATOLAB_STATUS_CHANGED_EVENT = "tatolab-status-changed";
 /** The event the app asks the window to show a stream's page on, as a click on that stream's failure notification does; it carries a `TatolabStreamPageRequest`. */
 export const TATOLAB_STREAM_PAGE_REQUESTED_EVENT = "tatolab-stream-page-requested";
 
-/** The event each change of the open workspace arrives on: another folder opened, or a `pyproject.toml` it reads changed on disk; it carries an `OpenWorkspaceReading`. */
-export const TATOLAB_OPEN_WORKSPACE_CHANGED_EVENT = "tatolab-open-workspace-changed";
+/** The event each change of the open project arrives on: another folder opened, or a `pyproject.toml` it reads changed on disk; it carries an `OpenProjectReading`. */
+export const TATOLAB_OPEN_PROJECT_CHANGED_EVENT = "tatolab-open-project-changed";
 
 /** The event each message a Python language server sends, and each server's end, arrives on; it carries a `PythonLanguageServerEvent`. */
 export const TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT = "tatolab-python-language-server-event";
@@ -120,13 +122,8 @@ type EveryCommandHasASignature<CommandSignatures extends Record<TatolabCommandNa
 /** Each command's arguments and answer, as the window sends and reads them. */
 export type TatolabCommandSignatures = EveryCommandHasASignature<{
   get_tatolab_status: { commandArguments: undefined; answer: TatolabStatus };
-  set_run_tatolab: { commandArguments: { enabled: boolean }; answer: null };
-  open_login_items_settings: { commandArguments: undefined; answer: null };
-  /** Refused when it could not be remembered, though first run stays finished until the app quits. */
-  remember_first_run_finished: { commandArguments: undefined; answer: null };
-  /** Answers once the administrator prompt closes; refused in words when cancelled or not offered. */
-  link_command_line_tool_in_usr_local_bin: { commandArguments: undefined; answer: null };
-  uninstall_tatolab: { commandArguments: undefined; answer: null };
+  /** Links `~/.local/bin/tatolab` to the CLI the app carries; refused in words when something else holds the name or the build offers none. */
+  link_command_line_tool: { commandArguments: undefined; answer: null };
   quit_tatolab_app: { commandArguments: undefined; answer: null };
   /** `stream` and `action` narrow the read, `null` for no narrowing; `after` is the `next_after` of the page before, `null` for the oldest record held. */
   read_project_log_records: { commandArguments: { project_directory: string; after: string | null } & ProjectLogNarrowing; answer: ProjectLogRecordsPage };
@@ -158,7 +155,6 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   cancel_stream_action: { commandArguments: { action: string }; answer: StreamActionCancelAnswer };
   describe_runtime: { commandArguments: undefined; answer: RuntimeDescription };
   restart_runtime: { commandArguments: undefined; answer: null };
-  install_the_carried_runtime_again: { commandArguments: undefined; answer: null };
   open_runtime_log_folder: { commandArguments: undefined; answer: null };
   /** Refused when the choice could not be remembered, though it holds until the app quits. */
   set_stream_failure_notifications: { commandArguments: { enabled: boolean }; answer: null };
@@ -173,19 +169,29 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   configure_relay: { commandArguments: { relay_id: string; settings: RelaySettingsByName }; answer: null };
   /** Refused by the runtime for a built-in relay. */
   remove_relay: { commandArguments: { relay_id: string }; answer: null };
-  /** The app's folder dialog; the chosen folder becomes the open workspace, remembered for the next launch, and a new workspace's project is queued with the runtime's `create_project` first. `null` when the person cancels; refused in the dialog's or the runtime's own words. */
-  choose_workspace_folder: { commandArguments: { chosen_for: WorkspaceFolderChosenFor }; answer: ChosenWorkspaceFolder | null };
-  /** The open workspace as last read from disk. */
-  read_open_workspace: { commandArguments: undefined; answer: OpenWorkspaceReading };
-  /** `file` absolute, inside the open workspace's project folder or a folder import's, links resolved; refused for any other file, or in the filesystem's words. */
-  read_workspace_file: { commandArguments: { file: string }; answer: WorkspaceFileRead };
-  /** Written whole when the file on disk still has `based_on_version` (`null` for a new file), and only inside the workspace project's own folder; refused with nothing written otherwise. */
-  save_workspace_file: { commandArguments: { file: string; text: string; based_on_version: string | null }; answer: WorkspaceFileSaved };
-  /** `project_folder` a project folder of the open workspace. */
-  list_workspace_project_files: { commandArguments: { project_folder: string }; answer: WorkspaceProjectFiles };
-  /** The runtime's `run_project` queued on the open workspace's folder, which the window never names; refused in the runtime's own words, or while no workspace is open. */
-  run_workspace_project: { commandArguments: undefined; answer: ProjectRunQueued };
-  /** Starts Pyright's language server in `project_folder`, a project folder of the open workspace; its messages arrive on `tatolab-python-language-server-event` under the session answered. */
+  /** The app's folder dialog; the chosen project folder becomes the open project, first among the recent projects. `null` when the person cancels; refused in the dialog's own words. */
+  choose_project_folder: { commandArguments: { chosen_for: ProjectFolderChosenFor }; answer: ChosenProjectFolder | null };
+  /** Where the New project sheet starts, and the name it suggests. */
+  read_new_project_defaults: { commandArguments: undefined; answer: NewProjectDefaults };
+  /** The desktop's folder dialog, opened at `starting_at`, for the folder a new project goes in; `null` when the person cancels. */
+  choose_new_project_location: { commandArguments: { starting_at: string }; answer: string | null };
+  /** `name` a folder name and `location` absolute: `<location>/<name>` is created with the runtime's `create_project` and becomes the open project; refused with nothing created for a name that is no folder name or is taken there, and in the runtime's own words. */
+  create_new_project: { commandArguments: { name: string; location: string }; answer: ChosenProjectFolder };
+  /** The open project as last read from disk. */
+  read_open_project: { commandArguments: undefined; answer: OpenProjectReading };
+  /** The projects opened before, recent first, for the Projects window. */
+  read_recent_projects: { commandArguments: undefined; answer: RecentProject[] };
+  /** `folder` one of the recent projects; it becomes the open project and moves first among them. */
+  open_recent_project: { commandArguments: { folder: string }; answer: null };
+  /** `file` absolute, inside the open project's folder or a folder import's, links resolved; refused for any other file, or in the filesystem's words. */
+  read_project_file: { commandArguments: { file: string }; answer: ProjectFileRead };
+  /** Written whole when the file on disk still has `based_on_version` (`null` for a new file), and only inside the open project's own folder; refused with nothing written otherwise. */
+  save_project_file: { commandArguments: { file: string; text: string; based_on_version: string | null }; answer: ProjectFileSaved };
+  /** `project_folder` the folder of the open project or of one of its imports. */
+  list_project_files: { commandArguments: { project_folder: string }; answer: ProjectFiles };
+  /** The runtime's `run_project` queued on the open project's folder, which the window never names; refused in the runtime's own words, or while no project is open. */
+  run_open_project: { commandArguments: undefined; answer: ProjectRunQueued };
+  /** Starts Pyright's language server in `project_folder`, the folder of the open project or of one of its imports; its messages arrive on `tatolab-python-language-server-event` under the session answered. */
   start_python_language_server: { commandArguments: { project_folder: string }; answer: { session: string } };
   /** `message` one JSON-RPC message, framed onto the server's input; refused for a session that has ended. */
   send_to_python_language_server: { commandArguments: { session: string; message: JsonValue }; answer: null };
@@ -207,8 +213,8 @@ export interface TatolabElectronBridge {
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): () => void;
   /** Calls `listener` with the id of the stream each request to show a stream's page names; the returned function stops it. */
   onStreamPageRequested(listener: (stream: string) => void): () => void;
-  /** Calls `listener` with each reading of the open workspace the main process sends; the returned function stops it. */
-  onOpenWorkspaceChanged(listener: (reading: OpenWorkspaceReading) => void): () => void;
+  /** Calls `listener` with each reading of the open project the main process sends; the returned function stops it. */
+  onOpenProjectChanged(listener: (reading: OpenProjectReading) => void): () => void;
   /** Calls `listener` with each message a Python language server sends and each server's end; the returned function stops it. */
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
   /** Tell the main process the window has drawn its first status, so it can put the window on screen. */

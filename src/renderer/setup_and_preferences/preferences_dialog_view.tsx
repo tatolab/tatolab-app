@@ -1,8 +1,6 @@
-import { presentRuntimeBuild } from "../presentation/runtime_install_presentation";
 import { Cpu, FolderOpen, Info, RotateCw, SlidersHorizontal, SquareTerminal, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { useEffect, useState, type ReactNode } from "react";
-import mascotImageUrl from "../assets/tato_mascot_3d.png";
 import { describeBackendRejection } from "../backend/tatolab_backend";
 import { ActionButton } from "../design_system/action_button";
 import { CodeBlock, CommandLine } from "../design_system/code_block";
@@ -20,12 +18,10 @@ import {
   presentAboutCopyright,
   presentAboutVersions,
   presentCommandLineToolVersion,
-  presentLoginItemsRow,
   presentOpenAtLogin,
   presentRuntimeLogFolder,
   presentRuntimeStatusRow,
   presentStreamFailureNotifications,
-  presentUsrLocalBinLink,
   restartRuntimeUnavailableBecause,
   RUNTIME_LICENCE,
   SETTINGS_SECTION_GROUPS,
@@ -34,12 +30,7 @@ import {
   type SettingsSection,
 } from "../presentation/settings_presentation";
 import { useActionThroughTheBackend, type BackendActionRefusal } from "./action_through_the_backend";
-import {
-  useRuntimeDescriptionReading,
-  useTatolabStatus,
-  useTatolabWindowEnvironment,
-  useUninstallTatolabRefusalReason,
-} from "./tatolab_window_context";
+import { useRuntimeDescriptionReading, useTatolabStatus, useTatolabWindowEnvironment } from "./tatolab_window_context";
 
 const SECTION_ICONS: Record<SettingsSection, LucideIcon> = {
   general: SlidersHorizontal,
@@ -106,14 +97,14 @@ function PathUnderTheWords({ children }: { children: ReactNode }) {
 }
 
 function GeneralSection() {
-  const { backend, platform, openUninstallSheet } = useTatolabWindowEnvironment();
+  const { backend, platform } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
   const platformPresentation = presentPlatform(platform);
   const openAtLogin = presentOpenAtLogin(status.open_at_login, platform);
   const openAtLoginSwitch = useSwitchSetThroughTheBackend(
     openAtLogin.isSwitchedOn ?? false,
     (isOn) => backend.setOpenTatolabAtLogin(isOn),
-    (isOn) => `Couldn't ${isOn ? "add Tatolab to" : "remove Tatolab from"} your login items:`,
+    (isOn) => `Couldn't ${isOn ? "add Tato Studio to" : "remove Tato Studio from"} your login items:`,
   );
   const streamFailureNotifications = presentStreamFailureNotifications(status.stream_failure_notifications);
   const notificationsSwitch = useSwitchSetThroughTheBackend(
@@ -121,20 +112,16 @@ function GeneralSection() {
     (isOn) => backend.setStreamFailureNotifications(isOn),
     (isOn) => `Couldn't turn notifications ${isOn ? "on" : "off"}:`,
   );
-  const uninstallRefusalReason = useUninstallTatolabRefusalReason();
   return (
     <>
       <SettingsGroup>
         <SettingsRow
-          label="Open Tatolab at login"
+          label="Open Tato Studio at login"
           description={openAtLogin.description}
           refusal={openAtLoginSwitch.refusal}
           data-settings-row="open-at-login"
           control={({ labelId, descriptionId }) => (
             <>
-              {openAtLogin.needsApprovalInLoginItems && (
-                <ActionButton onPressed={() => void backend.openLoginItemsSettings()}>Open Login Items…</ActionButton>
-              )}
               {openAtLogin.isSwitchedOn !== null && (
                 <ToggleSwitch
                   isOn={openAtLoginSwitch.isOn}
@@ -167,21 +154,11 @@ function GeneralSection() {
           )}
         />
       </SettingsGroup>
-      <SettingsGroup title="Quit or uninstall">
+      <SettingsGroup title="Quit">
         <SettingsRow
-          label="Quit Tatolab"
+          label="Quit Tato Studio"
           description={platformPresentation.quitTatolabExplanation}
-          control={() => <ActionButton onPressed={() => void backend.quitTatolabApp()}>Quit Tatolab</ActionButton>}
-        />
-        <SettingsRow
-          label="Uninstall Tatolab"
-          description={platformPresentation.uninstallTatolabExplanation}
-          refusal={uninstallRefusalReason === null ? null : { lead: "Uninstall didn't finish:", words: uninstallRefusalReason }}
-          control={() => (
-            <ActionButton appearance="destructive" onPressed={openUninstallSheet} data-action="uninstall">
-              Uninstall Tatolab…
-            </ActionButton>
-          )}
+          control={() => <ActionButton onPressed={() => void backend.quitTatolabApp()}>Quit Tato Studio</ActionButton>}
         />
       </SettingsGroup>
     </>
@@ -198,11 +175,6 @@ function RuntimeSection() {
   const restartRuntime = useActionThroughTheBackend(() => backend.restartRuntime(), "Couldn't restart the runtime:");
   const runtimeLogFolder = presentRuntimeLogFolder(status, runtimeDescription);
   const openRuntimeLogFolder = useActionThroughTheBackend(() => backend.openRuntimeLogFolder(), "Couldn't open the runtime's log folder:");
-  const runTatolabSwitch = useSwitchSetThroughTheBackend(
-    status.run_tatolab,
-    (isOn) => backend.setRunTatolab(isOn),
-    (isOn) => `Couldn't turn Run Tatolab ${isOn ? "on" : "off"}:`,
-  );
   const streamRecordsDirectory = platformPresentation.streamRecordsDirectory;
   return (
     <>
@@ -238,42 +210,6 @@ function RuntimeSection() {
           {runtimeStatusRow.refusal !== null && <RefusalLine lead="The runtime didn't describe itself:" words={runtimeStatusRow.refusal} tone="warning" />}
         </SettingsRow>
         <SettingsRow
-          label="Run Tatolab"
-          description={platformPresentation.runTatolabExplanation}
-          refusal={runTatolabSwitch.refusal}
-          data-settings-row="run-tatolab"
-          control={({ labelId, descriptionId }) => (
-            <ToggleSwitch
-              isOn={runTatolabSwitch.isOn}
-              isDisabled={runTatolabSwitch.isSwitching}
-              onSwitched={runTatolabSwitch.onSwitched}
-              labelledBy={labelId}
-              describedBy={descriptionId}
-              data-settings-switch="run-tatolab"
-            />
-          )}
-        />
-        {platformPresentation.showsLoginItems && (
-          <SettingsRow
-            label="Login Items"
-            description={presentLoginItemsRow(status)}
-            control={() => <ActionButton onPressed={() => void backend.openLoginItemsSettings()}>Open Login Items…</ActionButton>}
-          />
-        )}
-        {status.installed_runtime !== null && (
-          <SettingsRow
-            label="Installed runtime"
-            description={
-              <>
-                <span data-settings-installed-runtime-build="">{presentRuntimeBuild(status.installed_runtime.build)}</span>
-                <PathUnderTheWords>{status.installed_runtime.folder}</PathUnderTheWords>
-              </>
-            }
-            data-settings-row="installed-runtime"
-            control={() => <CopyIconButton label="Copy the installed runtime's folder" readTextToCopy={() => status.installed_runtime?.folder ?? ""} />}
-          />
-        )}
-        <SettingsRow
           label="Local API socket"
           description={<SettingsMachineWords>{status.local_api_socket}</SettingsMachineWords>}
           control={() => <CopyIconButton label="Copy the local API socket's path" readTextToCopy={() => status.local_api_socket} />}
@@ -306,7 +242,7 @@ function RuntimeSection() {
           label="Stream records"
           description={
             <>
-              Each stream's record, which an uninstall leaves in place.
+              Each stream's record, kept between launches.
               <PathUnderTheWords>{streamRecordsDirectory}</PathUnderTheWords>
             </>
           }
@@ -320,11 +256,10 @@ function RuntimeSection() {
 function CommandLineSection() {
   const { backend, platform } = useTatolabWindowEnvironment();
   const status = useTatolabStatus();
-  const linkedAt = status.command_line_tool_linked_at;
-  const commandLineTool = presentCommandLineTool(platform, linkedAt);
-  const commandLineToolVersion = presentCommandLineToolVersion(status.command_line_tool_version, commandLineTool.isLinked);
-  const usrLocalBinLink = presentUsrLocalBinLink(platform, status.command_line_tool_usr_local_bin_link);
-  const linkInUsrLocalBin = useActionThroughTheBackend(() => backend.linkCommandLineToolInUsrLocalBin(), "tatolab wasn't linked:");
+  const commandLineTool = presentCommandLineTool(platform, status.command_line_tool_link);
+  const { linkedAt } = commandLineTool;
+  const commandLineToolVersion = presentCommandLineToolVersion(status.command_line_tool_version, linkedAt !== null);
+  const linkTheCommandLineTool = useActionThroughTheBackend(() => backend.linkCommandLineTool(), "tatolab wasn't linked:");
   return (
     <>
       <SettingsSectionExplanation>Everything in this app is also a tatolab command.</SettingsSectionExplanation>
@@ -333,7 +268,7 @@ function CommandLineSection() {
           label={<SettingsMachineWords>tatolab</SettingsMachineWords>}
           description={
             <>
-              {commandLineTool.isLinked ? (
+              {linkedAt !== null ? (
                 <span className="block" title={linkedAt ?? undefined}>
                   <SettingsMachineWords>{commandLineTool.shownValue}</SettingsMachineWords>
                 </span>
@@ -341,7 +276,7 @@ function CommandLineSection() {
                 <span className="block text-fg-2">{commandLineTool.shownValue}</span>
               )}
               {commandLineTool.explanation}
-              {commandLineTool.isLinked && (
+              {linkedAt !== null && (
                 <>
                   {" "}
                   Try <code>tatolab streams</code>.
@@ -350,11 +285,20 @@ function CommandLineSection() {
               {commandLineToolVersion.unreadableLine !== null && <span className="block">{commandLineToolVersion.unreadableLine}</span>}
             </>
           }
+          refusal={linkTheCommandLineTool.refusal}
           data-settings-row="command-line-tool"
           control={() => (
             <>
               {commandLineToolVersion.version !== null && <span className="font-mono text-xs text-fg-2 tabular">{commandLineToolVersion.version}</span>}
-              {commandLineTool.isLinked && <CopyIconButton label="Copy the tatolab command's path" readTextToCopy={() => linkedAt ?? ""} />}
+              {linkedAt !== null && <CopyIconButton label="Copy the tatolab command's path" readTextToCopy={() => linkedAt} />}
+              {commandLineTool.isLinkOffered &&
+                (linkTheCommandLineTool.isPending ? (
+                  <PendingActionWords words="Linking…" />
+                ) : (
+                  <ActionButton onPressed={linkTheCommandLineTool.run} data-settings-action="link-command-line-tool">
+                    Link tatolab
+                  </ActionButton>
+                ))}
             </>
           )}
         >
@@ -365,23 +309,6 @@ function CommandLineSection() {
             </div>
           )}
         </SettingsRow>
-        {usrLocalBinLink !== null && (
-          <SettingsRow
-            label="Link in /usr/local/bin"
-            description={usrLocalBinLink.description}
-            refusal={linkInUsrLocalBin.refusal}
-            data-settings-row="usr-local-bin-link"
-            control={() =>
-              !usrLocalBinLink.isOffered ? null : linkInUsrLocalBin.isPending ? (
-                <PendingActionWords words="Waiting for your password…" />
-              ) : (
-                <ActionButton onPressed={linkInUsrLocalBin.run} data-settings-action="link-in-usr-local-bin">
-                  Link in /usr/local/bin…
-                </ActionButton>
-              )
-            }
-          />
-        )}
       </SettingsGroup>
       <SettingsGroup title="Coding agents" description="The MCP server: it serves this runtime to a coding agent over stdio.">
         <div className="flex flex-col gap-3 px-4 py-3">
@@ -401,13 +328,12 @@ function AboutSection() {
   const status = useTatolabStatus();
   const runtimeDescription = useRuntimeDescriptionReading();
   const appUpdate = presentTatolabAppUpdate(status.app_update);
-  const checkForUpdates = useActionThroughTheBackend(() => backend.checkForTatolabAppUpdates(), "Couldn't update Tatolab:");
+  const checkForUpdates = useActionThroughTheBackend(() => backend.checkForTatolabAppUpdates(), "Couldn't update Tato Studio:");
   const versions = presentAboutVersions(status, runtimeDescription);
   return (
     <div className="flex flex-col items-center gap-6 pt-6 text-center" data-settings-about="">
       <div className="flex flex-col items-center">
-        <img src={mascotImageUrl} alt="" className="size-24" />
-        <h2 className="mt-3 title-lg">Tatolab</h2>
+        <h2 className="title-lg">Tato Studio</h2>
         <div className="text-fg-3 tabular select-text">
           <p>{versions}</p>
           <p data-about-build="">{presentAboutBuild(status.app_build)}</p>

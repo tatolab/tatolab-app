@@ -8,7 +8,6 @@ import { tatolabPlatformItemsFor } from "./platform/tatolab_platform_items.js";
 import { succeeded } from "./result.js";
 import { APP_UPDATE_CHECK_INTERVAL_MS, type TatolabAppUpdateFeed } from "./tatolab_app_updater.js";
 import { tatolabAppCopyOnTheSingleInstanceLock } from "./tatolab_app_copy_handoff.js";
-import { FakeCarriedRuntimeInstall } from "./fake_tatolab_platform_for_this_build.js";
 
 const MACOS_PLATFORM_ITEMS = tatolabPlatformItemsFor("darwin");
 const LINUX_PLATFORM_ITEMS = tatolabPlatformItemsFor("linux");
@@ -102,7 +101,7 @@ describe("the app on macOS", () => {
     fakeShell.forgetTheRecords();
     fakeShell.launchASecondCopy(tatolabAppCopyOnTheSingleInstanceLock({ ...fakeShell.thisCopyOfTatolab, appVersion: "0.46.0" }));
     expect(fakeShell.records).toEqual([
-      { asked: "open_another_copy_once_this_one_exits", executable: "/Applications/Tatolab.app/Contents/MacOS/Tatolab" },
+      { asked: "open_another_copy_once_this_one_exits", executable: "/Applications/Tato Studio.app/Contents/MacOS/Tato Studio" },
       { asked: "exit", exitCode: 0 },
     ]);
     expect(fakeShell.requestTheWindowClose()).toBe("let_it_close");
@@ -140,12 +139,13 @@ describe("the app on macOS", () => {
     expect(fakeShell.askedFor()).toEqual(["set_activation_policy", "unminimize", "show", "focus", "send_window_event"]);
   });
 
-  test("Quit Tatolab in the tray quits only the app and lets the window close", async () => {
+  test("Quit Tato Studio in the tray stops the runtime with the app and lets the window close", async () => {
     await theFirstPublishedStatus(tatolabRunningApp);
     fakeShell.forgetTheRecords();
     fakeShell.clickTheTrayMenuItem("quit_tatolab");
     expect(fakeShell.records).toEqual([{ asked: "exit", exitCode: 0 }]);
-    expect(fakeShell.writtenLogLines).toContain(" INFO quitting the Tatolab app; the runtime keeps running");
+    expect(fakeShell.carriedRuntimeStarts.lastRuntimeStarted()?.askedToStop).toBe(true);
+    expect(fakeShell.writtenLogLines).toContain(" INFO quitting Tato Studio and its runtime");
     expect(fakeShell.requestTheWindowClose()).toBe("let_it_close");
   });
 
@@ -155,12 +155,11 @@ describe("the app on macOS", () => {
       app_version: "0.45.0",
       app_build: { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", build_kind: "release", built_with_uncommitted_changes: false },
       platform: "macos",
-      run_tatolab: true,
-      runtime_agent: "enabled",
+      runtime_state: "starting",
     });
     expect(fakeShell.records).toContainEqual({ asked: "send_window_event", eventChannel: "tatolab-status-changed", eventPayload: firstStatus });
     expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "show_tray_menu").at(-1)).toMatchObject({
-      trayMenuItems: [{ id: "tray_status_line", label: "Starting…" }, { id: "open_tatolab" }, { id: "run_tatolab", checked: true }, { kind: "separator" }, { id: "quit_tatolab" }],
+      trayMenuItems: [{ id: "tray_status_line", label: "Starting the runtime…" }, { id: "open_tatolab" }, { kind: "separator" }, { id: "quit_tatolab" }],
     });
     fakeShell.requestTheWindowClose();
     fakeShell.forgetTheRecords();
@@ -168,25 +167,21 @@ describe("the app on macOS", () => {
     expect(fakeShell.records.at(-1)).toEqual({ asked: "send_window_event", eventChannel: "tatolab-status-changed", eventPayload: firstStatus });
   });
 
-  test("Run Tatolab in the tray turns the switch off, unregistering the runtime, and the tray's check follows", async () => {
+  test("opening the app starts the runtime it carries as its child, with no prompt, and only one while it starts", async () => {
     await theFirstPublishedStatus(tatolabRunningApp);
-    fakeShell.forgetTheRecords();
-    fakeShell.clickTheTrayMenuItem("run_tatolab");
-    await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("unregister");
-    await expect
-      .poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "show_tray_menu").at(-1))
-      .toMatchObject({ trayMenuItems: [{ id: "tray_status_line" }, { id: "open_tatolab" }, { id: "run_tatolab", checked: false }, { kind: "separator" }, { id: "quit_tatolab" }] });
+    expect(fakeShell.carriedRuntimeStarts.runtimesStarted).toHaveLength(1);
+    await tatolabRunningApp?.statusPublisher.refreshAndPublish();
+    expect(fakeShell.carriedRuntimeStarts.runtimesStarted).toHaveLength(1);
+    expect(fakeShell.carriedRuntimeStarts.lastRuntimeStarted()?.askedToStop).toBe(false);
   });
 
-  test("the window's commands are answered: the status, a turned-off switch, and quitting only the app", async () => {
+  test("the window's commands are answered: the status, and quitting the app with its runtime", async () => {
     const firstStatus = await theFirstPublishedStatus(tatolabRunningApp);
     expect(await fakeShell.invokeTheCommand("get_tatolab_status")).toEqual({ ok: true, value: firstStatus });
-    expect(await fakeShell.invokeTheCommand("set_run_tatolab", { enabled: false })).toEqual({ ok: true, value: null });
-    await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("unregister");
-    expect(await fakeShell.invokeTheCommand("uninstall_tatolab")).toEqual({ ok: false, refusal: "this fake platform uninstalls nothing" });
     fakeShell.forgetTheRecords();
     expect(await fakeShell.invokeTheCommand("quit_tatolab_app")).toEqual({ ok: true, value: null });
     expect(fakeShell.records).toEqual([{ asked: "exit", exitCode: 0 }]);
+    expect(fakeShell.carriedRuntimeStarts.lastRuntimeStarted()?.askedToStop).toBe(true);
     expect(fakeShell.requestTheWindowClose()).toBe("let_it_close");
   });
 
@@ -228,7 +223,7 @@ describe("starting the app", () => {
     expect(fakeShell.singleInstanceLockAdditionalData).toEqual([
       {
         tatolab_app_copy: {
-          executable_that_opens_the_copy: "/Applications/Tatolab.app/Contents/MacOS/Tatolab",
+          executable_that_opens_the_copy: "/Applications/Tato Studio.app/Contents/MacOS/Tato Studio",
           app_version: "0.45.0",
           app_build: { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", build_kind: "release", built_with_uncommitted_changes: false },
           carried_streamlib_commit: "5e1f0c2a9b8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f",
@@ -241,7 +236,7 @@ describe("starting the app", () => {
     const fakeShell = fakeShellQuitAfterTheTest();
     expect(await startTatolabApp(fakeShell.tatolabElectronAppShell, null, fakeShell.tatolabAppLog)).toBeNull();
     expect(fakeShell.records).toEqual([{ asked: "exit", exitCode: 1 }]);
-    expect(fakeShell.writtenLogLines[0]).toContain("Tatolab runs on macOS and Linux only");
+    expect(fakeShell.writtenLogLines[0]).toContain("Tato Studio runs on macOS and Linux only");
   });
 
   test("a window that cannot be created is logged, the Dock icon goes again, and the tray still serves", async () => {
@@ -257,25 +252,27 @@ describe("starting the app", () => {
     expect(fakeShell.writtenLogLines).toContain("ERROR the Tatolab window could not be created failure=\"no display\"");
   });
 
-  test("each opening reconciles the runtime's agent with Run Tatolab: the first registers it, and opening again registers it once more after it went", async () => {
+  test("an app that carries no runtime starts none and says why in its status", async () => {
     const fakeShell = fakeShellQuitAfterTheTest();
-    fakeShell.runtimeAgent.status = "not_registered";
-    await startTatolabApp(fakeShell.tatolabElectronAppShell, LINUX_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
-    await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("register");
-    fakeShell.runtimeAgent.status = "not_registered";
-    fakeShell.runtimeAgent.calls.length = 0;
-    fakeShell.openTheAppAgain();
-    await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("register");
+    fakeShell.carriedRuntime = null;
+    const tatolabRunningApp = await startTatolabApp(fakeShell.tatolabElectronAppShell, LINUX_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    expect(await theFirstPublishedStatus(tatolabRunningApp)).toMatchObject({
+      runtime_state: "not_running",
+      runtime_not_running_because: "No runtime is running, and this build of Tato Studio carries none to start.",
+    });
+    expect(fakeShell.carriedRuntimeStarts.runtimesStarted).toHaveLength(0);
   });
 
-  test("the tray's Open Login Items reaches the service manager", async () => {
+  test("opening the app links the tatolab command when the name is free, and leaves a name something else holds alone", async () => {
     const fakeShell = fakeShellQuitAfterTheTest();
-    const tatolabRunningApp = await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
-    await theFirstPublishedStatus(tatolabRunningApp);
+    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    await expect.poll(() => fakeShell.commandLineToolLink.commandLineToolLink).toEqual({ kind: "linked", path: "/Users/someone/.local/bin/tatolab" });
 
-    fakeShell.runtimeAgent.calls.length = 0;
-    fakeShell.clickTheTrayMenuItem("open_login_items_settings");
-    await expect.poll(() => fakeShell.runtimeAgent.calls).toContain("open_login_items_settings");
+    const shellWhereTheNameIsTaken = fakeShellQuitAfterTheTest();
+    shellWhereTheNameIsTaken.commandLineToolLink.commandLineToolLink = { kind: "taken_by_something_else", path: "/Users/someone/.local/bin/tatolab" };
+    const tatolabRunningApp = await startTatolabApp(shellWhereTheNameIsTaken.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, shellWhereTheNameIsTaken.tatolabAppLog);
+    await theFirstPublishedStatus(tatolabRunningApp);
+    expect(shellWhereTheNameIsTaken.commandLineToolLink.linksAsked).toBe(0);
   });
 
 });
@@ -303,12 +300,12 @@ describe("updating the app", () => {
     fakeShell.appUpdateFeedForThisBuild = { kind: "offered", feed };
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await expect.poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "notify")).toEqual([
-      { asked: "notify", title: "Tatolab 0.47.0 is available", body: "Click to open Settings and install it." },
+      { asked: "notify", title: "Tato Studio 0.47.0 is available", body: "Click to open Settings and install it." },
     ]);
     expect(fakeShell.records).toContainEqual({ asked: "repeat_every", intervalMs: APP_UPDATE_CHECK_INTERVAL_MS });
     await expect
       .poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "show_tray_menu").at(-1))
-      .toMatchObject({ trayMenuItems: expect.arrayContaining([{ kind: "item", id: "check_for_app_updates", label: "Install Tatolab 0.47.0…", enabled: true }]) });
+      .toMatchObject({ trayMenuItems: expect.arrayContaining([{ kind: "item", id: "check_for_app_updates", label: "Install Tato Studio 0.47.0…", enabled: true }]) });
     expect(takenFrom.count).toBe(0);
     fakeShell.clickTheTrayMenuItem("check_for_app_updates");
     await expect.poll(() => takenFrom.count).toBe(1);
@@ -351,45 +348,5 @@ describe("updating the app", () => {
     expect(trayMenuShownLast).not.toMatchObject({ trayMenuItems: expect.arrayContaining([expect.objectContaining({ id: "check_for_app_updates" })]) });
   });
 
-  test("opening an app that carries another runtime than the installed one installs it, and the status names the installed build", async () => {
-    const fakeShell = fakeShellQuitAfterTheTest();
-    const carriedRuntimeInstall = new FakeCarriedRuntimeInstall("0.68.0-1111111", "0.67.0-2222222", fakeShell.runtimeAgent);
-    fakeShell.carriedRuntimeInstall = carriedRuntimeInstall;
-    const tatolabRunningApp = await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
 
-    await expect.poll(() => carriedRuntimeInstall.installedBuilds).toEqual(["0.68.0-1111111"]);
-    await expect
-      .poll(() => tatolabRunningApp?.statusPublisher.lastPublishedStatusWaitingUpTo(0).then((status) => status?.installed_runtime?.build))
-      .toBe("0.68.0-1111111");
-  });
-
-  test("a runtime install that ends while the window is closed says so in a notification, and clicking it shows the window", async () => {
-    const fakeShell = fakeShellQuitAfterTheTest();
-    let releaseTheInstaller = () => {};
-    const carriedRuntimeInstall = new FakeCarriedRuntimeInstall("0.68.0-1111111", "0.67.0-2222222", fakeShell.runtimeAgent);
-    carriedRuntimeInstall.installerHeldUntil = new Promise((release) => {
-      releaseTheInstaller = release;
-    });
-    fakeShell.carriedRuntimeInstall = carriedRuntimeInstall;
-    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
-    await expect.poll(() => fakeShell.mainWindowShowing).toBe(true);
-    fakeShell.mainWindowShowing = false;
-    releaseTheInstaller();
-
-    await expect
-      .poll(() => fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "notify"))
-      .toEqual([expect.objectContaining({ title: "Tatolab's runtime is updated", body: "Runtime 0.68.0-1111111 is running." })]);
-    fakeShell.systemNotifications.clickTheLastNotification();
-    expect(fakeShell.mainWindowShowing).toBe(true);
-  });
-
-  test("a runtime install that ends while the window shows sends no notification", async () => {
-    const fakeShell = fakeShellQuitAfterTheTest();
-    const carriedRuntimeInstall = new FakeCarriedRuntimeInstall("0.68.0-1111111", "0.67.0-2222222", fakeShell.runtimeAgent);
-    fakeShell.carriedRuntimeInstall = carriedRuntimeInstall;
-    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
-
-    await expect.poll(() => carriedRuntimeInstall.installedBuilds).toEqual(["0.68.0-1111111"]);
-    expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "notify")).toEqual([]);
-  });
 });

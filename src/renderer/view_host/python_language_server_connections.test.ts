@@ -61,9 +61,9 @@ test("a_refused_start_ends_the_connection_in_its_words_and_a_close_stops_the_ses
   const connections = new PythonLanguageServerConnections(backend);
   const heard: PythonLanguageServerConnectionEvent[] = [];
   connections.connectToPythonLanguageServer("/streams/elsewhere", (event) => heard.push(event));
-  starts[0]?.refuse("/streams/elsewhere is not a project folder of the open workspace.");
+  starts[0]?.refuse("/streams/elsewhere is not the folder of the open project or of one of its imports.");
   await settled();
-  expect(heard).toEqual([{ kind: "ended", because: "/streams/elsewhere is not a project folder of the open workspace." }]);
+  expect(heard).toEqual([{ kind: "ended", because: "/streams/elsewhere is not the folder of the open project or of one of its imports." }]);
 
   const closedEarly = connections.connectToPythonLanguageServer("/streams/pattern", () => undefined);
   closedEarly.close();

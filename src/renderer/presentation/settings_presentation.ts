@@ -1,5 +1,4 @@
 import type {
-  CommandLineToolUsrLocalBinLink,
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabAppBuild,
@@ -28,7 +27,7 @@ export const SETTINGS_SECTION_GROUPS: readonly { groupLabel: string; sections: r
       { section: "command-line", label: "Command line" },
     ],
   },
-  { groupLabel: "Tatolab", sections: [{ section: "about", label: "About" }] },
+  { groupLabel: "Tato Studio", sections: [{ section: "about", label: "About" }] },
 ];
 
 /** The words Preferences' list names `section` by. */
@@ -113,27 +112,12 @@ export function presentAboutBuild(appBuild: TatolabAppBuild | null): string {
 
 /** About's copyright, in the year `wallClockNow` reads. */
 export function presentAboutCopyright(wallClockNow: Date): string {
-  return `© ${wallClockNow.getFullYear()} Jonathan Fontanez`;
-}
-
-/** Runtime › Login Items on macOS: what it says of the runtime's entry under Allow in the Background, as the app reads it from launchd. */
-export function presentLoginItemsRow(status: TatolabStatus): string {
-  switch (status.runtime_agent) {
-    case "enabled":
-      return "Tatolab is listed under Allow in the Background. Run Tatolab and that entry are the same setting.";
-    case "requires_approval":
-      return "Tatolab is waiting for you to switch it on under Allow in the Background.";
-    case "not_registered":
-    case "not_found":
-      return "Tatolab isn't listed under Allow in the Background. Turning Run Tatolab on adds it.";
-  }
+  return `© ${wallClockNow.getFullYear()} Tatolab LLC`;
 }
 
 /** Why Restart runtime cannot be pressed now; `null` when it can. */
 export function restartRuntimeUnavailableBecause(status: TatolabStatus): string | null {
-  if (!status.run_tatolab) return "Run Tatolab is off, so there is no runtime to restart.";
-  if (status.runtime_agent !== "enabled") return "The runtime's login item isn't enabled, so there is no runtime to restart.";
-  return null;
+  return status.runtime_state === "starting" ? "The runtime is starting." : null;
 }
 
 /** Runtime › Runtime logs: where the runtime writes its own log, or why it cannot be opened. */
@@ -150,33 +134,31 @@ export function presentRuntimeLogFolder(status: TatolabStatus, runtimeDescriptio
   return folder === null ? { folder: null, openUnavailableBecause: "The runtime keeps no log of its own." } : { folder, openUnavailableBecause: null };
 }
 
-/** General › Open Tatolab at login: whether the switch shows and how it is set, and what the row says under its name. */
+/** General › Open Tato Studio at login: whether the switch shows and how it is set, and what the row says under its name. */
 export interface OpenAtLoginPresentation {
   /** `null` where the build does not offer it, and the row says why instead. */
   isSwitchedOn: boolean | null;
   description: string;
-  needsApprovalInLoginItems: boolean;
 }
 
-/** General › Open Tatolab at login for what the desktop reports on `platform`. */
+/** General › Open Tato Studio at login for what the desktop reports on `platform`. */
 export function presentOpenAtLogin(openAtLogin: TatolabAppOpenAtLogin, platform: TatolabPlatform): OpenAtLoginPresentation {
-  const runtimeEitherWay = "The runtime starts at login either way; this opens the app too.";
+  const runtimeEitherWay = "Opens Tato Studio in the tray when you log in, with the runtime ready for the tatolab command.";
   switch (openAtLogin.kind) {
     case "on":
-      return { isSwitchedOn: true, description: runtimeEitherWay, needsApprovalInLoginItems: false };
+      return { isSwitchedOn: true, description: runtimeEitherWay };
     case "off":
-      return { isSwitchedOn: false, description: runtimeEitherWay, needsApprovalInLoginItems: false };
+      return { isSwitchedOn: false, description: runtimeEitherWay };
     case "needs_approval_in_login_items":
       return {
         isSwitchedOn: true,
         description:
           platform === "macos"
-            ? "macOS is waiting for you to allow Tatolab under Login Items."
-            : "The desktop is waiting for you to allow Tatolab to open at login.",
-        needsApprovalInLoginItems: true,
+            ? "macOS is waiting for you to allow Tato Studio under Login Items."
+            : "The desktop is waiting for you to allow Tato Studio to open at login.",
       };
     case "not_offered":
-      return { isSwitchedOn: null, description: openAtLogin.reason, needsApprovalInLoginItems: false };
+      return { isSwitchedOn: null, description: openAtLogin.reason };
   }
 }
 
@@ -186,7 +168,7 @@ export function presentStreamFailureNotifications(streamFailureNotifications: St
     isSwitchedOn: streamFailureNotifications.enabled,
     description: streamFailureNotifications.shown_by_this_desktop
       ? "Tells you when a stream fails to start. Clicking it opens the stream and why."
-      : "This desktop shows no notifications, so Tatolab can't tell you here when a stream fails.",
+      : "This desktop shows no notifications, so Tato Studio can't tell you here when a stream fails.",
   };
 }
 
@@ -203,28 +185,5 @@ export function presentCommandLineToolVersion(
     case "unreadable":
     case "not_offered":
       return { version: null, unreadableLine: isTheCommandLinked ? `Its version can't be read: ${commandLineToolVersion.reason}` : null };
-  }
-}
-
-/** Command line › Link in /usr/local/bin: what the row says, and whether its button links. */
-export interface UsrLocalBinLinkPresentation {
-  description: string;
-  /** Whether the row offers its button: only while the link is not made and the build makes it. */
-  isOffered: boolean;
-}
-
-/** The `/usr/local/bin` link as Settings shows it on `platform`: macOS's option behind the administrator prompt, warning beforehand what the prompt says; `null` on Linux, which shows no such row. */
-export function presentUsrLocalBinLink(platform: TatolabPlatform, usrLocalBinLink: CommandLineToolUsrLocalBinLink): UsrLocalBinLinkPresentation | null {
-  if (platform === "linux") return null;
-  switch (usrLocalBinLink.kind) {
-    case "linked":
-      return { description: `Linked at ${usrLocalBinLink.path}, so it works in every terminal.`, isOffered: false };
-    case "not_linked":
-      return {
-        description: "Works in every terminal, with no change to your PATH. macOS asks for your password, and its dialog says “osascript wants to make changes.”",
-        isOffered: true,
-      };
-    case "not_offered":
-      return { description: usrLocalBinLink.reason, isOffered: false };
   }
 }

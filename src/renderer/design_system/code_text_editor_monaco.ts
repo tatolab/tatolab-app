@@ -12,7 +12,7 @@ import type { CodeEditorCompletionKind, CodeEditorDiagnosticSeverity, CodeEditor
 export { monaco };
 
 /** The theme every code editor is drawn in. */
-export const CODE_EDITOR_THEME_NAME = "spudnik-studio";
+export const CODE_EDITOR_THEME_NAME = "tato-studio";
 
 /** The marker owner a document's language-server diagnostics are kept under. */
 export const LANGUAGE_SERVER_MARKER_OWNER = "language-server";
