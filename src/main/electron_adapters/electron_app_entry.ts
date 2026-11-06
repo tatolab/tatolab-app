@@ -89,6 +89,23 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
     // An update's quitAndInstall closes the windows before `before-quit`, so the window learns here that it may close.
     electronNativeAutoUpdater.on("before-quit-for-update", listener);
   },
+  holdTheQuitUntil: (workBeforeTheQuitGoesOn) => {
+    let workHoldingTheQuit: Promise<void> | null = null;
+    let theQuitMayGoOn = false;
+    app.on("before-quit", (beforeQuitEvent) => {
+      if (theQuitMayGoOn) return;
+      if (workHoldingTheQuit === null) {
+        const work = workBeforeTheQuitGoesOn();
+        if (work === null) return;
+        workHoldingTheQuit = work.finally(() => {
+          theQuitMayGoOn = true;
+          app.quit();
+        });
+      }
+      // Squirrel.Mac's ShipIt waits for the app's process to end, so an update's install still runs once the held quit goes on.
+      beforeQuitEvent.preventDefault();
+    });
+  },
   exitTheApp: (exitCode) => app.exit(exitCode),
   setTheApplicationMenu: (applicationMenu) => Menu.setApplicationMenu(electronApplicationMenu(applicationMenu)),
   buildTheTatolabPlatformForThisBuild: (platformItems) => platformItems.tatolabPlatformForThisBuild(tatolabAppLog, tatolabPlatformHostServices),

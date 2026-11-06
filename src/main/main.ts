@@ -16,6 +16,7 @@ import { TatolabAppController } from "./tatolab_app_controller.js";
 import {
   checkForTatolabAppUpdatesOnRequest,
   quitTheTatolabApp,
+  stopTheRuntimeWithinTheQuitWaitLimit,
   runInTheBackgroundWithTheController,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
@@ -54,6 +55,8 @@ export interface TatolabElectronAppShell {
   openAnotherCopyOnceThisOneExits(executable: string): void;
   /** Calls `listener` as the app begins to quit, from the tray, the window or the system. */
   onTheAppQuitting(listener: () => void): void;
+  /** As the system quits the app (Cmd-Q, logging out, an update's install), hold the quit until the work `workBeforeTheQuitGoesOn` hands back has finished; `null` lets the quit go on at once. */
+  holdTheQuitUntil(workBeforeTheQuitGoesOn: () => Promise<void> | null): void;
   exitTheApp(exitCode: number): void;
   setTheApplicationMenu(applicationMenu: ApplicationMenu): void;
   /** This platform's carried runtime, the command's link and the local API socket, built from `platformItems` with the app's host services. */
@@ -143,7 +146,7 @@ export async function startTatolabApp(
       tatolabElectronAppShell.openAnotherCopyOnceThisOneExits(openedCopy.executableThatOpensTheCopy);
       quitTheTatolabApp(
         tatolabMainWindow,
-        () => sharedStateOnceBuilt?.controller.stopTheRuntimeAsTheAppQuits(),
+        () => sharedStateOnceBuilt?.controller.stopTheRuntimeAsTheAppQuits() ?? Promise.resolve(),
         (exitCode) => tatolabElectronAppShell.exitTheApp(exitCode),
         tatolabAppLog,
       );
@@ -202,7 +205,11 @@ export async function startTatolabApp(
   statusPublisherOnceBuilt = statusPublisher;
   statusPublisher.attachStreamFailureNotifications(streamFailureNotifications);
   tatolabElectronAppShell.onTheAppQuitting(() => statusPublisher.stopPolling());
-  tatolabElectronAppShell.onTheAppQuitting(() => controller.stopTheRuntimeAsTheAppQuits());
+  tatolabElectronAppShell.holdTheQuitUntil(() => {
+    const aRuntimeTheAppStartedIsRunning = controller.aRuntimeTheAppStartedIsRunning();
+    const runtimeStopped = stopTheRuntimeWithinTheQuitWaitLimit(() => controller.stopTheRuntimeAsTheAppQuits(), tatolabAppLog);
+    return aRuntimeTheAppStartedIsRunning ? runtimeStopped : null;
+  });
   const openProjectFolder = new OpenProjectFolder({
     homeDirectory: tatolabElectronAppShell.homeDirectory,
     documentsDirectory: tatolabElectronAppShell.documentsDirectory,

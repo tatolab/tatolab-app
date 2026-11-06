@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import { FakeTatolabElectronAppShell } from "./fake_tatolab_electron_app_shell.js";
 import { startTatolabApp, type TatolabRunningApp } from "./main.js";
@@ -17,6 +17,8 @@ const startedFakeShells: FakeTatolabElectronAppShell[] = [];
 afterEach(async () => {
   for (const startedFakeShell of startedFakeShells.splice(0)) {
     startedFakeShell.beginQuitting();
+    startedFakeShell.carriedRuntimeStarts.exitEveryRuntimeAskedToStop();
+    await startedFakeShell.quitHeldUntil;
     await startedFakeShell.removeTheAppConfigDirectory();
   }
 });
@@ -100,10 +102,14 @@ describe("the app on macOS", () => {
     await theFirstPublishedStatus(tatolabRunningApp);
     fakeShell.forgetTheRecords();
     fakeShell.launchASecondCopy(tatolabAppCopyOnTheSingleInstanceLock({ ...fakeShell.thisCopyOfTatolab, appVersion: "0.46.0" }));
-    expect(fakeShell.records).toEqual([
-      { asked: "open_another_copy_once_this_one_exits", executable: "/Applications/Tato Studio.app/Contents/MacOS/Tato Studio" },
-      { asked: "exit", exitCode: 0 },
-    ]);
+    expect(fakeShell.records).toEqual([{ asked: "open_another_copy_once_this_one_exits", executable: "/Applications/Tato Studio.app/Contents/MacOS/Tato Studio" }]);
+    fakeShell.carriedRuntimeStarts.exitEveryRuntimeAskedToStop();
+    await vi.waitFor(() =>
+      expect(fakeShell.records).toEqual([
+        { asked: "open_another_copy_once_this_one_exits", executable: "/Applications/Tato Studio.app/Contents/MacOS/Tato Studio" },
+        { asked: "exit", exitCode: 0 },
+      ]),
+    );
     expect(fakeShell.requestTheWindowClose()).toBe("let_it_close");
   });
 
@@ -117,10 +123,14 @@ describe("the app on macOS", () => {
         carriedStreamlibCommit: "0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e",
       }),
     );
-    expect(fakeShell.records).toEqual([
-      { asked: "open_another_copy_once_this_one_exits", executable: "/Users/someone/proof/Tatolab.app/Contents/MacOS/Tatolab" },
-      { asked: "exit", exitCode: 0 },
-    ]);
+    expect(fakeShell.records).toEqual([{ asked: "open_another_copy_once_this_one_exits", executable: "/Users/someone/proof/Tatolab.app/Contents/MacOS/Tatolab" }]);
+    fakeShell.carriedRuntimeStarts.exitEveryRuntimeAskedToStop();
+    await vi.waitFor(() =>
+      expect(fakeShell.records).toEqual([
+        { asked: "open_another_copy_once_this_one_exits", executable: "/Users/someone/proof/Tatolab.app/Contents/MacOS/Tatolab" },
+        { asked: "exit", exitCode: 0 },
+      ]),
+    );
   });
 
   test("a second copy older than the handoff hands over nothing and shows the running app's window", async () => {
@@ -143,10 +153,13 @@ describe("the app on macOS", () => {
     await theFirstPublishedStatus(tatolabRunningApp);
     fakeShell.forgetTheRecords();
     fakeShell.clickTheTrayMenuItem("quit_tatolab");
-    expect(fakeShell.records).toEqual([{ asked: "exit", exitCode: 0 }]);
     expect(fakeShell.carriedRuntimeStarts.lastRuntimeStarted()?.askedToStop).toBe(true);
     expect(fakeShell.writtenLogLines).toContain(" INFO quitting Tato Studio and its runtime");
     expect(fakeShell.requestTheWindowClose()).toBe("let_it_close");
+    await Promise.resolve();
+    expect(fakeShell.records).toEqual([]);
+    fakeShell.carriedRuntimeStarts.exitEveryRuntimeAskedToStop();
+    await vi.waitFor(() => expect(fakeShell.records).toEqual([{ asked: "exit", exitCode: 0 }]));
   });
 
   test("the first status round shows in the tray and reaches the window, and showing the window again sends it the status again", async () => {
@@ -180,8 +193,10 @@ describe("the app on macOS", () => {
     expect(await fakeShell.invokeTheCommand("get_tatolab_status")).toEqual({ ok: true, value: firstStatus });
     fakeShell.forgetTheRecords();
     expect(await fakeShell.invokeTheCommand("quit_tatolab_app")).toEqual({ ok: true, value: null });
-    expect(fakeShell.records).toEqual([{ asked: "exit", exitCode: 0 }]);
     expect(fakeShell.carriedRuntimeStarts.lastRuntimeStarted()?.askedToStop).toBe(true);
+    expect(fakeShell.records).toEqual([]);
+    fakeShell.carriedRuntimeStarts.exitEveryRuntimeAskedToStop();
+    await vi.waitFor(() => expect(fakeShell.records).toEqual([{ asked: "exit", exitCode: 0 }]));
     expect(fakeShell.requestTheWindowClose()).toBe("let_it_close");
   });
 
@@ -191,6 +206,22 @@ describe("the app on macOS", () => {
     fakeShell.forgetTheRecords();
     expect(fakeShell.requestTheWindowClose()).toBe("let_it_close");
     expect(fakeShell.records).toEqual([]);
+  });
+
+  test("a quit the system asks for is held until the runtime the app started has exited", async () => {
+    await theFirstPublishedStatus(tatolabRunningApp);
+    fakeShell.beginQuitting();
+    expect(fakeShell.carriedRuntimeStarts.lastRuntimeStarted()?.askedToStop).toBe(true);
+    let quitWentOn = false;
+    void fakeShell.quitHeldUntil?.then(() => {
+      quitWentOn = true;
+    });
+    await Promise.resolve();
+    expect(quitWentOn).toBe(false);
+    fakeShell.carriedRuntimeStarts.exitEveryRuntimeAskedToStop();
+    await fakeShell.quitHeldUntil;
+    expect(quitWentOn).toBe(true);
+    expect(fakeShell.writtenLogLines.some((logLine) => logLine.startsWith(" INFO the runtime stopped as the app quits"))).toBe(true);
   });
 });
 

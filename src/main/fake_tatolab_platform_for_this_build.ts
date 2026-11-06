@@ -49,6 +49,13 @@ export class FakeCarriedRuntimeStarts {
     });
   };
 
+  /** End every runtime asked to stop, as `tatolabd` exits on SIGTERM. */
+  exitEveryRuntimeAskedToStop(): void {
+    for (const runtimeStarted of this.runtimesStarted) {
+      if (runtimeStarted.askedToStop) runtimeStarted.exit({ exitStatus: 0, endingSignal: null, lastStandardErrorLine: null });
+    }
+  }
+
   /** The last runtime started; `undefined` before any. */
   lastRuntimeStarted(): FakeRuntimeChildProcessStarted | undefined {
     return this.runtimesStarted.at(-1);

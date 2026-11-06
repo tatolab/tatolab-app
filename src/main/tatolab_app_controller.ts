@@ -148,9 +148,14 @@ export class TatolabAppController {
     return restarted;
   }
 
-  /** The app is quitting: stop its runtime with it. */
-  stopTheRuntimeAsTheAppQuits(): void {
-    this.carriedRuntimeRunAsTheAppsChild.stopAsTheAppQuits();
+  /** The app is quitting: stop its runtime with it, answering once that runtime has exited. */
+  stopTheRuntimeAsTheAppQuits(): Promise<void> {
+    return this.carriedRuntimeRunAsTheAppsChild.stopAsTheAppQuits();
+  }
+
+  /** Whether a runtime the app started is running now, which a quit waits for. */
+  aRuntimeTheAppStartedIsRunning(): boolean {
+    return this.carriedRuntimeRunAsTheAppsChild.aRuntimeTheAppStartedIsRunning();
   }
 
   /** "Open Tato Studio at login": have the desktop open the app at login, or stop; refused in the desktop's words. */

@@ -43,6 +43,7 @@ export class CarriedRuntimeRunAsTheAppsChild {
   private howTheLastRuntimeEnded: string | null = null;
   private startAgainAsSoonAsItExits = false;
   private appIsQuitting = false;
+  private readonly whenTheRuntimeHasStoppedAsTheAppQuits: (() => void)[] = [];
 
   /** `carriedRuntime` started through `startTheRuntime`, calling `whenTheRuntimeExits` each time it ends so the status is read again; `null` runs nothing. */
   constructor(
@@ -94,12 +95,23 @@ export class CarriedRuntimeRunAsTheAppsChild {
     return succeeded(undefined);
   }
 
-  /** The app is quitting: ask its runtime to stop, and start no other. */
-  stopAsTheAppQuits(): void {
+  /** Whether a runtime the app started is running now, which a quit waits for. */
+  aRuntimeTheAppStartedIsRunning(): boolean {
+    return this.runningRuntime !== null;
+  }
+
+  /** The app is quitting: ask its runtime to stop and start no other, answering once it has exited, or at once when none of the app's runs. */
+  stopAsTheAppQuits(): Promise<void> {
+    const firstAsk = !this.appIsQuitting;
     this.appIsQuitting = true;
-    if (this.runningRuntime === null) return;
-    this.tatolabAppLog.info("stopping the runtime as the app quits");
-    this.runningRuntime.runtimeChildProcess.askItToStop();
+    if (this.runningRuntime === null) return Promise.resolve();
+    const runtimeChildProcess = this.runningRuntime.runtimeChildProcess;
+    const hasStopped = new Promise<void>((answer) => this.whenTheRuntimeHasStoppedAsTheAppQuits.push(answer));
+    if (firstAsk) {
+      this.tatolabAppLog.info("stopping the runtime as the app quits");
+      runtimeChildProcess.askItToStop();
+    }
+    return hasStopped;
   }
 
   private startTheCarriedRuntime(carriedRuntime: CarriedRuntime, nowMs: number): void {
@@ -121,6 +133,7 @@ export class CarriedRuntimeRunAsTheAppsChild {
     const howItEnded = describeHowTheRuntimeEnded(runtimeChildProcessExit);
     if (this.appIsQuitting) {
       this.tatolabAppLog.info("the runtime stopped as the app quits", { how_it_ended: howItEnded });
+      for (const answer of this.whenTheRuntimeHasStoppedAsTheAppQuits.splice(0)) answer();
       return;
     }
     if (this.startAgainAsSoonAsItExits) {
