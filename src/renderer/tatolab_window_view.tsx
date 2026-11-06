@@ -12,6 +12,7 @@ import {
   type TatolabWindowEnvironment,
 } from "./setup_and_preferences/tatolab_window_context";
 import { RUN_LIVE_KEY, type StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
+import { PoppedOutViewerWindowView } from "./studio_shell/popped_out_viewer_window_view";
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
 import { StudioWindowModel, streamsOfTheProjectToStop } from "./studio_shell/studio_window_model";
 import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studio_layouts";
@@ -21,7 +22,7 @@ import { PROPERTIES_VIEW_TYPE } from "./studio_views/properties/properties_view_
 import { VIEWER_VIEW_TYPE } from "./studio_views/viewer/viewer_view_type";
 import { STREAM_GRAPH_VIEW_TYPE } from "./studio_views/stream_graph/stream_graph_view_type";
 import { OUTLINER_VIEW_TYPE } from "./studio_views/outliner/outliner_view_type";
-import { inWindowStudioViewHostServices } from "./view_host/in_window_view_host";
+import { inWindowStudioViewHostServices, useWatchedStudioValue } from "./view_host/in_window_view_host";
 import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
 import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
@@ -48,7 +49,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
   ]);
 }
 
-/** The studio, the window's one screen from the first status on. */
+/** The studio, or the Viewer alone in a window popped out of one: the window's one screen from the first status on. */
 function TatolabWindowRoot({
   studioWindowSources,
   noticeTheFirstStatusCommitted,
@@ -57,6 +58,17 @@ function TatolabWindowRoot({
   noticeTheFirstStatusCommitted: () => void;
 }) {
   useEffect(noticeTheFirstStatusCommitted, [noticeTheFirstStatusCommitted]);
+  const poppedOutViewer = useWatchedStudioValue(studioWindowSources.model.poppedOutViewer);
+  if (poppedOutViewer !== null) {
+    return (
+      <PoppedOutViewerWindowView
+        target={poppedOutViewer}
+        viewTypeRegistry={studioWindowSources.viewTypeRegistry}
+        viewHostServices={studioWindowSources.viewHostServices}
+        platform={studioWindowSources.platform}
+      />
+    );
+  }
   return <StudioWindow sources={studioWindowSources} />;
 }
 
@@ -153,9 +165,14 @@ export function mountTatolabWindow(
     platform,
   };
   backend.onOpenProjectChanged((reading) => studioWindowModel.showOpenProject(reading));
-  void backend.readOpenProject().then(
-    (reading) => studioWindowModel.showOpenProject(reading),
-    (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
+  const readTheOpenProject = () =>
+    void backend.readOpenProject().then(
+      (reading) => studioWindowModel.showOpenProject(reading),
+      (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
+    );
+  const whatTheWindowShowsIsRead = backend.readPoppedOutViewer().then(
+    (poppedOutViewer) => (poppedOutViewer === null ? readTheOpenProject() : studioWindowModel.showAsPoppedOutViewer(poppedOutViewer)),
+    () => readTheOpenProject(),
   );
   backend.onStreamPageRequested((streamId) => studioWindowModel.openStreamTabOfAListedStream(streamId));
 
@@ -182,7 +199,7 @@ export function mountTatolabWindow(
   }
 
   document.addEventListener("keydown", (keyboardEvent) => {
-    if (statusStore === null) return;
+    if (statusStore === null || studioWindowModel.poppedOutViewer.readLatest() !== null) return;
     if (keyboardEvent.key === RUN_LIVE_KEY && !keyboardEvent.metaKey && !keyboardEvent.ctrlKey && !keyboardEvent.altKey) {
       if (studioWindowModel.studioLayouts.readLatest() === null) return;
       keyboardEvent.preventDefault();
@@ -228,8 +245,9 @@ export function mountTatolabWindow(
   return (status) => {
     showStatusOutsideReact(status);
     if (statusStore === null) {
-      statusStore = new TatolabWindowStatusStore(status);
-      renderTheWindowOn(statusStore);
+      const firstStatusStore = new TatolabWindowStatusStore(status);
+      statusStore = firstStatusStore;
+      void whatTheWindowShowsIsRead.then(() => renderTheWindowOn(firstStatusStore));
     } else {
       statusStore.publishStatus(status);
     }

@@ -1,7 +1,7 @@
 // What the studio window holds between renders: the open project and the runtime's streams it
 // serves its views, the selection, the open stream tabs, and the open project's layouts.
 
-import type { ListedStream, NewProjectDefaults, OpenProjectReading, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutViewerTarget, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import { WatchedStudioValue, type InWindowStudioViewHostSources } from "../view_host/in_window_view_host";
@@ -69,6 +69,8 @@ export class StudioWindowModel {
   readonly codeFileAsked = new WatchedStudioValue<CodeFileAsked | null>(null);
   /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
   readonly projectRunRefusal = new WatchedStudioValue<{ asked_to: "run" | "stop"; because: string } | null>(null);
+  /** What the window is pinned to when it is a Viewer popped out of a studio window; `null` in the Projects and studio windows. */
+  readonly poppedOutViewer = new WatchedStudioValue<PoppedOutViewerTarget | null>(null);
 
   /** The tab a project opens on once it is open and the runtime lists the stream: the stream New project just made, or with `stream` `null` the first the runtime lists from the folder; cleared when any tab is opened. */
   private streamTabAwaitedByTheOpeningProject: { project_folder: string; stream: string | null } | null = null;
@@ -89,6 +91,13 @@ export class StudioWindowModel {
       codeFileAsked: this.codeFileAsked,
       openCodeFile: (file) => this.openCodeFile(file),
     };
+  }
+
+  /** Show the window as a Viewer pinned to `target`: its stream's tab shown and its node selected, which nothing in the window changes after. */
+  showAsPoppedOutViewer(target: PoppedOutViewerTarget): void {
+    this.poppedOutViewer.publish(target);
+    this.openStreamTab({ stream: target.stream, project_name: target.project_name, display_name: target.display_name });
+    this.selection.publish(target.node === null ? { kind: "nothing" } : { kind: "node", stream: target.stream, node: target.node });
   }
 
   /** Ask the code view to show `file`; a layout with no code area switches to Code, which has one. */

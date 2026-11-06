@@ -31,6 +31,7 @@ import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
   type OpenProjectReading,
+  type PoppedOutViewerTarget,
   type ProjectLogRecord,
   type ProjectLogRecordsPage,
   type RuntimeDescription,
@@ -187,6 +188,37 @@ export interface MockTatolabOptions {
   recentProjectsInTheQuery: string | null;
   /** `?port_families=served`: each port's family is served in the graph and the node catalog, as streamlib's strict-port-families will serve it; none by default, as the runtime serves today. */
   arePortFamiliesServed: boolean;
+  /** `?popped_out_viewer=<target as JSON>`: the page is a Viewer popped out of the studio, as Pop out opens it in a new tab; the studio by default. */
+  poppedOutViewer: PoppedOutViewerTarget | null;
+}
+
+/** The query parameter a popped-out Viewer's page carries its pin in. */
+const POPPED_OUT_VIEWER_QUERY_PARAMETER = "popped_out_viewer";
+
+/** What `?popped_out_viewer=` names: a pin as JSON, or `null` when it holds none that parses. */
+function mockPoppedOutViewerTargetFrom(poppedOutViewerInTheQuery: string | null): PoppedOutViewerTarget | null {
+  if (poppedOutViewerInTheQuery === null) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(poppedOutViewerInTheQuery);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const field = (fieldName: string): unknown => Object.entries(parsed).find(([parsedFieldName]) => parsedFieldName === fieldName)?.[1];
+  const stream = field("stream");
+  const projectName = field("project_name");
+  const displayName = field("display_name");
+  const node = field("node");
+  if (typeof stream !== "string" || typeof projectName !== "string" || typeof displayName !== "string" || (typeof node !== "string" && node !== null)) return null;
+  return { stream, project_name: projectName, display_name: displayName, node };
+}
+
+/** The mock page's address with `target` as its popped-out Viewer's pin, every other query parameter kept, so the tab opens with the same scenario. */
+export function mockPoppedOutViewerPageUrl(pageUrl: string, target: PoppedOutViewerTarget): string {
+  const poppedOutUrl = new URL(pageUrl);
+  poppedOutUrl.searchParams.set(POPPED_OUT_VIEWER_QUERY_PARAMETER, JSON.stringify(target));
+  return poppedOutUrl.toString();
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -268,6 +300,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     openProjectScenario: mockOpenProjectScenarioNamed(pageQuery.get("project")),
     recentProjectsInTheQuery: pageQuery.get("recent"),
     arePortFamiliesServed: pageQuery.get("port_families") === "served",
+    poppedOutViewer: mockPoppedOutViewerTargetFrom(pageQuery.get(POPPED_OUT_VIEWER_QUERY_PARAMETER)),
   };
 }
 
@@ -1154,6 +1187,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       return { folder, project_creation: { action, stream: mockStreamIdOf({ project_directory: folder, stream_function: "stream:main" }), project_directory: folder } };
     },
     readOpenProject: async () => structuredClone(openProjectReading),
+    popOutViewer: async (target) => {
+      window.open(mockPoppedOutViewerPageUrl(window.location.href, target), "_blank");
+    },
+    readPoppedOutViewer: async () => structuredClone(mockTatolabOptions.poppedOutViewer),
     readRecentProjects: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return structuredClone(recentProjects);

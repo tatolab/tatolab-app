@@ -16,8 +16,9 @@ and "Quit Tato Studio". The window opens on the Projects window, whose New proje
 name and a location, `Tato Studio` in the Documents folder until Browse… picks another, and has the
 runtime make the project in that folder. Each project opens in a studio window of its own, titled
 with the project's name, or brings forward the window it already has; the Projects window steps
-aside once it opens one, and File › Projects or the tray brings it back. Every window shares the
-one runtime. It reads
+aside once it opens one, and File › Projects or the tray brings it back. The Viewer's Pop out
+opens it in a small window of its own, for a second monitor, pinned to the stream shown and the
+node selected; it closes with its project's window. Every window shares the one runtime. It reads
 everything from the runtime's local API: `list_streams`, `logs` and `graph` over MCP, and
 `GET /api/graph` for the machine's name. It queues a stop or a start (or retry) of a stream, and
 the removal of a whole project, with the MCP tools `stop_stream`, `start_stream` and

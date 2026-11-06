@@ -7,6 +7,7 @@ import type {
   ProjectFiles,
   NodeCatalog,
   OpenProjectReading,
+  PoppedOutViewerTarget,
   RecentProject,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -102,6 +103,10 @@ export interface TatolabBackend {
   chooseNewProjectLocation(startingAt: string): Promise<string | null>;
   /** Create the project `name` in `location` with the runtime and open it, rejecting with nothing made in the app's or the runtime's own words. The project read arrives as the next open-project change. */
   createNewProject(name: string, location: string): Promise<ChosenProjectFolder>;
+  /** Pop a Viewer pinned to `target` out of this studio window into a window of its own, or bring forward the one already pinned there; rejects in words from any other window. */
+  popOutViewer(target: PoppedOutViewerTarget): Promise<void>;
+  /** What this window is pinned to when it is a popped-out Viewer; `null` in the Projects and studio windows. */
+  readPoppedOutViewer(): Promise<PoppedOutViewerTarget | null>;
   /** This window's project as the app last read it from disk; `none_open` in the Projects window. */
   readOpenProject(): Promise<OpenProjectReading>;
   /** The projects opened before, recent first, for the Projects window. */

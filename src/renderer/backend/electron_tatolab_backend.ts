@@ -84,6 +84,10 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     chooseNewProjectLocation: (startingAt) => invokeTatolabCommand("choose_new_project_location", { starting_at: startingAt }),
     createNewProject: (name, location) => invokeTatolabCommand("create_new_project", { name, location }),
     readOpenProject: () => invokeTatolabCommand("read_open_project", undefined),
+    popOutViewer: async (target) => {
+      await invokeTatolabCommand("pop_out_viewer", { ...target });
+    },
+    readPoppedOutViewer: () => invokeTatolabCommand("read_popped_out_viewer", undefined),
     readRecentProjects: () => invokeTatolabCommand("read_recent_projects", undefined),
     openRecentProject: async (folder) => {
       await invokeTatolabCommand("open_recent_project", { folder });
