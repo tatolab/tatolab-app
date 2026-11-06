@@ -3,7 +3,7 @@
 # a strict deep signature, every Mach-O and the image signed by Tatolab's Developer ID Application
 # identity with the hardened runtime (never ad-hoc, never another team), no Mach-O outside the app's
 # and the runtime helper's Contents/MacOS and Contents/Frameworks, every symlink resolving inside the
-# bundle, the runtime helper Contents/Helpers/Tatolab Runtime.app and its Info.plist, install.sh,
+# bundle, the runtime helper Contents/Helpers/Tatolab Runtime.app and its Info.plist, no install.sh,
 # the Info.plist usage strings, the helper's runtime version against the app's and the streamlib
 # commit it was built from, the lend's CPython 3.10-3.14 bytecode, the runtime's preview page, the
 # runtime's uv beside the helper's tatolabd and no Python of the app's own, the entitlements of the
@@ -123,8 +123,8 @@ verify_app_bundle() {
     && pass "the app executable Contents/MacOS/$bundle_executable is present" || fail "the app executable '$bundle_executable' is missing"
   [ -x "$helper_contents/MacOS/uv" ] && pass "Tatolab Runtime.app's MacOS/uv, beside its tatolabd, is present" \
     || fail "Tatolab Runtime.app's MacOS/uv is missing: tatolabd makes no project's .venv without it"
-  [ -f "$contents/Resources/install.sh" ] && pass "Resources/install.sh, streamlib's installer, is present" \
-    || fail "Resources/install.sh is missing: the bundle assembly lays streamlib's installer there"
+  [ ! -e "$contents/Resources/install.sh" ] && pass "Resources/install.sh, which the app never runs, is absent" \
+    || fail "Resources/install.sh is present: the app runs its runtime as its child and carries no installer"
   local helper_info_plist="$helper_contents/Info.plist"
   [ "$(plutil -extract CFBundleIdentifier raw -o - "$helper_info_plist" 2>/dev/null)" = com.tatolab.runtime ] \
     && pass "Tatolab Runtime.app's CFBundleIdentifier is com.tatolab.runtime" \

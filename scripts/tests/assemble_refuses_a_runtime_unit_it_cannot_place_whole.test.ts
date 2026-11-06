@@ -26,7 +26,7 @@ interface AssembleScriptOutcome {
 function runTheAssembleScript(
   appBundle: string,
   runtimeUnitDirectory: string,
-  assembleFlags: string[] = ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT, "--installer", path.join(scratchDirectory, "install.sh")],
+  assembleFlags: string[] = ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT],
 ): Promise<AssembleScriptOutcome> {
   return new Promise((resolveOutcome) => {
     execFile("bash", [ASSEMBLE_SCRIPT, appBundle, runtimeUnitDirectory, ...assembleFlags], { cwd: REPOSITORY_ROOT }, (scriptFailure, _stdout, stderr) => {
@@ -44,7 +44,6 @@ beforeEach(async () => {
   await mkdir(path.join(plantedAppBundle, "Contents", "MacOS"), { recursive: true });
   await writeFile(path.join(plantedAppBundle, "Contents", "MacOS", "Tato Studio"), "");
   await chmod(path.join(plantedAppBundle, "Contents", "MacOS", "Tato Studio"), 0o755);
-  await writeFile(path.join(scratchDirectory, "install.sh"), "#!/bin/sh\n");
 });
 
 afterEach(async () => {
@@ -148,13 +147,3 @@ test("a unit built from the resolved commit passes the commit check", async () =
   expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
 });
 
-test("assembling without streamlib's installer is a usage error, and a missing one is refused", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES);
-  const withoutTheInstallerFlag = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory, ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT]);
-  expect(withoutTheInstallerFlag.exitCode).toBe(2);
-  await rm(path.join(scratchDirectory, "install.sh"));
-  const withAMissingInstaller = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
-  expect(withAMissingInstaller.exitCode).toBe(1);
-  expect(withAMissingInstaller.stderr).toContain("no streamlib installer at");
-  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
-});

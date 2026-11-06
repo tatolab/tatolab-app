@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Lays streamlib's runtime unit into a Tatolab.app that @electron/packager produced, as the helper
-# bundle Contents/Helpers/Tatolab Runtime.app, which install.sh --from-unit installs:
+# bundle Contents/Helpers/Tatolab Runtime.app, whose tatolabd the app runs as its child:
 #   <helper>/Contents/Info.plist                          its own bundle id, com.tatolab.runtime, and
 #                                                         the usage strings macOS credits it for
 #   <helper>/Contents/MacOS/tatolabd, tatolab-cli          the runtime and the CLI (bin/tatolab: the
@@ -15,15 +15,12 @@
 #   <helper>/Contents/Resources/watch/                    the preview page tatolabd serves on its
 #                                                         loopback HTTP (lib/tatolab/watch)
 #   <helper>/Contents/Resources/streamlib-commit          the streamlib commit the runtime was built from
-# and, for the app itself:
-#   Contents/Resources/install.sh                         streamlib's installer, which installs the helper
 # Code signing requires code under MacOS/ or Frameworks/; the lend keeps its shape through the links.
 #
 # Usage: assemble-tatolab-app-bundle.sh <Tatolab.app> <runtime unit dir> --streamlib-commit SHA
-#                                      --installer FILE [--local-proof-test-root]
+#                                      [--local-proof-test-root]
 #   --streamlib-commit SHA   the streamlib commit the build resolved; the unit's streamlib-commit
 #                            must name it
-#   --installer FILE         streamlib's installer/install.sh, from the checkout the unit was built in
 #   --local-proof-test-root  the unit must carry the machine-directories-under-a-test-root marker,
 #                            which the helper carries too
 set -euo pipefail
@@ -35,18 +32,15 @@ runtime_unit_directory="$(cd "$2" && pwd)"
 shift 2
 local_proof_test_root=false
 resolved_streamlib_commit=""
-streamlib_installer=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --streamlib-commit) [ $# -ge 2 ] || usage; resolved_streamlib_commit="$2"; shift ;;
-    --installer) [ $# -ge 2 ] || usage; streamlib_installer="$2"; shift ;;
     --local-proof-test-root) local_proof_test_root=true ;;
     *) usage ;;
   esac
   shift
 done
 [[ "$resolved_streamlib_commit" =~ ^[0-9a-f]{40}$ ]] || usage
-[ -n "$streamlib_installer" ] || usage
 
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 runtime_helper_info_plist_template="$repository_root/packaging/runtime-helper/Info.plist"
@@ -60,7 +54,6 @@ processor_interpreter_python_versions=(3.10 3.11 3.12 3.13 3.14)
 
 contents="$app_bundle/Contents"
 [ -x "$contents/MacOS/Tato Studio" ] || { echo "$app_bundle has no Contents/MacOS/Tato Studio: not a packaged Tato Studio.app" >&2; exit 1; }
-[ -f "$streamlib_installer" ] || { echo "no streamlib installer at $streamlib_installer" >&2; exit 1; }
 for required in bin/tatolabd bin/tatolab bin/moq-relay bin/uv "lib/tatolab/lend/$lent_runtime_package_relative_to_the_lend" lib/tatolab/watch/index.html; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit $runtime_unit_directory is missing $required" >&2; exit 1; }
 done
@@ -133,7 +126,6 @@ ditto "$lend_source" "$helper_contents/Resources/lend"
 ditto "$watch_page_source" "$helper_contents/Resources/watch"
 cp "$runtime_unit_directory/$streamlib_commit_file_name" "$helper_contents/Resources/$streamlib_commit_file_name"
 find "$helper_contents/Resources/lend" -name __pycache__ -type d -prune -exec rm -rf {} +
-install -m 0755 "$streamlib_installer" "$contents/Resources/install.sh"
 
 relocated_mach_o_count=0
 while IFS= read -r -d '' lend_file; do
@@ -166,4 +158,4 @@ if $local_proof_test_root; then
   cp "$runtime_unit_directory/$marker_file_name" "$helper_contents/Resources/$marker_file_name"
 fi
 
-echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, moq-relay, uv, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}) and the preview page; and install.sh$($local_proof_test_root && echo ' (local proof)')"
+echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, moq-relay, uv, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}) and the preview page$($local_proof_test_root && echo ' (local proof)')"
