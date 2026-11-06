@@ -52,6 +52,8 @@ export function createElectronMainWindowHostFactory(
         if (answerCloseRequest() === "hide_instead") closeEvent.preventDefault();
       });
       mainBrowserWindow.once("closed", whenClosed);
+      // Electron retitles a window with its page's `<title>` on every load; each window keeps the title its role gives it.
+      mainBrowserWindow.on("page-title-updated", (pageTitleEvent) => pageTitleEvent.preventDefault());
       const windowContents = mainBrowserWindow.webContents;
       windowContents.setWindowOpenHandler(() => ({ action: "deny" }));
       windowContents.on("will-navigate", (navigationEvent) => {
