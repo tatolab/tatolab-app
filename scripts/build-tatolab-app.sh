@@ -154,7 +154,7 @@ packaged_app="$(node scripts/package_tatolab_electron_app.mjs darwin "$app_versi
 rm -rf "$assembled_app"
 ditto "$packaged_app" "$assembled_app"
 info_plist="$assembled_app/Contents/Info.plist"
-plutil -replace LSMinimumSystemVersion -string 15.0 "$info_plist"
+plutil -replace LSMinimumSystemVersion -string 26.0 "$info_plist"
 # Electron's own Info.plist lets the main process load any http:// URL; the app loads none.
 plutil -remove NSAppTransportSecurity "$info_plist"
 # Electron's own Info.plist asks for Bluetooth and system audio capture in words that do not name
