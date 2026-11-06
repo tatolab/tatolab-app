@@ -1,7 +1,7 @@
 // What the studio window holds between renders: the open project and the runtime's streams it
 // serves its views, the selection, the open stream tabs, and the open project's layouts.
 
-import type { NewProjectDefaults, OpenProjectReading, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, NewProjectDefaults, OpenProjectReading, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import { WatchedStudioValue, type InWindowStudioViewHostSources } from "../view_host/in_window_view_host";
@@ -25,6 +25,11 @@ export function streamsOfTheProjectToStop(listedStreams: ListedStreamsReading, p
   return listedStreams.streams
     .filter((listing) => listing.location?.project_directory === projectFolder && (listing.state === "running" || listing.state === "preparing"))
     .map((listing) => listing.stream);
+}
+
+/** Whether `streamFunction` names no function: the one failed record the runtime keeps for a project whose `stream.py` it could not load any `@stream` from, its id `<folder>-<hash>`. */
+export function isAProjectsStreamPyRecord(streamFunction: string): boolean {
+  return streamFunction === "";
 }
 
 /** The open stream tabs, in the strip's order, and the one shown. */
@@ -69,6 +74,9 @@ export class StudioWindowModel {
 
   /** The tab a project opens on once it is open and the runtime lists the stream: the stream New project just made, or with `stream` `null` the first the runtime lists from the folder; cleared when any tab is opened. */
   private streamTabAwaitedByTheOpeningProject: { project_folder: string; stream: string | null } | null = null;
+
+  /** The project folder of each open tab's stream the runtime last listed as its project's `stream.py` record, by the tab's stream id. */
+  private readonly projectFolderOfEachTabsStreamPyRecord = new Map<string, string>();
 
   constructor(private readonly layoutsKept: StudioLayoutsKeptInStorage) {}
 
@@ -115,14 +123,17 @@ export class StudioWindowModel {
   }
 
   /**
-   * Show the streams `status` lists; a tab whose stream the runtime no longer lists stays open on its last address, and a tab
-   * named by its stream's id until the runtime listed it takes the name the runtime lists it under.
+   * Show the streams `status` lists. A tab on a project's `stream.py` record follows the project's first stream once a load
+   * replaces the record with the project's streams; any other tab whose stream the runtime no longer lists stays open on its
+   * last address, and a tab named by its stream's id until the runtime listed it takes the name the runtime lists it under.
    */
   showStatus(status: TatolabStatus): void {
     const listedStreams = listedStreamsReadingOf(status);
     this.listedStreams.publish(listedStreams);
     if (listedStreams.kind !== "listed") return;
     this.openTheStreamTabTheOpeningProjectAwaits();
+    this.rememberTheProjectFolderOfEachTabOnAStreamPyRecord(listedStreams.streams);
+    this.followEachTabWhoseStreamPyRecordALoadReplaced(listedStreams.streams);
     const { tabs, active_stream } = this.openStreamTabs.readLatest();
     const displayNameListedFor = (tab: StreamTabAddress) => listedStreams.streams.find((listing) => listing.stream === tab.stream)?.display_name ?? tab.display_name;
     if (tabs.every((tab) => tab.display_name !== tab.stream || displayNameListedFor(tab) === tab.display_name)) return;
@@ -184,6 +195,44 @@ export class StudioWindowModel {
     this.changeChosenLayoutTree((tree) => layoutWithSplitSizes(tree, splitId, sizePercentByPartId));
   }
 
+  private rememberTheProjectFolderOfEachTabOnAStreamPyRecord(listedStreams: readonly ListedStream[]): void {
+    const tabStreams = new Set(this.openStreamTabs.readLatest().tabs.map((tab) => tab.stream));
+    for (const tabStream of this.projectFolderOfEachTabsStreamPyRecord.keys()) {
+      if (!tabStreams.has(tabStream)) this.projectFolderOfEachTabsStreamPyRecord.delete(tabStream);
+    }
+    for (const listing of listedStreams) {
+      if (tabStreams.has(listing.stream) && listing.location !== null && isAProjectsStreamPyRecord(listing.location.stream_function)) {
+        this.projectFolderOfEachTabsStreamPyRecord.set(listing.stream, listing.location.project_directory);
+      }
+    }
+  }
+
+  private followEachTabWhoseStreamPyRecordALoadReplaced(listedStreams: readonly ListedStream[]): void {
+    const { tabs, active_stream } = this.openStreamTabs.readLatest();
+    const replacementByReplacedStream = new Map<string, ListedStream>();
+    for (const tab of tabs) {
+      const projectFolder = this.projectFolderOfEachTabsStreamPyRecord.get(tab.stream);
+      if (projectFolder === undefined || listedStreams.some((listing) => listing.stream === tab.stream)) continue;
+      const replacement = listedStreams.find((listing) => listing.location?.project_directory === projectFolder);
+      if (replacement !== undefined) replacementByReplacedStream.set(tab.stream, replacement);
+    }
+    if (replacementByReplacedStream.size === 0) return;
+    const tabsFollowed: StreamTabAddress[] = [];
+    for (const tab of tabs) {
+      const replacement = replacementByReplacedStream.get(tab.stream);
+      const tabFollowed = replacement === undefined ? tab : { stream: replacement.stream, project_name: tab.project_name, display_name: replacement.display_name };
+      if (!tabsFollowed.some((tabKept) => tabKept.stream === tabFollowed.stream)) tabsFollowed.push(tabFollowed);
+    }
+    for (const replacedStream of replacementByReplacedStream.keys()) this.projectFolderOfEachTabsStreamPyRecord.delete(replacedStream);
+    const activeReplacement = active_stream === null ? undefined : replacementByReplacedStream.get(active_stream);
+    this.publishStreamTabs({ tabs: tabsFollowed, active_stream: activeReplacement?.stream ?? active_stream });
+    const selection = this.selection.readLatest();
+    const selectionReplacement = selection.kind === "stream" || selection.kind === "node" ? replacementByReplacedStream.get(selection.stream) : undefined;
+    if (selectionReplacement !== undefined && selectionReplacement.location !== null) {
+      this.selection.publish({ kind: "stream", stream: selectionReplacement.stream, project_folder: selectionReplacement.location.project_directory });
+    }
+  }
+
   private openTheStreamTabTheOpeningProjectAwaits(): void {
     const awaited = this.streamTabAwaitedByTheOpeningProject;
     if (awaited === null || openProjectFolderOf(this.openProject.readLatest()) !== awaited.project_folder) return;
@@ -210,6 +259,8 @@ export class StudioWindowModel {
 
   private publishStreamTabs(openStreamTabs: OpenStreamTabs): void {
     this.openStreamTabs.publish(openStreamTabs);
+    const listedStreams = this.listedStreams.readLatest();
+    if (listedStreams.kind === "listed") this.rememberTheProjectFolderOfEachTabOnAStreamPyRecord(listedStreams.streams);
     this.activeStreamTab.publish(openStreamTabs.tabs.find((tab) => tab.stream === openStreamTabs.active_stream) ?? null);
   }
 
