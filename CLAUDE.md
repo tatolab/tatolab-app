@@ -122,6 +122,8 @@ attention spent on settled things is unavailable for real forks.
   never reshape code to satisfy a test. Unrelated issues surfaced by tsc or tests are reported,
   not fixed in passing.
 - Time is monotonic (`performance.now()`); wall-clock only for display.
+- macOS 26.0 is the minimum for every macOS artefact — `LSMinimumSystemVersion`, the Homebrew
+  cask's `depends_on macos:`, and every doc that names a floor. Never 15.0 or anything lower.
 - Names pass the zero-context test: `TatolabStatusPublisher`, `stream_log_readings`, never
   `Publisher`, `follower`, `state`, `ctx`. Explicit beats short.
 - **Tests run on the seams the tree already has** — the fake local API server, injected clocks

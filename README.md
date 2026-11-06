@@ -56,7 +56,7 @@ The runtime and the `tatolab` CLI come from [tatolab/streamlib](https://github.c
 that wraps streamlib's runtime unit into a signed, notarized `.app` and `.dmg`, and into the Linux
 `.deb` and AppImage.
 
-Requirements: macOS 15 (Sequoia) or later on Apple silicon; or x86_64 Linux with a systemd user
+Requirements: macOS 26 (Tahoe) or later on Apple silicon; or x86_64 Linux with a systemd user
 session (Ubuntu 22.04 or later, Debian 12 or later). The window runs on the Chromium Electron
 bundles, so it needs no system web engine. A GNOME desktop shows the tray
 item only with the AppIndicator extension, which Ubuntu ships.
