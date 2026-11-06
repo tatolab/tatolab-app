@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Builds Tato Studio for Linux: the .deb and the AppImage of the Electron window and tray. Each
 # carries in its resources/ streamlib's runtime unit (tatolab-runtime/: bin/, lib/,
-# streamlib-commit), whose tatolabd the app runs as its own child process, and streamlib's
-# install.sh, which the app no longer runs; no uv or Python of its own: the runtime's uv sits
-# beside its tatolabd.
+# streamlib-commit), whose tatolabd the app runs as its own child process; no uv or Python of its
+# own: the runtime's uv sits beside its tatolabd.
 # The runtime is always streamlib's main, or --streamlib-ref, fetched by
 # fetch-streamlib-for-the-app-build.sh into build/linux-streamlib. The packages' version is the
 # version of the tatolabd they carry.
@@ -107,8 +106,7 @@ unit_streamlib_commit="$(cat "$runtime_unit_directory/streamlib-commit" 2>/dev/n
   echo "runtime unit $runtime_unit_directory was built from streamlib '${unit_streamlib_commit:-no recorded commit}', not $streamlib_commit ($streamlib_ref)" >&2
   exit 1
 }
-# The unit as install.sh --from-unit takes it on Linux: the release tarball's top-level entries.
-for required in bin/tatolabd bin/tatolab lib/systemd/user/tatolabd.service streamlib-commit; do
+for required in bin/tatolabd bin/tatolab lib streamlib-commit; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit $runtime_unit_directory is missing $required" >&2; exit 1; }
 done
 tatolabd_version_output="$("$runtime_unit_directory/bin/tatolabd" --version)"
@@ -116,8 +114,6 @@ app_version="${tatolabd_version_output##* }"
 [[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "the unit's tatolabd reports no X.Y.Z version: $tatolabd_version_output" >&2; exit 1; }
 [ -z "$expected_app_version" ] || [ "$expected_app_version" = "$app_version" ] \
   || { echo "--app-version $expected_app_version, but the runtime unit's tatolabd is $app_version" >&2; exit 1; }
-streamlib_installer="$fetched_streamlib/installer/install.sh"
-[ -f "$streamlib_installer" ] || { echo "streamlib $streamlib_commit has no installer/install.sh" >&2; exit 1; }
 echo "    $runtime_unit_directory: streamlib $streamlib_commit, version $app_version"
 linux_build_directory="$repository_root/build/linux-packaging"
 output_directory="$repository_root/build/linux"
@@ -159,11 +155,10 @@ grep -aqF '"electron-updater":{"files"' "$packaged_app_directory/resources/app.a
 grep -qx 'updaterCacheDirName: tatolab-app-updater' "$packaged_app_directory/resources/app-update.yml" \
   || { echo "the packaged app has no resources/app-update.yml naming the updater's cache" >&2; exit 1; }
 
-echo "==> the runtime unit and its installer"
+echo "==> the runtime unit"
 carried_runtime_unit="$packaged_app_directory/resources/tatolab-runtime"
 mkdir -p "$carried_runtime_unit"
 cp -a "$runtime_unit_directory/bin" "$runtime_unit_directory/lib" "$runtime_unit_directory/streamlib-commit" "$carried_runtime_unit/"
-install -m 0755 "$streamlib_installer" "$packaged_app_directory/resources/install.sh"
 
 # Lays the app, its desktop entry and its icons under <root>/usr.
 lay_out_the_app_under() {
@@ -258,12 +253,12 @@ for carried_runtime_member in bin/tatolabd bin/tatolab bin/uv; do
   grep -qE "^-rwxr-xr-x .*[[:space:]]\./usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member\$" <<<"$deb_contents" \
     || { echo "the .deb carries no runnable usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member" >&2; exit 1; }
 done
-for carried_runtime_member in lib/systemd/user/tatolabd.service streamlib-commit; do
+for carried_runtime_member in lib/tatolab/watch/index.html streamlib-commit; do
   grep -qF "./usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member" <<<"$deb_contents" \
     || { echo "the .deb carries no usr/lib/tatolab/resources/tatolab-runtime/$carried_runtime_member" >&2; exit 1; }
 done
-grep -qE '^-rwxr-xr-x .*[[:space:]]\./usr/lib/tatolab/resources/install\.sh$' <<<"$deb_contents" \
-  || { echo "the .deb carries no usr/lib/tatolab/resources/install.sh" >&2; exit 1; }
+! grep -qF './usr/lib/tatolab/resources/install.sh' <<<"$deb_contents" \
+  || { echo "the .deb carries streamlib's install.sh, which the app never runs" >&2; exit 1; }
 echo "    Depends: $deb_depends"
 
 echo "==> AppImage"

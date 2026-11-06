@@ -57,15 +57,39 @@ export function checkForTatolabAppUpdatesOnRequest(sharedState: TatolabAppShared
   });
 }
 
-/** Quit the app from the tray or the window, stopping its runtime with it. */
+/** How long a quit waits for the app's runtime to exit after SIGTERM: past `tatolabd`'s own graceful-then-forced shutdown, which takes up to 5s. */
+export const RUNTIME_EXIT_WAIT_LIMIT_AS_THE_APP_QUITS_MS = 15_000;
+
+/** Stop the app's runtime as it quits, answering once it has exited or the wait limit has passed, whichever is first. */
+export async function stopTheRuntimeWithinTheQuitWaitLimit(
+  stopTheRuntimeAsTheAppQuits: () => Promise<void>,
+  tatolabAppLog: TatolabAppLog,
+  waitLimitMs: number = RUNTIME_EXIT_WAIT_LIMIT_AS_THE_APP_QUITS_MS,
+): Promise<void> {
+  let waitLimitTimer: ReturnType<typeof setTimeout> | undefined;
+  const runtimeExited = stopTheRuntimeAsTheAppQuits().then(() => "exited" as const);
+  const waitLimitPassed = new Promise<"wait_limit_passed">((answer) => {
+    waitLimitTimer = setTimeout(() => answer("wait_limit_passed"), waitLimitMs);
+  });
+  const outcome = await Promise.race([runtimeExited, waitLimitPassed]);
+  clearTimeout(waitLimitTimer);
+  if (outcome === "wait_limit_passed") tatolabAppLog.warn("the runtime had not exited when the quit stopped waiting for it; Tato Studio quits", { wait_limit_ms: waitLimitMs });
+}
+
+/** Quit the app from the tray or the window, stopping its runtime with it and exiting once that runtime has exited. */
 export function quitTheTatolabApp(
   tatolabMainWindow: TatolabMainWindow,
-  stopTheRuntimeAsTheAppQuits: () => void,
+  stopTheRuntimeAsTheAppQuits: () => Promise<void>,
   exitTheApp: (exitCode: number) => void,
   tatolabAppLog: TatolabAppLog,
-): void {
+): Promise<void> {
   tatolabAppLog.info("quitting Tato Studio and its runtime");
-  stopTheRuntimeAsTheAppQuits();
   tatolabMainWindow.letTheWindowCloseAsTheAppQuits();
-  exitTheApp(0);
+  return stopTheRuntimeWithinTheQuitWaitLimit(stopTheRuntimeAsTheAppQuits, tatolabAppLog).then(
+    () => exitTheApp(0),
+    (unexpectedFailure: unknown) => {
+      tatolabAppLog.error("stopping the runtime as the app quits ended without finishing; Tato Studio quits", { failure: describeCaughtFailure(unexpectedFailure) });
+      exitTheApp(0);
+    },
+  );
 }

@@ -79,6 +79,9 @@ export class FakeTatolabElectronAppShell {
   private tatolabWindowCommandHandlers: TatolabWindowCommandHandlers | null = null;
   private readonly appOpenedAgainListeners: ((openedCopy: TatolabAppCopy | null) => void)[] = [];
   private readonly appQuittingListeners: (() => void)[] = [];
+  private readonly quitHoldingWork: (() => Promise<void> | null)[] = [];
+  /** What the last quit the system asked for is held on; `null` before one, or when nothing held it. */
+  quitHeldUntil: Promise<void> | null = null;
   private answerCloseRequest: (() => MainWindowCloseRequestAnswer) | null = null;
   private clickTrayMenuItem: ((trayMenuItemId: TrayMenuItemId) => void) | null = null;
 
@@ -92,6 +95,7 @@ export class FakeTatolabElectronAppShell {
     whenReady: async () => {},
     onTheAppOpenedAgain: (listener) => this.appOpenedAgainListeners.push(listener),
     onTheAppQuitting: (listener) => this.appQuittingListeners.push(listener),
+    holdTheQuitUntil: (workBeforeTheQuitGoesOn) => this.quitHoldingWork.push(workBeforeTheQuitGoesOn),
     exitTheApp: (exitCode) => this.records.push({ asked: "exit", exitCode }),
     openAnotherCopyOnceThisOneExits: (executable) => this.records.push({ asked: "open_another_copy_once_this_one_exits", executable }),
     setTheApplicationMenu: (applicationMenu) => this.records.push({ asked: "set_application_menu", applicationMenu }),
@@ -184,6 +188,8 @@ export class FakeTatolabElectronAppShell {
 
   beginQuitting(): void {
     for (const appQuittingListener of this.appQuittingListeners) appQuittingListener();
+    const workHoldingTheQuit = this.quitHoldingWork.map((work) => work()).filter((work) => work !== null);
+    this.quitHeldUntil = workHoldingTheQuit.length === 0 ? null : Promise.all(workHoldingTheQuit).then(() => undefined);
   }
 
   /** Close the window as its close button does, answering what the app chose. */

@@ -3,8 +3,7 @@
 # timestamp. The runtime's helper, Contents/Helpers/Tatolab Runtime.app, first: every Mach-O in its
 # Frameworks (the runtime's dylibs), its tatolab-cli, moq-relay and uv, then the helper itself, whose
 # main executable is tatolabd, with the device and keychain access group entitlements and the
-# provisioning profile that authorizes the latter; install.sh copies it out whole, so its own
-# signature is what macOS checks the installed runtime against. Then the app: every loose Mach-O
+# provisioning profile that authorizes the latter. Then the app: every loose Mach-O
 # in Contents/Frameworks (Electron's libraries), each framework, each Electron helper app, then the
 # app.
 #
@@ -35,7 +34,7 @@ runtime_application_identifier="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.a
 helper_bundle="$contents/Helpers/Tatolab Runtime.app"
 helper_contents="$helper_bundle/Contents"
 for required in "MacOS/Tato Studio" "Frameworks/Electron Framework.framework" \
-  Resources/install.sh "Helpers/Tatolab Runtime.app/Contents/Info.plist" "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolabd" \
+  "Helpers/Tatolab Runtime.app/Contents/Info.plist" "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolabd" \
   "Helpers/Tatolab Runtime.app/Contents/MacOS/tatolab-cli" "Helpers/Tatolab Runtime.app/Contents/MacOS/moq-relay" \
   "Helpers/Tatolab Runtime.app/Contents/MacOS/uv" "Helpers/Tatolab Runtime.app/Contents/Frameworks/tatolab-runtime"; do
   [ -e "$contents/$required" ] || { echo "$app_bundle is not assembled: Contents/$required is missing" >&2; exit 1; }

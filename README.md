@@ -96,7 +96,9 @@ curl -fsSL https://get.tatolab.com/install.sh | sh
 ## Uninstalling
 
 The app installs nothing outside itself but the `~/.local/bin/tatolab` link and its own settings,
-`~/Library/Application Support/com.tatolab.tatolab` (Linux: `~/.config/com.tatolab.tatolab`).
+`~/Library/Application Support/com.tatolab.tatolab` (Linux: `~/.config/com.tatolab.tatolab`). The
+AppImage, whose mount goes when it quits, links `tatolab` to a copy of its CLI in
+`$XDG_DATA_HOME/tato-studio/bin/` (else `~/.local/share/tato-studio/bin/`); delete that folder too.
 Quit it and move Tato Studio.app to the Trash, or remove the Linux package. The runtime's state
 directory, where it keeps your streams and logs (`~/Library/Application Support/Tatolab`; Linux
 `$XDG_STATE_HOME/tatolab`, else `~/.local/state/tatolab`), stays. `brew uninstall --zap --cask
@@ -123,7 +125,6 @@ Tato Studio.app/Contents/
                                               preload in Resources/app.asar
   Frameworks/Electron Framework.framework, Frameworks/Tatolab Helper*.app
                                               Electron, and its GPU, plugin and renderer helpers
-  Resources/install.sh                        streamlib's installer, carried but no longer run by the app
   Helpers/Tatolab Runtime.app/Contents/       the runtime, a bundle of its own (com.tatolab.runtime)
     Info.plist                                its id and the usage strings macOS credits it for
                                               (packaging/runtime-helper/Info.plist)
@@ -175,8 +176,7 @@ needs where unprivileged user namespaces are off. `Depends` names Electron's lib
 versions or `t64` suffixes, so one package installs on Ubuntu 22.04 and 24.04; the build fails if
 the app links a library the list does not name. It recommends `curl` for the installer's command.
 Its `resources/` carry streamlib's runtime unit in `tatolab-runtime/` (the release tarball's `bin/`,
-`lib/` with `lib/systemd/user/tatolabd.service`, and `streamlib-commit`), whose `bin/tatolabd` the
-app runs as its child, and streamlib's `install.sh`, which the app no longer runs. The AppImage carries the same app; it has no setuid sandbox helper, so it needs unprivileged user
+`lib/` and `streamlib-commit`), whose `bin/tatolabd` the app runs as its child. The AppImage carries the same app; it has no setuid sandbox helper, so it needs unprivileged user
 namespaces (on by default on Ubuntu 22.04, restricted by AppArmor on 24.04).
 
 ## Building on macOS
@@ -270,8 +270,7 @@ scripts/build-tatolab-linux-app.sh
 
 It fetches streamlib's `main`, or `--streamlib-ref REF`, into `build/linux-streamlib` and builds
 its runtime unit there (`--runtime-unit DIR` takes one already built, when its `streamlib-commit`
-names the commit the build resolved), adds the checkout's `installer/tatolabd.service` to the unit
-and carries the unit and `installer/install.sh` in the app's `resources/`. The packages' version
+names the commit the build resolved), and carries the unit in the app's `resources/`. The packages' version
 is the version of the `tatolabd` they carry. It then builds and packages the Electron app as on macOS, lays out the `.deb` and builds it with
 `dpkg-deb`, builds the AppImage with a pinned `appimagetool` and AppImage runtime (checksums in
 the script), checks the fuses, the build features, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Tato-Studio-<version>-amd64.deb`,

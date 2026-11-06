@@ -112,6 +112,30 @@ test("restart_stops_the_apps_runtime_and_starts_it_again_as_soon_as_it_exits", (
   expect(carriedRuntimeStarts.runtimesStarted).toHaveLength(2);
 });
 
+test("quitting_answers_once_the_apps_runtime_has_exited", async () => {
+  const carriedRuntimeStarts = new FakeCarriedRuntimeStarts();
+  const runtime = runtimeRunAsTheAppsChild(carriedRuntimeStarts, { nowMs: 0 });
+  runtime.keepTheRuntimeRunning(false, 0);
+  expect(runtime.aRuntimeTheAppStartedIsRunning()).toBe(true);
+  let hasStopped = false;
+  const stopping = runtime.stopAsTheAppQuits().then(() => {
+    hasStopped = true;
+  });
+  const askedAgain = runtime.stopAsTheAppQuits();
+  await Promise.resolve();
+  expect(hasStopped).toBe(false);
+  carriedRuntimeStarts.lastRuntimeStarted()?.exit({ exitStatus: 0, endingSignal: null, lastStandardErrorLine: null });
+  await Promise.all([stopping, askedAgain]);
+  expect(hasStopped).toBe(true);
+  expect(runtime.aRuntimeTheAppStartedIsRunning()).toBe(false);
+});
+
+test("quitting_with_no_runtime_of_the_apps_answers_at_once", async () => {
+  const runtime = runtimeRunAsTheAppsChild(new FakeCarriedRuntimeStarts(), { nowMs: 0 });
+  expect(runtime.aRuntimeTheAppStartedIsRunning()).toBe(false);
+  await runtime.stopAsTheAppQuits();
+});
+
 test("quitting_stops_the_apps_runtime_and_starts_no_other", () => {
   const carriedRuntimeStarts = new FakeCarriedRuntimeStarts();
   const runtime = runtimeRunAsTheAppsChild(carriedRuntimeStarts, { nowMs: 0 });
