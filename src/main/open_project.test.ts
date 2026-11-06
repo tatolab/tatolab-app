@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import type { OpenProjectReading, ProjectCreationQueued } from "../shared/tatolab_backend_contract.js";
+import type { OpenProjectReading, ProjectCreationQueued, ProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
-import { OPEN_PROJECT_REREAD_QUIET_MS, OpenProjectFolder, readTheProjectIn, type ProjectFolderDialogPurpose, type RecentProjectFolderOpened } from "./open_project.js";
+import { OPEN_PROJECT_REREAD_QUIET_MS, OpenProjectOfAStudioWindow, ProjectOpening, readTheProjectIn, type ProjectFolderDialogPurpose, type RecentProjectFolderOpened } from "./open_project.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 const foldersMade: string[] = [];
@@ -95,7 +95,8 @@ async function anOpenProject(options: { dialogAnswers: string | null; recentFold
   const pendingTimers: Array<() => void> = [];
   let recentFolders = options.recentFolders ?? [];
   let wallClockNowMs = 1_790_000_000_000;
-  const openProject = new OpenProjectFolder({
+  let projectOpenedLast: OpenProjectOfAStudioWindow | null = null;
+  const projectOpening = new ProjectOpening({
     homeDirectory: await aFolder(),
     documentsDirectory,
     projectFolderDialog: async (purpose, defaultFolder) => {
@@ -118,17 +119,33 @@ async function anOpenProject(options: { dialogAnswers: string | null; recentFold
         return succeeded({ action: "action-1", stream: "fresh-main-0a1b2c", project_directory: projectDirectory ?? "" });
       },
     },
-    watchFolderEntries: (folder, onChange) => {
-      watchedFolders.set(folder, onChange);
-      return () => watchedFolders.delete(folder);
+    openTheProjectInItsStudioWindow: async (folder) => {
+      projectOpenedLast?.stopWatching();
+      projectOpenedLast = new OpenProjectOfAStudioWindow(folder, {
+        watchFolderEntries: (watchedFolder, onChange) => {
+          watchedFolders.set(watchedFolder, onChange);
+          return () => watchedFolders.delete(watchedFolder);
+        },
+        runAfter: (delayMs, work) => {
+          expect(delayMs).toBe(OPEN_PROJECT_REREAD_QUIET_MS);
+          pendingTimers.push(work);
+          return () => pendingTimers.splice(pendingTimers.indexOf(work), 1);
+        },
+        sendTheWindowTheOpenProject: (reading) => sentReadings.push(reading),
+      });
+      await projectOpenedLast.readAndWatch();
     },
-    runAfter: (delayMs, work) => {
-      expect(delayMs).toBe(OPEN_PROJECT_REREAD_QUIET_MS);
-      pendingTimers.push(work);
-      return () => pendingTimers.splice(pendingTimers.indexOf(work), 1);
-    },
-    sendTheWindowTheOpenProject: (reading) => sentReadings.push(reading),
   });
+  // Opening from the studio window of the project opened last, as the person would after opening one.
+  const openProject = {
+    chooseProjectFolder: (chosenFor: ProjectFolderChosenFor) => projectOpening.chooseProjectFolder(chosenFor, projectOpenedLast?.projectFolder ?? null),
+    readNewProjectDefaults: () => projectOpening.readNewProjectDefaults(),
+    chooseNewProjectLocation: (startingAt: string) => projectOpening.chooseNewProjectLocation(startingAt),
+    createNewProject: (name: string, location: string) => projectOpening.createNewProject(name, location),
+    openRecentProject: (folder: string) => projectOpening.openRecentProject(folder),
+    readRecentProjects: () => projectOpening.readRecentProjects(),
+    readOpenProject: (): OpenProjectReading => projectOpenedLast?.readOpenProject() ?? { kind: "none_open" },
+  };
   return {
     openProject,
     documentsDirectory,

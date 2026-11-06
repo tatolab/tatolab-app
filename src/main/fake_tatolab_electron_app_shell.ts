@@ -29,10 +29,23 @@ import {
   type TatolabAppCopy,
 } from "./tatolab_app_copy_handoff.js";
 
-/** One thing the app asked of the fake shell, in order. */
-export type FakeShellRecord =
+/** The Projects window's contents id: the first window the app makes. */
+export const PROJECTS_WINDOW_CONTENTS_ID = 1;
+
+/** A window the app made, as the fake keeps it. */
+interface FakeWindowCreated {
+  windowContentsId: number;
+  title: string;
+  showing: boolean;
+  closed: boolean;
+  answerCloseRequest: () => MainWindowCloseRequestAnswer;
+  whenClosed: () => void;
+}
+
+/** One thing the app asked of the fake shell, in order; a studio window's records name its contents id. */
+export type FakeShellRecord = (
   | { asked: "create_main_window"; mainWindowSpecification: MainWindowSpecification }
-  | { asked: "unminimize" | "show" | "focus" | "hide" }
+  | { asked: "unminimize" | "show" | "focus" | "hide" | "close" }
   | { asked: "send_window_event"; eventChannel: string; eventPayload: unknown }
   | { asked: "set_activation_policy"; activationPolicy: MacosActivationPolicy }
   | { asked: "show_tray_menu"; trayMenuItems: readonly TrayMenuItemDescription[] }
@@ -43,7 +56,8 @@ export type FakeShellRecord =
   | { asked: "set_application_menu"; applicationMenu: ApplicationMenu }
   | { asked: "open_folder_in_the_file_manager"; folder: string }
   | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
-  | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderDialogPurpose; defaultFolder: string };
+  | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderDialogPurpose; defaultFolder: string }
+) & { windowContentsId?: number };
 
 /** A fake Electron app shell for the lifecycle's tests. */
 export class FakeTatolabElectronAppShell {
@@ -83,6 +97,7 @@ export class FakeTatolabElectronAppShell {
   /** What the last quit the system asked for is held on; `null` before one, or when nothing held it. */
   quitHeldUntil: Promise<void> | null = null;
   private answerCloseRequest: (() => MainWindowCloseRequestAnswer) | null = null;
+  private readonly windowsCreated: FakeWindowCreated[] = [];
   private clickTrayMenuItem: ((trayMenuItemId: TrayMenuItemId) => void) | null = null;
 
   /** The shell `startTatolabApp` takes. */
@@ -135,23 +150,33 @@ export class FakeTatolabElectronAppShell {
     readMonotonicClockMs: () => 0,
     readWallClockMsForDisplay: () => 1_790_000_000_000,
     mainWindowHostFactory: {
-      createMainWindowHost: (mainWindowSpecification, answerCloseRequest) => {
+      createMainWindowHost: (mainWindowSpecification, answerCloseRequest, whenClosed) => {
         if (this.mainWindowCreationFailure !== null) return failedWith(this.mainWindowCreationFailure);
-        this.records.push({ asked: "create_main_window", mainWindowSpecification });
-        this.answerCloseRequest = answerCloseRequest;
+        const windowContentsId = this.windowsCreated.length + 1;
+        // The first window is the Projects window, whose records name no window; each studio window's name its contents id.
+        const recordOfThisWindow = (fakeShellRecord: FakeShellRecord): FakeShellRecord =>
+          windowContentsId === PROJECTS_WINDOW_CONTENTS_ID ? fakeShellRecord : { ...fakeShellRecord, windowContentsId };
+        const fakeWindow: FakeWindowCreated = { windowContentsId, title: mainWindowSpecification.title, showing: false, closed: false, answerCloseRequest, whenClosed };
+        this.windowsCreated.push(fakeWindow);
+        this.records.push(recordOfThisWindow({ asked: "create_main_window", mainWindowSpecification }));
+        if (windowContentsId === PROJECTS_WINDOW_CONTENTS_ID) this.answerCloseRequest = answerCloseRequest;
         return succeeded({
-          unminimize: () => this.records.push({ asked: "unminimize" }),
+          windowContentsId,
+          unminimize: () => this.records.push(recordOfThisWindow({ asked: "unminimize" })),
           show: () => {
-            this.mainWindowShowing = true;
-            this.records.push({ asked: "show" });
+            fakeWindow.showing = true;
+            if (windowContentsId === PROJECTS_WINDOW_CONTENTS_ID) this.mainWindowShowing = true;
+            this.records.push(recordOfThisWindow({ asked: "show" }));
           },
-          focus: () => this.records.push({ asked: "focus" }),
+          focus: () => this.records.push(recordOfThisWindow({ asked: "focus" })),
           hide: () => {
-            this.mainWindowShowing = false;
-            this.records.push({ asked: "hide" });
+            fakeWindow.showing = false;
+            if (windowContentsId === PROJECTS_WINDOW_CONTENTS_ID) this.mainWindowShowing = false;
+            this.records.push(recordOfThisWindow({ asked: "hide" }));
           },
-          isShowing: () => this.mainWindowShowing,
-          sendTheWindowAnEvent: (eventChannel, eventPayload) => this.records.push({ asked: "send_window_event", eventChannel, eventPayload }),
+          close: () => this.closeTheFakeWindow(fakeWindow),
+          isShowing: () => fakeWindow.showing,
+          sendTheWindowAnEvent: (eventChannel, eventPayload) => this.records.push(recordOfThisWindow({ asked: "send_window_event", eventChannel, eventPayload })),
         });
       },
     },
@@ -192,6 +217,30 @@ export class FakeTatolabElectronAppShell {
     this.quitHeldUntil = workHoldingTheQuit.length === 0 ? null : Promise.all(workHoldingTheQuit).then(() => undefined);
   }
 
+  /** The studio windows the app made and has not closed, by title and contents id. */
+  studioWindowsOpen(): { title: string; windowContentsId: number; showing: boolean }[] {
+    return this.windowsCreated
+      .filter((fakeWindow) => fakeWindow.windowContentsId !== PROJECTS_WINDOW_CONTENTS_ID && !fakeWindow.closed)
+      .map(({ title, windowContentsId, showing }) => ({ title, windowContentsId, showing }));
+  }
+
+  /** Press the close button of the window `windowContentsId`, as its close button does, answering what the app chose. */
+  requestTheCloseOfTheWindow(windowContentsId: number): MainWindowCloseRequestAnswer | null {
+    const fakeWindow = this.windowsCreated.find((windowCreated) => windowCreated.windowContentsId === windowContentsId && !windowCreated.closed);
+    if (fakeWindow === undefined) return null;
+    const answer = fakeWindow.answerCloseRequest();
+    if (answer === "let_it_close") this.closeTheFakeWindow(fakeWindow);
+    return answer;
+  }
+
+  private closeTheFakeWindow(fakeWindow: FakeWindowCreated): void {
+    if (fakeWindow.closed) return;
+    fakeWindow.closed = true;
+    fakeWindow.showing = false;
+    this.records.push({ asked: "close", ...(fakeWindow.windowContentsId === PROJECTS_WINDOW_CONTENTS_ID ? {} : { windowContentsId: fakeWindow.windowContentsId }) });
+    fakeWindow.whenClosed();
+  }
+
   /** Close the window as its close button does, answering what the app chose. */
   requestTheWindowClose(): MainWindowCloseRequestAnswer | null {
     return this.answerCloseRequest?.() ?? null;
@@ -205,10 +254,14 @@ export class FakeTatolabElectronAppShell {
     this.clickTrayMenuItem?.(trayMenuItemId);
   }
 
-  /** Invoke `commandName` as the window does; refused when the app answers no commands. */
-  invokeTheCommand<CommandName extends TatolabCommandName>(commandName: CommandName, commandArguments?: unknown): Promise<TatolabCommandAnswerTo<CommandName>> {
+  /** Invoke `commandName` as the window `fromWindowContentsId` (the Projects window unless named) does; refused when the app answers no commands. */
+  invokeTheCommand<CommandName extends TatolabCommandName>(
+    commandName: CommandName,
+    commandArguments?: unknown,
+    fromWindowContentsId: number = PROJECTS_WINDOW_CONTENTS_ID,
+  ): Promise<TatolabCommandAnswerTo<CommandName>> {
     if (this.tatolabWindowCommandHandlers === null) return Promise.resolve({ ok: false, refusal: "the app answers no commands" });
-    return this.tatolabWindowCommandHandlers[commandName](commandArguments);
+    return this.tatolabWindowCommandHandlers[commandName](commandArguments, { windowContentsId: fromWindowContentsId });
   }
 
   removeTheAppConfigDirectory(): Promise<void> {

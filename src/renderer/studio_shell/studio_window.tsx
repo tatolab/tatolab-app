@@ -143,9 +143,8 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const preferencesSection = useWatchedStudioValue(model.preferencesSection);
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
   const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
-  const isProjectsShown = useWatchedStudioValue(model.isProjectsShown);
   const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
-  const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null && !isProjectsShown;
+  const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null;
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (

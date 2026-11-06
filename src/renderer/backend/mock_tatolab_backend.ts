@@ -1122,6 +1122,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const notificationClickTimer = window.setTimeout(() => streamPageRequestListener(streamPageRequestedByANotification), MOCK_NOTIFICATION_CLICK_MILLISECONDS);
       return () => window.clearTimeout(notificationClickTimer);
     },
+    showTheProjectsWindow: async () => {
+      openProjectReading = { kind: "none_open" };
+      for (const openProjectListener of openProjectListeners) openProjectListener(structuredClone(openProjectReading));
+    },
     chooseProjectFolder: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       const chosenReading = mockOpenProjectReading("read", fixtures.machine.homeDirectory);

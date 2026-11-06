@@ -76,6 +76,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("remove_relay", { relay_id: relayId });
     },
     onStreamPageRequested: (listener) => tatolabElectronBridge.onStreamPageRequested(listener),
+    showTheProjectsWindow: async () => {
+      await invokeTatolabCommand("show_projects_window", undefined);
+    },
     chooseProjectFolder: (chosenFor) => invokeTatolabCommand("choose_project_folder", { chosen_for: chosenFor }),
     readNewProjectDefaults: () => invokeTatolabCommand("read_new_project_defaults", undefined),
     chooseNewProjectLocation: (startingAt) => invokeTatolabCommand("choose_new_project_location", { starting_at: startingAt }),

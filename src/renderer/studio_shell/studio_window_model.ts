@@ -52,8 +52,6 @@ export class StudioWindowModel {
   readonly selection = new WatchedStudioValue<StudioSelection>({ kind: "nothing" });
   readonly openStreamTabs = new WatchedStudioValue<OpenStreamTabs>({ tabs: [], active_stream: null });
   readonly activeStreamTab = new WatchedStudioValue<StreamTabAddress | null>(null);
-  /** Whether the Projects window shows over the open project, as File › Projects shows it; it shows anyway while none is open. */
-  readonly isProjectsShown = new WatchedStudioValue<boolean>(false);
   /** The section Preferences shows while it is open; `null` while it is closed. */
   readonly preferencesSection = new WatchedStudioValue<SettingsSection | null>(null);
   /** The name and location the New project sheet opened with while it shows; `null` while it is closed. */
@@ -98,7 +96,6 @@ export class StudioWindowModel {
     const folderNow = openProjectFolderOf(reading);
     this.openProject.publish(reading);
     if (folderNow === folderBefore && this.studioLayouts.readLatest() !== null) return;
-    if (folderNow !== folderBefore) this.isProjectsShown.publish(false);
     this.selection.publish({ kind: "nothing" });
     this.publishStreamTabs({ tabs: [], active_stream: null });
     this.studioLayouts.publish(folderNow === null ? null : this.layoutsKept.readLayoutsOf(folderNow));
