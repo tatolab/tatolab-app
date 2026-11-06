@@ -96,7 +96,9 @@ curl -fsSL https://get.tatolab.com/install.sh | sh
 ## Uninstalling
 
 The app installs nothing outside itself but the `~/.local/bin/tatolab` link and its own settings,
-`~/Library/Application Support/com.tatolab.tatolab` (Linux: `~/.config/com.tatolab.tatolab`).
+`~/Library/Application Support/com.tatolab.tatolab` (Linux: `~/.config/com.tatolab.tatolab`). The
+AppImage, whose mount goes when it quits, links `tatolab` to a copy of its CLI in
+`$XDG_DATA_HOME/tato-studio/bin/` (else `~/.local/share/tato-studio/bin/`); delete that folder too.
 Quit it and move Tato Studio.app to the Trash, or remove the Linux package. The runtime's state
 directory, where it keeps your streams and logs (`~/Library/Application Support/Tatolab`; Linux
 `$XDG_STATE_HOME/tatolab`, else `~/.local/state/tatolab`), stays. `brew uninstall --zap --cask

@@ -92,7 +92,8 @@ attention spent on settled things is unavailable for real forks.
   the runtime's local API, and starts the runtime it carries as its child and stops it as the app
   quits; a runtime it did not start, it leaves alone. It never reads the runtime's state directory
   or other sockets, and never asks for an administrator's password. The only machine state it
-  touches is what it owns: the `~/.local/bin/tatolab` link and its own settings.
+  touches is what it owns: the `~/.local/bin/tatolab` link (an AppImage's through a copy of its CLI
+  in `~/.local/share/tato-studio/bin/`) and its own settings.
 - **The contract is streamlib's.** Recorded responses under `src/main/test-fixtures/` pin it;
   refresh one by recording it from a real runtime — never hand-edit one to make a test pass. A
   change to what the app reads also runs the skipped live contract test against a running runtime
