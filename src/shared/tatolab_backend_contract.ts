@@ -432,6 +432,41 @@ export interface PoppedOutViewerTarget {
   node: string | null;
 }
 
+/** A `@node` or `@stream` a catalog entry brings: its name, where it is imported from, and one line on what it does. */
+export interface PackageCatalogMember {
+  name: string;
+  import_path: string;
+  summary: string;
+}
+
+/** One package or sample project the catalog at get.tatolab.com lists, as its version 1 serves it. */
+export interface PackageCatalogEntry {
+  kind: "package" | "sample";
+  /** The project's name, as a requirement names it. */
+  name: string;
+  title: string;
+  summary: string;
+  version: string;
+  /** The PEP 508 requirement Import adds to `[project] dependencies` as it is. */
+  requirement: string;
+  nodes: PackageCatalogMember[];
+  streams: PackageCatalogMember[];
+  homepage_url: string | null;
+}
+
+/** What `read_package_catalog` answers: the catalog's entries and how many it served that the app could not read, or why it was not read, in the words of what refused. */
+export type PackageCatalogReading =
+  | { kind: "read"; entries: PackageCatalogEntry[]; unreadable_entry_count: number }
+  | { kind: "not_read"; because: string };
+
+/** What `preview_import` answers: the workspace's `pyproject.toml` before and after the requirement is added, and the version it was read at, which `import_into_workspace` takes back. */
+export interface ImportPreview {
+  file: string;
+  text_before: string;
+  text_after: string;
+  based_on_version: string;
+}
+
 /** What the project folder dialog is opened for from the window: an existing project to open. */
 export type ProjectFolderChosenFor = "project_to_open";
 

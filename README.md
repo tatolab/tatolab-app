@@ -18,7 +18,10 @@ runtime make the project in that folder. Each project opens in a studio window o
 with the project's name, or brings forward the window it already has; the Projects window steps
 aside once it opens one, and File › Projects or the tray brings it back. The Viewer's Pop out
 opens it in a small window of its own, for a second monitor, pinned to the stream shown and the
-node selected; it closes with its project's window. Every window shares the one runtime. It reads
+node selected; it closes with its project's window. File › Get more… opens a window that lists the
+packages and samples in the catalog at `get.tatolab.com/catalog/v1.json` and the project's imports,
+each with the nodes and streams it brings; Import shows the line it adds to the project's
+`pyproject.toml` before writing it, and an import from a folder opens to edit. Every window shares the one runtime. It reads
 everything from the runtime's local API: `list_streams`, `logs` and `graph` over MCP, and
 `GET /api/graph` for the machine's name. It queues a stop or a start (or retry) of a stream, and
 the removal of a whole project, with the MCP tools `stop_stream`, `start_stream` and

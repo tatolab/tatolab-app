@@ -161,6 +161,7 @@ async function sharedStateOverFakes(
       pyrightLanguageServerModulePath: "/fake/pyright/langserver.index.js",
       tatolabAppLog: quietTatolabAppLog,
     }),
+    fetchTextOverHttps: async () => failedWith("these tests reach no network"),
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLink,
     carriedRuntimeStarts,

@@ -3,9 +3,11 @@
 // the window as the next `tatolab-status-changed`. A question the window awaits is answered with
 // its answer or a refusal in words, never a thrown error.
 
+import path from "node:path";
 import type {
   ChosenProjectFolder,
   JsonValue,
+  ImportPreview,
   PoppedOutViewerTarget,
   ProjectCreationQueued,
   ProjectLogNarrowing,
@@ -25,6 +27,9 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
+import { readThePackageCatalog } from "./package_catalog.js";
+import { pyprojectTextWithTheRequirementAdded } from "./project_dependency_adding.js";
+import { PROJECT_DESCRIPTION_FILE_NAME } from "./project_on_disk.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import {
@@ -517,6 +522,66 @@ export function popOutViewer(sharedState: TatolabAppSharedState, target: PoppedO
   return succeeded(undefined);
 }
 
+/** The studio window whose Get more window sent `commandFromWindow`, or the refusal any other window is given. */
+function studioWindowOfTheGetMoreWindowTheCommandCameFrom(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Result<StudioWindowOfAProject, string> {
+  const studioWindow = sharedState.appWindows.studioWindowOfTheGetMoreWindowWithContents(commandFromWindow.windowContentsId);
+  return studioWindow === null ? failedWith("Only a Get more window imports into a project.") : succeeded(studioWindow);
+}
+
+/** The workspace's `pyproject.toml` as read from disk now, and the same text with `requirement` added, or why it cannot be. */
+async function importPreviewOf(studioWindow: StudioWindowOfAProject, requirement: string): Promise<Result<ImportPreview, string>> {
+  const reading = studioWindow.openProject.readOpenProject();
+  if (reading.kind !== "read") return failedWith(reading.kind === "none_open" ? "No project is open to import into." : `The project in ${reading.folder} could not be read: ${reading.refusal}`);
+  const descriptionFile = path.join(reading.open_project.project.folder, PROJECT_DESCRIPTION_FILE_NAME);
+  const descriptionRead = await studioWindow.openProjectFiles.readProjectFile(descriptionFile);
+  if (!descriptionRead.ok) return descriptionRead;
+  const textAfter = pyprojectTextWithTheRequirementAdded(descriptionRead.value.text, requirement);
+  if (!textAfter.ok) return textAfter;
+  return succeeded({ file: descriptionFile, text_before: descriptionRead.value.text, text_after: textAfter.value, based_on_version: descriptionRead.value.version });
+}
+
+/** `preview_import`: the asking Get more window's workspace `pyproject.toml` before and after `requirement` is added, nothing written. */
+export function previewImport(sharedState: TatolabAppSharedState, requirement: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ImportPreview, string>> {
+  return answerTheWindow("preview_import", async () => {
+    const studioWindow = studioWindowOfTheGetMoreWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    return studioWindow.ok ? importPreviewOf(studioWindow.value, requirement) : studioWindow;
+  });
+}
+
+/** `import_into_workspace`: `requirement` written into the workspace's `pyproject.toml` when it is still at `basedOnVersion`; refused with nothing written otherwise. */
+export function importIntoWorkspace(
+  sharedState: TatolabAppSharedState,
+  requirement: string,
+  basedOnVersion: string,
+  commandFromWindow: TatolabCommandFromWindow,
+): Promise<Result<void, string>> {
+  return answerTheWindow("import_into_workspace", async () => {
+    const studioWindow = studioWindowOfTheGetMoreWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const preview = await importPreviewOf(studioWindow.value, requirement);
+    if (!preview.ok) return preview;
+    if (preview.value.based_on_version !== basedOnVersion) return failedWith("pyproject.toml changed since the import was shown; nothing was written. Look at the change again before importing.");
+    const saved = await studioWindow.value.openProjectFiles.saveProjectFile(preview.value.file, preview.value.text_after, basedOnVersion);
+    if (!saved.ok) return saved;
+    sharedState.tatolabAppLog.info("imported a project into the workspace", { requirement, project_folder: studioWindow.value.openProject.projectFolder });
+    return succeeded(undefined);
+  });
+}
+
+/** `open_import_to_edit`: the workspace's import `name`, whose source is a folder, opened in its own studio window; refused for an import with no folder. */
+export function openImportToEdit(sharedState: TatolabAppSharedState, name: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+  return answerTheWindow("open_import_to_edit", async () => {
+    const studioWindow = studioWindowOfTheGetMoreWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const reading = studioWindow.value.openProject.readOpenProject();
+    const importedProject = reading.kind === "read" ? reading.open_project.imports.find((imported) => imported.name === name) : undefined;
+    if (importedProject === undefined) return failedWith(`The project imports nothing named ${name}.`);
+    if (importedProject.source.kind !== "folder") return failedWith(`${name} comes from a package index, so it has no folder of its own to open; only an import from a folder opens to edit.`);
+    await sharedState.appWindows.openTheProjectInItsStudioWindow(importedProject.source.project.folder);
+    return succeeded(undefined);
+  });
+}
+
 /** `save_project_file`'s arguments as the window sends them, or why they are not. */
 export function saveProjectFileArgumentsFrom(commandArguments: unknown): Result<{ file: string; text: string; based_on_version: string | null }, string> {
   if (
@@ -704,6 +769,34 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       ok: true,
       value: sharedState.appWindows.poppedOutViewerTargetOfTheWindowWithContents(commandFromWindow.windowContentsId),
     }),
+    open_get_more_window: async (_commandArguments, commandFromWindow) => {
+      const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
+      if (studioWindow === null) return { ok: false, refusal: "Only a project's studio window opens Get more." };
+      sharedState.appWindows.openTheGetMoreWindowOf(studioWindow);
+      return { ok: true, value: null };
+    },
+    read_get_more_workspace: async (_commandArguments, commandFromWindow) => ({
+      ok: true,
+      value: sharedState.appWindows.studioWindowOfTheGetMoreWindowWithContents(commandFromWindow.windowContentsId)?.openProject.readOpenProject() ?? null,
+    }),
+    read_package_catalog: async () => ({ ok: true, value: await readThePackageCatalog(sharedState.fetchTextOverHttps) }),
+    preview_import: async (commandArguments, commandFromWindow) => {
+      const requirement = oneTextArgumentFrom("preview_import", commandArguments, "requirement", "the requirement to add");
+      if (!requirement.ok) return { ok: false, refusal: requirement.failure };
+      return commandAnswerFrom(await previewImport(sharedState, requirement.value, commandFromWindow));
+    },
+    import_into_workspace: async (commandArguments, commandFromWindow) => {
+      const requirement = oneTextArgumentFrom("import_into_workspace", commandArguments, "requirement", "the requirement to add");
+      if (!requirement.ok) return { ok: false, refusal: requirement.failure };
+      const basedOnVersion = oneTextArgumentFrom("import_into_workspace", commandArguments, "based_on_version", "the version preview_import read pyproject.toml at");
+      if (!basedOnVersion.ok) return { ok: false, refusal: basedOnVersion.failure };
+      return commandAnswerOfNothingFrom(await importIntoWorkspace(sharedState, requirement.value, basedOnVersion.value, commandFromWindow));
+    },
+    open_import_to_edit: async (commandArguments, commandFromWindow) => {
+      const name = oneTextArgumentFrom("open_import_to_edit", commandArguments, "name", "the name of one of the workspace's imports");
+      if (!name.ok) return { ok: false, refusal: name.failure };
+      return commandAnswerOfNothingFrom(await openImportToEdit(sharedState, name.value, commandFromWindow));
+    },
     read_project_file: async (commandArguments, commandFromWindow) => {
       const file = oneTextArgumentFrom("read_project_file", commandArguments, "file", "an absolute path in the open project");
       if (!file.ok) return { ok: false, refusal: file.failure };

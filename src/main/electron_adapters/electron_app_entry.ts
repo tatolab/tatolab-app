@@ -23,6 +23,7 @@ import { openAFolderInTheFileManagerThroughElectron } from "./electron_folder_in
 import { askThePersonForAStreamProjectFolderThroughElectron } from "./electron_stream_project_folder_dialog.js";
 import { askThePersonForAProjectFolderThroughElectron } from "./electron_project_folder_dialog.js";
 import { startANodeLanguageServerInAUtilityProcess } from "./electron_node_language_server_in_a_utility_process.js";
+import { fetchTextOverHttpsThroughElectron } from "./electron_text_over_https.js";
 import { watchFolderEntriesOnThisMachine } from "../folder_entries_watch_on_this_machine.js";
 import { createElectronMainWindowHostFactory } from "./electron_main_window_host.js";
 import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_handlers.js";
@@ -117,6 +118,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   // A packaged app carries Pyright outside app.asar, in app.asar.unpacked, so its worker threads and typeshed stubs load from plain files.
   pyrightLanguageServerModulePath: path.join(app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getAppPath(), "node_modules", "pyright", "langserver.index.js"),
   watchFolderEntries: watchFolderEntriesOnThisMachine,
+  fetchTextOverHttps: fetchTextOverHttpsThroughElectron,
   homeDirectory: app.getPath("home"),
   // On Linux Electron reads XDG_DOCUMENTS_DIR from user-dirs.dirs, falling back to ~/Documents.
   documentsDirectory: app.getPath("documents"),
