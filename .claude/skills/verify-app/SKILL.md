@@ -117,11 +117,9 @@ Evidence counts only when it was shot on what would ship now:
   `osascript -e 'tell application "System Events" to id of first window of process "Tatolab"'`
   or a small `CGWindowListCopyWindowInfo` script; the terminal needs Screen Recording), on Linux
   `gnome-screenshot -w` or `import`.
-- For the PR body, copy the images to `.pr-evidence/<issue>/` on the PR branch and commit them: in
-  this private repository they render only as
-  `https://github.com/tatolab/tatolab-app/blob/<sha>/.pr-evidence/<issue>/<file>?raw=true` links,
-  which keep working from the PR after the files are gone. The PR's last commit before merge
-  deletes `.pr-evidence/`.
+- Never commit an image, on the PR branch or any other: it is temporary content that git keeps for
+  good. Keep the images outside the repository and attach them in the conversation where you report
+  the work; the PR body describes each one in words.
 - Never capture a secret, a signing identity, a token, or a home-directory path that names a real
   person other than the owner.
 
@@ -143,7 +141,7 @@ and the running runtime's build id (or "no runtime: Mock / Linux stand-in only")
 
 | what | label | image | shows |
 |---|---|---|---|
-| <the claim> | Mock / Live (local proof) / Live / Linux | [<file>](<blob link>) | <the description> |
+| <the claim> | Mock / Live (local proof) / Live / Linux | <file name, as attached in the conversation> | <the description> |
 
 Found and fixed while shooting: <anything the run surfaced, with the proof of the fix> (or "nothing").
 Not covered: <what this evidence does not prove, and why> (or "nothing").
