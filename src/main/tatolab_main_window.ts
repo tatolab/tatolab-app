@@ -1,6 +1,6 @@
 // One of the app's windows: the Projects window, which closing hides while the app keeps running
-// in the tray, or a project's studio window, which closing closes. `TatolabAppWindows` holds them
-// all and shows the Dock icon on macOS while any is on screen.
+// in the tray, or a project's studio window or a Viewer popped out of one, which closing closes.
+// `TatolabAppWindows` holds them all and shows the Dock icon on macOS while any is on screen.
 
 import type { OpenProjectReading, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
@@ -52,9 +52,14 @@ export interface MainWindowHostFactory {
   ): Result<MainWindowHost, string>;
 }
 
-/** The window: created on its first show, at 1040×700 and never smaller than 860×580, centred. */
-/** What a window is: the one Projects window, or the studio window of one project. */
-export type TatolabWindowRole = "projects" | "studio";
+/** What a window is: the one Projects window, the studio window of one project, or a Viewer popped out of a studio window. */
+export type TatolabWindowRole = "projects" | "studio" | "popped_out_viewer";
+
+/** A window's size when created, and the smallest it can be made: a popped-out Viewer is small enough to sit on a second monitor's corner, every other window the studio's size. */
+export function mainWindowSizesOf(windowRole: TatolabWindowRole): Pick<MainWindowSpecification, "width" | "height" | "minimumWidth" | "minimumHeight"> {
+  if (windowRole === "popped_out_viewer") return { width: 720, height: 450, minimumWidth: 320, minimumHeight: 200 };
+  return { width: 1040, height: 700, minimumWidth: 860, minimumHeight: 580 };
+}
 
 /** What a window tells the windows around it: that it came on screen or went off it, and that it closed for good. */
 export interface TatolabMainWindowListeners {
@@ -150,10 +155,7 @@ export class TatolabMainWindow {
     const createdMainWindowHost = this.mainWindowHostFactory.createMainWindowHost(
       {
         title: this.windowTitle,
-        width: 1040,
-        height: 700,
-        minimumWidth: 860,
-        minimumHeight: 580,
+        ...mainWindowSizesOf(this.windowRole),
         chrome: this.mainWindowChrome,
       },
       () => this.answerCloseRequest(),
@@ -168,7 +170,7 @@ export class TatolabMainWindow {
   }
 
   private answerCloseRequest(): MainWindowCloseRequestAnswer {
-    if (this.theAppIsQuitting || this.windowRole === "studio") return "let_it_close";
+    if (this.theAppIsQuitting || this.windowRole !== "projects") return "let_it_close";
     this.hide();
     return "hide_instead";
   }

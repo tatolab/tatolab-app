@@ -8,6 +8,7 @@ import type {
   NodeCatalog,
   JsonValue,
   OpenProjectReading,
+  PoppedOutViewerTarget,
   RecentProject,
   ProjectCreationQueued,
   PythonLanguageServerEvent,
@@ -70,6 +71,8 @@ export const TATOLAB_COMMAND_NAMES = [
   "read_recent_projects",
   "open_recent_project",
   "show_projects_window",
+  "pop_out_viewer",
+  "read_popped_out_viewer",
   "read_project_file",
   "save_project_file",
   "list_project_files",
@@ -83,7 +86,7 @@ export const TATOLAB_COMMAND_NAMES = [
  * One command the window invokes. Arguments: `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
- * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, the project file and language server commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_viewer` a `PoppedOutViewerTarget`, the project file and language server commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` only on one of the recent projects, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
  * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
@@ -186,6 +189,10 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   open_recent_project: { commandArguments: { folder: string }; answer: null };
   /** Shows the Projects window and brings it forward. */
   show_projects_window: { commandArguments: undefined; answer: null };
+  /** From a studio window only: opens a Viewer window of its own pinned to the target, or brings forward the one already pinned to the same stream and node; it closes with the studio window. */
+  pop_out_viewer: { commandArguments: PoppedOutViewerTarget; answer: null };
+  /** The asking window's pin when it is a popped-out Viewer; `null` in the Projects and studio windows. */
+  read_popped_out_viewer: { commandArguments: undefined; answer: PoppedOutViewerTarget | null };
   /** `file` absolute, inside the open project's folder or a folder import's, links resolved; refused for any other file, or in the filesystem's words. */
   read_project_file: { commandArguments: { file: string }; answer: ProjectFileRead };
   /** Written whole when the file on disk still has `based_on_version` (`null` for a new file), and only inside the open project's own folder; refused with nothing written otherwise. */

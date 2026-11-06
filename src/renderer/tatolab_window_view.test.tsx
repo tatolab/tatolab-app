@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenProjectReading, TatolabStatus } from "../shared/tatolab_backend_contract";
+import type { OpenProjectReading, PoppedOutViewerTarget, TatolabStatus } from "../shared/tatolab_backend_contract";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./backend/mock_tatolab_backend";
 import { mockStreamIdOf } from "./backend/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
@@ -213,6 +213,39 @@ describe("the studio", () => {
     expect(playing.querySelector("iframe")?.getAttribute("src")).toMatch(/^data:text\/html/);
     expect(playing.querySelector("iframe")?.getAttribute("title")).toBe("Preview of Inverting Effect › video_to_downstream");
     expect(playing.textContent).toBe("");
+  });
+
+  it("pops the Viewer out pinned to the stream shown and the node selected, and says why where it is refused", async () => {
+    const popOutsAsked: PoppedOutViewerTarget[] = [];
+    let popOutRefusal: string | null = null;
+    await mountedWindowOverTheMock("state=running", {
+      popOutViewer: async (target) => {
+        popOutsAsked.push(target);
+        if (popOutRefusal !== null) throw popOutRefusal;
+      },
+    });
+    const popOutButton = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"] [data-viewer-pop-out]') ?? expect.unreachable("no Pop out"));
+
+    fireEvent.click(popOutButton);
+    await waitFor(() => expect(popOutsAsked).toEqual([{ stream: PATTERN_MAIN_STREAM, project_name: "pattern", display_name: "main", node: null }]));
+    expect(document.querySelector("[data-viewer-pop-out-refusal]")).toBeNull();
+
+    popOutRefusal = "Only a project's studio window can pop out its Viewer.";
+    fireEvent.click(popOutButton);
+    await waitFor(() => expect(textOf("[data-viewer-pop-out-refusal]")).toBe("Didn't pop out: Only a project's studio window can pop out its Viewer."));
+  });
+
+  it("draws a popped-out Viewer's window as the Viewer alone, pinned, with no menus, tabs or other areas", async () => {
+    const pin: PoppedOutViewerTarget = { stream: PATTERN_MAIN_STREAM, project_name: "pattern", display_name: "main", node: "invertingeffect" };
+    await mountedWindowOverTheMock(`state=running&popped_out_viewer=${encodeURIComponent(JSON.stringify(pin))}`);
+
+    const playing = await waitFor(() => document.querySelector<HTMLElement>("[data-popped-out-viewer] [data-viewer-playing]") ?? expect.unreachable("the popped-out Viewer plays nothing"));
+    expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
+    expect(textOf("[data-popped-out-viewer-title]")).toBe("main › invertingeffect");
+    expect(document.querySelector("[data-studio-menu]")).toBeNull();
+    expect(document.querySelector("[data-studio-area]")).toBeNull();
+    expect(document.querySelector("[data-projects]")).toBeNull();
+    expect(document.querySelector("[data-viewer-pop-out]")).toBeNull();
   });
 
   it("shows the view an area's view-type menu chooses, and the project reopens with it", async () => {

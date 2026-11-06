@@ -461,4 +461,80 @@ describe("one window per project", () => {
     expect(fakeShell.mainWindowShowing).toBe(true);
     expect(fakeShell.studioWindowsOpen()).toEqual([{ title: "night-show", windowContentsId: 2, showing: true }]);
   });
+  describe("a Viewer popped out of a studio window", () => {
+    const PINNED_TO_THE_DISPLAY = { stream: "night-show-1a2b", project_name: "night-show", display_name: "main", node: "display" };
+
+    async function aStudioWindowOfNightShow(): Promise<FakeTatolabElectronAppShell> {
+      const fakeShell = fakeShellQuitAfterTheTest();
+      await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+      await aProjectTheDialogAnswers(fakeShell, "night-show");
+      await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
+      return fakeShell;
+    }
+
+    test("pops out into a small window of its own, titled with what it is pinned to, which answers its pin and no project", async () => {
+      const fakeShell = await aStudioWindowOfNightShow();
+      fakeShell.forgetTheRecords();
+
+      expect(await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2)).toEqual({ ok: true, value: null });
+      expect(fakeShell.studioWindowsOpen()).toEqual([
+        { title: "night-show", windowContentsId: 2, showing: true },
+        { title: "main › display · Viewer", windowContentsId: 3, showing: true },
+      ]);
+      expect(fakeShell.records).toContainEqual({
+        asked: "create_main_window",
+        windowContentsId: 3,
+        mainWindowSpecification: expect.objectContaining({ width: 720, height: 450, minimumWidth: 320, minimumHeight: 200 }),
+      });
+      expect(await fakeShell.invokeTheCommand("read_popped_out_viewer", undefined, 3)).toEqual({ ok: true, value: PINNED_TO_THE_DISPLAY });
+      expect(await fakeShell.invokeTheCommand("read_popped_out_viewer", undefined, 2)).toEqual({ ok: true, value: null });
+      expect(await fakeShell.invokeTheCommand("read_popped_out_viewer")).toEqual({ ok: true, value: null });
+      expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 3)).toEqual({ ok: true, value: { kind: "none_open" } });
+      expect(await fakeShell.invokeTheCommand("list_project_files", { project_folder: "/anywhere" }, 3)).toEqual({ ok: false, refusal: "No project is open in this window." });
+    });
+
+    test("is sent the status the other windows were last sent as it opens", async () => {
+      const fakeShell = await aStudioWindowOfNightShow();
+      await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2);
+
+      expect(fakeShell.records).toContainEqual(expect.objectContaining({ asked: "send_window_event", eventChannel: "tatolab-status-changed", windowContentsId: 3 }));
+    });
+
+    test("popping out the same stream and node again brings its window forward; another node gets a window of its own", async () => {
+      const fakeShell = await aStudioWindowOfNightShow();
+      await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2);
+      fakeShell.forgetTheRecords();
+
+      await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2);
+      expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
+      expect(fakeShell.records).toContainEqual({ asked: "focus", windowContentsId: 3 });
+
+      await fakeShell.invokeTheCommand("pop_out_viewer", { ...PINNED_TO_THE_DISPLAY, node: null }, 2);
+      expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "main › display · Viewer", "main · Viewer"]);
+    });
+
+    test("closing it closes it alone; closing its studio window closes it too", async () => {
+      const fakeShell = await aStudioWindowOfNightShow();
+      await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2);
+
+      expect(fakeShell.requestTheCloseOfTheWindow(3)).toBe("let_it_close");
+      expect(fakeShell.studioWindowsOpen().map(({ windowContentsId }) => windowContentsId)).toEqual([2]);
+      expect(await fakeShell.invokeTheCommand("read_popped_out_viewer", undefined, 3)).toEqual({ ok: true, value: null });
+
+      await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2);
+      expect(fakeShell.studioWindowsOpen().map(({ windowContentsId }) => windowContentsId)).toEqual([2, 4]);
+      expect(fakeShell.requestTheCloseOfTheWindow(2)).toBe("let_it_close");
+      expect(fakeShell.studioWindowsOpen()).toEqual([]);
+    });
+
+    test("is refused from the Projects window and from a popped-out Viewer, and for arguments that name no pin", async () => {
+      const fakeShell = await aStudioWindowOfNightShow();
+      await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2);
+
+      const onlyAStudioWindow = { ok: false, refusal: "Only a project's studio window can pop out its Viewer." };
+      expect(await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY)).toEqual(onlyAStudioWindow);
+      expect(await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 3)).toEqual(onlyAStudioWindow);
+      expect(await fakeShell.invokeTheCommand("pop_out_viewer", { stream: "night-show-1a2b" }, 2)).toMatchObject({ ok: false, refusal: expect.stringContaining("pop_out_viewer needs `stream`") });
+    });
+  });
 });

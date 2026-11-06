@@ -6,6 +6,7 @@
 import type {
   ChosenProjectFolder,
   JsonValue,
+  PoppedOutViewerTarget,
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -489,6 +490,33 @@ export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWi
   });
 }
 
+/** `pop_out_viewer`'s arguments as the window sends them, or why they are not. */
+export function popOutViewerArgumentsFrom(commandArguments: unknown): Result<PoppedOutViewerTarget, string> {
+  if (
+    !isAJsonObject(commandArguments) ||
+    typeof commandArguments["stream"] !== "string" ||
+    typeof commandArguments["project_name"] !== "string" ||
+    typeof commandArguments["display_name"] !== "string" ||
+    !isTextOrNull(commandArguments["node"])
+  ) {
+    return failedWith("pop_out_viewer needs `stream`, a stream's id, `project_name` and `display_name`, the words its tab is labelled with, and `node`, a node's name or null for the stream's first exposed output");
+  }
+  return succeeded({
+    stream: commandArguments["stream"],
+    project_name: commandArguments["project_name"],
+    display_name: commandArguments["display_name"],
+    node: commandArguments["node"],
+  });
+}
+
+/** `pop_out_viewer`: a Viewer pinned to `target` popped out of the asking studio window; refused from any other window. */
+export function popOutViewer(sharedState: TatolabAppSharedState, target: PoppedOutViewerTarget, commandFromWindow: TatolabCommandFromWindow): Result<void, string> {
+  const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
+  if (studioWindow === null) return failedWith("Only a project's studio window can pop out its Viewer.");
+  sharedState.appWindows.popOutTheViewerOf(studioWindow, target);
+  return succeeded(undefined);
+}
+
 /** `save_project_file`'s arguments as the window sends them, or why they are not. */
 export function saveProjectFileArgumentsFrom(commandArguments: unknown): Result<{ file: string; text: string; based_on_version: string | null }, string> {
   if (
@@ -667,6 +695,15 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       sharedState.appWindows.showTheProjectsWindow();
       return { ok: true, value: null };
     },
+    pop_out_viewer: async (commandArguments, commandFromWindow) => {
+      const target = popOutViewerArgumentsFrom(commandArguments);
+      if (!target.ok) return { ok: false, refusal: target.failure };
+      return commandAnswerOfNothingFrom(popOutViewer(sharedState, target.value, commandFromWindow));
+    },
+    read_popped_out_viewer: async (_commandArguments, commandFromWindow) => ({
+      ok: true,
+      value: sharedState.appWindows.poppedOutViewerTargetOfTheWindowWithContents(commandFromWindow.windowContentsId),
+    }),
     read_project_file: async (commandArguments, commandFromWindow) => {
       const file = oneTextArgumentFrom("read_project_file", commandArguments, "file", "an absolute path in the open project");
       if (!file.ok) return { ok: false, refusal: file.failure };

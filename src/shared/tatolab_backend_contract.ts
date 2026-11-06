@@ -424,6 +424,14 @@ export type OpenProjectReading =
   | { kind: "read"; open_project: OpenProject }
   | { kind: "unreadable"; folder: string; refusal: string };
 
+/** What a popped-out Viewer window is pinned to: the stream it plays and the words it is titled with, and the node whose exposed output it plays, or `null` for the stream's first. */
+export interface PoppedOutViewerTarget {
+  stream: string;
+  project_name: string;
+  display_name: string;
+  node: string | null;
+}
+
 /** What the project folder dialog is opened for from the window: an existing project to open. */
 export type ProjectFolderChosenFor = "project_to_open";
 

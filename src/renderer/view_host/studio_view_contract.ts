@@ -8,6 +8,7 @@ import type {
   ListedStream,
   NodeCatalog,
   OpenProjectReading,
+  PoppedOutViewerTarget,
   ProjectLogRecord,
   StreamGraphSummary,
   ProjectFileRead,
@@ -24,6 +25,7 @@ export type {
   NodeCatalogPort,
   OpenProject,
   OpenProjectReading,
+  PoppedOutViewerTarget,
   ProjectLogRecord,
   ProjectOnDisk,
   StreamGraphDeclaredPort,
@@ -63,6 +65,9 @@ export type NodeCatalogReading = { kind: "listed"; catalog: NodeCatalog } | { ki
 
 /** A file of the open project and its imports as read from disk, or why it was not, in the words of what refused. */
 export type ProjectFileReading = { kind: "read"; file_read: ProjectFileRead } | { kind: "not_read"; because: string };
+
+/** A Viewer popped out into a window of its own, or why it was not, in the words of what refused. */
+export type ViewerPopOut = { kind: "popped_out" } | { kind: "not_popped_out"; because: string };
 
 /** A file saved, with the version it now has on disk, or why nothing was written. */
 export type ProjectFileSaving = { kind: "saved"; version: string } | { kind: "not_saved"; because: string };
@@ -118,6 +123,8 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   listProjectFiles(projectFolder: string): Promise<ProjectFilesListing>;
   /** `projectFolder`'s log, read while any view watches it and the window is shown; the first reading arrives once read. */
   watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void): StopWatching;
+  /** Pop a Viewer pinned to `target` out into a window of its own, or bring forward the one already pinned there. */
+  popOutViewer(target: PoppedOutViewerTarget): Promise<ViewerPopOut>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
 }
