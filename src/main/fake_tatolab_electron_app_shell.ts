@@ -86,6 +86,10 @@ export class FakeTatolabElectronAppShell {
   appUpdateFeedForThisBuild: TatolabAppUpdateFeedForThisBuild = { kind: "not_offered", reason: "this fake platform updates nothing" };
   /** The folder the fake dialog answers with; `null` reads as the person cancelling it. */
   streamProjectFolderTheDialogAnswers: string | null = null;
+  /** The package catalog the fake network serves; `null` refuses every fetch. */
+  packageCatalogTextServed: string | null = null;
+  /** Every URL the app fetched over HTTPS, in order. */
+  readonly urlsFetched: string[] = [];
   /** The folder the project dialog answers, or `null` for the person cancelling. */
   projectFolderTheDialogAnswers: string | null = null;
   readonly systemNotifications = new FakeSystemNotifications((notificationShown) => this.records.push({ asked: "notify", ...notificationShown }));
@@ -138,6 +142,10 @@ export class FakeTatolabElectronAppShell {
       return succeeded(this.projectFolderTheDialogAnswers);
     },
     watchFolderEntries: () => null,
+    fetchTextOverHttps: async (url) => {
+      this.urlsFetched.push(url);
+      return this.packageCatalogTextServed === null ? failedWith("the fake shell reaches no network") : succeeded(this.packageCatalogTextServed);
+    },
     startANodeLanguageServer: () => failedWith("the fake shell starts no language server"),
     pyrightLanguageServerModulePath: "/fake/node_modules/pyright/langserver.index.js",
     homeDirectory: path.join(this.appConfigDirectory, "home"),

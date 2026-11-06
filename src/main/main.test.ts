@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { TatolabStatus } from "../shared/tatolab_backend_contract.js";
@@ -461,6 +461,93 @@ describe("one window per project", () => {
     expect(fakeShell.mainWindowShowing).toBe(true);
     expect(fakeShell.studioWindowsOpen()).toEqual([{ title: "night-show", windowContentsId: 2, showing: true }]);
   });
+  describe("Get more", () => {
+    async function aStudioWindowOfNightShowImportingLobbyWall(): Promise<{ fakeShell: FakeTatolabElectronAppShell; nightShowFolder: string; lobbyWallFolder: string }> {
+      const fakeShell = fakeShellQuitAfterTheTest();
+      await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+      const lobbyWallFolder = await aProjectTheDialogAnswers(fakeShell, "lobby-wall");
+      const nightShowFolder = await aProjectTheDialogAnswers(fakeShell, "night-show");
+      await writeFile(
+        path.join(nightShowFolder, "pyproject.toml"),
+        '[project]\nname = "night-show"\ndependencies = [\n    "tatolab-camera",\n    "lobby-wall",\n]\n\n[tool.uv.sources]\nlobby-wall = { path = "../lobby-wall" }\n',
+      );
+      await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
+      await fakeShell.invokeTheCommand("open_get_more_window", undefined, 2);
+      return { fakeShell, nightShowFolder, lobbyWallFolder };
+    }
+
+    test("opens from a studio window in a window of its own beside it, which answers its workspace, and closes with it", async () => {
+      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+
+      expect(fakeShell.studioWindowsOpen().map(({ title, windowContentsId }) => [title, windowContentsId])).toEqual([
+        ["night-show", 2],
+        ["Get more · night-show", 3],
+      ]);
+      expect(fakeShell.records).toContainEqual(
+        expect.objectContaining({ asked: "create_main_window", windowContentsId: 3, mainWindowSpecification: expect.objectContaining({ width: 960, height: 660 }) }),
+      );
+      expect(await fakeShell.invokeTheCommand("read_get_more_workspace", undefined, 3)).toMatchObject({ ok: true, value: { kind: "read", open_project: { project: { name: "night-show" } } } });
+      expect(await fakeShell.invokeTheCommand("read_get_more_workspace", undefined, 2)).toEqual({ ok: true, value: null });
+      expect(await fakeShell.invokeTheCommand("open_get_more_window")).toEqual({ ok: false, refusal: "Only a project's studio window opens Get more." });
+
+      fakeShell.forgetTheRecords();
+      await fakeShell.invokeTheCommand("open_get_more_window", undefined, 2);
+      expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
+
+      expect(fakeShell.requestTheCloseOfTheWindow(2)).toBe("let_it_close");
+      expect(fakeShell.studioWindowsOpen()).toEqual([]);
+    });
+
+    test("reads the catalog from get.tatolab.com, and says why where it is not served", async () => {
+      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+
+      expect(await fakeShell.invokeTheCommand("read_package_catalog", undefined, 3)).toEqual({
+        ok: true,
+        value: { kind: "not_read", because: "The catalog at https://get.tatolab.com/catalog/v1.json could not be fetched: the fake shell reaches no network" },
+      });
+      fakeShell.packageCatalogTextServed = JSON.stringify({ catalog_version: 1, entries: [] });
+      expect(await fakeShell.invokeTheCommand("read_package_catalog", undefined, 3)).toEqual({ ok: true, value: { kind: "read", entries: [], unreadable_entry_count: 0 } });
+      expect(fakeShell.urlsFetched).toEqual(["https://get.tatolab.com/catalog/v1.json", "https://get.tatolab.com/catalog/v1.json"]);
+    });
+
+    test("shows an import's change to pyproject.toml, then writes it only while the file is as it was shown", async () => {
+      const { fakeShell, nightShowFolder } = await aStudioWindowOfNightShowImportingLobbyWall();
+      const descriptionFile = path.join(nightShowFolder, "pyproject.toml");
+      const textBefore = await readFile(descriptionFile, "utf8");
+
+      const preview = await fakeShell.invokeTheCommand("preview_import", { requirement: "tatolab-opus>=0.68.29" }, 3);
+      expect(preview).toMatchObject({ ok: true, value: { text_before: textBefore, text_after: textBefore.replace('    "lobby-wall",\n', '    "lobby-wall",\n    "tatolab-opus>=0.68.29",\n') } });
+      expect(await readFile(descriptionFile, "utf8")).toBe(textBefore);
+      if (!preview.ok) return;
+
+      await writeFile(descriptionFile, `${textBefore}# edited by hand\n`);
+      expect(await fakeShell.invokeTheCommand("import_into_workspace", { requirement: "tatolab-opus>=0.68.29", based_on_version: preview.value.based_on_version }, 3)).toEqual({
+        ok: false,
+        refusal: "pyproject.toml changed since the import was shown; nothing was written. Look at the change again before importing.",
+      });
+
+      const previewAgain = await fakeShell.invokeTheCommand("preview_import", { requirement: "tatolab-opus>=0.68.29" }, 3);
+      if (!previewAgain.ok) return expect.unreachable(previewAgain.refusal);
+      expect(await fakeShell.invokeTheCommand("import_into_workspace", { requirement: "tatolab-opus>=0.68.29", based_on_version: previewAgain.value.based_on_version }, 3)).toEqual({ ok: true, value: null });
+      expect(await readFile(descriptionFile, "utf8")).toBe(previewAgain.value.text_after);
+
+      expect(await fakeShell.invokeTheCommand("preview_import", { requirement: "Tatolab_Opus" }, 3)).toEqual({ ok: false, refusal: "The project already imports tatolab-opus." });
+      expect(await fakeShell.invokeTheCommand("preview_import", { requirement: "tatolab-opus" }, 2)).toEqual({ ok: false, refusal: "Only a Get more window imports into a project." });
+    });
+
+    test("opens an import from a folder to edit in its own studio window, and refuses one from a package index", async () => {
+      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+
+      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { name: "lobby-wall" }, 3)).toEqual({ ok: true, value: null });
+      expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "Get more · night-show", "lobby-wall"]);
+      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { name: "tatolab-camera" }, 3)).toEqual({
+        ok: false,
+        refusal: "tatolab-camera comes from a package index, so it has no folder of its own to open; only an import from a folder opens to edit.",
+      });
+      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { name: "nothing-here" }, 3)).toEqual({ ok: false, refusal: "The project imports nothing named nothing-here." });
+    });
+  });
+
   describe("a Viewer popped out of a studio window", () => {
     const PINNED_TO_THE_DISPLAY = { stream: "night-show-1a2b", project_name: "night-show", display_name: "main", node: "display" };
 

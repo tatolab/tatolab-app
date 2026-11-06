@@ -6,6 +6,7 @@
 // working; quitting stops both. The first opening also links the `tatolab` command in the home
 // folder and starts checking for updates on its own.
 
+import type { FetchTextOverHttps } from "./package_catalog.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
@@ -77,6 +78,8 @@ export interface TatolabElectronAppShell {
   pyrightLanguageServerModulePath: string;
   /** Watching the entries directly in one folder, which the open project reads again on. */
   watchFolderEntries: FolderEntriesWatch;
+  /** Fetching a file over HTTPS, which Get more reads the package catalog through. */
+  fetchTextOverHttps: FetchTextOverHttps;
   /** The person's home directory, where the folder dialog opens, or at `~/streams` for a new stream project once that folder exists. */
   homeDirectory: string;
   /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
@@ -257,6 +260,7 @@ export async function startTatolabApp(
     projectOpening,
     appWindows: tatolabAppWindows,
     pythonLanguageServers,
+    fetchTextOverHttps: tatolabElectronAppShell.fetchTextOverHttps,
     tatolabAppLog,
   };
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());

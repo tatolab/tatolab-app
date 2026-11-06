@@ -52,12 +52,13 @@ export interface MainWindowHostFactory {
   ): Result<MainWindowHost, string>;
 }
 
-/** What a window is: the one Projects window, the studio window of one project, or a Viewer popped out of a studio window. */
-export type TatolabWindowRole = "projects" | "studio" | "popped_out_viewer";
+/** What a window is: the one Projects window, the studio window of one project, a Viewer popped out of a studio window, or a studio window's Get more window. */
+export type TatolabWindowRole = "projects" | "studio" | "popped_out_viewer" | "get_more";
 
-/** A window's size when created, and the smallest it can be made: a popped-out Viewer is small enough to sit on a second monitor's corner, every other window the studio's size. */
+/** A window's size when created, and the smallest it can be made: a popped-out Viewer is small enough to sit on a second monitor's corner, Get more sits beside the studio, every other window is the studio's size. */
 export function mainWindowSizesOf(windowRole: TatolabWindowRole): Pick<MainWindowSpecification, "width" | "height" | "minimumWidth" | "minimumHeight"> {
   if (windowRole === "popped_out_viewer") return { width: 720, height: 450, minimumWidth: 320, minimumHeight: 200 };
+  if (windowRole === "get_more") return { width: 960, height: 660, minimumWidth: 680, minimumHeight: 480 };
   return { width: 1040, height: 700, minimumWidth: 860, minimumHeight: 580 };
 }
 
