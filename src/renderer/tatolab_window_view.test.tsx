@@ -408,6 +408,81 @@ describe("the studio", () => {
   });
 });
 
+describe("Get more", () => {
+  function getMoreRow(name: string): HTMLElement {
+    return document.querySelector<HTMLElement>(`[data-get-more-row="${name}"]`) ?? expect.unreachable(`no ${name} row`);
+  }
+
+  it("lists the catalog's packages and samples, each showing the nodes it brings, and narrows to a search", async () => {
+    await mountedWindowOverTheMock("state=running&get_more=open");
+
+    await waitFor(() => expect(document.querySelector('[data-get-more-row="tatolab-camera"]')).not.toBeNull());
+    expect(document.querySelector("[data-studio-menu]")).toBeNull();
+    expect(document.querySelector('[data-get-more-row="camera-halftone"]')).toBeNull();
+    fireEvent.click(getMoreRow("tatolab-compositor"));
+    expect(textOf('[data-get-more-detail="tatolab-compositor"]')).toContain("LowerThird");
+    expect(getMoreRow("tatolab-testpattern").textContent).toContain("Imported");
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-scope="samples"]') ?? expect.unreachable("no Samples scope"));
+    await waitFor(() => expect(document.querySelector('[data-get-more-row="camera-halftone"]')).not.toBeNull());
+    expect(document.querySelector('[data-get-more-row="tatolab-camera"]')).toBeNull();
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-scope="published"]') ?? expect.unreachable("no Published scope"));
+    const searchField = document.querySelector<HTMLInputElement>("[data-get-more-search] input") ?? document.querySelector<HTMLInputElement>("input[data-get-more-search]") ?? expect.unreachable("no search");
+    fireEvent.change(searchField, { target: { value: "opusdecoder" } });
+    await waitFor(() => expect(document.querySelectorAll("[data-get-more-row]").length).toBe(1));
+    expect(getMoreRow("tatolab-opus")).toBeTruthy();
+  });
+
+  it("shows an import's change to pyproject.toml before writing it, and lists it in the project once written", async () => {
+    await mountedWindowOverTheMock("state=running&get_more=open");
+
+    fireEvent.click(await waitFor(() => getMoreRow("tatolab-camera")));
+    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-import="tatolab-camera"]') ?? expect.unreachable("no Import"));
+    await waitFor(() => expect(document.querySelector("[data-import-change]")).not.toBeNull());
+    const addedLines = [...document.querySelectorAll('[data-import-change-line="added"]')].map((line) => line.textContent ?? "");
+    expect(addedLines.some((line) => line.includes('"tatolab-camera>='))).toBe(true);
+
+    fireEvent.click(document.querySelector<HTMLElement>("[data-get-more-import-confirm]") ?? expect.unreachable("no Import in the dialog"));
+    await waitFor(() => expect(document.querySelector("[data-import-change]")).toBeNull());
+    await waitFor(() => expect(getMoreRow("tatolab-camera").textContent).toContain("Imported"));
+    expect(document.querySelector('[data-get-more-import="tatolab-camera"]')).toBeNull();
+  });
+
+  it("says nothing was written when pyproject.toml changed after the import was shown", async () => {
+    const staleRefusal = "pyproject.toml changed since the import was shown; nothing was written. Look at the change again before importing.";
+    await mountedWindowOverTheMock("state=running&get_more=open", { importIntoWorkspace: () => Promise.reject(staleRefusal) });
+
+    fireEvent.click(await waitFor(() => getMoreRow("tatolab-opus")));
+    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-import="tatolab-opus"]') ?? expect.unreachable("no Import"));
+    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>("[data-get-more-import-confirm]") ?? expect.unreachable("no Import in the dialog")));
+
+    await waitFor(() => expect(document.querySelector("[data-get-more-import-dialog]")?.textContent).toContain(`Nothing was written: ${staleRefusal}`));
+    expect(document.querySelector("[data-import-change]")).not.toBeNull();
+  });
+
+  it("says the catalog didn't load and what it waits on, and still lists what the project imports, a folder import opening to edit", async () => {
+    let namesOpenedToEdit: string[] = [];
+    await mountedWindowOverTheMock("state=running&get_more=open&catalog=unserved", {
+      openImportToEdit: async (name) => {
+        namesOpenedToEdit = [...namesOpenedToEdit, name];
+      },
+    });
+
+    await waitFor(() => expect(document.querySelector('[data-get-more-state="not_read"]')).not.toBeNull());
+    expect(textOf('[data-get-more-state="not_read"]')).toContain("HTTP 404 Not Found");
+    expect(textOf('[data-get-more-state="not_read"]')).toContain("tatolab/streamlib#3216");
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-scope="in_this_workspace"]') ?? expect.unreachable("no In this project scope"));
+    fireEvent.click(await waitFor(() => getMoreRow("camera")));
+    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-open-to-edit="camera"]') ?? expect.unreachable("no Open to edit"));
+    await waitFor(() => expect(namesOpenedToEdit).toEqual(["camera"]));
+
+    fireEvent.click(getMoreRow("tatolab-stream"));
+    expect(document.querySelector('[data-get-more-open-to-edit="tatolab-stream"]')).toBeNull();
+  });
+});
+
 describe("the window's first status", () => {
   it("is announced once, when the first contentful paint is presented after it is in the page, and never again for a later status", async () => {
     let presentTheFirstContentfulPaint: () => void = () => expect.unreachable("nothing observed the paints");

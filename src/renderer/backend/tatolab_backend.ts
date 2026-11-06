@@ -8,6 +8,8 @@ import type {
   NodeCatalog,
   OpenProjectReading,
   PoppedOutViewerTarget,
+  PackageCatalogReading,
+  ImportPreview,
   RecentProject,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -107,6 +109,18 @@ export interface TatolabBackend {
   popOutViewer(target: PoppedOutViewerTarget): Promise<void>;
   /** What this window is pinned to when it is a popped-out Viewer; `null` in the Projects and studio windows. */
   readPoppedOutViewer(): Promise<PoppedOutViewerTarget | null>;
+  /** Open this studio window's Get more window, or bring it forward; rejects in words from any other window. */
+  openGetMoreWindow(): Promise<void>;
+  /** This window's workspace when it is a Get more window, as last read from disk; `null` in any other window. Later readings arrive through `onOpenProjectChanged`. */
+  readGetMoreWorkspace(): Promise<OpenProjectReading | null>;
+  /** The catalog get.tatolab.com serves, or why it was not read. */
+  readPackageCatalog(): Promise<PackageCatalogReading>;
+  /** The workspace's `pyproject.toml` before and after `requirement` is added, nothing written; rejects in words where it cannot be added. */
+  previewImport(requirement: string): Promise<ImportPreview>;
+  /** Write what `previewImport` showed while `pyproject.toml` is still at `basedOnVersion`; rejects with nothing written otherwise. */
+  importIntoWorkspace(requirement: string, basedOnVersion: string): Promise<void>;
+  /** Open the workspace's import `name`, one from a folder, in its own studio window; rejects in words for any other. */
+  openImportToEdit(name: string): Promise<void>;
   /** This window's project as the app last read it from disk; `none_open` in the Projects window. */
   readOpenProject(): Promise<OpenProjectReading>;
   /** The projects opened before, recent first, for the Projects window. */

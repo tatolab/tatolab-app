@@ -69,6 +69,8 @@ export class StudioWindowModel {
   readonly codeFileAsked = new WatchedStudioValue<CodeFileAsked | null>(null);
   /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
   readonly projectRunRefusal = new WatchedStudioValue<{ asked_to: "run" | "stop"; because: string } | null>(null);
+  /** The workspace when the window is a studio window's Get more window, as last read from disk; `null` in any other window. */
+  readonly getMoreWorkspace = new WatchedStudioValue<OpenProjectReading | null>(null);
   /** What the window is pinned to when it is a Viewer popped out of a studio window; `null` in the Projects and studio windows. */
   readonly poppedOutViewer = new WatchedStudioValue<PoppedOutViewerTarget | null>(null);
 

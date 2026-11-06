@@ -1,4 +1,5 @@
 import { MOCK_NODE_CATALOG_ENTRIES } from "./mock_node_catalog";
+import { mockPackageCatalogReading } from "./mock_package_catalog";
 import {
   createMockStreamFixtures,
   createMockStreamRunFromAProjectFolder,
@@ -190,6 +191,30 @@ export interface MockTatolabOptions {
   arePortFamiliesServed: boolean;
   /** `?popped_out_viewer=<target as JSON>`: the page is a Viewer popped out of the studio, as Pop out opens it in a new tab; the studio by default. */
   poppedOutViewer: PoppedOutViewerTarget | null;
+  /** `?get_more=open`: the page is the open project's Get more window, as File › Get more… opens it in a new tab. */
+  isAGetMoreWindow: boolean;
+  /** `?catalog=unserved`: get.tatolab.com serves no catalog yet; the mock catalog by default. */
+  isTheCatalogUnserved: boolean;
+}
+
+/** The query parameter a Get more window's page is told by. */
+const GET_MORE_QUERY_PARAMETER = "get_more";
+
+/** The mock page's address with every query parameter kept and `parameterName` set to `parameterValue`, so a new tab opens on the same scenario. */
+function mockPageUrlWith(pageUrl: string, parameterName: string, parameterValue: string): string {
+  const pageUrlWithTheParameter = new URL(pageUrl);
+  pageUrlWithTheParameter.searchParams.set(parameterName, parameterValue);
+  return pageUrlWithTheParameter.toString();
+}
+
+/** A `pyproject.toml` as the mock writes one for `project`, its requirements one per line. */
+function mockPyprojectTextOf(project: { name: string; requirements: readonly string[] }): string {
+  return `[project]\nname = "${project.name}"\ndependencies = [\n${project.requirements.map((requirement) => `    ${JSON.stringify(requirement)},\n`).join("")}]\n`;
+}
+
+/** A requirement's leading name as PEP 503 normalizes it. */
+function mockRequirementsName(requirement: string): string {
+  return (/^\s*([A-Za-z0-9][A-Za-z0-9._-]*)/.exec(requirement)?.[1] ?? requirement).toLowerCase().replace(/[-_.]+/g, "-");
 }
 
 /** The query parameter a popped-out Viewer's page carries its pin in. */
@@ -216,9 +241,7 @@ function mockPoppedOutViewerTargetFrom(poppedOutViewerInTheQuery: string | null)
 
 /** The mock page's address with `target` as its popped-out Viewer's pin, every other query parameter kept, so the tab opens with the same scenario. */
 export function mockPoppedOutViewerPageUrl(pageUrl: string, target: PoppedOutViewerTarget): string {
-  const poppedOutUrl = new URL(pageUrl);
-  poppedOutUrl.searchParams.set(POPPED_OUT_VIEWER_QUERY_PARAMETER, JSON.stringify(target));
-  return poppedOutUrl.toString();
+  return mockPageUrlWith(pageUrl, POPPED_OUT_VIEWER_QUERY_PARAMETER, JSON.stringify(target));
 }
 
 /** How long after the window listens the mock's notification click arrives. */
@@ -301,6 +324,8 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     recentProjectsInTheQuery: pageQuery.get("recent"),
     arePortFamiliesServed: pageQuery.get("port_families") === "served",
     poppedOutViewer: mockPoppedOutViewerTargetFrom(pageQuery.get(POPPED_OUT_VIEWER_QUERY_PARAMETER)),
+    isAGetMoreWindow: pageQuery.get(GET_MORE_QUERY_PARAMETER) === "open",
+    isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
   };
 }
 
@@ -1191,6 +1216,49 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       window.open(mockPoppedOutViewerPageUrl(window.location.href, target), "_blank");
     },
     readPoppedOutViewer: async () => structuredClone(mockTatolabOptions.poppedOutViewer),
+    openGetMoreWindow: async () => {
+      window.open(mockPageUrlWith(window.location.href, GET_MORE_QUERY_PARAMETER, "open"), "_blank");
+    },
+    readGetMoreWorkspace: async () => (mockTatolabOptions.isAGetMoreWindow ? structuredClone(openProjectReading) : null),
+    readPackageCatalog: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      return mockPackageCatalogReading(mockTatolabOptions.isTheCatalogUnserved);
+    },
+    previewImport: async (requirement) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind !== "read") throw "No project is open to import into.";
+      const { project } = openProjectReading.open_project;
+      const importedName = mockRequirementsName(requirement);
+      if (project.requirements.some((existing) => mockRequirementsName(existing) === importedName)) throw `The project already imports ${importedName}.`;
+      return {
+        file: `${project.folder}/pyproject.toml`,
+        text_before: mockPyprojectTextOf(project),
+        text_after: mockPyprojectTextOf({ ...project, requirements: [...project.requirements, requirement] }),
+        based_on_version: `mock-pyproject-${project.requirements.length}`,
+      };
+    },
+    importIntoWorkspace: async (requirement, basedOnVersion) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind !== "read") throw "No project is open to import into.";
+      const { project, imports } = openProjectReading.open_project;
+      if (basedOnVersion !== `mock-pyproject-${project.requirements.length}`) throw "pyproject.toml changed since the import was shown; nothing was written. Look at the change again before importing.";
+      openProjectReading = {
+        kind: "read",
+        open_project: {
+          project: { ...project, requirements: [...project.requirements, requirement] },
+          imports: [...imports, { name: mockRequirementsName(requirement), requirement, source: { kind: "package_index" } }],
+        },
+      };
+      for (const openProjectListener of openProjectListeners) openProjectListener(structuredClone(openProjectReading));
+    },
+    openImportToEdit: async (name) => {
+      const importedProject = openProjectReading.kind === "read" ? openProjectReading.open_project.imports.find((imported) => imported.name === name) : undefined;
+      if (importedProject === undefined) throw `The project imports nothing named ${name}.`;
+      if (importedProject.source.kind !== "folder") throw `${name} comes from a package index, so it has no folder of its own to open; only an import from a folder opens to edit.`;
+      const studioPageUrl = new URL(window.location.href);
+      studioPageUrl.searchParams.delete(GET_MORE_QUERY_PARAMETER);
+      window.open(studioPageUrl.toString(), "_blank");
+    },
     readRecentProjects: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return structuredClone(recentProjects);
