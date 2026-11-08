@@ -1,5 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "../../design_system/node_graph_canvas";
+import { FailureBanner } from "../../design_system/failure_banner";
+import { RuntimeFailureWords } from "../../design_system/runtime_failure_words";
 import { PropertyCheckbox, PropertyChoiceField, PropertyNumberField, PropertyRow, PropertySection, PropertyTextField } from "../../design_system/property_fields";
 import { WaitingState } from "../../design_system/waiting_state";
 import { useStudioViewReading } from "../../view_host/in_window_view_host";
@@ -97,6 +99,16 @@ function PropertiesOfTheSelectedNode({ connection, stream, nodeName }: { connect
         <NodeGraphPinMark family={node.output_ports[0]?.family ?? node.input_ports[0]?.family ?? null} />
         <h2 className="min-w-0 truncate text-[13px] font-semibold text-fg">{nodeTitle(node.name, node.type)}</h2>
       </header>
+      {node.state === "Error" && (
+        <div data-properties-node-failed={node.name}>
+          <FailureBanner place="panel">{node.failed_because === null ? "This node failed. The runtime gave no reason." : "This node failed."}</FailureBanner>
+          {node.failed_because !== null && (
+            <div className="border-b px-3 py-2.5">
+              <RuntimeFailureWords words={node.failed_because} data-properties-failed-because={node.name} />
+            </div>
+          )}
+        </div>
+      )}
       <PropertySection title="Node">
         <PropertyRow label="Name" meaning={isANameTheCodeGave(node.name, node.type) ? "The name its stream's code gave it." : "The runtime named it after its type, as its stream's code gave it no name."}>
           {(fieldId) => <PropertyTextField fieldId={fieldId} words={node.name} />}

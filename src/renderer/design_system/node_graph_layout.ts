@@ -8,15 +8,18 @@ export const NODE_GRAPH_CARD_HEADER_HEIGHT = 26;
 export const NODE_GRAPH_PIN_ROW_HEIGHT = 20;
 /** The space above the first pin row and below the last. */
 export const NODE_GRAPH_CARD_PIN_ROWS_PADDING = 6;
+/** The band under a failed card's pin rows that holds why it failed, two lines at most. */
+export const NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT = 44;
 const NODE_GRAPH_COLUMN_GAP = 72;
 const NODE_GRAPH_ROW_GAP = 28;
 const CROSSING_REDUCTION_SWEEPS = 4;
 
-/** What the layout reads of one node: its id, how many pins each side, and its card's width as drawn. */
+/** What the layout reads of one node: its id, how many pins each side, whether its card shows why it failed, and its card's width as drawn. */
 export interface NodeGraphLayoutNode {
   node_id: string;
   input_pin_names: readonly string[];
   output_pin_names: readonly string[];
+  shows_failure_words: boolean;
   card_width: number;
 }
 
@@ -34,10 +37,15 @@ export interface NodeGraphPosition {
   y: number;
 }
 
-/** A card's height: its header, then a row per pin on its busier side. */
-export function nodeGraphCardHeight(node: Pick<NodeGraphLayoutNode, "input_pin_names" | "output_pin_names">): number {
+/** A card's height: its header, then a row per pin on its busier side, then why it failed when it shows that. */
+export function nodeGraphCardHeight(node: Pick<NodeGraphLayoutNode, "input_pin_names" | "output_pin_names" | "shows_failure_words">): number {
   const pinRowCount = Math.max(node.input_pin_names.length, node.output_pin_names.length);
-  return NODE_GRAPH_CARD_HEADER_HEIGHT + NODE_GRAPH_CARD_PIN_ROWS_PADDING * 2 + pinRowCount * NODE_GRAPH_PIN_ROW_HEIGHT;
+  return (
+    NODE_GRAPH_CARD_HEADER_HEIGHT +
+    NODE_GRAPH_CARD_PIN_ROWS_PADDING * 2 +
+    pinRowCount * NODE_GRAPH_PIN_ROW_HEIGHT +
+    (node.shows_failure_words ? NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT : 0)
+  );
 }
 
 /** How far below a card's top the centre of its pin row `rowIndex` sits. */

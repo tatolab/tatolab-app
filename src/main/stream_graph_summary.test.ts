@@ -17,7 +17,7 @@ function node(
   nodeId = "",
   config: StreamGraphNode["config"] = {},
 ): StreamGraphNode {
-  return { id: nodeId, name, type: nodeType, state, config, ...ports, ...counters };
+  return { id: nodeId, name, type: nodeType, state, failed_because: null, config, ...ports, ...counters };
 }
 
 function link(id: string, [sourceNode, sourcePort]: [string, string], [targetNode, targetPort]: [string, string], state: string): StreamGraphLink {
@@ -226,5 +226,24 @@ test("an_output_reads_the_stream_facts_and_the_unchecked_mark_the_runtime_render
       values_checked: null,
     },
     { name: "odd", family: "image", stream_facts: null, values_checked: null },
+  ]);
+});
+
+test("a_node_reads_why_it_failed_from_its_components_word_for_word_and_null_while_it_has_not_failed", () => {
+  const failedBecause = "start() raised: RuntimeError: no Rive file at ./missing.riv\n  at rive_source.py:41";
+  const graph = {
+    nodes: [
+      { name: "rivesource", type: "nodes.rive_source:RiveSource", components: { state: "Error", failed_because: failedBecause } },
+      { name: "displaywindow", type: "tatolab.stream:DisplayWindow", components: { state: "Running", failed_because: null } },
+      { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", components: { state: "Running" } },
+    ],
+  };
+
+  const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify(graph));
+
+  expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.state, graphNode.failed_because])).toEqual([
+    ["rivesource", "Error", failedBecause],
+    ["displaywindow", "Running", null],
+    ["invertingeffect", "Running", null],
   ]);
 });

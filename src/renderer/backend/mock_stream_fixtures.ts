@@ -57,6 +57,8 @@ export interface MockGraphNode {
   name: string;
   type: string;
   state: string;
+  /** Why it failed, in the runtime's words, while `state` reads `Error`. */
+  failed_because?: string;
   config: Record<string, string | number | boolean>;
   input_ports: StreamGraphDeclaredPort[];
   output_ports: StreamGraphDeclaredPort[];
@@ -192,6 +194,9 @@ function loadingLines(machine: MockMachine, streamId: string, projectDirectory: 
   ];
 }
 
+/** Why the display window failed in the stream that shows it in error, as a native processor's failed `start()` reads. */
+const DISPLAY_WINDOW_FAILED_BECAUSE = "start() failed: DisplayWindow could not open a window: no display server answered on $WAYLAND_DISPLAY or $DISPLAY";
+
 const TEST_PATTERN_NODES: MockGraphNode[] = [
   {
     name: "testpatternsource",
@@ -305,7 +310,7 @@ function createTestPatternStream(
     listing,
     graph: {
       nodes: [
-        ...TEST_PATTERN_NODES.map((node) => (options.withDisplayWindowInError && node.name === "displaywindow" ? { ...node, state: "Error" } : node)),
+        ...TEST_PATTERN_NODES.map((node) => (options.withDisplayWindowInError && node.name === "displaywindow" ? { ...node, state: "Error", failed_because: DISPLAY_WINDOW_FAILED_BECAUSE } : node)),
         ...(recordsTheStream === null ? [] : [RECORDER_OF_MAIN_NODE]),
       ],
       links: [
