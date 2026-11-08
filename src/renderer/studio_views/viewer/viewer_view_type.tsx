@@ -12,6 +12,7 @@ import type {
   PortViewerMessageReading,
   PortViewerTarget,
   StopWatching,
+  StreamGraphDeclaredPort,
   StreamGraphReading,
   StreamGraphSummary,
   StreamTabAddress,
@@ -20,6 +21,7 @@ import type {
   StudioViewType,
 } from "../../view_host/studio_view_contract";
 import { nodeTitle } from "../node_words";
+import { portStreamFactsWords } from "../port_stream_facts_words";
 import { PortViewerMessageReadingShown, packetsUnitsSeenWith, type PacketsUnitSeen } from "./port_viewer_message_readings";
 
 /** One output port of a stream's graph: its node's id as `graph` lists it, that node's name, and the port's own name. */
@@ -145,11 +147,13 @@ function PortViewerPicture({
   target,
   nodeName,
   portWords,
+  streamFactsOfThePort,
 }: {
   connection: StudioViewHostConnection<ViewerSettings>;
   target: PortViewerTarget;
   nodeName: string;
   portWords: string;
+  streamFactsOfThePort: Pick<StreamGraphDeclaredPort, "stream_facts" | "values_checked">;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [shown, setShown] = useState<PortViewerShown>({ kind: "waiting" });
@@ -198,6 +202,7 @@ function PortViewerPicture({
     return () => portViewer.close();
   }, [connection, stream, node_id, port]);
   const isAPicture = shown.kind === "picture";
+  const streamFactsWords = portStreamFactsWords(streamFactsOfThePort).join(" · ");
   return (
     <div
       className={isAPicture || shown.kind === "waiting" ? "relative flex min-h-0 flex-1 flex-col bg-black" : "relative flex min-h-0 flex-1 flex-col"}
@@ -205,11 +210,23 @@ function PortViewerPicture({
       data-viewer-port-state={shown.kind}
     >
       <canvas ref={canvasRef} aria-label={`Live picture of ${portWords}`} className={isAPicture ? "block size-full object-contain" : "hidden"} data-viewer-picture="" />
+      {isAPicture && streamFactsWords !== "" && (
+        <div className="pointer-events-none absolute bottom-2 left-2 max-w-[calc(100%-1rem)] truncate rounded bg-black/60 px-1.5 py-0.5 text-2xs text-white/85" data-viewer-stream-facts={streamFactsWords}>
+          {streamFactsWords}
+        </div>
+      )}
       {shown.kind === "waiting" && <WaitingState title={`Reading ${portWords}`} explanation="The picture shows once the node writes its next frame." />}
       {shown.kind === "messages" && (
         <div className="flex min-h-0 flex-1 flex-col" data-viewer-messages={shown.reading.family}>
-          <div className="truncate border-b border-line px-3 py-1.5 text-xs text-fg-2">{portWords}</div>
-          <PortViewerMessageReadingShown reading={shown.reading} unitsSeen={shown.packets_units_seen} messagesRead={shown.messages_read} />
+          <div className="flex min-w-0 items-baseline gap-2 border-b border-line px-3 py-1.5 text-xs">
+            <span className="min-w-0 shrink-0 truncate text-fg-2">{portWords}</span>
+            {streamFactsWords !== "" && (
+              <span className="min-w-0 truncate text-2xs text-fg-3" data-viewer-stream-facts={streamFactsWords}>
+                {streamFactsWords}
+              </span>
+            )}
+          </div>
+          <PortViewerMessageReadingShown reading={shown.reading} unitsSeen={shown.packets_units_seen} messagesRead={shown.messages_read} valuesChecked={streamFactsOfThePort.values_checked} />
         </div>
       )}
       {shown.kind === "undrawable" && (
@@ -219,6 +236,11 @@ function PortViewerPicture({
       {shown.kind === "ended" && <WaitingState isFailure title={`Stopped reading ${portWords}`} explanation={shown.because} data-viewer-ended="" />}
     </div>
   );
+}
+
+/** The output port `address` names as `graph` declares it; `undefined` once the graph no longer has it. */
+function declaredOutputPortOf(graph: StreamGraphSummary, address: ViewerPortAddress): StreamGraphDeclaredPort | undefined {
+  return graph.nodes.find((node) => node.id === address.node_id)?.output_ports.find((outputPort) => outputPort.name === address.port);
 }
 
 function useTheGraphOfTheTab(connection: StudioViewHostConnection<ViewerSettings>, stream: string): StreamGraphReading | null {
@@ -251,6 +273,7 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: StudioViewHostC
       target={{ stream: streamTab.stream, node_id: playedPort.node_id, port: playedPort.port }}
       nodeName={playedPort.node_name}
       portWords={portWordsOf(graphReading.graph, playedPort)}
+      streamFactsOfThePort={declaredOutputPortOf(graphReading.graph, playedPort) ?? { stream_facts: null, values_checked: null }}
     />
   );
 }

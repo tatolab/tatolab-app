@@ -32,6 +32,7 @@ export type {
   PortViewerChannelWaveform,
   PortViewerMessageReading,
   PortViewerTarget,
+  PortStreamFacts,
   ProjectLogRecord,
   ProjectOnDisk,
   StreamGraphDeclaredPort,

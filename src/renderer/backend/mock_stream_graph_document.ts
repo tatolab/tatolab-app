@@ -3,7 +3,7 @@
 // `machine` — and the summary the main process would read from it.
 
 import { mockNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
-import type { StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type { PortStreamFacts, StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
 
 /** Where a mock stream's run stands when its graph is read. */
 export interface MockStreamGraphMoment {
@@ -11,6 +11,23 @@ export interface MockStreamGraphMoment {
   hasSettled: boolean;
   /** How long its counters have been climbing. */
   secondsSinceSettled: number;
+}
+
+/** `facts` as the runtime renders a port's `stream_facts`: tagged by `family`, each fact the port does not state left out. */
+function streamFactsAsTheRuntimeRendersThem(facts: PortStreamFacts): Record<string, unknown> {
+  if (facts.family === "image") {
+    return Object.fromEntries(Object.entries(facts).filter((entry) => entry[1] !== null));
+  }
+  const { codec_configuration_byte_length: codecConfigurationByteLength, ...statedFacts } = facts;
+  return {
+    ...Object.fromEntries(Object.entries(statedFacts).filter((entry) => entry[1] !== null)),
+    ...(codecConfigurationByteLength === null ? {} : { codec_configuration_hex: "00".repeat(codecConfigurationByteLength) }),
+  };
+}
+
+/** `values_checked` as the runtime renders it: only on a port that carries the mark. */
+function valuesCheckedAsTheRuntimeRendersIt(port: StreamGraphDeclaredPort): { values_checked?: boolean } {
+  return port.values_checked === null ? {} : { values_checked: port.values_checked };
 }
 
 /** The runtime's capitalised link state in `components`: `awaiting_remote` reads `AwaitingRemote`. */
@@ -67,14 +84,22 @@ export function mockStreamGraphSummary(
       name: node.name,
       config: node.config,
       ports: {
-        inputs: node.input_ports.map((port) => ({ name: port.name, description: "", port_kind: "data", delivery_profile: "newest", ...familyAsTheRuntimeRendersIt(port) })),
+        inputs: node.input_ports.map((port) => ({
+          name: port.name,
+          description: "",
+          port_kind: "data",
+          delivery_profile: "newest",
+          ...valuesCheckedAsTheRuntimeRendersIt(port),
+          ...familyAsTheRuntimeRendersIt(port),
+        })),
         outputs: node.output_ports.map((port) => ({
           name: port.name,
           description: "",
           port_kind: "data",
           delivery_profile: null,
+          ...(port.stream_facts === null ? {} : { stream_facts: streamFactsAsTheRuntimeRendersThem(port.stream_facts) }),
+          ...valuesCheckedAsTheRuntimeRendersIt(port),
           ...familyAsTheRuntimeRendersIt(port),
-          ...(port.catalog_section === null ? {} : { catalog_entry: { section: port.catalog_section, entry: {} } }),
         })),
       },
       components: {

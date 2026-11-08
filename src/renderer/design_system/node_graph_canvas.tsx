@@ -52,10 +52,16 @@ const NODE_GRAPH_PIN_FAMILY_WORDS: Record<NodeGraphPinFamily, string> = {
   records: "Records",
 };
 
-/** One pin of a card: its name, and its family, `null` drawn as a plain bar while none is known. */
+/** One pin of a card: its name, its family, `null` drawn as a plain bar while none is known, and what it states about its stream, shown while the pointer rests on it. */
 export interface NodeGraphCanvasPin {
   name: string;
   family: NodeGraphPinFamily | null;
+  stream_facts_words: readonly string[];
+}
+
+/** What a pin shows while the pointer rests on it: its name, its family and the facts of its stream. */
+function nodeGraphPinTooltip(pin: NodeGraphCanvasPin): string {
+  return [pin.name, ...(pin.family === null ? [] : [NODE_GRAPH_PIN_FAMILY_WORDS[pin.family]]), ...pin.stream_facts_words].join(" · ");
 }
 
 /** One node a graph canvas draws: its name on the card's header, and its pins, inputs on the left and outputs on the right. */
@@ -134,7 +140,8 @@ function NodeGraphPinHandle({
       isConnectable={false}
       className="node-graph-pin"
       data-family={pin.family ?? undefined}
-      title={pin.family === null ? pin.name : `${pin.name} · ${NODE_GRAPH_PIN_FAMILY_WORDS[pin.family]}`}
+      title={nodeGraphPinTooltip(pin)}
+      data-stream-facts={pin.stream_facts_words.length === 0 ? undefined : pin.stream_facts_words.join(" · ")}
       data-linked={
         linkedPins.has(linkedPinKey(nodeId, side, pin.name)) || undefined
       }

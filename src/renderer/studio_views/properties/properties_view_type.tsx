@@ -13,6 +13,7 @@ import type {
   StudioViewHostConnection,
   StudioViewType,
 } from "../../view_host/studio_view_contract";
+import { portStreamFactsWords, streamFactsAnInputReceives, VALUES_UNCHECKED_MEANING } from "../port_stream_facts_words";
 import { isANameTheCodeGave, nameInWords, nodeTitle, nodeTypeClassName } from "../node_words";
 import { configFormFieldValueWords, configFormOf, type ConfigFormField } from "./config_form_fields";
 
@@ -38,15 +39,38 @@ function meaningOfAConfigKey(field: ConfigFormField): string {
   return field.description === null ? field.key : `${field.key} · ${field.description}`;
 }
 
-function PortRows({ direction, ports, catalogPorts }: { direction: "In" | "Out"; ports: StreamGraphDeclaredPort[]; catalogPorts: NodeCatalogPort[] }) {
+function PortRows({
+  direction,
+  ports,
+  catalogPorts,
+  factsOfThePort,
+}: {
+  direction: "In" | "Out";
+  ports: StreamGraphDeclaredPort[];
+  catalogPorts: NodeCatalogPort[];
+  factsOfThePort: (port: StreamGraphDeclaredPort) => Pick<StreamGraphDeclaredPort, "stream_facts" | "values_checked">;
+}) {
   return ports.map((port) => {
     const description = catalogPorts.find((catalogPort) => catalogPort.name === port.name)?.description;
+    const facts = factsOfThePort(port);
+    const factsWords = portStreamFactsWords(facts);
     return (
-      <div key={`${direction}:${port.name}`} className="flex h-6 min-w-0 items-center gap-2 text-xs" title={description === undefined || description === "" ? undefined : description} data-properties-port={port.name}>
-        <span className="w-6 shrink-0 text-right text-2xs text-fg-3">{direction}</span>
-        <NodeGraphPinMark family={port.family} />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg">{port.name}</span>
-        {port.family !== null && <span className="shrink-0 text-fg-3">{nodeGraphPinFamilyWords(port.family)}</span>}
+      <div key={`${direction}:${port.name}`} className="flex min-w-0 flex-col py-0.5" data-properties-port={port.name}>
+        <div className="flex h-6 min-w-0 items-center gap-2 text-xs" title={description === undefined || description === "" ? undefined : description}>
+          <span className="w-6 shrink-0 text-right text-2xs text-fg-3">{direction}</span>
+          <NodeGraphPinMark family={port.family} />
+          <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-fg">{port.name}</span>
+          {port.family !== null && <span className="shrink-0 text-fg-3">{nodeGraphPinFamilyWords(port.family)}</span>}
+        </div>
+        {factsWords.length > 0 && (
+          <div
+            className="truncate pl-[3.25rem] text-2xs text-fg-3"
+            title={facts.values_checked === false ? VALUES_UNCHECKED_MEANING : factsWords.join(" · ")}
+            data-properties-port-stream-facts={factsWords.join(" · ")}
+          >
+            {factsWords.join(" · ")}
+          </div>
+        )}
       </div>
     );
   });
@@ -65,6 +89,7 @@ function PropertiesOfTheSelectedNode({ connection, stream, nodeName }: { connect
   if (graphReading === null) return null;
   if (graphReading.kind === "not_read") return <WaitingState title={`${nodeName} can't be read`} explanation={graphReading.because} data-properties-state="graph_not_read" />;
   if (node === undefined || configForm === null) return <WaitingState title={`${nodeName} is gone`} explanation="Its stream's graph no longer has it." data-properties-state="node_gone" />;
+  const { graph } = graphReading;
   const typeClassName = nodeTypeClassName(node.type);
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-properties-of-node={node.name}>
@@ -98,8 +123,13 @@ function PropertiesOfTheSelectedNode({ connection, stream, nodeName }: { connect
           <p className="px-1 text-xs text-fg-3">None</p>
         ) : (
           <>
-            <PortRows direction="In" ports={node.input_ports} catalogPorts={catalogEntry?.inputs ?? []} />
-            <PortRows direction="Out" ports={node.output_ports} catalogPorts={catalogEntry?.outputs ?? []} />
+            <PortRows
+              direction="In"
+              ports={node.input_ports}
+              catalogPorts={catalogEntry?.inputs ?? []}
+              factsOfThePort={(port) => streamFactsAnInputReceives(graph, node.name, port)}
+            />
+            <PortRows direction="Out" ports={node.output_ports} catalogPorts={catalogEntry?.outputs ?? []} factsOfThePort={(port) => port} />
           </>
         )}
       </PropertySection>

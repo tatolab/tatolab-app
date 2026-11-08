@@ -192,9 +192,49 @@ export interface StreamGraphDeclaredPort {
   name: string;
   /** The family the port carries, from its `family` key; `null` while the runtime serves none, or one this app does not know. */
   family: PortFamily | null;
-  /** What an output carries, as its `catalog_entry.section` names it (`video`, `audio`, `binary`, …); `null` when it declares none, as every input does. */
-  catalog_section: string | null;
+  /** What an output states about the stream it carries now, from its `stream_facts` key; `null` when it states none, as every input does. */
+  stream_facts: PortStreamFacts | null;
+  /** `false` on a Records port, whose values no type checks, from its `values_checked` key; `null` on every other family. */
+  values_checked: boolean | null;
 }
+
+/** An Image stream's frame rate, as a rational number of frames per second. */
+export interface ImageStreamFrameRate {
+  numerator: number;
+  denominator: number;
+}
+
+/** An HDR stream's content light level, in cd/m² (CTA-861.3). */
+export interface ImageStreamContentLightLevel {
+  max_content_light_level: number;
+  max_frame_average_light_level: number;
+}
+
+/** The mastering display an HDR stream was graded on (SMPTE ST 2086): luminance in steps of 0.0001 cd/m². */
+export interface ImageStreamMasteringDisplayColourVolume {
+  max_display_mastering_luminance: number;
+  min_display_mastering_luminance: number;
+}
+
+/** An output port's stream facts as the runtime renders them under `stream_facts`, tagged by `family`; a field the port does not state is `null`. */
+export type PortStreamFacts =
+  | {
+      family: "image";
+      frame_rate: ImageStreamFrameRate | null;
+      content_light_level: ImageStreamContentLightLevel | null;
+      mastering_display_colour_volume: ImageStreamMasteringDisplayColourVolume | null;
+    }
+  | {
+      family: "packets";
+      /** The codec with its profile and level, as an RFC 6381 `codecs` parameter spells it (`avc1.64001f`, `opus`). */
+      rfc6381_codec: string | null;
+      coded_width: number | null;
+      coded_height: number | null;
+      sample_rate: number | null;
+      channel_count: number | null;
+      /** The bytes of the codec's out-of-band configuration record (`avcC`, `hvcC`, `OpusHead`), from its lowercase hex. */
+      codec_configuration_byte_length: number | null;
+    };
 
 /** One node of a stream's graph, by the name a link end and a port address name it by. */
 export interface StreamGraphNode {
