@@ -3,13 +3,20 @@ import type { TatolabElectronBridge } from "../shared/tatolab_electron_bridge_co
 
 const fakeElectron = vi.hoisted(() => {
   const exposedInTheMainWorld = new Map<string, unknown>();
+  const sharedTextureReceiverSet: { receiver: unknown } = { receiver: null };
   return {
     exposedInTheMainWorld,
     contextBridge: { exposeInMainWorld: (apiKey: string, api: unknown) => exposedInTheMainWorld.set(apiKey, api) },
     ipcRenderer: { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn(), send: vi.fn() },
+    sharedTextureReceiverSet,
+    sharedTexture: {
+      setSharedTextureReceiver: (receiver: unknown) => {
+        sharedTextureReceiverSet.receiver = receiver;
+      },
+    },
   };
 });
-vi.mock("electron", () => ({ contextBridge: fakeElectron.contextBridge, ipcRenderer: fakeElectron.ipcRenderer }));
+vi.mock("electron", () => ({ contextBridge: fakeElectron.contextBridge, ipcRenderer: fakeElectron.ipcRenderer, sharedTexture: fakeElectron.sharedTexture }));
 
 async function exposedTatolabElectronBridge(): Promise<TatolabElectronBridge> {
   await import("./tatolab_window_preload.js");
@@ -100,4 +107,25 @@ test("telling the app the window drew its first status sends the notice on its o
 
   expect(fakeElectron.ipcRenderer.send).toHaveBeenCalledWith("tatolab-window-drew-its-first-status");
   expect(fakeElectron.ipcRenderer.invoke).not.toHaveBeenCalled();
+});
+
+test("each shared texture a port viewer hands over reaches every listener as a VideoFrame of its own, and the import is released at once", async () => {
+  const tatolabElectronBridge = await exposedTatolabElectronBridge();
+  const receiveASharedTexture = fakeElectron.sharedTextureReceiverSet.receiver;
+  if (typeof receiveASharedTexture !== "function") return expect.fail("the preload set no shared texture receiver");
+  const framesClosed: string[] = [];
+  const videoFrameNamed = (name: string) => ({ name, codedWidth: 640, codedHeight: 360, close: () => framesClosed.push(name), clone: () => videoFrameNamed(`${name} clone`) });
+  const importedSharedTexture = { getVideoFrame: () => videoFrameNamed("frame"), release: vi.fn() };
+  const frameFacts = { port_viewer: "port-viewer-1", format_wire_name: "bgra32", skipped_since_last_read: 0 };
+  const framesHeard: string[] = [];
+
+  const stopTheFirst = tatolabElectronBridge.onPortViewerImageFrame((videoFrame) => framesHeard.push(Reflect.get(videoFrame, "name")));
+  tatolabElectronBridge.onPortViewerImageFrame((videoFrame, heardFacts) => framesHeard.push(`${Reflect.get(videoFrame, "name")} for ${heardFacts.port_viewer}`));
+  await receiveASharedTexture({ importedSharedTexture }, frameFacts);
+  stopTheFirst();
+  await receiveASharedTexture({ importedSharedTexture }, { not: "facts" });
+
+  expect(framesHeard).toEqual(["frame clone for port-viewer-1", "frame"]);
+  expect(importedSharedTexture.release).toHaveBeenCalledTimes(2);
+  expect(framesClosed).toEqual(["frame"]);
 });

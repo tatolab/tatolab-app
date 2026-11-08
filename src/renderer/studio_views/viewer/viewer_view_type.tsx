@@ -1,11 +1,15 @@
 import { PictureInPicture2 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { FieldMenu, MenuSingleChoiceGroup, type MenuSingleChoice } from "../../design_system/menus";
 import { IconButton } from "../../design_system/icon_button";
 import { RefusalLine } from "../../design_system/refusal_line";
 import { WaitingState } from "../../design_system/waiting_state";
 import { useStudioViewReading } from "../../view_host/in_window_view_host";
 import type {
+  JsonValue,
   PoppedOutViewerTarget,
+  PortViewerConnectionEvent,
+  PortViewerTarget,
   StopWatching,
   StreamGraphReading,
   StreamGraphSummary,
@@ -16,26 +20,66 @@ import type {
 } from "../../view_host/studio_view_contract";
 import { nodeTitle } from "../node_words";
 
-/** The issue that previews any port of any node, one view per family. */
-const PREVIEWING_ANY_PORT_ARRIVES_WITH = "tatolab/tatolab-app#135";
+/** One output port of a stream's graph, by its node's name and its own. */
+export type ViewerPortAddress = { node: string; port: string };
 
-/** The exposed output the Viewer plays for `graph`: the selected node's first one the runtime serves a preview page for, or else the stream's first. */
-export function exposedOutputTheViewerPlays(
-  graph: StreamGraphSummary,
-  selection: StudioSelection | null,
-): StreamGraphSummary["exposed"][number] | null {
-  const previewed = graph.exposed.filter(
-    (exposedPort) => exposedPort.watch_page_url !== null,
-  );
-  const selectedNode =
-    selection?.kind === "node" && selection.stream === graph.stream
-      ? selection.node
-      : null;
-  return (
-    previewed.find((exposedPort) => exposedPort.node === selectedNode) ??
-    previewed[0] ??
-    null
-  );
+/** What a Viewer area keeps with the layout: the port the person chose to play, or `null` to follow the selection. */
+export type ViewerSettings = { chosen_port: { stream: string; node: string; port: string } | null };
+
+const FOLLOW_THE_SELECTION_CHOICE = "follow_the_selection";
+
+function viewerSettingsFrom(savedSettings: JsonValue): ViewerSettings | null {
+  if (typeof savedSettings !== "object" || savedSettings === null || Array.isArray(savedSettings)) return null;
+  const chosenPort = savedSettings["chosen_port"];
+  if (chosenPort === null) return { chosen_port: null };
+  if (typeof chosenPort !== "object" || chosenPort === undefined || Array.isArray(chosenPort)) return null;
+  const { stream, node, port } = chosenPort;
+  if (typeof stream !== "string" || typeof node !== "string" || typeof port !== "string") return null;
+  return { chosen_port: { stream, node, port } };
+}
+
+function viewerPortChoiceKey(portAddress: ViewerPortAddress): string {
+  return JSON.stringify([portAddress.node, portAddress.port]);
+}
+
+function everyOutputPortOf(graph: StreamGraphSummary): (ViewerPortAddress & { family: string | null })[] {
+  return graph.nodes.flatMap((node) => node.output_ports.map((outputPort) => ({ node: node.name, port: outputPort.name, family: outputPort.family })));
+}
+
+/**
+ * The output port the Viewer plays for `graph`: the selected node's, its picture first; or else the stream's last picture, the first
+ * Image port that feeds no other node's Image output; or else its first port of any family. A port whose family the runtime does not
+ * serve may be a picture.
+ */
+export function outputPortTheViewerPlays(graph: StreamGraphSummary, selection: StudioSelection | null): ViewerPortAddress | null {
+  const outputPorts = everyOutputPortOf(graph);
+  const mayBeAPicture = (outputPort: { family: string | null }) => outputPort.family === "image" || outputPort.family === null;
+  const selectedNode = selection?.kind === "node" && selection.stream === graph.stream ? selection.node : null;
+  const selectedNodesPorts = outputPorts.filter((outputPort) => outputPort.node === selectedNode);
+  const nodesWithAPicture = new Set(outputPorts.filter(mayBeAPicture).map((outputPort) => outputPort.node));
+  const feedsAnotherPicture = (outputPort: ViewerPortAddress) =>
+    graph.links.some((link) => link.source_node === outputPort.node && link.source_port === outputPort.port && nodesWithAPicture.has(link.target_node));
+  const pictures = outputPorts.filter(mayBeAPicture);
+  const played =
+    selectedNodesPorts.find(mayBeAPicture) ??
+    selectedNodesPorts[0] ??
+    pictures.find((outputPort) => !feedsAnotherPicture(outputPort)) ??
+    pictures[0] ??
+    outputPorts[0] ??
+    null;
+  return played === null ? null : { node: played.node, port: played.port };
+}
+
+function chosenPortStillInTheGraph(graph: StreamGraphSummary, settings: ViewerSettings): ViewerPortAddress | null {
+  const chosenPort = settings.chosen_port;
+  if (chosenPort === null || chosenPort.stream !== graph.stream) return null;
+  const isInTheGraph = everyOutputPortOf(graph).some((outputPort) => outputPort.node === chosenPort.node && outputPort.port === chosenPort.port);
+  return isInTheGraph ? { node: chosenPort.node, port: chosenPort.port } : null;
+}
+
+/** The port the Viewer plays: the one chosen for this stream while the graph still has it, or else the one the selection gives. */
+export function portTheViewerPlays(graph: StreamGraphSummary, selection: StudioSelection | null, settings: ViewerSettings): ViewerPortAddress | null {
+  return chosenPortStillInTheGraph(graph, settings) ?? outputPortTheViewerPlays(graph, selection);
 }
 
 /** What Pop out pins a Viewer window to: the stream tab shown, and the node selected in it, or `null` when no node of that stream is selected. */
@@ -48,110 +92,185 @@ export function poppedOutViewerTargetOf(streamTab: StreamTabAddress, selection: 
   };
 }
 
-/** The runtime's preview page of one exposed output, on its loopback origin: the window's content security policy frames that one origin, and the main process lets a frame navigate only to its `/watch/` pages. */
-function ExposedOutputWatchPageFrame({
-  watchPageUrl,
-  outputWords,
-}: {
-  watchPageUrl: string;
-  outputWords: string;
-}) {
-  return (
-    <iframe
-      key={watchPageUrl}
-      src={watchPageUrl}
-      title={`Preview of ${outputWords}`}
-      sandbox="allow-scripts allow-same-origin"
-      allow="autoplay; fullscreen"
-      referrerPolicy="no-referrer"
-      className="block size-full bg-black"
-      data-viewer-watch-page={watchPageUrl}
-    />
-  );
+function portWordsOf(graph: StreamGraphSummary, portAddress: ViewerPortAddress): string {
+  const node = graph.nodes.find((graphNode) => graphNode.name === portAddress.node);
+  return `${node === undefined ? portAddress.node : nodeTitle(node.name, node.type)} › ${portAddress.port}`;
 }
 
-/** The Viewer of the stream tab shown: its exposed output's video, alone. */
-function ViewerOfTheTab({
-  connection,
-  streamTab,
-}: {
-  connection: StudioViewHostConnection<null>;
-  streamTab: StreamTabAddress;
-}) {
-  const watchTheTabsGraph = useCallback(
-    (listener: (reading: StreamGraphReading) => void): StopWatching =>
-      connection.watchStreamGraph(streamTab.stream, listener),
-    [connection, streamTab.stream],
-  );
-  const graphReading = useStudioViewReading(watchTheTabsGraph);
-  const selection = useStudioViewReading(connection.watchSelection);
-  if (graphReading === null) return null;
-  if (graphReading.kind === "not_read") {
-    return (
-      <WaitingState
-        title={`Nothing of ${streamTab.display_name} to preview yet`}
-        explanation={graphReading.because}
-        data-viewer-state="not_read"
-      />
-    );
+/** Draw `pixels`, `bgra32` or `rgba32` rows of `bytesPerRow`, onto `canvas`; `false` for any other format. */
+function drawCpuReadPixels(canvas: HTMLCanvasElement, width: number, height: number, formatWireName: string, bytesPerRow: number, pixels: Uint8Array): boolean {
+  if (formatWireName !== "bgra32" && formatWireName !== "rgba32") return false;
+  const drawing = canvas.getContext("2d");
+  if (drawing === null) return false;
+  const imageData = new ImageData(width, height);
+  const isBgra = formatWireName === "bgra32";
+  for (let row = 0; row < height; row += 1) {
+    for (let column = 0; column < width; column += 1) {
+      const from = row * bytesPerRow + column * 4;
+      const to = (row * width + column) * 4;
+      imageData.data[to] = pixels[from + (isBgra ? 2 : 0)] ?? 0;
+      imageData.data[to + 1] = pixels[from + 1] ?? 0;
+      imageData.data[to + 2] = pixels[from + (isBgra ? 0 : 2)] ?? 0;
+      imageData.data[to + 3] = pixels[from + 3] ?? 255;
+    }
   }
-  const playedOutput = exposedOutputTheViewerPlays(
-    graphReading.graph,
-    selection,
-  );
-  if (playedOutput === null || playedOutput.watch_page_url === null) {
-    return (
-      <WaitingState
-        title={`${streamTab.display_name} exposes no output to preview`}
-        explanation="The runtime previews a stream's exposed outputs. Previewing any port of any node arrives later."
-        waitsOn={PREVIEWING_ANY_PORT_ARRIVES_WITH}
-        data-viewer-state="nothing_exposed"
-      />
-    );
-  }
-  const playedNode = graphReading.graph.nodes.find(
-    (node) => node.name === playedOutput.node,
-  );
-  const outputWords = `${playedNode === undefined ? playedOutput.node : nodeTitle(playedNode.name, playedNode.type)} › ${playedOutput.port}`;
+  canvas.width = width;
+  canvas.height = height;
+  drawing.putImageData(imageData, 0, 0);
+  return true;
+}
+
+/** What a port viewer shows besides its picture: waiting for the first message, another family's messages, a format it cannot draw, or why it is reopening or has ended. */
+type PortViewerShown =
+  | { kind: "waiting" }
+  | { kind: "picture"; format_wire_name: string }
+  | { kind: "messages"; port_family: string; payload_byte_length: number; messages_read: number }
+  | { kind: "undrawable"; format_wire_name: string }
+  | { kind: "reopening"; because: string }
+  | { kind: "ended"; because: string };
+
+const MESSAGE_WORDS_REFRESH_EVERY_MS = 250;
+
+/** The picture, or the messages, one port viewer reads from a running node's output port. */
+function PortViewerPicture({ connection, target, portWords }: { connection: StudioViewHostConnection<ViewerSettings>; target: PortViewerTarget; portWords: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [shown, setShown] = useState<PortViewerShown>({ kind: "waiting" });
+  const { stream, node, port } = target;
+  useEffect(() => {
+    setShown({ kind: "waiting" });
+    let shownKind: PortViewerShown["kind"] = "waiting";
+    let messagesRead = 0;
+    let messageWordsShownAtMs = Number.NEGATIVE_INFINITY;
+    const show = (nextShown: PortViewerShown) => {
+      shownKind = nextShown.kind;
+      setShown(nextShown);
+    };
+    const showThePicture = (formatWireName: string) => {
+      if (shownKind !== "picture") show({ kind: "picture", format_wire_name: formatWireName });
+    };
+    const handleTheEvent = (event: PortViewerConnectionEvent) => {
+      const canvas = canvasRef.current;
+      if (event.kind === "image_frame") {
+        const drawing = canvas?.getContext("2d") ?? null;
+        if (canvas !== null && drawing !== null) {
+          if (canvas.width !== event.video_frame.displayWidth) canvas.width = event.video_frame.displayWidth;
+          if (canvas.height !== event.video_frame.displayHeight) canvas.height = event.video_frame.displayHeight;
+          drawing.drawImage(event.video_frame, 0, 0);
+        }
+        event.video_frame.close();
+        showThePicture(event.format_wire_name);
+      } else if (event.kind === "image_pixels") {
+        const drawn = canvas !== null && drawCpuReadPixels(canvas, event.width, event.height, event.format_wire_name, event.bytes_per_row, event.pixels);
+        if (drawn) showThePicture(event.format_wire_name);
+        else if (shownKind !== "undrawable") show({ kind: "undrawable", format_wire_name: event.format_wire_name });
+      } else if (event.kind === "message") {
+        messagesRead += 1 + event.skipped_since_last_read;
+        const nowMs = performance.now();
+        if (shownKind !== "messages" || nowMs - messageWordsShownAtMs >= MESSAGE_WORDS_REFRESH_EVERY_MS) {
+          messageWordsShownAtMs = nowMs;
+          show({ kind: "messages", port_family: event.port_family, payload_byte_length: event.payload_byte_length, messages_read: messagesRead });
+        }
+      } else {
+        show(event);
+      }
+    };
+    const portViewer = connection.watchPortViewer({ stream, node, port }, handleTheEvent);
+    return () => portViewer.close();
+  }, [connection, stream, node, port]);
+  const isAPicture = shown.kind === "picture";
   return (
-    <div
-      className="min-h-0 flex-1"
-      data-viewer-playing={`${playedOutput.node}/${playedOutput.port}`}
-    >
-      <ExposedOutputWatchPageFrame
-        watchPageUrl={playedOutput.watch_page_url}
-        outputWords={outputWords}
-      />
+    <div className="relative flex min-h-0 flex-1 flex-col bg-black" data-viewer-playing={`${node}/${port}`} data-viewer-port-state={shown.kind}>
+      <canvas ref={canvasRef} aria-label={`Live picture of ${portWords}`} className={isAPicture ? "block size-full object-contain" : "hidden"} data-viewer-picture="" />
+      {shown.kind === "waiting" && <WaitingState title={`Reading ${portWords}`} explanation="The picture shows once the node writes its next frame." />}
+      {shown.kind === "messages" && (
+        <WaitingState
+          title={`${portWords} carries ${shown.port_family}`}
+          explanation={`${shown.messages_read} messages read; the latest is ${shown.payload_byte_length} bytes. The Viewer draws Image ports; other families show here as they arrive.`}
+          data-viewer-messages={shown.port_family}
+        />
+      )}
+      {shown.kind === "undrawable" && (
+        <WaitingState title={`${portWords} is ${shown.format_wire_name}`} explanation={`The Viewer draws bgra32 and rgba32 frames it reads as pixels; ${shown.format_wire_name} arrives later.`} />
+      )}
+      {shown.kind === "reopening" && <WaitingState title={`Reopening ${portWords}`} explanation={shown.because} data-viewer-reopening="" />}
+      {shown.kind === "ended" && <WaitingState isFailure title={`Stopped reading ${portWords}`} explanation={shown.because} data-viewer-ended="" />}
     </div>
   );
 }
 
-/** The Viewer of the active stream tab, or what to do while no tab is open. */
-function ViewerBody({
-  connection,
-}: {
-  connection: StudioViewHostConnection<null>;
-}) {
-  const activeStreamTab = useStudioViewReading(connection.watchActiveStreamTab);
-  if (activeStreamTab === null)
+function useTheGraphOfTheTab(connection: StudioViewHostConnection<ViewerSettings>, stream: string): StreamGraphReading | null {
+  const watchTheTabsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(stream, listener), [connection, stream]);
+  return useStudioViewReading(watchTheTabsGraph);
+}
+
+/** The Viewer of the stream tab shown: the live picture of the port it plays. */
+function ViewerOfTheTab({ connection, streamTab }: { connection: StudioViewHostConnection<ViewerSettings>; streamTab: StreamTabAddress }) {
+  const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
+  const selection = useStudioViewReading(connection.watchSelection);
+  if (graphReading === null) return null;
+  if (graphReading.kind === "not_read") {
+    return <WaitingState title={`Nothing of ${streamTab.display_name} to view yet`} explanation={graphReading.because} data-viewer-state="not_read" />;
+  }
+  const playedPort = portTheViewerPlays(graphReading.graph, selection, connection.settings);
+  if (playedPort === null) {
     return (
       <WaitingState
-        title="No stream is open"
-        explanation="Double-click a stream in the outliner to preview it here."
-        data-viewer-state="no_tab"
+        title={`${streamTab.display_name} has no output to view`}
+        explanation="The Viewer plays any output port of a running node. None of this stream's nodes declares one."
+        data-viewer-state="no_output_port"
       />
     );
+  }
   return (
-    <ViewerOfTheTab
-      key={activeStreamTab.stream}
+    <PortViewerPicture
+      key={`${playedPort.node}/${playedPort.port}`}
       connection={connection}
-      streamTab={activeStreamTab}
+      target={{ stream: streamTab.stream, ...playedPort }}
+      portWords={portWordsOf(graphReading.graph, playedPort)}
     />
   );
 }
 
-/** Pop out, in the Viewer's header while a stream tab is open, and why the last pop-out was refused. */
-function ViewerHeaderTools({ connection }: { connection: StudioViewHostConnection<null> }) {
+/** The Viewer of the active stream tab, or what to do while no tab is open. */
+function ViewerBody({ connection }: { connection: StudioViewHostConnection<ViewerSettings> }) {
+  const activeStreamTab = useStudioViewReading(connection.watchActiveStreamTab);
+  if (activeStreamTab === null) {
+    return <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to view it here." data-viewer-state="no_tab" />;
+  }
+  return <ViewerOfTheTab key={activeStreamTab.stream} connection={connection} streamTab={activeStreamTab} />;
+}
+
+/** The port the Viewer plays, chosen from every output of the tab's graph, or following the selection. */
+function ViewerPortChooser({ connection, streamTab }: { connection: StudioViewHostConnection<ViewerSettings>; streamTab: StreamTabAddress }) {
+  const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
+  const selection = useStudioViewReading(connection.watchSelection);
+  if (graphReading === null || graphReading.kind === "not_read") return null;
+  const { graph } = graphReading;
+  const playedPort = portTheViewerPlays(graph, selection, connection.settings);
+  if (playedPort === null) return null;
+  const chosenPort = chosenPortStillInTheGraph(graph, connection.settings);
+  const portChoices: MenuSingleChoice<string>[] = [
+    { choice: FOLLOW_THE_SELECTION_CHOICE, label: "Follow the selection" },
+    ...everyOutputPortOf(graph).map((outputPort) => ({ choice: viewerPortChoiceKey(outputPort), label: portWordsOf(graph, outputPort) })),
+  ];
+  const playedPortWords = portWordsOf(graph, playedPort);
+  return (
+    <FieldMenu label={`Port: ${playedPortWords}`} words={playedPortWords} menuWidth="fit" data-viewer-port-chooser="">
+      <MenuSingleChoiceGroup
+        choices={portChoices}
+        chosen={chosenPort === null ? FOLLOW_THE_SELECTION_CHOICE : viewerPortChoiceKey(chosenPort)}
+        dataAttributeOfEachChoice="data-viewer-port-choice"
+        onChosen={(choice) => {
+          const portChosenNow = everyOutputPortOf(graph).find((outputPort) => viewerPortChoiceKey(outputPort) === choice);
+          connection.rememberSettings({ chosen_port: portChosenNow === undefined ? null : { stream: graph.stream, node: portChosenNow.node, port: portChosenNow.port } });
+        }}
+      />
+    </FieldMenu>
+  );
+}
+
+/** The port chooser and Pop out, in the Viewer's header while a stream tab is open, and why the last pop-out was refused. */
+function ViewerHeaderTools({ connection }: { connection: StudioViewHostConnection<ViewerSettings> }) {
   const activeStreamTab = useStudioViewReading(connection.watchActiveStreamTab);
   const selection = useStudioViewReading(connection.watchSelection);
   const [popOutRefusal, setPopOutRefusal] = useState<string | null>(null);
@@ -169,6 +288,7 @@ function ViewerHeaderTools({ connection }: { connection: StudioViewHostConnectio
           <RefusalLine lead="Didn't pop out:" words={popOutRefusal} />
         </div>
       )}
+      <ViewerPortChooser key={activeStreamTab.stream} connection={connection} streamTab={activeStreamTab} />
       <IconButton
         icon={PictureInPicture2}
         size="compact"
@@ -181,14 +301,14 @@ function ViewerHeaderTools({ connection }: { connection: StudioViewHostConnectio
   );
 }
 
-/** The Viewer: the runtime's live preview of the active stream's exposed output, the selected node's where it exposes one. */
-export const VIEWER_VIEW_TYPE: StudioViewType<null> = {
+/** The Viewer: the live picture of any output port of the active stream's running nodes, the selected node's unless a port is chosen. */
+export const VIEWER_VIEW_TYPE: StudioViewType<ViewerSettings> = {
   view_type_id: "viewer",
   title: "Viewer",
   icon: "viewer",
   brought_by: { kind: "built_in" },
-  default_settings: null,
-  settingsFromSavedLayout: () => null,
+  default_settings: { chosen_port: null },
+  settingsFromSavedLayout: viewerSettingsFrom,
   renderStudioView: (connection) => ({
     header_tools: <ViewerHeaderTools connection={connection} />,
     body: <ViewerBody connection={connection} />,

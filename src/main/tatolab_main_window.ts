@@ -2,15 +2,18 @@
 // in the tray, or a project's studio window or a Viewer popped out of one, which closing closes.
 // `TatolabAppWindows` holds them all and shows the Dock icon on macOS while any is on screen.
 
-import type { OpenProjectReading, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import type { OpenProjectReading, PortViewerEvent, PortViewerImageFrameFacts, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
   TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
+  TATOLAB_PORT_VIEWER_EVENT,
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
   type TatolabStreamPageRequest,
 } from "../shared/tatolab_electron_bridge_contract.js";
-import type { Result } from "./result.js";
+import { failedWith, type Result } from "./result.js";
+import type { WindowShowingPortViewers } from "./runtime_port_viewers.js";
+import type { SharedTextureImportOfARuntimeViewerFrame } from "./runtime_viewer_image_frame_import.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { MainWindowChrome } from "./platform/main_window_chrome.js";
 
@@ -41,6 +44,12 @@ export interface MainWindowHost {
   isShowing(): boolean;
   /** Send the window's page `eventPayload` on `eventChannel`; a page still loading misses it. */
   sendTheWindowAnEvent(eventChannel: string, eventPayload: unknown): void;
+  /** Import `sharedTextureImport` and hand it to the window's page with `frameFacts` beside it; `whenEveryReferenceIsReleased` is called once no process holds it, whether or not it reached the page. */
+  sendTheWindowASharedTexture(
+    sharedTextureImport: SharedTextureImportOfARuntimeViewerFrame,
+    frameFacts: PortViewerImageFrameFacts,
+    whenEveryReferenceIsReleased: () => void,
+  ): Promise<Result<void, string>>;
 }
 
 /** What creates a window, hidden, asking `answerCloseRequest` at each close request whether to close it, and calling `whenClosed` once it has closed. */
@@ -69,7 +78,7 @@ export interface TatolabMainWindowListeners {
 }
 
 /** One window of the app, created the first time it is shown. */
-export class TatolabMainWindow {
+export class TatolabMainWindow implements WindowShowingPortViewers {
   private mainWindowHost: MainWindowHost | null = null;
   private theAppIsQuitting = false;
   private isShownByTheApp = false;
@@ -139,6 +148,24 @@ export class TatolabMainWindow {
   /** Send the window `event` as `tatolab-python-language-server-event`; nothing, before the window is first shown. */
   sendTheWindowALanguageServerEvent(event: PythonLanguageServerEvent): void {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT, event);
+  }
+
+  /** Send the window `event` as `tatolab-port-viewer-event`; nothing, before the window is first shown. */
+  sendTheWindowAPortViewerEvent(event: PortViewerEvent): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_PORT_VIEWER_EVENT, event);
+  }
+
+  /** Hand the window `imageFrame` as a shared texture; refused, and let go of at once, when the window is not open. */
+  sendTheWindowAnImageFrame(
+    imageFrame: SharedTextureImportOfARuntimeViewerFrame,
+    frameFacts: PortViewerImageFrameFacts,
+    whenTheWindowLetsGo: () => void,
+  ): Promise<Result<void, string>> {
+    if (this.mainWindowHost === null) {
+      whenTheWindowLetsGo();
+      return Promise.resolve(failedWith("the window is not open"));
+    }
+    return this.mainWindowHost.sendTheWindowASharedTexture(imageFrame, frameFacts, whenTheWindowLetsGo);
   }
 
   /** Show the window on the page of the stream whose id is `streamId`, as a click on its failure notification asks. */

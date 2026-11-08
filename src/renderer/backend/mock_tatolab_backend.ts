@@ -25,6 +25,7 @@ import {
   type MockOpenProjectScenario,
 } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
+import { MockPortViewers } from "./mock_port_viewers";
 import { MockProjectFiles } from "./mock_project_files";
 import { newProjectFolderNameRefusal } from "../../shared/new_project_folder_name";
 import type { TatolabBackend } from "./tatolab_backend";
@@ -457,6 +458,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const mockProjectFiles = new MockProjectFiles(`${fixtures.machine.homeDirectory}/streams`);
   const languageServerEventListeners = new Set<(event: PythonLanguageServerEvent) => void>();
   const mockLanguageServersBySession = new Map<string, MockPythonLanguageServer>();
+  const mockPortViewers = new MockPortViewers();
   let languageServerSessionCount = 0;
   const refuseWithoutAnOpenProject = (): void => {
     if (openProjectReading.kind !== "read") throw "No project is open, so its files cannot be read.";
@@ -1363,5 +1365,18 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       languageServerEventListeners.add(listener);
       return () => languageServerEventListeners.delete(listener);
     },
+    openPortViewer: async (target) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const node = loadedStreamOfTheId(target.stream).fixture.graph.nodes.find((graphNode) => graphNode.name === target.node);
+      if (node === undefined) throw `no node named \`${target.node}\` in stream \`${target.stream}\``;
+      const outputPort = node.output_ports.find((port) => port.name === target.port);
+      if (outputPort === undefined) throw `\`${target.node}\` has no output port named \`${target.port}\``;
+      return mockPortViewers.open(target, outputPort.family);
+    },
+    closePortViewer: async (portViewer) => {
+      mockPortViewers.close(portViewer);
+    },
+    onPortViewerEvent: (listener) => mockPortViewers.onEvent(listener),
+    onPortViewerImageFrame: (listener) => mockPortViewers.onImageFrame(listener),
   };
 }

@@ -38,9 +38,15 @@ import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_m
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
 import { ProjectOpening, type FolderEntriesWatch, type ProjectFolderDialog } from "./open_project.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
+import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
+import { RuntimePortViewers } from "./runtime_port_viewers.js";
+import { runtimeViewerChannelReaderOpenerOver } from "./runtime_viewer_frame_import_addon.js";
 import { recentProjectFoldersFileIn } from "./recent_project_folders_file.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
 import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy_handoff.js";
+
+/** How long a port viewer's `open_viewer` or `close_viewer` waits on the runtime. */
+const PORT_VIEWER_REQUEST_TIMEOUT_MS = 5_000;
 
 /** The Electron app as the lifecycle drives it. */
 export interface TatolabElectronAppShell {
@@ -76,6 +82,10 @@ export interface TatolabElectronAppShell {
   startANodeLanguageServer: StartANodeLanguageServer;
   /** Pyright's `langserver.index.js` as this build carries it. */
   pyrightLanguageServerModulePath: string;
+  /** Tato Studio's viewer addon as this build carries it. */
+  runtimeViewerFrameImportAddonPath: string;
+  /** The main process's id, which `open_viewer` admits to import the runtime's frames. */
+  mainProcessId: number;
   /** Watching the entries directly in one folder, which the open project reads again on. */
   watchFolderEntries: FolderEntriesWatch;
   /** Fetching a file over HTTPS, which Get more reads the package catalog through. */
@@ -132,6 +142,7 @@ export async function startTatolabApp(
     return null;
   }
   let pythonLanguageServersOnceBuilt: PythonLanguageServers | null = null;
+  let runtimePortViewersOnceBuilt: RuntimePortViewers | null = null;
   const tatolabAppWindows = new TatolabAppWindows({
     mainWindowHostFactory: tatolabElectronAppShell.mainWindowHostFactory,
     platformItems,
@@ -142,6 +153,7 @@ export async function startTatolabApp(
       return () => clearTimeout(timer);
     },
     whenAStudioWindowClosed: (studioWindow) => pythonLanguageServersOnceBuilt?.stopTheLanguageServersOf(studioWindow.languageServerOfTheWindow),
+    whenAWindowShowingPortViewersClosed: (tatolabMainWindow) => runtimePortViewersOnceBuilt?.closeThePortViewersOf(tatolabMainWindow),
     tatolabAppLog,
   });
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.letEveryWindowCloseAsTheAppQuits());
@@ -242,6 +254,20 @@ export async function startTatolabApp(
     tatolabAppLog,
   });
   pythonLanguageServersOnceBuilt = pythonLanguageServers;
+  const runtimePortViewers = new RuntimePortViewers({
+    openTheViewerConnection: () => LocalApiMcpStdioConnection.open(platformForThisBuild.localApiSocket, PORT_VIEWER_REQUEST_TIMEOUT_MS, thisCopyOfTatolab.appVersion),
+    openAChannelReader: runtimeViewerChannelReaderOpenerOver(tatolabElectronAppShell.runtimeViewerFrameImportAddonPath),
+    viewerProcessId: tatolabElectronAppShell.mainProcessId,
+    repeatEvery: (everyMs, tick) => {
+      const repeatingTimer = setInterval(tick, everyMs);
+      return () => clearInterval(repeatingTimer);
+    },
+    waitThen: (afterMs, then) => {
+      setTimeout(then, afterMs);
+    },
+    tatolabAppLog,
+  });
+  runtimePortViewersOnceBuilt = runtimePortViewers;
   const sharedState: TatolabAppSharedState = {
     controller,
     statusPublisher,
@@ -260,11 +286,13 @@ export async function startTatolabApp(
     projectOpening,
     appWindows: tatolabAppWindows,
     pythonLanguageServers,
+    runtimePortViewers,
     fetchTextOverHttps: tatolabElectronAppShell.fetchTextOverHttps,
     tatolabAppLog,
   };
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());
   tatolabElectronAppShell.onTheAppQuitting(() => sharedState.pythonLanguageServers.stopEveryLanguageServer());
+  tatolabElectronAppShell.onTheAppQuitting(() => sharedState.runtimePortViewers.closeEveryPortViewer());
   const quitTheApp = () =>
     quitTheTatolabApp(
       tatolabAppWindows,

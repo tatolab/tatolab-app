@@ -5,6 +5,7 @@ import path from "node:path";
 import { app, autoUpdater as electronNativeAutoUpdater, Menu } from "electron";
 import { startTatolabApp, type TatolabElectronAppShell, type TatolabRunningApp } from "../main.js";
 import { describeCaughtFailure } from "../result.js";
+import { RUNTIME_VIEWER_FRAME_IMPORT_ADDON_FILE_NAME } from "../runtime_viewer_frame_import_addon.js";
 import { createTatolabAppLogToStandardError } from "../tatolab_app_log.js";
 import { TATOLAB_APP_BUILD_FEATURES, tatolabAppBuildForTheWindow } from "../tatolab_app_build_features.js";
 import {
@@ -117,6 +118,9 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   startANodeLanguageServer: startANodeLanguageServerInAUtilityProcess,
   // A packaged app carries Pyright outside app.asar, in app.asar.unpacked, so its worker threads and typeshed stubs load from plain files.
   pyrightLanguageServerModulePath: path.join(app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getAppPath(), "node_modules", "pyright", "langserver.index.js"),
+  // The packaged app carries the viewer addon in app.asar.unpacked, since a native module loads only from a plain file.
+  runtimeViewerFrameImportAddonPath: path.join(app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getAppPath(), "out", "native", RUNTIME_VIEWER_FRAME_IMPORT_ADDON_FILE_NAME),
+  mainProcessId: process.pid,
   watchFolderEntries: watchFolderEntriesOnThisMachine,
   fetchTextOverHttps: fetchTextOverHttpsThroughElectron,
   homeDirectory: app.getPath("home"),

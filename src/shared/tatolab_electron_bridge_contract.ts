@@ -11,6 +11,9 @@ import type {
   OpenProjectReading,
   PackageCatalogReading,
   PoppedOutViewerTarget,
+  PortViewerEvent,
+  PortViewerImageFrameFacts,
+  PortViewerTarget,
   RecentProject,
   ProjectCreationQueued,
   PythonLanguageServerEvent,
@@ -88,13 +91,15 @@ export const TATOLAB_COMMAND_NAMES = [
   "start_python_language_server",
   "send_to_python_language_server",
   "stop_python_language_server",
+  "open_port_viewer",
+  "close_port_viewer",
 ] as const;
 
 /**
  * One command the window invokes. Arguments: `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
- * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_viewer` a `PoppedOutViewerTarget`, `preview_import` `{ requirement }`, `import_into_workspace` `{ requirement, based_on_version }`, `open_import_to_edit` `{ name }`, the project file and language server commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_viewer` a `PoppedOutViewerTarget`, `preview_import` `{ requirement }`, `import_into_workspace` `{ requirement, based_on_version }`, `open_import_to_edit` `{ name }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` only on one of the recent projects, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
  * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
@@ -113,8 +118,32 @@ export const TATOLAB_OPEN_PROJECT_CHANGED_EVENT = "tatolab-open-project-changed"
 /** The event each message a Python language server sends, and each server's end, arrives on; it carries a `PythonLanguageServerEvent`. */
 export const TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT = "tatolab-python-language-server-event";
 
+/** The event each port viewer's messages, its CPU-read Image frames, its reopening and its end arrive on; it carries a `PortViewerEvent`. Its shared-texture Image frames arrive through Electron's `sharedTexture` receiver instead. */
+export const TATOLAB_PORT_VIEWER_EVENT = "tatolab-port-viewer-event";
+
 /** The notice the window sends the main process once it has drawn its first status, carrying nothing; the window first goes on screen on it. */
 export const TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE = "tatolab-window-drew-its-first-status";
+
+/** The part of a WebCodecs `VideoFrame` the contract names, since the main process's build has no DOM; the window narrows it with `instanceof VideoFrame`. */
+export interface PortViewerVideoFrame {
+  readonly codedWidth: number;
+  readonly codedHeight: number;
+  close(): void;
+}
+
+/** Whether a shared texture's companion argument is a `PortViewerImageFrameFacts`. */
+export function isPortViewerImageFrameFacts(companionArgument: unknown): companionArgument is PortViewerImageFrameFacts {
+  return (
+    typeof companionArgument === "object" &&
+    companionArgument !== null &&
+    "port_viewer" in companionArgument &&
+    typeof companionArgument.port_viewer === "string" &&
+    "format_wire_name" in companionArgument &&
+    typeof companionArgument.format_wire_name === "string" &&
+    "skipped_since_last_read" in companionArgument &&
+    typeof companionArgument.skipped_since_last_read === "number"
+  );
+}
 
 /** What `tatolab-stream-page-requested` carries: the id of the stream whose page to show. */
 export interface TatolabStreamPageRequest {
@@ -226,6 +255,10 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   /** `message` one JSON-RPC message, framed onto the server's input; refused for a session that has ended. */
   send_to_python_language_server: { commandArguments: { session: string; message: JsonValue }; answer: null };
   stop_python_language_server: { commandArguments: { session: string }; answer: null };
+  /** From a studio window or a popped-out Viewer: the runtime's `open_viewer` on `node`'s output `port`, read as the main process; its events arrive under the port viewer answered, refused in the runtime's own words. */
+  open_port_viewer: { commandArguments: PortViewerTarget; answer: { port_viewer: string } };
+  /** Closes the port viewer; one already closed is left as it is. */
+  close_port_viewer: { commandArguments: { port_viewer: string }; answer: null };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */
@@ -247,6 +280,10 @@ export interface TatolabElectronBridge {
   onOpenProjectChanged(listener: (reading: OpenProjectReading) => void): () => void;
   /** Calls `listener` with each message a Python language server sends and each server's end; the returned function stops it. */
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
+  /** Calls `listener` with each event of every port viewer the window opened; the returned function stops it. */
+  onPortViewerEvent(listener: (event: PortViewerEvent) => void): () => void;
+  /** Calls `listener` with each Image frame a port viewer hands over as a shared texture, a WebCodecs `VideoFrame` the listener closes once drawn; the returned function stops it. */
+  onPortViewerImageFrame(listener: (videoFrame: PortViewerVideoFrame, frameFacts: PortViewerImageFrameFacts) => void): () => void;
   /** Tell the main process the window has drawn its first status, so it can put the window on screen. */
   tellTheAppTheWindowDrewItsFirstStatus(): void;
 }

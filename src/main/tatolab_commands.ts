@@ -9,6 +9,7 @@ import type {
   JsonValue,
   ImportPreview,
   PoppedOutViewerTarget,
+  PortViewerTarget,
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -605,6 +606,19 @@ export function sendToPythonLanguageServerArgumentsFrom(commandArguments: unknow
   return succeeded({ session, message });
 }
 
+/** `open_port_viewer`'s arguments as the window sends them, or why they are not. */
+export function openPortViewerArgumentsFrom(commandArguments: unknown): Result<PortViewerTarget, string> {
+  if (
+    !isAJsonObject(commandArguments) ||
+    typeof commandArguments["stream"] !== "string" ||
+    typeof commandArguments["node"] !== "string" ||
+    typeof commandArguments["port"] !== "string"
+  ) {
+    return failedWith("open_port_viewer needs `stream`, a stream's id, `node`, a node's name, and `port`, one of its output ports");
+  }
+  return succeeded({ stream: commandArguments["stream"], node: commandArguments["node"], port: commandArguments["port"] });
+}
+
 /** Each command's handler, taking the arguments as the window sent them and the window that sent them, and answering in the contract's shape. */
 export type TatolabWindowCommandHandlers = {
   readonly [CommandName in TatolabCommandName]: (commandArguments: unknown, commandFromWindow: TatolabCommandFromWindow) => Promise<TatolabCommandAnswerTo<CommandName>>;
@@ -836,6 +850,20 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const session = oneTextArgumentFrom("stop_python_language_server", commandArguments, "session", "a language server's session");
       if (!session.ok) return { ok: false, refusal: session.failure };
       sharedState.pythonLanguageServers.stopALanguageServer(session.value);
+      return { ok: true, value: null };
+    },
+    open_port_viewer: async (commandArguments, commandFromWindow) => {
+      const target = openPortViewerArgumentsFrom(commandArguments);
+      if (!target.ok) return { ok: false, refusal: target.failure };
+      const windowShowingPortViewers = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
+      if (windowShowingPortViewers === null) return { ok: false, refusal: "Only a studio window or a popped-out Viewer shows a port." };
+      return commandAnswerFrom(await sharedState.runtimePortViewers.openAPortViewer(target.value, windowShowingPortViewers));
+    },
+    close_port_viewer: async (commandArguments, commandFromWindow) => {
+      const portViewer = oneTextArgumentFrom("close_port_viewer", commandArguments, "port_viewer", "a port viewer the window opened");
+      if (!portViewer.ok) return { ok: false, refusal: portViewer.failure };
+      const windowShowingPortViewers = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
+      if (windowShowingPortViewers !== null) sharedState.runtimePortViewers.closeAPortViewer(portViewer.value, windowShowingPortViewers);
       return { ok: true, value: null };
     },
   };

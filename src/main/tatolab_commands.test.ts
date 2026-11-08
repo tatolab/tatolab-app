@@ -1,4 +1,6 @@
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { RuntimePortViewers } from "./runtime_port_viewers.js";
+import { localApiRequestFailure } from "./local_api_client.js";
 import os from "node:os";
 import path from "node:path";
 import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
@@ -125,6 +127,7 @@ async function sharedStateOverFakes(
     watchFolderEntries: () => null,
     runAfter: () => () => {},
     whenAStudioWindowClosed: () => {},
+    whenAWindowShowingPortViewersClosed: () => {},
     tatolabAppLog: quietTatolabAppLog,
   });
   appWindows.showTheProjectsWindow();
@@ -159,6 +162,14 @@ async function sharedStateOverFakes(
     pythonLanguageServers: new PythonLanguageServers({
       startANodeLanguageServer: () => failedWith("these tests start no language server"),
       pyrightLanguageServerModulePath: "/fake/pyright/langserver.index.js",
+      tatolabAppLog: quietTatolabAppLog,
+    }),
+    runtimePortViewers: new RuntimePortViewers({
+      openTheViewerConnection: async () => localApiRequestFailure("these tests open no viewer connection"),
+      openAChannelReader: () => failedWith("these tests read no channel"),
+      viewerProcessId: 4242,
+      repeatEvery: () => () => undefined,
+      waitThen: () => undefined,
       tatolabAppLog: quietTatolabAppLog,
     }),
     fetchTextOverHttps: async () => failedWith("these tests reach no network"),

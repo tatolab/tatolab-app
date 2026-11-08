@@ -1,32 +1,51 @@
 import { describe, expect, it } from "vitest";
-import type { StreamGraphSummary } from "../../view_host/studio_view_contract";
-import { exposedOutputTheViewerPlays, poppedOutViewerTargetOf } from "./viewer_view_type";
+import type { StreamGraphNode, StreamGraphSummary } from "../../view_host/studio_view_contract";
+import { outputPortTheViewerPlays, poppedOutViewerTargetOf, portTheViewerPlays } from "./viewer_view_type";
 
-function graphExposing(exposed: StreamGraphSummary["exposed"]): StreamGraphSummary {
-  return { stream: "show-main-0a1b2c", nodes: [], links: [], exposed, graph_document_text: "" };
+const STREAM = "show-main-0a1b2c";
+
+function nodeWithOutputs(name: string, outputPorts: StreamGraphNode["output_ports"]): StreamGraphNode {
+  return { id: `id-${name}`, name, type: "Processor", state: "Running", config: {}, input_ports: [], output_ports: outputPorts, dropped_bags_by_link: {}, refused_bags_by_output_port: {} };
 }
 
-const ENCODER_OUTPUT = { node: "h264encoder", port: "encoded_video", level: "public", watch_page_url: "http://127.0.0.1:4446/watch/m/show-main-0a1b2c/h264encoder/encoded_video" };
-const EFFECT_OUTPUT = { node: "halftonelenseffect", port: "video_to_downstream", level: "private", watch_page_url: "http://127.0.0.1:4446/watch/m/show-main-0a1b2c/halftonelenseffect/video_to_downstream" };
-const INTERNAL_OUTPUT = { node: "brightnessmeter", port: "readings", level: "internal", watch_page_url: null };
+const CAMERA = nodeWithOutputs("camera", [{ name: "video", family: "image", catalog_section: "video" }]);
+const EFFECT = nodeWithOutputs("halftonelenseffect", [{ name: "video_to_downstream", family: "image", catalog_section: "video" }]);
+const METER = nodeWithOutputs("brightnessmeter", [{ name: "readings", family: "records", catalog_section: null }]);
 
-describe("the output the Viewer plays", () => {
-  it("is the stream's first previewed output, or the selected node's where it exposes one", () => {
-    const graph = graphExposing([INTERNAL_OUTPUT, ENCODER_OUTPUT, EFFECT_OUTPUT]);
-    expect(exposedOutputTheViewerPlays(graph, { kind: "nothing" })).toBe(ENCODER_OUTPUT);
-    expect(exposedOutputTheViewerPlays(graph, { kind: "node", stream: graph.stream, node: "halftonelenseffect" })).toBe(EFFECT_OUTPUT);
-    expect(exposedOutputTheViewerPlays(graph, { kind: "node", stream: graph.stream, node: "brightnessmeter" })).toBe(ENCODER_OUTPUT);
-    expect(exposedOutputTheViewerPlays(graph, { kind: "node", stream: "another-stream", node: "halftonelenseffect" })).toBe(ENCODER_OUTPUT);
+const GRAPH: StreamGraphSummary = {
+  stream: STREAM,
+  nodes: [CAMERA, EFFECT, METER],
+  links: [{ id: "camera-to-effect", source_node: "camera", source_port: "video", target_node: "halftonelenseffect", target_port: "video_in", state: "wired" }],
+  exposed: [],
+  graph_document_text: "",
+};
+
+describe("the output port the Viewer plays", () => {
+  it("is the stream's first Image port that feeds nothing on, while no node of the stream is selected", () => {
+    expect(outputPortTheViewerPlays(GRAPH, { kind: "nothing" })).toEqual({ node: "halftonelenseffect", port: "video_to_downstream" });
+    expect(outputPortTheViewerPlays(GRAPH, { kind: "node", stream: "another-stream", node: "camera" })).toEqual({ node: "halftonelenseffect", port: "video_to_downstream" });
   });
 
-  it("is none where the stream exposes nothing the runtime previews", () => {
-    expect(exposedOutputTheViewerPlays(graphExposing([INTERNAL_OUTPUT]), null)).toBeNull();
-    expect(exposedOutputTheViewerPlays(graphExposing([]), null)).toBeNull();
+  it("is the selected node's, of whatever family", () => {
+    expect(outputPortTheViewerPlays(GRAPH, { kind: "node", stream: STREAM, node: "camera" })).toEqual({ node: "camera", port: "video" });
+    expect(outputPortTheViewerPlays(GRAPH, { kind: "node", stream: STREAM, node: "brightnessmeter" })).toEqual({ node: "brightnessmeter", port: "readings" });
+  });
+
+  it("is a port of another family where the stream has no Image port, and none where it has no output", () => {
+    expect(outputPortTheViewerPlays({ ...GRAPH, nodes: [METER] }, null)).toEqual({ node: "brightnessmeter", port: "readings" });
+    expect(outputPortTheViewerPlays({ ...GRAPH, nodes: [] }, null)).toBeNull();
+  });
+
+  it("is the port chosen for this stream while the graph still has it, over the selection", () => {
+    const chosenTheCamera = { chosen_port: { stream: STREAM, node: "camera", port: "video" } };
+    expect(portTheViewerPlays(GRAPH, { kind: "node", stream: STREAM, node: "brightnessmeter" }, chosenTheCamera)).toEqual({ node: "camera", port: "video" });
+    expect(portTheViewerPlays({ ...GRAPH, nodes: [EFFECT, METER] }, null, chosenTheCamera)).toEqual({ node: "halftonelenseffect", port: "video_to_downstream" });
+    expect(portTheViewerPlays(GRAPH, null, { chosen_port: { ...chosenTheCamera.chosen_port, stream: "another-stream" } })).toEqual({ node: "halftonelenseffect", port: "video_to_downstream" });
   });
 });
 
 describe("what Pop out pins a Viewer window to", () => {
-  const streamTab = { stream: "show-main-0a1b2c", project_name: "show", display_name: "show /main" };
+  const streamTab = { stream: STREAM, project_name: "show", display_name: "show /main" };
 
   it("is the stream tab shown, and the node selected in it", () => {
     expect(poppedOutViewerTargetOf(streamTab, { kind: "node", stream: streamTab.stream, node: "halftonelenseffect" })).toEqual({ ...streamTab, node: "halftonelenseffect" });

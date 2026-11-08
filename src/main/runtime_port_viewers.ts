@@ -1,5 +1,5 @@
 // The Viewer's reads of any output port of any running node: one `/mcp/stdio` connection for every
-// viewer the studio windows hold, one runtime viewer per port however many windows show it, and a
+// viewer the app's windows hold, one runtime viewer per port however many windows show it, and a
 // read of each port's latest message on every tick. An Image frame goes to each window as a shared
 // texture and is released once every window has let go of it; a frame a shared texture cannot
 // carry goes as its pixels.
@@ -25,8 +25,8 @@ export interface RuntimeViewerConnection {
   close(): void;
 }
 
-/** The studio window showing a port viewer: where its events and its Image frames go. */
-export interface PortViewerOfAStudioWindow {
+/** A studio window or a Viewer popped out of one: where its port viewers' events and Image frames go. */
+export interface WindowShowingPortViewers {
   sendTheWindowAPortViewerEvent(event: PortViewerEvent): void;
   /** Hand the window `imageFrame` as a shared texture; `whenTheWindowLetsGo` is called once the window, and Electron, hold no reference to it, whether the hand-over succeeded or not. */
   sendTheWindowAnImageFrame(
@@ -59,7 +59,7 @@ export const PORT_VIEWER_REOPEN_AFTER_MS = 1_000;
 /** One window's port viewer. */
 interface PortViewerSubscription {
   target: PortViewerTarget;
-  studioWindow: PortViewerOfAStudioWindow;
+  windowShowingPortViewers: WindowShowingPortViewers;
 }
 
 /** One runtime viewer held open, shared by every port viewer of its port. */
@@ -74,7 +74,7 @@ function portViewerTargetKey(target: PortViewerTarget): string {
   return JSON.stringify([target.stream, target.node, target.port]);
 }
 
-/** Every port viewer the studio windows hold, by the id each was opened under. */
+/** Every port viewer the app's windows hold, by the id each was opened under. */
 export class RuntimePortViewers {
   private readonly subscriptionsByPortViewer = new Map<string, PortViewerSubscription>();
   private readonly runtimeViewersByTargetKey = new Map<string, RuntimeViewerHeldOpen>();
@@ -84,18 +84,23 @@ export class RuntimePortViewers {
 
   constructor(private readonly sources: RuntimePortViewersSources) {}
 
-  /** Open a port viewer of `target` for `studioWindow`, answering the id its events arrive under; refused in the runtime's or the addon's words. */
-  async openAPortViewer(target: PortViewerTarget, studioWindow: PortViewerOfAStudioWindow): Promise<Result<{ port_viewer: string }, string>> {
+  /** Open a port viewer of `target` for `windowShowingPortViewers`, answering the id its events arrive under; refused in the runtime's or the addon's words. */
+  async openAPortViewer(target: PortViewerTarget, windowShowingPortViewers: WindowShowingPortViewers): Promise<Result<{ port_viewer: string }, string>> {
     const runtimeViewer = await this.theRuntimeViewerOf(target);
     if (!runtimeViewer.ok) return runtimeViewer;
     this.portViewersOpened += 1;
     const portViewer = `port-viewer-${this.portViewersOpened}`;
-    this.subscriptionsByPortViewer.set(portViewer, { target, studioWindow });
+    this.subscriptionsByPortViewer.set(portViewer, { target, windowShowingPortViewers });
     return succeeded({ port_viewer: portViewer });
   }
 
-  /** Close the port viewer `portViewer`, and its runtime viewer once no window shows that port; one already closed is left as it is. */
-  closeAPortViewer(portViewer: string): void {
+  /** Close the port viewer `portViewer` that `windowShowingPortViewers` opened, and its runtime viewer once no window shows that port; one already closed, or another window's, is left as it is. */
+  closeAPortViewer(portViewer: string, windowShowingPortViewers: WindowShowingPortViewers): void {
+    if (this.subscriptionsByPortViewer.get(portViewer)?.windowShowingPortViewers !== windowShowingPortViewers) return;
+    this.closeThePortViewer(portViewer);
+  }
+
+  private closeThePortViewer(portViewer: string): void {
     const subscription = this.subscriptionsByPortViewer.get(portViewer);
     if (subscription === undefined) return;
     this.subscriptionsByPortViewer.delete(portViewer);
@@ -103,16 +108,16 @@ export class RuntimePortViewers {
     if (this.subscriptionsOf(targetKey).length === 0) this.closeTheRuntimeViewer(targetKey);
   }
 
-  /** Close every port viewer `studioWindow` opened, as it closes. */
-  closeThePortViewersOf(studioWindow: PortViewerOfAStudioWindow): void {
+  /** Close every port viewer `windowShowingPortViewers` opened, as it closes. */
+  closeThePortViewersOf(windowShowingPortViewers: WindowShowingPortViewers): void {
     for (const [portViewer, subscription] of [...this.subscriptionsByPortViewer]) {
-      if (subscription.studioWindow === studioWindow) this.closeAPortViewer(portViewer);
+      if (subscription.windowShowingPortViewers === windowShowingPortViewers) this.closeThePortViewer(portViewer);
     }
   }
 
   /** Close every port viewer and the connection they share, as the app quits. */
   closeEveryPortViewer(): void {
-    for (const portViewer of [...this.subscriptionsByPortViewer.keys()]) this.closeAPortViewer(portViewer);
+    for (const portViewer of [...this.subscriptionsByPortViewer.keys()]) this.closeThePortViewer(portViewer);
     this.viewerConnection?.close();
     this.viewerConnection = null;
   }
@@ -182,7 +187,7 @@ export class RuntimePortViewers {
     this.closeTheRuntimeViewer(targetKey);
     for (const [portViewer, subscription] of this.subscriptionsOf(targetKey)) {
       this.subscriptionsByPortViewer.delete(portViewer);
-      subscription.studioWindow.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "ended", because });
+      subscription.windowShowingPortViewers.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "ended", because });
     }
   }
 
@@ -194,7 +199,7 @@ export class RuntimePortViewers {
       heldOpen.stopReading();
       heldOpen.channelReader.close();
       for (const [portViewer, subscription] of this.subscriptionsOf(targetKey)) {
-        subscription.studioWindow.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "reopening", because: whyItClosed });
+        subscription.windowShowingPortViewers.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "reopening", because: whyItClosed });
       }
       this.reopenAfterAWait(targetKey);
     }
@@ -211,7 +216,7 @@ export class RuntimePortViewers {
           return;
         }
         for (const [portViewer, subscription] of this.subscriptionsOf(targetKey)) {
-          subscription.studioWindow.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "reopening", because: reopened.failure });
+          subscription.windowShowingPortViewers.sendTheWindowAPortViewerEvent({ port_viewer: portViewer, kind: "reopening", because: reopened.failure });
         }
         this.reopenAfterAWait(targetKey);
       });
@@ -243,7 +248,7 @@ export class RuntimePortViewers {
     const { imageFrame } = messageRead;
     if (imageFrame === null) {
       for (const [portViewer, subscription] of subscriptions) {
-        subscription.studioWindow.sendTheWindowAPortViewerEvent({
+        subscription.windowShowingPortViewers.sendTheWindowAPortViewerEvent({
           port_viewer: portViewer,
           kind: "message",
           port_family: messageRead.portFamily,
@@ -263,7 +268,7 @@ export class RuntimePortViewers {
         return;
       }
       for (const [portViewer, subscription] of subscriptions) {
-        subscription.studioWindow.sendTheWindowAPortViewerEvent({
+        subscription.windowShowingPortViewers.sendTheWindowAPortViewerEvent({
           port_viewer: portViewer,
           kind: "image_pixels",
           width: imageFrame.width,
@@ -291,7 +296,7 @@ export class RuntimePortViewers {
         format_wire_name: imageFrame.formatWireName,
         skipped_since_last_read: messageRead.skippedSinceLastRead,
       };
-      void subscription.studioWindow.sendTheWindowAnImageFrame(sharedTextureImport.value, frameFacts, oneWindowLetGo).then((handedOver) => {
+      void subscription.windowShowingPortViewers.sendTheWindowAnImageFrame(sharedTextureImport.value, frameFacts, oneWindowLetGo).then((handedOver) => {
         if (!handedOver.ok) this.sources.tatolabAppLog.debug("a port viewer's frame did not reach its window", { port_viewer: portViewer, failure: handedOver.failure });
       });
     }

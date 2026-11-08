@@ -19,6 +19,7 @@ const HOST_SERVICES: StudioViewHostServices = {
   popOutViewer: async () => ({ kind: "not_popped_out", because: "no windows in this test" }),
   watchProjectLog: () => () => undefined,
   connectToPythonLanguageServer: () => ({ send: () => undefined, close: () => undefined }),
+  watchPortViewer: () => ({ close: () => undefined }),
 };
 
 /** A view type keeping a number, which records each connection it is drawn on. */

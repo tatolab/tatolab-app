@@ -2,6 +2,9 @@ import type {
   ChosenProjectFolder,
   JsonValue,
   PythonLanguageServerEvent,
+  PortViewerEvent,
+  PortViewerImageFrameFacts,
+  PortViewerTarget,
   ProjectFileRead,
   ProjectFileSaved,
   ProjectFiles,
@@ -144,6 +147,13 @@ export interface TatolabBackend {
   stopPythonLanguageServer(session: string): Promise<void>;
   /** Calls `listener` with each message a language server sends and each server's end; the returned function stops it. */
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
+  /** Read `target`'s output port while the port viewer is open, resolving with the id its events arrive under and rejecting in the runtime's own words. */
+  openPortViewer(target: PortViewerTarget): Promise<string>;
+  closePortViewer(portViewer: string): Promise<void>;
+  /** Calls `listener` with each event of every port viewer the window opened; the returned function stops it. */
+  onPortViewerEvent(listener: (event: PortViewerEvent) => void): () => void;
+  /** Calls `listener` with each Image frame a port viewer hands over as a `VideoFrame`, which the listener closes once drawn; the returned function stops it. */
+  onPortViewerImageFrame(listener: (videoFrame: VideoFrame, frameFacts: PortViewerImageFrameFacts) => void): () => void;
 }
 
 /** Where the page runs: the packaged app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */

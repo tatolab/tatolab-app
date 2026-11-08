@@ -118,5 +118,15 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("stop_python_language_server", { session });
     },
     onPythonLanguageServerEvent: (listener) => tatolabElectronBridge.onPythonLanguageServerEvent(listener),
+    openPortViewer: async (target) => (await invokeTatolabCommand("open_port_viewer", target)).port_viewer,
+    closePortViewer: async (portViewer) => {
+      await invokeTatolabCommand("close_port_viewer", { port_viewer: portViewer });
+    },
+    onPortViewerEvent: (listener) => tatolabElectronBridge.onPortViewerEvent(listener),
+    onPortViewerImageFrame: (listener) =>
+      tatolabElectronBridge.onPortViewerImageFrame((videoFrame, frameFacts) => {
+        if (videoFrame instanceof VideoFrame) listener(videoFrame, frameFacts);
+        else videoFrame.close();
+      }),
   };
 }

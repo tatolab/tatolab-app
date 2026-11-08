@@ -1,4 +1,4 @@
-import { BrowserWindow } from "electron";
+import { BrowserWindow, sharedTexture, type SharedTextureImported } from "electron";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
 import { isOnTheRuntimesWatchPage } from "../runtime_loopback_watch_page.js";
@@ -95,6 +95,33 @@ export function createElectronMainWindowHostFactory(
         isShowing: () => firstShowGate.showIsWaitingForThePage() || (mainBrowserWindow.isVisible() && !mainBrowserWindow.isMinimized()),
         sendTheWindowAnEvent: (eventChannel, eventPayload) => {
           if (!windowContents.isDestroyed()) windowContents.send(eventChannel, eventPayload);
+        },
+        sendTheWindowASharedTexture: async (sharedTextureImport, frameFacts, whenEveryReferenceIsReleased) => {
+          let everyReferenceIsReleased = false;
+          const noticeEveryReferenceReleased = () => {
+            if (everyReferenceIsReleased) return;
+            everyReferenceIsReleased = true;
+            whenEveryReferenceIsReleased();
+          };
+          if (windowContents.isDestroyed()) {
+            noticeEveryReferenceReleased();
+            return failedWith("the window has closed");
+          }
+          let importedSharedTexture: SharedTextureImported;
+          try {
+            importedSharedTexture = sharedTexture.importSharedTexture({ textureInfo: sharedTextureImport, allReferencesReleased: noticeEveryReferenceReleased });
+          } catch (importFailure) {
+            noticeEveryReferenceReleased();
+            return failedWith(describeCaughtFailure(importFailure));
+          }
+          try {
+            await sharedTexture.sendSharedTexture({ frame: windowContents.mainFrame, importedSharedTexture }, frameFacts);
+            return succeeded(undefined);
+          } catch (sendFailure) {
+            return failedWith(describeCaughtFailure(sendFailure));
+          } finally {
+            importedSharedTexture.release();
+          }
         },
       });
     },

@@ -41,6 +41,12 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
     onPythonLanguageServerEvent() {
       return () => undefined;
     },
+    onPortViewerEvent() {
+      return () => undefined;
+    },
+    onPortViewerImageFrame() {
+      return () => undefined;
+    },
     tellTheAppTheWindowDrewItsFirstStatus() {},
   };
   return { tatolabElectronBridge, invokedCommands, statusListeners, streamPageRequestListeners, openProjectListeners };

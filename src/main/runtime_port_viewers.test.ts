@@ -7,7 +7,7 @@ import {
   PORT_VIEWER_READ_EVERY_MS,
   PORT_VIEWER_REOPEN_AFTER_MS,
   RuntimePortViewers,
-  type PortViewerOfAStudioWindow,
+  type WindowShowingPortViewers,
   type RuntimeViewerConnection,
 } from "./runtime_port_viewers.js";
 import type { RuntimeViewerChannelReaderOfTheAddon, RuntimeViewerImageFrame, RuntimeViewerMessageRead, SharedTextureImportOfARuntimeViewerFrame } from "./runtime_viewer_image_frame_import.js";
@@ -99,7 +99,7 @@ class FakeViewerConnection implements RuntimeViewerConnection {
   }
 }
 
-class FakeStudioWindow implements PortViewerOfAStudioWindow {
+class FakeWindowShowingPortViewers implements WindowShowingPortViewers {
   readonly portViewerEvents: PortViewerEvent[] = [];
   readonly imageFramesReceived: { imageFrame: SharedTextureImportOfARuntimeViewerFrame; frameFacts: PortViewerImageFrameFacts; letGo: () => void }[] = [];
 
@@ -162,7 +162,7 @@ function harness() {
 test("a_port_viewer_opens_a_runtime_viewer_as_the_main_process_and_reads_it_every_display_frame", async () => {
   const { runtimePortViewers, connections, repeatingTicks } = harness();
 
-  const opened = await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeStudioWindow());
+  const opened = await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
 
   expect(opened).toEqual({ ok: true, value: { port_viewer: "port-viewer-1" } });
   expect(connections[0]?.openedTargets).toEqual([{ ...CAMERA_VIDEO, viewer_process_id: 4242 }]);
@@ -172,9 +172,9 @@ test("a_port_viewer_opens_a_runtime_viewer_as_the_main_process_and_reads_it_ever
 test("two_windows_viewing_one_port_share_one_runtime_viewer_and_one_connection", async () => {
   const { runtimePortViewers, connections, channelReaders } = harness();
 
-  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeStudioWindow());
-  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeStudioWindow());
-  await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, port: "depth" }, new FakeStudioWindow());
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
+  await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, port: "depth" }, new FakeWindowShowingPortViewers());
 
   expect(connections).toHaveLength(1);
   expect(connections[0]?.openedTargets.map((target) => target.port)).toEqual(["video", "depth"]);
@@ -183,8 +183,8 @@ test("two_windows_viewing_one_port_share_one_runtime_viewer_and_one_connection",
 
 test("an_image_frame_reaches_every_window_and_is_released_once_the_last_lets_go", async () => {
   const { runtimePortViewers, channelReaders, tickAndSettle } = harness();
-  const firstWindow = new FakeStudioWindow();
-  const secondWindow = new FakeStudioWindow();
+  const firstWindow = new FakeWindowShowingPortViewers();
+  const secondWindow = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, firstWindow);
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, secondWindow);
   const channelReader = channelReaders[0];
@@ -202,14 +202,14 @@ test("an_image_frame_reaches_every_window_and_is_released_once_the_last_lets_go"
 
 test("a_frame_that_crossed_as_cpu_memory_reaches_the_window_as_its_pixels_and_is_released_at_once", async () => {
   const { runtimePortViewers, channelReaders, tickAndSettle } = harness();
-  const studioWindow = new FakeStudioWindow();
-  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, studioWindow);
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
   const cpuReadBytes = Buffer.from([9, 8, 7, 6]);
   channelReaders[0]?.messagesToRead.push(imageMessage({ ...DMA_BUF_FRAME, dmaBufPlanes: null, dmaBufModifier: null, cpuReadBytes }));
 
   await tickAndSettle();
 
-  expect(studioWindow.portViewerEvents).toEqual([
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([
     {
       port_viewer: "port-viewer-1",
       kind: "image_pixels",
@@ -226,35 +226,35 @@ test("a_frame_that_crossed_as_cpu_memory_reaches_the_window_as_its_pixels_and_is
 
 test("a_frame_electron_cannot_import_and_that_has_no_pixels_ends_the_port_viewer_saying_why", async () => {
   const { runtimePortViewers, channelReaders, tickAndSettle } = harness();
-  const studioWindow = new FakeStudioWindow();
-  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, studioWindow);
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
   channelReaders[0]?.messagesToRead.push(imageMessage({ ...DMA_BUF_FRAME, formatWireName: "rgba64", electronPixelFormat: null }));
 
   await tickAndSettle();
 
-  expect(studioWindow.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "ended", because: "Electron cannot import a rgba64 frame as a shared texture" }]);
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "ended", because: "Electron cannot import a rgba64 frame as a shared texture" }]);
   expect(channelReaders[0]?.closed).toBe(true);
 });
 
 test("a_message_of_another_family_reaches_the_window_as_its_family_and_size", async () => {
   const { runtimePortViewers, channelReaders, tickAndSettle } = harness();
-  const studioWindow = new FakeStudioWindow();
-  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, studioWindow);
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
   channelReaders[0]?.messagesToRead.push({ portFamily: "records", timestampNs: 5, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(48) });
 
   await tickAndSettle();
 
-  expect(studioWindow.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "message", port_family: "records", payload_byte_length: 48, skipped_since_last_read: 0 }]);
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "message", port_family: "records", payload_byte_length: 48, skipped_since_last_read: 0 }]);
 });
 
 test("the_runtimes_refusal_to_open_a_viewer_is_answered_in_its_own_words", async () => {
   const { runtimePortViewers, connections } = harness();
-  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeStudioWindow());
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
   const connection = connections[0];
   if (connection === undefined) throw new Error("the connection was not opened");
   connection.openRefusal = "no node named `mic` in stream `studio`";
 
-  const refused = await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, node: "mic" }, new FakeStudioWindow());
+  const refused = await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, node: "mic" }, new FakeWindowShowingPortViewers());
 
   expect(refused).toEqual({ ok: false, failure: "no node named `mic` in stream `studio`" });
 });
@@ -263,7 +263,7 @@ test("the_addons_refusal_closes_the_runtime_viewer_it_could_not_read", async () 
   const { runtimePortViewers, connections, refuseInTheAddon } = harness();
   refuseInTheAddon('the viewer could not subscribe to studio/camera/video: ChannelNotOpen("studio/camera/video")');
 
-  const refused = await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeStudioWindow());
+  const refused = await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
 
   expect(refused.ok).toBe(false);
   expect(connections[0]?.closedViewers).toEqual(["studio/camera/video"]);
@@ -271,8 +271,8 @@ test("the_addons_refusal_closes_the_runtime_viewer_it_could_not_read", async () 
 
 test("the_runtime_viewer_closes_when_its_last_window_closes", async () => {
   const { runtimePortViewers, connections, channelReaders, repeatingTicks } = harness();
-  const firstWindow = new FakeStudioWindow();
-  const secondWindow = new FakeStudioWindow();
+  const firstWindow = new FakeWindowShowingPortViewers();
+  const secondWindow = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, firstWindow);
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, secondWindow);
 
@@ -287,12 +287,12 @@ test("the_runtime_viewer_closes_when_its_last_window_closes", async () => {
 
 test("a_dropped_connection_tells_the_windows_and_reopens_their_port_on_a_new_one", async () => {
   const { runtimePortViewers, connections, channelReaders, waits } = harness();
-  const studioWindow = new FakeStudioWindow();
-  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, studioWindow);
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
 
   connections[0]?.dropByTheRuntime("the runtime stopped");
 
-  expect(studioWindow.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "reopening", because: "the runtime stopped" }]);
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "reopening", because: "the runtime stopped" }]);
   expect(channelReaders[0]?.closed).toBe(true);
   expect(waits.map((wait) => wait.afterMs)).toEqual([PORT_VIEWER_REOPEN_AFTER_MS]);
   waits[0]?.then();
@@ -305,23 +305,36 @@ test("a_dropped_connection_tells_the_windows_and_reopens_their_port_on_a_new_one
 
 test("a_failed_read_ends_every_port_viewer_of_that_port", async () => {
   const { runtimePortViewers, channelReaders, tickAndSettle } = harness();
-  const studioWindow = new FakeStudioWindow();
-  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, studioWindow);
+  const windowShowingPortViewers = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
   channelReaders[0]?.messagesToRead.push(new Error("the channel's publisher went away"));
 
   await tickAndSettle();
 
-  expect(studioWindow.portViewerEvents).toEqual([
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([
     { port_viewer: "port-viewer-1", kind: "ended", because: "The viewer stopped reading camera › video: the channel's publisher went away" },
   ]);
 });
 
 test("quitting_closes_every_port_viewer_and_the_connection", async () => {
   const { runtimePortViewers, connections } = harness();
-  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeStudioWindow());
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
 
   runtimePortViewers.closeEveryPortViewer();
 
   expect(connections[0]?.closedViewers).toEqual(["studio/camera/video"]);
   expect(connections[0]?.isOpen()).toBe(false);
+});
+
+test("a_window_closes_only_the_port_viewers_it_opened", async () => {
+  const { runtimePortViewers, connections } = harness();
+  const firstWindow = new FakeWindowShowingPortViewers();
+  const secondWindow = new FakeWindowShowingPortViewers();
+  await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, firstWindow);
+
+  runtimePortViewers.closeAPortViewer("port-viewer-1", secondWindow);
+  expect(connections[0]?.closedViewers).toEqual([]);
+  runtimePortViewers.closeAPortViewer("port-viewer-1", firstWindow);
+
+  expect(connections[0]?.closedViewers).toEqual(["studio/camera/video"]);
 });

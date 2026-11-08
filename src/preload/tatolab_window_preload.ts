@@ -1,13 +1,16 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { OpenProjectReading, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import { contextBridge, ipcRenderer, sharedTexture, type IpcRendererEvent } from "electron";
+import type { OpenProjectReading, PortViewerEvent, PortViewerImageFrameFacts, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
   TATOLAB_COMMAND_NAMES,
   TATOLAB_OPEN_PROJECT_CHANGED_EVENT,
+  TATOLAB_PORT_VIEWER_EVENT,
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
   TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE,
   isATatolabStreamPageRequest,
+  isPortViewerImageFrameFacts,
+  type PortViewerVideoFrame,
   type TatolabElectronBridge,
 } from "../shared/tatolab_electron_bridge_contract.js";
 
@@ -17,6 +20,21 @@ function isATatolabCommandAnswer(mainProcessAnswer: unknown): boolean {
   if (mainProcessAnswer.ok === true) return "value" in mainProcessAnswer;
   return mainProcessAnswer.ok === false && "refusal" in mainProcessAnswer && typeof mainProcessAnswer.refusal === "string";
 }
+
+const portViewerImageFrameListeners = new Set<(videoFrame: PortViewerVideoFrame, frameFacts: PortViewerImageFrameFacts) => void>();
+
+// Each listener gets a VideoFrame of its own to close; the imported texture is released at once, since the VideoFrames hold it.
+sharedTexture.setSharedTextureReceiver(async ({ importedSharedTexture }, frameFacts: unknown) => {
+  const videoFrame = importedSharedTexture.getVideoFrame();
+  importedSharedTexture.release();
+  const listeners = [...portViewerImageFrameListeners];
+  if (!isPortViewerImageFrameFacts(frameFacts) || listeners.length === 0) {
+    videoFrame.close();
+    return;
+  }
+  for (const listener of listeners.slice(1)) listener(videoFrame.clone(), frameFacts);
+  listeners[0]?.(videoFrame, frameFacts);
+});
 
 const tatolabElectronBridge: TatolabElectronBridge = {
   invokeTatolabCommand: async (commandName, commandArguments) => {
@@ -58,6 +76,19 @@ const tatolabElectronBridge: TatolabElectronBridge = {
     ipcRenderer.on(TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT, pythonLanguageServerEventListener);
     return () => {
       ipcRenderer.removeListener(TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT, pythonLanguageServerEventListener);
+    };
+  },
+  onPortViewerEvent: (listener) => {
+    const portViewerEventListener = (_portViewerEvent: IpcRendererEvent, event: PortViewerEvent) => listener(event);
+    ipcRenderer.on(TATOLAB_PORT_VIEWER_EVENT, portViewerEventListener);
+    return () => {
+      ipcRenderer.removeListener(TATOLAB_PORT_VIEWER_EVENT, portViewerEventListener);
+    };
+  },
+  onPortViewerImageFrame: (listener) => {
+    portViewerImageFrameListeners.add(listener);
+    return () => {
+      portViewerImageFrameListeners.delete(listener);
     };
   },
   tellTheAppTheWindowDrewItsFirstStatus: () => {

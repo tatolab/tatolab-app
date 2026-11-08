@@ -6,6 +6,7 @@ import { describeBackendRejection, type TatolabBackend } from "../backend/tatola
 import { WaitingState } from "../design_system/waiting_state";
 import type { ProjectLogReadings } from "./project_log_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
+import type { PortViewerConnections } from "./port_viewer_connections";
 import type { CodeFileAsked, ListedStreamsReading, OpenProjectReading, StopWatching, StreamTabAddress, StudioSelection } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { StudioViewHostServices } from "./studio_view_type_registry";
@@ -50,11 +51,12 @@ export interface InWindowStudioViewHostSources {
   openCodeFile(file: string): void;
 }
 
-/** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, and their language servers. */
+/** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, their language servers, and the port viewers of their running nodes. */
 export interface InWindowProjectServices {
   backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "listProjectFiles" | "popOutViewer">;
   projectLogReadings: ProjectLogReadings;
   pythonLanguageServerConnections: PythonLanguageServerConnections;
+  portViewerConnections: PortViewerConnections;
 }
 
 /** The services every first-party view is handed, read from `sources`, for a stream's graph and catalog from `streamReadings`, and for the open project and its imports from `projectServices`. */
@@ -97,6 +99,7 @@ export function inWindowStudioViewHostServices(
       ),
     watchProjectLog: projectServices.projectLogReadings.watchProjectLog,
     connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,
+    watchPortViewer: projectServices.portViewerConnections.watchPortViewer,
   };
 }
 

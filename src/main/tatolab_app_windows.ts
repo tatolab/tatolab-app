@@ -44,6 +44,8 @@ export interface TatolabAppWindowsSources {
   runAfter: (delayMs: number, work: () => void) => () => void;
   /** A studio window closed: stop the language servers its page started. */
   whenAStudioWindowClosed: (studioWindow: StudioWindowOfAProject) => void;
+  /** A studio window or a popped-out Viewer closed: close the port viewers its page opened. */
+  whenAWindowShowingPortViewersClosed: (tatolabMainWindow: TatolabMainWindow) => void;
   tatolabAppLog: TatolabAppLog;
 }
 
@@ -124,6 +126,7 @@ export class TatolabAppWindows {
         whenItCameOnScreenOrWentOff: () => this.showTheDockIconWhileAWindowIsShown(),
         whenItClosed: () => {
           if (poppedOutViewerOnceMade !== null && studioWindow.poppedOutViewers.get(pinKey) === poppedOutViewerOnceMade) studioWindow.poppedOutViewers.delete(pinKey);
+          if (poppedOutViewerOnceMade !== null) this.sources.whenAWindowShowingPortViewersClosed(poppedOutViewerOnceMade.tatolabMainWindow);
         },
       },
       this.sources.tatolabAppLog,
@@ -167,6 +170,17 @@ export class TatolabAppWindows {
   studioWindowOfTheGetMoreWindowWithContents(windowContentsId: number): StudioWindowOfAProject | null {
     for (const [studioWindow, getMoreWindow] of this.getMoreWindowsByStudioWindow) {
       if (getMoreWindow.isTheWindowWithContents(windowContentsId)) return studioWindow;
+    }
+    return null;
+  }
+
+  /** The studio window or popped-out Viewer whose page is `windowContentsId`, the windows that show port viewers; `null` for any other window. */
+  windowShowingPortViewersWithContents(windowContentsId: number): TatolabMainWindow | null {
+    for (const studioWindow of this.studioWindowsByProjectFolder.values()) {
+      if (studioWindow.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return studioWindow.tatolabMainWindow;
+      for (const poppedOutViewer of studioWindow.poppedOutViewers.values()) {
+        if (poppedOutViewer.tatolabMainWindow.isTheWindowWithContents(windowContentsId)) return poppedOutViewer.tatolabMainWindow;
+      }
     }
     return null;
   }
@@ -268,6 +282,7 @@ export class TatolabAppWindows {
     this.getMoreWindowsByStudioWindow.get(studioWindow)?.close();
     this.getMoreWindowsByStudioWindow.delete(studioWindow);
     this.sources.whenAStudioWindowClosed(studioWindow);
+    this.sources.whenAWindowShowingPortViewersClosed(studioWindow.tatolabMainWindow);
     this.sources.tatolabAppLog.info("closed a project's window", { project_folder: projectFolder });
   }
 
