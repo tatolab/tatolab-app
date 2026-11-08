@@ -55,7 +55,7 @@ quits. On macOS Squirrel.Mac stages the signed `.zip` and replaces the bundle, w
 runtime with the old app and starts the new bundle's; the AppImage replaces its own file; a `.deb`
 only finds the newer version, and opens its download in the browser when the person chooses it,
 since apt alone replaces it. The feed's manifests are
-`app/latest-mac.yml` and `app/latest-linux.yml`, which point at `releases/<version>/`.
+`app/latest-mac.yml` and `app/latest-linux.yml`, which point at `app/releases/<version>/`.
 
 The runtime and the `tatolab` CLI come from [tatolab/streamlib](https://github.com/tatolab/streamlib)
 (BUSL-1.1). This repository is proprietary (see `LICENSE`). It holds the app itself, the packaging
@@ -254,7 +254,7 @@ The individual steps are separate scripts in `scripts/`:
 | `make-tatolab-dmg.sh <Tato Studio.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless), signed with the app's own Developer ID; refuses an app signed any other way |
 | `notarize-and-staple.sh <Tato Studio.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
 | `verify-tatolab-app-bundle.sh <Tato Studio.app\|.dmg> [--shipping]` | checks the signature (every Mach-O and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is no newer than the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
-| `write_tatolab_app_update_manifest.mjs <manifest.yml> <version> <file>...` | writes the update feed's manifest for those files: sizes, SHA-512s, and URLs under `../releases/<version>/` |
+| `write_tatolab_app_update_manifest.mjs <manifest.yml> <version> <file>...` | writes the update feed's manifest for those files: sizes, SHA-512s, and URLs under `releases/<version>/`, beside it in `app/` |
 | `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tato-studio.rb` from `packaging/homebrew/tato-studio.rb.template`, and the tap's `cask_renames.json` entry `tatolab` → `tato-studio` |
 
 The installer background is `packaging/dmg/tatolab-dmg-background.svg`, rendered to the
@@ -324,15 +324,16 @@ ID ones the macOS build stops; notarization needs the App Store Connect key:
 
 `.github/workflows/release.yml` releases on every merge to `main`, and from an hourly run whenever
 streamlib has released since the app last shipped; a dispatch from the Actions tab releases too, or
-only builds with "Publish" unticked. `scripts/plan_tatolab_app_release.mjs` picks the newest
-streamlib release that carries its Linux runtime tarball and the version: the bundled runtime's when
+only builds with "Publish" unticked. `scripts/plan_tatolab_app_release.mjs` picks the streamlib
+release get.tatolab.com serves as `latest` and the version: the bundled runtime's when
 it is newer than every app shipped, otherwise the last app version's next patch, so every release is
 newer than the one installed and the updaters take it. On a `macos-26` runner
 `scripts/build-tatolab-app.sh --streamlib-ref vX.Y.Z --app-version <version> --release --notarize`
 builds, signs, notarizes and verifies Tato Studio.app, its `.dmg` and its update; on `ubuntu-22.04`
 `scripts/build-tatolab-linux-app.sh` builds the `.deb` and the AppImage around the release's Linux
-runtime tarball, which streamlib built at the glibc floor it promises. Once both have built, the files
-go to `releases/<version>/` on get.tatolab.com, then `app/latest-mac.yml`, `app/latest-linux.yml` and
+runtime tarball get.tatolab.com serves, which streamlib built at the glibc floor it promises. Once both
+have built, the files go to `app/releases/<version>/` on get.tatolab.com (everything the app publishes
+is under `app/`; streamlib owns `packages/`, `simple/`, `releases/`, `install.sh` and `latest`), then `app/latest-mac.yml`, `app/latest-linux.yml` and
 `app/tato-studio-release.json` (the app version, the streamlib version and the commit it shipped), and
 the `.dmg`, `.deb` and AppImage go on this repository's `v<version>` GitHub release. The secrets
 (the Developer ID, the App Store Connect key as `APPLE_API_KEY`, `APPLE_API_KEY_ID` and

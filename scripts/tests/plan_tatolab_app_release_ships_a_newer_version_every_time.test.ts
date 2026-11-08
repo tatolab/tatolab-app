@@ -35,5 +35,5 @@ test("a feed that has shipped nothing ships the bundled runtime's version", () =
 test("versions compare by number, and a manifest's version line is read", () => {
   expect(compareSemver("0.68.10", "0.68.9")).toBeGreaterThan(0);
   expect(compareSemver("0.9.0", "0.10.0")).toBeLessThan(0);
-  expect(versionOfTheUpdateManifest("version: 0.55.4\nfiles:\n  - url: ../releases/0.55.4/x.zip\n")).toBe("0.55.4");
+  expect(versionOfTheUpdateManifest("version: 0.55.4\nfiles:\n  - url: releases/0.55.4/x.zip\n")).toBe("0.55.4");
 });

@@ -1,12 +1,11 @@
-// Decides what the release workflow ships: the streamlib release the app bundles (the newest one
-// whose Linux runtime tarball is attached), whether this run releases at all, and the app version it
+// Decides what the release workflow ships: the streamlib release the app bundles (the one
+// get.tatolab.com serves as `latest`, with its Linux runtime tarball), whether this run releases at all, and the app version it
 // releases as. A merge to main and a dispatch always release; the scheduled run releases only when
 // streamlib has released since the app last shipped. The app version is the bundled runtime's when
 // that is newer than every app version shipped, and otherwise the last shipped app version's next
 // patch, so every release is newer than the last and the updaters take it.
 //
 // Usage: node scripts/plan_tatolab_app_release.mjs <push|schedule|workflow_dispatch>
-//   GITHUB_TOKEN   reads streamlib's releases
 //   GITHUB_OUTPUT  where the plan is written as step outputs; printed when unset
 import { appendFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
@@ -69,19 +68,15 @@ async function fetchOrNull(url, init) {
   return response;
 }
 
-async function newestStreamlibReleaseWithItsLinuxRuntime() {
-  const headers = { Accept: "application/vnd.github+json", ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}) };
-  const response = await fetch("https://api.github.com/repos/tatolab/streamlib/releases?per_page=30", { headers });
-  if (!response.ok) throw new Error(`streamlib's releases answered ${response.status}`);
-  const releases = await response.json();
-  for (const release of releases) {
-    if (release.draft || release.prerelease) continue;
-    const version = release.tag_name.replace(/^v/, "");
-    if (semverParts(version) === null) continue;
-    const tarballName = `tatolab-runtime-${version}-x86_64-linux.tar.gz`;
-    if (release.assets.some((asset) => asset.name === tarballName)) return { tag: release.tag_name, version, linuxRuntimeTarballName: tarballName };
-  }
-  throw new Error("none of streamlib's last 30 releases carries its Linux runtime tarball");
+async function streamlibReleaseServedAsLatest() {
+  const latestResponse = await fetch(`${GET_TATOLAB_COM_URL}/latest`, { cache: "no-store" });
+  if (!latestResponse.ok) throw new Error(`${GET_TATOLAB_COM_URL}/latest answered ${latestResponse.status}`);
+  const version = (await latestResponse.text()).trim();
+  if (semverParts(version) === null) throw new Error(`${GET_TATOLAB_COM_URL}/latest names no X.Y.Z version: ${version}`);
+  const linuxRuntimeTarballUrl = `${GET_TATOLAB_COM_URL}/releases/${version}/tatolab-runtime-${version}-x86_64-linux.tar.gz`;
+  const tarballResponse = await fetch(linuxRuntimeTarballUrl, { method: "HEAD" });
+  if (!tarballResponse.ok) throw new Error(`${linuxRuntimeTarballUrl} answered ${tarballResponse.status}`);
+  return { tag: `v${version}`, version, linuxRuntimeTarballUrl };
 }
 
 async function lastPublishedRelease() {
@@ -102,7 +97,7 @@ async function main() {
     process.stderr.write("usage: plan_tatolab_app_release.mjs <push|schedule|workflow_dispatch>\n");
     process.exit(2);
   }
-  const streamlibRelease = await newestStreamlibReleaseWithItsLinuxRuntime();
+  const streamlibRelease = await streamlibReleaseServedAsLatest();
   const publishedRelease = await lastPublishedRelease();
   const plan = planTatolabAppRelease({ trigger, streamlibVersion: streamlibRelease.version, publishedRelease });
   const outputs = {
@@ -110,7 +105,7 @@ async function main() {
     app_version: plan.appVersion,
     streamlib_tag: streamlibRelease.tag,
     streamlib_version: streamlibRelease.version,
-    linux_runtime_tarball_name: streamlibRelease.linuxRuntimeTarballName,
+    linux_runtime_tarball_url: streamlibRelease.linuxRuntimeTarballUrl,
   };
   const outputLines = `${Object.entries(outputs).map(([name, value]) => `${name}=${value}`).join("\n")}\n`;
   process.stdout.write(`${plan.reason}\n${outputLines}`);

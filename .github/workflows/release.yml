@@ -2,11 +2,13 @@ name: Release
 
 # Ships Tato Studio to the update feed at get.tatolab.com, which the installed apps check: every merge
 # to main, and the hourly run whenever streamlib has released since the app last shipped. Each release
-# bundles the newest streamlib release that carries its Linux runtime tarball, and is versioned by
+# bundles the streamlib release get.tatolab.com serves as latest, and is versioned by
 # scripts/plan_tatolab_app_release.mjs. macOS is built, signed with the Developer ID and notarized on
-# a macos-26 runner; Linux on ubuntu-22.04. The files land under releases/<version>/ first, and the
-# feed's manifests under app/ only once both platforms built, so an installed app never reads a
-# manifest whose files are missing. Secrets come from the repository's Infisical sync.
+# a macos-26 runner; Linux on ubuntu-22.04. Everything the app publishes lives under app/, apart from
+# streamlib's packages/, simple/, releases/, install.sh and latest: the files land under
+# app/releases/<version>/ first, and the feed's manifests in app/ only once both platforms built, so
+# an installed app never reads a manifest whose files are missing. Secrets come from the
+# repository's Infisical sync.
 on:
   push:
     branches: [main]
@@ -40,7 +42,7 @@ jobs:
       app_version: ${{ steps.plan.outputs.app_version }}
       streamlib_tag: ${{ steps.plan.outputs.streamlib_tag }}
       streamlib_version: ${{ steps.plan.outputs.streamlib_version }}
-      linux_runtime_tarball_name: ${{ steps.plan.outputs.linux_runtime_tarball_name }}
+      linux_runtime_tarball_url: ${{ steps.plan.outputs.linux_runtime_tarball_url }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -53,8 +55,6 @@ jobs:
           node-version: 22
 
       - id: plan
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/plan_tatolab_app_release.mjs "${{ github.event_name }}"
 
   build-macos:
@@ -172,20 +172,20 @@ jobs:
           node-version: 22
           cache: npm
 
-      # The runtime streamlib built at its glibc floor and attached to its release, which carries the
-      # commit it was built from in streamlib-commit.
+      # The runtime streamlib built at its glibc floor and serves from get.tatolab.com, which carries
+      # the commit it was built from in streamlib-commit.
       - name: Take the release's Linux runtime unit
         env:
-          GH_TOKEN: ${{ github.token }}
-          STREAMLIB_TAG: ${{ needs.plan.outputs.streamlib_tag }}
-          TARBALL_NAME: ${{ needs.plan.outputs.linux_runtime_tarball_name }}
+          TARBALL_URL: ${{ needs.plan.outputs.linux_runtime_tarball_url }}
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/linux-runtime-tarball" "$RUNNER_TEMP/linux-runtime-unit"
-          gh release download "$STREAMLIB_TAG" --repo tatolab/streamlib \
-            --pattern "$TARBALL_NAME" --pattern "$TARBALL_NAME.sha256" --dir "$RUNNER_TEMP/linux-runtime-tarball"
-          (cd "$RUNNER_TEMP/linux-runtime-tarball" && sha256sum --check "$TARBALL_NAME.sha256")
-          tar -C "$RUNNER_TEMP/linux-runtime-unit" -xzf "$RUNNER_TEMP/linux-runtime-tarball/$TARBALL_NAME"
+          tarball_directory="$RUNNER_TEMP/linux-runtime-tarball"
+          tarball_name="$(basename "$TARBALL_URL")"
+          mkdir -p "$tarball_directory" "$RUNNER_TEMP/linux-runtime-unit"
+          curl -fsSL -o "$tarball_directory/$tarball_name" "$TARBALL_URL"
+          curl -fsSL -o "$tarball_directory/$tarball_name.sha256" "$TARBALL_URL.sha256"
+          (cd "$tarball_directory" && sha256sum --check "$tarball_name.sha256")
+          tar -C "$RUNNER_TEMP/linux-runtime-unit" -xzf "$tarball_directory/$tarball_name"
 
       - name: Build the .deb, the AppImage and their update
         env:
@@ -238,7 +238,7 @@ jobs:
           fi
 
       # R2 through its S3 API. The checksum settings are the ones Cloudflare's R2 docs give for the
-      # AWS CLI, whose default checksums R2 does not accept. The release's files go first and are
+      # AWS CLI, whose default checksums R2 does not accept. Every key is under app/. The release's files go first and are
       # immutable; the manifests, which point at them, go last and are read fresh.
       - name: Serve the release from get.tatolab.com
         env:
@@ -256,10 +256,10 @@ jobs:
               --content-type "$3" --cache-control "$4" "$1" "s3://$GET_TATOLAB_COM_BUCKET/$2"
           }
           immutable="public, max-age=31536000, immutable"
-          put_object "release-files/Tato-Studio-$APP_VERSION-arm64.dmg" "releases/$APP_VERSION/Tato-Studio-$APP_VERSION-arm64.dmg" application/x-apple-diskimage "$immutable"
-          put_object "release-files/Tato-Studio-$APP_VERSION-arm64-mac.zip" "releases/$APP_VERSION/Tato-Studio-$APP_VERSION-arm64-mac.zip" application/zip "$immutable"
-          put_object "release-files/Tato-Studio-$APP_VERSION-amd64.deb" "releases/$APP_VERSION/Tato-Studio-$APP_VERSION-amd64.deb" application/vnd.debian.binary-package "$immutable"
-          put_object "release-files/Tato-Studio-$APP_VERSION-x86_64.AppImage" "releases/$APP_VERSION/Tato-Studio-$APP_VERSION-x86_64.AppImage" application/octet-stream "$immutable"
+          put_object "release-files/Tato-Studio-$APP_VERSION-arm64.dmg" "app/releases/$APP_VERSION/Tato-Studio-$APP_VERSION-arm64.dmg" application/x-apple-diskimage "$immutable"
+          put_object "release-files/Tato-Studio-$APP_VERSION-arm64-mac.zip" "app/releases/$APP_VERSION/Tato-Studio-$APP_VERSION-arm64-mac.zip" application/zip "$immutable"
+          put_object "release-files/Tato-Studio-$APP_VERSION-amd64.deb" "app/releases/$APP_VERSION/Tato-Studio-$APP_VERSION-amd64.deb" application/vnd.debian.binary-package "$immutable"
+          put_object "release-files/Tato-Studio-$APP_VERSION-x86_64.AppImage" "app/releases/$APP_VERSION/Tato-Studio-$APP_VERSION-x86_64.AppImage" application/octet-stream "$immutable"
           put_object release-files/latest-mac.yml app/latest-mac.yml "text/yaml; charset=utf-8" "no-cache"
           put_object release-files/latest-linux.yml app/latest-linux.yml "text/yaml; charset=utf-8" "no-cache"
           printf '{"app_version":"%s","streamlib_version":"%s","app_commit":"%s"}\n' "$APP_VERSION" "$STREAMLIB_VERSION" "$GITHUB_SHA" > tato-studio-release.json
@@ -269,7 +269,7 @@ jobs:
         run: |
           set -euo pipefail
           for update_file in "Tato-Studio-$APP_VERSION-arm64-mac.zip" "Tato-Studio-$APP_VERSION-x86_64.AppImage"; do
-            served_sha256="$(curl -fsSL "$GET_TATOLAB_COM_URL/releases/$APP_VERSION/$update_file" | sha256sum | cut -d ' ' -f 1)"
+            served_sha256="$(curl -fsSL "$GET_TATOLAB_COM_URL/app/releases/$APP_VERSION/$update_file" | sha256sum | cut -d ' ' -f 1)"
             built_sha256="$(sha256sum "release-files/$update_file" | cut -d ' ' -f 1)"
             [ "$served_sha256" = "$built_sha256" ] || { echo "::error::get.tatolab.com serves a $update_file that is not the one built"; exit 1; }
           done
