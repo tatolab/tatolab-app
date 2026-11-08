@@ -6,6 +6,10 @@ import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary
 /** What a real runtime answered `GET /api/graph?stream=main` with, the same document its `graph {stream: "main"}` tool renders, for a stream of a test pattern, an inverting effect, a brightness meter and a display window. */
 const aRealGraphOfOneStream = () => readFile(new URL("./test-fixtures/local-api-graph-of-the-stream-main.json", import.meta.url), "utf8");
 
+/** What a real runtime's `graph {stream: "rive-overlay-main-34a4e1"}` tool answered for a test pattern feeding a halftone effect, a brightness meter, and a manual Python node whose `start()` raised. */
+const aRealGraphOfAStreamWithANodeWhoseStartRaised = () =>
+  readFile(new URL("./test-fixtures/local-api-graph-of-a-stream-with-a-node-whose-start-raised.json", import.meta.url), "utf8");
+
 const portsStatingNoStreamFacts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family: null, stream_facts: null, values_checked: null }));
 
 function node(
@@ -229,21 +233,23 @@ test("an_output_reads_the_stream_facts_and_the_unchecked_mark_the_runtime_render
   ]);
 });
 
-test("a_node_reads_why_it_failed_from_its_components_word_for_word_and_null_while_it_has_not_failed", () => {
-  const failedBecause = "start() raised: RuntimeError: no Rive file at ./missing.riv\n  at rive_source.py:41";
-  const graph = {
-    nodes: [
-      { name: "rivesource", type: "nodes.rive_source:RiveSource", components: { state: "Error", failed_because: failedBecause } },
-      { name: "displaywindow", type: "tatolab.stream:DisplayWindow", components: { state: "Running", failed_because: null } },
-      { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", components: { state: "Running" } },
-    ],
-  };
+test("a_node_reads_why_it_failed_from_its_components_word_for_word_and_null_while_it_has_not_failed", async () => {
+  const graphText = await aRealGraphOfAStreamWithANodeWhoseStartRaised();
+
+  const summary = streamGraphSummaryFromTheGraphToolResult("rive-overlay-main-34a4e1", graphText);
+
+  expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.state, graphNode.failed_because])).toEqual([
+    ["testpatternsource", "Running", null],
+    ["halftonelenseffect", "Running", null],
+    ["brightnessmeter", "Running", null],
+    ["riveoverlay", "Error", "start() raised: no Rive file at ./missing.riv"],
+  ]);
+});
+
+test("a_node_whose_components_carry_no_failed_because_reads_null", () => {
+  const graph = { nodes: [{ name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", components: { state: "Running" } }] };
 
   const summary = streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify(graph));
 
-  expect(summary.ok && summary.value.nodes.map((graphNode) => [graphNode.name, graphNode.state, graphNode.failed_because])).toEqual([
-    ["rivesource", "Error", failedBecause],
-    ["displaywindow", "Running", null],
-    ["invertingeffect", "Running", null],
-  ]);
+  expect(summary.ok && summary.value.nodes[0]?.failed_because).toBeNull();
 });

@@ -1,0 +1,288 @@
+{
+  "asset": "78082524-adcd-42cf-a08e-ad42b6234e80",
+  "stream": "rive-overlay-main-34a4e1",
+  "nodes": [
+    {
+      "id": "0ead7c26-c69b-4f35-9d0b-25446b66d6f1",
+      "type": "tatolab.testpattern:TestPatternSource",
+      "kind": "process",
+      "name": "testpatternsource",
+      "config": {},
+      "config_checksum": 6086514543335466803,
+      "ports": {
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "video",
+            "description": "Test-pattern video frames",
+            "port_kind": "data",
+            "delivery_profile": null,
+            "family": {
+              "family": "image",
+              "formats": [
+                "rgba8_unorm"
+              ]
+            }
+          }
+        ]
+      },
+      "components": {
+        "failed_because": null,
+        "state": "Running",
+        "shutdown_channel": {
+          "attached": true,
+          "receiver_taken": true
+        },
+        "paused": false,
+        "thread_handle": {
+          "attached": true,
+          "thread_id": "ThreadId(29)",
+          "thread_name": "<unnamed>"
+        },
+        "metrics": {
+          "frames_dropped": 0,
+          "dropped_bags_by_link": {},
+          "refused_bags_by_output_port": {
+            "video": 0
+          },
+          "written_bags_by_output_port": {
+            "video": 1304
+          }
+        },
+        "processor_instance": {
+          "attached": true,
+          "arc_strong_count": 2,
+          "arc_weak_count": 0
+        },
+        "helper_process_restarts": {
+          "restart_count": 0,
+          "last_exit_reason": null
+        }
+      }
+    },
+    {
+      "id": "f4114860-17a6-47f6-8c2e-2285e2e67ac6",
+      "type": "nodes.halftone_lens_effect:HalftoneLensEffect",
+      "kind": "process",
+      "name": "halftonelenseffect",
+      "config": {},
+      "config_checksum": 6086514543335466803,
+      "ports": {
+        "inputs": [
+          {
+            "name": "video_from_upstream",
+            "description": "",
+            "port_kind": "data",
+            "delivery_profile": "newest",
+            "family": {
+              "family": "image"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "name": "video_to_downstream",
+            "description": "",
+            "port_kind": "data",
+            "delivery_profile": null,
+            "family": {
+              "family": "image"
+            }
+          }
+        ]
+      },
+      "components": {
+        "failed_because": null,
+        "state": "Running",
+        "shutdown_channel": {
+          "attached": true,
+          "receiver_taken": true
+        },
+        "paused": false,
+        "thread_handle": {
+          "attached": true,
+          "thread_id": "ThreadId(30)",
+          "thread_name": "<unnamed>"
+        },
+        "metrics": {
+          "frames_dropped": 0,
+          "dropped_bags_by_link": {
+            "Lv6w05ethakh7enwb3vv5fwfh": 0
+          },
+          "refused_bags_by_output_port": {
+            "video_to_downstream": 0
+          },
+          "written_bags_by_output_port": {
+            "video_to_downstream": 1290
+          }
+        },
+        "processor_instance": {
+          "attached": true,
+          "arc_strong_count": 2,
+          "arc_weak_count": 0
+        },
+        "helper_process_restarts": {
+          "restart_count": 0,
+          "last_exit_reason": null
+        }
+      }
+    },
+    {
+      "id": "422a7d29-c214-403d-b2da-0c8fdf6149e7",
+      "type": "nodes.brightness_meter:BrightnessMeter",
+      "kind": "process",
+      "name": "brightnessmeter",
+      "config": {},
+      "config_checksum": 6086514543335466803,
+      "ports": {
+        "inputs": [
+          {
+            "name": "video_from_upstream",
+            "description": "",
+            "port_kind": "data",
+            "delivery_profile": "newest",
+            "family": {
+              "family": "image"
+            }
+          }
+        ],
+        "outputs": []
+      },
+      "components": {
+        "failed_because": null,
+        "state": "Running",
+        "shutdown_channel": {
+          "attached": true,
+          "receiver_taken": true
+        },
+        "paused": false,
+        "thread_handle": {
+          "attached": true,
+          "thread_id": "ThreadId(31)",
+          "thread_name": "<unnamed>"
+        },
+        "metrics": {
+          "frames_dropped": 0,
+          "dropped_bags_by_link": {
+            "Lrs47y17h49figdu3nv6s38as": 0
+          },
+          "refused_bags_by_output_port": {},
+          "written_bags_by_output_port": {}
+        },
+        "processor_instance": {
+          "attached": true,
+          "arc_strong_count": 2,
+          "arc_weak_count": 0
+        },
+        "helper_process_restarts": {
+          "restart_count": 0,
+          "last_exit_reason": null
+        }
+      }
+    },
+    {
+      "id": "9b1c6a2e-5d3f-4e8a-9c7b-2f6d1e0a4b3c",
+      "type": "nodes.rive_overlay:RiveOverlay",
+      "kind": "process",
+      "name": "riveoverlay",
+      "config": {},
+      "config_checksum": 6086514543335466803,
+      "ports": {
+        "inputs": [
+          {
+            "name": "video_from_upstream",
+            "description": "",
+            "port_kind": "data",
+            "delivery_profile": "newest",
+            "family": {
+              "family": "image"
+            }
+          }
+        ],
+        "outputs": []
+      },
+      "components": {
+        "failed_because": "start() raised: no Rive file at ./missing.riv",
+        "state": "Error",
+        "shutdown_channel": {
+          "attached": true,
+          "receiver_taken": true
+        },
+        "paused": false,
+        "thread_handle": {
+          "attached": true,
+          "thread_id": "ThreadId(32)",
+          "thread_name": "<unnamed>"
+        },
+        "metrics": {
+          "frames_dropped": 0,
+          "dropped_bags_by_link": {
+            "Lzfjttzj0f0j03ibn122ydz9e": 0
+          },
+          "refused_bags_by_output_port": {},
+          "written_bags_by_output_port": {}
+        },
+        "processor_instance": {
+          "attached": true,
+          "arc_strong_count": 2,
+          "arc_weak_count": 0
+        },
+        "helper_process_restarts": {
+          "restart_count": 0,
+          "last_exit_reason": null
+        }
+      }
+    }
+  ],
+  "links": [
+    {
+      "id": "Lv6w05ethakh7enwb3vv5fwfh",
+      "source": {
+        "node": "testpatternsource",
+        "port": "video"
+      },
+      "target": {
+        "node": "halftonelenseffect",
+        "port": "video_from_upstream"
+      },
+      "capacity": 4,
+      "state": "wired",
+      "components": {
+        "state": "Wired"
+      }
+    },
+    {
+      "id": "Lrs47y17h49figdu3nv6s38as",
+      "source": {
+        "node": "halftonelenseffect",
+        "port": "video_to_downstream"
+      },
+      "target": {
+        "node": "brightnessmeter",
+        "port": "video_from_upstream"
+      },
+      "capacity": 4,
+      "state": "wired",
+      "components": {
+        "state": "Wired"
+      }
+    },
+    {
+      "id": "Lzfjttzj0f0j03ibn122ydz9e",
+      "source": {
+        "node": "testpatternsource",
+        "port": "video"
+      },
+      "target": {
+        "node": "riveoverlay",
+        "port": "video_from_upstream"
+      },
+      "capacity": 4,
+      "state": "wired",
+      "components": {
+        "state": "Wired"
+      }
+    }
+  ],
+  "machine": "jonathanf-macbook"
+}
