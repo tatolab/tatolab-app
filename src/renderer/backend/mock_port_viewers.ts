@@ -1,14 +1,84 @@
 // The mock's port viewers: an Image port plays a drawn test pattern as `VideoFrame`s, the way the
-// app's main process hands a runtime frame over as a shared texture; any other family reports each
-// message's size.
+// app's main process hands a runtime frame over as a shared texture; any other family plays
+// readings the way the main process reads them: a stereo tone as Channels, a detection as Records,
+// a point cloud's attributes as Array, and an encoder's units, a keyframe each second, as Packets.
 
-import type { PortFamily, PortViewerEvent, PortViewerImageFrameFacts, PortViewerTarget } from "../../shared/tatolab_backend_contract";
+import type {
+  PortFamily,
+  PortViewerChannelWaveform,
+  PortViewerEvent,
+  PortViewerImageFrameFacts,
+  PortViewerMessageReading,
+  PortViewerTarget,
+} from "../../shared/tatolab_backend_contract";
 
 const MOCK_IMAGE_FRAME_EVERY_MILLISECONDS = 33;
-const MOCK_MESSAGE_EVERY_MILLISECONDS = 250;
+const MOCK_MESSAGE_EVERY_MILLISECONDS = 33;
 const MOCK_IMAGE_FRAME_WIDTH = 640;
 const MOCK_IMAGE_FRAME_HEIGHT = 360;
-const MOCK_PAYLOAD_BYTE_LENGTHS_BY_FAMILY: Partial<Record<PortFamily, number>> = { channels: 3840, records: 96, packets: 1400, array: 4096 };
+const MOCK_CHANNELS_SAMPLE_RATE = 48_000;
+const MOCK_CHANNELS_SAMPLES_PER_BLOCK = 1_600;
+const MOCK_CHANNELS_WAVEFORM_COLUMNS = 400;
+const MOCK_PACKETS_KEYFRAME_EVERY_UNITS = 30;
+
+function mockWaveformOfATone(frequencyHz: number, amplitude: number, firstSample: number): PortViewerChannelWaveform {
+  const samplesPerColumn = MOCK_CHANNELS_SAMPLES_PER_BLOCK / MOCK_CHANNELS_WAVEFORM_COLUMNS;
+  const columnMinimums: number[] = [];
+  const columnMaximums: number[] = [];
+  let sumOfSquares = 0;
+  for (let column = 0; column < MOCK_CHANNELS_WAVEFORM_COLUMNS; column += 1) {
+    let columnMinimum = Number.POSITIVE_INFINITY;
+    let columnMaximum = Number.NEGATIVE_INFINITY;
+    for (let sampleInColumn = 0; sampleInColumn < samplesPerColumn; sampleInColumn += 1) {
+      const sampleIndex = firstSample + column * samplesPerColumn + sampleInColumn;
+      const sample = amplitude * Math.sin((2 * Math.PI * frequencyHz * sampleIndex) / MOCK_CHANNELS_SAMPLE_RATE);
+      columnMinimum = Math.min(columnMinimum, sample);
+      columnMaximum = Math.max(columnMaximum, sample);
+      sumOfSquares += sample * sample;
+    }
+    columnMinimums.push(columnMinimum);
+    columnMaximums.push(columnMaximum);
+  }
+  return { column_minimums: columnMinimums, column_maximums: columnMaximums, peak: amplitude, rms: Math.sqrt(sumOfSquares / MOCK_CHANNELS_SAMPLES_PER_BLOCK) };
+}
+
+/** The mock's `messagesRead`th message of a port carrying `portFamily`. */
+export function mockPortViewerMessageReading(portFamily: PortFamily | null, messagesRead: number): PortViewerMessageReading {
+  if (portFamily === "channels") {
+    const startSample = messagesRead * MOCK_CHANNELS_SAMPLES_PER_BLOCK;
+    return {
+      family: "channels",
+      start_sample: startSample,
+      sample_rate: MOCK_CHANNELS_SAMPLE_RATE,
+      channel_count: 2,
+      samples_per_channel: MOCK_CHANNELS_SAMPLES_PER_BLOCK,
+      sample_type: "f32",
+      channel_waveforms: [mockWaveformOfATone(120, 0.8, startSample), mockWaveformOfATone(180, 0.45, startSample)],
+    };
+  }
+  if (portFamily === "records") {
+    return {
+      family: "records",
+      record: { label: "face", score: Math.round((0.9 + 0.05 * Math.sin(messagesRead / 10)) * 1000) / 1000, frame: messagesRead, box: { x: 412 + (messagesRead % 40), y: 188, width: 160, height: 160 } },
+    };
+  }
+  if (portFamily === "packets") {
+    const startsGroup = messagesRead % MOCK_PACKETS_KEYFRAME_EVERY_UNITS === 0;
+    return { family: "packets", codec: "avc1.64001f", byte_length: startsGroup ? 48_000 : 3_000 + ((messagesRead * 977) % 4_000), starts_group: startsGroup, timestamp_ns: messagesRead * 33_333_333 };
+  }
+  if (portFamily === "array") {
+    const sweep = Math.sin(messagesRead / 15);
+    return {
+      family: "array",
+      attributes: [
+        { name: "P", dtype: "float32", shape: [2048, 3], residency: "cpu", statistics: { element_count: 6144, minimum: -1 + 0.1 * sweep, maximum: 1 + 0.1 * sweep, mean: 0.02 * sweep } },
+        { name: "Cd", dtype: "float32", shape: [2048, 3], residency: "cpu", statistics: { element_count: 6144, minimum: 0, maximum: 1, mean: 0.5 } },
+        { name: "N", dtype: "float32", shape: [2048, 3], residency: "gpu", statistics: null },
+      ],
+    };
+  }
+  return { family: "bytes", byte_length: 64 };
+}
 
 /** Every port viewer the mock's window opened, each playing until closed. */
 export class MockPortViewers {
@@ -64,14 +134,10 @@ export class MockPortViewers {
   }
 
   private reportMessages(portViewer: string, portFamily: PortFamily | null): () => void {
+    let messagesRead = 0;
     const timer = window.setInterval(() => {
-      const event: PortViewerEvent = {
-        port_viewer: portViewer,
-        kind: "message",
-        port_family: portFamily ?? "bytes",
-        payload_byte_length: (portFamily === null ? undefined : MOCK_PAYLOAD_BYTE_LENGTHS_BY_FAMILY[portFamily]) ?? 64,
-        skipped_since_last_read: 0,
-      };
+      const event: PortViewerEvent = { port_viewer: portViewer, kind: "message", reading: mockPortViewerMessageReading(portFamily, messagesRead), skipped_since_last_read: 0 };
+      messagesRead += 1;
       for (const listener of this.eventListeners) listener(event);
     }, MOCK_MESSAGE_EVERY_MILLISECONDS);
     return () => window.clearInterval(timer);

@@ -456,10 +456,44 @@ export interface PortViewerImageFrameFacts {
   skipped_since_last_read: number;
 }
 
+/** One channel of a Channels block, as the Viewer draws its waveform: the lowest and highest sample of each of its columns, its peak and its RMS. */
+export interface PortViewerChannelWaveform {
+  column_minimums: number[];
+  column_maximums: number[];
+  peak: number;
+  rms: number;
+}
+
+/** One attribute of an Array frame: its name, element type and shape, where its data lives, and, for numeric data in the payload, its statistics. */
+export interface PortViewerArrayAttributeReading {
+  name: string;
+  dtype: string;
+  shape: number[];
+  residency: "cpu" | "gpu";
+  statistics: { element_count: number; minimum: number; maximum: number; mean: number } | null;
+}
+
+/** What a port viewer read of one message of a family other than Image, from the family's descriptor and payload. */
+export type PortViewerMessageReading =
+  | {
+      family: "channels";
+      start_sample: number;
+      sample_rate: number;
+      channel_count: number;
+      samples_per_channel: number;
+      sample_type: string;
+      channel_waveforms: PortViewerChannelWaveform[];
+    }
+  | { family: "array"; attributes: PortViewerArrayAttributeReading[] }
+  | { family: "packets"; codec: string; byte_length: number; starts_group: boolean; timestamp_ns: number }
+  | { family: "records"; record: JsonValue }
+  | { family: "bytes"; byte_length: number }
+  | { family: "unreadable"; port_family: string; because: string };
+
 /**
  * What `tatolab-port-viewer-event` carries about one port viewer: Image frames a shared texture cannot carry, as their pixels (a GPU
- * whose memory crosses only as CPU-readable bytes); any other family's latest message, by its size; the viewer reopening after its
- * connection to the runtime closed; or its end, with why in the runtime's words.
+ * whose memory crosses only as CPU-readable bytes); any other family's latest message, read by its family; the viewer reopening after
+ * its connection to the runtime closed; or its end, with why in the runtime's words.
  */
 export type PortViewerEvent =
   | {
@@ -472,6 +506,6 @@ export type PortViewerEvent =
       pixels: Uint8Array;
       skipped_since_last_read: number;
     }
-  | { port_viewer: string; kind: "message"; port_family: string; payload_byte_length: number; skipped_since_last_read: number }
+  | { port_viewer: string; kind: "message"; reading: PortViewerMessageReading; skipped_since_last_read: number }
   | { port_viewer: string; kind: "reopening"; because: string }
   | { port_viewer: string; kind: "ended"; because: string };

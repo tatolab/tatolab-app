@@ -34,6 +34,27 @@ export interface RuntimeViewerImageFrame {
   ioSurface: Buffer | null;
 }
 
+/** A Channels block's layout as its descriptor states it; the payload holds `channelCount` runs of `samplesPerChannel` samples. */
+export interface RuntimeViewerChannelsBlock {
+  startSample: number;
+  sampleRate: number;
+  channelCount: number;
+  samplesPerChannel: number;
+  /** `f32` or `f64`, or `null` for a sample type the addon does not know. */
+  sampleType: string | null;
+}
+
+/** One row of an Array frame's attribute table. */
+export interface RuntimeViewerArrayAttribute {
+  name: string;
+  dtype: string;
+  shape: number[];
+  /** `cpu` for data in the payload, `gpu` for data in a GPU pool slot. */
+  residency: string;
+  payloadByteOffset: number | null;
+  byteLen: number | null;
+}
+
 /** The latest message a viewer read from its port. */
 export interface RuntimeViewerMessageRead {
   /** `image`, `channels`, `packets`, `records`, `array`, or `bytes` for a payload no family describes. */
@@ -44,6 +65,16 @@ export interface RuntimeViewerMessageRead {
   imageFrame: RuntimeViewerImageFrame | null;
   /** The payload as the node wrote it, for every family but Image. */
   payload: Buffer | null;
+  /** Whether the message opens a group: a Packets unit's keyframe flag. */
+  startsGroup: boolean;
+  channelsBlock: RuntimeViewerChannelsBlock | null;
+  /** A Packets unit's codec, empty for a plain byte stream. */
+  packetsCodec: string | null;
+  arrayAttributes: RuntimeViewerArrayAttribute[] | null;
+  /** A Records message decoded from its msgpack, as JSON text. */
+  recordsJson: string | null;
+  /** Why the message did not read as its family states, in the addon's words. */
+  unreadableBecause: string | null;
 }
 
 /** The addon's reader of one viewer's channel, opened from what `open_viewer` answered. */

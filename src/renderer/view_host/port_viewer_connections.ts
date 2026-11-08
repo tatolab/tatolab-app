@@ -57,7 +57,7 @@ export class PortViewerConnections {
       const { port_viewer: _portViewer, ...imagePixels } = event;
       listener(imagePixels);
     } else if (event.kind === "message") {
-      listener({ kind: "message", port_family: event.port_family, payload_byte_length: event.payload_byte_length, skipped_since_last_read: event.skipped_since_last_read });
+      listener({ kind: "message", reading: event.reading, skipped_since_last_read: event.skipped_since_last_read });
     } else {
       listener({ kind: event.kind, because: event.because });
     }

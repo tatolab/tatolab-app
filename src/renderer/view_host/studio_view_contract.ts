@@ -9,6 +9,7 @@ import type {
   NodeCatalog,
   OpenProjectReading,
   PoppedOutViewerTarget,
+  PortViewerMessageReading,
   PortViewerTarget,
   ProjectLogRecord,
   StreamGraphSummary,
@@ -27,6 +28,9 @@ export type {
   OpenProject,
   OpenProjectReading,
   PoppedOutViewerTarget,
+  PortViewerArrayAttributeReading,
+  PortViewerChannelWaveform,
+  PortViewerMessageReading,
   PortViewerTarget,
   ProjectLogRecord,
   ProjectOnDisk,
@@ -99,11 +103,11 @@ export interface PythonLanguageServerConnection {
   close(): void;
 }
 
-/** What a port viewer delivers: an Image frame to draw, as a `VideoFrame` the view closes once drawn or as its pixels; another family's message, by its size; or the viewer reopening or ending, with why. */
+/** What a port viewer delivers: an Image frame to draw, as a `VideoFrame` the view closes once drawn or as its pixels; another family's message, read by its family; or the viewer reopening or ending, with why. */
 export type PortViewerConnectionEvent =
   | { kind: "image_frame"; video_frame: VideoFrame; format_wire_name: string; skipped_since_last_read: number }
   | { kind: "image_pixels"; width: number; height: number; format_wire_name: string; bytes_per_row: number; pixels: Uint8Array; skipped_since_last_read: number }
-  | { kind: "message"; port_family: string; payload_byte_length: number; skipped_since_last_read: number }
+  | { kind: "message"; reading: PortViewerMessageReading; skipped_since_last_read: number }
   | { kind: "reopening"; because: string }
   | { kind: "ended"; because: string };
 

@@ -181,7 +181,7 @@ export interface MockTatolabOptions {
   openProjectScenario: MockOpenProjectScenario;
   /** `?recent=none`: no project opened before, as on first run; six recent ones by default. */
   recentProjectsInTheQuery: string | null;
-  /** `?port_families=served`: each port's family is served in the graph and the node catalog, as streamlib's strict-port-families will serve it; none by default, as the runtime serves today. */
+  /** Each port's family is served in the graph and the node catalog, as the runtime serves it; `?port_families=unserved` serves none, as a runtime from before strict-port-families. */
   arePortFamiliesServed: boolean;
   /** `?popped_out_viewer=<target as JSON>`: the page is a Viewer popped out of the studio, as Pop out opens it in a new tab; the studio by default. */
   poppedOutViewer: PoppedOutViewerTarget | null;
@@ -314,7 +314,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     doesTheRuntimeListAnEarlierRuntimesRecord: pageQuery.get("streams") === "earlier_record",
     openProjectScenario: mockOpenProjectScenarioNamed(pageQuery.get("project")),
     recentProjectsInTheQuery: pageQuery.get("recent"),
-    arePortFamiliesServed: pageQuery.get("port_families") === "served",
+    arePortFamiliesServed: pageQuery.get("port_families") !== "unserved",
     poppedOutViewer: mockPoppedOutViewerTargetFrom(pageQuery.get(POPPED_OUT_VIEWER_QUERY_PARAMETER)),
     isAGetMoreWindow: pageQuery.get(GET_MORE_QUERY_PARAMETER) === "open",
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
