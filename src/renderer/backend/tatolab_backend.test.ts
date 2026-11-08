@@ -11,6 +11,7 @@ const UNANSWERING_TATOLAB_ELECTRON_BRIDGE: TatolabElectronBridge = {
   onPythonLanguageServerEvent: () => () => undefined,
   onPortViewerEvent: () => () => undefined,
   onPortViewerImageFrame: () => () => undefined,
+  onSystemMenuBarEntryChosen: () => () => undefined,
   tellTheAppTheWindowDrewItsFirstStatus: () => undefined,
 };
 

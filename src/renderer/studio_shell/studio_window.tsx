@@ -1,4 +1,5 @@
 import { Play } from "lucide-react";
+import { useEffect } from "react";
 import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { ActionButton } from "../design_system/action_button";
 import { AreaSplit } from "../design_system/area_split";
@@ -16,18 +17,30 @@ import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_hos
 import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet_view";
 import { ProjectsView, type ProjectsSources } from "./projects_view";
 import { studioAreaLayoutNodeId, type StudioArea, type StudioAreaLayoutNode } from "./studio_area_layout";
-import { RUN_LIVE_KEY, studioMenuBarMenus, type StudioMenuBarCommands } from "./studio_menu_bar_model";
+import {
+  RUN_LIVE_KEY,
+  studioMenuBarMenus,
+  studioMenusInTheSystemMenuBar,
+  type StudioMenuBarCommands,
+  type StudioMenuInTheSystemMenuBar,
+} from "./studio_menu_bar_model";
 import type { StudioWindowModel } from "./studio_window_model";
 
 /** The issue that brings users' own view types, the 3D scene among them. */
 const USERS_VIEW_TYPES_ISSUE = "tatolab/tatolab-app#137";
 
-/** What the studio window is drawn from: its model, the view types areas can show, what views are served, what its menus do, and its platform. */
+/** Where the studio window's menus go on macOS: the system menu bar, while this window is in focus. */
+export interface StudioWindowSystemMenuBar {
+  showTheMenus(menus: readonly StudioMenuInTheSystemMenuBar[]): void;
+}
+
+/** What the studio window is drawn from: its model, the view types areas can show, what views are served, what its menus do, where they show on macOS, and its platform. */
 export interface StudioWindowSources {
   model: StudioWindowModel;
   viewTypeRegistry: StudioViewTypeRegistry;
   viewHostServices: StudioViewHostServices;
   commands: StudioMenuBarCommands;
+  systemMenuBar: StudioWindowSystemMenuBar;
   /** What the Projects window reads its projects from and opens them through. */
   projects: ProjectsSources;
   /** What the New project sheet chooses a location through and makes the project with. */
@@ -135,9 +148,9 @@ function StudioAreaLayoutNodeView({ node, layoutKey, sources }: { node: StudioAr
   );
 }
 
-/** The studio: its menus along the top, the open streams' tabs, and the chosen layout's areas; or the Projects window, with no menus, while no project is open or File › Projects shows it. */
+/** The studio: its menus along the top (in the system menu bar on macOS), the open streams' tabs, and the chosen layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
-  const { model, platform, commands } = sources;
+  const { model, platform, commands, systemMenuBar } = sources;
   const openProject = useWatchedStudioValue(model.openProject);
   const studioLayouts = useWatchedStudioValue(model.studioLayouts);
   const openStreamTabs = useWatchedStudioValue(model.openStreamTabs);
@@ -147,6 +160,11 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
   const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
   const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null;
+  const menusLiveInTheSystemMenuBar = presentPlatform(platform).menusLiveInTheSystemMenuBar;
+  const chosenLayoutShown = isAProjectShown ? studioLayouts.chosen_layout : null;
+  useEffect(() => {
+    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(chosenLayoutShown, commands));
+  }, [menusLiveInTheSystemMenuBar, systemMenuBar, chosenLayoutShown, commands]);
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (
@@ -154,7 +172,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           className="flex h-(--studio-menu-bar-height) shrink-0 items-center gap-2.5 border-b border-studio-frame bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
           data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
         >
-          <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, commands)} />
+          {!menusLiveInTheSystemMenuBar && <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, commands)} />}
           <ActionButton
             appearance="primary"
             size="small"

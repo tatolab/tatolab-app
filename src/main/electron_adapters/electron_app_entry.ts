@@ -107,7 +107,15 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
     });
   },
   exitTheApp: (exitCode) => app.exit(exitCode),
-  setTheApplicationMenu: (applicationMenu) => Menu.setApplicationMenu(electronApplicationMenu(applicationMenu)),
+  setTheApplicationMenu: (applicationMenu, menusOfTheFocusedWindow, whenAnEntryIsChosen) =>
+    Menu.setApplicationMenu(electronApplicationMenu(applicationMenu, menusOfTheFocusedWindow, whenAnEntryIsChosen)),
+  onAWindowFocused: (listener) => app.on("browser-window-focus", (_focusEvent, focusedWindow) => listener(focusedWindow.webContents.id)),
+  onAWindowClosed: (listener) =>
+    app.on("browser-window-created", (_createdEvent, createdWindow) => {
+      // A closed window's webContents is gone, so its id is read while it is alive.
+      const windowContentsId = createdWindow.webContents.id;
+      createdWindow.on("closed", () => listener(windowContentsId));
+    }),
   buildTheTatolabPlatformForThisBuild: (platformItems) => platformItems.tatolabPlatformForThisBuild(tatolabAppLog, tatolabPlatformHostServices),
   answerTheWindowsCommands: (tatolabWindowCommandHandlers) => answerTheWindowsCommandsOverIpc(windowPageUrl, tatolabWindowCommandHandlers, tatolabAppLog),
   openAFolderInTheFileManager: openAFolderInTheFileManagerThroughElectron,

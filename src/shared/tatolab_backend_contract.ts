@@ -509,3 +509,24 @@ export type PortViewerEvent =
   | { port_viewer: string; kind: "message"; reading: PortViewerMessageReading; skipped_since_last_read: number }
   | { port_viewer: string; kind: "reopening"; because: string }
   | { port_viewer: string; kind: "ended"; because: string };
+
+/** The items of the system menu bar only the desktop draws, which a studio menu places among its own entries: macOS's Services, Hide and Quit; Undo through Select All; Close Window; Minimize and Zoom; Bring All to Front; and Enter Full Screen. */
+export type SystemMenuBarItems = "app_services_hide_and_quit" | "text_editing" | "close_window" | "window_arrangement" | "bring_all_to_front" | "full_screen";
+
+/** The menus macOS treats as its own: the app menu, named for the app whatever its label; the Window menu, which lists the open windows; and the Help menu, which holds the menu search. */
+export type SystemMenuOfTheDesktop = "app" | "window" | "help";
+
+/** One entry of a studio menu as the window sends it to the system menu bar: a command (dim, saying why, while `unavailable_because` is set), one of a set of choices, a submenu, a hairline, or items the desktop draws. `entry_id` is what `tatolab-system-menu-bar-entry-chosen` names when the person chooses it; `shortcut_hint` is the key cap the window shows, as `⌘O`, `F5` or `Shift F5`. */
+export type SystemMenuBarEntry =
+  | { kind: "command"; entry_id: string; label: string; shortcut_hint: string | null; unavailable_because: string | null }
+  | { kind: "choice"; entry_id: string; label: string; shortcut_hint: string | null; is_chosen: boolean }
+  | { kind: "submenu"; label: string; entries: SystemMenuBarEntry[] }
+  | { kind: "separator" }
+  | { kind: "system_items"; system_items: SystemMenuBarItems };
+
+/** One menu of the system menu bar as the window sends it: its name on the bar, which of the desktop's own menus it is, if any, and its entries. */
+export interface SystemMenuBarMenu {
+  label: string;
+  system_menu: SystemMenuOfTheDesktop | null;
+  entries: SystemMenuBarEntry[];
+}

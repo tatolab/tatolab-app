@@ -9,6 +9,8 @@ export function platformOf(status: TatolabStatus): TatolabPlatform {
 export interface PlatformPresentation {
   /** macOS draws the traffic lights over the window: the sidebar keeps a strip clear for them, and it and the title bar drag the window. */
   hasOverlayTitleBar: boolean;
+  /** macOS shows an app's menus in its one menu bar at the top of the screen, so the window draws none of its own; Linux draws them along the top of the window. */
+  menusLiveInTheSystemMenuBar: boolean;
   /** The key the window's shortcuts are held with. */
   windowShortcutModifier: "meta" | "control";
   thisMachineMidSentence: string;
@@ -22,6 +24,7 @@ export interface PlatformPresentation {
 const PLATFORM_PRESENTATIONS: Record<TatolabPlatform, PlatformPresentation> = {
   macos: {
     hasOverlayTitleBar: true,
+    menusLiveInTheSystemMenuBar: true,
     windowShortcutModifier: "meta",
     thisMachineMidSentence: "this Mac",
     quitTatolabExplanation: "Closes every window and the menu bar icon, and stops the runtime and your streams with it.",
@@ -30,6 +33,7 @@ const PLATFORM_PRESENTATIONS: Record<TatolabPlatform, PlatformPresentation> = {
   },
   linux: {
     hasOverlayTitleBar: false,
+    menusLiveInTheSystemMenuBar: false,
     windowShortcutModifier: "control",
     thisMachineMidSentence: "this computer",
     quitTatolabExplanation: "Closes every window and the tray icon, and stops the runtime and your streams with it.",
