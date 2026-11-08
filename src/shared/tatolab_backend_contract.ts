@@ -523,10 +523,10 @@ export type PythonLanguageServerEvent =
   | { session: string; kind: "message"; message: JsonValue }
   | { session: string; kind: "ended"; because: string };
 
-/** The output port of a running node a Viewer shows, as `graph` names it. */
+/** The output port of a running node a Viewer shows: the stream's id, the node's id as `graph` lists it, and the port's name. */
 export interface PortViewerTarget {
   stream: string;
-  node: string;
+  node_id: string;
   port: string;
 }
 

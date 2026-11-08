@@ -4,6 +4,7 @@ import {
   createMockStreamFixtures,
   createMockStreamRunFromAProjectFolder,
   MOCK_RUNTIME_ID,
+  mockNodeIdOf,
   mockStreamIdOf,
   type MockLiveLogWriter,
   type MockLogRecordDraft,
@@ -1367,11 +1368,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     },
     openPortViewer: async (target) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      const node = loadedStreamOfTheId(target.stream).fixture.graph.nodes.find((graphNode) => graphNode.name === target.node);
-      if (node === undefined) throw `no node named \`${target.node}\` in stream \`${target.stream}\``;
+      const node = loadedStreamOfTheId(target.stream).fixture.graph.nodes.find((graphNode) => mockNodeIdOf(target.stream, graphNode.name) === target.node_id);
+      if (node === undefined) throw `no node with the id \`${target.node_id}\` in stream \`${target.stream}\``;
       const outputPort = node.output_ports.find((port) => port.name === target.port);
-      if (outputPort === undefined) throw `\`${target.node}\` has no output port named \`${target.port}\``;
-      return mockPortViewers.open(target, outputPort.family);
+      if (outputPort === undefined) throw `\`${node.name}\` has no output port named \`${target.port}\``;
+      return mockPortViewers.open(target, node.name, outputPort.family);
     },
     closePortViewer: async (portViewer) => {
       mockPortViewers.close(portViewer);

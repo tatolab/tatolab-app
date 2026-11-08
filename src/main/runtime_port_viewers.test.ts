@@ -15,7 +15,7 @@ import type { TatolabAppLog } from "./tatolab_app_log.js";
 
 const SILENT_TATOLAB_APP_LOG: TatolabAppLog = { error: () => undefined, warn: () => undefined, info: () => undefined, debug: () => undefined };
 
-const CAMERA_VIDEO = { stream: "studio", node: "camera", port: "video" };
+const CAMERA_VIDEO = { stream: "studio", node_id: "camera-id", port: "video" };
 
 const DMA_BUF_FRAME: RuntimeViewerImageFrame = {
   heldFrameId: 3,
@@ -65,12 +65,13 @@ class FakeViewerConnection implements RuntimeViewerConnection {
     if (this.openRefusal !== null) return Promise.resolve(failedWith({ failureDescription: this.openRefusal, isTheRuntimesRefusal: true }));
     return Promise.resolve(
       succeeded({
-        viewer: `${target.stream}/${target.node}/${target.port}`,
+        viewer: `${target.stream}/${target.node_id}/${target.port}`,
         stream: target.stream,
-        node: target.node,
+        node_id: target.node_id,
+        node_name: target.node_id.replace(/-id$/, ""),
         port: target.port,
         iceoryx2_domain_root: "/tmp/tatolab/iceoryx2",
-        channel: `${target.stream}/${target.node}/${target.port}`,
+        channel: `${target.stream}/${target.node_id}/${target.port}`,
         surface_share_address: "/tmp/tatolab/surface-share.sock",
       }),
     );
@@ -254,19 +255,19 @@ test("the_runtimes_refusal_to_open_a_viewer_is_answered_in_its_own_words", async
   if (connection === undefined) throw new Error("the connection was not opened");
   connection.openRefusal = "no node named `mic` in stream `studio`";
 
-  const refused = await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, node: "mic" }, new FakeWindowShowingPortViewers());
+  const refused = await runtimePortViewers.openAPortViewer({ ...CAMERA_VIDEO, node_id: "mic-id" }, new FakeWindowShowingPortViewers());
 
   expect(refused).toEqual({ ok: false, failure: "no node named `mic` in stream `studio`" });
 });
 
 test("the_addons_refusal_closes_the_runtime_viewer_it_could_not_read", async () => {
   const { runtimePortViewers, connections, refuseInTheAddon } = harness();
-  refuseInTheAddon('the viewer could not subscribe to studio/camera/video: ChannelNotOpen("studio/camera/video")');
+  refuseInTheAddon('the viewer could not subscribe to studio/camera-id/video: ChannelNotOpen("studio/camera-id/video")');
 
   const refused = await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, new FakeWindowShowingPortViewers());
 
   expect(refused.ok).toBe(false);
-  expect(connections[0]?.closedViewers).toEqual(["studio/camera/video"]);
+  expect(connections[0]?.closedViewers).toEqual(["studio/camera-id/video"]);
 });
 
 test("the_runtime_viewer_closes_when_its_last_window_closes", async () => {
@@ -280,7 +281,7 @@ test("the_runtime_viewer_closes_when_its_last_window_closes", async () => {
   expect(connections[0]?.closedViewers).toEqual([]);
   runtimePortViewers.closeThePortViewersOf(secondWindow);
 
-  expect(connections[0]?.closedViewers).toEqual(["studio/camera/video"]);
+  expect(connections[0]?.closedViewers).toEqual(["studio/camera-id/video"]);
   expect(channelReaders[0]?.closed).toBe(true);
   expect(repeatingTicks[0]?.stopped).toBe(true);
 });
@@ -322,7 +323,7 @@ test("quitting_closes_every_port_viewer_and_the_connection", async () => {
 
   runtimePortViewers.closeEveryPortViewer();
 
-  expect(connections[0]?.closedViewers).toEqual(["studio/camera/video"]);
+  expect(connections[0]?.closedViewers).toEqual(["studio/camera-id/video"]);
   expect(connections[0]?.isOpen()).toBe(false);
 });
 
@@ -336,5 +337,5 @@ test("a_window_closes_only_the_port_viewers_it_opened", async () => {
   expect(connections[0]?.closedViewers).toEqual([]);
   runtimePortViewers.closeAPortViewer("port-viewer-1", firstWindow);
 
-  expect(connections[0]?.closedViewers).toEqual(["studio/camera/video"]);
+  expect(connections[0]?.closedViewers).toEqual(["studio/camera-id/video"]);
 });

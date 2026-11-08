@@ -71,7 +71,7 @@ interface RuntimeViewerHeldOpen {
 }
 
 function portViewerTargetKey(target: PortViewerTarget): string {
-  return JSON.stringify([target.stream, target.node, target.port]);
+  return JSON.stringify([target.stream, target.node_id, target.port]);
 }
 
 /** Every port viewer the app's windows hold, by the id each was opened under. */
@@ -144,7 +144,7 @@ export class RuntimePortViewers {
     const targetKey = portViewerTargetKey(target);
     const heldOpen = this.runtimeViewersByTargetKey.get(targetKey);
     if (heldOpen !== undefined) return succeeded(heldOpen);
-    if (this.targetKeysBeingOpened.has(targetKey)) return failedWith(`${target.node} › ${target.port} is already being opened`);
+    if (this.targetKeysBeingOpened.has(targetKey)) return failedWith(`${target.node_id} › ${target.port} is already being opened`);
     this.targetKeysBeingOpened.add(targetKey);
     const opened = await this.openTheRuntimeViewer(target);
     this.targetKeysBeingOpened.delete(targetKey);
@@ -238,7 +238,7 @@ export class RuntimePortViewers {
       (readRefusal: unknown) => {
         heldOpen.aReadIsUnderWay = false;
         if (this.runtimeViewersByTargetKey.get(targetKey) !== heldOpen) return;
-        this.endEveryPortViewerOf(targetKey, `The viewer stopped reading ${heldOpen.openedViewer.node} › ${heldOpen.openedViewer.port}: ${describeCaughtFailure(readRefusal)}`);
+        this.endEveryPortViewerOf(targetKey, `The viewer stopped reading ${heldOpen.openedViewer.node_name} › ${heldOpen.openedViewer.port}: ${describeCaughtFailure(readRefusal)}`);
       },
     );
   }

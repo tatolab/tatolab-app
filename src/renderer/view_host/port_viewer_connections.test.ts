@@ -3,7 +3,7 @@ import type { PortViewerEvent, PortViewerImageFrameFacts } from "../../shared/ta
 import { PortViewerConnections } from "./port_viewer_connections";
 import type { PortViewerConnectionEvent } from "./studio_view_contract";
 
-const CAMERA_VIDEO = { stream: "studio", node: "camera", port: "video" };
+const CAMERA_VIDEO = { stream: "studio", node_id: "camera-id", port: "video" };
 
 function fakePortViewerBackend() {
   const eventListeners: ((event: PortViewerEvent) => void)[] = [];
@@ -85,7 +85,7 @@ test("a refused open ends the connection in the runtime's words", async () => {
   fake.refuseToOpen("no node named `mic` in stream `studio`");
   const connections = new PortViewerConnections(fake.backend);
   const eventsHeard: PortViewerConnectionEvent[] = [];
-  connections.watchPortViewer({ ...CAMERA_VIDEO, node: "mic" }, (event) => eventsHeard.push(event));
+  connections.watchPortViewer({ ...CAMERA_VIDEO, node_id: "mic-id" }, (event) => eventsHeard.push(event));
   await settled();
 
   expect(eventsHeard).toEqual([{ kind: "ended", because: "no node named `mic` in stream `studio`" }]);

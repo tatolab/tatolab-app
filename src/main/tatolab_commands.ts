@@ -611,12 +611,12 @@ export function openPortViewerArgumentsFrom(commandArguments: unknown): Result<P
   if (
     !isAJsonObject(commandArguments) ||
     typeof commandArguments["stream"] !== "string" ||
-    typeof commandArguments["node"] !== "string" ||
+    typeof commandArguments["node_id"] !== "string" ||
     typeof commandArguments["port"] !== "string"
   ) {
-    return failedWith("open_port_viewer needs `stream`, a stream's id, `node`, a node's name, and `port`, one of its output ports");
+    return failedWith("open_port_viewer needs `stream`, a stream's id, `node_id`, a node's id as the graph lists it, and `port`, one of its output ports");
   }
-  return succeeded({ stream: commandArguments["stream"], node: commandArguments["node"], port: commandArguments["port"] });
+  return succeeded({ stream: commandArguments["stream"], node_id: commandArguments["node_id"], port: commandArguments["port"] });
 }
 
 /** Each command's handler, taking the arguments as the window sent them and the window that sent them, and answering in the contract's shape. */

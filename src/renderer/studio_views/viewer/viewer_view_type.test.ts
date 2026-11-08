@@ -22,25 +22,25 @@ const GRAPH: StreamGraphSummary = {
 
 describe("the output port the Viewer plays", () => {
   it("is the stream's first Image port that feeds nothing on, while no node of the stream is selected", () => {
-    expect(outputPortTheViewerPlays(GRAPH, { kind: "nothing" })).toEqual({ node: "halftonelenseffect", port: "video_to_downstream" });
-    expect(outputPortTheViewerPlays(GRAPH, { kind: "node", stream: "another-stream", node: "camera" })).toEqual({ node: "halftonelenseffect", port: "video_to_downstream" });
+    expect(outputPortTheViewerPlays(GRAPH, { kind: "nothing" })).toEqual({ node_id: "id-halftonelenseffect", node_name: "halftonelenseffect", port: "video_to_downstream" });
+    expect(outputPortTheViewerPlays(GRAPH, { kind: "node", stream: "another-stream", node: "camera" })).toEqual({ node_id: "id-halftonelenseffect", node_name: "halftonelenseffect", port: "video_to_downstream" });
   });
 
   it("is the selected node's, of whatever family", () => {
-    expect(outputPortTheViewerPlays(GRAPH, { kind: "node", stream: STREAM, node: "camera" })).toEqual({ node: "camera", port: "video" });
-    expect(outputPortTheViewerPlays(GRAPH, { kind: "node", stream: STREAM, node: "brightnessmeter" })).toEqual({ node: "brightnessmeter", port: "readings" });
+    expect(outputPortTheViewerPlays(GRAPH, { kind: "node", stream: STREAM, node: "camera" })).toEqual({ node_id: "id-camera", node_name: "camera", port: "video" });
+    expect(outputPortTheViewerPlays(GRAPH, { kind: "node", stream: STREAM, node: "brightnessmeter" })).toEqual({ node_id: "id-brightnessmeter", node_name: "brightnessmeter", port: "readings" });
   });
 
   it("is a port of another family where the stream has no Image port, and none where it has no output", () => {
-    expect(outputPortTheViewerPlays({ ...GRAPH, nodes: [METER] }, null)).toEqual({ node: "brightnessmeter", port: "readings" });
+    expect(outputPortTheViewerPlays({ ...GRAPH, nodes: [METER] }, null)).toEqual({ node_id: "id-brightnessmeter", node_name: "brightnessmeter", port: "readings" });
     expect(outputPortTheViewerPlays({ ...GRAPH, nodes: [] }, null)).toBeNull();
   });
 
   it("is the port chosen for this stream while the graph still has it, over the selection", () => {
-    const chosenTheCamera = { chosen_port: { stream: STREAM, node: "camera", port: "video" } };
-    expect(portTheViewerPlays(GRAPH, { kind: "node", stream: STREAM, node: "brightnessmeter" }, chosenTheCamera)).toEqual({ node: "camera", port: "video" });
-    expect(portTheViewerPlays({ ...GRAPH, nodes: [EFFECT, METER] }, null, chosenTheCamera)).toEqual({ node: "halftonelenseffect", port: "video_to_downstream" });
-    expect(portTheViewerPlays(GRAPH, null, { chosen_port: { ...chosenTheCamera.chosen_port, stream: "another-stream" } })).toEqual({ node: "halftonelenseffect", port: "video_to_downstream" });
+    const chosenTheCamera = { chosen_port: { stream: STREAM, node_id: "id-camera", port: "video" } };
+    expect(portTheViewerPlays(GRAPH, { kind: "node", stream: STREAM, node: "brightnessmeter" }, chosenTheCamera)).toEqual({ node_id: "id-camera", node_name: "camera", port: "video" });
+    expect(portTheViewerPlays({ ...GRAPH, nodes: [EFFECT, METER] }, null, chosenTheCamera)).toEqual({ node_id: "id-halftonelenseffect", node_name: "halftonelenseffect", port: "video_to_downstream" });
+    expect(portTheViewerPlays(GRAPH, null, { chosen_port: { ...chosenTheCamera.chosen_port, stream: "another-stream" } })).toEqual({ node_id: "id-halftonelenseffect", node_name: "halftonelenseffect", port: "video_to_downstream" });
   });
 });
 

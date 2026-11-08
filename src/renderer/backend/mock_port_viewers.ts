@@ -17,11 +17,11 @@ export class MockPortViewers {
   private readonly imageFrameListeners = new Set<(videoFrame: VideoFrame, frameFacts: PortViewerImageFrameFacts) => void>();
   private portViewersOpened = 0;
 
-  /** Open a port viewer of `target`, whose port carries `portFamily`, answering the id its events arrive under. */
-  open(target: PortViewerTarget, portFamily: PortFamily | null): string {
+  /** Open a port viewer of `target`, on the node named `nodeName`, whose port carries `portFamily`, answering the id its events arrive under. */
+  open(target: PortViewerTarget, nodeName: string, portFamily: PortFamily | null): string {
     this.portViewersOpened += 1;
     const portViewer = `port-viewer-${this.portViewersOpened}`;
-    const playing = portFamily === "image" ? this.playATestPattern(portViewer, target) : this.reportMessages(portViewer, portFamily);
+    const playing = portFamily === "image" ? this.playATestPattern(portViewer, `${nodeName} › ${target.port}`) : this.reportMessages(portViewer, portFamily);
     this.stopPlayingByPortViewer.set(portViewer, playing);
     return portViewer;
   }
@@ -41,7 +41,7 @@ export class MockPortViewers {
     return () => this.imageFrameListeners.delete(listener);
   }
 
-  private playATestPattern(portViewer: string, target: PortViewerTarget): () => void {
+  private playATestPattern(portViewer: string, portWords: string): () => void {
     if (typeof OffscreenCanvas === "undefined" || typeof VideoFrame === "undefined") {
       const timer = window.setTimeout(() => {
         for (const listener of this.eventListeners) listener({ port_viewer: portViewer, kind: "ended", because: "This page has no WebCodecs VideoFrame to play the mock's frames." });
@@ -54,7 +54,7 @@ export class MockPortViewers {
     const timer = window.setInterval(() => {
       if (drawing === null) return;
       framesDrawn += 1;
-      drawAMockTestPattern(drawing, framesDrawn, `${target.node} › ${target.port}`);
+      drawAMockTestPattern(drawing, framesDrawn, portWords);
       const frameFacts: PortViewerImageFrameFacts = { port_viewer: portViewer, format_wire_name: "bgra32", skipped_since_last_read: 0 };
       for (const listener of this.imageFrameListeners) {
         listener(new VideoFrame(testPatternCanvas, { timestamp: framesDrawn * MOCK_IMAGE_FRAME_EVERY_MILLISECONDS * 1000 }), frameFacts);

@@ -20,11 +20,11 @@ import type {
 } from "../../view_host/studio_view_contract";
 import { nodeTitle } from "../node_words";
 
-/** One output port of a stream's graph, by its node's name and its own. */
-export type ViewerPortAddress = { node: string; port: string };
+/** One output port of a stream's graph: its node's id as `graph` lists it, that node's name, and the port's own name. */
+export type ViewerPortAddress = { node_id: string; node_name: string; port: string };
 
-/** What a Viewer area keeps with the layout: the port the person chose to play, or `null` to follow the selection. */
-export type ViewerSettings = { chosen_port: { stream: string; node: string; port: string } | null };
+/** What a Viewer area keeps with the layout: the port the person chose to play, by its node's id, or `null` to follow the selection. */
+export type ViewerSettings = { chosen_port: { stream: string; node_id: string; port: string } | null };
 
 const FOLLOW_THE_SELECTION_CHOICE = "follow_the_selection";
 
@@ -33,17 +33,17 @@ function viewerSettingsFrom(savedSettings: JsonValue): ViewerSettings | null {
   const chosenPort = savedSettings["chosen_port"];
   if (chosenPort === null) return { chosen_port: null };
   if (typeof chosenPort !== "object" || chosenPort === undefined || Array.isArray(chosenPort)) return null;
-  const { stream, node, port } = chosenPort;
-  if (typeof stream !== "string" || typeof node !== "string" || typeof port !== "string") return null;
-  return { chosen_port: { stream, node, port } };
+  const { stream, node_id, port } = chosenPort;
+  if (typeof stream !== "string" || typeof node_id !== "string" || typeof port !== "string") return null;
+  return { chosen_port: { stream, node_id, port } };
 }
 
-function viewerPortChoiceKey(portAddress: ViewerPortAddress): string {
-  return JSON.stringify([portAddress.node, portAddress.port]);
+function viewerPortChoiceKey(portAddress: { node_id: string; port: string }): string {
+  return JSON.stringify([portAddress.node_id, portAddress.port]);
 }
 
 function everyOutputPortOf(graph: StreamGraphSummary): (ViewerPortAddress & { family: string | null })[] {
-  return graph.nodes.flatMap((node) => node.output_ports.map((outputPort) => ({ node: node.name, port: outputPort.name, family: outputPort.family })));
+  return graph.nodes.flatMap((node) => node.output_ports.map((outputPort) => ({ node_id: node.id, node_name: node.name, port: outputPort.name, family: outputPort.family })));
 }
 
 /**
@@ -55,10 +55,10 @@ export function outputPortTheViewerPlays(graph: StreamGraphSummary, selection: S
   const outputPorts = everyOutputPortOf(graph);
   const mayBeAPicture = (outputPort: { family: string | null }) => outputPort.family === "image" || outputPort.family === null;
   const selectedNode = selection?.kind === "node" && selection.stream === graph.stream ? selection.node : null;
-  const selectedNodesPorts = outputPorts.filter((outputPort) => outputPort.node === selectedNode);
-  const nodesWithAPicture = new Set(outputPorts.filter(mayBeAPicture).map((outputPort) => outputPort.node));
+  const selectedNodesPorts = outputPorts.filter((outputPort) => outputPort.node_name === selectedNode);
+  const nodesWithAPicture = new Set(outputPorts.filter(mayBeAPicture).map((outputPort) => outputPort.node_name));
   const feedsAnotherPicture = (outputPort: ViewerPortAddress) =>
-    graph.links.some((link) => link.source_node === outputPort.node && link.source_port === outputPort.port && nodesWithAPicture.has(link.target_node));
+    graph.links.some((link) => link.source_node === outputPort.node_name && link.source_port === outputPort.port && nodesWithAPicture.has(link.target_node));
   const pictures = outputPorts.filter(mayBeAPicture);
   const played =
     selectedNodesPorts.find(mayBeAPicture) ??
@@ -67,14 +67,14 @@ export function outputPortTheViewerPlays(graph: StreamGraphSummary, selection: S
     pictures[0] ??
     outputPorts[0] ??
     null;
-  return played === null ? null : { node: played.node, port: played.port };
+  return played === null ? null : { node_id: played.node_id, node_name: played.node_name, port: played.port };
 }
 
 function chosenPortStillInTheGraph(graph: StreamGraphSummary, settings: ViewerSettings): ViewerPortAddress | null {
   const chosenPort = settings.chosen_port;
   if (chosenPort === null || chosenPort.stream !== graph.stream) return null;
-  const isInTheGraph = everyOutputPortOf(graph).some((outputPort) => outputPort.node === chosenPort.node && outputPort.port === chosenPort.port);
-  return isInTheGraph ? { node: chosenPort.node, port: chosenPort.port } : null;
+  const outputPortInTheGraph = everyOutputPortOf(graph).find((outputPort) => outputPort.node_id === chosenPort.node_id && outputPort.port === chosenPort.port);
+  return outputPortInTheGraph === undefined ? null : { node_id: outputPortInTheGraph.node_id, node_name: outputPortInTheGraph.node_name, port: outputPortInTheGraph.port };
 }
 
 /** The port the Viewer plays: the one chosen for this stream while the graph still has it, or else the one the selection gives. */
@@ -93,8 +93,8 @@ export function poppedOutViewerTargetOf(streamTab: StreamTabAddress, selection: 
 }
 
 function portWordsOf(graph: StreamGraphSummary, portAddress: ViewerPortAddress): string {
-  const node = graph.nodes.find((graphNode) => graphNode.name === portAddress.node);
-  return `${node === undefined ? portAddress.node : nodeTitle(node.name, node.type)} › ${portAddress.port}`;
+  const node = graph.nodes.find((graphNode) => graphNode.id === portAddress.node_id);
+  return `${node === undefined ? portAddress.node_name : nodeTitle(node.name, node.type)} › ${portAddress.port}`;
 }
 
 /** Draw `pixels`, `bgra32` or `rgba32` rows of `bytesPerRow`, onto `canvas`; `false` for any other format. */
@@ -132,10 +132,20 @@ type PortViewerShown =
 const MESSAGE_WORDS_REFRESH_EVERY_MS = 250;
 
 /** The picture, or the messages, one port viewer reads from a running node's output port. */
-function PortViewerPicture({ connection, target, portWords }: { connection: StudioViewHostConnection<ViewerSettings>; target: PortViewerTarget; portWords: string }) {
+function PortViewerPicture({
+  connection,
+  target,
+  nodeName,
+  portWords,
+}: {
+  connection: StudioViewHostConnection<ViewerSettings>;
+  target: PortViewerTarget;
+  nodeName: string;
+  portWords: string;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [shown, setShown] = useState<PortViewerShown>({ kind: "waiting" });
-  const { stream, node, port } = target;
+  const { stream, node_id, port } = target;
   useEffect(() => {
     setShown({ kind: "waiting" });
     let shownKind: PortViewerShown["kind"] = "waiting";
@@ -174,12 +184,12 @@ function PortViewerPicture({ connection, target, portWords }: { connection: Stud
         show(event);
       }
     };
-    const portViewer = connection.watchPortViewer({ stream, node, port }, handleTheEvent);
+    const portViewer = connection.watchPortViewer({ stream, node_id, port }, handleTheEvent);
     return () => portViewer.close();
-  }, [connection, stream, node, port]);
+  }, [connection, stream, node_id, port]);
   const isAPicture = shown.kind === "picture";
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-black" data-viewer-playing={`${node}/${port}`} data-viewer-port-state={shown.kind}>
+    <div className="relative flex min-h-0 flex-1 flex-col bg-black" data-viewer-playing={`${nodeName}/${port}`} data-viewer-port-state={shown.kind}>
       <canvas ref={canvasRef} aria-label={`Live picture of ${portWords}`} className={isAPicture ? "block size-full object-contain" : "hidden"} data-viewer-picture="" />
       {shown.kind === "waiting" && <WaitingState title={`Reading ${portWords}`} explanation="The picture shows once the node writes its next frame." />}
       {shown.kind === "messages" && (
@@ -223,9 +233,10 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: StudioViewHostC
   }
   return (
     <PortViewerPicture
-      key={`${playedPort.node}/${playedPort.port}`}
+      key={viewerPortChoiceKey(playedPort)}
       connection={connection}
-      target={{ stream: streamTab.stream, ...playedPort }}
+      target={{ stream: streamTab.stream, node_id: playedPort.node_id, port: playedPort.port }}
+      nodeName={playedPort.node_name}
       portWords={portWordsOf(graphReading.graph, playedPort)}
     />
   );
@@ -262,7 +273,7 @@ function ViewerPortChooser({ connection, streamTab }: { connection: StudioViewHo
         dataAttributeOfEachChoice="data-viewer-port-choice"
         onChosen={(choice) => {
           const portChosenNow = everyOutputPortOf(graph).find((outputPort) => viewerPortChoiceKey(outputPort) === choice);
-          connection.rememberSettings({ chosen_port: portChosenNow === undefined ? null : { stream: graph.stream, node: portChosenNow.node, port: portChosenNow.port } });
+          connection.rememberSettings({ chosen_port: portChosenNow === undefined ? null : { stream: graph.stream, node_id: portChosenNow.node_id, port: portChosenNow.port } });
         }}
       />
     </FieldMenu>
