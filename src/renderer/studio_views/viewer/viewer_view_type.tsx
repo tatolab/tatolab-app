@@ -100,13 +100,16 @@ function portWordsOf(graph: StreamGraphSummary, portAddress: ViewerPortAddress):
   return `${node === undefined ? portAddress.node_name : nodeTitle(node.name, node.type)} › ${portAddress.port}`;
 }
 
-/** Draw `pixels`, `bgra32` or `rgba32` rows of `bytesPerRow`, onto `canvas`; `false` for any other format. */
+const BGRA_BYTE_ORDER_FORMAT_WIRE_NAMES = new Set(["bgra32", "bgra8_unorm", "bgra8_unorm_srgb"]);
+const RGBA_BYTE_ORDER_FORMAT_WIRE_NAMES = new Set(["rgba32", "rgba8_unorm", "rgba8_unorm_srgb"]);
+
+/** Draw `pixels`, rows of `bytesPerRow` in a four-byte BGRA or RGBA format, onto `canvas`; `false` for any other format. */
 function drawCpuReadPixels(canvas: HTMLCanvasElement, width: number, height: number, formatWireName: string, bytesPerRow: number, pixels: Uint8Array): boolean {
-  if (formatWireName !== "bgra32" && formatWireName !== "rgba32") return false;
+  const isBgra = BGRA_BYTE_ORDER_FORMAT_WIRE_NAMES.has(formatWireName);
+  if (!isBgra && !RGBA_BYTE_ORDER_FORMAT_WIRE_NAMES.has(formatWireName)) return false;
   const drawing = canvas.getContext("2d");
   if (drawing === null) return false;
   const imageData = new ImageData(width, height);
-  const isBgra = formatWireName === "bgra32";
   for (let row = 0; row < height; row += 1) {
     for (let column = 0; column < width; column += 1) {
       const from = row * bytesPerRow + column * 4;
@@ -203,7 +206,7 @@ function PortViewerPicture({
         />
       )}
       {shown.kind === "undrawable" && (
-        <WaitingState title={`${portWords} is ${shown.format_wire_name}`} explanation={`The Viewer draws bgra32 and rgba32 frames it reads as pixels; ${shown.format_wire_name} arrives later.`} />
+        <WaitingState title={`${portWords} is ${shown.format_wire_name}`} explanation={`The Viewer draws four-byte BGRA and RGBA frames it reads as pixels; ${shown.format_wire_name} arrives later.`} />
       )}
       {shown.kind === "reopening" && <WaitingState title={`Reopening ${portWords}`} explanation={shown.because} data-viewer-reopening="" />}
       {shown.kind === "ended" && <WaitingState isFailure title={`Stopped reading ${portWords}`} explanation={shown.because} data-viewer-ended="" />}
