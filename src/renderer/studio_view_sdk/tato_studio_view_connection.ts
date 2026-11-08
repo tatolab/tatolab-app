@@ -11,6 +11,7 @@ import {
   type StudioViewAskAnswer,
   type StudioViewGrant,
   type StudioViewInputEvent,
+  type StudioViewInputEventOnThePort,
   type StudioViewOutputPayload,
   type StudioViewWatchedReading,
   type StudioViewWatchedSubject,
@@ -42,14 +43,14 @@ export interface TatoStudioViewConnection {
   watchStreamGraph(stream: string, listener: (reading: StreamGraphReading) => void, whenRefused?: WhenTheStudioRefuses): StopWatching;
   /** Needs `read.stream_graph`. */
   watchNodeCatalog(stream: string, listener: (reading: NodeCatalogReading) => void, whenRefused?: WhenTheStudioRefuses): StopWatching;
-  /** What the output wired into the view's input `input` carries; an Image frame arrives as an `ImageBitmap` the view closes once drawn. */
+  /** What the output wired into the view's input `input` carries; an Image frame arrives as a `VideoFrame` the view closes once drawn. */
   watchInput(input: string, onEvent: (inputEvent: StudioViewInputEvent) => void, whenRefused?: WhenTheStudioRefuses): StopWatching;
   /** Needs `write.selection`. */
   select(selection: StudioSelection): Promise<StudioViewAskAnswer>;
   /** Needs `write.selection`. */
   openStreamTab(streamTab: StreamTabAddress): Promise<StudioViewAskAnswer>;
-  /** Send `payload` on the view's output `output`: an `ImageBitmap` for Image, which the studio then owns, or JSON. */
-  sendOutput(output: string, payload: StudioViewOutputPayload): Promise<StudioViewAskAnswer>;
+  /** Send `payload` on the view's output `output`: a `VideoFrame` or `ImageBitmap` for Image, which the studio then owns, or JSON. */
+  sendOutput(output: string, payload: StudioViewOutputPayload | VideoFrame): Promise<StudioViewAskAnswer>;
   /** Stop every watch and close the port. */
   close(): void;
 }
@@ -60,6 +61,18 @@ interface WatchHeld {
 }
 
 const IGNORE_THE_REFUSAL: WhenTheStudioRefuses = () => undefined;
+
+function isAVideoFrame(payload: StudioViewOutputPayload | VideoFrame): payload is VideoFrame {
+  return typeof VideoFrame !== "undefined" && payload instanceof VideoFrame;
+}
+
+/** `inputEvent` as the view reads it: an Image frame's `ImageBitmap` made a `VideoFrame` again, at its frame's timestamp. */
+function inputEventInTheView(inputEvent: StudioViewInputEventOnThePort): StudioViewInputEvent {
+  if (inputEvent.kind !== "image_bitmap") return inputEvent;
+  const videoFrame = new VideoFrame(inputEvent.image_bitmap, { timestamp: inputEvent.timestamp_microseconds });
+  inputEvent.image_bitmap.close();
+  return { kind: "image_frame", video_frame: videoFrame, format_wire_name: inputEvent.format_wire_name, skipped_since_last_read: inputEvent.skipped_since_last_read };
+}
 
 /** The view's connection over `port`, once the studio has said what it granted. */
 export function connectToTatoStudioOverPort(port: MessagePort): Promise<TatoStudioViewConnection> {
@@ -145,11 +158,16 @@ export function connectToTatoStudioOverPort(port: MessagePort): Promise<TatoStud
         }, whenRefused }),
       watchInput: (input, onEvent, whenRefused = IGNORE_THE_REFUSAL) =>
         watch({ kind: "input", input }, { onWatched: (watched) => {
-          if (watched.subject === "input") onEvent(watched.reading);
+          if (watched.subject === "input") onEvent(inputEventInTheView(watched.reading));
         }, whenRefused }),
       select: (selection) => ask({ kind: "select", selection }),
       openStreamTab: (streamTab) => ask({ kind: "open_stream_tab", stream_tab: streamTab }),
-      sendOutput: (output, payload) => ask({ kind: "send_output", output }, payload),
+      sendOutput: async (output, payload) => {
+        if (!isAVideoFrame(payload)) return ask({ kind: "send_output", output }, payload);
+        const imageBitmap = await createImageBitmap(payload);
+        payload.close();
+        return ask({ kind: "send_output", output }, imageBitmap);
+      },
       close: () => {
         if (isClosed) return;
         isClosed = true;

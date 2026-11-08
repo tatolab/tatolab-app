@@ -40,11 +40,13 @@ export type MessageFromTheStudioView =
   | { kind: "stop_watching"; watch_id: number }
   | { kind: "ask"; ask_id: number; ask: StudioViewAsk };
 
-/** What a view's input delivers: an Image frame as an `ImageBitmap` the view closes once drawn, its port viewer's other events, or why nothing is wired into it. */
-export type StudioViewInputEvent =
-  | { kind: "image_bitmap"; image_bitmap: ImageBitmap; format_wire_name: string; skipped_since_last_read: number }
-  | Exclude<PortViewerConnectionEvent, { kind: "image_frame" }>
-  | { kind: "unwired"; because: string };
+/** What a view's input delivers: its port viewer's events, an Image frame as a `VideoFrame` the view closes once drawn, or why nothing is wired into it. */
+export type StudioViewInputEvent = PortViewerConnectionEvent | { kind: "unwired"; because: string };
+
+/** A view input's event as it crosses the port: an Image frame as a transferred `ImageBitmap` with its frame's timestamp, which the SDK makes a `VideoFrame` again inside the view. */
+export type StudioViewInputEventOnThePort =
+  | { kind: "image_bitmap"; image_bitmap: ImageBitmap; timestamp_microseconds: number; format_wire_name: string; skipped_since_last_read: number }
+  | Exclude<StudioViewInputEvent, { kind: "image_frame" }>;
 
 /** One reading of a watched subject, tagged with the subject's kind. */
 export type StudioViewWatchedReading =
@@ -54,7 +56,7 @@ export type StudioViewWatchedReading =
   | { subject: "selection"; reading: StudioSelection }
   | { subject: "stream_graph"; reading: StreamGraphReading }
   | { subject: "node_catalog"; reading: NodeCatalogReading }
-  | { subject: "input"; reading: StudioViewInputEvent };
+  | { subject: "input"; reading: StudioViewInputEventOnThePort };
 
 /** What the studio answers an ask with: done, or refused in words. */
 export type StudioViewAskAnswer = { kind: "done" } | { kind: "refused"; because: string };

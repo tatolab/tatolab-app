@@ -12,7 +12,7 @@ import {
   type MessageFromTheStudioHost,
   type StudioViewAsk,
   type StudioViewAskAnswer,
-  type StudioViewInputEvent,
+  type StudioViewInputEventOnThePort,
   type StudioViewWatchedReading,
   type StudioViewWatchedSubject,
 } from "./studio_view_wire_protocol";
@@ -160,7 +160,7 @@ export class SandboxedStudioViewBridge {
 
   private readTheInput(watchId: number, input: string): InputWatch {
     const wiring = this.wiringOfTheInput(input);
-    const sendInputEvent = (inputEvent: StudioViewInputEvent, transfer: Transferable[]) =>
+    const sendInputEvent = (inputEvent: StudioViewInputEventOnThePort, transfer: Transferable[]) =>
       this.send({ kind: "watched", watch_id: watchId, watched: { subject: "input", reading: inputEvent } }, transfer);
     if (wiring.kind === "unwired") {
       sendInputEvent(wiring, []);
@@ -173,11 +173,21 @@ export class SandboxedStudioViewBridge {
         return;
       }
       const { video_frame: videoFrame, format_wire_name: formatWireName, skipped_since_last_read: skippedSinceLastRead } = portViewerEvent;
+      const timestampMicroseconds = videoFrame.timestamp;
       this.imageBitmapOfTheVideoFrame(videoFrame).then(
         (imageBitmap) => {
           videoFrame.close();
           if (!isWatched || this.isClosed) imageBitmap.close();
-          else sendInputEvent({ kind: "image_bitmap", image_bitmap: imageBitmap, format_wire_name: formatWireName, skipped_since_last_read: skippedSinceLastRead }, [imageBitmap]);
+          else sendInputEvent(
+              {
+                kind: "image_bitmap",
+                image_bitmap: imageBitmap,
+                timestamp_microseconds: timestampMicroseconds,
+                format_wire_name: formatWireName,
+                skipped_since_last_read: skippedSinceLastRead,
+              },
+              [imageBitmap],
+            );
         },
         () => videoFrame.close(),
       );

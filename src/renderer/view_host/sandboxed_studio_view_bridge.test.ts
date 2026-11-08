@@ -200,7 +200,7 @@ describe("a sandboxed view's connection to the studio", () => {
     let bitmapsMade = 0;
     const framesClosed: string[] = [];
     const bitmapsClosed: string[] = [];
-    const videoFrameNamed = (name: string) => Object.assign(Object.create(null), { close: () => framesClosed.push(name) });
+    const videoFrameNamed = (name: string) => Object.assign(Object.create(null), { timestamp: 33_000, close: () => framesClosed.push(name) });
     const imageBitmapNamed = (name: string) => Object.assign(Object.create(null), { name, close: () => bitmapsClosed.push(name) });
     const bridge = new SandboxedStudioViewBridge(
       portDouble,
@@ -224,7 +224,7 @@ describe("a sandboxed view's connection to the studio", () => {
 
     const imageBitmapsPosted = postedToTheView.filter((posted) => posted.transfer.length > 0);
     expect(imageBitmapsPosted).toHaveLength(1);
-    expect(imageBitmapsPosted[0]?.message).toMatchObject({ kind: "watched", watch_id: 1, watched: { subject: "input", reading: { kind: "image_bitmap", format_wire_name: "bgra8", skipped_since_last_read: 2 } } });
+    expect(imageBitmapsPosted[0]?.message).toMatchObject({ kind: "watched", watch_id: 1, watched: { subject: "input", reading: { kind: "image_bitmap", timestamp_microseconds: 33_000, format_wire_name: "bgra8", skipped_since_last_read: 2 } } });
     expect(framesClosed).toEqual(["first", "second"]);
     expect(bitmapsClosed).toEqual(["second"]);
   });

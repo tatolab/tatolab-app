@@ -22,16 +22,16 @@ function showThePictureStatus(words: string): void {
 }
 
 function drawTheInputEvent(inputEvent: StudioViewInputEvent): void {
-  if (inputEvent.kind === "image_bitmap") {
-    const { image_bitmap: imageBitmap } = inputEvent;
+  if (inputEvent.kind === "image_frame") {
+    const { video_frame: videoFrame } = inputEvent;
     if (pictureCanvas !== null && pictureContext !== null) {
-      if (pictureCanvas.width !== imageBitmap.width || pictureCanvas.height !== imageBitmap.height) {
-        pictureCanvas.width = imageBitmap.width;
-        pictureCanvas.height = imageBitmap.height;
+      if (pictureCanvas.width !== videoFrame.displayWidth || pictureCanvas.height !== videoFrame.displayHeight) {
+        pictureCanvas.width = videoFrame.displayWidth;
+        pictureCanvas.height = videoFrame.displayHeight;
       }
-      pictureContext.drawImage(imageBitmap, 0, 0);
+      pictureContext.drawImage(videoFrame, 0, 0);
     }
-    imageBitmap.close();
+    videoFrame.close();
     framesDrawn += 1;
     showThePictureStatus(`picture: ${framesDrawn} frames drawn`);
   } else if (inputEvent.kind === "image_pixels") {
