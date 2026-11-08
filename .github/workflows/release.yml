@@ -1,0 +1,288 @@
+name: Release
+
+# Ships Tato Studio to the update feed at get.tatolab.com, which the installed apps check: every merge
+# to main, and the hourly run whenever streamlib has released since the app last shipped. Each release
+# bundles the streamlib release get.tatolab.com serves as latest, and is versioned by
+# scripts/plan_tatolab_app_release.mjs. macOS is built, signed with the Developer ID and notarized on
+# a macos-26 runner; Linux on ubuntu-22.04. Everything the app publishes lives under app/, apart from
+# streamlib's packages/, simple/, releases/, install.sh and latest: the files land under
+# app/releases/<version>/ first, and the feed's manifests in app/ only once both platforms built, so
+# an installed app never reads a manifest whose files are missing. Secrets come from the
+# repository's Infisical sync.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to get.tatolab.com and the GitHub release (unticked: build only)"
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  GET_TATOLAB_COM_BUCKET: get-tatolab-com
+  GET_TATOLAB_COM_URL: https://get.tatolab.com
+
+jobs:
+  plan:
+    name: Plan the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_release: ${{ steps.plan.outputs.should_release }}
+      app_version: ${{ steps.plan.outputs.app_version }}
+      streamlib_tag: ${{ steps.plan.outputs.streamlib_tag }}
+      streamlib_version: ${{ steps.plan.outputs.streamlib_version }}
+      linux_runtime_tarball_url: ${{ steps.plan.outputs.linux_runtime_tarball_url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/plan_tatolab_app_release.mjs
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - id: plan
+        run: node scripts/plan_tatolab_app_release.mjs "${{ github.event_name }}"
+
+  build-macos:
+    name: Build, sign and notarize for macOS
+    needs: plan
+    if: needs.plan.outputs.should_release == 'true'
+    # Pinned, not macos-latest: the image decides the SDK, and the app's floor is macOS 26.0.
+    runs-on: macos-26
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Every secret the macOS build reads is set
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_RUNTIME_PROVISIONING_PROFILE: ${{ secrets.APPLE_RUNTIME_PROVISIONING_PROFILE }}
+          APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          missing_secrets=()
+          for required_secret in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+            APPLE_RUNTIME_PROVISIONING_PROFILE APPLE_API_KEY_P8_BASE64 APPLE_API_KEY_ID APPLE_API_ISSUER; do
+            [ -n "${!required_secret}" ] || missing_secrets+=("$required_secret")
+          done
+          if [ ${#missing_secrets[@]} -gt 0 ]; then
+            echo "::error::not set in the repository's secrets (Infisical sync): ${missing_secrets[*]}"
+            exit 1
+          fi
+
+      # cmake and ninja build streamlib's bundled Vulkan loader; shaderc its shaders.
+      - name: Install the build tools
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
+        run: brew install shaderc cmake ninja
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: tato-studio-release-macos
+          workspaces: |
+            build/streamlib -> target
+            native/tatolab-runtime-viewer-frame-import -> target
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Build Tato Studio.app, its .dmg and its update
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_RUNTIME_PROVISIONING_PROFILE: ${{ secrets.APPLE_RUNTIME_PROVISIONING_PROFILE }}
+          APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          STREAMLIB_TAG: ${{ needs.plan.outputs.streamlib_tag }}
+          APP_VERSION: ${{ needs.plan.outputs.app_version }}
+        run: |
+          set -euo pipefail
+          # notarytool reads the App Store Connect key from a file; it lives only as long as this step.
+          APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8"
+          (umask 077 && printf "%s" "$APPLE_API_KEY_P8_BASE64" | base64 --decode > "$APPLE_API_KEY_PATH")
+          trap 'rm -f "$APPLE_API_KEY_PATH"' EXIT
+          export APPLE_API_KEY_PATH
+          scripts/build-tatolab-app.sh --streamlib-ref "$STREAMLIB_TAG" --app-version "$APP_VERSION" --release --notarize
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: tato-studio-macos
+          if-no-files-found: error
+          path: |
+            build/Tato-Studio-${{ needs.plan.outputs.app_version }}-arm64.dmg
+            build/Tato-Studio-${{ needs.plan.outputs.app_version }}-arm64-mac.zip
+            build/latest-mac.yml
+
+  build-linux:
+    name: Build for Linux
+    needs: plan
+    if: needs.plan.outputs.should_release == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install the packaging tools
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev desktop-file-utils curl
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: tato-studio-release-linux
+          workspaces: native/tatolab-runtime-viewer-frame-import -> target
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      # The runtime streamlib built at its glibc floor and serves from get.tatolab.com, which carries
+      # the commit it was built from in streamlib-commit.
+      - name: Take the release's Linux runtime unit
+        env:
+          TARBALL_URL: ${{ needs.plan.outputs.linux_runtime_tarball_url }}
+        run: |
+          set -euo pipefail
+          tarball_directory="$RUNNER_TEMP/linux-runtime-tarball"
+          tarball_name="$(basename "$TARBALL_URL")"
+          mkdir -p "$tarball_directory" "$RUNNER_TEMP/linux-runtime-unit"
+          curl -fsSL -o "$tarball_directory/$tarball_name" "$TARBALL_URL"
+          curl -fsSL -o "$tarball_directory/$tarball_name.sha256" "$TARBALL_URL.sha256"
+          (cd "$tarball_directory" && sha256sum --check "$tarball_name.sha256")
+          tar -C "$RUNNER_TEMP/linux-runtime-unit" -xzf "$tarball_directory/$tarball_name"
+
+      - name: Build the .deb, the AppImage and their update
+        env:
+          STREAMLIB_TAG: ${{ needs.plan.outputs.streamlib_tag }}
+          APP_VERSION: ${{ needs.plan.outputs.app_version }}
+        run: >-
+          scripts/build-tatolab-linux-app.sh --streamlib-ref "$STREAMLIB_TAG"
+          --runtime-unit "$RUNNER_TEMP/linux-runtime-unit" --app-version "$APP_VERSION" --release
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: tato-studio-linux
+          if-no-files-found: error
+          path: |
+            build/linux/Tato-Studio-${{ needs.plan.outputs.app_version }}-amd64.deb
+            build/linux/Tato-Studio-${{ needs.plan.outputs.app_version }}-x86_64.AppImage
+            build/linux/latest-linux.yml
+
+  publish:
+    name: Publish to get.tatolab.com
+    needs: [plan, build-macos, build-linux]
+    if: needs.plan.outputs.should_release == 'true' && (github.event_name != 'workflow_dispatch' || inputs.publish)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      APP_VERSION: ${{ needs.plan.outputs.app_version }}
+      STREAMLIB_VERSION: ${{ needs.plan.outputs.streamlib_version }}
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: release-files
+          merge-multiple: true
+
+      - name: Every secret the publish reads is set
+        env:
+          CLOUDFLARE_R2_GET_TATOLAB_COM_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_GET_TATOLAB_COM_ACCESS_KEY_ID }}
+          CLOUDFLARE_R2_GET_TATOLAB_COM_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_GET_TATOLAB_COM_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing_secrets=()
+          for required_secret in CLOUDFLARE_R2_GET_TATOLAB_COM_ACCESS_KEY_ID \
+            CLOUDFLARE_R2_GET_TATOLAB_COM_SECRET_ACCESS_KEY CLOUDFLARE_ACCOUNT_ID; do
+            [ -n "${!required_secret}" ] || missing_secrets+=("$required_secret")
+          done
+          if [ ${#missing_secrets[@]} -gt 0 ]; then
+            echo "::error::not set in the repository's secrets (Infisical sync): ${missing_secrets[*]}"
+            exit 1
+          fi
+
+      # R2 through its S3 API. The checksum settings are the ones Cloudflare's R2 docs give for the
+      # AWS CLI, whose default checksums R2 does not accept. Every key is under app/. The release's files go first and are
+      # immutable; the manifests, which point at them, go last and are read fresh.
+      - name: Serve the release from get.tatolab.com
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_GET_TATOLAB_COM_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_GET_TATOLAB_COM_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          r2_endpoint="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
+          put_object() {
+            aws s3 cp --endpoint-url "$r2_endpoint" --only-show-errors \
+              --content-type "$3" --cache-control "$4" "$1" "s3://$GET_TATOLAB_COM_BUCKET/$2"
+          }
+          immutable="public, max-age=31536000, immutable"
+          put_object "release-files/Tato-Studio-$APP_VERSION-arm64.dmg" "app/releases/$APP_VERSION/Tato-Studio-$APP_VERSION-arm64.dmg" application/x-apple-diskimage "$immutable"
+          put_object "release-files/Tato-Studio-$APP_VERSION-arm64-mac.zip" "app/releases/$APP_VERSION/Tato-Studio-$APP_VERSION-arm64-mac.zip" application/zip "$immutable"
+          put_object "release-files/Tato-Studio-$APP_VERSION-amd64.deb" "app/releases/$APP_VERSION/Tato-Studio-$APP_VERSION-amd64.deb" application/vnd.debian.binary-package "$immutable"
+          put_object "release-files/Tato-Studio-$APP_VERSION-x86_64.AppImage" "app/releases/$APP_VERSION/Tato-Studio-$APP_VERSION-x86_64.AppImage" application/octet-stream "$immutable"
+          put_object release-files/latest-mac.yml app/latest-mac.yml "text/yaml; charset=utf-8" "no-cache"
+          put_object release-files/latest-linux.yml app/latest-linux.yml "text/yaml; charset=utf-8" "no-cache"
+          printf '{"app_version":"%s","streamlib_version":"%s","app_commit":"%s"}\n' "$APP_VERSION" "$STREAMLIB_VERSION" "$GITHUB_SHA" > tato-studio-release.json
+          put_object tato-studio-release.json app/tato-studio-release.json "application/json" "no-cache"
+
+      - name: get.tatolab.com serves this release
+        run: |
+          set -euo pipefail
+          for update_file in "Tato-Studio-$APP_VERSION-arm64-mac.zip" "Tato-Studio-$APP_VERSION-x86_64.AppImage"; do
+            served_sha256="$(curl -fsSL "$GET_TATOLAB_COM_URL/app/releases/$APP_VERSION/$update_file" | sha256sum | cut -d ' ' -f 1)"
+            built_sha256="$(sha256sum "release-files/$update_file" | cut -d ' ' -f 1)"
+            [ "$served_sha256" = "$built_sha256" ] || { echo "::error::get.tatolab.com serves a $update_file that is not the one built"; exit 1; }
+          done
+          curl -fsSL -H "Cache-Control: no-cache" "$GET_TATOLAB_COM_URL/app/latest-mac.yml" | grep -qx "version: $APP_VERSION" \
+            || { echo "::error::get.tatolab.com/app/latest-mac.yml does not name $APP_VERSION"; exit 1; }
+
+      - name: Attach the release's files to a GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          gh release create "v$APP_VERSION" --target "$GITHUB_SHA" --title "Tato Studio $APP_VERSION"
+          --notes "Tato Studio $APP_VERSION, bundling the Tatolab runtime $STREAMLIB_VERSION."
+          "release-files/Tato-Studio-$APP_VERSION-arm64.dmg"
+          "release-files/Tato-Studio-$APP_VERSION-amd64.deb"
+          "release-files/Tato-Studio-$APP_VERSION-x86_64.AppImage"

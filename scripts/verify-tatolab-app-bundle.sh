@@ -4,7 +4,7 @@
 # identity with the hardened runtime (never ad-hoc, never another team), no Mach-O outside the app's
 # and the runtime helper's Contents/MacOS and Contents/Frameworks, every symlink resolving inside the
 # bundle, the runtime helper Contents/Helpers/Tatolab Runtime.app and its Info.plist, no install.sh,
-# the Info.plist usage strings, the helper's runtime version against the app's and the streamlib
+# the Info.plist usage strings, the helper's runtime version at or below the app's and the streamlib
 # commit it was built from, the lend's CPython 3.10-3.14 bytecode, the
 # runtime's uv beside the helper's tatolabd and no Python of the app's own, the entitlements of the
 # helper's tatolabd, uv and tatolab-cli, the app and Electron's helpers, Electron's
@@ -140,9 +140,13 @@ verify_app_bundle() {
   app_short_version="$(plutil -extract CFBundleShortVersionString raw -o - "$info_plist" 2>/dev/null || true)"
   bundled_tatolabd_version="$("$helper_contents/MacOS/tatolabd" --version 2>/dev/null || true)"
   bundled_tatolabd_version="${bundled_tatolabd_version##* }"
-  [ -n "$app_short_version" ] && [ "$bundled_tatolabd_version" = "$app_short_version" ] \
-    && pass "the bundled tatolabd is $bundled_tatolabd_version, the app's version" \
-    || fail "the bundled tatolabd is '$bundled_tatolabd_version', not the app's version '$app_short_version'"
+  # The app's version is the bundled runtime's, or a later one when the app released again over the same runtime.
+  if [ -n "$app_short_version" ] && [[ "$bundled_tatolabd_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+    && [ "$(printf '%s\n%s\n' "$bundled_tatolabd_version" "$app_short_version" | sort -V | tail -1)" = "$app_short_version" ]; then
+    pass "the bundled tatolabd is $bundled_tatolabd_version, no newer than the app's version $app_short_version"
+  else
+    fail "the bundled tatolabd is '$bundled_tatolabd_version', not a version at or below the app's '$app_short_version'"
+  fi
   [ "$(plutil -extract CFBundleShortVersionString raw -o - "$helper_info_plist" 2>/dev/null)" = "$app_short_version" ] \
     && pass "Tatolab Runtime.app's version is the app's" || fail "Tatolab Runtime.app's CFBundleShortVersionString is not the app's '$app_short_version'"
   local bundled_streamlib_commit

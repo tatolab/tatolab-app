@@ -5,7 +5,7 @@
 # own: the runtime's uv sits beside its tatolabd.
 # The runtime is always streamlib's main, or --streamlib-ref, fetched by
 # fetch-streamlib-for-the-app-build.sh into build/linux-streamlib. The packages' version is the
-# version of the tatolabd they carry.
+# version of the tatolabd they carry, or --app-version.
 # Outputs build/linux/Tato-Studio-<version>-amd64.deb, build/linux/Tato-Studio-<version>-x86_64.AppImage,
 # and the update feed's manifest listing both, build/linux/latest-linux.yml.
 #
@@ -16,7 +16,8 @@
 #   --runtime-unit DIR       an already-built runtime unit, accepted only when its streamlib-commit
 #                            names the commit the build resolved; a release passes its own runtime
 #                            tarball, unpacked, which streamlib builds at the glibc floor it promises
-#   --app-version X.Y.Z      refuse unless the carried tatolabd is version X.Y.Z
+#   --app-version X.Y.Z      the packages' version, in place of the carried tatolabd's; the release
+#                            workflow passes the version it plans, never older than the runtime's
 #   --local-proof-test-root  read the runtime under TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof;
 #                            for proving on a development machine, never shipped
 #   --app-update-feed-url URL  the feed the app checks for updates (default: get.tatolab.com's);
@@ -30,7 +31,7 @@ repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 scripts_directory="$repository_root/scripts"
 streamlib_ref=main
 prebuilt_runtime_unit=""
-expected_app_version=""
+requested_app_version=""
 local_proof_test_root=false
 app_update_feed_url=""
 release_build=false
@@ -38,7 +39,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --streamlib-ref) [ $# -ge 2 ] || usage; streamlib_ref="$2"; shift ;;
     --runtime-unit) [ $# -ge 2 ] || usage; prebuilt_runtime_unit="$2"; shift ;;
-    --app-version) [ $# -ge 2 ] || usage; expected_app_version="${2#v}"; shift ;;
+    --app-version) [ $# -ge 2 ] || usage; requested_app_version="${2#v}"; shift ;;
     --local-proof-test-root) local_proof_test_root=true ;;
     --app-update-feed-url) [ $# -ge 2 ] || usage; app_update_feed_url="$2"; shift ;;
     --release) release_build=true ;;
@@ -110,11 +111,11 @@ for required in bin/tatolabd bin/tatolab lib streamlib-commit; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit $runtime_unit_directory is missing $required" >&2; exit 1; }
 done
 tatolabd_version_output="$("$runtime_unit_directory/bin/tatolabd" --version)"
-app_version="${tatolabd_version_output##* }"
-[[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "the unit's tatolabd reports no X.Y.Z version: $tatolabd_version_output" >&2; exit 1; }
-[ -z "$expected_app_version" ] || [ "$expected_app_version" = "$app_version" ] \
-  || { echo "--app-version $expected_app_version, but the runtime unit's tatolabd is $app_version" >&2; exit 1; }
-echo "    $runtime_unit_directory: streamlib $streamlib_commit, version $app_version"
+runtime_version="${tatolabd_version_output##* }"
+[[ "$runtime_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "the unit's tatolabd reports no X.Y.Z version: $tatolabd_version_output" >&2; exit 1; }
+app_version="${requested_app_version:-$runtime_version}"
+[[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "--app-version is not X.Y.Z: $app_version" >&2; exit 1; }
+echo "    $runtime_unit_directory: streamlib $streamlib_commit, runtime $runtime_version, app version $app_version"
 linux_build_directory="$repository_root/build/linux-packaging"
 output_directory="$repository_root/build/linux"
 output_deb="$output_directory/Tato-Studio-$app_version$local_proof_name_part-amd64.deb"

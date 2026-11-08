@@ -1,6 +1,7 @@
 // Writes the update feed's manifest for one platform, `latest-mac.yml` or `latest-linux.yml`, as
 // electron-updater reads it: the version, and each file's URL, sha512 and size. The URLs are
-// relative to the feed's `app/` directory, `../releases/<version>/<file>`, so one manifest serves
+// relative to the feed's `app/` directory, `releases/<version>/<file>` (get.tatolab.com's
+// `app/releases/`, beside streamlib's own `releases/`), so one manifest serves
 // get.tatolab.com and a local feed laid out the same way.
 //
 // Usage: node scripts/write_tatolab_app_update_manifest.mjs <manifest path> <X.Y.Z> <file>...
@@ -18,7 +19,7 @@ const manifestFiles = [];
 for (const updateFile of updateFiles) {
   const fileBytes = await readFile(updateFile);
   manifestFiles.push({
-    url: `../releases/${appVersion}/${path.basename(updateFile)}`,
+    url: `releases/${appVersion}/${path.basename(updateFile)}`,
     sha512: createHash("sha512").update(fileBytes).digest("base64"),
     size: (await stat(updateFile)).size,
   });

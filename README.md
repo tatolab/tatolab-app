@@ -55,7 +55,7 @@ quits. On macOS Squirrel.Mac stages the signed `.zip` and replaces the bundle, w
 runtime with the old app and starts the new bundle's; the AppImage replaces its own file; a `.deb`
 only finds the newer version, and opens its download in the browser when the person chooses it,
 since apt alone replaces it. The feed's manifests are
-`app/latest-mac.yml` and `app/latest-linux.yml`, which point at `releases/<version>/`.
+`app/latest-mac.yml` and `app/latest-linux.yml`, which point at `app/releases/<version>/`.
 
 The runtime and the `tatolab` CLI come from [tatolab/streamlib](https://github.com/tatolab/streamlib)
 (BUSL-1.1). This repository is proprietary (see `LICENSE`). It holds the app itself, the packaging
@@ -70,7 +70,7 @@ item only with the AppIndicator extension, which Ubuntu ships.
 ## Installing
 
 **macOS.** Open `Tato-Studio-<version>-arm64.dmg` from the
-[streamlib release](https://github.com/tatolab/streamlib/releases) and drag Tato Studio into
+[latest release](https://github.com/tatolab/tatolab-app/releases/latest) and drag Tato Studio into
 Applications, or:
 
 ```sh
@@ -81,7 +81,7 @@ Opening the app starts the runtime and links the `tatolab` command into `~/.loca
 administrator password and no setup screen. A terminal whose PATH lacks `~/.local/bin` needs
 `export PATH="$HOME/.local/bin:$PATH"` in `~/.zprofile`; Settings › Command line shows the line.
 
-**Linux.** Install the app from the [streamlib release](https://github.com/tatolab/streamlib/releases),
+**Linux.** Install the app from the [latest release](https://github.com/tatolab/tatolab-app/releases/latest),
 as the `.deb`:
 
 ```sh
@@ -206,7 +206,7 @@ it resolves `main` on github.com/tatolab/streamlib to a commit, fetches exactly 
 `build/streamlib` (keeping its cargo `target/` between builds), and builds the runtime unit there
 (`cargo xtask build-runtime --release`). The unit records that commit in `streamlib-commit`, the
 helper carries it in `Contents/Helpers/Tatolab Runtime.app/Contents/Resources/streamlib-commit`, and the app's version is the version
-of the `tatolabd` it bundles. When the build finishes it checks `main` again: if `main` moved on
+of the `tatolabd` it bundles, or `--app-version X.Y.Z`, which the release workflow passes. When the build finishes it checks `main` again: if `main` moved on
 while it ran, the build fails and says to build again (a `--streamlib-ref` build only notes it,
 and an unreachable GitHub is noted, not fatal). Then the Electron app: `npm run build` (electron-vite bundles the main process into `out/main/`,
 the preload into `out/preload/` and the window into `out/renderer/`, then writes the build features, with the
@@ -253,8 +253,8 @@ The individual steps are separate scripts in `scripts/`:
 | `sign-tatolab-app-bundle.sh <Tato Studio.app> <identity> <runtime-provisioning-profile>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, the app) with the hardened runtime, embedding the `com.tatolab.runtime` provisioning profile in the runtime's helper; refuses any identity but a `Developer ID Application` and a profile for any other App ID |
 | `make-tatolab-dmg.sh <Tato Studio.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless), signed with the app's own Developer ID; refuses an app signed any other way |
 | `notarize-and-staple.sh <Tato Studio.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
-| `verify-tatolab-app-bundle.sh <Tato Studio.app\|.dmg> [--shipping]` | checks the signature (every Mach-O and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
-| `write_tatolab_app_update_manifest.mjs <manifest.yml> <version> <file>...` | writes the update feed's manifest for those files: sizes, SHA-512s, and URLs under `../releases/<version>/` |
+| `verify-tatolab-app-bundle.sh <Tato Studio.app\|.dmg> [--shipping]` | checks the signature (every Mach-O and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is no newer than the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
+| `write_tatolab_app_update_manifest.mjs <manifest.yml> <version> <file>...` | writes the update feed's manifest for those files: sizes, SHA-512s, and URLs under `releases/<version>/`, beside it in `app/` |
 | `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tato-studio.rb` from `packaging/homebrew/tato-studio.rb.template`, and the tap's `cask_renames.json` entry `tatolab` → `tato-studio` |
 
 The installer background is `packaging/dmg/tatolab-dmg-background.svg`, rendered to the
@@ -280,8 +280,8 @@ is the version of the `tatolabd` they carry. It then builds and packages the Ele
 `dpkg-deb`, builds the AppImage with a pinned `appimagetool` and AppImage runtime (checksums in
 the script), checks the fuses, the build features, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Tato-Studio-<version>-amd64.deb`,
 `build/linux/Tato-Studio-<version>-x86_64.AppImage` and the update manifest listing both,
-`build/linux/latest-linux.yml`. `--app-version X.Y.Z` refuses a unit whose `tatolabd` is another
-version; `--local-proof-test-root` builds with
+`build/linux/latest-linux.yml`. `--app-version X.Y.Z` versions the packages in place of the carried
+`tatolabd`'s; `--local-proof-test-root` builds with
 `machineDirectoriesUnderATestRoot` on, so the app reads the runtime under
 `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, and names both packages `-local-proof`;
 `--app-update-feed-url URL`, only with it, points the app at a local update feed; `--release`, which
@@ -322,12 +322,22 @@ ID ones the macOS build stops; notarization needs the App Store Connect key:
 
 ## How a release flows
 
-A release runs on a local release runner, outside this repository, once streamlib cuts release
-`vX.Y.Z`. It drives this repository's scripts: `scripts/build-tatolab-app.sh --streamlib-ref vX.Y.Z
---release --notarize` builds, signs, notarizes and verifies Tato Studio.app and its `.dmg`;
-`scripts/build-tatolab-linux-app.sh --streamlib-ref vX.Y.Z --runtime-unit <the release's Linux runtime tarball, unpacked> --release`
-builds the `.deb` and the AppImage on x86_64 Linux, carrying the runtime streamlib built at the
-glibc floor it promises; the release's assets go on streamlib's `vX.Y.Z` release; and
-`scripts/bump-homebrew-cask.sh` writes the new `Casks/tato-studio.rb` for tatolab/homebrew-tap.
-`brew install --cask tatolab/tap/tato-studio` installs it on macOS; on Linux the release's `.deb` or
-AppImage does.
+`.github/workflows/release.yml` releases on every merge to `main`, and from an hourly run whenever
+streamlib has released since the app last shipped; a dispatch from the Actions tab releases too, or
+only builds with "Publish" unticked. `scripts/plan_tatolab_app_release.mjs` picks the streamlib
+release get.tatolab.com serves as `latest` and the version: the bundled runtime's when
+it is newer than every app shipped, otherwise the last app version's next patch, so every release is
+newer than the one installed and the updaters take it. On a `macos-26` runner
+`scripts/build-tatolab-app.sh --streamlib-ref vX.Y.Z --app-version <version> --release --notarize`
+builds, signs, notarizes and verifies Tato Studio.app, its `.dmg` and its update; on `ubuntu-22.04`
+`scripts/build-tatolab-linux-app.sh` builds the `.deb` and the AppImage around the release's Linux
+runtime tarball get.tatolab.com serves, which streamlib built at the glibc floor it promises. Once both
+have built, the files go to `app/releases/<version>/` on get.tatolab.com (everything the app publishes
+is under `app/`; streamlib owns `packages/`, `simple/`, `releases/`, `install.sh` and `latest`), then `app/latest-mac.yml`, `app/latest-linux.yml` and
+`app/tato-studio-release.json` (the app version, the streamlib version and the commit it shipped), and
+the `.dmg`, `.deb` and AppImage go on this repository's `v<version>` GitHub release. The secrets
+(the Developer ID, the App Store Connect key as `APPLE_API_KEY_P8_BASE64`, `APPLE_API_KEY_ID` and
+`APPLE_API_ISSUER`, and the R2 keys for get.tatolab.com) come from the repository's Infisical sync.
+`scripts/bump-homebrew-cask.sh` still writes `Casks/tato-studio.rb` for tatolab/homebrew-tap by hand.
+
+A pull request runs only `.github/workflows/ci.yml`: types, lint and the unit tests.
