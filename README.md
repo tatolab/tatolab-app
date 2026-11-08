@@ -336,7 +336,7 @@ have built, the files go to `app/releases/<version>/` on get.tatolab.com (everyt
 is under `app/`; streamlib owns `packages/`, `simple/`, `releases/`, `install.sh` and `latest`), then `app/latest-mac.yml`, `app/latest-linux.yml` and
 `app/tato-studio-release.json` (the app version, the streamlib version and the commit it shipped), and
 the `.dmg`, `.deb` and AppImage go on this repository's `v<version>` GitHub release. The secrets
-(the Developer ID, the App Store Connect key as `APPLE_API_KEY`, `APPLE_API_KEY_ID` and
+(the Developer ID, the App Store Connect key as `APPLE_API_KEY_P8_BASE64`, `APPLE_API_KEY_ID` and
 `APPLE_API_ISSUER`, and the R2 keys for get.tatolab.com) come from the repository's Infisical sync.
 `scripts/bump-homebrew-cask.sh` still writes `Casks/tato-studio.rb` for tatolab/homebrew-tap by hand.
 
