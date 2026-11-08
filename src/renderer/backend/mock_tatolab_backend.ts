@@ -172,7 +172,7 @@ export interface MockTatolabOptions {
   commandLineToolLinkScenario: "linked" | "not_linked" | "taken";
   /** `?app_build=release|modified|none`: a release build, a dev build with uncommitted changes, or one that recorded none; a dev build by default. */
   appBuild: TatolabAppBuild | null;
-  /** `?add_venv=refused`: the runtime's uv fails to make a project's `.venv`, as with the package index out of reach, so its load fails. */
+  /** `?add_venv=refused`: the runtime's uv fails to make a project's `.venv`, as with the package index out of reach, so its load fails: its recorded streams, or for a new project its one `stream.py` record, list failed in uv's words. */
   isMakingThePythonEnvironmentRefused: boolean;
   /**
    * `?relays=local`: the runtime holds only the local relay's two listeners; a joined Cloudflare relay and a lost moq.pro one beside them by default;
@@ -612,6 +612,35 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     return action;
   };
 
+  /** The project's recorded streams listed failed in uv's words, or, for a project with none, its one `stream.py` record, whose location names no function. */
+  const listEveryStreamOfTheProjectFailedOnItsSync = (projectDirectory: string): ListedStream[] => {
+    const recordedStreams = (listStreams() ?? []).filter((listing) => listing.location?.project_directory === projectDirectory);
+    const streamPyRecordLocation = { project_directory: projectDirectory, stream_function: "" };
+    const failedStreams: ListedStream[] =
+      recordedStreams.length > 0
+        ? recordedStreams.map((listing) => ({ ...listing, state: "failed", node_count: null, failed_because: MOCK_UV_SYNC_REFUSAL, action: null, step: null }))
+        : [
+            {
+              stream: mockStreamIdOf(streamPyRecordLocation),
+              display_name: projectDirectory.split("/").filter((segment) => segment !== "").at(-1) ?? projectDirectory,
+              location: streamPyRecordLocation,
+              state: "failed",
+              node_count: null,
+              failed_because: MOCK_UV_SYNC_REFUSAL,
+              capture_devices_whose_access_was_never_asked_for: [],
+              action: null,
+              step: null,
+            },
+          ];
+    for (const listing of failedStreams) {
+      loadedStreams.delete(listing.stream);
+      streamActionOfEachStream.delete(listing.stream);
+      if (!streamIdsRunFromTheWindow.includes(listing.stream) && !recordedStreams.some((recorded) => recorded.stream === listing.stream)) streamIdsRunFromTheWindow.push(listing.stream);
+      listedStreamsNotLoaded.set(listing.stream, listing);
+    }
+    return failedStreams;
+  };
+
   const workOnTheMockProjectLoad = async (description: StreamActionDescription): Promise<void> => {
     const projectDirectory = description.project_directory;
     const project = projectFolders.get(projectDirectory);
@@ -621,6 +650,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       createMockStreamRunFromAProjectFolder(fixtures.machine, projectDirectory, `stream:${streamFunction}`, streamFunction),
     );
     const listEveryStreamPreparingAt = (step: string): void => {
+      const streamPyRecord = mockStreamIdOf({ project_directory: projectDirectory, stream_function: "" });
+      listedStreamsNotLoaded.delete(streamPyRecord);
+      streamIdsRunFromTheWindow.splice(0, streamIdsRunFromTheWindow.length, ...streamIdsRunFromTheWindow.filter((streamId) => streamId !== streamPyRecord));
       for (const fixture of streamFixtures) {
         const streamId = fixture.listing.stream;
         if (!(listStreams() ?? []).some((listing) => listing.stream === streamId)) streamIdsRunFromTheWindow.push(streamId);
@@ -640,7 +672,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (endTheLoadAtItsCancel(description)) return;
       if (isMakingThePythonEnvironmentRefused) {
         writeProjectRecord(projectDirectory, description.action, "error", MOCK_UV_SYNC_REFUSAL);
+        description.streams = listEveryStreamOfTheProjectFailedOnItsSync(projectDirectory).map((listing) => ({ stream: listing.stream, display_name: listing.display_name, state: "failed" }));
         Object.assign(description, { state: "failed", step: null, failed_because: MOCK_UV_SYNC_REFUSAL });
+        publishStatus({ streams: listStreams() });
         return;
       }
       writeProjectRecord(projectDirectory, description.action, "info", `\`uv sync\` made ${projectDirectory}/.venv`);

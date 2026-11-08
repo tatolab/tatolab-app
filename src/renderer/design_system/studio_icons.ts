@@ -28,7 +28,8 @@ export type StudioIconName =
   | "file"
   | "stream"
   | "waiting"
-  | "unreadable";
+  | "unreadable"
+  | "failed";
 
 const STUDIO_ICONS: Record<StudioIconName, LucideIcon> = {
   outliner: ListTree,
@@ -44,6 +45,7 @@ const STUDIO_ICONS: Record<StudioIconName, LucideIcon> = {
   stream: Workflow,
   waiting: Hourglass,
   unreadable: TriangleAlert,
+  failed: TriangleAlert,
 };
 
 /** The icon `iconName` names. */

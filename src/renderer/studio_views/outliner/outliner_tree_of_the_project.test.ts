@@ -38,6 +38,23 @@ describe("the outliner's tree", () => {
     expect(rows[3]?.meaning).toEqual({ kind: "stream", stream: "lobby_wall-id", display_name: "lobby_wall", project_name: "studio", project_folder: "/w/studio" });
   });
 
+  it("marks a failed stream, and names the project's stream.py record, whose location names no function, stream.py", () => {
+    const failedFirstLoad: ListedStream = {
+      ...listedStream("/w/studio", "unused"),
+      stream: "studio-ff588e",
+      display_name: "studio",
+      location: { project_directory: "/w/studio", stream_function: "" },
+      state: "failed",
+      node_count: null,
+      failed_because: "`uv sync` did not make /w/studio/.venv",
+    };
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [failedFirstLoad, listedStream("/w/studio", "lobby_wall")] }, {});
+    expect(rows.slice(3, 5).map(({ row }) => [row.label, row.icon, row.tone ?? "plain"])).toEqual([
+      ["stream.py", "failed", "failed"],
+      ["lobby_wall", "stream", "plain"],
+    ]);
+  });
+
   it("opens the rows the person opened: each import read-only, its streams or why they wait", () => {
     const rows = outlinerTreeOfTheProject(PROJECT, { kind: "not_listed", because: "Stopped" }, {
       imports: true,
