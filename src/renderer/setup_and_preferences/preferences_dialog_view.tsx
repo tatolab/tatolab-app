@@ -328,7 +328,10 @@ function AboutSection() {
   const status = useTatolabStatus();
   const runtimeDescription = useRuntimeDescriptionReading();
   const appUpdate = presentTatolabAppUpdate(status.app_update);
-  const checkForUpdates = useActionThroughTheBackend(() => backend.checkForTatolabAppUpdates(), "Couldn't update Tato Studio:");
+  const runTheUpdateAction = useActionThroughTheBackend(
+    () => (appUpdate.action?.command === "take_the_newer_version" ? backend.takeTheNewerTatolabAppVersion() : backend.checkForTatolabAppUpdates()),
+    "Couldn't update Tato Studio:",
+  );
   const versions = presentAboutVersions(status, runtimeDescription);
   return (
     <div className="flex flex-col items-center gap-6 pt-6 text-center" data-settings-about="">
@@ -344,11 +347,11 @@ function AboutSection() {
           <SettingsRow
             label="Updates"
             description={appUpdate.description}
-            refusal={checkForUpdates.refusal ?? (appUpdate.failure === null ? null : { lead: "The last check failed:", words: appUpdate.failure })}
+            refusal={runTheUpdateAction.refusal ?? (appUpdate.failure === null ? null : { lead: "The last check failed:", words: appUpdate.failure })}
             control={() =>
-              appUpdate.actionLabel !== null && (
-                <ActionButton isDisabled={!appUpdate.isActionEnabled || checkForUpdates.isPending} onPressed={checkForUpdates.run}>
-                  {appUpdate.actionLabel}
+              appUpdate.action !== null && (
+                <ActionButton isDisabled={!appUpdate.action.isEnabled || runTheUpdateAction.isPending} onPressed={runTheUpdateAction.run}>
+                  {appUpdate.action.label}
                 </ActionButton>
               )
             }

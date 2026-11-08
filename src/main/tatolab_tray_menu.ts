@@ -1,6 +1,7 @@
 // The tray item, in macOS's menu bar or a Linux panel: the Tatolab mark in this platform's tray
-// image, and a native menu on either click — a disabled status line, "Open Tato Studio", "Check
-// for Updates…" in a packaged app, and "Quit Tato Studio", which stops the runtime with the app.
+// image, and a native menu on either click — a disabled status line, "Open Tato Studio", the updates
+// item in a packaged app (Check for Updates…, then Restart to Update once a newer version is staged),
+// and "Quit Tato Studio", which stops the runtime with the app.
 
 import type { TatolabAppUpdateState, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import type { TrayIconImage } from "./platform/tray_icon_image.js";
@@ -10,7 +11,7 @@ import { trayStatusLine } from "./tatolab_status.js";
 export type TrayMenuItemId =
   | "tray_status_line"
   | "open_tatolab"
-  | "check_for_app_updates"
+  | "app_updates"
   | "quit_tatolab";
 
 /** One row of the tray menu as the tray icon host shows it. */
@@ -29,7 +30,7 @@ export interface TrayIconHostFactory {
 }
 
 /** What the user chose from the tray menu. */
-export type TrayMenuChoice = "open_tatolab" | "check_for_app_updates" | "quit_the_app";
+export type TrayMenuChoice = "open_tatolab" | "respond_to_the_app_updates_item" | "quit_the_app";
 
 /** How the updates item reads for `appUpdate`: its label and whether it can be chosen, or `null` in an app that cannot update itself. */
 export function appUpdateTrayMenuItemPresentation(appUpdate: TatolabAppUpdateState): { label: string; enabled: boolean } | null {
@@ -43,9 +44,11 @@ export function appUpdateTrayMenuItemPresentation(appUpdate: TatolabAppUpdateSta
     case "checking":
       return { label: "Checking for Updates…", enabled: false };
     case "available":
-      return { label: appUpdate.delivery === "install_and_relaunch" ? `Install Tato Studio ${appUpdate.version}…` : `Download Tato Studio ${appUpdate.version}…`, enabled: true };
+      return { label: `Download Tato Studio ${appUpdate.version}…`, enabled: true };
     case "downloading":
-      return { label: `Downloading Tato Studio ${appUpdate.version}…`, enabled: false };
+      return { label: `Downloading Tato Studio ${appUpdate.version}… ${appUpdate.percent}%`, enabled: false };
+    case "ready_to_restart":
+      return { label: `Restart to Update to ${appUpdate.version}`, enabled: true };
     case "installing":
       return { label: `Installing Tato Studio ${appUpdate.version}…`, enabled: false };
   }
@@ -54,7 +57,7 @@ export function appUpdateTrayMenuItemPresentation(appUpdate: TatolabAppUpdateSta
 const TRAY_MENU_CHOICES_BY_ITEM_ID: Readonly<Record<TrayMenuItemId, TrayMenuChoice | null>> = {
   tray_status_line: null,
   open_tatolab: "open_tatolab",
-  check_for_app_updates: "check_for_app_updates",
+  app_updates: "respond_to_the_app_updates_item",
   quit_tatolab: "quit_the_app",
 };
 
@@ -89,7 +92,7 @@ export class TatolabTrayMenu {
       { kind: "item", id: "open_tatolab", label: "Open Tato Studio", enabled: true },
       { kind: "separator" },
     ];
-    if (this.appUpdateItem !== null) trayMenuItems.push({ kind: "item", id: "check_for_app_updates", ...this.appUpdateItem });
+    if (this.appUpdateItem !== null) trayMenuItems.push({ kind: "item", id: "app_updates", ...this.appUpdateItem });
     trayMenuItems.push({ kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true });
     this.trayIconHost.showMenu(trayMenuItems);
   }

@@ -49,8 +49,10 @@ export interface TatolabBackend {
   describeStreamGraph(streamId: string): Promise<StreamGraphSummary>;
   /** Every node type the loaded stream `streamId` can add, rejecting in the runtime's own words. */
   describeNodeCatalog(streamId: string): Promise<NodeCatalog>;
-  /** Check for a newer Tatolab and take it if there is one; how that goes arrives as the status's `app_update`. */
+  /** Check for a newer Tato Studio, downloading one that installs in place; how that goes arrives as the status's `app_update`. */
   checkForTatolabAppUpdates(): Promise<void>;
+  /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */
+  takeTheNewerTatolabAppVersion(): Promise<void>;
   /** Queue a stop or a start (or retry) of `streamId`, resolving once the runtime has queued it and rejecting with its refusal; the stream's `stopping` or `preparing` arrives as the next status. */
   runStreamAction(streamAction: TatolabStreamActionName, streamId: string): Promise<void>;
   /** Queue the removal of every stream the runtime holds from `projectDirectory`, resolving once it is queued and rejecting with its refusal; the streams stopping, then gone, arrive as the next statuses. */

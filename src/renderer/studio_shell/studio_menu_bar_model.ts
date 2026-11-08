@@ -1,8 +1,9 @@
 // The studio's menus as data, in the concept canvas's order. An entry whose work a later issue builds
 // is listed dim, with why, so the menus keep their shape as each one lands.
 
-import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
+import type { TatolabAppUpdateState, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import type { StudioMenu, StudioMenuEntry } from "../design_system/menu_bar";
+import { presentTatolabAppUpdateMenuEntry } from "../presentation/app_update_presentation";
 import { shortcutHint } from "../presentation/platform_presentation";
 import { STUDIO_LAYOUTS, type StudioLayoutName } from "./studio_layouts";
 
@@ -17,6 +18,10 @@ export interface StudioMenuBarCommands {
   createAProject(): void;
   openPreferences(): void;
   openAbout(): void;
+  /** Check for Updates…: check for a newer Tato Studio, which downloads in the background. */
+  checkForAppUpdates(): void;
+  /** Restart to Update, or a newer version's download: take the version a check found. */
+  takeTheNewerAppVersion(): void;
   chooseLayout(layoutName: StudioLayoutName): void;
   /** Run › Live: run the open project, which loads every `@stream` in it again. */
   runTheProjectLive(): void;
@@ -41,8 +46,21 @@ function laterCommand(label: string, shortcut?: string): StudioMenuEntry {
     : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause: NOT_IN_THIS_BUILD_REASON };
 }
 
-/** The studio's menus on `platform`, Window › Layout ticking `chosenLayout`, or naming why it waits while no project is open. */
-export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: StudioLayoutName | null, commands: StudioMenuBarCommands): StudioMenu[] {
+/** Why the updates entry is dim while a check, a download or an install is under way. */
+export const APP_UPDATE_UNDER_WAY_REASON = "An update is under way";
+
+/** The updates entry for `appUpdate`, which follows About Tato Studio: dim, with why, in an app that cannot update itself or while an update is under way. */
+function appUpdateMenuEntry(appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenuEntry {
+  const menuEntry = presentTatolabAppUpdateMenuEntry(appUpdate);
+  if (menuEntry === null) {
+    return { kind: "unavailable_command", label: "Check for Updates…", unavailableBecause: appUpdate.kind === "not_offered" ? appUpdate.reason : APP_UPDATE_UNDER_WAY_REASON };
+  }
+  if (!menuEntry.isEnabled) return { kind: "unavailable_command", label: menuEntry.label, unavailableBecause: APP_UPDATE_UNDER_WAY_REASON };
+  return { kind: "command", label: menuEntry.label, onChosen: menuEntry.command === "check_for_updates" ? commands.checkForAppUpdates : commands.takeTheNewerAppVersion };
+}
+
+/** The studio's menus on `platform`, Window › Layout ticking `chosenLayout`, or naming why it waits while no project is open, and Help's updates entry following `appUpdate`. */
+export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: StudioLayoutName | null, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenu[] {
   const projectCommand = (label: string, onChosen: () => void, shortcut?: string): StudioMenuEntry => {
     if (chosenLayout === null) return shortcut === undefined ? { kind: "unavailable_command", label, unavailableBecause: NO_PROJECT_OPEN_REASON } : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause: NO_PROJECT_OPEN_REASON };
     return shortcut === undefined ? { kind: "command", label, onChosen } : { kind: "command", label, shortcutHint: shortcut, onChosen };
@@ -92,6 +110,9 @@ export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: Stud
       entries: [projectCommand("Live", commands.runTheProjectLive, RUN_LIVE_KEY), projectCommand("Stop", commands.stopTheProject, STOP_KEY_HINT), laterCommand("Render to file…")],
     },
     { label: "Window", entries: [studioLayoutEntry, laterCommand("Save layout as…"), laterCommand("Maximise area"), laterCommand("New window")] },
-    { label: "Help", entries: [{ kind: "command", label: "About Tato Studio", onChosen: commands.openAbout }, laterCommand("Documentation")] },
+    {
+      label: "Help",
+      entries: [{ kind: "command", label: "About Tato Studio", onChosen: commands.openAbout }, appUpdateMenuEntry(appUpdate, commands), { kind: "separator" }, laterCommand("Documentation")],
+    },
   ];
 }

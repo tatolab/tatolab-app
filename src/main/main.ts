@@ -17,7 +17,7 @@ import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js"
 import { TatolabAppController } from "./tatolab_app_controller.js";
 import { describeCaughtFailure } from "./result.js";
 import {
-  checkForTatolabAppUpdatesOnRequest,
+  runTatolabAppUpdateWorkInTheBackground,
   quitTheTatolabApp,
   stopTheRuntimeWithinTheQuitWaitLimit,
   runInTheBackgroundWithTheController,
@@ -308,8 +308,8 @@ export async function startTatolabApp(
       case "open_tatolab":
         showTheWindowWithTheLastStatus();
         return;
-      case "check_for_app_updates":
-        checkForTatolabAppUpdatesOnRequest(sharedState, "tray");
+      case "respond_to_the_app_updates_item":
+        runTatolabAppUpdateWorkInTheBackground(sharedState, "the tray's updates item", (tatolabAppUpdater) => tatolabAppUpdater.respondToTheTrayUpdatesItem());
         return;
       case "quit_the_app":
         quitTheApp();

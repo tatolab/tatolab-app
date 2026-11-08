@@ -32,7 +32,7 @@ import { PROJECT_DESCRIPTION_FILE_NAME } from "./project_on_disk.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import {
-  checkForTatolabAppUpdatesOnRequest,
+  runTatolabAppUpdateWorkInTheBackground,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
 import { openTheRuntimesLogFolder } from "./runtime_log_folder_opening.js";
@@ -592,7 +592,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       return commandAnswerFrom(await readProjectLogRecords(sharedState, readableProjectDirectory.value, narrowing, after));
     },
     check_for_tatolab_app_updates: async () => {
-      checkForTatolabAppUpdatesOnRequest(sharedState, "window");
+      runTatolabAppUpdateWorkInTheBackground(sharedState, "check_for_tatolab_app_updates", (tatolabAppUpdater) => tatolabAppUpdater.checkForUpdatesOnRequest("window"));
+      return { ok: true, value: null };
+    },
+    take_the_newer_tatolab_app_version: async () => {
+      runTatolabAppUpdateWorkInTheBackground(sharedState, "take_the_newer_tatolab_app_version", (tatolabAppUpdater) => tatolabAppUpdater.takeTheNewerVersion("window"));
       return { ok: true, value: null };
     },
     describe_stream_graph: async (commandArguments) => {

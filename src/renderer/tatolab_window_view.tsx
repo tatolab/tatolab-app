@@ -121,6 +121,16 @@ export function mountTatolabWindow(
     },
     openPreferences: () => studioWindowModel.preferencesSection.publish("general"),
     openAbout: () => studioWindowModel.preferencesSection.publish("about"),
+    checkForAppUpdates: () => {
+      studioWindowModel.appUpdateChoiceRefusal.publish(null);
+      studioWindowModel.preferencesSection.publish("about");
+      backend.checkForTatolabAppUpdates().catch((rejection: unknown) => studioWindowModel.appUpdateChoiceRefusal.publish(describeBackendRejection(rejection)));
+    },
+    takeTheNewerAppVersion: () => {
+      studioWindowModel.appUpdateChoiceRefusal.publish(null);
+      studioWindowModel.preferencesSection.publish("about");
+      backend.takeTheNewerTatolabAppVersion().catch((rejection: unknown) => studioWindowModel.appUpdateChoiceRefusal.publish(describeBackendRejection(rejection)));
+    },
     chooseLayout: (layoutName) => studioWindowModel.chooseLayout(layoutName),
     runTheProjectLive: () => {
       studioWindowModel.projectRunRefusal.publish(null);

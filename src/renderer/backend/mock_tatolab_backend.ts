@@ -94,11 +94,12 @@ const MOCK_STREAM_ACTION_STEP_MILLISECONDS = 700;
 
 /**
  * What a check for updates finds in the mock, picked with `?update=`: nothing newer (the default), a newer
- * version installed in place (`available`), one whose download opens (`download`), or a check that fails.
+ * version installed in place not yet downloaded (`available`), one already downloaded and staged (`ready`),
+ * one whose download opens (`download`), or a check that fails.
  */
-export type MockTatolabAppUpdateScenario = "up-to-date" | "available" | "download" | "failed";
+export type MockTatolabAppUpdateScenario = "up-to-date" | "available" | "ready" | "download" | "failed";
 
-const MOCK_TATOLAB_APP_UPDATE_SCENARIOS: readonly MockTatolabAppUpdateScenario[] = ["up-to-date", "available", "download", "failed"];
+const MOCK_TATOLAB_APP_UPDATE_SCENARIOS: readonly MockTatolabAppUpdateScenario[] = ["up-to-date", "available", "ready", "download", "failed"];
 
 /** The newer version the mock's feed offers. */
 const MOCK_NEWER_TATOLAB_VERSION = "0.46.0";
@@ -341,11 +342,13 @@ interface MockProjectLog {
   recordsDeletedCount: number;
 }
 
-/** Where the mock's updates stand as the page opens: a newer version already found by the launch check in `available` and `download`. */
+/** Where the mock's updates stand as the page opens: a newer version already found by the launch check in `available` and `download`, and staged in `ready`. */
 function initialMockAppUpdateState(appUpdateScenario: MockTatolabAppUpdateScenario): TatolabAppUpdateState {
   switch (appUpdateScenario) {
     case "available":
       return { kind: "available", version: MOCK_NEWER_TATOLAB_VERSION, delivery: "install_and_relaunch" };
+    case "ready":
+      return { kind: "ready_to_restart", version: MOCK_NEWER_TATOLAB_VERSION };
     case "download":
       return { kind: "available", version: MOCK_NEWER_TATOLAB_VERSION, delivery: "open_the_download" };
     case "up-to-date":
@@ -1004,7 +1007,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
 
   const downloadTheNewerVersion = (percent: number): void => {
     if (percent >= 100) {
-      publishStatus({ app_update: { kind: "installing", version: MOCK_NEWER_TATOLAB_VERSION } });
+      publishStatus({ app_update: { kind: "ready_to_restart", version: MOCK_NEWER_TATOLAB_VERSION } });
       return;
     }
     publishStatus({ app_update: { kind: "downloading", version: MOCK_NEWER_TATOLAB_VERSION, percent } });
@@ -1023,6 +1026,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         publishStatus({ app_update: { kind: "available", version: MOCK_NEWER_TATOLAB_VERSION, delivery: "open_the_download" } });
         return;
       case "available":
+      case "ready":
         downloadTheNewerVersion(0);
         return;
     }
@@ -1072,6 +1076,15 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       if (updateUnderWay === "checking" || updateUnderWay === "downloading" || updateUnderWay === "installing") return;
       publishStatus({ app_update: { kind: "checking" } });
       window.setTimeout(finishTheUpdateCheck, MOCK_UPDATE_CHECK_MILLISECONDS);
+    },
+    takeTheNewerTatolabAppVersion: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const appUpdate = mockStatus.app_update;
+      if (appUpdate.kind === "ready_to_restart") {
+        publishStatus({ app_update: { kind: "installing", version: appUpdate.version } });
+        return;
+      }
+      if (appUpdate.kind === "available" && appUpdate.delivery === "install_and_relaunch") downloadTheNewerVersion(0);
     },
     runStreamAction: async (streamAction, streamId) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

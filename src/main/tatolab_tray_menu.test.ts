@@ -75,9 +75,9 @@ test("a click on an item is that item's choice, and the status line chooses noth
   const trayMenu = buildTrayMenuOnAFakeTrayIconHost();
   trayMenu.clickTrayMenuItem("tray_status_line");
   trayMenu.clickTrayMenuItem("open_tatolab");
-  trayMenu.clickTrayMenuItem("check_for_app_updates");
+  trayMenu.clickTrayMenuItem("app_updates");
   trayMenu.clickTrayMenuItem("quit_tatolab");
-  expect(trayMenu.trayMenuChoices).toEqual(["open_tatolab", "check_for_app_updates", "quit_the_app"]);
+  expect(trayMenu.trayMenuChoices).toEqual(["open_tatolab", "respond_to_the_app_updates_item", "quit_the_app"]);
 });
 
 test("a packaged app shows Check for Updates… just above Quit Tatolab", () => {
@@ -85,24 +85,25 @@ test("a packaged app shows Check for Updates… just above Quit Tatolab", () => 
   tatolabTrayMenu.showStatus(statusWith("running", { kind: "not_checked" }));
   expect(shownMenus.at(-1)?.slice(-3)).toEqual([
     { kind: "separator" },
-    { kind: "item", id: "check_for_app_updates", label: "Check for Updates…", enabled: true },
+    { kind: "item", id: "app_updates", label: "Check for Updates…", enabled: true },
     { kind: "item", id: "quit_tatolab", label: "Quit Tato Studio", enabled: true },
   ]);
 });
 
-test("the updates item names a newer version once one is found, and waits while an update is under way", () => {
+test("the updates item names a newer version once one is found, offers Restart to Update once it is staged, and waits while an update is under way", () => {
   expect(appUpdateTrayMenuItemPresentation({ kind: "not_offered", reason: "Only a packaged Tato Studio updates itself." })).toBeNull();
   expect(appUpdateTrayMenuItemPresentation({ kind: "up_to_date" })).toEqual({ label: "Check for Updates…", enabled: true });
   expect(appUpdateTrayMenuItemPresentation({ kind: "failed", refusal: "HttpError: 404" })).toEqual({ label: "Check for Updates…", enabled: true });
   expect(appUpdateTrayMenuItemPresentation({ kind: "checking" })).toEqual({ label: "Checking for Updates…", enabled: false });
   expect(appUpdateTrayMenuItemPresentation({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" })).toEqual({
-    label: "Install Tato Studio 0.47.0…",
+    label: "Download Tato Studio 0.47.0…",
     enabled: true,
   });
   expect(appUpdateTrayMenuItemPresentation({ kind: "available", version: "0.47.0", delivery: "open_the_download" })).toEqual({
     label: "Download Tato Studio 0.47.0…",
     enabled: true,
   });
-  expect(appUpdateTrayMenuItemPresentation({ kind: "downloading", version: "0.47.0", percent: 42 })).toEqual({ label: "Downloading Tato Studio 0.47.0…", enabled: false });
+  expect(appUpdateTrayMenuItemPresentation({ kind: "downloading", version: "0.47.0", percent: 42 })).toEqual({ label: "Downloading Tato Studio 0.47.0… 42%", enabled: false });
+  expect(appUpdateTrayMenuItemPresentation({ kind: "ready_to_restart", version: "0.47.0" })).toEqual({ label: "Restart to Update to 0.47.0", enabled: true });
   expect(appUpdateTrayMenuItemPresentation({ kind: "installing", version: "0.47.0" })).toEqual({ label: "Installing Tato Studio 0.47.0…", enabled: false });
 });
