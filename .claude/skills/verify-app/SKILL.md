@@ -31,8 +31,6 @@ Evidence counts only when it was shot on what would ship now:
   The build itself checks `main` again when it finishes. A build of `main` that ends without
   `streamlib main is still <commit>` failed because `main` moved, so build again. If `main` moves
   after that, while you are shooting, rebuild. Evidence from any other commit is not evidence.
-- Building streamlib needs the `bun` its preview page pins. Fetch that version into a scratch
-  directory and put it first on `PATH`, never over the owner's.
 
 ## Pick the lowest rung that proves the claim
 
@@ -74,9 +72,7 @@ Evidence counts only when it was shot on what would ship now:
      `streamlib-commit` must name `main`'s current head.
    - Create the lock `tatolabd` asks for (its refusal gives the commands), then run the unit's
      `tatolabd` with `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`,
-     `TATOLAB_TEST_LOOPBACK_HTTP_PORT=14446` and the two `TATOLAB_TEST_LOCAL_RELAY_*_PORT`s. The
-     preview page reads the relay only at 4443, so a preview plays only when the test relay takes
-     4443 and 4445; check they are free first.
+     and `TATOLAB_TEST_LOOPBACK_HTTP_PORT=14446`.
    - `npm run build -- --local-proof-test-root` (it writes
      `machineDirectoriesUnderATestRoot: true` into `out/main/tatolab_app_build_features.json`;
      never edit the built `.js`), and run `npx electron . --remote-debugging-port=<port>` with `TATOLAB_TEST_MACHINE_ROOT` and `CFFIXED_USER_HOME` (a

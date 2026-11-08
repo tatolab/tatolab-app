@@ -371,7 +371,7 @@ describe("the mock backend's node catalog", () => {
 });
 
 describe("the mock backend's port families", () => {
-  it("serves no family by default, as the runtime does today, and each port's family when asked", async () => {
+  it("serves each port's family by default, as the runtime does, and none when asked", async () => {
     const familiesOfMain = async (pageQuery: string) => {
       const { backend } = await runningMockBackend(pageQuery);
       const graph = backend.describeStreamGraph(MAIN);
@@ -384,11 +384,11 @@ describe("the mock backend's port families", () => {
         catalog: listed.node_types.flatMap((entry) => [...entry.inputs, ...entry.outputs].map((port) => port.family)),
       };
     };
+    const unservedWhenAsked = await familiesOfMain("port_families=unserved");
+    expect(new Set([...unservedWhenAsked.graph, ...unservedWhenAsked.catalog])).toEqual(new Set([null]));
     const servedByDefault = await familiesOfMain("");
-    expect(new Set([...servedByDefault.graph, ...servedByDefault.catalog])).toEqual(new Set([null]));
-    const servedWhenAsked = await familiesOfMain("port_families=served");
-    expect(servedWhenAsked.graph).not.toContain(null);
-    expect(new Set(servedWhenAsked.graph)).toEqual(new Set(["image"]));
-    expect(servedWhenAsked.catalog).not.toContain(null);
+    expect(servedByDefault.graph).not.toContain(null);
+    expect(new Set(servedByDefault.graph)).toEqual(new Set(["image", "records", "array"]));
+    expect(servedByDefault.catalog).not.toContain(null);
   });
 });

@@ -101,10 +101,10 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
   },
   {
     type: "nodes.brightness_meter:BrightnessMeter",
-    description: "Logs each frame's mean brightness",
+    description: "Measures each frame's mean brightness",
     config_schema: THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG,
     inputs: [port("video_from_upstream", "", "image")],
-    outputs: [],
+    outputs: [port("brightness", "Each frame's mean brightness", "records"), port("luma_points", "A sample of the frame's pixels as points", "array")],
   },
   {
     type: "nodes.level_meter:LevelMeter",
@@ -112,5 +112,19 @@ export const MOCK_NODE_CATALOG_ENTRIES: readonly NodeCatalogEntry[] = [
     config_schema: THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG,
     inputs: [port("audio_from_upstream", "", "channels")],
     outputs: [],
+  },
+  {
+    type: "tatolab.h264:H264Encoder",
+    description: "Encodes each frame as H.264 on the GPU",
+    config_schema: {
+      type: "object",
+      properties: {
+        bitrate_bps: { type: "integer", description: "The target bitrate, in bits a second.", default: 4000000 },
+        keyframe_interval_frames: { type: "integer", description: "Frames from one keyframe to the next.", default: 30 },
+      },
+      additionalProperties: false,
+    },
+    inputs: [port("video", "", "image")],
+    outputs: [port("encoded", "Annex-B access units", "packets")],
   },
 ];

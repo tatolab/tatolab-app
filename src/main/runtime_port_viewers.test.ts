@@ -30,8 +30,10 @@ const DMA_BUF_FRAME: RuntimeViewerImageFrame = {
   ioSurface: null,
 };
 
+const NO_FAMILY_READING = { startsGroup: true, channelsBlock: null, packetsCodec: null, arrayAttributes: null, recordsJson: null, unreadableBecause: null };
+
 function imageMessage(imageFrame: RuntimeViewerImageFrame): RuntimeViewerMessageRead {
-  return { portFamily: "image", timestampNs: 1_000_000, skippedSinceLastRead: 2, imageFrame, payload: null };
+  return { portFamily: "image", timestampNs: 1_000_000, skippedSinceLastRead: 2, imageFrame, payload: null, ...NO_FAMILY_READING };
 }
 
 class FakeChannelReader implements RuntimeViewerChannelReaderOfTheAddon {
@@ -237,15 +239,17 @@ test("a_frame_electron_cannot_import_and_that_has_no_pixels_ends_the_port_viewer
   expect(channelReaders[0]?.closed).toBe(true);
 });
 
-test("a_message_of_another_family_reaches_the_window_as_its_family_and_size", async () => {
+test("a_message_of_another_family_reaches_the_window_read_by_its_family", async () => {
   const { runtimePortViewers, channelReaders, tickAndSettle } = harness();
   const windowShowingPortViewers = new FakeWindowShowingPortViewers();
   await runtimePortViewers.openAPortViewer(CAMERA_VIDEO, windowShowingPortViewers);
-  channelReaders[0]?.messagesToRead.push({ portFamily: "records", timestampNs: 5, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(48) });
+  channelReaders[0]?.messagesToRead.push({ portFamily: "records", timestampNs: 5, skippedSinceLastRead: 0, imageFrame: null, payload: Buffer.alloc(48), ...NO_FAMILY_READING, recordsJson: '{"label":"face"}' });
 
   await tickAndSettle();
 
-  expect(windowShowingPortViewers.portViewerEvents).toEqual([{ port_viewer: "port-viewer-1", kind: "message", port_family: "records", payload_byte_length: 48, skipped_since_last_read: 0 }]);
+  expect(windowShowingPortViewers.portViewerEvents).toEqual([
+    { port_viewer: "port-viewer-1", kind: "message", reading: { family: "records", record: { label: "face" } }, skipped_since_last_read: 0 },
+  ]);
 });
 
 test("the_runtimes_refusal_to_open_a_viewer_is_answered_in_its_own_words", async () => {

@@ -9,6 +9,7 @@ import type {
   JsonValue,
   PoppedOutViewerTarget,
   PortViewerConnectionEvent,
+  PortViewerMessageReading,
   PortViewerTarget,
   StopWatching,
   StreamGraphReading,
@@ -19,6 +20,7 @@ import type {
   StudioViewType,
 } from "../../view_host/studio_view_contract";
 import { nodeTitle } from "../node_words";
+import { PortViewerMessageReadingShown, packetsUnitsSeenWith, type PacketsUnitSeen } from "./port_viewer_message_readings";
 
 /** One output port of a stream's graph: its node's id as `graph` lists it, that node's name, and the port's own name. */
 export type ViewerPortAddress = { node_id: string; node_name: string; port: string };
@@ -126,16 +128,16 @@ function drawCpuReadPixels(canvas: HTMLCanvasElement, width: number, height: num
   return true;
 }
 
-/** What a port viewer shows besides its picture: waiting for the first message, another family's messages, a format it cannot draw, or why it is reopening or has ended. */
+/** What a port viewer shows besides its picture: waiting for the first message, another family's latest message read by its family, a format it cannot draw, or why it is reopening or has ended. */
 type PortViewerShown =
   | { kind: "waiting" }
   | { kind: "picture"; format_wire_name: string }
-  | { kind: "messages"; port_family: string; payload_byte_length: number; messages_read: number }
+  | { kind: "messages"; reading: PortViewerMessageReading; packets_units_seen: readonly PacketsUnitSeen[]; messages_read: number }
   | { kind: "undrawable"; format_wire_name: string }
   | { kind: "reopening"; because: string }
   | { kind: "ended"; because: string };
 
-const MESSAGE_WORDS_REFRESH_EVERY_MS = 250;
+const MESSAGE_READING_REDRAWN_EVERY_MS = 66;
 
 /** The picture, or the messages, one port viewer reads from a running node's output port. */
 function PortViewerPicture({
@@ -156,7 +158,8 @@ function PortViewerPicture({
     setShown({ kind: "waiting" });
     let shownKind: PortViewerShown["kind"] = "waiting";
     let messagesRead = 0;
-    let messageWordsShownAtMs = Number.NEGATIVE_INFINITY;
+    let messageReadingShownAtMs = Number.NEGATIVE_INFINITY;
+    let packetsUnitsSeen: PacketsUnitSeen[] = [];
     const show = (nextShown: PortViewerShown) => {
       shownKind = nextShown.kind;
       setShown(nextShown);
@@ -181,10 +184,11 @@ function PortViewerPicture({
         else if (shownKind !== "undrawable") show({ kind: "undrawable", format_wire_name: event.format_wire_name });
       } else if (event.kind === "message") {
         messagesRead += 1 + event.skipped_since_last_read;
+        if (event.reading.family === "packets") packetsUnitsSeen = packetsUnitsSeenWith(packetsUnitsSeen, event.reading);
         const nowMs = performance.now();
-        if (shownKind !== "messages" || nowMs - messageWordsShownAtMs >= MESSAGE_WORDS_REFRESH_EVERY_MS) {
-          messageWordsShownAtMs = nowMs;
-          show({ kind: "messages", port_family: event.port_family, payload_byte_length: event.payload_byte_length, messages_read: messagesRead });
+        if (shownKind !== "messages" || nowMs - messageReadingShownAtMs >= MESSAGE_READING_REDRAWN_EVERY_MS) {
+          messageReadingShownAtMs = nowMs;
+          show({ kind: "messages", reading: event.reading, packets_units_seen: packetsUnitsSeen, messages_read: messagesRead });
         }
       } else {
         show(event);
@@ -195,15 +199,18 @@ function PortViewerPicture({
   }, [connection, stream, node_id, port]);
   const isAPicture = shown.kind === "picture";
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-black" data-viewer-playing={`${nodeName}/${port}`} data-viewer-port-state={shown.kind}>
+    <div
+      className={isAPicture || shown.kind === "waiting" ? "relative flex min-h-0 flex-1 flex-col bg-black" : "relative flex min-h-0 flex-1 flex-col"}
+      data-viewer-playing={`${nodeName}/${port}`}
+      data-viewer-port-state={shown.kind}
+    >
       <canvas ref={canvasRef} aria-label={`Live picture of ${portWords}`} className={isAPicture ? "block size-full object-contain" : "hidden"} data-viewer-picture="" />
       {shown.kind === "waiting" && <WaitingState title={`Reading ${portWords}`} explanation="The picture shows once the node writes its next frame." />}
       {shown.kind === "messages" && (
-        <WaitingState
-          title={`${portWords} carries ${shown.port_family}`}
-          explanation={`${shown.messages_read} messages read; the latest is ${shown.payload_byte_length} bytes. The Viewer draws Image ports; other families show here as they arrive.`}
-          data-viewer-messages={shown.port_family}
-        />
+        <div className="flex min-h-0 flex-1 flex-col" data-viewer-messages={shown.reading.family}>
+          <div className="truncate border-b border-line px-3 py-1.5 text-xs text-fg-2">{portWords}</div>
+          <PortViewerMessageReadingShown reading={shown.reading} unitsSeen={shown.packets_units_seen} messagesRead={shown.messages_read} />
+        </div>
       )}
       {shown.kind === "undrawable" && (
         <WaitingState title={`${portWords} is ${shown.format_wire_name}`} explanation={`The Viewer draws four-byte BGRA and RGBA frames it reads as pixels; ${shown.format_wire_name} arrives later.`} />

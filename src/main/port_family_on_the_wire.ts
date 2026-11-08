@@ -1,12 +1,13 @@
-// A port's family as the runtime's `graph` and `/api/registry` render it. streamlib's plan decides a port renders
-// its family but not yet the spelling; this reads a `family` key holding one of the five names, in any case.
+// A port's family as the runtime's `graph`, `streamlib://node-catalog` and `/api/registry` render it: the
+// port's family declaration under `family`, whose own `family` names one of the five, in lowercase.
 
 import { PORT_FAMILIES, type PortFamily } from "../shared/tatolab_backend_contract.js";
-import type { JsonObjectOnTheWire } from "./json_on_the_wire.js";
+import { isAJsonObject, type JsonObjectOnTheWire } from "./json_on_the_wire.js";
 
-/** The family `port` names under `family`; `null` for none, or a name that is not one of the five. */
+/** The family `port` declares under `family.family`, or under `family` itself; `null` for none, or a name that is not one of the five. */
 export function portFamilyOnTheWire(port: JsonObjectOnTheWire): PortFamily | null {
-  const familyOnTheWire = port["family"];
+  const familyDeclaration = port["family"];
+  const familyOnTheWire = isAJsonObject(familyDeclaration) ? familyDeclaration["family"] : familyDeclaration;
   if (typeof familyOnTheWire !== "string") return null;
   const familyName = familyOnTheWire.toLowerCase();
   return PORT_FAMILIES.find((family) => family === familyName) ?? null;

@@ -214,7 +214,7 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
     state: "Running",
     config: {},
     input_ports: uncataloguedPorts("image", "video_from_upstream"),
-    output_ports: [],
+    output_ports: [...uncataloguedPorts("records", "brightness"), ...uncataloguedPorts("array", "luma_points")],
   },
 ];
 
@@ -400,9 +400,18 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
           input_ports: uncataloguedPorts("channels", "audio_from_upstream"),
           output_ports: [],
         },
+        {
+          name: "h264encoder",
+          type: "tatolab.h264:H264Encoder",
+          state: "Running",
+          config: { bitrate_bps: 4_000_000, keyframe_interval_frames: 30 },
+          input_ports: uncataloguedPorts("image", "video"),
+          output_ports: [{ name: "encoded", family: "packets", catalog_section: "video" }],
+        },
       ],
       links: [
         { id: "Lc8m2w0d1k4q9s7f3x5v6b2nr", source_node: "camerasource", source_port: "video", target_node: "displaywindow", target_port: "video", state: "wired" },
+        { id: "Le2n8c0d3r5h6k1q4w7y9z2tb", source_node: "camerasource", source_port: "video", target_node: "h264encoder", target_port: "video", state: "wired" },
         {
           id: "Lm4t7y1u3i9o0p2a5s8d6f1gh",
           source_node: "microphonesource",

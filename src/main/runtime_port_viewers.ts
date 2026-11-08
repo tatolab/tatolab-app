@@ -2,11 +2,12 @@
 // viewer the app's windows hold, one runtime viewer per port however many windows show it, and a
 // read of each port's latest message on every tick. An Image frame goes to each window as a shared
 // texture and is released once every window has let go of it; a frame a shared texture cannot
-// carry goes as its pixels.
+// carry goes as its pixels, and every other family's message goes read by its family.
 
 import type { PortViewerEvent, PortViewerImageFrameFacts, PortViewerTarget } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
 import type { OpenedRuntimeViewer, RuntimeViewerTarget } from "./local_api_mcp_stdio_connection.js";
+import { portViewerMessageReadingOf } from "./port_viewer_message_reading.js";
 import { failedWith, succeeded, describeCaughtFailure, type Result } from "./result.js";
 import {
   sharedTextureImportOfARuntimeViewerFrame,
@@ -247,12 +248,12 @@ export class RuntimePortViewers {
     const subscriptions = this.subscriptionsOf(targetKey);
     const { imageFrame } = messageRead;
     if (imageFrame === null) {
+      const reading = portViewerMessageReadingOf(messageRead);
       for (const [portViewer, subscription] of subscriptions) {
         subscription.windowShowingPortViewers.sendTheWindowAPortViewerEvent({
           port_viewer: portViewer,
           kind: "message",
-          port_family: messageRead.portFamily,
-          payload_byte_length: messageRead.payload?.length ?? 0,
+          reading,
           skipped_since_last_read: messageRead.skippedSinceLastRead,
         });
       }

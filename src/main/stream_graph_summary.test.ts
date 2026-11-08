@@ -166,3 +166,21 @@ test("a_port_the_graph_names_a_family_of_reads_as_that_family", () => {
   const graph = streamGraphSummaryFromTheGraphToolResult("main", graphText);
   expect(graph.ok && graph.value.nodes[0]?.output_ports).toEqual([{ name: "video", family: "image", catalog_section: null }]);
 });
+
+test("a_port_reads_as_the_family_its_family_declaration_names_as_the_runtime_renders_it", () => {
+  const graphText = JSON.stringify({
+    stream: "main",
+    nodes: [
+      {
+        id: "P1",
+        name: "detector",
+        type: "nodes.detector:Detector",
+        ports: { inputs: [{ name: "video", family: { family: "image" } }], outputs: [{ name: "faces", family: { family: "records" } }, { name: "levels", family: { family: "channels", rate: 48000 } }] },
+      },
+    ],
+    links: [],
+  });
+  const graph = streamGraphSummaryFromTheGraphToolResult("main", graphText);
+  expect(graph.ok && graph.value.nodes[0]?.output_ports.map((port) => port.family)).toEqual(["records", "channels"]);
+  expect(graph.ok && graph.value.nodes[0]?.input_ports.map((port) => port.family)).toEqual(["image"]);
+});
