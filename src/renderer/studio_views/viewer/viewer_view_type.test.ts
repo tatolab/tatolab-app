@@ -31,6 +31,16 @@ describe("the output port the Viewer plays", () => {
     expect(outputPortTheViewerPlays(GRAPH, { kind: "node", stream: STREAM, node: "brightnessmeter" })).toEqual({ node_id: "id-brightnessmeter", node_name: "brightnessmeter", port: "readings" });
   });
 
+  it("is an Image port over a port whose family the runtime does not serve, such as an encoder's output", () => {
+    const ENCODER = nodeWithOutputs("h264encoder", [{ name: "encoded_video", family: null, catalog_section: null }]);
+    const graphWithAnEncoder: StreamGraphSummary = {
+      ...GRAPH,
+      nodes: [CAMERA, EFFECT, ENCODER],
+      links: [...GRAPH.links, { id: "effect-to-encoder", source_node: "halftonelenseffect", source_port: "video_to_downstream", target_node: "h264encoder", target_port: "video_in", state: "wired" }],
+    };
+    expect(outputPortTheViewerPlays(graphWithAnEncoder, null)).toEqual({ node_id: "id-halftonelenseffect", node_name: "halftonelenseffect", port: "video_to_downstream" });
+  });
+
   it("is a port of another family where the stream has no Image port, and none where it has no output", () => {
     expect(outputPortTheViewerPlays({ ...GRAPH, nodes: [METER] }, null)).toEqual({ node_id: "id-brightnessmeter", node_name: "brightnessmeter", port: "readings" });
     expect(outputPortTheViewerPlays({ ...GRAPH, nodes: [] }, null)).toBeNull();

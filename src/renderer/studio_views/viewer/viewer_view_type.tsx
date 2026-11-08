@@ -48,22 +48,25 @@ function everyOutputPortOf(graph: StreamGraphSummary): (ViewerPortAddress & { fa
 
 /**
  * The output port the Viewer plays for `graph`: the selected node's, its picture first; or else the stream's last picture, the first
- * Image port that feeds no other node's Image output; or else its first port of any family. A port whose family the runtime does not
- * serve may be a picture.
+ * Image port that feeds no other node's Image output, then a port whose family the runtime does not serve, which may be a picture;
+ * or else its first port of any family.
  */
 export function outputPortTheViewerPlays(graph: StreamGraphSummary, selection: StudioSelection | null): ViewerPortAddress | null {
   const outputPorts = everyOutputPortOf(graph);
   const mayBeAPicture = (outputPort: { family: string | null }) => outputPort.family === "image" || outputPort.family === null;
   const selectedNode = selection?.kind === "node" && selection.stream === graph.stream ? selection.node : null;
   const selectedNodesPorts = outputPorts.filter((outputPort) => outputPort.node_name === selectedNode);
-  const nodesWithAPicture = new Set(outputPorts.filter(mayBeAPicture).map((outputPort) => outputPort.node_name));
-  const feedsAnotherPicture = (outputPort: ViewerPortAddress) =>
-    graph.links.some((link) => link.source_node === outputPort.node_name && link.source_port === outputPort.port && nodesWithAPicture.has(link.target_node));
   const pictures = outputPorts.filter(mayBeAPicture);
+  const imagePorts = outputPorts.filter((outputPort) => outputPort.family === "image");
+  const feedsANodeOf = (outputPort: ViewerPortAddress, nodeNames: Set<string>) =>
+    graph.links.some((link) => link.source_node === outputPort.node_name && link.source_port === outputPort.port && nodeNames.has(link.target_node));
+  const nodesWithAPicture = new Set(pictures.map((outputPort) => outputPort.node_name));
+  const nodesWithAnImagePort = new Set(imagePorts.map((outputPort) => outputPort.node_name));
   const played =
     selectedNodesPorts.find(mayBeAPicture) ??
     selectedNodesPorts[0] ??
-    pictures.find((outputPort) => !feedsAnotherPicture(outputPort)) ??
+    imagePorts.find((outputPort) => !feedsANodeOf(outputPort, nodesWithAnImagePort)) ??
+    pictures.find((outputPort) => !feedsANodeOf(outputPort, nodesWithAPicture)) ??
     pictures[0] ??
     outputPorts[0] ??
     null;
