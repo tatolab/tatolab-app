@@ -4,7 +4,6 @@
 
 import os from "node:os";
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import { LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT } from "../../runtime_loopback_watch_page.js";
 import { CommandLineToolLinkInTheHomeFolder, type TatolabCommandLineToolLink } from "../command_line_tool_link_in_the_home_folder.js";
 import { commandLineToolCopyOutsideTheAppImage, copyTheCommandLineToolOutOfTheAppImage } from "./command_line_tool_copied_out_of_the_appimage.js";
 import { currentProcessUid } from "../current_process_uid.js";
@@ -50,7 +49,7 @@ export async function linuxTatolabPlatformForThisBuild(
           runtimeEnvironment:
             machinePaths.localProofTestMachineRoot === null
               ? {}
-              : localProofRuntimeEnvironment(machinePaths.localProofTestMachineRoot, LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT),
+              : localProofRuntimeEnvironment(machinePaths.localProofTestMachineRoot),
         }
       : null,
     commandLineToolLink,

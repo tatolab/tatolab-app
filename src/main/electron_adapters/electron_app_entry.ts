@@ -18,7 +18,6 @@ import { tatolabPlatformItemsForThisBuild } from "../platform/tatolab_platform_i
 import type { TatolabPlatformHostServices } from "../platform/tatolab_platform_for_this_build.js";
 import { startTheCarriedRuntimeAsAChildProcess } from "../platform/carried_runtime_child_process.js";
 import { TATOLAB_WINDOW_PAGE_URL } from "../tatolab_window_page_source.js";
-import { runtimeLoopbackHttpOriginForThisBuild } from "../runtime_loopback_watch_page.js";
 import { electronApplicationMenu } from "./electron_application_menu.js";
 import { openAFolderInTheFileManagerThroughElectron } from "./electron_folder_in_the_file_manager.js";
 import { askThePersonForAStreamProjectFolderThroughElectron } from "./electron_stream_project_folder_dialog.js";
@@ -43,7 +42,6 @@ process.on("unhandledRejection", (unhandledRejection) => {
 /** electron-vite's renderer dev server, which an unpackaged app loads the window from when `electron-vite dev` names it in `ELECTRON_RENDERER_URL`; a packaged app always serves its built window. */
 const windowDevServerUrl = app.isPackaged ? null : windowDevServerUrlNamedIn(process.env["ELECTRON_RENDERER_URL"]);
 const windowPageUrl = windowDevServerUrl ?? TATOLAB_WINDOW_PAGE_URL;
-const runtimeLoopbackHttpOrigin = runtimeLoopbackHttpOriginForThisBuild();
 const builtWindowDirectory = path.join(app.getAppPath(), "out", "renderer");
 const builtWindowPreloadScript = path.join(app.getAppPath(), "out", "preload", "tatolab_window_preload.cjs");
 const tatolabPlatformHostServices: TatolabPlatformHostServices = {
@@ -79,7 +77,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   requestTheSingleInstanceLock: (thisCopy) => app.requestSingleInstanceLock(tatolabAppCopyOnTheSingleInstanceLock(thisCopy)),
   whenReady: async () => {
     await app.whenReady();
-    if (windowDevServerUrl === null) await serveTheBuiltWindow(builtWindowDirectory, runtimeLoopbackHttpOrigin, tatolabAppLog);
+    if (windowDevServerUrl === null) await serveTheBuiltWindow(builtWindowDirectory, tatolabAppLog);
   },
   onTheAppOpenedAgain: (listener) => {
     app.on("second-instance", (_event, _argv, _workingDirectory, additionalData) => listener(tatolabAppCopyHandedOverOnTheSingleInstanceLock(additionalData)));
@@ -135,7 +133,6 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   },
   startTheCarriedRuntime: startTheCarriedRuntimeAsAChildProcess,
   appConfigDirectory,
-  runtimeLoopbackHttpOrigin,
   readMonotonicClockMs: () => performance.now(),
   // The one wall-clock read in the main process: it stamps when a project was opened, which the Projects window only displays.
   // eslint-disable-next-line no-restricted-properties
@@ -143,7 +140,6 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   mainWindowHostFactory: createElectronMainWindowHostFactory(
     windowPageUrl,
     builtWindowPreloadScript,
-    runtimeLoopbackHttpOrigin,
     !app.isPackaged,
     tatolabAppLog,
   ),

@@ -1,7 +1,6 @@
 // scripts/assemble-tatolab-app-bundle.sh places everything the runtime unit ships: it refuses a
-// unit without moq-relay or uv, which tatolabd runs from beside itself, or without the preview page
-// tatolabd serves from Resources/watch, a unit whose bin/ or lib/tatolab/ holds something it does
-// not place, and a unit built from any streamlib commit but the one the build resolved. Every
+// unit without uv, which tatolabd runs from beside itself, a unit whose bin/ or lib/tatolab/ holds
+// something it does not place, and a unit built from any streamlib commit but the one the build resolved. Every
 // refusal comes before it touches the bundle.
 
 import { execFile } from "node:child_process";
@@ -13,8 +12,8 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const ASSEMBLE_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "assemble-tatolab-app-bundle.sh");
-const PLACED_RUNTIME_UNIT_BINARIES = ["moq-relay", "tatolab", "tatolabd", "uv"];
-const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend", "watch"];
+const PLACED_RUNTIME_UNIT_BINARIES = ["tatolab", "tatolabd", "uv"];
+const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend"];
 const RESOLVED_STREAMLIB_COMMIT = "ef5c8b22995a90b1f7ae671e214c96480615c911";
 const AN_OLDER_STREAMLIB_COMMIT = "f2ec4338a0d1c2b3e4f5a6b7c8d9e0f1a2b3c4d5";
 
@@ -64,9 +63,6 @@ async function runtimeUnitPlantedWith(
   if (libraryDirectoryNames.includes("lend")) {
     await mkdir(path.join(runtimeUnitDirectory, "lib", "tatolab", "lend", "tatolab", "runtime"), { recursive: true });
   }
-  if (libraryDirectoryNames.includes("watch")) {
-    await writeFile(path.join(runtimeUnitDirectory, "lib", "tatolab", "watch", "index.html"), "");
-  }
   for (const binaryName of binaryNames) {
     await writeFile(path.join(runtimeUnitDirectory, "bin", binaryName), "");
     await chmod(path.join(runtimeUnitDirectory, "bin", binaryName), 0o755);
@@ -74,8 +70,8 @@ async function runtimeUnitPlantedWith(
   return runtimeUnitDirectory;
 }
 
-test("a unit without moq-relay or without uv is refused and the bundle is untouched", async () => {
-  for (const missingBinaryName of ["moq-relay", "uv"]) {
+test("a unit without uv is refused and the bundle is untouched", async () => {
+  for (const missingBinaryName of ["uv"]) {
     await rm(path.join(scratchDirectory, "tatolab-runtime"), { recursive: true, force: true });
     const runtimeUnitDirectory = await runtimeUnitPlantedWith(
       PLACED_RUNTIME_UNIT_BINARIES.filter((binaryName) => binaryName !== missingBinaryName),
@@ -93,14 +89,6 @@ test("a unit whose bin/ holds a binary the bundle does not place is refused and 
   const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
   expect(assembleOutcome.exitCode).toBe(1);
   expect(assembleOutcome.stderr).toContain("bin/tatolab-something-new");
-  expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
-});
-
-test("a unit without the preview page is refused and the bundle is untouched", async () => {
-  const runtimeUnitDirectory = await runtimeUnitPlantedWith(PLACED_RUNTIME_UNIT_BINARIES, ["lend"]);
-  const assembleOutcome = await runTheAssembleScript(plantedAppBundle, runtimeUnitDirectory);
-  expect(assembleOutcome.exitCode).toBe(1);
-  expect(assembleOutcome.stderr).toContain("is missing lib/tatolab/watch/index.html");
   expect(await readdir(path.join(plantedAppBundle, "Contents"))).toEqual(["MacOS"]);
 });
 

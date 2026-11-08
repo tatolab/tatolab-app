@@ -20,8 +20,6 @@ import type {
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
-  RelaySettingsByName,
-  RelaysDescription,
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
@@ -67,10 +65,6 @@ export const TATOLAB_COMMAND_NAMES = [
   "open_runtime_log_folder",
   "set_stream_failure_notifications",
   "set_open_tatolab_at_login",
-  "describe_relays",
-  "add_relay",
-  "configure_relay",
-  "remove_relay",
   "choose_project_folder",
   "read_open_project",
   "read_recent_projects",
@@ -99,7 +93,7 @@ export const TATOLAB_COMMAND_NAMES = [
  * One command the window invokes. Arguments: `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
- * `add_relay` `{ adapter, settings }`, `configure_relay` `{ relay_id, settings }`, `remove_relay` `{ relay_id }`, `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_viewer` a `PoppedOutViewerTarget`, `preview_import` `{ requirement }`, `import_into_workspace` `{ requirement, based_on_version }`, `open_import_to_edit` `{ name }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_viewer` a `PoppedOutViewerTarget`, `preview_import` `{ requirement }`, `import_into_workspace` `{ requirement, based_on_version }`, `open_import_to_edit` `{ name }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` only on one of the recent projects, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
  * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
@@ -202,14 +196,6 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   /** Answers once the desktop has; refused in its words, or with why this build does not offer it. */
   set_open_tatolab_at_login: { commandArguments: { enabled: boolean }; answer: null };
   /** `chosen_in_a_file_dialog` opens the app's own file dialog and answers once the person picks or cancels; refused naming why, the choice unchanged. */
-  /** The runtime's `list_relays` and its relay-adapter catalog, read together; refused in the runtime's own words. */
-  describe_relays: { commandArguments: undefined; answer: RelaysDescription };
-  /** `settings` as the adapter's settings take them, its secrets among them, sent once and kept by the app nowhere; answers the id the runtime gave the relay. */
-  add_relay: { commandArguments: { adapter: string; settings: RelaySettingsByName }; answer: { relay_id: string } };
-  /** Only the settings named change; `null` returns one to its default, and a secret named replaces the one held. */
-  configure_relay: { commandArguments: { relay_id: string; settings: RelaySettingsByName }; answer: null };
-  /** Refused by the runtime for a built-in relay. */
-  remove_relay: { commandArguments: { relay_id: string }; answer: null };
   /** The app's folder dialog; the chosen project folder becomes the open project, first among the recent projects. `null` when the person cancels; refused in the dialog's own words. */
   choose_project_folder: { commandArguments: { chosen_for: ProjectFolderChosenFor }; answer: ChosenProjectFolder | null };
   /** Where the New project sheet starts, and the name it suggests. */

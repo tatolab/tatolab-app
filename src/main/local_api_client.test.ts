@@ -427,23 +427,22 @@ test("describing_a_stream_graph_calls_the_graph_tool_and_keeps_its_text_as_the_r
   const graphText = await recordedResponseBody("local-api-graph-of-the-stream-main.json");
   const server = await fakeLocalApiServerAnswering([toolResultResponseOfText(graphText)]);
 
-  const summary = answerOf(await server.client().describeStreamGraph("main", "http://127.0.0.1:4446"));
+  const summary = answerOf(await server.client().describeStreamGraph("main"));
 
   expect(summary.stream).toBe("main");
   expect(summary.graph_document_text).toBe(graphText);
   expect(summary.graph_document_text).toContain('"config_checksum": 15071898633716066277');
-  expect(summary.exposed[0]?.watch_page_url).toBe("http://127.0.0.1:4446/watch/jonathanf-macbook/main/invertingeffect/video_to_downstream?video_only");
   const [head, body] = headAndBodyOf(server.receivedRequests()[0]);
   expect(head).toContain("Mcp-Name: graph\r\n");
   expect(JSON.parse(body).params.arguments).toEqual({ stream: "main" });
 });
 
-test("a_real_graph_tool_result_reads_with_its_counters_preview_page_and_verbatim_text", async () => {
+test("a_real_graph_tool_result_reads_with_its_counters_and_verbatim_text", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-graph-tool-result-of-the-stream-front-door.json")),
   ]);
 
-  const summary = answerOf(await server.client().describeStreamGraph("front-door", "http://127.0.0.1:4446"));
+  const summary = answerOf(await server.client().describeStreamGraph("front-door"));
 
   expect(summary.nodes.map((node) => [node.name, node.type, node.state])).toEqual([
     ["testpatternsource", "tatolab.stream:TestPatternSource", "Running"],
@@ -460,14 +459,6 @@ test("a_real_graph_tool_result_reads_with_its_counters_preview_page_and_verbatim
   expect(summary.nodes[1]?.dropped_bags_by_link).toEqual({ Lt12wev5nhhd2ankv0rrz1w3v: 0 });
   expect(summary.nodes[3]?.refused_bags_by_output_port).toEqual({ encoded_video: 0 });
   expect(summary.links.map((link) => link.id)).toContain("Lt12wev5nhhd2ankv0rrz1w3v");
-  expect(summary.exposed).toEqual([
-    {
-      node: "h264encoder",
-      port: "encoded_video",
-      level: "public",
-      watch_page_url: "http://127.0.0.1:4446/watch/jonathanf-macbook/front-door/h264encoder/encoded_video?video_only",
-    },
-  ]);
   expect(JSON.parse(summary.graph_document_text).stream).toBe("front-door");
 });
 
@@ -476,7 +467,7 @@ test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", 
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-graph-tool-refusal-for-the-stopped-stream-front-door.json")),
   ]);
 
-  expect(failureOf(await server.client().describeStreamGraph("front-door", "http://127.0.0.1:4446")).failureDescription).toBe(
+  expect(failureOf(await server.client().describeStreamGraph("front-door")).failureDescription).toBe(
     "graph failed: Resource not found: no stream named `front-door` is loaded in this runtime. Loaded: none",
   );
 });
@@ -715,7 +706,7 @@ test("a_chunked_response_is_dechunked", async () => {
 
 /** Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/local_api_client.test.ts`. */
 const noLiveRuntimeSocketIsNamed = !process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"];
-test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_and_logs_its_machine_name_and_its_relays", async () => {
+test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_and_logs_and_its_machine_name", async () => {
   const client = new LocalApiClient(process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "", 5_000, "0.45.0");
 
   answerOf(await client.checkHealth());
@@ -725,7 +716,7 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
   const streams = answerOf(await client.listStreams());
   expect(answerOf(await client.machineName())).not.toBe("");
   for (const loadedStream of streams.filter((listedStream) => listedStream.node_count !== null)) {
-    const graph = answerOf(await client.describeStreamGraph(loadedStream.stream, "http://127.0.0.1:4446"));
+    const graph = answerOf(await client.describeStreamGraph(loadedStream.stream));
     expect(graph.stream).toBe(loadedStream.stream);
     expect(graph.graph_document_text.startsWith("{\n")).toBe(true);
   }
@@ -742,18 +733,6 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
 
   const expectedStreamCount = process.env["TATOLAB_APP_LIVE_EXPECTED_STREAM_COUNT"];
   if (expectedStreamCount !== undefined) expect(streams.length).toBe(Number(expectedStreamCount));
-
-  const relaysDescription = answerOf(await client.describeRelays());
-  expect(relaysDescription.relays.filter((relay) => relay.built_in).map((relay) => relay.relay_id)).toEqual(["local-loopback", "local-every-interface"]);
-  expect(relaysDescription.adapters.map((adapter) => adapter.kind)).toEqual(expect.arrayContaining(["local", "cloudflare", "moqpro"]));
-  for (const adapter of relaysDescription.adapters) {
-    expect(adapter.display_name).not.toBeNull();
-    expect(adapter.display_icon_data_uri?.startsWith("data:image/")).toBe(true);
-  }
-  expect(failureOf(await client.removeRelay("local-loopback"))).toEqual({
-    failureDescription: "the relay `local-loopback` is built in and is never removed",
-    isTheRuntimesRefusal: true,
-  });
 });
 
 /** The tool name and arguments of each MCP request `server` read, in order. */
@@ -766,83 +745,6 @@ function toolCallsReceivedBy(server: FakeLocalApiServer): [string | undefined, u
     return [toolName, requestBody.params.arguments];
   });
 }
-
-test("describing_the_relays_reads_the_adapter_catalog_then_list_relays", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-relay-adapters-answer-of-a-test-root-runtime.json")),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-relays-tool-result-of-a-test-root-runtime-at-start.json")),
-  ]);
-
-  const relaysDescription = answerOf(await server.client().describeRelays());
-
-  expect(relaysDescription.adapters.map((adapter) => adapter.kind)).toEqual(["local", "cloudflare", "moqpro", "test-secret-holder"]);
-  expect(relaysDescription.relays.map((relay) => [relay.relay_id, relay.settings])).toEqual([
-    ["local-loopback", { port: 14443 }],
-    ["local-every-interface", { port: 14445 }],
-  ]);
-  const [catalogRequest, listRequest] = server.receivedRequests();
-  expect(catalogRequest?.startsWith("GET /api/relay-adapters HTTP/1.1\r\n"), catalogRequest).toBe(true);
-  expect(listRequest).toContain("Mcp-Name: list_relays");
-});
-
-test("a_relay_catalog_the_runtime_refuses_carries_its_own_words_and_lists_nothing", async () => {
-  const server = await fakeLocalApiServerAnswering([httpResponse("404 Not Found", "application/json", '{"error":"no route /api/relay-adapters"}')]);
-
-  expect(failureOf(await server.client().describeRelays()).failureDescription).toBe("no route /api/relay-adapters");
-  expect(server.receivedRequests()).toHaveLength(1);
-});
-
-test("adding_configuring_and_removing_a_relay_call_the_runtimes_tools_of_those_names", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-add-relay-answer-for-a-test-secret-holder.json")),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-configure-relay-answer-for-local-every-interface-on-port-14447.json")),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-relay-answer-for-cloudflare-1.json")),
-  ]);
-
-  expect(answerOf(await server.client().addRelay("test-secret-holder", { token: "typed-in-the-test", label: "desk" }))).toBe("test-secret-holder-1");
-  answerOf(await server.client().configureRelay("local-every-interface", { port: 14447 }));
-  answerOf(await server.client().removeRelay("cloudflare-1"));
-
-  expect(toolCallsReceivedBy(server)).toEqual([
-    ["add_relay", { adapter: "test-secret-holder", settings: { token: "typed-in-the-test", label: "desk" } }],
-    ["configure_relay", { relay_id: "local-every-interface", settings: { port: 14447 } }],
-    ["remove_relay", { relay_id: "cloudflare-1" }],
-  ]);
-});
-
-test("a_relay_change_the_runtime_refuses_is_its_own_refusal_in_its_own_words", async () => {
-  const server = await fakeLocalApiServerAnswering([
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-add-relay-refusal-for-the-built-in-local-adapter.json")),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-add-relay-refusal-for-a-moqpro-project-id-holding-a-slash.json")),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-configure-relay-refusal-for-the-unknown-setting-bind.json")),
-    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-relay-refusal-for-the-built-in-local-every-interface.json")),
-  ]);
-
-  expect(failureOf(await server.client().addRelay("local", {}))).toEqual({
-    failureDescription:
-      "no `local` relay is added: the local relay is built in: its listeners `local-loopback` and `local-every-interface` are on every machine, and where a listener binds is never a setting",
-    isTheRuntimesRefusal: true,
-  });
-  expect(failureOf(await server.client().addRelay("moqpro", { project_id: "desk/a", signing_key: "typed-in-the-test" })).failureDescription).toBe(
-    "the settings of the relay `moqpro-1` are refused: `project_id` `desk/a` is not a moq.pro project id: one path segment, non-empty, with no `/`",
-  );
-  expect(failureOf(await server.client().configureRelay("local-loopback", { bind: "0.0.0.0" })).failureDescription).toBe(
-    "the settings of the relay `local-loopback` are refused: unknown field `bind`, expected `port`",
-  );
-  expect(failureOf(await server.client().removeRelay("local-every-interface")).failureDescription).toBe(
-    "the relay `local-every-interface` is built in and is never removed",
-  );
-});
-
-test("a_relay_change_that_never_answers_names_the_tool_and_never_the_settings_it_carried", async () => {
-  const server = await fakeLocalApiServerAnswering([]);
-
-  const failure = failureOf(await server.client().addRelay("cloudflare", { relay_url: "https://relay.example/typed-in-the-test" }));
-
-  expect(failure.isTheRuntimesRefusal).toBe(false);
-  expect(failure.failureDescription).toContain("POST /mcp");
-  expect(failure.failureDescription).not.toContain("typed-in-the-test");
-});
 
 test("a_request_carries_a_content_length_exactly_when_it_carries_a_body", () => {
   expect(httpRequestBytes("POST", "/mcp", [], null).toString("utf8")).toBe("POST /mcp HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");

@@ -4,7 +4,7 @@
 
 import type { ProjectFileRead, ProjectFileSaved, ProjectFiles } from "../../shared/tatolab_backend_contract";
 
-const PATTERN_STREAM_PY = `from tatolab.stream import Exposure, RelayTrackSource, StreamBuilder, stream
+const PATTERN_STREAM_PY = `from tatolab.stream import RelayTrackSource, StreamBuilder, stream
 from tatolab.stream import DisplayWindow, Mp4Writer, TestPatternSource
 
 from nodes.brightness_meter import BrightnessMeter
@@ -21,7 +21,6 @@ def main(stream_builder: StreamBuilder) -> None:
     stream_builder.connect(source.output("video"), effect.input("video_from_upstream"))
     stream_builder.connect(effect.output("video_to_downstream"), display.input("video"))
     stream_builder.connect(effect.output("video_to_downstream"), meter.input("video_from_upstream"))
-    stream_builder.expose(effect.output("video_to_downstream"), Exposure.PRIVATE)
 
 
 @stream

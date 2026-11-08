@@ -1,1 +1,0 @@
-{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"no `local` relay is added: the local relay is built in: its listeners `local-loopback` and `local-every-interface` are on every machine, and where a listener binds is never a setting"}],"isError":true}}

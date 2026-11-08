@@ -1,7 +1,6 @@
 // The browser mock's `graph` tool: a mock stream's graph rendered as the runtime renders its
 // document — node ids, config, ports, components with state and metrics, link ids and ends,
-// `exposed`, `machine` — and the summary the main process would read from it. The preview page
-// is a stand-in drawn in the frame itself, since no runtime serves `/watch/` to a browser mock.
+// `machine` — and the summary the main process would read from it.
 
 import { mockNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
 import type { StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
@@ -27,21 +26,6 @@ function linkSourceAsTheRuntimeRendersIt(sourceNode: string, sourcePort: string)
   const streamSeparator = sourceNode.indexOf("/");
   if (streamSeparator === -1) return { node: sourceNode, port: sourcePort };
   return { stream: sourceNode.slice(0, streamSeparator), node: sourceNode.slice(streamSeparator + 1), port: sourcePort };
-}
-
-/** A stand-in for the runtime's video-only preview page of `address`: moving 16:9 colour bars, fitted to the frame with black around them. */
-function mockWatchPageUrl(address: string): string {
-  const standInPage = `<!doctype html><html><head><title>Mock preview of ${address}</title></head><body style="margin:0;background:#000;overflow:hidden">
-<canvas id="c" style="width:100vw;height:100vh;display:block"></canvas>
-<script>
-const c=document.getElementById("c"),g=c.getContext("2d"),bars=["#c0c0c0","#c0c000","#00c0c0","#00c000","#c000c0","#c00000","#0000c0"];
-function draw(t){c.width=innerWidth*devicePixelRatio;c.height=innerHeight*devicePixelRatio;g.fillStyle="#000";g.fillRect(0,0,c.width,c.height);
-const w=Math.min(c.width,c.height*16/9),h=w*9/16,x=(c.width-w)/2,y=(c.height-h)/2;
-bars.forEach((b,i)=>{g.fillStyle=b;g.fillRect(x+i*w/7,y,w/7+1,h*.72)});
-const s=(t/1000)%1;g.fillStyle="#111";g.fillRect(x,y+h*.72,w,h*.28);g.fillStyle="#fff";g.fillRect(x+s*w,y+h*.72,w/40,h*.28);
-requestAnimationFrame(draw)}requestAnimationFrame(draw);
-</script></body></html>`;
-  return `data:text/html;charset=utf-8,${encodeURIComponent(standInPage)}`;
 }
 
 /** The `graph {stream}` document of `graph` for the stream `streamId` on `machineName` at `moment`, and the summary read from it; its ports name their families only when `arePortFamiliesServed`. */
@@ -111,17 +95,12 @@ export function mockStreamGraphSummary(
       state: linkState(link.state),
       components: { state: linkComponentState(linkState(link.state)) },
     })),
-    exposed: graph.exposed,
     machine: machineName,
   };
   return {
     stream: streamId,
     nodes,
     links: graph.links.map((link) => ({ ...link, state: linkState(link.state) })),
-    exposed: graph.exposed.map((exposedPort) => ({
-      ...exposedPort,
-      watch_page_url: exposedPort.level === "internal" ? null : mockWatchPageUrl(`${machineName}/${streamId}/${exposedPort.node}/${exposedPort.port}`),
-    })),
     graph_document_text: JSON.stringify(graphDocument, null, 2),
   };
 }

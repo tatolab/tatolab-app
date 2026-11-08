@@ -13,7 +13,6 @@ import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPl
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { failedWith, succeeded } from "./result.js";
-import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabElectronAppShell } from "./main.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
@@ -157,7 +156,6 @@ export class FakeTatolabElectronAppShell {
     systemNotifications: this.systemNotifications,
     repeatingTimer: (intervalMs) => this.records.push({ asked: "repeat_every", intervalMs }),
     appConfigDirectory: this.appConfigDirectory,
-    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readMonotonicClockMs: () => 0,
     readWallClockMsForDisplay: () => 1_790_000_000_000,
     mainWindowHostFactory: {

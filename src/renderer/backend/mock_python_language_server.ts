@@ -14,7 +14,6 @@ function fieldOf(value: JsonValue | undefined, fieldName: string): JsonValue | u
 const STREAM_BUILDER_METHODS: Record<string, string> = {
   add: "(method) def add(node_class: type, *, name: str | None = None, config: Mapping[str, Any] | None = None) -> NodeReference",
   connect: "(method) def connect(source: NodeOutputPortReference, destination: NodeInputPortReference) -> None",
-  expose: "(method) def expose(output: NodeOutputPortReference, level: Exposure = Exposure.PRIVATE) -> None",
 };
 
 const LSP_COMPLETION_KIND_METHOD = 2;

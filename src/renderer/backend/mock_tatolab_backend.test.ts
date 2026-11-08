@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./mock_tatolab_backend";
-import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, RelaysDescription, StreamActionFollowed } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, StreamActionFollowed } from "../../shared/tatolab_backend_contract";
 import type { TatolabBackend } from "./tatolab_backend";
 
 afterEach(() => {
@@ -341,76 +341,6 @@ describe("the mock backend's runtime", () => {
     const described = withoutAnOwnLog.describeRuntime();
     await vi.advanceTimersByTimeAsync(100);
     expect((await described).runtime_log_directory).toBeNull();
-  });
-});
-
-describe("the mock backend's relays", () => {
-  /** `call`'s outcome once the mock's timers have run long enough for it to answer. */
-  async function settled<Answer>(call: Promise<Answer>): Promise<{ answer: Answer } | { refusal: unknown }> {
-    const outcome = call.then(
-      (answer) => ({ answer }),
-      (refusal: unknown) => ({ refusal }),
-    );
-    await vi.advanceTimersByTimeAsync(1_000);
-    return outcome;
-  }
-
-  /** What `describeRelays` answers once the mock's timers have run. */
-  async function describedRelays(backend: ReturnType<typeof createMockTatolabBackend>): Promise<RelaysDescription> {
-    const described = await settled(backend.describeRelays());
-    return "answer" in described ? described.answer : expect.unreachable(String(described.refusal));
-  }
-
-  it("lists the local relay's two listeners first, and adds a relay as the runtime does, keeping its secret only as set", async () => {
-    vi.useFakeTimers();
-    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("relays=local")));
-    const typedSecret = "https://draft-16.cloudflare.mediaoverquic.com/typed-in-the-test";
-
-    expect(await settled(backend.addRelay("cloudflare", { relay_url: typedSecret }))).toEqual({ answer: "cloudflare-1" });
-    const described = await describedRelays(backend);
-
-    expect(described.relays.map((relay) => [relay.relay_id, relay.built_in, relay.connection_state.state])).toEqual([
-      ["local-loopback", true, "joined"],
-      ["local-every-interface", true, "joined"],
-      ["cloudflare-1", false, "joining"],
-    ]);
-    expect(described.relays[2]?.secrets).toEqual({ relay_url: "set" });
-    expect(JSON.stringify(described)).not.toContain("typed-in-the-test");
-    await vi.advanceTimersByTimeAsync(2_000);
-    expect((await describedRelays(backend)).relays[2]?.connection_state).toEqual({ state: "joined" });
-  });
-
-  it("refuses what the runtime refuses, in its words, and returns a port to its default for null", async () => {
-    vi.useFakeTimers();
-    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams()));
-
-    expect(await settled(backend.removeRelay("local-every-interface"))).toEqual({ refusal: "the relay `local-every-interface` is built in and is never removed" });
-    expect(await settled(backend.addRelay("local", {}))).toEqual({
-      refusal:
-        "no `local` relay is added: the local relay is built in: its listeners `local-loopback` and `local-every-interface` are on every machine, and where a listener binds is never a setting",
-    });
-    expect(await settled(backend.addRelay("moqpro", { project_id: "desk/a", signing_key: "typed-in-the-test" }))).toEqual({
-      refusal: "the settings of the relay `moqpro-2` are refused: `project_id` `desk/a` is not a moq.pro project id: one path segment, non-empty, with no `/`",
-    });
-    expect(await settled(backend.configureRelay("local-loopback", { bind: "0.0.0.0" }))).toEqual({
-      refusal: "the settings of the relay `local-loopback` are refused: unknown field `bind`, expected `port`",
-    });
-
-    await settled(backend.configureRelay("local-every-interface", { port: 14447 }));
-    expect((await describedRelays(backend)).relays[1]?.settings).toEqual({ port: 14447 });
-    await settled(backend.configureRelay("local-every-interface", { port: null }));
-    expect((await describedRelays(backend)).relays[1]?.settings).toEqual({ port: 4445 });
-    await settled(backend.removeRelay("moqpro-1"));
-    expect((await describedRelays(backend)).relays.map((relay) => relay.relay_id)).toEqual(["local-loopback", "local-every-interface", "cloudflare-1"]);
-  });
-
-  it("refuses every relay call while the runtime is down", async () => {
-    vi.useFakeTimers();
-    const backend = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("state=not-running")));
-
-    const outcome = await settled(backend.describeRelays());
-
-    expect("refusal" in outcome && String(outcome.refusal).startsWith("no runtime answers at ")).toBe(true);
   });
 });
 

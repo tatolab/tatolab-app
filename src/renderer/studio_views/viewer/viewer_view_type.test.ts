@@ -16,7 +16,6 @@ const GRAPH: StreamGraphSummary = {
   stream: STREAM,
   nodes: [CAMERA, EFFECT, METER],
   links: [{ id: "camera-to-effect", source_node: "camera", source_port: "video", target_node: "halftonelenseffect", target_port: "video_in", state: "wired" }],
-  exposed: [],
   graph_document_text: "",
 };
 

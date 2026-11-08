@@ -1,12 +1,10 @@
 // A stream's graph as the window draws it, read from the runtime's `graph {stream}` tool: its
-// nodes by name with their type, state, config, declared ports and drop counters, its links by id, node and port, the
-// ports it exposes with the preview page of each one readable outside it, and the tool's text
-// itself. Every other key the runtime renders stays only in that text.
+// nodes by name with their type, state, config, declared ports and drop counters, its links by id, node and port, and the
+// tool's text itself. Every other key the runtime renders stays only in that text.
 
 import type {
   JsonValue,
   StreamGraphDeclaredPort,
-  StreamGraphExposedPort,
   StreamGraphLink,
   StreamGraphNode,
   StreamGraphSummary,
@@ -26,28 +24,13 @@ import {
 } from "./json_on_the_wire.js";
 import { portFamilyOnTheWire } from "./port_family_on_the_wire.js";
 import { failedWith, succeeded, type Result } from "./result.js";
-import { runtimeWatchPageUrl } from "./runtime_loopback_watch_page.js";
 
 /** The runtime's own reading of a link rendered without a state. */
 const A_LINK_RENDERED_WITHOUT_A_STATE_IS_PENDING = "pending";
 
-/** The runtime's own reading of an exposure written before exposure had levels. */
-const AN_EXPOSURE_RENDERED_WITHOUT_A_LEVEL_IS_PRIVATE = "private";
-
-/** The one level whose port the preview page never serves. */
-const THE_EXPOSURE_LEVEL_NEVER_SERVED = "internal";
-
-/**
- * The summary of the graph the `graph {stream: <requestedStream>}` tool answered with `graphToolResultText`, each readable
- * exposed port's preview page at `runtimeLoopbackHttpOrigin`; a graph naming no stream is the requested one's, and one naming
- * no machine has no preview pages.
- */
-export function streamGraphSummaryFromTheGraphToolResult(
-  requestedStream: string,
-  graphToolResultText: string,
-  runtimeLoopbackHttpOrigin: string,
-): Result<StreamGraphSummary, string> {
-  const summary = streamGraphSummaryFromTheParsedGraph(requestedStream, parseJsonOnTheWire(graphToolResultText), runtimeLoopbackHttpOrigin);
+/** The summary of the graph the `graph {stream: <requestedStream>}` tool answered with `graphToolResultText`; a graph naming no stream is the requested one's. */
+export function streamGraphSummaryFromTheGraphToolResult(requestedStream: string, graphToolResultText: string): Result<StreamGraphSummary, string> {
+  const summary = streamGraphSummaryFromTheParsedGraph(requestedStream, parseJsonOnTheWire(graphToolResultText));
   if (!summary.ok) return failedWith(`the runtime's graph of \`${requestedStream}\` could not be read: ${summary.failure}`);
   return succeeded({ ...summary.value, graph_document_text: graphToolResultText });
 }
@@ -55,15 +38,12 @@ export function streamGraphSummaryFromTheGraphToolResult(
 function streamGraphSummaryFromTheParsedGraph(
   requestedStream: string,
   parsedGraph: Result<unknown, string>,
-  runtimeLoopbackHttpOrigin: string,
 ): Result<Omit<StreamGraphSummary, "graph_document_text">, string> {
   if (!parsedGraph.ok) return parsedGraph;
   const graph = jsonObject(parsedGraph.value, "the graph");
   if (!graph.ok) return graph;
   const stream = optionalText(graph.value, "stream");
   if (!stream.ok) return stream;
-  const machine = optionalText(graph.value, "machine");
-  if (!machine.ok) return machine;
   const nodesOnTheWire = arrayOrEmpty(graph.value, "nodes");
   if (!nodesOnTheWire.ok) return nodesOnTheWire;
   const nodes = everyOneRead(nodesOnTheWire.value, streamGraphNodeOnTheWire);
@@ -72,17 +52,7 @@ function streamGraphSummaryFromTheParsedGraph(
   if (!linksOnTheWire.ok) return linksOnTheWire;
   const links = everyOneRead(linksOnTheWire.value, streamGraphLinkOnTheWire);
   if (!links.ok) return links;
-  const exposedOnTheWire = arrayOrEmpty(graph.value, "exposed");
-  if (!exposedOnTheWire.ok) return exposedOnTheWire;
-  const streamId = stream.value ?? requestedStream;
-  const machineName = machine.value;
-  const exposed = everyOneRead(exposedOnTheWire.value, (exposedPortOnTheWire) =>
-    streamGraphExposedPortOnTheWire(exposedPortOnTheWire, (node, port) =>
-      machineName === null ? null : runtimeWatchPageUrl(runtimeLoopbackHttpOrigin, { machine: machineName, stream: streamId, node, port }),
-    ),
-  );
-  if (!exposed.ok) return exposed;
-  return succeeded({ stream: streamId, nodes: nodes.value, links: links.value, exposed: exposed.value });
+  return succeeded({ stream: stream.value ?? requestedStream, nodes: nodes.value, links: links.value });
 }
 
 /** A `{ name: count }` object of the node's `components.metrics`, keeping each count the runtime wrote as a number; `{}` when it wrote none. */
@@ -180,24 +150,4 @@ function streamGraphLinkEndOnTheWire(
   const port = requiredText(linkEnd.value, "port");
   if (!port.ok) return port;
   return succeeded({ nodeNameAsTheWindowShowsIt: stream.value === null ? node.value : `${stream.value}/${node.value}`, port: port.value });
-}
-
-function streamGraphExposedPortOnTheWire(
-  exposedPortOnTheWire: unknown,
-  watchPageUrlOf: (node: string, port: string) => string | null,
-): Result<StreamGraphExposedPort, string> {
-  const exposedPort = jsonObject(exposedPortOnTheWire, "an exposed port");
-  if (!exposedPort.ok) return exposedPort;
-  const node = requiredText(exposedPort.value, "node");
-  if (!node.ok) return node;
-  const port = requiredText(exposedPort.value, "port");
-  if (!port.ok) return port;
-  const level = textOrDefault(exposedPort.value, "level", AN_EXPOSURE_RENDERED_WITHOUT_A_LEVEL_IS_PRIVATE);
-  if (!level.ok) return level;
-  return succeeded({
-    node: node.value,
-    port: port.value,
-    level: level.value,
-    watch_page_url: level.value === THE_EXPOSURE_LEVEL_NEVER_SERVED ? null : watchPageUrlOf(node.value, port.value),
-  });
 }

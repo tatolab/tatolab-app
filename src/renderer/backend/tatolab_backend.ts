@@ -16,8 +16,6 @@ import type {
   RecentProject,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
-  RelaySettingsByName,
-  RelaysDescription,
   RuntimeDescription,
   StreamGraphSummary,
   ProjectCreationQueued,
@@ -87,14 +85,6 @@ export interface TatolabBackend {
   setStreamFailureNotifications(enabled: boolean): Promise<void>;
   /** Have the desktop open Tatolab at login, or stop, resolving once it has and rejecting in its words; what it reports arrives as the next status. */
   setOpenTatolabAtLogin(enabled: boolean): Promise<void>;
-  /** Every relay the runtime holds and every adapter it can join one through, rejecting in the runtime's own words. */
-  describeRelays(): Promise<RelaysDescription>;
-  /** Add a relay of `adapter` with `settings`, its secrets among them, resolving with the id the runtime gave it and rejecting in the runtime's own words. */
-  addRelay(adapter: string, settings: Readonly<RelaySettingsByName>): Promise<string>;
-  /** Replace the settings named in `settings` on the relay `relayId`, `null` returning one to its default; rejects in the runtime's own words. */
-  configureRelay(relayId: string, settings: Readonly<RelaySettingsByName>): Promise<void>;
-  /** Leave and forget the relay `relayId`, rejecting in the runtime's own words, as it refuses a built-in relay. */
-  removeRelay(relayId: string): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
   /** Calls `listener` with the stream each request from the app to show a stream's page names; the returned function stops it. */
   onStreamPageRequested(listener: (streamId: string) => void): () => void;

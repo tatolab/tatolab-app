@@ -104,8 +104,6 @@ export interface TatolabElectronAppShell {
   startTheCarriedRuntime: StartTheCarriedRuntimeAsAChildProcess;
   /** The app's own config directory, where its switches and recent projects are remembered. */
   appConfigDirectory: string;
-  /** Where the runtime this build reads serves its loopback HTTP: the window's content security policy frames it, and the graph's preview pages sit under it. */
-  runtimeLoopbackHttpOrigin: string;
   readMonotonicClockMs(): number;
   /** The wall clock, in milliseconds since the epoch, only ever shown to the person, as when the Projects window says a project was opened. */
   readWallClockMsForDisplay(): number;
@@ -217,7 +215,6 @@ export async function startTatolabApp(
     startTheCarriedRuntime: tatolabElectronAppShell.startTheCarriedRuntime,
     appVersion: thisCopyOfTatolab.appVersion,
     appBuild: thisCopyOfTatolab.appBuild,
-    runtimeLoopbackHttpOrigin: tatolabElectronAppShell.runtimeLoopbackHttpOrigin,
     readMonotonicClockMs: () => tatolabElectronAppShell.readMonotonicClockMs(),
     readTheAppUpdateState: () => tatolabAppUpdater.state(),
     readStreamFailureNotifications: () => streamFailureNotifications.stateNow(),

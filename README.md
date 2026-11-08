@@ -32,9 +32,8 @@ project's Reload queues `run_project` again; the window follows each load with
 on a stream the listing shows `preparing` or `stopping`, on a Reload, and on a New project or
 Import project, and shows the runtime's refusal in its own words. A stream's Logs tab reads its project's log with `logs`,
 narrowed to the stream or showing the whole project; a project's page lists its streams and reads
-its whole log, narrowed to one stream or one action. A stream's Overview plays each output it exposes beyond itself that the runtime
-gives a preview page, in a frame of `http://127.0.0.1:4446/watch/…`, the one origin the window's
-content security policy frames. "Open project" and "Open a terminal in the project" open the folder the runtime lists for
+its whole log, narrowed to one stream or one action. The window frames no page: its content
+security policy sets `frame-src 'none'`, and the main window refuses every subframe navigation. "Open project" and "Open a terminal in the project" open the folder the runtime lists for
 the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-emulator`.
 
 |  | macOS | Linux |
@@ -137,13 +136,11 @@ Tato Studio.app/Contents/
                                               (packaging/runtime-helper/Info.plist)
     MacOS/tatolabd                            the runtime (streamlib bin/tatolabd)
     MacOS/tatolab-cli                         the CLI (streamlib bin/tatolab)
-    MacOS/moq-relay, MacOS/uv                 the local relay and the uv tatolabd runs from beside itself
+    MacOS/uv                                  the uv tatolabd runs from beside itself
     Frameworks/tatolab-runtime/               every Mach-O of the lend's tatolab/runtime/, same paths
     Resources/lend/                           streamlib's lib/tatolab/lend; each Mach-O is a relative
                                               symlink into Frameworks/tatolab-runtime; precompiled
                                               (unchecked-hash .pyc) for CPython 3.10-3.14
-    Resources/watch/                          the preview page tatolabd serves on its loopback HTTP
-                                              (streamlib's lib/tatolab/watch)
     Resources/streamlib-commit                the streamlib commit the runtime was built from
 ```
 
@@ -164,8 +161,8 @@ Entitlements: `packaging/entitlements/tatolab-app.entitlements` (the app) and
 app, `Tato Studio Helper (Renderer).app` (`packaging/entitlements/tatolab-renderer-helper.entitlements`)
 and the plain `Tato Studio Helper.app`, which hosts utility processes such as the Python language
 server (`packaging/entitlements/tatolab-utility-helper.entitlements`), also carry `cs.allow-jit`,
-because V8 maps its code writable and executable; Electron's GPU and Plugin helpers, the CLI and
-the relay carry none. The packaged app's Electron fuses turn off `RunAsNode`,
+because V8 maps its code writable and executable; Electron's GPU and Plugin helpers and the CLI
+carry none. The packaged app's Electron fuses turn off `RunAsNode`,
 `NODE_OPTIONS` and `--inspect`, so no other process can run the signed app as plain Node and
 inherit its camera grant, and turn on asar integrity and asar-only loading. Electron's own
 Bluetooth and audio-capture usage strings and its `NSAllowsArbitraryLoads` exception are removed;
@@ -233,9 +230,7 @@ manifest `build/latest-mac.yml`.
 `out/main/tatolab_app_build_features.json` (`src/main/tatolab_app_build_features.json` holds the
 shipping ones). The app starts the runtime with
 `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, so the state directory and the socket live under
-that root, and with its test ports: its local relay on 14443 and
-14445 and its loopback HTTP on 14446, where the app reads the preview page. That page reads the
-relay only at 4443 until tatolab/streamlib#2917, so a local-proof bundle's preview stays dark. The app links `tatolab` under
+that root, and with its loopback HTTP on test port 14446. The app links `tatolab` under
 the root's `home/.local/bin`. Use it to prove the app on a development Mac. It is
 never shipped: `assemble-tatolab-app-bundle.sh` refuses a test-root unit without the flag, and
 `verify-tatolab-app-bundle.sh --shipping` fails such a bundle, whether the marker or the build
@@ -251,8 +246,8 @@ The individual steps are separate scripts in `scripts/`:
 | `tatolab_app_build_features.mjs write <features.json> [--release] [--local-proof-test-root] [--app-update-feed-url URL]` | writes the build features and the build id (the commit this checkout is at, dev or release, and whether it has uncommitted changes); `npm run build -- <flags>` runs it last, and refuses outside a git checkout |
 | `tatolab_app_build_features.mjs read <app.asar> [--shipping]` | prints the build features and the build id a packaged app carries, and refuses one with no build id; `--shipping` refuses the test root or any feed but get.tatolab.com's |
 | `package_tatolab_electron_app.mjs <darwin\|linux> <version> <out>` | packs the built app, with the build features it was built with, and its production `node_modules` with `@electron/packager`, and flips its fuses |
-| `assemble-tatolab-app-bundle.sh <Tato Studio.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/moq-relay`, `lib/tatolab/lend` or `lib/tatolab/watch`, or ships anything else in `bin/` or `lib/tatolab/` |
-| `sign-tatolab-app-bundle.sh <Tato Studio.app> <identity> <runtime-provisioning-profile>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, moq-relay, the app) with the hardened runtime, embedding the `com.tatolab.runtime` provisioning profile in the runtime's helper; refuses any identity but a `Developer ID Application` and a profile for any other App ID |
+| `assemble-tatolab-app-bundle.sh <Tato Studio.app> <unit> --streamlib-commit SHA [--local-proof-test-root]` | lays the unit into the packaged app; refuses a unit built from any other commit, and a unit that lacks `bin/tatolabd`, `bin/tatolab`, `bin/uv` or `lib/tatolab/lend`, or ships anything else in `bin/` or `lib/tatolab/` |
+| `sign-tatolab-app-bundle.sh <Tato Studio.app> <identity> <runtime-provisioning-profile>` | signs inside-out (Frameworks' Mach-O, the frameworks, the helpers, tatolabd, tatolab-cli, the app) with the hardened runtime, embedding the `com.tatolab.runtime` provisioning profile in the runtime's helper; refuses any identity but a `Developer ID Application` and a profile for any other App ID |
 | `make-tatolab-dmg.sh <Tato Studio.app> <out.dmg>` | branded drag-to-Applications image (dmgbuild, headless), signed with the app's own Developer ID; refuses an app signed any other way |
 | `notarize-and-staple.sh <Tato Studio.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
 | `verify-tatolab-app-bundle.sh <Tato Studio.app\|.dmg> [--shipping]` | checks the signature (every Mach-O and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Builds streamlib's runtime unit (bin/tatolabd, bin/tatolab, bin/moq-relay, bin/uv, lib/tatolab/lend,
-# lib/tatolab/watch) in a streamlib checkout, writes the checkout's commit into the unit's
+# Builds streamlib's runtime unit (bin/tatolabd, bin/tatolab, bin/uv, lib/tatolab/lend) in a streamlib checkout, writes the checkout's commit into the unit's
 # streamlib-commit, and prints the unit's directory. The checkout's own target directory is used.
 #
 # Usage: build-tatolab-runtime-unit.sh <streamlib checkout> [--local-proof-test-root]
@@ -27,12 +26,13 @@ streamlib_commit="$(git -C "$streamlib_checkout" rev-parse HEAD)"
   || { echo "streamlib checkout $streamlib_checkout has uncommitted changes: the unit would not be $streamlib_commit" >&2; exit 1; }
 export CARGO_TARGET_DIR="$streamlib_checkout/target"
 runtime_unit_directory="$streamlib_checkout/target/tatolab-runtime"
-# xtask rebuilds the unit in place, so a build that fails part-way must not leave the previous
-# build's commit vouching for the half-replaced unit.
-rm -f "$runtime_unit_directory/streamlib-commit"
+# xtask builds the unit in place, so the previous build's unit goes first: it would otherwise keep
+# whatever that commit laid out and this one does not, and its commit would vouch for a half-replaced
+# unit if this build failed part-way.
+rm -rf "$runtime_unit_directory"
 (cd "$streamlib_checkout" && cargo xtask "${xtask_arguments[@]}") >&2
 
-for required in bin/tatolabd bin/tatolab bin/moq-relay bin/uv lib/tatolab/lend/tatolab/runtime lib/tatolab/watch/index.html; do
+for required in bin/tatolabd bin/tatolab bin/uv lib/tatolab/lend/tatolab/runtime; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit is missing $required" >&2; exit 1; }
 done
 echo "$streamlib_commit" >"$runtime_unit_directory/streamlib-commit"

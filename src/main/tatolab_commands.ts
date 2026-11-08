@@ -14,8 +14,6 @@ import type {
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
-  RelaySettingsByName,
-  RelaysDescription,
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
@@ -37,7 +35,6 @@ import {
   checkForTatolabAppUpdatesOnRequest,
   type TatolabAppSharedState,
 } from "./tatolab_app_shared_state.js";
-import { relaySettingsByNameFrom, WHAT_A_RELAY_SETTING_VALUE_CAN_BE } from "./relays_description.js";
 import { openTheRuntimesLogFolder } from "./runtime_log_folder_opening.js";
 import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 import { NO_PROJECT_OPEN_IN_THE_WINDOW, type StudioWindowOfAProject } from "./tatolab_app_windows.js";
@@ -301,61 +298,6 @@ export function setOpenTatolabAtLogin(sharedState: TatolabAppSharedState, enable
   });
 }
 
-/** `describe_relays`: every relay the runtime holds and every adapter it can join one through; refused in the runtime's own words. */
-export function describeRelays(sharedState: TatolabAppSharedState): Promise<Result<RelaysDescription, string>> {
-  return answerTheWindow("describe_relays", async () => {
-    const relaysDescription = await sharedState.controller.describeRelays();
-    return relaysDescription.ok ? relaysDescription : failedWith(relaysDescription.failure.failureDescription);
-  });
-}
-
-/** `add_relay { adapter, settings }`: the runtime's `add_relay`, answering the id it gave the relay; refused in the runtime's own words. */
-export function addRelay(sharedState: TatolabAppSharedState, adapter: string, settings: Readonly<RelaySettingsByName>): Promise<Result<{ relay_id: string }, string>> {
-  return answerTheWindow("add_relay", async () => {
-    const relayId = await sharedState.controller.addRelay(adapter, settings);
-    return relayId.ok ? succeeded({ relay_id: relayId.value }) : failedWith(relayId.failure.failureDescription);
-  });
-}
-
-/** `configure_relay { relay_id, settings }`: the runtime's `configure_relay`; refused in the runtime's own words. */
-export function configureRelay(sharedState: TatolabAppSharedState, relayId: string, settings: Readonly<RelaySettingsByName>): Promise<Result<void, string>> {
-  return answerTheWindow("configure_relay", async () => {
-    const configured = await sharedState.controller.configureRelay(relayId, settings);
-    return configured.ok ? configured : failedWith(configured.failure.failureDescription);
-  });
-}
-
-/** `remove_relay { relay_id }`: the runtime's `remove_relay`; refused in the runtime's own words, as it refuses a built-in relay. */
-export function removeRelay(sharedState: TatolabAppSharedState, relayId: string): Promise<Result<void, string>> {
-  return answerTheWindow("remove_relay", async () => {
-    const removed = await sharedState.controller.removeRelay(relayId);
-    return removed.ok ? removed : failedWith(removed.failure.failureDescription);
-  });
-}
-
-/** The `settings` of the command `commandName` as the window sends them: each value text, a finite number, true or false, a list of text, or null; anything else is refused naming the setting, never its value. */
-function relaySettingsArgumentFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<RelaySettingsByName, string> {
-  const settingsArgument = isAJsonObject(commandArguments) ? commandArguments["settings"] : undefined;
-  if (!isAJsonObject(settingsArgument)) return failedWith(`${commandName} needs \`settings\`, each setting by name`);
-  return relaySettingsByNameFrom(settingsArgument, (settingName) => `${commandName} needs the setting \`${settingName}\` as ${WHAT_A_RELAY_SETTING_VALUE_CAN_BE}`);
-}
-
-/** `add_relay`'s arguments as the window sends them, or why they are not. */
-export function addRelayArgumentsFrom(commandArguments: unknown): Result<{ adapter: string; settings: RelaySettingsByName }, string> {
-  const adapter = oneTextArgumentFrom("add_relay", commandArguments, "adapter", "an adapter's kind");
-  if (!adapter.ok) return adapter;
-  const settings = relaySettingsArgumentFrom("add_relay", commandArguments);
-  return settings.ok ? succeeded({ adapter: adapter.value, settings: settings.value }) : settings;
-}
-
-/** `configure_relay`'s arguments as the window sends them, or why they are not. */
-export function configureRelayArgumentsFrom(commandArguments: unknown): Result<{ relay_id: string; settings: RelaySettingsByName }, string> {
-  const relayId = oneTextArgumentFrom("configure_relay", commandArguments, "relay_id", "a relay's id");
-  if (!relayId.ok) return relayId;
-  const settings = relaySettingsArgumentFrom("configure_relay", commandArguments);
-  return settings.ok ? succeeded({ relay_id: relayId.value, settings: settings.value }) : settings;
-}
-
 /** The `{ enabled }` arguments of the command `commandName` as the window sends them, or why they are not. */
 export function enabledArgumentsFrom(commandName: TatolabCommandName, commandArguments: unknown): Result<{ enabled: boolean }, string> {
   if (!isAJsonObject(commandArguments) || typeof commandArguments["enabled"] !== "boolean") {
@@ -505,7 +447,7 @@ export function popOutViewerArgumentsFrom(commandArguments: unknown): Result<Pop
     typeof commandArguments["display_name"] !== "string" ||
     !isTextOrNull(commandArguments["node"])
   ) {
-    return failedWith("pop_out_viewer needs `stream`, a stream's id, `project_name` and `display_name`, the words its tab is labelled with, and `node`, a node's name or null for the stream's first exposed output");
+    return failedWith("pop_out_viewer needs `stream`, a stream's id, `project_name` and `display_name`, the words its tab is labelled with, and `node`, a node's name or null for the stream's last picture");
   }
   return succeeded({
     stream: commandArguments["stream"],
@@ -727,22 +669,6 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const enabledArguments = enabledArgumentsFrom("set_open_tatolab_at_login", commandArguments);
       if (!enabledArguments.ok) return { ok: false, refusal: enabledArguments.failure };
       return commandAnswerOfNothingFrom(await setOpenTatolabAtLogin(sharedState, enabledArguments.value.enabled));
-    },
-    describe_relays: async () => commandAnswerFrom(await describeRelays(sharedState)),
-    add_relay: async (commandArguments) => {
-      const addRelayArguments = addRelayArgumentsFrom(commandArguments);
-      if (!addRelayArguments.ok) return { ok: false, refusal: addRelayArguments.failure };
-      return commandAnswerFrom(await addRelay(sharedState, addRelayArguments.value.adapter, addRelayArguments.value.settings));
-    },
-    configure_relay: async (commandArguments) => {
-      const configureRelayArguments = configureRelayArgumentsFrom(commandArguments);
-      if (!configureRelayArguments.ok) return { ok: false, refusal: configureRelayArguments.failure };
-      return commandAnswerOfNothingFrom(await configureRelay(sharedState, configureRelayArguments.value.relay_id, configureRelayArguments.value.settings));
-    },
-    remove_relay: async (commandArguments) => {
-      const relayId = oneTextArgumentFrom("remove_relay", commandArguments, "relay_id", "a relay's id");
-      if (!relayId.ok) return { ok: false, refusal: relayId.failure };
-      return commandAnswerOfNothingFrom(await removeRelay(sharedState, relayId.value));
     },
     choose_project_folder: async (commandArguments, commandFromWindow) => {
       const chooseArguments = chooseProjectFolderArgumentsFrom(commandArguments);

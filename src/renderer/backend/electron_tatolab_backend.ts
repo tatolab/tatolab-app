@@ -67,14 +67,6 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     setOpenTatolabAtLogin: async (enabled) => {
       await invokeTatolabCommand("set_open_tatolab_at_login", { enabled });
     },
-    describeRelays: () => invokeTatolabCommand("describe_relays", undefined),
-    addRelay: async (adapter, settings) => (await invokeTatolabCommand("add_relay", { adapter, settings: { ...settings } })).relay_id,
-    configureRelay: async (relayId, settings) => {
-      await invokeTatolabCommand("configure_relay", { relay_id: relayId, settings: { ...settings } });
-    },
-    removeRelay: async (relayId) => {
-      await invokeTatolabCommand("remove_relay", { relay_id: relayId });
-    },
     onStreamPageRequested: (listener) => tatolabElectronBridge.onStreamPageRequested(listener),
     showTheProjectsWindow: async () => {
       await invokeTatolabCommand("show_projects_window", undefined);
