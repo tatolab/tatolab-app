@@ -462,6 +462,44 @@ test("a_real_graph_tool_result_reads_with_its_counters_and_verbatim_text", async
   expect(JSON.parse(summary.graph_document_text).stream).toBe("front-door");
 });
 
+test("a_real_graph_tool_result_reads_each_outputs_stream_facts_and_the_records_unchecked_mark", async () => {
+  const stream = "suite-stream-project-1-a_declaring_source_and_a_replacin-98bc63";
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-graph-tool-result-of-a-stream-stating-stream-facts.json")),
+  ]);
+
+  const summary = answerOf(await server.client().describeStreamGraph(stream));
+
+  expect(summary.nodes.map((node) => [node.name, node.input_ports, node.output_ports])).toEqual([
+    [
+      "declarer",
+      [],
+      [
+        {
+          name: "video",
+          family: "image",
+          stream_facts: { family: "image", frame_rate: { numerator: 30, denominator: 1 }, content_light_level: null, mastering_display_colour_volume: null },
+          values_checked: null,
+        },
+        { name: "records", family: "records", stream_facts: null, values_checked: false },
+      ],
+    ],
+    [
+      "replacer",
+      [],
+      [
+        {
+          name: "encoded",
+          family: "packets",
+          stream_facts: { family: "packets", rfc6381_codec: "avc1.64001f", coded_width: 1280, coded_height: 720, sample_rate: null, channel_count: null, codec_configuration_byte_length: null },
+          values_checked: null,
+        },
+      ],
+    ],
+    ["reportsitsupstreamsstreamfacts", [{ name: "encoded_from_upstream", family: "packets", stream_facts: null, values_checked: null }], []],
+  ]);
+});
+
 test("a_graph_of_a_stream_that_is_not_loaded_is_refused_in_the_runtimes_words", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-graph-tool-refusal-for-the-stopped-stream-front-door.json")),
