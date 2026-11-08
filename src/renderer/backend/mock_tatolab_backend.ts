@@ -111,11 +111,11 @@ const MOCK_UPDATE_DOWNLOAD_STEP_PERCENT = 7;
 /**
  * The project folder the mock's folder dialog chooses, picked with `?add_folder=`: one ready to run (the default), one with no
  * `.venv` yet, which the runtime makes first, one with two streams, one of which fails, the project `main` is already
- * imported from, one with no `stream.py`, or none, the person cancelling.
+ * imported from, one with no `tatolab-project.json`, or none, the person cancelling.
  */
-export type MockChosenProjectFolder = "ready" | "no-venv" | "several" | "recorded" | "no-stream-file" | "cancel";
+export type MockChosenProjectFolder = "ready" | "no-venv" | "several" | "recorded" | "no-project-file" | "cancel";
 
-const MOCK_CHOSEN_PROJECT_FOLDERS: readonly MockChosenProjectFolder[] = ["ready", "no-venv", "several", "recorded", "no-stream-file", "cancel"];
+const MOCK_CHOSEN_PROJECT_FOLDERS: readonly MockChosenProjectFolder[] = ["ready", "no-venv", "several", "recorded", "no-project-file", "cancel"];
 
 /** The runtime the mock describes: the streamlib release the app bundles, and its build. */
 const MOCK_RUNTIME_VERSION = "0.55.2";
@@ -178,7 +178,7 @@ export interface MockTatolabOptions {
   commandLineToolLinkScenario: "linked" | "not_linked" | "taken";
   /** `?app_build=release|modified|none`: a release build, a dev build with uncommitted changes, or one that recorded none; a dev build by default. */
   appBuild: TatolabAppBuild | null;
-  /** `?add_venv=refused`: the runtime's uv fails to make a project's `.venv`, as with the package index out of reach, so its load fails: its recorded streams, or for a new project its one `stream.py` record, list failed in uv's words. */
+  /** `?add_venv=refused`: the runtime's uv fails to make a project's `.venv`, as with the package index out of reach, so its load fails: every stream of the project lists failed in uv's words. */
   isMakingThePythonEnvironmentRefused: boolean;
   /** `?streams=earlier_record`: the runtime also lists a record an earlier runtime wrote, failed and naming no location. */
   doesTheRuntimeListAnEarlierRuntimesRecord: boolean;
@@ -525,7 +525,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         return `${projectsFolder}/doorways`;
       case "recorded":
         return fixtures.patternProjectDirectory;
-      case "no-stream-file":
+      case "no-project-file":
         return `${projectsFolder}/notes`;
     }
   };
@@ -600,9 +600,9 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   };
 
   /**
-   * `create_project`'s and `run_project`'s load as the runtime does it: queued, then the `.venv` made where it has none,
-   * then every `@stream` compiling and starting, each listed `preparing` under the action, then loaded, or failed for
-   * the doorways project's `back_door`.
+   * `create_project`'s and `run_project`'s load as the runtime does it: queued, then every stream asset's graph document
+   * read, the `.venv` made where it has none, and every stream starting, each listed `preparing` under the action, then
+   * loaded, or failed for the doorways project's `back_door`.
    */
   const queueAMockProjectLoad = (projectDirectory: string): string => {
     const action = nextStreamActionId();
@@ -652,8 +652,13 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     };
     await sleep(MOCK_STREAM_ACTION_STEP_MILLISECONDS);
     if (description.state === "cancelled") return;
+    Object.assign(description, { state: "in_progress", step: "reading_the_graph_documents" });
+    listEveryStreamPreparingAt("reading_the_graph_documents");
+    await sleep(MOCK_STREAM_ACTION_STEP_MILLISECONDS);
+    if (endTheLoadAtItsCancel(description)) return;
     if (!project.hasAPythonEnvironment) {
       Object.assign(description, { state: "in_progress", step: "making_the_venv" });
+      listEveryStreamPreparingAt("making_the_venv");
       writeProjectRecord(projectDirectory, description.action, "info", `${projectDirectory}/.venv/bin/python does not start, so ${projectDirectory}/.venv is made again`);
       await sleep(MOCK_PYTHON_ENVIRONMENT_MILLISECONDS);
       if (endTheLoadAtItsCancel(description)) return;
@@ -667,7 +672,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       writeProjectRecord(projectDirectory, description.action, "info", `\`uv sync\` made ${projectDirectory}/.venv`);
       project.hasAPythonEnvironment = true;
     }
-    for (const step of ["compiling", "starting"]) {
+    for (const step of ["starting"]) {
       if (!isTheRuntimeStillUp()) {
         streamActionsAskedToCancel.delete(description.action);
         Object.assign(description, { state: "cancelled", step: null });
@@ -792,7 +797,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         writeRuntimeRecord(failedLobbyRecorder, loadAction, "error", failedLobbyRecorder.failed_because ?? "");
       }
       if (scenario === "loading") {
-        listedStreamsNotLoaded.set(mainStream.listing.stream, { ...mainStream.listing, state: "preparing", node_count: null, action: nextStreamActionId(), step: "compiling" });
+        listedStreamsNotLoaded.set(mainStream.listing.stream, { ...mainStream.listing, state: "preparing", node_count: null, action: nextStreamActionId(), step: "reading_the_graph_documents" });
       } else if (loadsAtTheRuntimesStart(mainStream)) {
         loadStream(mainStream, now - mainStream.loadedForMillisecondsAtOpen);
       }
@@ -915,7 +920,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     }
     const action = nextStreamActionId();
     queueTheStreamAction(listingNotLoaded, "preparing", action);
-    workOnTheStreamAction(listingNotLoaded, "preparing", action, ["compiling", "starting"], () => {
+    workOnTheStreamAction(listingNotLoaded, "preparing", action, ["reading_the_graph_documents", "starting"], () => {
       writeRuntimeRecord(listingNotLoaded, action, "info", `Loading the stream \`${streamId}\` from ${listingNotLoaded.location?.project_directory ?? ""}`);
       const fixture = recordedFixturesNotLoaded.get(streamId);
       if (fixture !== undefined) {
@@ -1129,7 +1134,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const projectDirectory = folder ?? newProjectFolderTheRuntimeDraws();
       const stream = mockStreamIdOf({ project_directory: projectDirectory, stream_name: "main" });
       if (projectFolders.has(projectDirectory)) {
-        const failedBecause = `Invalid configuration: \`${projectDirectory}\` already has pyproject.toml, stream.py, and a new project's files would overwrite it; create the project in an empty directory`;
+        const failedBecause = `Invalid configuration: \`${projectDirectory}\` already has pyproject.toml, and a new project's files would overwrite it; create the project in an empty directory`;
         return { action: queueAMockProjectLoadThatFails(projectDirectory, failedBecause), stream, project_directory: projectDirectory };
       }
       projectFolders.set(projectDirectory, { streamNames: ["main"], hasAPythonEnvironment: false });
@@ -1142,7 +1147,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       const project = projectFolders.get(folder);
       if (project === undefined) return { action: queueAMockProjectLoadThatFails(folder, `the project directory ${folder} does not exist`), project_directory: folder };
       if (project.streamNames.length === 0) {
-        return { action: queueAMockProjectLoadThatFails(folder, `Invalid configuration: ${folder} has no stream.py, so it is not a Tatolab project`), project_directory: folder };
+        return { action: queueAMockProjectLoadThatFails(folder, `${folder} is not a project: it holds no tatolab-project.json`), project_directory: folder };
       }
       return { action: queueAMockProjectLoad(folder), project_directory: folder };
     },

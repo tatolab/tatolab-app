@@ -197,7 +197,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   choose_stream_project_folder: { commandArguments: { chosen_for: StreamProjectFolderChosenFor }; answer: string | null };
   /** `folder` `null` lets the runtime draw one under `~/streams`; answers once the runtime has queued the creation, which the window follows with `describe_stream_action`. */
   create_stream_project: { commandArguments: { folder: string | null }; answer: ProjectCreationQueued };
-  /** Answers once the runtime has queued the run of every `@stream` in the folder, which the window follows with `describe_stream_action`. */
+  /** Answers once the runtime has queued the run of every stream asset in the folder, which the window follows with `describe_stream_action`. */
   run_stream_project: { commandArguments: { folder: string }; answer: ProjectRunQueued };
   /** Answers once the runtime has queued `run_project` on a project it lists, which the window follows with `describe_stream_action`. */
   reload_project: { commandArguments: { project_directory: string }; answer: ProjectRunQueued };

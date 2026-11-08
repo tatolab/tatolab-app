@@ -1,43 +1,56 @@
-// The mock's files of the open project: the pattern project's `stream.py`, its two node modules
-// and `pyproject.toml`, and the camera import's `stream.py`, which the code pane reads and saves as
-// it would on disk. A save at a version the mock no longer holds is refused as a change on disk.
+// The mock's files of the open project: the pattern project's graph documents, its two node modules
+// and `pyproject.toml`, which the code pane reads and saves as it would on disk. A save at a version the mock no longer holds is refused as a change on disk.
 
 import type { ProjectFileRead, ProjectFileSaved, ProjectFiles } from "../../shared/tatolab_backend_contract";
+import { mockStreamLocationOf } from "./mock_stream_fixtures";
 
-const PATTERN_STREAM_PY = `from tatolab.stream import RelayTrackSource, StreamBuilder, stream
-from tatolab.stream import DisplayWindow, Mp4Writer, TestPatternSource
+/** A graph document as the runtime writes one: the stream asset's UUID as `asset`, then its nodes and links. */
+function mockGraphDocument(asset: string, nodes: readonly { name: string; type: string; config: Record<string, unknown> }[], links: readonly [string, string, string, string][]): string {
+  return `${JSON.stringify(
+    {
+      asset,
+      links: links.map(([sourceNode, sourcePort, targetNode, targetPort]) => ({ source: { node: sourceNode, port: sourcePort }, target: { node: targetNode, port: targetPort } })),
+      nodes,
+    },
+    null,
+    2,
+  )}\n`;
+}
 
-from nodes.brightness_meter import BrightnessMeter
-from nodes.inverting_effect import InvertingEffect
-
-
-@stream
-def main(stream_builder: StreamBuilder) -> None:
-    """The test pattern, inverted on the GPU, shown in a window and metered."""
-    source = stream_builder.add(TestPatternSource, config={"width": 1280, "height": 720, "fps": 30})
-    effect = stream_builder.add(InvertingEffect)
-    display = stream_builder.add(DisplayWindow, config={"title": "Tatolab", "scaling": "fit"})
-    meter = stream_builder.add(BrightnessMeter)
-    stream_builder.connect(source.output("video"), effect.input("video_from_upstream"))
-    stream_builder.connect(effect.output("video_to_downstream"), display.input("video"))
-    stream_builder.connect(effect.output("video_to_downstream"), meter.input("video_from_upstream"))
-
-
-@stream
-def recorder(stream_builder: StreamBuilder) -> None:
-    """Records main's inverted picture to an MP4."""
-    main_effect = stream_builder.add(RelayTrackSource, config={"broadcast": "studio/main.hang", "track": "invertingeffect/video_to_downstream"})
-    writer = stream_builder.add(Mp4Writer, config={"path": "recordings/main.mp4"})
-    stream_builder.connect(main_effect.output("payload"), writer.input("video"))
-
-
-@stream
-def pattern_two(stream_builder: StreamBuilder) -> None:
-    """A second test pattern, for trying things beside main."""
-    source = stream_builder.add(TestPatternSource)
-    display = stream_builder.add(DisplayWindow, config={"title": "Pattern two"})
-    stream_builder.connect(source.output("video"), display.input("video"))
-`;
+/** The pattern project's stream assets' graph documents, by stream name. */
+function patternGraphDocuments(patternFolder: string): [string, string][] {
+  const assetOf = (streamName: string) => mockStreamLocationOf({ project_directory: patternFolder, stream_name: streamName }).stream_asset;
+  return [
+    [
+      "main",
+      mockGraphDocument(
+        assetOf("main"),
+        [
+          { name: "testpatternsource", type: "tatolab.testpattern:TestPatternSource", config: { width: 1280, height: 720, fps: 30 } },
+          { name: "invertingeffect", type: "nodes.inverting_effect:InvertingEffect", config: {} },
+          { name: "displaywindow", type: "DisplayWindow", config: { title: "Tatolab", scaling: "fit" } },
+          { name: "brightnessmeter", type: "nodes.brightness_meter:BrightnessMeter", config: {} },
+        ],
+        [
+          ["testpatternsource", "video", "invertingeffect", "video_from_upstream"],
+          ["invertingeffect", "video_to_downstream", "displaywindow", "video"],
+          ["invertingeffect", "video_to_downstream", "brightnessmeter", "video_from_upstream"],
+        ],
+      ),
+    ],
+    [
+      "pattern_two",
+      mockGraphDocument(
+        assetOf("pattern_two"),
+        [
+          { name: "testpatternsource", type: "tatolab.testpattern:TestPatternSource", config: {} },
+          { name: "displaywindow", type: "DisplayWindow", config: { title: "Pattern two" } },
+        ],
+        [["testpatternsource", "video", "displaywindow", "video"]],
+      ),
+    ],
+  ];
+}
 
 const INVERTING_EFFECT_PY = `from tatolab.stream import GlslPixelEffect, RuntimeContextFullAccess, RuntimeContextLimitedAccess, VideoFrame, msgpack, node
 
@@ -105,22 +118,6 @@ lobby-recorder = { path = "../lobby-recorder" }
 stage-lights = { path = "imports/stage-lights" }
 `;
 
-const CAMERA_STREAM_PY = `from tatolab.stream import CameraSource, DisplayWindow, MicrophoneSource, StreamBuilder, stream
-
-from nodes.level_meter import LevelMeter
-
-
-@stream
-def camera(stream_builder: StreamBuilder) -> None:
-    """The built-in camera on screen, and the microphone's level."""
-    camera_source = stream_builder.add(CameraSource)
-    display = stream_builder.add(DisplayWindow, config={"title": "Camera"})
-    microphone = stream_builder.add(MicrophoneSource)
-    meter = stream_builder.add(LevelMeter)
-    stream_builder.connect(camera_source.output("video"), display.input("video"))
-    stream_builder.connect(microphone.output("audio"), meter.input("audio_from_upstream"))
-`;
-
 interface MockProjectFile {
   text: string;
   version: number;
@@ -137,12 +134,11 @@ export class MockProjectFiles {
     this.openProjectFolder = `${streamsFolder}/pattern`;
     this.importFolders = [`${streamsFolder}/camera`, `${streamsFolder}/lobby-recorder`];
     const initialTexts: [string, string][] = [
-      [`${this.openProjectFolder}/stream.py`, PATTERN_STREAM_PY],
+      ...patternGraphDocuments(this.openProjectFolder).map(([streamName, graphDocument]): [string, string] => [`${this.openProjectFolder}/streams/${streamName}.graph.json`, graphDocument]),
       [`${this.openProjectFolder}/nodes/__init__.py`, ""],
       [`${this.openProjectFolder}/nodes/inverting_effect.py`, INVERTING_EFFECT_PY],
       [`${this.openProjectFolder}/nodes/brightness_meter.py`, BRIGHTNESS_METER_PY],
       [`${this.openProjectFolder}/pyproject.toml`, PATTERN_PYPROJECT_TOML],
-      [`${streamsFolder}/camera/stream.py`, CAMERA_STREAM_PY],
     ];
     for (const [file, text] of initialTexts) this.filesByPath.set(file, { text, version: this.nextVersion() });
   }

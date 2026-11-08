@@ -36,7 +36,7 @@ export interface ListedStream {
   capture_devices_whose_access_was_never_asked_for: string[];
   /** The stream action queued or under way on it while it is `preparing` or `stopping`; `null` otherwise. */
   action: string | null;
-  /** That action's step, `making_the_venv`, `compiling`, `starting` or `stopping`, or one newer than this app; `null` while the action waits in its project's queue, and while no action works on it. */
+  /** That action's step, `reading_the_graph_documents`, `making_the_venv`, `starting` or `stopping`, or one newer than this app; `null` while the action waits in its project's queue, and while no action works on it. */
   step: string | null;
 }
 
@@ -337,7 +337,7 @@ export interface StreamActionDescription {
   kind: string;
   /** `queued`, `in_progress`, `done`, `failed`, `cancelled`, or a state newer than this app. */
   state: string;
-  /** `making_the_venv`, `compiling` or `starting` while `in_progress`; `null` otherwise. */
+  /** `reading_the_graph_documents`, `making_the_venv` or `starting` while `in_progress`; `null` otherwise. */
   step: string | null;
   streams: StreamTakenInByAnAction[];
   /** Why a `failed` action failed, in the runtime's words; `null` otherwise. */

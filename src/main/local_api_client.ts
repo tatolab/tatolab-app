@@ -313,7 +313,7 @@ export class LocalApiClient {
     return queued.ok ? queued : localApiRequestFailure(queued.failure);
   }
 
-  /** Queue a run of the project in `projectDirectory`, which loads every `@stream` in it; answered at once, refused in the runtime's own words. */
+  /** Queue a run of the project in `projectDirectory`, which loads every stream asset in it; answered at once, refused in the runtime's own words. */
   async runProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool("run_project", { project_directory: projectDirectory });
     if (!toolResultText.ok) return toolResultText;

@@ -9,7 +9,7 @@ import type { CodeFileAsked, JsonValue, ListedStreamsReading, StreamTabAddress, 
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
 import type { StudioLayoutName, StudioLayoutsKeptInStorage, StudioLayoutsOfAFolder } from "./studio_layouts";
 
-/** The view type id of the code pane, which Stream › Open stream.py shows a file in. */
+/** The view type id of the code pane, which a file the studio asks to open shows in. */
 export const CODE_VIEW_TYPE_ID = "code";
 
 /** The streams the runtime lists in `status`, or why it lists none now. */
@@ -94,7 +94,6 @@ export class StudioWindowModel {
   /** Each failure of the open project's streams already raised, as its stream id and its words, so the window raises a failure once until the stream leaves `failed`. */
   private readonly openProjectStreamFailuresRaised = new Set<string>();
 
-  /** The project folder of each open tab's stream, by the tab's stream id, as the runtime last listed it or New project made it, and whether it was the project's `stream.py` record. */
 
   constructor(private readonly layoutsKept: StudioLayoutsKeptInStorage) {}
 

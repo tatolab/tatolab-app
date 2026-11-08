@@ -87,7 +87,7 @@ export type ProjectLogReading =
   | { kind: "read"; records: ProjectLogRecord[]; records_no_longer_held: boolean }
   | { kind: "not_read"; because: string };
 
-/** The file the studio asked a code view to show, as Stream › Open stream.py does; `ask` counts up so asking for the same file again is a new ask. */
+/** The file the studio asked a code view to show, as opening a node's own file does; `ask` counts up so asking for the same file again is a new ask. */
 export interface CodeFileAsked {
   file: string;
   ask: number;

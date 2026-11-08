@@ -231,7 +231,7 @@ export function runStreamProject(sharedState: TatolabAppSharedState, folder: str
   });
 }
 
-/** `reload_project { project_directory }`: the runtime's `run_project` queued on a project it lists, which loads every `@stream` in it again, then a status round; refused in the runtime's own words. */
+/** `reload_project { project_directory }`: the runtime's `run_project` queued on a project it lists, which loads every stream asset in it again, then a status round; refused in the runtime's own words. */
 export function reloadProject(sharedState: TatolabAppSharedState, projectDirectory: string): Promise<Result<ProjectRunQueued, string>> {
   return answerTheWindow("reload_project", async () => {
     const queued = await sharedState.controller.runProject(projectDirectory);
