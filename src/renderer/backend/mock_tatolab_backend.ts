@@ -49,6 +49,7 @@ import {
   type TatolabPlatform,
   type TatolabStatus,
   type PythonLanguageServerEvent,
+  type SystemMenuBarMenu,
 } from "../../shared/tatolab_backend_contract";
 
 /** Browser-only stand-ins for the app backend, picked with `?state=`: `starting` is the app's runtime coming up, `not-running` one that exited. */
@@ -436,6 +437,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         : fixtures.mainStream;
   const statusListeners = new Set<(status: TatolabStatus) => void>();
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
+  const menusKeptForTheSystemMenuBar: SystemMenuBarMenu[] = [];
   let openProjectReading = mockOpenProjectReading(openProjectScenario, fixtures.machine.homeDirectory);
   let recentProjects = mockRecentProjects(recentProjectsInTheQuery, fixtures.machine.homeDirectory, Date.now());
   const mockFoldersOnDisk = () => [...mockFoldersInDocumentsTatoStudio(fixtures.machine.homeDirectory), ...recentProjects.map((recent) => recent.folder)];
@@ -1199,6 +1201,11 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       openProjectReading = { kind: "none_open" };
       for (const openProjectListener of openProjectListeners) openProjectListener(structuredClone(openProjectReading));
     },
+    // A page in a browser has no system menu bar: the mock keeps the menus as the app would, and no person can choose from them.
+    showTheMenusInTheSystemMenuBar: async (menus) => {
+      menusKeptForTheSystemMenuBar.splice(0, menusKeptForTheSystemMenuBar.length, ...structuredClone(menus));
+    },
+    onSystemMenuBarEntryChosen: () => () => {},
     chooseProjectFolder: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       const chosenReading = mockOpenProjectReading("read", fixtures.machine.homeDirectory);

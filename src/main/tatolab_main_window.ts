@@ -9,6 +9,8 @@ import {
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
+  TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT,
+  type SystemMenuBarEntryChosen,
   type TatolabStreamPageRequest,
 } from "../shared/tatolab_electron_bridge_contract.js";
 import { failedWith, type Result } from "./result.js";
@@ -153,6 +155,11 @@ export class TatolabMainWindow implements WindowShowingPortViewers {
   /** Send the window `event` as `tatolab-port-viewer-event`; nothing, before the window is first shown. */
   sendTheWindowAPortViewerEvent(event: PortViewerEvent): void {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_PORT_VIEWER_EVENT, event);
+  }
+
+  /** Send the window the system menu bar entry `entryId` the person chose from its menus, as `tatolab-system-menu-bar-entry-chosen`. */
+  sendTheWindowTheChosenSystemMenuBarEntry(entryId: string): void {
+    this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT, { entry_id: entryId } satisfies SystemMenuBarEntryChosen);
   }
 
   /** Hand the window `imageFrame` as a shared texture; refused, and let go of at once, when the window is not open. */

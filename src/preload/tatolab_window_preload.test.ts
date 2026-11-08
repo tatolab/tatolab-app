@@ -100,6 +100,22 @@ test("each stream page request reaches the listener with its stream, one naming 
   expect(fakeElectron.ipcRenderer.removeListener).toHaveBeenCalledWith("tatolab-stream-page-requested", addedListener);
 });
 
+test("each system menu bar entry chosen reaches the listener with its entry id, one naming no entry is dropped, and stopping removes the listener", async () => {
+  const tatolabElectronBridge = await exposedTatolabElectronBridge();
+  const chosenEntries: string[] = [];
+
+  const stopListening = tatolabElectronBridge.onSystemMenuBarEntryChosen((entryId) => chosenEntries.push(entryId));
+  const [entryChosenChannel, addedListener] = fakeElectron.ipcRenderer.on.mock.calls[0] ?? [];
+  addedListener?.({}, { entry_id: "File/Open project…" });
+  addedListener?.({}, { entry_id: 3 });
+  addedListener?.({}, null);
+  stopListening();
+
+  expect(entryChosenChannel).toBe("tatolab-system-menu-bar-entry-chosen");
+  expect(chosenEntries).toEqual(["File/Open project…"]);
+  expect(fakeElectron.ipcRenderer.removeListener).toHaveBeenCalledWith("tatolab-system-menu-bar-entry-chosen", addedListener);
+});
+
 test("telling the app the window drew its first status sends the notice on its own channel, carrying nothing", async () => {
   const tatolabElectronBridge = await exposedTatolabElectronBridge();
 

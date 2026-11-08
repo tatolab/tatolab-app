@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { TatolabStatus } from "../shared/tatolab_backend_contract.js";
-import { FakeTatolabElectronAppShell } from "./fake_tatolab_electron_app_shell.js";
+import { FakeTatolabElectronAppShell, PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { startTatolabApp, type TatolabRunningApp } from "./main.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabTrayMenu } from "./tatolab_tray_menu.js";
@@ -62,7 +62,7 @@ describe("the app on macOS", () => {
       "show",
       "focus",
     ]);
-    expect(fakeShell.records[0]).toEqual({ asked: "set_application_menu", applicationMenu: "macos_menu_bar" });
+    expect(fakeShell.records[0]).toEqual({ asked: "set_application_menu", applicationMenu: "macos_menu_bar", menusOfTheFocusedWindow: null });
     expect(fakeShell.records[2]).toEqual({ asked: "set_activation_policy", activationPolicy: "regular" });
     expect(fakeShell.records[3]).toEqual({
       asked: "create_main_window",
@@ -75,6 +75,29 @@ describe("the app on macOS", () => {
         chrome: { titleBarStyle: "hidden", trafficLightPosition: { x: 18, y: 13 } },
       },
     });
+  });
+
+  test("the focused window's menus show in the system menu bar, and an entry chosen there reaches that window", async () => {
+    const menus = [
+      {
+        label: "File",
+        system_menu: null,
+        entries: [{ kind: "command", entry_id: "File/Open project…", label: "Open project…", shortcut_hint: "⌘O", unavailable_because: null }],
+      },
+    ];
+    fakeShell.forgetTheRecords();
+    fakeShell.focusTheWindow(PROJECTS_WINDOW_CONTENTS_ID);
+    expect(await fakeShell.invokeTheCommand("show_menus_in_the_system_menu_bar", { menus })).toEqual({ ok: true, value: null });
+    fakeShell.chooseTheSystemMenuBarEntry("File/Open project…");
+    fakeShell.requestTheCloseOfTheWindow(PROJECTS_WINDOW_CONTENTS_ID);
+
+    expect(fakeShell.records).toEqual([
+      { asked: "set_application_menu", applicationMenu: "macos_menu_bar", menusOfTheFocusedWindow: null },
+      { asked: "set_application_menu", applicationMenu: "macos_menu_bar", menusOfTheFocusedWindow: menus },
+      { asked: "send_window_event", eventChannel: "tatolab-system-menu-bar-entry-chosen", eventPayload: { entry_id: "File/Open project…" } },
+      expect.objectContaining({ asked: "hide" }),
+      expect.objectContaining({ asked: "set_activation_policy" }),
+    ]);
   });
 
   test("closing the window hides it and the Dock icon, and the app stays in the tray", async () => {
@@ -233,7 +256,7 @@ describe("the app on Linux", () => {
     const tatolabRunningApp = await startTatolabApp(fakeShell.tatolabElectronAppShell, LINUX_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     expect(fakeShell.askedFor().slice(0, 6)).toEqual(["set_application_menu", "show_tray_menu", "create_main_window", "unminimize", "show", "focus"]);
     await theFirstPublishedStatus(tatolabRunningApp);
-    expect(fakeShell.records[0]).toEqual({ asked: "set_application_menu", applicationMenu: "none" });
+    expect(fakeShell.records[0]).toEqual({ asked: "set_application_menu", applicationMenu: "none", menusOfTheFocusedWindow: null });
     expect(fakeShell.records[2]).toMatchObject({ mainWindowSpecification: { chrome: { titleBarStyle: "default" } } });
     fakeShell.forgetTheRecords();
     expect(fakeShell.requestTheWindowClose()).toBe("hide_instead");
@@ -277,7 +300,7 @@ describe("starting the app", () => {
     fakeShell.mainWindowCreationFailure = "no display";
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     expect(fakeShell.records.slice(0, 4)).toEqual([
-      { asked: "set_application_menu", applicationMenu: "macos_menu_bar" },
+      { asked: "set_application_menu", applicationMenu: "macos_menu_bar", menusOfTheFocusedWindow: null },
       { asked: "show_tray_menu", trayMenuItems: expect.any(Array) },
       { asked: "set_activation_policy", activationPolicy: "regular" },
       { asked: "set_activation_policy", activationPolicy: "accessory" },

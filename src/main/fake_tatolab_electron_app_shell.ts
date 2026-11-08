@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { PortViewerImageFrameFacts, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import type { PortViewerImageFrameFacts, StreamProjectFolderChosenFor, SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
 import type { ProjectFolderDialogPurpose } from "./open_project.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
@@ -53,7 +53,7 @@ export type FakeShellRecord = (
   | { asked: "open_another_copy_once_this_one_exits"; executable: string }
   | { asked: "notify"; title: string; body: string }
   | { asked: "repeat_every"; intervalMs: number }
-  | { asked: "set_application_menu"; applicationMenu: ApplicationMenu }
+  | { asked: "set_application_menu"; applicationMenu: ApplicationMenu; menusOfTheFocusedWindow: readonly SystemMenuBarMenu[] | null }
   | { asked: "open_folder_in_the_file_manager"; folder: string }
   | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
   | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderDialogPurpose; defaultFolder: string }
@@ -103,6 +103,9 @@ export class FakeTatolabElectronAppShell {
   private answerCloseRequest: (() => MainWindowCloseRequestAnswer) | null = null;
   private readonly windowsCreated: FakeWindowCreated[] = [];
   private clickTrayMenuItem: ((trayMenuItemId: TrayMenuItemId) => void) | null = null;
+  private chooseTheShownSystemMenuBarEntry: (entryId: string) => void = () => {};
+  private readonly windowFocusedListeners: ((windowContentsId: number) => void)[] = [];
+  private readonly windowClosedListeners: ((windowContentsId: number) => void)[] = [];
 
   /** The shell `startTatolabApp` takes. */
   readonly tatolabElectronAppShell: TatolabElectronAppShell = {
@@ -117,7 +120,12 @@ export class FakeTatolabElectronAppShell {
     holdTheQuitUntil: (workBeforeTheQuitGoesOn) => this.quitHoldingWork.push(workBeforeTheQuitGoesOn),
     exitTheApp: (exitCode) => this.records.push({ asked: "exit", exitCode }),
     openAnotherCopyOnceThisOneExits: (executable) => this.records.push({ asked: "open_another_copy_once_this_one_exits", executable }),
-    setTheApplicationMenu: (applicationMenu) => this.records.push({ asked: "set_application_menu", applicationMenu }),
+    setTheApplicationMenu: (applicationMenu, menusOfTheFocusedWindow, whenAnEntryIsChosen) => {
+      this.chooseTheShownSystemMenuBarEntry = whenAnEntryIsChosen;
+      this.records.push({ asked: "set_application_menu", applicationMenu, menusOfTheFocusedWindow: structuredClone(menusOfTheFocusedWindow) });
+    },
+    onAWindowFocused: (listener) => this.windowFocusedListeners.push(listener),
+    onAWindowClosed: (listener) => this.windowClosedListeners.push(listener),
     buildTheTatolabPlatformForThisBuild: async () =>
       fakeTatolabPlatformForThisBuild({
         localApiSocket: path.join(this.appConfigDirectory, "no-runtime.sock"),
@@ -253,6 +261,17 @@ export class FakeTatolabElectronAppShell {
     fakeWindow.showing = false;
     this.records.push({ asked: "close", ...(fakeWindow.windowContentsId === PROJECTS_WINDOW_CONTENTS_ID ? {} : { windowContentsId: fakeWindow.windowContentsId }) });
     fakeWindow.whenClosed();
+    for (const windowClosedListener of this.windowClosedListeners) windowClosedListener(fakeWindow.windowContentsId);
+  }
+
+  /** Bring the window `windowContentsId` into focus, as a click on it does. */
+  focusTheWindow(windowContentsId: number): void {
+    for (const windowFocusedListener of this.windowFocusedListeners) windowFocusedListener(windowContentsId);
+  }
+
+  /** Choose `entryId` in the system menu bar as it was last shown. */
+  chooseTheSystemMenuBarEntry(entryId: string): void {
+    this.chooseTheShownSystemMenuBarEntry(entryId);
   }
 
   /** Close the window as its close button does, answering what the app chose. */

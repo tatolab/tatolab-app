@@ -30,6 +30,7 @@ import type {
   ProjectFileSaved,
   ProjectFolderChosenFor,
   ProjectFiles,
+  SystemMenuBarMenu,
 } from "./tatolab_backend_contract.js";
 
 /** The scheme the Electron app serves its window's page under: a page on it with no bridge is the app's window whose preload did not load. */
@@ -87,6 +88,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "stop_python_language_server",
   "open_port_viewer",
   "close_port_viewer",
+  "show_menus_in_the_system_menu_bar",
 ] as const;
 
 /**
@@ -114,6 +116,19 @@ export const TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT = "tatolab-python-language-ser
 
 /** The event each port viewer's messages, its CPU-read Image frames, its reopening and its end arrive on; it carries a `PortViewerEvent`. Its shared-texture Image frames arrive through Electron's `sharedTexture` receiver instead. */
 export const TATOLAB_PORT_VIEWER_EVENT = "tatolab-port-viewer-event";
+
+/** The event the system menu bar sends the window an entry the person chose on, from the menus that window last showed there; it carries a `SystemMenuBarEntryChosen`. */
+export const TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT = "tatolab-system-menu-bar-entry-chosen";
+
+/** What `tatolab-system-menu-bar-entry-chosen` carries: the `entry_id` of the entry chosen. */
+export interface SystemMenuBarEntryChosen {
+  entry_id: string;
+}
+
+/** Whether an event's payload is a `SystemMenuBarEntryChosen`. */
+export function isASystemMenuBarEntryChosen(eventPayload: unknown): eventPayload is SystemMenuBarEntryChosen {
+  return typeof eventPayload === "object" && eventPayload !== null && "entry_id" in eventPayload && typeof eventPayload.entry_id === "string";
+}
 
 /** The notice the window sends the main process once it has drawn its first status, carrying nothing; the window first goes on screen on it. */
 export const TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE = "tatolab-window-drew-its-first-status";
@@ -245,6 +260,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   open_port_viewer: { commandArguments: PortViewerTarget; answer: { port_viewer: string } };
   /** Closes the port viewer; one already closed is left as it is. */
   close_port_viewer: { commandArguments: { port_viewer: string }; answer: null };
+  /** macOS: the asking window's menus, which the system menu bar shows while that window is focused, each choice arriving back on `tatolab-system-menu-bar-entry-chosen`; kept and never shown on Linux, whose windows draw their own. Refused for menus not in the contract's shape. */
+  show_menus_in_the_system_menu_bar: { commandArguments: { menus: SystemMenuBarMenu[] }; answer: null };
 }>;
 
 /** What the command `CommandName` answers, typed by its signature. */
@@ -270,6 +287,8 @@ export interface TatolabElectronBridge {
   onPortViewerEvent(listener: (event: PortViewerEvent) => void): () => void;
   /** Calls `listener` with each Image frame a port viewer hands over as a shared texture, a WebCodecs `VideoFrame` the listener closes once drawn; the returned function stops it. */
   onPortViewerImageFrame(listener: (videoFrame: PortViewerVideoFrame, frameFacts: PortViewerImageFrameFacts) => void): () => void;
+  /** Calls `listener` with the `entry_id` of each entry the person chooses in the system menu bar from this window's menus; the returned function stops it. */
+  onSystemMenuBarEntryChosen(listener: (entryId: string) => void): () => void;
   /** Tell the main process the window has drawn its first status, so it can put the window on screen. */
   tellTheAppTheWindowDrewItsFirstStatus(): void;
 }

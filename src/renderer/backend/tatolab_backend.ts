@@ -27,6 +27,7 @@ import type {
   TatolabStreamActionName,
   ProjectFolderChosenFor,
   NewProjectDefaults,
+  SystemMenuBarMenu,
 } from "../../shared/tatolab_backend_contract";
 import { TATOLAB_WINDOW_PAGE_SCHEME, type TatolabElectronBridge } from "../../shared/tatolab_electron_bridge_contract";
 
@@ -90,6 +91,10 @@ export interface TatolabBackend {
   onStreamPageRequested(listener: (streamId: string) => void): () => void;
   /** Show the Projects window and bring it forward. */
   showTheProjectsWindow(): Promise<void>;
+  /** macOS: show `menus` in the system menu bar while this window is in focus, rejecting in words for menus out of the contract's shape. */
+  showTheMenusInTheSystemMenuBar(menus: SystemMenuBarMenu[]): Promise<void>;
+  /** Calls `listener` with the `entry_id` of each entry the person chooses in the system menu bar from this window's menus; the returned function stops it. */
+  onSystemMenuBarEntryChosen(listener: (entryId: string) => void): () => void;
   /** Ask the person for a project folder in the app's dialog and open it in its own window, or bring forward the window it has; `null` when they cancel, rejecting in the dialog's own words. */
   chooseProjectFolder(chosenFor: ProjectFolderChosenFor): Promise<ChosenProjectFolder | null>;
   /** The location and name the New project sheet opens with: `<Documents>/Tato Studio` and the first untitled name free there. */

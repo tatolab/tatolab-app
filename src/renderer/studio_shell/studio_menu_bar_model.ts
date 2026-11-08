@@ -1,7 +1,8 @@
 // The studio's menus as data, in the concept canvas's order. An entry whose work a later issue builds
-// is listed dim, with why, so the menus keep their shape as each one lands.
+// is listed dim, with why, so the menus keep their shape as each one lands. Linux draws them along
+// the top of the window; macOS shows them in its one system menu bar, laid out as a Mac app's are.
 
-import type { TatolabPlatform } from "../../shared/tatolab_backend_contract";
+import type { SystemMenuBarEntry, SystemMenuBarItems, SystemMenuBarMenu, SystemMenuOfTheDesktop, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import type { StudioMenu, StudioMenuEntry } from "../design_system/menu_bar";
 import { shortcutHint } from "../presentation/platform_presentation";
 import { STUDIO_LAYOUTS, type StudioLayoutName } from "./studio_layouts";
@@ -41,8 +42,20 @@ function laterCommand(label: string, shortcut?: string): StudioMenuEntry {
     : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause: NOT_IN_THIS_BUILD_REASON };
 }
 
-/** The studio's menus on `platform`, Window › Layout ticking `chosenLayout`, or naming why it waits while no project is open. */
-export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: StudioLayoutName | null, commands: StudioMenuBarCommands): StudioMenu[] {
+/** The studio's own menus, each listed once for both platforms' bars to arrange. */
+interface StudioMenuParts {
+  fileEntries: StudioMenuEntry[];
+  undoAndRedoEntries: StudioMenuEntry[];
+  preferencesEntry: StudioMenuEntry;
+  addMenu: StudioMenu;
+  streamMenu: StudioMenu;
+  runMenu: StudioMenu;
+  windowEntries: StudioMenuEntry[];
+  aboutEntry: StudioMenuEntry;
+  documentationEntry: StudioMenuEntry;
+}
+
+function studioMenuParts(platform: TatolabPlatform, chosenLayout: StudioLayoutName | null, commands: StudioMenuBarCommands, preferencesLabel: string): StudioMenuParts {
   const projectCommand = (label: string, onChosen: () => void, shortcut?: string): StudioMenuEntry => {
     if (chosenLayout === null) return shortcut === undefined ? { kind: "unavailable_command", label, unavailableBecause: NO_PROJECT_OPEN_REASON } : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause: NO_PROJECT_OPEN_REASON };
     return shortcut === undefined ? { kind: "command", label, onChosen } : { kind: "command", label, shortcutHint: shortcut, onChosen };
@@ -61,37 +74,126 @@ export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: Stud
             onChosen: () => commands.chooseLayout(name),
           })),
         };
-  return [
-    {
-      label: "File",
-      entries: [
-        { kind: "command", label: "Projects", onChosen: commands.showProjects },
-        { kind: "separator" },
-        { kind: "command", label: "Open project…", shortcutHint: shortcutHint(platform, "O"), onChosen: commands.openAProject },
-        { kind: "command", label: "New project…", onChosen: commands.createAProject },
-        { kind: "separator" },
-        laterCommand("Import project…"),
-        laterCommand("New stream"),
-        laterCommand("Save version…"),
-        projectCommand("Get more…", commands.openGetMore),
-      ],
-    },
-    {
-      label: "Edit",
-      entries: [
-        laterCommand("Undo"),
-        laterCommand("Redo"),
-        { kind: "separator" },
-        { kind: "command", label: "Preferences…", shortcutHint: shortcutHint(platform, ","), onChosen: commands.openPreferences },
-      ],
-    },
-    { label: "Add", entries: [laterCommand("Node…", "Shift A"), laterCommand("Connection…"), laterCommand("Variable…"), laterCommand("Frame")] },
-    { label: "Stream", entries: [laterCommand("Run on…"), laterCommand("Stream clock"), projectCommand("Open stream.py", commands.openTheProjectStreamPy)] },
-    {
+  return {
+    fileEntries: [
+      { kind: "command", label: "Projects", onChosen: commands.showProjects },
+      { kind: "separator" },
+      { kind: "command", label: "Open project…", shortcutHint: shortcutHint(platform, "O"), onChosen: commands.openAProject },
+      { kind: "command", label: "New project…", onChosen: commands.createAProject },
+      { kind: "separator" },
+      laterCommand("Import project…"),
+      laterCommand("New stream"),
+      laterCommand("Save version…"),
+      projectCommand("Get more…", commands.openGetMore),
+    ],
+    undoAndRedoEntries: [laterCommand("Undo"), laterCommand("Redo")],
+    preferencesEntry: { kind: "command", label: preferencesLabel, shortcutHint: shortcutHint(platform, ","), onChosen: commands.openPreferences },
+    addMenu: { label: "Add", entries: [laterCommand("Node…", "Shift A"), laterCommand("Connection…"), laterCommand("Variable…"), laterCommand("Frame")] },
+    streamMenu: { label: "Stream", entries: [laterCommand("Run on…"), laterCommand("Stream clock"), projectCommand("Open stream.py", commands.openTheProjectStreamPy)] },
+    runMenu: {
       label: "Run",
       entries: [projectCommand("Live", commands.runTheProjectLive, RUN_LIVE_KEY), projectCommand("Stop", commands.stopTheProject, STOP_KEY_HINT), laterCommand("Render to file…")],
     },
-    { label: "Window", entries: [studioLayoutEntry, laterCommand("Save layout as…"), laterCommand("Maximise area"), laterCommand("New window")] },
-    { label: "Help", entries: [{ kind: "command", label: "About Tato Studio", onChosen: commands.openAbout }, laterCommand("Documentation")] },
+    windowEntries: [studioLayoutEntry, laterCommand("Save layout as…"), laterCommand("Maximise area"), laterCommand("New window")],
+    aboutEntry: { kind: "command", label: "About Tato Studio", onChosen: commands.openAbout },
+    documentationEntry: laterCommand("Documentation"),
+  };
+}
+
+/** The studio's menus along the top of its window, as Linux shows them, Window › Layout ticking `chosenLayout`, or naming why it waits while no project is open. */
+export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: StudioLayoutName | null, commands: StudioMenuBarCommands): StudioMenu[] {
+  const parts = studioMenuParts(platform, chosenLayout, commands, "Preferences…");
+  return [
+    { label: "File", entries: parts.fileEntries },
+    { label: "Edit", entries: [...parts.undoAndRedoEntries, { kind: "separator" }, parts.preferencesEntry] },
+    parts.addMenu,
+    parts.streamMenu,
+    parts.runMenu,
+    { label: "Window", entries: parts.windowEntries },
+    { label: "Help", entries: [parts.aboutEntry, parts.documentationEntry] },
   ];
+}
+
+/** One entry of a studio menu in macOS's system menu bar: one of the studio's own, or items only the desktop draws. */
+export type StudioMenuEntryInTheSystemMenuBar = StudioMenuEntry | { kind: "system_items"; systemItems: SystemMenuBarItems };
+
+/** One menu of macOS's system menu bar as the studio lays it out: its name, which of the desktop's own menus it is, if any, and its entries. */
+export interface StudioMenuInTheSystemMenuBar {
+  label: string;
+  systemMenu: SystemMenuOfTheDesktop | null;
+  entries: readonly StudioMenuEntryInTheSystemMenuBar[];
+}
+
+/** The studio's menus as macOS's one menu bar shows them, in the places a Mac app keeps them: About and Settings in the app menu, the desktop's text editing in Edit, its window controls in Window. */
+export function studioMenusInTheSystemMenuBar(chosenLayout: StudioLayoutName | null, commands: StudioMenuBarCommands): StudioMenuInTheSystemMenuBar[] {
+  const parts = studioMenuParts("macos", chosenLayout, commands, "Settings…");
+  return [
+    {
+      label: "Tato Studio",
+      systemMenu: "app",
+      entries: [parts.aboutEntry, { kind: "separator" }, parts.preferencesEntry, { kind: "separator" }, { kind: "system_items", systemItems: "app_services_hide_and_quit" }],
+    },
+    { label: "File", systemMenu: null, entries: [...parts.fileEntries, { kind: "separator" }, { kind: "system_items", systemItems: "close_window" }] },
+    { label: "Edit", systemMenu: null, entries: [{ kind: "system_items", systemItems: "text_editing" }] },
+    { ...parts.addMenu, systemMenu: null },
+    { ...parts.streamMenu, systemMenu: null },
+    { ...parts.runMenu, systemMenu: null },
+    { label: "View", systemMenu: null, entries: [{ kind: "system_items", systemItems: "full_screen" }] },
+    {
+      label: "Window",
+      systemMenu: "window",
+      entries: [
+        { kind: "system_items", systemItems: "window_arrangement" },
+        { kind: "separator" },
+        ...parts.windowEntries,
+        { kind: "separator" },
+        { kind: "system_items", systemItems: "bring_all_to_front" },
+      ],
+    },
+    { label: "Help", systemMenu: "help", entries: [parts.documentationEntry] },
+  ];
+}
+
+/** The studio's menus as the window sends them to the system menu bar, and what each entry's `entry_id` runs when the person chooses it there. */
+export interface StudioMenusSentToTheSystemMenuBar {
+  menus: SystemMenuBarMenu[];
+  onChosenByEntryId: ReadonlyMap<string, () => void>;
+}
+
+/** `menus` in the system menu bar's wire shape, each entry's `entry_id` the path of labels down to it, as `File › Open project…`. */
+export function studioMenusSentToTheSystemMenuBar(menus: readonly StudioMenuInTheSystemMenuBar[]): StudioMenusSentToTheSystemMenuBar {
+  const onChosenByEntryId = new Map<string, () => void>();
+  const entriesOnTheWire = (entries: readonly StudioMenuEntryInTheSystemMenuBar[], labelsAbove: readonly string[]): SystemMenuBarEntry[] =>
+    entries.map((entry): SystemMenuBarEntry => {
+      switch (entry.kind) {
+        case "separator":
+          return { kind: "separator" };
+        case "system_items":
+          return { kind: "system_items", system_items: entry.systemItems };
+        case "submenu":
+          return { kind: "submenu", label: entry.label, entries: entriesOnTheWire(entry.entries, [...labelsAbove, entry.label]) };
+        case "choice": {
+          const entryId = [...labelsAbove, entry.label].join(" › ");
+          onChosenByEntryId.set(entryId, entry.onChosen);
+          return { kind: "choice", entry_id: entryId, label: entry.label, shortcut_hint: entry.shortcutHint ?? null, is_chosen: entry.isChosen };
+        }
+        case "command": {
+          const entryId = [...labelsAbove, entry.label].join(" › ");
+          onChosenByEntryId.set(entryId, entry.onChosen);
+          return { kind: "command", entry_id: entryId, label: entry.label, shortcut_hint: entry.shortcutHint ?? null, unavailable_because: null };
+        }
+        case "unavailable_command":
+          return {
+            kind: "command",
+            entry_id: [...labelsAbove, entry.label].join(" › "),
+            label: entry.label,
+            shortcut_hint: entry.shortcutHint ?? null,
+            unavailable_because: entry.unavailableBecause,
+          };
+      }
+    });
+  return {
+    menus: menus.map((menu) => ({ label: menu.label, system_menu: menu.systemMenu, entries: entriesOnTheWire(menu.entries, [menu.label]) })),
+    onChosenByEntryId,
+  };
 }

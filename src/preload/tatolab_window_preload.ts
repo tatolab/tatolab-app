@@ -7,7 +7,9 @@ import {
   TATOLAB_PYTHON_LANGUAGE_SERVER_EVENT,
   TATOLAB_STATUS_CHANGED_EVENT,
   TATOLAB_STREAM_PAGE_REQUESTED_EVENT,
+  TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT,
   TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE,
+  isASystemMenuBarEntryChosen,
   isATatolabStreamPageRequest,
   isPortViewerImageFrameFacts,
   type PortViewerVideoFrame,
@@ -89,6 +91,15 @@ const tatolabElectronBridge: TatolabElectronBridge = {
     portViewerImageFrameListeners.add(listener);
     return () => {
       portViewerImageFrameListeners.delete(listener);
+    };
+  },
+  onSystemMenuBarEntryChosen: (listener) => {
+    const systemMenuBarEntryChosenListener = (_systemMenuBarEntryChosenEvent: IpcRendererEvent, entryChosen: unknown) => {
+      if (isASystemMenuBarEntryChosen(entryChosen)) listener(entryChosen.entry_id);
+    };
+    ipcRenderer.on(TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT, systemMenuBarEntryChosenListener);
+    return () => {
+      ipcRenderer.removeListener(TATOLAB_SYSTEM_MENU_BAR_ENTRY_CHOSEN_EVENT, systemMenuBarEntryChosenListener);
     };
   },
   tellTheAppTheWindowDrewItsFirstStatus: () => {
