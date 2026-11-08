@@ -1,8 +1,9 @@
-// The view contract as it crosses the MessagePort between a sandboxed view and the studio. Every
-// message is structured-cloned, and an Image frame crosses as a transferred `ImageBitmap`: Chromium
-// refuses a `VideoFrame` into a frame of another agent cluster, which a sandboxed frame's opaque
-// origin is, with a `messageerror`. The host reads what a view sends as untrusted and refuses
-// anything its grant does not cover.
+// The view contract as it crosses the MessagePort between a project's view and the studio. Every
+// message is structured-cloned. A full-access view's frame shares the window's origin, so an Image
+// frame crosses as the transferred `VideoFrame`; a sandboxed view's opaque origin is another agent
+// cluster, into which Chromium refuses a `VideoFrame` with a `messageerror`, so it crosses as a
+// transferred `ImageBitmap`. The host reads what a view sends as untrusted and refuses anything its
+// grant does not cover.
 
 import type { JsonValue, OpenProjectReading } from "../../shared/tatolab_backend_contract";
 import type { StudioViewCapability, StudioViewDeclaredPort } from "../../shared/studio_view_manifest";
@@ -43,10 +44,10 @@ export type MessageFromTheStudioView =
 /** What a view's input delivers: its port viewer's events, an Image frame as a `VideoFrame` the view closes once drawn, or why nothing is wired into it. */
 export type StudioViewInputEvent = PortViewerConnectionEvent | { kind: "unwired"; because: string };
 
-/** A view input's event as it crosses the port: an Image frame as a transferred `ImageBitmap` with its frame's timestamp, which the SDK makes a `VideoFrame` again inside the view. */
+/** A view input's event as it crosses the port; to a sandboxed view an Image frame crosses as a transferred `ImageBitmap` with its frame's timestamp, which the SDK makes a `VideoFrame` again inside the view. */
 export type StudioViewInputEventOnThePort =
   | { kind: "image_bitmap"; image_bitmap: ImageBitmap; timestamp_microseconds: number; format_wire_name: string; skipped_since_last_read: number }
-  | Exclude<StudioViewInputEvent, { kind: "image_frame" }>;
+  | StudioViewInputEvent;
 
 /** One reading of a watched subject, tagged with the subject's kind. */
 export type StudioViewWatchedReading =
@@ -61,9 +62,10 @@ export type StudioViewWatchedReading =
 /** What the studio answers an ask with: done, or refused in words. */
 export type StudioViewAskAnswer = { kind: "done" } | { kind: "refused"; because: string };
 
-/** What the studio granted the view, as it reads it on connecting: its type, the contract served, its declared ports and its capabilities. */
+/** What the studio granted the view, as it reads it on connecting: its type, the contract served, its declared ports, whether it runs sandboxed, and its capabilities, every one for a full-access view. */
 export interface StudioViewGrant {
   view_type_id: string;
+  sandboxed: boolean;
   contract: { major: number; minor: number };
   inputs: StudioViewDeclaredPort[];
   outputs: StudioViewDeclaredPort[];
@@ -222,5 +224,5 @@ export function isMessageFromTheStudioHost(data: unknown): data is MessageFromTh
   }
 }
 
-/** What a view sends on an output, beside the ask in the same message: an `ImageBitmap` for Image, which the studio then owns, or JSON. */
-export type StudioViewOutputPayload = JsonValue | ImageBitmap;
+/** What a view sends on an output, beside the ask in the same message: a `VideoFrame` from a full-access view or an `ImageBitmap` for Image, which the studio then owns, or JSON. */
+export type StudioViewOutputPayload = JsonValue | ImageBitmap | VideoFrame;

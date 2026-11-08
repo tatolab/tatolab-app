@@ -325,7 +325,7 @@ describe("the studio", () => {
     await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-outliner]')).not.toBeNull());
   });
 
-  it("lists a view the project brings, and draws it in a sandboxed frame of its own on the stream's node of its type", async () => {
+  it("lists a view the project brings, and draws it with full access in a frame of its own on the stream's node of its type", async () => {
     await mountedWindowOverTheMock("state=running&studio_views=fixture");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
     await waitFor(() => expect(viewerArea.querySelector("[data-viewer-playing]")).not.toBeNull());
@@ -334,11 +334,12 @@ describe("the studio", () => {
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Picture and fader/ }));
 
     const viewFrame = await waitFor(
-      () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-sandboxed-studio-view]') ?? expect.unreachable("no sandboxed view frame"),
+      () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-project-studio-view]') ?? expect.unreachable("no project view frame"),
     );
-    expect(viewFrame.getAttribute("data-sandboxed-studio-view")).toBe("tatolab-fixture-views:picture-and-fader");
-    expect(viewFrame.getAttribute("sandbox")).toBe("allow-scripts");
-    expect(viewFrame.getAttribute("allow")).toBe("");
+    expect(viewFrame.getAttribute("data-project-studio-view")).toBe("tatolab-fixture-views:picture-and-fader");
+    expect(viewFrame.getAttribute("data-project-studio-view-access")).toBe("full");
+    expect(viewFrame.hasAttribute("sandbox")).toBe(false);
+    expect(viewFrame.getAttribute("allow")).toBe("camera; microphone");
     expect(viewFrame.getAttribute("src")).toMatch(/\/mock_studio_view\/picture_and_fader\/index\.html$/);
   });
 

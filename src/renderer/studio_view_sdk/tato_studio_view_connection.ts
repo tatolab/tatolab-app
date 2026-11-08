@@ -1,6 +1,6 @@
 // What a view people write is built on, the SDK published as `@tatolab/studio-view`: the view
 // contract spoken over the MessagePort the studio hands the view's frame, with the same types a
-// first-party view reads. It runs inside the sandboxed frame and imports nothing of the window.
+// first-party view reads. It runs inside the view's own frame and imports nothing of the window.
 
 import {
   STUDIO_VIEW_PORT_HANDOVER,
@@ -50,7 +50,7 @@ export interface TatoStudioViewConnection {
   /** Needs `write.selection`. */
   openStreamTab(streamTab: StreamTabAddress): Promise<StudioViewAskAnswer>;
   /** Send `payload` on the view's output `output`: a `VideoFrame` or `ImageBitmap` for Image, which the studio then owns, or JSON. */
-  sendOutput(output: string, payload: StudioViewOutputPayload | VideoFrame): Promise<StudioViewAskAnswer>;
+  sendOutput(output: string, payload: StudioViewOutputPayload): Promise<StudioViewAskAnswer>;
   /** Stop every watch and close the port. */
   close(): void;
 }
@@ -62,8 +62,15 @@ interface WatchHeld {
 
 const IGNORE_THE_REFUSAL: WhenTheStudioRefuses = () => undefined;
 
-function isAVideoFrame(payload: StudioViewOutputPayload | VideoFrame): payload is VideoFrame {
+function isAVideoFrame(payload: StudioViewOutputPayload): payload is VideoFrame {
   return typeof VideoFrame !== "undefined" && payload instanceof VideoFrame;
+}
+
+/** The picture `payload` hands the studio, which crosses the port transferred rather than copied. */
+function picturesToTransferOf(payload: StudioViewOutputPayload): Transferable[] {
+  if (isAVideoFrame(payload)) return [payload];
+  if (typeof ImageBitmap !== "undefined" && payload instanceof ImageBitmap) return [payload];
+  return [];
 }
 
 /** `inputEvent` as the view reads it: an Image frame's `ImageBitmap` made a `VideoFrame` again, at its frame's timestamp. */
@@ -97,7 +104,7 @@ export function connectToTatoStudioOverPort(port: MessagePort): Promise<TatoStud
     const ask = (askedFor: StudioViewAsk, payload?: StudioViewOutputPayload): Promise<StudioViewAskAnswer> => {
       if (isClosed) return Promise.resolve({ kind: "refused", because: "The view closed its connection to the studio." });
       const askId = nextId++;
-      const transfer: Transferable[] = typeof ImageBitmap !== "undefined" && payload instanceof ImageBitmap ? [payload] : [];
+      const transfer = payload === undefined ? [] : picturesToTransferOf(payload);
       return new Promise((resolveAnswer) => {
         answerWaitersByAskId.set(askId, resolveAnswer);
         send(payload === undefined ? { kind: "ask", ask_id: askId, ask: askedFor } : { kind: "ask", ask_id: askId, ask: askedFor, payload }, transfer);
@@ -163,7 +170,7 @@ export function connectToTatoStudioOverPort(port: MessagePort): Promise<TatoStud
       select: (selection) => ask({ kind: "select", selection }),
       openStreamTab: (streamTab) => ask({ kind: "open_stream_tab", stream_tab: streamTab }),
       sendOutput: async (output, payload) => {
-        if (!isAVideoFrame(payload)) return ask({ kind: "send_output", output }, payload);
+        if (!grant.sandboxed || !isAVideoFrame(payload)) return ask({ kind: "send_output", output }, payload);
         const imageBitmap = await createImageBitmap(payload);
         payload.close();
         return ask({ kind: "send_output", output }, imageBitmap);

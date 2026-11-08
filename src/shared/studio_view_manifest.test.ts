@@ -12,6 +12,7 @@ const STAGE_RIG_MANIFEST: { [key: string]: JsonValue } = {
   outputs: [{ name: "master_intensity", family: "array", range: [0, 1] }],
   capabilities: ["read.selection", "read.project_assets"],
   network: ["fixtures.example.com", "localhost:8080"],
+  sandbox: true,
 };
 
 function becauseOf(manifestJson: JsonValue): string {
@@ -31,6 +32,7 @@ describe("readStudioViewManifest", () => {
         accepts_file_extensions: [".mvr", ".gdtf"],
         inputs: [{ name: "fixtures", family: "records" }],
         outputs: [{ name: "master_intensity", family: "array" }],
+        sandboxed: true,
         capabilities: ["read.selection", "read.project_assets"],
         network_hosts: ["fixtures.example.com", "localhost:8080"],
       },
@@ -48,6 +50,7 @@ describe("readStudioViewManifest", () => {
         accepts_file_extensions: [],
         inputs: [],
         outputs: [],
+        sandboxed: false,
         capabilities: [],
         network_hosts: [],
       },
@@ -85,6 +88,13 @@ describe("readStudioViewManifest", () => {
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, network: ["https://fixtures.example.com"] })).toContain('`network` lists "https://fixtures.example.com"');
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, network: ["*.example.com"] })).toContain('`network` lists "*.example.com"');
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, accepts: { files: ["glb"] } })).toContain('`accepts.files` lists "glb"');
+  });
+
+  it("runs a view with full access unless it opts into the sandbox, and refuses a sandbox that is not true or false", () => {
+    const { sandbox: _sandbox, ...stageRigWithFullAccess } = STAGE_RIG_MANIFEST;
+    const reading = readStudioViewManifest(stageRigWithFullAccess);
+    expect(reading.kind === "read" ? reading.manifest.sandboxed : null).toBe(false);
+    expect(becauseOf({ ...STAGE_RIG_MANIFEST, sandbox: "yes" })).toBe('`sandbox` is "yes"; it is true for a view that runs sandboxed, or left out.');
   });
 
   it("refuses a manifest that is not an object or has no title", () => {

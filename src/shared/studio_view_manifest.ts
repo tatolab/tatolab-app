@@ -1,13 +1,13 @@
 // A view people write declares itself in `tatolab_view.json`, shipped beside its built web files in
-// a Python package's `tatolab.views` entry point. This reads that declaration; the sandbox serves
-// only what it grants.
+// a Python package's `tatolab.views` entry point. A view runs with full access, trusted when its
+// package is; one that opts into the sandbox is served only the capabilities it lists.
 
 import { PORT_FAMILIES, type JsonValue, type PortFamily } from "./tatolab_backend_contract.js";
 
 /** The version of the view contract this Tato Studio serves; a view built for a later minor, or another major, is refused by name. */
 export const STUDIO_VIEW_CONTRACT_SERVED = { major: 1, minor: 0 } as const;
 
-/** Every part of the view contract a manifest may ask for beyond what every view gets. */
+/** Every part of the view contract a sandboxed view may ask for beyond what every view gets; a full-access view has them all. */
 export const STUDIO_VIEW_CAPABILITIES = [
   "read.selection",
   "write.selection",
@@ -40,8 +40,10 @@ export interface StudioViewManifest {
   accepts_file_extensions: string[];
   inputs: StudioViewDeclaredPort[];
   outputs: StudioViewDeclaredPort[];
+  /** Whether the view opted into the sandbox, which serves it only `capabilities`; `false` runs it with full access. */
+  sandboxed: boolean;
   capabilities: StudioViewCapability[];
-  /** The hosts the view may reach, which become its frame's `connect-src`. */
+  /** The hosts a sandboxed view may reach, which become its frame's `connect-src`. */
   network_hosts: string[];
 }
 
@@ -147,6 +149,8 @@ export function readStudioViewManifest(manifestJson: JsonValue): StudioViewManif
     if (!isStudioViewCapability(capability)) return { kind: "not_read", because: `It asks for \`${capability}\`, which view contract ${contract.value.major}.${contract.value.minor} does not have.` };
     if (!capabilities.includes(capability)) capabilities.push(capability);
   }
+  const sandbox = manifestJson["sandbox"];
+  if (sandbox !== undefined && typeof sandbox !== "boolean") return { kind: "not_read", because: `\`sandbox\` is ${JSON.stringify(sandbox)}; it is true for a view that runs sandboxed, or left out.` };
   const networkHosts = stringListField(manifestJson, "network");
   if (networkHosts.kind === "not_read") return networkHosts;
   const hostOutOfShape = networkHosts.value.find((host) => !NETWORK_HOST_PATTERN.test(host));
@@ -161,6 +165,7 @@ export function readStudioViewManifest(manifestJson: JsonValue): StudioViewManif
       accepts_file_extensions: acceptedFileExtensions.value,
       inputs: inputs.value,
       outputs: outputs.value,
+      sandboxed: sandbox === true,
       capabilities,
       network_hosts: networkHosts.value,
     },

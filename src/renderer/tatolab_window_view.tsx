@@ -26,7 +26,7 @@ import { OUTLINER_VIEW_TYPE } from "./studio_views/outliner/outliner_view_type";
 import { inWindowStudioViewHostServices, useWatchedStudioValue } from "./view_host/in_window_view_host";
 import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_catalog_readings";
 import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
-import { sandboxedStudioViewType } from "./view_host/sandboxed_studio_view_type";
+import { projectStudioViewType } from "./view_host/project_studio_view_type";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
 import { PythonLanguageServerConnections } from "./view_host/python_language_server_connections";
 import { PortViewerConnections } from "./view_host/port_viewer_connections";
@@ -49,7 +49,7 @@ function studioViewTypeRegistry(): StudioViewTypeRegistry {
     registeredStudioViewType(PROPERTIES_VIEW_TYPE),
     registeredStudioViewType(VIEWER_VIEW_TYPE),
     registeredStudioViewType(CODE_EDITOR_VIEW_TYPE),
-  ], (listed, manifest, projectName) => registeredStudioViewType(sandboxedStudioViewType(listed, manifest, projectName)));
+  ], (listed, manifest, projectName) => registeredStudioViewType(projectStudioViewType(listed, manifest, projectName)));
 }
 
 /** Keeps `viewTypeRegistry` listing the views of the project `studioWindowModel` has open, listed again each time another is read. */

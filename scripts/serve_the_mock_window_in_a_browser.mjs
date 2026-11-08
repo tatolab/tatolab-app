@@ -10,8 +10,8 @@ import { createServer } from "vite";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { config: electronViteConfig } = await loadConfigFromFile({ command: "serve", mode: "development" }, undefined, repositoryRoot);
-// A project's view runs in a sandboxed frame, whose opaque origin fetches its module scripts with
-// `Origin: null`, which Vite's default CORS refuses.
+// A project's view that opts into the sandbox runs on an opaque origin, which fetches its module
+// scripts with `Origin: null`, which Vite's default CORS refuses.
 const mockWindowServer = await createServer({
   ...electronViteConfig.renderer,
   root: path.resolve(repositoryRoot, electronViteConfig.renderer.root),

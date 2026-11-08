@@ -1,7 +1,8 @@
-// The studio's end of a sandboxed view's MessagePort: each message the view sends is checked against
-// what its manifest declared, then answered from the same services a first-party view is handed.
+// The studio's end of a project's view's MessagePort: each message the view sends is checked against
+// what it was granted, then answered from the same services a first-party view is handed. A
+// full-access view is granted every capability; a sandboxed one only what its manifest lists.
 
-import type { StudioViewManifest } from "../../shared/studio_view_manifest";
+import { STUDIO_VIEW_CAPABILITIES, type StudioViewCapability, type StudioViewManifest } from "../../shared/studio_view_manifest";
 import type { PortViewerConnection, StopWatching } from "./studio_view_contract";
 import { STUDIO_VIEW_NODE_ISSUE, type StudioViewInputWiring } from "./studio_view_node_wiring";
 import type { StudioViewHostServices } from "./studio_view_type_registry";
@@ -33,24 +34,25 @@ interface InputWatch {
 }
 
 /** Whether `payload`, sent beside an output ask, is a picture the studio now holds and must close. */
-function isAnImageBitmap(payload: unknown): payload is ImageBitmap {
-  return typeof ImageBitmap !== "undefined" && payload instanceof ImageBitmap;
+function isAPictureToClose(payload: unknown): payload is ImageBitmap | VideoFrame {
+  return (typeof ImageBitmap !== "undefined" && payload instanceof ImageBitmap) || (typeof VideoFrame !== "undefined" && payload instanceof VideoFrame);
 }
 
-/** Turns a port viewer's `VideoFrame` into the `ImageBitmap` that crosses into a sandboxed frame. */
+/** Turns a port viewer's `VideoFrame` into the `ImageBitmap` that crosses into a sandboxed view's frame. */
 export type ImageBitmapOfTheVideoFrame = (videoFrame: VideoFrame) => Promise<ImageBitmap>;
 
 const IMAGE_BITMAP_OF_THE_VIDEO_FRAME: ImageBitmapOfTheVideoFrame = (videoFrame) => createImageBitmap(videoFrame);
 
-/** Serves one sandboxed view of `viewTypeId`, declared by `manifest`, over `port`, reading through `hostServices`, its inputs through `inputWiring`, and each Image frame through `imageBitmapOfTheVideoFrame`. */
-export class SandboxedStudioViewBridge {
+/** Serves one view of `viewTypeId`, declared by `manifest`, over `port`, reading through `hostServices` and its inputs through `inputWiring`; a sandboxed view's Image frames go through `imageBitmapOfTheVideoFrame`. */
+export class ProjectStudioViewBridge {
+  private readonly grantedCapabilities: readonly StudioViewCapability[];
   private readonly stopWatchingByWatchId = new Map<number, StopWatching>();
   private readonly inputWatchesByWatchId = new Map<number, InputWatch>();
   private isClosed = false;
 
   private readonly onMessageFromTheView = (event: MessageEvent<unknown>): void => {
     const sentPayload: unknown = typeof event.data === "object" && event.data !== null && "payload" in event.data ? event.data.payload : null;
-    if (isAnImageBitmap(sentPayload)) sentPayload.close();
+    if (isAPictureToClose(sentPayload)) sentPayload.close();
     if (this.isClosed) return;
     const message = messageFromTheStudioView(event.data);
     if (message === null) return;
@@ -66,7 +68,9 @@ export class SandboxedStudioViewBridge {
     private readonly hostServices: StudioViewHostServices,
     private inputWiring: Record<string, StudioViewInputWiring>,
     private readonly imageBitmapOfTheVideoFrame: ImageBitmapOfTheVideoFrame = IMAGE_BITMAP_OF_THE_VIDEO_FRAME,
-  ) {}
+  ) {
+    this.grantedCapabilities = manifest.sandboxed ? manifest.capabilities : STUDIO_VIEW_CAPABILITIES;
+  }
 
   /** Tell the view what it was granted, and answer its messages from now on. */
   start(): void {
@@ -76,10 +80,11 @@ export class SandboxedStudioViewBridge {
       kind: "hello",
       grant: {
         view_type_id: this.viewTypeId,
+        sandboxed: this.manifest.sandboxed,
         contract: this.manifest.contract,
         inputs: this.manifest.inputs,
         outputs: this.manifest.outputs,
-        capabilities: this.manifest.capabilities,
+        capabilities: [...this.grantedCapabilities],
       },
     });
   }
@@ -111,7 +116,7 @@ export class SandboxedStudioViewBridge {
   }
 
   private refusalForMissing(capability: string): string {
-    return `${this.manifest.title} does not declare ${capability} in its tatolab_view.json, so the studio does not serve it.`;
+    return `${this.manifest.title} runs sandboxed and does not list ${capability} in its tatolab_view.json, so the studio does not serve it.`;
   }
 
   private wiringOfTheInput(input: string): StudioViewInputWiring {
@@ -124,7 +129,7 @@ export class SandboxedStudioViewBridge {
       return;
     }
     const capability = capabilityToWatch(subject);
-    if (capability !== null && !this.manifest.capabilities.includes(capability)) {
+    if (capability !== null && !this.grantedCapabilities.includes(capability)) {
       this.send({ kind: "watch_refused", watch_id: watchId, because: this.refusalForMissing(capability) });
       return;
     }
@@ -172,6 +177,11 @@ export class SandboxedStudioViewBridge {
         sendInputEvent(portViewerEvent, []);
         return;
       }
+      if (!this.manifest.sandboxed) {
+        if (this.isClosed) portViewerEvent.video_frame.close();
+        else sendInputEvent(portViewerEvent, [portViewerEvent.video_frame]);
+        return;
+      }
       const { video_frame: videoFrame, format_wire_name: formatWireName, skipped_since_last_read: skippedSinceLastRead } = portViewerEvent;
       const timestampMicroseconds = videoFrame.timestamp;
       this.imageBitmapOfTheVideoFrame(videoFrame).then(
@@ -210,7 +220,7 @@ export class SandboxedStudioViewBridge {
 
   private answerTheAsk(ask: StudioViewAsk): StudioViewAskAnswer {
     const capability = capabilityToAsk(ask);
-    if (capability !== null && !this.manifest.capabilities.includes(capability)) return { kind: "refused", because: this.refusalForMissing(capability) };
+    if (capability !== null && !this.grantedCapabilities.includes(capability)) return { kind: "refused", because: this.refusalForMissing(capability) };
     switch (ask.kind) {
       case "select":
         this.hostServices.select(ask.selection);

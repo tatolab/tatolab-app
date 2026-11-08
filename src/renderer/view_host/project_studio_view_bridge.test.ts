@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { readStudioViewManifest, type StudioViewManifest } from "../../shared/studio_view_manifest";
+import { readStudioViewManifest, STUDIO_VIEW_CAPABILITIES, type StudioViewManifest } from "../../shared/studio_view_manifest";
 import { connectToTatoStudioOverPort, type StudioViewInputEvent, type TatoStudioViewConnection } from "../studio_view_sdk/tato_studio_view_connection";
 import { WatchedStudioValue } from "./in_window_view_host";
-import { SandboxedStudioViewBridge } from "./sandboxed_studio_view_bridge";
+import { ProjectStudioViewBridge } from "./project_studio_view_bridge";
 import type { PortViewerConnectionEvent, PortViewerTarget, StudioSelection } from "./studio_view_contract";
 import type { StudioViewInputWiring } from "./studio_view_node_wiring";
 import type { StudioViewHostServices } from "./studio_view_type_registry";
@@ -20,7 +20,10 @@ const DJ_DECK_MANIFEST = manifestOf({
   inputs: [{ name: "deck_a", family: "channels" }],
   outputs: [{ name: "crossfader", family: "array" }],
   capabilities: ["read.selection"],
+  sandbox: true,
 });
+
+const FULL_ACCESS_DJ_DECK_MANIFEST: StudioViewManifest = { ...DJ_DECK_MANIFEST, sandboxed: false, capabilities: [] };
 
 const DECK_A_TARGET: PortViewerTarget = { stream: "set", node_id: "id-deck-a", port: "audio" };
 const DECK_B_TARGET: PortViewerTarget = { stream: "set", node_id: "id-deck-b", port: "audio" };
@@ -63,7 +66,7 @@ function recordingHostServices() {
   return { hostServices, selection, portViewersOpened, selectionsAsked };
 }
 
-const bridgesOpen: SandboxedStudioViewBridge[] = [];
+const bridgesOpen: ProjectStudioViewBridge[] = [];
 const connectionsOpen: TatoStudioViewConnection[] = [];
 afterEach(() => {
   for (const bridge of bridgesOpen.splice(0)) bridge.close();
@@ -73,7 +76,7 @@ afterEach(() => {
 async function connectedView(manifest: StudioViewManifest, inputWiring: Record<string, StudioViewInputWiring>) {
   const host = recordingHostServices();
   const channel = new MessageChannel();
-  const bridge = new SandboxedStudioViewBridge(channel.port1, "acme-dj:deck", manifest, host.hostServices, inputWiring);
+  const bridge = new ProjectStudioViewBridge(channel.port1, "acme-dj:deck", manifest, host.hostServices, inputWiring);
   bridgesOpen.push(bridge);
   const connecting = connectToTatoStudioOverPort(channel.port2);
   bridge.start();
@@ -87,16 +90,31 @@ function messagesDelivered(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 20));
 }
 
-describe("a sandboxed view's connection to the studio", () => {
+describe("a project's view's connection to the studio", () => {
   it("is told what its manifest was granted as it connects", async () => {
     const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
     expect(connection.grant).toEqual({
       view_type_id: "acme-dj:deck",
+      sandboxed: true,
       contract: { major: 1, minor: 0 },
       inputs: [{ name: "deck_a", family: "channels" }],
       outputs: [{ name: "crossfader", family: "array" }],
       capabilities: ["read.selection"],
     });
+  });
+
+  it("grants a full-access view every capability, whatever its manifest lists", async () => {
+    const { connection, selectionsAsked } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+    const refusals: string[] = [];
+    connection.watchStreamGraph("set", () => undefined, (because) => refusals.push(because));
+    const selectAnswer = await connection.select({ kind: "nothing" });
+    await messagesDelivered();
+
+    expect(connection.grant.sandboxed).toBe(false);
+    expect(connection.grant.capabilities).toEqual([...STUDIO_VIEW_CAPABILITIES]);
+    expect(refusals).toEqual([]);
+    expect(selectAnswer).toEqual({ kind: "done" });
+    expect(selectionsAsked).toEqual([{ kind: "nothing" }]);
   });
 
   it("reads what every view gets and what it declared, and is refused, in words naming the capability, what it did not declare", async () => {
@@ -114,8 +132,8 @@ describe("a sandboxed view's connection to the studio", () => {
 
     expect(openProjectReadings).toEqual(["none_open"]);
     expect(selectionsSeen).toEqual([{ kind: "nothing" }, { kind: "node", stream: "set", node: "mixer" }]);
-    expect(refusals).toEqual(["DJ Deck does not declare read.stream_graph in its tatolab_view.json, so the studio does not serve it."]);
-    expect(selectAnswer).toEqual({ kind: "refused", because: "DJ Deck does not declare write.selection in its tatolab_view.json, so the studio does not serve it." });
+    expect(refusals).toEqual(["DJ Deck runs sandboxed and does not list read.stream_graph in its tatolab_view.json, so the studio does not serve it."]);
+    expect(selectAnswer).toEqual({ kind: "refused", because: "DJ Deck runs sandboxed and does not list write.selection in its tatolab_view.json, so the studio does not serve it." });
   });
 
   it("asks the studio to select when it declared write.selection", async () => {
@@ -202,7 +220,7 @@ describe("a sandboxed view's connection to the studio", () => {
     const bitmapsClosed: string[] = [];
     const videoFrameNamed = (name: string) => Object.assign(Object.create(null), { timestamp: 33_000, close: () => framesClosed.push(name) });
     const imageBitmapNamed = (name: string) => Object.assign(Object.create(null), { name, close: () => bitmapsClosed.push(name) });
-    const bridge = new SandboxedStudioViewBridge(
+    const bridge = new ProjectStudioViewBridge(
       portDouble,
       "acme-dj:deck",
       { ...DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image" }] },
@@ -227,5 +245,47 @@ describe("a sandboxed view's connection to the studio", () => {
     expect(imageBitmapsPosted[0]?.message).toMatchObject({ kind: "watched", watch_id: 1, watched: { subject: "input", reading: { kind: "image_bitmap", timestamp_microseconds: 33_000, format_wire_name: "bgra8", skipped_since_last_read: 2 } } });
     expect(framesClosed).toEqual(["first", "second"]);
     expect(bitmapsClosed).toEqual(["second"]);
+  });
+
+  it("hands a full-access view an Image frame as the VideoFrame itself, transferred with no copy", async () => {
+    const host = recordingHostServices();
+    const postedToTheView: { message: unknown; transfer: Transferable[] }[] = [];
+    const listenersOfThePort: ((event: MessageEvent<unknown>) => void)[] = [];
+    const portDouble = {
+      postMessage: (message: unknown, transfer: Transferable[]) => {
+        postedToTheView.push({ message, transfer });
+      },
+      addEventListener: (_type: string, listener: (event: MessageEvent<unknown>) => void) => {
+        listenersOfThePort.push(listener);
+      },
+      removeEventListener: () => undefined,
+      start: () => undefined,
+      close: () => undefined,
+    };
+    const bitmapsMade: string[] = [];
+    const framesClosed: string[] = [];
+    const videoFrame = Object.assign(Object.create(null), { timestamp: 33_000, close: () => framesClosed.push("frame") });
+    const bridge = new ProjectStudioViewBridge(
+      portDouble,
+      "acme-dj:deck",
+      { ...FULL_ACCESS_DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image" }] },
+      host.hostServices,
+      { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
+      async () => {
+        bitmapsMade.push("bitmap");
+        return Object.create(null);
+      },
+    );
+    bridgesOpen.push(bridge);
+    bridge.start();
+    for (const listener of listenersOfThePort) listener(new MessageEvent("message", { data: { kind: "watch", watch_id: 1, subject: { kind: "input", input: "deck_a" } } }));
+    host.portViewersOpened[0]?.onEvent({ kind: "image_frame", video_frame: videoFrame, format_wire_name: "bgra8", skipped_since_last_read: 0 });
+
+    const framesPosted = postedToTheView.filter((posted) => posted.transfer.length > 0);
+    expect(framesPosted).toHaveLength(1);
+    expect(framesPosted[0]?.transfer[0]).toBe(videoFrame);
+    expect(framesPosted[0]?.message).toMatchObject({ kind: "watched", watch_id: 1, watched: { subject: "input", reading: { kind: "image_frame", format_wire_name: "bgra8" } } });
+    expect(bitmapsMade).toEqual([]);
+    expect(framesClosed).toEqual([]);
   });
 });
