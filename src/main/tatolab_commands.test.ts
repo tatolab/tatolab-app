@@ -445,15 +445,15 @@ test("each queued action answers the window null, and a missing argument or a pr
     "linux"
   );
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
-  expect(await commandHandlers.remove_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+  expect(await commandHandlers.remove_project({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
-    refusal: "The runtime lists no stream from /tmp/tatolab-proof-projects/doorways.",
+    refusal: "The runtime lists no stream from /home/jonathan-fontanez/scratch/app176/projects/doorways.",
   });
   await sharedState.statusPublisher.refreshAndPublish();
 
   expect(await commandHandlers.stop_stream({ stream: "pattern-main-d76f70" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.start_stream({ stream: "pattern-main-d76f70" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.remove_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.remove_project({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.remove_project({ stream: "pattern-main-d76f70" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "remove_project needs `project_directory`, a project's folder as the runtime lists it",
@@ -479,7 +479,7 @@ test("reloading a project the runtime lists queues run_project on its folder, an
   const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
   await sharedState.statusPublisher.refreshAndPublish();
 
-  expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: "/tmp/tatolab-proof-projects/doorways" }, FROM_THE_PROJECTS_WINDOW))).toBe(
+  expect(JSON.stringify(await commandHandlers.reload_project({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW))).toBe(
     '{"ok":true,"value":{"action":"Rnd53mwtsrixjyxk7h3jfq5j5-7","project_directory":"/tmp/tatolab-proof-projects/doorways"}}',
   );
   expect(refreshRequests).toHaveBeenCalledTimes(1);
