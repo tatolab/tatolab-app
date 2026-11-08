@@ -16,7 +16,7 @@ function listedWithAStreamOf(projectDirectory: string, state: string): ListedStr
   const listing: ListedStream = {
     stream: "pattern-main-0a1b2c",
     display_name: "main",
-    location: { project_directory: projectDirectory, stream_function: "stream:main" },
+    location: { project_directory: projectDirectory, project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" },
     state,
     node_count: null,
     failed_because: null,
@@ -64,7 +64,13 @@ describe("the Projects window's cards", () => {
 
 describe("the Projects window with no card to show", () => {
   it("says why: nothing opened yet, or nothing matching the search", () => {
-    expect(presentProjectsWithNoCards("").title).toBe("No projects yet");
-    expect(presentProjectsWithNoCards("lobby")).toEqual({ title: "No project matches", explanation: "Nothing recent is named like “lobby”." });
+    const listedNone: ListedStreamsReading = { kind: "listed", streams: [] };
+    expect(presentProjectsWithNoCards("", listedNone).title).toBe("No projects yet");
+    expect(presentProjectsWithNoCards("lobby", listedNone)).toEqual({ title: "No project matches", explanation: "Nothing recent is named like “lobby”.", isFailure: false });
+  });
+
+  it("says the streams could not be listed, in the failure's own words, in place of having no projects", () => {
+    const because = "the runtime's list_streams result could not be read: missing field `stream_asset`";
+    expect(presentProjectsWithNoCards("", { kind: "listing_failed", because })).toEqual({ title: "The runtime's streams could not be listed", explanation: because, isFailure: true });
   });
 });

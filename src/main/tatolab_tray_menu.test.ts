@@ -39,6 +39,7 @@ function statusWith(
     runtime_not_running_because: null,
     machine_name: null,
     streams: [],
+    streams_not_listed_because: null,
     command_line_tool_link: { kind: "linked", path: "/Users/someone/.local/bin/tatolab" },
     app_update: appUpdate,
     local_api_socket: "/tmp/streamlib-501/local-api.sock",

@@ -20,7 +20,7 @@ function listedStream(displayName: string, state: string, failedBecause: string 
   return {
     stream: `${displayName}-main-0c4e2a`,
     display_name: displayName,
-    location: { project_directory: `/Users/u/streams/${displayName}`, stream_function: "stream:main" },
+    location: { project_directory: `/Users/u/streams/${displayName}`, project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" },
     state,
     node_count: state === "failed" ? null : 3,
     failed_because: failedBecause, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null,
@@ -36,6 +36,7 @@ function statusListing(streams: ListedStream[] | null): TatolabStatus {
     runtime_not_running_because: null,
     machine_name: streams === null ? null : "jonathanf-macbook",
     streams,
+    streams_not_listed_because: null,
     command_line_tool_link: { kind: "linked", path: "/Users/ada/.local/bin/tatolab" },
     app_update: { kind: "not_checked" },
     local_api_socket: "/tmp/streamlib-501/local-api.sock",

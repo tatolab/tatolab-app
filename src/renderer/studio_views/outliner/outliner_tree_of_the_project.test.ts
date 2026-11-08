@@ -11,11 +11,11 @@ const PROJECT: OpenProject = {
   ],
 };
 
-function listedStream(projectFolder: string, streamFunction: string): ListedStream {
+function listedStream(projectFolder: string, displayName: string): ListedStream {
   return {
-    stream: `${streamFunction}-id`,
-    display_name: streamFunction,
-    location: { project_directory: projectFolder, stream_function: `stream:${streamFunction}` },
+    stream: `${displayName}-id`,
+    display_name: displayName,
+    location: { project_directory: projectFolder, project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" },
     state: "running",
     node_count: 2,
     failed_because: null,
@@ -38,20 +38,21 @@ describe("the outliner's tree", () => {
     expect(rows[3]?.meaning).toEqual({ kind: "stream", stream: "lobby_wall-id", display_name: "lobby_wall", project_name: "studio", project_folder: "/w/studio" });
   });
 
-  it("marks a failed stream, and names the project's stream.py record, whose location names no function, stream.py", () => {
-    const failedFirstLoad: ListedStream = {
-      ...listedStream("/w/studio", "unused"),
-      stream: "studio-ff588e",
-      display_name: "studio",
-      location: { project_directory: "/w/studio", stream_function: "" },
-      state: "failed",
-      node_count: null,
-      failed_because: "`uv sync` did not make /w/studio/.venv",
-    };
-    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [failedFirstLoad, listedStream("/w/studio", "lobby_wall")] }, {});
+  it("labels each stream by its display name and marks a failed one", () => {
+    const failedStream: ListedStream = { ...listedStream("/w/studio", "Lobby Wall"), stream: "studio-main-ff588e", state: "failed", node_count: null, failed_because: "`uv sync` did not make /w/studio/.venv" };
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listed", streams: [failedStream, listedStream("/w/studio", "door")] }, {});
     expect(rows.slice(3, 5).map(({ row }) => [row.label, row.icon, row.tone ?? "plain"])).toEqual([
-      ["stream.py", "failed", "failed"],
-      ["lobby_wall", "stream", "plain"],
+      ["Lobby Wall", "failed", "failed"],
+      ["door", "stream", "plain"],
+    ]);
+  });
+
+  it("says in the failure's own words why the streams could not be listed, in place of waiting on them", () => {
+    const because = "the runtime's list_streams result could not be read: missing field `stream_asset`";
+    const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listing_failed", because }, {});
+    expect(rows.slice(2, 4).map(({ row }) => [row.row_id, row.label, row.tone ?? "plain"])).toEqual([
+      ["project:/w/studio/pyproject", "pyproject.toml", "plain"],
+      ["project:/w/studio/streams-not-listed", because, "unreadable"],
     ]);
   });
 

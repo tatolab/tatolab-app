@@ -191,8 +191,11 @@ function listedStream(
   };
 }
 
-function locationOf(projectDirectory: string, streamFunction = "stream:main"): StreamLocation {
-  return { project_directory: projectDirectory, stream_function: streamFunction };
+const A_PROJECT = "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55";
+const A_STREAM_ASSET = "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68";
+
+function locationOf(projectDirectory: string, project = A_PROJECT, streamAsset = A_STREAM_ASSET): StreamLocation {
+  return { project_directory: projectDirectory, project, stream_asset: streamAsset };
 }
 
 const BACK_DOOR_TRACEBACK =
@@ -249,7 +252,7 @@ test("a_stream_waiting_in_its_projects_queue_is_listed_with_its_action_and_no_st
       {
         stream: "pattern-main-d76f70",
         display_name: "main",
-        location: { project_directory: "/tmp/p", stream_function: "stream:main" },
+        location: { project_directory: "/tmp/p", project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" },
         state: "stopping",
         node_count: 4,
         failed_because: null,
@@ -270,7 +273,7 @@ test("a_stream_in_a_state_or_with_fields_this_app_does_not_know_is_still_listed"
       {
         stream: "newer-main-1a2b3c",
         display_name: "main",
-        location: { project_directory: "/Users/me/newer", stream_function: "stream:main", a_field_from_later: 1 },
+        location: { project_directory: "/Users/me/newer", project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68", a_field_from_later: 1 },
         state: "migrating",
         node_count: 1,
         failed_because: null,
@@ -291,7 +294,7 @@ test("a_stream_waiting_for_capture_device_access_lists_each_device_as_spelled", 
       {
         stream: "camera-main-018da9",
         display_name: "camera",
-        location: { project_directory: "/Users/me/camera", stream_function: "stream:main" },
+        location: { project_directory: "/Users/me/camera", project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" },
         state: "running",
         node_count: 4,
         failed_because: null,
@@ -312,6 +315,14 @@ test("a_stream_waiting_for_capture_device_access_lists_each_device_as_spelled", 
       ),
     ),
   ).toBe("the runtime's list_streams result could not be read: `capture_devices_whose_access_was_never_asked_for` holds a value that is not a string");
+});
+
+test("a_location_naming_no_stream_asset_is_refused_naming_the_missing_field", () => {
+  const toolResult = {
+    streams: [{ stream: "pattern-main-d76f70", display_name: "main", location: { project_directory: "/tmp/p", stream_function: "stream:main" }, state: "running", node_count: 4, failed_because: null }],
+  };
+
+  expect(failureOf(listedStreamsFromTheListStreamsToolResult(JSON.stringify(toolResult)))).toBe("the runtime's list_streams result could not be read: missing field `project`");
 });
 
 test("a_record_an_earlier_runtime_wrote_is_listed_without_a_location", () => {

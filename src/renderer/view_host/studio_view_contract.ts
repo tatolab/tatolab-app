@@ -61,8 +61,8 @@ export interface StreamTabAddress {
   display_name: string;
 }
 
-/** The streams the runtime lists, or why it lists none now, in its own words. */
-export type ListedStreamsReading = { kind: "listed"; streams: ListedStream[] } | { kind: "not_listed"; because: string };
+/** The streams the runtime lists; why none are listed while the runtime is not running; or why listing them failed while it runs, in the failure's own words. */
+export type ListedStreamsReading = { kind: "listed"; streams: ListedStream[] } | { kind: "not_listed"; because: string } | { kind: "listing_failed"; because: string };
 
 /** A stream's graph as the runtime renders it now, or why it renders none, in its own words. */
 export type StreamGraphReading = { kind: "read"; graph: StreamGraphSummary } | { kind: "not_read"; because: string };

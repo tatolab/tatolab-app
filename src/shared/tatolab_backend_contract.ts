@@ -11,16 +11,18 @@ export type TatolabPlatform = "macos" | "linux";
  */
 export type RuntimeState = "running" | "starting" | "not_running";
 
-/** Where a stream's code lives, which its stream id is computed from: its project directory, symlinks resolved, and its stream function as `module:qualname`. */
+/** Where a stream lives: its project directory as of its last load, symlinks resolved, and the two UUIDs that identify it, its project's and its stream asset's. */
 export interface StreamLocation {
   project_directory: string;
-  /** `""` for the one failed record the runtime keeps for a project whose `stream.py` loads no `@stream`, its id `<folder>-<hash>`, until a load replaces it with the project's streams. */
-  stream_function: string;
+  /** The project's UUID, from its `tatolab-project.json`. */
+  project: string;
+  /** The stream asset's UUID, from its graph document. */
+  stream_asset: string;
 }
 
 /** One stream the runtime lists. `state` is running, stopped, failed, preparing or stopping, or a state newer than this app. */
 export interface ListedStream {
-  /** Its stream id, `<folder>-<function>-<hash>`, which every tool about one stream names it by. */
+  /** Its stream id, `<project name>-<stream name>-<hash>`, which every tool about one stream names it by. */
   stream: string;
   /** The label the runtime shows it under; free text, and never unique. */
   display_name: string;
@@ -121,6 +123,8 @@ export interface TatolabStatus {
   machine_name: string | null;
   /** `null` when the streams were not listed: the runtime is down or listing them failed. */
   streams: ListedStream[] | null;
+  /** Why listing the streams failed while the runtime answers, in the failure's own words; `null` when they were listed or the runtime is down. */
+  streams_not_listed_because: string | null;
   command_line_tool_link: CommandLineToolLink;
   app_update: TatolabAppUpdateState;
   /** The socket this build reads the runtime's local API at. */

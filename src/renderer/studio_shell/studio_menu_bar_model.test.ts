@@ -121,7 +121,7 @@ describe("Run › Stop", () => {
     return {
       stream,
       display_name: stream,
-      location: { project_directory: projectDirectory, stream_function: `stream:${stream}` },
+      location: { project_directory: projectDirectory, project: `project-of-${projectDirectory}`, stream_asset: `stream-asset-${stream}` },
       state,
       node_count: null,
       failed_because: null,

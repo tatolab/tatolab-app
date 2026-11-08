@@ -79,13 +79,15 @@ export function theRuntimesRefusal(failureDescription: string): { ok: false; fai
   return failedWith({ failureDescription, isTheRuntimesRefusal: true });
 }
 
-/** A stream's `location` on the wire: `project_directory` and `stream_function` as `module:qualname`. */
+/** A stream's `location` on the wire: `project_directory`, its project's UUID as `project` and its stream asset's UUID as `stream_asset`. */
 function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLocation, string> {
   const projectDirectory = requiredText(location, "project_directory");
   if (!projectDirectory.ok) return projectDirectory;
-  const streamFunction = requiredText(location, "stream_function");
-  if (!streamFunction.ok) return streamFunction;
-  return succeeded({ project_directory: projectDirectory.value, stream_function: streamFunction.value });
+  const project = requiredText(location, "project");
+  if (!project.ok) return project;
+  const streamAsset = requiredText(location, "stream_asset");
+  if (!streamAsset.ok) return streamAsset;
+  return succeeded({ project_directory: projectDirectory.value, project: project.value, stream_asset: streamAsset.value });
 }
 
 /** What `rename_stream` answers: the stream's id and the display name it is shown under now. */

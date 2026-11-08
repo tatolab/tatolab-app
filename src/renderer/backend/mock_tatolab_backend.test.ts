@@ -9,12 +9,12 @@ afterEach(() => {
 });
 
 /** The mock streams' ids, which the runtime would compute from their locations. */
-const MAIN = "pattern-main-645dbe";
-const CAMERA = "camera-main-018da9";
-const RECORDER = "pattern-recorder-7d11b1";
-const PATTERN_TWO = "pattern-pattern-two-e6043c";
-const LOBBY_RECORDER = "lobby-recorder-main-3fc45e";
-const HEAT_MAP = "heat-map-heat-map-1acf70";
+const MAIN = "pattern-main-bcd55b";
+const CAMERA = "camera-main-b0a0e5";
+const RECORDER = "pattern-recorder-077241";
+const PATTERN_TWO = "pattern-pattern-two-346432";
+const LOBBY_RECORDER = "lobby-recorder-main-d76949";
+const HEAT_MAP = "heat-map-heat-map-68aac7";
 
 function listingWithTheId(streams: ListedStream[] | null, streamId: string): ListedStream | undefined {
   return streams?.find((stream) => stream.stream === streamId);

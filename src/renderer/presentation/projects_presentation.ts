@@ -66,8 +66,12 @@ export function presentRecentProjectCards(
     .filter((card) => searchedFor === "" || card.name.toLowerCase().includes(searchedFor) || card.folderWords.toLowerCase().includes(searchedFor));
 }
 
-/** What the Projects window says when no card shows: no project opened yet, or none matching the search. */
-export function presentProjectsWithNoCards(searchText: string): { title: string; explanation: string } {
-  if (searchText.trim() !== "") return { title: "No project matches", explanation: `Nothing recent is named like “${searchText.trim()}”.` };
-  return { title: "No projects yet", explanation: "Projects you create or open show here." };
+/** The Projects window's lead before why the runtime's streams could not be listed. */
+export const STREAMS_NOT_LISTED_LEAD = "The runtime's streams could not be listed:";
+
+/** What the Projects window says when no card shows: why the streams could not be listed, none matching the search, or no project opened yet. */
+export function presentProjectsWithNoCards(searchText: string, listedStreams: ListedStreamsReading): { title: string; explanation: string; isFailure: boolean } {
+  if (listedStreams.kind === "listing_failed") return { title: "The runtime's streams could not be listed", explanation: listedStreams.because, isFailure: true };
+  if (searchText.trim() !== "") return { title: "No project matches", explanation: `Nothing recent is named like “${searchText.trim()}”.`, isFailure: false };
+  return { title: "No projects yet", explanation: "Projects you create or open show here.", isFailure: false };
 }

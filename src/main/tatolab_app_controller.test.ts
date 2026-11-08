@@ -78,14 +78,14 @@ const theMachine = () => httpResponse("200 OK", "application/json", JSON.stringi
 test("a healthy runtime's status names its streams and machine, read as the window reads them, and starts no runtime of the app's", async () => {
   const { controller, localApiServer, carriedRuntimeStarts } = await controllerOverFakes([
     healthyAnswer(),
-    toolResultResponse({ streams: [{ stream: "p-main-0a1b2c", display_name: "main", location: { project_directory: "/p", stream_function: "stream:main" }, state: "running", node_count: 4, failed_because: null }] }),
+    toolResultResponse({ streams: [{ stream: "p-main-0a1b2c", display_name: "main", location: { project_directory: "/p", project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" }, state: "running", node_count: 4, failed_because: null }] }),
     theMachine(),
   ]);
 
   expect(JSON.stringify(await controller.composeStatus(0))).toBe(
     '{"app_version":"0.45.0","app_build":null,"platform":"macos","runtime_state":"running","runtime_not_running_because":null,' +
-      '"machine_name":"jonathanf-macbook","streams":[{"stream":"p-main-0a1b2c","display_name":"main","location":{"project_directory":"/p","stream_function":"stream:main"},' +
-      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],' +
+      '"machine_name":"jonathanf-macbook","streams":[{"stream":"p-main-0a1b2c","display_name":"main","location":{"project_directory":"/p","project":"0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55","stream_asset":"7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68"},' +
+      '"state":"running","node_count":4,"failed_because":null,"capture_devices_whose_access_was_never_asked_for":[],"action":null,"step":null}],"streams_not_listed_because":null,' +
       '"command_line_tool_link":{"kind":"not_linked","path":"/Users/someone/.local/bin/tatolab"},' +
       '"app_update":{"kind":"not_checked"},' +
       `"local_api_socket":${JSON.stringify(localApiServer.localApiSocketPath)},` +
@@ -93,6 +93,18 @@ test("a healthy runtime's status names its streams and machine, read as the wind
       '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
   );
   expect(carriedRuntimeStarts.runtimesStarted).toHaveLength(0);
+});
+
+test("a healthy runtime whose streams cannot be read lists none, and says why in the failure's own words", async () => {
+  const { controller } = await controllerOverFakes([
+    healthyAnswer(),
+    toolResultResponse({ streams: [{ stream: "p-main-0a1b2c", display_name: "main", location: { project_directory: "/p", stream_function: "stream:main" }, state: "running", node_count: 4, failed_because: null }] }),
+    theMachine(),
+  ]);
+
+  const status = await controller.composeStatus(0);
+  expect(status.streams).toBeNull();
+  expect(status.streams_not_listed_because).toBe("the runtime's list_streams result could not be read: missing field `project`");
 });
 
 test("a round that finds no runtime answering starts the carried one, which reads starting, then running once it answers", async () => {
