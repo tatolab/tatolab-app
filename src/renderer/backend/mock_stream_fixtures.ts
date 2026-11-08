@@ -1,3 +1,5 @@
+import { STUDIO_VIEW_NODE_TYPE } from "../view_host/studio_view_node_wiring";
+import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
 import type { ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 
 function fnv1aHashOf(text: string): number {
@@ -247,6 +249,25 @@ const TEST_PATTERN_LINKS: StreamGraphLink[] = [
   },
 ];
 
+/** The fixture view's node, its picture wired from the effect, as a project's view stands in its stream's graph. */
+const PICTURE_AND_FADER_VIEW_NODE: MockGraphNode = {
+  name: "pictureandfader",
+  type: STUDIO_VIEW_NODE_TYPE,
+  state: "Running",
+  config: { view_type: MOCK_STUDIO_VIEW_TYPE_ID },
+  input_ports: portsStatingNoStreamFacts("image", "picture"),
+  output_ports: portsStatingNoStreamFacts("array", "fader"),
+};
+
+const PICTURE_AND_FADER_VIEW_LINK: StreamGraphLink = {
+  id: "Lp1ctur3f4d3rv13wn0d3k8q2",
+  source_node: "invertingeffect",
+  source_port: "video_to_downstream",
+  target_node: "pictureandfader",
+  target_port: "picture",
+  state: "wired",
+};
+
 /** An MP4 recorder of `main`'s effect output, read across streams. */
 const RECORDER_OF_MAIN_NODE: MockGraphNode = {
   name: "mp4writer",
@@ -287,10 +308,12 @@ function createTestPatternStream(
     withTheMeterFallingBehind: boolean;
     /** The id of the stream a recorder reads the effect output of, a link whose source is in another stream; `null` for none. */
     recordsTheStream: string | null;
+    withTheFixtureViewsNode: boolean;
   },
 ): MockStreamFixture {
   const { projectDirectory, recordsTheStream } = options;
-  const listing = runningListing({ project_directory: projectDirectory, stream_function: options.streamFunction }, options.displayName, recordsTheStream === null ? 4 : 5);
+  const nodeCount = 4 + (recordsTheStream === null ? 0 : 1) + (options.withTheFixtureViewsNode ? 1 : 0);
+  const listing = runningListing({ project_directory: projectDirectory, stream_function: options.streamFunction }, options.displayName, nodeCount);
   const streamId = listing.stream;
   const brightness = (dueAt: number): MockLogRecordDraft => ({
     millisecondsAfterLoad: dueAt,
@@ -307,10 +330,12 @@ function createTestPatternStream(
       nodes: [
         ...TEST_PATTERN_NODES.map((node) => (options.withDisplayWindowInError && node.name === "displaywindow" ? { ...node, state: "Error" } : node)),
         ...(recordsTheStream === null ? [] : [RECORDER_OF_MAIN_NODE]),
+        ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_NODE] : []),
       ],
       links: [
         ...TEST_PATTERN_LINKS.map((link) => (options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link)),
         ...(recordsTheStream === null ? [] : [recorderOfMainLink(recordsTheStream)]),
+        ...(options.withTheFixtureViewsNode ? [PICTURE_AND_FADER_VIEW_LINK] : []),
       ],
       counterRates: options.withTheMeterFallingBehind ? TEST_PATTERN_METER_FALLING_BEHIND : NO_COUNTERS_CLIMB,
     },
@@ -506,6 +531,8 @@ export interface MockStreamFixtures {
   mainStreamWithDisplayWindowInError: MockStreamFixture;
   /** `main` with its meter falling behind, so a link drops frames. */
   mainStreamWithItsMeterFallingBehind: MockStreamFixture;
+  /** `main` with the fixture view's node, its picture wired from the effect. */
+  mainStreamWithTheFixtureViewsNode: MockStreamFixture;
   cameraStream: MockStreamFixture;
   /** The camera stream as the runtime re-loads it at its start before anyone has asked for camera access. */
   cameraStreamWaitingForCameraAccess: MockStreamFixture;
@@ -534,6 +561,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     withDisplayWindowInError: false,
     withTheMeterFallingBehind: false,
     recordsTheStream: null,
+    withTheFixtureViewsNode: false,
   };
   const mainStream = createTestPatternStream(machine, mainStreamOptions);
   const cameraStream = createCameraStream(machine);
@@ -550,6 +578,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     mainStream,
     mainStreamWithDisplayWindowInError: createTestPatternStream(machine, { ...mainStreamOptions, withDisplayWindowInError: true }),
     mainStreamWithItsMeterFallingBehind: createTestPatternStream(machine, { ...mainStreamOptions, withTheMeterFallingBehind: true }),
+    mainStreamWithTheFixtureViewsNode: createTestPatternStream(machine, { ...mainStreamOptions, withTheFixtureViewsNode: true }),
     cameraStream,
     cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },
     recorderOfMainStream,
@@ -582,6 +611,7 @@ export function createMockStreamRunFromAProjectFolder(machine: MockMachine, proj
     withDisplayWindowInError: false,
     withTheMeterFallingBehind: false,
     recordsTheStream: null,
+    withTheFixtureViewsNode: false,
   });
   return { ...fixture, loadedForMillisecondsAtOpen: 0 };
 }

@@ -62,4 +62,33 @@ describe("the view-type registry", () => {
     expect(connections.map((connection) => connection.settings)).toEqual([7, 1, 1]);
     expect(kept).toEqual([8]);
   });
+
+  it("lists the views the open project brings from their manifests, and each one that does not open with why", () => {
+    const registry = new StudioViewTypeRegistry([registeredStudioViewType(countingViewType("outliner", { kind: "built_in" }, []))], (listed, manifest, projectName) =>
+      registeredStudioViewType({ ...countingViewType(listed.view_type_id, { kind: "project", project_name: projectName }, []), title: manifest.title }),
+    );
+    const folder_url = "https://views.example/";
+    registry.projectStudioViews.publish({
+      kind: "listed",
+      project_name: "friday-set",
+      studio_views: [
+        { view_type_id: "acme-dj:deck", distribution: "acme-dj", entry_name: "deck", manifest_json: { contract: "1.0", title: "DJ Deck", entry: "index.html" }, folder_url },
+        { view_type_id: "acme-dj:future", distribution: "acme-dj", entry_name: "future", manifest_json: { contract: "1.9", title: "Future", entry: "index.html" }, folder_url },
+        { view_type_id: "outliner", distribution: "acme-dj", entry_name: "outliner", manifest_json: { contract: "1.0", title: "Outliner", entry: "index.html" }, folder_url },
+      ],
+    });
+
+    expect(registry.projectViewTypes().map((viewType) => [viewType.view_type_id, viewType.title, viewType.brought_by])).toEqual([
+      ["acme-dj:deck", "DJ Deck", { kind: "project", project_name: "friday-set" }],
+    ]);
+    expect(registry.viewTypeWithId("acme-dj:deck")?.title).toBe("DJ Deck");
+    expect(registry.projectViewTypesNotOpened()).toEqual([
+      { view_type_id: "acme-dj:future", because: "It was built for view contract 1.9, and this Tato Studio serves 1.0." },
+      { view_type_id: "outliner", because: "The studio already has a view named outliner." },
+    ]);
+
+    registry.projectStudioViews.publish({ kind: "none_open" });
+    expect(registry.projectViewTypes()).toEqual([]);
+    expect(registry.viewTypeWithId("acme-dj:deck")).toBeNull();
+  });
 });

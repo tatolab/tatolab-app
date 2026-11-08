@@ -64,7 +64,7 @@ async function openEveryOutlinerRow(): Promise<void> {
  * (every row opened), `?select=<row id>` (that outliner row clicked, as `stream:<stream id>`), `?open_stream=<stream id>`
  * (its row double-clicked, opening its tab), `?select_node=<node name>` (that node's card clicked in the stream graph), `?code_file=<file>` (Stream › Open stream.py chosen, then that file of the open project, as `nodes/inverting_effect.py`, opened from the code area's + menu), `?run=live` (Live pressed), `?menu=<menu>` (that menu of the bar opened, as `Window`) with
  * `?submenu=<entry>` (that entry's submenu opened, as `Layout`), and `?area_menu=<area id>` (that area's
- * view-type menu opened); with the backend's `?project=none|unreadable` (none shows the Projects window, empty with `?recent=none`), `?popped_out_viewer=<pin as JSON>` (the window a Viewer's Pop out opens), `?get_more=open` (the window File › Get more… opens) with `?catalog=unserved` (get.tatolab.com serving no catalog), and `?port_families=unserved` (no port's family in the graph or the catalog, as a runtime from before strict-port-families). `?page=projects` opens the Projects window from File › Projects; `?page=preferences` opens Preferences, on
+ * view-type menu opened) with `?area_view=<view type id>` (that view chosen in it, as a project's view with the backend's `?studio_views=fixture`); with the backend's `?project=none|unreadable` (none shows the Projects window, empty with `?recent=none`), `?popped_out_viewer=<pin as JSON>` (the window a Viewer's Pop out opens), `?get_more=open` (the window File › Get more… opens) with `?catalog=unserved` (get.tatolab.com serving no catalog), and `?port_families=unserved` (no port's family in the graph or the catalog, as a runtime from before strict-port-families). `?page=projects` opens the Projects window from File › Projects; `?page=preferences` opens Preferences, on
  * `?section=general|runtime|command-line|about`; there `?restart=pressed|refused` presses Restart and `?link=pressed`
  * presses Link tatolab, with the backend's `?cli_link=not_linked`. `?sheet=new_project` presses the Projects window's New project, then
  * `?new_project_name=<name>` types that name and `?new_project=browse|create` presses Browse… or Create.
@@ -96,6 +96,8 @@ export async function driveMockWindowToPreset(pageQuery: URLSearchParams, platfo
   if (pageQuery.get("run") === "live") await clickWhenShown(`[data-studio-run-live]`);
   const areaMenu = pageQuery.get("area_menu");
   if (areaMenu !== null) await pressWhenShown(`[data-area-view-type-menu="${CSS.escape(areaMenu)}"]`);
+  const areaView = pageQuery.get("area_view");
+  if (areaMenu !== null && areaView !== null) await clickWhenShown(`[data-view-type-choice="${CSS.escape(areaView)}"]`);
   const menu = pageQuery.get("menu");
   if (menu !== null) await pressWhenShown(`[data-studio-menu="${CSS.escape(menu)}"]`);
   const submenu = pageQuery.get("submenu");

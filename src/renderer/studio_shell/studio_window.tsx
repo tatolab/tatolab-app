@@ -27,9 +27,6 @@ import {
 } from "./studio_menu_bar_model";
 import type { StudioWindowModel } from "./studio_window_model";
 
-/** The issue that brings users' own view types, the 3D scene among them. */
-const USERS_VIEW_TYPES_ISSUE = "tatolab/tatolab-app#137";
-
 /** Where the studio window's menus go on macOS: the system menu bar, while this window is in focus. */
 export interface StudioWindowSystemMenuBar {
   showTheMenus(menus: readonly StudioMenuInTheSystemMenuBar[]): void;
@@ -51,7 +48,9 @@ export interface StudioWindowSources {
 
 /** An area's view-type menu: the studio's views, each ticked when the area shows it, then the views the open project and its imports bring. */
 function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources: StudioWindowSources; words: string }) {
+  const projectStudioViews = useWatchedStudioValue(sources.viewTypeRegistry.projectStudioViews);
   const projectViewTypes = sources.viewTypeRegistry.projectViewTypes();
+  const projectViewTypesNotOpened = sources.viewTypeRegistry.projectViewTypesNotOpened();
   const viewTypeChoice = (viewTypeId: string, title: string, broughtBy: string) => ({
     choice: viewTypeId,
     label: (
@@ -74,9 +73,16 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
         />
       </MenuGroup>
       <MenuGroup label="Project views">
-        {projectViewTypes.length === 0 ? (
-          <MenuNote>Views a project brings arrive with users' own view types.</MenuNote>
-        ) : (
+        {projectStudioViews.kind === "not_listed" && <MenuNote>{projectStudioViews.because}</MenuNote>}
+        {projectStudioViews.kind === "listed" && projectViewTypes.length === 0 && projectViewTypesNotOpened.length === 0 && (
+          <MenuNote>This project and its imports bring no views.</MenuNote>
+        )}
+        {projectViewTypesNotOpened.map((notOpened) => (
+          <MenuNote key={notOpened.view_type_id}>
+            {notOpened.view_type_id} doesn't open: {notOpened.because}
+          </MenuNote>
+        ))}
+        {projectViewTypes.length > 0 && (
           <MenuSingleChoiceGroup
             choices={projectViewTypes.map((viewType) =>
               viewTypeChoice(viewType.view_type_id, viewType.title, viewType.brought_by.kind === "project" ? viewType.brought_by.project_name : "built in"),
@@ -93,13 +99,17 @@ function AreaViewTypeMenu({ area, sources, words }: { area: StudioArea; sources:
 
 /** One area: its header with the view-type menu and the view's tools, over the view; a view that fails to draw says why there and nowhere else. */
 function StudioAreaView({ area, sources }: { area: StudioArea; sources: StudioWindowSources }) {
+  const projectStudioViews = useWatchedStudioValue(sources.viewTypeRegistry.projectStudioViews);
   if (area.view_type_id === null) {
     return (
       <StudioAreaFrame label="Project view" header={<AreaViewTypeMenu area={area} sources={sources} words="Project view" />} data-studio-area={area.area_id}>
         <WaitingState
           title="A project's view shows here"
-          explanation="A 3D scene, or any view the project or its imports bring, opens in this area."
-          waitsOn={USERS_VIEW_TYPES_ISSUE}
+          explanation={
+            projectStudioViews.kind === "not_listed"
+              ? projectStudioViews.because
+              : "Choose a view the project or its imports bring, such as a 3D scene, from the menu above."
+          }
         />
       </StudioAreaFrame>
     );

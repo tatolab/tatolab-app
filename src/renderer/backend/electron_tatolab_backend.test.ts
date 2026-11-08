@@ -60,6 +60,16 @@ async function aTatolabStatus(): Promise<TatolabStatus> {
 }
 
 describe("createElectronTatolabBackend", () => {
+  it("refuses to list a project's views in words naming the runtime's listing it waits on, asking the app nothing", async () => {
+    const fakeBridge = fakeTatolabElectronBridge({});
+    const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
+
+    await expect(backend.listStudioViewsOfTheOpenProject()).rejects.toBe(
+      "Tato Studio lists a project's views once the runtime lists the tatolab.views of a stream's packages (tatolab/streamlib#3307).",
+    );
+    expect(fakeBridge.invokedCommands).toEqual([]);
+  });
+
   it("sends each command under its name with its arguments", async () => {
     const fakeBridge = fakeTatolabElectronBridge({
       link_command_line_tool: { ok: true, value: null },
