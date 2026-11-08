@@ -29,7 +29,7 @@ You are review-pr — the one judgment gate a change clears before a PR opens (t
 
   If `main` has moved on since the evidence was shot, that is a should-fix that names the new commits; re-shooting is needed when they touch what the evidence proves.
 - **Naming** (`.claude/rules/naming.md`): zero-context test; a bare `Manager` / `Handler` / `State` / `ctx` / `el` is a finding.
-- **Doc conventions.** One-line docs on public items, no `# Example` sections. A README claim or comment the change falsified is fixed in the same diff. No evidence image is merged: `.pr-evidence/` is deleted by the PR's last commit.
+- **Doc conventions.** One-line docs on public items, no `# Example` sections. A README claim or comment the change falsified is fixed in the same diff. No evidence image is committed on any branch of the PR.
 
 ## How you run
 1. Read the issue, the runtime contract it depends on from streamlib's plan, and the full diff against the base.

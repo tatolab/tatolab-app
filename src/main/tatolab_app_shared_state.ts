@@ -5,16 +5,16 @@ import { describeCaughtFailure } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabAppUpdateCheckChosenFrom, TatolabAppUpdater } from "./tatolab_app_updater.js";
-import type { TatolabMainWindow } from "./tatolab_main_window.js";
+import type { TatolabAppWindows } from "./tatolab_app_windows.js";
 import type { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import type { StreamProjectFolderOpeners } from "./stream_project_folder_opening.js";
 import type { StreamProjectAdding } from "./stream_project_adding.js";
 import type { StreamFailureNotifications } from "./stream_failure_notifications.js";
-import type { OpenProjectFolder } from "./open_project.js";
+import type { ProjectOpening } from "./open_project.js";
 import type { PythonLanguageServers } from "./python_language_servers.js";
-import type { OpenProjectFiles } from "./open_project_files.js";
+import type { FetchTextOverHttps } from "./package_catalog.js";
 
-/** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, the open project, its files and its language servers, which the tray's choices and the window's commands reach. */
+/** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, opening projects, the app's windows and the language servers, which the tray's choices and the window's commands reach. */
 export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;
@@ -22,11 +22,14 @@ export interface TatolabAppSharedState {
   streamProjectFolderOpeners: StreamProjectFolderOpeners;
   streamProjectAdding: StreamProjectAdding;
   streamFailureNotifications: StreamFailureNotifications;
-  openProjectFolder: OpenProjectFolder;
-  /** The files of the open project and its imports, which the code pane reads and saves. */
-  openProjectFiles: OpenProjectFiles;
+  /** Opening a project in its own studio window, from any window. */
+  projectOpening: ProjectOpening;
+  /** The Projects window and each project's studio window, each with its project and that project's files. */
+  appWindows: TatolabAppWindows;
   /** The code pane's Pyright language servers. */
   pythonLanguageServers: PythonLanguageServers;
+  /** How Get more fetches the package catalog. */
+  fetchTextOverHttps: FetchTextOverHttps;
   tatolabAppLog: TatolabAppLog;
 }
 
@@ -78,13 +81,13 @@ export async function stopTheRuntimeWithinTheQuitWaitLimit(
 
 /** Quit the app from the tray or the window, stopping its runtime with it and exiting once that runtime has exited. */
 export function quitTheTatolabApp(
-  tatolabMainWindow: TatolabMainWindow,
+  tatolabAppWindows: TatolabAppWindows,
   stopTheRuntimeAsTheAppQuits: () => Promise<void>,
   exitTheApp: (exitCode: number) => void,
   tatolabAppLog: TatolabAppLog,
 ): Promise<void> {
   tatolabAppLog.info("quitting Tato Studio and its runtime");
-  tatolabMainWindow.letTheWindowCloseAsTheAppQuits();
+  tatolabAppWindows.letEveryWindowCloseAsTheAppQuits();
   return stopTheRuntimeWithinTheQuitWaitLimit(stopTheRuntimeAsTheAppQuits, tatolabAppLog).then(
     () => exitTheApp(0),
     (unexpectedFailure: unknown) => {

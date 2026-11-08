@@ -1,7 +1,11 @@
-import { useCallback } from "react";
+import { PictureInPicture2 } from "lucide-react";
+import { useCallback, useState } from "react";
+import { IconButton } from "../../design_system/icon_button";
+import { RefusalLine } from "../../design_system/refusal_line";
 import { WaitingState } from "../../design_system/waiting_state";
 import { useStudioViewReading } from "../../view_host/in_window_view_host";
 import type {
+  PoppedOutViewerTarget,
   StopWatching,
   StreamGraphReading,
   StreamGraphSummary,
@@ -32,6 +36,16 @@ export function exposedOutputTheViewerPlays(
     previewed[0] ??
     null
   );
+}
+
+/** What Pop out pins a Viewer window to: the stream tab shown, and the node selected in it, or `null` when no node of that stream is selected. */
+export function poppedOutViewerTargetOf(streamTab: StreamTabAddress, selection: StudioSelection | null): PoppedOutViewerTarget {
+  return {
+    stream: streamTab.stream,
+    project_name: streamTab.project_name,
+    display_name: streamTab.display_name,
+    node: selection?.kind === "node" && selection.stream === streamTab.stream ? selection.node : null,
+  };
 }
 
 /** The runtime's preview page of one exposed output, on its loopback origin: the window's content security policy frames that one origin, and the main process lets a frame navigate only to its `/watch/` pages. */
@@ -136,6 +150,37 @@ function ViewerBody({
   );
 }
 
+/** Pop out, in the Viewer's header while a stream tab is open, and why the last pop-out was refused. */
+function ViewerHeaderTools({ connection }: { connection: StudioViewHostConnection<null> }) {
+  const activeStreamTab = useStudioViewReading(connection.watchActiveStreamTab);
+  const selection = useStudioViewReading(connection.watchSelection);
+  const [popOutRefusal, setPopOutRefusal] = useState<string | null>(null);
+  if (activeStreamTab === null) return null;
+  const popOut = () => {
+    setPopOutRefusal(null);
+    void connection.popOutViewer(poppedOutViewerTargetOf(activeStreamTab, selection)).then((popOutAnswer) => {
+      setPopOutRefusal(popOutAnswer.kind === "not_popped_out" ? popOutAnswer.because : null);
+    });
+  };
+  return (
+    <div className="ml-auto flex min-w-0 items-center gap-1.5">
+      {popOutRefusal !== null && (
+        <div className="min-w-0 truncate" data-viewer-pop-out-refusal="">
+          <RefusalLine lead="Didn't pop out:" words={popOutRefusal} />
+        </div>
+      )}
+      <IconButton
+        icon={PictureInPicture2}
+        size="compact"
+        label="Pop out the Viewer"
+        tooltip="Pop the Viewer out into its own window, pinned to this stream and the node selected"
+        onPressed={popOut}
+        data-viewer-pop-out=""
+      />
+    </div>
+  );
+}
+
 /** The Viewer: the runtime's live preview of the active stream's exposed output, the selected node's where it exposes one. */
 export const VIEWER_VIEW_TYPE: StudioViewType<null> = {
   view_type_id: "viewer",
@@ -145,7 +190,7 @@ export const VIEWER_VIEW_TYPE: StudioViewType<null> = {
   default_settings: null,
   settingsFromSavedLayout: () => null,
   renderStudioView: (connection) => ({
-    header_tools: null,
+    header_tools: <ViewerHeaderTools connection={connection} />,
     body: <ViewerBody connection={connection} />,
   }),
 };

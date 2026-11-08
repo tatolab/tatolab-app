@@ -76,11 +76,30 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("remove_relay", { relay_id: relayId });
     },
     onStreamPageRequested: (listener) => tatolabElectronBridge.onStreamPageRequested(listener),
+    showTheProjectsWindow: async () => {
+      await invokeTatolabCommand("show_projects_window", undefined);
+    },
     chooseProjectFolder: (chosenFor) => invokeTatolabCommand("choose_project_folder", { chosen_for: chosenFor }),
     readNewProjectDefaults: () => invokeTatolabCommand("read_new_project_defaults", undefined),
     chooseNewProjectLocation: (startingAt) => invokeTatolabCommand("choose_new_project_location", { starting_at: startingAt }),
     createNewProject: (name, location) => invokeTatolabCommand("create_new_project", { name, location }),
     readOpenProject: () => invokeTatolabCommand("read_open_project", undefined),
+    popOutViewer: async (target) => {
+      await invokeTatolabCommand("pop_out_viewer", { ...target });
+    },
+    readPoppedOutViewer: () => invokeTatolabCommand("read_popped_out_viewer", undefined),
+    openGetMoreWindow: async () => {
+      await invokeTatolabCommand("open_get_more_window", undefined);
+    },
+    readGetMoreWorkspace: () => invokeTatolabCommand("read_get_more_workspace", undefined),
+    readPackageCatalog: () => invokeTatolabCommand("read_package_catalog", undefined),
+    previewImport: (requirement) => invokeTatolabCommand("preview_import", { requirement }),
+    importIntoWorkspace: async (requirement, basedOnVersion) => {
+      await invokeTatolabCommand("import_into_workspace", { requirement, based_on_version: basedOnVersion });
+    },
+    openImportToEdit: async (name) => {
+      await invokeTatolabCommand("open_import_to_edit", { name });
+    },
     readRecentProjects: () => invokeTatolabCommand("read_recent_projects", undefined),
     openRecentProject: async (folder) => {
       await invokeTatolabCommand("open_recent_project", { folder });

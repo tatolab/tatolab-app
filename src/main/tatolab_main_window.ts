@@ -1,6 +1,6 @@
-// The app's one window. It shows when the app opens, when the app is opened again, and from the
-// tray's "Open Tatolab"; closing it hides it and the app keeps running in the tray. On macOS the
-// Dock icon shows only while the window does.
+// One of the app's windows: the Projects window, which closing hides while the app keeps running
+// in the tray, or a project's studio window or a Viewer popped out of one, which closing closes.
+// `TatolabAppWindows` holds them all and shows the Dock icon on macOS while any is on screen.
 
 import type { OpenProjectReading, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
@@ -12,8 +12,7 @@ import {
 } from "../shared/tatolab_electron_bridge_contract.js";
 import type { Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import type { DockIconHost, MainWindowChrome } from "./platform/main_window_chrome.js";
-import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js";
+import type { MainWindowChrome } from "./platform/main_window_chrome.js";
 
 /** The main window's title, sizes and title bar. */
 export interface MainWindowSpecification {
@@ -30,42 +29,68 @@ export type MainWindowCloseRequestAnswer = "hide_instead" | "let_it_close";
 
 /** The window as the platform shows it. */
 export interface MainWindowHost {
+  /** The id the window's page sends its commands under, Electron's `webContents.id`. */
+  readonly windowContentsId: number;
   unminimize(): void;
   show(): void;
   focus(): void;
   hide(): void;
+  /** Close the window for good; its close request is not asked. */
+  close(): void;
   /** Whether the window is on screen: shown and not minimized. */
   isShowing(): boolean;
   /** Send the window's page `eventPayload` on `eventChannel`; a page still loading misses it. */
   sendTheWindowAnEvent(eventChannel: string, eventPayload: unknown): void;
 }
 
-/** What creates the window, hidden, asking `answerCloseRequest` at each close request whether to close it. */
+/** What creates a window, hidden, asking `answerCloseRequest` at each close request whether to close it, and calling `whenClosed` once it has closed. */
 export interface MainWindowHostFactory {
   createMainWindowHost(
     mainWindowSpecification: MainWindowSpecification,
     answerCloseRequest: () => MainWindowCloseRequestAnswer,
+    whenClosed: () => void,
   ): Result<MainWindowHost, string>;
 }
 
-/** The window: created on its first show, at 1040×700 and never smaller than 860×580, centred. */
+/** What a window is: the one Projects window, the studio window of one project, a Viewer popped out of a studio window, or a studio window's Get more window. */
+export type TatolabWindowRole = "projects" | "studio" | "popped_out_viewer" | "get_more";
+
+/** A window's size when created, and the smallest it can be made: a popped-out Viewer is small enough to sit on a second monitor's corner, Get more sits beside the studio, every other window is the studio's size. */
+export function mainWindowSizesOf(windowRole: TatolabWindowRole): Pick<MainWindowSpecification, "width" | "height" | "minimumWidth" | "minimumHeight"> {
+  if (windowRole === "popped_out_viewer") return { width: 720, height: 450, minimumWidth: 320, minimumHeight: 200 };
+  if (windowRole === "get_more") return { width: 960, height: 660, minimumWidth: 680, minimumHeight: 480 };
+  return { width: 1040, height: 700, minimumWidth: 860, minimumHeight: 580 };
+}
+
+/** What a window tells the windows around it: that it came on screen or went off it, and that it closed for good. */
+export interface TatolabMainWindowListeners {
+  whenItCameOnScreenOrWentOff(): void;
+  whenItClosed(): void;
+}
+
+/** One window of the app, created the first time it is shown. */
 export class TatolabMainWindow {
   private mainWindowHost: MainWindowHost | null = null;
   private theAppIsQuitting = false;
+  private isShownByTheApp = false;
 
   constructor(
     private readonly mainWindowHostFactory: MainWindowHostFactory,
-    private readonly platformItems: Pick<TatolabPlatformItems, "mainWindowChrome" | "setDockIconVisible">,
-    private readonly dockIconHost: DockIconHost,
+    private readonly mainWindowChrome: MainWindowChrome,
+    private readonly windowRole: TatolabWindowRole,
+    private readonly windowTitle: string,
+    private readonly listeners: TatolabMainWindowListeners,
     private readonly tatolabAppLog: TatolabAppLog,
   ) {}
 
-  /** Show the window, creating it the first time, and bring the app forward. */
+  /** Show the window, creating it the first time, and bring it forward. */
   show(): void {
-    this.platformItems.setDockIconVisible(this.dockIconHost, true);
+    this.isShownByTheApp = true;
+    this.listeners.whenItCameOnScreenOrWentOff();
     const mainWindowHost = this.mainWindowHost ?? this.createMainWindowHost();
     if (mainWindowHost === null) {
-      this.platformItems.setDockIconVisible(this.dockIconHost, false);
+      this.isShownByTheApp = false;
+      this.listeners.whenItCameOnScreenOrWentOff();
       return;
     }
     mainWindowHost.unminimize();
@@ -73,9 +98,32 @@ export class TatolabMainWindow {
     mainWindowHost.focus();
   }
 
+  /** Hide the window, keeping it for the next show. */
+  hide(): void {
+    if (this.mainWindowHost === null) return;
+    this.mainWindowHost.hide();
+    this.isShownByTheApp = false;
+    this.listeners.whenItCameOnScreenOrWentOff();
+  }
+
+  /** Close the window for good. */
+  close(): void {
+    this.mainWindowHost?.close();
+  }
+
+  /** Whether the app has the window shown: shown and neither hidden nor closed since. */
+  isShownNow(): boolean {
+    return this.isShownByTheApp;
+  }
+
   /** Whether the window is on screen; not before it is first shown. */
   isShowing(): boolean {
     return this.mainWindowHost?.isShowing() ?? false;
+  }
+
+  /** Whether `windowContentsId` is this window's page. */
+  isTheWindowWithContents(windowContentsId: number): boolean {
+    return this.mainWindowHost?.windowContentsId === windowContentsId;
   }
 
   /** Send the window `status` as `tatolab-status-changed`; nothing, before the window is first shown. */
@@ -83,7 +131,7 @@ export class TatolabMainWindow {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_STATUS_CHANGED_EVENT, status);
   }
 
-  /** Send the window `reading` as `tatolab-open-project-changed`; nothing, before the window is first shown, which reads the open project when it opens. */
+  /** Send the window `reading` as `tatolab-open-project-changed`; nothing, before the window is first shown, which reads its project when it opens. */
   sendTheWindowTheOpenProject(reading: OpenProjectReading): void {
     this.mainWindowHost?.sendTheWindowAnEvent(TATOLAB_OPEN_PROJECT_CHANGED_EVENT, reading);
   }
@@ -107,17 +155,15 @@ export class TatolabMainWindow {
   private createMainWindowHost(): MainWindowHost | null {
     const createdMainWindowHost = this.mainWindowHostFactory.createMainWindowHost(
       {
-        title: "Tatolab",
-        width: 1040,
-        height: 700,
-        minimumWidth: 860,
-        minimumHeight: 580,
-        chrome: this.platformItems.mainWindowChrome,
+        title: this.windowTitle,
+        ...mainWindowSizesOf(this.windowRole),
+        chrome: this.mainWindowChrome,
       },
       () => this.answerCloseRequest(),
+      () => this.noticeItClosed(),
     );
     if (!createdMainWindowHost.ok) {
-      this.tatolabAppLog.error("the Tatolab window could not be created", { failure: createdMainWindowHost.failure });
+      this.tatolabAppLog.error("a Tato Studio window could not be created", { window_role: this.windowRole, failure: createdMainWindowHost.failure });
       return null;
     }
     this.mainWindowHost = createdMainWindowHost.value;
@@ -125,9 +171,15 @@ export class TatolabMainWindow {
   }
 
   private answerCloseRequest(): MainWindowCloseRequestAnswer {
-    if (this.theAppIsQuitting) return "let_it_close";
-    this.mainWindowHost?.hide();
-    this.platformItems.setDockIconVisible(this.dockIconHost, false);
+    if (this.theAppIsQuitting || this.windowRole !== "projects") return "let_it_close";
+    this.hide();
     return "hide_instead";
+  }
+
+  private noticeItClosed(): void {
+    this.mainWindowHost = null;
+    this.isShownByTheApp = false;
+    this.listeners.whenItCameOnScreenOrWentOff();
+    this.listeners.whenItClosed();
   }
 }

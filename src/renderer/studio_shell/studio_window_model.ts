@@ -1,7 +1,7 @@
 // What the studio window holds between renders: the open project and the runtime's streams it
 // serves its views, the selection, the open stream tabs, and the open project's layouts.
 
-import type { ListedStream, NewProjectDefaults, OpenProjectReading, TatolabStatus } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutViewerTarget, TatolabStatus } from "../../shared/tatolab_backend_contract";
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import { WatchedStudioValue, type InWindowStudioViewHostSources } from "../view_host/in_window_view_host";
@@ -66,8 +66,6 @@ export class StudioWindowModel {
   readonly selection = new WatchedStudioValue<StudioSelection>({ kind: "nothing" });
   readonly openStreamTabs = new WatchedStudioValue<OpenStreamTabs>({ tabs: [], active_stream: null });
   readonly activeStreamTab = new WatchedStudioValue<StreamTabAddress | null>(null);
-  /** Whether the Projects window shows over the open project, as File › Projects shows it; it shows anyway while none is open. */
-  readonly isProjectsShown = new WatchedStudioValue<boolean>(false);
   /** The section Preferences shows while it is open; `null` while it is closed. */
   readonly preferencesSection = new WatchedStudioValue<SettingsSection | null>(null);
   /** The name and location the New project sheet opened with while it shows; `null` while it is closed. */
@@ -82,6 +80,10 @@ export class StudioWindowModel {
   readonly projectRunRefusal = new WatchedStudioValue<{ asked_to: "run" | "stop"; because: string } | null>(null);
   /** The open project's stream whose failure the window raises over the studio, until it is dismissed, the stream leaves `failed`, or another project opens. */
   readonly openProjectStreamFailureRaised = new WatchedStudioValue<OpenProjectStreamFailure | null>(null);
+  /** The workspace when the window is a studio window's Get more window, as last read from disk; `null` in any other window. */
+  readonly getMoreWorkspace = new WatchedStudioValue<OpenProjectReading | null>(null);
+  /** What the window is pinned to when it is a Viewer popped out of a studio window; `null` in the Projects and studio windows. */
+  readonly poppedOutViewer = new WatchedStudioValue<PoppedOutViewerTarget | null>(null);
 
   /** The tab a project opens on once it is open and the runtime lists the stream: the stream New project just made, or with `stream` `null` the first the runtime lists from the folder; cleared when any tab is opened. */
   private streamTabAwaitedByTheOpeningProject: { project_folder: string; stream: string | null } | null = null;
@@ -107,6 +109,13 @@ export class StudioWindowModel {
     };
   }
 
+  /** Show the window as a Viewer pinned to `target`: its stream's tab shown and its node selected, which nothing in the window changes after. */
+  showAsPoppedOutViewer(target: PoppedOutViewerTarget): void {
+    this.poppedOutViewer.publish(target);
+    this.openStreamTab({ stream: target.stream, project_name: target.project_name, display_name: target.display_name });
+    this.selection.publish(target.node === null ? { kind: "nothing" } : { kind: "node", stream: target.stream, node: target.node });
+  }
+
   /** Ask the code view to show `file`; a layout with no code area switches to Code, which has one. */
   openCodeFile(file: string): void {
     const layouts = this.studioLayouts.readLatest();
@@ -121,7 +130,6 @@ export class StudioWindowModel {
     this.openProject.publish(reading);
     if (folderNow === folderBefore && this.studioLayouts.readLatest() !== null) return;
     if (folderNow !== folderBefore) {
-      this.isProjectsShown.publish(false);
       this.openProjectStreamFailuresRaised.clear();
       this.openProjectStreamFailureRaised.publish(null);
     }

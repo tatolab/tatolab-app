@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenProjectReading, TatolabStatus } from "../shared/tatolab_backend_contract";
+import type { OpenProjectReading, PoppedOutViewerTarget, TatolabStatus } from "../shared/tatolab_backend_contract";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./backend/mock_tatolab_backend";
 import { mockStreamIdOf } from "./backend/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
@@ -215,6 +215,39 @@ describe("the studio", () => {
     expect(playing.textContent).toBe("");
   });
 
+  it("pops the Viewer out pinned to the stream shown and the node selected, and says why where it is refused", async () => {
+    const popOutsAsked: PoppedOutViewerTarget[] = [];
+    let popOutRefusal: string | null = null;
+    await mountedWindowOverTheMock("state=running", {
+      popOutViewer: async (target) => {
+        popOutsAsked.push(target);
+        if (popOutRefusal !== null) throw popOutRefusal;
+      },
+    });
+    const popOutButton = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"] [data-viewer-pop-out]') ?? expect.unreachable("no Pop out"));
+
+    fireEvent.click(popOutButton);
+    await waitFor(() => expect(popOutsAsked).toEqual([{ stream: PATTERN_MAIN_STREAM, project_name: "pattern", display_name: "main", node: null }]));
+    expect(document.querySelector("[data-viewer-pop-out-refusal]")).toBeNull();
+
+    popOutRefusal = "Only a project's studio window can pop out its Viewer.";
+    fireEvent.click(popOutButton);
+    await waitFor(() => expect(textOf("[data-viewer-pop-out-refusal]")).toBe("Didn't pop out: Only a project's studio window can pop out its Viewer."));
+  });
+
+  it("draws a popped-out Viewer's window as the Viewer alone, pinned, with no menus, tabs or other areas", async () => {
+    const pin: PoppedOutViewerTarget = { stream: PATTERN_MAIN_STREAM, project_name: "pattern", display_name: "main", node: "invertingeffect" };
+    await mountedWindowOverTheMock(`state=running&popped_out_viewer=${encodeURIComponent(JSON.stringify(pin))}`);
+
+    const playing = await waitFor(() => document.querySelector<HTMLElement>("[data-popped-out-viewer] [data-viewer-playing]") ?? expect.unreachable("the popped-out Viewer plays nothing"));
+    expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
+    expect(textOf("[data-popped-out-viewer-title]")).toBe("main › invertingeffect");
+    expect(document.querySelector("[data-studio-menu]")).toBeNull();
+    expect(document.querySelector("[data-studio-area]")).toBeNull();
+    expect(document.querySelector("[data-projects]")).toBeNull();
+    expect(document.querySelector("[data-viewer-pop-out]")).toBeNull();
+  });
+
   it("shows the view an area's view-type menu chooses, and the project reopens with it", async () => {
     await mountedWindowOverTheMock("state=running");
     const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
@@ -372,6 +405,81 @@ describe("the studio", () => {
 
     await waitFor(() => expect(document.querySelector("[data-new-project-sheet]")).toBeNull());
     expect(document.querySelector("[data-projects]")).not.toBeNull();
+  });
+});
+
+describe("Get more", () => {
+  function getMoreRow(name: string): HTMLElement {
+    return document.querySelector<HTMLElement>(`[data-get-more-row="${name}"]`) ?? expect.unreachable(`no ${name} row`);
+  }
+
+  it("lists the catalog's packages and samples, each showing the nodes it brings, and narrows to a search", async () => {
+    await mountedWindowOverTheMock("state=running&get_more=open");
+
+    await waitFor(() => expect(document.querySelector('[data-get-more-row="tatolab-camera"]')).not.toBeNull());
+    expect(document.querySelector("[data-studio-menu]")).toBeNull();
+    expect(document.querySelector('[data-get-more-row="camera-halftone"]')).toBeNull();
+    fireEvent.click(getMoreRow("tatolab-compositor"));
+    expect(textOf('[data-get-more-detail="tatolab-compositor"]')).toContain("LowerThird");
+    expect(getMoreRow("tatolab-testpattern").textContent).toContain("Imported");
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-scope="samples"]') ?? expect.unreachable("no Samples scope"));
+    await waitFor(() => expect(document.querySelector('[data-get-more-row="camera-halftone"]')).not.toBeNull());
+    expect(document.querySelector('[data-get-more-row="tatolab-camera"]')).toBeNull();
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-scope="published"]') ?? expect.unreachable("no Published scope"));
+    const searchField = document.querySelector<HTMLInputElement>("[data-get-more-search] input") ?? document.querySelector<HTMLInputElement>("input[data-get-more-search]") ?? expect.unreachable("no search");
+    fireEvent.change(searchField, { target: { value: "opusdecoder" } });
+    await waitFor(() => expect(document.querySelectorAll("[data-get-more-row]").length).toBe(1));
+    expect(getMoreRow("tatolab-opus")).toBeTruthy();
+  });
+
+  it("shows an import's change to pyproject.toml before writing it, and lists it in the project once written", async () => {
+    await mountedWindowOverTheMock("state=running&get_more=open");
+
+    fireEvent.click(await waitFor(() => getMoreRow("tatolab-camera")));
+    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-import="tatolab-camera"]') ?? expect.unreachable("no Import"));
+    await waitFor(() => expect(document.querySelector("[data-import-change]")).not.toBeNull());
+    const addedLines = [...document.querySelectorAll('[data-import-change-line="added"]')].map((line) => line.textContent ?? "");
+    expect(addedLines.some((line) => line.includes('"tatolab-camera>='))).toBe(true);
+
+    fireEvent.click(document.querySelector<HTMLElement>("[data-get-more-import-confirm]") ?? expect.unreachable("no Import in the dialog"));
+    await waitFor(() => expect(document.querySelector("[data-import-change]")).toBeNull());
+    await waitFor(() => expect(getMoreRow("tatolab-camera").textContent).toContain("Imported"));
+    expect(document.querySelector('[data-get-more-import="tatolab-camera"]')).toBeNull();
+  });
+
+  it("says nothing was written when pyproject.toml changed after the import was shown", async () => {
+    const staleRefusal = "pyproject.toml changed since the import was shown; nothing was written. Look at the change again before importing.";
+    await mountedWindowOverTheMock("state=running&get_more=open", { importIntoWorkspace: () => Promise.reject(staleRefusal) });
+
+    fireEvent.click(await waitFor(() => getMoreRow("tatolab-opus")));
+    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-import="tatolab-opus"]') ?? expect.unreachable("no Import"));
+    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>("[data-get-more-import-confirm]") ?? expect.unreachable("no Import in the dialog")));
+
+    await waitFor(() => expect(document.querySelector("[data-get-more-import-dialog]")?.textContent).toContain(`Nothing was written: ${staleRefusal}`));
+    expect(document.querySelector("[data-import-change]")).not.toBeNull();
+  });
+
+  it("says the catalog didn't load and what it waits on, and still lists what the project imports, a folder import opening to edit", async () => {
+    let namesOpenedToEdit: string[] = [];
+    await mountedWindowOverTheMock("state=running&get_more=open&catalog=unserved", {
+      openImportToEdit: async (name) => {
+        namesOpenedToEdit = [...namesOpenedToEdit, name];
+      },
+    });
+
+    await waitFor(() => expect(document.querySelector('[data-get-more-state="not_read"]')).not.toBeNull());
+    expect(textOf('[data-get-more-state="not_read"]')).toContain("HTTP 404 Not Found");
+    expect(textOf('[data-get-more-state="not_read"]')).toContain("tatolab/streamlib#3216");
+
+    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-scope="in_this_workspace"]') ?? expect.unreachable("no In this project scope"));
+    fireEvent.click(await waitFor(() => getMoreRow("camera")));
+    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-open-to-edit="camera"]') ?? expect.unreachable("no Open to edit"));
+    await waitFor(() => expect(namesOpenedToEdit).toEqual(["camera"]));
+
+    fireEvent.click(getMoreRow("tatolab-stream"));
+    expect(document.querySelector('[data-get-more-open-to-edit="tatolab-stream"]')).toBeNull();
   });
 });
 

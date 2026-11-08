@@ -82,11 +82,13 @@ export interface LocalApiRequestFailure {
   isTheRuntimesRefusal: boolean;
 }
 
-function localApiRequestFailure(failureDescription: string): { ok: false; failure: LocalApiRequestFailure } {
+/** A failure that is not the runtime's refusal: nothing answered, or what answered could not be read. */
+export function localApiRequestFailure(failureDescription: string): { ok: false; failure: LocalApiRequestFailure } {
   return failedWith({ failureDescription, isTheRuntimesRefusal: false });
 }
 
-function theRuntimesRefusal(failureDescription: string): { ok: false; failure: LocalApiRequestFailure } {
+/** The runtime's refusal, in its own words. */
+export function theRuntimesRefusal(failureDescription: string): { ok: false; failure: LocalApiRequestFailure } {
   return failedWith({ failureDescription, isTheRuntimesRefusal: true });
 }
 
@@ -430,7 +432,7 @@ export class LocalApiClient {
     toolArguments: Readonly<Record<string, unknown>>,
     responseTimeoutMs: number = this.requestTimeoutMs,
   ): Promise<Result<McpToolAnswer, LocalApiRequestFailure>> {
-    const requestBody = mcpToolCallRequestBody(toolName, toolArguments, this.appVersion);
+    const requestBody = mcpToolCallRequestBody(1, toolName, toolArguments, this.appVersion);
     const response = await this.sendOneHttpRequestAndReadItsResponse(
       "POST",
       "/mcp",
@@ -445,7 +447,7 @@ export class LocalApiClient {
       responseTimeoutMs,
     );
     if (!response.ok) return response;
-    return firstTextBlockOfToolCallResponse(toolName, response.value);
+    return mcpToolAnswerFromTheJsonRpcResponse(toolName, response.value.body.toString("utf8"), String(response.value.statusCode));
   }
 
   private sendOneHttpRequestAndReadItsResponse(
@@ -518,11 +520,11 @@ export function httpRequestBytes(method: string, requestTarget: string, extraHea
   return Buffer.concat([Buffer.from(requestHead, "utf8"), requestBody ?? Buffer.alloc(0)]);
 }
 
-/** The JSON-RPC `tools/call` request for `toolName`, carrying the per-request `_meta` the runtime's stateless MCP transport requires. */
-function mcpToolCallRequestBody(toolName: string, toolArguments: Readonly<Record<string, unknown>>, appVersion: string): string {
+/** The JSON-RPC `tools/call` request `requestId` for `toolName`, carrying the per-request `_meta` the runtime requires over `POST /mcp` and `/mcp/stdio` alike. */
+export function mcpToolCallRequestBody(requestId: number, toolName: string, toolArguments: Readonly<Record<string, unknown>>, appVersion: string): string {
   return JSON.stringify({
     jsonrpc: "2.0",
-    id: 1,
+    id: requestId,
     method: "tools/call",
     params: {
       name: toolName,
@@ -537,18 +539,19 @@ function mcpToolCallRequestBody(toolName: string, toolArguments: Readonly<Record
 }
 
 /** What a tool call answered: the text of its first content block, or the words of a tool that ran and failed (`isError`). */
-type McpToolAnswer = { kind: "answered"; text: string } | { kind: "refused_by_the_tool"; words: string };
+export type McpToolAnswer = { kind: "answered"; text: string } | { kind: "refused_by_the_tool"; words: string };
 
-function firstTextBlockOfToolCallResponse(toolName: string, response: LocalApiHttpResponse): Result<McpToolAnswer, LocalApiRequestFailure> {
-  const jsonRpcResponse = parseJsonOnTheWire(response.body.toString("utf8"));
+/** What the JSON-RPC response `jsonRpcResponseText` to a `toolName` call answered, `answeredOver` naming how it came (an HTTP status, or `/mcp/stdio`) in a failure's words. */
+export function mcpToolAnswerFromTheJsonRpcResponse(toolName: string, jsonRpcResponseText: string, answeredOver: string): Result<McpToolAnswer, LocalApiRequestFailure> {
+  const jsonRpcResponse = parseJsonOnTheWire(jsonRpcResponseText);
   if (!jsonRpcResponse.ok) {
-    return localApiRequestFailure(`\`${toolName}\` answered ${response.statusCode} with a body that is not JSON-RPC: ${jsonRpcResponse.failure}`);
+    return localApiRequestFailure(`\`${toolName}\` answered ${answeredOver} with a body that is not JSON-RPC: ${jsonRpcResponse.failure}`);
   }
   const jsonRpcFields = isAJsonObject(jsonRpcResponse.value) ? jsonRpcResponse.value : {};
   const jsonRpcError = jsonRpcFields["error"];
   if (jsonRpcError !== undefined) {
     const message = isAJsonObject(jsonRpcError) && typeof jsonRpcError["message"] === "string" ? jsonRpcError["message"] : "no message";
-    return theRuntimesRefusal(`the runtime refused \`${toolName}\` (${response.statusCode}): ${message}`);
+    return theRuntimesRefusal(`the runtime refused \`${toolName}\` (${answeredOver}): ${message}`);
   }
   const toolResult = jsonRpcFields["result"];
   if (toolResult === undefined) return localApiRequestFailure(`\`${toolName}\` answered with neither a result nor an error`);

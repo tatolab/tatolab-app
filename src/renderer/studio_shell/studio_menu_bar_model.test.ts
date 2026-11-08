@@ -15,6 +15,7 @@ function commandsCounted(): StudioMenuBarCommands {
     runTheProjectLive: vi.fn(),
     stopTheProject: vi.fn(),
     openTheProjectStreamPy: vi.fn(),
+    openGetMore: vi.fn(),
   };
 }
 
@@ -32,6 +33,15 @@ describe("the studio's File menu", () => {
       if (projects?.kind === "command") projects.onChosen();
       expect(commands.showProjects).toHaveBeenCalledOnce();
     }
+  });
+
+  it("opens Get more while a project is open, and says why it waits while none is", () => {
+    const commands = commandsCounted();
+    const getMore = entryOf(studioMenuBarMenus("macos", "build", commands), "File", "Get more…");
+    if (getMore?.kind !== "command") throw new Error("File › Get more… is not a command");
+    getMore.onChosen();
+    expect(commands.openGetMore).toHaveBeenCalledOnce();
+    expect(entryOf(studioMenuBarMenus("macos", null, commands), "File", "Get more…")).toEqual({ kind: "unavailable_command", label: "Get more…", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
 

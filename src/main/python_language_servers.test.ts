@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import type { PythonLanguageServerEvent } from "../shared/tatolab_backend_contract.js";
 import { frameLanguageServerMessage, LanguageServerMessageReader } from "./language_server_message_framing.js";
-import { PythonLanguageServers, type NodeProgramListeners, type StartANodeLanguageServer } from "./python_language_servers.js";
+import { PythonLanguageServers, type LanguageServerOfAStudioWindow, type NodeProgramListeners, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { failedWith, succeeded } from "./result.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
@@ -40,39 +40,41 @@ function languageServersOverFakePrograms(startRefusal: string | null = null) {
   const languageServers = new PythonLanguageServers({
     startANodeLanguageServer,
     pyrightLanguageServerModulePath: "/app/node_modules/pyright/langserver.index.js",
+    tatolabAppLog: createTatolabAppLog("error", () => {}),
+  });
+  const studioWindow: LanguageServerOfAStudioWindow = {
     projectFolderOfTheOpenProject: (projectFolder) =>
       projectFolder === OPEN_PROJECT_FOLDER ? succeeded(projectFolder) : failedWith(`${projectFolder} is not the folder of the open project or of one of its imports.`),
     sendTheWindowALanguageServerEvent: (event) => eventsSent.push(event),
-    tatolabAppLog: createTatolabAppLog("error", () => {}),
-  });
-  return { languageServers, programsStarted, eventsSent };
+  };
+  return { languageServers, programsStarted, eventsSent, studioWindow };
 }
 
 test("a language server starts as Pyright's language server, in the project's folder", () => {
-  const { languageServers, programsStarted } = languageServersOverFakePrograms();
+  const { languageServers, programsStarted, studioWindow } = languageServersOverFakePrograms();
 
-  expect(languageServers.startALanguageServer(OPEN_PROJECT_FOLDER)).toEqual({ ok: true, value: { session: "python-language-server-1" } });
+  expect(languageServers.startALanguageServer(OPEN_PROJECT_FOLDER, studioWindow)).toEqual({ ok: true, value: { session: "python-language-server-1" } });
   expect(programsStarted.map(({ modulePath, workingFolder }) => ({ modulePath, workingFolder }))).toEqual([
     { modulePath: "/app/node_modules/pyright/langserver.index.js", workingFolder: OPEN_PROJECT_FOLDER },
   ]);
 });
 
 test("a folder outside the open project starts nothing", () => {
-  const { languageServers, programsStarted } = languageServersOverFakePrograms();
+  const { languageServers, programsStarted, studioWindow } = languageServersOverFakePrograms();
 
-  expect(languageServers.startALanguageServer("/etc")).toEqual({ ok: false, failure: "/etc is not the folder of the open project or of one of its imports." });
+  expect(languageServers.startALanguageServer("/etc", studioWindow)).toEqual({ ok: false, failure: "/etc is not the folder of the open project or of one of its imports." });
   expect(programsStarted).toEqual([]);
 });
 
 test("a program the platform refuses to start is refused in its words", () => {
-  const { languageServers } = languageServersOverFakePrograms("spawn ENOENT");
+  const { languageServers, studioWindow } = languageServersOverFakePrograms("spawn ENOENT");
 
-  expect(languageServers.startALanguageServer(OPEN_PROJECT_FOLDER)).toEqual({ ok: false, failure: "The Python language server did not start: spawn ENOENT" });
+  expect(languageServers.startALanguageServer(OPEN_PROJECT_FOLDER, studioWindow)).toEqual({ ok: false, failure: "The Python language server did not start: spawn ENOENT" });
 });
 
 test("the window's messages are framed onto the server's input, and the server's reach the window whole under its session", () => {
-  const { languageServers, programsStarted, eventsSent } = languageServersOverFakePrograms();
-  languageServers.startALanguageServer(OPEN_PROJECT_FOLDER);
+  const { languageServers, programsStarted, eventsSent, studioWindow } = languageServersOverFakePrograms();
+  languageServers.startALanguageServer(OPEN_PROJECT_FOLDER, studioWindow);
   const program = programsStarted[0];
   if (program === undefined) throw new Error("no program started");
 
@@ -86,8 +88,8 @@ test("the window's messages are framed onto the server's input, and the server's
 });
 
 test("a server that exits ends its session once, with why, and takes no more messages", () => {
-  const { languageServers, programsStarted, eventsSent } = languageServersOverFakePrograms();
-  languageServers.startALanguageServer(OPEN_PROJECT_FOLDER);
+  const { languageServers, programsStarted, eventsSent, studioWindow } = languageServersOverFakePrograms();
+  languageServers.startALanguageServer(OPEN_PROJECT_FOLDER, studioWindow);
   const program = programsStarted[0];
   if (program === undefined) throw new Error("no program started");
 
@@ -102,8 +104,8 @@ test("a server that exits ends its session once, with why, and takes no more mes
 });
 
 test("a server writing something other than the protocol is stopped and its session ended", () => {
-  const { languageServers, programsStarted, eventsSent } = languageServersOverFakePrograms();
-  languageServers.startALanguageServer(OPEN_PROJECT_FOLDER);
+  const { languageServers, programsStarted, eventsSent, studioWindow } = languageServersOverFakePrograms();
+  languageServers.startALanguageServer(OPEN_PROJECT_FOLDER, studioWindow);
   const program = programsStarted[0];
   if (program === undefined) throw new Error("no program started");
 
@@ -114,9 +116,9 @@ test("a server writing something other than the protocol is stopped and its sess
 });
 
 test("a server the window stops ends quietly, and stopping every server stops each one", () => {
-  const { languageServers, programsStarted, eventsSent } = languageServersOverFakePrograms();
-  languageServers.startALanguageServer(OPEN_PROJECT_FOLDER);
-  languageServers.startALanguageServer(OPEN_PROJECT_FOLDER);
+  const { languageServers, programsStarted, eventsSent, studioWindow } = languageServersOverFakePrograms();
+  languageServers.startALanguageServer(OPEN_PROJECT_FOLDER, studioWindow);
+  languageServers.startALanguageServer(OPEN_PROJECT_FOLDER, studioWindow);
 
   languageServers.stopALanguageServer("python-language-server-1");
   programsStarted[0]?.listeners.onExit("killed");

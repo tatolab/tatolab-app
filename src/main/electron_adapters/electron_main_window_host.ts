@@ -23,6 +23,7 @@ export function createElectronMainWindowHostFactory(
     createMainWindowHost(
       mainWindowSpecification: MainWindowSpecification,
       answerCloseRequest: () => MainWindowCloseRequestAnswer,
+      whenClosed: () => void,
     ): Result<MainWindowHost, string> {
       let mainBrowserWindow: BrowserWindow;
       try {
@@ -50,6 +51,9 @@ export function createElectronMainWindowHostFactory(
       mainBrowserWindow.on("close", (closeEvent) => {
         if (answerCloseRequest() === "hide_instead") closeEvent.preventDefault();
       });
+      mainBrowserWindow.once("closed", whenClosed);
+      // Electron retitles a window with its page's `<title>` on every load; each window keeps the title its role gives it.
+      mainBrowserWindow.on("page-title-updated", (pageTitleEvent) => pageTitleEvent.preventDefault());
       const windowContents = mainBrowserWindow.webContents;
       windowContents.setWindowOpenHandler(() => ({ action: "deny" }));
       windowContents.on("will-navigate", (navigationEvent) => {
@@ -77,6 +81,7 @@ export function createElectronMainWindowHostFactory(
         tatolabAppLog.error("the Tatolab window's page did not load", { window_page_url: windowPageUrl, failure: describeCaughtFailure(loadFailure) });
       });
       return succeeded({
+        windowContentsId: windowContents.id,
         unminimize: () => {
           if (mainBrowserWindow.isMinimized()) mainBrowserWindow.restore();
         },
@@ -86,6 +91,7 @@ export function createElectronMainWindowHostFactory(
           firstShowGate.hide();
           mainBrowserWindow.hide();
         },
+        close: () => mainBrowserWindow.destroy(),
         isShowing: () => firstShowGate.showIsWaitingForThePage() || (mainBrowserWindow.isVisible() && !mainBrowserWindow.isMinimized()),
         sendTheWindowAnEvent: (eventChannel, eventPayload) => {
           if (!windowContents.isDestroyed()) windowContents.send(eventChannel, eventPayload);

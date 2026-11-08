@@ -1,8 +1,10 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import { FakeTatolabElectronAppShell } from "./fake_tatolab_electron_app_shell.js";
 import { startTatolabApp, type TatolabRunningApp } from "./main.js";
-import { TatolabMainWindow } from "./tatolab_main_window.js";
+import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { TatolabTrayMenu } from "./tatolab_tray_menu.js";
 import { tatolabPlatformItemsFor } from "./platform/tatolab_platform_items.js";
 import { succeeded } from "./result.js";
@@ -43,11 +45,11 @@ describe("the app on macOS", () => {
     tatolabRunningApp = await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
   });
 
-  test("the running app hands back its window and tray for the process to hold", async () => {
+  test("the running app hands back its windows and tray for the process to hold", async () => {
     const otherFakeShell = fakeShellQuitAfterTheTest();
     const tatolabRunningApp = await startTatolabApp(otherFakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, otherFakeShell.tatolabAppLog);
     expect(tatolabRunningApp?.tatolabTrayMenu).toBeInstanceOf(TatolabTrayMenu);
-    expect(tatolabRunningApp?.tatolabMainWindow).toBeInstanceOf(TatolabMainWindow);
+    expect(tatolabRunningApp?.tatolabAppWindows).toBeInstanceOf(TatolabAppWindows);
   });
 
   test("opening the app puts it in the tray and shows its one window, with the Dock icon, under the hidden title bar", () => {
@@ -65,7 +67,7 @@ describe("the app on macOS", () => {
     expect(fakeShell.records[3]).toEqual({
       asked: "create_main_window",
       mainWindowSpecification: {
-        title: "Tatolab",
+        title: "Tato Studio",
         width: 1040,
         height: 700,
         minimumWidth: 860,
@@ -280,7 +282,7 @@ describe("starting the app", () => {
       { asked: "set_activation_policy", activationPolicy: "regular" },
       { asked: "set_activation_policy", activationPolicy: "accessory" },
     ]);
-    expect(fakeShell.writtenLogLines).toContain("ERROR the Tatolab window could not be created failure=\"no display\"");
+    expect(fakeShell.writtenLogLines).toContain("ERROR a Tato Studio window could not be created window_role=projects failure=\"no display\"");
   });
 
   test("an app that carries no runtime starts none and says why in its status", async () => {
@@ -380,4 +382,246 @@ describe("updating the app", () => {
   });
 
 
+});
+
+describe("one window per project", () => {
+  /** A project folder on disk named `projectName`, which the fake dialog answers. */
+  async function aProjectTheDialogAnswers(fakeShell: FakeTatolabElectronAppShell, projectName: string): Promise<string> {
+    const projectFolder = path.join(fakeShell.appConfigDirectory, "projects", projectName);
+    await mkdir(projectFolder, { recursive: true });
+    await writeFile(path.join(projectFolder, "pyproject.toml"), `[project]\nname = "${projectName}"\ndependencies = []\n`);
+    fakeShell.projectFolderTheDialogAnswers = projectFolder;
+    return projectFolder;
+  }
+
+  test("a project opened from the Projects window opens in its own studio window, and the Projects window steps aside", async () => {
+    const fakeShell = fakeShellQuitAfterTheTest();
+    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    const projectFolder = await aProjectTheDialogAnswers(fakeShell, "night-show");
+
+    expect(await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" })).toEqual({
+      ok: true,
+      value: { folder: projectFolder, project_creation: null },
+    });
+    expect(fakeShell.studioWindowsOpen()).toEqual([{ title: "night-show", windowContentsId: 2, showing: true }]);
+    expect(fakeShell.mainWindowShowing).toBe(false);
+    expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 2)).toMatchObject({ ok: true, value: { kind: "read", open_project: { project: { name: "night-show" } } } });
+    expect(await fakeShell.invokeTheCommand("read_open_project")).toEqual({ ok: true, value: { kind: "none_open" } });
+  });
+
+  test("opening a project whose window is open brings that window forward rather than opening a second", async () => {
+    const fakeShell = fakeShellQuitAfterTheTest();
+    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    await aProjectTheDialogAnswers(fakeShell, "night-show");
+    await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
+    fakeShell.forgetTheRecords();
+
+    await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" }, 2);
+    expect(fakeShell.studioWindowsOpen()).toHaveLength(1);
+    expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
+    expect(fakeShell.records).toContainEqual({ asked: "focus", windowContentsId: 2 });
+  });
+
+  test("two projects open side by side, each window answering about its own project", async () => {
+    const fakeShell = fakeShellQuitAfterTheTest();
+    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    await aProjectTheDialogAnswers(fakeShell, "night-show");
+    await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
+    await aProjectTheDialogAnswers(fakeShell, "lobby-wall");
+    await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" }, 2);
+
+    expect(fakeShell.studioWindowsOpen().map(({ title, windowContentsId }) => [title, windowContentsId])).toEqual([
+      ["night-show", 2],
+      ["lobby-wall", 3],
+    ]);
+    expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 3)).toMatchObject({ ok: true, value: { open_project: { project: { name: "lobby-wall" } } } });
+    expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 2)).toMatchObject({ ok: true, value: { open_project: { project: { name: "night-show" } } } });
+  });
+
+  test("closing a studio window closes it and forgets its project, and the Projects window refuses a project's commands", async () => {
+    const fakeShell = fakeShellQuitAfterTheTest();
+    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    await aProjectTheDialogAnswers(fakeShell, "night-show");
+    await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
+
+    expect(fakeShell.requestTheCloseOfTheWindow(2)).toBe("let_it_close");
+    expect(fakeShell.studioWindowsOpen()).toEqual([]);
+    expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 2)).toEqual({ ok: true, value: { kind: "none_open" } });
+    expect(await fakeShell.invokeTheCommand("run_open_project")).toEqual({ ok: false, refusal: "No project is open in this window." });
+    expect(fakeShell.records.at(-1)).toEqual({ asked: "set_activation_policy", activationPolicy: "accessory" });
+  });
+
+  test("File › Projects shows the Projects window again over a project's window", async () => {
+    const fakeShell = fakeShellQuitAfterTheTest();
+    await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+    await aProjectTheDialogAnswers(fakeShell, "night-show");
+    await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
+
+    expect(await fakeShell.invokeTheCommand("show_projects_window", undefined, 2)).toEqual({ ok: true, value: null });
+    expect(fakeShell.mainWindowShowing).toBe(true);
+    expect(fakeShell.studioWindowsOpen()).toEqual([{ title: "night-show", windowContentsId: 2, showing: true }]);
+  });
+  describe("Get more", () => {
+    async function aStudioWindowOfNightShowImportingLobbyWall(): Promise<{ fakeShell: FakeTatolabElectronAppShell; nightShowFolder: string; lobbyWallFolder: string }> {
+      const fakeShell = fakeShellQuitAfterTheTest();
+      await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+      const lobbyWallFolder = await aProjectTheDialogAnswers(fakeShell, "lobby-wall");
+      const nightShowFolder = await aProjectTheDialogAnswers(fakeShell, "night-show");
+      await writeFile(
+        path.join(nightShowFolder, "pyproject.toml"),
+        '[project]\nname = "night-show"\ndependencies = [\n    "tatolab-camera",\n    "lobby-wall",\n]\n\n[tool.uv.sources]\nlobby-wall = { path = "../lobby-wall" }\n',
+      );
+      await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
+      await fakeShell.invokeTheCommand("open_get_more_window", undefined, 2);
+      return { fakeShell, nightShowFolder, lobbyWallFolder };
+    }
+
+    test("opens from a studio window in a window of its own beside it, which answers its workspace, and closes with it", async () => {
+      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+
+      expect(fakeShell.studioWindowsOpen().map(({ title, windowContentsId }) => [title, windowContentsId])).toEqual([
+        ["night-show", 2],
+        ["Get more · night-show", 3],
+      ]);
+      expect(fakeShell.records).toContainEqual(
+        expect.objectContaining({ asked: "create_main_window", windowContentsId: 3, mainWindowSpecification: expect.objectContaining({ width: 960, height: 660 }) }),
+      );
+      expect(await fakeShell.invokeTheCommand("read_get_more_workspace", undefined, 3)).toMatchObject({ ok: true, value: { kind: "read", open_project: { project: { name: "night-show" } } } });
+      expect(await fakeShell.invokeTheCommand("read_get_more_workspace", undefined, 2)).toEqual({ ok: true, value: null });
+      expect(await fakeShell.invokeTheCommand("open_get_more_window")).toEqual({ ok: false, refusal: "Only a project's studio window opens Get more." });
+
+      fakeShell.forgetTheRecords();
+      await fakeShell.invokeTheCommand("open_get_more_window", undefined, 2);
+      expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
+
+      expect(fakeShell.requestTheCloseOfTheWindow(2)).toBe("let_it_close");
+      expect(fakeShell.studioWindowsOpen()).toEqual([]);
+    });
+
+    test("reads the catalog from get.tatolab.com, and says why where it is not served", async () => {
+      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+
+      expect(await fakeShell.invokeTheCommand("read_package_catalog", undefined, 3)).toEqual({
+        ok: true,
+        value: { kind: "not_read", because: "The catalog at https://get.tatolab.com/catalog/v1.json could not be fetched: the fake shell reaches no network" },
+      });
+      fakeShell.packageCatalogTextServed = JSON.stringify({ catalog_version: 1, entries: [] });
+      expect(await fakeShell.invokeTheCommand("read_package_catalog", undefined, 3)).toEqual({ ok: true, value: { kind: "read", entries: [], unreadable_entry_count: 0 } });
+      expect(fakeShell.urlsFetched).toEqual(["https://get.tatolab.com/catalog/v1.json", "https://get.tatolab.com/catalog/v1.json"]);
+    });
+
+    test("shows an import's change to pyproject.toml, then writes it only while the file is as it was shown", async () => {
+      const { fakeShell, nightShowFolder } = await aStudioWindowOfNightShowImportingLobbyWall();
+      const descriptionFile = path.join(nightShowFolder, "pyproject.toml");
+      const textBefore = await readFile(descriptionFile, "utf8");
+
+      const preview = await fakeShell.invokeTheCommand("preview_import", { requirement: "tatolab-opus>=0.68.29" }, 3);
+      expect(preview).toMatchObject({ ok: true, value: { text_before: textBefore, text_after: textBefore.replace('    "lobby-wall",\n', '    "lobby-wall",\n    "tatolab-opus>=0.68.29",\n') } });
+      expect(await readFile(descriptionFile, "utf8")).toBe(textBefore);
+      if (!preview.ok) return;
+
+      await writeFile(descriptionFile, `${textBefore}# edited by hand\n`);
+      expect(await fakeShell.invokeTheCommand("import_into_workspace", { requirement: "tatolab-opus>=0.68.29", based_on_version: preview.value.based_on_version }, 3)).toEqual({
+        ok: false,
+        refusal: "pyproject.toml changed since the import was shown; nothing was written. Look at the change again before importing.",
+      });
+
+      const previewAgain = await fakeShell.invokeTheCommand("preview_import", { requirement: "tatolab-opus>=0.68.29" }, 3);
+      if (!previewAgain.ok) return expect.unreachable(previewAgain.refusal);
+      expect(await fakeShell.invokeTheCommand("import_into_workspace", { requirement: "tatolab-opus>=0.68.29", based_on_version: previewAgain.value.based_on_version }, 3)).toEqual({ ok: true, value: null });
+      expect(await readFile(descriptionFile, "utf8")).toBe(previewAgain.value.text_after);
+
+      expect(await fakeShell.invokeTheCommand("preview_import", { requirement: "Tatolab_Opus" }, 3)).toEqual({ ok: false, refusal: "The project already imports tatolab-opus." });
+      expect(await fakeShell.invokeTheCommand("preview_import", { requirement: "tatolab-opus" }, 2)).toEqual({ ok: false, refusal: "Only a Get more window imports into a project." });
+    });
+
+    test("opens an import from a folder to edit in its own studio window, and refuses one from a package index", async () => {
+      const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
+
+      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { name: "lobby-wall" }, 3)).toEqual({ ok: true, value: null });
+      expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "Get more · night-show", "lobby-wall"]);
+      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { name: "tatolab-camera" }, 3)).toEqual({
+        ok: false,
+        refusal: "tatolab-camera comes from a package index, so it has no folder of its own to open; only an import from a folder opens to edit.",
+      });
+      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { name: "nothing-here" }, 3)).toEqual({ ok: false, refusal: "The project imports nothing named nothing-here." });
+    });
+  });
+
+  describe("a Viewer popped out of a studio window", () => {
+    const PINNED_TO_THE_DISPLAY = { stream: "night-show-1a2b", project_name: "night-show", display_name: "main", node: "display" };
+
+    async function aStudioWindowOfNightShow(): Promise<FakeTatolabElectronAppShell> {
+      const fakeShell = fakeShellQuitAfterTheTest();
+      await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
+      await aProjectTheDialogAnswers(fakeShell, "night-show");
+      await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
+      return fakeShell;
+    }
+
+    test("pops out into a small window of its own, titled with what it is pinned to, which answers its pin and no project", async () => {
+      const fakeShell = await aStudioWindowOfNightShow();
+      fakeShell.forgetTheRecords();
+
+      expect(await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2)).toEqual({ ok: true, value: null });
+      expect(fakeShell.studioWindowsOpen()).toEqual([
+        { title: "night-show", windowContentsId: 2, showing: true },
+        { title: "main › display · Viewer", windowContentsId: 3, showing: true },
+      ]);
+      expect(fakeShell.records).toContainEqual({
+        asked: "create_main_window",
+        windowContentsId: 3,
+        mainWindowSpecification: expect.objectContaining({ width: 720, height: 450, minimumWidth: 320, minimumHeight: 200 }),
+      });
+      expect(await fakeShell.invokeTheCommand("read_popped_out_viewer", undefined, 3)).toEqual({ ok: true, value: PINNED_TO_THE_DISPLAY });
+      expect(await fakeShell.invokeTheCommand("read_popped_out_viewer", undefined, 2)).toEqual({ ok: true, value: null });
+      expect(await fakeShell.invokeTheCommand("read_popped_out_viewer")).toEqual({ ok: true, value: null });
+      expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 3)).toEqual({ ok: true, value: { kind: "none_open" } });
+      expect(await fakeShell.invokeTheCommand("list_project_files", { project_folder: "/anywhere" }, 3)).toEqual({ ok: false, refusal: "No project is open in this window." });
+    });
+
+    test("is sent the status the other windows were last sent as it opens", async () => {
+      const fakeShell = await aStudioWindowOfNightShow();
+      await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2);
+
+      expect(fakeShell.records).toContainEqual(expect.objectContaining({ asked: "send_window_event", eventChannel: "tatolab-status-changed", windowContentsId: 3 }));
+    });
+
+    test("popping out the same stream and node again brings its window forward; another node gets a window of its own", async () => {
+      const fakeShell = await aStudioWindowOfNightShow();
+      await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2);
+      fakeShell.forgetTheRecords();
+
+      await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2);
+      expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
+      expect(fakeShell.records).toContainEqual({ asked: "focus", windowContentsId: 3 });
+
+      await fakeShell.invokeTheCommand("pop_out_viewer", { ...PINNED_TO_THE_DISPLAY, node: null }, 2);
+      expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "main › display · Viewer", "main · Viewer"]);
+    });
+
+    test("closing it closes it alone; closing its studio window closes it too", async () => {
+      const fakeShell = await aStudioWindowOfNightShow();
+      await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2);
+
+      expect(fakeShell.requestTheCloseOfTheWindow(3)).toBe("let_it_close");
+      expect(fakeShell.studioWindowsOpen().map(({ windowContentsId }) => windowContentsId)).toEqual([2]);
+      expect(await fakeShell.invokeTheCommand("read_popped_out_viewer", undefined, 3)).toEqual({ ok: true, value: null });
+
+      await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2);
+      expect(fakeShell.studioWindowsOpen().map(({ windowContentsId }) => windowContentsId)).toEqual([2, 4]);
+      expect(fakeShell.requestTheCloseOfTheWindow(2)).toBe("let_it_close");
+      expect(fakeShell.studioWindowsOpen()).toEqual([]);
+    });
+
+    test("is refused from the Projects window and from a popped-out Viewer, and for arguments that name no pin", async () => {
+      const fakeShell = await aStudioWindowOfNightShow();
+      await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 2);
+
+      const onlyAStudioWindow = { ok: false, refusal: "Only a project's studio window can pop out its Viewer." };
+      expect(await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY)).toEqual(onlyAStudioWindow);
+      expect(await fakeShell.invokeTheCommand("pop_out_viewer", PINNED_TO_THE_DISPLAY, 3)).toEqual(onlyAStudioWindow);
+      expect(await fakeShell.invokeTheCommand("pop_out_viewer", { stream: "night-show-1a2b" }, 2)).toMatchObject({ ok: false, refusal: expect.stringContaining("pop_out_viewer needs `stream`") });
+    });
+  });
 });

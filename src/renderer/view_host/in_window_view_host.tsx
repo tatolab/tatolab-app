@@ -52,7 +52,7 @@ export interface InWindowStudioViewHostSources {
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs, and their language servers. */
 export interface InWindowProjectServices {
-  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "listProjectFiles">;
+  backend: Pick<TatolabBackend, "readProjectFile" | "saveProjectFile" | "listProjectFiles" | "popOutViewer">;
   projectLogReadings: ProjectLogReadings;
   pythonLanguageServerConnections: PythonLanguageServerConnections;
 }
@@ -89,6 +89,11 @@ export function inWindowStudioViewHostServices(
       backend.listProjectFiles(projectFolder).then(
         (projectFiles) => ({ kind: "listed", project_files: projectFiles }),
         (rejection: unknown) => ({ kind: "not_listed", because: describeBackendRejection(rejection) }),
+      ),
+    popOutViewer: (target) =>
+      backend.popOutViewer(target).then(
+        () => ({ kind: "popped_out" }),
+        (rejection: unknown) => ({ kind: "not_popped_out", because: describeBackendRejection(rejection) }),
       ),
     watchProjectLog: projectServices.projectLogReadings.watchProjectLog,
     connectToPythonLanguageServer: projectServices.pythonLanguageServerConnections.connectToPythonLanguageServer,

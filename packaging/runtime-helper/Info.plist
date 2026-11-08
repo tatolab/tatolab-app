@@ -17,7 +17,7 @@
   <key>LSUIElement</key>
   <true/>
   <key>LSMinimumSystemVersion</key>
-  <string>15.0</string>
+  <string>26.0</string>
   <key>NSCameraUsageDescription</key>
   <string>Tatolab lets the streams you run read this Mac's cameras.</string>
   <key>NSMicrophoneUsageDescription</key>

@@ -18,9 +18,9 @@ export function answerTheWindowsCommandsOverIpc(
           command_name: commandName,
           sender_url: senderFrame?.url ?? null,
         });
-        return { ok: false, refusal: `${commandName} answers only the Tato Studio window` };
+        return { ok: false, refusal: `${commandName} answers only Tato Studio's windows` };
       }
-      return tatolabWindowCommandHandlers[commandName](commandArguments);
+      return tatolabWindowCommandHandlers[commandName](commandArguments, { windowContentsId: invokeEvent.sender.id });
     });
   }
 }

@@ -24,6 +24,8 @@ export interface StudioMenuBarCommands {
   stopTheProject(): void;
   /** Stream › Open stream.py: show the open project's `stream.py` in a code area. */
   openTheProjectStreamPy(): void;
+  /** File › Get more…: open the project's Get more window. */
+  openGetMore(): void;
 }
 
 /** Why an entry that acts on the open project cannot run while none is open. */
@@ -71,7 +73,7 @@ export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: Stud
         laterCommand("Import project…"),
         laterCommand("New stream"),
         laterCommand("Save version…"),
-        laterCommand("Get more…"),
+        projectCommand("Get more…", commands.openGetMore),
       ],
     },
     {

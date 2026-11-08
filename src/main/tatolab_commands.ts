@@ -3,9 +3,12 @@
 // the window as the next `tatolab-status-changed`. A question the window awaits is answered with
 // its answer or a refusal in words, never a thrown error.
 
+import path from "node:path";
 import type {
   ChosenProjectFolder,
   JsonValue,
+  ImportPreview,
+  PoppedOutViewerTarget,
   ProjectCreationQueued,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -24,6 +27,9 @@ import type {
 } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
+import { readThePackageCatalog } from "./package_catalog.js";
+import { pyprojectTextWithTheRequirementAdded } from "./project_dependency_adding.js";
+import { PROJECT_DESCRIPTION_FILE_NAME } from "./project_on_disk.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import {
@@ -33,6 +39,7 @@ import {
 import { relaySettingsByNameFrom, WHAT_A_RELAY_SETTING_VALUE_CAN_BE } from "./relays_description.js";
 import { openTheRuntimesLogFolder } from "./runtime_log_folder_opening.js";
 import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
+import { NO_PROJECT_OPEN_IN_THE_WINDOW, type StudioWindowOfAProject } from "./tatolab_app_windows.js";
 
 /** How long `get_tatolab_status` waits for the poller's first round when the window asks first. */
 const FIRST_STATUS_ROUND_WAIT_LIMIT_MS = 15_000;
@@ -131,10 +138,40 @@ export function projectDirectoryTheRuntimeLastListed(sharedState: TatolabAppShar
   return isListed ? succeeded(projectDirectory) : failedWith(`The runtime lists no stream from ${projectDirectory}.`);
 }
 
-/** `projectDirectory` when the runtime last listed a stream from it or it is the folder of the open project or of one of its imports, whose log the code pane reads before its first run; refused otherwise. */
-export function projectDirectoryWhoseLogTheWindowMayRead(sharedState: TatolabAppSharedState, projectDirectory: string): Result<string, string> {
-  const openProjectFolder = sharedState.openProjectFiles.projectFolderOfTheOpenProject(projectDirectory);
-  return openProjectFolder.ok ? openProjectFolder : projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory);
+/** `projectDirectory` when the runtime last listed a stream from it or it is the folder of the asking window's project or of one of its imports, whose log the code pane reads before its first run; refused otherwise. */
+export function projectDirectoryWhoseLogTheWindowMayRead(
+  sharedState: TatolabAppSharedState,
+  projectDirectory: string,
+  commandFromWindow: TatolabCommandFromWindow,
+): Result<string, string> {
+  const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
+  const openProjectFolder = studioWindow?.openProjectFiles.projectFolderOfTheOpenProject(projectDirectory) ?? null;
+  return openProjectFolder?.ok === true ? openProjectFolder : projectDirectoryTheRuntimeLastListed(sharedState, projectDirectory);
+}
+
+/** The window a command came from, by its page's contents id. */
+export interface TatolabCommandFromWindow {
+  windowContentsId: number;
+}
+
+/** Why a command about a window's own project is refused in the Projects window. */
+export const NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL = "No project is open in this window.";
+
+/** The studio window `commandFromWindow` names, or why there is none. */
+function studioWindowTheCommandCameFrom(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Result<StudioWindowOfAProject, string> {
+  const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
+  return studioWindow === null ? failedWith(NO_PROJECT_IN_THE_PROJECTS_WINDOW_REFUSAL) : succeeded(studioWindow);
+}
+
+/** A project opened from the Projects window steps it aside for the project's own window; one opened from a studio window leaves that window as it is. */
+function stepTheProjectsWindowAsideOnceItOpenedAProject(
+  sharedState: TatolabAppSharedState,
+  commandFromWindow: TatolabCommandFromWindow,
+  opened: Result<unknown, string>,
+): void {
+  if (opened.ok && opened.value !== null && sharedState.appWindows.isTheProjectsWindow(commandFromWindow.windowContentsId)) {
+    sharedState.appWindows.projectsWindow.hide();
+  }
 }
 
 /** `rename_stream { stream, display_name }`: the runtime's `rename_stream` on `stream`, then a status round whether it renamed or refused; refused in the runtime's own words. */
@@ -395,9 +432,16 @@ export function createStreamProjectArgumentsFrom(commandArguments: unknown): Res
   return succeeded({ folder: commandArguments["folder"] });
 }
 
-/** `choose_project_folder { chosen_for }`: the app's folder dialog, the chosen folder opened as the project; `null` when the person cancels. */
-export function chooseProjectFolder(sharedState: TatolabAppSharedState, chosenFor: ProjectFolderChosenFor): Promise<Result<ChosenProjectFolder | null, string>> {
-  return answerTheWindow("choose_project_folder", () => sharedState.openProjectFolder.chooseProjectFolder(chosenFor));
+/** `choose_project_folder { chosen_for }`: the app's folder dialog, opened beside the asking window's project, the chosen folder opened in its own studio window; `null` when the person cancels. */
+export async function chooseProjectFolder(
+  sharedState: TatolabAppSharedState,
+  chosenFor: ProjectFolderChosenFor,
+  commandFromWindow: TatolabCommandFromWindow,
+): Promise<Result<ChosenProjectFolder | null, string>> {
+  const projectFolderOfTheWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId)?.openProject.projectFolder ?? null;
+  const chosen = await answerTheWindow("choose_project_folder", () => sharedState.projectOpening.chooseProjectFolder(chosenFor, projectFolderOfTheWindow));
+  stepTheProjectsWindowAsideOnceItOpenedAProject(sharedState, commandFromWindow, chosen);
+  return chosen;
 }
 
 /** `choose_project_folder`'s arguments as the window sends them, or why they are not. */
@@ -407,13 +451,27 @@ export function chooseProjectFolderArgumentsFrom(commandArguments: unknown): Res
   return succeeded({ chosen_for: chosenFor });
 }
 
-/** `create_new_project { name, location }`: the runtime's `create_project` at `<location>/<name>`, opened as the project, then a status round; refused in the app's words or the runtime's own. */
-export function createNewProject(sharedState: TatolabAppSharedState, name: string, location: string): Promise<Result<ChosenProjectFolder, string>> {
-  return answerTheWindow("create_new_project", async () => {
-    const created = await sharedState.openProjectFolder.createNewProject(name, location);
+/** `create_new_project { name, location }`: the runtime's `create_project` at `<location>/<name>`, opened in its own studio window, then a status round; refused in the app's words or the runtime's own. */
+export async function createNewProject(
+  sharedState: TatolabAppSharedState,
+  name: string,
+  location: string,
+  commandFromWindow: TatolabCommandFromWindow,
+): Promise<Result<ChosenProjectFolder, string>> {
+  const created = await answerTheWindow("create_new_project", async () => {
+    const createdProject = await sharedState.projectOpening.createNewProject(name, location);
     sharedState.statusPublisher.requestRefresh();
-    return created;
+    return createdProject;
   });
+  stepTheProjectsWindowAsideOnceItOpenedAProject(sharedState, commandFromWindow, created);
+  return created;
+}
+
+/** `open_recent_project { folder }`: one of the recent projects opened in its own studio window, or that window brought forward. */
+export async function openRecentProject(sharedState: TatolabAppSharedState, folder: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+  const opened = await answerTheWindow("open_recent_project", () => sharedState.projectOpening.openRecentProject(folder));
+  stepTheProjectsWindowAsideOnceItOpenedAProject(sharedState, commandFromWindow, opened.ok ? succeeded(folder) : opened);
+  return opened;
 }
 
 /** `create_new_project`'s arguments as the window sends them, or why they are not. */
@@ -424,14 +482,103 @@ export function createNewProjectArgumentsFrom(commandArguments: unknown): Result
   return location.ok ? succeeded({ name: name.value, location: location.value }) : location;
 }
 
-/** `run_open_project`: the runtime's `run_project` queued on the open project's folder, then a status round; refused while no project is open, or in the runtime's own words. */
-export function runOpenProject(sharedState: TatolabAppSharedState): Promise<Result<ProjectRunQueued, string>> {
+/** `run_open_project`: the runtime's `run_project` queued on the asking window's project's folder, then a status round; refused in the Projects window, or in the runtime's own words. */
+export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectRunQueued, string>> {
   return answerTheWindow("run_open_project", async () => {
-    const reading = sharedState.openProjectFolder.readOpenProject();
+    const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const reading = studioWindow.value.openProject.readOpenProject();
     if (reading.kind !== "read") return failedWith(reading.kind === "none_open" ? "No project is open to run." : `The project in ${reading.folder} could not be read: ${reading.refusal}`);
     const queued = await sharedState.controller.runProject(reading.open_project.project.folder);
     sharedState.statusPublisher.requestRefresh();
     return queued.ok ? queued : failedWith(queued.failure.failureDescription);
+  });
+}
+
+/** `pop_out_viewer`'s arguments as the window sends them, or why they are not. */
+export function popOutViewerArgumentsFrom(commandArguments: unknown): Result<PoppedOutViewerTarget, string> {
+  if (
+    !isAJsonObject(commandArguments) ||
+    typeof commandArguments["stream"] !== "string" ||
+    typeof commandArguments["project_name"] !== "string" ||
+    typeof commandArguments["display_name"] !== "string" ||
+    !isTextOrNull(commandArguments["node"])
+  ) {
+    return failedWith("pop_out_viewer needs `stream`, a stream's id, `project_name` and `display_name`, the words its tab is labelled with, and `node`, a node's name or null for the stream's first exposed output");
+  }
+  return succeeded({
+    stream: commandArguments["stream"],
+    project_name: commandArguments["project_name"],
+    display_name: commandArguments["display_name"],
+    node: commandArguments["node"],
+  });
+}
+
+/** `pop_out_viewer`: a Viewer pinned to `target` popped out of the asking studio window; refused from any other window. */
+export function popOutViewer(sharedState: TatolabAppSharedState, target: PoppedOutViewerTarget, commandFromWindow: TatolabCommandFromWindow): Result<void, string> {
+  const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
+  if (studioWindow === null) return failedWith("Only a project's studio window can pop out its Viewer.");
+  sharedState.appWindows.popOutTheViewerOf(studioWindow, target);
+  return succeeded(undefined);
+}
+
+/** The studio window whose Get more window sent `commandFromWindow`, or the refusal any other window is given. */
+function studioWindowOfTheGetMoreWindowTheCommandCameFrom(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Result<StudioWindowOfAProject, string> {
+  const studioWindow = sharedState.appWindows.studioWindowOfTheGetMoreWindowWithContents(commandFromWindow.windowContentsId);
+  return studioWindow === null ? failedWith("Only a Get more window imports into a project.") : succeeded(studioWindow);
+}
+
+/** The workspace's `pyproject.toml` as read from disk now, and the same text with `requirement` added, or why it cannot be. */
+async function importPreviewOf(studioWindow: StudioWindowOfAProject, requirement: string): Promise<Result<ImportPreview, string>> {
+  const reading = studioWindow.openProject.readOpenProject();
+  if (reading.kind !== "read") return failedWith(reading.kind === "none_open" ? "No project is open to import into." : `The project in ${reading.folder} could not be read: ${reading.refusal}`);
+  const descriptionFile = path.join(reading.open_project.project.folder, PROJECT_DESCRIPTION_FILE_NAME);
+  const descriptionRead = await studioWindow.openProjectFiles.readProjectFile(descriptionFile);
+  if (!descriptionRead.ok) return descriptionRead;
+  const textAfter = pyprojectTextWithTheRequirementAdded(descriptionRead.value.text, requirement);
+  if (!textAfter.ok) return textAfter;
+  return succeeded({ file: descriptionFile, text_before: descriptionRead.value.text, text_after: textAfter.value, based_on_version: descriptionRead.value.version });
+}
+
+/** `preview_import`: the asking Get more window's workspace `pyproject.toml` before and after `requirement` is added, nothing written. */
+export function previewImport(sharedState: TatolabAppSharedState, requirement: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ImportPreview, string>> {
+  return answerTheWindow("preview_import", async () => {
+    const studioWindow = studioWindowOfTheGetMoreWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    return studioWindow.ok ? importPreviewOf(studioWindow.value, requirement) : studioWindow;
+  });
+}
+
+/** `import_into_workspace`: `requirement` written into the workspace's `pyproject.toml` when it is still at `basedOnVersion`; refused with nothing written otherwise. */
+export function importIntoWorkspace(
+  sharedState: TatolabAppSharedState,
+  requirement: string,
+  basedOnVersion: string,
+  commandFromWindow: TatolabCommandFromWindow,
+): Promise<Result<void, string>> {
+  return answerTheWindow("import_into_workspace", async () => {
+    const studioWindow = studioWindowOfTheGetMoreWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const preview = await importPreviewOf(studioWindow.value, requirement);
+    if (!preview.ok) return preview;
+    if (preview.value.based_on_version !== basedOnVersion) return failedWith("pyproject.toml changed since the import was shown; nothing was written. Look at the change again before importing.");
+    const saved = await studioWindow.value.openProjectFiles.saveProjectFile(preview.value.file, preview.value.text_after, basedOnVersion);
+    if (!saved.ok) return saved;
+    sharedState.tatolabAppLog.info("imported a project into the workspace", { requirement, project_folder: studioWindow.value.openProject.projectFolder });
+    return succeeded(undefined);
+  });
+}
+
+/** `open_import_to_edit`: the workspace's import `name`, whose source is a folder, opened in its own studio window; refused for an import with no folder. */
+export function openImportToEdit(sharedState: TatolabAppSharedState, name: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+  return answerTheWindow("open_import_to_edit", async () => {
+    const studioWindow = studioWindowOfTheGetMoreWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!studioWindow.ok) return studioWindow;
+    const reading = studioWindow.value.openProject.readOpenProject();
+    const importedProject = reading.kind === "read" ? reading.open_project.imports.find((imported) => imported.name === name) : undefined;
+    if (importedProject === undefined) return failedWith(`The project imports nothing named ${name}.`);
+    if (importedProject.source.kind !== "folder") return failedWith(`${name} comes from a package index, so it has no folder of its own to open; only an import from a folder opens to edit.`);
+    await sharedState.appWindows.openTheProjectInItsStudioWindow(importedProject.source.project.folder);
+    return succeeded(undefined);
   });
 }
 
@@ -458,9 +605,9 @@ export function sendToPythonLanguageServerArgumentsFrom(commandArguments: unknow
   return succeeded({ session, message });
 }
 
-/** Each command's handler, taking the arguments as the window sent them and answering in the contract's shape. */
+/** Each command's handler, taking the arguments as the window sent them and the window that sent them, and answering in the contract's shape. */
 export type TatolabWindowCommandHandlers = {
-  readonly [CommandName in TatolabCommandName]: (commandArguments: unknown) => Promise<TatolabCommandAnswerTo<CommandName>>;
+  readonly [CommandName in TatolabCommandName]: (commandArguments: unknown, commandFromWindow: TatolabCommandFromWindow) => Promise<TatolabCommandAnswerTo<CommandName>>;
 };
 
 function commandAnswerFrom<Answer>(outcome: Result<Answer, string>): { ok: true; value: Answer } | { ok: false; refusal: string } {
@@ -480,11 +627,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       quitTheApp();
       return { ok: true, value: null };
     },
-    read_project_log_records: async (commandArguments) => {
+    read_project_log_records: async (commandArguments, commandFromWindow) => {
       const readArguments = readProjectLogRecordsArgumentsFrom(commandArguments);
       if (!readArguments.ok) return { ok: false, refusal: readArguments.failure };
       const { projectDirectory, narrowing, after } = readArguments.value;
-      const readableProjectDirectory = projectDirectoryWhoseLogTheWindowMayRead(sharedState, projectDirectory);
+      const readableProjectDirectory = projectDirectoryWhoseLogTheWindowMayRead(sharedState, projectDirectory, commandFromWindow);
       if (!readableProjectDirectory.ok) return { ok: false, refusal: readableProjectDirectory.failure };
       return commandAnswerFrom(await readProjectLogRecords(sharedState, readableProjectDirectory.value, narrowing, after));
     },
@@ -583,50 +730,102 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!relayId.ok) return { ok: false, refusal: relayId.failure };
       return commandAnswerOfNothingFrom(await removeRelay(sharedState, relayId.value));
     },
-    choose_project_folder: async (commandArguments) => {
+    choose_project_folder: async (commandArguments, commandFromWindow) => {
       const chooseArguments = chooseProjectFolderArgumentsFrom(commandArguments);
       if (!chooseArguments.ok) return { ok: false, refusal: chooseArguments.failure };
-      return commandAnswerFrom(await chooseProjectFolder(sharedState, chooseArguments.value.chosen_for));
+      return commandAnswerFrom(await chooseProjectFolder(sharedState, chooseArguments.value.chosen_for, commandFromWindow));
     },
-    read_new_project_defaults: async () => ({ ok: true, value: await sharedState.openProjectFolder.readNewProjectDefaults() }),
+    read_new_project_defaults: async () => ({ ok: true, value: await sharedState.projectOpening.readNewProjectDefaults() }),
     choose_new_project_location: async (commandArguments) => {
       const startingAt = oneTextArgumentFrom("choose_new_project_location", commandArguments, "starting_at", "the folder the dialog opens in");
       if (!startingAt.ok) return { ok: false, refusal: startingAt.failure };
-      return commandAnswerFrom(await answerTheWindow("choose_new_project_location", () => sharedState.openProjectFolder.chooseNewProjectLocation(startingAt.value)));
+      return commandAnswerFrom(await answerTheWindow("choose_new_project_location", () => sharedState.projectOpening.chooseNewProjectLocation(startingAt.value)));
     },
-    create_new_project: async (commandArguments) => {
+    create_new_project: async (commandArguments, commandFromWindow) => {
       const createArguments = createNewProjectArgumentsFrom(commandArguments);
       if (!createArguments.ok) return { ok: false, refusal: createArguments.failure };
-      return commandAnswerFrom(await createNewProject(sharedState, createArguments.value.name, createArguments.value.location));
+      return commandAnswerFrom(await createNewProject(sharedState, createArguments.value.name, createArguments.value.location, commandFromWindow));
     },
-    read_open_project: async () => ({ ok: true, value: sharedState.openProjectFolder.readOpenProject() }),
-    read_recent_projects: async () => ({ ok: true, value: await sharedState.openProjectFolder.readRecentProjects() }),
-    open_recent_project: async (commandArguments) => {
+    read_open_project: async (_commandArguments, commandFromWindow) => ({
+      ok: true,
+      value: sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId)?.openProject.readOpenProject() ?? NO_PROJECT_OPEN_IN_THE_WINDOW,
+    }),
+    read_recent_projects: async () => ({ ok: true, value: await sharedState.projectOpening.readRecentProjects() }),
+    open_recent_project: async (commandArguments, commandFromWindow) => {
       const folder = oneTextArgumentFrom("open_recent_project", commandArguments, "folder", "one of the recent projects' folders");
       if (!folder.ok) return { ok: false, refusal: folder.failure };
-      return commandAnswerOfNothingFrom(await answerTheWindow("open_recent_project", () => sharedState.openProjectFolder.openRecentProject(folder.value)));
+      return commandAnswerOfNothingFrom(await openRecentProject(sharedState, folder.value, commandFromWindow));
     },
-    read_project_file: async (commandArguments) => {
+    show_projects_window: async () => {
+      sharedState.appWindows.showTheProjectsWindow();
+      return { ok: true, value: null };
+    },
+    pop_out_viewer: async (commandArguments, commandFromWindow) => {
+      const target = popOutViewerArgumentsFrom(commandArguments);
+      if (!target.ok) return { ok: false, refusal: target.failure };
+      return commandAnswerOfNothingFrom(popOutViewer(sharedState, target.value, commandFromWindow));
+    },
+    read_popped_out_viewer: async (_commandArguments, commandFromWindow) => ({
+      ok: true,
+      value: sharedState.appWindows.poppedOutViewerTargetOfTheWindowWithContents(commandFromWindow.windowContentsId),
+    }),
+    open_get_more_window: async (_commandArguments, commandFromWindow) => {
+      const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
+      if (studioWindow === null) return { ok: false, refusal: "Only a project's studio window opens Get more." };
+      sharedState.appWindows.openTheGetMoreWindowOf(studioWindow);
+      return { ok: true, value: null };
+    },
+    read_get_more_workspace: async (_commandArguments, commandFromWindow) => ({
+      ok: true,
+      value: sharedState.appWindows.studioWindowOfTheGetMoreWindowWithContents(commandFromWindow.windowContentsId)?.openProject.readOpenProject() ?? null,
+    }),
+    read_package_catalog: async () => ({ ok: true, value: await readThePackageCatalog(sharedState.fetchTextOverHttps) }),
+    preview_import: async (commandArguments, commandFromWindow) => {
+      const requirement = oneTextArgumentFrom("preview_import", commandArguments, "requirement", "the requirement to add");
+      if (!requirement.ok) return { ok: false, refusal: requirement.failure };
+      return commandAnswerFrom(await previewImport(sharedState, requirement.value, commandFromWindow));
+    },
+    import_into_workspace: async (commandArguments, commandFromWindow) => {
+      const requirement = oneTextArgumentFrom("import_into_workspace", commandArguments, "requirement", "the requirement to add");
+      if (!requirement.ok) return { ok: false, refusal: requirement.failure };
+      const basedOnVersion = oneTextArgumentFrom("import_into_workspace", commandArguments, "based_on_version", "the version preview_import read pyproject.toml at");
+      if (!basedOnVersion.ok) return { ok: false, refusal: basedOnVersion.failure };
+      return commandAnswerOfNothingFrom(await importIntoWorkspace(sharedState, requirement.value, basedOnVersion.value, commandFromWindow));
+    },
+    open_import_to_edit: async (commandArguments, commandFromWindow) => {
+      const name = oneTextArgumentFrom("open_import_to_edit", commandArguments, "name", "the name of one of the workspace's imports");
+      if (!name.ok) return { ok: false, refusal: name.failure };
+      return commandAnswerOfNothingFrom(await openImportToEdit(sharedState, name.value, commandFromWindow));
+    },
+    read_project_file: async (commandArguments, commandFromWindow) => {
       const file = oneTextArgumentFrom("read_project_file", commandArguments, "file", "an absolute path in the open project");
       if (!file.ok) return { ok: false, refusal: file.failure };
-      return commandAnswerFrom(await answerTheWindow("read_project_file", () => sharedState.openProjectFiles.readProjectFile(file.value)));
+      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+      if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
+      return commandAnswerFrom(await answerTheWindow("read_project_file", () => studioWindow.value.openProjectFiles.readProjectFile(file.value)));
     },
-    save_project_file: async (commandArguments) => {
+    save_project_file: async (commandArguments, commandFromWindow) => {
       const saveArguments = saveProjectFileArgumentsFrom(commandArguments);
       if (!saveArguments.ok) return { ok: false, refusal: saveArguments.failure };
+      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+      if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
       const { file, text, based_on_version } = saveArguments.value;
-      return commandAnswerFrom(await answerTheWindow("save_project_file", () => sharedState.openProjectFiles.saveProjectFile(file, text, based_on_version)));
+      return commandAnswerFrom(await answerTheWindow("save_project_file", () => studioWindow.value.openProjectFiles.saveProjectFile(file, text, based_on_version)));
     },
-    list_project_files: async (commandArguments) => {
+    list_project_files: async (commandArguments, commandFromWindow) => {
       const projectFolder = oneTextArgumentFrom("list_project_files", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
       if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };
-      return commandAnswerFrom(await answerTheWindow("list_project_files", () => sharedState.openProjectFiles.listProjectFiles(projectFolder.value)));
+      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+      if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
+      return commandAnswerFrom(await answerTheWindow("list_project_files", () => studioWindow.value.openProjectFiles.listProjectFiles(projectFolder.value)));
     },
-    run_open_project: async () => commandAnswerFrom(await runOpenProject(sharedState)),
-    start_python_language_server: async (commandArguments) => {
+    run_open_project: async (_commandArguments, commandFromWindow) => commandAnswerFrom(await runOpenProject(sharedState, commandFromWindow)),
+    start_python_language_server: async (commandArguments, commandFromWindow) => {
       const projectFolder = oneTextArgumentFrom("start_python_language_server", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
       if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };
-      return commandAnswerFrom(sharedState.pythonLanguageServers.startALanguageServer(projectFolder.value));
+      const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+      if (!studioWindow.ok) return { ok: false, refusal: studioWindow.failure };
+      return commandAnswerFrom(sharedState.pythonLanguageServers.startALanguageServer(projectFolder.value, studioWindow.value.languageServerOfTheWindow));
     },
     send_to_python_language_server: async (commandArguments) => {
       const sendArguments = sendToPythonLanguageServerArgumentsFrom(commandArguments);
