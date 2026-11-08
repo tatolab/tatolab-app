@@ -522,3 +522,39 @@ export interface ProjectFiles {
 export type PythonLanguageServerEvent =
   | { session: string; kind: "message"; message: JsonValue }
   | { session: string; kind: "ended"; because: string };
+
+/** The output port of a running node a Viewer shows, as `graph` names it. */
+export interface PortViewerTarget {
+  stream: string;
+  node: string;
+  port: string;
+}
+
+/** The facts beside an Image frame a port viewer hands the window as a shared texture. */
+export interface PortViewerImageFrameFacts {
+  port_viewer: string;
+  /** The runtime's wire name of the frame's pixel format (`bgra32`, `rgba32`, `nv12`, …). */
+  format_wire_name: string;
+  /** Messages the viewer skipped before this one, because a viewer reads only the latest. */
+  skipped_since_last_read: number;
+}
+
+/**
+ * What `tatolab-port-viewer-event` carries about one port viewer: Image frames a shared texture cannot carry, as their pixels (a GPU
+ * whose memory crosses only as CPU-readable bytes); any other family's latest message, by its size; the viewer reopening after its
+ * connection to the runtime closed; or its end, with why in the runtime's words.
+ */
+export type PortViewerEvent =
+  | {
+      port_viewer: string;
+      kind: "image_pixels";
+      width: number;
+      height: number;
+      format_wire_name: string;
+      bytes_per_row: number;
+      pixels: Uint8Array;
+      skipped_since_last_read: number;
+    }
+  | { port_viewer: string; kind: "message"; port_family: string; payload_byte_length: number; skipped_since_last_read: number }
+  | { port_viewer: string; kind: "reopening"; because: string }
+  | { port_viewer: string; kind: "ended"; because: string };
