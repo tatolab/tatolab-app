@@ -1,4 +1,4 @@
-// scripts/verify-tatolab-app-bundle.sh fails a bundle whose runtime helper's tatolabd reports another version than
+// scripts/verify-tatolab-app-bundle.sh fails a bundle whose runtime helper's tatolabd reports a version newer than
 // the app's CFBundleShortVersionString, or that names no streamlib commit. It reads the plist with
 // macOS's plutil, so these run only where plutil is.
 
@@ -53,16 +53,18 @@ async function appBundlePlantedWith(appShortVersion: string, tatolabdVersion: st
   return appBundle;
 }
 
-test.runIf(PLUTIL_IS_AVAILABLE)("a bundle whose tatolabd is not the app's version fails", async () => {
-  const verifyOutcome = await runTheVerifyScript(await appBundlePlantedWith("0.55.4", "0.54.12", BUNDLED_STREAMLIB_COMMIT));
+test.runIf(PLUTIL_IS_AVAILABLE)("a bundle whose tatolabd is newer than the app's version fails", async () => {
+  const verifyOutcome = await runTheVerifyScript(await appBundlePlantedWith("0.55.4", "0.55.10", BUNDLED_STREAMLIB_COMMIT));
   expect(verifyOutcome.exitCode).not.toBe(0);
-  expect(verifyOutcome.output).toContain("FAIL  the bundled tatolabd is '0.54.12', not the app's version '0.55.4'");
+  expect(verifyOutcome.output).toContain("FAIL  the bundled tatolabd is '0.55.10', not a version at or below the app's '0.55.4'");
   expect(verifyOutcome.output).toContain(`ok    the runtime was built from streamlib ${BUNDLED_STREAMLIB_COMMIT}`);
 });
 
-test.runIf(PLUTIL_IS_AVAILABLE)("a bundle whose tatolabd is the app's version passes that check", async () => {
-  const verifyOutcome = await runTheVerifyScript(await appBundlePlantedWith("0.55.4", "0.55.4", BUNDLED_STREAMLIB_COMMIT));
-  expect(verifyOutcome.output).toContain("ok    the bundled tatolabd is 0.55.4, the app's version");
+test.runIf(PLUTIL_IS_AVAILABLE)("a bundle whose tatolabd is the app's version, or older, passes that check", async () => {
+  const sameVersionOutcome = await runTheVerifyScript(await appBundlePlantedWith("0.55.4", "0.55.4", BUNDLED_STREAMLIB_COMMIT));
+  expect(sameVersionOutcome.output).toContain("ok    the bundled tatolabd is 0.55.4, no newer than the app's version 0.55.4");
+  const olderRuntimeOutcome = await runTheVerifyScript(await appBundlePlantedWith("0.55.10", "0.55.4", BUNDLED_STREAMLIB_COMMIT));
+  expect(olderRuntimeOutcome.output).toContain("ok    the bundled tatolabd is 0.55.4, no newer than the app's version 0.55.10");
 });
 
 test.runIf(PLUTIL_IS_AVAILABLE)("a bundle that names no streamlib commit fails", async () => {

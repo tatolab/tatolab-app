@@ -2,7 +2,7 @@ cask "tato-studio" do
   version "@VERSION@"
   sha256 "@SHA256@"
 
-  url "https://github.com/tatolab/streamlib/releases/download/v#{version}/Tato-Studio-#{version}-arm64.dmg"
+  url "https://github.com/tatolab/tatolab-app/releases/download/v#{version}/Tato-Studio-#{version}-arm64.dmg"
   name "Tato Studio"
   desc "Graph-first creative studio for real-time camera, audio and GPU streams"
   homepage "https://tatolab.com/"

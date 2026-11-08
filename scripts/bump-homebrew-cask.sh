@@ -3,7 +3,7 @@
 # the tap's cask_renames.json entry that moves a `tatolab` cask install to it on `brew upgrade`.
 #
 # Usage: bump-homebrew-cask.sh <version> <Tato-Studio-<version>-arm64.dmg> <tap checkout>
-#   version  without the leading v, e.g. 0.45.0; the dmg must already be on streamlib's v<version>
+#   version  without the leading v, e.g. 0.45.0; the dmg must already be on tatolab-app's v<version>
 #            release, where the cask's url points
 set -euo pipefail
 

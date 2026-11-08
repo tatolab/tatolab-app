@@ -5,13 +5,13 @@
 # build/Tato-Studio-<version>-arm64-mac.zip and its feed manifest build/latest-mac.yml.
 # The runtime is always streamlib's main, or --streamlib-ref, fetched by
 # fetch-streamlib-for-the-app-build.sh into build/streamlib; nothing outside this repository is read.
-# The app's version is the version of the tatolabd it bundles. When it finishes it checks
+# The app's version is the version of the tatolabd it bundles, or --app-version. When it finishes it checks
 # streamlib's main again: a build of main fails if main moved on while it ran.
 # Every build is signed with the Developer ID from Infisical, imported into a temporary keychain
 # that is deleted when the build ends; without it the build stops before doing anything.
 #
-# Usage: build-tatolab-app.sh [--streamlib-ref REF] [--runtime-unit DIR] [--local-proof-test-root]
-#                             [--notarize] [--app-update-feed-url URL] [--release]
+# Usage: build-tatolab-app.sh [--streamlib-ref REF] [--runtime-unit DIR] [--app-version X.Y.Z]
+#                             [--local-proof-test-root] [--notarize] [--app-update-feed-url URL] [--release]
 #   APPLE_CERTIFICATE           base64 of the Developer ID Application .p12 (Infisical)
 #   APPLE_CERTIFICATE_PASSWORD  its password (Infisical)
 #   APPLE_SIGNING_IDENTITY      "Developer ID Application: … (TEAMID)" (Infisical)
@@ -23,6 +23,8 @@
 #                            passes the release tag it builds
 #   --runtime-unit DIR       an already-built runtime unit, accepted only when its streamlib-commit
 #                            names the commit the build resolved
+#   --app-version X.Y.Z      the app's version, in place of the bundled tatolabd's; the release
+#                            workflow passes the version it plans, never older than the runtime's
 #   --local-proof-test-root  every machine directory under TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof
 #                            and no administrator prompt; for proving on this Mac, never shipped
 #   --notarize               notarize and staple the app and the .dmg, for a release (needs
@@ -42,10 +44,12 @@ local_proof_test_root=false
 notarize=false
 app_update_feed_url=""
 release_build=false
+requested_app_version=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --streamlib-ref) [ $# -ge 2 ] || usage; streamlib_ref="$2"; shift ;;
     --runtime-unit) [ $# -ge 2 ] || usage; prebuilt_runtime_unit="$2"; shift ;;
+    --app-version) [ $# -ge 2 ] || usage; requested_app_version="${2#v}"; shift ;;
     --local-proof-test-root) local_proof_test_root=true ;;
     --notarize) notarize=true ;;
     --app-update-feed-url) [ $# -ge 2 ] || usage; app_update_feed_url="$2"; shift ;;
@@ -137,9 +141,11 @@ unit_streamlib_commit="$(cat "$runtime_unit_directory/streamlib-commit" 2>/dev/n
   exit 1
 }
 tatolabd_version_output="$("$runtime_unit_directory/bin/tatolabd" --version)"
-app_version="${tatolabd_version_output##* }"
-[[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "the unit's tatolabd reports no X.Y.Z version: $tatolabd_version_output" >&2; exit 1; }
-echo "    $runtime_unit_directory: streamlib $streamlib_commit, version $app_version"
+runtime_version="${tatolabd_version_output##* }"
+[[ "$runtime_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "the unit's tatolabd reports no X.Y.Z version: $tatolabd_version_output" >&2; exit 1; }
+app_version="${requested_app_version:-$runtime_version}"
+[[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "--app-version is not X.Y.Z: $app_version" >&2; exit 1; }
+echo "    $runtime_unit_directory: streamlib $streamlib_commit, runtime $runtime_version, app version $app_version"
 assembled_app="$build_directory/Tato Studio.app"
 output_dmg="$build_directory/Tato-Studio-$app_version-arm64.dmg"
 output_update_zip="$build_directory/Tato-Studio-$app_version-arm64-mac.zip"

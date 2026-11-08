@@ -137,8 +137,9 @@ attention spent on settled things is unavailable for real forks.
   change the signature.
 - **Secrets come from Infisical, never the tree.** `.infisical.json` stays untracked; signing
   certificates, API keys and tokens never appear in a commit, a log, a PR body or an evidence image.
-- **The version is never hand-edited**: a release builds the app at the streamlib version it
-  bundles.
+- **The version is never hand-edited**: a release takes the streamlib version it bundles, or, when
+  the app releases again over the same runtime, the last app version's next patch
+  (`scripts/plan_tatolab_app_release.mjs`).
 - **Done means seen.** A change to the window, the tray, or how the app runs the runtime is
   done when `/verify-app` has shown it at the lowest rung that proves the claim — Mock for pure
   presentation, Live (local proof) for anything that talks to a runtime — labelled; never when
