@@ -16,3 +16,7 @@ build/
 .claude/machine-brake.local.json
 .claude/state/
 .claude/worktrees/
+
+# The viewer addon's cargo target directory
+native/*/target/
+native/*/Cargo.lock.pinned-to-git
