@@ -47,8 +47,8 @@ the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-em
 
 A packaged app checks the feed at `https://get.tatolab.com/app/` at launch and once a day, through
 [electron-updater](https://github.com/electron-userland/electron-builder/tree/master/packages/electron-updater)'s
-generic provider; "Check for Updates…" in the Help menu (right after About Tato Studio), the tray,
-or Settings checks at once. A newer version that installs in place downloads in the background and
+generic provider; "Check for Updates…", right after About Tato Studio (in the Tato Studio menu of
+macOS's menu bar, in Help on Linux), in the tray, or in Settings checks at once. A newer version that installs in place downloads in the background and
 is staged, and the person is notified once per version; the same item then reads "Restart to Update",
 which installs it and reopens the app, and a staged version also installs the next time the app
 quits. On macOS Squirrel.Mac stages the signed `.zip` and replaces the bundle, which stops the old

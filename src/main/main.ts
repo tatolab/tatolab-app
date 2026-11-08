@@ -8,6 +8,7 @@
 
 import type { FetchTextOverHttps } from "./package_catalog.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
+import type { SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
@@ -40,6 +41,7 @@ import { ProjectOpening, type FolderEntriesWatch, type ProjectFolderDialog } fro
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
+import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 import { runtimeViewerChannelReaderOpenerOver } from "./runtime_viewer_frame_import_addon.js";
 import { recentProjectFoldersFileIn } from "./recent_project_folders_file.js";
 import { runProgramToCompletion } from "./platform/run_program_to_completion.js";
@@ -67,7 +69,12 @@ export interface TatolabElectronAppShell {
   /** As the system quits the app (Cmd-Q, logging out, an update's install), hold the quit until the work `workBeforeTheQuitGoesOn` hands back has finished; `null` lets the quit go on at once. */
   holdTheQuitUntil(workBeforeTheQuitGoesOn: () => Promise<void> | null): void;
   exitTheApp(exitCode: number): void;
-  setTheApplicationMenu(applicationMenu: ApplicationMenu): void;
+  /** Show `menusOfTheFocusedWindow` in the system menu bar, or the default bar for `null`; `whenAnEntryIsChosen` hears each entry the person chooses. */
+  setTheApplicationMenu(applicationMenu: ApplicationMenu, menusOfTheFocusedWindow: readonly SystemMenuBarMenu[] | null, whenAnEntryIsChosen: (entryId: string) => void): void;
+  /** Calls `listener` with a window's page id each time that window comes into focus. */
+  onAWindowFocused(listener: (windowContentsId: number) => void): void;
+  /** Calls `listener` with a window's page id once that window has closed. */
+  onAWindowClosed(listener: (windowContentsId: number) => void): void;
   /** This platform's carried runtime, the command's link and the local API socket, built from `platformItems` with the app's host services. */
   buildTheTatolabPlatformForThisBuild(platformItems: TatolabPlatformItems): Promise<TatolabPlatformForThisBuild>;
   /** Answer each command the window invokes with its handler. */
@@ -156,7 +163,15 @@ export async function startTatolabApp(
   });
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.letEveryWindowCloseAsTheAppQuits());
   await tatolabElectronAppShell.whenReady();
-  tatolabElectronAppShell.setTheApplicationMenu(platformItems.applicationMenu);
+  const systemMenuBar = new SystemMenuBarOfTheFocusedWindow({
+    applicationMenu: platformItems.applicationMenu,
+    setTheApplicationMenu: (applicationMenu, menusOfTheFocusedWindow, whenAnEntryIsChosen) =>
+      tatolabElectronAppShell.setTheApplicationMenu(applicationMenu, menusOfTheFocusedWindow, whenAnEntryIsChosen),
+    sendTheWindowTheChosenEntry: (windowContentsId, entryId) => tatolabAppWindows.windowWithContents(windowContentsId)?.sendTheWindowTheChosenSystemMenuBarEntry(entryId),
+  });
+  systemMenuBar.showTheDefaultMenuBar();
+  tatolabElectronAppShell.onAWindowFocused((windowContentsId) => systemMenuBar.noticeTheWindowFocused(windowContentsId));
+  tatolabElectronAppShell.onAWindowClosed((windowContentsId) => systemMenuBar.forgetTheWindow(windowContentsId));
   let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
   tatolabElectronAppShell.onTheAppOpenedAgain((openedCopy) => {
     if (openedCopy !== null && isAnotherBuildOfTatolab(thisCopyOfTatolab, openedCopy)) {
@@ -284,6 +299,7 @@ export async function startTatolabApp(
     appWindows: tatolabAppWindows,
     pythonLanguageServers,
     runtimePortViewers,
+    systemMenuBar,
     fetchTextOverHttps: tatolabElectronAppShell.fetchTextOverHttps,
     tatolabAppLog,
   };

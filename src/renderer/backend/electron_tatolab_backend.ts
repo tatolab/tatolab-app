@@ -74,6 +74,10 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     showTheProjectsWindow: async () => {
       await invokeTatolabCommand("show_projects_window", undefined);
     },
+    showTheMenusInTheSystemMenuBar: async (menus) => {
+      await invokeTatolabCommand("show_menus_in_the_system_menu_bar", { menus });
+    },
+    onSystemMenuBarEntryChosen: (listener) => tatolabElectronBridge.onSystemMenuBarEntryChosen(listener),
     chooseProjectFolder: (chosenFor) => invokeTatolabCommand("choose_project_folder", { chosen_for: chosenFor }),
     readNewProjectDefaults: () => invokeTatolabCommand("read_new_project_defaults", undefined),
     chooseNewProjectLocation: (startingAt) => invokeTatolabCommand("choose_new_project_location", { starting_at: startingAt }),

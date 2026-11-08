@@ -38,6 +38,7 @@ import {
 import { openTheRuntimesLogFolder } from "./runtime_log_folder_opening.js";
 import { openStreamProjectFolder, type StreamProjectFolderOpening } from "./stream_project_folder_opening.js";
 import { NO_PROJECT_OPEN_IN_THE_WINDOW, type StudioWindowOfAProject } from "./tatolab_app_windows.js";
+import { systemMenuBarMenusFrom } from "./system_menu_bar_of_the_focused_window.js";
 
 /** How long `get_tatolab_status` waits for the poller's first round when the window asks first. */
 const FIRST_STATUS_ROUND_WAIT_LIMIT_MS = 15_000;
@@ -794,6 +795,12 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!portViewer.ok) return { ok: false, refusal: portViewer.failure };
       const windowShowingPortViewers = sharedState.appWindows.windowShowingPortViewersWithContents(commandFromWindow.windowContentsId);
       if (windowShowingPortViewers !== null) sharedState.runtimePortViewers.closeAPortViewer(portViewer.value, windowShowingPortViewers);
+      return { ok: true, value: null };
+    },
+    show_menus_in_the_system_menu_bar: async (commandArguments, commandFromWindow) => {
+      const menus = systemMenuBarMenusFrom(commandArguments);
+      if (!menus.ok) return { ok: false, refusal: menus.failure };
+      sharedState.systemMenuBar.keepTheMenusOfTheWindow(commandFromWindow.windowContentsId, menus.value);
       return { ok: true, value: null };
     },
   };

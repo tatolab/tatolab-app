@@ -195,6 +195,11 @@ export class TatolabAppWindows {
     return null;
   }
 
+  /** The window whose page is `windowContentsId`, whatever it is; `null` for a window that has closed. */
+  windowWithContents(windowContentsId: number): TatolabMainWindow | null {
+    return this.everyWindow().find((tatolabMainWindow) => tatolabMainWindow.isTheWindowWithContents(windowContentsId)) ?? null;
+  }
+
   /** Whether `windowContentsId` is the Projects window's page. */
   isTheProjectsWindow(windowContentsId: number): boolean {
     return this.projectsWindow.isTheWindowWithContents(windowContentsId);

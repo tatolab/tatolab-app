@@ -47,6 +47,9 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
     onPortViewerImageFrame() {
       return () => undefined;
     },
+    onSystemMenuBarEntryChosen() {
+      return () => undefined;
+    },
     tellTheAppTheWindowDrewItsFirstStatus() {},
   };
   return { tatolabElectronBridge, invokedCommands, statusListeners, streamPageRequestListeners, openProjectListeners };

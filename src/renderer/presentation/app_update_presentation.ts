@@ -76,9 +76,14 @@ export function presentTatolabAppUpdate(appUpdate: TatolabAppUpdateState): Tatol
   }
 }
 
-/** The menus' updates entry, right after About Tato Studio: Settings' control, its restart naming the version it installs; `null` in an app that cannot update itself. */
+/**
+ * The menus' updates entry, right after About Tato Studio: Settings' control, its restart naming the version it installs, and its
+ * download without a percent, since macOS's menu bar is rebuilt whenever an entry changes; `null` in an app that cannot update itself.
+ */
 export function presentTatolabAppUpdateMenuEntry(appUpdate: TatolabAppUpdateState): TatolabAppUpdateAction | null {
   const action = presentTatolabAppUpdateAction(appUpdate);
-  if (action === null || appUpdate.kind !== "ready_to_restart") return action;
-  return { ...action, label: `Restart to Update to ${appUpdate.version}` };
+  if (action === null) return null;
+  if (appUpdate.kind === "ready_to_restart") return { ...action, label: `Restart to Update to ${appUpdate.version}` };
+  if (appUpdate.kind === "downloading") return { ...action, label: "Downloading Update…" };
+  return action;
 }

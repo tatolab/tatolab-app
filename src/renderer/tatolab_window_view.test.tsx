@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenProjectReading, PoppedOutViewerTarget, TatolabStatus } from "../shared/tatolab_backend_contract";
+import type { OpenProjectReading, PoppedOutViewerTarget, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./backend/mock_tatolab_backend";
 import { mockStreamIdOf } from "./backend/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
@@ -55,6 +55,27 @@ function pressAsAPointerDoes(element: HTMLElement): void {
   fireEvent.pointerUp(element, { button: 0, pointerType: "mouse" });
   fireEvent.mouseUp(element, { button: 0 });
   fireEvent.click(element);
+}
+
+/** The mock backend's changes that keep what the window shows in macOS's system menu bar, and choose from it as a person does. */
+function systemMenuBarOverTheMock() {
+  const menusShown: SystemMenuBarMenu[][] = [];
+  const entryChosenListeners: ((entryId: string) => void)[] = [];
+  const backendChanges: Partial<TatolabBackend> = {
+    showTheMenusInTheSystemMenuBar: async (menus) => {
+      menusShown.push(menus);
+    },
+    onSystemMenuBarEntryChosen: (listener) => {
+      entryChosenListeners.push(listener);
+      return () => {};
+    },
+  };
+  const menusShownLast = () => menusShown.at(-1) ?? expect.unreachable("the window showed no menus in the system menu bar");
+  const chooseFromTheSystemMenuBar = (entryId: string) =>
+    act(() => {
+      for (const entryChosenListener of entryChosenListeners) entryChosenListener(entryId);
+    });
+  return { backendChanges, menusShownLast, chooseFromTheSystemMenuBar };
 }
 
 /** Chooses `entryLabel` from the menu bar's `menuLabel` menu, as a person does. */
@@ -196,10 +217,48 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("perform");
     expect(document.querySelector('[data-studio-area="scene"]')).not.toBeNull();
 
+  });
+
+  it("on Linux, switches layouts from the window's own Window › Layout, ticking the one shown", async () => {
+    await mountedWindowOverTheMock("platform=linux&state=running");
+    fireEvent.keyDown(document, { key: "5", ctrlKey: true });
+    expect(await shownLayout()).toBe("perform");
+
     pressAsAPointerDoes(await waitFor(() => document.querySelector<HTMLElement>('[data-studio-menu="Window"]') ?? expect.unreachable("no Window menu")));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Layout" }));
-    expect((await screen.findByRole("menuitemcheckbox", { name: "Perform ⌘5" })).getAttribute("aria-checked")).toBe("true");
-    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Code ⌘4" }));
+    expect((await screen.findByRole("menuitemcheckbox", { name: "Perform Ctrl 5" })).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Code Ctrl 4" }));
+    expect(await shownLayout()).toBe("code");
+  });
+
+  it("on macOS, draws no menus of its own and shows them in the system menu bar, where Window › Layout ticks the layout shown and switches it", async () => {
+    const { backendChanges, menusShownLast, chooseFromTheSystemMenuBar } = systemMenuBarOverTheMock();
+    await mountedWindowOverTheMock("state=running", backendChanges);
+    expect(await shownLayout()).toBe("build");
+    expect(document.querySelector("[data-studio-menu]")).toBeNull();
+    expect(document.querySelector("[data-studio-run-live]")).not.toBeNull();
+    expect(menusShownLast().map((menu) => [menu.label, menu.system_menu])).toEqual([
+      ["Tato Studio", "app"],
+      ["File", null],
+      ["Edit", null],
+      ["Add", null],
+      ["Stream", null],
+      ["Run", null],
+      ["View", null],
+      ["Window", "window"],
+      ["Help", "help"],
+    ]);
+
+    fireEvent.keyDown(document, { key: "5", metaKey: true });
+    expect(await shownLayout()).toBe("perform");
+    await waitFor(() =>
+      expect(menusShownLast().find((menu) => menu.label === "Window")?.entries[2]).toMatchObject({
+        kind: "submenu",
+        label: "Layout",
+        entries: expect.arrayContaining([{ kind: "choice", entry_id: "Window › Layout › Perform", label: "Perform", shortcut_hint: "⌘5", is_chosen: true }]),
+      }),
+    );
+    await chooseFromTheSystemMenuBar("Window › Layout › Code");
     expect(await shownLayout()).toBe("code");
   });
 
@@ -515,8 +574,26 @@ describe("the window's first status", () => {
 });
 
 describe("Preferences", () => {
-  it("opens from Edit › Preferences… on General, listing every section under its group beside it", async () => {
-    await mountedWindowOverTheMock("state=running");
+  it("opens on macOS from Tato Studio › Settings… in the system menu bar, after About and Check for Updates…, on General", async () => {
+    const { backendChanges, menusShownLast, chooseFromTheSystemMenuBar } = systemMenuBarOverTheMock();
+    await mountedWindowOverTheMock("state=running", backendChanges);
+    await waitFor(() =>
+      expect(menusShownLast()[0]?.entries).toEqual([
+        { kind: "command", entry_id: "Tato Studio › About Tato Studio", label: "About Tato Studio", shortcut_hint: null, unavailable_because: null },
+        { kind: "command", entry_id: "Tato Studio › Check for Updates…", label: "Check for Updates…", shortcut_hint: null, unavailable_because: null },
+        { kind: "separator" },
+        { kind: "command", entry_id: "Tato Studio › Settings…", label: "Settings…", shortcut_hint: "⌘,", unavailable_because: null },
+        { kind: "separator" },
+        { kind: "system_items", system_items: "app_services_hide_and_quit" },
+      ]),
+    );
+
+    await chooseFromTheSystemMenuBar("Tato Studio › Settings…");
+    await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());
+  });
+
+  it("opens on Linux from Edit › Preferences… on General, listing every section under its group beside it", async () => {
+    await mountedWindowOverTheMock("platform=linux&state=running");
     await chooseFromTheMenuBar("Edit", /^Preferences…/);
 
     await waitFor(() => expect(document.querySelector(`[data-settings-page="general"]`)).not.toBeNull());

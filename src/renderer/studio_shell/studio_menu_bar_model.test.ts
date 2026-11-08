@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ListedStream, TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
 import type { StudioMenuEntry } from "../design_system/menu_bar";
-import { APP_UPDATE_UNDER_WAY_REASON, NO_PROJECT_OPEN_REASON, studioMenuBarMenus, type StudioMenuBarCommands } from "./studio_menu_bar_model";
+import {
+  APP_UPDATE_UNDER_WAY_REASON,
+  NO_PROJECT_OPEN_REASON,
+  studioMenuBarMenus,
+  studioMenusInTheSystemMenuBar,
+  studioMenusSentToTheSystemMenuBar,
+  type StudioMenuBarCommands,
+} from "./studio_menu_bar_model";
 import { streamsOfTheProjectToStop } from "./studio_window_model";
 
 function commandsCounted(): StudioMenuBarCommands {
@@ -96,9 +103,9 @@ describe("Help's updates entry", () => {
 
   it("is dim, with why, while an update is under way and in an app that cannot update itself", () => {
     const commands = commandsCounted();
-    expect(entryOf(studioMenuBarMenus("macos", null, { kind: "downloading", version: "0.47.0", percent: 42 }, commands), "Help", "Downloading Update… 42%")).toEqual({
+    expect(entryOf(studioMenuBarMenus("macos", null, { kind: "downloading", version: "0.47.0", percent: 42 }, commands), "Help", "Downloading Update…")).toEqual({
       kind: "unavailable_command",
-      label: "Downloading Update… 42%",
+      label: "Downloading Update…",
       unavailableBecause: APP_UPDATE_UNDER_WAY_REASON,
     });
     expect(entryOf(studioMenuBarMenus("macos", null, { kind: "not_offered", reason: "Only a packaged Tato Studio updates itself." }, commands), "Help", "Check for Updates…")).toEqual({
@@ -128,5 +135,38 @@ describe("Run › Stop", () => {
     const streams = [listing("main", "/p", "running"), listing("two", "/p", "preparing"), listing("old", "/p", "stopped"), listing("cam", "/camera", "running")];
     expect(streamsOfTheProjectToStop({ kind: "listed", streams }, "/p")).toEqual(["main", "two"]);
     expect(streamsOfTheProjectToStop({ kind: "not_listed", because: "Stopped" }, "/p")).toEqual([]);
+  });
+});
+
+describe("the studio's menus in macOS's system menu bar", () => {
+  it("keep About and Settings… in the app menu, and the desktop's own items where a Mac app keeps them", () => {
+    const { menus } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar("build", UP_TO_DATE, commandsCounted()));
+    const labelsOf = (menuLabel: string) =>
+      menus.find((menu) => menu.label === menuLabel)?.entries.map((entry) => (entry.kind === "system_items" ? `[${entry.system_items}]` : entry.kind === "separator" ? "—" : entry.label));
+    expect(labelsOf("Tato Studio")).toEqual(["About Tato Studio", "Check for Updates…", "—", "Settings…", "—", "[app_services_hide_and_quit]"]);
+    expect(labelsOf("File")?.slice(-2)).toEqual(["—", "[close_window]"]);
+    expect(labelsOf("Edit")).toEqual(["[text_editing]"]);
+    expect(labelsOf("View")).toEqual(["[full_screen]"]);
+    expect(labelsOf("Window")).toEqual(["[window_arrangement]", "—", "Layout", "Save layout as…", "Maximise area", "New window", "—", "[bring_all_to_front]"]);
+    expect(labelsOf("Help")).toEqual(["Documentation"]);
+  });
+
+  it("send each entry under the path of labels down to it, running its command when chosen there, and a dim one with why", () => {
+    const commands = commandsCounted();
+    const { menus, onChosenByEntryId } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(null, UP_TO_DATE, commands));
+    onChosenByEntryId.get("File › Open project…")?.();
+    onChosenByEntryId.get("Tato Studio › About Tato Studio")?.();
+    onChosenByEntryId.get("Tato Studio › Check for Updates…")?.();
+    expect(commands.openAProject).toHaveBeenCalledOnce();
+    expect(commands.openAbout).toHaveBeenCalledOnce();
+    expect(commands.checkForAppUpdates).toHaveBeenCalledOnce();
+    expect(menus.find((menu) => menu.label === "Run")?.entries[0]).toEqual({
+      kind: "command",
+      entry_id: "Run › Live",
+      label: "Live",
+      shortcut_hint: "F5",
+      unavailable_because: NO_PROJECT_OPEN_REASON,
+    });
+    expect(onChosenByEntryId.has("Run › Live")).toBe(false);
   });
 });

@@ -4,7 +4,7 @@ import { localApiRequestFailure } from "./local_api_client.js";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import type { TatolabPlatform } from "../shared/tatolab_backend_contract.js";
+import type { SystemMenuBarMenu, TatolabPlatform } from "../shared/tatolab_backend_contract.js";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
 import {
   FakeCarriedRuntimeStarts,
@@ -29,6 +29,7 @@ import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_record
 import { TatolabAppController } from "./tatolab_app_controller.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabAppSharedState } from "./tatolab_app_shared_state.js";
+import { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 
 /** A command as the Projects window sends it. */
 const FROM_THE_PROJECTS_WINDOW = { windowContentsId: PROJECTS_WINDOW_CONTENTS_ID };
@@ -73,6 +74,7 @@ async function sharedStateOverFakes(
     localApiSocketPath: string;
     systemNotifications: FakeSystemNotifications;
     tatolabAppOpenedAtLogin: FakeTatolabAppOpenedAtLogin;
+    menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[];
   }
 > {
   const localApiServer = await FakeLocalApiServer.answering(scriptedLocalApiResponses);
@@ -117,6 +119,7 @@ async function sharedStateOverFakes(
     quietTatolabAppLog,
   );
   const fakeShellForTheWindows = new FakeTatolabElectronAppShell();
+  const menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[] = [];
   const appWindows = new TatolabAppWindows({
     mainWindowHostFactory: fakeShellForTheWindows.tatolabElectronAppShell.mainWindowHostFactory,
     platformItems: { mainWindowChrome: { titleBarStyle: "default" }, setDockIconVisible: () => {} },
@@ -169,6 +172,12 @@ async function sharedStateOverFakes(
       waitThen: () => undefined,
       tatolabAppLog: quietTatolabAppLog,
     }),
+    systemMenuBar: new SystemMenuBarOfTheFocusedWindow({
+      applicationMenu: platform === "macos" ? "macos_menu_bar" : "none",
+      setTheApplicationMenu: (_applicationMenu, menusOfTheFocusedWindow) => menusShownInTheSystemMenuBar.push(menusOfTheFocusedWindow),
+      sendTheWindowTheChosenEntry: () => {},
+    }),
+    menusShownInTheSystemMenuBar,
     fetchTextOverHttps: async () => failedWith("these tests reach no network"),
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLink,
@@ -751,4 +760,23 @@ test("opening_tatolab_at_login_asks_the_desktop_then_observes_again_and_is_refus
     refusal: "Tato Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
   });
   expect(await commandHandlers.set_open_tatolab_at_login({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "set_open_tatolab_at_login needs `enabled`, true or false" });
+});
+
+test("a window's menus are kept for the system menu bar on macOS, shown while it is in focus, and menus out of shape are refused", async () => {
+  const sharedState = await sharedStateOverFakes([], "macos");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  const fileMenu = {
+    label: "File",
+    system_menu: null,
+    entries: [{ kind: "command", entry_id: "File/Open project…", label: "Open project…", shortcut_hint: "⌘O", unavailable_because: null }],
+  };
+
+  sharedState.systemMenuBar.noticeTheWindowFocused(FROM_THE_PROJECTS_WINDOW.windowContentsId);
+  expect(await commandHandlers.show_menus_in_the_system_menu_bar({ menus: [fileMenu] }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.show_menus_in_the_system_menu_bar({ menus: [{ ...fileMenu, entries: [{ kind: "command", label: "No id" }] }] }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "show_menus_in_the_system_menu_bar needs `menus`, the window's menus in the system menu bar's shape",
+  });
+
+  expect(sharedState.menusShownInTheSystemMenuBar).toEqual([null, [fileMenu]]);
 });

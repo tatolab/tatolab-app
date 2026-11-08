@@ -11,7 +11,7 @@ import {
   TatolabWindowStatusStore,
   type TatolabWindowEnvironment,
 } from "./setup_and_preferences/tatolab_window_context";
-import { RUN_LIVE_KEY, type StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
+import { RUN_LIVE_KEY, studioMenusSentToTheSystemMenuBar, type StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
 import { GetMoreWindowView, type GetMoreSources } from "./studio_shell/get_more_window_view";
 import { PoppedOutViewerWindowView } from "./studio_shell/popped_out_viewer_window_view";
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
@@ -159,6 +159,8 @@ export function mountTatolabWindow(
       if (openProject.kind === "read") studioWindowModel.openCodeFile(`${openProject.open_project.project.folder}/stream.py`);
     },
   };
+  let onChosenByEntryIdOfTheMenusSent: ReadonlyMap<string, () => void> = new Map();
+  backend.onSystemMenuBarEntryChosen((entryId) => onChosenByEntryIdOfTheMenusSent.get(entryId)?.());
   const studioWindowSources: StudioWindowSources = {
     model: studioWindowModel,
     viewTypeRegistry: studioViewTypeRegistry(),
@@ -169,6 +171,14 @@ export function mountTatolabWindow(
       portViewerConnections,
     }),
     commands: studioMenuBarCommands,
+    systemMenuBar: {
+      showTheMenus: (menus) => {
+        const menusSent = studioMenusSentToTheSystemMenuBar(menus);
+        onChosenByEntryIdOfTheMenusSent = menusSent.onChosenByEntryId;
+        // The app refuses only menus out of the contract's shape, which this window never builds.
+        backend.showTheMenusInTheSystemMenuBar(menusSent.menus).catch(() => {});
+      },
+    },
     projects: {
       readRecentProjects: () => backend.readRecentProjects(),
       openARecentProject: (folder) => {
