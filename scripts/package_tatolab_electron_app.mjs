@@ -44,7 +44,10 @@ for (const builtWindowFileName of await readdir(path.join(repositoryRoot, "out",
     throw new Error(`out/renderer/assets/${builtWindowFileName} is the mock window's ${mockWindowModuleName}, which the app never ships: run npm run build`);
   }
 }
-for (const builtProcessDirectory of ["main", "preload", "renderer", "native"]) {
+// macOS carries the viewer addon in Contents/Frameworks/, where build-tatolab-app.sh places it, since
+// code signing reads Mach-O there; Linux carries it beside the asar.
+const builtDirectoriesTheAppCarries = targetPlatform === "darwin" ? ["main", "preload", "renderer"] : ["main", "preload", "renderer", "native"];
+for (const builtProcessDirectory of builtDirectoriesTheAppCarries) {
   await cp(path.join(repositoryRoot, "out", builtProcessDirectory), path.join(stagedAppDirectory, "out", builtProcessDirectory), { recursive: true });
 }
 for (const trayIconFileName of ["tray-template.png", "tray-template@2x.png", "tray-coloured.png"]) {
@@ -88,8 +91,8 @@ const [packagedDirectory] = await packager({
   extendInfo: path.join(repositoryRoot, "packaging", "macos", "Info.plist"),
   icon: path.join(repositoryRoot, "packaging", "icons", "icon.icns"),
   // The code pane's Pyright runs from its files on disk beside the asar, where electron_app_entry
-  // names it, so its worker threads and bundled typeshed stubs are read as plain files; the viewer
-  // addon too, since a native module loads only from a plain file.
+  // names it, so its worker threads and bundled typeshed stubs are read as plain files; on Linux the
+  // viewer addon too, since a native module loads only from a plain file.
   asar: { unpack: "{**/node_modules/pyright/**,**/out/native/**}" },
   prune: false,
   extraResource: [appUpdateConfigFile],

@@ -3,6 +3,7 @@ import {
   carriedCommandLineToolInTheAppResources,
   carriedRuntimeExecutableInTheAppResources,
   streamlibCommitFileTheAppCarriesInTheResources,
+  viewerAddonThePackagedAppCarriesBesideItsAsar,
   tatolabMachinePathsOnLinuxForTheRealMachine,
   tatolabMachinePathsOnLinuxUnderALocalProofTestRoot,
 } from "./tatolab_machine_paths.js";
@@ -43,4 +44,8 @@ test("the_carried_runtime_cli_and_commit_sit_in_the_packages_resources_where_the
   expect(streamlibCommitFileTheAppCarriesInTheResources("/tmp/.mount_TatolaAbCdEf/usr/lib/tatolab/resources")).toBe(
     "/tmp/.mount_TatolaAbCdEf/usr/lib/tatolab/resources/tatolab-runtime/streamlib-commit",
   );
+});
+
+test("the package's viewer addon is beside its asar", () => {
+  expect(viewerAddonThePackagedAppCarriesBesideItsAsar("/usr/lib/tatolab/resources")).toBe("/usr/lib/tatolab/resources/app.asar.unpacked/out/native/tatolab_runtime_viewer_frame_import.node");
 });

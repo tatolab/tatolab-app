@@ -155,6 +155,9 @@ echo "==> viewer addon (streamlib $streamlib_commit)"
 packaged_app="$(node scripts/package_tatolab_electron_app.mjs darwin "$app_version" "$build_directory/electron-packaging" | tail -1)"
 rm -rf "$assembled_app"
 ditto "$packaged_app" "$assembled_app"
+# The viewer addon is a Mach-O, so it sits in Frameworks/, where the signing script signs it and
+# electron_app_entry loads it from.
+ditto "$repository_root/out/native/tatolab_runtime_viewer_frame_import.node" "$assembled_app/Contents/Frameworks/tatolab_runtime_viewer_frame_import.node"
 info_plist="$assembled_app/Contents/Info.plist"
 plutil -replace LSMinimumSystemVersion -string 26.0 "$info_plist"
 # Electron's own Info.plist lets the main process load any http:// URL; the app loads none.

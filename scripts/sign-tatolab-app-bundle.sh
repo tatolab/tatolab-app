@@ -93,14 +93,7 @@ while IFS= read -r -d '' helper_app; do
   helper_app_count=$((helper_app_count + 1))
 done < <(find "$contents/Frameworks" -maxdepth 1 -name '*.app' -print0)
 
-unpacked_mach_o_count=0
-while IFS= read -r -d '' unpacked_file; do
-  is_mach_o "$unpacked_file" || continue
-  codesign "${codesign_common_arguments[@]}" "$unpacked_file"
-  unpacked_mach_o_count=$((unpacked_mach_o_count + 1))
-done < <(find "$contents/Resources/app.asar.unpacked" -type f -print0)
-
 codesign "${codesign_common_arguments[@]}" --entitlements "$app_entitlements" "$app_bundle"
 
 codesign --verify --deep --strict "$app_bundle"
-echo "signed $app_bundle with the Developer ID: Tatolab Runtime.app ($helper_mach_o_count Mach-O in its Frameworks, tatolab-cli, moq-relay, uv, tatolabd, the $runtime_application_identifier provisioning profile), $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count Electron helper apps, $unpacked_mach_o_count Mach-O beside the asar (the viewer addon), the app"
+echo "signed $app_bundle with the Developer ID: Tatolab Runtime.app ($helper_mach_o_count Mach-O in its Frameworks, tatolab-cli, moq-relay, uv, tatolabd, the $runtime_application_identifier provisioning profile), $loose_framework_mach_o_count loose Mach-O in Frameworks, the frameworks, $helper_app_count Electron helper apps, the app"

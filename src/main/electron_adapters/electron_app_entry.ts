@@ -118,8 +118,10 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   startANodeLanguageServer: startANodeLanguageServerInAUtilityProcess,
   // A packaged app carries Pyright outside app.asar, in app.asar.unpacked, so its worker threads and typeshed stubs load from plain files.
   pyrightLanguageServerModulePath: path.join(app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getAppPath(), "node_modules", "pyright", "langserver.index.js"),
-  // The packaged app carries the viewer addon in app.asar.unpacked, since a native module loads only from a plain file.
-  runtimeViewerFrameImportAddonPath: path.join(app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getAppPath(), "out", "native", RUNTIME_VIEWER_FRAME_IMPORT_ADDON_FILE_NAME),
+  runtimeViewerFrameImportAddonPath:
+    app.isPackaged && tatolabPlatformItems !== null
+      ? tatolabPlatformItems.viewerAddonThePackagedAppCarries(process.resourcesPath)
+      : path.join(app.getAppPath(), "out", "native", RUNTIME_VIEWER_FRAME_IMPORT_ADDON_FILE_NAME),
   mainProcessId: process.pid,
   watchFolderEntries: watchFolderEntriesOnThisMachine,
   fetchTextOverHttps: fetchTextOverHttpsThroughElectron,
