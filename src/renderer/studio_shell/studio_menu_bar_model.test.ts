@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ListedStream } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
 import type { StudioMenuEntry } from "../design_system/menu_bar";
 import {
+  APP_UPDATE_UNDER_WAY_REASON,
   NO_PROJECT_OPEN_REASON,
   studioMenuBarMenus,
   studioMenusInTheSystemMenuBar,
@@ -17,6 +18,8 @@ function commandsCounted(): StudioMenuBarCommands {
     createAProject: vi.fn(),
     openPreferences: vi.fn(),
     openAbout: vi.fn(),
+    checkForAppUpdates: vi.fn(),
+    takeTheNewerAppVersion: vi.fn(),
     chooseLayout: vi.fn(),
     runTheProjectLive: vi.fn(),
     stopTheProject: vi.fn(),
@@ -24,6 +27,8 @@ function commandsCounted(): StudioMenuBarCommands {
     openGetMore: vi.fn(),
   };
 }
+
+const UP_TO_DATE: TatolabAppUpdateState = { kind: "up_to_date" };
 
 function entryOf(menus: ReturnType<typeof studioMenuBarMenus>, menuLabel: string, entryLabel: string): StudioMenuEntry | undefined {
   return menus.find((menu) => menu.label === menuLabel)?.entries.find((entry) => entry.kind !== "separator" && entry.label === entryLabel);
@@ -33,7 +38,7 @@ describe("the studio's File menu", () => {
   it("leads with Projects, which shows the Projects window with or without a project open", () => {
     for (const chosenLayout of [null, "code" as const]) {
       const commands = commandsCounted();
-      const fileMenu = studioMenuBarMenus("macos", chosenLayout, commands).find((menu) => menu.label === "File");
+      const fileMenu = studioMenuBarMenus("macos", chosenLayout, UP_TO_DATE, commands).find((menu) => menu.label === "File");
       const projects = fileMenu?.entries[0];
       expect(projects).toMatchObject({ kind: "command", label: "Projects" });
       if (projects?.kind === "command") projects.onChosen();
@@ -43,18 +48,18 @@ describe("the studio's File menu", () => {
 
   it("opens Get more while a project is open, and says why it waits while none is", () => {
     const commands = commandsCounted();
-    const getMore = entryOf(studioMenuBarMenus("macos", "build", commands), "File", "Get more…");
+    const getMore = entryOf(studioMenuBarMenus("macos", "build", UP_TO_DATE, commands), "File", "Get more…");
     if (getMore?.kind !== "command") throw new Error("File › Get more… is not a command");
     getMore.onChosen();
     expect(commands.openGetMore).toHaveBeenCalledOnce();
-    expect(entryOf(studioMenuBarMenus("macos", null, commands), "File", "Get more…")).toEqual({ kind: "unavailable_command", label: "Get more…", unavailableBecause: NO_PROJECT_OPEN_REASON });
+    expect(entryOf(studioMenuBarMenus("macos", null, UP_TO_DATE, commands), "File", "Get more…")).toEqual({ kind: "unavailable_command", label: "Get more…", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
 
 describe("the studio's Run and Stream menus", () => {
   it("runs, stops and opens stream.py while a project is open", () => {
     const commands = commandsCounted();
-    const menus = studioMenuBarMenus("linux", "code", commands);
+    const menus = studioMenuBarMenus("linux", "code", UP_TO_DATE, commands);
     for (const [menuLabel, entryLabel] of [
       ["Run", "Live"],
       ["Run", "Stop"],
@@ -72,9 +77,42 @@ describe("the studio's Run and Stream menus", () => {
   });
 
   it("says why they wait while no project is open", () => {
-    const menus = studioMenuBarMenus("macos", null, commandsCounted());
+    const menus = studioMenuBarMenus("macos", null, UP_TO_DATE, commandsCounted());
     expect(entryOf(menus, "Run", "Live")).toEqual({ kind: "unavailable_command", label: "Live", shortcutHint: "F5", unavailableBecause: NO_PROJECT_OPEN_REASON });
     expect(entryOf(menus, "Stream", "Open stream.py")).toEqual({ kind: "unavailable_command", label: "Open stream.py", unavailableBecause: NO_PROJECT_OPEN_REASON });
+  });
+});
+
+describe("Help's updates entry", () => {
+  it("follows About Tato Studio, checks for updates, and turns into Restart to Update once a newer version is staged", () => {
+    const commands = commandsCounted();
+    const helpEntries = studioMenuBarMenus("linux", null, UP_TO_DATE, commands).find((menu) => menu.label === "Help")?.entries ?? [];
+    expect(helpEntries.slice(0, 2)).toMatchObject([
+      { kind: "command", label: "About Tato Studio" },
+      { kind: "command", label: "Check for Updates…" },
+    ]);
+    const checkForUpdates = entryOf(studioMenuBarMenus("linux", null, UP_TO_DATE, commands), "Help", "Check for Updates…");
+    if (checkForUpdates?.kind !== "command") throw new Error("Help › Check for Updates… is not a command");
+    checkForUpdates.onChosen();
+    expect(commands.checkForAppUpdates).toHaveBeenCalledOnce();
+    const restartToUpdate = entryOf(studioMenuBarMenus("macos", null, { kind: "ready_to_restart", version: "0.47.0" }, commands), "Help", "Restart to Update to 0.47.0");
+    if (restartToUpdate?.kind !== "command") throw new Error("Help › Restart to Update is not a command");
+    restartToUpdate.onChosen();
+    expect(commands.takeTheNewerAppVersion).toHaveBeenCalledOnce();
+  });
+
+  it("is dim, with why, while an update is under way and in an app that cannot update itself", () => {
+    const commands = commandsCounted();
+    expect(entryOf(studioMenuBarMenus("macos", null, { kind: "downloading", version: "0.47.0", percent: 42 }, commands), "Help", "Downloading Update…")).toEqual({
+      kind: "unavailable_command",
+      label: "Downloading Update…",
+      unavailableBecause: APP_UPDATE_UNDER_WAY_REASON,
+    });
+    expect(entryOf(studioMenuBarMenus("macos", null, { kind: "not_offered", reason: "Only a packaged Tato Studio updates itself." }, commands), "Help", "Check for Updates…")).toEqual({
+      kind: "unavailable_command",
+      label: "Check for Updates…",
+      unavailableBecause: "Only a packaged Tato Studio updates itself.",
+    });
   });
 });
 
@@ -102,10 +140,10 @@ describe("Run › Stop", () => {
 
 describe("the studio's menus in macOS's system menu bar", () => {
   it("keep About and Settings… in the app menu, and the desktop's own items where a Mac app keeps them", () => {
-    const { menus } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar("build", commandsCounted()));
+    const { menus } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar("build", UP_TO_DATE, commandsCounted()));
     const labelsOf = (menuLabel: string) =>
       menus.find((menu) => menu.label === menuLabel)?.entries.map((entry) => (entry.kind === "system_items" ? `[${entry.system_items}]` : entry.kind === "separator" ? "—" : entry.label));
-    expect(labelsOf("Tato Studio")).toEqual(["About Tato Studio", "—", "Settings…", "—", "[app_services_hide_and_quit]"]);
+    expect(labelsOf("Tato Studio")).toEqual(["About Tato Studio", "Check for Updates…", "—", "Settings…", "—", "[app_services_hide_and_quit]"]);
     expect(labelsOf("File")?.slice(-2)).toEqual(["—", "[close_window]"]);
     expect(labelsOf("Edit")).toEqual(["[text_editing]"]);
     expect(labelsOf("View")).toEqual(["[full_screen]"]);
@@ -115,11 +153,13 @@ describe("the studio's menus in macOS's system menu bar", () => {
 
   it("send each entry under the path of labels down to it, running its command when chosen there, and a dim one with why", () => {
     const commands = commandsCounted();
-    const { menus, onChosenByEntryId } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(null, commands));
+    const { menus, onChosenByEntryId } = studioMenusSentToTheSystemMenuBar(studioMenusInTheSystemMenuBar(null, UP_TO_DATE, commands));
     onChosenByEntryId.get("File › Open project…")?.();
     onChosenByEntryId.get("Tato Studio › About Tato Studio")?.();
+    onChosenByEntryId.get("Tato Studio › Check for Updates…")?.();
     expect(commands.openAProject).toHaveBeenCalledOnce();
     expect(commands.openAbout).toHaveBeenCalledOnce();
+    expect(commands.checkForAppUpdates).toHaveBeenCalledOnce();
     expect(menus.find((menu) => menu.label === "Run")?.entries[0]).toEqual({
       kind: "command",
       entry_id: "Run › Live",

@@ -11,8 +11,8 @@ Closing the window leaves the app and the runtime in the menu bar or panel, wher
 Studio" brings the window back. Quitting the app closes the window and the tray item and stops the
 runtime and its streams.
 
-The tray menu shows a one-line status, "Open Tato Studio", "Check for Updates…" in a packaged app,
-and "Quit Tato Studio". The window opens on the Projects window, whose New project asks for a
+The tray menu shows a one-line status, "Open Tato Studio", "Check for Updates…" in a packaged app
+("Restart to Update" once a newer version is staged), and "Quit Tato Studio". The window opens on the Projects window, whose New project asks for a
 name and a location, `Tato Studio` in the Documents folder until Browse… picks another, and has the
 runtime make the project in that folder. Each project opens in a studio window of its own, titled
 with the project's name, or brings forward the window it already has; the Projects window steps
@@ -47,11 +47,14 @@ the stream, in Finder or the file manager, and in Terminal.app or `x-terminal-em
 
 A packaged app checks the feed at `https://get.tatolab.com/app/` at launch and once a day, through
 [electron-updater](https://github.com/electron-userland/electron-builder/tree/master/packages/electron-updater)'s
-generic provider. A check on its own only notifies that a newer version is available; nothing
-downloads or installs until the person chooses "Check for Updates…" in the tray, or its button in
-Settings. On macOS Squirrel.Mac replaces the bundle from the signed `.zip` and reopens it, which
-stops the old runtime with the old app and starts the new bundle's; the AppImage replaces its own file and reopens; a `.deb` opens the newer
-package's download in the browser, since apt alone replaces it. The feed's manifests are
+generic provider; "Check for Updates…", right after About Tato Studio (in the Tato Studio menu of
+macOS's menu bar, in Help on Linux), in the tray, or in Settings checks at once. A newer version that installs in place downloads in the background and
+is staged, and the person is notified once per version; the same item then reads "Restart to Update",
+which installs it and reopens the app, and a staged version also installs the next time the app
+quits. On macOS Squirrel.Mac stages the signed `.zip` and replaces the bundle, which stops the old
+runtime with the old app and starts the new bundle's; the AppImage replaces its own file; a `.deb`
+only finds the newer version, and opens its download in the browser when the person chooses it,
+since apt alone replaces it. The feed's manifests are
 `app/latest-mac.yml` and `app/latest-linux.yml`, which point at `releases/<version>/`.
 
 The runtime and the `tatolab` CLI come from [tatolab/streamlib](https://github.com/tatolab/streamlib)

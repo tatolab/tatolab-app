@@ -2,8 +2,9 @@
 // is listed dim, with why, so the menus keep their shape as each one lands. Linux draws them along
 // the top of the window; macOS shows them in its one system menu bar, laid out as a Mac app's are.
 
-import type { SystemMenuBarEntry, SystemMenuBarItems, SystemMenuBarMenu, SystemMenuOfTheDesktop, TatolabPlatform } from "../../shared/tatolab_backend_contract";
+import type { SystemMenuBarEntry, SystemMenuBarItems, SystemMenuBarMenu, SystemMenuOfTheDesktop, TatolabAppUpdateState, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import type { StudioMenu, StudioMenuEntry } from "../design_system/menu_bar";
+import { presentTatolabAppUpdateMenuEntry } from "../presentation/app_update_presentation";
 import { shortcutHint } from "../presentation/platform_presentation";
 import { STUDIO_LAYOUTS, type StudioLayoutName } from "./studio_layouts";
 
@@ -18,6 +19,10 @@ export interface StudioMenuBarCommands {
   createAProject(): void;
   openPreferences(): void;
   openAbout(): void;
+  /** Check for Updates…: check for a newer Tato Studio, which downloads in the background. */
+  checkForAppUpdates(): void;
+  /** Restart to Update, or a newer version's download: take the version a check found. */
+  takeTheNewerAppVersion(): void;
   chooseLayout(layoutName: StudioLayoutName): void;
   /** Run › Live: run the open project, which loads every `@stream` in it again. */
   runTheProjectLive(): void;
@@ -42,6 +47,19 @@ function laterCommand(label: string, shortcut?: string): StudioMenuEntry {
     : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause: NOT_IN_THIS_BUILD_REASON };
 }
 
+/** Why the updates entry is dim while a check, a download or an install is under way. */
+export const APP_UPDATE_UNDER_WAY_REASON = "An update is under way";
+
+/** The updates entry for `appUpdate`, which follows About Tato Studio: dim, with why, in an app that cannot update itself or while an update is under way. */
+function appUpdateMenuEntry(appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenuEntry {
+  const menuEntry = presentTatolabAppUpdateMenuEntry(appUpdate);
+  if (menuEntry === null) {
+    return { kind: "unavailable_command", label: "Check for Updates…", unavailableBecause: appUpdate.kind === "not_offered" ? appUpdate.reason : APP_UPDATE_UNDER_WAY_REASON };
+  }
+  if (!menuEntry.isEnabled) return { kind: "unavailable_command", label: menuEntry.label, unavailableBecause: APP_UPDATE_UNDER_WAY_REASON };
+  return { kind: "command", label: menuEntry.label, onChosen: menuEntry.command === "check_for_updates" ? commands.checkForAppUpdates : commands.takeTheNewerAppVersion };
+}
+
 /** The studio's own menus, each listed once for both platforms' bars to arrange. */
 interface StudioMenuParts {
   fileEntries: StudioMenuEntry[];
@@ -52,10 +70,17 @@ interface StudioMenuParts {
   runMenu: StudioMenu;
   windowEntries: StudioMenuEntry[];
   aboutEntry: StudioMenuEntry;
+  appUpdateEntry: StudioMenuEntry;
   documentationEntry: StudioMenuEntry;
 }
 
-function studioMenuParts(platform: TatolabPlatform, chosenLayout: StudioLayoutName | null, commands: StudioMenuBarCommands, preferencesLabel: string): StudioMenuParts {
+function studioMenuParts(
+  platform: TatolabPlatform,
+  chosenLayout: StudioLayoutName | null,
+  appUpdate: TatolabAppUpdateState,
+  commands: StudioMenuBarCommands,
+  preferencesLabel: string,
+): StudioMenuParts {
   const projectCommand = (label: string, onChosen: () => void, shortcut?: string): StudioMenuEntry => {
     if (chosenLayout === null) return shortcut === undefined ? { kind: "unavailable_command", label, unavailableBecause: NO_PROJECT_OPEN_REASON } : { kind: "unavailable_command", label, shortcutHint: shortcut, unavailableBecause: NO_PROJECT_OPEN_REASON };
     return shortcut === undefined ? { kind: "command", label, onChosen } : { kind: "command", label, shortcutHint: shortcut, onChosen };
@@ -96,13 +121,14 @@ function studioMenuParts(platform: TatolabPlatform, chosenLayout: StudioLayoutNa
     },
     windowEntries: [studioLayoutEntry, laterCommand("Save layout as…"), laterCommand("Maximise area"), laterCommand("New window")],
     aboutEntry: { kind: "command", label: "About Tato Studio", onChosen: commands.openAbout },
+    appUpdateEntry: appUpdateMenuEntry(appUpdate, commands),
     documentationEntry: laterCommand("Documentation"),
   };
 }
 
-/** The studio's menus along the top of its window, as Linux shows them, Window › Layout ticking `chosenLayout`, or naming why it waits while no project is open. */
-export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: StudioLayoutName | null, commands: StudioMenuBarCommands): StudioMenu[] {
-  const parts = studioMenuParts(platform, chosenLayout, commands, "Preferences…");
+/** The studio's menus along the top of its window, as Linux shows them, Window › Layout ticking `chosenLayout`, or naming why it waits while no project is open, and Help's updates entry following `appUpdate`. */
+export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: StudioLayoutName | null, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenu[] {
+  const parts = studioMenuParts(platform, chosenLayout, appUpdate, commands, "Preferences…");
   return [
     { label: "File", entries: parts.fileEntries },
     { label: "Edit", entries: [...parts.undoAndRedoEntries, { kind: "separator" }, parts.preferencesEntry] },
@@ -110,7 +136,7 @@ export function studioMenuBarMenus(platform: TatolabPlatform, chosenLayout: Stud
     parts.streamMenu,
     parts.runMenu,
     { label: "Window", entries: parts.windowEntries },
-    { label: "Help", entries: [parts.aboutEntry, parts.documentationEntry] },
+    { label: "Help", entries: [parts.aboutEntry, parts.appUpdateEntry, { kind: "separator" }, parts.documentationEntry] },
   ];
 }
 
@@ -124,14 +150,14 @@ export interface StudioMenuInTheSystemMenuBar {
   entries: readonly StudioMenuEntryInTheSystemMenuBar[];
 }
 
-/** The studio's menus as macOS's one menu bar shows them, in the places a Mac app keeps them: About and Settings in the app menu, the desktop's text editing in Edit, its window controls in Window. */
-export function studioMenusInTheSystemMenuBar(chosenLayout: StudioLayoutName | null, commands: StudioMenuBarCommands): StudioMenuInTheSystemMenuBar[] {
-  const parts = studioMenuParts("macos", chosenLayout, commands, "Settings…");
+/** The studio's menus as macOS's one menu bar shows them, in the places a Mac app keeps them: About, the updates entry following `appUpdate`, and Settings in the app menu, the desktop's text editing in Edit, its window controls in Window. */
+export function studioMenusInTheSystemMenuBar(chosenLayout: StudioLayoutName | null, appUpdate: TatolabAppUpdateState, commands: StudioMenuBarCommands): StudioMenuInTheSystemMenuBar[] {
+  const parts = studioMenuParts("macos", chosenLayout, appUpdate, commands, "Settings…");
   return [
     {
       label: "Tato Studio",
       systemMenu: "app",
-      entries: [parts.aboutEntry, { kind: "separator" }, parts.preferencesEntry, { kind: "separator" }, { kind: "system_items", systemItems: "app_services_hide_and_quit" }],
+      entries: [parts.aboutEntry, parts.appUpdateEntry, { kind: "separator" }, parts.preferencesEntry, { kind: "separator" }, { kind: "system_items", systemItems: "app_services_hide_and_quit" }],
     },
     { label: "File", systemMenu: null, entries: [...parts.fileEntries, { kind: "separator" }, { kind: "system_items", systemItems: "close_window" }] },
     { label: "Edit", systemMenu: null, entries: [{ kind: "system_items", systemItems: "text_editing" }] },

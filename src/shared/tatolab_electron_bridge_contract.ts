@@ -45,6 +45,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "describe_stream_graph",
   "describe_node_catalog",
   "check_for_tatolab_app_updates",
+  "take_the_newer_tatolab_app_version",
   "stop_stream",
   "start_stream",
   "remove_project",
@@ -96,8 +97,8 @@ export const TATOLAB_COMMAND_NAMES = [
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
  * `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_viewer` a `PoppedOutViewerTarget`, `preview_import` `{ requirement }`, `import_into_workspace` `{ requirement, based_on_version }`, `open_import_to_edit` `{ name }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
- * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` only on one of the recent projects, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab,
- * takes it: the person choosing it is the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
+ * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` only on one of the recent projects, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab
+ * that installs in place, downloads it; `take_the_newer_tatolab_app_version` restarts into a downloaded one, downloads one a check found, or opens a `.deb`'s download, the person choosing it being the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
  */
 export type TatolabCommandName = (typeof TATOLAB_COMMAND_NAMES)[number];
@@ -180,6 +181,7 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   describe_stream_graph: { commandArguments: { stream: string }; answer: StreamGraphSummary };
   describe_node_catalog: { commandArguments: { stream: string }; answer: NodeCatalog };
   check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };
+  take_the_newer_tatolab_app_version: { commandArguments: undefined; answer: null };
   /** Answers once the runtime has queued the stop; the stream shows `stopping` in the listing until it has run. */
   stop_stream: { commandArguments: { stream: string }; answer: null };
   /** Answers once the runtime has queued the start, a failed stream's retry among them; the stream shows `preparing` in the listing until it has run. */

@@ -30,6 +30,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     checkForTatolabAppUpdates: async () => {
       await invokeTatolabCommand("check_for_tatolab_app_updates", undefined);
     },
+    takeTheNewerTatolabAppVersion: async () => {
+      await invokeTatolabCommand("take_the_newer_tatolab_app_version", undefined);
+    },
     runStreamAction: async (streamAction, streamId) => {
       await invokeTatolabCommand(streamAction, { stream: streamId });
     },

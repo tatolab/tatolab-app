@@ -4,7 +4,7 @@
 import { describeCaughtFailure } from "./result.js";
 import type { TatolabAppController } from "./tatolab_app_controller.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
-import type { TatolabAppUpdateCheckChosenFrom, TatolabAppUpdater } from "./tatolab_app_updater.js";
+import type { TatolabAppUpdater } from "./tatolab_app_updater.js";
 import type { TatolabAppWindows } from "./tatolab_app_windows.js";
 import type { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import type { StreamProjectFolderOpeners } from "./stream_project_folder_opening.js";
@@ -56,11 +56,11 @@ export function runInTheBackgroundWithTheController(
   });
 }
 
-/** Check for Updates…, from the tray, the window or the notification: check and take a newer Tatolab, its progress reaching the window as the next statuses. */
-export function checkForTatolabAppUpdatesOnRequest(sharedState: TatolabAppSharedState, chosenFrom: TatolabAppUpdateCheckChosenFrom): void {
-  sharedState.tatolabAppUpdater.checkAndTakeANewerVersion(chosenFrom).catch((unexpectedFailure: unknown) => {
+/** Start `updateWork`, a choice the person made from the tray or the window, without waiting for it: its progress reaches the window as the next statuses, and a failure nothing expected is logged under `updateWorkName`. */
+export function runTatolabAppUpdateWorkInTheBackground(sharedState: TatolabAppSharedState, updateWorkName: string, updateWork: (tatolabAppUpdater: TatolabAppUpdater) => Promise<void>): void {
+  updateWork(sharedState.tatolabAppUpdater).catch((unexpectedFailure: unknown) => {
     sharedState.tatolabAppLog.error("the update chosen from the tray or the window ended without finishing", {
-      chosen_from: chosenFrom,
+      update_work_name: updateWorkName,
       failure: describeCaughtFailure(unexpectedFailure),
     });
   });

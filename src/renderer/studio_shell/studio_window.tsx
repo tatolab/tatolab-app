@@ -12,6 +12,7 @@ import { WindowNotice } from "../design_system/window_notice";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
 import { streamFailureWords } from "../presentation/stream_failure_presentation";
 import { PreferencesDialogView } from "../setup_and_preferences/preferences_dialog_view";
+import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
 import { StudioViewFailureBoundary, useWatchedStudioValue } from "../view_host/in_window_view_host";
 import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 import { NewProjectSheetView, type NewProjectSources } from "./new_project_sheet_view";
@@ -151,20 +152,22 @@ function StudioAreaLayoutNodeView({ node, layoutKey, sources }: { node: StudioAr
 /** The studio: its menus along the top (in the system menu bar on macOS), the open streams' tabs, and the chosen layout's areas; or the Projects window, with no menus of its own on Linux, while no project is open or File › Projects shows it. */
 export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
   const { model, platform, commands, systemMenuBar } = sources;
+  const status = useTatolabStatus();
   const openProject = useWatchedStudioValue(model.openProject);
   const studioLayouts = useWatchedStudioValue(model.studioLayouts);
   const openStreamTabs = useWatchedStudioValue(model.openStreamTabs);
   const preferencesSection = useWatchedStudioValue(model.preferencesSection);
   const projectOpeningRefusal = useWatchedStudioValue(model.projectOpeningRefusal);
   const projectRunRefusal = useWatchedStudioValue(model.projectRunRefusal);
+  const appUpdateChoiceRefusal = useWatchedStudioValue(model.appUpdateChoiceRefusal);
   const openProjectStreamFailureRaised = useWatchedStudioValue(model.openProjectStreamFailureRaised);
   const newProjectSheetOpenedWith = useWatchedStudioValue(model.newProjectSheetOpenedWith);
   const isAProjectShown = openProject.kind !== "none_open" && studioLayouts !== null;
   const menusLiveInTheSystemMenuBar = presentPlatform(platform).menusLiveInTheSystemMenuBar;
   const chosenLayoutShown = isAProjectShown ? studioLayouts.chosen_layout : null;
   useEffect(() => {
-    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(chosenLayoutShown, commands));
-  }, [menusLiveInTheSystemMenuBar, systemMenuBar, chosenLayoutShown, commands]);
+    if (menusLiveInTheSystemMenuBar) systemMenuBar.showTheMenus(studioMenusInTheSystemMenuBar(chosenLayoutShown, status.app_update, commands));
+  }, [menusLiveInTheSystemMenuBar, systemMenuBar, chosenLayoutShown, status.app_update, commands]);
   return (
     <div className="relative flex h-full flex-col bg-studio-frame text-studio" data-studio-window="">
       {isAProjectShown ? (
@@ -172,7 +175,7 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
           className="flex h-(--studio-menu-bar-height) shrink-0 items-center gap-2.5 border-b border-studio-frame bg-studio-menu-bar pr-2.5 pl-(--studio-menu-bar-leading-inset)"
           data-window-drag-region={windowDragRegionAttribute(platform, "self") ?? undefined}
         >
-          {!menusLiveInTheSystemMenuBar && <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, commands)} />}
+          {!menusLiveInTheSystemMenuBar && <StudioMenuBar label="Studio" menus={studioMenuBarMenus(platform, studioLayouts.chosen_layout, status.app_update, commands)} />}
           <ActionButton
             appearance="primary"
             size="small"
@@ -240,6 +243,15 @@ export function StudioWindow({ sources }: { sources: StudioWindowSources }) {
               detail={projectRunRefusal.because}
               onDismissed={() => model.projectRunRefusal.publish(null)}
               data-project-run-refusal=""
+            />
+          )}
+          {appUpdateChoiceRefusal !== null && (
+            <WindowNotice
+              tone="failure"
+              title="Tato Studio couldn't update"
+              detail={appUpdateChoiceRefusal}
+              onDismissed={() => model.appUpdateChoiceRefusal.publish(null)}
+              data-app-update-choice-refusal=""
             />
           )}
           {openProjectStreamFailureRaised !== null && isAProjectShown && (

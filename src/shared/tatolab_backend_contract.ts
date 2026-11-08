@@ -41,13 +41,15 @@ export interface ListedStream {
 /** A stream action the window asks the runtime to queue on one stream, named as the runtime's tool and the window's command are. */
 export type TatolabStreamActionName = "stop_stream" | "start_stream";
 
-/** How a newer Tatolab found by a check reaches the person: installed in place, then the app reopens; or its download opened, for a `.deb`, which only apt replaces. */
+/** How a newer Tatolab found by a check reaches the person: downloaded in the background and installed in place as the app restarts; or its download opened, for a `.deb`, which only apt replaces. */
 export type TatolabAppUpdateDelivery = "install_and_relaunch" | "open_the_download";
 
 /**
  * Where checking for a newer Tatolab stands. `not_offered` is an app that cannot update itself (an
- * unpackaged one), with why; `available` is a newer version a check found and nobody has taken yet;
- * `failed` carries the updater's own words, and the installed app keeps working.
+ * unpackaged one), with why; `available` is a newer version a check found that has not downloaded (a
+ * `.deb`'s, or one whose background download failed); `ready_to_restart` is a newer version downloaded
+ * and staged, which installs as the app restarts or quits; `failed` carries the updater's own words, and
+ * the installed app keeps working.
  */
 export type TatolabAppUpdateState =
   | { kind: "not_offered"; reason: string }
@@ -56,6 +58,7 @@ export type TatolabAppUpdateState =
   | { kind: "up_to_date" }
   | { kind: "available"; version: string; delivery: TatolabAppUpdateDelivery }
   | { kind: "downloading"; version: string; percent: number }
+  | { kind: "ready_to_restart"; version: string }
   | { kind: "installing"; version: string }
   | { kind: "failed"; refusal: string };
 

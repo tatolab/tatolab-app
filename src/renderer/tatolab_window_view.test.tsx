@@ -574,12 +574,13 @@ describe("the window's first status", () => {
 });
 
 describe("Preferences", () => {
-  it("opens on macOS from Tato Studio › Settings… in the system menu bar, beside About, on General", async () => {
+  it("opens on macOS from Tato Studio › Settings… in the system menu bar, after About and Check for Updates…, on General", async () => {
     const { backendChanges, menusShownLast, chooseFromTheSystemMenuBar } = systemMenuBarOverTheMock();
     await mountedWindowOverTheMock("state=running", backendChanges);
     await waitFor(() =>
       expect(menusShownLast()[0]?.entries).toEqual([
         { kind: "command", entry_id: "Tato Studio › About Tato Studio", label: "About Tato Studio", shortcut_hint: null, unavailable_because: null },
+        { kind: "command", entry_id: "Tato Studio › Check for Updates…", label: "Check for Updates…", shortcut_hint: null, unavailable_because: null },
         { kind: "separator" },
         { kind: "command", entry_id: "Tato Studio › Settings…", label: "Settings…", shortcut_hint: "⌘,", unavailable_because: null },
         { kind: "separator" },
