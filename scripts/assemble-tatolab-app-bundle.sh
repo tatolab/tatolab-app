@@ -6,14 +6,11 @@
 #   <helper>/Contents/MacOS/tatolabd, tatolab-cli          the runtime and the CLI (bin/tatolab: the
 #                                                         filesystem is case-insensitive, so "tatolab"
 #                                                         would fold onto the app's own "Tatolab")
-#   <helper>/Contents/MacOS/moq-relay, uv                 the local relay and the uv tatolabd runs
-#                                                         from beside itself
+#   <helper>/Contents/MacOS/uv                            the uv tatolabd runs from beside itself
 #   <helper>/Contents/Frameworks/tatolab-runtime/<path>   every Mach-O of lend/tatolab/runtime
 #   <helper>/Contents/Resources/lend/                     the lend, each Mach-O a relative symlink
 #                                                         into Frameworks/tatolab-runtime, precompiled
 #                                                         for CPython 3.10-3.14
-#   <helper>/Contents/Resources/watch/                    the preview page tatolabd serves on its
-#                                                         loopback HTTP (lib/tatolab/watch)
 #   <helper>/Contents/Resources/streamlib-commit          the streamlib commit the runtime was built from
 # Code signing requires code under MacOS/ or Frameworks/; the lend keeps its shape through the links.
 #
@@ -48,19 +45,18 @@ runtime_helper_bundle_name="Tatolab Runtime.app"
 marker_file_name="machine-directories-under-a-test-root"
 streamlib_commit_file_name="streamlib-commit"
 lend_source="$runtime_unit_directory/lib/tatolab/lend"
-watch_page_source="$runtime_unit_directory/lib/tatolab/watch"
 lent_runtime_package_relative_to_the_lend="tatolab/runtime"
 processor_interpreter_python_versions=(3.10 3.11 3.12 3.13 3.14)
 
 contents="$app_bundle/Contents"
 [ -x "$contents/MacOS/Tato Studio" ] || { echo "$app_bundle has no Contents/MacOS/Tato Studio: not a packaged Tato Studio.app" >&2; exit 1; }
-for required in bin/tatolabd bin/tatolab bin/moq-relay bin/uv "lib/tatolab/lend/$lent_runtime_package_relative_to_the_lend" lib/tatolab/watch/index.html; do
+for required in bin/tatolabd bin/tatolab bin/uv "lib/tatolab/lend/$lent_runtime_package_relative_to_the_lend"; do
   [ -e "$runtime_unit_directory/$required" ] || { echo "runtime unit $runtime_unit_directory is missing $required" >&2; exit 1; }
 done
 # Anything streamlib adds to the unit would otherwise be left out of the bundle without a word.
 for runtime_unit_entry in "$runtime_unit_directory"/bin/* "$runtime_unit_directory"/lib/tatolab/*; do
   case "${runtime_unit_entry#"$runtime_unit_directory/"}" in
-    bin/tatolabd|bin/tatolab|bin/moq-relay|bin/uv|lib/tatolab/lend|lib/tatolab/watch) ;;
+    bin/tatolabd|bin/tatolab|bin/uv|lib/tatolab/lend) ;;
     *) echo "runtime unit $runtime_unit_directory ships ${runtime_unit_entry#"$runtime_unit_directory/"}, which this script does not place in the bundle" >&2; exit 1 ;;
   esac
 done
@@ -119,11 +115,9 @@ plutil -lint -s "$helper_contents/Info.plist"
 
 install -m 0755 "$runtime_unit_directory/bin/tatolabd" "$helper_contents/MacOS/tatolabd"
 install -m 0755 "$runtime_unit_directory/bin/tatolab" "$helper_contents/MacOS/tatolab-cli"
-install -m 0755 "$runtime_unit_directory/bin/moq-relay" "$helper_contents/MacOS/moq-relay"
 install -m 0755 "$runtime_unit_directory/bin/uv" "$helper_contents/MacOS/uv"
 
 ditto "$lend_source" "$helper_contents/Resources/lend"
-ditto "$watch_page_source" "$helper_contents/Resources/watch"
 cp "$runtime_unit_directory/$streamlib_commit_file_name" "$helper_contents/Resources/$streamlib_commit_file_name"
 find "$helper_contents/Resources/lend" -name __pycache__ -type d -prune -exec rm -rf {} +
 
@@ -158,4 +152,4 @@ if $local_proof_test_root; then
   cp "$runtime_unit_directory/$marker_file_name" "$helper_contents/Resources/$marker_file_name"
 fi
 
-echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, moq-relay, uv, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime, lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]}) and the preview page$($local_proof_test_root && echo ' (local proof)')"
+echo "assembled $app_bundle from streamlib $resolved_streamlib_commit: $runtime_helper_bundle_name with tatolabd, tatolab-cli, uv, $relocated_mach_o_count Mach-O in Frameworks/tatolab-runtime and lend in Resources/lend (bytecode for CPython ${processor_interpreter_python_versions[*]})$($local_proof_test_root && echo ' (local proof)')"

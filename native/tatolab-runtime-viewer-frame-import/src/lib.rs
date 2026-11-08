@@ -214,11 +214,13 @@ impl Task for ReadTheLatestViewerMessage {
 /// `DRM_FORMAT_MOD_LINEAR`, as Electron's `nativePixmap.modifier` spells it.
 const DRM_FORMAT_MOD_LINEAR: &str = "0";
 
-/// Electron's `sharedTexture` pixel format for a runtime wire format it can import.
+/// Electron's `sharedTexture` pixel format for a runtime wire format it can import: a pixel buffer's
+/// format, or a GPU pool slot's texture format.
 fn electron_pixel_format_of(format_wire_name: &str) -> Option<&'static str> {
     match format_wire_name {
-        "bgra32" => Some("bgra"),
-        "rgba32" => Some("rgba"),
+        "bgra32" | "bgra8_unorm" | "bgra8_unorm_srgb" => Some("bgra"),
+        "rgba32" | "rgba8_unorm" | "rgba8_unorm_srgb" => Some("rgba"),
+        "rgba16_float" => Some("rgbaf16"),
         "nv12" => Some("nv12"),
         _ => None,
     }
@@ -340,4 +342,19 @@ fn hold_and_describe_the_image_frame(
         cpu_read_bytes,
         io_surface_pointer,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::electron_pixel_format_of;
+
+    #[test]
+    fn a_pool_slots_texture_format_imports_as_the_electron_format_of_its_byte_order() {
+        assert_eq!(electron_pixel_format_of("rgba8_unorm"), Some("rgba"));
+        assert_eq!(electron_pixel_format_of("rgba8_unorm_srgb"), Some("rgba"));
+        assert_eq!(electron_pixel_format_of("bgra8_unorm"), Some("bgra"));
+        assert_eq!(electron_pixel_format_of("rgba16_float"), Some("rgbaf16"));
+        assert_eq!(electron_pixel_format_of("bgra32"), Some("bgra"));
+        assert_eq!(electron_pixel_format_of("rgba32_float"), None);
+    }
 }

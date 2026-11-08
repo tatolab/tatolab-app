@@ -7,8 +7,6 @@ import type {
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
-  RelaySettingsByName,
-  RelaysDescription,
   RuntimeDescription,
   StreamFailureNotificationsState,
   TatolabCommandLineToolVersion,
@@ -64,8 +62,6 @@ export interface TatolabAppControllerSources {
   appVersion: string;
   /** Which build of the app this is, which each status carries. */
   appBuild: TatolabAppBuild | null;
-  /** Where the runtime this build reads serves its loopback HTTP, under which each readable output has its preview page. */
-  runtimeLoopbackHttpOrigin: string;
   /** The monotonic clock every `nowMs` is read from: `performance.now()` in the app. */
   readMonotonicClockMs: () => number;
   /** Where checking for a newer Tatolab stands, which each status carries. */
@@ -93,7 +89,6 @@ export class TatolabAppController {
     private readonly commandLineToolLink: TatolabCommandLineToolLink,
     private readonly localApiSocket: string,
     private readonly localApiClient: LocalApiClient,
-    private readonly runtimeLoopbackHttpOrigin: string,
     private readonly readTheAppUpdateState: () => TatolabAppUpdateState,
     private readonly readStreamFailureNotifications: () => StreamFailureNotificationsState,
     private readonly readTheCommandLineToolVersion: () => TatolabCommandLineToolVersion,
@@ -117,7 +112,6 @@ export class TatolabAppController {
       sources.platformForThisBuild.commandLineToolLink,
       sources.platformForThisBuild.localApiSocket,
       new LocalApiClient(sources.platformForThisBuild.localApiSocket, LOCAL_API_REQUEST_TIMEOUT_MS, sources.appVersion),
-      sources.runtimeLoopbackHttpOrigin,
       sources.readTheAppUpdateState,
       sources.readStreamFailureNotifications,
       sources.readTheCommandLineToolVersion,
@@ -253,45 +247,14 @@ export class TatolabAppController {
     return this.localApiClient.listStreams();
   }
 
-  /** The graph of the loaded stream `stream`, its readable outputs' preview pages at the runtime's loopback HTTP. */
+  /** The graph of the loaded stream `stream`. */
   describeStreamGraph(stream: string): Promise<Result<StreamGraphSummary, LocalApiRequestFailure>> {
-    return this.localApiClient.describeStreamGraph(stream, this.runtimeLoopbackHttpOrigin);
+    return this.localApiClient.describeStreamGraph(stream);
   }
 
   /** Every node type the loaded stream `stream` can add. */
   describeNodeCatalog(stream: string): Promise<Result<NodeCatalog, LocalApiRequestFailure>> {
     return this.localApiClient.describeNodeCatalog(stream);
-  }
-
-  /** Every relay the runtime holds and every adapter it can join one through. */
-  describeRelays(): Promise<Result<RelaysDescription, LocalApiRequestFailure>> {
-    return this.localApiClient.describeRelays();
-  }
-
-  /** Add a relay of `adapter` with `settings`, answering the id the runtime gave it; the log names the settings given, never a value. */
-  async addRelay(adapter: string, settings: Readonly<RelaySettingsByName>): Promise<Result<string, LocalApiRequestFailure>> {
-    const added = await this.localApiClient.addRelay(adapter, settings);
-    const settingNames = Object.keys(settings).join(",");
-    if (added.ok) this.tatolabAppLog.info("a relay was added", { adapter, relay_id: added.value, setting_names: settingNames });
-    else this.tatolabAppLog.warn("a relay was not added", { adapter, setting_names: settingNames, failure: added.failure.failureDescription });
-    return added;
-  }
-
-  /** Replace the settings named in `settings` on the relay `relayId`; the log names them, never a value. */
-  async configureRelay(relayId: string, settings: Readonly<RelaySettingsByName>): Promise<Result<void, LocalApiRequestFailure>> {
-    const configured = await this.localApiClient.configureRelay(relayId, settings);
-    const settingNames = Object.keys(settings).join(",");
-    if (configured.ok) this.tatolabAppLog.info("a relay was configured", { relay_id: relayId, setting_names: settingNames });
-    else this.tatolabAppLog.warn("a relay was not configured", { relay_id: relayId, setting_names: settingNames, failure: configured.failure.failureDescription });
-    return configured;
-  }
-
-  /** Leave and forget the relay `relayId`. */
-  async removeRelay(relayId: string): Promise<Result<void, LocalApiRequestFailure>> {
-    const removed = await this.localApiClient.removeRelay(relayId);
-    if (removed.ok) this.tatolabAppLog.info("a relay was removed", { relay_id: relayId });
-    else this.tatolabAppLog.warn("a relay was not removed", { relay_id: relayId, failure: removed.failure.failureDescription });
-    return removed;
   }
 
   /** The runtime's streams, or `null` when listing failed, which is logged on the round it starts failing. */

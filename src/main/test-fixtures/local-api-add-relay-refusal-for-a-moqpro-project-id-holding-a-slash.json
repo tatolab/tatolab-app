@@ -1,1 +1,0 @@
-{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"the settings of the relay `moqpro-1` are refused: `project_id` `desk/a` is not a moq.pro project id: one path segment, non-empty, with no `/`"}],"isError":true}}

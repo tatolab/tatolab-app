@@ -2,7 +2,6 @@
 // it at `~/.local/bin/tatolab`, and opens a stream's project in Terminal.app.
 
 import type { TatolabAppLog } from "../../tatolab_app_log.js";
-import { LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT } from "../../runtime_loopback_watch_page.js";
 import { CommandLineToolLinkInTheHomeFolder } from "../command_line_tool_link_in_the_home_folder.js";
 import { currentProcessUid } from "../current_process_uid.js";
 import { NO_TATOLAB_COMMAND_LINE_TOOL_REFUSAL, tatolabCommandLineToolAt } from "../tatolab_command_line_tool.js";
@@ -40,7 +39,7 @@ export async function macosTatolabPlatformForThisBuild(
             runtimeEnvironment:
               machinePaths.localProofTestMachineRoot === null
                 ? {}
-                : localProofRuntimeEnvironment(machinePaths.localProofTestMachineRoot, LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT),
+                : localProofRuntimeEnvironment(machinePaths.localProofTestMachineRoot),
           },
     commandLineToolLink:
       carriedCommandLineTool === null

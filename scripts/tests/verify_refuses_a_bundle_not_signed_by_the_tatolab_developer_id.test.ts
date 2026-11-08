@@ -37,38 +37,38 @@ afterEach(async () => {
   await rm(scratchDirectory, { recursive: true, force: true });
 });
 
-async function appBundleWithMoqRelayFrom(placeMoqRelay: (moqRelayPath: string) => Promise<void>): Promise<string> {
+async function appBundleWithAPlantedMachOFrom(placeThePlantedMachO: (plantedMachOPath: string) => Promise<void>): Promise<string> {
   const appBundle = path.join(scratchDirectory, "Tatolab.app");
   await mkdir(path.join(appBundle, "Contents", "MacOS"), { recursive: true });
   await writeFile(
     path.join(appBundle, "Contents", "Info.plist"),
     `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.tatolab.tatolab</string></dict></plist>\n`,
   );
-  await placeMoqRelay(path.join(appBundle, "Contents", "MacOS", "moq-relay"));
+  await placeThePlantedMachO(path.join(appBundle, "Contents", "MacOS", "planted-mach-o"));
   return appBundle;
 }
 
 test.runIf(MACOS_SIGNING_TOOLS_ARE_AVAILABLE)("a bundle carrying an ad-hoc-signed Mach-O fails", async () => {
-  const appBundle = await appBundleWithMoqRelayFrom(async (moqRelayPath) => {
-    const plantedSource = path.join(scratchDirectory, "planted_moq_relay.c");
+  const appBundle = await appBundleWithAPlantedMachOFrom(async (plantedMachOPath) => {
+    const plantedSource = path.join(scratchDirectory, "planted_mach_o.c");
     await writeFile(plantedSource, "int main(void) { return 0; }\n");
-    const compileOutcome = await runProcess("/usr/bin/cc", ["-o", moqRelayPath, plantedSource]);
+    const compileOutcome = await runProcess("/usr/bin/cc", ["-o", plantedMachOPath, plantedSource]);
     expect(compileOutcome.exitCode).toBe(0);
   });
-  expect((await runProcess("/usr/bin/codesign", ["-dv", path.join(appBundle, "Contents", "MacOS", "moq-relay")])).output).toMatch(/flags=.*adhoc/);
+  expect((await runProcess("/usr/bin/codesign", ["-dv", path.join(appBundle, "Contents", "MacOS", "planted-mach-o")])).output).toMatch(/flags=.*adhoc/);
   const verifyOutcome = await runProcess("bash", [VERIFY_SCRIPT, appBundle]);
   expect(verifyOutcome.exitCode).not.toBe(0);
-  expect(verifyOutcome.output).toContain("FAIL  Contents/MacOS/moq-relay is not signed by Tatolab's Developer ID: it is signed ad-hoc");
-  expect(verifyOutcome.output).toContain("FAIL  no hardened runtime signature on Contents/MacOS/moq-relay");
+  expect(verifyOutcome.output).toContain("FAIL  Contents/MacOS/planted-mach-o is not signed by Tatolab's Developer ID: it is signed ad-hoc");
+  expect(verifyOutcome.output).toContain("FAIL  no hardened runtime signature on Contents/MacOS/planted-mach-o");
   expect(verifyOutcome.output).not.toContain("ok    every Mach-O is signed by Tatolab's Developer ID");
 });
 
 test.runIf(MACOS_SIGNING_TOOLS_ARE_AVAILABLE)("a bundle carrying a Mach-O signed by another identity fails", async () => {
-  const appBundle = await appBundleWithMoqRelayFrom((moqRelayPath) => copyFile("/usr/bin/true", moqRelayPath));
+  const appBundle = await appBundleWithAPlantedMachOFrom((plantedMachOPath) => copyFile("/usr/bin/true", plantedMachOPath));
   const verifyOutcome = await runProcess("bash", [VERIFY_SCRIPT, appBundle]);
   expect(verifyOutcome.exitCode).not.toBe(0);
   expect(verifyOutcome.output).toMatch(
-    /FAIL {2}Contents\/MacOS\/moq-relay is not signed by Tatolab's Developer ID: it is signed by '[^']*Software Signing', not a Developer ID Application identity/,
+    /FAIL {2}Contents\/MacOS\/planted-mach-o is not signed by Tatolab's Developer ID: it is signed by '[^']*Software Signing', not a Developer ID Application identity/,
   );
   expect(verifyOutcome.output).not.toContain("ok    every Mach-O is signed by Tatolab's Developer ID");
 });

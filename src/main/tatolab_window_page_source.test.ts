@@ -40,8 +40,8 @@ test("the window navigates only on its own page's scheme and host, never to a fi
 test("the policy allows an inline script only by its hash, and the window page holds none", () => {
   const windowPageHtml = readFileSync(new URL("../renderer/index.html", import.meta.url), "utf8");
   expect(inlineScriptHashSources(windowPageHtml)).toEqual([]);
-  expect(windowPageContentSecurityPolicy(windowPageHtml, "http://127.0.0.1:4446")).toBe(
-    "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; frame-src http://127.0.0.1:4446; object-src 'none'; base-uri 'self'",
+  expect(windowPageContentSecurityPolicy(windowPageHtml)).toBe(
+    "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; frame-src 'none'; object-src 'none'; base-uri 'self'",
   );
   const pageWithAnInlineScript = "<script>document.title = 'x';</script>";
   expect(inlineScriptHashSources(pageWithAnInlineScript)).toEqual([`'sha256-${createHash("sha256").update("document.title = 'x';").digest("base64")}'`]);

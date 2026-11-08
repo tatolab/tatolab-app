@@ -1,6 +1,7 @@
 // scripts/build-tatolab-runtime-unit.sh writes the unit's streamlib-commit only after a build that
 // succeeded from a clean checkout: a build that fails leaves no streamlib-commit vouching for a
-// unit it half rebuilt, and a checkout with uncommitted changes is refused before anything builds.
+// unit it half rebuilt, nothing a previous build laid out outlives the next one, and a checkout with
+// uncommitted changes is refused before anything builds.
 // A stand-in `cargo` first on PATH plays streamlib's `cargo xtask build-runtime`.
 
 import { execFile } from "node:child_process";
@@ -23,10 +24,10 @@ const GIT_IDENTITY_ENVIRONMENT = {
 const STAND_IN_CARGO_SCRIPT = `#!/bin/sh
 touch "$STAND_IN_CARGO_RAN_SENTINEL"
 unit="$CARGO_TARGET_DIR/tatolab-runtime"
-mkdir -p "$unit/bin" "$unit/lib/tatolab/lend/tatolab/runtime" "$unit/lib/tatolab/watch"
-echo replaced > "$unit/lib/tatolab/watch/index.html"
+mkdir -p "$unit/bin" "$unit/lib/tatolab/lend/tatolab/runtime"
+echo replaced > "$unit/lib/tatolab/lend/tatolab/runtime/__init__.py"
 [ "$STAND_IN_CARGO_FAILS" = 1 ] && exit 1
-for binary in tatolabd tatolab moq-relay uv; do echo built > "$unit/bin/$binary"; done
+for binary in tatolabd tatolab uv; do echo built > "$unit/bin/$binary"; done
 exit 0
 `;
 
@@ -112,6 +113,14 @@ test("a build that fails part-way leaves no streamlib-commit from the unit's pre
   const buildOutcome = await buildTheRuntimeUnit({ STAND_IN_CARGO_FAILS: "1" });
   expect(buildOutcome.exitCode).not.toBe(0);
   await expect(readFile(unitStreamlibCommitFile(), "utf8")).rejects.toThrow();
+});
+
+test("a file an earlier build laid into the unit and this one does not is gone from the unit", async () => {
+  expect(await buildTheRuntimeUnit()).toMatchObject({ exitCode: 0 });
+  const leftByAnEarlierBuild = path.join(plantedStreamlibCheckout, "target", "tatolab-runtime", "bin", "moq-relay");
+  await writeFile(leftByAnEarlierBuild, "built by an earlier streamlib");
+  expect(await buildTheRuntimeUnit()).toMatchObject({ exitCode: 0 });
+  await expect(stat(leftByAnEarlierBuild)).rejects.toThrow();
 });
 
 test("a checkout with uncommitted changes is refused before anything builds", async () => {

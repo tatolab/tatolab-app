@@ -94,9 +94,10 @@ function toolCallParams(request: Record<string, unknown>): Record<string, unknow
 
 /** An `open_viewer` result in the shape `OpenViewerToolResult` (`local_api_wire_contract.rs`) serializes to. */
 const OPEN_VIEWER_RESULT_ON_LINUX = {
-  viewer: "pattern-main-1a2b3c/pattern/video",
+  viewer: "pattern-main-1a2b3c/7f3a/video",
   stream: "pattern-main-1a2b3c",
-  node: "pattern",
+  node_id: "7f3a",
+  node_name: "pattern",
   port: "video",
   iceoryx2_domain_root: "/run/user/1000/tatolab/iceoryx2",
   channel: "streamlib/pattern-main-1a2b3c/pattern/video",
@@ -115,7 +116,7 @@ test("the_connection_upgrades_with_mcp_stdio_and_opens_a_viewer_with_the_per_req
   const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => [toolResultLine(request["id"], OPEN_VIEWER_RESULT_ON_LINUX)]);
   const connection = await openConnection(runtime.localApiSocketPath);
 
-  const openedViewer = answerOf(await connection.openViewer({ stream: "pattern-main-1a2b3c", node: "pattern", port: "video", viewer_process_id: 4242 }));
+  const openedViewer = answerOf(await connection.openViewer({ stream: "pattern-main-1a2b3c", node_id: "7f3a", port: "video", viewer_process_id: 4242 }));
 
   expect(openedViewer).toEqual(LINUX_VIEWER);
   expect(runtime.upgradeRequestsRead).toEqual(["GET /mcp/stdio HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\nUpgrade: mcp-stdio"]);
@@ -123,7 +124,7 @@ test("the_connection_upgrades_with_mcp_stdio_and_opens_a_viewer_with_the_per_req
   expect(openViewerRequest).toMatchObject({ jsonrpc: "2.0", method: "tools/call" });
   expect(toolCallParams(openViewerRequest ?? {})).toEqual({
     name: "open_viewer",
-    arguments: { stream: "pattern-main-1a2b3c", node: "pattern", port: "video", viewer_process_id: 4242 },
+    arguments: { stream: "pattern-main-1a2b3c", node_id: "7f3a", port: "video", viewer_process_id: 4242 },
     _meta: {
       "io.modelcontextprotocol/protocolVersion": LOCAL_API_MCP_PROTOCOL_VERSION,
       "io.modelcontextprotocol/clientInfo": { name: "tatolab-app", version: "0.45.0" },
@@ -143,11 +144,11 @@ test("answers_that_come_back_out_of_order_settle_the_requests_they_answer", asyn
   const connection = await openConnection(runtime.localApiSocketPath);
 
   const [openedViewer, closedViewer] = await Promise.all([
-    connection.openViewer({ stream: "pattern-main-1a2b3c", node: "pattern", port: "video", viewer_process_id: 1 }),
+    connection.openViewer({ stream: "pattern-main-1a2b3c", node_id: "7f3a", port: "video", viewer_process_id: 1 }),
     connection.closeViewer("s/b/out"),
   ]);
 
-  expect(answerOf(openedViewer).viewer).toBe("pattern-main-1a2b3c/pattern/video");
+  expect(answerOf(openedViewer).viewer).toBe("pattern-main-1a2b3c/7f3a/video");
   expect(answerOf(closedViewer)).toBe("s/b/out");
   expect(new Set(runtime.requestLinesRead.map((request) => request["id"])).size).toBe(2);
 });
@@ -165,7 +166,7 @@ test("a_viewer_the_tool_refuses_is_the_runtimes_refusal_in_its_own_words", async
   const runtime = await fakeMcpStdioRuntime(UPGRADED, (request) => [toolResultLine(request["id"], refusal, true)]);
   const connection = await openConnection(runtime.localApiSocketPath);
 
-  const failure = failureOf(await connection.openViewer({ stream: "pattern-main-1a2b3c", node: "pattern", port: "video", viewer_process_id: 1 }));
+  const failure = failureOf(await connection.openViewer({ stream: "pattern-main-1a2b3c", node_id: "7f3a", port: "video", viewer_process_id: 1 }));
 
   expect(failure).toEqual<LocalApiRequestFailure>({ failureDescription: refusal, isTheRuntimesRefusal: true });
 });
@@ -219,7 +220,7 @@ test("the_runtime_closing_the_connection_fails_the_requests_awaiting_answers_and
   const whyItClosed: string[] = [];
   connection.onClosed((why) => whyItClosed.push(why));
 
-  const awaitingItsAnswer = connection.openViewer({ stream: "s", node: "n", port: "p", viewer_process_id: 1 });
+  const awaitingItsAnswer = connection.openViewer({ stream: "s", node_id: "n", port: "p", viewer_process_id: 1 });
   await expect.poll(() => runtime.requestLinesRead.length).toBe(1);
   runtime.closeEveryConnection();
   const failure = failureOf(await awaitingItsAnswer);

@@ -5,9 +5,9 @@
 # and the runtime helper's Contents/MacOS and Contents/Frameworks, every symlink resolving inside the
 # bundle, the runtime helper Contents/Helpers/Tatolab Runtime.app and its Info.plist, no install.sh,
 # the Info.plist usage strings, the helper's runtime version against the app's and the streamlib
-# commit it was built from, the lend's CPython 3.10-3.14 bytecode, the runtime's preview page, the
+# commit it was built from, the lend's CPython 3.10-3.14 bytecode, the
 # runtime's uv beside the helper's tatolabd and no Python of the app's own, the entitlements of the
-# helper's tatolabd, moq-relay, uv and tatolab-cli, the app and Electron's helpers, Electron's
+# helper's tatolabd, uv and tatolab-cli, the app and Electron's helpers, Electron's
 # fuses, and the build features the app was built with and the tatolab-app commit they name.
 # Reading the fuses and the build features needs this checkout's node_modules (npm ci).
 # A stapled target must also pass Gatekeeper.
@@ -132,7 +132,7 @@ verify_app_bundle() {
   [ "$(plutil -extract CFBundleExecutable raw -o - "$helper_info_plist" 2>/dev/null)" = tatolabd ] \
     && pass "Tatolab Runtime.app's executable is tatolabd" || fail "Tatolab Runtime.app's CFBundleExecutable is not tatolabd"
   local bundled_executable
-  for bundled_executable in tatolabd tatolab-cli moq-relay uv; do
+  for bundled_executable in tatolabd tatolab-cli uv; do
     [ -x "$helper_contents/MacOS/$bundled_executable" ] && pass "Tatolab Runtime.app's Contents/MacOS/$bundled_executable is present" \
       || fail "Tatolab Runtime.app's Contents/MacOS/$bundled_executable is missing"
   done
@@ -225,9 +225,6 @@ verify_app_bundle() {
   [ "$lend_mach_o_links" -gt 0 ] && pass "the helper's Resources/lend links $lend_mach_o_links Mach-O into its Frameworks/tatolab-runtime" \
     || fail "the helper's Resources/lend links no Mach-O into its Frameworks/tatolab-runtime"
 
-  [ -f "$helper_contents/Resources/watch/index.html" ] \
-    && pass "the helper's Resources/watch carries the runtime's preview page" || fail "the helper's Resources/watch has no index.html: the runtime serves no preview page"
-
   local lend_python_source lend_bytecode_cache_tag lend_bytecode_file missing_lend_bytecode_count=0 first_missing_lend_bytecode=""
   while IFS= read -r -d '' lend_python_source; do
     for lend_bytecode_cache_tag in "${required_lend_bytecode_cache_tags[@]}"; do
@@ -297,7 +294,7 @@ verify_app_bundle() {
     && pass "Tatolab Runtime.app embeds the provisioning profile for $runtime_keychain_access_group" \
     || fail "Tatolab Runtime.app embeds no provisioning profile for $runtime_keychain_access_group (found '${embedded_runtime_profile_application_identifier:-none}')"
   local unentitled_executable
-  for unentitled_executable in "$helper_contents/MacOS/uv" "$helper_contents/MacOS/moq-relay" "$helper_contents/MacOS/tatolab-cli"; do
+  for unentitled_executable in "$helper_contents/MacOS/uv" "$helper_contents/MacOS/tatolab-cli"; do
     signed_code_entitlement_keys="$(entitlement_keys_of "$unentitled_executable")"
     [ -z "$signed_code_entitlement_keys" ] && pass "${unentitled_executable#"$contents/"} carries no entitlements" \
       || fail "${unentitled_executable#"$contents/"}'s entitlements are '$signed_code_entitlement_keys', not none"

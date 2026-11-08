@@ -1,7 +1,8 @@
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { RuntimePortViewers } from "./runtime_port_viewers.js";
+import { localApiRequestFailure } from "./local_api_client.js";
 import os from "node:os";
 import path from "node:path";
-import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { afterEach, expect, test, vi } from "vitest";
 import type { TatolabPlatform } from "../shared/tatolab_backend_contract.js";
 import { FakeLocalApiServer, httpResponse, toolResultResponse } from "./fake_local_api_server.js";
@@ -23,7 +24,6 @@ import { failedWith, succeeded } from "./result.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
 import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL } from "./carried_runtime_run_as_the_apps_child.js";
 import { RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL } from "./runtime_log_folder_opening.js";
-import { relayAdaptersFromTheRelayAdaptersAnswer } from "./relays_description.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
@@ -95,7 +95,6 @@ async function sharedStateOverFakes(
     appVersion: "0.45.0",
     appBuild: { tatolab_app_commit: "22b07a1c0ffee5d1e4a7b3c9e8f6a2d4b5c7e9f1", build_kind: "dev", built_with_uncommitted_changes: true },
     readMonotonicClockMs: () => 0,
-    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
@@ -125,6 +124,7 @@ async function sharedStateOverFakes(
     watchFolderEntries: () => null,
     runAfter: () => () => {},
     whenAStudioWindowClosed: () => {},
+    whenAWindowShowingPortViewersClosed: () => {},
     tatolabAppLog: quietTatolabAppLog,
   });
   appWindows.showTheProjectsWindow();
@@ -159,6 +159,14 @@ async function sharedStateOverFakes(
     pythonLanguageServers: new PythonLanguageServers({
       startANodeLanguageServer: () => failedWith("these tests start no language server"),
       pyrightLanguageServerModulePath: "/fake/pyright/langserver.index.js",
+      tatolabAppLog: quietTatolabAppLog,
+    }),
+    runtimePortViewers: new RuntimePortViewers({
+      openTheViewerConnection: async () => localApiRequestFailure("these tests open no viewer connection"),
+      openAChannelReader: () => failedWith("these tests read no channel"),
+      viewerProcessId: 4242,
+      repeatEvery: () => () => undefined,
+      waitThen: () => undefined,
       tatolabAppLog: quietTatolabAppLog,
     }),
     fetchTextOverHttps: async () => failedWith("these tests reach no network"),
@@ -268,7 +276,6 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
 
   const graphToolResultText = JSON.stringify({
       machine: "jonathanf-macbook",
-      exposed: [{ level: "private", port: "video_to_downstream", node: "invertingeffect" }],
       links: [
         { state: "wired", target: { port: "video_from_upstream", node: "invertingeffect" }, source: { port: "video", node: "testpatternsource" }, id: "L1" },
       ],
@@ -284,7 +291,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       ],
       stream: "main",
   });
-  const graph = streamGraphSummaryFromTheGraphToolResult("main", graphToolResultText, "http://127.0.0.1:4446");
+  const graph = streamGraphSummaryFromTheGraphToolResult("main", graphToolResultText);
   expect(graph.ok && JSON.stringify(graph.value)).toBe(
     '{"stream":"main","nodes":[' +
       '{"id":"P1","name":"testpatternsource","type":"tatolab.stream:TestPatternSource","state":"Running","config":{},' +
@@ -295,8 +302,6 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"dropped_bags_by_link":{"L1":12},"refused_bags_by_output_port":{}}],' +
       '"links":[{"id":"L1","source_node":"testpatternsource","source_port":"video",' +
       '"target_node":"invertingeffect","target_port":"video_from_upstream","state":"wired"}],' +
-      '"exposed":[{"node":"invertingeffect","port":"video_to_downstream","level":"private",' +
-      '"watch_page_url":"http://127.0.0.1:4446/watch/jonathanf-macbook/main/invertingeffect/video_to_downstream?video_only"}],' +
       `"graph_document_text":${JSON.stringify(graphToolResultText)}}`,
   );
 });
@@ -746,66 +751,4 @@ test("opening_tatolab_at_login_asks_the_desktop_then_observes_again_and_is_refus
     refusal: "Tato Studio could not write /home/u/.config/autostart/Tatolab.desktop: EACCES: permission denied",
   });
   expect(await commandHandlers.set_open_tatolab_at_login({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "set_open_tatolab_at_login needs `enabled`, true or false" });
-});
-
-/** The window's `RelaysDescription` reads exactly this JSON, recorded from a test-root runtime. */
-test("describing_the_relays_answers_the_window_in_the_contracts_shape", async () => {
-  const sharedState = await sharedStateOverFakes(
-    [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-relay-adapters-answer-of-a-test-root-runtime.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-relays-tool-result-with-a-secret-holder-and-a-joining-cloudflare-relay.json")),
-    ],
-    "macos",
-  );
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
-  const recordedAdapters = relayAdaptersFromTheRelayAdaptersAnswer(await recordedResponseBody("local-api-relay-adapters-answer-of-a-test-root-runtime.json"));
-  const recordedLocalRelayIcon = recordedAdapters.ok ? recordedAdapters.value[0]?.display_icon_data_uri : expect.unreachable(recordedAdapters.failure);
-
-  const answer = JSON.stringify(await commandHandlers.describe_relays(undefined, FROM_THE_PROJECTS_WINDOW));
-
-  expect(answer.startsWith('{"ok":true,"value":{"relays":[{"relay_id":"local-loopback","adapter":"local","built_in":true,"settings":{"port":14443},"secrets":{},"connection_state":{"state":"joined"}},')).toBe(true);
-  expect(answer).toContain('{"relay_id":"cloudflare-1","adapter":"cloudflare","built_in":false,"settings":{},"secrets":{"relay_url":"set"},"connection_state":{"state":"joining"}}');
-  expect(answer).toContain(
-    `"adapters":[{"kind":"local","display_name":"Local relay","display_icon_data_uri":${JSON.stringify(recordedLocalRelayIcon)},` +
-      '"doc":"The machine\'s own relay, built in: `local-loopback` serves every exposed port to this machine alone, `local-every-interface` serves public ports to any machine that reaches it. Where each listens is never a setting.","setting_fields":[{"name":"port","field_type":{"type":"number"},"is_secret":false,"is_required":false,"doc":"The port the listener takes for QUIC and HTTP alike; absent, the listener\'s own default (4443 at loopback, 4445 at every interface).","default_value":null}]}',
-  );
-});
-
-test("adding_configuring_and_removing_a_relay_answer_the_window_in_the_contracts_shape_and_refusals_in_the_runtimes_words", async () => {
-  const sharedState = await sharedStateOverFakes(
-    [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-add-relay-answer-for-a-test-secret-holder.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-configure-relay-answer-for-local-every-interface-on-port-14447.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-relay-refusal-for-the-built-in-local-every-interface.json")),
-    ],
-    "linux",
-  );
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
-
-  expect(JSON.stringify(await commandHandlers.add_relay({ adapter: "test-secret-holder", settings: { token: "typed-in-the-test", label: null } }, FROM_THE_PROJECTS_WINDOW))).toBe(
-    '{"ok":true,"value":{"relay_id":"test-secret-holder-1"}}',
-  );
-  expect(await commandHandlers.configure_relay({ relay_id: "local-every-interface", settings: { port: 14447 } }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.remove_relay({ relay_id: "local-every-interface" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
-    ok: false,
-    refusal: "the relay `local-every-interface` is built in and is never removed",
-  });
-});
-
-test("the_relay_commands_read_their_arguments_as_the_window_sends_them_and_never_name_a_settings_value_refusing_one", async () => {
-  const sharedState = await sharedStateOverFakes([], "macos");
-  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
-
-  expect(await commandHandlers.add_relay({ settings: {} }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "add_relay needs `adapter`, an adapter's kind" });
-  expect(await commandHandlers.add_relay({ adapter: "cloudflare" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "add_relay needs `settings`, each setting by name" });
-  expect(await commandHandlers.add_relay({ adapter: "cloudflare", settings: { relay_url: { url: "typed-in-the-test" } } }, FROM_THE_PROJECTS_WINDOW)).toEqual({
-    ok: false,
-    refusal: "add_relay needs the setting `relay_url` as text, a number, true or false, a list of text, or null",
-  });
-  expect(await commandHandlers.configure_relay({ settings: { port: 1 } }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "configure_relay needs `relay_id`, a relay's id" });
-  expect(await commandHandlers.configure_relay({ relay_id: "local-every-interface", settings: { port: Number.NaN } }, FROM_THE_PROJECTS_WINDOW)).toEqual({
-    ok: false,
-    refusal: "configure_relay needs the setting `port` as text, a number, true or false, a list of text, or null",
-  });
-  expect(await commandHandlers.remove_relay({ relay: "cloudflare-1" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "remove_relay needs `relay_id`, a relay's id" });
 });

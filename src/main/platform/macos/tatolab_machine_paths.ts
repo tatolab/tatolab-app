@@ -6,6 +6,7 @@
 
 import { realpath } from "node:fs/promises";
 import path from "node:path";
+import { RUNTIME_VIEWER_FRAME_IMPORT_ADDON_FILE_NAME } from "../../runtime_viewer_frame_import_addon.js";
 import { TATOLAB_APP_BUILD_FEATURES } from "../../tatolab_app_build_features.js";
 import { COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER } from "../command_line_tool_link_in_the_home_folder.js";
 import {
@@ -85,6 +86,11 @@ export function carriedRuntimeExecutableIn(appBundle: string): string {
 /** The `tatolab` CLI inside the runtime helper `appBundle` carries. */
 export function carriedCommandLineToolIn(appBundle: string): string {
   return path.join(runtimeHelperBundleIn(appBundle), "Contents", "MacOS", BUNDLED_COMMAND_LINE_TOOL_FILE_NAME);
+}
+
+/** The viewer addon the packaged app carries in `Contents/Frameworks/`, where code signing reads Mach-O, found from its `Contents/Resources/`. */
+export function viewerAddonThePackagedAppCarriesInItsFrameworks(appResourcesDirectory: string): string {
+  return path.join(path.dirname(appResourcesDirectory), "Frameworks", RUNTIME_VIEWER_FRAME_IMPORT_ADDON_FILE_NAME);
 }
 
 /** The streamlib commit file of the runtime the app carries, found from the app's `Contents/Resources/`. */

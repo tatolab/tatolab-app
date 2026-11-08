@@ -1,7 +1,6 @@
-import { BrowserWindow } from "electron";
+import { BrowserWindow, sharedTexture, type SharedTextureImported } from "electron";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
-import { isOnTheRuntimesWatchPage } from "../runtime_loopback_watch_page.js";
 import { isACommandFromTheWindowsOwnPage, isOnTheWindowPagesOwnLocation } from "../tatolab_window_page_source.js";
 import { MainWindowFirstShowGate } from "../main_window_first_show_gate.js";
 import { TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE } from "../../shared/tatolab_electron_bridge_contract.js";
@@ -9,13 +8,11 @@ import type { MainWindowCloseRequestAnswer, MainWindowHost, MainWindowHostFactor
 
 /**
  * Creates the window as a sandboxed, context-isolated page with no Node, loading `windowPageUrl` with the preload at
- * `windowPreloadScriptPath`, whose frames go only to the runtime's preview page at `runtimeLoopbackHttpOrigin`; developer
- * tools open only where `developerToolsAllowed`.
+ * `windowPreloadScriptPath`, with no frame navigating anywhere; developer tools open only where `developerToolsAllowed`.
  */
 export function createElectronMainWindowHostFactory(
   windowPageUrl: string,
   windowPreloadScriptPath: string,
-  runtimeLoopbackHttpOrigin: string,
   developerToolsAllowed: boolean,
   tatolabAppLog: TatolabAppLog,
 ): MainWindowHostFactory {
@@ -60,9 +57,7 @@ export function createElectronMainWindowHostFactory(
         if (!isOnTheWindowPagesOwnLocation(windowPageUrl, navigationEvent.url)) navigationEvent.preventDefault();
       });
       windowContents.on("will-frame-navigate", (frameNavigationEvent) => {
-        if (!frameNavigationEvent.isMainFrame && !isOnTheRuntimesWatchPage(runtimeLoopbackHttpOrigin, frameNavigationEvent.url)) {
-          frameNavigationEvent.preventDefault();
-        }
+        if (!frameNavigationEvent.isMainFrame) frameNavigationEvent.preventDefault();
       });
       windowContents.session.setPermissionRequestHandler((_requestingContents, _permission, answerPermissionRequest) =>
         answerPermissionRequest(false),
@@ -95,6 +90,33 @@ export function createElectronMainWindowHostFactory(
         isShowing: () => firstShowGate.showIsWaitingForThePage() || (mainBrowserWindow.isVisible() && !mainBrowserWindow.isMinimized()),
         sendTheWindowAnEvent: (eventChannel, eventPayload) => {
           if (!windowContents.isDestroyed()) windowContents.send(eventChannel, eventPayload);
+        },
+        sendTheWindowASharedTexture: async (sharedTextureImport, frameFacts, whenEveryReferenceIsReleased) => {
+          let everyReferenceIsReleased = false;
+          const noticeEveryReferenceReleased = () => {
+            if (everyReferenceIsReleased) return;
+            everyReferenceIsReleased = true;
+            whenEveryReferenceIsReleased();
+          };
+          if (windowContents.isDestroyed()) {
+            noticeEveryReferenceReleased();
+            return failedWith("the window has closed");
+          }
+          let importedSharedTexture: SharedTextureImported;
+          try {
+            importedSharedTexture = sharedTexture.importSharedTexture({ textureInfo: sharedTextureImport, allReferencesReleased: noticeEveryReferenceReleased });
+          } catch (importFailure) {
+            noticeEveryReferenceReleased();
+            return failedWith(describeCaughtFailure(importFailure));
+          }
+          try {
+            await sharedTexture.sendSharedTexture({ frame: windowContents.mainFrame, importedSharedTexture }, frameFacts);
+            return succeeded(undefined);
+          } catch (sendFailure) {
+            return failedWith(describeCaughtFailure(sendFailure));
+          } finally {
+            importedSharedTexture.release();
+          }
         },
       });
     },

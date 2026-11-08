@@ -55,9 +55,9 @@ export function inlineScriptHashSources(windowPageHtml: string): string[] {
 
 /**
  * The window page's content security policy: only its own origin, its inline theme script, inline styles, data: fonts
- * and images, and frames of the runtime's preview page at `runtimeLoopbackHttpOrigin`, which plays an exposed output.
+ * and images, and no frames.
  */
-export function windowPageContentSecurityPolicy(windowPageHtml: string, runtimeLoopbackHttpOrigin: string): string {
+export function windowPageContentSecurityPolicy(windowPageHtml: string): string {
   return [
     "default-src 'self'",
     `script-src 'self' ${inlineScriptHashSources(windowPageHtml).join(" ")}`.trimEnd(),
@@ -65,7 +65,7 @@ export function windowPageContentSecurityPolicy(windowPageHtml: string, runtimeL
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data:",
-    `frame-src ${runtimeLoopbackHttpOrigin}`,
+    "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
   ].join("; ");

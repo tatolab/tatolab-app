@@ -30,10 +30,13 @@ const LARGEST_MCP_STDIO_LINE_BYTES = 8 * 1024 * 1024;
 
 /** What `open_viewer` answers (`OpenViewerToolResult`): where the viewer's own process subscribes to read the port. */
 export interface OpenedRuntimeViewer {
-  /** The id `close_viewer` takes: `<stream>/<node>/<port>`. */
+  /** The id `close_viewer` takes: `<stream>/<node_id>/<port>`. */
   viewer: string;
   stream: string;
-  node: string;
+  /** The node's id, as `graph` lists it. */
+  node_id: string;
+  /** The node's name: its label, not its identity. */
+  node_name: string;
   port: string;
   /** The root of the iceoryx2 domain the port's channel lives in. */
   iceoryx2_domain_root: string;
@@ -46,7 +49,8 @@ export interface OpenedRuntimeViewer {
 /** The output port of a running node a viewer reads, and the process that imports its Image frames. */
 export interface RuntimeViewerTarget {
   stream: string;
-  node: string;
+  /** The node's id, as `graph` lists it. */
+  node_id: string;
   port: string;
   /** The pid of the process that imports the frames; the runtime's surface-sharing service on macOS admits only that process. */
   viewer_process_id: number;
@@ -65,8 +69,10 @@ function openedRuntimeViewerOnTheWire(toolResult: JsonObjectOnTheWire): Result<O
   if (!viewer.ok) return viewer;
   const stream = requiredText(toolResult, "stream");
   if (!stream.ok) return stream;
-  const node = requiredText(toolResult, "node");
-  if (!node.ok) return node;
+  const nodeId = requiredText(toolResult, "node_id");
+  if (!nodeId.ok) return nodeId;
+  const nodeName = requiredText(toolResult, "node_name");
+  if (!nodeName.ok) return nodeName;
   const port = requiredText(toolResult, "port");
   if (!port.ok) return port;
   const iceoryx2DomainRoot = requiredText(toolResult, "iceoryx2_domain_root");
@@ -78,7 +84,8 @@ function openedRuntimeViewerOnTheWire(toolResult: JsonObjectOnTheWire): Result<O
   return succeeded({
     viewer: viewer.value,
     stream: stream.value,
-    node: node.value,
+    node_id: nodeId.value,
+    node_name: nodeName.value,
     port: port.value,
     iceoryx2_domain_root: iceoryx2DomainRoot.value,
     channel: channel.value,
@@ -192,7 +199,7 @@ export class LocalApiMcpStdioConnection {
   async openViewer(target: RuntimeViewerTarget): Promise<Result<OpenedRuntimeViewer, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool("open_viewer", {
       stream: target.stream,
-      node: target.node,
+      node_id: target.node_id,
       port: target.port,
       viewer_process_id: target.viewer_process_id,
     });

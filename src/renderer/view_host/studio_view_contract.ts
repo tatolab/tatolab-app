@@ -9,6 +9,7 @@ import type {
   NodeCatalog,
   OpenProjectReading,
   PoppedOutViewerTarget,
+  PortViewerTarget,
   ProjectLogRecord,
   StreamGraphSummary,
   ProjectFileRead,
@@ -26,6 +27,7 @@ export type {
   OpenProject,
   OpenProjectReading,
   PoppedOutViewerTarget,
+  PortViewerTarget,
   ProjectLogRecord,
   ProjectOnDisk,
   StreamGraphDeclaredPort,
@@ -97,6 +99,20 @@ export interface PythonLanguageServerConnection {
   close(): void;
 }
 
+/** What a port viewer delivers: an Image frame to draw, as a `VideoFrame` the view closes once drawn or as its pixels; another family's message, by its size; or the viewer reopening or ending, with why. */
+export type PortViewerConnectionEvent =
+  | { kind: "image_frame"; video_frame: VideoFrame; format_wire_name: string; skipped_since_last_read: number }
+  | { kind: "image_pixels"; width: number; height: number; format_wire_name: string; bytes_per_row: number; pixels: Uint8Array; skipped_since_last_read: number }
+  | { kind: "message"; port_family: string; payload_byte_length: number; skipped_since_last_read: number }
+  | { kind: "reopening"; because: string }
+  | { kind: "ended"; because: string };
+
+/** One port viewer, reading a running node's output port until closed. */
+export interface PortViewerConnection {
+  /** Close the viewer; nothing arrives after. */
+  close(): void;
+}
+
 /** Everything a view may read or ask for. */
 export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   /** The settings the view's area holds: restored from the layout, or the view type's defaults. */
@@ -127,6 +143,8 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   popOutViewer(target: PoppedOutViewerTarget): Promise<ViewerPopOut>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
   connectToPythonLanguageServer(projectFolder: string, onEvent: (event: PythonLanguageServerConnectionEvent) => void): PythonLanguageServerConnection;
+  /** Read `target`'s output port, each frame or message and the viewer's end arriving on `onEvent`. */
+  watchPortViewer(target: PortViewerTarget, onEvent: (event: PortViewerConnectionEvent) => void): PortViewerConnection;
 }
 
 /** Who brought a view type: the studio itself, or the open project or one of its imports. */

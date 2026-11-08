@@ -24,7 +24,6 @@ const GRAPH: StreamGraphSummary = {
     { id: "", source_node: "invert", source_port: "video_out", target_node: "display", target_port: "video", state: "awaiting_remote" },
     { id: "L3", source_node: "camera", source_port: "video", target_node: "display", target_port: "video", state: "reconnecting_later" },
   ],
-  exposed: [],
   graph_document_text: "{}",
 };
 

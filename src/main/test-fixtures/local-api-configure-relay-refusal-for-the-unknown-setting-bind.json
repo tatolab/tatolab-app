@@ -1,1 +1,0 @@
-{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"the settings of the relay `local-loopback` are refused: unknown field `bind`, expected `port`"}],"isError":true}}

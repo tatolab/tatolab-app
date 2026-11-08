@@ -5,6 +5,7 @@ import {
   carriedRuntimeExecutableIn,
   runtimeHelperBundleIn,
   streamlibCommitFileTheAppCarriesBeside,
+  viewerAddonThePackagedAppCarriesInItsFrameworks,
   tatolabMachinePathsOnMacosForTheRealMachine,
   tatolabMachinePathsOnMacosForThisBuild,
   tatolabMachinePathsOnMacosUnderALocalProofTestRoot,
@@ -47,4 +48,10 @@ test("the_carried_runtime_cli_and_commit_sit_in_the_runtime_helper_where_the_bun
 
 test("a build without the local-proof feature uses the real machine's paths", () => {
   expect(tatolabMachinePathsOnMacosForThisBuild(501, "/Users/someone")).toEqual(tatolabMachinePathsOnMacosForTheRealMachine(501, "/Users/someone"));
+});
+
+test("the packaged app's viewer addon is in its Frameworks, where code signing reads Mach-O", () => {
+  expect(viewerAddonThePackagedAppCarriesInItsFrameworks("/Applications/Tato Studio.app/Contents/Resources")).toBe(
+    "/Applications/Tato Studio.app/Contents/Frameworks/tatolab_runtime_viewer_frame_import.node",
+  );
 });

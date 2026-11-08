@@ -22,16 +22,13 @@ export function localApiSocketUnderALocalProofTestRoot(testMachineRoot: string):
   return path.join(testMachineRoot, "run", LOCAL_API_SOCKET_FILE_NAME);
 }
 
-/** The test ports a local-proof runtime's local relays bind, without which a test-root runtime runs none. */
-const LOCAL_PROOF_LOCAL_RELAY_LOOPBACK_PORT = 14443;
-const LOCAL_PROOF_LOCAL_RELAY_EVERY_INTERFACE_PORT = 14445;
+/** The port a local-proof runtime binds its loopback HTTP on, apart from a release runtime's; a test-root runtime binds none without one. */
+const LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT = 14446;
 
-/** What a runtime under `testMachineRoot` is run with: its test root, and the test ports of its local relays and loopback HTTP. */
-export function localProofRuntimeEnvironment(testMachineRoot: string, loopbackHttpPort: number): Readonly<Record<string, string>> {
+/** What a runtime under `testMachineRoot` is run with: its test root, and the test port of its loopback HTTP. */
+export function localProofRuntimeEnvironment(testMachineRoot: string): Readonly<Record<string, string>> {
   return {
     TATOLAB_TEST_MACHINE_ROOT: testMachineRoot,
-    TATOLAB_TEST_LOCAL_RELAY_LOOPBACK_PORT: String(LOCAL_PROOF_LOCAL_RELAY_LOOPBACK_PORT),
-    TATOLAB_TEST_LOCAL_RELAY_EVERY_INTERFACE_PORT: String(LOCAL_PROOF_LOCAL_RELAY_EVERY_INTERFACE_PORT),
-    TATOLAB_TEST_LOOPBACK_HTTP_PORT: String(loopbackHttpPort),
+    TATOLAB_TEST_LOOPBACK_HTTP_PORT: String(LOCAL_PROOF_RUNTIME_LOOPBACK_HTTP_PORT),
   };
 }

@@ -6,14 +6,13 @@ import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
+import type { PortViewerImageFrameFacts, StreamProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import type { ProjectFolderDialogPurpose } from "./open_project.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { failedWith, succeeded } from "./result.js";
-import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 import type { TatolabElectronAppShell } from "./main.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
@@ -47,6 +46,7 @@ export type FakeShellRecord = (
   | { asked: "create_main_window"; mainWindowSpecification: MainWindowSpecification }
   | { asked: "unminimize" | "show" | "focus" | "hide" | "close" }
   | { asked: "send_window_event"; eventChannel: string; eventPayload: unknown }
+  | { asked: "send_window_shared_texture"; frameFacts: PortViewerImageFrameFacts }
   | { asked: "set_activation_policy"; activationPolicy: MacosActivationPolicy }
   | { asked: "show_tray_menu"; trayMenuItems: readonly TrayMenuItemDescription[] }
   | { asked: "exit"; exitCode: number }
@@ -148,13 +148,14 @@ export class FakeTatolabElectronAppShell {
     },
     startANodeLanguageServer: () => failedWith("the fake shell starts no language server"),
     pyrightLanguageServerModulePath: "/fake/node_modules/pyright/langserver.index.js",
+    runtimeViewerFrameImportAddonPath: "/fake/out/native/tatolab_runtime_viewer_frame_import.node",
+    mainProcessId: 4242,
     homeDirectory: path.join(this.appConfigDirectory, "home"),
     documentsDirectory: path.join(this.appConfigDirectory, "home", "Documents"),
     createTheAppUpdateFeed: () => this.appUpdateFeedForThisBuild,
     systemNotifications: this.systemNotifications,
     repeatingTimer: (intervalMs) => this.records.push({ asked: "repeat_every", intervalMs }),
     appConfigDirectory: this.appConfigDirectory,
-    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readMonotonicClockMs: () => 0,
     readWallClockMsForDisplay: () => 1_790_000_000_000,
     mainWindowHostFactory: {
@@ -185,6 +186,11 @@ export class FakeTatolabElectronAppShell {
           close: () => this.closeTheFakeWindow(fakeWindow),
           isShowing: () => fakeWindow.showing,
           sendTheWindowAnEvent: (eventChannel, eventPayload) => this.records.push(recordOfThisWindow({ asked: "send_window_event", eventChannel, eventPayload })),
+          sendTheWindowASharedTexture: (_sharedTextureImport, frameFacts, whenEveryReferenceIsReleased) => {
+            this.records.push(recordOfThisWindow({ asked: "send_window_shared_texture", frameFacts }));
+            whenEveryReferenceIsReleased();
+            return Promise.resolve(succeeded(undefined));
+          },
         });
       },
     },

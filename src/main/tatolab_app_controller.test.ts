@@ -1,4 +1,3 @@
-import { RUNTIME_LOOPBACK_HTTP_ORIGIN } from "./runtime_loopback_watch_page.js";
 import { afterEach, expect, test } from "vitest";
 import type { CarriedRuntime } from "./platform/carried_runtime.js";
 import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL, RUNTIME_STARTING_GRACE_PERIOD_MS } from "./carried_runtime_run_as_the_apps_child.js";
@@ -63,7 +62,6 @@ async function controllerOverFakes(scriptedLocalApiResponses: readonly Buffer[],
     appVersion: "0.45.0",
     appBuild: null,
     readMonotonicClockMs: options.readMonotonicClockMs ?? (() => 0),
-    runtimeLoopbackHttpOrigin: RUNTIME_LOOPBACK_HTTP_ORIGIN,
     readTheAppUpdateState: options.readTheAppUpdateState ?? (() => ({ kind: "not_checked" })),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
@@ -168,32 +166,4 @@ test("linking the command is refused in its own words", async () => {
 test("each status carries where updates stand", async () => {
   const { controller } = await controllerOverFakes([], { readTheAppUpdateState: () => ({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" }) });
   expect((await controller.composeStatus(0)).app_update).toEqual({ kind: "available", version: "0.47.0", delivery: "install_and_relaunch" });
-});
-
-test("a_relay_change_is_logged_by_its_setting_names_and_never_a_settings_value", async () => {
-  const logLines: string[] = [];
-  const typedSecret = "typed-in-the-test-and-nowhere-else";
-  const { controller } = await controllerOverFakes(
-    [
-      toolResultResponse({ relay_id: "test-secret-holder-1" }),
-      httpResponse(
-        "200 OK",
-        "application/json",
-        JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "the relay `test-secret-holder-1` was not recorded, so nothing changed: disk full" }], isError: true } }),
-      ),
-      toolResultResponse({ relay_id: "test-secret-holder-1" }),
-    ],
-    { tatolabAppLog: createTatolabAppLog("debug", (logLine) => logLines.push(logLine)) },
-  );
-
-  expect(await controller.addRelay("test-secret-holder", { token: typedSecret, label: "desk" })).toEqual(succeeded("test-secret-holder-1"));
-  expect((await controller.configureRelay("test-secret-holder-1", { token: typedSecret })).ok).toBe(false);
-  expect(await controller.removeRelay("test-secret-holder-1")).toEqual(succeeded(undefined));
-
-  expect(logLines).toEqual([
-    " INFO a relay was added adapter=test-secret-holder relay_id=test-secret-holder-1 setting_names=token,label",
-    ' WARN a relay was not configured relay_id=test-secret-holder-1 setting_names=token failure="the relay `test-secret-holder-1` was not recorded, so nothing changed: disk full"',
-    " INFO a relay was removed relay_id=test-secret-holder-1",
-  ]);
-  expect(logLines.join("\n")).not.toContain(typedSecret);
 });

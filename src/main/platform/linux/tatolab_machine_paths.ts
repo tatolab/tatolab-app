@@ -13,6 +13,7 @@ import {
   localApiSocketUnderALocalProofTestRoot,
   perUserStreamlibRuntimeDirectoryUnderTmp,
 } from "../tatolab_machine_paths.js";
+import { RUNTIME_VIEWER_FRAME_IMPORT_ADDON_FILE_NAME } from "../../runtime_viewer_frame_import_addon.js";
 import { TATOLAB_APP_BUILD_FEATURES } from "../../tatolab_app_build_features.js";
 
 /** The folder the runtime keeps inside `$XDG_RUNTIME_DIR`. */
@@ -75,6 +76,11 @@ export function carriedRuntimeExecutableInTheAppResources(appResourcesDirectory:
 /** The `tatolab` CLI in the runtime unit the package carries in `appResourcesDirectory`. */
 export function carriedCommandLineToolInTheAppResources(appResourcesDirectory: string): string {
   return path.join(appResourcesDirectory, CARRIED_RUNTIME_UNIT_FOLDER_NAME, "bin", "tatolab");
+}
+
+/** The viewer addon the package carries beside its asar, since a native module loads only from a plain file. */
+export function viewerAddonThePackagedAppCarriesBesideItsAsar(appResourcesDirectory: string): string {
+  return path.join(appResourcesDirectory, "app.asar.unpacked", "out", "native", RUNTIME_VIEWER_FRAME_IMPORT_ADDON_FILE_NAME);
 }
 
 /** The streamlib commit file of the runtime unit the package carries in `appResourcesDirectory`. */

@@ -225,21 +225,11 @@ export interface StreamGraphLink {
   state: string;
 }
 
-/** An output port the stream exposes, at `internal`, `private` or `public`. */
-export interface StreamGraphExposedPort {
-  node: string;
-  port: string;
-  level: string;
-  /** The runtime's loopback preview page playing this output, `<origin>/watch/<machine>/<stream>/<node>/<port>?video_only`, showing the video alone; `null` for an `internal` port, which is never served, and for every port of a graph that names no machine. */
-  watch_page_url: string | null;
-}
-
-/** What `describe_stream_graph` answers: one loaded stream's nodes, links and exposed ports, and the document they were read from. */
+/** What `describe_stream_graph` answers: one loaded stream's nodes and links, and the document they were read from. */
 export interface StreamGraphSummary {
   stream: string;
   nodes: StreamGraphNode[];
   links: StreamGraphLink[];
-  exposed: StreamGraphExposedPort[];
   /** The `graph` tool's text exactly as the runtime wrote it, which `tatolab graph --stream` prints. */
   graph_document_text: string;
 }
@@ -316,79 +306,6 @@ export interface StreamActionCancelAnswer {
 /** What following a stream action read: its description, or the runtime's words that it no longer holds the action. */
 export type StreamActionFollowed = { kind: "described"; description: StreamActionDescription } | { kind: "not_held"; words: string };
 
-/** One value of a relay's settings on the wire: `add_relay` and `configure_relay` take them, `list_relays` lists the non-secret ones, a `string_list` is a list of text, and `null` returns a setting to its default. */
-export type RelaySettingValue = string | number | boolean | readonly string[] | null;
-
-/** Whether the runtime holds a value for one secret setting of a relay; never the value. */
-export type RelaySecretPresence = "set" | "unset";
-
-/** A relay's settings by name, as `add_relay` and `configure_relay` take them and `list_relays` lists them. */
-export type RelaySettingsByName = Record<string, RelaySettingValue>;
-
-/**
- * Where a relay stands with its relay, as `list_relays` reports it: `not_joined` with why when the runtime knows,
- * `joining`, `joined`, or `lost` with why and when it joins again; a state newer than this app is kept as spelled.
- */
-export type RelayConnectionState =
-  | { state: "not_joined"; why: string | null }
-  | { state: "joining" }
-  | { state: "joined" }
-  | { state: "lost"; why: string; rejoining_after_ms: number }
-  | { state: "newer_than_this_app"; spelled_as: string };
-
-/** One relay the runtime holds, as `list_relays` lists it, the built-in ones first. */
-export interface ListedRelay {
-  relay_id: string;
-  /** The adapter it is joined through, as the relay-adapter catalog names it. */
-  adapter: string;
-  /** Whether it is built in, and so never removed. */
-  built_in: boolean;
-  /** Its settings, every secret left out. */
-  settings: RelaySettingsByName;
-  /** Each secret setting its adapter takes, by name, and whether the runtime holds a value for it; never the value. */
-  secrets: Record<string, RelaySecretPresence>;
-  connection_state: RelayConnectionState;
-}
-
-/** How a person enters one setting, as the relay-adapter catalog's `type` declares it; a `select` takes one of its `options`, a `file` takes a file's text, picked or pasted. */
-export type RelaySettingFieldType =
-  | { type: "string" }
-  | { type: "url" }
-  | { type: "number" }
-  | { type: "boolean" }
-  | { type: "select"; options: readonly string[] }
-  | { type: "string_list" }
-  | { type: "file" };
-
-/** One setting an adapter takes, as the relay-adapter catalog's `settings` lists it. */
-export interface RelaySettingField {
-  name: string;
-  field_type: RelaySettingFieldType;
-  /** The runtime keeps it in the OS secret store and lists it only as set or unset, whatever its type. */
-  is_secret: boolean;
-  is_required: boolean;
-  doc: string;
-  /** Its value when an instance's settings leave it out; `null` when the catalog serves none. */
-  default_value: RelaySettingValue;
-}
-
-/** One adapter of the runtime's relay-adapter catalog: its kind, as `add_relay` takes it, the name and icon people see it by, what it joins, and the settings it takes, in the catalog's order. */
-export interface RelayAdapter {
-  kind: string;
-  /** The name people know it by (`"moq.pro"`); `null` from a runtime that serves none. */
-  display_name: string | null;
-  /** The provider's own logo, a `data:image/…` URI the runtime carries on a square canvas; `null` when it serves none, or one that is not `data:image/`. */
-  display_icon_data_uri: string | null;
-  doc: string;
-  setting_fields: RelaySettingField[];
-}
-
-/** What `describe_relays` answers: every relay the runtime holds and every adapter it can join one through. */
-export interface RelaysDescription {
-  relays: ListedRelay[];
-  adapters: RelayAdapter[];
-}
-
 /** A project folder as its `pyproject.toml` describes it. */
 export interface ProjectOnDisk {
   /** The folder, absolute with its links resolved. */
@@ -425,7 +342,7 @@ export type OpenProjectReading =
   | { kind: "read"; open_project: OpenProject }
   | { kind: "unreadable"; folder: string; refusal: string };
 
-/** What a popped-out Viewer window is pinned to: the stream it plays and the words it is titled with, and the node whose exposed output it plays, or `null` for the stream's first. */
+/** What a popped-out Viewer window is pinned to: the stream it plays and the words it is titled with, and the node whose output it plays, or `null` to play the stream's last picture. */
 export interface PoppedOutViewerTarget {
   stream: string;
   project_name: string;
@@ -522,3 +439,39 @@ export interface ProjectFiles {
 export type PythonLanguageServerEvent =
   | { session: string; kind: "message"; message: JsonValue }
   | { session: string; kind: "ended"; because: string };
+
+/** The output port of a running node a Viewer shows: the stream's id, the node's id as `graph` lists it, and the port's name. */
+export interface PortViewerTarget {
+  stream: string;
+  node_id: string;
+  port: string;
+}
+
+/** The facts beside an Image frame a port viewer hands the window as a shared texture. */
+export interface PortViewerImageFrameFacts {
+  port_viewer: string;
+  /** The runtime's wire name of the frame's pixel format (`bgra32`, `rgba32`, `nv12`, …). */
+  format_wire_name: string;
+  /** Messages the viewer skipped before this one, because a viewer reads only the latest. */
+  skipped_since_last_read: number;
+}
+
+/**
+ * What `tatolab-port-viewer-event` carries about one port viewer: Image frames a shared texture cannot carry, as their pixels (a GPU
+ * whose memory crosses only as CPU-readable bytes); any other family's latest message, by its size; the viewer reopening after its
+ * connection to the runtime closed; or its end, with why in the runtime's words.
+ */
+export type PortViewerEvent =
+  | {
+      port_viewer: string;
+      kind: "image_pixels";
+      width: number;
+      height: number;
+      format_wire_name: string;
+      bytes_per_row: number;
+      pixels: Uint8Array;
+      skipped_since_last_read: number;
+    }
+  | { port_viewer: string; kind: "message"; port_family: string; payload_byte_length: number; skipped_since_last_read: number }
+  | { port_viewer: string; kind: "reopening"; because: string }
+  | { port_viewer: string; kind: "ended"; because: string };

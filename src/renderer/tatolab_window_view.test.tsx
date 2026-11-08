@@ -203,16 +203,17 @@ describe("the studio", () => {
     expect(await shownLayout()).toBe("code");
   });
 
-  it("plays the open stream's exposed output in the Viewer, with nothing beside the video", async () => {
+  it("plays the open stream's last picture in the Viewer, reading the port as a port viewer", async () => {
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
 
     const playing = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"] [data-viewer-playing]') ?? expect.unreachable("the Viewer plays nothing"));
     expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
-    expect(playing.querySelector("iframe")?.getAttribute("src")).toMatch(/^data:text\/html/);
-    expect(playing.querySelector("iframe")?.getAttribute("title")).toBe("Preview of Inverting Effect › video_to_downstream");
-    expect(playing.textContent).toBe("");
+    expect(playing.querySelector("canvas")?.getAttribute("aria-label")).toBe("Live picture of Inverting Effect › video_to_downstream");
+    expect(document.querySelector("iframe")).toBeNull();
+    await waitFor(() => expect(playing.getAttribute("data-viewer-port-state")).toBe("ended"));
+    expect(playing.textContent).toContain("This page has no WebCodecs VideoFrame to play the mock's frames.");
   });
 
   it("pops the Viewer out pinned to the stream shown and the node selected, and says why where it is refused", async () => {

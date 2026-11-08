@@ -12,10 +12,10 @@ import type { TrayIconImage } from "./tray_icon_image.js";
 import { MACOS_MAIN_WINDOW_CHROME, setMacosDockIconVisible } from "./macos/main_window_chrome.js";
 import { macosTatolabPlatformForThisBuild } from "./macos/macos_tatolab_platform_for_this_build.js";
 import { MACOS_TRAY_ICON_IMAGE } from "./macos/tray_icon_image.js";
-import { streamlibCommitFileTheAppCarriesBeside } from "./macos/tatolab_machine_paths.js";
+import { streamlibCommitFileTheAppCarriesBeside, viewerAddonThePackagedAppCarriesInItsFrameworks } from "./macos/tatolab_machine_paths.js";
 import { LINUX_MAIN_WINDOW_CHROME, setLinuxDockIconVisible } from "./linux/main_window_chrome.js";
 import { linuxTatolabPlatformForThisBuild } from "./linux/linux_tatolab_platform_for_this_build.js";
-import { streamlibCommitFileTheAppCarriesInTheResources } from "./linux/tatolab_machine_paths.js";
+import { streamlibCommitFileTheAppCarriesInTheResources, viewerAddonThePackagedAppCarriesBesideItsAsar } from "./linux/tatolab_machine_paths.js";
 import { LINUX_TRAY_ICON_IMAGE } from "./linux/tray_icon_image.js";
 
 /** The platform items the app's lifecycle, window and tray use. */
@@ -27,6 +27,8 @@ export interface TatolabPlatformItems {
   setDockIconVisible(dockIconHost: DockIconHost, dockIconVisible: boolean): void;
   /** The file naming the streamlib commit of the runtime the app carries, found from the app's resources folder; `null` where the app carries none. */
   streamlibCommitFileTheAppCarries(appResourcesDirectory: string): string | null;
+  /** The viewer addon a packaged app carries, found from the app's resources folder. */
+  viewerAddonThePackagedAppCarries(appResourcesDirectory: string): string;
   /** This platform's carried runtime, the command's link and the local API socket, built from the host's services. */
   tatolabPlatformForThisBuild(tatolabAppLog: TatolabAppLog, tatolabPlatformHostServices: TatolabPlatformHostServices): Promise<TatolabPlatformForThisBuild>;
 }
@@ -47,6 +49,7 @@ export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatfo
         applicationMenu: "macos_menu_bar",
         setDockIconVisible: setMacosDockIconVisible,
         streamlibCommitFileTheAppCarries: streamlibCommitFileTheAppCarriesBeside,
+        viewerAddonThePackagedAppCarries: viewerAddonThePackagedAppCarriesInItsFrameworks,
         tatolabPlatformForThisBuild: macosTatolabPlatformForThisBuild,
       };
     case "linux":
@@ -57,6 +60,7 @@ export function tatolabPlatformItemsFor(nodePlatformName: string): TatolabPlatfo
         applicationMenu: "none",
         setDockIconVisible: setLinuxDockIconVisible,
         streamlibCommitFileTheAppCarries: streamlibCommitFileTheAppCarriesInTheResources,
+        viewerAddonThePackagedAppCarries: viewerAddonThePackagedAppCarriesBesideItsAsar,
         tatolabPlatformForThisBuild: linuxTatolabPlatformForThisBuild,
       };
     default:

@@ -14,7 +14,6 @@ function graphOfTheTypes(stream: string, nodeTypes: string[]): StreamGraphSummar
     stream,
     nodes: nodeTypes.map((type, index) => ({ id: `P${index}`, name: `n${index}`, type, state: null, config: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} })),
     links: [],
-    exposed: [],
     graph_document_text: "{}",
   };
 }

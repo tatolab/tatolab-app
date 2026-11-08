@@ -2,6 +2,9 @@ import type {
   ChosenProjectFolder,
   JsonValue,
   PythonLanguageServerEvent,
+  PortViewerEvent,
+  PortViewerImageFrameFacts,
+  PortViewerTarget,
   ProjectFileRead,
   ProjectFileSaved,
   ProjectFiles,
@@ -13,8 +16,6 @@ import type {
   RecentProject,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
-  RelaySettingsByName,
-  RelaysDescription,
   RuntimeDescription,
   StreamGraphSummary,
   ProjectCreationQueued,
@@ -84,14 +85,6 @@ export interface TatolabBackend {
   setStreamFailureNotifications(enabled: boolean): Promise<void>;
   /** Have the desktop open Tatolab at login, or stop, resolving once it has and rejecting in its words; what it reports arrives as the next status. */
   setOpenTatolabAtLogin(enabled: boolean): Promise<void>;
-  /** Every relay the runtime holds and every adapter it can join one through, rejecting in the runtime's own words. */
-  describeRelays(): Promise<RelaysDescription>;
-  /** Add a relay of `adapter` with `settings`, its secrets among them, resolving with the id the runtime gave it and rejecting in the runtime's own words. */
-  addRelay(adapter: string, settings: Readonly<RelaySettingsByName>): Promise<string>;
-  /** Replace the settings named in `settings` on the relay `relayId`, `null` returning one to its default; rejects in the runtime's own words. */
-  configureRelay(relayId: string, settings: Readonly<RelaySettingsByName>): Promise<void>;
-  /** Leave and forget the relay `relayId`, rejecting in the runtime's own words, as it refuses a built-in relay. */
-  removeRelay(relayId: string): Promise<void>;
   onTatolabStatusChanged(listener: (status: TatolabStatus) => void): Promise<() => void>;
   /** Calls `listener` with the stream each request from the app to show a stream's page names; the returned function stops it. */
   onStreamPageRequested(listener: (streamId: string) => void): () => void;
@@ -144,6 +137,13 @@ export interface TatolabBackend {
   stopPythonLanguageServer(session: string): Promise<void>;
   /** Calls `listener` with each message a language server sends and each server's end; the returned function stops it. */
   onPythonLanguageServerEvent(listener: (event: PythonLanguageServerEvent) => void): () => void;
+  /** Read `target`'s output port while the port viewer is open, resolving with the id its events arrive under and rejecting in the runtime's own words. */
+  openPortViewer(target: PortViewerTarget): Promise<string>;
+  closePortViewer(portViewer: string): Promise<void>;
+  /** Calls `listener` with each event of every port viewer the window opened; the returned function stops it. */
+  onPortViewerEvent(listener: (event: PortViewerEvent) => void): () => void;
+  /** Calls `listener` with each Image frame a port viewer hands over as a `VideoFrame`, which the listener closes once drawn; the returned function stops it. */
+  onPortViewerImageFrame(listener: (videoFrame: VideoFrame, frameFacts: PortViewerImageFrameFacts) => void): () => void;
 }
 
 /** Where the page runs: the packaged app's window with the preload's bridge, the app's own page without it, or a browser showing the mock. */

@@ -28,6 +28,7 @@ import { StreamGraphAndCatalogReadings } from "./view_host/stream_graph_and_cata
 import { registeredStudioViewType, StudioViewTypeRegistry } from "./view_host/studio_view_type_registry";
 import { ProjectLogReadings } from "./view_host/project_log_readings";
 import { PythonLanguageServerConnections } from "./view_host/python_language_server_connections";
+import { PortViewerConnections } from "./view_host/port_viewer_connections";
 import { isTatolabWindowVisible, onTatolabWindowVisibilityChanged } from "./window_visibility";
 
 /** The page's storage, or `null` where the page may not use it. */
@@ -99,6 +100,7 @@ export function mountTatolabWindow(
   projectLogReadings.setPollingAllowed(isTatolabWindowVisible());
   onTatolabWindowVisibilityChanged((isVisible) => projectLogReadings.setPollingAllowed(isVisible));
   const pythonLanguageServerConnections = new PythonLanguageServerConnections(backend);
+  const portViewerConnections = new PortViewerConnections(backend);
   const studioWindowModel = new StudioWindowModel(new StudioLayoutsKeptInStorage(windowLocalStorage()));
 
   const chooseProjectFolder = (chosenFor: ProjectFolderChosenFor) => {
@@ -154,6 +156,7 @@ export function mountTatolabWindow(
       backend,
       projectLogReadings,
       pythonLanguageServerConnections,
+      portViewerConnections,
     }),
     commands: studioMenuBarCommands,
     projects: {

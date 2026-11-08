@@ -67,14 +67,6 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     setOpenTatolabAtLogin: async (enabled) => {
       await invokeTatolabCommand("set_open_tatolab_at_login", { enabled });
     },
-    describeRelays: () => invokeTatolabCommand("describe_relays", undefined),
-    addRelay: async (adapter, settings) => (await invokeTatolabCommand("add_relay", { adapter, settings: { ...settings } })).relay_id,
-    configureRelay: async (relayId, settings) => {
-      await invokeTatolabCommand("configure_relay", { relay_id: relayId, settings: { ...settings } });
-    },
-    removeRelay: async (relayId) => {
-      await invokeTatolabCommand("remove_relay", { relay_id: relayId });
-    },
     onStreamPageRequested: (listener) => tatolabElectronBridge.onStreamPageRequested(listener),
     showTheProjectsWindow: async () => {
       await invokeTatolabCommand("show_projects_window", undefined);
@@ -118,5 +110,15 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("stop_python_language_server", { session });
     },
     onPythonLanguageServerEvent: (listener) => tatolabElectronBridge.onPythonLanguageServerEvent(listener),
+    openPortViewer: async (target) => (await invokeTatolabCommand("open_port_viewer", target)).port_viewer,
+    closePortViewer: async (portViewer) => {
+      await invokeTatolabCommand("close_port_viewer", { port_viewer: portViewer });
+    },
+    onPortViewerEvent: (listener) => tatolabElectronBridge.onPortViewerEvent(listener),
+    onPortViewerImageFrame: (listener) =>
+      tatolabElectronBridge.onPortViewerImageFrame((videoFrame, frameFacts) => {
+        if (videoFrame instanceof VideoFrame) listener(videoFrame, frameFacts);
+        else videoFrame.close();
+      }),
   };
 }

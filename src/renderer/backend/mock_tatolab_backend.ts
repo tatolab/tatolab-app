@@ -4,6 +4,7 @@ import {
   createMockStreamFixtures,
   createMockStreamRunFromAProjectFolder,
   MOCK_RUNTIME_ID,
+  mockNodeIdOf,
   mockStreamIdOf,
   type MockLiveLogWriter,
   type MockLogRecordDraft,
@@ -11,7 +12,6 @@ import {
   type MockStreamFixture,
   stampMockLogRecord,
 } from "./mock_stream_fixtures";
-import { createMockRelays, mockRelaysScenarioNamed, type MockRelaysScenario } from "./mock_relays";
 import { mockStreamGraphSummary } from "./mock_stream_graph_document";
 import {
   mockFoldersInDocumentsTatoStudio,
@@ -25,6 +25,7 @@ import {
   type MockOpenProjectScenario,
 } from "./mock_open_project";
 import { MockPythonLanguageServer } from "./mock_python_language_server";
+import { MockPortViewers } from "./mock_port_viewers";
 import { MockProjectFiles } from "./mock_project_files";
 import { newProjectFolderNameRefusal } from "../../shared/new_project_folder_name";
 import type { TatolabBackend } from "./tatolab_backend";
@@ -174,15 +175,8 @@ export interface MockTatolabOptions {
   appBuild: TatolabAppBuild | null;
   /** `?add_venv=refused`: the runtime's uv fails to make a project's `.venv`, as with the package index out of reach, so its load fails: its recorded streams, or for a new project its one `stream.py` record, list failed in uv's words. */
   isMakingThePythonEnvironmentRefused: boolean;
-  /**
-   * `?relays=local`: the runtime holds only the local relay's two listeners; a joined Cloudflare relay and a lost moq.pro one beside them by default;
-   * `?relays=every-field-type` adds a mock-only adapter declaring a setting of each field type, and one relay of it.
-   */
-  relaysScenario: MockRelaysScenario;
   /** `?streams=earlier_record`: the runtime also lists a record an earlier runtime wrote, failed and naming no location. */
   doesTheRuntimeListAnEarlierRuntimesRecord: boolean;
-  /** `?adapter_names=none`: the relay-adapter catalog of a runtime older than adapter names and logos, which serves neither. */
-  doesTheRelayAdapterCatalogServeNoNamesOrLogos: boolean;
   /** `?project=none|unreadable`: no project open, or one whose `pyproject.toml` does not parse; the pattern project by default. */
   openProjectScenario: MockOpenProjectScenario;
   /** `?recent=none`: no project opened before, as on first run; six recent ones by default. */
@@ -317,9 +311,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     commandLineToolLinkScenario: pageQuery.get("cli_link") === "not_linked" ? "not_linked" : pageQuery.get("cli_link") === "taken" ? "taken" : "linked",
     appBuild: mockAppBuild(pageQuery.get("app_build")),
     isMakingThePythonEnvironmentRefused: pageQuery.get("add_venv") === "refused",
-    relaysScenario: mockRelaysScenarioNamed(pageQuery.get("relays")),
     doesTheRuntimeListAnEarlierRuntimesRecord: pageQuery.get("streams") === "earlier_record",
-    doesTheRelayAdapterCatalogServeNoNamesOrLogos: pageQuery.get("adapter_names") === "none",
     openProjectScenario: mockOpenProjectScenarioNamed(pageQuery.get("project")),
     recentProjectsInTheQuery: pageQuery.get("recent"),
     arePortFamiliesServed: pageQuery.get("port_families") === "served",
@@ -431,9 +423,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     isTheRuntimeRestartRefused,
     streamPageRequestedByANotification,
     isMakingThePythonEnvironmentRefused,
-    relaysScenario,
     doesTheRuntimeListAnEarlierRuntimesRecord,
-    doesTheRelayAdapterCatalogServeNoNamesOrLogos,
     openProjectScenario,
     recentProjectsInTheQuery,
   } = mockTatolabOptions;
@@ -457,6 +447,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const mockProjectFiles = new MockProjectFiles(`${fixtures.machine.homeDirectory}/streams`);
   const languageServerEventListeners = new Set<(event: PythonLanguageServerEvent) => void>();
   const mockLanguageServersBySession = new Map<string, MockPythonLanguageServer>();
+  const mockPortViewers = new MockPortViewers();
   let languageServerSessionCount = 0;
   const refuseWithoutAnOpenProject = (): void => {
     if (openProjectReading.kind !== "read") throw "No project is open, so its files cannot be read.";
@@ -836,12 +827,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   };
 
   const noRuntimeAnswersRefusal = (): string => `no runtime answers at ${mockStatus.local_api_socket}: connect ENOENT ${mockStatus.local_api_socket}`;
-  const mockRelays = createMockRelays({
-    scenario: relaysScenario,
-    doesTheCatalogServeNoNamesOrLogos: doesTheRelayAdapterCatalogServeNoNamesOrLogos,
-    isTheRuntimeRunning: () => mockStatus.runtime_state === "running",
-    noRuntimeAnswersRefusal,
-  });
 
   const loadedStreamOfTheId = (streamId: string): MockLoadedStream => {
     const loadedStream = loadedStreams.get(streamId);
@@ -1205,10 +1190,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       publishStatus({ open_at_login: enabled ? { kind: "on" } : { kind: "off" } });
     },
-    describeRelays: () => mockRelays.describeRelays(),
-    addRelay: (adapter, settings) => mockRelays.addRelay(adapter, settings),
-    configureRelay: (relayId, settings) => mockRelays.configureRelay(relayId, settings),
-    removeRelay: (relayId) => mockRelays.removeRelay(relayId),
     onStreamPageRequested: (streamPageRequestListener) => {
       if (streamPageRequestedByANotification === null) return () => {};
       const notificationClickTimer = window.setTimeout(() => streamPageRequestListener(streamPageRequestedByANotification), MOCK_NOTIFICATION_CLICK_MILLISECONDS);
@@ -1363,5 +1344,18 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       languageServerEventListeners.add(listener);
       return () => languageServerEventListeners.delete(listener);
     },
+    openPortViewer: async (target) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      const node = loadedStreamOfTheId(target.stream).fixture.graph.nodes.find((graphNode) => mockNodeIdOf(target.stream, graphNode.name) === target.node_id);
+      if (node === undefined) throw `no node with the id \`${target.node_id}\` in stream \`${target.stream}\``;
+      const outputPort = node.output_ports.find((port) => port.name === target.port);
+      if (outputPort === undefined) throw `\`${node.name}\` has no output port named \`${target.port}\``;
+      return mockPortViewers.open(target, node.name, outputPort.family);
+    },
+    closePortViewer: async (portViewer) => {
+      mockPortViewers.close(portViewer);
+    },
+    onPortViewerEvent: (listener) => mockPortViewers.onEvent(listener),
+    onPortViewerImageFrame: (listener) => mockPortViewers.onImageFrame(listener),
   };
 }

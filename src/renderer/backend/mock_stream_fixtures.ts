@@ -65,13 +65,6 @@ export interface MockGraphNode {
 /** Ports of `family` declaring no catalog entry, as every input and a raw output do. */
 const uncataloguedPorts = (family: PortFamily, ...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family, catalog_section: null }));
 
-/** An output port a mock stream exposes, at `internal`, `private` or `public`. */
-export interface MockExposedPort {
-  node: string;
-  port: string;
-  level: string;
-}
-
 /** How fast a mock stream's counters climb while it runs: messages a link's target drops, and messages an output refuses, each second. */
 export interface MockCounterRates {
   droppedPerSecondByLinkId: Record<string, number>;
@@ -82,7 +75,6 @@ export interface MockCounterRates {
 export interface MockStreamGraph {
   nodes: MockGraphNode[];
   links: StreamGraphLink[];
-  exposed: MockExposedPort[];
   counterRates: MockCounterRates;
 }
 
@@ -246,7 +238,7 @@ const TEST_PATTERN_LINKS: StreamGraphLink[] = [
   },
 ];
 
-/** An MP4 recorder of `main`'s exposed effect output, read across streams. */
+/** An MP4 recorder of `main`'s effect output, read across streams. */
 const RECORDER_OF_MAIN_NODE: MockGraphNode = {
   name: "mp4writer",
   type: "tatolab.stream:Mp4Writer",
@@ -282,10 +274,9 @@ function createTestPatternStream(
     /** As `module:qualname`, which the stream's id is computed from. */
     streamFunction: string;
     displayName: string;
-    exposesItsEffect: boolean;
     withDisplayWindowInError: boolean;
     withTheMeterFallingBehind: boolean;
-    /** The id of the stream a recorder reads the exposed effect output of, a link whose source is in another stream; `null` for none. */
+    /** The id of the stream a recorder reads the effect output of, a link whose source is in another stream; `null` for none. */
     recordsTheStream: string | null;
   },
 ): MockStreamFixture {
@@ -312,7 +303,6 @@ function createTestPatternStream(
         ...TEST_PATTERN_LINKS.map((link) => (options.withDisplayWindowInError && link.target_node === "displaywindow" ? { ...link, state: "error" } : link)),
         ...(recordsTheStream === null ? [] : [recorderOfMainLink(recordsTheStream)]),
       ],
-      exposed: options.exposesItsEffect ? [{ node: "invertingeffect", port: "video_to_downstream", level: "private" }] : [],
       counterRates: options.withTheMeterFallingBehind ? TEST_PATTERN_METER_FALLING_BEHIND : NO_COUNTERS_CLIMB,
     },
     startupLog: [
@@ -422,10 +412,6 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
           state: "wired",
         },
       ],
-      exposed: [
-        { node: "camerasource", port: "video", level: "private" },
-        { node: "microphonesource", port: "audio", level: "public" },
-      ],
       counterRates: NO_COUNTERS_CLIMB,
     },
     startupLog: [
@@ -490,7 +476,7 @@ export interface MockStreamFixtures {
   cameraStream: MockStreamFixture;
   /** The camera stream as the runtime re-loads it at its start before anyone has asked for camera access. */
   cameraStreamWaitingForCameraAccess: MockStreamFixture;
-  /** A recorder in the pattern folder reading `main`'s exposed effect, a link whose source is in another stream. */
+  /** A recorder in the pattern folder reading `main`'s effect, a link whose source is in another stream. */
   recorderOfMainStream: MockStreamFixture;
   stoppedPatternTwo: ListedStream;
   /** `pattern-two` once started again. */
@@ -512,7 +498,6 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     projectDirectory,
     streamFunction: "stream:main",
     displayName: "main",
-    exposesItsEffect: true,
     withDisplayWindowInError: false,
     withTheMeterFallingBehind: false,
     recordsTheStream: null,
@@ -523,7 +508,6 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     ...mainStreamOptions,
     streamFunction: "stream:recorder",
     displayName: "recorder",
-    exposesItsEffect: false,
     recordsTheStream: mainStream.listing.stream,
   });
   const stoppedPatternTwo = stoppedPatternTwoListing(machine);
@@ -537,7 +521,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },
     recorderOfMainStream,
     stoppedPatternTwo,
-    patternTwoStream: createTestPatternStream(machine, { ...mainStreamOptions, streamFunction: "stream:pattern_two", displayName: "pattern-two", exposesItsEffect: false }),
+    patternTwoStream: createTestPatternStream(machine, { ...mainStreamOptions, streamFunction: "stream:pattern_two", displayName: "pattern-two" }),
     failedLobbyRecorder,
     earlierRuntimesRecord: {
       stream: "doorbell",
@@ -556,13 +540,12 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
   };
 }
 
-/** The stream a project folder run from the window loads from `projectDirectory`'s `streamFunction`, shown as `displayName`: the sample's four nodes, its effect exposed. */
+/** The stream a project folder run from the window loads from `projectDirectory`'s `streamFunction`, shown as `displayName`: the sample's four nodes. */
 export function createMockStreamRunFromAProjectFolder(machine: MockMachine, projectDirectory: string, streamFunction: string, displayName: string): MockStreamFixture {
   const fixture = createTestPatternStream(machine, {
     projectDirectory,
     streamFunction,
     displayName,
-    exposesItsEffect: true,
     withDisplayWindowInError: false,
     withTheMeterFallingBehind: false,
     recordsTheStream: null,
