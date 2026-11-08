@@ -150,6 +150,8 @@ cd "$repository_root"
 npm ci
 npm run build -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} \
   ${release_build_arguments[@]+"${release_build_arguments[@]}"}
+echo "==> viewer addon (streamlib $streamlib_commit)"
+"$scripts_directory/build-tatolab-runtime-viewer-frame-import.sh" "$fetched_streamlib" --release
 packaged_app="$(node scripts/package_tatolab_electron_app.mjs darwin "$app_version" "$build_directory/electron-packaging" | tail -1)"
 rm -rf "$assembled_app"
 ditto "$packaged_app" "$assembled_app"
