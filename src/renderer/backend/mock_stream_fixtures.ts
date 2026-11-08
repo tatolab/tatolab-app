@@ -62,8 +62,17 @@ export interface MockGraphNode {
   output_ports: StreamGraphDeclaredPort[];
 }
 
-/** Ports of `family` declaring no catalog entry, as every input and a raw output do. */
-const uncataloguedPorts = (family: PortFamily, ...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family, catalog_section: null }));
+/** Ports of `family` stating no stream facts, as every input and most outputs do; a Records port carries the runtime's unchecked mark. */
+const portsStatingNoStreamFacts = (family: PortFamily, ...portNames: string[]): StreamGraphDeclaredPort[] =>
+  portNames.map((name) => ({ name, family, stream_facts: null, values_checked: family === "records" ? false : null }));
+
+/** An Image output stating its frame rate, as a source declaring `rate=` does. */
+const imageOutputAtFramesPerSecond = (name: string, framesPerSecond: number): StreamGraphDeclaredPort => ({
+  name,
+  family: "image",
+  stream_facts: { family: "image", frame_rate: { numerator: framesPerSecond, denominator: 1 }, content_light_level: null, mastering_display_colour_volume: null },
+  values_checked: null,
+});
 
 /** How fast a mock stream's counters climb while it runs: messages a link's target drops, and messages an output refuses, each second. */
 export interface MockCounterRates {
@@ -190,22 +199,22 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
     state: "Running",
     config: { width: 1280, height: 720, fps: 30 },
     input_ports: [],
-    output_ports: [{ name: "video", family: "image", catalog_section: "binary" }],
+    output_ports: [imageOutputAtFramesPerSecond("video", 30)],
   },
   {
     name: "invertingeffect",
     type: "nodes.inverting_effect:InvertingEffect",
     state: "Running",
     config: {},
-    input_ports: uncataloguedPorts("image", "video_from_upstream"),
-    output_ports: uncataloguedPorts("image", "video_to_downstream"),
+    input_ports: portsStatingNoStreamFacts("image", "video_from_upstream"),
+    output_ports: portsStatingNoStreamFacts("image", "video_to_downstream"),
   },
   {
     name: "displaywindow",
     type: "tatolab.stream:DisplayWindow",
     state: "Running",
     config: { title: "Tatolab", scaling: "fit" },
-    input_ports: uncataloguedPorts("image", "video"),
+    input_ports: portsStatingNoStreamFacts("image", "video"),
     output_ports: [],
   },
   {
@@ -213,8 +222,8 @@ const TEST_PATTERN_NODES: MockGraphNode[] = [
     type: "nodes.brightness_meter:BrightnessMeter",
     state: "Running",
     config: {},
-    input_ports: uncataloguedPorts("image", "video_from_upstream"),
-    output_ports: [...uncataloguedPorts("records", "brightness"), ...uncataloguedPorts("array", "luma_points")],
+    input_ports: portsStatingNoStreamFacts("image", "video_from_upstream"),
+    output_ports: [...portsStatingNoStreamFacts("records", "brightness"), ...portsStatingNoStreamFacts("array", "luma_points")],
   },
 ];
 
@@ -244,7 +253,7 @@ const RECORDER_OF_MAIN_NODE: MockGraphNode = {
   type: "tatolab.stream:Mp4Writer",
   state: "Running",
   config: { path: "recordings/main.mp4" },
-  input_ports: uncataloguedPorts("image", "video"),
+  input_ports: portsStatingNoStreamFacts("image", "video"),
   output_ports: [],
 };
 
@@ -374,7 +383,7 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
           state: "Running",
           config: { device_id: "0", width: 1920, height: 1080 },
           input_ports: [],
-          output_ports: [{ name: "video", family: "image", catalog_section: "binary" }],
+          output_ports: [imageOutputAtFramesPerSecond("video", 30)],
         },
         {
           name: "microphonesource",
@@ -382,14 +391,14 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
           state: "Running",
           config: { sample_rate: 48000 },
           input_ports: [],
-          output_ports: [{ name: "audio", family: "channels", catalog_section: "audio" }],
+          output_ports: portsStatingNoStreamFacts("channels", "audio"),
         },
         {
           name: "displaywindow",
           type: "tatolab.stream:DisplayWindow",
           state: "Running",
           config: { title: "Camera", scaling: "fit" },
-          input_ports: uncataloguedPorts("image", "video"),
+          input_ports: portsStatingNoStreamFacts("image", "video"),
           output_ports: [],
         },
         {
@@ -397,7 +406,7 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
           type: "nodes.level_meter:LevelMeter",
           state: "Running",
           config: {},
-          input_ports: uncataloguedPorts("channels", "audio_from_upstream"),
+          input_ports: portsStatingNoStreamFacts("channels", "audio_from_upstream"),
           output_ports: [],
         },
         {
@@ -405,8 +414,23 @@ function createCameraStream(machine: MockMachine): MockStreamFixture {
           type: "tatolab.h264:H264Encoder",
           state: "Running",
           config: { bitrate_bps: 4_000_000, keyframe_interval_frames: 30 },
-          input_ports: uncataloguedPorts("image", "video"),
-          output_ports: [{ name: "encoded", family: "packets", catalog_section: "video" }],
+          input_ports: portsStatingNoStreamFacts("image", "video"),
+          output_ports: [
+            {
+              name: "encoded",
+              family: "packets",
+              stream_facts: {
+                family: "packets",
+                rfc6381_codec: "avc1.64001f",
+                coded_width: 1920,
+                coded_height: 1080,
+                sample_rate: null,
+                channel_count: null,
+                codec_configuration_byte_length: null,
+              },
+              values_checked: null,
+            },
+          ],
         },
       ],
       links: [

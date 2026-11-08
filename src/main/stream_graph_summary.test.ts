@@ -6,7 +6,7 @@ import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary
 /** What a real runtime answered `GET /api/graph?stream=main` with, the same document its `graph {stream: "main"}` tool renders, for a stream of a test pattern, an inverting effect, a brightness meter and a display window. */
 const aRealGraphOfOneStream = () => readFile(new URL("./test-fixtures/local-api-graph-of-the-stream-main.json", import.meta.url), "utf8");
 
-const uncataloguedPorts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family: null, catalog_section: null }));
+const portsStatingNoStreamFacts = (...portNames: string[]): StreamGraphDeclaredPort[] => portNames.map((name) => ({ name, family: null, stream_facts: null, values_checked: null }));
 
 function node(
   name: string,
@@ -37,7 +37,7 @@ test("a_real_graph_reads_as_its_nodes_links_and_counters_beside_its_own_text", a
           "tatolab.stream:TestPatternSource",
           "Running",
           { dropped_bags_by_link: {}, refused_bags_by_output_port: { video: 0 } },
-          { input_ports: [], output_ports: uncataloguedPorts("video") },
+          { input_ports: [], output_ports: portsStatingNoStreamFacts("video") },
           "Pe9fffgi3l6sg3m4molzy4pov",
         ),
         node(
@@ -45,7 +45,7 @@ test("a_real_graph_reads_as_its_nodes_links_and_counters_beside_its_own_text", a
           "nodes.inverting_effect:InvertingEffect",
           "Running",
           { dropped_bags_by_link: { Lj17fu4mdczivji99oua37i06: 0 }, refused_bags_by_output_port: { video_to_downstream: 0 } },
-          { input_ports: uncataloguedPorts("video_from_upstream"), output_ports: uncataloguedPorts("video_to_downstream") },
+          { input_ports: portsStatingNoStreamFacts("video_from_upstream"), output_ports: portsStatingNoStreamFacts("video_to_downstream") },
           "Pgwl3rys4jaz8k9g6pqxxv8kd",
         ),
         node(
@@ -53,7 +53,7 @@ test("a_real_graph_reads_as_its_nodes_links_and_counters_beside_its_own_text", a
           "nodes.brightness_meter:BrightnessMeter",
           "Running",
           { dropped_bags_by_link: { Lizkqmkmmu5ldam8dbymcc4bc: 0 }, refused_bags_by_output_port: {} },
-          { input_ports: uncataloguedPorts("video_from_upstream"), output_ports: [] },
+          { input_ports: portsStatingNoStreamFacts("video_from_upstream"), output_ports: [] },
           "Pak2of8mm6v631e1f30cw7zjo",
         ),
         node(
@@ -61,7 +61,7 @@ test("a_real_graph_reads_as_its_nodes_links_and_counters_beside_its_own_text", a
           "tatolab.stream:DisplayWindow",
           "Running",
           { dropped_bags_by_link: { Lv5ujotcx5rnh9f4s6xewjot9: 0 }, refused_bags_by_output_port: {} },
-          { input_ports: uncataloguedPorts("video"), output_ports: [] },
+          { input_ports: portsStatingNoStreamFacts("video"), output_ports: [] },
           "Pk79b96s4d8fumlitkntmn5dg",
           { title: "Tatolab", scaling: "fit" },
         ),
@@ -81,7 +81,7 @@ test("a_port_the_runtime_lists_without_a_name_refuses_the_graph_and_a_catalog_en
     streamGraphSummaryFromTheGraphToolResult("main", JSON.stringify({ nodes: [{ name: "a", ports: { inputs: [], outputs } }] }));
 
   const withoutASection = graphWith([{ name: "out", catalog_entry: { entry: {} } }]);
-  expect(withoutASection.ok && withoutASection.value.nodes[0]?.output_ports).toEqual(uncataloguedPorts("out"));
+  expect(withoutASection.ok && withoutASection.value.nodes[0]?.output_ports).toEqual(portsStatingNoStreamFacts("out"));
   expect(graphWith([{ description: "no name" }]).ok).toBe(false);
 });
 
@@ -164,7 +164,7 @@ test("a_port_the_graph_names_a_family_of_reads_as_that_family", () => {
     links: [],
   });
   const graph = streamGraphSummaryFromTheGraphToolResult("main", graphText);
-  expect(graph.ok && graph.value.nodes[0]?.output_ports).toEqual([{ name: "video", family: "image", catalog_section: null }]);
+  expect(graph.ok && graph.value.nodes[0]?.output_ports).toEqual([{ name: "video", family: "image", stream_facts: null, values_checked: null }]);
 });
 
 test("a_port_reads_as_the_family_its_family_declaration_names_as_the_runtime_renders_it", () => {
@@ -183,4 +183,48 @@ test("a_port_reads_as_the_family_its_family_declaration_names_as_the_runtime_ren
   const graph = streamGraphSummaryFromTheGraphToolResult("main", graphText);
   expect(graph.ok && graph.value.nodes[0]?.output_ports.map((port) => port.family)).toEqual(["records", "channels"]);
   expect(graph.ok && graph.value.nodes[0]?.input_ports.map((port) => port.family)).toEqual(["image"]);
+});
+
+test("an_output_reads_the_stream_facts_and_the_unchecked_mark_the_runtime_renders_on_it", () => {
+  const graphText = JSON.stringify({
+    stream: "main",
+    nodes: [
+      {
+        id: "P1",
+        name: "declaresitsframerateandwritesrecords",
+        type: "stream:DeclaresItsFrameRateAndWritesRecords",
+        ports: {
+          inputs: [],
+          outputs: [
+            { name: "video", family: { family: "image" }, stream_facts: { family: "image", frame_rate: { numerator: 30000, denominator: 1001 } } },
+            { name: "records", family: { family: "records" }, values_checked: false },
+            {
+              name: "encoded",
+              family: { family: "packets" },
+              stream_facts: { family: "packets", rfc6381_codec: "opus", sample_rate: 48000, channel_count: 2, codec_configuration_hex: "4f7075734865616401023801" },
+            },
+            { name: "odd", family: { family: "image" }, stream_facts: { family: "light_field", rays: 9 } },
+          ],
+        },
+      },
+    ],
+    links: [],
+  });
+  const graph = streamGraphSummaryFromTheGraphToolResult("main", graphText);
+  expect(graph.ok && graph.value.nodes[0]?.output_ports).toEqual([
+    {
+      name: "video",
+      family: "image",
+      stream_facts: { family: "image", frame_rate: { numerator: 30000, denominator: 1001 }, content_light_level: null, mastering_display_colour_volume: null },
+      values_checked: null,
+    },
+    { name: "records", family: "records", stream_facts: null, values_checked: false },
+    {
+      name: "encoded",
+      family: "packets",
+      stream_facts: { family: "packets", rfc6381_codec: "opus", coded_width: null, coded_height: null, sample_rate: 48000, channel_count: 2, codec_configuration_byte_length: 12 },
+      values_checked: null,
+    },
+    { name: "odd", family: "image", stream_facts: null, values_checked: null },
+  ]);
 });

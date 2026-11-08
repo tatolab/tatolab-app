@@ -8,9 +8,9 @@ function nodeWithOutputs(name: string, outputPorts: StreamGraphNode["output_port
   return { id: `id-${name}`, name, type: "Processor", state: "Running", config: {}, input_ports: [], output_ports: outputPorts, dropped_bags_by_link: {}, refused_bags_by_output_port: {} };
 }
 
-const CAMERA = nodeWithOutputs("camera", [{ name: "video", family: "image", catalog_section: "video" }]);
-const EFFECT = nodeWithOutputs("halftonelenseffect", [{ name: "video_to_downstream", family: "image", catalog_section: "video" }]);
-const METER = nodeWithOutputs("brightnessmeter", [{ name: "readings", family: "records", catalog_section: null }]);
+const CAMERA = nodeWithOutputs("camera", [{ name: "video", family: "image", stream_facts: null, values_checked: null }]);
+const EFFECT = nodeWithOutputs("halftonelenseffect", [{ name: "video_to_downstream", family: "image", stream_facts: null, values_checked: null }]);
+const METER = nodeWithOutputs("brightnessmeter", [{ name: "readings", family: "records", stream_facts: null, values_checked: false }]);
 
 const GRAPH: StreamGraphSummary = {
   stream: STREAM,
@@ -31,7 +31,7 @@ describe("the output port the Viewer plays", () => {
   });
 
   it("is an Image port over a port whose family the runtime does not serve, such as an encoder's output", () => {
-    const ENCODER = nodeWithOutputs("h264encoder", [{ name: "encoded_video", family: null, catalog_section: null }]);
+    const ENCODER = nodeWithOutputs("h264encoder", [{ name: "encoded_video", family: null, stream_facts: null, values_checked: null }]);
     const graphWithAnEncoder: StreamGraphSummary = {
       ...GRAPH,
       nodes: [CAMERA, EFFECT, ENCODER],

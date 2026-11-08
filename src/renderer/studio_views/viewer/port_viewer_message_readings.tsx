@@ -1,5 +1,6 @@
 import { KeyValueRows, type KeyValueRow } from "../../design_system/key_value_rows";
 import type { JsonValue, PortViewerArrayAttributeReading, PortViewerChannelWaveform, PortViewerMessageReading } from "../../view_host/studio_view_contract";
+import { VALUES_UNCHECKED_MEANING } from "../port_stream_facts_words";
 
 /** One Packets unit the Viewer has read: when it was stamped, how many bytes it carried, and whether it was a keyframe. */
 export type PacketsUnitSeen = { timestamp_ns: number; byte_length: number; starts_group: boolean };
@@ -139,13 +140,35 @@ function PacketsReading({ reading, unitsSeen }: { reading: Extract<PortViewerMes
 }
 
 /** What the Viewer shows of a port of a family other than Image: the latest message, read by its family. */
-export function PortViewerMessageReadingShown({ reading, unitsSeen, messagesRead }: { reading: PortViewerMessageReading; unitsSeen: readonly PacketsUnitSeen[]; messagesRead: number }) {
+export function PortViewerMessageReadingShown({
+  reading,
+  unitsSeen,
+  messagesRead,
+  valuesChecked,
+}: {
+  reading: PortViewerMessageReading;
+  unitsSeen: readonly PacketsUnitSeen[];
+  messagesRead: number;
+  /** The port's `values_checked` mark: `false` on a Records port, whose values no type checks. */
+  valuesChecked: boolean | null;
+}) {
   if (reading.family === "channels") return <ChannelsReading reading={reading} />;
   if (reading.family === "packets") return <PacketsReading reading={reading} unitsSeen={unitsSeen} />;
   if (reading.family === "records") {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-3" data-viewer-reading="records">
-        <div className="text-2xs text-fg-3">The latest record of {messagesRead} read. A Records port's keys are not checked against a type.</div>
+        <div className="text-2xs text-fg-3">
+          The latest record of {messagesRead} read.
+          {valuesChecked === false && (
+            <>
+              {" "}
+              <span className="text-warn-text" title={VALUES_UNCHECKED_MEANING} data-viewer-values-unchecked="">
+                Values unchecked:
+              </span>{" "}
+              {VALUES_UNCHECKED_MEANING}
+            </>
+          )}
+        </div>
         <KeyValueRows look="fields" rows={recordRowsOf(reading.record)} />
       </div>
     );
