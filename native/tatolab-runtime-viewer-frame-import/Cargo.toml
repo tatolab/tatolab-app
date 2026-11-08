@@ -1,0 +1,27 @@
+[package]
+name = "tatolab-runtime-viewer-frame-import"
+description = "Tato Studio's Node addon that reads a runtime viewer's channel and imports each Image frame for Electron's sharedTexture"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license-file = "../../LICENSE"
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+napi = { version = "3.16.1", default-features = false, features = ["napi8"] }
+napi-derive = "3.7.0"
+parking_lot = "0.12"
+streamlib-gpu-frame-import-client = { git = "https://github.com/tatolab/streamlib", rev = "7eaa3c3ff1ad3227a96bbd9f39b0a1a7b6892058" }
+streamlib-ipc-types = { git = "https://github.com/tatolab/streamlib", rev = "7eaa3c3ff1ad3227a96bbd9f39b0a1a7b6892058" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+streamlib-consumer-rhi = { git = "https://github.com/tatolab/streamlib", rev = "7eaa3c3ff1ad3227a96bbd9f39b0a1a7b6892058" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-io-surface = "0.3"
+
+[build-dependencies]
+napi-build = "2.6.0"
