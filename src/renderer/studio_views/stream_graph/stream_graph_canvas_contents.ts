@@ -2,8 +2,8 @@
 // studio writes it, its declared ports as pins of their families, and a link per link of the graph, drawn by
 // its state.
 
-import type { NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphLinkLook } from "../../design_system/node_graph_canvas";
-import type { StreamGraphLink, StreamGraphSummary } from "../../view_host/studio_view_contract";
+import type { NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCardCondition, NodeGraphLinkLook } from "../../design_system/node_graph_canvas";
+import type { StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "../../view_host/studio_view_contract";
 import { nodeTitle } from "../node_words";
 import { portStreamFactsWords, streamFactsAnInputReceives } from "../port_stream_facts_words";
 
@@ -33,6 +33,13 @@ function linkLookAndWords(linkState: string): { look: NodeGraphLinkLook; words: 
   }
 }
 
+/** How a node's card shows its processor state: `Error` failed with the runtime's reason, `Restarting` restarting, every other state healthy. */
+function cardConditionOf(node: StreamGraphNode): NodeGraphCardCondition {
+  if (node.state === "Error") return { look: "failed", failed_because: node.failed_because };
+  if (node.state === "Restarting") return { look: "restarting" };
+  return { look: "healthy" };
+}
+
 function canvasLinkOf(link: StreamGraphLink): NodeGraphCanvasLink {
   const { look, words } = linkLookAndWords(link.state);
   return {
@@ -52,6 +59,7 @@ export function streamGraphCanvasContents(graph: StreamGraphSummary): StreamGrap
     nodes: graph.nodes.map((node) => ({
       node_id: node.name,
       title: nodeTitle(node.name, node.type),
+      condition: cardConditionOf(node),
       input_pins: node.input_ports.map((port) => ({ name: port.name, family: port.family, stream_facts_words: portStreamFactsWords(streamFactsAnInputReceives(graph, node.name, port)) })),
       output_pins: node.output_ports.map((port) => ({ name: port.name, family: port.family, stream_facts_words: portStreamFactsWords(port) })),
     })),

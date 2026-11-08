@@ -20,6 +20,8 @@
   border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
   background: var(--studio-graph-card-header);
 }
+.node-graph-card[data-condition="failed"] { border-color: var(--danger); }
+.node-graph-card-failure-words { border-top: 1px solid var(--studio-graph-card-line); }
 .node-graph-card-selected {
   border-color: var(--studio-graph-card-selected);
   box-shadow: 0 0 0 1px var(--studio-graph-card-selected), 0 8px 20px rgba(0, 0, 0, 0.5);

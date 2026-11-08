@@ -79,6 +79,7 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
   const config = objectOrEmpty(node.value, "config");
   if (!config.ok) return config;
   const state = components.value["state"];
+  const failedBecause = components.value["failed_because"];
   const metrics = components.value["metrics"];
   const ports = objectOrEmpty(node.value, "ports");
   if (!ports.ok) return ports;
@@ -91,6 +92,7 @@ function streamGraphNodeOnTheWire(nodeOnTheWire: unknown): Result<StreamGraphNod
     name: name.value,
     type: nodeType.value,
     state: typeof state === "string" ? state : null,
+    failed_because: typeof failedBecause === "string" ? failedBecause : null,
     config: Object.fromEntries(Object.entries(config.value).filter((entry): entry is [string, JsonValue] => isAJsonValue(entry[1]))),
     input_ports: inputPorts.value,
     output_ports: outputPorts.value,

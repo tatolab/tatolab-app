@@ -244,6 +244,8 @@ export interface StreamGraphNode {
   type: string;
   /** The processor's state as the runtime names it, such as `Running`. */
   state: string | null;
+  /** Why it failed, in the runtime's own words, from `components.failed_because`: set while it reads `Error`, `null` otherwise. */
+  failed_because: string | null;
   /** Its config as the graph renders it, the keys its stream's code gave it; `{}` when it renders none. */
   config: { [key: string]: JsonValue };
   /** The input ports it declares, in the graph's order; `[]` when the runtime lists none. */
