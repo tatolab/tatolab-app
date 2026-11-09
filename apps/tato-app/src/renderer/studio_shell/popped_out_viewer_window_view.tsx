@@ -1,11 +1,18 @@
 import type { PoppedOutViewerTarget, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import { WaitingState } from "../design_system/waiting_state";
 import { presentPlatform, windowDragRegionAttribute } from "../presentation/platform_presentation";
-import { StudioViewFailureBoundary } from "../view_host/in_window_view_host";
-import type { StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
+import { StudioViewFailureBoundary, WatchedStudioValue } from "../view_host/in_window_view_host";
+import type { StudioAreaOfTheView, StudioViewHostServices, StudioViewTypeRegistry } from "../view_host/studio_view_type_registry";
 
 /** The view type a popped-out window shows. */
 const VIEWER_VIEW_TYPE_ID = "viewer";
+
+/** The one area of a popped-out window, which keeps no settings and has no view-type menu over a frame's header row. */
+const THE_POPPED_OUT_WINDOWS_AREA: StudioAreaOfTheView = {
+  saved_settings: undefined,
+  rememberSettings: () => undefined,
+  header_row: new WatchedStudioValue({ leading_inset_px: 0, height_px: 30 }),
+};
 
 /** The words a popped-out Viewer is titled with: the stream it plays, and the node it is pinned to. */
 export function poppedOutViewerTitleWords(target: PoppedOutViewerTarget): string {
@@ -43,7 +50,7 @@ export function PoppedOutViewerWindowView({
           <WaitingState title="This build has no Viewer" explanation="Close this window and open the stream in the studio." />
         ) : (
           <StudioViewFailureBoundary viewTitle={viewerViewType.title}>
-            {viewerViewType.renderInAnArea(undefined, viewHostServices, () => {}).body}
+            {((rendering) => (rendering.kind === "frame" ? rendering.frame : rendering.body))(viewerViewType.renderInAnArea(THE_POPPED_OUT_WINDOWS_AREA, viewHostServices))}
           </StudioViewFailureBoundary>
         )}
       </main>

@@ -1,14 +1,33 @@
+import {
+  connectToTatoAppOverPort,
+  readTatolabViewManifest,
+  VIEW_CAPABILITIES,
+  type TatoAppViewConnection,
+  type TatolabViewManifest,
+  type ViewInputEvent,
+  type ViewSettings,
+} from "@tatolab/tato-app-view-sdk";
 import { afterEach, describe, expect, it } from "vitest";
-import { readStudioViewManifest, STUDIO_VIEW_CAPABILITIES, type StudioViewManifest } from "../../shared/studio_view_manifest";
-import { connectToTatoStudioOverPort, type StudioViewInputEvent, type TatoStudioViewConnection } from "../studio_view_sdk/tato_studio_view_connection";
 import { WatchedStudioValue } from "./in_window_view_host";
-import { ProjectStudioViewBridge } from "./project_studio_view_bridge";
-import type { PortViewerConnectionEvent, PortViewerTarget, StudioSelection } from "./studio_view_contract";
+import type {
+  JsonValue,
+  PortViewerConnectionEvent,
+  PortViewerTarget,
+  ProjectFileRead,
+  ProjectFileReading,
+  PythonLanguageServerConnectionEvent,
+  StudioSelection,
+  ViewHeaderRow,
+  ViewOpenedOn,
+  ViewOpenedOnAsked,
+  ViewOpeningTarget,
+} from "./studio_view_contract";
 import type { StudioViewInputWiring } from "./studio_view_node_wiring";
 import type { StudioViewHostServices } from "./studio_view_type_registry";
+import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
 
-function manifestOf(manifestJson: Parameters<typeof readStudioViewManifest>[0]): StudioViewManifest {
-  const reading = readStudioViewManifest(manifestJson);
+function manifestOf(manifestJson: unknown): TatolabViewManifest {
+  const reading = readTatolabViewManifest(manifestJson);
   if (reading.kind === "not_read") return expect.unreachable(reading.because);
   return reading.manifest;
 }
@@ -17,13 +36,17 @@ const DJ_DECK_MANIFEST = manifestOf({
   contract: "1.0",
   title: "DJ Deck",
   entry: "index.html",
+  placement: "node",
   inputs: [{ name: "deck_a", family: "channels" }],
   outputs: [{ name: "crossfader", family: "array" }],
+  settings: { type: "object", properties: { show_waveform: { type: "boolean", default: true }, zoom: { type: "number", minimum: 1, default: 1 } } },
   capabilities: ["read.selection"],
   sandbox: true,
 });
 
-const FULL_ACCESS_DJ_DECK_MANIFEST: StudioViewManifest = { ...DJ_DECK_MANIFEST, sandboxed: false, capabilities: [] };
+const FULL_ACCESS_DJ_DECK_MANIFEST: TatolabViewManifest = { ...DJ_DECK_MANIFEST, sandbox: false, capabilities: [] };
+
+const STREAM_FILE_READ: ProjectFileRead = { file: "/set/stream.py", project_folder: "/set", text: "print()", version: "v1", is_editable: true };
 
 const DECK_A_TARGET: PortViewerTarget = { stream: "set", node_id: "id-deck-a", port: "audio" };
 const DECK_B_TARGET: PortViewerTarget = { stream: "set", node_id: "id-deck-b", port: "audio" };
@@ -33,6 +56,10 @@ function recordingHostServices() {
   const selection = new WatchedStudioValue<StudioSelection>({ kind: "nothing" });
   const portViewersOpened: { target: PortViewerTarget; onEvent: (event: PortViewerConnectionEvent) => void; closed: boolean }[] = [];
   const selectionsAsked: StudioSelection[] = [];
+  const viewsOpened: { viewTypeId: string; on: ViewOpeningTarget }[] = [];
+  const viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
+  const languageServerMessagesSent: JsonValue[] = [];
+  const languageServers: { projectFolder: string; onEvent: (event: PythonLanguageServerConnectionEvent) => void; closed: boolean }[] = [];
   const hostServices: StudioViewHostServices = {
     watchOpenProject: (listener) => {
       listener({ kind: "none_open" });
@@ -47,13 +74,30 @@ function recordingHostServices() {
     watchNodeCatalog: () => () => undefined,
     watchCodeFileAsked: () => () => undefined,
     openCodeFile: () => undefined,
-    readProjectFile: async () => ({ kind: "not_read", because: "no files in this test" }),
+    openView: (viewTypeId, on) => {
+      viewsOpened.push({ viewTypeId, on });
+      if (viewTypeId === "acme-dj:nowhere") return { kind: "not_opened", because: "No layout has an area showing acme-dj:nowhere." };
+      viewsOpenedOn.publish({ ...viewsOpenedOn.readLatest(), [viewTypeId]: { on, ask: viewsOpened.length } });
+      return { kind: "opened" };
+    },
+    watchViewOpenedOn: (viewTypeId, listener) => viewsOpenedOn.watch((openedOn) => listener(openedOn[viewTypeId]?.on ?? null)),
+    readProjectFile: async (file): Promise<ProjectFileReading> =>
+      file === STREAM_FILE_READ.file ? { kind: "read", file_read: STREAM_FILE_READ } : { kind: "not_read", because: `${file} is not in the project.` },
     saveProjectFile: async () => ({ kind: "not_saved", because: "no files in this test" }),
     listProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
     popOutViewer: async () => ({ kind: "not_popped_out", because: "no windows in this test" }),
     watchProjectLog: () => () => undefined,
     watchProjectNodeTypes: () => () => undefined,
-    connectToPythonLanguageServer: () => ({ send: () => undefined, close: () => undefined }),
+    connectToPythonLanguageServer: (projectFolder, onEvent) => {
+      const opened = { projectFolder, onEvent, closed: false };
+      languageServers.push(opened);
+      return {
+        send: (message) => languageServerMessagesSent.push(message),
+        close: () => {
+          opened.closed = true;
+        },
+      };
+    },
     watchPortViewer: (target, onEvent) => {
       const opened = { target, onEvent, closed: false };
       portViewersOpened.push(opened);
@@ -64,26 +108,39 @@ function recordingHostServices() {
       };
     },
   };
-  return { hostServices, selection, portViewersOpened, selectionsAsked };
+  return { hostServices, selection, portViewersOpened, selectionsAsked, viewsOpened, languageServers, languageServerMessagesSent };
 }
 
-const bridgesOpen: ProjectStudioViewBridge[] = [];
-const connectionsOpen: TatoStudioViewConnection[] = [];
+/** An area that keeps the settings it is asked to remember and says where the view's header row lies. */
+function recordingAreaServices(savedSettings: JsonValue | undefined) {
+  const saved = new WatchedStudioValue<{ saved: JsonValue | undefined }>({ saved: savedSettings });
+  const headerRow = new WatchedStudioValue<ViewHeaderRow>({ leading_inset_px: 120, height_px: 30 });
+  const areaServices: TatolabViewAreaServices = {
+    watchSavedSettings: (listener) => saved.watch((latest) => listener(latest.saved)),
+    rememberSettings: (settings) => saved.publish({ saved: settings }),
+    watchHeaderRow: headerRow.watch,
+  };
+  return { areaServices, saved, headerRow };
+}
+
+const bridgesOpen: TatolabViewBridge[] = [];
+const connectionsOpen: TatoAppViewConnection[] = [];
 afterEach(() => {
   for (const bridge of bridgesOpen.splice(0)) bridge.close();
   for (const connection of connectionsOpen.splice(0)) connection.close();
 });
 
-async function connectedView(manifest: StudioViewManifest, inputWiring: Record<string, StudioViewInputWiring>) {
+async function connectedView(manifest: TatolabViewManifest, inputWiring: Record<string, StudioViewInputWiring>, savedSettings?: JsonValue) {
   const host = recordingHostServices();
+  const area = recordingAreaServices(savedSettings);
   const channel = new MessageChannel();
-  const bridge = new ProjectStudioViewBridge(channel.port1, "acme-dj:deck", manifest, host.hostServices, inputWiring);
+  const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", manifest, host.hostServices, area.areaServices, inputWiring);
   bridgesOpen.push(bridge);
-  const connecting = connectToTatoStudioOverPort(channel.port2);
+  const connecting = connectToTatoAppOverPort(channel.port2);
   bridge.start();
   const connection = await connecting;
   connectionsOpen.push(connection);
-  return { ...host, bridge, connection };
+  return { ...host, ...area, bridge, connection };
 }
 
 /** Resolves once the view has been told something on the next turn, which a MessagePort delivers on. */
@@ -91,13 +148,14 @@ function messagesDelivered(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 20));
 }
 
-describe("a project's view's connection to the studio", () => {
+describe("a view's connection to Studio, through the one bridge every view is served by", () => {
   it("is told what its manifest was granted as it connects", async () => {
     const { connection } = await connectedView(DJ_DECK_MANIFEST, {});
     expect(connection.grant).toEqual({
       view_type_id: "acme-dj:deck",
+      contract: "1.0",
+      placement: "node",
       sandboxed: true,
-      contract: { major: 1, minor: 0 },
       inputs: [{ name: "deck_a", family: "channels" }],
       outputs: [{ name: "crossfader", family: "array" }],
       capabilities: ["read.selection"],
@@ -112,7 +170,7 @@ describe("a project's view's connection to the studio", () => {
     await messagesDelivered();
 
     expect(connection.grant.sandboxed).toBe(false);
-    expect(connection.grant.capabilities).toEqual([...STUDIO_VIEW_CAPABILITIES]);
+    expect(connection.grant.capabilities).toEqual([...VIEW_CAPABILITIES]);
     expect(refusals).toEqual([]);
     expect(selectAnswer).toEqual({ kind: "done" });
     expect(selectionsAsked).toEqual([{ kind: "nothing" }]);
@@ -133,8 +191,8 @@ describe("a project's view's connection to the studio", () => {
 
     expect(openProjectReadings).toEqual(["none_open"]);
     expect(selectionsSeen).toEqual([{ kind: "nothing" }, { kind: "node", stream: "set", node: "mixer" }]);
-    expect(refusals).toEqual(["DJ Deck runs sandboxed and does not list read.stream_graph in its tatolab_view.json, so the studio does not serve it."]);
-    expect(selectAnswer).toEqual({ kind: "refused", because: "DJ Deck runs sandboxed and does not list write.selection in its tatolab_view.json, so the studio does not serve it." });
+    expect(refusals).toEqual(["DJ Deck runs sandboxed and does not list read.stream_graph in its tatolab_view.json, so Studio does not serve it."]);
+    expect(selectAnswer).toEqual({ kind: "refused", because: "DJ Deck runs sandboxed and does not list write.selection in its tatolab_view.json, so Studio does not serve it." });
   });
 
   it("asks the studio to select when it declared write.selection", async () => {
@@ -145,7 +203,7 @@ describe("a project's view's connection to the studio", () => {
 
   it("reads an input from the output wired into it, says why when nothing is, and reopens it on the output wired in next", async () => {
     const { connection, bridge, portViewersOpened } = await connectedView(DJ_DECK_MANIFEST, { deck_a: { kind: "unwired", because: "Nothing is wired into deck_a." } });
-    const inputEvents: StudioViewInputEvent[] = [];
+    const inputEvents: ViewInputEvent[] = [];
     connection.watchInput("deck_a", (inputEvent) => inputEvents.push(inputEvent));
     await messagesDelivered();
     bridge.rewireInputs({ deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "deck_a_player › audio" } });
@@ -182,7 +240,7 @@ describe("a project's view's connection to the studio", () => {
     expect(await connection.sendOutput("tempo", 0.5)).toEqual({ kind: "refused", because: "DJ Deck declares no output named tempo." });
     expect(await connection.sendOutput("crossfader", 0.42)).toEqual({
       kind: "refused",
-      because: "What a view sends on crossfader reaches its stream once the runtime runs a view's node (tatolab/streamlib#3306); until then the studio holds nothing it sends.",
+      because: "What a view sends on crossfader reaches its stream once the runtime runs a view's node (tatolab/streamlib#3306); until then Studio holds nothing it sends.",
     });
   });
 
@@ -221,11 +279,12 @@ describe("a project's view's connection to the studio", () => {
     const bitmapsClosed: string[] = [];
     const videoFrameNamed = (name: string) => Object.assign(Object.create(null), { timestamp: 33_000, close: () => framesClosed.push(name) });
     const imageBitmapNamed = (name: string) => Object.assign(Object.create(null), { name, close: () => bitmapsClosed.push(name) });
-    const bridge = new ProjectStudioViewBridge(
+    const bridge = new TatolabViewBridge(
       portDouble,
       "acme-dj:deck",
       { ...DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image" }] },
       host.hostServices,
+      recordingAreaServices(undefined).areaServices,
       { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
       async () => imageBitmapNamed(bitmapsMade++ === 0 ? "first" : "second"),
     );
@@ -266,11 +325,12 @@ describe("a project's view's connection to the studio", () => {
     const bitmapsMade: string[] = [];
     const framesClosed: string[] = [];
     const videoFrame = Object.assign(Object.create(null), { timestamp: 33_000, close: () => framesClosed.push("frame") });
-    const bridge = new ProjectStudioViewBridge(
+    const bridge = new TatolabViewBridge(
       portDouble,
       "acme-dj:deck",
       { ...FULL_ACCESS_DJ_DECK_MANIFEST, inputs: [{ name: "deck_a", family: "image" }] },
       host.hostServices,
+      recordingAreaServices(undefined).areaServices,
       { deck_a: { kind: "wired", target: DECK_A_TARGET, wired_from_words: "camera › video" } },
       async () => {
         bitmapsMade.push("bitmap");
@@ -288,5 +348,96 @@ describe("a project's view's connection to the studio", () => {
     expect(framesPosted[0]?.message).toMatchObject({ kind: "watched", watch_id: 1, watched: { subject: "input", reading: { kind: "image_frame", format_wire_name: "bgra8" } } });
     expect(bitmapsMade).toEqual([]);
     expect(framesClosed).toEqual([]);
+  });
+
+  it("hands the view its area's settings checked against what it declares, keeps ones that fit, and refuses ones that do not, naming the setting", async () => {
+    const { connection, saved } = await connectedView(DJ_DECK_MANIFEST, {}, { zoom: 3, show_waveform: "yes" });
+    const settingsSeen: ViewSettings[] = [];
+    connection.watchSettings((settings) => settingsSeen.push(settings));
+    await messagesDelivered();
+    const keptAnswer = await connection.rememberSettings({ zoom: 2 });
+    const refusedAnswer = await connection.rememberSettings({ zoom: 0 });
+    await messagesDelivered();
+
+    expect(settingsSeen).toEqual([
+      { show_waveform: true, zoom: 1 },
+      { show_waveform: true, zoom: 2 },
+    ]);
+    expect(keptAnswer).toEqual({ kind: "done" });
+    expect(refusedAnswer.kind === "refused" ? refusedAnswer.because : "kept").toContain("`zoom`:");
+    expect(saved.readLatest()).toEqual({ saved: { show_waveform: true, zoom: 2 } });
+  });
+
+  it("opens a view of a type on a file, tells views of that type what they were opened on, and says why when no area can show it", async () => {
+    const { connection, viewsOpened } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+    const openedOnSeen: ViewOpenedOn[] = [];
+    connection.watchOpenedOn((openedOn) => openedOnSeen.push(openedOn));
+    await messagesDelivered();
+    const openedAnswer = await connection.openView("acme-dj:deck", { kind: "file", file: "/set/crate.m3u" });
+    const notOpenedAnswer = await connection.openView("acme-dj:nowhere", { kind: "file", file: "/set/crate.m3u" });
+    await messagesDelivered();
+
+    expect(openedAnswer).toEqual({ kind: "done" });
+    expect(notOpenedAnswer).toEqual({ kind: "refused", because: "No layout has an area showing acme-dj:nowhere." });
+    expect(viewsOpened.map((opened) => opened.viewTypeId)).toEqual(["acme-dj:deck", "acme-dj:nowhere"]);
+    expect(openedOnSeen).toEqual([null, { kind: "file", file: "/set/crate.m3u" }]);
+  });
+
+  it("tells the view where its own header row lies after Studio's view-type menu, and again when the menu's width changes", async () => {
+    const { connection, headerRow } = await connectedView(DJ_DECK_MANIFEST, {});
+    const headerRowsSeen: ViewHeaderRow[] = [];
+    connection.watchHeaderRow((seen) => headerRowsSeen.push(seen));
+    await messagesDelivered();
+    headerRow.publish({ leading_inset_px: 96, height_px: 30 });
+    await messagesDelivered();
+
+    expect(headerRowsSeen).toEqual([
+      { leading_inset_px: 120, height_px: 30 },
+      { leading_inset_px: 96, height_px: 30 },
+    ]);
+  });
+
+  it("reads a project file for a view granted read.project_assets, saying why in the reader's words when it was not read, and refuses a sandboxed view that lacks it", async () => {
+    const fullAccess = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+    const sandboxed = await connectedView(DJ_DECK_MANIFEST, {});
+
+    expect(await fullAccess.connection.readProjectFile("/set/stream.py")).toEqual({ kind: "read", file_read: STREAM_FILE_READ });
+    expect(await fullAccess.connection.readProjectFile("/elsewhere.py")).toEqual({ kind: "not_read", because: "/elsewhere.py is not in the project." });
+    expect(await sandboxed.connection.readProjectFile("/set/stream.py")).toEqual({
+      kind: "not_read",
+      because: "DJ Deck runs sandboxed and does not list read.project_assets in its tatolab_view.json, so Studio does not serve it.",
+    });
+  });
+
+  it("starts a Python language server for the watch, carries its messages both ways, and stops it with the watch", async () => {
+    const { connection, languageServers, languageServerMessagesSent } = await connectedView(FULL_ACCESS_DJ_DECK_MANIFEST, {});
+    const eventsSeen: PythonLanguageServerConnectionEvent[] = [];
+    const languageServer = connection.connectToPythonLanguageServer("/set", (event) => eventsSeen.push(event));
+    await messagesDelivered();
+    languageServer.send({ jsonrpc: "2.0", id: 1, method: "initialize" });
+    languageServers[0]?.onEvent({ kind: "message", message: { jsonrpc: "2.0", id: 1, result: {} } });
+    await messagesDelivered();
+    languageServer.close();
+    await messagesDelivered();
+
+    expect(languageServers.map((opened) => [opened.projectFolder, opened.closed])).toEqual([["/set", true]]);
+    expect(languageServerMessagesSent).toEqual([{ jsonrpc: "2.0", id: 1, method: "initialize" }]);
+    expect(eventsSeen).toEqual([{ kind: "message", message: { jsonrpc: "2.0", id: 1, result: {} } }]);
+  });
+
+  it("ignores a message that is not the contract's, and answers the next one", async () => {
+    const host = recordingHostServices();
+    const channel = new MessageChannel();
+    const bridge = new TatolabViewBridge(channel.port1, "acme-dj:deck", FULL_ACCESS_DJ_DECK_MANIFEST, host.hostServices, recordingAreaServices(undefined).areaServices);
+    bridgesOpen.push(bridge);
+    const connecting = connectToTatoAppOverPort(channel.port2);
+    bridge.start();
+    const connection = await connecting;
+    connectionsOpen.push(connection);
+    channel.port2.postMessage({ kind: "ask", ask_id: 99, ask: { kind: "delete_everything" } });
+    channel.port2.postMessage({ kind: "watch", watch_id: "one", subject: { kind: "selection" } });
+
+    expect(await connection.select({ kind: "nothing" })).toEqual({ kind: "done" });
+    expect(host.selectionsAsked).toEqual([{ kind: "nothing" }]);
   });
 });

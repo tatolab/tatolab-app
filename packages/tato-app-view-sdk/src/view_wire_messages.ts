@@ -37,7 +37,7 @@ export const portViewerEventSchema = z.discriminatedUnion("kind", [
     /** The runtime's wire name of the frame's pixel format (`bgra32`, `rgba32`, `nv12`, …). */
     format_wire_name: z.string(),
     bytes_per_row: z.number(),
-    pixels: z.instanceof(Uint8Array),
+    pixels: z.custom<Uint8Array>((value) => value instanceof Uint8Array, "pixels are a Uint8Array"),
     /** Messages the viewer skipped before this one, because a viewer reads only the latest. */
     skipped_since_last_read: z.number(),
   }),

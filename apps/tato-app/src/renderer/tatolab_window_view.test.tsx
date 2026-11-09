@@ -388,10 +388,10 @@ describe("the studio", () => {
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Picture and fader/ }));
 
     const viewFrame = await waitFor(
-      () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-project-studio-view]') ?? expect.unreachable("no project view frame"),
+      () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-tatolab-view]') ?? expect.unreachable("no project view frame"),
     );
-    expect(viewFrame.getAttribute("data-project-studio-view")).toBe("tatolab-fixture-views:picture-and-fader");
-    expect(viewFrame.getAttribute("data-project-studio-view-access")).toBe("full");
+    expect(viewFrame.getAttribute("data-tatolab-view")).toBe("tatolab-fixture-views:picture-and-fader");
+    expect(viewFrame.getAttribute("data-tatolab-view-access")).toBe("full");
     expect(viewFrame.hasAttribute("sandbox")).toBe(false);
     expect(viewFrame.getAttribute("allow")).toBe("camera; microphone");
     expect(viewFrame.getAttribute("src")).toMatch(/\/mock_studio_view\/picture_and_fader\/index\.html$/);

@@ -1,0 +1,161 @@
+// A view made with the view SDK, drawn in a frame of its own so its styles and the window's never
+// mix, its one channel to Studio the MessagePort its bridge answers. A full-access view's frame is
+// on the window's origin; one that opts into the sandbox runs on an opaque origin with no Node, no
+// preload and only the permissions its manifest lists.
+
+import { VIEW_PORT_HANDOVER, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
+import { StudioAreaHeaderRowOfAWaitingView } from "../design_system/studio_area_frame";
+import { WaitingState } from "../design_system/waiting_state";
+import { useStudioViewReading, WatchedStudioValue } from "./in_window_view_host";
+import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewTypeSource } from "./studio_view_contract";
+import { nodesOfTheStudioViewType, studioViewInputWiring, STUDIO_VIEW_NODE_ISSUE, type StudioViewInputWiring } from "./studio_view_node_wiring";
+import type { RegisteredStudioViewType, StudioAreaOfTheView, StudioViewHostServices } from "./studio_view_type_registry";
+import { TatolabViewBridge, type TatolabViewAreaServices } from "./tatolab_view_bridge";
+
+/** The browser permissions a view's frame is allowed: every one for a full-access view, and only those a sandboxed view's manifest lists. */
+function framePermissionsOf(manifest: TatolabViewManifest): string {
+  const isGranted = (capability: "camera" | "microphone") => !manifest.sandbox || manifest.capabilities.includes(capability);
+  return [isGranted("camera") ? "camera" : null, isGranted("microphone") ? "microphone" : null].filter((permission) => permission !== null).join("; ");
+}
+
+interface TatolabViewOfAnArea {
+  listed: ListedStudioView;
+  manifest: TatolabViewManifest;
+  area: StudioAreaOfTheView;
+  hostServices: StudioViewHostServices;
+}
+
+/** The view's frame, on its entry, served by a bridge that reads its inputs from `inputWiring`; a reload of the frame is served by a new one. */
+function TatolabViewFrame({ listed, manifest, area, hostServices, inputWiring }: TatolabViewOfAnArea & { inputWiring: Record<string, StudioViewInputWiring> }) {
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const bridgeRef = useRef<TatolabViewBridge | null>(null);
+  const inputWiringRef = useRef(inputWiring);
+  inputWiringRef.current = inputWiring;
+  const inputWiringAsJson = JSON.stringify(inputWiring);
+  const rememberSettingsRef = useRef(area.rememberSettings);
+  rememberSettingsRef.current = area.rememberSettings;
+  const [savedSettings] = useState(() => new WatchedStudioValue<{ saved: JsonValue | undefined }>({ saved: area.saved_settings }));
+  const savedSettingsAsJson = JSON.stringify(area.saved_settings) ?? "";
+  const savedSettingsRef = useRef(area.saved_settings);
+  savedSettingsRef.current = area.saved_settings;
+
+  useEffect(() => () => bridgeRef.current?.close(), []);
+  useEffect(() => {
+    savedSettings.publish({ saved: savedSettingsRef.current });
+  }, [savedSettings, savedSettingsAsJson]);
+  useEffect(() => {
+    bridgeRef.current?.rewireInputs(inputWiringRef.current);
+  }, [inputWiringAsJson]);
+
+  const entryUrl = new URL(manifest.entry, listed.folder_url);
+  const handTheFrameItsPort = () => {
+    const frameWindow = frameRef.current?.contentWindow;
+    if (frameWindow === null || frameWindow === undefined) return;
+    bridgeRef.current?.close();
+    const areaServices: TatolabViewAreaServices = {
+      watchSavedSettings: (listener) => savedSettings.watch(({ saved }) => listener(saved)),
+      rememberSettings: (settings) => rememberSettingsRef.current(settings),
+      watchHeaderRow: area.header_row.watch,
+    };
+    const channel = new MessageChannel();
+    const bridge = new TatolabViewBridge(channel.port1, listed.view_type_id, manifest, hostServices, areaServices, inputWiringRef.current);
+    bridge.start();
+    bridgeRef.current = bridge;
+    // A sandboxed frame without allow-same-origin has an opaque origin, which no target origin but "*" names.
+    frameWindow.postMessage({ kind: VIEW_PORT_HANDOVER }, manifest.sandbox ? "*" : entryUrl.origin, [channel.port2]);
+  };
+
+  return (
+    <iframe
+      ref={frameRef}
+      title={manifest.title}
+      src={entryUrl.href}
+      sandbox={manifest.sandbox ? "allow-scripts" : undefined}
+      allow={framePermissionsOf(manifest)}
+      referrerPolicy="no-referrer"
+      className="size-full border-0 bg-studio-area"
+      onLoad={handTheFrameItsPort}
+      data-tatolab-view={listed.view_type_id}
+      data-tatolab-view-access={manifest.sandbox ? "sandboxed" : "full"}
+    />
+  );
+}
+
+/** What a `node` view's area shows while there is no node to show: a header row of its own, under the view-type menu, over why. */
+function TatolabViewWaiting({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex size-full flex-col">
+      <StudioAreaHeaderRowOfAWaitingView />
+      <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
+    </div>
+  );
+}
+
+/** The `node` view of the active tab's first node of its type, or what to do while the tab's graph has none. */
+function TatolabNodeViewOfTheTab({ streamTab, ...view }: TatolabViewOfAnArea & { streamTab: StreamTabAddress }) {
+  const { stream } = streamTab;
+  const { hostServices, listed, manifest } = view;
+  const watchTheTabsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => hostServices.watchStreamGraph(stream, listener), [hostServices, stream]);
+  const graphReading = useStudioViewReading(watchTheTabsGraph);
+  if (graphReading === null) {
+    return (
+      <TatolabViewWaiting>
+        <WaitingState title={`Reading ${streamTab.display_name}'s graph`} data-tatolab-view-state="reading_the_graph" />
+      </TatolabViewWaiting>
+    );
+  }
+  if (graphReading.kind === "not_read") {
+    return (
+      <TatolabViewWaiting>
+        <WaitingState isFailure title={`${streamTab.display_name}'s graph wasn't read`} explanation={graphReading.because} data-tatolab-view-state="graph_not_read" />
+      </TatolabViewWaiting>
+    );
+  }
+  const viewNode = nodesOfTheStudioViewType(graphReading.graph, listed.view_type_id)[0];
+  if (viewNode === undefined) {
+    return (
+      <TatolabViewWaiting>
+        <WaitingState
+          title={`${streamTab.display_name} has no ${manifest.title} node`}
+          explanation={`${manifest.title} shows its node in the stream's graph, each of its inputs reading what is wired into it.`}
+          waitsOn={STUDIO_VIEW_NODE_ISSUE}
+          data-tatolab-view-state="no_view_node"
+        />
+      </TatolabViewWaiting>
+    );
+  }
+  return <TatolabViewFrame key={viewNode.id} {...view} inputWiring={studioViewInputWiring(graphReading.graph, viewNode, manifest.inputs)} />;
+}
+
+function TatolabNodeView(view: TatolabViewOfAnArea) {
+  const activeStreamTab = useStudioViewReading(view.hostServices.watchActiveStreamTab);
+  if (activeStreamTab === null) {
+    return (
+      <TatolabViewWaiting>
+        <WaitingState title="No stream is open" explanation={`Open a stream with a ${view.manifest.title} node to show it here.`} data-tatolab-view-state="no_tab" />
+      </TatolabViewWaiting>
+    );
+  }
+  return <TatolabNodeViewOfTheTab key={activeStreamTab.stream} {...view} streamTab={activeStreamTab} />;
+}
+
+/** The view type `listed`, declared by `manifest` and brought by `broughtBy`: an `area` view's frame fills its area, and a `node` view's shows the active tab's node of its type. */
+export function tatolabFrameViewType(listed: ListedStudioView, manifest: TatolabViewManifest, broughtBy: StudioViewTypeSource): RegisteredStudioViewType {
+  return {
+    view_type_id: listed.view_type_id,
+    title: manifest.title,
+    icon: "project_view",
+    brought_by: broughtBy,
+    renderInAnArea: (area, hostServices) => ({
+      kind: "frame",
+      frame:
+        manifest.placement === "area" ? (
+          <TatolabViewFrame listed={listed} manifest={manifest} area={area} hostServices={hostServices} inputWiring={{}} />
+        ) : (
+          <TatolabNodeView listed={listed} manifest={manifest} area={area} hostServices={hostServices} />
+        ),
+    }),
+  };
+}

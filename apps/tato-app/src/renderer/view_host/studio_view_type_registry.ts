@@ -1,11 +1,22 @@
+import { readTatolabViewManifest, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
+import type { ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
-import { readStudioViewManifest, type StudioViewManifest } from "../../shared/studio_view_manifest";
 import type { StudioIconName } from "../design_system/studio_icons";
 import { WatchedStudioValue } from "./in_window_view_host";
-import type { JsonValue, StudioViewHostConnection, StudioViewRendering, StudioViewType, StudioViewTypeSource } from "./studio_view_contract";
+import type { JsonValue, StudioViewHostConnection, StudioViewType, StudioViewTypeSource, ViewHeaderRow } from "./studio_view_contract";
 
 /** What a host serves every view alike: the connection less the area's own settings. */
 export type StudioViewHostServices = Omit<StudioViewHostConnection<JsonValue>, "settings" | "rememberSettings">;
+
+/** How an area draws its view: the in-window tools after the view-type menu over its body, or the view's own frame across the whole area, under the view-type menu. */
+export type StudioAreaRendering = { kind: "in_window"; header_tools: ReactNode; body: ReactNode } | { kind: "frame"; frame: ReactNode };
+
+/** What an area hands the view type it draws: the settings it saved, keeping the next ones, and where a frame's own header row lies. */
+export interface StudioAreaOfTheView {
+  saved_settings: JsonValue | undefined;
+  rememberSettings(nextSettings: JsonValue): void;
+  header_row: WatchedStudioValue<ViewHeaderRow>;
+}
 
 /** A view type as the registry holds it, its settings' type kept inside: what the view-type menu lists, and how an area draws it. */
 export interface RegisteredStudioViewType {
@@ -13,8 +24,8 @@ export interface RegisteredStudioViewType {
   title: string;
   icon: StudioIconName;
   brought_by: StudioViewTypeSource;
-  /** The view drawn on the settings an area saved, or on the defaults when they no longer fit; `rememberSettings` keeps the next ones with the area. */
-  renderInAnArea(savedSettings: JsonValue | undefined, hostServices: StudioViewHostServices, rememberSettings: (nextSettings: JsonValue) => void): StudioViewRendering;
+  /** The view drawn in `area`, on the settings it saved, or on the defaults when they no longer fit. */
+  renderInAnArea(area: StudioAreaOfTheView, hostServices: StudioViewHostServices): StudioAreaRendering;
 }
 
 /** `viewType` as the registry holds it. */
@@ -24,12 +35,14 @@ export function registeredStudioViewType<ViewSettings extends JsonValue>(viewTyp
     title: viewType.title,
     icon: viewType.icon,
     brought_by: viewType.brought_by,
-    renderInAnArea: (savedSettings, hostServices, rememberSettings) =>
-      viewType.renderStudioView({
+    renderInAnArea: (area, hostServices) => ({
+      kind: "in_window",
+      ...viewType.renderStudioView({
         ...hostServices,
-        settings: (savedSettings === undefined ? null : viewType.settingsFromSavedLayout(savedSettings)) ?? viewType.default_settings,
-        rememberSettings,
+        settings: (area.saved_settings === undefined ? null : viewType.settingsFromSavedLayout(area.saved_settings)) ?? viewType.default_settings,
+        rememberSettings: (nextSettings) => area.rememberSettings(nextSettings),
       }),
+    }),
   };
 }
 
@@ -46,7 +59,7 @@ export interface ProjectStudioViewNotOpened {
 }
 
 /** Makes the view type a listed view's manifest declares, brought by the project `projectName`. */
-export type ProjectStudioViewTypeMaker = (listed: ListedStudioView, manifest: StudioViewManifest, projectName: string) => RegisteredStudioViewType;
+export type ProjectStudioViewTypeMaker = (listed: ListedStudioView, manifest: TatolabViewManifest, projectName: string) => RegisteredStudioViewType;
 
 interface ProjectStudioViewTypesRead {
   readFrom: ProjectStudioViewsReading;
@@ -95,7 +108,7 @@ export class StudioViewTypeRegistry {
     const notOpened: ProjectStudioViewNotOpened[] = [];
     if (reading.kind === "listed" && this.projectStudioViewTypeOf !== null) {
       for (const listed of reading.studio_views) {
-        const manifestReading = readStudioViewManifest(listed.manifest_json);
+        const manifestReading = readTatolabViewManifest(listed.manifest_json);
         if (manifestReading.kind === "not_read") notOpened.push({ view_type_id: listed.view_type_id, because: manifestReading.because });
         else if (this.viewTypesById.has(listed.view_type_id)) notOpened.push({ view_type_id: listed.view_type_id, because: `The studio already has a view named ${listed.view_type_id}.` });
         else viewTypes.push(this.projectStudioViewTypeOf(listed, manifestReading.manifest, reading.project_name));

@@ -8,7 +8,7 @@ import type { ProjectLogReadings } from "./project_log_readings";
 import type { ProjectNodeTypeReadings } from "./project_node_type_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";
 import type { PortViewerConnections } from "./port_viewer_connections";
-import type { CodeFileAsked, ListedStreamsReading, OpenProjectReading, StopWatching, StreamTabAddress, StudioSelection } from "./studio_view_contract";
+import type { CodeFileAsked, ListedStreamsReading, OpenProjectReading, StopWatching, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "./studio_view_contract";
 import type { StreamGraphAndCatalogReadings } from "./stream_graph_and_catalog_readings";
 import type { StudioViewHostServices } from "./studio_view_type_registry";
 
@@ -50,6 +50,8 @@ export interface InWindowStudioViewHostSources {
   openStreamTab(streamTab: StreamTabAddress): void;
   codeFileAsked: WatchedStudioValue<CodeFileAsked | null>;
   openCodeFile(file: string): void;
+  viewsOpenedOn: WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>;
+  openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening;
 }
 
 /** What the host reads and writes of the open project and its imports for its views: their files through the backend, their logs and node types, their language servers, and the port viewers of their running nodes. */
@@ -79,6 +81,17 @@ export function inWindowStudioViewHostServices(
     watchNodeCatalog: streamReadings.watchNodeCatalog,
     watchCodeFileAsked: sources.codeFileAsked.watch,
     openCodeFile: (file) => sources.openCodeFile(file),
+    openView: (viewTypeId, on) => sources.openView(viewTypeId, on),
+    watchViewOpenedOn: (viewTypeId, listener) => {
+      let askLastTold: number | null = null;
+      return sources.viewsOpenedOn.watch((viewsOpenedOn) => {
+        const openedOnAsked = viewsOpenedOn[viewTypeId];
+        const ask = openedOnAsked?.ask ?? 0;
+        if (ask === askLastTold) return;
+        askLastTold = ask;
+        listener(openedOnAsked?.on ?? null);
+      });
+    },
     readProjectFile: (file) =>
       backend.readProjectFile(file).then(
         (fileRead) => ({ kind: "read", file_read: fileRead }),
