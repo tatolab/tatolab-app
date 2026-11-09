@@ -53,7 +53,7 @@ function waitingNodeUnder(parentRowId: string): OutlinerTreeNode {
   });
 }
 
-/** `project`'s rows: its `pyproject.toml`, then the streams the runtime lists from its folder, or a row saying they wait on the runtime. */
+/** `project`'s rows: its `pyproject.toml`, then the streams the runtime lists from its folder, a row saying they wait on the runtime, or why listing them failed. */
 function projectChildren(project: ProjectOnDisk, projectRowId: string, listedStreams: ListedStreamsReading): OutlinerTreeNode[] {
   const descriptionNode = leafNode({
     row_id: `${projectRowId}/pyproject`,
@@ -61,6 +61,9 @@ function projectChildren(project: ProjectOnDisk, projectRowId: string, listedStr
     icon: "file",
     isMachineWords: true,
   });
+  if (listedStreams.kind === "listing_failed") {
+    return [descriptionNode, leafNode({ row_id: `${projectRowId}/streams-not-listed`, label: listedStreams.because, icon: "unreadable", tone: "unreadable" })];
+  }
   const streamsOfTheProject: ListedStream[] =
     listedStreams.kind === "listed" ? listedStreams.streams.filter((stream) => stream.location?.project_directory === project.folder) : [];
   if (streamsOfTheProject.length === 0) return [descriptionNode, waitingNodeUnder(projectRowId)];
@@ -70,10 +73,9 @@ function projectChildren(project: ProjectOnDisk, projectRowId: string, listedStr
       (stream): OutlinerTreeNode => ({
         row: {
           row_id: `stream:${stream.stream}`,
-          label: streamFunctionName(stream),
+          label: stream.display_name,
           icon: stream.state === "failed" ? "failed" : "stream",
           tone: stream.state === "failed" ? "failed" : undefined,
-          isMachineWords: true,
         },
         meaning: { kind: "stream", stream: stream.stream, display_name: stream.display_name, project_name: project.name, project_folder: project.folder },
         isOpenByDefault: false,
@@ -81,14 +83,6 @@ function projectChildren(project: ProjectOnDisk, projectRowId: string, listedStr
       }),
     ),
   ];
-}
-
-/** The function a stream runs, without its module: `main` for `stream:main`; `stream.py` for the project's record that names none; its display name for a record with no location. */
-function streamFunctionName(stream: ListedStream): string {
-  const streamFunction = stream.location?.stream_function;
-  if (streamFunction === undefined) return stream.display_name;
-  if (streamFunction === "") return "stream.py";
-  return streamFunction.split(":").at(-1) ?? streamFunction;
 }
 
 function importNode(importedProject: ImportedProject, listedStreams: ListedStreamsReading): OutlinerTreeNode {

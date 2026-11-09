@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenProjectReading, PoppedOutViewerTarget, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
+import type { OpenProjectReading, PoppedOutViewerTarget, RecentProject, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./backend/mock_tatolab_backend";
 import { mockStreamIdOf } from "./backend/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
@@ -99,7 +99,7 @@ function settingsRow(rowName: string): HTMLElement {
 
 const PATTERN_PROJECT = "/Users/jonathanf/streams/pattern";
 const CAMERA_PROJECT = "/Users/jonathanf/streams/camera";
-const PATTERN_MAIN_STREAM = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_function: "stream:main" });
+const PATTERN_MAIN_STREAM = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "main" });
 
 function outlinerRow(rowId: string): HTMLElement {
   return document.querySelector<HTMLElement>(`[data-outliner] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no outliner row ${rowId}`);
@@ -128,8 +128,8 @@ describe("the studio", () => {
       `project:${PATTERN_PROJECT}`,
       `project:${PATTERN_PROJECT}/pyproject`,
       `stream:${PATTERN_MAIN_STREAM}`,
-      `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_function: "stream:recorder" })}`,
-      `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_function: "stream:pattern_two" })}`,
+      `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "recorder" })}`,
+      `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" })}`,
       "imports",
     ]);
     expect(outlinerRow("open_project_folder").getAttribute("aria-level")).toBe("1");
@@ -150,7 +150,7 @@ describe("the studio", () => {
     openTheOutlinerRow("project:tatolab-testpattern");
 
     expect(within(outlinerRow(`project:${CAMERA_PROJECT}`)).getByRole("img", { name: "Read only" })).toBeTruthy();
-    expect(outlinerRow(`stream:${mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_function: "stream:main" })}`).getAttribute("aria-level")).toBe("4");
+    expect(outlinerRow(`stream:${mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" })}`).getAttribute("aria-level")).toBe("4");
     expect(outlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights/refusal`).textContent).toBe(`${PATTERN_PROJECT}/imports/stage-lights has no pyproject.toml.`);
     expect(outlinerRow("project:tatolab-testpattern/waiting").textContent).toBe("Streams and nodes not read yet");
   });
@@ -195,7 +195,7 @@ describe("the studio", () => {
 
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
     fireEvent.keyDown(screen.getByRole("tree", { name: "Outliner" }), { key: "Enter" });
-    const cameraStream = mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_function: "stream:main" });
+    const cameraStream = mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" });
     act(() => askToShowAStream(cameraStream));
 
     const streamTabs = within(screen.getByRole("tablist", { name: "Open streams" }));
@@ -368,7 +368,6 @@ describe("the studio", () => {
   it("shows the Projects window with no project open, its recent projects as cards, and opens the one chosen on its stream", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
     const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
-    expect(patternCard.textContent).toContain("Running");
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6);
 
     fireEvent.click(patternCard);
@@ -406,6 +405,20 @@ describe("the studio", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Search projects" }), { target: { value: "nothing-like-it" } });
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(0);
     expect(textOf("[data-projects-empty]")).toContain("No project matches");
+  });
+
+  it("shows a project opened from another window once the Projects window is focused again", async () => {
+    const recentProjectsOnDisk: RecentProject[] = [];
+    await mountedWindowOverTheMock("state=running&project=none&recent=none", { readRecentProjects: () => Promise.resolve([...recentProjectsOnDisk]) });
+    await waitFor(() => expect(textOf("[data-projects-empty]")).toContain("No projects yet"));
+
+    recentProjectsOnDisk.push({ folder: PATTERN_PROJECT, project_name: "pattern", last_opened_at_wall_clock_ms: Date.now() });
+    act(() => {
+      window.dispatchEvent(new FocusEvent("focus"));
+    });
+
+    await waitFor(() => expect(document.querySelector(`[data-projects-project="${PATTERN_PROJECT}"]`)).not.toBeNull());
+    expect(document.querySelector("[data-projects-empty]")).toBeNull();
   });
 
   it("opens first run on the empty Projects window, its banner a still picture where WebGL is not offered, and Open… opens the one chosen", async () => {

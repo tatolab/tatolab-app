@@ -220,7 +220,7 @@ function CodeAreaBody({ connection }: { connection: CodeViewConnection }) {
     settings.shown_file === null ? (
       <WaitingState
         title="No file open"
-        explanation="Open stream.py from the Stream menu, or a file of the project from + above. A node's own file opens from the graph once the runtime names it."
+        explanation="Open a file of the project from + above. A node's own file opens from the graph once the runtime names it."
         waitsOn={OPENING_A_NODES_FILE_WAITS_ON}
         data-code-document-state="none_open"
       />

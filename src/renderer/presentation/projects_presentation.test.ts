@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ListedStream, RecentProject } from "../../shared/tatolab_backend_contract";
-import type { ListedStreamsReading } from "../view_host/studio_view_contract";
+import type { RecentProject } from "../../shared/tatolab_backend_contract";
 import { presentProjectsWithNoCards, presentRecentProjectCards, presentTimeSince } from "./projects_presentation";
 
 const NOW_MS = 1_790_000_000_000;
@@ -11,21 +10,6 @@ const RECENT_PROJECTS: RecentProject[] = [
   { folder: "/home/ada/streams/lobby", project_name: "lobby-recorder", last_opened_at_wall_clock_ms: NOW_MS - 30 * HOUR_MS },
   { folder: "/Users/ada/Desktop/old-sketch/", project_name: null, last_opened_at_wall_clock_ms: NOW_MS - 40 * 24 * HOUR_MS },
 ];
-
-function listedWithAStreamOf(projectDirectory: string, state: string): ListedStreamsReading {
-  const listing: ListedStream = {
-    stream: "pattern-main-0a1b2c",
-    display_name: "main",
-    location: { project_directory: projectDirectory, stream_function: "stream:main" },
-    state,
-    node_count: null,
-    failed_because: null,
-    capture_devices_whose_access_was_never_asked_for: [],
-    action: null,
-    step: null,
-  };
-  return { kind: "listed", streams: [listing] };
-}
 
 describe("when a project was last opened", () => {
   it("reads in words, from just now to years", () => {
@@ -41,24 +25,17 @@ describe("when a project was last opened", () => {
 
 describe("the Projects window's cards", () => {
   it("name each project, its folder under home and when it was opened, and mark one that doesn't read", () => {
-    const cards = presentRecentProjectCards(RECENT_PROJECTS, { kind: "not_listed", because: "Tatolab is off" }, NOW_MS, "");
-    expect(cards.map(({ name, folderWords, lastOpenedWords, isRunning, isUnreadable }) => [name, folderWords, lastOpenedWords, isRunning, isUnreadable])).toEqual([
-      ["pattern", "~/streams/pattern", "2 hours ago", false, false],
-      ["lobby-recorder", "~/streams/lobby", "yesterday", false, false],
-      ["old-sketch", "~/Desktop/old-sketch/", "last month", false, true],
+    const cards = presentRecentProjectCards(RECENT_PROJECTS, NOW_MS, "");
+    expect(cards.map(({ name, folderWords, lastOpenedWords, isUnreadable }) => [name, folderWords, lastOpenedWords, isUnreadable])).toEqual([
+      ["pattern", "~/streams/pattern", "2 hours ago", false],
+      ["lobby-recorder", "~/streams/lobby", "yesterday", false],
+      ["old-sketch", "~/Desktop/old-sketch/", "last month", true],
     ]);
   });
 
-  it("mark a project running while a stream of it runs or prepares", () => {
-    const preparing = listedWithAStreamOf("/Users/ada/streams/pattern", "preparing");
-    expect(presentRecentProjectCards(RECENT_PROJECTS, preparing, NOW_MS, "").map((card) => [card.name, card.isRunning])).toEqual([["pattern", true], ["lobby-recorder", false], ["old-sketch", false]]);
-    expect(presentRecentProjectCards(RECENT_PROJECTS, listedWithAStreamOf("/Users/ada/streams/pattern", "stopped"), NOW_MS, "").some((card) => card.isRunning)).toBe(false);
-  });
-
   it("narrow to a search of the name or the folder, ignoring case", () => {
-    const listedNone: ListedStreamsReading = { kind: "listed", streams: [] };
-    expect(presentRecentProjectCards(RECENT_PROJECTS, listedNone, NOW_MS, " LOBBY ").map((card) => card.name)).toEqual(["lobby-recorder"]);
-    expect(presentRecentProjectCards(RECENT_PROJECTS, listedNone, NOW_MS, "desktop").map((card) => card.name)).toEqual(["old-sketch"]);
+    expect(presentRecentProjectCards(RECENT_PROJECTS, NOW_MS, " LOBBY ").map((card) => card.name)).toEqual(["lobby-recorder"]);
+    expect(presentRecentProjectCards(RECENT_PROJECTS, NOW_MS, "desktop").map((card) => card.name)).toEqual(["old-sketch"]);
   });
 });
 

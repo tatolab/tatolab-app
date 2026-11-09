@@ -1,10 +1,10 @@
 import { cn } from "cn";
-import { Play, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import type { ControlDataAttributes } from "./control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./full_strength_focus_ring";
 
 /** The picture at the top of a project card: a graph drawn as two nodes joined over the canvas's dot grid. */
-function ProjectGraphThumbnail({ isRunning }: { isRunning: boolean }) {
+function ProjectGraphThumbnail() {
   return (
     <span
       aria-hidden
@@ -12,16 +12,15 @@ function ProjectGraphThumbnail({ isRunning }: { isRunning: boolean }) {
     >
       <span className="absolute top-[30%] left-[14%] h-[18%] w-[26%] rounded-sm border border-line-strong bg-studio-area" />
       <span className="absolute top-[52%] left-[56%] h-[18%] w-[28%] rounded-sm border border-line-strong bg-studio-area" />
-      <span className={cn("absolute top-[39%] left-[40%] h-0.5 w-[19%] origin-left rotate-28", isRunning ? "bg-brand-text" : "bg-fg-4")} />
+      <span className="absolute top-[39%] left-[40%] h-0.5 w-[19%] origin-left rotate-28 bg-fg-4" />
     </span>
   );
 }
 
-/** One project in the Projects window: its graph's picture, its name, where it is and when it was last opened, marked while it runs or doesn't read; pressing it opens it. */
+/** One project in the Projects window: its graph's picture, its name, where it is and when it was last opened, marked when it doesn't read; pressing it opens it. */
 export function ProjectCard({
   name,
   detail,
-  isRunning,
   isUnreadable,
   onOpened,
   ...controlDataAttributes
@@ -29,7 +28,6 @@ export function ProjectCard({
   name: string;
   /** The card's second line, as "~/streams/pattern · 2 hours ago". */
   detail: string;
-  isRunning: boolean;
   isUnreadable: boolean;
   onOpened: () => void;
 } & ControlDataAttributes) {
@@ -40,15 +38,7 @@ export function ProjectCard({
       className={cn("group flex w-full min-w-0 flex-col gap-2.5 rounded-lg text-left outline-none", FULL_STRENGTH_FOCUS_RING_CLASS_NAMES)}
       {...controlDataAttributes}
     >
-      <span className="relative block">
-        <ProjectGraphThumbnail isRunning={isRunning} />
-        {isRunning && (
-          <span className="absolute top-2 left-2 flex items-center gap-1 rounded-md bg-window/85 px-1.5 py-0.5 text-2xs text-fg">
-            <Play className="size-3 text-brand-text" strokeWidth={2} aria-hidden />
-            Running
-          </span>
-        )}
-      </span>
+      <ProjectGraphThumbnail />
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-fg">
           {isUnreadable && <TriangleAlert className="size-3.5 shrink-0 text-warn-text" strokeWidth={1.75} aria-label="Doesn't read now" />}

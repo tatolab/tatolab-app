@@ -12,7 +12,7 @@ const POLL_MILLISECONDS = 1000;
 function graphOfTheTypes(stream: string, nodeTypes: string[]): StreamGraphSummary {
   return {
     stream,
-    nodes: nodeTypes.map((type, index) => ({ id: `P${index}`, name: `n${index}`, type, state: null, config: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} })),
+    nodes: nodeTypes.map((type, index) => ({ id: `P${index}`, name: `n${index}`, type, state: null, failed_because: null, config: {}, input_ports: [], output_ports: [], dropped_bags_by_link: {}, refused_bags_by_output_port: {} })),
     links: [],
     graph_document_text: "{}",
   };

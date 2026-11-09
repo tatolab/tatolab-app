@@ -12,7 +12,7 @@ test("the_socket_is_in_the_users_runtime_directory_as_the_runtime_resolves_it", 
   expect(tatolabMachinePathsOnLinuxForTheRealMachine("/run/user/1000", "/home/jonathan", 1000)).toEqual({
     localApiSocket: "/run/user/1000/streamlib/local-api.sock",
     commandLineToolLink: "/home/jonathan/.local/bin/tatolab",
-    localProofTestMachineRoot: null,
+    localProofTestMachine: null,
   });
 });
 
@@ -31,10 +31,10 @@ test("no_home_or_a_relative_one_names_no_cli_link", () => {
 });
 
 test("a_local_proof_build_reads_the_socket_under_its_test_root_and_no_cli_link", () => {
-  expect(tatolabMachinePathsOnLinuxUnderALocalProofTestRoot("/tmp/tatolab-proof")).toEqual({
-    localApiSocket: "/tmp/tatolab-proof/run/local-api.sock",
+  expect(tatolabMachinePathsOnLinuxUnderALocalProofTestRoot({ testMachineRoot: "/tmp/tatolab-proof-two", runtimeLoopbackHttpPort: 14447 })).toEqual({
+    localApiSocket: "/tmp/tatolab-proof-two/run/local-api.sock",
     commandLineToolLink: null,
-    localProofTestMachineRoot: "/tmp/tatolab-proof",
+    localProofTestMachine: { testMachineRoot: "/tmp/tatolab-proof-two", runtimeLoopbackHttpPort: 14447 },
   });
 });
 

@@ -15,7 +15,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import { cn } from "cn";
-import { Scan } from "lucide-react";
+import { Scan, SquareX } from "lucide-react";
 import {
   createContext,
   memo,
@@ -30,6 +30,7 @@ import type { ControlDataAttributes } from "./control_data_attributes";
 import { IconButton } from "./icon_button";
 import {
   layOutNodeGraph,
+  NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT,
   NODE_GRAPH_CARD_HEADER_HEIGHT,
   NODE_GRAPH_CARD_PIN_ROWS_PADDING,
   NODE_GRAPH_PIN_ROW_HEIGHT,
@@ -64,12 +65,24 @@ function nodeGraphPinTooltip(pin: NodeGraphCanvasPin): string {
   return [pin.name, ...(pin.family === null ? [] : [NODE_GRAPH_PIN_FAMILY_WORDS[pin.family]]), ...pin.stream_facts_words].join(" · ");
 }
 
-/** One node a graph canvas draws: its name on the card's header, and its pins, inputs on the left and outputs on the right. */
+/** How a card shows its node is doing: as every healthy card, restarting (a quiet tag), or failed (red, with why in the runtime's words when it gave them). */
+export type NodeGraphCardCondition =
+  | { look: "healthy" }
+  | { look: "restarting" }
+  | { look: "failed"; failed_because: string | null };
+
+/** One node a graph canvas draws: its name on the card's header, how it is doing, and its pins, inputs on the left and outputs on the right. */
 export interface NodeGraphCanvasNode {
   node_id: string;
   title: string;
+  condition: NodeGraphCardCondition;
   input_pins: readonly NodeGraphCanvasPin[];
   output_pins: readonly NodeGraphCanvasPin[];
+}
+
+/** Why a card's node failed, when the card shows it under its pins. */
+function failureWordsTheCardShows(graphNode: NodeGraphCanvasNode): string | null {
+  return graphNode.condition.look === "failed" ? graphNode.condition.failed_because : null;
 }
 
 /** How a link is drawn: carrying, not carrying yet (dashed), failed (red), or going away (dashed and faint). */
@@ -162,6 +175,7 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
   const selectedNodeId = useContext(NodeGraphSelectionContext);
   const { graphNode } = data;
   const isSelected = selectedNodeId === graphNode.node_id;
+  const failureWords = failureWordsTheCardShows(graphNode);
   const pinRowCount = Math.max(
     graphNode.input_pins.length,
     graphNode.output_pins.length,
@@ -174,15 +188,17 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
       )}
       data-node-graph-card={graphNode.node_id}
       data-selected={isSelected || undefined}
+      data-condition={graphNode.condition.look}
     >
       <div
-        className="node-graph-card-header flex items-center px-2"
+        className="node-graph-card-header flex items-center gap-2 px-2"
         data-family={headerFamilyOf(graphNode) ?? undefined}
         style={{ height: NODE_GRAPH_CARD_HEADER_HEIGHT }}
       >
         <span className="truncate text-xs font-semibold text-fg">
           {graphNode.title}
         </span>
+        <NodeGraphCardConditionTag condition={graphNode.condition} />
       </div>
       <div style={{ paddingBlock: NODE_GRAPH_CARD_PIN_ROWS_PADDING }}>
         {Array.from({ length: pinRowCount }, (_, rowIndex) => {
@@ -224,7 +240,34 @@ function NodeGraphCardView({ data }: NodeProps<NodeGraphCardFlowNode>) {
           );
         })}
       </div>
+      {failureWords !== null && (
+        <p
+          className="node-graph-card-failure-words w-0 min-w-full px-2.5 py-1.5 text-[11px] leading-4 text-danger-text"
+          style={{ height: NODE_GRAPH_CARD_FAILURE_WORDS_HEIGHT }}
+          title={failureWords}
+          data-node-graph-failure-words
+        >
+          <span className="line-clamp-2 break-words">{failureWords}</span>
+        </p>
+      )}
     </div>
+  );
+}
+
+/** The tag at a card header's right saying its node failed or is restarting; a healthy card has none. */
+function NodeGraphCardConditionTag({ condition }: { condition: NodeGraphCardCondition }) {
+  if (condition.look === "healthy") return null;
+  if (condition.look === "restarting")
+    return (
+      <span className="node-graph-card-condition-tag ml-auto shrink-0 rounded-sm bg-well px-1.5 text-[10px] leading-4 font-medium text-fg-3" data-node-graph-condition-tag="restarting">
+        Restarting
+      </span>
+    );
+  return (
+    <span className="node-graph-card-condition-tag ml-auto flex shrink-0 items-center gap-1 rounded-sm bg-danger-soft px-1.5 text-[10px] leading-4 font-medium text-danger-text" data-node-graph-condition-tag="failed">
+      <SquareX className="size-3" strokeWidth={1.75} aria-hidden />
+      Failed
+    </span>
   );
 }
 
@@ -292,6 +335,7 @@ function nodeGraphShapeKey(
       node.title,
       node.input_pins,
       node.output_pins,
+      failureWordsTheCardShows(node) !== null,
     ]),
     links.map((link) => [
       link.source_node_id,
@@ -342,6 +386,7 @@ function NodeGraphFlow({
           node_id: node.node_id,
           input_pin_names: node.input_pins.map((pin) => pin.name),
           output_pin_names: node.output_pins.map((pin) => pin.name),
+          shows_failure_words: failureWordsTheCardShows(node) !== null,
           card_width:
             (isLaidOutOnMeasuredWidths
               ? measuredCardWidths.widthByNode.get(node.node_id)

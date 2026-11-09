@@ -9,12 +9,12 @@ afterEach(() => {
 });
 
 /** The mock streams' ids, which the runtime would compute from their locations. */
-const MAIN = "pattern-main-645dbe";
-const CAMERA = "camera-main-018da9";
-const RECORDER = "pattern-recorder-7d11b1";
-const PATTERN_TWO = "pattern-pattern-two-e6043c";
-const LOBBY_RECORDER = "lobby-recorder-main-3fc45e";
-const HEAT_MAP = "heat-map-heat-map-1acf70";
+const MAIN = "pattern-main-bcd55b";
+const CAMERA = "camera-main-b0a0e5";
+const RECORDER = "pattern-recorder-077241";
+const PATTERN_TWO = "pattern-pattern-two-346432";
+const LOBBY_RECORDER = "lobby-recorder-main-d76949";
+const HEAT_MAP = "heat-map-heat-map-68aac7";
 
 function listingWithTheId(streams: ListedStream[] | null, streamId: string): ListedStream | undefined {
   return streams?.find((stream) => stream.stream === streamId);
@@ -70,8 +70,8 @@ describe("the mock backend's stream actions", () => {
     const stopped = await streamsAfterEachChange(() => Promise.resolve(), 1000);
     expect(listingWithTheId(stopped.streams, CAMERA)).toMatchObject({ state: "stopped", node_count: null, action: null, step: null });
 
-    const compiling = await streamsAfterEachChange(() => backend.runStreamAction("start_stream", CAMERA));
-    expect(listingWithTheId(compiling.streams, CAMERA)).toMatchObject({ state: "preparing", step: "compiling" });
+    const readingTheGraphDocuments = await streamsAfterEachChange(() => backend.runStreamAction("start_stream", CAMERA));
+    expect(listingWithTheId(readingTheGraphDocuments.streams, CAMERA)).toMatchObject({ state: "preparing", step: "reading_the_graph_documents" });
     const starting = await streamsAfterEachChange(() => Promise.resolve(), 600);
     expect(listingWithTheId(starting.streams, CAMERA)).toMatchObject({ state: "preparing", step: "starting" });
     const running = await streamsAfterEachChange(() => Promise.resolve(), 1000);
@@ -218,7 +218,7 @@ describe("the mock backend's New project and Import project", () => {
     if (!("answer" in queued)) throw new Error("the run was refused");
     expect(queued.answer.project_directory).toBe("/Users/jonathanf/code/heat-map");
     const followed = await followedToItsEnd(backend, queued.answer.action);
-    expect(statesOf(followed)).toEqual(["queued:", "in_progress:compiling", "in_progress:starting", "done:"]);
+    expect(statesOf(followed)).toEqual(["queued:", "in_progress:reading_the_graph_documents", "in_progress:starting", "done:"]);
     expect(followed.at(-1)).toEqual({
       kind: "described",
       description: expect.objectContaining({ state: "done", streams: [{ stream: HEAT_MAP, display_name: "heat_map", state: "running" }] }),
@@ -257,7 +257,7 @@ describe("the mock backend's New project and Import project", () => {
     const drawn = await settled(() => backend.createStreamProject(null), 50);
     expect(drawn).toEqual({ answer: { action: expect.any(String), stream: expect.stringMatching(/^kind-butte-main-/), project_directory: "/Users/jonathanf/streams/kind-butte" } });
     if (!("answer" in drawn)) throw new Error("the creation was refused");
-    expect(statesOf(await followedToItsEnd(backend, drawn.answer.action))).toEqual(["queued:", "in_progress:making_the_venv", "in_progress:compiling", "in_progress:starting", "done:"]);
+    expect(statesOf(await followedToItsEnd(backend, drawn.answer.action))).toEqual(["queued:", "in_progress:reading_the_graph_documents", "in_progress:making_the_venv", "in_progress:starting", "done:"]);
     expect(await settled(() => backend.chooseStreamProjectFolder("new_project_directory"))).toEqual({ answer: "/Users/jonathanf/streams/lobby" });
 
     const existing = createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams("add_new_folder=existing")));
@@ -267,7 +267,7 @@ describe("the mock backend's New project and Import project", () => {
     if (!("answer" in intoAProject)) throw new Error("the creation was refused");
     expect((await followedToItsEnd(existing, intoAProject.answer.action)).at(-1)).toEqual({
       kind: "described",
-      description: expect.objectContaining({ state: "failed", failed_because: expect.stringMatching(/already has pyproject.toml, stream.py, and a new project's files would overwrite it/) }),
+      description: expect.objectContaining({ state: "failed", failed_because: expect.stringMatching(/already has pyproject.toml, and a new project's files would overwrite it/) }),
     });
   });
 

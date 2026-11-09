@@ -27,7 +27,7 @@ import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_r
 import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_link_in_the_home_folder.js";
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { TatolabAppOpenedAtLogin } from "./platform/tatolab_app_opened_at_login.js";
-import type { Result } from "./result.js";
+import { failedWith, type Result } from "./result.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 
 /** How long one local API request may go without a byte before the runtime reads as not answering. */
@@ -164,9 +164,12 @@ export class TatolabAppController {
   async composeStatus(nowMs: number): Promise<TatolabStatus> {
     const healthCheck = await this.localApiClient.checkHealth();
     let streams: ListedStream[] | null = null;
+    let streamsNotListedBecause: string | null = null;
     let machineName: string | null = null;
     if (healthCheck.ok) {
-      streams = await this.listedStreams();
+      const listing = await this.listedStreams();
+      streams = listing.ok ? listing.value : null;
+      streamsNotListedBecause = listing.ok ? null : listing.failure;
       machineName = await this.machineNameOfTheRunningRuntime.machineName(() => this.askTheRuntimeItsMachineName());
     } else {
       this.machineNameOfTheRunningRuntime.runtimeIsDown();
@@ -188,6 +191,7 @@ export class TatolabAppController {
       runtime_not_running_because: runtimeNotRunningBecause,
       machine_name: machineName,
       streams,
+      streams_not_listed_because: streamsNotListedBecause,
       command_line_tool_link: await this.commandLineToolLink.observeTheLink(),
       app_update: this.readTheAppUpdateState(),
       local_api_socket: this.localApiSocket,
@@ -257,13 +261,13 @@ export class TatolabAppController {
     return this.localApiClient.describeNodeCatalog(stream);
   }
 
-  /** The runtime's streams, or `null` when listing failed, which is logged on the round it starts failing. */
-  private async listedStreams(): Promise<ListedStream[] | null> {
+  /** The runtime's streams, or why listing them failed, which is logged on the round it starts failing. */
+  private async listedStreams(): Promise<Result<ListedStream[], string>> {
     const streams = await this.localApiClient.listStreams();
     if (this.streamListingFailureOnset.conditionJustStartedHolding(!streams.ok) && !streams.ok) {
       this.tatolabAppLog.warn("the runtime's streams could not be listed", { failure: streams.failure.failureDescription });
     }
-    return streams.ok ? streams.value : null;
+    return streams.ok ? streams : failedWith(streams.failure.failureDescription);
   }
 
   private async askTheRuntimeItsMachineName(): Promise<string | null> {

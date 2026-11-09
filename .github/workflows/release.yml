@@ -1,8 +1,9 @@
 name: Release
 
 # Ships Tato Studio to the update feed at get.tatolab.com, which the installed apps check: every merge
-# to main, and the hourly run whenever streamlib has released since the app last shipped. Each release
-# bundles the streamlib release get.tatolab.com serves as latest, and is versioned by
+# to main, and every streamlib release, whose release workflow dispatches this one with its version
+# once its Linux runtime is on get.tatolab.com. A merge bundles the streamlib release get.tatolab.com
+# serves as latest, and every release is versioned by
 # scripts/plan_tatolab_app_release.mjs. macOS is built, signed with the Developer ID and notarized on
 # a macos-26 runner; Linux on ubuntu-22.04. Everything the app publishes lives under app/, apart from
 # streamlib's packages/, simple/, releases/, install.sh and latest: the files land under
@@ -12,10 +13,12 @@ name: Release
 on:
   push:
     branches: [main]
-  schedule:
-    - cron: "23 * * * *"
   workflow_dispatch:
     inputs:
+      streamlib_version:
+        description: "The streamlib release to bundle, X.Y.Z (blank: the one get.tatolab.com serves as latest)"
+        type: string
+        default: ""
       publish:
         description: "Publish to get.tatolab.com and the GitHub release (unticked: build only)"
         type: boolean
@@ -38,7 +41,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      should_release: ${{ steps.plan.outputs.should_release }}
       app_version: ${{ steps.plan.outputs.app_version }}
       streamlib_tag: ${{ steps.plan.outputs.streamlib_tag }}
       streamlib_version: ${{ steps.plan.outputs.streamlib_version }}
@@ -55,12 +57,13 @@ jobs:
           node-version: 22
 
       - id: plan
-        run: node scripts/plan_tatolab_app_release.mjs "${{ github.event_name }}"
+        env:
+          REQUESTED_STREAMLIB_VERSION: ${{ inputs.streamlib_version }}
+        run: node scripts/plan_tatolab_app_release.mjs "$REQUESTED_STREAMLIB_VERSION"
 
   build-macos:
     name: Build, sign and notarize for macOS
     needs: plan
-    if: needs.plan.outputs.should_release == 'true'
     # Pinned, not macos-latest: the image decides the SDK, and the app's floor is macOS 26.0.
     runs-on: macos-26
     timeout-minutes: 240
@@ -149,7 +152,6 @@ jobs:
   build-linux:
     name: Build for Linux
     needs: plan
-    if: needs.plan.outputs.should_release == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     steps:
@@ -207,7 +209,7 @@ jobs:
   publish:
     name: Publish to get.tatolab.com
     needs: [plan, build-macos, build-linux]
-    if: needs.plan.outputs.should_release == 'true' && (github.event_name != 'workflow_dispatch' || inputs.publish)
+    if: github.event_name != 'workflow_dispatch' || inputs.publish
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

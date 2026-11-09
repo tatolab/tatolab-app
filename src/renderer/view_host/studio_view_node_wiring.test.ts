@@ -3,7 +3,7 @@ import type { StreamGraphNode, StreamGraphSummary } from "./studio_view_contract
 import { nodesOfTheStudioViewType, studioViewInputWiring, STUDIO_VIEW_NODE_TYPE } from "./studio_view_node_wiring";
 
 function graphNode(name: string, type: string, config: StreamGraphNode["config"], outputs: StreamGraphNode["output_ports"]): StreamGraphNode {
-  return { id: `id-${name}`, name, type, state: "Running", config, input_ports: [], output_ports: outputs, dropped_bags_by_link: {}, refused_bags_by_output_port: {} };
+  return { id: `id-${name}`, name, type, state: "Running", failed_because: null, config, input_ports: [], output_ports: outputs, dropped_bags_by_link: {}, refused_bags_by_output_port: {} };
 }
 
 const DECK = graphNode("djdeck", STUDIO_VIEW_NODE_TYPE, { view_type: "acme-dj:deck" }, []);

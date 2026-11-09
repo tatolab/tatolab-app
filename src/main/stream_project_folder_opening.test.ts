@@ -8,7 +8,7 @@ function listedStream(displayName: string, projectDirectory: string | null): Lis
   return {
     stream: `${displayName}-main-7a03be`,
     display_name: displayName,
-    location: projectDirectory === null ? null : { project_directory: projectDirectory, stream_function: "stream:main" },
+    location: projectDirectory === null ? null : { project_directory: projectDirectory, project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" },
     state: "running",
     node_count: 3,
     failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null,

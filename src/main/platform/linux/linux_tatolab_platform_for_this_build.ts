@@ -33,7 +33,8 @@ export async function linuxTatolabPlatformForThisBuild(
     local_api_socket: machinePaths.localApiSocket,
     carried_runtime_in: appIsPackaged ? appResourcesDirectory : null,
     command_line_tool_link: machinePaths.commandLineToolLink,
-    local_proof_test_machine_root: machinePaths.localProofTestMachineRoot,
+    local_proof_test_machine_root: machinePaths.localProofTestMachine?.testMachineRoot ?? null,
+    local_proof_runtime_loopback_http_port: machinePaths.localProofTestMachine?.runtimeLoopbackHttpPort ?? null,
   });
   const appUpdatePackaging = tatolabAppUpdatePackagingOnLinux(appIsPackaged, process.env["APPIMAGE"]);
   const commandLineToolLink = await commandLineToolLinkForThisPackage(
@@ -47,9 +48,9 @@ export async function linuxTatolabPlatformForThisBuild(
       ? {
           runtimeExecutable: carriedRuntimeExecutableInTheAppResources(appResourcesDirectory),
           runtimeEnvironment:
-            machinePaths.localProofTestMachineRoot === null
+            machinePaths.localProofTestMachine === null
               ? {}
-              : localProofRuntimeEnvironment(machinePaths.localProofTestMachineRoot),
+              : localProofRuntimeEnvironment(machinePaths.localProofTestMachine),
         }
       : null,
     commandLineToolLink,

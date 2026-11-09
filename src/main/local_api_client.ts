@@ -79,13 +79,15 @@ export function theRuntimesRefusal(failureDescription: string): { ok: false; fai
   return failedWith({ failureDescription, isTheRuntimesRefusal: true });
 }
 
-/** A stream's `location` on the wire: `project_directory` and `stream_function` as `module:qualname`. */
+/** A stream's `location` on the wire: `project_directory`, its project's UUID as `project` and its stream asset's UUID as `stream_asset`. */
 function streamLocationOnTheWire(location: JsonObjectOnTheWire): Result<StreamLocation, string> {
   const projectDirectory = requiredText(location, "project_directory");
   if (!projectDirectory.ok) return projectDirectory;
-  const streamFunction = requiredText(location, "stream_function");
-  if (!streamFunction.ok) return streamFunction;
-  return succeeded({ project_directory: projectDirectory.value, stream_function: streamFunction.value });
+  const project = requiredText(location, "project");
+  if (!project.ok) return project;
+  const streamAsset = requiredText(location, "stream_asset");
+  if (!streamAsset.ok) return streamAsset;
+  return succeeded({ project_directory: projectDirectory.value, project: project.value, stream_asset: streamAsset.value });
 }
 
 /** What `rename_stream` answers: the stream's id and the display name it is shown under now. */
@@ -311,7 +313,7 @@ export class LocalApiClient {
     return queued.ok ? queued : localApiRequestFailure(queued.failure);
   }
 
-  /** Queue a run of the project in `projectDirectory`, which loads every `@stream` in it; answered at once, refused in the runtime's own words. */
+  /** Queue a run of the project in `projectDirectory`, which loads every stream asset in it; answered at once, refused in the runtime's own words. */
   async runProject(projectDirectory: string): Promise<Result<ProjectRunQueued, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool("run_project", { project_directory: projectDirectory });
     if (!toolResultText.ok) return toolResultText;

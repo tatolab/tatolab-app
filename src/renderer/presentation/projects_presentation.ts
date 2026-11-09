@@ -1,5 +1,4 @@
 import type { RecentProject } from "../../shared/tatolab_backend_contract";
-import type { ListedStreamsReading } from "../view_host/studio_view_contract";
 
 /** One project card in the Projects window. */
 export interface RecentProjectCardPresentation {
@@ -10,7 +9,6 @@ export interface RecentProjectCardPresentation {
   lastOpenedWords: string;
   /** The folder, as the card's second line says where the project is. */
   folderWords: string;
-  isRunning: boolean;
   /** Its folder or its `pyproject.toml` doesn't read now; it still opens, and the studio says why. */
   isUnreadable: boolean;
 }
@@ -38,16 +36,9 @@ function folderUnderHome(folder: string): string {
   return folder.replace(/^\/(Users|home)\/[^/]+/, "~");
 }
 
-/** Whether the runtime lists a stream of the project in `folder` running or on its way to running. */
-function isAStreamOfTheProjectRunning(listedStreams: ListedStreamsReading, folder: string): boolean {
-  if (listedStreams.kind !== "listed") return false;
-  return listedStreams.streams.some((listing) => listing.location?.project_directory === folder && (listing.state === "running" || listing.state === "preparing"));
-}
-
 /** The cards for `recentProjects`, recent first, narrowed to those whose name or folder holds the search text `searchText`. */
 export function presentRecentProjectCards(
   recentProjects: readonly RecentProject[],
-  listedStreams: ListedStreamsReading,
   wallClockNowMs: number,
   searchText: string,
 ): RecentProjectCardPresentation[] {
@@ -59,7 +50,6 @@ export function presentRecentProjectCards(
         name: recentProject.project_name ?? recentProject.folder.split("/").filter((segment) => segment !== "").at(-1) ?? recentProject.folder,
         lastOpenedWords: presentTimeSince(recentProject.last_opened_at_wall_clock_ms, wallClockNowMs),
         folderWords: folderUnderHome(recentProject.folder),
-        isRunning: isAStreamOfTheProjectRunning(listedStreams, recentProject.folder),
         isUnreadable: recentProject.project_name === null,
       }),
     )

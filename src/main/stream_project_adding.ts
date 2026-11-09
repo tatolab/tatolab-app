@@ -54,7 +54,7 @@ export class StreamProjectAdding {
     return queued.ok ? queued : failedWith(queued.failure.failureDescription);
   }
 
-  /** Queue `run_project` in `folder`, which loads every `@stream` in it; refused in the runtime's own words, or for a folder the app never handed the window. */
+  /** Queue `run_project` in `folder`, which loads every stream asset in it; refused in the runtime's own words, or for a folder the app never handed the window. */
   async runStreamProject(folder: string): Promise<Result<ProjectRunQueued, string>> {
     const projectFolder = this.folderHandedToTheWindow(folder);
     if (!projectFolder.ok) return projectFolder;

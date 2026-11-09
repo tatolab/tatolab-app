@@ -231,9 +231,10 @@ manifest `build/latest-mac.yml`.
 `npm run build -- --local-proof-test-root`, which writes
 `machineDirectoriesUnderATestRoot: true` into the build features the main process imports,
 `out/main/tatolab_app_build_features.json` (`src/main/tatolab_app_build_features.json` holds the
-shipping ones). The app starts the runtime with
-`TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, so the state directory and the socket live under
-that root, and with its loopback HTTP on test port 14446. The app links `tatolab` under
+shipping ones). The app starts the runtime with the `TATOLAB_TEST_MACHINE_ROOT` and
+`TATOLAB_TEST_LOOPBACK_HTTP_PORT` of its own environment, or `/tmp/tatolab-proof` and 14446 when
+they are unset, so the state directory and the socket live under that root, and its loopback HTTP
+is on that test port; two proofs on one machine each set their own. The app links `tatolab` under
 the root's `home/.local/bin`. Use it to prove the app on a development Mac. It is
 never shipped: `assemble-tatolab-app-bundle.sh` refuses a test-root unit without the flag, and
 `verify-tatolab-app-bundle.sh --shipping` fails such a bundle, whether the marker or the build
@@ -294,7 +295,7 @@ The window is React with Tailwind and shadcn (base-ui). Its design system is the
 `src/renderer/design_system/`. `npm run dev` runs the app unpackaged with electron-vite: the window reloads as it changes, and the
 app restarts when the main process or the preload changes. It shows whatever
 runtime is already running on the machine's local API socket; only a `--local-proof-test-root`
-build reads a local-proof runtime's `/tmp/tatolab-proof/run/local-api.sock`. An unpackaged app
+build reads a local-proof runtime's `<TATOLAB_TEST_MACHINE_ROOT>/run/local-api.sock`. An unpackaged app
 carries no runtime, so it starts none and says so while no runtime answers. `node scripts/serve_the_mock_window_in_a_browser.mjs` serves the window alone, in a browser at the URL it prints, against a mock backend; a build leaves the mock
 out, and packaging refuses an `out/renderer/` that carries it.
 
@@ -322,10 +323,11 @@ ID ones the macOS build stops; notarization needs the App Store Connect key:
 
 ## How a release flows
 
-`.github/workflows/release.yml` releases on every merge to `main`, and from an hourly run whenever
-streamlib has released since the app last shipped; a dispatch from the Actions tab releases too, or
-only builds with "Publish" unticked. `scripts/plan_tatolab_app_release.mjs` picks the streamlib
-release get.tatolab.com serves as `latest` and the version: the bundled runtime's when
+`.github/workflows/release.yml` releases on every merge to `main`, and on every streamlib release:
+streamlib's release workflow dispatches it with the new version once that release's Linux runtime is
+on get.tatolab.com. A dispatch from the Actions tab releases too, or only builds with "Publish"
+unticked. `scripts/plan_tatolab_app_release.mjs` takes the dispatched streamlib version, or on a
+merge the one get.tatolab.com serves as `latest`, and picks the version: the bundled runtime's when
 it is newer than every app shipped, otherwise the last app version's next patch, so every release is
 newer than the one installed and the updaters take it. On a `macos-26` runner
 `scripts/build-tatolab-app.sh --streamlib-ref vX.Y.Z --app-version <version> --release --notarize`
