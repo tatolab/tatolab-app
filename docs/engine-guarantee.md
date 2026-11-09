@@ -1,9 +1,10 @@
 # Engine guarantee
 
-Status: draft for Studio's review, decisions as of 2026-11-09.
+Status: draft, decisions as of 2026-11-09, with Studio's feedback folded in. Items marked
+*recommended* await the owner's confirmation.
 
 These are the contracts the runtime will guarantee for every project, and the decisions behind them.
-Several change how Tato Studio works, so Studio's feedback comes before the guarantee is final.
+Several change how Tato Studio works; Studio's feedback is folded in below.
 
 ## Principles
 
@@ -36,29 +37,36 @@ Clients build actions with one SDK.
   runtime), the commit history was at, the operations, their inverses, and what it undoes or
   redoes. Two additions are decided: a format version, so a newer runtime can still read and undo
   an older record, and a caller-made idempotency key, so a request Studio retries after a timeout
-  is applied once.
+  is applied once. The client mints one key per user gesture, so a slider drag that commits on
+  release is one key and one transaction.
+- **Refusals.** A refused action comes back as structured data carrying the runtime's own words,
+  so Studio can show it next to the field or wire that caused it.
 - **The log.** There is no JSONL transaction log. Each transaction is one commit in the project's
   own Git history (`.tatolab/history.git`, branch `main`, written by the runtime, never pushed), its
   full JSON in a `Tatolab-Transaction:` trailer. Clients follow changes through the MCP resource
   `streamlib://project/<uuid>/transactions`.
 - **Live edits** (`mode: live`) change the running graph only and are never recorded.
-- **Undo and redo** are per author and produce new transactions.
+- **Undo and redo** are per author and produce new transactions. Studio's Undo says whose change it
+  will revert when the last change was not the person's own.
 
 The operations, as they stand once the module rework (streamlib #3402, #3401) lands:
 
 | Family | Operations | Notes |
 | --- | --- | --- |
-| Graph | `add_node`, `remove_node`, `connect`, `disconnect`, `set_node_config`, `set_pin_value`, `rename_node`, `set_studio_fields`, `set_exposed_config_fields`, `refresh_fragment`, `add_group`, `remove_group`, `set_group_fields` | Nodes and links named by UUID; each records what its inverse needs |
+| Graph | `add_node`, `remove_node`, `connect`, `disconnect`, `set_node_config`, `set_pin_value`, `rename_node`, `set_studio_fields`, `set_exposed_config_fields`, `refresh_fragment`, `add_group`, `remove_group`, `set_group_fields` | Nodes and links named by UUID; each records what its inverse needs. *Recommended:* `collapse_selection_into_subgraph` and `unlock_generator_fragment` (a generator's frozen output becomes plain nodes) |
 | Asset | `import_asset`, `relocate_asset`, `delete_asset`, `set_asset_settings` | A replaced file goes through a `replace_asset` action (decided, to add); replacing a file outside the runtime is unsupported |
 | Import | `place_import`, `remove_import` | A module copied whole into `imports/<folder>/` |
-| Graph document | `create_stream_document`, `delete_stream_document` | Get `create_stream` / `delete_stream` verbs (decided, to add) |
+| Graph document | `create_stream_document`, `delete_stream_document` | Get `create_stream` / `delete_stream` verbs (decided, to add); Studio's New stream waits on them |
+| Project | *Recommended:* `write_project_file`, `rename_project` | A file save is recorded, so a code edit undoes like any other edit |
 
 **Decided, to build:** today each entry point has its own request types in front of the operations
 (the MCP tools have their own argument structs), and requests and records use different names
 (`rename_asset` and `move_asset` both record `relocate_asset`). The guarantee closes that into one
 action vocabulary.
 
-**Not actions:** run, stop and pause a project; viewers; app management. A stream's display name
+**Not actions:** run, stop and pause a project; listing and reading project files; duplicating and
+deleting a project (*recommended*: runtime verbs, because they act on the whole project and its
+history); viewers; app management. A stream's display name
 moves into the project as an action (today `rename_stream` writes the runtime's own record).
 
 ## The project layout
@@ -111,10 +119,13 @@ What a module or a view author can rely on, each defined once in code and held b
 | Native half of a node | `tatolab-module-sdk` module host table | Exists |
 | Module identity | `tatolab-project.json` (a module is a project) | Exists; strict, unknown keys refused |
 | Views | The view SDK's Zod contract, `packages/tato-app-view-sdk` (view contract 1.0): title, entry, `placement` (`area` or `node`), declared `inputs`/`outputs`, `settings`, sandbox and capabilities | Exists in tatolab-app |
-| A node's `studio` fields | The `studio` map on each node in a graph document | Decided: a strict, versioned contract owned by Tatolab for the important keys (canvas position, group, comment, colour), plus one free-form metadata map for anything else |
+| A node's `studio` fields | The `studio` map on each node in a graph document | Decided: a strict, versioned contract owned by Tatolab for the important keys (canvas position, group, comment, colour, collapsed or expanded), plus one free-form metadata map for anything else |
+| Graph-level Studio items | Canvas Notes and Frames, which are not nodes | Decided with Studio: their own place in the graph document's Studio metadata, under the same versioned contract |
 
 Views are found in `views/<name>/` of the project and its imports and listed by the runtime
-through a verb (decided). Today the view SDK finds a project's views through a Python
+through a verb (decided). Each entry carries the view's id, title, icon, `description`, `preview`,
+`placement`, declared inputs and outputs with their families, the project that brings it, and
+whether it opens and, if not, why, in the schema's or the runtime's words. Today the view SDK finds a project's views through a Python
 `tatolab.views` entry point, and Studio lists them itself; that changes.
 
 ## Views as graph nodes
@@ -163,7 +174,7 @@ Each item is something Studio does today that moves, or something it will need t
 | --- | --- | --- |
 | Run controls | Start and stop per stream (`start_stream`, `stop_stream`) | Run, stop and pause apply to the whole project; per-stream start and stop go away |
 | Closing the window | No rule | Closing a running project's window asks: stop and close, or cancel. Background running is left out for now |
-| Project files | The view bridge has `read_project_file` / `save_project_file` asks, and views are found through the `tatolab.views` Python entry point | Studio reads no project files. Every read and write is a runtime verb; views are listed by the runtime from `views/<name>/` in the project and its imports |
+| Project files | The view bridge has `read_project_file` / `save_project_file` asks, and views are found through the `tatolab.views` Python entry point | Studio reads no project files. Listing and reading are runtime verbs, and a write is the `write_project_file` action; views are listed by the runtime from `views/<name>/` in the project and its imports |
 | Node view settings | Kept by the view | Become the node's config, changed with `set_node_config` |
 | View output | `send_output` is refused (`tatolab_view_bridge.ts`) | Panels send values to the node over the new runtime path (see Views as graph nodes) |
 | View input wiring | Matched by node name | Matched by node UUID |
@@ -172,26 +183,17 @@ Each item is something Studio does today that moves, or something it will need t
 | Stream display name | Held outside the project | A field in the project, changed by a transaction |
 | Naming | "Stream" | Renamed to "graph" in one sweep, later |
 
-## Where we want your feedback
+## Studio's feedback
 
-The decisions above are settled. These are the places where Studio's experience should shape the
-details before the contract is final.
+Studio confirmed the draft covers graph and node editing, history, views as nodes, the Library,
+Modules and project run controls, and asked for what is now folded in above:
 
-1. **The action SDK.** What does Studio need from one SDK to drive every edit? Think about
-   optimistic updates, how a refused action comes back, and how the idempotency key should be
-   minted and retried.
-2. **The change feed.** Is `streamlib://project/<uuid>/transactions` enough to keep the canvas,
-   Properties and view panels current, or does Studio need finer events?
-3. **Undo per author.** Does per-author undo match what a person expects in the window, and how
-   should Studio label whose change an undo reverts?
-4. **The `studio` fields contract.** Are position, group, comment and colour the right fixed set?
-   What else does Studio keep per node today that belongs in the fixed set instead of the free map?
-5. **The view node.** Can the view host find nodes by UUID and drive panels from the runtime's
-   reported ports with no view-specific code? Where would the new write path from a panel to the
-   node pinch?
-6. **Listing views through the runtime.** What does Studio need in a view listing (title, icon,
-   preview, placement) to replace its own entry-point scan?
-7. **The close prompt.** Any edge cases in stop-on-close, such as several windows open on one
-   project, a crash, or a project left running by another client?
-8. **Anything missing.** A verb, a field or a guarantee Studio relies on today that is not in this
-   doc.
+- verbs to list, read and write a project's files, for the Code and Files views;
+- rename, duplicate and delete a project, built under tatolab/streamlib#3406;
+- collapsing a selection into a subgraph, and unlocking a generator's frozen output;
+- canvas Notes and Frames, and a node's collapsed state, in the Studio metadata contract;
+- the view listing's fields, including whether a view opens and why not;
+- structured refusals, one idempotency key per gesture, and an Undo that names whose change it
+  reverts.
+
+Studio's screens keep "Stream" until the sweep to "graph" is scheduled.
