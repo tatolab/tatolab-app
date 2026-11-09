@@ -18,7 +18,7 @@ import type { TatolabElectronAppShell } from "./main.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { MacosActivationPolicy } from "./platform/main_window_chrome.js";
 import type { TatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import type { MainWindowCloseRequestAnswer, MainWindowSpecification } from "./tatolab_main_window.js";
+import type { MainWindowCloseRequestAnswer, MainWindowSpecification, QuestionOverTheWindow } from "./tatolab_main_window.js";
 import type { TrayMenuItemDescription, TrayMenuItemId } from "./tatolab_tray_menu.js";
 import type { TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
 import type { TatolabAppUpdatePackaging } from "./platform/tatolab_app_update_packaging.js";
@@ -46,6 +46,7 @@ export type FakeShellRecord = (
   | { asked: "create_main_window"; mainWindowSpecification: MainWindowSpecification }
   | { asked: "unminimize" | "show" | "focus" | "hide" | "close" }
   | { asked: "send_window_event"; eventChannel: string; eventPayload: unknown }
+  | { asked: "ask_a_question_over_the_window"; question: QuestionOverTheWindow }
   | { asked: "send_window_shared_texture"; frameFacts: PortViewerImageFrameFacts }
   | { asked: "set_activation_policy"; activationPolicy: MacosActivationPolicy }
   | { asked: "show_tray_menu"; trayMenuItems: readonly TrayMenuItemDescription[] }
@@ -66,6 +67,8 @@ export class FakeTatolabElectronAppShell {
   readonly writtenLogLines: string[] = [];
   readonly tatolabAppLog = createTatolabAppLog("debug", (logLine) => this.writtenLogLines.push(logLine));
   holdsTheSingleInstanceLock = true;
+  /** The button the person chooses in each next question asked over a window, in order; past the last, its cancel button. */
+  readonly buttonsChosenInTheNextQuestionsOverAWindow: number[] = [];
   /** The copy this app reads itself as. */
   thisCopyOfTatolab: TatolabAppCopy = {
     executableThatOpensTheCopy: "/Applications/Tato Studio.app/Contents/MacOS/Tato Studio",
@@ -209,6 +212,10 @@ export class FakeTatolabElectronAppShell {
           },
           close: () => this.closeTheFakeWindow(fakeWindow),
           isShowing: () => fakeWindow.showing,
+          askAQuestionOverTheWindow: (question) => {
+            this.records.push(recordOfThisWindow({ asked: "ask_a_question_over_the_window", question }));
+            return Promise.resolve(succeeded(this.buttonsChosenInTheNextQuestionsOverAWindow.shift() ?? question.cancelButtonIndex));
+          },
           sendTheWindowAnEvent: (eventChannel, eventPayload) => this.records.push(recordOfThisWindow({ asked: "send_window_event", eventChannel, eventPayload })),
           sendTheWindowASharedTexture: (_sharedTextureImport, frameFacts, whenEveryReferenceIsReleased) => {
             this.records.push(recordOfThisWindow({ asked: "send_window_shared_texture", frameFacts }));

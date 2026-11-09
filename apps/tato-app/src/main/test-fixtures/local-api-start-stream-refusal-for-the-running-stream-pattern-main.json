@@ -1,1 +1,0 @@
-{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"Runtime error: the stream `pattern-main-d76f70` is already loaded in this runtime, recorded by the runtime; only a stopped or failed stream starts"}],"isError":true}}

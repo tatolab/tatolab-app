@@ -29,7 +29,6 @@ import type {
   StreamActionFollowed,
   StreamProjectFolderChosenFor,
   TatolabStatus,
-  TatolabStreamActionName,
   ProjectFolderChosenFor,
   NewProjectDefaults,
   SystemMenuBarMenu,
@@ -61,8 +60,6 @@ export interface TatolabBackend {
   checkForTatolabAppUpdates(): Promise<void>;
   /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */
   takeTheNewerTatolabAppVersion(): Promise<void>;
-  /** Queue a stop or a start (or retry) of `streamId`, resolving once the runtime has queued it and rejecting with its refusal; the stream's `stopping` or `preparing` arrives as the next status. */
-  runStreamAction(streamAction: TatolabStreamActionName, streamId: string): Promise<void>;
   /** Queue the removal of every stream the runtime holds from `projectDirectory`, resolving once it is queued and rejecting with its refusal; the streams stopping, then gone, arrive as the next statuses. */
   removeProject(projectDirectory: string): Promise<void>;
   /** Show the stream `streamId` under `displayName`, resolving once the runtime has recorded it and rejecting with its refusal; the new name arrives as the next status. */
@@ -152,6 +149,8 @@ export interface TatolabBackend {
   listProjectFiles(projectFolder: string): Promise<ProjectFiles>;
   /** Queue `run_project` on the open project's folder, resolving with the action queued and rejecting in the runtime's own words. */
   runOpenProject(): Promise<ProjectRunQueued>;
+  /** Queue `stop_project` on the open project's folder, resolving once it is queued and rejecting in the runtime's own words; its streams' `stopping`, then `stopped`, arrive as the next statuses. */
+  stopOpenProject(): Promise<void>;
   /** Start Pyright's language server in `projectFolder`, resolving with the session its messages arrive under. */
   startPythonLanguageServer(projectFolder: string): Promise<string>;
   /** Send one JSON-RPC `message` to the language server of `session`, rejecting once it has ended. */

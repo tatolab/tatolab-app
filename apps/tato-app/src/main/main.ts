@@ -18,7 +18,7 @@ import type { TatolabAppUpdatePackaging } from "./platform/tatolab_app_update_pa
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
-import { describeCaughtFailure, failedWith } from "./result.js";
+import { describeCaughtFailure, failedWith, succeeded } from "./result.js";
 import {
   runTatolabAppUpdateWorkInTheBackground,
   quitTheTatolabApp,
@@ -170,6 +170,7 @@ export async function startTatolabApp(
       return listed.ok ? listed : failedWith(listed.failure.failureDescription);
     },
   };
+  let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
   const tatolabAppWindows = new TatolabAppWindows({
     mainWindowHostFactory: tatolabElectronAppShell.mainWindowHostFactory,
     platformItems,
@@ -179,6 +180,12 @@ export async function startTatolabApp(
     runAfter: (delayMs, work) => {
       const timer = setTimeout(work, delayMs);
       return () => clearTimeout(timer);
+    },
+    stopTheProjectAsItsWindowCloses: async (projectFolder) => {
+      if (sharedStateOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
+      const stopQueued = await sharedStateOnceBuilt.controller.stopProject(projectFolder);
+      sharedStateOnceBuilt.statusPublisher.requestRefresh();
+      return stopQueued.ok ? succeeded(undefined) : failedWith(stopQueued.failure.failureDescription);
     },
     whenAStudioWindowClosed: (studioWindow) => pythonLanguageServersOnceBuilt?.stopTheLanguageServersOf(studioWindow.languageServerOfTheWindow),
     whenAWindowShowingPortViewersClosed: (tatolabMainWindow) => runtimePortViewersOnceBuilt?.closeThePortViewersOf(tatolabMainWindow),
@@ -195,7 +202,6 @@ export async function startTatolabApp(
   systemMenuBar.showTheDefaultMenuBar();
   tatolabElectronAppShell.onAWindowFocused((windowContentsId) => systemMenuBar.noticeTheWindowFocused(windowContentsId));
   tatolabElectronAppShell.onAWindowClosed((windowContentsId) => systemMenuBar.forgetTheWindow(windowContentsId));
-  let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
   tatolabElectronAppShell.onTheAppOpenedAgain((openedCopy) => {
     if (openedCopy !== null && isAnotherBuildOfTatolab(thisCopyOfTatolab, openedCopy)) {
       tatolabAppLog.info("another build of Tatolab was opened; this copy quits and opens it", {

@@ -474,7 +474,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   ]);
   /** The display names `rename_stream` gave, by stream id, over the ones the fixtures load with. */
   const displayNamesRenamedTo = new Map<string, string>();
-  /** Recorded streams not loaded that `start_stream` can load, by id: `pattern-two`, and each one stopped from the window. */
+  /** Recorded streams not loaded that a run of their project loads again, by id: `pattern-two`, and each one stopped from the window. */
   const recordedFixturesNotLoaded = new Map<string, MockStreamFixture>([[fixtures.patternTwoStream.listing.stream, fixtures.patternTwoStream]]);
   const forgottenStreamIds = new Set<string>();
   /** The stream action queued or under way on each stream, by id; a step of an action that is no longer its stream's does nothing. */
@@ -890,52 +890,24 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     publishStatus({ streams: listStreams() });
   };
 
-  /** `stop_stream` as the runtime does it: queued for a loaded stream, which stops and is recorded stopped; refused for one not loaded. */
-  const stopMockStream = (streamId: string): void => {
-    const loadedStream = loadedStreams.get(streamId);
-    const listingNotLoaded = listedStreamsNotLoaded.get(streamId);
-    if (loadedStream === undefined) {
-      if (listingNotLoaded?.state === "stopped") throw `Runtime error: the stream \`${streamId}\` is already stopped; \`start\` loads it again`;
-      if (listingNotLoaded?.state === "failed") {
-        throw `Runtime error: the stream \`${streamId}\` is failed, so it is not loaded to stop: ${listingNotLoaded.failed_because ?? ""}. \`start\` retries it, \`rm\` forgets it`;
-      }
-      if (listingNotLoaded === undefined) throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
+  /** `stop_project` as the runtime does it: one action queued that stops every loaded stream of the project, each recorded stopped; refused when none of them runs. */
+  const stopMockProject = (projectDirectory: string): void => {
+    const loadedStreamsOfTheProject = [...loadedStreams.values()].filter((loadedStream) => loadedStream.fixture.listing.location?.project_directory === projectDirectory);
+    if (loadedStreamsOfTheProject.length === 0) {
+      throw `Runtime error: no stream of the project in ${projectDirectory} runs, so there is none to stop; \`run\` runs it. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
     }
-    const listing = loadedStream?.fixture.listing ?? listingNotLoaded;
-    if (listing === undefined) return;
     const action = nextStreamActionId();
-    loadedStreams.delete(streamId);
-    if (loadedStream !== undefined) recordedFixturesNotLoaded.set(streamId, loadedStream.fixture);
     unloadingStreamActions.set(action, "stop");
-    queueTheStreamAction(listing, "stopping", action);
-    workOnTheStreamAction(listing, "stopping", action, ["stopping"], () => {
-      writeRuntimeRecord(listing, action, "info", `Stopped the stream \`${streamId}\``);
-      listedStreamsNotLoaded.set(streamId, { ...listing, state: "stopped", node_count: null, failed_because: null, action: null, step: null });
-    });
-  };
-
-  /** `start_stream` as the runtime does it: queued for a stopped or failed stream, which loads, asking for any capture device it waits on, or for the lobby recorder fails again as its camera is still missing; refused for one loaded. */
-  const startMockStream = (streamId: string): void => {
-    if (loadedStreams.has(streamId)) {
-      throw `Runtime error: the stream \`${streamId}\` is already loaded in this runtime, recorded by the runtime; only a stopped or failed stream starts`;
+    for (const loadedStream of loadedStreamsOfTheProject) {
+      const listing = loadedStream.fixture.listing;
+      loadedStreams.delete(listing.stream);
+      recordedFixturesNotLoaded.set(listing.stream, loadedStream.fixture);
+      queueTheStreamAction(listing, "stopping", action);
+      workOnTheStreamAction(listing, "stopping", action, ["stopping"], () => {
+        writeRuntimeRecord(listing, action, "info", `Stopped the stream \`${listing.stream}\``);
+        listedStreamsNotLoaded.set(listing.stream, { ...listing, state: "stopped", node_count: null, failed_because: null, action: null, step: null });
+      });
     }
-    const listingNotLoaded = listedStreamsNotLoaded.get(streamId);
-    if (!listingNotLoaded) {
-      throw `Resource not found: no stream with the id \`${streamId}\` is recorded in this runtime, so there is none to start. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
-    }
-    const action = nextStreamActionId();
-    queueTheStreamAction(listingNotLoaded, "preparing", action);
-    workOnTheStreamAction(listingNotLoaded, "preparing", action, ["reading_the_graph_documents", "starting"], () => {
-      writeRuntimeRecord(listingNotLoaded, action, "info", `Loading the stream \`${streamId}\` from ${listingNotLoaded.location?.project_directory ?? ""}`);
-      const fixture = recordedFixturesNotLoaded.get(streamId);
-      if (fixture !== undefined) {
-        loadStream({ ...fixture, listing: { ...fixture.listing, capture_devices_whose_access_was_never_asked_for: [] } }, Date.now(), action);
-        return;
-      }
-      const retryFailure = `\`start\` retried it, and it did not load: ${fixtures.machine.cameraFailure}`;
-      writeRuntimeRecord(listingNotLoaded, action, "error", retryFailure);
-      listedStreamsNotLoaded.set(streamId, { ...listingNotLoaded, state: "failed", node_count: null, failed_because: retryFailure, action: null, step: null });
-    });
   };
 
   /** `remove_project` as the runtime does it: every stream of the project stops if loaded and is forgotten; refused for a folder the runtime holds no stream of. */
@@ -1096,16 +1068,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       }
       if (appUpdate.kind === "available" && appUpdate.delivery === "install_and_relaunch") downloadTheNewerVersion(0);
     },
-    runStreamAction: async (streamAction, streamId) => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer ${streamAction}`;
-      switch (streamAction) {
-        case "stop_stream":
-          return stopMockStream(streamId);
-        case "start_stream":
-          return startMockStream(streamId);
-      }
-    },
     removeProject: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer remove_project`;
@@ -1162,6 +1124,12 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         return { action: queueAMockProjectLoadThatFails(folder, `${folder} is not a project: it holds no tatolab-project.json`), project_directory: folder };
       }
       return { action: queueAMockProjectLoad(folder), project_directory: folder };
+    },
+    stopOpenProject: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind === "none_open") throw "No project is open to stop.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      stopMockProject(openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : openProjectReading.folder);
     },
     reloadProject: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

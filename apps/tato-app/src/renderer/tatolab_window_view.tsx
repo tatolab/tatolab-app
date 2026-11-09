@@ -15,7 +15,7 @@ import { RUN_LIVE_KEY, studioMenusSentToTheSystemMenuBar, type StudioMenuBarComm
 import { ModuleManagerWindowView, type ModuleManagerSources } from "./studio_shell/module_manager_window_view";
 import { PoppedOutViewerWindowView } from "./studio_shell/popped_out_viewer_window_view";
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
-import { StudioWindowModel, streamsOfTheProjectToStop } from "./studio_shell/studio_window_model";
+import { StudioWindowModel } from "./studio_shell/studio_window_model";
 import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studio_layouts";
 
 import { CODE_EDITOR_VIEW_TYPE } from "./studio_views/code_editor/code_editor_view_type";
@@ -167,17 +167,7 @@ export function mountTatolabWindow(
     },
     stopTheProject: () => {
       studioWindowModel.projectRunRefusal.publish(null);
-      const openProject = studioWindowModel.openProject.readLatest();
-      if (openProject.kind !== "read") return;
-      const { folder, name } = openProject.open_project.project;
-      const streamsToStop = streamsOfTheProjectToStop(studioWindowModel.listedStreams.readLatest(), folder);
-      if (streamsToStop.length === 0) {
-        studioWindowModel.projectRunRefusal.publish({ asked_to: "stop", because: `No stream of ${name} is running.` });
-        return;
-      }
-      Promise.all(streamsToStop.map((stream) => backend.runStreamAction("stop_stream", stream))).catch((rejection: unknown) =>
-        studioWindowModel.projectRunRefusal.publish({ asked_to: "stop", because: describeBackendRejection(rejection) }),
-      );
+      backend.stopOpenProject().catch((rejection: unknown) => studioWindowModel.projectRunRefusal.publish({ asked_to: "stop", because: describeBackendRejection(rejection) }));
     },
     openModuleManager: () => {
       studioWindowModel.projectOpeningRefusal.publish(null);
