@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ListedStream, TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
+import type { TatolabAppUpdateState } from "../../shared/tatolab_backend_contract";
 import type { StudioMenuEntry } from "@tatolab/tato-app-view-sdk/design_system/menu_bar";
 import {
   APP_UPDATE_UNDER_WAY_REASON,
@@ -9,7 +9,6 @@ import {
   studioMenusSentToTheSystemMenuBar,
   type StudioMenuBarCommands,
 } from "./studio_menu_bar_model";
-import { streamsOfTheProjectToStop } from "./studio_window_model";
 
 function commandsCounted(): StudioMenuBarCommands {
   return {
@@ -23,7 +22,7 @@ function commandsCounted(): StudioMenuBarCommands {
     chooseLayout: vi.fn(),
     runTheProjectLive: vi.fn(),
     stopTheProject: vi.fn(),
-    openGetMore: vi.fn(),
+    openModuleManager: vi.fn(),
   };
 }
 
@@ -45,13 +44,13 @@ describe("the studio's File menu", () => {
     }
   });
 
-  it("opens Get more while a project is open, and says why it waits while none is", () => {
+  it("opens Module manager while a project is open, and says why it waits while none is", () => {
     const commands = commandsCounted();
-    const getMore = entryOf(studioMenuBarMenus("macos", "build", UP_TO_DATE, commands), "File", "Get more…");
-    if (getMore?.kind !== "command") throw new Error("File › Get more… is not a command");
-    getMore.onChosen();
-    expect(commands.openGetMore).toHaveBeenCalledOnce();
-    expect(entryOf(studioMenuBarMenus("macos", null, UP_TO_DATE, commands), "File", "Get more…")).toEqual({ kind: "unavailable_command", label: "Get more…", unavailableBecause: NO_PROJECT_OPEN_REASON });
+    const moduleManager = entryOf(studioMenuBarMenus("macos", "build", UP_TO_DATE, commands), "File", "Module manager…");
+    if (moduleManager?.kind !== "command") throw new Error("File › Module manager… is not a command");
+    moduleManager.onChosen();
+    expect(commands.openModuleManager).toHaveBeenCalledOnce();
+    expect(entryOf(studioMenuBarMenus("macos", null, UP_TO_DATE, commands), "File", "Module manager…")).toEqual({ kind: "unavailable_command", label: "Module manager…", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
 
@@ -109,28 +108,6 @@ describe("Help's updates entry", () => {
       label: "Check for Updates…",
       unavailableBecause: "Only a packaged Tato Studio updates itself.",
     });
-  });
-});
-
-describe("Run › Stop", () => {
-  function listing(stream: string, projectDirectory: string, state: string): ListedStream {
-    return {
-      stream,
-      display_name: stream,
-      location: { project_directory: projectDirectory, project: `project-of-${projectDirectory}`, stream_asset: `stream-asset-${stream}` },
-      state,
-      node_count: null,
-      failed_because: null,
-      capture_devices_whose_access_was_never_asked_for: [],
-      action: null,
-      step: null,
-    };
-  }
-
-  it("stops the open project's running and preparing streams, and nothing of another project", () => {
-    const streams = [listing("main", "/p", "running"), listing("two", "/p", "preparing"), listing("old", "/p", "stopped"), listing("cam", "/camera", "running")];
-    expect(streamsOfTheProjectToStop({ kind: "listed", streams }, "/p")).toEqual(["main", "two"]);
-    expect(streamsOfTheProjectToStop({ kind: "not_listed", because: "Stopped" }, "/p")).toEqual([]);
   });
 });
 

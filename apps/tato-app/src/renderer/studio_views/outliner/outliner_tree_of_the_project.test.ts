@@ -2,13 +2,25 @@ import { describe, expect, it } from "vitest";
 import type { ListedStream, OpenProject, ProjectNodeTypesReading } from "../../view_host/studio_view_contract";
 import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject } from "./outliner_tree_of_the_project";
 
+const HALL_OF_LIGHT_PROJECT = "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11";
+
 const PROJECT: OpenProject = {
-  project: { folder: "/w/studio", name: "studio", requirements: ["tatolab-stream", "hall-of-light", "broken"] },
+  project: { folder: "/w/studio", project: "0b6f3c1e-2d4a-4e8b-9c7d-5a1f8e3b6d20", name: "studio" },
   imports: [
-    { name: "tatolab-stream", requirement: "tatolab-stream", source: { kind: "package_index" } },
-    { name: "hall-of-light", requirement: "hall-of-light", source: { kind: "folder", project: { folder: "/w/studio/imports/hall-of-light", name: "hall-of-light", requirements: [] } } },
-    { name: "broken", requirement: "broken", source: { kind: "folder_unreadable", folder: "/w/studio/imports/broken", refusal: "/w/studio/imports/broken has no pyproject.toml." } },
+    {
+      project: HALL_OF_LIGHT_PROJECT,
+      name: "hall-of-light",
+      folder: "hall-of-light",
+      source: { kind: "folder", project: { folder: "/w/studio/imports/hall-of-light", project: HALL_OF_LIGHT_PROJECT, name: "hall-of-light" } },
+    },
+    {
+      project: "e7c41a90-3b2d-4f5e-8a6c-9d0b1f2e3a47",
+      name: "broken",
+      folder: "broken",
+      source: { kind: "folder_unreadable", folder: "/w/studio/imports/broken", refusal: "list_assets failed: /w/studio/imports/broken holds no project: it has no tatolab-project.json" },
+    },
   ],
+  imports_not_listed_because: null,
 };
 
 function listedStream(projectFolder: string, displayName: string): ListedStream {
@@ -31,7 +43,7 @@ describe("the outliner's tree", () => {
     expect(rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label} ${row.expansion}`)).toEqual([
       "studio expanded",
       "  studio expanded",
-      "    pyproject.toml leaf",
+      "    tatolab-project.json leaf",
       "    lobby_wall leaf",
       "    Node types collapsed",
       "  Imports collapsed",
@@ -52,7 +64,7 @@ describe("the outliner's tree", () => {
     const because = "the runtime's list_streams result could not be read: missing field `stream_asset`";
     const rows = outlinerTreeOfTheProject(PROJECT, { kind: "listing_failed", because }, null, {});
     expect(rows.slice(2, 4).map(({ row }) => [row.row_id, row.label, row.tone ?? "plain"])).toEqual([
-      ["project:/w/studio/pyproject", "pyproject.toml", "plain"],
+      ["project:/w/studio/project_file", "tatolab-project.json", "plain"],
       ["project:/w/studio/streams-not-listed", because, "unreadable"],
     ]);
   });
@@ -60,24 +72,21 @@ describe("the outliner's tree", () => {
   it("opens the rows the person opened: each import read-only, its streams or why they wait", () => {
     const rows = outlinerTreeOfTheProject(PROJECT, { kind: "not_listed", because: "Stopped" }, null, {
       imports: true,
-      "project:tatolab-stream": true,
       "project:/w/studio/imports/hall-of-light": true,
       "project:/w/studio/imports/broken": true,
     });
     expect(rows.map(({ row }) => [row.row_id, row.label, row.isReadOnly === true])).toEqual([
       ["open_project_folder", "studio", false],
       ["project:/w/studio", "studio", false],
-      ["project:/w/studio/pyproject", "pyproject.toml", false],
+      ["project:/w/studio/project_file", "tatolab-project.json", false],
       ["project:/w/studio/waiting", "Streams and nodes not read yet", false],
       ["project:/w/studio/node_types", "Node types", false],
       ["imports", "Imports", true],
-      ["project:tatolab-stream", "tatolab-stream", true],
-      ["project:tatolab-stream/waiting", "Streams and nodes not read yet", false],
       ["project:/w/studio/imports/hall-of-light", "hall-of-light", true],
-      ["project:/w/studio/imports/hall-of-light/pyproject", "pyproject.toml", false],
+      ["project:/w/studio/imports/hall-of-light/project_file", "tatolab-project.json", false],
       ["project:/w/studio/imports/hall-of-light/waiting", "Streams and nodes not read yet", false],
       ["project:/w/studio/imports/broken", "broken", true],
-      ["project:/w/studio/imports/broken/refusal", "/w/studio/imports/broken has no pyproject.toml.", false],
+      ["project:/w/studio/imports/broken/refusal", "list_assets failed: /w/studio/imports/broken holds no project: it has no tatolab-project.json", false],
     ]);
   });
 
@@ -88,7 +97,7 @@ describe("the outliner's tree", () => {
     expect(outlinerRowIdOfTheSelection({ kind: "nothing" })).toBeNull();
   });
 
-  it("lists the open project's own node types and each import's from the distribution of its name, or why the runtime lists none", () => {
+  it("lists the open project's own node types and each import's by its UUID, or why the runtime lists none", () => {
     const nodeTypes: ProjectNodeTypesReading = {
       kind: "listed",
       listing: {
@@ -103,7 +112,7 @@ describe("the outliner's tree", () => {
             unreadable_modules: [{ module: "nodes.draft", path: "nodes/draft.py", line: 2, column: 1, why: "SyntaxError: invalid syntax" }],
           },
           {
-            origin: { source: "installed_distribution", distribution: "Hall_Of.Light", distribution_version: "1.0.0" },
+            origin: { source: "dependency", project: HALL_OF_LIGHT_PROJECT, folder: "hall-of-light", version: "ab".repeat(32) },
             node_types: [{ type: "hall_of_light:Beam", kind: null, description: "", category: "hall_of_light", inputs: null, outputs: null, path: null, line: null }],
             graph_generators: [],
             unreadable_modules: [],
@@ -115,7 +124,6 @@ describe("the outliner's tree", () => {
     const expansion = {
       imports: true,
       "project:/w/studio/node_types": true,
-      "project:tatolab-stream": true,
       "project:/w/studio/imports/hall-of-light": true,
       "project:/w/studio/imports/hall-of-light/node_types": true,
     };
@@ -123,17 +131,15 @@ describe("the outliner's tree", () => {
     expect(rows.map(({ row }) => `${"  ".repeat(row.depth)}${row.label}`)).toEqual([
       "studio",
       "  studio",
-      "    pyproject.toml",
+      "    tatolab-project.json",
       "    Streams and nodes not read yet",
       "    Node types",
       "      Effects",
       "        Glow",
       "      nodes/draft.py:2:1: SyntaxError: invalid syntax",
       "  Imports",
-      "    tatolab-stream",
-      "      Node types",
       "    hall-of-light",
-      "      pyproject.toml",
+      "      tatolab-project.json",
       "      Streams and nodes not read yet",
       "      Node types",
       "        hall_of_light",

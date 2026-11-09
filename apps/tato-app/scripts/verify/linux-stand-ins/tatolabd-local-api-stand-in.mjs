@@ -1,7 +1,7 @@
 // A stand-in for tatolabd's local API, for proof in a Linux container where no runtime runs: it
 // answers on `<socket>` what the app reads — `GET /health`, the MCP tools `list_streams`, `logs`
-// and `graph`, and `GET /api/graph`'s machine name — and the queued stream actions `stop_stream`,
-// `start_stream` and `remove_project`, changing its listing as the runtime does once an action
+// and `graph`, and `GET /api/graph`'s machine name — and the queued project actions `stop_project`
+// and `remove_project`, changing its listing as the runtime does once an action
 // finishes, from the responses recorded from a real runtime under src/main/test-fixtures/.
 // Usage: node tatolabd-local-api-stand-in.mjs <socket>
 import { readFileSync, rmSync } from "node:fs";
@@ -45,10 +45,10 @@ function workOnTheStreamAction(listing, state, step, finish) {
   return action;
 }
 
-/** A stream action as the runtime queues it, answered as recorded, or refused in the words recorded for its case. */
-function streamActionToolResult(requestId, toolName, toolArguments) {
+/** A project action as the runtime queues it, answered as recorded, or refused in the words recorded for its case. */
+function projectActionToolResult(requestId, toolName, toolArguments) {
+  const streamsOfTheProject = listedStreams.streams.filter((listedStream) => listedStream.location?.project_directory === toolArguments.project_directory);
   if (toolName === "remove_project") {
-    const streamsOfTheProject = listedStreams.streams.filter((listedStream) => listedStream.location?.project_directory === toolArguments.project_directory);
     if (streamsOfTheProject.length === 0) return toolResult(requestId, recordedToolText("local-api-remove-project-refusal-for-a-project-the-runtime-holds-no-stream-of.json"), true);
     let action = "";
     for (const listing of streamsOfTheProject) {
@@ -59,17 +59,14 @@ function streamActionToolResult(requestId, toolName, toolArguments) {
     }
     return toolResult(requestId, JSON.stringify({ action, project_directory: toolArguments.project_directory }, null, 2));
   }
-  const listing = listingOf(toolArguments.stream);
-  if (listing === undefined) return toolResult(requestId, `Resource not found: no stream with the id \`${toolArguments.stream}\` is loaded or recorded in this runtime`, true);
-  const recordedRefusal = (fileName) => toolResult(requestId, recordedToolText(fileName).replaceAll("pattern-main-d76f70", listing.stream), true);
-  if (toolName === "stop_stream") {
-    if (listing.state !== "running") return recordedRefusal("local-api-stop-stream-refusal-for-the-stopped-stream-pattern-main.json");
-    const action = workOnTheStreamAction(listing, "stopping", "stopping", () => ({ state: "stopped" }));
-    return toolResult(requestId, JSON.stringify({ action, stream: listing.stream }, null, 2));
+  const runningStreamsOfTheProject = streamsOfTheProject.filter((listedStream) => listedStream.state === "running");
+  if (runningStreamsOfTheProject.length === 0) {
+    const recordedRefusal = recordedToolText("local-api-stop-project-refusal-for-the-stopped-project-pattern.json");
+    return toolResult(requestId, recordedRefusal.replaceAll("/tmp/tatolab-proof-projects/pattern", toolArguments.project_directory), true);
   }
-  if (listing.state === "running") return recordedRefusal("local-api-start-stream-refusal-for-the-running-stream-pattern-main.json");
-  const action = workOnTheStreamAction(listing, "preparing", "compiling", () => ({ state: "running", node_count: 4 }));
-  return toolResult(requestId, JSON.stringify({ action, stream: listing.stream }, null, 2));
+  let action = "";
+  for (const listing of runningStreamsOfTheProject) action = workOnTheStreamAction(listing, "stopping", "stopping", () => ({ state: "stopped" }));
+  return toolResult(requestId, JSON.stringify({ action, project_directory: toolArguments.project_directory }, null, 2));
 }
 
 /** `logs` as the runtime answers it, over the recorded records of the project, cursored by their index. */
@@ -110,7 +107,7 @@ function answer(method, requestTarget, requestBody) {
     const toolCall = JSON.parse(requestBody);
     const { name, arguments: toolArguments } = toolCall.params;
     if (name === "list_streams") return toolResult(toolCall.id, JSON.stringify(listedStreams));
-    if (name === "stop_stream" || name === "start_stream" || name === "remove_project") return streamActionToolResult(toolCall.id, name, toolArguments);
+    if (name === "stop_project" || name === "remove_project") return projectActionToolResult(toolCall.id, name, toolArguments);
     if (name === "graph") {
       const isTheStreamLoaded = listingOf(toolArguments.stream)?.node_count != null;
       if (isTheStreamLoaded) return toolResult(toolCall.id, recordedGraphTextOfMain);

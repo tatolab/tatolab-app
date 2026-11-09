@@ -1,5 +1,6 @@
 import { MOCK_NODE_CATALOG_ENTRIES } from "./mock_node_catalog";
 import { mockPackageCatalogReading } from "./mock_package_catalog";
+import { MockWorkspaceDependencies, mockWorkspaceDependenciesScenarioNamed, type MockWorkspaceDependenciesScenario } from "./mock_workspace_dependencies";
 import {
   createMockStreamFixtures,
   createMockStreamRunFromAProjectFolder,
@@ -184,7 +185,7 @@ export interface MockTatolabOptions {
   isMakingThePythonEnvironmentRefused: boolean;
   /** `?streams=earlier_record`: the runtime also lists a record an earlier runtime wrote, failed and naming no location. */
   doesTheRuntimeListAnEarlierRuntimesRecord: boolean;
-  /** `?project=none|unreadable`: no project open, or one whose `pyproject.toml` does not parse; the pattern project by default. */
+  /** `?project=none|unreadable`: no project open, or one the runtime names no project in; the pattern project by default. */
   openProjectScenario: MockOpenProjectScenario;
   /** `?recent=none`: no project opened before, as on first run; six recent ones by default. */
   recentProjectsInTheQuery: string | null;
@@ -194,32 +195,22 @@ export interface MockTatolabOptions {
   isEveryOwnNodeModuleUnreadable: boolean;
   /** `?popped_out_viewer=<target as JSON>`: the page is a Viewer popped out of the studio, as Pop out opens it in a new tab; the studio by default. */
   poppedOutViewer: PoppedOutViewerTarget | null;
-  /** `?get_more=open`: the page is the open project's Get more window, as File › Get more… opens it in a new tab. */
-  isAGetMoreWindow: boolean;
+  /** `?module_manager=open|edited_files|newer`: the page is the open project's Module manager window, as File › Module manager… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
+  moduleManagerWorkspaceDependencies: MockWorkspaceDependenciesScenario | null;
   /** `?catalog=unserved`: get.tatolab.com serves no catalog yet; the mock catalog by default. */
   isTheCatalogUnserved: boolean;
   /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node. */
   isTheFixtureViewListed: boolean;
 }
 
-/** The query parameter a Get more window's page is told by. */
-const GET_MORE_QUERY_PARAMETER = "get_more";
+/** The query parameter a Module manager window's page is told by. */
+const MODULE_MANAGER_QUERY_PARAMETER = "module_manager";
 
 /** The mock page's address with every query parameter kept and `parameterName` set to `parameterValue`, so a new tab opens on the same scenario. */
 function mockPageUrlWith(pageUrl: string, parameterName: string, parameterValue: string): string {
   const pageUrlWithTheParameter = new URL(pageUrl);
   pageUrlWithTheParameter.searchParams.set(parameterName, parameterValue);
   return pageUrlWithTheParameter.toString();
-}
-
-/** A `pyproject.toml` as the mock writes one for `project`, its requirements one per line. */
-function mockPyprojectTextOf(project: { name: string; requirements: readonly string[] }): string {
-  return `[project]\nname = "${project.name}"\ndependencies = [\n${project.requirements.map((requirement) => `    ${JSON.stringify(requirement)},\n`).join("")}]\n`;
-}
-
-/** A requirement's leading name as PEP 503 normalizes it. */
-function mockRequirementsName(requirement: string): string {
-  return (/^\s*([A-Za-z0-9][A-Za-z0-9._-]*)/.exec(requirement)?.[1] ?? requirement).toLowerCase().replace(/[-_.]+/g, "-");
 }
 
 /** The query parameter a popped-out Viewer's page carries its pin in. */
@@ -328,7 +319,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     arePortFamiliesServed: pageQuery.get("port_families") !== "unserved",
     isEveryOwnNodeModuleUnreadable: pageQuery.get("node_types") === "unreadable_project",
     poppedOutViewer: mockPoppedOutViewerTargetFrom(pageQuery.get(POPPED_OUT_VIEWER_QUERY_PARAMETER)),
-    isAGetMoreWindow: pageQuery.get(GET_MORE_QUERY_PARAMETER) === "open",
+    moduleManagerWorkspaceDependencies: mockWorkspaceDependenciesScenarioNamed(pageQuery.get(MODULE_MANAGER_QUERY_PARAMETER)),
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
   };
@@ -456,6 +447,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
   const menusKeptForTheSystemMenuBar: SystemMenuBarMenu[] = [];
   let openProjectReading = mockOpenProjectReading(openProjectScenario, fixtures.machine.homeDirectory);
+  const workspaceDependencies = new MockWorkspaceDependencies(
+    openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : `${fixtures.machine.homeDirectory}/streams/pattern`,
+    mockTatolabOptions.moduleManagerWorkspaceDependencies ?? "copied",
+  );
   let recentProjects = mockRecentProjects(recentProjectsInTheQuery, fixtures.machine.homeDirectory, Date.now());
   const mockFoldersOnDisk = () => [...mockFoldersInDocumentsTatoStudio(fixtures.machine.homeDirectory), ...recentProjects.map((recent) => recent.folder)];
   const openTheProjectInTheMock = (reading: OpenProjectReading, folder: string, projectName: string | null) => {
@@ -479,7 +474,7 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   ]);
   /** The display names `rename_stream` gave, by stream id, over the ones the fixtures load with. */
   const displayNamesRenamedTo = new Map<string, string>();
-  /** Recorded streams not loaded that `start_stream` can load, by id: `pattern-two`, and each one stopped from the window. */
+  /** Recorded streams not loaded that a run of their project loads again, by id: `pattern-two`, and each one stopped from the window. */
   const recordedFixturesNotLoaded = new Map<string, MockStreamFixture>([[fixtures.patternTwoStream.listing.stream, fixtures.patternTwoStream]]);
   const forgottenStreamIds = new Set<string>();
   /** The stream action queued or under way on each stream, by id; a step of an action that is no longer its stream's does nothing. */
@@ -895,52 +890,24 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
     publishStatus({ streams: listStreams() });
   };
 
-  /** `stop_stream` as the runtime does it: queued for a loaded stream, which stops and is recorded stopped; refused for one not loaded. */
-  const stopMockStream = (streamId: string): void => {
-    const loadedStream = loadedStreams.get(streamId);
-    const listingNotLoaded = listedStreamsNotLoaded.get(streamId);
-    if (loadedStream === undefined) {
-      if (listingNotLoaded?.state === "stopped") throw `Runtime error: the stream \`${streamId}\` is already stopped; \`start\` loads it again`;
-      if (listingNotLoaded?.state === "failed") {
-        throw `Runtime error: the stream \`${streamId}\` is failed, so it is not loaded to stop: ${listingNotLoaded.failed_because ?? ""}. \`start\` retries it, \`rm\` forgets it`;
-      }
-      if (listingNotLoaded === undefined) throw aStreamThisRuntimeDoesNotHoldRefusal(streamId);
+  /** `stop_project` as the runtime does it: one action queued that stops every loaded stream of the project, each recorded stopped; refused when none of them runs. */
+  const stopMockProject = (projectDirectory: string): void => {
+    const loadedStreamsOfTheProject = [...loadedStreams.values()].filter((loadedStream) => loadedStream.fixture.listing.location?.project_directory === projectDirectory);
+    if (loadedStreamsOfTheProject.length === 0) {
+      throw `Runtime error: no stream of the project in ${projectDirectory} runs, so there is none to stop; \`run\` runs it. Loaded: ${streamIdsListedForARefusal(loadedStreams.keys())}. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
     }
-    const listing = loadedStream?.fixture.listing ?? listingNotLoaded;
-    if (listing === undefined) return;
     const action = nextStreamActionId();
-    loadedStreams.delete(streamId);
-    if (loadedStream !== undefined) recordedFixturesNotLoaded.set(streamId, loadedStream.fixture);
     unloadingStreamActions.set(action, "stop");
-    queueTheStreamAction(listing, "stopping", action);
-    workOnTheStreamAction(listing, "stopping", action, ["stopping"], () => {
-      writeRuntimeRecord(listing, action, "info", `Stopped the stream \`${streamId}\``);
-      listedStreamsNotLoaded.set(streamId, { ...listing, state: "stopped", node_count: null, failed_because: null, action: null, step: null });
-    });
-  };
-
-  /** `start_stream` as the runtime does it: queued for a stopped or failed stream, which loads, asking for any capture device it waits on, or for the lobby recorder fails again as its camera is still missing; refused for one loaded. */
-  const startMockStream = (streamId: string): void => {
-    if (loadedStreams.has(streamId)) {
-      throw `Runtime error: the stream \`${streamId}\` is already loaded in this runtime, recorded by the runtime; only a stopped or failed stream starts`;
+    for (const loadedStream of loadedStreamsOfTheProject) {
+      const listing = loadedStream.fixture.listing;
+      loadedStreams.delete(listing.stream);
+      recordedFixturesNotLoaded.set(listing.stream, loadedStream.fixture);
+      queueTheStreamAction(listing, "stopping", action);
+      workOnTheStreamAction(listing, "stopping", action, ["stopping"], () => {
+        writeRuntimeRecord(listing, action, "info", `Stopped the stream \`${listing.stream}\``);
+        listedStreamsNotLoaded.set(listing.stream, { ...listing, state: "stopped", node_count: null, failed_because: null, action: null, step: null });
+      });
     }
-    const listingNotLoaded = listedStreamsNotLoaded.get(streamId);
-    if (!listingNotLoaded) {
-      throw `Resource not found: no stream with the id \`${streamId}\` is recorded in this runtime, so there is none to start. Recorded: ${streamIdsListedForARefusal(recordedStreamIds())}`;
-    }
-    const action = nextStreamActionId();
-    queueTheStreamAction(listingNotLoaded, "preparing", action);
-    workOnTheStreamAction(listingNotLoaded, "preparing", action, ["reading_the_graph_documents", "starting"], () => {
-      writeRuntimeRecord(listingNotLoaded, action, "info", `Loading the stream \`${streamId}\` from ${listingNotLoaded.location?.project_directory ?? ""}`);
-      const fixture = recordedFixturesNotLoaded.get(streamId);
-      if (fixture !== undefined) {
-        loadStream({ ...fixture, listing: { ...fixture.listing, capture_devices_whose_access_was_never_asked_for: [] } }, Date.now(), action);
-        return;
-      }
-      const retryFailure = `\`start\` retried it, and it did not load: ${fixtures.machine.cameraFailure}`;
-      writeRuntimeRecord(listingNotLoaded, action, "error", retryFailure);
-      listedStreamsNotLoaded.set(streamId, { ...listingNotLoaded, state: "failed", node_count: null, failed_because: retryFailure, action: null, step: null });
-    });
   };
 
   /** `remove_project` as the runtime does it: every stream of the project stops if loaded and is forgotten; refused for a folder the runtime holds no stream of. */
@@ -1101,16 +1068,6 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       }
       if (appUpdate.kind === "available" && appUpdate.delivery === "install_and_relaunch") downloadTheNewerVersion(0);
     },
-    runStreamAction: async (streamAction, streamId) => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer ${streamAction}`;
-      switch (streamAction) {
-        case "stop_stream":
-          return stopMockStream(streamId);
-        case "start_stream":
-          return startMockStream(streamId);
-      }
-    },
     removeProject: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       if (mockStatus.runtime_state !== "running") throw `the runtime is ${mockStatus.runtime_state}, so it did not answer remove_project`;
@@ -1167,6 +1124,12 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         return { action: queueAMockProjectLoadThatFails(folder, `${folder} is not a project: it holds no tatolab-project.json`), project_directory: folder };
       }
       return { action: queueAMockProjectLoad(folder), project_directory: folder };
+    },
+    stopOpenProject: async () => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (openProjectReading.kind === "none_open") throw "No project is open to stop.";
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      stopMockProject(openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : openProjectReading.folder);
     },
     reloadProject: async (projectDirectory) => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
@@ -1264,49 +1227,38 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       window.open(mockPoppedOutViewerPageUrl(window.location.href, target), "_blank");
     },
     readPoppedOutViewer: async () => structuredClone(mockTatolabOptions.poppedOutViewer),
-    openGetMoreWindow: async () => {
-      window.open(mockPageUrlWith(window.location.href, GET_MORE_QUERY_PARAMETER, "open"), "_blank");
+    openModuleManagerWindow: async () => {
+      window.open(mockPageUrlWith(window.location.href, MODULE_MANAGER_QUERY_PARAMETER, "open"), "_blank");
     },
-    readGetMoreWorkspace: async () => (mockTatolabOptions.isAGetMoreWindow ? structuredClone(openProjectReading) : null),
+    readModuleManagerWorkspace: async () => (mockTatolabOptions.moduleManagerWorkspaceDependencies !== null ? structuredClone(openProjectReading) : null),
     readPackageCatalog: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return mockPackageCatalogReading(mockTatolabOptions.isTheCatalogUnserved);
     },
-    previewImport: async (requirement) => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (openProjectReading.kind !== "read") throw "No project is open to import into.";
-      const { project } = openProjectReading.open_project;
-      const importedName = mockRequirementsName(requirement);
-      if (project.requirements.some((existing) => mockRequirementsName(existing) === importedName)) throw `The project already imports ${importedName}.`;
-      return {
-        file: `${project.folder}/pyproject.toml`,
-        text_before: mockPyprojectTextOf(project),
-        text_after: mockPyprojectTextOf({ ...project, requirements: [...project.requirements, requirement] }),
-        based_on_version: `mock-pyproject-${project.requirements.length}`,
-      };
+    listWorkspaceDependencies: async (checkForNewer) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * (checkForNewer ? 4 : 1));
+      return workspaceDependencies.list(checkForNewer);
     },
-    importIntoWorkspace: async (requirement, basedOnVersion) => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (openProjectReading.kind !== "read") throw "No project is open to import into.";
-      const { project, imports } = openProjectReading.open_project;
-      if (basedOnVersion !== `mock-pyproject-${project.requirements.length}`) throw "pyproject.toml changed since the import was shown; nothing was written. Look at the change again before importing.";
-      openProjectReading = {
-        kind: "read",
-        open_project: {
-          project: { ...project, requirements: [...project.requirements, requirement] },
-          imports: [...imports, { name: mockRequirementsName(requirement), requirement, source: { kind: "package_index" } }],
-        },
-      };
-      for (const openProjectListener of openProjectListeners) openProjectListener(structuredClone(openProjectReading));
+    chooseDependencySource: async (sourceKind) => workspaceDependencies.sourceTheDialogAnswers(sourceKind),
+    addDependencyToTheWorkspace: async (source) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 4);
+      return workspaceDependencies.add(source);
     },
-    openImportToEdit: async (name) => {
-      const importedProject = openProjectReading.kind === "read" ? openProjectReading.open_project.imports.find((imported) => imported.name === name) : undefined;
-      if (importedProject === undefined) throw `The project imports nothing named ${name}.`;
-      if (importedProject.source.kind !== "folder") throw `${name} comes from a package index, so it has no folder of its own to open; only an import from a folder opens to edit.`;
+    updateWorkspaceDependency: async (project, overwriteEditedFiles) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 4);
+      return workspaceDependencies.update(project, overwriteEditedFiles);
+    },
+    importFromTheMarketplace: async (name) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 6);
+      return workspaceDependencies.add(`${fixtures.machine.homeDirectory}/Library/Application Support/Tato Studio/module-downloads/${name}-0.68.29.zip`);
+    },
+    openImportToEdit: async (folder) => {
+      if (!workspaceDependencies.holdsTheFolder(folder)) throw `The project imports nothing in imports/${folder}.`;
       const studioPageUrl = new URL(window.location.href);
-      studioPageUrl.searchParams.delete(GET_MORE_QUERY_PARAMETER);
+      studioPageUrl.searchParams.delete(MODULE_MANAGER_QUERY_PARAMETER);
       window.open(studioPageUrl.toString(), "_blank");
     },
+    pathOfADroppedFile: (droppedFile) => `${fixtures.machine.homeDirectory}/streams/${droppedFile.name}`,
     readRecentProjects: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return structuredClone(recentProjects);

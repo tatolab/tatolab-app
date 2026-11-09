@@ -37,7 +37,7 @@ export type {
   PortViewerTarget,
   PortStreamFacts,
   ProjectLogRecord,
-  ProjectOnDisk,
+  ProjectTheRuntimeNames,
   StreamGraphDeclaredPort,
   StreamGraphLink,
   StreamGraphNode,

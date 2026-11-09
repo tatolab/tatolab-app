@@ -8,7 +8,10 @@ import type {
   NodeCatalog,
   ProjectNodeTypeListing,
   JsonValue,
-  ImportPreview,
+  DependencySourceKind,
+  ProjectDependency,
+  WorkspaceDependency,
+  WorkspaceDependencyUpdate,
   OpenProjectReading,
   PackageCatalogReading,
   PoppedOutViewerTarget,
@@ -48,8 +51,6 @@ export const TATOLAB_COMMAND_NAMES = [
   "list_project_node_types",
   "check_for_tatolab_app_updates",
   "take_the_newer_tatolab_app_version",
-  "stop_stream",
-  "start_stream",
   "remove_project",
   "rename_stream",
   "open_stream_project_folder",
@@ -76,16 +77,20 @@ export const TATOLAB_COMMAND_NAMES = [
   "show_projects_window",
   "pop_out_viewer",
   "read_popped_out_viewer",
-  "open_get_more_window",
-  "read_get_more_workspace",
+  "open_module_manager_window",
+  "read_module_manager_workspace",
   "read_package_catalog",
-  "preview_import",
-  "import_into_workspace",
+  "list_workspace_dependencies",
+  "choose_dependency_source",
+  "add_dependency_to_the_workspace",
+  "update_workspace_dependency",
+  "import_from_the_marketplace",
   "open_import_to_edit",
   "read_project_file",
   "save_project_file",
   "list_project_files",
   "run_open_project",
+  "stop_open_project",
   "start_python_language_server",
   "send_to_python_language_server",
   "stop_python_language_server",
@@ -96,9 +101,9 @@ export const TATOLAB_COMMAND_NAMES = [
 
 /**
  * One command the window invokes. Arguments: `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
- * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `stop_stream`, `start_stream`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
+ * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
- * `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_viewer` a `PoppedOutViewerTarget`, `preview_import` `{ requirement }`, `import_into_workspace` `{ requirement, based_on_version }`, `open_import_to_edit` `{ name }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
+ * `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_viewer` a `PoppedOutViewerTarget`, `list_workspace_dependencies` `{ check_for_newer }`, `choose_dependency_source` `{ source_kind }`, `add_dependency_to_the_workspace` `{ source }`, `update_workspace_dependency` `{ project, overwrite_edited_files }`, `import_from_the_marketplace` `{ name }`, `open_import_to_edit` `{ folder }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
  * acts only on a folder the app handed the window from its folder dialog, `open_recent_project` only on one of the recent projects, and `read_project_log_records`, `remove_project` and `reload_project` only on a project the runtime last listed a stream from. `check_for_tatolab_app_updates` checks and, finding a newer Tatolab
  * that installs in place, downloads it; `take_the_newer_tatolab_app_version` restarts into a downloaded one, downloads one a check found, or opens a `.deb`'s download, the person choosing it being the confirmation. `restart_runtime` answers once the app's runtime has been started again; `open_runtime_log_folder` opens the
  * folder the runtime names when the app asks it, never one the window names.
@@ -111,7 +116,7 @@ export const TATOLAB_STATUS_CHANGED_EVENT = "tatolab-status-changed";
 /** The event the app asks the window to show a stream's page on, as a click on that stream's failure notification does; it carries a `TatolabStreamPageRequest`. */
 export const TATOLAB_STREAM_PAGE_REQUESTED_EVENT = "tatolab-stream-page-requested";
 
-/** The event each change of the open project arrives on: another folder opened, or a `pyproject.toml` it reads changed on disk; it carries an `OpenProjectReading`. */
+/** The event each change of the open project arrives on: another folder opened, a change in one of its folders, or the runtime starting to answer; it carries an `OpenProjectReading`. */
 export const TATOLAB_OPEN_PROJECT_CHANGED_EVENT = "tatolab-open-project-changed";
 
 /** The event each message a Python language server sends, and each server's end, arrives on; it carries a `PythonLanguageServerEvent`. */
@@ -186,10 +191,6 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   list_project_node_types: { commandArguments: { project_directory: string }; answer: ProjectNodeTypeListing };
   check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };
   take_the_newer_tatolab_app_version: { commandArguments: undefined; answer: null };
-  /** Answers once the runtime has queued the stop; the stream shows `stopping` in the listing until it has run. */
-  stop_stream: { commandArguments: { stream: string }; answer: null };
-  /** Answers once the runtime has queued the start, a failed stream's retry among them; the stream shows `preparing` in the listing until it has run. */
-  start_stream: { commandArguments: { stream: string }; answer: null };
   /** Answers once the runtime has queued the removal of every stream it holds from the project; deletes no file. */
   remove_project: { commandArguments: { project_directory: string }; answer: null };
   /** `stream` a stream's id; answers once the runtime has recorded `display_name`, refused in its own words. */
@@ -237,18 +238,24 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   pop_out_viewer: { commandArguments: PoppedOutViewerTarget; answer: null };
   /** The asking window's pin when it is a popped-out Viewer; `null` in the Projects and studio windows. */
   read_popped_out_viewer: { commandArguments: undefined; answer: PoppedOutViewerTarget | null };
-  /** From a studio window only: opens its Get more window, its project the workspace, or brings that window forward; it closes with the studio window. */
-  open_get_more_window: { commandArguments: undefined; answer: null };
-  /** The asking Get more window's workspace project as last read from disk; `null` in any other window. Each later reading arrives on `tatolab-open-project-changed`. */
-  read_get_more_workspace: { commandArguments: undefined; answer: OpenProjectReading | null };
+  /** From a studio window only: opens its Module manager window, its project the workspace, or brings that window forward; it closes with the studio window. */
+  open_module_manager_window: { commandArguments: undefined; answer: null };
+  /** The asking Module manager window's workspace project as last read from disk; `null` in any other window. Each later reading arrives on `tatolab-open-project-changed`. */
+  read_module_manager_workspace: { commandArguments: undefined; answer: OpenProjectReading | null };
   /** The catalog get.tatolab.com serves, fetched afresh, or why it was not read; never refused. */
   read_package_catalog: { commandArguments: undefined; answer: PackageCatalogReading };
-  /** From a Get more window only: the workspace's `pyproject.toml` with `requirement` added to `[project] dependencies`, nothing written; refused for a workspace that already imports it, or a file it cannot place it in. */
-  preview_import: { commandArguments: { requirement: string }; answer: ImportPreview };
-  /** From a Get more window only: writes what `preview_import` showed when `pyproject.toml` is still at `based_on_version`; refused with nothing written when it changed since. */
-  import_into_workspace: { commandArguments: { requirement: string; based_on_version: string }; answer: null };
-  /** From a Get more window only: `name` one of the workspace's imports whose source is a folder, which opens in its own studio window; refused for any other. */
-  open_import_to_edit: { commandArguments: { name: string }; answer: null };
+  /** From a Module manager window only: the workspace's imports from the runtime's `list_dependencies`, each source read for a newer version with `check_for_newer`; refused in the runtime's own words. */
+  list_workspace_dependencies: { commandArguments: { check_for_newer: boolean }; answer: WorkspaceDependency[] };
+  /** From a Module manager window only: the desktop's open dialog for a project's folder or a `.zip` of one, as `source_kind` says; `null` when the person cancels. */
+  choose_dependency_source: { commandArguments: { source_kind: DependencySourceKind }; answer: string | null };
+  /** From a Module manager window only: the runtime's `add_dependency` copies `source`, an absolute folder or `.zip`, into the workspace's `imports/`; refused in the runtime's own words. */
+  add_dependency_to_the_workspace: { commandArguments: { source: string }; answer: ProjectDependency };
+  /** From a Module manager window only: the runtime's `update_dependency` copies the import `project` again from its source; files edited since its copy are overwritten only with `overwrite_edited_files`. */
+  update_workspace_dependency: { commandArguments: { project: string; overwrite_edited_files: boolean }; answer: WorkspaceDependencyUpdate };
+  /** From a Module manager window only: the catalog entry `name` downloaded as its `.zip`, checked against the catalog's SHA-256, then imported as `add_dependency_to_the_workspace` imports one; refused in words. */
+  import_from_the_marketplace: { commandArguments: { name: string }; answer: ProjectDependency };
+  /** From a Module manager window only: the workspace's `imports/<folder>/` opens in its own studio window; refused for a folder the workspace does not import. */
+  open_import_to_edit: { commandArguments: { folder: string }; answer: null };
   /** `file` absolute, inside the open project's folder or a folder import's, links resolved; refused for any other file, or in the filesystem's words. */
   read_project_file: { commandArguments: { file: string }; answer: ProjectFileRead };
   /** Written whole when the file on disk still has `based_on_version` (`null` for a new file), and only inside the open project's own folder; refused with nothing written otherwise. */
@@ -257,6 +264,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   list_project_files: { commandArguments: { project_folder: string }; answer: ProjectFiles };
   /** The runtime's `run_project` queued on the open project's folder, which the window never names; refused in the runtime's own words, or while no project is open. */
   run_open_project: { commandArguments: undefined; answer: ProjectRunQueued };
+  /** The runtime's `stop_project` queued on the open project's folder, which the window never names; every stream of the project shows `stopping` until it has run. Refused in the runtime's own words, or while no project is open. */
+  stop_open_project: { commandArguments: undefined; answer: null };
   /** Starts Pyright's language server in `project_folder`, the folder of the open project or of one of its imports; its messages arrive on `tatolab-python-language-server-event` under the session answered. */
   start_python_language_server: { commandArguments: { project_folder: string }; answer: { session: string } };
   /** `message` one JSON-RPC message, framed onto the server's input; refused for a session that has ended. */
@@ -297,4 +306,6 @@ export interface TatolabElectronBridge {
   onSystemMenuBarEntryChosen(listener: (entryId: string) => void): () => void;
   /** Tell the main process the window has drawn its first status, so it can put the window on screen. */
   tellTheAppTheWindowDrewItsFirstStatus(): void;
+  /** The full path of a file or folder dropped on the window, or `""` for an item with none. */
+  pathOfADroppedFile(droppedFile: File): string;
 }

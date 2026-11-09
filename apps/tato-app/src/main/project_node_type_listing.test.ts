@@ -39,7 +39,8 @@ test("each_source_reads_with_its_origin_node_types_ports_generators_and_unreadab
       {
         source: "dependency",
         project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11",
-        revision: "v1",
+        folder: "gripper",
+        version: "ab".repeat(32),
         node_types: [
           {
             type: "nodes.gripper:Gripper",
@@ -92,7 +93,7 @@ test("each_source_reads_with_its_origin_node_types_ports_generators_and_unreadab
           unreadable_modules: [{ module: "nodes.half_written", path: "nodes/half_written.py", line: 12, column: 5, why: "SyntaxError: expected ':'" }],
         },
         {
-          origin: { source: "dependency", project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11", revision: "v1" },
+          origin: { source: "dependency", project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11", folder: "gripper", version: "ab".repeat(32) },
           node_types: [
             {
               type: "nodes.gripper:Gripper",

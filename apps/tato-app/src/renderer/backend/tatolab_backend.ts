@@ -14,7 +14,10 @@ import type {
   OpenProjectReading,
   PoppedOutViewerTarget,
   PackageCatalogReading,
-  ImportPreview,
+  DependencySourceKind,
+  ProjectDependency,
+  WorkspaceDependency,
+  WorkspaceDependencyUpdate,
   RecentProject,
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
@@ -26,7 +29,6 @@ import type {
   StreamActionFollowed,
   StreamProjectFolderChosenFor,
   TatolabStatus,
-  TatolabStreamActionName,
   ProjectFolderChosenFor,
   NewProjectDefaults,
   SystemMenuBarMenu,
@@ -58,8 +60,6 @@ export interface TatolabBackend {
   checkForTatolabAppUpdates(): Promise<void>;
   /** Restart into a downloaded Tato Studio, download one a check found, or open a `.deb`'s download; how that goes arrives as the status's `app_update`. */
   takeTheNewerTatolabAppVersion(): Promise<void>;
-  /** Queue a stop or a start (or retry) of `streamId`, resolving once the runtime has queued it and rejecting with its refusal; the stream's `stopping` or `preparing` arrives as the next status. */
-  runStreamAction(streamAction: TatolabStreamActionName, streamId: string): Promise<void>;
   /** Queue the removal of every stream the runtime holds from `projectDirectory`, resolving once it is queued and rejecting with its refusal; the streams stopping, then gone, arrive as the next statuses. */
   removeProject(projectDirectory: string): Promise<void>;
   /** Show the stream `streamId` under `displayName`, resolving once the runtime has recorded it and rejecting with its refusal; the new name arrives as the next status. */
@@ -113,25 +113,33 @@ export interface TatolabBackend {
   popOutViewer(target: PoppedOutViewerTarget): Promise<void>;
   /** What this window is pinned to when it is a popped-out Viewer; `null` in the Projects and studio windows. */
   readPoppedOutViewer(): Promise<PoppedOutViewerTarget | null>;
-  /** Open this studio window's Get more window, or bring it forward; rejects in words from any other window. */
-  openGetMoreWindow(): Promise<void>;
-  /** This window's workspace when it is a Get more window, as last read from disk; `null` in any other window. Later readings arrive through `onOpenProjectChanged`. */
-  readGetMoreWorkspace(): Promise<OpenProjectReading | null>;
+  /** Open this studio window's Module manager window, or bring it forward; rejects in words from any other window. */
+  openModuleManagerWindow(): Promise<void>;
+  /** This window's workspace when it is a Module manager window, as last read from disk; `null` in any other window. Later readings arrive through `onOpenProjectChanged`. */
+  readModuleManagerWorkspace(): Promise<OpenProjectReading | null>;
   /** The catalog get.tatolab.com serves, or why it was not read. */
   readPackageCatalog(): Promise<PackageCatalogReading>;
-  /** The workspace's `pyproject.toml` before and after `requirement` is added, nothing written; rejects in words where it cannot be added. */
-  previewImport(requirement: string): Promise<ImportPreview>;
-  /** Write what `previewImport` showed while `pyproject.toml` is still at `basedOnVersion`; rejects with nothing written otherwise. */
-  importIntoWorkspace(requirement: string, basedOnVersion: string): Promise<void>;
-  /** Open the workspace's import `name`, one from a folder, in its own studio window; rejects in words for any other. */
-  openImportToEdit(name: string): Promise<void>;
+  /** The workspace's imports as the runtime lists them, each source read for a newer version with `checkForNewer`; rejects in the runtime's own words. */
+  listWorkspaceDependencies(checkForNewer: boolean): Promise<WorkspaceDependency[]>;
+  /** A project's folder or `.zip`, as `sourceKind` says, chosen in the desktop's dialog; `null` when the person cancels. */
+  chooseDependencySource(sourceKind: DependencySourceKind): Promise<string | null>;
+  /** Copy the project in `source`, an absolute folder or `.zip`, into the workspace's `imports/`; rejects in the runtime's own words. */
+  addDependencyToTheWorkspace(source: string): Promise<ProjectDependency>;
+  /** Copy the import `project` again from its source, overwriting files edited since its copy only with `overwriteEditedFiles`; rejects in the runtime's own words. */
+  updateWorkspaceDependency(project: string, overwriteEditedFiles: boolean): Promise<WorkspaceDependencyUpdate>;
+  /** Download the catalog entry `name`'s `.zip`, check it, and import it into the workspace; rejects in words. */
+  importFromTheMarketplace(name: string): Promise<ProjectDependency>;
+  /** Open the workspace's `imports/<folder>/` in its own studio window; rejects in words for a folder it does not import. */
+  openImportToEdit(folder: string): Promise<void>;
+  /** The full path of a file dropped on the window, or `""` for one with none, as a dragged-in browser item. */
+  pathOfADroppedFile(droppedFile: File): string;
   /** This window's project as the app last read it from disk; `none_open` in the Projects window. */
   readOpenProject(): Promise<OpenProjectReading>;
   /** The projects opened before, recent first, for the Projects window. */
   readRecentProjects(): Promise<RecentProject[]>;
   /** Open `folder`, one of the recent projects, in its own window, rejecting for any other folder or in the words of what refused. */
   openRecentProject(folder: string): Promise<void>;
-  /** Calls `listener` with each reading of the open project: another folder opened, or a `pyproject.toml` it reads changed; the returned function stops it. */
+  /** Calls `listener` with each reading of the open project: another folder opened, a change in one of its folders, or the runtime starting to answer; the returned function stops it. */
   onOpenProjectChanged(listener: (reading: OpenProjectReading) => void): () => void;
   /** `file` of the open project and its imports, as read from disk, rejecting for a file outside them or in the filesystem's words. */
   readProjectFile(file: string): Promise<ProjectFileRead>;
@@ -141,6 +149,8 @@ export interface TatolabBackend {
   listProjectFiles(projectFolder: string): Promise<ProjectFiles>;
   /** Queue `run_project` on the open project's folder, resolving with the action queued and rejecting in the runtime's own words. */
   runOpenProject(): Promise<ProjectRunQueued>;
+  /** Queue `stop_project` on the open project's folder, resolving once it is queued and rejecting in the runtime's own words; its streams' `stopping`, then `stopped`, arrive as the next statuses. */
+  stopOpenProject(): Promise<void>;
   /** Start Pyright's language server in `projectFolder`, resolving with the session its messages arrive under. */
   startPythonLanguageServer(projectFolder: string): Promise<string>;
   /** Send one JSON-RPC `message` to the language server of `session`, rejecting once it has ended. */

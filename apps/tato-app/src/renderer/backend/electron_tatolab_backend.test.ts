@@ -51,6 +51,7 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
       return () => undefined;
     },
     tellTheAppTheWindowDrewItsFirstStatus() {},
+    pathOfADroppedFile: () => "",
   };
   return { tatolabElectronBridge, invokedCommands, statusListeners, streamPageRequestListeners, openProjectListeners };
 }
@@ -122,18 +123,15 @@ describe("createElectronTatolabBackend", () => {
 
   it("sends each queued action under its command, rejecting a refusal in the main process's words", async () => {
     const fakeBridge = fakeTatolabElectronBridge({
-      stop_stream: { ok: true, value: null },
-      start_stream: { ok: false, refusal: "Runtime error: the stream `camera` is already loaded in this runtime, recorded by the runtime; only a stopped or failed stream starts" },
+      stop_open_project: { ok: false, refusal: "Runtime error: no stream of the project in /p runs, so there is none to stop; `run` runs it. Loaded: none. Recorded: none" },
       remove_project: { ok: true, value: null },
     });
     const backend = createElectronTatolabBackend(fakeBridge.tatolabElectronBridge);
 
-    await backend.runStreamAction("stop_stream", "camera");
-    await expect(backend.runStreamAction("start_stream", "camera")).rejects.toContain("already loaded");
+    await expect(backend.stopOpenProject()).rejects.toContain("none to stop");
     await backend.removeProject("/p");
     expect(fakeBridge.invokedCommands).toEqual([
-      ["stop_stream", { stream: "camera" }],
-      ["start_stream", { stream: "camera" }],
+      ["stop_open_project", undefined],
       ["remove_project", { project_directory: "/p" }],
     ]);
   });

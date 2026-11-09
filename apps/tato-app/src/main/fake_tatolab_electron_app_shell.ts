@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { PortViewerImageFrameFacts, StreamProjectFolderChosenFor, SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
+import type { DependencySourceKind, PortViewerImageFrameFacts, StreamProjectFolderChosenFor, SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
 import type { ProjectFolderDialogPurpose } from "./open_project.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
@@ -18,7 +18,7 @@ import type { TatolabElectronAppShell } from "./main.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
 import type { MacosActivationPolicy } from "./platform/main_window_chrome.js";
 import type { TatolabWindowCommandHandlers } from "./tatolab_commands.js";
-import type { MainWindowCloseRequestAnswer, MainWindowSpecification } from "./tatolab_main_window.js";
+import type { MainWindowCloseRequestAnswer, MainWindowSpecification, QuestionOverTheWindow } from "./tatolab_main_window.js";
 import type { TrayMenuItemDescription, TrayMenuItemId } from "./tatolab_tray_menu.js";
 import type { TatolabAppUpdateFeedForThisBuild } from "./tatolab_app_updater.js";
 import type { TatolabAppUpdatePackaging } from "./platform/tatolab_app_update_packaging.js";
@@ -46,6 +46,7 @@ export type FakeShellRecord = (
   | { asked: "create_main_window"; mainWindowSpecification: MainWindowSpecification }
   | { asked: "unminimize" | "show" | "focus" | "hide" | "close" }
   | { asked: "send_window_event"; eventChannel: string; eventPayload: unknown }
+  | { asked: "ask_a_question_over_the_window"; question: QuestionOverTheWindow }
   | { asked: "send_window_shared_texture"; frameFacts: PortViewerImageFrameFacts }
   | { asked: "set_activation_policy"; activationPolicy: MacosActivationPolicy }
   | { asked: "show_tray_menu"; trayMenuItems: readonly TrayMenuItemDescription[] }
@@ -57,6 +58,7 @@ export type FakeShellRecord = (
   | { asked: "open_folder_in_the_file_manager"; folder: string }
   | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
   | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderDialogPurpose; defaultFolder: string }
+  | { asked: "ask_for_a_dependency_source"; sourceKind: DependencySourceKind; defaultFolder: string }
 ) & { windowContentsId?: number };
 
 /** A fake Electron app shell for the lifecycle's tests. */
@@ -65,6 +67,8 @@ export class FakeTatolabElectronAppShell {
   readonly writtenLogLines: string[] = [];
   readonly tatolabAppLog = createTatolabAppLog("debug", (logLine) => this.writtenLogLines.push(logLine));
   holdsTheSingleInstanceLock = true;
+  /** The button the person chooses in each next question asked over a window, in order; past the last, its cancel button. */
+  readonly buttonsChosenInTheNextQuestionsOverAWindow: number[] = [];
   /** The copy this app reads itself as. */
   thisCopyOfTatolab: TatolabAppCopy = {
     executableThatOpensTheCopy: "/Applications/Tato Studio.app/Contents/MacOS/Tato Studio",
@@ -88,10 +92,16 @@ export class FakeTatolabElectronAppShell {
   streamProjectFolderTheDialogAnswers: string | null = null;
   /** The package catalog the fake network serves; `null` refuses every fetch. */
   packageCatalogTextServed: string | null = null;
+  /** The socket the app reads the runtime's local API at; `null` for one no runtime answers. */
+  localApiSocketPath: string | null = null;
+  /** The bytes each URL serves over HTTPS, a Marketplace `.zip` among them; any other URL is refused. */
+  readonly bytesServedByUrl = new Map<string, Buffer>();
   /** Every URL the app fetched over HTTPS, in order. */
   readonly urlsFetched: string[] = [];
   /** The folder the project dialog answers, or `null` for the person cancelling. */
   projectFolderTheDialogAnswers: string | null = null;
+  /** The folder or `.zip` the dependency source dialog answers, or `null` for the person cancelling. */
+  dependencySourceTheDialogAnswers: string | null = null;
   readonly systemNotifications = new FakeSystemNotifications((notificationShown) => this.records.push({ asked: "notify", ...notificationShown }));
   readonly appConfigDirectory = path.join(os.tmpdir(), `tl-app-config-${randomUUID()}`);
   private tatolabWindowCommandHandlers: TatolabWindowCommandHandlers | null = null;
@@ -128,7 +138,7 @@ export class FakeTatolabElectronAppShell {
     onAWindowClosed: (listener) => this.windowClosedListeners.push(listener),
     buildTheTatolabPlatformForThisBuild: async () =>
       fakeTatolabPlatformForThisBuild({
-        localApiSocket: path.join(this.appConfigDirectory, "no-runtime.sock"),
+        localApiSocket: this.localApiSocketPath ?? path.join(this.appConfigDirectory, "no-runtime.sock"),
         carriedRuntime: this.carriedRuntime,
         commandLineToolLink: this.commandLineToolLink,
         appUpdatePackaging: this.appUpdatePackaging,
@@ -149,10 +159,19 @@ export class FakeTatolabElectronAppShell {
       this.records.push({ asked: "ask_for_a_project_folder", chosenFor, defaultFolder });
       return succeeded(this.projectFolderTheDialogAnswers);
     },
+    askThePersonForADependencySource: async (sourceKind, defaultFolder) => {
+      this.records.push({ asked: "ask_for_a_dependency_source", sourceKind, defaultFolder });
+      return succeeded(this.dependencySourceTheDialogAnswers);
+    },
     watchFolderEntries: () => null,
     fetchTextOverHttps: async (url) => {
       this.urlsFetched.push(url);
       return this.packageCatalogTextServed === null ? failedWith("the fake shell reaches no network") : succeeded(this.packageCatalogTextServed);
+    },
+    fetchBytesOverHttps: async (url) => {
+      this.urlsFetched.push(url);
+      const bytesServed = this.bytesServedByUrl.get(url);
+      return bytesServed === undefined ? failedWith("the fake shell reaches no network") : succeeded(bytesServed);
     },
     startANodeLanguageServer: () => failedWith("the fake shell starts no language server"),
     pyrightLanguageServerModulePath: "/fake/node_modules/pyright/langserver.index.js",
@@ -193,6 +212,10 @@ export class FakeTatolabElectronAppShell {
           },
           close: () => this.closeTheFakeWindow(fakeWindow),
           isShowing: () => fakeWindow.showing,
+          askAQuestionOverTheWindow: (question) => {
+            this.records.push(recordOfThisWindow({ asked: "ask_a_question_over_the_window", question }));
+            return Promise.resolve(succeeded(this.buttonsChosenInTheNextQuestionsOverAWindow.shift() ?? question.cancelButtonIndex));
+          },
           sendTheWindowAnEvent: (eventChannel, eventPayload) => this.records.push(recordOfThisWindow({ asked: "send_window_event", eventChannel, eventPayload })),
           sendTheWindowASharedTexture: (_sharedTextureImport, frameFacts, whenEveryReferenceIsReleased) => {
             this.records.push(recordOfThisWindow({ asked: "send_window_shared_texture", frameFacts }));

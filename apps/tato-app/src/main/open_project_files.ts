@@ -9,8 +9,11 @@ import path from "node:path";
 import type { OpenProjectReading, ProjectFileRead, ProjectFileSaved, ProjectFiles } from "../shared/tatolab_backend_contract.js";
 import { replaceFileWhole } from "./file_replaced_whole.js";
 import { isAMissingFileFailure, realPathOrAsGiven } from "./file_system_entries_on_this_machine.js";
-import { PROJECT_DESCRIPTION_FILE_NAME } from "./project_on_disk.js";
+import { TATOLAB_PROJECT_FILE_NAME } from "./workspace_dependencies.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
+
+/** The Python project file at a project's root, which the code pane edits beside its Python files. */
+const PYTHON_PROJECT_FILE_NAME = "pyproject.toml";
 
 /** Folders a project's file listing never descends into: the venv uv makes, caches, and anything hidden. */
 const FOLDERS_A_PROJECT_LISTING_SKIPS = new Set([".venv", "__pycache__", "node_modules", "build", "dist"]);
@@ -112,8 +115,8 @@ export class OpenProjectFiles {
     } catch (listingFailure) {
       return depth === 0 ? failedWith(`${folder} could not be listed: ${describeCaughtFailure(listingFailure)}`) : succeeded(undefined);
     }
-    // A folder below the project's root holding its own pyproject.toml is another project, as an import copied in is.
-    if (depth > 0 && folderEntries.some((folderEntry) => folderEntry.isFile() && folderEntry.name === PROJECT_DESCRIPTION_FILE_NAME)) return succeeded(undefined);
+    // A folder below the project's root holding its own tatolab-project.json is another project, as an import copied in is.
+    if (depth > 0 && folderEntries.some((folderEntry) => folderEntry.isFile() && folderEntry.name === TATOLAB_PROJECT_FILE_NAME)) return succeeded(undefined);
     for (const folderEntry of folderEntries) {
       if (filesFound.length >= PROJECT_LISTING_FILE_LIMIT) return succeeded(undefined);
       if (folderEntry.name.startsWith(".")) continue;
@@ -122,7 +125,7 @@ export class OpenProjectFiles {
         if (depth < PROJECT_LISTING_DEPTH_LIMIT && !FOLDERS_A_PROJECT_LISTING_SKIPS.has(folderEntry.name)) {
           await this.listPythonFilesUnder(projectFolder, entryPath, depth + 1, filesFound);
         }
-      } else if (folderEntry.isFile() && (folderEntry.name.endsWith(".py") || (depth === 0 && folderEntry.name === PROJECT_DESCRIPTION_FILE_NAME))) {
+      } else if (folderEntry.isFile() && (folderEntry.name.endsWith(".py") || (depth === 0 && folderEntry.name === PYTHON_PROJECT_FILE_NAME))) {
         filesFound.push(path.relative(projectFolder, entryPath));
       }
     }

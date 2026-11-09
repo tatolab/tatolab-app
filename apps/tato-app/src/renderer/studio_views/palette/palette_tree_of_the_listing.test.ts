@@ -23,17 +23,21 @@ describe("the palette's tree", () => {
       "  Graph generators expanded",
       "    two_cameras_side_by_side leaf",
       "  nodes/half_written.py:12:5: SyntaxError: expected ':' leaf",
-      "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11 at v1 expanded",
+      "imports/hall-of-light expanded",
       "  Lighting expanded",
       "    Gripper leaf",
-      "camera 0.1.0 collapsed",
-      "lobby-recorder 0.4.1 collapsed",
+      "imports/camera expanded",
+      "  Camera expanded",
+      "    CameraTilt leaf",
+      "imports/lobby-recorder expanded",
+      "  Recording expanded",
+      "    LobbyRecorder leaf",
       "tatolab-testpattern 0.3.2 collapsed",
     ]);
   });
 
   it("opens the project's own declarations in its folder, and nothing for a source not the project's", () => {
-    const rows = paletteTreeOfTheListing(patternListing(), { "source:distribution:camera": true });
+    const rows = paletteTreeOfTheListing(patternListing(), {});
     const fileOfRow = (label: string) => {
       const meaning = rows.find(({ row }) => row.label === label)?.meaning;
       return meaning === undefined || meaning.kind === "nothing_to_select" ? undefined : meaning.file;
@@ -52,7 +56,7 @@ describe("the palette's tree", () => {
       ["nodes/half_written.py:12:5: SyntaxError: expected ':'", "unreadable"],
       ["nodes/inverting_effect.py:3:1: SyntaxError: unterminated triple-quoted string literal (detected at line 23)", "unreadable"],
     ]);
-    expect(rows[3]?.row.label).toBe("6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11 at v1");
+    expect(rows[3]?.row.label).toBe("imports/hall-of-light");
   });
 
   it("says a source declares no node types, and keeps a row the person closed closed", () => {

@@ -15,7 +15,7 @@ import {
 } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
-import { ProjectOpening } from "./open_project.js";
+import { ProjectOpening, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import { PythonLanguageServers } from "./python_language_servers.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { FakeTatolabElectronAppShell, PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
@@ -41,7 +41,6 @@ import {
   enabledArgumentsFrom,
   readProjectLogRecordsArgumentsFrom,
   removeProject,
-  runStreamAction,
   streamArgumentsFrom,
   linkCommandLineTool,
   tatolabWindowCommandHandlers,
@@ -57,6 +56,11 @@ afterEach(async () => {
 });
 
 const quietTatolabAppLog = createTatolabAppLog("error", () => {});
+
+const NO_RUNTIME_READS_THE_PROJECTS: ProjectReadingsOfTheRuntime = {
+  nameTheProject: async () => failedWith("no runtime answers"),
+  listTheDependencies: async () => failedWith("no runtime answers"),
+};
 
 const recordedResponseBody = (fixtureFileName: string) => readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
 
@@ -125,7 +129,9 @@ async function sharedStateOverFakes(
     platformItems: { mainWindowChrome: { titleBarStyle: "default" }, setDockIconVisible: () => {} },
     dockIconHost: fakeShellForTheWindows.tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: () => null,
+    projectReadingsOfTheRuntime: NO_RUNTIME_READS_THE_PROJECTS,
     runAfter: () => () => {},
+    stopTheProjectAsItsWindowCloses: async () => succeeded(undefined),
     whenAStudioWindowClosed: () => {},
     whenAWindowShowingPortViewersClosed: () => {},
     tatolabAppLog: quietTatolabAppLog,
@@ -138,6 +144,7 @@ async function sharedStateOverFakes(
     recentProjectFolders: recentProjectFoldersFileIn(appConfigDirectory, quietTatolabAppLog),
     readWallClockNowMs: () => 1_790_000_000_000,
     newProjectCreation: controller,
+    projectReadingsOfTheRuntime: NO_RUNTIME_READS_THE_PROJECTS,
     openTheProjectInItsStudioWindow: (folder) => appWindows.openTheProjectInItsStudioWindow(folder),
   });
   return {
@@ -179,6 +186,9 @@ async function sharedStateOverFakes(
     }),
     menusShownInTheSystemMenuBar,
     fetchTextOverHttps: async () => failedWith("these tests reach no network"),
+    fetchBytesOverHttps: async () => failedWith("these tests reach no network"),
+    moduleDownloadsFolder: path.join(appConfigDirectory, "module-downloads"),
+    dependencySourceDialog: async () => succeeded(null),
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLink,
     carriedRuntimeStarts,
@@ -397,24 +407,6 @@ test("each command answers the window in the contract's shape, a refusal in its 
   expect(await commandHandlers.describe_stream_graph(null, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "describe_stream_graph needs `stream`, a stream's id" });
 });
 
-test("a stream action queues on the runtime, then observes again whether it queued or was refused", async () => {
-  const sharedState = await sharedStateOverFakes(
-    [
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-answer-for-the-running-stream-pattern-main.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-refusal-for-the-stopped-stream-pattern-main.json")),
-    ],
-    "macos"
-  );
-  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
-
-  expect(await runStreamAction(sharedState, "stop_stream", "pattern-main-d76f70")).toEqual(succeeded(undefined));
-  expect(refreshRequests).toHaveBeenCalledTimes(1);
-  expect(await runStreamAction(sharedState, "stop_stream", "pattern-main-d76f70")).toEqual(
-    failedWith("Runtime error: the stream `pattern-main-d76f70` is already stopped; `start` loads it again"),
-  );
-  expect(refreshRequests).toHaveBeenCalledTimes(2);
-});
-
 test("removing a project queues on the runtime, then observes again whether it queued or was refused", async () => {
   const sharedState = await sharedStateOverFakes(
     [
@@ -438,8 +430,6 @@ test("each queued action answers the window null, and a missing argument or a pr
       httpResponse("200 OK", "text/plain", "ok"),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
       httpResponse("200 OK", "application/json", JSON.stringify({ machine: "jonathanf-macbook", streams: [] })),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-stop-stream-answer-for-the-running-stream-pattern-main.json")),
-      httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-start-stream-answer-for-the-stopped-stream-pattern-main.json")),
       httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-remove-project-answer-for-the-project-doorways.json")),
     ],
     "linux"
@@ -451,8 +441,7 @@ test("each queued action answers the window null, and a missing argument or a pr
   });
   await sharedState.statusPublisher.refreshAndPublish();
 
-  expect(await commandHandlers.stop_stream({ stream: "pattern-main-d76f70" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
-  expect(await commandHandlers.start_stream({ stream: "pattern-main-d76f70" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(await commandHandlers.stop_open_project(undefined, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "No project is open in this window." });
   expect(await commandHandlers.remove_project({ project_directory: "/home/jonathan-fontanez/scratch/app176/projects/doorways" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
   expect(await commandHandlers.remove_project({ stream: "pattern-main-d76f70" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,

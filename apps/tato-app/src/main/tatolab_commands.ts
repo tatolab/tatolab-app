@@ -7,7 +7,10 @@ import path from "node:path";
 import type {
   ChosenProjectFolder,
   JsonValue,
-  ImportPreview,
+  DependencySourceKind,
+  ProjectDependency,
+  WorkspaceDependency,
+  WorkspaceDependencyUpdate,
   PoppedOutViewerTarget,
   PortViewerTarget,
   ProjectCreationQueued,
@@ -22,14 +25,13 @@ import type {
   ProjectNodeTypeListing,
   StreamProjectFolderChosenFor,
   TatolabStatus,
-  TatolabStreamActionName,
   ProjectFolderChosenFor,
 } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { isAJsonObject, isAJsonValue } from "./json_on_the_wire.js";
 import { readThePackageCatalog } from "./package_catalog.js";
-import { pyprojectTextWithTheRequirementAdded } from "./project_dependency_adding.js";
-import { PROJECT_DESCRIPTION_FILE_NAME } from "./project_on_disk.js";
+import { importFolderInsideTheWorkspace, workspaceDependenciesOf } from "./workspace_dependencies.js";
+import { downloadTheCatalogEntrysZip } from "./marketplace_module_download.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import {
@@ -127,11 +129,6 @@ function answerTheWindowOnceQueued(
     sharedState.statusPublisher.requestRefresh();
     return queued.ok ? succeeded(undefined) : failedWith(queued.failure.failureDescription);
   });
-}
-
-/** `stop_stream` or `start_stream { stream }`: the runtime's tool of that name queued on `stream`, so the listing shows the stream `stopping` or `preparing`; refused in the runtime's own words. */
-export function runStreamAction(sharedState: TatolabAppSharedState, streamAction: TatolabStreamActionName, stream: string): Promise<Result<void, string>> {
-  return answerTheWindowOnceQueued(sharedState, streamAction, () => sharedState.controller.runStreamAction(streamAction, stream));
 }
 
 /** `remove_project { project_directory }`: the runtime's `remove_project` queued on the project, so the listing shows its streams `stopping`; refused in the runtime's own words. */
@@ -448,6 +445,13 @@ export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWi
   });
 }
 
+/** `stop_open_project`: the runtime's `stop_project` queued on the asking window's project's folder, so the listing shows its streams `stopping`; refused in the Projects window, or in the runtime's own words. */
+export async function stopOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+  const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+  if (!studioWindow.ok) return studioWindow;
+  return answerTheWindowOnceQueued(sharedState, "stop_open_project", () => sharedState.controller.stopProject(studioWindow.value.openProject.projectFolder));
+}
+
 /** `pop_out_viewer`'s arguments as the window sends them, or why they are not. */
 export function popOutViewerArgumentsFrom(commandArguments: unknown): Result<PoppedOutViewerTarget, string> {
   if (
@@ -475,62 +479,96 @@ export function popOutViewer(sharedState: TatolabAppSharedState, target: PoppedO
   return succeeded(undefined);
 }
 
-/** The studio window whose Get more window sent `commandFromWindow`, or the refusal any other window is given. */
-function studioWindowOfTheGetMoreWindowTheCommandCameFrom(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Result<StudioWindowOfAProject, string> {
-  const studioWindow = sharedState.appWindows.studioWindowOfTheGetMoreWindowWithContents(commandFromWindow.windowContentsId);
-  return studioWindow === null ? failedWith("Only a Get more window imports into a project.") : succeeded(studioWindow);
+/** The studio window whose Module manager window sent `commandFromWindow`, or the refusal any other window is given. */
+function studioWindowOfTheModuleManagerWindowTheCommandCameFrom(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Result<StudioWindowOfAProject, string> {
+  const studioWindow = sharedState.appWindows.studioWindowOfTheModuleManagerWindowWithContents(commandFromWindow.windowContentsId);
+  return studioWindow === null ? failedWith("Only a Module manager window imports into a project.") : succeeded(studioWindow);
 }
 
-/** The workspace's `pyproject.toml` as read from disk now, and the same text with `requirement` added, or why it cannot be. */
-async function importPreviewOf(studioWindow: StudioWindowOfAProject, requirement: string): Promise<Result<ImportPreview, string>> {
-  const reading = studioWindow.openProject.readOpenProject();
-  if (reading.kind !== "read") return failedWith(reading.kind === "none_open" ? "No project is open to import into." : `The project in ${reading.folder} could not be read: ${reading.refusal}`);
-  const descriptionFile = path.join(reading.open_project.project.folder, PROJECT_DESCRIPTION_FILE_NAME);
-  const descriptionRead = await studioWindow.openProjectFiles.readProjectFile(descriptionFile);
-  if (!descriptionRead.ok) return descriptionRead;
-  const textAfter = pyprojectTextWithTheRequirementAdded(descriptionRead.value.text, requirement);
-  if (!textAfter.ok) return textAfter;
-  return succeeded({ file: descriptionFile, text_before: descriptionRead.value.text, text_after: textAfter.value, based_on_version: descriptionRead.value.version });
+/** The folder of the project the Module manager window that sent `commandFromWindow` imports into, or the refusal any other window is given. */
+function workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Result<string, string> {
+  const studioWindow = studioWindowOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
+  return studioWindow.ok ? succeeded(studioWindow.value.openProject.projectFolder) : studioWindow;
 }
 
-/** `preview_import`: the asking Get more window's workspace `pyproject.toml` before and after `requirement` is added, nothing written. */
-export function previewImport(sharedState: TatolabAppSharedState, requirement: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ImportPreview, string>> {
-  return answerTheWindow("preview_import", async () => {
-    const studioWindow = studioWindowOfTheGetMoreWindowTheCommandCameFrom(sharedState, commandFromWindow);
-    return studioWindow.ok ? importPreviewOf(studioWindow.value, requirement) : studioWindow;
+/** `list_workspace_dependencies`: the asking Module manager window's workspace's imports, each source read for a newer version with `checkForNewer`; refused in the runtime's own words. */
+export function listWorkspaceDependencies(sharedState: TatolabAppSharedState, checkForNewer: boolean, commandFromWindow: TatolabCommandFromWindow): Promise<Result<WorkspaceDependency[], string>> {
+  return answerTheWindow("list_workspace_dependencies", async () => {
+    const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!workspaceFolder.ok) return workspaceFolder;
+    const listed = await sharedState.controller.listDependencies(workspaceFolder.value, checkForNewer);
+    if (!listed.ok) return failedWith(listed.failure.failureDescription);
+    return succeeded(await workspaceDependenciesOf(workspaceFolder.value, listed.value, (projectFolder) => sharedState.controller.nameTheProject(projectFolder)));
   });
 }
 
-/** `import_into_workspace`: `requirement` written into the workspace's `pyproject.toml` when it is still at `basedOnVersion`; refused with nothing written otherwise. */
-export function importIntoWorkspace(
+/** `choose_dependency_source`: the desktop's open dialog for a project's folder or `.zip`, opened beside the workspace; `null` when the person cancels. */
+export function chooseDependencySource(sharedState: TatolabAppSharedState, sourceKind: DependencySourceKind, commandFromWindow: TatolabCommandFromWindow): Promise<Result<string | null, string>> {
+  return answerTheWindow("choose_dependency_source", async () => {
+    const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!workspaceFolder.ok) return workspaceFolder;
+    return sharedState.dependencySourceDialog(sourceKind, path.dirname(workspaceFolder.value));
+  });
+}
+
+/** `add_dependency_to_the_workspace`: the runtime's `add_dependency` copies `source` into the asking Module manager window's workspace; refused in the runtime's own words. */
+export function addDependencyToTheWorkspace(sharedState: TatolabAppSharedState, source: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectDependency, string>> {
+  return answerTheWindow("add_dependency_to_the_workspace", async () => {
+    const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!workspaceFolder.ok) return workspaceFolder;
+    if (!path.isAbsolute(source)) return failedWith(`${source} is not a full path to a project's folder or .zip.`);
+    const added = await sharedState.controller.addDependency(workspaceFolder.value, source);
+    if (!added.ok) return failedWith(added.failure.failureDescription);
+    sharedState.tatolabAppLog.info("imported a project into the workspace", { source, folder: added.value.folder, project_folder: workspaceFolder.value });
+    return added;
+  });
+}
+
+/** `update_workspace_dependency`: the runtime's `update_dependency` copies the import `project` again, overwriting files edited since its copy only with `overwriteEditedFiles`; refused in the runtime's own words. */
+export function updateWorkspaceDependency(
   sharedState: TatolabAppSharedState,
-  requirement: string,
-  basedOnVersion: string,
+  project: string,
+  overwriteEditedFiles: boolean,
   commandFromWindow: TatolabCommandFromWindow,
-): Promise<Result<void, string>> {
-  return answerTheWindow("import_into_workspace", async () => {
-    const studioWindow = studioWindowOfTheGetMoreWindowTheCommandCameFrom(sharedState, commandFromWindow);
-    if (!studioWindow.ok) return studioWindow;
-    const preview = await importPreviewOf(studioWindow.value, requirement);
-    if (!preview.ok) return preview;
-    if (preview.value.based_on_version !== basedOnVersion) return failedWith("pyproject.toml changed since the import was shown; nothing was written. Look at the change again before importing.");
-    const saved = await studioWindow.value.openProjectFiles.saveProjectFile(preview.value.file, preview.value.text_after, basedOnVersion);
-    if (!saved.ok) return saved;
-    sharedState.tatolabAppLog.info("imported a project into the workspace", { requirement, project_folder: studioWindow.value.openProject.projectFolder });
-    return succeeded(undefined);
+): Promise<Result<WorkspaceDependencyUpdate, string>> {
+  return answerTheWindow("update_workspace_dependency", async () => {
+    const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!workspaceFolder.ok) return workspaceFolder;
+    const update = await sharedState.controller.updateDependency(workspaceFolder.value, project, overwriteEditedFiles);
+    if (!update.ok) return failedWith(update.failure.failureDescription);
+    if (update.value.kind === "updated") sharedState.tatolabAppLog.info("updated an import of the workspace", { project, project_folder: workspaceFolder.value });
+    return update;
   });
 }
 
-/** `open_import_to_edit`: the workspace's import `name`, whose source is a folder, opened in its own studio window; refused for an import with no folder. */
-export function openImportToEdit(sharedState: TatolabAppSharedState, name: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+/** `import_from_the_marketplace`: the catalog entry `name`, read afresh, downloaded as its `.zip` into the app's downloads folder and checked, then copied into the asking Module manager window's workspace by the runtime's `add_dependency`; refused in words. */
+export function importFromTheMarketplace(sharedState: TatolabAppSharedState, name: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<ProjectDependency, string>> {
+  return answerTheWindow("import_from_the_marketplace", async () => {
+    const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!workspaceFolder.ok) return workspaceFolder;
+    const catalog = await readThePackageCatalog(sharedState.fetchTextOverHttps);
+    if (catalog.kind === "not_read") return failedWith(catalog.because);
+    const entry = catalog.entries.find((listed) => listed.name === name);
+    if (entry === undefined) return failedWith(`The catalog lists nothing named ${name}.`);
+    const zipPath = await downloadTheCatalogEntrysZip(entry, sharedState.fetchBytesOverHttps, sharedState.moduleDownloadsFolder);
+    if (!zipPath.ok) return zipPath;
+    const added = await sharedState.controller.addDependency(workspaceFolder.value, zipPath.value);
+    if (!added.ok) return failedWith(added.failure.failureDescription);
+    sharedState.tatolabAppLog.info("imported a Marketplace module into the workspace", { name, version: entry.version, folder: added.value.folder, project_folder: workspaceFolder.value });
+    return added;
+  });
+}
+
+/** `open_import_to_edit`: the workspace's `imports/<folder>/` opened in its own studio window; refused for a folder the runtime does not list among the workspace's imports. */
+export function openImportToEdit(sharedState: TatolabAppSharedState, folder: string, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
   return answerTheWindow("open_import_to_edit", async () => {
-    const studioWindow = studioWindowOfTheGetMoreWindowTheCommandCameFrom(sharedState, commandFromWindow);
-    if (!studioWindow.ok) return studioWindow;
-    const reading = studioWindow.value.openProject.readOpenProject();
-    const importedProject = reading.kind === "read" ? reading.open_project.imports.find((imported) => imported.name === name) : undefined;
-    if (importedProject === undefined) return failedWith(`The project imports nothing named ${name}.`);
-    if (importedProject.source.kind !== "folder") return failedWith(`${name} comes from a package index, so it has no folder of its own to open; only an import from a folder opens to edit.`);
-    await sharedState.appWindows.openTheProjectInItsStudioWindow(importedProject.source.project.folder);
+    const workspaceFolder = workspaceFolderOfTheModuleManagerWindowTheCommandCameFrom(sharedState, commandFromWindow);
+    if (!workspaceFolder.ok) return workspaceFolder;
+    const importFolder = importFolderInsideTheWorkspace(workspaceFolder.value, folder);
+    const listed = await sharedState.controller.listDependencies(workspaceFolder.value, false);
+    if (!listed.ok) return failedWith(listed.failure.failureDescription);
+    if (importFolder === null || !listed.value.some((imported) => imported.dependency.folder === folder)) return failedWith(`The project imports nothing in imports/${folder}.`);
+    await sharedState.appWindows.openTheProjectInItsStudioWindow(importFolder);
     return succeeded(undefined);
   });
 }
@@ -626,8 +664,6 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!askableProjectDirectory.ok) return { ok: false, refusal: askableProjectDirectory.failure };
       return commandAnswerFrom(await listProjectNodeTypes(sharedState, askableProjectDirectory.value));
     },
-    stop_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "stop_stream", commandArguments)),
-    start_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "start_stream", commandArguments)),
     remove_project: async (commandArguments) => {
       const projectDirectory = oneTextArgumentFrom("remove_project", commandArguments, "project_directory", "a project's folder as the runtime lists it");
       if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
@@ -730,33 +766,48 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       ok: true,
       value: sharedState.appWindows.poppedOutViewerTargetOfTheWindowWithContents(commandFromWindow.windowContentsId),
     }),
-    open_get_more_window: async (_commandArguments, commandFromWindow) => {
+    open_module_manager_window: async (_commandArguments, commandFromWindow) => {
       const studioWindow = sharedState.appWindows.studioWindowWithContents(commandFromWindow.windowContentsId);
-      if (studioWindow === null) return { ok: false, refusal: "Only a project's studio window opens Get more." };
-      sharedState.appWindows.openTheGetMoreWindowOf(studioWindow);
+      if (studioWindow === null) return { ok: false, refusal: "Only a project's studio window opens Module manager." };
+      sharedState.appWindows.openTheModuleManagerWindowOf(studioWindow);
       return { ok: true, value: null };
     },
-    read_get_more_workspace: async (_commandArguments, commandFromWindow) => ({
+    read_module_manager_workspace: async (_commandArguments, commandFromWindow) => ({
       ok: true,
-      value: sharedState.appWindows.studioWindowOfTheGetMoreWindowWithContents(commandFromWindow.windowContentsId)?.openProject.readOpenProject() ?? null,
+      value: sharedState.appWindows.studioWindowOfTheModuleManagerWindowWithContents(commandFromWindow.windowContentsId)?.openProject.readOpenProject() ?? null,
     }),
     read_package_catalog: async () => ({ ok: true, value: await readThePackageCatalog(sharedState.fetchTextOverHttps) }),
-    preview_import: async (commandArguments, commandFromWindow) => {
-      const requirement = oneTextArgumentFrom("preview_import", commandArguments, "requirement", "the requirement to add");
-      if (!requirement.ok) return { ok: false, refusal: requirement.failure };
-      return commandAnswerFrom(await previewImport(sharedState, requirement.value, commandFromWindow));
+    list_workspace_dependencies: async (commandArguments, commandFromWindow) => {
+      const checkForNewer = isAJsonObject(commandArguments) ? commandArguments["check_for_newer"] : undefined;
+      if (typeof checkForNewer !== "boolean") return { ok: false, refusal: "list_workspace_dependencies needs `check_for_newer`, true to read each import's source for a newer version" };
+      return commandAnswerFrom(await listWorkspaceDependencies(sharedState, checkForNewer, commandFromWindow));
     },
-    import_into_workspace: async (commandArguments, commandFromWindow) => {
-      const requirement = oneTextArgumentFrom("import_into_workspace", commandArguments, "requirement", "the requirement to add");
-      if (!requirement.ok) return { ok: false, refusal: requirement.failure };
-      const basedOnVersion = oneTextArgumentFrom("import_into_workspace", commandArguments, "based_on_version", "the version preview_import read pyproject.toml at");
-      if (!basedOnVersion.ok) return { ok: false, refusal: basedOnVersion.failure };
-      return commandAnswerOfNothingFrom(await importIntoWorkspace(sharedState, requirement.value, basedOnVersion.value, commandFromWindow));
+    choose_dependency_source: async (commandArguments, commandFromWindow) => {
+      const sourceKind = isAJsonObject(commandArguments) ? commandArguments["source_kind"] : undefined;
+      if (sourceKind !== "folder" && sourceKind !== "zip") return { ok: false, refusal: "choose_dependency_source needs `source_kind`, `folder` or `zip`" };
+      return commandAnswerFrom(await chooseDependencySource(sharedState, sourceKind, commandFromWindow));
+    },
+    add_dependency_to_the_workspace: async (commandArguments, commandFromWindow) => {
+      const source = oneTextArgumentFrom("add_dependency_to_the_workspace", commandArguments, "source", "a project's folder or .zip, as a full path");
+      if (!source.ok) return { ok: false, refusal: source.failure };
+      return commandAnswerFrom(await addDependencyToTheWorkspace(sharedState, source.value, commandFromWindow));
+    },
+    update_workspace_dependency: async (commandArguments, commandFromWindow) => {
+      const project = oneTextArgumentFrom("update_workspace_dependency", commandArguments, "project", "the UUID of one of the workspace's imports");
+      if (!project.ok) return { ok: false, refusal: project.failure };
+      const overwriteEditedFiles = isAJsonObject(commandArguments) ? commandArguments["overwrite_edited_files"] : undefined;
+      if (typeof overwriteEditedFiles !== "boolean") return { ok: false, refusal: "update_workspace_dependency needs `overwrite_edited_files`, true to overwrite the files edited since the import's copy" };
+      return commandAnswerFrom(await updateWorkspaceDependency(sharedState, project.value, overwriteEditedFiles, commandFromWindow));
+    },
+    import_from_the_marketplace: async (commandArguments, commandFromWindow) => {
+      const name = oneTextArgumentFrom("import_from_the_marketplace", commandArguments, "name", "the name of an entry the catalog lists");
+      if (!name.ok) return { ok: false, refusal: name.failure };
+      return commandAnswerFrom(await importFromTheMarketplace(sharedState, name.value, commandFromWindow));
     },
     open_import_to_edit: async (commandArguments, commandFromWindow) => {
-      const name = oneTextArgumentFrom("open_import_to_edit", commandArguments, "name", "the name of one of the workspace's imports");
-      if (!name.ok) return { ok: false, refusal: name.failure };
-      return commandAnswerOfNothingFrom(await openImportToEdit(sharedState, name.value, commandFromWindow));
+      const folder = oneTextArgumentFrom("open_import_to_edit", commandArguments, "folder", "the folder under imports/ of one of the workspace's imports");
+      if (!folder.ok) return { ok: false, refusal: folder.failure };
+      return commandAnswerOfNothingFrom(await openImportToEdit(sharedState, folder.value, commandFromWindow));
     },
     read_project_file: async (commandArguments, commandFromWindow) => {
       const file = oneTextArgumentFrom("read_project_file", commandArguments, "file", "an absolute path in the open project");
@@ -781,6 +832,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       return commandAnswerFrom(await answerTheWindow("list_project_files", () => studioWindow.value.openProjectFiles.listProjectFiles(projectFolder.value)));
     },
     run_open_project: async (_commandArguments, commandFromWindow) => commandAnswerFrom(await runOpenProject(sharedState, commandFromWindow)),
+    stop_open_project: async (_commandArguments, commandFromWindow) => commandAnswerOfNothingFrom(await stopOpenProject(sharedState, commandFromWindow)),
     start_python_language_server: async (commandArguments, commandFromWindow) => {
       const projectFolder = oneTextArgumentFrom("start_python_language_server", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
       if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };
@@ -829,13 +881,4 @@ async function streamProjectFolderOpeningOnTheStreamNamedIn(
 ): Promise<Result<void, string>> {
   const streamArguments = streamArgumentsFrom(commandName, commandArguments);
   return streamArguments.ok ? openStreamProjectFolderOnRequest(sharedState, commandName, streamArguments.value.stream) : streamArguments;
-}
-
-async function streamActionOnTheStreamNamedIn(
-  sharedState: TatolabAppSharedState,
-  streamAction: TatolabStreamActionName,
-  commandArguments: unknown,
-): Promise<Result<void, string>> {
-  const streamArguments = streamArgumentsFrom(streamAction, commandArguments);
-  return streamArguments.ok ? runStreamAction(sharedState, streamAction, streamArguments.value.stream) : streamArguments;
 }

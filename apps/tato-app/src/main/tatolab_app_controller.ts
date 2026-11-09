@@ -15,14 +15,17 @@ import type {
   StreamGraphSummary,
   NodeCatalog,
   ProjectNodeTypeListing,
+  ProjectTheRuntimeNames,
+  ProjectDependency,
+  WorkspaceDependencyUpdate,
   TatolabAppBuild,
   TatolabAppUpdateState,
   TatolabPlatform,
   TatolabStatus,
-  TatolabStreamActionName,
 } from "../shared/tatolab_backend_contract.js";
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
+import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
 import { LocalApiClient, type LocalApiRequestFailure } from "./local_api_client.js";
 import type { StartTheCarriedRuntimeAsAChildProcess } from "./platform/carried_runtime.js";
 import type { TatolabCommandLineToolLink } from "./platform/command_line_tool_link_in_the_home_folder.js";
@@ -212,9 +215,9 @@ export class TatolabAppController {
     return this.localApiClient.readProjectLogRecords(projectDirectory, narrowing, after, PROJECT_LOG_RECORDS_PER_PAGE);
   }
 
-  /** Queue the stream action `streamAction` on `stream`, answering the id of the action the runtime queued. */
-  runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string, LocalApiRequestFailure>> {
-    return this.localApiClient.runStreamAction(streamAction, stream);
+  /** Queue the stop of every stream of the project in `projectDirectory` through the runtime's `stop_project`, answering the id of the action the runtime queued. */
+  stopProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.localApiClient.stopProject(projectDirectory);
   }
 
   /** Queue the removal of every stream the runtime holds from the project in `projectDirectory`, answering the id of the action the runtime queued. */
@@ -265,6 +268,26 @@ export class TatolabAppController {
   /** What the project in `projectDirectory` and each source it draws node code from declares, read from source without running it. */
   listProjectNodeTypes(projectDirectory: string): Promise<Result<ProjectNodeTypeListing, LocalApiRequestFailure>> {
     return this.localApiClient.listProjectNodeTypes(projectDirectory);
+  }
+
+  /** The project in `projectDirectory` as the runtime names it. */
+  nameTheProject(projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
+    return this.localApiClient.nameTheProject(projectDirectory);
+  }
+
+  /** Copy the project in `source` into `imports/` of the project in `projectDirectory`. */
+  addDependency(projectDirectory: string, source: string): Promise<Result<ProjectDependency, LocalApiRequestFailure>> {
+    return this.localApiClient.addDependency(projectDirectory, source);
+  }
+
+  /** Copy the import `project` of the project in `projectDirectory` again from its source, overwriting files edited since its copy only with `overwriteEditedFiles`. */
+  updateDependency(projectDirectory: string, project: string, overwriteEditedFiles: boolean): Promise<Result<WorkspaceDependencyUpdate, LocalApiRequestFailure>> {
+    return this.localApiClient.updateDependency(projectDirectory, project, overwriteEditedFiles);
+  }
+
+  /** Each import of the project in `projectDirectory`, each source read for a newer version with `checkForNewer`. */
+  listDependencies(projectDirectory: string, checkForNewer: boolean): Promise<Result<ListedProjectDependency[], LocalApiRequestFailure>> {
+    return this.localApiClient.listDependencies(projectDirectory, checkForNewer);
   }
 
   /** The runtime's streams, or why listing them failed, which is logged on the round it starts failing. */

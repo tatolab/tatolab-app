@@ -1,4 +1,4 @@
-import { BrowserWindow, sharedTexture, type SharedTextureImported } from "electron";
+import { BrowserWindow, dialog, sharedTexture, type SharedTextureImported } from "electron";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "../result.js";
 import type { TatolabAppLog } from "../tatolab_app_log.js";
 import { isACommandFromTheWindowsOwnPage, isOnTheWindowPagesOwnLocation } from "../tatolab_window_page_source.js";
@@ -46,7 +46,7 @@ export function createElectronMainWindowHostFactory(
         return failedWith(describeCaughtFailure(caughtFailure));
       }
       mainBrowserWindow.on("close", (closeEvent) => {
-        if (answerCloseRequest() === "hide_instead") closeEvent.preventDefault();
+        if (answerCloseRequest() !== "let_it_close") closeEvent.preventDefault();
       });
       mainBrowserWindow.once("closed", whenClosed);
       // Electron retitles a window with its page's `<title>` on every load; each window keeps the title its role gives it.
@@ -88,6 +88,22 @@ export function createElectronMainWindowHostFactory(
         },
         close: () => mainBrowserWindow.destroy(),
         isShowing: () => firstShowGate.showIsWaitingForThePage() || (mainBrowserWindow.isVisible() && !mainBrowserWindow.isMinimized()),
+        askAQuestionOverTheWindow: async (question) => {
+          try {
+            const messageBoxAnswer = await dialog.showMessageBox(mainBrowserWindow, {
+              type: "question",
+              message: question.message,
+              detail: question.detail,
+              buttons: [...question.buttonLabels],
+              defaultId: 0,
+              cancelId: question.cancelButtonIndex,
+              noLink: true,
+            });
+            return succeeded(messageBoxAnswer.response);
+          } catch (caughtFailure) {
+            return failedWith(`The message box did not open: ${describeCaughtFailure(caughtFailure)}`);
+          }
+        },
         sendTheWindowAnEvent: (eventChannel, eventPayload) => {
           if (!windowContents.isDestroyed()) windowContents.send(eventChannel, eventPayload);
         },

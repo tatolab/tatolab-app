@@ -24,7 +24,7 @@ export type {
   ProjectNodeTypeSourceOrigin,
   ProjectNodeTypeSource,
   ProjectNodeTypeListing,
-  ProjectOnDisk,
+  ProjectTheRuntimeNames,
   ImportedProjectSource,
   ImportedProject,
   OpenProject,
@@ -49,9 +49,6 @@ export type TatolabPlatform = "macos" | "linux";
  * started again shortly, or an app that carries none (an unpackaged one) finding none running.
  */
 export type RuntimeState = "running" | "starting" | "not_running";
-
-/** A stream action the window asks the runtime to queue on one stream, named as the runtime's tool and the window's command are. */
-export type TatolabStreamActionName = "stop_stream" | "start_stream";
 
 /** How a newer Tatolab found by a check reaches the person: downloaded in the background and installed in place as the app restarts; or its download opened, for a `.deb`, which only apt replaces. */
 export type TatolabAppUpdateDelivery = "install_and_relaunch" | "open_the_download";
@@ -237,6 +234,12 @@ export interface PackageCatalogMember {
   summary: string;
 }
 
+/** Where a catalog entry's project is downloaded from, as a `.zip`, and the SHA-256 the download must have. */
+export interface PackageCatalogDownload {
+  url: string;
+  sha256: string;
+}
+
 /** One package or sample project the catalog at get.tatolab.com lists, as its version 1 serves it. */
 export interface PackageCatalogEntry {
   kind: "package" | "sample";
@@ -245,8 +248,8 @@ export interface PackageCatalogEntry {
   title: string;
   summary: string;
   version: string;
-  /** The PEP 508 requirement Import adds to `[project] dependencies` as it is. */
-  requirement: string;
+  /** The `.zip` of the project Import downloads and its SHA-256, or `null` where the catalog names none. */
+  download: PackageCatalogDownload | null;
   nodes: PackageCatalogMember[];
   streams: PackageCatalogMember[];
   homepage_url: string | null;
@@ -257,13 +260,36 @@ export type PackageCatalogReading =
   | { kind: "read"; entries: PackageCatalogEntry[]; unreadable_entry_count: number }
   | { kind: "not_read"; because: string };
 
-/** What `preview_import` answers: the workspace's `pyproject.toml` before and after the requirement is added, and the version it was read at, which `import_into_workspace` takes back. */
-export interface ImportPreview {
-  file: string;
-  text_before: string;
-  text_after: string;
-  based_on_version: string;
+/** A project the workspace imports, as the runtime's dependency tools answer it: a copy of `source` in `imports/<folder>/`. */
+export interface ProjectDependency {
+  /** The imported project's UUID. */
+  project: string;
+  folder: string;
+  /** The folder or `.zip` it was copied from, as it was given. */
+  source: string;
+  /** The SHA-256 naming the version its copy carried. */
+  version: string;
 }
+
+/** One of the workspace's imports as Module manager lists it: what the runtime says of it, and its name from `imports/<folder>/tatolab-project.json`. */
+export interface WorkspaceDependency extends ProjectDependency {
+  /** `imports/<folder>/` inside the workspace, absolute. */
+  folder_path: string;
+  /** The name the runtime reads from its copy, or `null` where it could not read it. */
+  name: string | null;
+  /** Each file of its folder edited since its copy, by its path inside the folder. */
+  edited_files: string[];
+  /** Whether its source holds another version than its copy; `null` when not checked or the check was refused. */
+  newer_version_exists: boolean | null;
+  /** Why its source could not be read for the check, in the runtime's words. */
+  check_refused_because: string | null;
+}
+
+/** What `update_workspace_dependency` answers: the copy updated, or, with the overwrite not confirmed, each file edited since its copy and nothing changed. */
+export type WorkspaceDependencyUpdate = { kind: "updated"; dependency: ProjectDependency } | { kind: "edited_since_its_copy"; edited_files: string[] };
+
+/** What a dependency source is chosen as in the dialog: a project's folder, or a `.zip` of one. */
+export type DependencySourceKind = "folder" | "zip";
 
 /** What the project folder dialog is opened for from the window: an existing project to open. */
 export type ProjectFolderChosenFor = "project_to_open";
@@ -285,7 +311,7 @@ export interface ChosenProjectFolder {
 /** One project opened before, as `read_recent_projects` answers it for the Projects window, recent first. */
 export interface RecentProject {
   folder: string;
-  /** The `[project]` name its `pyproject.toml` gives, or `null` when the folder or the file does not read now. */
+  /** The project's name as the runtime reads it now, or `null` when the runtime names no project there. */
   project_name: string | null;
   /** When it was last opened, in milliseconds since the epoch on the wall clock: for display only. */
   last_opened_at_wall_clock_ms: number;

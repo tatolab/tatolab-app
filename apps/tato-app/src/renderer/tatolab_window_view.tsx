@@ -12,10 +12,10 @@ import {
   type TatolabWindowEnvironment,
 } from "./setup_and_preferences/tatolab_window_context";
 import { RUN_LIVE_KEY, studioMenusSentToTheSystemMenuBar, type StudioMenuBarCommands } from "./studio_shell/studio_menu_bar_model";
-import { GetMoreWindowView, type GetMoreSources } from "./studio_shell/get_more_window_view";
+import { ModuleManagerWindowView, type ModuleManagerSources } from "./studio_shell/module_manager_window_view";
 import { PoppedOutViewerWindowView } from "./studio_shell/popped_out_viewer_window_view";
 import { StudioWindow, type StudioWindowSources } from "./studio_shell/studio_window";
-import { StudioWindowModel, streamsOfTheProjectToStop } from "./studio_shell/studio_window_model";
+import { StudioWindowModel } from "./studio_shell/studio_window_model";
 import { STUDIO_LAYOUTS, StudioLayoutsKeptInStorage } from "./studio_shell/studio_layouts";
 
 import { CODE_EDITOR_VIEW_TYPE } from "./studio_views/code_editor/code_editor_view_type";
@@ -77,20 +77,20 @@ function listTheOpenProjectsStudioViews(backend: TatolabBackend, studioWindowMod
   });
 }
 
-/** The studio, the Viewer alone in a window popped out of one, or a studio window's Get more window: the window's one screen from the first status on. */
+/** The studio, the Viewer alone in a window popped out of one, or a studio window's Module manager window: the window's one screen from the first status on. */
 function TatolabWindowRoot({
   studioWindowSources,
-  getMoreSources,
+  moduleManagerSources,
   noticeTheFirstStatusCommitted,
 }: {
   studioWindowSources: StudioWindowSources;
-  getMoreSources: GetMoreSources;
+  moduleManagerSources: ModuleManagerSources;
   noticeTheFirstStatusCommitted: () => void;
 }) {
   useEffect(noticeTheFirstStatusCommitted, [noticeTheFirstStatusCommitted]);
   const poppedOutViewer = useWatchedStudioValue(studioWindowSources.model.poppedOutViewer);
-  const getMoreWorkspace = useWatchedStudioValue(studioWindowSources.model.getMoreWorkspace);
-  if (getMoreWorkspace !== null) return <GetMoreWindowView workspace={getMoreWorkspace} sources={getMoreSources} platform={studioWindowSources.platform} />;
+  const moduleManagerWorkspace = useWatchedStudioValue(studioWindowSources.model.moduleManagerWorkspace);
+  if (moduleManagerWorkspace !== null) return <ModuleManagerWindowView workspace={moduleManagerWorkspace} sources={moduleManagerSources} platform={studioWindowSources.platform} />;
   if (poppedOutViewer !== null) {
     return (
       <PoppedOutViewerWindowView
@@ -167,21 +167,11 @@ export function mountTatolabWindow(
     },
     stopTheProject: () => {
       studioWindowModel.projectRunRefusal.publish(null);
-      const openProject = studioWindowModel.openProject.readLatest();
-      if (openProject.kind !== "read") return;
-      const { folder, name } = openProject.open_project.project;
-      const streamsToStop = streamsOfTheProjectToStop(studioWindowModel.listedStreams.readLatest(), folder);
-      if (streamsToStop.length === 0) {
-        studioWindowModel.projectRunRefusal.publish({ asked_to: "stop", because: `No stream of ${name} is running.` });
-        return;
-      }
-      Promise.all(streamsToStop.map((stream) => backend.runStreamAction("stop_stream", stream))).catch((rejection: unknown) =>
-        studioWindowModel.projectRunRefusal.publish({ asked_to: "stop", because: describeBackendRejection(rejection) }),
-      );
+      backend.stopOpenProject().catch((rejection: unknown) => studioWindowModel.projectRunRefusal.publish({ asked_to: "stop", because: describeBackendRejection(rejection) }));
     },
-    openGetMore: () => {
+    openModuleManager: () => {
       studioWindowModel.projectOpeningRefusal.publish(null);
-      backend.openGetMoreWindow().catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
+      backend.openModuleManagerWindow().catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
     },
   };
   let onChosenByEntryIdOfTheMenusSent: ReadonlyMap<string, () => void> = new Map();
@@ -225,14 +215,18 @@ export function mountTatolabWindow(
     platform,
   };
   backend.onOpenProjectChanged((reading) => {
-    if (studioWindowModel.getMoreWorkspace.readLatest() !== null) studioWindowModel.getMoreWorkspace.publish(reading);
+    if (studioWindowModel.moduleManagerWorkspace.readLatest() !== null) studioWindowModel.moduleManagerWorkspace.publish(reading);
     else studioWindowModel.showOpenProject(reading);
   });
-  const getMoreSources: GetMoreSources = {
+  const moduleManagerSources: ModuleManagerSources = {
     readPackageCatalog: () => backend.readPackageCatalog(),
-    previewImport: (requirement) => backend.previewImport(requirement),
-    importIntoWorkspace: (requirement, basedOnVersion) => backend.importIntoWorkspace(requirement, basedOnVersion),
-    openImportToEdit: (name) => backend.openImportToEdit(name),
+    listWorkspaceDependencies: (checkForNewer) => backend.listWorkspaceDependencies(checkForNewer),
+    chooseDependencySource: (sourceKind) => backend.chooseDependencySource(sourceKind),
+    addDependencyToTheWorkspace: (source) => backend.addDependencyToTheWorkspace(source),
+    updateWorkspaceDependency: (project, overwriteEditedFiles) => backend.updateWorkspaceDependency(project, overwriteEditedFiles),
+    importFromTheMarketplace: (name) => backend.importFromTheMarketplace(name),
+    openImportToEdit: (folder) => backend.openImportToEdit(folder),
+    pathOfADroppedFile: (droppedFile) => backend.pathOfADroppedFile(droppedFile),
     describeRejection: describeBackendRejection,
   };
   const readTheOpenProject = () =>
@@ -240,9 +234,9 @@ export function mountTatolabWindow(
       (reading) => studioWindowModel.showOpenProject(reading),
       (rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)),
     );
-  const whatTheWindowShowsIsRead = Promise.all([backend.readPoppedOutViewer().catch(() => null), backend.readGetMoreWorkspace().catch(() => null)]).then(([poppedOutViewer, getMoreWorkspace]) => {
+  const whatTheWindowShowsIsRead = Promise.all([backend.readPoppedOutViewer().catch(() => null), backend.readModuleManagerWorkspace().catch(() => null)]).then(([poppedOutViewer, moduleManagerWorkspace]) => {
     if (poppedOutViewer !== null) studioWindowModel.showAsPoppedOutViewer(poppedOutViewer);
-    else if (getMoreWorkspace !== null) studioWindowModel.getMoreWorkspace.publish(getMoreWorkspace);
+    else if (moduleManagerWorkspace !== null) studioWindowModel.moduleManagerWorkspace.publish(moduleManagerWorkspace);
     else readTheOpenProject();
   });
   backend.onStreamPageRequested((streamId) => studioWindowModel.openStreamTabOfAListedStream(streamId));
@@ -270,7 +264,7 @@ export function mountTatolabWindow(
   }
 
   document.addEventListener("keydown", (keyboardEvent) => {
-    if (statusStore === null || studioWindowModel.poppedOutViewer.readLatest() !== null || studioWindowModel.getMoreWorkspace.readLatest() !== null) return;
+    if (statusStore === null || studioWindowModel.poppedOutViewer.readLatest() !== null || studioWindowModel.moduleManagerWorkspace.readLatest() !== null) return;
     if (keyboardEvent.key === RUN_LIVE_KEY && !keyboardEvent.metaKey && !keyboardEvent.ctrlKey && !keyboardEvent.altKey) {
       if (studioWindowModel.studioLayouts.readLatest() === null) return;
       keyboardEvent.preventDefault();
@@ -306,7 +300,7 @@ export function mountTatolabWindow(
       <StrictMode>
         <TatolabWindowEnvironmentContext value={environment}>
           <ControlTooltipProvider>
-            <TatolabWindowRoot studioWindowSources={studioWindowSources} getMoreSources={getMoreSources} noticeTheFirstStatusCommitted={noticeTheFirstStatusCommitted} />
+            <TatolabWindowRoot studioWindowSources={studioWindowSources} moduleManagerSources={moduleManagerSources} noticeTheFirstStatusCommitted={noticeTheFirstStatusCommitted} />
           </ControlTooltipProvider>
         </TatolabWindowEnvironmentContext>
       </StrictMode>,

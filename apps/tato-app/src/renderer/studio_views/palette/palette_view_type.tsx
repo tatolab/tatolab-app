@@ -170,7 +170,7 @@ function PaletteBody({ connection }: { connection: StudioViewHostConnection<Pale
   return <PaletteOfTheProject key={openProject.open_project.project.folder} connection={connection} projectFolder={openProject.open_project.project.folder} />;
 }
 
-/** The palette: the node types and graph generators the open project, its linked dependencies and its installed distributions declare. */
+/** The palette: the node types and graph generators the open project, its imports and its installed distributions declare. */
 export const PALETTE_VIEW_TYPE: StudioViewType<PaletteSettings> = {
   view_type_id: "palette",
   title: "Palette",

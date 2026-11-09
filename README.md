@@ -18,15 +18,18 @@ runtime make the project in that folder. Each project opens in a studio window o
 with the project's name, or brings forward the window it already has; the Projects window steps
 aside once it opens one, and File › Projects or the tray brings it back. The Viewer's Pop out
 opens it in a small window of its own, for a second monitor, pinned to the stream shown and the
-node selected; it closes with its project's window. File › Get more… opens a window that lists the
-packages and samples in the catalog at `get.tatolab.com/catalog/v1.json` and the project's imports,
-each with the nodes and streams it brings; Import shows the line it adds to the project's
-`pyproject.toml` before writing it, and an import from a folder opens to edit. Every window shares the one runtime. It reads
-everything from the runtime's local API: `list_streams`, `logs` and `graph` over MCP, and
-`GET /api/graph` for the machine's name. It queues a stop or a start (or retry) of a stream, and
-the removal of a whole project, with the MCP tools `stop_stream`, `start_stream` and
-`remove_project`, then shows the stream `stopping` or `preparing` at each step the runtime lists
-until it settles. New project and Import project queue `create_project` and `run_project`, and a
+node selected; it closes with its project's window. File › Module manager… opens a window with two tabs. In
+this project lists the projects the runtime's `list_dependencies` says the project imports, adds one
+from a folder or a `.zip` with `add_dependency`, copies a newer version in with `update_dependency`,
+asking before it overwrites a file edited since the copy, and opens an import to edit in its own window.
+Marketplace lists the projects in the catalog at `get.tatolab.com/catalog/v1.json`; Import downloads an
+entry's `.zip`, checks its SHA-256, and adds it as any other. Every window shares the one runtime. It reads
+everything from the runtime's local API: each project's name from `list_assets`, `list_streams`, `logs` and `graph` over MCP, and
+`GET /api/graph` for the machine's name. A project runs and stops as a whole: Run › Stop queues
+the stop of every stream of the open project with the MCP tool `stop_project`, and the removal of a
+whole project queues `remove_project`, then the window shows each stream `stopping` at each step
+the runtime lists until it settles. Closing the window of a project with a stream running asks
+first: Stop and Close stops the project, then closes its window, and Cancel keeps both. New project and Import project queue `create_project` and `run_project`, and a
 project's Reload queues `run_project` again; the window follows each load with
 `describe_stream_action` until it ends. Cancel ends an action early with `cancel_stream_action`,
 on a stream the listing shows `preparing` or `stopping`, on a Reload, and on a New project or

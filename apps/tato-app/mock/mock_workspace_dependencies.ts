@@ -1,0 +1,95 @@
+// The mock's workspace imports, as the runtime's dependency tools would answer them: one project
+// copied from a folder beside the workspace. `?module_manager=edited_files` has a file of its copy edited
+// since, so Update waits on the overwrite; `?module_manager=newer` has its source hold a newer version.
+
+import type { DependencySourceKind, ProjectDependency, WorkspaceDependency, WorkspaceDependencyUpdate } from "../src/shared/tatolab_backend_contract";
+
+/** The state the mock workspace's imports start in. */
+export type MockWorkspaceDependenciesScenario = "copied" | "edited_files" | "newer";
+
+/** The scenario `?module_manager=` names, or `null` where the page is no Module manager window. */
+export function mockWorkspaceDependenciesScenarioNamed(moduleManagerQueryValue: string | null): MockWorkspaceDependenciesScenario | null {
+  switch (moduleManagerQueryValue) {
+    case "open":
+      return "copied";
+    case "edited_files":
+    case "newer":
+      return moduleManagerQueryValue;
+    default:
+      return null;
+  }
+}
+
+const MOCK_VERSION_COPIED = "9f2c4e1a7b3d5f60c8e2a4b6d8f0a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5";
+const MOCK_VERSION_ON_THE_SOURCE = "1b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d";
+
+/** Answers the mock window's dependency asks over the workspace in `workspaceFolder`, rejecting in the runtime's words. */
+export class MockWorkspaceDependencies {
+  private readonly dependencies: WorkspaceDependency[];
+
+  constructor(
+    private readonly workspaceFolder: string,
+    scenario: MockWorkspaceDependenciesScenario,
+  ) {
+    const sourceFolder = `${workspaceFolder.slice(0, workspaceFolder.lastIndexOf("/"))}/lobby-wall`;
+    this.dependencies = [
+      {
+        project: "5d0f7a52-8c1e-4b9a-9d3f-2e6b8a4c1f70",
+        folder: "lobby-wall",
+        source: sourceFolder,
+        version: MOCK_VERSION_COPIED,
+        folder_path: `${workspaceFolder}/imports/lobby-wall`,
+        name: "lobby-wall",
+        edited_files: scenario === "edited_files" ? ["nodes/wall_mapping.py"] : [],
+        newer_version_exists: scenario === "newer" ? true : null,
+        check_refused_because: null,
+      },
+    ];
+  }
+
+  /** Each import, its newer-version mark kept only when `checkForNewer`. */
+  list(checkForNewer: boolean): WorkspaceDependency[] {
+    return structuredClone(this.dependencies).map((dependency) => ({ ...dependency, newer_version_exists: checkForNewer ? (dependency.newer_version_exists ?? false) : null }));
+  }
+
+  /** What the dialog answers for `sourceKind`: a project beside the workspace. */
+  sourceTheDialogAnswers(sourceKind: DependencySourceKind): string {
+    const besideTheWorkspace = this.workspaceFolder.slice(0, this.workspaceFolder.lastIndexOf("/"));
+    return sourceKind === "folder" ? `${besideTheWorkspace}/doorways` : `${besideTheWorkspace}/doorways.zip`;
+  }
+
+  /** `source` copied into `imports/`, refused where it is held already. */
+  add(source: string): ProjectDependency {
+    const name = (source.split("/").pop() ?? source).replace(/\.zip$/, "").toLowerCase();
+    if (this.dependencies.some((dependency) => dependency.source === source || dependency.folder === name)) throw `the project already imports ${source} in imports/${name}`;
+    const dependency: WorkspaceDependency = {
+      project: crypto.randomUUID(),
+      folder: name,
+      source,
+      version: MOCK_VERSION_COPIED,
+      folder_path: `${this.workspaceFolder}/imports/${name}`,
+      name,
+      edited_files: [],
+      newer_version_exists: null,
+      check_refused_because: null,
+    };
+    this.dependencies.push(dependency);
+    return { project: dependency.project, folder: dependency.folder, source: dependency.source, version: dependency.version };
+  }
+
+  /** The import `project` copied again, or the files it waits on the overwrite of. */
+  update(project: string, overwriteEditedFiles: boolean): WorkspaceDependencyUpdate {
+    const dependency = this.dependencies.find((listed) => listed.project === project);
+    if (dependency === undefined) throw `the project imports no project ${project}`;
+    if (dependency.edited_files.length > 0 && !overwriteEditedFiles) return { kind: "edited_since_its_copy", edited_files: [...dependency.edited_files] };
+    dependency.edited_files = [];
+    if (dependency.newer_version_exists === true) dependency.version = MOCK_VERSION_ON_THE_SOURCE;
+    dependency.newer_version_exists = false;
+    return { kind: "updated", dependency: { project: dependency.project, folder: dependency.folder, source: dependency.source, version: dependency.version } };
+  }
+
+  /** Whether `folder` holds one of the imports. */
+  holdsTheFolder(folder: string): boolean {
+    return this.dependencies.some((dependency) => dependency.folder === folder);
+  }
+}

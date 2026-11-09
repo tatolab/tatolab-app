@@ -13,6 +13,7 @@ const UNANSWERING_TATOLAB_ELECTRON_BRIDGE: TatolabElectronBridge = {
   onPortViewerImageFrame: () => () => undefined,
   onSystemMenuBarEntryChosen: () => () => undefined,
   tellTheAppTheWindowDrewItsFirstStatus: () => undefined,
+  pathOfADroppedFile: () => "",
 };
 
 afterEach(() => {

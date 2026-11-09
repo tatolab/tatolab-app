@@ -20,14 +20,6 @@ export function listedStreamsReadingOf(status: TatolabStatus): ListedStreamsRead
   return { kind: "not_listed", because: runtimeStatus.banner?.title ?? runtimeStatus.shortLabel };
 }
 
-/** The streams of the project in `projectFolder` that Run › Stop stops: each one running or on its way to running. */
-export function streamsOfTheProjectToStop(listedStreams: ListedStreamsReading, projectFolder: string): string[] {
-  if (listedStreams.kind !== "listed") return [];
-  return listedStreams.streams
-    .filter((listing) => listing.location?.project_directory === projectFolder && (listing.state === "running" || listing.state === "preparing"))
-    .map((listing) => listing.stream);
-}
-
 /** A stream of the open project the runtime lists failed, and why in its own words; `null` when it gives no reason. */
 export interface OpenProjectStreamFailure {
   stream: string;
@@ -86,8 +78,8 @@ export class StudioWindowModel {
   readonly appUpdateChoiceRefusal = new WatchedStudioValue<string | null>(null);
   /** The open project's stream whose failure the window raises over the studio, until it is dismissed, the stream leaves `failed`, or another project opens. */
   readonly openProjectStreamFailureRaised = new WatchedStudioValue<OpenProjectStreamFailure | null>(null);
-  /** The workspace when the window is a studio window's Get more window, as last read from disk; `null` in any other window. */
-  readonly getMoreWorkspace = new WatchedStudioValue<OpenProjectReading | null>(null);
+  /** The workspace when the window is a studio window's Module manager window, as last read from disk; `null` in any other window. */
+  readonly moduleManagerWorkspace = new WatchedStudioValue<OpenProjectReading | null>(null);
   /** What the window is pinned to when it is a Viewer popped out of a studio window; `null` in the Projects and studio windows. */
   readonly poppedOutViewer = new WatchedStudioValue<PoppedOutViewerTarget | null>(null);
 

@@ -78,9 +78,11 @@ function originOnTheWire(source: JsonObjectOnTheWire): Result<ProjectNodeTypeSou
     case "dependency": {
       const project = requiredText(source, "project");
       if (!project.ok) return project;
-      const revision = requiredText(source, "revision");
-      if (!revision.ok) return revision;
-      return succeeded({ source: "dependency", project: project.value, revision: revision.value });
+      const folder = requiredText(source, "folder");
+      if (!folder.ok) return folder;
+      const version = requiredText(source, "version");
+      if (!version.ok) return version;
+      return succeeded({ source: "dependency", project: project.value, folder: folder.value, version: version.value });
     }
     case "installed_distribution": {
       const distribution = requiredText(source, "distribution");

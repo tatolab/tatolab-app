@@ -6,7 +6,9 @@
 // working; quitting stops both. The first opening also links the `tatolab` command in the home
 // folder and starts checking for updates on its own.
 
-import type { FetchTextOverHttps } from "./package_catalog.js";
+import path from "node:path";
+import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
+import { MODULE_DOWNLOADS_FOLDER_NAME } from "./marketplace_module_download.js";
 import type { TatolabAppLog } from "./tatolab_app_log.js";
 import type { SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
 import type { ApplicationMenu } from "./platform/application_menu.js";
@@ -16,7 +18,7 @@ import type { TatolabAppUpdatePackaging } from "./platform/tatolab_app_update_pa
 import type { TatolabPlatformForThisBuild } from "./platform/tatolab_platform_for_this_build.js";
 import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js";
 import { TatolabAppController } from "./tatolab_app_controller.js";
-import { describeCaughtFailure } from "./result.js";
+import { describeCaughtFailure, failedWith, succeeded } from "./result.js";
 import {
   runTatolabAppUpdateWorkInTheBackground,
   quitTheTatolabApp,
@@ -37,7 +39,8 @@ import { TatolabTrayMenu, type TrayIconHostFactory, type TrayMenuChoice } from "
 import type { Result } from "./result.js";
 import { isAnExistingFolderOnThisMachine } from "./file_system_entries_on_this_machine.js";
 import { StreamProjectAdding, type StreamProjectFolderDialog } from "./stream_project_adding.js";
-import { ProjectOpening, type FolderEntriesWatch, type ProjectFolderDialog } from "./open_project.js";
+import { ProjectOpening, type FolderEntriesWatch, type ProjectFolderDialog, type ProjectReadingsOfTheRuntime } from "./open_project.js";
+import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import { PythonLanguageServers, type StartANodeLanguageServer } from "./python_language_servers.js";
 import { LocalApiMcpStdioConnection } from "./local_api_mcp_stdio_connection.js";
 import { RuntimePortViewers } from "./runtime_port_viewers.js";
@@ -49,6 +52,8 @@ import { isAnotherBuildOfTatolab, type TatolabAppCopy } from "./tatolab_app_copy
 
 /** How long a port viewer's `open_viewer` or `close_viewer` waits on the runtime. */
 const PORT_VIEWER_REQUEST_TIMEOUT_MS = 5_000;
+
+const TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET = "Tato Studio has not reached the runtime yet.";
 
 /** The Electron app as the lifecycle drives it. */
 export interface TatolabElectronAppShell {
@@ -85,6 +90,8 @@ export interface TatolabElectronAppShell {
   askThePersonForAStreamProjectFolder: StreamProjectFolderDialog;
   /** The desktop's folder dialog over the window, which the studio opens and creates a project through. */
   askThePersonForAProjectFolder: ProjectFolderDialog;
+  /** The desktop's open dialog over the window, which Module manager imports a project's folder or `.zip` through. */
+  askThePersonForADependencySource: DependencySourceDialog;
   /** How the code pane's language servers start, each in its own process. */
   startANodeLanguageServer: StartANodeLanguageServer;
   /** Pyright's `langserver.index.js` as this build carries it. */
@@ -95,8 +102,10 @@ export interface TatolabElectronAppShell {
   mainProcessId: number;
   /** Watching the entries directly in one folder, which the open project reads again on. */
   watchFolderEntries: FolderEntriesWatch;
-  /** Fetching a file over HTTPS, which Get more reads the package catalog through. */
+  /** Fetching a file over HTTPS, which the module manager reads the package catalog through. */
   fetchTextOverHttps: FetchTextOverHttps;
+  /** Fetching a file's bytes over HTTPS, which the Marketplace downloads a module's `.zip` through. */
+  fetchBytesOverHttps: FetchBytesOverHttps;
   /** The person's home directory, where the folder dialog opens, or at `~/streams` for a new stream project once that folder exists. */
   homeDirectory: string;
   /** The platform's Documents folder, where new projects go under `Tato Studio/`. */
@@ -148,14 +157,35 @@ export async function startTatolabApp(
   }
   let pythonLanguageServersOnceBuilt: PythonLanguageServers | null = null;
   let runtimePortViewersOnceBuilt: RuntimePortViewers | null = null;
+  let controllerOnceBuilt: TatolabAppController | null = null;
+  const projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime = {
+    nameTheProject: async (projectFolder) => {
+      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
+      const named = await controllerOnceBuilt.nameTheProject(projectFolder);
+      return named.ok ? named : failedWith(named.failure.failureDescription);
+    },
+    listTheDependencies: async (projectFolder) => {
+      if (controllerOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
+      const listed = await controllerOnceBuilt.listDependencies(projectFolder, false);
+      return listed.ok ? listed : failedWith(listed.failure.failureDescription);
+    },
+  };
+  let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
   const tatolabAppWindows = new TatolabAppWindows({
     mainWindowHostFactory: tatolabElectronAppShell.mainWindowHostFactory,
     platformItems,
     dockIconHost: tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: tatolabElectronAppShell.watchFolderEntries,
+    projectReadingsOfTheRuntime,
     runAfter: (delayMs, work) => {
       const timer = setTimeout(work, delayMs);
       return () => clearTimeout(timer);
+    },
+    stopTheProjectAsItsWindowCloses: async (projectFolder) => {
+      if (sharedStateOnceBuilt === null) return failedWith(TATOLAB_HAS_NOT_REACHED_THE_RUNTIME_YET);
+      const stopQueued = await sharedStateOnceBuilt.controller.stopProject(projectFolder);
+      sharedStateOnceBuilt.statusPublisher.requestRefresh();
+      return stopQueued.ok ? succeeded(undefined) : failedWith(stopQueued.failure.failureDescription);
     },
     whenAStudioWindowClosed: (studioWindow) => pythonLanguageServersOnceBuilt?.stopTheLanguageServersOf(studioWindow.languageServerOfTheWindow),
     whenAWindowShowingPortViewersClosed: (tatolabMainWindow) => runtimePortViewersOnceBuilt?.closeThePortViewersOf(tatolabMainWindow),
@@ -172,7 +202,6 @@ export async function startTatolabApp(
   systemMenuBar.showTheDefaultMenuBar();
   tatolabElectronAppShell.onAWindowFocused((windowContentsId) => systemMenuBar.noticeTheWindowFocused(windowContentsId));
   tatolabElectronAppShell.onAWindowClosed((windowContentsId) => systemMenuBar.forgetTheWindow(windowContentsId));
-  let sharedStateOnceBuilt: TatolabAppSharedState | null = null;
   tatolabElectronAppShell.onTheAppOpenedAgain((openedCopy) => {
     if (openedCopy !== null && isAnotherBuildOfTatolab(thisCopyOfTatolab, openedCopy)) {
       tatolabAppLog.info("another build of Tatolab was opened; this copy quits and opens it", {
@@ -237,6 +266,7 @@ export async function startTatolabApp(
     whenTheRuntimeExits: () => statusPublisherOnceBuilt?.requestRefresh(),
     tatolabAppLog,
   });
+  controllerOnceBuilt = controller;
   const statusPublisher = new TatolabStatusPublisher(
     controller,
     (status) => tatolabAppWindows.sendEveryWindowTheStatus(status),
@@ -258,6 +288,7 @@ export async function startTatolabApp(
     recentProjectFolders: recentProjectFoldersFileIn(tatolabElectronAppShell.appConfigDirectory, tatolabAppLog),
     readWallClockNowMs: () => tatolabElectronAppShell.readWallClockMsForDisplay(),
     newProjectCreation: controller,
+    projectReadingsOfTheRuntime,
     openTheProjectInItsStudioWindow: (folder) => tatolabAppWindows.openTheProjectInItsStudioWindow(folder),
   });
   const pythonLanguageServers = new PythonLanguageServers({
@@ -301,6 +332,9 @@ export async function startTatolabApp(
     runtimePortViewers,
     systemMenuBar,
     fetchTextOverHttps: tatolabElectronAppShell.fetchTextOverHttps,
+    fetchBytesOverHttps: tatolabElectronAppShell.fetchBytesOverHttps,
+    moduleDownloadsFolder: path.join(tatolabElectronAppShell.appConfigDirectory, MODULE_DOWNLOADS_FOLDER_NAME),
+    dependencySourceDialog: tatolabElectronAppShell.askThePersonForADependencySource,
     tatolabAppLog,
   };
   tatolabElectronAppShell.onTheAppQuitting(() => tatolabAppWindows.stopWatchingEveryProject());

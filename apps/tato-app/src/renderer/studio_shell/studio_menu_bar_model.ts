@@ -28,8 +28,8 @@ export interface StudioMenuBarCommands {
   runTheProjectLive(): void;
   /** Run › Stop: stop the open project's running streams. */
   stopTheProject(): void;
-  /** File › Get more…: open the project's Get more window. */
-  openGetMore(): void;
+  /** File › Module manager…: open the project's Module manager window. */
+  openModuleManager(): void;
 }
 
 /** Why an entry that acts on the open project cannot run while none is open. */
@@ -107,7 +107,7 @@ function studioMenuParts(
       laterCommand("Import project…"),
       laterCommand("New stream"),
       laterCommand("Save version…"),
-      projectCommand("Get more…", commands.openGetMore),
+      projectCommand("Module manager…", commands.openModuleManager),
     ],
     undoAndRedoEntries: [laterCommand("Undo"), laterCommand("Redo")],
     preferencesEntry: { kind: "command", label: preferencesLabel, shortcutHint: shortcutHint(platform, ","), onChosen: commands.openPreferences },
