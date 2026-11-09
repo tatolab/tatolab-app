@@ -1,7 +1,6 @@
 # Engine guarantee
 
-Status: draft, decisions as of 2026-11-09, with Studio's feedback folded in. Items marked
-*recommended* await the owner's confirmation.
+Status: decisions as of 2026-11-09, with Studio's feedback folded in.
 
 These are the contracts the runtime will guarantee for every project, and the decisions behind them.
 Several change how Tato Studio works; Studio's feedback is folded in below.
@@ -53,11 +52,11 @@ The operations, as they stand once the module rework (streamlib #3402, #3401) la
 
 | Family | Operations | Notes |
 | --- | --- | --- |
-| Graph | `add_node`, `remove_node`, `connect`, `disconnect`, `set_node_config`, `set_pin_value`, `rename_node`, `set_studio_fields`, `set_exposed_config_fields`, `refresh_fragment`, `add_group`, `remove_group`, `set_group_fields` | Nodes and links named by UUID; each records what its inverse needs. *Recommended:* `collapse_selection_into_subgraph` and `unlock_generator_fragment` (a generator's frozen output becomes plain nodes) |
+| Graph | `add_node`, `remove_node`, `connect`, `disconnect`, `set_node_config`, `set_pin_value`, `rename_node`, `set_studio_fields`, `set_exposed_config_fields`, `refresh_fragment`, `add_group`, `remove_group`, `set_group_fields` | Nodes and links named by UUID; each records what its inverse needs. Decided with Studio: `collapse_selection_into_subgraph` and `unlock_generator_fragment` (a generator's frozen output becomes plain nodes) |
 | Asset | `import_asset`, `relocate_asset`, `delete_asset`, `set_asset_settings` | A replaced file goes through a `replace_asset` action (decided, to add); replacing a file outside the runtime is unsupported |
 | Import | `place_import`, `remove_import` | A module copied whole into `imports/<folder>/` |
 | Graph document | `create_stream_document`, `delete_stream_document` | Get `create_stream` / `delete_stream` verbs (decided, to add); Studio's New stream waits on them |
-| Project | *Recommended:* `write_project_file`, `rename_project` | A file save is recorded, so a code edit undoes like any other edit |
+| Project | Decided with Studio: `write_project_file`, `rename_project` | A file save is recorded, so a code edit undoes like any other edit |
 
 **Decided, to build:** today each entry point has its own request types in front of the operations
 (the MCP tools have their own argument structs), and requests and records use different names
@@ -65,7 +64,7 @@ The operations, as they stand once the module rework (streamlib #3402, #3401) la
 action vocabulary.
 
 **Not actions:** run, stop and pause a project; listing and reading project files; duplicating and
-deleting a project (*recommended*: runtime verbs, because they act on the whole project and its
+deleting a project (runtime verbs, because they act on the whole project and its
 history); viewers; app management. A stream's display name
 moves into the project as an action (today `rename_stream` writes the runtime's own record).
 
