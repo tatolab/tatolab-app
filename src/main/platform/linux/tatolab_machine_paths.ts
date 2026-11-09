@@ -9,8 +9,9 @@ import path from "node:path";
 import { COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER } from "../command_line_tool_link_in_the_home_folder.js";
 import {
   LOCAL_API_SOCKET_FILE_NAME,
-  LOCAL_PROOF_TEST_MACHINE_ROOT,
+  type LocalProofTestMachine,
   localApiSocketUnderALocalProofTestRoot,
+  localProofTestMachineFromTheAppEnvironment,
   perUserStreamlibRuntimeDirectoryUnderTmp,
 } from "../tatolab_machine_paths.js";
 import { RUNTIME_VIEWER_FRAME_IMPORT_ADDON_FILE_NAME } from "../../runtime_viewer_frame_import_addon.js";
@@ -27,14 +28,14 @@ export interface TatolabMachinePathsOnLinux {
   localApiSocket: string;
   /** `~/.local/bin/tatolab`; `null` in a local-proof build, or with no home directory to link in. */
   commandLineToolLink: string | null;
-  /** The test root a local-proof build reads under; `null` for a real build. */
-  localProofTestMachineRoot: string | null;
+  /** The test root and loopback HTTP port a local-proof build runs its runtime with; `null` for a real build. */
+  localProofTestMachine: LocalProofTestMachine | null;
 }
 
 /** The paths this build uses for the user with `uid`. */
 export function tatolabMachinePathsOnLinuxForThisBuild(uid: number): TatolabMachinePathsOnLinux {
   return TATOLAB_APP_BUILD_FEATURES.machineDirectoriesUnderATestRoot
-    ? tatolabMachinePathsOnLinuxUnderALocalProofTestRoot(LOCAL_PROOF_TEST_MACHINE_ROOT)
+    ? tatolabMachinePathsOnLinuxUnderALocalProofTestRoot(localProofTestMachineFromTheAppEnvironment(process.env))
     : tatolabMachinePathsOnLinuxForTheRealMachine(process.env["XDG_RUNTIME_DIR"], process.env["HOME"], uid);
 }
 
@@ -55,16 +56,16 @@ export function tatolabMachinePathsOnLinuxForTheRealMachine(
   return {
     localApiSocket: path.join(runtimeDirectory, LOCAL_API_SOCKET_FILE_NAME),
     commandLineToolLink: absoluteHomeDirectory === null ? null : path.join(absoluteHomeDirectory, COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER),
-    localProofTestMachineRoot: null,
+    localProofTestMachine: null,
   };
 }
 
-/** The paths under `testMachineRoot`, laid out as StreamLib's test-root build lays them. */
-export function tatolabMachinePathsOnLinuxUnderALocalProofTestRoot(testMachineRoot: string): TatolabMachinePathsOnLinux {
+/** The paths under `localProofTestMachine`'s root, laid out as StreamLib's test-root build lays them. */
+export function tatolabMachinePathsOnLinuxUnderALocalProofTestRoot(localProofTestMachine: LocalProofTestMachine): TatolabMachinePathsOnLinux {
   return {
-    localApiSocket: localApiSocketUnderALocalProofTestRoot(testMachineRoot),
+    localApiSocket: localApiSocketUnderALocalProofTestRoot(localProofTestMachine.testMachineRoot),
     commandLineToolLink: null,
-    localProofTestMachineRoot: testMachineRoot,
+    localProofTestMachine,
   };
 }
 

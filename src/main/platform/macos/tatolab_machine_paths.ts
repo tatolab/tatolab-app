@@ -11,8 +11,9 @@ import { TATOLAB_APP_BUILD_FEATURES } from "../../tatolab_app_build_features.js"
 import { COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER } from "../command_line_tool_link_in_the_home_folder.js";
 import {
   LOCAL_API_SOCKET_FILE_NAME,
-  LOCAL_PROOF_TEST_MACHINE_ROOT,
+  type LocalProofTestMachine,
   localApiSocketUnderALocalProofTestRoot,
+  localProofTestMachineFromTheAppEnvironment,
   perUserStreamlibRuntimeDirectoryUnderTmp,
 } from "../tatolab_machine_paths.js";
 
@@ -30,14 +31,14 @@ export interface TatolabMachinePathsOnMacos {
   localApiSocket: string;
   /** `~/.local/bin/tatolab`; `null` with no absolute home folder. */
   commandLineToolHomeFolderLink: string | null;
-  /** The test root a local-proof build keeps everything under; `null` for a real build. */
-  localProofTestMachineRoot: string | null;
+  /** The test root a local-proof build keeps everything under, and its runtime's loopback HTTP port; `null` for a real build. */
+  localProofTestMachine: LocalProofTestMachine | null;
 }
 
 /** The paths this build uses for the user with `uid`, whose home folder is `homeDirectory`. */
 export function tatolabMachinePathsOnMacosForThisBuild(uid: number, homeDirectory: string): TatolabMachinePathsOnMacos {
   return TATOLAB_APP_BUILD_FEATURES.machineDirectoriesUnderATestRoot
-    ? tatolabMachinePathsOnMacosUnderALocalProofTestRoot(LOCAL_PROOF_TEST_MACHINE_ROOT)
+    ? tatolabMachinePathsOnMacosUnderALocalProofTestRoot(localProofTestMachineFromTheAppEnvironment(process.env))
     : tatolabMachinePathsOnMacosForTheRealMachine(uid, homeDirectory);
 }
 
@@ -46,16 +47,16 @@ export function tatolabMachinePathsOnMacosForTheRealMachine(uid: number, homeDir
   return {
     localApiSocket: path.join(perUserStreamlibRuntimeDirectoryUnderTmp(uid), LOCAL_API_SOCKET_FILE_NAME),
     commandLineToolHomeFolderLink: path.isAbsolute(homeDirectory) ? path.join(homeDirectory, COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER) : null,
-    localProofTestMachineRoot: null,
+    localProofTestMachine: null,
   };
 }
 
-/** The paths under `testMachineRoot`, laid out as StreamLib's test-root build lays them, with the home-folder link under its `home/`. */
-export function tatolabMachinePathsOnMacosUnderALocalProofTestRoot(testMachineRoot: string): TatolabMachinePathsOnMacos {
+/** The paths under `localProofTestMachine`'s root, laid out as StreamLib's test-root build lays them, with the home-folder link under its `home/`. */
+export function tatolabMachinePathsOnMacosUnderALocalProofTestRoot(localProofTestMachine: LocalProofTestMachine): TatolabMachinePathsOnMacos {
   return {
-    localApiSocket: localApiSocketUnderALocalProofTestRoot(testMachineRoot),
-    commandLineToolHomeFolderLink: path.join(testMachineRoot, "home", COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER),
-    localProofTestMachineRoot: testMachineRoot,
+    localApiSocket: localApiSocketUnderALocalProofTestRoot(localProofTestMachine.testMachineRoot),
+    commandLineToolHomeFolderLink: path.join(localProofTestMachine.testMachineRoot, "home", COMMAND_LINE_TOOL_LINK_INSIDE_THE_HOME_FOLDER),
+    localProofTestMachine,
   };
 }
 

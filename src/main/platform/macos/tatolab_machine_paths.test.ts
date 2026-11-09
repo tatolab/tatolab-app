@@ -15,7 +15,7 @@ test("the_real_machine_paths_are_the_runtimes_socket_and_the_home_folder_link", 
   expect(tatolabMachinePathsOnMacosForTheRealMachine(501, "/Users/someone")).toEqual({
     localApiSocket: "/tmp/streamlib-501/local-api.sock",
     commandLineToolHomeFolderLink: "/Users/someone/.local/bin/tatolab",
-    localProofTestMachineRoot: null,
+    localProofTestMachine: null,
   });
 });
 
@@ -24,10 +24,10 @@ test("a_home_folder_that_is_not_absolute_gets_no_home_folder_link", () => {
 });
 
 test("a_local_proof_build_keeps_the_socket_and_the_link_under_its_test_root", () => {
-  expect(tatolabMachinePathsOnMacosUnderALocalProofTestRoot("/tmp/tatolab-proof")).toEqual({
-    localApiSocket: "/tmp/tatolab-proof/run/local-api.sock",
-    commandLineToolHomeFolderLink: "/tmp/tatolab-proof/home/.local/bin/tatolab",
-    localProofTestMachineRoot: "/tmp/tatolab-proof",
+  expect(tatolabMachinePathsOnMacosUnderALocalProofTestRoot({ testMachineRoot: "/tmp/tatolab-proof-two", runtimeLoopbackHttpPort: 14447 })).toEqual({
+    localApiSocket: "/tmp/tatolab-proof-two/run/local-api.sock",
+    commandLineToolHomeFolderLink: "/tmp/tatolab-proof-two/home/.local/bin/tatolab",
+    localProofTestMachine: { testMachineRoot: "/tmp/tatolab-proof-two", runtimeLoopbackHttpPort: 14447 },
   });
 });
 

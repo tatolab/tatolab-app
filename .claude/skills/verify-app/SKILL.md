@@ -62,7 +62,10 @@ Evidence counts only when it was shot on what would ship now:
    quit the installed Tato Studio first, which stops its runtime. The proof build starts its own
    carried `tatolabd` under the test root as its child and stops it when it quits. After: quit the
    proof build, `rm -rf /tmp/tatolab-proof`, and reopen `/Applications/Tato Studio.app`. Label
-   **Live (local proof)**.
+   **Live (local proof)**. A proof build takes `TATOLAB_TEST_MACHINE_ROOT` and
+   `TATOLAB_TEST_LOOPBACK_HTTP_PORT` from its own environment (`/tmp/tatolab-proof` and 14446 when
+   unset), so a second proof on the same machine runs with its own root and port, and cleans up
+   that root instead.
 
    Without the packaged build — the unpackaged app over a runtime run by hand, as #37 and #38
    did:
