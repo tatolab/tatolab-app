@@ -8,6 +8,7 @@ function graphNode(name: string, inputs: string[], outputs: string[]): StreamGra
     name,
     type: `nodes.${name}:Effect`,
     state: "Running",
+    failed_because: null,
     config: {},
     input_ports: inputs.map((port) => ({ name: port, family: "image" as const, stream_facts: null, values_checked: null })),
     output_ports: outputs.map((port) => ({ name: port, family: null, stream_facts: null, values_checked: null })),
@@ -42,10 +43,11 @@ const GRAPH: StreamGraphSummary = {
 
 test("each_node_is_a_card_keyed_by_its_name_with_its_ports_as_pins_and_an_input_shows_the_facts_its_one_link_carries", () => {
   expect(streamGraphCanvasContents(GRAPH).nodes).toEqual([
-    { node_id: "camera", title: "camera", input_pins: [], output_pins: [{ name: "video", family: "image", stream_facts_words: ["29.97 fps"] }] },
+    { node_id: "camera", title: "camera", condition: { look: "healthy" }, input_pins: [], output_pins: [{ name: "video", family: "image", stream_facts_words: ["29.97 fps"] }] },
     {
       node_id: "invert",
       title: "invert",
+      condition: { look: "healthy" },
       input_pins: [{ name: "video_in", family: "image", stream_facts_words: ["29.97 fps"] }],
       output_pins: [{ name: "video_out", family: null, stream_facts_words: [] }],
     },
@@ -57,5 +59,26 @@ test("each_link_is_drawn_by_its_state_and_described_in_words", () => {
     ["L1", "carrying", "camera.video → invert.video_in, wired"],
     ["invert.video_out->display.video", "waiting", "invert.video_out → display.video, waiting for the other machine"],
     ["L3", "waiting", "camera.video → display.video, reconnecting_later"],
+  ]);
+});
+
+test("a_node_in_error_is_a_failed_card_carrying_why_word_for_word_and_a_restarting_node_a_restarting_card", () => {
+  const failedBecause = "start() raised: RuntimeError: no Rive file at ./missing.riv";
+  const graph: StreamGraphSummary = {
+    ...GRAPH,
+    nodes: [
+      { ...graphNode("rivesource", [], ["video"]), state: "Error", failed_because: failedBecause },
+      { ...graphNode("browsersource", [], ["video"]), state: "Error" },
+      { ...graphNode("camera", [], ["video"]), state: "Restarting" },
+      { ...graphNode("invert", ["video_in"], ["video_out"]), state: "Pending" },
+    ],
+    links: [],
+  };
+
+  expect(streamGraphCanvasContents(graph).nodes.map((node) => [node.node_id, node.condition])).toEqual([
+    ["rivesource", { look: "failed", failed_because: failedBecause }],
+    ["browsersource", { look: "failed", failed_because: null }],
+    ["camera", { look: "restarting" }],
+    ["invert", { look: "healthy" }],
   ]);
 });

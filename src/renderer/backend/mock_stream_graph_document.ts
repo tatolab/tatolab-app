@@ -63,6 +63,7 @@ export function mockStreamGraphSummary(
     name: node.name,
     type: node.type,
     state: nodeState(node.state),
+    failed_because: moment.hasSettled ? (node.failed_because ?? null) : null,
     config: node.config,
     input_ports: servedPorts(node.input_ports),
     output_ports: servedPorts(node.output_ports),
@@ -104,6 +105,7 @@ export function mockStreamGraphSummary(
       },
       components: {
         state: nodes[nodeIndex]?.state ?? null,
+        failed_because: nodes[nodeIndex]?.failed_because ?? null,
         paused: false,
         metrics: {
           frames_dropped: 0,
