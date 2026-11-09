@@ -78,11 +78,32 @@ const NETWORK_HOST_PATTERN = /^(?=.{1,253}(:|$))[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.
 const networkHostSchema = z.string().regex(NETWORK_HOST_PATTERN, { message: "a host is a lower-case name, with a port if it needs one, and no scheme or wildcard" });
 
 /** The JSON Schema of what a view's area remembers: an object whose every property gives its `default`. */
-export const viewSettingsDeclarationSchema = z.object({
-  type: z.literal("object"),
-  properties: z.record(z.string(), z.looseObject({ default: jsonValueSchema })),
-  additionalProperties: z.boolean().optional(),
-});
+export const viewSettingsDeclarationSchema = z
+  .looseObject({
+    type: z.literal("object"),
+    properties: z.record(z.string(), z.looseObject({ default: jsonValueSchema })),
+    additionalProperties: z.boolean().optional(),
+  })
+  .superRefine((declaration, context) => {
+    const declaredSettings = settingsSchemaOfTheDeclaration(declaration);
+    if (declaredSettings.kind === "not_a_schema") {
+      context.addIssue({ code: "custom", message: `it is not JSON Schema Studio can check settings against: ${declaredSettings.because}` });
+      return;
+    }
+    const defaults = Object.fromEntries(Object.entries(declaration.properties).map(([settingName, property]) => [settingName, property.default]));
+    for (const issue of declaredSettings.schema.safeParse(defaults).error?.issues ?? []) {
+      context.addIssue({ code: "custom", message: `its default does not fit its own schema: ${issue.message}`, path: ["properties", ...issue.path.map(String), "default"] });
+    }
+  });
+
+/** The Zod schema a settings declaration's JSON Schema makes, or why it makes none. */
+export function settingsSchemaOfTheDeclaration(declaration: Parameters<typeof z.fromJSONSchema>[0]): { kind: "schema"; schema: z.ZodType } | { kind: "not_a_schema"; because: string } {
+  try {
+    return { kind: "schema", schema: z.fromJSONSchema(declaration) };
+  } catch (refusal) {
+    return { kind: "not_a_schema", because: refusal instanceof Error ? refusal.message : String(refusal) };
+  }
+}
 /** The JSON Schema of what a view's area remembers. */
 export type ViewSettingsDeclaration = z.infer<typeof viewSettingsDeclarationSchema>;
 

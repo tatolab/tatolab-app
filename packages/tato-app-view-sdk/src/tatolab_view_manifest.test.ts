@@ -94,6 +94,9 @@ describe("readTatolabViewManifest", () => {
 
   it("refuses settings whose properties give no default, and a sandbox that is not true or false", () => {
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, settings: { type: "object", properties: { show_beams: { type: "boolean" } } } })).toContain("`settings.properties.show_beams.default`:");
+    expect(
+      becauseOf({ ...STAGE_RIG_MANIFEST, settings: { type: "object", properties: { show_beams: { type: "boolean", default: "yes" } } } }),
+    ).toContain("`settings.properties.show_beams.default`: its default does not fit its own schema");
     expect(becauseOf({ ...STAGE_RIG_MANIFEST, sandbox: "yes" })).toContain("`sandbox`:");
   });
 
