@@ -10,7 +10,7 @@ import {
   listedStreamsReadingSchema,
   nodeCatalogReadingSchema,
   openProjectReadingSchema,
-  portViewerEventSchema,
+  portViewerMessageReadingSchema,
   portViewerTargetSchema,
   projectFileReadSchema,
   projectFilesSchema,
@@ -24,6 +24,29 @@ import {
   viewOpenedOnSchema,
 } from "./studio_readings.js";
 import { VIEW_CAPABILITIES, viewDeclaredPortSchema, type ViewCapability } from "./tatolab_view_manifest.js";
+
+const videoFrameSchema = z.custom<VideoFrame>((value) => typeof VideoFrame !== "undefined" && value instanceof VideoFrame, "an Image frame is a VideoFrame");
+
+/** What a port viewer delivers: an Image frame as a `VideoFrame` the view closes once drawn, or as its pixels; another family's message, read by its family; or the viewer reopening or ending, with why. */
+export const portViewerEventSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("image_frame"), video_frame: videoFrameSchema, format_wire_name: z.string(), skipped_since_last_read: z.number() }),
+  z.object({
+    kind: z.literal("image_pixels"),
+    width: z.number(),
+    height: z.number(),
+    /** The runtime's wire name of the frame's pixel format (`bgra32`, `rgba32`, `nv12`, …). */
+    format_wire_name: z.string(),
+    bytes_per_row: z.number(),
+    pixels: z.instanceof(Uint8Array),
+    /** Messages the viewer skipped before this one, because a viewer reads only the latest. */
+    skipped_since_last_read: z.number(),
+  }),
+  z.object({ kind: z.literal("message"), reading: portViewerMessageReadingSchema, skipped_since_last_read: z.number() }),
+  z.object({ kind: z.literal("reopening"), because: z.string() }),
+  z.object({ kind: z.literal("ended"), because: z.string() }),
+]);
+/** What a port viewer delivers. */
+export type PortViewerEvent = z.infer<typeof portViewerEventSchema>;
 
 /** The type of the message Studio posts into a view's frame, carrying the view's end of its MessagePort as its one transferred port. */
 export const VIEW_PORT_HANDOVER = "tatolab_view_port";

@@ -6,6 +6,8 @@
   "license": "(AGPL-3.0-only OR LicenseRef-Tatolab-Commercial)",
   "exports": {
     ".": "./src/index.ts",
+    "./studio_readings": "./src/studio_readings.ts",
+    "./port_families": "./src/port_families.ts",
     "./tatolab_view.schema.json": "./tatolab_view.schema.json"
   },
   "scripts": {

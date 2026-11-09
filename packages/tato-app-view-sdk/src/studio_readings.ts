@@ -45,15 +45,28 @@ export const listedStreamSchema = z.object({
 /** One stream the runtime lists. */
 export type ListedStream = z.infer<typeof listedStreamSchema>;
 
+/** An Image stream's frame rate, as a rational number of frames per second. */
+export const imageStreamFrameRateSchema = z.object({ numerator: z.number(), denominator: z.number() });
+/** An Image stream's frame rate. */
+export type ImageStreamFrameRate = z.infer<typeof imageStreamFrameRateSchema>;
+
+/** An HDR stream's content light level, in cd/m² (CTA-861.3). */
+export const imageStreamContentLightLevelSchema = z.object({ max_content_light_level: z.number(), max_frame_average_light_level: z.number() });
+/** An HDR stream's content light level. */
+export type ImageStreamContentLightLevel = z.infer<typeof imageStreamContentLightLevelSchema>;
+
+/** The mastering display an HDR stream was graded on (SMPTE ST 2086): luminance in steps of 0.0001 cd/m². */
+export const imageStreamMasteringDisplayColourVolumeSchema = z.object({ max_display_mastering_luminance: z.number(), min_display_mastering_luminance: z.number() });
+/** The mastering display an HDR stream was graded on. */
+export type ImageStreamMasteringDisplayColourVolume = z.infer<typeof imageStreamMasteringDisplayColourVolumeSchema>;
+
 /** An output port's stream facts as the runtime renders them under `stream_facts`, tagged by `family`; a field the port does not state is `null`. */
 export const portStreamFactsSchema = z.discriminatedUnion("family", [
   z.object({
     family: z.literal("image"),
-    frame_rate: z.object({ numerator: z.number(), denominator: z.number() }).nullable(),
-    /** In cd/m² (CTA-861.3). */
-    content_light_level: z.object({ max_content_light_level: z.number(), max_frame_average_light_level: z.number() }).nullable(),
-    /** SMPTE ST 2086, luminance in steps of 0.0001 cd/m². */
-    mastering_display_colour_volume: z.object({ max_display_mastering_luminance: z.number(), min_display_mastering_luminance: z.number() }).nullable(),
+    frame_rate: imageStreamFrameRateSchema.nullable(),
+    content_light_level: imageStreamContentLightLevelSchema.nullable(),
+    mastering_display_colour_volume: imageStreamMasteringDisplayColourVolumeSchema.nullable(),
   }),
   z.object({
     family: z.literal("packets"),
@@ -69,8 +82,6 @@ export const portStreamFactsSchema = z.discriminatedUnion("family", [
 ]);
 /** An output port's stream facts. */
 export type PortStreamFacts = z.infer<typeof portStreamFactsSchema>;
-/** An Image stream's frame rate, as a rational number of frames per second. */
-export type ImageStreamFrameRate = NonNullable<Extract<PortStreamFacts, { family: "image" }>["frame_rate"]>;
 
 /** A port a node declares under the graph's `ports.inputs` or `ports.outputs`. */
 export const streamGraphDeclaredPortSchema = z.object({
@@ -381,29 +392,6 @@ export const portViewerMessageReadingSchema = z.discriminatedUnion("family", [
 ]);
 /** What a port viewer read of one message of a family other than Image. */
 export type PortViewerMessageReading = z.infer<typeof portViewerMessageReadingSchema>;
-
-const videoFrameSchema = z.custom<VideoFrame>((value) => typeof VideoFrame !== "undefined" && value instanceof VideoFrame, "an Image frame is a VideoFrame");
-
-/** What a port viewer delivers: an Image frame as a `VideoFrame` the view closes once drawn, or as its pixels; another family's message, read by its family; or the viewer reopening or ending, with why. */
-export const portViewerEventSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("image_frame"), video_frame: videoFrameSchema, format_wire_name: z.string(), skipped_since_last_read: z.number() }),
-  z.object({
-    kind: z.literal("image_pixels"),
-    width: z.number(),
-    height: z.number(),
-    /** The runtime's wire name of the frame's pixel format (`bgra32`, `rgba32`, `nv12`, …). */
-    format_wire_name: z.string(),
-    bytes_per_row: z.number(),
-    pixels: z.instanceof(Uint8Array),
-    /** Messages the viewer skipped before this one, because a viewer reads only the latest. */
-    skipped_since_last_read: z.number(),
-  }),
-  z.object({ kind: z.literal("message"), reading: portViewerMessageReadingSchema, skipped_since_last_read: z.number() }),
-  z.object({ kind: z.literal("reopening"), because: z.string() }),
-  z.object({ kind: z.literal("ended"), because: z.string() }),
-]);
-/** What a port viewer delivers. */
-export type PortViewerEvent = z.infer<typeof portViewerEventSchema>;
 
 /** What Studio has selected, which every view shows and any view may change. */
 export const studioSelectionSchema = z.discriminatedUnion("kind", [
