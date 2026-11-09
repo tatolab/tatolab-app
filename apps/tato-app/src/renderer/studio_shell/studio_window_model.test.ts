@@ -43,7 +43,7 @@ function studioWindowModelOpenOnSheetCheck(): StudioWindowModel {
   const studioWindowModel = new StudioWindowModel(new StudioLayoutsKeptInStorage(null));
   studioWindowModel.showOpenProject({
     kind: "read",
-    open_project: { project: { name: "sheet-check", folder: SHEET_CHECK_FOLDER, requirements: [] }, imports: [] },
+    open_project: { project: { name: "sheet-check", folder: SHEET_CHECK_FOLDER, project: "5b2e8f14-7c3a-4d90-a6e1-0f9c3b7d2e58" }, imports: [], imports_not_listed_because: null },
   });
   return studioWindowModel;
 }
@@ -107,7 +107,7 @@ describe("a failure of the open project's streams", () => {
 
     const reopened = new StudioWindowModel(new StudioLayoutsKeptInStorage(null));
     reopened.showStatus(runningRuntimeListing([PREVIEW_FAILED]));
-    reopened.showOpenProject({ kind: "read", open_project: { project: { name: "sheet-check", folder: SHEET_CHECK_FOLDER, requirements: [] }, imports: [] } });
+    reopened.showOpenProject({ kind: "read", open_project: { project: { name: "sheet-check", folder: SHEET_CHECK_FOLDER, project: "5b2e8f14-7c3a-4d90-a6e1-0f9c3b7d2e58" }, imports: [], imports_not_listed_because: null } });
     expect(reopened.openProjectStreamFailureRaised.readLatest()?.stream).toBe("sheet-check-preview-0b19d2");
   });
 

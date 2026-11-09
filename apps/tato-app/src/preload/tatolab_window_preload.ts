@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, sharedTexture, type IpcRendererEvent } from "electron";
+import { contextBridge, ipcRenderer, sharedTexture, webUtils, type IpcRendererEvent } from "electron";
 import type { OpenProjectReading, PortViewerEvent, PortViewerImageFrameFacts, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import {
   TATOLAB_COMMAND_NAMES,
@@ -105,6 +105,8 @@ const tatolabElectronBridge: TatolabElectronBridge = {
   tellTheAppTheWindowDrewItsFirstStatus: () => {
     ipcRenderer.send(TATOLAB_WINDOW_DREW_ITS_FIRST_STATUS_NOTICE);
   },
+  // A sandboxed renderer's `File` carries no path; only the preload's `webUtils` reads one.
+  pathOfADroppedFile: (droppedFile) => webUtils.getPathForFile(droppedFile),
 };
 
 contextBridge.exposeInMainWorld("tatolabElectronBridge", tatolabElectronBridge);

@@ -1,12 +1,13 @@
 // The mock's open project: the pattern project the mock runtime lists streams from, importing the
-// camera and lobby-recorder projects by folder, one folder import whose pyproject does not parse,
-// and a package from the index. `?project=none|unreadable` opens none, or one that cannot be read.
+// camera and lobby-recorder projects, and one import whose copy the runtime cannot read.
+// `?project=none|unreadable` opens none, or one that cannot be read.
 // The Projects window lists the recent projects: the pattern, camera and lobby-recorder projects and three more,
 // one gone from disk; `?recent=none` lists none, as on first run. Documents/Tato Studio already
 // holds an `Untitled project`, so New project suggests `Untitled project 2`, and Browse… answers ~/Shows.
 
 import { untitledProjectNameNumbered } from "../src/shared/new_project_folder_name";
-import type { NewProjectDefaults, OpenProjectReading, ProjectOnDisk, RecentProject } from "../src/shared/tatolab_backend_contract";
+import type { NewProjectDefaults, OpenProjectReading, ProjectTheRuntimeNames, RecentProject } from "../src/shared/tatolab_backend_contract";
+import { MOCK_CAMERA_IMPORT_PROJECT, MOCK_LOBBY_RECORDER_IMPORT_PROJECT } from "./mock_project_node_types";
 
 /** What `?project=` names. */
 export type MockOpenProjectScenario = "read" | "none" | "unreadable";
@@ -16,8 +17,11 @@ export function mockOpenProjectScenarioNamed(projectInTheQuery: string | null): 
   return projectInTheQuery === "none" || projectInTheQuery === "unreadable" ? projectInTheQuery : "read";
 }
 
-function mockProject(folder: string, name: string, requirements: string[]): ProjectOnDisk {
-  return { folder, name, requirements };
+const MOCK_PATTERN_PROJECT = "2c4b1f0e-9a77-4c1d-8e55-3d0f6a2b7c90";
+const MOCK_STAGE_LIGHTS_IMPORT_PROJECT = "c05e2b9a-4f61-4d3e-9a7b-1e8d6c2f4a07";
+
+function mockProject(folder: string, project: string, name: string): ProjectTheRuntimeNames {
+  return { folder, project, name };
 }
 
 /** The mock's project in `homeDirectory`'s `streams/pattern`, as `scenario` has it. */
@@ -31,32 +35,38 @@ export function mockOpenProjectReading(scenario: MockOpenProjectScenario, homeDi
       return {
         kind: "unreadable",
         folder: projectFolder,
-        refusal: `${projectFolder}/pyproject.toml is not TOML: Invalid TOML document: unexpected end of line at line 4, column 14`,
+        refusal: `list_assets failed: ${projectFolder} holds no project: it has no tatolab-project.json`,
       };
     case "read":
       return {
         kind: "read",
         open_project: {
-          project: mockProject(projectFolder, "pattern", ["tatolab-stream>=0.55", "camera", "lobby-recorder", "stage-lights", "tatolab-testpattern>=0.3"]),
+          project: mockProject(projectFolder, MOCK_PATTERN_PROJECT, "pattern"),
           imports: [
-            { name: "tatolab-stream", requirement: "tatolab-stream>=0.55", source: { kind: "package_index" } },
-            { name: "camera", requirement: "camera", source: { kind: "folder", project: mockProject(`${streamsFolder}/camera`, "camera", ["tatolab-stream>=0.55"]) } },
             {
-              name: "lobby-recorder",
-              requirement: "lobby-recorder",
-              source: { kind: "folder", project: mockProject(`${streamsFolder}/lobby-recorder`, "lobby-recorder", ["tatolab-stream>=0.55"]) },
+              project: MOCK_CAMERA_IMPORT_PROJECT,
+              name: "camera",
+              folder: "camera",
+              source: { kind: "folder", project: mockProject(`${streamsFolder}/camera`, MOCK_CAMERA_IMPORT_PROJECT, "camera") },
             },
             {
+              project: MOCK_LOBBY_RECORDER_IMPORT_PROJECT,
+              name: "lobby-recorder",
+              folder: "lobby-recorder",
+              source: { kind: "folder", project: mockProject(`${streamsFolder}/lobby-recorder`, MOCK_LOBBY_RECORDER_IMPORT_PROJECT, "lobby-recorder") },
+            },
+            {
+              project: MOCK_STAGE_LIGHTS_IMPORT_PROJECT,
               name: "stage-lights",
-              requirement: "stage-lights",
+              folder: "stage-lights",
               source: {
                 kind: "folder_unreadable",
                 folder: `${projectFolder}/imports/stage-lights`,
-                refusal: `${projectFolder}/imports/stage-lights has no pyproject.toml.`,
+                refusal: `list_assets failed: ${projectFolder}/imports/stage-lights holds no project: it has no tatolab-project.json`,
               },
             },
-            { name: "tatolab-testpattern", requirement: "tatolab-testpattern>=0.3", source: { kind: "package_index" } },
           ],
+          imports_not_listed_because: null,
         },
       };
   }
@@ -83,12 +93,13 @@ export function mockRecentProjects(recentInTheQuery: string | null, homeDirector
 export function mockRecentProjectReading(recentProject: RecentProject, homeDirectory: string): OpenProjectReading {
   const patternReading = mockOpenProjectReading("read", homeDirectory);
   if (patternReading.kind === "read" && patternReading.open_project.project.folder === recentProject.folder) return patternReading;
-  if (recentProject.project_name === null) return { kind: "unreadable", folder: recentProject.folder, refusal: `${recentProject.folder} has no pyproject.toml.` };
+  if (recentProject.project_name === null) return { kind: "unreadable", folder: recentProject.folder, refusal: `list_assets failed: ${recentProject.folder} holds no project: it has no tatolab-project.json` };
   return {
     kind: "read",
     open_project: {
-      project: mockProject(recentProject.folder, recentProject.project_name, ["tatolab-stream>=0.55"]),
-      imports: [{ name: "tatolab-stream", requirement: "tatolab-stream>=0.55", source: { kind: "package_index" } }],
+      project: mockProject(recentProject.folder, crypto.randomUUID(), recentProject.project_name),
+      imports: [],
+      imports_not_listed_because: null,
     },
   };
 }
@@ -117,14 +128,14 @@ export function mockNewProjectLocationTheDialogAnswers(homeDirectory: string): s
   return `${homeDirectory}/Shows`;
 }
 
-/** A project just made in `folder` as `name`, read with the name its pyproject.toml carries and importing only tatolab-stream. */
+/** A project just made in `folder` as `name`, named after its folder as the runtime names a new project, and importing nothing. */
 export function mockNewProjectReading(folder: string, name: string): OpenProjectReading {
-  const pyprojectName = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "project";
   return {
     kind: "read",
     open_project: {
-      project: mockProject(folder, pyprojectName, ["tatolab-stream>=0.55"]),
-      imports: [{ name: "tatolab-stream", requirement: "tatolab-stream>=0.55", source: { kind: "package_index" } }],
+      project: mockProject(folder, crypto.randomUUID(), name.trim()),
+      imports: [],
+      imports_not_listed_because: null,
     },
   };
 }

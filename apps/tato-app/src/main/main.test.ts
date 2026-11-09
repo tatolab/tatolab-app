@@ -1,7 +1,8 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { TatolabStatus } from "../shared/tatolab_backend_contract.js";
+import { FakeLocalApiServer, toolFailureResponse, toolResultResponse } from "./fake_local_api_server.js";
 import { FakeTatolabElectronAppShell, PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
 import { startTatolabApp, type TatolabRunningApp } from "./main.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
@@ -15,8 +16,10 @@ const MACOS_PLATFORM_ITEMS = tatolabPlatformItemsFor("darwin");
 const LINUX_PLATFORM_ITEMS = tatolabPlatformItemsFor("linux");
 
 const startedFakeShells: FakeTatolabElectronAppShell[] = [];
+const fakeRuntimesStarted: FakeLocalApiServer[] = [];
 
 afterEach(async () => {
+  for (const fakeRuntime of fakeRuntimesStarted.splice(0)) await fakeRuntime.close();
   for (const startedFakeShell of startedFakeShells.splice(0)) {
     startedFakeShell.beginQuitting();
     startedFakeShell.carriedRuntimeStarts.exitEveryRuntimeAskedToStop();
@@ -29,6 +32,69 @@ afterEach(async () => {
 function fakeShellQuitAfterTheTest(): FakeTatolabElectronAppShell {
   const fakeShell = new FakeTatolabElectronAppShell();
   startedFakeShells.push(fakeShell);
+  return fakeShell;
+}
+
+/** A project's `tatolab-project.json` as the fake runtime reads it: its UUID, its name and each project it imports. */
+interface FakeProjectFile {
+  project: string;
+  name: string;
+  dependencies: Array<{ project: string; folder: string; source: string; version: string }>;
+}
+
+const FAKE_IMPORT_VERSION = "907fd8c1c2e70a58c1a4c6113cc043dc6522f67406da53a3ea6cc3af72976e82";
+
+async function readAFakeProjectFile(projectDirectory: string): Promise<FakeProjectFile | null> {
+  try {
+    const projectFile: FakeProjectFile = JSON.parse(await readFile(path.join(projectDirectory, "tatolab-project.json"), "utf8"));
+    return projectFile;
+  } catch {
+    return null;
+  }
+}
+
+function refusalOfAFolderHoldingNoProject(toolName: string, projectDirectory: string): Buffer {
+  return toolFailureResponse(`${toolName} failed: ${projectDirectory} holds no project: it has no tatolab-project.json`);
+}
+
+/** A runtime that answers `list_assets`, `list_dependencies` and `add_dependency` from each project's `tatolab-project.json`, copying an import whole, and no other request. */
+async function aRuntimeReadingEachProjectsFile(): Promise<FakeLocalApiServer> {
+  const fakeRuntime = await FakeLocalApiServer.answeringEachToolCall(async (toolName, toolArguments) => {
+    const projectDirectory = String(toolArguments["project_directory"]);
+    const projectFile = await readAFakeProjectFile(projectDirectory);
+    switch (toolName) {
+      case "list_assets":
+        if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
+        return toolResultResponse({ project_directory: projectDirectory, project: projectFile.project, project_name: projectFile.name, assets: [] });
+      case "list_dependencies":
+        if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
+        return toolResultResponse({ dependencies: projectFile.dependencies.map((dependency) => ({ dependency })) });
+      case "add_dependency": {
+        const source = String(toolArguments["source"]);
+        const sourceProjectFile = await readAFakeProjectFile(source);
+        if (projectFile === null) return refusalOfAFolderHoldingNoProject(toolName, projectDirectory);
+        if (sourceProjectFile === null) return toolFailureResponse(`add_dependency failed: ${source} holds no tatolab-project.json`);
+        const folder = path.basename(source);
+        if (projectFile.dependencies.some((dependency) => dependency.project === sourceProjectFile.project)) {
+          return toolFailureResponse(`add_dependency failed: the project already imports ${sourceProjectFile.project} in imports/${folder}`);
+        }
+        const dependency = { project: sourceProjectFile.project, folder, source, version: FAKE_IMPORT_VERSION };
+        await cp(source, path.join(projectDirectory, "imports", folder), { recursive: true });
+        await writeFile(path.join(projectDirectory, "tatolab-project.json"), JSON.stringify({ ...projectFile, dependencies: [...projectFile.dependencies, dependency] }));
+        return toolResultResponse({ dependency, transaction: "400abda2-8e24-4e95-bef0-7139fd68d853", commit: "7402198987b8ef4b1d2f370b8f090ccde0865a56" });
+      }
+      default:
+        return null;
+    }
+  });
+  fakeRuntimesStarted.push(fakeRuntime);
+  return fakeRuntime;
+}
+
+/** A fake shell whose app reads each project through a runtime that reads its `tatolab-project.json`, quit after the test. */
+async function fakeShellOverARuntimeReadingEachProjectsFile(): Promise<FakeTatolabElectronAppShell> {
+  const fakeShell = fakeShellQuitAfterTheTest();
+  fakeShell.localApiSocketPath = (await aRuntimeReadingEachProjectsFile()).localApiSocketPath;
   return fakeShell;
 }
 
@@ -418,12 +484,13 @@ describe("one window per project", () => {
     const projectFolder = path.join(fakeShell.appConfigDirectory, "projects", projectName);
     await mkdir(projectFolder, { recursive: true });
     await writeFile(path.join(projectFolder, "pyproject.toml"), `[project]\nname = "${projectName}"\ndependencies = []\n`);
+    await writeFile(path.join(projectFolder, "tatolab-project.json"), JSON.stringify({ project: `uuid-of-${projectName}`, name: projectName, dependencies: [] } satisfies FakeProjectFile));
     fakeShell.projectFolderTheDialogAnswers = projectFolder;
     return projectFolder;
   }
 
   test("a project opened from the Projects window opens in its own studio window, and the Projects window steps aside", async () => {
-    const fakeShell = fakeShellQuitAfterTheTest();
+    const fakeShell = await fakeShellOverARuntimeReadingEachProjectsFile();
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     const projectFolder = await aProjectTheDialogAnswers(fakeShell, "night-show");
 
@@ -438,7 +505,7 @@ describe("one window per project", () => {
   });
 
   test("opening a project whose window is open brings that window forward rather than opening a second", async () => {
-    const fakeShell = fakeShellQuitAfterTheTest();
+    const fakeShell = await fakeShellOverARuntimeReadingEachProjectsFile();
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await aProjectTheDialogAnswers(fakeShell, "night-show");
     await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
@@ -451,7 +518,7 @@ describe("one window per project", () => {
   });
 
   test("two projects open side by side, each window answering about its own project", async () => {
-    const fakeShell = fakeShellQuitAfterTheTest();
+    const fakeShell = await fakeShellOverARuntimeReadingEachProjectsFile();
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await aProjectTheDialogAnswers(fakeShell, "night-show");
     await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
@@ -467,7 +534,7 @@ describe("one window per project", () => {
   });
 
   test("closing a studio window closes it and forgets its project, and the Projects window refuses a project's commands", async () => {
-    const fakeShell = fakeShellQuitAfterTheTest();
+    const fakeShell = await fakeShellOverARuntimeReadingEachProjectsFile();
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await aProjectTheDialogAnswers(fakeShell, "night-show");
     await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
@@ -480,7 +547,7 @@ describe("one window per project", () => {
   });
 
   test("File › Projects shows the Projects window again over a project's window", async () => {
-    const fakeShell = fakeShellQuitAfterTheTest();
+    const fakeShell = await fakeShellOverARuntimeReadingEachProjectsFile();
     await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
     await aProjectTheDialogAnswers(fakeShell, "night-show");
     await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
@@ -489,18 +556,23 @@ describe("one window per project", () => {
     expect(fakeShell.mainWindowShowing).toBe(true);
     expect(fakeShell.studioWindowsOpen()).toEqual([{ title: "night-show", windowContentsId: 2, showing: true }]);
   });
-  describe("Get more", () => {
+  describe("Module manager", () => {
     async function aStudioWindowOfNightShowImportingLobbyWall(): Promise<{ fakeShell: FakeTatolabElectronAppShell; nightShowFolder: string; lobbyWallFolder: string }> {
-      const fakeShell = fakeShellQuitAfterTheTest();
+      const fakeShell = await fakeShellOverARuntimeReadingEachProjectsFile();
       await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
       const lobbyWallFolder = await aProjectTheDialogAnswers(fakeShell, "lobby-wall");
       const nightShowFolder = await aProjectTheDialogAnswers(fakeShell, "night-show");
+      await cp(lobbyWallFolder, path.join(nightShowFolder, "imports", "lobby-wall"), { recursive: true });
       await writeFile(
-        path.join(nightShowFolder, "pyproject.toml"),
-        '[project]\nname = "night-show"\ndependencies = [\n    "tatolab-camera",\n    "lobby-wall",\n]\n\n[tool.uv.sources]\nlobby-wall = { path = "../lobby-wall" }\n',
+        path.join(nightShowFolder, "tatolab-project.json"),
+        JSON.stringify({
+          project: "uuid-of-night-show",
+          name: "night-show",
+          dependencies: [{ project: "uuid-of-lobby-wall", folder: "lobby-wall", source: lobbyWallFolder, version: FAKE_IMPORT_VERSION }],
+        } satisfies FakeProjectFile),
       );
       await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });
-      await fakeShell.invokeTheCommand("open_get_more_window", undefined, 2);
+      await fakeShell.invokeTheCommand("open_module_manager_window", undefined, 2);
       return { fakeShell, nightShowFolder, lobbyWallFolder };
     }
 
@@ -509,17 +581,17 @@ describe("one window per project", () => {
 
       expect(fakeShell.studioWindowsOpen().map(({ title, windowContentsId }) => [title, windowContentsId])).toEqual([
         ["night-show", 2],
-        ["Get more · night-show", 3],
+        ["Module manager · night-show", 3],
       ]);
       expect(fakeShell.records).toContainEqual(
         expect.objectContaining({ asked: "create_main_window", windowContentsId: 3, mainWindowSpecification: expect.objectContaining({ width: 960, height: 660 }) }),
       );
-      expect(await fakeShell.invokeTheCommand("read_get_more_workspace", undefined, 3)).toMatchObject({ ok: true, value: { kind: "read", open_project: { project: { name: "night-show" } } } });
-      expect(await fakeShell.invokeTheCommand("read_get_more_workspace", undefined, 2)).toEqual({ ok: true, value: null });
-      expect(await fakeShell.invokeTheCommand("open_get_more_window")).toEqual({ ok: false, refusal: "Only a project's studio window opens Get more." });
+      expect(await fakeShell.invokeTheCommand("read_module_manager_workspace", undefined, 3)).toMatchObject({ ok: true, value: { kind: "read", open_project: { project: { name: "night-show" } } } });
+      expect(await fakeShell.invokeTheCommand("read_module_manager_workspace", undefined, 2)).toEqual({ ok: true, value: null });
+      expect(await fakeShell.invokeTheCommand("open_module_manager_window")).toEqual({ ok: false, refusal: "Only a project's studio window opens Module manager." });
 
       fakeShell.forgetTheRecords();
-      await fakeShell.invokeTheCommand("open_get_more_window", undefined, 2);
+      await fakeShell.invokeTheCommand("open_module_manager_window", undefined, 2);
       expect(fakeShell.records.filter((fakeShellRecord) => fakeShellRecord.asked === "create_main_window")).toEqual([]);
 
       expect(fakeShell.requestTheCloseOfTheWindow(2)).toBe("let_it_close");
@@ -538,41 +610,59 @@ describe("one window per project", () => {
       expect(fakeShell.urlsFetched).toEqual(["https://get.tatolab.com/catalog/v1.json", "https://get.tatolab.com/catalog/v1.json"]);
     });
 
-    test("shows an import's change to pyproject.toml, then writes it only while the file is as it was shown", async () => {
-      const { fakeShell, nightShowFolder } = await aStudioWindowOfNightShowImportingLobbyWall();
-      const descriptionFile = path.join(nightShowFolder, "pyproject.toml");
-      const textBefore = await readFile(descriptionFile, "utf8");
+    test("lists the project's imports as the runtime lists them, each named from its copy, and only to a Module manager window", async () => {
+      const { fakeShell, nightShowFolder, lobbyWallFolder } = await aStudioWindowOfNightShowImportingLobbyWall();
 
-      const preview = await fakeShell.invokeTheCommand("preview_import", { requirement: "tatolab-opus>=0.68.29" }, 3);
-      expect(preview).toMatchObject({ ok: true, value: { text_before: textBefore, text_after: textBefore.replace('    "lobby-wall",\n', '    "lobby-wall",\n    "tatolab-opus>=0.68.29",\n') } });
-      expect(await readFile(descriptionFile, "utf8")).toBe(textBefore);
-      if (!preview.ok) return;
-
-      await writeFile(descriptionFile, `${textBefore}# edited by hand\n`);
-      expect(await fakeShell.invokeTheCommand("import_into_workspace", { requirement: "tatolab-opus>=0.68.29", based_on_version: preview.value.based_on_version }, 3)).toEqual({
-        ok: false,
-        refusal: "pyproject.toml changed since the import was shown; nothing was written. Look at the change again before importing.",
+      expect(await fakeShell.invokeTheCommand("list_workspace_dependencies", { check_for_newer: false }, 3)).toEqual({
+        ok: true,
+        value: [
+          {
+            project: "uuid-of-lobby-wall",
+            folder: "lobby-wall",
+            source: lobbyWallFolder,
+            version: FAKE_IMPORT_VERSION,
+            folder_path: path.join(nightShowFolder, "imports", "lobby-wall"),
+            name: "lobby-wall",
+            edited_files: [],
+            newer_version_exists: null,
+            check_refused_because: null,
+          },
+        ],
       });
-
-      const previewAgain = await fakeShell.invokeTheCommand("preview_import", { requirement: "tatolab-opus>=0.68.29" }, 3);
-      if (!previewAgain.ok) return expect.unreachable(previewAgain.refusal);
-      expect(await fakeShell.invokeTheCommand("import_into_workspace", { requirement: "tatolab-opus>=0.68.29", based_on_version: previewAgain.value.based_on_version }, 3)).toEqual({ ok: true, value: null });
-      expect(await readFile(descriptionFile, "utf8")).toBe(previewAgain.value.text_after);
-
-      expect(await fakeShell.invokeTheCommand("preview_import", { requirement: "Tatolab_Opus" }, 3)).toEqual({ ok: false, refusal: "The project already imports tatolab-opus." });
-      expect(await fakeShell.invokeTheCommand("preview_import", { requirement: "tatolab-opus" }, 2)).toEqual({ ok: false, refusal: "Only a Get more window imports into a project." });
+      expect(await fakeShell.invokeTheCommand("read_open_project", undefined, 2)).toMatchObject({
+        ok: true,
+        value: { kind: "read", open_project: { project: { name: "night-show", project: "uuid-of-night-show" }, imports: [{ project: "uuid-of-lobby-wall", name: "lobby-wall", folder: "lobby-wall" }] } },
+      });
+      expect(await fakeShell.invokeTheCommand("list_workspace_dependencies", { check_for_newer: false }, 2)).toEqual({ ok: false, refusal: "Only a Module manager window imports into a project." });
     });
 
-    test("opens an import from a folder to edit in its own studio window, and refuses one from a package index", async () => {
+    test("adds the project the dialog answers through the runtime, which the open project then lists, and says the runtime's refusal in its words", async () => {
+      const { fakeShell, nightShowFolder } = await aStudioWindowOfNightShowImportingLobbyWall();
+      const doorwaysFolder = await aProjectTheDialogAnswers(fakeShell, "doorways");
+      fakeShell.dependencySourceTheDialogAnswers = doorwaysFolder;
+
+      expect(await fakeShell.invokeTheCommand("choose_dependency_source", { source_kind: "folder" }, 3)).toEqual({ ok: true, value: doorwaysFolder });
+      expect(fakeShell.records).toContainEqual(expect.objectContaining({ asked: "ask_for_a_dependency_source", sourceKind: "folder", defaultFolder: path.dirname(nightShowFolder) }));
+      expect(await fakeShell.invokeTheCommand("add_dependency_to_the_workspace", { source: doorwaysFolder }, 3)).toEqual({
+        ok: true,
+        value: { project: "uuid-of-doorways", folder: "doorways", source: doorwaysFolder, version: FAKE_IMPORT_VERSION },
+      });
+      expect(await fakeShell.invokeTheCommand("add_dependency_to_the_workspace", { source: doorwaysFolder }, 3)).toEqual({
+        ok: false,
+        refusal: "add_dependency failed: the project already imports uuid-of-doorways in imports/doorways",
+      });
+      expect(await fakeShell.invokeTheCommand("add_dependency_to_the_workspace", { source: "doorways" }, 3)).toMatchObject({ ok: false });
+
+      const listed = await fakeShell.invokeTheCommand("list_workspace_dependencies", { check_for_newer: false }, 3);
+      expect(listed.ok && Array.isArray(listed.value) && listed.value.map((dependency) => ("folder" in dependency ? dependency.folder : null))).toEqual(["lobby-wall", "doorways"]);
+    });
+
+    test("opens an import to edit in its own studio window, and refuses a folder the runtime lists no import in", async () => {
       const { fakeShell } = await aStudioWindowOfNightShowImportingLobbyWall();
 
-      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { name: "lobby-wall" }, 3)).toEqual({ ok: true, value: null });
-      expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "Get more · night-show", "lobby-wall"]);
-      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { name: "tatolab-camera" }, 3)).toEqual({
-        ok: false,
-        refusal: "tatolab-camera comes from a package index, so it has no folder of its own to open; only an import from a folder opens to edit.",
-      });
-      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { name: "nothing-here" }, 3)).toEqual({ ok: false, refusal: "The project imports nothing named nothing-here." });
+      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { folder: "lobby-wall" }, 3)).toEqual({ ok: true, value: null });
+      expect(fakeShell.studioWindowsOpen().map(({ title }) => title)).toEqual(["night-show", "Module manager · night-show", "lobby-wall"]);
+      expect(await fakeShell.invokeTheCommand("open_import_to_edit", { folder: "nothing-here" }, 3)).toEqual({ ok: false, refusal: "The project imports nothing in imports/nothing-here." });
     });
   });
 
@@ -580,7 +670,7 @@ describe("one window per project", () => {
     const PINNED_TO_THE_DISPLAY = { stream: "night-show-1a2b", project_name: "night-show", display_name: "main", node: "display" };
 
     async function aStudioWindowOfNightShow(): Promise<FakeTatolabElectronAppShell> {
-      const fakeShell = fakeShellQuitAfterTheTest();
+      const fakeShell = await fakeShellOverARuntimeReadingEachProjectsFile();
       await startTatolabApp(fakeShell.tatolabElectronAppShell, MACOS_PLATFORM_ITEMS, fakeShell.tatolabAppLog);
       await aProjectTheDialogAnswers(fakeShell, "night-show");
       await fakeShell.invokeTheCommand("choose_project_folder", { chosen_for: "project_to_open" });

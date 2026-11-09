@@ -1,5 +1,6 @@
 import { MOCK_NODE_CATALOG_ENTRIES } from "./mock_node_catalog";
 import { mockPackageCatalogReading } from "./mock_package_catalog";
+import { MockWorkspaceDependencies, mockWorkspaceDependenciesScenarioNamed, type MockWorkspaceDependenciesScenario } from "./mock_workspace_dependencies";
 import {
   createMockStreamFixtures,
   createMockStreamRunFromAProjectFolder,
@@ -184,7 +185,7 @@ export interface MockTatolabOptions {
   isMakingThePythonEnvironmentRefused: boolean;
   /** `?streams=earlier_record`: the runtime also lists a record an earlier runtime wrote, failed and naming no location. */
   doesTheRuntimeListAnEarlierRuntimesRecord: boolean;
-  /** `?project=none|unreadable`: no project open, or one whose `pyproject.toml` does not parse; the pattern project by default. */
+  /** `?project=none|unreadable`: no project open, or one the runtime names no project in; the pattern project by default. */
   openProjectScenario: MockOpenProjectScenario;
   /** `?recent=none`: no project opened before, as on first run; six recent ones by default. */
   recentProjectsInTheQuery: string | null;
@@ -194,32 +195,22 @@ export interface MockTatolabOptions {
   isEveryOwnNodeModuleUnreadable: boolean;
   /** `?popped_out_viewer=<target as JSON>`: the page is a Viewer popped out of the studio, as Pop out opens it in a new tab; the studio by default. */
   poppedOutViewer: PoppedOutViewerTarget | null;
-  /** `?get_more=open`: the page is the open project's Get more window, as File › Get more… opens it in a new tab. */
-  isAGetMoreWindow: boolean;
+  /** `?module_manager=open|edited_files|newer`: the page is the open project's Module manager window, as File › Module manager… opens it in a new tab, its import as copied, edited since, or with a newer version on its source; `null` for any other page. */
+  moduleManagerWorkspaceDependencies: MockWorkspaceDependenciesScenario | null;
   /** `?catalog=unserved`: get.tatolab.com serves no catalog yet; the mock catalog by default. */
   isTheCatalogUnserved: boolean;
   /** `?studio_views=fixture`: the open project brings the fixture view, and `main` holds its node. */
   isTheFixtureViewListed: boolean;
 }
 
-/** The query parameter a Get more window's page is told by. */
-const GET_MORE_QUERY_PARAMETER = "get_more";
+/** The query parameter a Module manager window's page is told by. */
+const MODULE_MANAGER_QUERY_PARAMETER = "module_manager";
 
 /** The mock page's address with every query parameter kept and `parameterName` set to `parameterValue`, so a new tab opens on the same scenario. */
 function mockPageUrlWith(pageUrl: string, parameterName: string, parameterValue: string): string {
   const pageUrlWithTheParameter = new URL(pageUrl);
   pageUrlWithTheParameter.searchParams.set(parameterName, parameterValue);
   return pageUrlWithTheParameter.toString();
-}
-
-/** A `pyproject.toml` as the mock writes one for `project`, its requirements one per line. */
-function mockPyprojectTextOf(project: { name: string; requirements: readonly string[] }): string {
-  return `[project]\nname = "${project.name}"\ndependencies = [\n${project.requirements.map((requirement) => `    ${JSON.stringify(requirement)},\n`).join("")}]\n`;
-}
-
-/** A requirement's leading name as PEP 503 normalizes it. */
-function mockRequirementsName(requirement: string): string {
-  return (/^\s*([A-Za-z0-9][A-Za-z0-9._-]*)/.exec(requirement)?.[1] ?? requirement).toLowerCase().replace(/[-_.]+/g, "-");
 }
 
 /** The query parameter a popped-out Viewer's page carries its pin in. */
@@ -328,7 +319,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     arePortFamiliesServed: pageQuery.get("port_families") !== "unserved",
     isEveryOwnNodeModuleUnreadable: pageQuery.get("node_types") === "unreadable_project",
     poppedOutViewer: mockPoppedOutViewerTargetFrom(pageQuery.get(POPPED_OUT_VIEWER_QUERY_PARAMETER)),
-    isAGetMoreWindow: pageQuery.get(GET_MORE_QUERY_PARAMETER) === "open",
+    moduleManagerWorkspaceDependencies: mockWorkspaceDependenciesScenarioNamed(pageQuery.get(MODULE_MANAGER_QUERY_PARAMETER)),
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
     isTheFixtureViewListed: pageQuery.get("studio_views") === "fixture",
   };
@@ -456,6 +447,10 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
   const openProjectListeners = new Set<(reading: OpenProjectReading) => void>();
   const menusKeptForTheSystemMenuBar: SystemMenuBarMenu[] = [];
   let openProjectReading = mockOpenProjectReading(openProjectScenario, fixtures.machine.homeDirectory);
+  const workspaceDependencies = new MockWorkspaceDependencies(
+    openProjectReading.kind === "read" ? openProjectReading.open_project.project.folder : `${fixtures.machine.homeDirectory}/streams/pattern`,
+    mockTatolabOptions.moduleManagerWorkspaceDependencies ?? "copied",
+  );
   let recentProjects = mockRecentProjects(recentProjectsInTheQuery, fixtures.machine.homeDirectory, Date.now());
   const mockFoldersOnDisk = () => [...mockFoldersInDocumentsTatoStudio(fixtures.machine.homeDirectory), ...recentProjects.map((recent) => recent.folder)];
   const openTheProjectInTheMock = (reading: OpenProjectReading, folder: string, projectName: string | null) => {
@@ -1264,49 +1259,38 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
       window.open(mockPoppedOutViewerPageUrl(window.location.href, target), "_blank");
     },
     readPoppedOutViewer: async () => structuredClone(mockTatolabOptions.poppedOutViewer),
-    openGetMoreWindow: async () => {
-      window.open(mockPageUrlWith(window.location.href, GET_MORE_QUERY_PARAMETER, "open"), "_blank");
+    openModuleManagerWindow: async () => {
+      window.open(mockPageUrlWith(window.location.href, MODULE_MANAGER_QUERY_PARAMETER, "open"), "_blank");
     },
-    readGetMoreWorkspace: async () => (mockTatolabOptions.isAGetMoreWindow ? structuredClone(openProjectReading) : null),
+    readModuleManagerWorkspace: async () => (mockTatolabOptions.moduleManagerWorkspaceDependencies !== null ? structuredClone(openProjectReading) : null),
     readPackageCatalog: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return mockPackageCatalogReading(mockTatolabOptions.isTheCatalogUnserved);
     },
-    previewImport: async (requirement) => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (openProjectReading.kind !== "read") throw "No project is open to import into.";
-      const { project } = openProjectReading.open_project;
-      const importedName = mockRequirementsName(requirement);
-      if (project.requirements.some((existing) => mockRequirementsName(existing) === importedName)) throw `The project already imports ${importedName}.`;
-      return {
-        file: `${project.folder}/pyproject.toml`,
-        text_before: mockPyprojectTextOf(project),
-        text_after: mockPyprojectTextOf({ ...project, requirements: [...project.requirements, requirement] }),
-        based_on_version: `mock-pyproject-${project.requirements.length}`,
-      };
+    listWorkspaceDependencies: async (checkForNewer) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * (checkForNewer ? 4 : 1));
+      return workspaceDependencies.list(checkForNewer);
     },
-    importIntoWorkspace: async (requirement, basedOnVersion) => {
-      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
-      if (openProjectReading.kind !== "read") throw "No project is open to import into.";
-      const { project, imports } = openProjectReading.open_project;
-      if (basedOnVersion !== `mock-pyproject-${project.requirements.length}`) throw "pyproject.toml changed since the import was shown; nothing was written. Look at the change again before importing.";
-      openProjectReading = {
-        kind: "read",
-        open_project: {
-          project: { ...project, requirements: [...project.requirements, requirement] },
-          imports: [...imports, { name: mockRequirementsName(requirement), requirement, source: { kind: "package_index" } }],
-        },
-      };
-      for (const openProjectListener of openProjectListeners) openProjectListener(structuredClone(openProjectReading));
+    chooseDependencySource: async (sourceKind) => workspaceDependencies.sourceTheDialogAnswers(sourceKind),
+    addDependencyToTheWorkspace: async (source) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 4);
+      return workspaceDependencies.add(source);
     },
-    openImportToEdit: async (name) => {
-      const importedProject = openProjectReading.kind === "read" ? openProjectReading.open_project.imports.find((imported) => imported.name === name) : undefined;
-      if (importedProject === undefined) throw `The project imports nothing named ${name}.`;
-      if (importedProject.source.kind !== "folder") throw `${name} comes from a package index, so it has no folder of its own to open; only an import from a folder opens to edit.`;
+    updateWorkspaceDependency: async (project, overwriteEditedFiles) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 4);
+      return workspaceDependencies.update(project, overwriteEditedFiles);
+    },
+    importFromTheMarketplace: async (name) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS * 6);
+      return workspaceDependencies.add(`${fixtures.machine.homeDirectory}/Library/Application Support/Tato Studio/module-downloads/${name}-0.68.29.zip`);
+    },
+    openImportToEdit: async (folder) => {
+      if (!workspaceDependencies.holdsTheFolder(folder)) throw `The project imports nothing in imports/${folder}.`;
       const studioPageUrl = new URL(window.location.href);
-      studioPageUrl.searchParams.delete(GET_MORE_QUERY_PARAMETER);
+      studioPageUrl.searchParams.delete(MODULE_MANAGER_QUERY_PARAMETER);
       window.open(studioPageUrl.toString(), "_blank");
     },
+    pathOfADroppedFile: (droppedFile) => `${fixtures.machine.homeDirectory}/streams/${droppedFile.name}`,
     readRecentProjects: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
       return structuredClone(recentProjects);

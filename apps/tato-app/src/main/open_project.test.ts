@@ -1,10 +1,18 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
 import type { OpenProjectReading, ProjectCreationQueued, ProjectFolderChosenFor } from "../shared/tatolab_backend_contract.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
-import { OPEN_PROJECT_REREAD_QUIET_MS, OpenProjectOfAStudioWindow, ProjectOpening, readTheProjectIn, type ProjectFolderDialogPurpose, type RecentProjectFolderOpened } from "./open_project.js";
+import {
+  OPEN_PROJECT_REREAD_QUIET_MS,
+  OpenProjectOfAStudioWindow,
+  ProjectOpening,
+  readTheProjectIn,
+  type ProjectFolderDialogPurpose,
+  type ProjectReadingsOfTheRuntime,
+  type RecentProjectFolderOpened,
+} from "./open_project.js";
 import { failedWith, succeeded, type Result } from "./result.js";
 
 const foldersMade: string[] = [];
@@ -19,70 +27,86 @@ async function aFolder(): Promise<string> {
   return folder;
 }
 
-async function writeAProject(folder: string, pyprojectText: string): Promise<void> {
+/** Writes the `tatolab-project.json` the fake runtime names a project by. */
+async function writeAProject(folder: string, name: string): Promise<void> {
   await mkdir(folder, { recursive: true });
-  await writeFile(path.join(folder, "pyproject.toml"), pyprojectText);
+  await writeFile(path.join(folder, "tatolab-project.json"), JSON.stringify({ project: `uuid-of-${name}`, name }));
 }
 
-const PROJECT_PYPROJECT = `[project]
-name = "studio"
-dependencies = ["tatolab-stream>=0.55", "Hall_Of.Light", "stage-lights", "tatolab-camera"]
+function refusalOfAFolderHoldingNoProject(folder: string): string {
+  return `list_assets failed: ${folder} holds no project: it has no tatolab-project.json`;
+}
 
-[tool.uv.sources]
-hall-of-light = { path = "imports/hall-of-light" }
-stage_lights = { path = "imports/stage-lights" }
-`;
+/** A runtime that names a project from its folder's `tatolab-project.json`, as `list_assets` does, and lists the imports in `importFolders()`, or answers none. */
+function aFakeRuntime(importFolders: () => readonly string[] | null): ProjectReadingsOfTheRuntime {
+  return {
+    nameTheProject: async (projectFolder) => {
+      try {
+        const projectFile: unknown = JSON.parse(await readFile(path.join(projectFolder, "tatolab-project.json"), "utf8"));
+        if (typeof projectFile !== "object" || projectFile === null || !("project" in projectFile) || !("name" in projectFile)) return failedWith("not a project file");
+        return succeeded({ folder: projectFolder, project: String(projectFile.project), name: String(projectFile.name) });
+      } catch {
+        return failedWith(refusalOfAFolderHoldingNoProject(projectFolder));
+      }
+    },
+    listTheDependencies: async () => {
+      const folders = importFolders();
+      if (folders === null) return failedWith("no runtime answers at /tmp/local-api.sock");
+      return succeeded(
+        folders.map((folder) => ({
+          dependency: { project: `uuid-of-${folder}`, folder, source: `/shows/${folder}`, version: "907fd8c1c2e70a58c1a4c6113cc043dc6522f67406da53a3ea6cc3af72976e82" },
+          edited_files: [],
+          newer_version_exists: null,
+          check_refused_because: null,
+        })),
+      );
+    },
+  };
+}
 
-test("an open project reads its own pyproject.toml and each import, by folder where a uv path source names one", async () => {
+test("an open project is named by the runtime, and each import the runtime lists is named from its copy under imports/", async () => {
   const projectFolder = await aFolder();
-  await writeAProject(projectFolder, PROJECT_PYPROJECT);
-  await writeAProject(path.join(projectFolder, "imports/hall-of-light"), `[project]\nname = "hall-of-light"\ndependencies = ["tatolab-stream"]\n`);
+  await writeAProject(projectFolder, "studio");
+  await writeAProject(path.join(projectFolder, "imports/hall-of-light"), "Hall of Light");
 
-  const reading = await readTheProjectIn(projectFolder);
+  const reading = await readTheProjectIn(projectFolder, aFakeRuntime(() => ["hall-of-light", "stage-lights"]));
 
   expect(reading).toEqual({
     kind: "read",
     open_project: {
-      project: { folder: projectFolder, name: "studio", requirements: ["tatolab-stream>=0.55", "Hall_Of.Light", "stage-lights", "tatolab-camera"] },
+      project: { folder: projectFolder, project: "uuid-of-studio", name: "studio" },
       imports: [
-        { name: "tatolab-stream", requirement: "tatolab-stream>=0.55", source: { kind: "package_index" } },
         {
-          name: "hall-of-light",
-          requirement: "Hall_Of.Light",
-          source: { kind: "folder", project: { folder: path.join(projectFolder, "imports/hall-of-light"), name: "hall-of-light", requirements: ["tatolab-stream"] } },
+          project: "uuid-of-hall-of-light",
+          name: "Hall of Light",
+          folder: "hall-of-light",
+          source: { kind: "folder", project: { folder: path.join(projectFolder, "imports/hall-of-light"), project: "uuid-of-Hall of Light", name: "Hall of Light" } },
         },
         {
+          project: "uuid-of-stage-lights",
           name: "stage-lights",
-          requirement: "stage-lights",
-          source: {
-            kind: "folder_unreadable",
-            folder: path.join(projectFolder, "imports/stage-lights"),
-            refusal: `${path.join(projectFolder, "imports/stage-lights")} has no pyproject.toml.`,
-          },
+          folder: "stage-lights",
+          source: { kind: "folder_unreadable", folder: path.join(projectFolder, "imports/stage-lights"), refusal: refusalOfAFolderHoldingNoProject(path.join(projectFolder, "imports/stage-lights")) },
         },
-        { name: "tatolab-camera", requirement: "tatolab-camera", source: { kind: "package_index" } },
       ],
+      imports_not_listed_because: null,
     },
   } satisfies OpenProjectReading);
 });
 
-test("a project whose pyproject.toml is missing, is not TOML, or names no project is unreadable, with why", async () => {
-  const missingFolder = await aFolder();
-  expect(await readTheProjectIn(missingFolder)).toEqual({ kind: "unreadable", folder: missingFolder, refusal: `${missingFolder} has no pyproject.toml.` });
+test("an open project whose imports the runtime does not list says why, and lists none", async () => {
+  const projectFolder = await aFolder();
+  await writeAProject(projectFolder, "studio");
 
-  const notTomlFolder = await aFolder();
-  await writeAProject(notTomlFolder, `[project\nname = "studio"\n`);
-  const notToml = await readTheProjectIn(notTomlFolder);
-  expect(notToml.kind).toBe("unreadable");
-  expect(notToml.kind === "unreadable" && notToml.refusal).toMatch(/pyproject\.toml is not TOML: Invalid TOML document: illegal character in key\n\n1:  \[project/);
-
-  const namelessFolder = await aFolder();
-  await writeAProject(namelessFolder, `[project]\ndependencies = []\n`);
-  expect(await readTheProjectIn(namelessFolder)).toEqual({
-    kind: "unreadable",
-    folder: namelessFolder,
-    refusal: `${path.join(namelessFolder, "pyproject.toml")} names no [project] name.`,
+  expect(await readTheProjectIn(projectFolder, aFakeRuntime(() => null))).toEqual({
+    kind: "read",
+    open_project: { project: { folder: projectFolder, project: "uuid-of-studio", name: "studio" }, imports: [], imports_not_listed_because: "no runtime answers at /tmp/local-api.sock" },
   });
+});
+
+test("a folder the runtime names no project in is unreadable, in the runtime's words", async () => {
+  const notAProjectFolder = await aFolder();
+  expect(await readTheProjectIn(notAProjectFolder, aFakeRuntime(() => []))).toEqual({ kind: "unreadable", folder: notAProjectFolder, refusal: refusalOfAFolderHoldingNoProject(notAProjectFolder) });
 });
 
 /** An open project over a scripted dialog, a Documents folder of its own, recent projects in memory, a wall clock the test sets, a runtime that creates projects on disk, watches the test fires by hand, and timers it runs by hand. */
@@ -92,6 +116,8 @@ async function anOpenProject(options: { dialogAnswers: string | null; recentFold
   const projectDirectoriesCreated: string[] = [];
   const documentsDirectory = path.join(await aFolder(), "Documents");
   const watchedFolders = new Map<string, () => void>();
+  let importFoldersTheRuntimeLists: string[] = [];
+  const fakeRuntime = aFakeRuntime(() => importFoldersTheRuntimeLists);
   const pendingTimers: Array<() => void> = [];
   let recentFolders = options.recentFolders ?? [];
   let wallClockNowMs = 1_790_000_000_000;
@@ -115,10 +141,11 @@ async function anOpenProject(options: { dialogAnswers: string | null; recentFold
       createProject: async (projectDirectory): Promise<Result<ProjectCreationQueued, LocalApiRequestFailure>> => {
         if (options.creationRefusal !== undefined) return failedWith({ failureDescription: options.creationRefusal, isTheRuntimesRefusal: true });
         projectDirectoriesCreated.push(projectDirectory ?? "");
-        await writeAProject(projectDirectory ?? "", `[project]\nname = "fresh"\ndependencies = []\n`);
+        await writeAProject(projectDirectory ?? "", "fresh");
         return succeeded({ action: "action-1", stream: "fresh-main-0a1b2c", project_directory: projectDirectory ?? "" });
       },
     },
+    projectReadingsOfTheRuntime: fakeRuntime,
     openTheProjectInItsStudioWindow: async (folder) => {
       projectOpenedLast?.stopWatching();
       projectOpenedLast = new OpenProjectOfAStudioWindow(folder, {
@@ -132,6 +159,7 @@ async function anOpenProject(options: { dialogAnswers: string | null; recentFold
           return () => pendingTimers.splice(pendingTimers.indexOf(work), 1);
         },
         sendTheWindowTheOpenProject: (reading) => sentReadings.push(reading),
+        projectReadingsOfTheRuntime: fakeRuntime,
       });
       await projectOpenedLast.readAndWatch();
     },
@@ -153,6 +181,9 @@ async function anOpenProject(options: { dialogAnswers: string | null; recentFold
     dialogsAsked,
     projectDirectoriesCreated,
     watchedFolders,
+    setTheImportsTheRuntimeLists: (folders: string[]) => {
+      importFoldersTheRuntimeLists = folders;
+    },
     pendingTimers,
     rememberedFolder: () => recentFolders[0]?.folder ?? null,
     setTheWallClock: (nowMs: number) => {
@@ -170,22 +201,24 @@ test("no project is open at launch, even with recent ones, until one is chosen, 
 
 test("a chosen project opens, is sent to the window, is remembered, and is read again once its folder goes quiet after a change", async () => {
   const projectFolder = await aFolder();
-  await writeAProject(projectFolder, `[project]\nname = "studio"\ndependencies = []\n`);
-  const { openProject, sentReadings, dialogsAsked, watchedFolders, pendingTimers, rememberedFolder } = await anOpenProject({ dialogAnswers: projectFolder });
+  await writeAProject(projectFolder, "studio");
+  const { openProject, sentReadings, dialogsAsked, watchedFolders, pendingTimers, rememberedFolder, setTheImportsTheRuntimeLists } = await anOpenProject({ dialogAnswers: projectFolder });
 
   expect(await openProject.chooseProjectFolder("project_to_open")).toEqual(succeeded({ folder: projectFolder, project_creation: null }));
   expect(dialogsAsked.map((dialogAsked) => dialogAsked.purpose)).toEqual(["project_to_open"]);
   expect(rememberedFolder()).toBe(projectFolder);
   expect(sentReadings.map((reading) => reading.kind === "read" && reading.open_project.project.name)).toEqual(["studio"]);
-  expect([...watchedFolders.keys()]).toEqual([projectFolder]);
+  expect([...watchedFolders.keys()]).toEqual([projectFolder, path.join(projectFolder, "imports")]);
 
-  await writeAProject(projectFolder, `[project]\nname = "studio"\ndependencies = ["tatolab-camera"]\n`);
+  await writeAProject(path.join(projectFolder, "imports/camera"), "tatolab-camera");
+  setTheImportsTheRuntimeLists(["camera"]);
   watchedFolders.get(projectFolder)?.();
   watchedFolders.get(projectFolder)?.();
   expect(pendingTimers).toHaveLength(1);
   pendingTimers[0]?.();
   await expect.poll(() => sentReadings.length).toBe(2);
-  expect(openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { imports: [{ name: "tatolab-camera" }] } });
+  expect(openProject.readOpenProject()).toMatchObject({ kind: "read", open_project: { imports: [{ name: "tatolab-camera", folder: "camera" }] } });
+  expect([...watchedFolders.keys()]).toEqual([projectFolder, path.join(projectFolder, "imports"), path.join(projectFolder, "imports/camera")]);
 });
 
 test("a new project is suggested in Documents/Tato Studio, numbered past the names already taken there", async () => {
@@ -248,7 +281,7 @@ test("a recent project opens, moves first, and one that is gone reads as unreada
   const parentFolder = await aFolder();
   const goneFolder = path.join(parentFolder, "gone");
   const studioFolder = await aFolder();
-  await writeAProject(studioFolder, `[project]\nname = "studio"\ndependencies = []\n`);
+  await writeAProject(studioFolder, "studio");
   const { openProject, watchedFolders, setTheWallClock } = await anOpenProject({
     dialogAnswers: null,
     recentFolders: [
@@ -263,7 +296,7 @@ test("a recent project opens, moves first, and one that is gone reads as unreada
 
   setTheWallClock(300);
   expect(await openProject.openRecentProject(goneFolder)).toEqual(succeeded(undefined));
-  expect(openProject.readOpenProject()).toEqual({ kind: "unreadable", folder: goneFolder, refusal: `${goneFolder} has no pyproject.toml.` });
+  expect(openProject.readOpenProject()).toEqual({ kind: "unreadable", folder: goneFolder, refusal: refusalOfAFolderHoldingNoProject(goneFolder) });
   expect([...watchedFolders.keys()]).toEqual([goneFolder, parentFolder]);
   expect((await openProject.readRecentProjects()).map(({ folder, last_opened_at_wall_clock_ms }) => [folder, last_opened_at_wall_clock_ms])).toEqual([
     [goneFolder, 300],
@@ -275,4 +308,33 @@ test("a folder that is not a recent project is refused, and the open project sta
   const { openProject } = await anOpenProject({ dialogAnswers: null });
   expect(await openProject.openRecentProject("/etc")).toEqual(failedWith("/etc is not one of the recent projects."));
   expect(openProject.readOpenProject()).toEqual({ kind: "none_open" });
+});
+
+test("a project opened before the runtime answers says so, and reads again once asked as the runtime starts answering", async () => {
+  const projectFolder = await aFolder();
+  await writeAProject(projectFolder, "studio");
+  let theRuntimeAnswers = false;
+  const answeringRuntime = aFakeRuntime(() => []);
+  const sentReadings: OpenProjectReading[] = [];
+  const openProject = new OpenProjectOfAStudioWindow(projectFolder, {
+    watchFolderEntries: () => null,
+    runAfter: () => () => {},
+    sendTheWindowTheOpenProject: (reading) => sentReadings.push(reading),
+    projectReadingsOfTheRuntime: {
+      nameTheProject: (folder) => (theRuntimeAnswers ? answeringRuntime.nameTheProject(folder) : Promise.resolve(failedWith("Tato Studio has not reached the runtime yet."))),
+      listTheDependencies: answeringRuntime.listTheDependencies,
+    },
+  });
+
+  await openProject.readAndWatch();
+  theRuntimeAnswers = true;
+  await openProject.readAgain();
+
+  expect(sentReadings).toEqual([
+    { kind: "unreadable", folder: projectFolder, refusal: "Tato Studio has not reached the runtime yet." },
+    { kind: "read", open_project: { project: { folder: projectFolder, project: "uuid-of-studio", name: "studio" }, imports: [], imports_not_listed_because: null } },
+  ]);
+  openProject.stopWatching();
+  await openProject.readAgain();
+  expect(sentReadings).toHaveLength(2);
 });

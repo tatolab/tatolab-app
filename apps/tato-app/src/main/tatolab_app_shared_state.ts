@@ -13,7 +13,8 @@ import type { StreamFailureNotifications } from "./stream_failure_notifications.
 import type { ProjectOpening } from "./open_project.js";
 import type { PythonLanguageServers } from "./python_language_servers.js";
 import type { RuntimePortViewers } from "./runtime_port_viewers.js";
-import type { FetchTextOverHttps } from "./package_catalog.js";
+import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.js";
+import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import type { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 
 /** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, opening projects, the app's windows, the language servers, the port viewers and the system menu bar, which the tray's choices and the window's commands reach. */
@@ -34,8 +35,14 @@ export interface TatolabAppSharedState {
   runtimePortViewers: RuntimePortViewers;
   /** macOS's one menu bar, which shows the focused window's menus. */
   systemMenuBar: SystemMenuBarOfTheFocusedWindow;
-  /** How Get more fetches the package catalog. */
+  /** How the module manager fetches the package catalog. */
   fetchTextOverHttps: FetchTextOverHttps;
+  /** How the Marketplace downloads a module's `.zip`. */
+  fetchBytesOverHttps: FetchBytesOverHttps;
+  /** Where each Marketplace download is kept, inside the app's config directory. */
+  moduleDownloadsFolder: string;
+  /** How Module manager asks for a project's folder or `.zip` to import. */
+  dependencySourceDialog: DependencySourceDialog;
   tatolabAppLog: TatolabAppLog;
 }
 

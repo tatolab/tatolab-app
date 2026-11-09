@@ -1,8 +1,8 @@
 // Opening projects, each in its own studio window: a folder that is itself a project, chosen in the
 // app's own dialog, from the Projects window's recent projects, or made new, and remembered among
-// the recent projects. A studio window's project is read from each `pyproject.toml` it and its
-// folder imports hold, and read again whenever one of those folders changes, so the window always
-// shows what is on disk.
+// the recent projects. A studio window's project is named by the runtime's `list_assets`, its
+// imports listed by its `list_dependencies` and each copy under `imports/` named by `list_assets`,
+// and read again whenever one of those folders changes or the runtime starts answering.
 
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -15,10 +15,12 @@ import type {
   ProjectCreationQueued,
   RecentProject,
   ProjectFolderChosenFor,
+  ProjectTheRuntimeNames,
 } from "../shared/tatolab_backend_contract.js";
 import { realPathOrAsGiven, somethingIsAt } from "./file_system_entries_on_this_machine.js";
 import type { LocalApiRequestFailure } from "./local_api_client.js";
-import { readProjectFromItsFolder, requirementsPackageName } from "./project_on_disk.js";
+import type { ListedProjectDependency } from "./project_dependencies_on_the_wire.js";
+import { importFolderInsideTheWorkspace, PROJECT_IMPORTS_FOLDER } from "./workspace_dependencies.js";
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 
 /** How long the folders must stay quiet after a change before they are read again, so one save that touches a file several times reads once. */
@@ -68,66 +70,67 @@ export interface ProjectOpeningSources {
   /** The wall clock, in milliseconds since the epoch, stamped on a project as it opens for the Projects window to show. */
   readWallClockNowMs: () => number;
   newProjectCreation: NewProjectCreation;
+  projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime;
   /** Open the project in `folder` in its own studio window, or bring that window forward when it is open; answers once the window shows the project. */
   openTheProjectInItsStudioWindow: (folder: string) => Promise<void>;
 }
 
-/** What a studio window's project reaches: a folder watch, a timer, and its window. */
+/** What a studio window's project reaches: a folder watch, a timer, its window, and the runtime that lists its imports. */
 export interface OpenProjectOfAStudioWindowSources {
   watchFolderEntries: FolderEntriesWatch;
   /** Runs `work` once after `delayMs`; the answer cancels it. */
   runAfter: (delayMs: number, work: () => void) => () => void;
   sendTheWindowTheOpenProject: (reading: OpenProjectReading) => void;
+  projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime;
 }
 
-/** Each requirement of the open project as an import, its folder read when a uv `path` source names one. */
+/** What the runtime answers about the project in a folder, each refused in the runtime's words or that no runtime answered. */
+export interface ProjectReadingsOfTheRuntime {
+  /** Its UUID and name, from `list_assets`. */
+  nameTheProject: (projectFolder: string) => Promise<Result<ProjectTheRuntimeNames, string>>;
+  /** Each project it imports, from `list_dependencies`. */
+  listTheDependencies: (projectFolder: string) => Promise<Result<ListedProjectDependency[], string>>;
+}
+
+/** Each import the runtime lists, its copy under `imports/` named by the runtime. */
 async function importsOfTheOpenProject(
-  requirements: readonly string[],
-  pathSourceFoldersByRequirementName: ReadonlyMap<string, string>,
+  projectFolder: string,
+  listedDependencies: readonly ListedProjectDependency[],
+  projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime,
 ): Promise<ImportedProject[]> {
   return Promise.all(
-    requirements.map(async (requirement): Promise<ImportedProject> => {
-      const name = requirementsPackageName(requirement) ?? requirement;
-      const sourceFolder = pathSourceFoldersByRequirementName.get(name);
-      if (sourceFolder === undefined) return { name, requirement, source: { kind: "package_index" } };
-      const importedProject = await readProjectFromItsFolder(sourceFolder);
-      return {
-        name,
-        requirement,
-        source: importedProject.ok
-          ? { kind: "folder", project: importedProject.value.project }
-          : { kind: "folder_unreadable", folder: sourceFolder, refusal: importedProject.failure },
-      };
+    listedDependencies.map(async ({ dependency }): Promise<ImportedProject> => {
+      const listedAs = { project: dependency.project, name: dependency.folder, folder: dependency.folder };
+      const importFolder = importFolderInsideTheWorkspace(projectFolder, dependency.folder);
+      if (importFolder === null) return { ...listedAs, source: { kind: "folder_unreadable", folder: projectFolder, refusal: `imports/${dependency.folder} is no folder name.` } };
+      const importedProject = await projectReadingsOfTheRuntime.nameTheProject(importFolder);
+      return importedProject.ok
+        ? { ...listedAs, name: importedProject.value.name, source: { kind: "folder", project: importedProject.value } }
+        : { ...listedAs, source: { kind: "folder_unreadable", folder: importFolder, refusal: importedProject.failure } };
     }),
   );
 }
 
-/** The project in `projectFolder` as its `pyproject.toml` and its folder imports describe it. */
-export async function readTheProjectIn(projectFolder: string): Promise<OpenProjectReading> {
-  const openProject = await readProjectFromItsFolder(projectFolder);
-  if (!openProject.ok) return { kind: "unreadable", folder: projectFolder, refusal: openProject.failure };
-  const { project, pathSourceFoldersByRequirementName } = openProject.value;
+/** The project in `projectFolder` as the runtime names it, with each import the runtime lists. */
+export async function readTheProjectIn(projectFolder: string, projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime): Promise<OpenProjectReading> {
+  const named = await projectReadingsOfTheRuntime.nameTheProject(await realPathOrAsGiven(path.resolve(projectFolder)));
+  if (!named.ok) return { kind: "unreadable", folder: projectFolder, refusal: named.failure };
+  const project = named.value;
+  const listed = await projectReadingsOfTheRuntime.listTheDependencies(project.folder);
   return {
     kind: "read",
-    open_project: { project: project, imports: await importsOfTheOpenProject(project.requirements, pathSourceFoldersByRequirementName) },
+    open_project: listed.ok
+      ? { project, imports: await importsOfTheOpenProject(project.folder, listed.value, projectReadingsOfTheRuntime), imports_not_listed_because: null }
+      : { project, imports: [], imports_not_listed_because: listed.failure },
   };
 }
 
-/** The folders whose entries decide what the project reads: its own and each import's folder. */
+/** The folders whose entries decide what the project reads: its own, its `imports/`, and each import's folder. */
 function foldersTheReadingDependsOn(projectFolder: string, reading: OpenProjectReading): string[] {
   // A folder not made yet, as a new project's before the runtime creates its project, appears in its parent.
   if (reading.kind !== "read") return [projectFolder, path.dirname(projectFolder)];
-  const importFolders = reading.open_project.imports.flatMap((importedProject) => {
-    switch (importedProject.source.kind) {
-      case "folder":
-        return [importedProject.source.project.folder];
-      case "folder_unreadable":
-        return [importedProject.source.folder];
-      case "package_index":
-        return [];
-    }
-  });
-  return [...new Set([reading.open_project.project.folder, ...importFolders])];
+  const importFolders = reading.open_project.imports.map((importedProject) => (importedProject.source.kind === "folder" ? importedProject.source.project.folder : importedProject.source.folder));
+  return [...new Set([reading.open_project.project.folder, path.join(reading.open_project.project.folder, PROJECT_IMPORTS_FOLDER), ...importFolders])];
 }
 
 /** Opening a project, from any window: a folder chosen in the dialog, a recent project, or a new one the runtime creates, each in its own studio window and remembered among the recent projects. */
@@ -187,13 +190,13 @@ export class ProjectOpening {
     return this.openAndRememberTheFolder(folder);
   }
 
-  /** The recent projects, recent first, each with its project's name as its `pyproject.toml` reads now. */
+  /** The recent projects, recent first, each with its project's name as the runtime reads it now, `null` where it could not. */
   async readRecentProjects(): Promise<RecentProject[]> {
     const recentFolders = await this.sources.recentProjectFolders.readRecentFolders();
     return Promise.all(
       recentFolders.map(async ({ folder, opened_at_wall_clock_ms }): Promise<RecentProject> => {
-        const project = await readProjectFromItsFolder(folder);
-        return { folder, project_name: project.ok ? project.value.project.name : null, last_opened_at_wall_clock_ms: opened_at_wall_clock_ms };
+        const project = await this.sources.projectReadingsOfTheRuntime.nameTheProject(folder);
+        return { folder, project_name: project.ok ? project.value.name : null, last_opened_at_wall_clock_ms: opened_at_wall_clock_ms };
       }),
     );
   }
@@ -233,6 +236,14 @@ export class OpenProjectOfAStudioWindow {
     return this.readAgainAndSend();
   }
 
+  /** Read the project again and send it to the window, as the runtime starts answering. */
+  readAgain(): Promise<void> {
+    if (this.hasStopped) return Promise.resolve();
+    this.cancelThePendingReread?.();
+    this.cancelThePendingReread = null;
+    return this.readAgainAndSend();
+  }
+
   /** Stop watching the project's folders, as its window closes or the app quits. */
   stopWatching(): void {
     this.hasStopped = true;
@@ -247,7 +258,7 @@ export class OpenProjectOfAStudioWindow {
   }
 
   private async readAgainAndSend(): Promise<void> {
-    const reading = await readTheProjectIn(this.projectFolder);
+    const reading = await readTheProjectIn(this.projectFolder, this.sources.projectReadingsOfTheRuntime);
     if (this.hasStopped) return;
     this.lastReading = reading;
     this.watchTheFoldersOf(reading);

@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { PortViewerImageFrameFacts, StreamProjectFolderChosenFor, SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
+import type { DependencySourceKind, PortViewerImageFrameFacts, StreamProjectFolderChosenFor, SystemMenuBarMenu } from "../shared/tatolab_backend_contract.js";
 import type { ProjectFolderDialogPurpose } from "./open_project.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
 import { FakeCarriedRuntimeStarts, FakeTatolabCommandLineToolLink, fakeTatolabPlatformForThisBuild } from "./fake_tatolab_platform_for_this_build.js";
@@ -57,6 +57,7 @@ export type FakeShellRecord = (
   | { asked: "open_folder_in_the_file_manager"; folder: string }
   | { asked: "ask_for_a_stream_project_folder"; chosenFor: StreamProjectFolderChosenFor; defaultFolder: string }
   | { asked: "ask_for_a_project_folder"; chosenFor: ProjectFolderDialogPurpose; defaultFolder: string }
+  | { asked: "ask_for_a_dependency_source"; sourceKind: DependencySourceKind; defaultFolder: string }
 ) & { windowContentsId?: number };
 
 /** A fake Electron app shell for the lifecycle's tests. */
@@ -88,10 +89,16 @@ export class FakeTatolabElectronAppShell {
   streamProjectFolderTheDialogAnswers: string | null = null;
   /** The package catalog the fake network serves; `null` refuses every fetch. */
   packageCatalogTextServed: string | null = null;
+  /** The socket the app reads the runtime's local API at; `null` for one no runtime answers. */
+  localApiSocketPath: string | null = null;
+  /** The bytes each URL serves over HTTPS, a Marketplace `.zip` among them; any other URL is refused. */
+  readonly bytesServedByUrl = new Map<string, Buffer>();
   /** Every URL the app fetched over HTTPS, in order. */
   readonly urlsFetched: string[] = [];
   /** The folder the project dialog answers, or `null` for the person cancelling. */
   projectFolderTheDialogAnswers: string | null = null;
+  /** The folder or `.zip` the dependency source dialog answers, or `null` for the person cancelling. */
+  dependencySourceTheDialogAnswers: string | null = null;
   readonly systemNotifications = new FakeSystemNotifications((notificationShown) => this.records.push({ asked: "notify", ...notificationShown }));
   readonly appConfigDirectory = path.join(os.tmpdir(), `tl-app-config-${randomUUID()}`);
   private tatolabWindowCommandHandlers: TatolabWindowCommandHandlers | null = null;
@@ -128,7 +135,7 @@ export class FakeTatolabElectronAppShell {
     onAWindowClosed: (listener) => this.windowClosedListeners.push(listener),
     buildTheTatolabPlatformForThisBuild: async () =>
       fakeTatolabPlatformForThisBuild({
-        localApiSocket: path.join(this.appConfigDirectory, "no-runtime.sock"),
+        localApiSocket: this.localApiSocketPath ?? path.join(this.appConfigDirectory, "no-runtime.sock"),
         carriedRuntime: this.carriedRuntime,
         commandLineToolLink: this.commandLineToolLink,
         appUpdatePackaging: this.appUpdatePackaging,
@@ -149,10 +156,19 @@ export class FakeTatolabElectronAppShell {
       this.records.push({ asked: "ask_for_a_project_folder", chosenFor, defaultFolder });
       return succeeded(this.projectFolderTheDialogAnswers);
     },
+    askThePersonForADependencySource: async (sourceKind, defaultFolder) => {
+      this.records.push({ asked: "ask_for_a_dependency_source", sourceKind, defaultFolder });
+      return succeeded(this.dependencySourceTheDialogAnswers);
+    },
     watchFolderEntries: () => null,
     fetchTextOverHttps: async (url) => {
       this.urlsFetched.push(url);
       return this.packageCatalogTextServed === null ? failedWith("the fake shell reaches no network") : succeeded(this.packageCatalogTextServed);
+    },
+    fetchBytesOverHttps: async (url) => {
+      this.urlsFetched.push(url);
+      const bytesServed = this.bytesServedByUrl.get(url);
+      return bytesServed === undefined ? failedWith("the fake shell reaches no network") : succeeded(bytesServed);
     },
     startANodeLanguageServer: () => failedWith("the fake shell starts no language server"),
     pyrightLanguageServerModulePath: "/fake/node_modules/pyright/langserver.index.js",

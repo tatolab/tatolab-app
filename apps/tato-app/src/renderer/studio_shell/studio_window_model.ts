@@ -86,8 +86,8 @@ export class StudioWindowModel {
   readonly appUpdateChoiceRefusal = new WatchedStudioValue<string | null>(null);
   /** The open project's stream whose failure the window raises over the studio, until it is dismissed, the stream leaves `failed`, or another project opens. */
   readonly openProjectStreamFailureRaised = new WatchedStudioValue<OpenProjectStreamFailure | null>(null);
-  /** The workspace when the window is a studio window's Get more window, as last read from disk; `null` in any other window. */
-  readonly getMoreWorkspace = new WatchedStudioValue<OpenProjectReading | null>(null);
+  /** The workspace when the window is a studio window's Module manager window, as last read from disk; `null` in any other window. */
+  readonly moduleManagerWorkspace = new WatchedStudioValue<OpenProjectReading | null>(null);
   /** What the window is pinned to when it is a Viewer popped out of a studio window; `null` in the Projects and studio windows. */
   readonly poppedOutViewer = new WatchedStudioValue<PoppedOutViewerTarget | null>(null);
 

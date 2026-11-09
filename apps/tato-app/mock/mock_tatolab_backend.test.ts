@@ -302,7 +302,7 @@ describe("the mock backend's New project and Import project", () => {
 
     const created = await settled(() => backend.createNewProject("Night Show", tatoStudioFolder));
     expect(created).toMatchObject({ answer: { folder: `${tatoStudioFolder}/Night Show`, project_creation: { project_directory: `${tatoStudioFolder}/Night Show` } } });
-    expect(await backend.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: `${tatoStudioFolder}/Night Show`, name: "night-show" } } });
+    expect(await backend.readOpenProject()).toMatchObject({ kind: "read", open_project: { project: { folder: `${tatoStudioFolder}/Night Show`, name: "Night Show" } } });
     expect(await settled(() => backend.readNewProjectDefaults())).toEqual({ answer: { location: tatoStudioFolder, name: "Untitled project 2" } });
   });
 });

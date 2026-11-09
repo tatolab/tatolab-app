@@ -23,7 +23,7 @@ export function ChoosableItemList({
   items: readonly ChoosableItem[];
   chosenItemId: string | null;
   onItemChosen: (itemId: string) => void;
-  /** Set on each item's button to its id, as `data-get-more-row="camera-halftone"`. */
+  /** Set on each item's button to its id, as `data-module-manager-row="camera-halftone"`. */
   dataAttributeOfEachItem: ControlDataAttributeName;
 }) {
   return (

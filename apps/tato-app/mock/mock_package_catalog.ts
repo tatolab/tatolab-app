@@ -2,9 +2,13 @@
 // packages a show reaches for and two sample projects. `?catalog=unserved` answers the refusal a
 // Tato Studio gets while the catalog is not served yet.
 
-import type { PackageCatalogEntry, PackageCatalogReading } from "../src/shared/tatolab_backend_contract";
+import type { PackageCatalogDownload, PackageCatalogEntry, PackageCatalogReading } from "../src/shared/tatolab_backend_contract";
 
 const MOCK_CATALOG_VERSION = "0.68.29";
+
+function mockDownloadOf(name: string): PackageCatalogDownload {
+  return { url: `https://get.tatolab.com/modules/${name}-${MOCK_CATALOG_VERSION}.zip`, sha256: "4f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f70" };
+}
 
 function mockPackage(name: string, title: string, summary: string, nodes: [string, string, string][]): PackageCatalogEntry {
   return {
@@ -13,7 +17,7 @@ function mockPackage(name: string, title: string, summary: string, nodes: [strin
     title,
     summary,
     version: MOCK_CATALOG_VERSION,
-    requirement: `${name}>=${MOCK_CATALOG_VERSION}`,
+    download: mockDownloadOf(name),
     nodes: nodes.map(([nodeName, importPath, nodeSummary]) => ({ name: nodeName, import_path: importPath, summary: nodeSummary })),
     streams: [],
     homepage_url: null,
@@ -28,7 +32,7 @@ function mockSample(name: string, title: string, summary: string, nodes: [string
     title,
     summary,
     version: MOCK_CATALOG_VERSION,
-    requirement: `${name} @ git+https://github.com/tatolab/streamlib@v${MOCK_CATALOG_VERSION}#subdirectory=examples/${name}`,
+    download: mockDownloadOf(name),
     nodes: nodes.map(([nodeName, importPath, nodeSummary]) => ({ name: nodeName, import_path: importPath, summary: nodeSummary })),
     streams: [{ name: "main", import_path: `${moduleName}.stream:main`, summary: summary }],
     homepage_url: `https://github.com/tatolab/streamlib/tree/main/examples/${name}`,

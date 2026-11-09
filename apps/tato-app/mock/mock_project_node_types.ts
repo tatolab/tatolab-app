@@ -1,6 +1,6 @@
 // The browser mock's `list_project_node_types`: what the pattern project's own node modules declare,
-// one of them not parsing, a graph generator, a linked dependency at its pin whose function node
-// states no outputs in source, and the installed distributions its imports bring.
+// one of them not parsing, a graph generator, its camera and lobby-recorder imports, one more
+// import whose function node states no outputs in source, and an installed distribution.
 // `?node_types=unreadable_project` lists the pattern project with every module of its own unreadable.
 
 import type { PortFamily, ProjectNodeType, ProjectNodeTypeListing, ProjectNodeTypePort, ProjectNodeTypeSource } from "../src/shared/tatolab_backend_contract";
@@ -82,7 +82,7 @@ function patternProjectSource(isEveryModuleUnreadable: boolean): ProjectNodeType
 }
 
 const LIGHTING_RIG_DEPENDENCY: ProjectNodeTypeSource = {
-  origin: { source: "dependency", project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11", revision: "v1" },
+  origin: { source: "dependency", project: "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11", folder: "hall-of-light", version: "9f2c4e1a7b3d5f60c8e2a4b6d8f0a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5" },
   node_types: [
     {
       type: "nodes.gripper:Gripper",
@@ -121,6 +121,20 @@ const LOBBY_RECORDER: ProjectNodeType = {
   line: 21,
 };
 
+/** The UUID the mock's camera import is listed by. */
+export const MOCK_CAMERA_IMPORT_PROJECT = "3a9d6e21-5b7c-4f08-a1e4-6c2b9f0d8e15";
+/** The UUID the mock's lobby-recorder import is listed by. */
+export const MOCK_LOBBY_RECORDER_IMPORT_PROJECT = "8e1f4c37-0d2a-4b96-b5c8-7f3e2a1d9c64";
+/** The version the mock lists each of its imports at. */
+export const MOCK_IMPORT_VERSION = "9f2c4e1a7b3d5f60c8e2a4b6d8f0a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5";
+
+const importedProjectSource = (project: string, folder: string, nodeTypes: ProjectNodeType[]): ProjectNodeTypeSource => ({
+  origin: { source: "dependency", project, folder, version: MOCK_IMPORT_VERSION },
+  node_types: nodeTypes,
+  graph_generators: [],
+  unreadable_modules: [],
+});
+
 const installedDistribution = (distribution: string, distributionVersion: string, nodeTypes: ProjectNodeType[]): ProjectNodeTypeSource => ({
   origin: { source: "installed_distribution", distribution, distribution_version: distributionVersion },
   node_types: nodeTypes.map((nodeType) => ({ ...nodeType, path: null, line: null })),
@@ -139,8 +153,8 @@ export function mockProjectNodeTypeListing(projectDirectory: string, streamsFold
         sources: [
           patternProjectSource(isEveryOwnModuleUnreadable),
           LIGHTING_RIG_DEPENDENCY,
-          installedDistribution("camera", "0.1.0", [CAMERA_TILT]),
-          installedDistribution("lobby-recorder", "0.4.1", [LOBBY_RECORDER]),
+          importedProjectSource(MOCK_CAMERA_IMPORT_PROJECT, "camera", [CAMERA_TILT]),
+          importedProjectSource(MOCK_LOBBY_RECORDER_IMPORT_PROJECT, "lobby-recorder", [LOBBY_RECORDER]),
           installedDistribution("tatolab-testpattern", "0.3.2", [
             {
               type: "tatolab.testpattern:TestPatternSource",

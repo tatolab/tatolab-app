@@ -1,5 +1,5 @@
-// The outliner's tree, derived from what the view is handed: the project's shape as its
-// pyproject.toml files describe it, each project's streams as the runtime lists them, and the node
+// The outliner's tree, derived from what the view is handed: the project and its imports as the
+// runtime names and lists them, each project's streams as the runtime lists them, and the node
 // types the open project and each import declare, as the runtime reads them from source.
 
 import type { TreeViewRow } from "../../design_system/tree_view";
@@ -10,7 +10,7 @@ import type {
   OpenProject,
   ProjectNodeTypeSource,
   ProjectNodeTypesReading,
-  ProjectOnDisk,
+  ProjectTheRuntimeNames,
   StudioSelection,
 } from "../../view_host/studio_view_contract";
 import { nodeTypeSourceChildren, nodeTypeSourceTitle, shownStudioTreeRows, type DeclarationRowMeaning, type StudioTreeNode } from "../node_type_listing_tree";
@@ -59,19 +59,10 @@ function waitingNodeUnder(parentRowId: string): OutlinerTreeNode {
   });
 }
 
-/** The PEP 503 form of a distribution's name, as an import's name is spelled. */
-function normalizedDistributionName(distribution: string): string {
-  return distribution.toLowerCase().replace(/[-_.]+/g, "-");
-}
-
-/** The source of the open project's listing that is the import `importName`'s distribution, `null` while none is listed. */
-function installedDistributionSourceOf(importName: string, projectNodeTypes: ProjectNodeTypesReading | null): ProjectNodeTypeSource | null {
+/** The source of the open project's listing that is the import of the project `importedProject`, by its UUID; `null` while none is listed. */
+function importedProjectSourceOf(importedProject: string, projectNodeTypes: ProjectNodeTypesReading | null): ProjectNodeTypeSource | null {
   if (projectNodeTypes?.kind !== "listed") return null;
-  return (
-    projectNodeTypes.listing.sources.find(
-      (source) => source.origin.source === "installed_distribution" && normalizedDistributionName(source.origin.distribution) === importName,
-    ) ?? null
-  );
+  return projectNodeTypes.listing.sources.find((source) => source.origin.source === "dependency" && source.origin.project === importedProject) ?? null;
 }
 
 /** A "Node types" row under `parentRowId` holding `source`'s node types, generators and unreadable modules. */
@@ -106,11 +97,11 @@ function openProjectNodeTypesNode(projectRowId: string, projectNodeTypes: Projec
   };
 }
 
-/** `project`'s rows: its `pyproject.toml`, then the streams the runtime lists from its folder, a row saying they wait on the runtime, or why listing them failed. */
-function projectChildren(project: ProjectOnDisk, projectRowId: string, listedStreams: ListedStreamsReading): OutlinerTreeNode[] {
+/** `project`'s rows: its `tatolab-project.json`, then the streams the runtime lists from its folder, a row saying they wait on the runtime, or why listing them failed. */
+function projectChildren(project: ProjectTheRuntimeNames, projectRowId: string, listedStreams: ListedStreamsReading): OutlinerTreeNode[] {
   const descriptionNode = leafNode({
-    row_id: `${projectRowId}/pyproject`,
-    label: "pyproject.toml",
+    row_id: `${projectRowId}/project_file`,
+    label: "tatolab-project.json",
     icon: "file",
     isMachineWords: true,
   });
@@ -140,21 +131,19 @@ function projectChildren(project: ProjectOnDisk, projectRowId: string, listedStr
 
 function importNode(importedProject: ImportedProject, listedStreams: ListedStreamsReading, projectNodeTypes: ProjectNodeTypesReading | null): OutlinerTreeNode {
   const source = importedProject.source;
-  const projectFolder = source.kind === "folder" ? source.project.folder : source.kind === "folder_unreadable" ? source.folder : null;
-  const rowId = `project:${projectFolder ?? importedProject.name}`;
-  const distributionSource = installedDistributionSourceOf(importedProject.name, projectNodeTypes);
+  const projectFolder = source.kind === "folder" ? source.project.folder : source.folder;
+  const rowId = `project:${projectFolder}`;
+  const importedSource = importedProjectSourceOf(importedProject.project, projectNodeTypes);
   const importsNodeTypes =
-    distributionSource === null || projectNodeTypes?.kind !== "listed"
+    importedSource === null || projectNodeTypes?.kind !== "listed"
       ? []
-      : [nodeTypesNode(rowId, distributionSource, nodeTypeSourceTitle(distributionSource.origin, importedProject.name), projectNodeTypes.listing.project_directory)];
+      : [nodeTypesNode(rowId, importedSource, importedProject.name, projectNodeTypes.listing.project_directory)];
   const children = (() => {
     switch (source.kind) {
       case "folder":
         return [...projectChildren(source.project, rowId, listedStreams), ...importsNodeTypes];
       case "folder_unreadable":
         return [leafNode({ row_id: `${rowId}/refusal`, label: source.refusal, icon: "unreadable", tone: "unreadable" })];
-      case "package_index":
-        return importsNodeTypes.length > 0 ? importsNodeTypes : [waitingNodeUnder(rowId)];
     }
   })();
   return {
@@ -201,7 +190,10 @@ function projectTree(project: OpenProject, listedStreams: ListedStreamsReading, 
         },
         meaning: { kind: "nothing_to_select" },
         isOpenByDefault: false,
-        children: project.imports.map((importedProject) => importNode(importedProject, listedStreams, projectNodeTypes)),
+        children:
+          project.imports_not_listed_because === null
+            ? project.imports.map((importedProject) => importNode(importedProject, listedStreams, projectNodeTypes))
+            : [leafNode({ row_id: "imports/not-listed", label: `Not listed: ${project.imports_not_listed_because}`, icon: "unreadable", tone: "unreadable" })],
       },
     ],
   };

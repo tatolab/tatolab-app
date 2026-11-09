@@ -51,6 +51,7 @@ function fakeTatolabElectronBridge(fakeCommandAnswers: FakeCommandAnswers) {
       return () => undefined;
     },
     tellTheAppTheWindowDrewItsFirstStatus() {},
+    pathOfADroppedFile: () => "",
   };
   return { tatolabElectronBridge, invokedCommands, statusListeners, streamPageRequestListeners, openProjectListeners };
 }

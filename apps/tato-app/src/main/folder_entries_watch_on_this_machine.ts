@@ -1,4 +1,4 @@
-// Watching the entries directly in one folder through Node's `fs.watch`: a `pyproject.toml` saved,
+// Watching the entries directly in one folder through Node's `fs.watch`: a `tatolab-project.json` saved,
 // replaced, created or removed there. Only the folder's own entries are watched, never its tree, so
 // a project's `.venv` costs nothing.
 
