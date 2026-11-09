@@ -1,10 +1,10 @@
-import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
+import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useMemo } from "react";
-import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/kit/node_graph_canvas";
-import { FailureBanner } from "@tatolab/tato-app-view-sdk/kit/failure_banner";
-import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/kit/runtime_failure_words";
-import { PropertyCheckbox, PropertyChoiceField, PropertyNumberField, PropertyRow, PropertySection, PropertyTextField } from "@tatolab/tato-app-view-sdk/kit/property_fields";
-import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
+import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { FailureBanner } from "@tatolab/tato-app-view-sdk/design_system/failure_banner";
+import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
+import { PropertyCheckbox, PropertyChoiceField, PropertyNumberField, PropertyRow, PropertySection, PropertyTextField } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type {
   NodeCatalogEntry,
   NodeCatalogPort,

@@ -2,7 +2,7 @@
 // pyproject.toml files describe it, each project's streams as the runtime lists them, and the node
 // types the open project and each import declare, as the runtime reads them from source.
 
-import type { TreeViewRow } from "@tatolab/tato-app-view-sdk/kit/tree_view";
+import type { TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import type {
   ImportedProject,
   ListedStream,

@@ -1,10 +1,10 @@
-import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
+import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useMemo } from "react";
-import { ActionButton } from "@tatolab/tato-app-view-sdk/kit/action_button";
-import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/kit/node_graph_canvas";
-import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/kit/read_only_banner";
-import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/kit/runtime_failure_words";
-import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
+import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
+import { NodeGraphCanvas } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
+import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ListedStreamsReading, OpenProjectReading, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
 import { streamGraphCanvasContents } from "./stream_graph_canvas_contents";
 

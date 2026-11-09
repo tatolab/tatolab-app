@@ -1,7 +1,7 @@
 import { readTatolabViewManifest, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import type { ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
-import type { StudioIconName } from "@tatolab/tato-app-view-sdk/kit/support/studio_icons";
+import type { StudioIconName } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 import { WatchedStudioValue } from "./in_window_view_host";
 import type { JsonValue, StudioViewHostConnection, StudioViewType, StudioViewTypeSource, ViewHeaderRow } from "./studio_view_contract";
 

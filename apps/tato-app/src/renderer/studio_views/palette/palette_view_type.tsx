@@ -1,11 +1,11 @@
-import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
+import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useMemo, useState } from "react";
-import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/kit/key_value_rows";
-import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/kit/node_graph_canvas";
-import { PropertySection } from "@tatolab/tato-app-view-sdk/kit/property_fields";
-import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/kit/runtime_failure_words";
-import { TreeView } from "@tatolab/tato-app-view-sdk/kit/tree_view";
-import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
+import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
+import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/design_system/node_graph_canvas";
+import { PropertySection } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
+import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/design_system/runtime_failure_words";
+import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { JsonValue, ProjectNodeTypePort, ProjectNodeTypesReading, StopWatching, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
 import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../node_type_listing_tree";
 import { paletteTreeOfTheListing, type PaletteRowMeaning } from "./palette_tree_of_the_listing";

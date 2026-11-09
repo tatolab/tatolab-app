@@ -1,6 +1,6 @@
 # Comments
 
-shadcn's generated components in `packages/tato-app-view-sdk/src/kit/ui/` keep shadcn's own comments. These rules
+shadcn's generated components in `packages/tato-app-view-sdk/src/design_system/ui/` keep shadcn's own comments. These rules
 govern the code that uses them, the design system included.
 
 Write a comment only when it carries information you can't get by reading the code. Default to none.

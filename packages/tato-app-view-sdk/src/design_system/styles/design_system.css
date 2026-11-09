@@ -1,4 +1,4 @@
-/* The design kit's one stylesheet, which Studio's window and every view that draws with the kit import. Tailwind's
+/* The design system's one stylesheet, which Studio's window and every view that draws with the design system import. Tailwind's
    utilities sit in the last layer, so the sheets below go in `base` and `components` and never outweigh a utility on a
    React element. */
 @import "tailwindcss";
@@ -12,7 +12,7 @@
 @import "@xyflow/react/dist/base.css" layer(components);
 @import "./node_graph_canvas.css" layer(components);
 
-/* The kit's components, wherever the page importing this sheet lives. */
+/* The design system's components, wherever the page importing this sheet lives. */
 @source "../";
 
 /* Studio is dark only: `dark` on a page's <html> makes shadcn's `dark:` classes apply, as Studio's window and a view's frame both set. */

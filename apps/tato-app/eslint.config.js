@@ -12,17 +12,17 @@ const HAND_BUILT_CONTROL_SELECTORS = [
 ];
 const SHADCN_IMPORT_PATTERNS = [
   {
-    group: ["@tatolab/tato-app-view-sdk/kit/ui/*", "@/components/ui/*", "**/components/ui/*", "@base-ui/react", "@base-ui/react/*"],
-    message: "A screen is composed from the view SDK's design kit, not from shadcn or base-ui directly.",
+    group: ["@tatolab/tato-app-view-sdk/design_system/ui/*", "@/components/ui/*", "**/components/ui/*", "@base-ui/react", "@base-ui/react/*"],
+    message: "A screen is composed from the view SDK's design system, not from shadcn or base-ui directly.",
   },
 ];
 
 const STUDIO_VIEW_IMPORT_PATTERNS = [
   {
     regex: String.raw`^\.\./\.\./(?!view_host/)`,
-    message: "A studio view reads and asks only through view_host/'s contract and draws with the view SDK's design kit, as a user's view will.",
+    message: "A studio view reads and asks only through view_host/'s contract and draws with the view SDK's design system, as a user's view will.",
   },
-  { regex: String.raw`^\.\./\.\./\.\./`, message: "A studio view reads and asks only through view_host/'s contract and draws with the view SDK's design kit, as a user's view will." },
+  { regex: String.raw`^\.\./\.\./\.\./`, message: "A studio view reads and asks only through view_host/'s contract and draws with the view SDK's design system, as a user's view will." },
 ];
 
 const ELECTRON_IMPORT_PATHS = [{ name: "electron", message: "Only src/main/electron_adapters/ and src/preload/ import electron, so everything else runs in plain Node." }];

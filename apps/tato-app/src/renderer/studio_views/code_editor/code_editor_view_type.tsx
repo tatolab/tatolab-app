@@ -1,13 +1,13 @@
-import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
+import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { ActionButton } from "@tatolab/tato-app-view-sdk/kit/action_button";
-import { AreaSplit } from "@tatolab/tato-app-view-sdk/kit/area_split";
-import { CodeFileTabStrip, type OpenableCodeFileGroup } from "@tatolab/tato-app-view-sdk/kit/code_file_tab_strip";
-import { CodeTextEditor, forgetCodeEditorDocument } from "@tatolab/tato-app-view-sdk/kit/code_text_editor";
-import { codeEditorLanguageOfFile } from "@tatolab/tato-app-view-sdk/kit/support/code_text_editor_types";
-import { LogRecordLines } from "@tatolab/tato-app-view-sdk/kit/log_record_lines";
-import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/kit/read_only_banner";
-import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
+import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
+import { AreaSplit } from "@tatolab/tato-app-view-sdk/design_system/area_split";
+import { CodeFileTabStrip, type OpenableCodeFileGroup } from "@tatolab/tato-app-view-sdk/design_system/code_file_tab_strip";
+import { CodeTextEditor, forgetCodeEditorDocument } from "@tatolab/tato-app-view-sdk/design_system/code_text_editor";
+import { codeEditorLanguageOfFile } from "@tatolab/tato-app-view-sdk/design_system/support/code_text_editor_types";
+import { LogRecordLines } from "@tatolab/tato-app-view-sdk/design_system/log_record_lines";
+import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/design_system/read_only_banner";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ProjectLogReading, StopWatching, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
 import {
   codeFileTabsOf,

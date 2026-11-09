@@ -1,10 +1,10 @@
-import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
+import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { PictureInPicture2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FieldMenu, MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/kit/menus";
-import { IconButton } from "@tatolab/tato-app-view-sdk/kit/icon_button";
-import { RefusalLine } from "@tatolab/tato-app-view-sdk/kit/refusal_line";
-import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
+import { FieldMenu, MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/design_system/menus";
+import { IconButton } from "@tatolab/tato-app-view-sdk/design_system/icon_button";
+import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type {
   JsonValue,
   PoppedOutViewerTarget,

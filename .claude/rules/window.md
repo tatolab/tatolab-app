@@ -7,8 +7,8 @@ paths:
 # The window (frontend)
 
 - **The design system is the code, and the only design source.** Its values are
-  `packages/tato-app-view-sdk/src/kit/styles/tokens.css`; its components are shadcn's (`packages/tato-app-view-sdk/src/kit/ui/`) and
-  the Tatolab design system's (`packages/tato-app-view-sdk/src/kit/`). A change to the design language — a
+  `packages/tato-app-view-sdk/src/design_system/styles/tokens.css`; its components are shadcn's (`packages/tato-app-view-sdk/src/design_system/ui/`) and
+  the Tatolab design system's (`packages/tato-app-view-sdk/src/design_system/`). A change to the design language — a
   token, the type face, the window's root size, how a design-system component looks everywhere —
   is made there, with the owner's say-so in the same PR. Within it, visual details (spacing rhythm,
   aligned edges, proportion, sizes on the scale) are chosen for consistency and need no question.
@@ -24,7 +24,7 @@ paths:
 - **The window is a design system built on shadcn** (owner, #36, #51). It is a pyramid, used
   from the bottom up, with less customisation at each step:
   1. **shadcn.** Stock shadcn components (base-ui, the `base-nova` style `components.json` names), added
-     with the shadcn CLI into `packages/tato-app-view-sdk/src/kit/ui/` and never edited. Their theme comes from
+     with the shadcn CLI into `packages/tato-app-view-sdk/src/design_system/ui/` and never edited. Their theme comes from
      `tokens.css`.
   2. **The Tatolab design system.** One component for each recurring piece of the UI, built from
      shadcn components and the tokens, with its look defined there.

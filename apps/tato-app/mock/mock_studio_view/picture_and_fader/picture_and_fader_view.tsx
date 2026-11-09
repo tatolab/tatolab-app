@@ -1,14 +1,14 @@
-// The fixture view, made with the view SDK and drawn with its design kit as any view may be: its
+// The fixture view, made with the view SDK and drawn with its design system as any view may be: its
 // own header row after Studio's view-type menu, what is wired into its `picture` input, how the
 // picture fits kept in its area's settings, and its fader sent on its `fader` output.
 
-import "@tatolab/tato-app-view-sdk/kit/styles/kit.css";
+import "@tatolab/tato-app-view-sdk/design_system/styles/design_system.css";
 import { connectToTatoApp, type TatoAppViewConnection, type ViewHeaderRow, type ViewInputEvent, type ViewSettings } from "@tatolab/tato-app-view-sdk";
-import { PropertyRow } from "@tatolab/tato-app-view-sdk/kit/property_fields";
-import { SegmentedChoiceControl } from "@tatolab/tato-app-view-sdk/kit/segmented_choice_control";
-import { StudioAreaHeaderRowInAFrame } from "@tatolab/tato-app-view-sdk/kit/studio_area_frame";
-import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
-import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
+import { PropertyRow } from "@tatolab/tato-app-view-sdk/design_system/property_fields";
+import { SegmentedChoiceControl } from "@tatolab/tato-app-view-sdk/design_system/segmented_choice_control";
+import { StudioAreaHeaderRowInAFrame } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
+import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 

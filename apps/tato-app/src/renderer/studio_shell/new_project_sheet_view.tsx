@@ -2,11 +2,11 @@ import { useId, useState, type KeyboardEvent } from "react";
 import { newProjectFolderNameRefusal } from "../../shared/new_project_folder_name";
 import type { ChosenProjectFolder, NewProjectDefaults } from "../../shared/tatolab_backend_contract";
 import { describeBackendRejection } from "../backend/tatolab_backend";
-import { ActionButton } from "@tatolab/tato-app-view-sdk/kit/action_button";
-import { FormDialog, FormDialogFooter, FormDialogRow, FormDialogRows } from "@tatolab/tato-app-view-sdk/kit/form_dialog";
-import { PendingActionWords } from "@tatolab/tato-app-view-sdk/kit/pending_action_words";
-import { RefusalLine } from "@tatolab/tato-app-view-sdk/kit/refusal_line";
-import { TextField } from "@tatolab/tato-app-view-sdk/kit/text_field";
+import { ActionButton } from "@tatolab/tato-app-view-sdk/design_system/action_button";
+import { FormDialog, FormDialogFooter, FormDialogRow, FormDialogRows } from "@tatolab/tato-app-view-sdk/design_system/form_dialog";
+import { PendingActionWords } from "@tatolab/tato-app-view-sdk/design_system/pending_action_words";
+import { RefusalLine } from "@tatolab/tato-app-view-sdk/design_system/refusal_line";
+import { TextField } from "@tatolab/tato-app-view-sdk/design_system/text_field";
 import { abbreviateHomeDirectory } from "../presentation/platform_presentation";
 
 /** What the New project sheet asks the app for: the folder a project goes in, through its dialog, and the project made there. */

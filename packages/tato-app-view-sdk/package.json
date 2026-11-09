@@ -9,12 +9,12 @@
     "./studio_readings": "./src/studio_readings.ts",
     "./port_families": "./src/port_families.ts",
     "./tatolab_view.schema.json": "./tatolab_view.schema.json",
-    "./kit/*": "./src/kit/*.tsx",
-    "./kit/support/*": "./src/kit/support/*.ts",
-    "./kit/styles/*": "./src/kit/styles/*"
+    "./design_system/*": "./src/design_system/*.tsx",
+    "./design_system/support/*": "./src/design_system/support/*.ts",
+    "./design_system/styles/*": "./src/design_system/styles/*"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.kit.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.design_system.json",
     "test": "vitest run",
     "lint": "eslint ."
   },

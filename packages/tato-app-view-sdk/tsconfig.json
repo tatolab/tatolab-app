@@ -18,5 +18,5 @@
     "types": ["node", "vite/client"]
   },
   "include": ["src", "scripts", "vitest.config.ts", "eslint.config.js"],
-  "exclude": ["src/kit"]
+  "exclude": ["src/design_system"]
 }

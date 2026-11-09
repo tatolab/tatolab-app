@@ -4,7 +4,7 @@
 
 import type { ReactNode } from "react";
 import type { JsonValue, OpenProjectReading, PoppedOutViewerTarget, PortViewerTarget } from "../../shared/tatolab_backend_contract";
-import type { StudioIconName } from "@tatolab/tato-app-view-sdk/kit/support/studio_icons";
+import type { StudioIconName } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 import type {
   ListedStreamsReading,
   NodeCatalogReading,
@@ -52,7 +52,7 @@ export type {
   ProjectNodeTypeSource,
   ProjectNodeTypeSourceOrigin,
 } from "../../shared/tatolab_backend_contract";
-export type { StudioIconName } from "@tatolab/tato-app-view-sdk/kit/support/studio_icons";
+export type { StudioIconName } from "@tatolab/tato-app-view-sdk/design_system/support/studio_icons";
 export type {
   ListedStreamsReading,
   NodeCatalogReading,

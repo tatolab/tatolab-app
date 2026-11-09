@@ -3,12 +3,12 @@
 // on the window's origin; one that opts into the sandbox runs on an opaque origin with no Node, no
 // preload and only the permissions its manifest lists.
 
-import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
+import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { VIEW_PORT_HANDOVER, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
-import { StudioAreaHeaderRowOfAWaitingView } from "@tatolab/tato-app-view-sdk/kit/studio_area_frame";
-import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
+import { StudioAreaHeaderRowOfAWaitingView } from "@tatolab/tato-app-view-sdk/design_system/studio_area_frame";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import {WatchedStudioValue } from "./in_window_view_host";
 import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewTypeSource } from "./studio_view_contract";
 import { nodesOfTheStudioViewType, studioViewInputWiring, STUDIO_VIEW_NODE_ISSUE, type StudioViewInputWiring } from "./studio_view_node_wiring";

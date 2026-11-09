@@ -1,7 +1,7 @@
-import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
+import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_readings";
 import { useCallback, useMemo } from "react";
-import { TreeView } from "@tatolab/tato-app-view-sdk/kit/tree_view";
-import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
+import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { JsonValue, ProjectNodeTypesReading, StopWatching, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
 import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject, type OutlinerRowExpansionChoices } from "./outliner_tree_of_the_project";
 

@@ -5,7 +5,7 @@
   "tsx": true,
   "tailwind": {
     "config": "",
-    "css": "src/kit/styles/kit.css",
+    "css": "src/design_system/styles/design_system.css",
     "baseColor": "neutral",
     "cssVariables": true,
     "prefix": ""
@@ -13,11 +13,11 @@
   "iconLibrary": "lucide",
   "rtl": false,
   "aliases": {
-    "components": "@/kit",
+    "components": "@/design_system",
     "utils": "cn",
-    "ui": "@/kit/ui",
-    "lib": "@/kit/support",
-    "hooks": "@/kit/support"
+    "ui": "@/design_system/ui",
+    "lib": "@/design_system/support",
+    "hooks": "@/design_system/support"
   },
   "menuColor": "default",
   "menuAccent": "subtle",

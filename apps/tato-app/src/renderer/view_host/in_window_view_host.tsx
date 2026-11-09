@@ -3,7 +3,7 @@
 
 import { Component, useSyncExternalStore, type ReactNode } from "react";
 import { describeBackendRejection, type TatolabBackend } from "../backend/tatolab_backend";
-import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
 import type { ProjectLogReadings } from "./project_log_readings";
 import type { ProjectNodeTypeReadings } from "./project_node_type_readings";
 import type { PythonLanguageServerConnections } from "./python_language_server_connections";

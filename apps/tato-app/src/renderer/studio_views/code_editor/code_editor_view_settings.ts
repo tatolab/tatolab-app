@@ -1,8 +1,8 @@
 // What a code area keeps with the layout, and the words its header and log show, apart from the
 // view so each is read the same way in a test.
 
-import type { CodeFileTab } from "@tatolab/tato-app-view-sdk/kit/code_file_tab_strip";
-import type { LogRecordLine } from "@tatolab/tato-app-view-sdk/kit/log_record_lines";
+import type { CodeFileTab } from "@tatolab/tato-app-view-sdk/design_system/code_file_tab_strip";
+import type { LogRecordLine } from "@tatolab/tato-app-view-sdk/design_system/log_record_lines";
 import type { JsonValue, OpenProjectReading, ProjectLogRecord } from "../../view_host/studio_view_contract";
 
 /** A code area's settings: the files it has open, in tab order, the one it shows, and whether the project's log shows under it. */

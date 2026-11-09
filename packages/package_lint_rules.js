@@ -4,7 +4,7 @@
 import path from "node:path";
 import tseslint from "typescript-eslint";
 
-// What the design kit draws, Studio's window draws too, so the window's lint takes these from here.
+// What the design system draws, Studio's window draws too, so the window's lint takes these from here.
 
 const SMALL_SIZE = String.raw`(0\.5|1|1\.5|2|2\.5|3)`;
 
@@ -83,15 +83,15 @@ export function packageLintConfig(packageFolder) {
       },
     },
     {
-      files: ["src/kit/**/*.ts", "src/kit/**/*.tsx"],
-      ignores: ["src/kit/ui/**", "src/kit/**/*.test.ts", "src/kit/**/*.test.tsx"],
+      files: ["src/design_system/**/*.ts", "src/design_system/**/*.tsx"],
+      ignores: ["src/design_system/ui/**", "src/design_system/**/*.test.ts", "src/design_system/**/*.test.tsx"],
       rules: {
         "no-restricted-syntax": ["error", ...DOT_INDICATOR_SELECTORS, ...SVG_CIRCLE_SELECTORS],
         "no-restricted-imports": ["error", { paths: ROUND_STATUS_ICON_IMPORTS, patterns: IMPORTS_OUTSIDE_THE_PACKAGE }],
       },
     },
     {
-      files: ["src/kit/ui/**"],
+      files: ["src/design_system/ui/**"],
       rules: { "@typescript-eslint/consistent-type-assertions": "off", "@typescript-eslint/no-non-null-assertion": "off", "@typescript-eslint/no-explicit-any": "off" },
     },
     {

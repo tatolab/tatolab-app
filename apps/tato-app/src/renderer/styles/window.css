@@ -1,5 +1,5 @@
-/* The window's one stylesheet: the design kit's, which every view draws with too, and what only the window has. */
-@import "@tatolab/tato-app-view-sdk/kit/styles/kit.css";
+/* The window's one stylesheet: the design system's, which every view draws with too, and what only the window has. */
+@import "@tatolab/tato-app-view-sdk/design_system/styles/design_system.css";
 
 @layer base {
   #app { height: 100%; }

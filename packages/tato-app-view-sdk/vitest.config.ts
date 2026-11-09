@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     projects: [
       { test: { name: "contract", environment: "node", include: ["src/*.test.ts"] } },
-      { test: { name: "kit", environment: "happy-dom", include: ["src/kit/**/*.test.{ts,tsx}"] } },
+      { test: { name: "design_system", environment: "happy-dom", include: ["src/design_system/**/*.test.{ts,tsx}"] } },
     ],
   },
 });

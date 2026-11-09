@@ -1,4 +1,4 @@
-import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/kit/key_value_rows";
+import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/design_system/key_value_rows";
 import type { JsonValue, PortViewerArrayAttributeReading, PortViewerChannelWaveform, PortViewerMessageReading } from "../../view_host/studio_view_contract";
 import { VALUES_UNCHECKED_MEANING } from "../port_stream_facts_words";
 
