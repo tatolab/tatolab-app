@@ -969,6 +969,27 @@ describe("Preferences", () => {
     expect(within(settingsRow("open-at-login")).getByText("Only a packaged Tato Studio opens at login.")).toBeTruthy();
   });
 
+  it("lists Developer under App and switches Developer mode on through the backend, off by default", async () => {
+    const switchesAsked: boolean[] = [];
+    await mountedWindowOverTheMock("state=running", {
+      setDeveloperMode: async (enabled) => {
+        switchesAsked.push(enabled);
+      },
+    });
+    await openSettingsOn("developer");
+
+    const developerModeSwitch = within(settingsRow("developer-mode")).getByRole("switch", { name: "Developer mode" });
+    expect(developerModeSwitch.getAttribute("aria-checked")).toBe("false");
+    expect(within(settingsRow("developer-mode")).getByText(/Adds the Transactions view/)).toBeTruthy();
+    fireEvent.click(developerModeSwitch);
+    await waitFor(() => expect(switchesAsked).toEqual([true]));
+
+    document.body.replaceChildren();
+    await mountedWindowOverTheMock("state=running&developer_mode=on");
+    await openSettingsOn("developer");
+    expect(within(settingsRow("developer-mode")).getByRole("switch", { name: "Developer mode" }).getAttribute("aria-checked")).toBe("true");
+  });
+
   it("goes back to the status's position when the backend accepts a switch and no status follows", { timeout: 8_000 }, async () => {
     await mountedWindowOverTheMock("state=running", { setStreamFailureNotifications: async () => {} });
     await openSettingsOn("general");

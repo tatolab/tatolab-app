@@ -298,6 +298,15 @@ export function setStreamFailureNotifications(sharedState: TatolabAppSharedState
   });
 }
 
+/** `set_developer_mode { enabled }`: turn Developer mode on or off, then a status round; refused when the choice could not be remembered. */
+export function setDeveloperMode(sharedState: TatolabAppSharedState, enabled: boolean): Promise<Result<void, string>> {
+  return answerTheWindow("set_developer_mode", async () => {
+    const set = await sharedState.developerModeSwitch.setDeveloperMode(enabled);
+    sharedState.statusPublisher.requestRefresh();
+    return set;
+  });
+}
+
 /** `set_open_tatolab_at_login { enabled }`: have the desktop open the app at login, or stop, then a status round; refused in the desktop's words. */
 export function setOpenTatolabAtLogin(sharedState: TatolabAppSharedState, enabled: boolean): Promise<Result<void, string>> {
   return answerTheWindow("set_open_tatolab_at_login", async () => {
@@ -750,6 +759,11 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       const enabledArguments = enabledArgumentsFrom("set_stream_failure_notifications", commandArguments);
       if (!enabledArguments.ok) return { ok: false, refusal: enabledArguments.failure };
       return commandAnswerOfNothingFrom(await setStreamFailureNotifications(sharedState, enabledArguments.value.enabled));
+    },
+    set_developer_mode: async (commandArguments) => {
+      const enabledArguments = enabledArgumentsFrom("set_developer_mode", commandArguments);
+      if (!enabledArguments.ok) return { ok: false, refusal: enabledArguments.failure };
+      return commandAnswerOfNothingFrom(await setDeveloperMode(sharedState, enabledArguments.value.enabled));
     },
     set_open_tatolab_at_login: async (commandArguments) => {
       const enabledArguments = enabledArgumentsFrom("set_open_tatolab_at_login", commandArguments);

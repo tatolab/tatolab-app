@@ -16,6 +16,7 @@ function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
     app_update: { kind: "not_checked" },
     local_api_socket: "/tmp/streamlib-501/local-api.sock",
     stream_failure_notifications: { enabled: true, shown_by_this_desktop: true },
+    developer_mode: false,
     open_at_login: { kind: "off" },
     command_line_tool_version: { kind: "read", version: "0.55.2" },
     ...statusChanges,

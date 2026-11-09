@@ -72,6 +72,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "restart_runtime",
   "open_runtime_log_folder",
   "set_stream_failure_notifications",
+  "set_developer_mode",
   "set_open_tatolab_at_login",
   "choose_project_folder",
   "read_open_project",
@@ -106,7 +107,7 @@ export const TATOLAB_COMMAND_NAMES = [
 ] as const;
 
 /**
- * One command the window invokes. Arguments: `set_stream_failure_notifications` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
+ * One command the window invokes. Arguments: `set_stream_failure_notifications`, `set_developer_mode` and `set_open_tatolab_at_login` `{ enabled }`, `read_project_log_records` `{ project_directory, stream, action, after }`,
  * `remove_project` and `reload_project` `{ project_directory }`, `describe_stream_graph`, `describe_node_catalog`, `open_stream_project_folder`, `open_terminal_at_stream_project` and `open_stream_log_folder` `{ stream }`, `rename_stream` `{ stream, display_name }`,
  * `choose_stream_project_folder` `{ chosen_for }`, `create_stream_project` and `run_stream_project` `{ folder }`, `describe_stream_action` and `cancel_stream_action` `{ action }`,
  * `choose_project_folder` `{ chosen_for }`, `open_recent_project` `{ folder }`, `choose_new_project_location` `{ starting_at }`, `create_new_project` `{ name, location }`, `pop_out_viewer` a `PoppedOutViewerTarget`, `list_workspace_dependencies` `{ check_for_newer }`, `choose_dependency_source` `{ source_kind }`, `add_dependency_to_the_workspace` `{ source }`, `update_workspace_dependency` `{ project, overwrite_edited_files }`, `import_from_the_marketplace` `{ name }`, `open_import_to_edit` `{ folder }`, the project file, language server and port viewer commands as their signatures below give, the rest none. A command naming a stream opens the folder the runtime listed for it, or its log folder; one naming a folder
@@ -224,6 +225,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   open_runtime_log_folder: { commandArguments: undefined; answer: null };
   /** Refused when the choice could not be remembered, though it holds until the app quits. */
   set_stream_failure_notifications: { commandArguments: { enabled: boolean }; answer: null };
+  /** Refused when the choice could not be remembered, though it holds until the app quits. */
+  set_developer_mode: { commandArguments: { enabled: boolean }; answer: null };
   /** Answers once the desktop has; refused in its words, or with why this build does not offer it. */
   set_open_tatolab_at_login: { commandArguments: { enabled: boolean }; answer: null };
   /** `chosen_in_a_file_dialog` opens the app's own file dialog and answers once the person picks or cancels; refused naming why, the choice unchanged. */

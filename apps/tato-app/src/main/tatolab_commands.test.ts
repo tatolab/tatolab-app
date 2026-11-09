@@ -22,6 +22,7 @@ import { FakeTatolabElectronAppShell, PROJECTS_WINDOW_CONTENTS_ID } from "./fake
 import { recentProjectFoldersFileIn } from "./recent_project_folders_file.js";
 import { failedWith, succeeded } from "./result.js";
 import { StreamFailureNotifications } from "./stream_failure_notifications.js";
+import { DeveloperModeSwitch } from "./developer_mode_switch.js";
 import { RUNTIME_NOT_STARTED_BY_THE_APP_REFUSAL } from "./carried_runtime_run_as_the_apps_child.js";
 import { RUNTIME_KEEPS_NO_OWN_LOG_REFUSAL } from "./runtime_log_folder_opening.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
@@ -103,6 +104,7 @@ async function sharedStateOverFakes(
     readMonotonicClockMs: () => 0,
     readTheAppUpdateState: () => ({ kind: "not_checked" }),
     readStreamFailureNotifications: () => ({ enabled: true, shown_by_this_desktop: true }),
+    readDeveloperMode: () => false,
     readTheCommandLineToolVersion: () => ({ kind: "read", version: "0.55.2" }),
     whenTheRuntimeExits: () => {},
     tatolabAppLog: quietTatolabAppLog,
@@ -122,6 +124,7 @@ async function sharedStateOverFakes(
     () => {},
     quietTatolabAppLog,
   );
+  const developerModeSwitch = await DeveloperModeSwitch.load(RememberedSwitchFile.developerModeInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog), quietTatolabAppLog);
   const fakeShellForTheWindows = new FakeTatolabElectronAppShell();
   const menusShownInTheSystemMenuBar: (readonly SystemMenuBarMenu[] | null)[] = [];
   const appWindows = new TatolabAppWindows({
@@ -165,6 +168,7 @@ async function sharedStateOverFakes(
       streamProjectFolderDialog: async () => succeeded(folderTheDialogAnswers),
       projectLoadsOnTheRuntime: controller,
     }),
+    developerModeSwitch,
     projectOpening,
     appWindows,
     pythonLanguageServers: new PythonLanguageServers({
@@ -243,6 +247,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"app_update":{"kind":"not_checked"},' +
       `"local_api_socket":${JSON.stringify(runningRuntime.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
+      '"developer_mode":false,' +
       '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
   );
   const runtimeThatIsDown = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "linux");
@@ -255,6 +260,7 @@ test("the_status_a_log_page_and_a_graph_serialize_exactly_as_the_window_reads_th
       '"app_update":{"kind":"not_checked"},' +
       `"local_api_socket":${JSON.stringify(runtimeThatIsDown.localApiSocketPath)},` +
       '"stream_failure_notifications":{"enabled":true,"shown_by_this_desktop":true},' +
+      '"developer_mode":false,' +
       '"open_at_login":{"kind":"off"},"command_line_tool_version":{"kind":"read","version":"0.55.2"}}',
   );
 
@@ -734,6 +740,21 @@ test("turning_stream_failure_notifications_off_is_remembered_shown_in_the_next_s
   expect(await commandHandlers.set_stream_failure_notifications({ enabled: "no" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
     ok: false,
     refusal: "set_stream_failure_notifications needs `enabled`, true or false",
+  });
+});
+
+test("turning_developer_mode_on_is_remembered_shown_in_the_next_status_and_refuses_anything_but_true_or_false", async () => {
+  const sharedState = await sharedStateOverFakes([httpResponse("503 Service Unavailable", "text/plain", "")], "macos");
+  const refreshRequests = vi.spyOn(sharedState.statusPublisher, "requestRefresh");
+  const commandHandlers = tatolabWindowCommandHandlers(sharedState, () => {});
+  expect(sharedState.developerModeSwitch.isOnNow()).toBe(false);
+
+  expect(await commandHandlers.set_developer_mode({ enabled: true }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: true, value: null });
+  expect(refreshRequests).toHaveBeenCalledTimes(1);
+  expect(sharedState.developerModeSwitch.isOnNow()).toBe(true);
+  expect(await commandHandlers.set_developer_mode({ enabled: "yes" }, FROM_THE_PROJECTS_WINDOW)).toEqual({
+    ok: false,
+    refusal: "set_developer_mode needs `enabled`, true or false",
   });
 });
 

@@ -10,6 +10,7 @@ import type { TatolabStatusPublisher } from "./tatolab_status_publisher.js";
 import type { StreamProjectFolderOpeners } from "./stream_project_folder_opening.js";
 import type { StreamProjectAdding } from "./stream_project_adding.js";
 import type { StreamFailureNotifications } from "./stream_failure_notifications.js";
+import type { DeveloperModeSwitch } from "./developer_mode_switch.js";
 import type { ProjectOpening } from "./open_project.js";
 import type { PythonLanguageServers } from "./python_language_servers.js";
 import type { RuntimePortViewers } from "./runtime_port_viewers.js";
@@ -17,7 +18,7 @@ import type { FetchBytesOverHttps, FetchTextOverHttps } from "./package_catalog.
 import type { DependencySourceDialog } from "./workspace_dependencies.js";
 import type { SystemMenuBarOfTheFocusedWindow } from "./system_menu_bar_of_the_focused_window.js";
 
-/** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, opening projects, the app's windows, the language servers, the port viewers and the system menu bar, which the tray's choices and the window's commands reach. */
+/** The controller, the status publisher, the updater, what opens a stream's project, adding a project, the stream-failure notifications, Developer mode, opening projects, the app's windows, the language servers, the port viewers and the system menu bar, which the tray's choices and the window's commands reach. */
 export interface TatolabAppSharedState {
   controller: TatolabAppController;
   statusPublisher: TatolabStatusPublisher;
@@ -25,6 +26,8 @@ export interface TatolabAppSharedState {
   streamProjectFolderOpeners: StreamProjectFolderOpeners;
   streamProjectAdding: StreamProjectAdding;
   streamFailureNotifications: StreamFailureNotifications;
+  /** Whether Developer mode is on, which the status carries. */
+  developerModeSwitch: DeveloperModeSwitch;
   /** Opening a project in its own studio window, from any window. */
   projectOpening: ProjectOpening;
   /** The Projects window and each project's studio window, each with its project and that project's files. */

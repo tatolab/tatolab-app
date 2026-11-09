@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { RememberedSwitchFile, STREAM_FAILURE_NOTIFICATIONS_PREFERENCE_FILE_NAME } from "./remembered_switch_file.js";
+import { DEVELOPER_MODE_PREFERENCE_FILE_NAME, RememberedSwitchFile, STREAM_FAILURE_NOTIFICATIONS_PREFERENCE_FILE_NAME } from "./remembered_switch_file.js";
 import { createTatolabAppLog } from "./tatolab_app_log.js";
 
 const quietTatolabAppLog = createTatolabAppLog("error", () => {});
@@ -42,4 +42,15 @@ test("a_malformed_file_reads_as_the_switchs_default", async () => {
   const configDirectory = await temporaryConfigDirectory();
   await writeFile(path.join(configDirectory, STREAM_FAILURE_NOTIFICATIONS_PREFERENCE_FILE_NAME), "not json");
   expect(await RememberedSwitchFile.streamFailureNotificationsInAppConfigDirectory(configDirectory, quietTatolabAppLog).loadRememberedSwitch()).toBe(true);
+});
+
+test("developer_mode_is_off_until_it_is_remembered_on_in_its_own_file", async () => {
+  const appConfigDirectory = path.join(await temporaryConfigDirectory(), "com.tatolab.tatolab");
+  const developerMode = RememberedSwitchFile.developerModeInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog);
+  expect(await developerMode.loadRememberedSwitch()).toBe(false);
+
+  expect(await developerMode.saveRememberedSwitch(true)).toEqual({ ok: true, value: undefined });
+  expect(await RememberedSwitchFile.developerModeInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog).loadRememberedSwitch()).toBe(true);
+  expect((await readFile(path.join(appConfigDirectory, DEVELOPER_MODE_PREFERENCE_FILE_NAME), "utf8")).replace(/[ \n]/g, "")).toBe('{"developer_mode":true}');
+  expect(await RememberedSwitchFile.streamFailureNotificationsInAppConfigDirectory(appConfigDirectory, quietTatolabAppLog).loadRememberedSwitch()).toBe(true);
 });

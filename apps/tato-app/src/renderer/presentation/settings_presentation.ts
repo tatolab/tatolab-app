@@ -10,7 +10,7 @@ import type {
 import { presentRuntimeStatus, type StatusTone } from "./runtime_presentation";
 
 /** A section of Preferences. */
-export type SettingsSection = "general" | "runtime" | "command-line" | "about";
+export type SettingsSection = "general" | "developer" | "runtime" | "command-line" | "about";
 
 /** Preferences' sections in the order its list shows them, under the group each sits in. */
 export const SETTINGS_SECTION_GROUPS: readonly { groupLabel: string; sections: readonly { section: SettingsSection; label: string }[] }[] = [
@@ -18,6 +18,7 @@ export const SETTINGS_SECTION_GROUPS: readonly { groupLabel: string; sections: r
     groupLabel: "App",
     sections: [
       { section: "general", label: "General" },
+      { section: "developer", label: "Developer" },
     ],
   },
   {
@@ -35,6 +36,9 @@ export function settingsSectionLabel(section: SettingsSection): string {
   const named = SETTINGS_SECTION_GROUPS.flatMap((sectionGroup) => sectionGroup.sections).find((listedSection) => listedSection.section === section);
   return named?.label ?? "Preferences";
 }
+
+/** What the Developer mode switch adds, as its row describes it. */
+export const DEVELOPER_MODE_DESCRIPTION = "Adds the Transactions view, which lists every change sent to the runtime and its answer. Find it in each area's view menu.";
 
 /** The licence the runtime the app runs is under, as streamlib states it. */
 export const RUNTIME_LICENCE = "BUSL-1.1";

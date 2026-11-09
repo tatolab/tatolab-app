@@ -1,6 +1,6 @@
 // A switch the app remembers between launches: one JSON file in the app's config directory with
 // one key, read as the switch's default when the file is absent or unreadable. The stream-failure
-// notifications are one.
+// notifications and Developer mode are two.
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -12,6 +12,9 @@ import type { TatolabAppLog } from "./tatolab_app_log.js";
 
 /** The file the stream-failure notifications switch is remembered in, inside the app's config directory. */
 export const STREAM_FAILURE_NOTIFICATIONS_PREFERENCE_FILE_NAME = "stream-failure-notifications.json";
+
+/** The file Developer mode is remembered in, inside the app's config directory. */
+export const DEVELOPER_MODE_PREFERENCE_FILE_NAME = "developer-mode.json";
 
 /** One remembered switch: its file, its key, what it reads when nothing was remembered, and its name in the app's log. */
 interface RememberedSwitchSpecification {
@@ -26,6 +29,13 @@ const STREAM_FAILURE_NOTIFICATIONS_SWITCH: RememberedSwitchSpecification = {
   key: "notify_when_a_stream_fails",
   valueWhenNotRemembered: true,
   switchNameInTheLog: "the stream-failure notifications preference",
+};
+
+const DEVELOPER_MODE_SWITCH: RememberedSwitchSpecification = {
+  fileName: DEVELOPER_MODE_PREFERENCE_FILE_NAME,
+  key: "developer_mode",
+  valueWhenNotRemembered: false,
+  switchNameInTheLog: "the Developer mode preference",
 };
 
 /** Reads and writes one remembered switch at one path. */
@@ -43,6 +53,11 @@ export class RememberedSwitchFile {
       STREAM_FAILURE_NOTIFICATIONS_SWITCH,
       tatolabAppLog,
     );
+  }
+
+  /** Whether Developer mode is on, remembered inside `appConfigDirectory`; off when nothing was remembered. */
+  static developerModeInAppConfigDirectory(appConfigDirectory: string, tatolabAppLog: TatolabAppLog): RememberedSwitchFile {
+    return new RememberedSwitchFile(path.join(appConfigDirectory, DEVELOPER_MODE_SWITCH.fileName), DEVELOPER_MODE_SWITCH, tatolabAppLog);
   }
 
   /** The remembered switch; its default when nothing was remembered or the file cannot be read. */
