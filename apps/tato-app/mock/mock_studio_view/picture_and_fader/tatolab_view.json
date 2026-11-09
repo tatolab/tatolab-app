@@ -1,0 +1,13 @@
+{
+  "contract": "1.0",
+  "title": "Picture and fader",
+  "entry": "index.html",
+  "placement": "node",
+  "inputs": [{ "name": "picture", "family": "image" }],
+  "outputs": [{ "name": "fader", "family": "array", "range": [0, 1] }],
+  "settings": {
+    "type": "object",
+    "properties": { "picture_fit": { "type": "string", "enum": ["contain", "cover"], "default": "contain" } }
+  },
+  "capabilities": ["read.selection"]
+}

@@ -9,7 +9,7 @@ import { mountTatolabWindow } from "./tatolab_window_view";
 const FIRST_STATUS_RETRY_MILLISECONDS = 1000;
 
 async function createBrowserMockBackend(pageQuery: URLSearchParams): Promise<TatolabBackend> {
-  const { createMockTatolabBackend, readMockTatolabOptions } = await import("./backend/mock_tatolab_backend");
+  const { createMockTatolabBackend, readMockTatolabOptions } = await import("../../mock/mock_tatolab_backend");
   return createMockTatolabBackend(readMockTatolabOptions(pageQuery));
 }
 
@@ -63,7 +63,7 @@ async function startTatolabWindow(): Promise<void> {
   showTatolabStatus = mountTatolabWindow(rootElement, backend, platformOf(firstStatus), tellTheAppTheWindowDrewItsFirstStatus);
   showTatolabStatus(firstStatus);
   if (!insideTheApp && import.meta.env.DEV) {
-    const { driveMockWindowToPreset } = await import("./mock_window_preset");
+    const { driveMockWindowToPreset } = await import("../../mock/mock_window_preset");
     driveMockWindowToPreset(pageQuery, platformOf(firstStatus));
   }
 }

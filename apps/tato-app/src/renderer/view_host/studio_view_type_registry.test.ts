@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { WatchedStudioValue } from "./in_window_view_host";
 import type { JsonValue, StudioViewHostConnection, StudioViewType } from "./studio_view_contract";
-import { registeredStudioViewType, StudioViewTypeRegistry, type StudioViewHostServices } from "./studio_view_type_registry";
+import { registeredStudioViewType, StudioViewTypeRegistry, type StudioAreaOfTheView, type StudioViewHostServices } from "./studio_view_type_registry";
 
 const HOST_SERVICES: StudioViewHostServices = {
   watchOpenProject: () => () => undefined,
@@ -13,6 +14,8 @@ const HOST_SERVICES: StudioViewHostServices = {
   watchNodeCatalog: () => () => undefined,
   watchCodeFileAsked: () => () => undefined,
   openCodeFile: () => undefined,
+  openView: () => ({ kind: "not_opened", because: "no areas in this test" }),
+  watchViewOpenedOn: () => () => undefined,
   readProjectFile: async () => ({ kind: "not_read", because: "no files in this test" }),
   saveProjectFile: async () => ({ kind: "not_saved", because: "no files in this test" }),
   listProjectFiles: async () => ({ kind: "not_listed", because: "no files in this test" }),
@@ -55,9 +58,14 @@ describe("the view-type registry", () => {
     const connections: StudioViewHostConnection<number>[] = [];
     const kept: JsonValue[] = [];
     const viewType = registeredStudioViewType(countingViewType("counter", { kind: "built_in" }, connections));
-    viewType.renderInAnArea(7, HOST_SERVICES, (next) => kept.push(next));
-    viewType.renderInAnArea("seven", HOST_SERVICES, (next) => kept.push(next));
-    viewType.renderInAnArea(undefined, HOST_SERVICES, (next) => kept.push(next));
+    const areaSavedAs = (savedSettings: JsonValue | undefined): StudioAreaOfTheView => ({
+      saved_settings: savedSettings,
+      rememberSettings: (next) => kept.push(next),
+      header_row: new WatchedStudioValue({ leading_inset_px: 0, height_px: 30 }),
+    });
+    viewType.renderInAnArea(areaSavedAs(7), HOST_SERVICES);
+    viewType.renderInAnArea(areaSavedAs("seven"), HOST_SERVICES);
+    viewType.renderInAnArea(areaSavedAs(undefined), HOST_SERVICES);
     connections[0]?.rememberSettings(8);
 
     expect(connections.map((connection) => connection.settings)).toEqual([7, 1, 1]);
@@ -73,9 +81,9 @@ describe("the view-type registry", () => {
       kind: "listed",
       project_name: "friday-set",
       studio_views: [
-        { view_type_id: "acme-dj:deck", distribution: "acme-dj", entry_name: "deck", manifest_json: { contract: "1.0", title: "DJ Deck", entry: "index.html" }, folder_url },
-        { view_type_id: "acme-dj:future", distribution: "acme-dj", entry_name: "future", manifest_json: { contract: "1.9", title: "Future", entry: "index.html" }, folder_url },
-        { view_type_id: "outliner", distribution: "acme-dj", entry_name: "outliner", manifest_json: { contract: "1.0", title: "Outliner", entry: "index.html" }, folder_url },
+        { view_type_id: "acme-dj:deck", distribution: "acme-dj", entry_name: "deck", manifest_json: { contract: "1.0", title: "DJ Deck", entry: "index.html", placement: "node" }, folder_url },
+        { view_type_id: "acme-dj:future", distribution: "acme-dj", entry_name: "future", manifest_json: { contract: "1.9", title: "Future", entry: "index.html", placement: "area" }, folder_url },
+        { view_type_id: "outliner", distribution: "acme-dj", entry_name: "outliner", manifest_json: { contract: "1.0", title: "Outliner", entry: "index.html", placement: "area" }, folder_url },
       ],
     });
 
@@ -84,7 +92,7 @@ describe("the view-type registry", () => {
     ]);
     expect(registry.viewTypeWithId("acme-dj:deck")?.title).toBe("DJ Deck");
     expect(registry.projectViewTypesNotOpened()).toEqual([
-      { view_type_id: "acme-dj:future", because: "It was built for view contract 1.9, and this Tato Studio serves 1.0." },
+      { view_type_id: "acme-dj:future", because: "`contract`: this Tato Studio serves view contract 1.0." },
       { view_type_id: "outliner", because: "The studio already has a view named outliner." },
     ]);
 

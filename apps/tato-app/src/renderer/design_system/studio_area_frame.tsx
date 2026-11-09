@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronDown } from "lucide-react";
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { ControlDataAttributes } from "./control_data_attributes";
@@ -17,6 +17,56 @@ export function StudioAreaFrame({ label, header, children, ...controlDataAttribu
       <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
     </section>
   );
+}
+
+/** Where a view's own header row lies inside its frame: after the view-type menu laid over the row's start, and as tall as an area's header. */
+export interface StudioAreaHeaderRowInTheFrame {
+  leading_inset_px: number;
+  height_px: number;
+}
+
+/** An area whose view draws its own header row in its frame: the view across the whole area, the view-type menu laid over the row's start, its width told to `onHeaderRowMeasured`. */
+export function StudioAreaOverAViewsOwnFrame({
+  label,
+  viewTypeMenu,
+  onHeaderRowMeasured,
+  children,
+  ...controlDataAttributes
+}: {
+  label: string;
+  viewTypeMenu: ReactNode;
+  onHeaderRowMeasured: (headerRow: StudioAreaHeaderRowInTheFrame) => void;
+  children: ReactNode;
+} & ControlDataAttributes) {
+  const viewTypeMenuRowRef = useRef<HTMLDivElement>(null);
+  const onHeaderRowMeasuredRef = useRef(onHeaderRowMeasured);
+  onHeaderRowMeasuredRef.current = onHeaderRowMeasured;
+  useLayoutEffect(() => {
+    const viewTypeMenuRow = viewTypeMenuRowRef.current;
+    if (viewTypeMenuRow === null) return;
+    const tellTheHeaderRow = () => {
+      const { width, height } = viewTypeMenuRow.getBoundingClientRect();
+      if (height > 0) onHeaderRowMeasuredRef.current({ leading_inset_px: Math.ceil(width), height_px: height });
+    };
+    tellTheHeaderRow();
+    if (typeof ResizeObserver === "undefined") return;
+    const resizeObserver = new ResizeObserver(tellTheHeaderRow);
+    resizeObserver.observe(viewTypeMenuRow);
+    return () => resizeObserver.disconnect();
+  }, []);
+  return (
+    <section aria-label={label} className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg bg-studio-area" {...controlDataAttributes}>
+      <div ref={viewTypeMenuRowRef} className="absolute top-0 left-0 z-10 flex h-(--studio-area-header-height) items-center px-1.5">
+        {viewTypeMenu}
+      </div>
+      <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
+    </section>
+  );
+}
+
+/** The header row a view's frame would draw, drawn by Studio while the area waits for the view, so the view-type menu sits on an area header as ever. */
+export function StudioAreaHeaderRowOfAWaitingView() {
+  return <div className="h-(--studio-area-header-height) shrink-0 border-b border-studio-area-header-line bg-studio-area-header" />;
 }
 
 /** The menu at an area header's start that says what the area shows and changes it. */

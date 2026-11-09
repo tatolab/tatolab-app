@@ -1,8 +1,0 @@
-{
-  "contract": "1.0",
-  "title": "Picture and fader",
-  "entry": "index.html",
-  "inputs": [{ "name": "picture", "family": "image" }],
-  "outputs": [{ "name": "fader", "family": "array" }],
-  "capabilities": ["read.selection"]
-}

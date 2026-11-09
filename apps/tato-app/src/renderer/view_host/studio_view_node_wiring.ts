@@ -1,7 +1,7 @@
 // A view people write is a node in its stream's graph, and each of its inputs reads whatever output
 // a link wires into it, through that output's port viewer.
 
-import type { StudioViewDeclaredPort } from "../../shared/studio_view_manifest";
+import type { ViewDeclaredPort } from "@tatolab/tato-app-view-sdk";
 import type { PortViewerTarget, StreamGraphNode, StreamGraphSummary } from "./studio_view_contract";
 
 /** The node type a view stands in its stream's graph as, its view type named by `config.view_type`. */
@@ -22,7 +22,7 @@ export function nodesOfTheStudioViewType(graph: StreamGraphSummary, viewTypeId: 
 }
 
 /** What each of `declaredInputs` of the view node `viewNode` reads in `graph`, by input name. */
-export function studioViewInputWiring(graph: StreamGraphSummary, viewNode: StreamGraphNode, declaredInputs: readonly StudioViewDeclaredPort[]): Record<string, StudioViewInputWiring> {
+export function studioViewInputWiring(graph: StreamGraphSummary, viewNode: StreamGraphNode, declaredInputs: readonly ViewDeclaredPort[]): Record<string, StudioViewInputWiring> {
   const wiringByInput: Record<string, StudioViewInputWiring> = {};
   for (const declaredInput of declaredInputs) {
     const link = graph.links.find((graphLink) => graphLink.target_node === viewNode.name && graphLink.target_port === declaredInput.name);

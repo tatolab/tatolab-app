@@ -5,9 +5,9 @@ import type { ListedStream, NewProjectDefaults, OpenProjectReading, PoppedOutVie
 import { presentRuntimeStatus } from "../presentation/runtime_presentation";
 import type { SettingsSection } from "../presentation/settings_presentation";
 import { WatchedStudioValue, type InWindowStudioViewHostSources } from "../view_host/in_window_view_host";
-import type { CodeFileAsked, JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection } from "../view_host/studio_view_contract";
+import type { CodeFileAsked, JsonValue, ListedStreamsReading, StreamTabAddress, StudioSelection, ViewOpenedOnAsked, ViewOpening, ViewOpeningTarget } from "../view_host/studio_view_contract";
 import { layoutShowsTheViewType, layoutWithAreaSettings, layoutWithAreaShowing, layoutWithSplitSizes, type StudioAreaLayoutNode } from "./studio_area_layout";
-import type { StudioLayoutName, StudioLayoutsKeptInStorage, StudioLayoutsOfAFolder } from "./studio_layouts";
+import { STUDIO_LAYOUTS, type StudioLayoutName, type StudioLayoutsKeptInStorage, type StudioLayoutsOfAFolder } from "./studio_layouts";
 
 /** The view type id of the code pane, which a file the studio asks to open shows in. */
 export const CODE_VIEW_TYPE_ID = "code";
@@ -77,6 +77,9 @@ export class StudioWindowModel {
   readonly studioLayouts = new WatchedStudioValue<StudioLayoutsOfAFolder | null>(null);
   /** The file a code view was last asked to show. */
   readonly codeFileAsked = new WatchedStudioValue<CodeFileAsked | null>(null);
+  /** What views of each type were last opened on, by view type id. */
+  readonly viewsOpenedOn = new WatchedStudioValue<Readonly<Record<string, ViewOpenedOnAsked>>>({});
+  private viewOpeningAsks = 0;
   /** Why the last run or stop of the open project was refused, until it is dismissed or another is asked for. */
   readonly projectRunRefusal = new WatchedStudioValue<{ asked_to: "run" | "stop"; because: string } | null>(null);
   /** Why the last update choice from the menus did not reach the app, until it is dismissed or another is made. */
@@ -107,6 +110,8 @@ export class StudioWindowModel {
       openStreamTab: (streamTab) => this.openStreamTab(streamTab),
       codeFileAsked: this.codeFileAsked,
       openCodeFile: (file) => this.openCodeFile(file),
+      viewsOpenedOn: this.viewsOpenedOn,
+      openView: (viewTypeId, on) => this.openView(viewTypeId, on),
     };
   }
 
@@ -119,9 +124,23 @@ export class StudioWindowModel {
 
   /** Ask the code view to show `file`; a layout with no code area switches to Code, which has one. */
   openCodeFile(file: string): void {
+    this.openView(CODE_VIEW_TYPE_ID, { kind: "file", file });
+  }
+
+  /** Open views of `viewTypeId` on `on`: in the chosen layout when an area of it shows that type, or else in the first layout with one, which is chosen. */
+  openView(viewTypeId: string, on: ViewOpeningTarget): ViewOpening {
     const layouts = this.studioLayouts.readLatest();
-    if (layouts !== null && !layoutShowsTheViewType(layouts.layouts[layouts.chosen_layout], CODE_VIEW_TYPE_ID)) this.chooseLayout("code");
-    this.codeFileAsked.publish({ file, ask: (this.codeFileAsked.readLatest()?.ask ?? 0) + 1 });
+    if (layouts !== null && !layoutShowsTheViewType(layouts.layouts[layouts.chosen_layout], viewTypeId)) {
+      const layoutShowingTheViewType = STUDIO_LAYOUTS.find((layout) => layoutShowsTheViewType(layouts.layouts[layout.name], viewTypeId));
+      if (layoutShowingTheViewType === undefined) {
+        return { kind: "not_opened", because: `No layout has an area showing ${viewTypeId}. Choose it in an area's view menu, then open it again.` };
+      }
+      this.chooseLayout(layoutShowingTheViewType.name);
+    }
+    this.viewOpeningAsks += 1;
+    this.viewsOpenedOn.publish({ ...this.viewsOpenedOn.readLatest(), [viewTypeId]: { on, ask: this.viewOpeningAsks } });
+    if (viewTypeId === CODE_VIEW_TYPE_ID && on.kind === "file") this.codeFileAsked.publish({ file: on.file, ask: (this.codeFileAsked.readLatest()?.ask ?? 0) + 1 });
+    return { kind: "opened" };
   }
 
   /** Show `reading`; a project in another folder brings its own layouts and starts with no tabs and nothing selected. */

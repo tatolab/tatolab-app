@@ -2,8 +2,8 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OpenProjectReading, PoppedOutViewerTarget, RecentProject, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
-import { createMockTatolabBackend, readMockTatolabOptions } from "./backend/mock_tatolab_backend";
-import { mockStreamIdOf } from "./backend/mock_stream_fixtures";
+import { createMockTatolabBackend, readMockTatolabOptions } from "../../mock/mock_tatolab_backend";
+import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import { studioLayoutsStorageKey } from "./studio_shell/studio_layouts";
 import { mountTatolabWindow } from "./tatolab_window_view";
@@ -388,10 +388,10 @@ describe("the studio", () => {
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Picture and fader/ }));
 
     const viewFrame = await waitFor(
-      () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-project-studio-view]') ?? expect.unreachable("no project view frame"),
+      () => document.querySelector<HTMLIFrameElement>('[data-studio-area="viewer"] iframe[data-tatolab-view]') ?? expect.unreachable("no project view frame"),
     );
-    expect(viewFrame.getAttribute("data-project-studio-view")).toBe("tatolab-fixture-views:picture-and-fader");
-    expect(viewFrame.getAttribute("data-project-studio-view-access")).toBe("full");
+    expect(viewFrame.getAttribute("data-tatolab-view")).toBe("tatolab-fixture-views:picture-and-fader");
+    expect(viewFrame.getAttribute("data-tatolab-view-access")).toBe("full");
     expect(viewFrame.hasAttribute("sandbox")).toBe(false);
     expect(viewFrame.getAttribute("allow")).toBe("camera; microphone");
     expect(viewFrame.getAttribute("src")).toMatch(/\/mock_studio_view\/picture_and_fader\/index\.html$/);

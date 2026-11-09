@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { MOCK_NODE_CATALOG_ENTRIES } from "../../backend/mock_node_catalog";
+import { MOCK_NODE_CATALOG_ENTRIES } from "../../../../mock/mock_node_catalog";
 import { configFormFieldValueWords, configFormOf } from "./config_form_fields";
 
 const RUST_SPELLED_SCHEMA = {

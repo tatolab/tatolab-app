@@ -1,5 +1,44 @@
-/** A value as JSON carries it. */
-export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+// The window's contract with the main process. What a view reads too is the view SDK's, and is
+// re-exported here so both sides name it the same way.
+
+export type {
+  JsonValue,
+  StreamLocation,
+  ListedStream,
+  StreamGraphDeclaredPort,
+  ImageStreamFrameRate,
+  ImageStreamContentLightLevel,
+  ImageStreamMasteringDisplayColourVolume,
+  PortStreamFacts,
+  StreamGraphNode,
+  StreamGraphLink,
+  StreamGraphSummary,
+  NodeCatalogPort,
+  NodeCatalogEntry,
+  NodeCatalog,
+  ProjectNodeTypePort,
+  ProjectNodeType,
+  ProjectGraphGeneratorPromotedSetting,
+  ProjectGraphGenerator,
+  ProjectNodeModuleNotReadable,
+  ProjectNodeTypeSourceOrigin,
+  ProjectNodeTypeSource,
+  ProjectNodeTypeListing,
+  ProjectOnDisk,
+  ImportedProjectSource,
+  ImportedProject,
+  OpenProject,
+  OpenProjectReading,
+  ProjectFileRead,
+  ProjectFiles,
+  ProjectLogRecord,
+  PortViewerTarget,
+  PortViewerChannelWaveform,
+  PortViewerArrayAttributeReading,
+  PortViewerMessageReading,
+} from "@tatolab/tato-app-view-sdk/studio_readings";
+export { PORT_FAMILIES, type PortFamily } from "@tatolab/tato-app-view-sdk/port_families";
+import type { JsonValue, ListedStream, PortViewerMessageReading, ProjectLogRecord } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** The platform the app runs on, which decides the window's chrome. */
 export type TatolabPlatform = "macos" | "linux";
@@ -10,35 +49,6 @@ export type TatolabPlatform = "macos" | "linux";
  * started again shortly, or an app that carries none (an unpackaged one) finding none running.
  */
 export type RuntimeState = "running" | "starting" | "not_running";
-
-/** Where a stream lives: its project directory as of its last load, symlinks resolved, and the two UUIDs that identify it, its project's and its stream asset's. */
-export interface StreamLocation {
-  project_directory: string;
-  /** The project's UUID, from its `tatolab-project.json`. */
-  project: string;
-  /** The stream asset's UUID, from its graph document. */
-  stream_asset: string;
-}
-
-/** One stream the runtime lists. `state` is running, stopped, failed, preparing or stopping, or a state newer than this app. */
-export interface ListedStream {
-  /** Its stream id, `<project name>-<stream name>-<hash>`, which every tool about one stream names it by. */
-  stream: string;
-  /** The label the runtime shows it under; free text, and never unique. */
-  display_name: string;
-  /** `null` for a record an earlier runtime wrote, which is listed failed until it is removed. */
-  location: StreamLocation | null;
-  state: string;
-  /** How many nodes its loaded graph holds; `null` while it is not loaded. */
-  node_count: number | null;
-  failed_because: string | null;
-  /** Each capture device, `camera` or `microphone` or one newer than this app, that a node of the loaded stream refused because nobody has asked the person for its access, as when the runtime brought the stream back on its own at its start; a stop then a start of the stream asks. Empty when it is not loaded. */
-  capture_devices_whose_access_was_never_asked_for: string[];
-  /** The stream action queued or under way on it while it is `preparing` or `stopping`; `null` otherwise. */
-  action: string | null;
-  /** That action's step, `reading_the_graph_documents`, `making_the_venv`, `starting` or `stopping`, or one newer than this app; `null` while the action waits in its project's queue, and while no action works on it. */
-  step: string | null;
-}
 
 /** A stream action the window asks the runtime to queue on one stream, named as the runtime's tool and the window's command are. */
 export type TatolabStreamActionName = "stop_stream" | "start_stream";
@@ -145,27 +155,6 @@ export interface RuntimeDescription {
   runtime_log_directory: string | null;
 }
 
-/** One record of a project's log, flattened by the backend from the runtime's JSONL record. */
-export interface ProjectLogRecord {
-  /** Nanoseconds since the Unix epoch; past 2^53, so it arrives rounded to a few hundred nanoseconds. */
-  host_ts_ns: number | null;
-  level: string | null;
-  source: string | null;
-  target: string | null;
-  message: string;
-  attrs: Record<string, string>;
-  /** The graph `id` of the step that wrote it, which a record names a step by; `null` for a record written outside a step. */
-  processor_id: string | null;
-  /** Whether a step's own helper process wrote it (it carries `source_seq`, or its `source` is `python`) rather than the runtime's process. */
-  sent_by_its_own_process: boolean;
-  /** The id of the stream action it was written for; `null` for a record written outside one. */
-  action: string | null;
-  /** The id of the stream that wrote it; `null` for a record of the project's own, such as the venv's making and the compile. */
-  stream: string | null;
-  /** The record as JSON text, every number in the digits the runtime wrote, so `host_ts` is exact. */
-  jsonl_line: string;
-}
-
 /** The folder under a project directory that the runtime writes the project's log segments into. */
 export const PROJECT_LOG_FOLDER_IN_THE_PROJECT = ".streamlib/logs";
 
@@ -183,207 +172,6 @@ export interface ProjectLogRecordsPage {
   next_after: string;
   /** Whether the log's retention deleted records between the cursor asked for and this page. */
   records_no_longer_held: boolean;
-}
-
-/** The five families a runtime port carries, each one engine-owned memory layout, as streamlib's plan names them. */
-export const PORT_FAMILIES = ["image", "array", "channels", "packets", "records"] as const;
-
-/** One of the five port families. */
-export type PortFamily = (typeof PORT_FAMILIES)[number];
-
-/** A port a node declares under the graph's `ports.inputs` or `ports.outputs`. */
-export interface StreamGraphDeclaredPort {
-  name: string;
-  /** The family the port carries, from its `family` key; `null` while the runtime serves none, or one this app does not know. */
-  family: PortFamily | null;
-  /** What an output states about the stream it carries now, from its `stream_facts` key; `null` when it states none, as every input does. */
-  stream_facts: PortStreamFacts | null;
-  /** `false` on a Records port, whose values no type checks, from its `values_checked` key; `null` on every other family. */
-  values_checked: boolean | null;
-}
-
-/** An Image stream's frame rate, as a rational number of frames per second. */
-export interface ImageStreamFrameRate {
-  numerator: number;
-  denominator: number;
-}
-
-/** An HDR stream's content light level, in cd/m² (CTA-861.3). */
-export interface ImageStreamContentLightLevel {
-  max_content_light_level: number;
-  max_frame_average_light_level: number;
-}
-
-/** The mastering display an HDR stream was graded on (SMPTE ST 2086): luminance in steps of 0.0001 cd/m². */
-export interface ImageStreamMasteringDisplayColourVolume {
-  max_display_mastering_luminance: number;
-  min_display_mastering_luminance: number;
-}
-
-/** An output port's stream facts as the runtime renders them under `stream_facts`, tagged by `family`; a field the port does not state is `null`. */
-export type PortStreamFacts =
-  | {
-      family: "image";
-      frame_rate: ImageStreamFrameRate | null;
-      content_light_level: ImageStreamContentLightLevel | null;
-      mastering_display_colour_volume: ImageStreamMasteringDisplayColourVolume | null;
-    }
-  | {
-      family: "packets";
-      /** The codec with its profile and level, as an RFC 6381 `codecs` parameter spells it (`avc1.64001f`, `opus`). */
-      rfc6381_codec: string | null;
-      coded_width: number | null;
-      coded_height: number | null;
-      sample_rate: number | null;
-      channel_count: number | null;
-      /** The bytes of the codec's out-of-band configuration record (`avcC`, `hvcC`, `OpusHead`), from its lowercase hex. */
-      codec_configuration_byte_length: number | null;
-    };
-
-/** One node of a stream's graph, by the name a link end and a port address name it by. */
-export interface StreamGraphNode {
-  /** The runtime's id of the node, which a log record's `processor_id` names it by. */
-  id: string;
-  name: string;
-  type: string;
-  /** The processor's state as the runtime names it, such as `Running`. */
-  state: string | null;
-  /** Why it failed, in the runtime's own words, from `components.failed_because`: set while it reads `Error`, `null` otherwise. */
-  failed_because: string | null;
-  /** Its config as the graph renders it, the keys its stream's code gave it; `{}` when it renders none. */
-  config: { [key: string]: JsonValue };
-  /** The input ports it declares, in the graph's order; `[]` when the runtime lists none. */
-  input_ports: StreamGraphDeclaredPort[];
-  /** The output ports it declares, in the graph's order; `[]` when the runtime lists none. */
-  output_ports: StreamGraphDeclaredPort[];
-  /** Messages it dropped on each link into it, by the link's `id`, as `components.metrics` counts them since the link was wired. */
-  dropped_bags_by_link: Record<string, number>;
-  /** Messages each of its output ports refused, by port name, as `components.metrics` counts them. */
-  refused_bags_by_output_port: Record<string, number>;
-}
-
-/** One link of a stream's graph, from an output port to an input port; the source may be in another stream. */
-export interface StreamGraphLink {
-  /** The runtime's id of the link, which a node's `dropped_bags_by_link` is keyed by. */
-  id: string;
-  source_node: string;
-  source_port: string;
-  target_node: string;
-  target_port: string;
-  /** `wired`, `pending`, `awaiting_remote`, `error`, `disconnecting` or `disconnected`. */
-  state: string;
-}
-
-/** What `describe_stream_graph` answers: one loaded stream's nodes and links, and the document they were read from. */
-export interface StreamGraphSummary {
-  stream: string;
-  nodes: StreamGraphNode[];
-  links: StreamGraphLink[];
-  /** The `graph` tool's text exactly as the runtime wrote it, which `tatolab graph --stream` prints. */
-  graph_document_text: string;
-}
-
-/** One port a node type declares, as the node catalog lists it. */
-export interface NodeCatalogPort {
-  name: string;
-  description: string;
-  /** The family the port carries, from its `family` key; `null` while the runtime serves none, or one this app does not know. */
-  family: PortFamily | null;
-}
-
-/** One node type a stream can add, as the node catalog lists it under the `type` a graph node carries. */
-export interface NodeCatalogEntry {
-  type: string;
-  description: string;
-  /** Its config's JSON Schema, draft 2020-12 with no `$schema` key; `null` for a type described without one. */
-  config_schema: JsonValue | null;
-  inputs: NodeCatalogPort[];
-  outputs: NodeCatalogPort[];
-}
-
-/** What `describe_node_catalog` answers: every node type the loaded stream `stream` can add, from `GET /api/registry?stream=`. */
-export interface NodeCatalog {
-  stream: string;
-  node_types: NodeCatalogEntry[];
-}
-
-/** One port of a node type as its declaration states it in source, from `list_project_node_types`. */
-export interface ProjectNodeTypePort {
-  name: string;
-  description: string;
-  /** The port's family; `null` where source alone does not say, or for one this app does not know. */
-  family: PortFamily | null;
-  /** A function or shader port's annotation as written; `null` for a process node's port. */
-  annotation: string | null;
-}
-
-/** One node type a project's source declares, as `list_project_node_types` lists it. */
-export interface ProjectNodeType {
-  /** The type `add_node` takes: the import path `<module>:<qualname>`. */
-  type: string;
-  /** `process`, `function` or `shader`, or a kind newer than this app; `null` where source does not show it. */
-  kind: string | null;
-  description: string;
-  /** The palette category, the declaring module when none is declared. */
-  category: string;
-  /** `null` where only the node's native half states its ports. */
-  inputs: ProjectNodeTypePort[] | null;
-  outputs: ProjectNodeTypePort[] | null;
-  /** The declaring file, relative to its source's root. */
-  path: string | null;
-  line: number | null;
-}
-
-/** One setting a graph generator promotes, as its parameter states it. */
-export interface ProjectGraphGeneratorPromotedSetting {
-  name: string;
-  annotation: string | null;
-}
-
-/** One `@graph_generator` a project's source declares, as `list_project_node_types` lists it. */
-export interface ProjectGraphGenerator {
-  /** The import path `import_graph_generator` takes: `<module>:<function>`. */
-  generator: string;
-  /** Its docstring. */
-  description: string;
-  promoted_config: ProjectGraphGeneratorPromotedSetting[];
-  path: string;
-  line: number;
-}
-
-/** A module of a source that does not parse, with why in the parser's words and where it stopped. */
-export interface ProjectNodeModuleNotReadable {
-  module: string;
-  path: string;
-  line: number | null;
-  column: number | null;
-  why: string;
-}
-
-/** Where a listed source's node code comes from: the project, a linked dependency at its pin, an installed distribution, or an origin newer than this app, by the name the runtime gives it. */
-export type ProjectNodeTypeSourceOrigin =
-  | { source: "project" }
-  | { source: "dependency"; project: string; revision: string }
-  | { source: "installed_distribution"; distribution: string; distribution_version: string }
-  | { source: "newer_than_this_app"; source_name: string };
-
-/** One source's node types, graph generators, and the modules of it that do not parse. */
-export interface ProjectNodeTypeSource {
-  origin: ProjectNodeTypeSourceOrigin;
-  node_types: ProjectNodeType[];
-  graph_generators: ProjectGraphGenerator[];
-  unreadable_modules: ProjectNodeModuleNotReadable[];
-}
-
-/** What `list_project_node_types` answers: what the project and each source it draws node code from declares, read from source without running it. */
-export interface ProjectNodeTypeListing {
-  /** The project's folder, its links resolved. */
-  project_directory: string;
-  /** The project's UUID. */
-  project: string;
-  project_name: string;
-  /** The project first, then each linked dependency, then each installed distribution. */
-  sources: ProjectNodeTypeSource[];
 }
 
 /** What a project folder is chosen for in the app's folder dialog: a project to import, or the folder a new project is created in, which may not exist yet. */
@@ -433,42 +221,6 @@ export interface StreamActionCancelAnswer {
 
 /** What following a stream action read: its description, or the runtime's words that it no longer holds the action. */
 export type StreamActionFollowed = { kind: "described"; description: StreamActionDescription } | { kind: "not_held"; words: string };
-
-/** A project folder as its `pyproject.toml` describes it. */
-export interface ProjectOnDisk {
-  /** The folder, absolute with its links resolved. */
-  folder: string;
-  /** `[project] name`. */
-  name: string;
-  /** `[project] dependencies`, each as `pyproject.toml` spells it. */
-  requirements: string[];
-}
-
-/** Where an imported project comes from: a folder a uv `path` source names, read or unreadable with why, or a package index. */
-export type ImportedProjectSource =
-  | { kind: "folder"; project: ProjectOnDisk }
-  | { kind: "folder_unreadable"; folder: string; refusal: string }
-  | { kind: "package_index" };
-
-/** One dependency of the open project, which the studio shows as an import. */
-export interface ImportedProject {
-  /** The requirement's name, normalized as PEP 503 normalizes a package name. */
-  name: string;
-  requirement: string;
-  source: ImportedProjectSource;
-}
-
-/** The project open in the studio: its folder's own project, and the projects it imports, in `pyproject.toml`'s order. */
-export interface OpenProject {
-  project: ProjectOnDisk;
-  imports: ImportedProject[];
-}
-
-/** What `read_open_project` answers and `tatolab-open-project-changed` carries: no project open, the open one read, or its folder unreadable, with why in the words of what refused. */
-export type OpenProjectReading =
-  | { kind: "none_open" }
-  | { kind: "read"; open_project: OpenProject }
-  | { kind: "unreadable"; folder: string; refusal: string };
 
 /** What a popped-out Viewer window is pinned to: the stream it plays and the words it is titled with, and the node whose output it plays, or `null` to play the stream's last picture. */
 export interface PoppedOutViewerTarget {
@@ -539,28 +291,9 @@ export interface RecentProject {
   last_opened_at_wall_clock_ms: number;
 }
 
-/** What `read_project_file` answers: a file of the open project or its imports, as read from disk. */
-export interface ProjectFileRead {
-  /** The file, absolute, as the window named it. */
-  file: string;
-  /** The folder of the project the file belongs to. */
-  project_folder: string;
-  text: string;
-  /** The SHA-256 of the bytes read, in hex, which `save_project_file` takes back as `based_on_version`. */
-  version: string;
-  /** Whether the file belongs to the open project, whose files the studio saves; an import's are read-only. */
-  is_editable: boolean;
-}
-
 /** What `save_project_file` answers: the version the file now has on disk. */
 export interface ProjectFileSaved {
   version: string;
-}
-
-/** What `list_project_files` answers: a project's Python files and `pyproject.toml`, relative to its folder, in name order. */
-export interface ProjectFiles {
-  project_folder: string;
-  files: string[];
 }
 
 /** What `tatolab-python-language-server-message` carries: one JSON-RPC message a session's language server sent, or its end, with why. */
@@ -577,13 +310,6 @@ export interface ListedStudioView {
   folder_url: string;
 }
 
-/** The output port of a running node a Viewer shows: the stream's id, the node's id as `graph` lists it, and the port's name. */
-export interface PortViewerTarget {
-  stream: string;
-  node_id: string;
-  port: string;
-}
-
 /** The facts beside an Image frame a port viewer hands the window as a shared texture. */
 export interface PortViewerImageFrameFacts {
   port_viewer: string;
@@ -592,40 +318,6 @@ export interface PortViewerImageFrameFacts {
   /** Messages the viewer skipped before this one, because a viewer reads only the latest. */
   skipped_since_last_read: number;
 }
-
-/** One channel of a Channels block, as the Viewer draws its waveform: the lowest and highest sample of each of its columns, its peak and its RMS. */
-export interface PortViewerChannelWaveform {
-  column_minimums: number[];
-  column_maximums: number[];
-  peak: number;
-  rms: number;
-}
-
-/** One attribute of an Array frame: its name, element type and shape, where its data lives, and, for numeric data in the payload, its statistics. */
-export interface PortViewerArrayAttributeReading {
-  name: string;
-  dtype: string;
-  shape: number[];
-  residency: "cpu" | "gpu";
-  statistics: { element_count: number; minimum: number; maximum: number; mean: number } | null;
-}
-
-/** What a port viewer read of one message of a family other than Image, from the family's descriptor and payload. */
-export type PortViewerMessageReading =
-  | {
-      family: "channels";
-      start_sample: number;
-      sample_rate: number;
-      channel_count: number;
-      samples_per_channel: number;
-      sample_type: string;
-      channel_waveforms: PortViewerChannelWaveform[];
-    }
-  | { family: "array"; attributes: PortViewerArrayAttributeReading[] }
-  | { family: "packets"; codec: string; byte_length: number; starts_group: boolean; timestamp_ns: number }
-  | { family: "records"; record: JsonValue }
-  | { family: "bytes"; byte_length: number }
-  | { family: "unreadable"; port_family: string; because: string };
 
 /**
  * What `tatolab-port-viewer-event` carries about one port viewer: Image frames a shared texture cannot carry, as their pixels (a GPU
