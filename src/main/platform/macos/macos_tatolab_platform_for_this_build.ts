@@ -28,7 +28,8 @@ export async function macosTatolabPlatformForThisBuild(
     local_api_socket: machinePaths.localApiSocket,
     carried_runtime_in: packagedAppBundle,
     command_line_tool_link: machinePaths.commandLineToolHomeFolderLink,
-    local_proof_test_machine_root: machinePaths.localProofTestMachineRoot,
+    local_proof_test_machine_root: machinePaths.localProofTestMachine?.testMachineRoot ?? null,
+    local_proof_runtime_loopback_http_port: machinePaths.localProofTestMachine?.runtimeLoopbackHttpPort ?? null,
   });
   return {
     carriedRuntime:
@@ -37,9 +38,9 @@ export async function macosTatolabPlatformForThisBuild(
         : {
             runtimeExecutable: carriedRuntimeExecutableIn(packagedAppBundle),
             runtimeEnvironment:
-              machinePaths.localProofTestMachineRoot === null
+              machinePaths.localProofTestMachine === null
                 ? {}
-                : localProofRuntimeEnvironment(machinePaths.localProofTestMachineRoot),
+                : localProofRuntimeEnvironment(machinePaths.localProofTestMachine),
           },
     commandLineToolLink:
       carriedCommandLineTool === null
