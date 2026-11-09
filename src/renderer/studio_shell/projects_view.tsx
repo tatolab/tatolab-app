@@ -1,4 +1,4 @@
-import { FolderOpen, FolderPlus, LayoutGrid, Settings, SquareX } from "lucide-react";
+import { FolderOpen, FolderPlus, LayoutGrid, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { RecentProject, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import projectsBannerStillImageUrl from "../assets/projects_banner_still.jpg";
@@ -7,16 +7,16 @@ import { BANNER_HEADER_HEIGHT_PX, BannerHeader } from "../design_system/banner_h
 import { EmptyState } from "../design_system/empty_state";
 import { IconButton } from "../design_system/icon_button";
 import { ProjectCard } from "../design_system/project_card";
-import { RefusalLine } from "../design_system/refusal_line";
 import { SearchField } from "../design_system/search_field";
 import { WaitingState } from "../design_system/waiting_state";
 import { shortcutHint } from "../presentation/platform_presentation";
-import { presentProjectsWithNoCards, presentRecentProjectCards, STREAMS_NOT_LISTED_LEAD } from "../presentation/projects_presentation";
+import { presentProjectsWithNoCards, presentRecentProjectCards } from "../presentation/projects_presentation";
 import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
 import { useWatchedStudioValue } from "../view_host/in_window_view_host";
 import { PROJECTS_BANNER_STILL_SECONDS, ProjectsBannerScene } from "./projects_banner_scene";
 import type { StudioMenuBarCommands } from "./studio_menu_bar_model";
 import type { StudioWindowModel } from "./studio_window_model";
+import { isTatolabWindowVisible } from "../window_visibility";
 
 /** What the Projects window reads its projects from and opens them through. */
 export interface ProjectsSources {
@@ -26,20 +26,42 @@ export interface ProjectsSources {
   openARecentProject(folder: string): void;
 }
 
-/** The recent projects, read as the Projects window shows and again each time the open project changes; `null` until the first read answers. */
+/** How many times the window has come back to the person, focused or shown again, since it opened. */
+function useTimesTheWindowCameBack(): number {
+  const [timesTheWindowCameBack, setTimesTheWindowCameBack] = useState(0);
+  useEffect(() => {
+    const countTheWindowComingBack = () => setTimesTheWindowCameBack((timesBefore) => timesBefore + 1);
+    const countTheWindowShownAgain = () => {
+      if (isTatolabWindowVisible()) countTheWindowComingBack();
+    };
+    window.addEventListener("focus", countTheWindowComingBack);
+    document.addEventListener("visibilitychange", countTheWindowShownAgain);
+    return () => {
+      window.removeEventListener("focus", countTheWindowComingBack);
+      document.removeEventListener("visibilitychange", countTheWindowShownAgain);
+    };
+  }, []);
+  return timesTheWindowCameBack;
+}
+
+/**
+ * The recent projects, read as the Projects window shows, each time it is focused or shown again, and each time the open project changes; `null`
+ * until the first read answers. A project opens in its own studio window, so coming back to this window is when one opened since shows.
+ */
 function useRecentProjects(projectsSources: ProjectsSources, model: StudioWindowModel): RecentProject[] | null {
   const openProject = useWatchedStudioValue(model.openProject);
+  const timesTheWindowCameBack = useTimesTheWindowCameBack();
   const [recentProjects, setRecentProjects] = useState<RecentProject[] | null>(null);
   useEffect(() => {
     let isStillShown = true;
     projectsSources.readRecentProjects().then(
       (readRecentProjects) => isStillShown && setRecentProjects(readRecentProjects),
-      () => isStillShown && setRecentProjects([]),
+      () => isStillShown && setRecentProjects((recentProjectsBefore) => recentProjectsBefore ?? []),
     );
     return () => {
       isStillShown = false;
     };
-  }, [projectsSources, openProject]);
+  }, [projectsSources, openProject, timesTheWindowCameBack]);
   return recentProjects;
 }
 
@@ -89,12 +111,11 @@ export function ProjectsView({
   platform: TatolabPlatform;
 }) {
   const status = useTatolabStatus();
-  const listedStreams = useWatchedStudioValue(model.listedStreams);
   const recentProjects = useRecentProjects(projectsSources, model);
   const [searchText, setSearchText] = useState("");
   const wallClockNowMs = Date.now();
-  const cardsShown = presentRecentProjectCards(recentProjects ?? [], listedStreams, wallClockNowMs, searchText);
-  const noCards = presentProjectsWithNoCards(searchText, listedStreams);
+  const cardsShown = presentRecentProjectCards(recentProjects ?? [], wallClockNowMs, searchText);
+  const noCards = presentProjectsWithNoCards(searchText);
   const openTheProject = (folder: string) => {
     projectsSources.openARecentProject(folder);
   };
@@ -125,30 +146,22 @@ export function ProjectsView({
           <WaitingState title="Reading your projects…" />
         ) : cardsShown.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
-            <EmptyState icon={noCards.isFailure ? SquareX : LayoutGrid} isFailure={noCards.isFailure} title={noCards.title} explanation={noCards.explanation} data-projects-empty="" />
+            <EmptyState icon={LayoutGrid} title={noCards.title} explanation={noCards.explanation} data-projects-empty="" />
           </div>
         ) : (
-          <>
-            {listedStreams.kind === "listing_failed" && (
-              <div data-projects-streams-not-listed="">
-                <RefusalLine lead={STREAMS_NOT_LISTED_LEAD} words={listedStreams.because} />
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4.5" role="list" aria-label="Projects">
+            {cardsShown.map((card) => (
+              <div key={card.folder} role="listitem" className="flex min-w-0">
+                <ProjectCard
+                  name={card.name}
+                  detail={`${card.folderWords} · ${card.lastOpenedWords}`}
+                  isUnreadable={card.isUnreadable}
+                  onOpened={() => openTheProject(card.folder)}
+                  data-projects-project={card.folder}
+                />
               </div>
-            )}
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4.5" role="list" aria-label="Projects">
-              {cardsShown.map((card) => (
-                <div key={card.folder} role="listitem" className="flex min-w-0">
-                  <ProjectCard
-                    name={card.name}
-                    detail={`${card.folderWords} · ${card.lastOpenedWords}`}
-                    isRunning={card.isRunning}
-                    isUnreadable={card.isUnreadable}
-                    onOpened={() => openTheProject(card.folder)}
-                    data-projects-project={card.folder}
-                  />
-                </div>
-              ))}
-            </div>
-          </>
+            ))}
+          </div>
         )}
       </main>
     </div>

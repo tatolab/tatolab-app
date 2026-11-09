@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenProjectReading, PoppedOutViewerTarget, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
+import type { OpenProjectReading, PoppedOutViewerTarget, RecentProject, SystemMenuBarMenu, TatolabStatus } from "../shared/tatolab_backend_contract";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./backend/mock_tatolab_backend";
 import { mockStreamIdOf } from "./backend/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
@@ -342,7 +342,6 @@ describe("the studio", () => {
   it("shows the Projects window with no project open, its recent projects as cards, and opens the one chosen on its stream", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
     const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
-    expect(patternCard.textContent).toContain("Running");
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6);
 
     fireEvent.click(patternCard);
@@ -380,6 +379,20 @@ describe("the studio", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Search projects" }), { target: { value: "nothing-like-it" } });
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(0);
     expect(textOf("[data-projects-empty]")).toContain("No project matches");
+  });
+
+  it("shows a project opened from another window once the Projects window is focused again", async () => {
+    const recentProjectsOnDisk: RecentProject[] = [];
+    await mountedWindowOverTheMock("state=running&project=none&recent=none", { readRecentProjects: () => Promise.resolve([...recentProjectsOnDisk]) });
+    await waitFor(() => expect(textOf("[data-projects-empty]")).toContain("No projects yet"));
+
+    recentProjectsOnDisk.push({ folder: PATTERN_PROJECT, project_name: "pattern", last_opened_at_wall_clock_ms: Date.now() });
+    act(() => {
+      window.dispatchEvent(new FocusEvent("focus"));
+    });
+
+    await waitFor(() => expect(document.querySelector(`[data-projects-project="${PATTERN_PROJECT}"]`)).not.toBeNull());
+    expect(document.querySelector("[data-projects-empty]")).toBeNull();
   });
 
   it("opens first run on the empty Projects window, its banner a still picture where WebGL is not offered, and Open… opens the one chosen", async () => {
