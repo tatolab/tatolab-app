@@ -1,0 +1,491 @@
+// Everything a view reads from Tato Studio, as Zod schemas: what crosses a view's MessagePort is
+// parsed against these on both ends, and Studio's own code takes its types from them.
+
+import { z } from "zod";
+import { PORT_FAMILIES } from "./port_families.js";
+
+/** A value as JSON carries it. */
+export const jsonValueSchema = z.json();
+/** A value as JSON carries it. */
+export type JsonValue = z.infer<typeof jsonValueSchema>;
+
+/** One of the five port families. */
+export const portFamilySchema = z.enum(PORT_FAMILIES);
+
+/** Where a stream lives: its project directory as of its last load, symlinks resolved, and the two UUIDs that identify it, its project's and its stream asset's. */
+export const streamLocationSchema = z.object({
+  project_directory: z.string(),
+  /** The project's UUID, from its `tatolab-project.json`. */
+  project: z.string(),
+  /** The stream asset's UUID, from its graph document. */
+  stream_asset: z.string(),
+});
+/** Where a stream lives. */
+export type StreamLocation = z.infer<typeof streamLocationSchema>;
+
+/** One stream the runtime lists. `state` is running, stopped, failed, preparing or stopping, or a state newer than this app. */
+export const listedStreamSchema = z.object({
+  /** Its stream id, `<project name>-<stream name>-<hash>`, which every tool about one stream names it by. */
+  stream: z.string(),
+  /** The label the runtime shows it under; free text, and never unique. */
+  display_name: z.string(),
+  /** `null` for a record an earlier runtime wrote, which is listed failed until it is removed. */
+  location: streamLocationSchema.nullable(),
+  state: z.string(),
+  /** How many nodes its loaded graph holds; `null` while it is not loaded. */
+  node_count: z.number().nullable(),
+  failed_because: z.string().nullable(),
+  /** Each capture device, `camera` or `microphone` or one newer than this app, that a node of the loaded stream refused because nobody has asked the person for its access; empty when it is not loaded. */
+  capture_devices_whose_access_was_never_asked_for: z.array(z.string()),
+  /** The stream action queued or under way on it while it is `preparing` or `stopping`; `null` otherwise. */
+  action: z.string().nullable(),
+  /** That action's step, or one newer than this app; `null` while the action waits in its project's queue, and while no action works on it. */
+  step: z.string().nullable(),
+});
+/** One stream the runtime lists. */
+export type ListedStream = z.infer<typeof listedStreamSchema>;
+
+/** An output port's stream facts as the runtime renders them under `stream_facts`, tagged by `family`; a field the port does not state is `null`. */
+export const portStreamFactsSchema = z.discriminatedUnion("family", [
+  z.object({
+    family: z.literal("image"),
+    frame_rate: z.object({ numerator: z.number(), denominator: z.number() }).nullable(),
+    /** In cd/m² (CTA-861.3). */
+    content_light_level: z.object({ max_content_light_level: z.number(), max_frame_average_light_level: z.number() }).nullable(),
+    /** SMPTE ST 2086, luminance in steps of 0.0001 cd/m². */
+    mastering_display_colour_volume: z.object({ max_display_mastering_luminance: z.number(), min_display_mastering_luminance: z.number() }).nullable(),
+  }),
+  z.object({
+    family: z.literal("packets"),
+    /** The codec with its profile and level, as an RFC 6381 `codecs` parameter spells it (`avc1.64001f`, `opus`). */
+    rfc6381_codec: z.string().nullable(),
+    coded_width: z.number().nullable(),
+    coded_height: z.number().nullable(),
+    sample_rate: z.number().nullable(),
+    channel_count: z.number().nullable(),
+    /** The bytes of the codec's out-of-band configuration record (`avcC`, `hvcC`, `OpusHead`), from its lowercase hex. */
+    codec_configuration_byte_length: z.number().nullable(),
+  }),
+]);
+/** An output port's stream facts. */
+export type PortStreamFacts = z.infer<typeof portStreamFactsSchema>;
+/** An Image stream's frame rate, as a rational number of frames per second. */
+export type ImageStreamFrameRate = NonNullable<Extract<PortStreamFacts, { family: "image" }>["frame_rate"]>;
+
+/** A port a node declares under the graph's `ports.inputs` or `ports.outputs`. */
+export const streamGraphDeclaredPortSchema = z.object({
+  name: z.string(),
+  /** The family the port carries, from its `family` key; `null` while the runtime serves none, or one this app does not know. */
+  family: portFamilySchema.nullable(),
+  /** What an output states about the stream it carries now, from its `stream_facts` key; `null` when it states none, as every input does. */
+  stream_facts: portStreamFactsSchema.nullable(),
+  /** `false` on a Records port, whose values no type checks, from its `values_checked` key; `null` on every other family. */
+  values_checked: z.boolean().nullable(),
+});
+/** A port a node declares. */
+export type StreamGraphDeclaredPort = z.infer<typeof streamGraphDeclaredPortSchema>;
+
+/** One node of a stream's graph, by the name a link end and a port address name it by. */
+export const streamGraphNodeSchema = z.object({
+  /** The runtime's id of the node, which a log record's `processor_id` names it by. */
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+  /** The processor's state as the runtime names it, such as `Running`. */
+  state: z.string().nullable(),
+  /** Why it failed, in the runtime's own words: set while it reads `Error`, `null` otherwise. */
+  failed_because: z.string().nullable(),
+  /** Its config as the graph renders it; `{}` when it renders none. */
+  config: z.record(z.string(), jsonValueSchema),
+  input_ports: z.array(streamGraphDeclaredPortSchema),
+  output_ports: z.array(streamGraphDeclaredPortSchema),
+  /** Messages it dropped on each link into it, by the link's `id`. */
+  dropped_bags_by_link: z.record(z.string(), z.number()),
+  /** Messages each of its output ports refused, by port name. */
+  refused_bags_by_output_port: z.record(z.string(), z.number()),
+});
+/** One node of a stream's graph. */
+export type StreamGraphNode = z.infer<typeof streamGraphNodeSchema>;
+
+/** One link of a stream's graph, from an output port to an input port; the source may be in another stream. */
+export const streamGraphLinkSchema = z.object({
+  /** The runtime's id of the link, which a node's `dropped_bags_by_link` is keyed by. */
+  id: z.string(),
+  source_node: z.string(),
+  source_port: z.string(),
+  target_node: z.string(),
+  target_port: z.string(),
+  /** `wired`, `pending`, `awaiting_remote`, `error`, `disconnecting` or `disconnected`. */
+  state: z.string(),
+});
+/** One link of a stream's graph. */
+export type StreamGraphLink = z.infer<typeof streamGraphLinkSchema>;
+
+/** One loaded stream's nodes and links, and the document they were read from. */
+export const streamGraphSummarySchema = z.object({
+  stream: z.string(),
+  nodes: z.array(streamGraphNodeSchema),
+  links: z.array(streamGraphLinkSchema),
+  /** The `graph` tool's text exactly as the runtime wrote it. */
+  graph_document_text: z.string(),
+});
+/** One loaded stream's nodes and links. */
+export type StreamGraphSummary = z.infer<typeof streamGraphSummarySchema>;
+
+/** One port a node type declares, as the node catalog lists it. */
+export const nodeCatalogPortSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  family: portFamilySchema.nullable(),
+});
+/** One port a node type declares. */
+export type NodeCatalogPort = z.infer<typeof nodeCatalogPortSchema>;
+
+/** One node type a stream can add, as the node catalog lists it under the `type` a graph node carries. */
+export const nodeCatalogEntrySchema = z.object({
+  type: z.string(),
+  description: z.string(),
+  /** Its config's JSON Schema, draft 2020-12 with no `$schema` key; `null` for a type described without one. */
+  config_schema: jsonValueSchema.nullable(),
+  inputs: z.array(nodeCatalogPortSchema),
+  outputs: z.array(nodeCatalogPortSchema),
+});
+/** One node type a stream can add. */
+export type NodeCatalogEntry = z.infer<typeof nodeCatalogEntrySchema>;
+
+/** Every node type the loaded stream `stream` can add. */
+export const nodeCatalogSchema = z.object({ stream: z.string(), node_types: z.array(nodeCatalogEntrySchema) });
+/** Every node type a loaded stream can add. */
+export type NodeCatalog = z.infer<typeof nodeCatalogSchema>;
+
+/** One port of a node type as its declaration states it in source. */
+export const projectNodeTypePortSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  /** `null` where source alone does not say, or for one this app does not know. */
+  family: portFamilySchema.nullable(),
+  /** A function or shader port's annotation as written; `null` for a process node's port. */
+  annotation: z.string().nullable(),
+});
+/** One port of a node type as source states it. */
+export type ProjectNodeTypePort = z.infer<typeof projectNodeTypePortSchema>;
+
+/** One node type a project's source declares. */
+export const projectNodeTypeSchema = z.object({
+  /** The type `add_node` takes: the import path `<module>:<qualname>`. */
+  type: z.string(),
+  /** `process`, `function` or `shader`, or a kind newer than this app; `null` where source does not show it. */
+  kind: z.string().nullable(),
+  description: z.string(),
+  /** The palette category, the declaring module when none is declared. */
+  category: z.string(),
+  /** `null` where only the node's native half states its ports. */
+  inputs: z.array(projectNodeTypePortSchema).nullable(),
+  outputs: z.array(projectNodeTypePortSchema).nullable(),
+  /** The declaring file, relative to its source's root. */
+  path: z.string().nullable(),
+  line: z.number().nullable(),
+});
+/** One node type a project's source declares. */
+export type ProjectNodeType = z.infer<typeof projectNodeTypeSchema>;
+
+/** One `@graph_generator` a project's source declares. */
+export const projectGraphGeneratorSchema = z.object({
+  /** The import path `import_graph_generator` takes: `<module>:<function>`. */
+  generator: z.string(),
+  /** Its docstring. */
+  description: z.string(),
+  promoted_config: z.array(z.object({ name: z.string(), annotation: z.string().nullable() })),
+  path: z.string(),
+  line: z.number(),
+});
+/** One `@graph_generator` a project's source declares. */
+export type ProjectGraphGenerator = z.infer<typeof projectGraphGeneratorSchema>;
+/** One setting a graph generator promotes, as its parameter states it. */
+export type ProjectGraphGeneratorPromotedSetting = ProjectGraphGenerator["promoted_config"][number];
+
+/** A module of a source that does not parse, with why in the parser's words and where it stopped. */
+export const projectNodeModuleNotReadableSchema = z.object({
+  module: z.string(),
+  path: z.string(),
+  line: z.number().nullable(),
+  column: z.number().nullable(),
+  why: z.string(),
+});
+/** A module of a source that does not parse. */
+export type ProjectNodeModuleNotReadable = z.infer<typeof projectNodeModuleNotReadableSchema>;
+
+/** Where a listed source's node code comes from: the project, a linked dependency at its pin, an installed distribution, or an origin newer than this app. */
+export const projectNodeTypeSourceOriginSchema = z.discriminatedUnion("source", [
+  z.object({ source: z.literal("project") }),
+  z.object({ source: z.literal("dependency"), project: z.string(), revision: z.string() }),
+  z.object({ source: z.literal("installed_distribution"), distribution: z.string(), distribution_version: z.string() }),
+  z.object({ source: z.literal("newer_than_this_app"), source_name: z.string() }),
+]);
+/** Where a listed source's node code comes from. */
+export type ProjectNodeTypeSourceOrigin = z.infer<typeof projectNodeTypeSourceOriginSchema>;
+
+/** One source's node types, graph generators, and the modules of it that do not parse. */
+export const projectNodeTypeSourceSchema = z.object({
+  origin: projectNodeTypeSourceOriginSchema,
+  node_types: z.array(projectNodeTypeSchema),
+  graph_generators: z.array(projectGraphGeneratorSchema),
+  unreadable_modules: z.array(projectNodeModuleNotReadableSchema),
+});
+/** One source's node types. */
+export type ProjectNodeTypeSource = z.infer<typeof projectNodeTypeSourceSchema>;
+
+/** What the project and each source it draws node code from declares, read from source without running it. */
+export const projectNodeTypeListingSchema = z.object({
+  /** The project's folder, its links resolved. */
+  project_directory: z.string(),
+  /** The project's UUID. */
+  project: z.string(),
+  project_name: z.string(),
+  /** The project first, then each linked dependency, then each installed distribution. */
+  sources: z.array(projectNodeTypeSourceSchema),
+});
+/** What a project and its sources declare. */
+export type ProjectNodeTypeListing = z.infer<typeof projectNodeTypeListingSchema>;
+
+/** A project folder as its `pyproject.toml` describes it. */
+export const projectOnDiskSchema = z.object({
+  /** The folder, absolute with its links resolved. */
+  folder: z.string(),
+  /** `[project] name`. */
+  name: z.string(),
+  /** `[project] dependencies`, each as `pyproject.toml` spells it. */
+  requirements: z.array(z.string()),
+});
+/** A project folder as its `pyproject.toml` describes it. */
+export type ProjectOnDisk = z.infer<typeof projectOnDiskSchema>;
+
+/** Where an imported project comes from: a folder a uv `path` source names, read or unreadable with why, or a package index. */
+export const importedProjectSourceSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("folder"), project: projectOnDiskSchema }),
+  z.object({ kind: z.literal("folder_unreadable"), folder: z.string(), refusal: z.string() }),
+  z.object({ kind: z.literal("package_index") }),
+]);
+/** Where an imported project comes from. */
+export type ImportedProjectSource = z.infer<typeof importedProjectSourceSchema>;
+
+/** One dependency of the open project, which Studio shows as an import. */
+export const importedProjectSchema = z.object({
+  /** The requirement's name, normalized as PEP 503 normalizes a package name. */
+  name: z.string(),
+  requirement: z.string(),
+  source: importedProjectSourceSchema,
+});
+/** One dependency of the open project. */
+export type ImportedProject = z.infer<typeof importedProjectSchema>;
+
+/** The open project: its folder's own project, and the projects it imports, in `pyproject.toml`'s order. */
+export const openProjectSchema = z.object({ project: projectOnDiskSchema, imports: z.array(importedProjectSchema) });
+/** The open project. */
+export type OpenProject = z.infer<typeof openProjectSchema>;
+
+/** No project open, the open one read, or its folder unreadable, with why in the words of what refused. */
+export const openProjectReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("none_open") }),
+  z.object({ kind: z.literal("read"), open_project: openProjectSchema }),
+  z.object({ kind: z.literal("unreadable"), folder: z.string(), refusal: z.string() }),
+]);
+/** What Studio reads of the open project. */
+export type OpenProjectReading = z.infer<typeof openProjectReadingSchema>;
+
+/** A file of the open project or its imports, as read from disk. */
+export const projectFileReadSchema = z.object({
+  /** The file, absolute, as the view named it. */
+  file: z.string(),
+  /** The folder of the project the file belongs to. */
+  project_folder: z.string(),
+  text: z.string(),
+  /** The SHA-256 of the bytes read, in hex, which a save takes back as `based_on_version`. */
+  version: z.string(),
+  /** Whether the file belongs to the open project, whose files Studio saves; an import's are read-only. */
+  is_editable: z.boolean(),
+});
+/** A file of the open project or its imports, as read from disk. */
+export type ProjectFileRead = z.infer<typeof projectFileReadSchema>;
+
+/** A project's Python files and `pyproject.toml`, relative to its folder, in name order. */
+export const projectFilesSchema = z.object({ project_folder: z.string(), files: z.array(z.string()) });
+/** A project's files. */
+export type ProjectFiles = z.infer<typeof projectFilesSchema>;
+
+/** One record of a project's log, flattened from the runtime's JSONL record. */
+export const projectLogRecordSchema = z.object({
+  /** Nanoseconds since the Unix epoch; past 2^53, so it arrives rounded to a few hundred nanoseconds. */
+  host_ts_ns: z.number().nullable(),
+  level: z.string().nullable(),
+  source: z.string().nullable(),
+  target: z.string().nullable(),
+  message: z.string(),
+  attrs: z.record(z.string(), z.string()),
+  /** The graph `id` of the step that wrote it; `null` for a record written outside a step. */
+  processor_id: z.string().nullable(),
+  /** Whether a step's own helper process wrote it rather than the runtime's process. */
+  sent_by_its_own_process: z.boolean(),
+  /** The id of the stream action it was written for; `null` for a record written outside one. */
+  action: z.string().nullable(),
+  /** The id of the stream that wrote it; `null` for a record of the project's own. */
+  stream: z.string().nullable(),
+  /** The record as JSON text, every number in the digits the runtime wrote, so `host_ts` is exact. */
+  jsonl_line: z.string(),
+});
+/** One record of a project's log. */
+export type ProjectLogRecord = z.infer<typeof projectLogRecordSchema>;
+
+/** The output port of a running node a port viewer reads: the stream's id, the node's id as `graph` lists it, and the port's name. */
+export const portViewerTargetSchema = z.object({ stream: z.string(), node_id: z.string(), port: z.string() });
+/** The output port of a running node a port viewer reads. */
+export type PortViewerTarget = z.infer<typeof portViewerTargetSchema>;
+
+/** One channel of a Channels block: the lowest and highest sample of each of its columns, its peak and its RMS. */
+export const portViewerChannelWaveformSchema = z.object({
+  column_minimums: z.array(z.number()),
+  column_maximums: z.array(z.number()),
+  peak: z.number(),
+  rms: z.number(),
+});
+/** One channel of a Channels block as a waveform. */
+export type PortViewerChannelWaveform = z.infer<typeof portViewerChannelWaveformSchema>;
+
+/** One attribute of an Array frame: its name, element type and shape, where its data lives, and, for numeric data in the payload, its statistics. */
+export const portViewerArrayAttributeReadingSchema = z.object({
+  name: z.string(),
+  dtype: z.string(),
+  shape: z.array(z.number()),
+  residency: z.enum(["cpu", "gpu"]),
+  statistics: z.object({ element_count: z.number(), minimum: z.number(), maximum: z.number(), mean: z.number() }).nullable(),
+});
+/** One attribute of an Array frame. */
+export type PortViewerArrayAttributeReading = z.infer<typeof portViewerArrayAttributeReadingSchema>;
+
+/** What a port viewer read of one message of a family other than Image, from the family's descriptor and payload. */
+export const portViewerMessageReadingSchema = z.discriminatedUnion("family", [
+  z.object({
+    family: z.literal("channels"),
+    start_sample: z.number(),
+    sample_rate: z.number(),
+    channel_count: z.number(),
+    samples_per_channel: z.number(),
+    sample_type: z.string(),
+    channel_waveforms: z.array(portViewerChannelWaveformSchema),
+  }),
+  z.object({ family: z.literal("array"), attributes: z.array(portViewerArrayAttributeReadingSchema) }),
+  z.object({ family: z.literal("packets"), codec: z.string(), byte_length: z.number(), starts_group: z.boolean(), timestamp_ns: z.number() }),
+  z.object({ family: z.literal("records"), record: jsonValueSchema }),
+  z.object({ family: z.literal("bytes"), byte_length: z.number() }),
+  z.object({ family: z.literal("unreadable"), port_family: z.string(), because: z.string() }),
+]);
+/** What a port viewer read of one message of a family other than Image. */
+export type PortViewerMessageReading = z.infer<typeof portViewerMessageReadingSchema>;
+
+const videoFrameSchema = z.custom<VideoFrame>((value) => typeof VideoFrame !== "undefined" && value instanceof VideoFrame, "an Image frame is a VideoFrame");
+
+/** What a port viewer delivers: an Image frame as a `VideoFrame` the view closes once drawn, or as its pixels; another family's message, read by its family; or the viewer reopening or ending, with why. */
+export const portViewerEventSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("image_frame"), video_frame: videoFrameSchema, format_wire_name: z.string(), skipped_since_last_read: z.number() }),
+  z.object({
+    kind: z.literal("image_pixels"),
+    width: z.number(),
+    height: z.number(),
+    /** The runtime's wire name of the frame's pixel format (`bgra32`, `rgba32`, `nv12`, …). */
+    format_wire_name: z.string(),
+    bytes_per_row: z.number(),
+    pixels: z.instanceof(Uint8Array),
+    /** Messages the viewer skipped before this one, because a viewer reads only the latest. */
+    skipped_since_last_read: z.number(),
+  }),
+  z.object({ kind: z.literal("message"), reading: portViewerMessageReadingSchema, skipped_since_last_read: z.number() }),
+  z.object({ kind: z.literal("reopening"), because: z.string() }),
+  z.object({ kind: z.literal("ended"), because: z.string() }),
+]);
+/** What a port viewer delivers. */
+export type PortViewerEvent = z.infer<typeof portViewerEventSchema>;
+
+/** What Studio has selected, which every view shows and any view may change. */
+export const studioSelectionSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("nothing") }),
+  z.object({ kind: z.literal("project"), project_name: z.string(), project_folder: z.string().nullable() }),
+  z.object({ kind: z.literal("stream"), stream: z.string(), project_folder: z.string() }),
+  z.object({ kind: z.literal("node"), stream: z.string(), node: z.string() }),
+]);
+/** What Studio has selected. */
+export type StudioSelection = z.infer<typeof studioSelectionSchema>;
+
+/** A stream a tab is open on: its id, and the project and words its tab is labelled with. */
+export const streamTabAddressSchema = z.object({ stream: z.string(), project_name: z.string(), display_name: z.string() });
+/** A stream a tab is open on. */
+export type StreamTabAddress = z.infer<typeof streamTabAddressSchema>;
+
+/** The streams the runtime lists; why none are listed while the runtime is not running; or why listing them failed while it runs, in the failure's own words. */
+export const listedStreamsReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("listed"), streams: z.array(listedStreamSchema) }),
+  z.object({ kind: z.literal("not_listed"), because: z.string() }),
+  z.object({ kind: z.literal("listing_failed"), because: z.string() }),
+]);
+/** The streams the runtime lists, or why none are. */
+export type ListedStreamsReading = z.infer<typeof listedStreamsReadingSchema>;
+
+/** A stream's graph as the runtime renders it now, or why it renders none, in its own words. */
+export const streamGraphReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("read"), graph: streamGraphSummarySchema }),
+  z.object({ kind: z.literal("not_read"), because: z.string() }),
+]);
+/** A stream's graph, or why none. */
+export type StreamGraphReading = z.infer<typeof streamGraphReadingSchema>;
+
+/** The node types a stream can add, or why the runtime lists none, in its own words. */
+export const nodeCatalogReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("listed"), catalog: nodeCatalogSchema }),
+  z.object({ kind: z.literal("not_listed"), because: z.string() }),
+]);
+/** The node types a stream can add, or why none. */
+export type NodeCatalogReading = z.infer<typeof nodeCatalogReadingSchema>;
+
+/** What a project and each source it draws node code from declares, or why the runtime lists none, in its own words. */
+export const projectNodeTypesReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("listed"), listing: projectNodeTypeListingSchema }),
+  z.object({ kind: z.literal("not_listed"), because: z.string() }),
+]);
+/** What a project's sources declare, or why none. */
+export type ProjectNodeTypesReading = z.infer<typeof projectNodeTypesReadingSchema>;
+
+/** A project's log as read so far, its latest records last, or why the runtime gives none now, in its own words. */
+export const projectLogReadingSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("read"), records: z.array(projectLogRecordSchema), records_no_longer_held: z.boolean() }),
+  z.object({ kind: z.literal("not_read"), because: z.string() }),
+]);
+/** A project's log, or why none. */
+export type ProjectLogReading = z.infer<typeof projectLogReadingSchema>;
+
+/** A file of the open project and its imports as read from disk, or why it was not, in the words of what refused. */
+export type ProjectFileReading = { kind: "read"; file_read: ProjectFileRead } | { kind: "not_read"; because: string };
+
+/** A file saved, with the version it now has on disk, or why nothing was written. */
+export type ProjectFileSaving = { kind: "saved"; version: string } | { kind: "not_saved"; because: string };
+
+/** A project's files, or why they were not listed. */
+export type ProjectFilesListing = { kind: "listed"; project_files: ProjectFiles } | { kind: "not_listed"; because: string };
+
+/** What a Python language server connection delivers: one JSON-RPC message the server sent, or the server's end with why. */
+export const pythonLanguageServerConnectionEventSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("message"), message: jsonValueSchema }),
+  z.object({ kind: z.literal("ended"), because: z.string() }),
+]);
+/** What a Python language server connection delivers. */
+export type PythonLanguageServerConnectionEvent = z.infer<typeof pythonLanguageServerConnectionEventSchema>;
+
+/** What a view's area was opened on: a file of the open project or its imports, or a running node's output port; `null` for an area opened on nothing. */
+export const viewOpenedOnSchema = z
+  .discriminatedUnion("kind", [z.object({ kind: z.literal("file"), file: z.string() }), z.object({ kind: z.literal("port"), target: portViewerTargetSchema })])
+  .nullable();
+/** What a view's area was opened on. */
+export type ViewOpenedOn = z.infer<typeof viewOpenedOnSchema>;
+
+/** Where the view's own header row lies inside its frame: Studio's view-type menu covers the row's start up to `leading_inset_px`, and the row is `height_px` tall. */
+export const viewHeaderRowSchema = z.object({ leading_inset_px: z.number().nonnegative(), height_px: z.number().positive() });
+/** Where the view's own header row lies inside its frame. */
+export type ViewHeaderRow = z.infer<typeof viewHeaderRowSchema>;
