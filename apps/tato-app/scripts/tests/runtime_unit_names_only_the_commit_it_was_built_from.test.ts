@@ -11,8 +11,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
-const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
-const BUILD_RUNTIME_UNIT_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "build-tatolab-runtime-unit.sh");
+const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const BUILD_RUNTIME_UNIT_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "build-tatolab-runtime-unit.sh");
 const GIT_IDENTITY_ENVIRONMENT = {
   GIT_AUTHOR_NAME: "streamlib stand-in",
   GIT_AUTHOR_EMAIL: "stand-in@example.invalid",
@@ -65,7 +65,7 @@ async function runGitInTheCheckout(gitArguments: string[]): Promise<string> {
 }
 
 function buildTheRuntimeUnit(extraEnvironment: Record<string, string> = {}): Promise<ProgramOutcome> {
-  return runProgram("bash", [BUILD_RUNTIME_UNIT_SCRIPT, plantedStreamlibCheckout], REPOSITORY_ROOT, extraEnvironment);
+  return runProgram("bash", [BUILD_RUNTIME_UNIT_SCRIPT, plantedStreamlibCheckout], TATO_APP_ROOT, extraEnvironment);
 }
 
 function unitStreamlibCommitFile(): string {

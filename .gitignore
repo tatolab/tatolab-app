@@ -18,5 +18,8 @@ build/
 .claude/worktrees/
 
 # The viewer addon's cargo target directory
-native/*/target/
-native/*/Cargo.lock.pinned-to-git
+apps/tato-app/native/*/target/
+apps/tato-app/native/*/Cargo.lock.pinned-to-git
+
+# Turborepo's local task cache and logs
+.turbo/

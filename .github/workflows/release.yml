@@ -4,7 +4,7 @@ name: Release
 # to main, and every streamlib release, whose release workflow dispatches this one with its version
 # once its Linux runtime is on get.tatolab.com. A merge bundles the streamlib release get.tatolab.com
 # serves as latest, and every release is versioned by
-# scripts/plan_tatolab_app_release.mjs. macOS is built, signed with the Developer ID and notarized on
+# apps/tato-app/scripts/plan_tatolab_app_release.mjs. macOS is built, signed with the Developer ID and notarized on
 # a macos-26 runner; Linux on ubuntu-22.04. Everything the app publishes lives under app/, apart from
 # streamlib's packages/, simple/, releases/, install.sh and latest: the files land under
 # app/releases/<version>/ first, and the feed's manifests in app/ only once both platforms built, so
@@ -49,7 +49,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-          sparse-checkout: scripts/plan_tatolab_app_release.mjs
+          sparse-checkout: apps/tato-app/scripts/plan_tatolab_app_release.mjs
           sparse-checkout-cone-mode: false
 
       - uses: actions/setup-node@v5
@@ -59,7 +59,7 @@ jobs:
       - id: plan
         env:
           REQUESTED_STREAMLIB_VERSION: ${{ inputs.streamlib_version }}
-        run: node scripts/plan_tatolab_app_release.mjs "$REQUESTED_STREAMLIB_VERSION"
+        run: node apps/tato-app/scripts/plan_tatolab_app_release.mjs "$REQUESTED_STREAMLIB_VERSION"
 
   build-macos:
     name: Build, sign and notarize for macOS
@@ -106,8 +106,8 @@ jobs:
         with:
           shared-key: tato-studio-release-macos
           workspaces: |
-            build/streamlib -> target
-            native/tatolab-runtime-viewer-frame-import -> target
+            apps/tato-app/build/streamlib -> target
+            apps/tato-app/native/tatolab-runtime-viewer-frame-import -> target
 
       - uses: actions/setup-node@v5
         with:
@@ -138,16 +138,16 @@ jobs:
           (umask 077 && printf "%s" "$APPLE_API_KEY_P8_BASE64" | base64 --decode > "$APPLE_API_KEY_PATH")
           trap 'rm -f "$APPLE_API_KEY_PATH"' EXIT
           export APPLE_API_KEY_PATH
-          scripts/build-tatolab-app.sh --streamlib-ref "$STREAMLIB_TAG" --app-version "$APP_VERSION" --release --notarize
+          apps/tato-app/scripts/build-tatolab-app.sh --streamlib-ref "$STREAMLIB_TAG" --app-version "$APP_VERSION" --release --notarize
 
       - uses: actions/upload-artifact@v6
         with:
           name: tato-studio-macos
           if-no-files-found: error
           path: |
-            build/Tato-Studio-${{ needs.plan.outputs.app_version }}-arm64.dmg
-            build/Tato-Studio-${{ needs.plan.outputs.app_version }}-arm64-mac.zip
-            build/latest-mac.yml
+            apps/tato-app/build/Tato-Studio-${{ needs.plan.outputs.app_version }}-arm64.dmg
+            apps/tato-app/build/Tato-Studio-${{ needs.plan.outputs.app_version }}-arm64-mac.zip
+            apps/tato-app/build/latest-mac.yml
 
   build-linux:
     name: Build for Linux
@@ -167,7 +167,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: tato-studio-release-linux
-          workspaces: native/tatolab-runtime-viewer-frame-import -> target
+          workspaces: apps/tato-app/native/tatolab-runtime-viewer-frame-import -> target
 
       - uses: actions/setup-node@v5
         with:
@@ -194,7 +194,7 @@ jobs:
           STREAMLIB_TAG: ${{ needs.plan.outputs.streamlib_tag }}
           APP_VERSION: ${{ needs.plan.outputs.app_version }}
         run: >-
-          scripts/build-tatolab-linux-app.sh --streamlib-ref "$STREAMLIB_TAG"
+          apps/tato-app/scripts/build-tatolab-linux-app.sh --streamlib-ref "$STREAMLIB_TAG"
           --runtime-unit "$RUNNER_TEMP/linux-runtime-unit" --app-version "$APP_VERSION" --release
 
       - uses: actions/upload-artifact@v6
@@ -202,9 +202,9 @@ jobs:
           name: tato-studio-linux
           if-no-files-found: error
           path: |
-            build/linux/Tato-Studio-${{ needs.plan.outputs.app_version }}-amd64.deb
-            build/linux/Tato-Studio-${{ needs.plan.outputs.app_version }}-x86_64.AppImage
-            build/linux/latest-linux.yml
+            apps/tato-app/build/linux/Tato-Studio-${{ needs.plan.outputs.app_version }}-amd64.deb
+            apps/tato-app/build/linux/Tato-Studio-${{ needs.plan.outputs.app_version }}-x86_64.AppImage
+            apps/tato-app/build/linux/latest-linux.yml
 
   publish:
     name: Publish to get.tatolab.com

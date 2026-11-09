@@ -10,17 +10,16 @@
       "Bash(git worktree list)",
       "Bash(npm test)",
       "Bash(npm run build)",
-      "Bash(scripts/check-*)",
-      "Bash(scripts/tests/*)",
+      "Bash(apps/tato-app/scripts/check-*)",
+      "Bash(apps/tato-app/scripts/tests/*)",
       "Bash(.claude/scripts/tests/*)",
       "Bash(gh pr merge *)",
       "Bash(gh api *dispatches*)"
     ],
     "ask": [
       "Edit(LICENSE)",
-      "Edit(packaging/entitlements/**)",
-      "Edit(packaging/launch-agent/**)",
-      "Edit(packaging/macos/**)"
+      "Edit(apps/tato-app/packaging/entitlements/**)",
+      "Edit(apps/tato-app/packaging/macos/**)"
     ]
   },
   "hooks": {

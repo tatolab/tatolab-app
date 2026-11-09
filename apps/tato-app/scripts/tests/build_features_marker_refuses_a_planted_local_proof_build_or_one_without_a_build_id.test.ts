@@ -12,7 +12,8 @@ import { fileURLToPath } from "node:url";
 import { createPackage } from "@electron/asar";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
-const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const MONOREPO_ROOT = fileURLToPath(new URL("../../../..", import.meta.url));
 const BUILD_FEATURES_SCRIPT_IN_THE_REPOSITORY = path.join("scripts", "tatolab_app_build_features.mjs");
 const COMMITTED_BUILD_FEATURES_IN_THE_REPOSITORY = path.join("src", "main", "tatolab_app_build_features.json");
 const SHIPPING_BUILD_FEATURES = { machineDirectoriesUnderATestRoot: false, appUpdateFeedUrl: "https://get.tatolab.com/app/" };
@@ -51,12 +52,12 @@ function runGitInTheScratchCheckout(gitArguments: string[]): Promise<ProgramOutc
   return runProgram("git", ["-c", "user.name=Tatolab Test", "-c", "user.email=test@tatolab.invalid", "-c", "commit.gpgsign=false", ...gitArguments], scratchCheckout);
 }
 
-/** A git checkout holding the script and the committed build features, at one commit; its `node_modules` links this repository's. */
+/** A git checkout holding the script and the committed build features, at one commit; its `node_modules` links the monorepo root's, where npm installs the app's packages. */
 async function scratchCheckoutAtOneCommit(): Promise<string> {
   for (const fileInTheRepository of [BUILD_FEATURES_SCRIPT_IN_THE_REPOSITORY, COMMITTED_BUILD_FEATURES_IN_THE_REPOSITORY]) {
-    await cp(path.join(REPOSITORY_ROOT, fileInTheRepository), path.join(scratchCheckout, fileInTheRepository));
+    await cp(path.join(TATO_APP_ROOT, fileInTheRepository), path.join(scratchCheckout, fileInTheRepository));
   }
-  await symlink(path.join(REPOSITORY_ROOT, "node_modules"), path.join(scratchCheckout, "node_modules"));
+  await symlink(path.join(MONOREPO_ROOT, "node_modules"), path.join(scratchCheckout, "node_modules"));
   await writeFile(path.join(scratchCheckout, ".gitignore"), "node_modules\nout/\n");
   for (const gitArguments of [["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "scratch"]]) {
     expect(await runGitInTheScratchCheckout(gitArguments)).toMatchObject({ exitCode: 0 });
@@ -90,7 +91,7 @@ async function appAsarPlantedWith(plantedFeaturesSource: string | null): Promise
 }
 
 test("the committed build features are the shipping ones, with no build id", async () => {
-  const committedFeatures = JSON.parse(await readFile(path.join(REPOSITORY_ROOT, COMMITTED_BUILD_FEATURES_IN_THE_REPOSITORY), "utf8"));
+  const committedFeatures = JSON.parse(await readFile(path.join(TATO_APP_ROOT, COMMITTED_BUILD_FEATURES_IN_THE_REPOSITORY), "utf8"));
   expect(committedFeatures).toEqual({ ...SHIPPING_BUILD_FEATURES, tatolabAppBuildId: null });
 });
 

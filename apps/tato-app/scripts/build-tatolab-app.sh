@@ -36,8 +36,8 @@
 set -euo pipefail
 
 usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$0" >&2; exit 2; }
-repository_root="$(cd "$(dirname "$0")/.." && pwd)"
-scripts_directory="$repository_root/scripts"
+tato_app_root="$(cd "$(dirname "$0")/.." && pwd)"
+scripts_directory="$tato_app_root/scripts"
 streamlib_ref=main
 prebuilt_runtime_unit=""
 local_proof_test_root=false
@@ -124,7 +124,7 @@ app_update_feed_arguments=()
 release_build_arguments=()
 $release_build && release_build_arguments=(--release)
 
-build_directory="$repository_root/build"
+build_directory="$tato_app_root/build"
 mkdir -p "$build_directory"
 
 echo "==> runtime unit (streamlib $streamlib_ref)"
@@ -152,7 +152,7 @@ output_update_zip="$build_directory/Tato-Studio-$app_version-arm64-mac.zip"
 output_update_manifest="$build_directory/latest-mac.yml"
 
 echo "==> Electron app"
-cd "$repository_root"
+cd "$tato_app_root"
 npm ci
 npm run build -- ${local_proof_arguments[@]+"${local_proof_arguments[@]}"} ${app_update_feed_arguments[@]+"${app_update_feed_arguments[@]}"} \
   ${release_build_arguments[@]+"${release_build_arguments[@]}"}
@@ -163,7 +163,7 @@ rm -rf "$assembled_app"
 ditto "$packaged_app" "$assembled_app"
 # The viewer addon is a Mach-O, so it sits in Frameworks/, where the signing script signs it and
 # electron_app_entry loads it from.
-ditto "$repository_root/out/native/tatolab_runtime_viewer_frame_import.node" "$assembled_app/Contents/Frameworks/tatolab_runtime_viewer_frame_import.node"
+ditto "$tato_app_root/out/native/tatolab_runtime_viewer_frame_import.node" "$assembled_app/Contents/Frameworks/tatolab_runtime_viewer_frame_import.node"
 info_plist="$assembled_app/Contents/Info.plist"
 plutil -replace LSMinimumSystemVersion -string 26.0 "$info_plist"
 # Electron's own Info.plist lets the main process load any http:// URL; the app loads none.

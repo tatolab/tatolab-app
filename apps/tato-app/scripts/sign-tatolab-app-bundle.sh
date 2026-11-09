@@ -24,11 +24,11 @@ case "$signing_identity" in
 esac
 app_bundle="$(cd "$1" && pwd)"
 contents="$app_bundle/Contents"
-repository_root="$(cd "$(dirname "$0")/.." && pwd)"
-app_entitlements="$repository_root/packaging/entitlements/tatolab-app.entitlements"
-renderer_helper_entitlements="$repository_root/packaging/entitlements/tatolab-renderer-helper.entitlements"
-utility_helper_entitlements="$repository_root/packaging/entitlements/tatolab-utility-helper.entitlements"
-tatolabd_entitlements="$repository_root/packaging/entitlements/tatolabd.entitlements"
+tato_app_root="$(cd "$(dirname "$0")/.." && pwd)"
+app_entitlements="$tato_app_root/packaging/entitlements/tatolab-app.entitlements"
+renderer_helper_entitlements="$tato_app_root/packaging/entitlements/tatolab-renderer-helper.entitlements"
+utility_helper_entitlements="$tato_app_root/packaging/entitlements/tatolab-utility-helper.entitlements"
+tatolabd_entitlements="$tato_app_root/packaging/entitlements/tatolabd.entitlements"
 runtime_application_identifier="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.application-identifier' "$tatolabd_entitlements")"
 
 helper_bundle="$contents/Helpers/Tatolab Runtime.app"

@@ -1,6 +1,7 @@
 // The main process's entry: Electron's app, windows, tray and Dock behind the shell the
 // lifecycle in main.ts drives.
 
+import { createRequire } from "node:module";
 import path from "node:path";
 import { app, autoUpdater as electronNativeAutoUpdater, Menu } from "electron";
 import { startTatolabApp, type TatolabElectronAppShell, type TatolabRunningApp } from "../main.js";
@@ -122,8 +123,11 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   askThePersonForAStreamProjectFolder: askThePersonForAStreamProjectFolderThroughElectron,
   askThePersonForAProjectFolder: askThePersonForAProjectFolderThroughElectron,
   startANodeLanguageServer: startANodeLanguageServerInAUtilityProcess,
-  // A packaged app carries Pyright outside app.asar, in app.asar.unpacked, so its worker threads and typeshed stubs load from plain files.
-  pyrightLanguageServerModulePath: path.join(app.isPackaged ? `${app.getAppPath()}.unpacked` : app.getAppPath(), "node_modules", "pyright", "langserver.index.js"),
+  // A packaged app carries Pyright outside app.asar, in app.asar.unpacked, so its worker threads and typeshed stubs load from plain files;
+  // an unpackaged one finds it where the npm workspace installed it, which is usually the monorepo root's node_modules.
+  pyrightLanguageServerModulePath: app.isPackaged
+    ? path.join(`${app.getAppPath()}.unpacked`, "node_modules", "pyright", "langserver.index.js")
+    : createRequire(import.meta.url).resolve("pyright/langserver.index.js"),
   runtimeViewerFrameImportAddonPath:
     app.isPackaged && tatolabPlatformItems !== null
       ? tatolabPlatformItems.viewerAddonThePackagedAppCarries(process.resourcesPath)

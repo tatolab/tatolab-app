@@ -1,4 +1,4 @@
-// Each rule in eslint.config.js, stylelint.config.js and commitlint.config.js reports a planted
+// Each rule in eslint.config.js, stylelint.config.js and the monorepo's commitlint.config.js reports a planted
 // violation where it governs and stays quiet where it does not apply: a rule never seen firing locks
 // nothing.
 
@@ -8,8 +8,9 @@ import { ESLint } from "eslint";
 import stylelint from "stylelint";
 import { expect, test } from "vitest";
 
-const REPOSITORY_ROOT = new URL("../..", import.meta.url).pathname;
-const eslint = new ESLint({ cwd: REPOSITORY_ROOT });
+const TATO_APP_ROOT = new URL("../..", import.meta.url).pathname;
+const MONOREPO_ROOT = new URL("../../../..", import.meta.url).pathname;
+const eslint = new ESLint({ cwd: TATO_APP_ROOT });
 
 async function ruleIdsReportedFor(filePath: string, plantedSource: string): Promise<string[]> {
   const [lintResult] = await eslint.lintText(plantedSource, { filePath });
@@ -106,7 +107,7 @@ const stylesheetCases: [string, string, boolean][] = [
 ];
 
 test.each(stylesheetCases)("stylelint on %s", async (_caseDescription, plantedStylesheet, isReported) => {
-  const { results } = await stylelint.lint({ code: plantedStylesheet, codeFilename: `${REPOSITORY_ROOT}src/renderer/styles/zz_planted.css`, cwd: REPOSITORY_ROOT });
+  const { results } = await stylelint.lint({ code: plantedStylesheet, codeFilename: `${TATO_APP_ROOT}src/renderer/styles/zz_planted.css`, cwd: TATO_APP_ROOT });
   expect((results[0]?.warnings ?? []).length > 0).toBe(isReported);
 });
 
@@ -123,7 +124,7 @@ const pullRequestTitleCases: [string, boolean][] = [
 
 test.each(pullRequestTitleCases)("commitlint on the title %j", async (pullRequestTitle, isAccepted) => {
   // A child's stdin is a socket; Linux's /dev/stdin reopens it through /proc, which fails with ENXIO, so `--edit /dev/stdin` reads nothing there.
-  const commitlint = promisify(execFile)(`${REPOSITORY_ROOT}node_modules/.bin/commitlint`, [], { cwd: REPOSITORY_ROOT });
+  const commitlint = promisify(execFile)(`${MONOREPO_ROOT}node_modules/.bin/commitlint`, [], { cwd: MONOREPO_ROOT });
   commitlint.child.stdin?.end(pullRequestTitle);
   const accepted = await commitlint.then(
     () => true,

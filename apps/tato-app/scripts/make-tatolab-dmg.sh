@@ -9,8 +9,8 @@ usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$
 [ $# -eq 2 ] || usage
 app_bundle="$(cd "$1" && pwd)"
 output_dmg="$2"
-repository_root="$(cd "$(dirname "$0")/.." && pwd)"
-dmg_packaging_directory="$repository_root/packaging/dmg"
+tato_app_root="$(cd "$(dirname "$0")/.." && pwd)"
+dmg_packaging_directory="$tato_app_root/packaging/dmg"
 pinned_dmgbuild="dmgbuild==1.6.7"
 
 [ "$(basename "$app_bundle")" = "Tato Studio.app" ] || { echo "expected a Tato Studio.app, got $app_bundle" >&2; exit 1; }

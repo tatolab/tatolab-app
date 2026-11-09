@@ -11,8 +11,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
-const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
-const VERIFY_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "verify-tatolab-app-bundle.sh");
+const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const VERIFY_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "verify-tatolab-app-bundle.sh");
 const MACOS_SIGNING_TOOLS_ARE_AVAILABLE = ["/usr/bin/codesign", "/usr/bin/plutil", "/usr/bin/cc", "/usr/bin/true"].every((tool) => existsSync(tool));
 
 interface ProcessOutcome {
@@ -22,7 +22,7 @@ interface ProcessOutcome {
 
 function runProcess(executable: string, processArguments: string[]): Promise<ProcessOutcome> {
   return new Promise((resolveOutcome) => {
-    execFile(executable, processArguments, { cwd: REPOSITORY_ROOT, timeout: 60_000 }, (processFailure, stdout, stderr) => {
+    execFile(executable, processArguments, { cwd: TATO_APP_ROOT, timeout: 60_000 }, (processFailure, stdout, stderr) => {
       const exitCode = processFailure === null ? 0 : typeof processFailure.code === "number" ? processFailure.code : -1;
       resolveOutcome({ exitCode, output: `${stdout}${stderr}` });
     });
