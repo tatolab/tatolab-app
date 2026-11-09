@@ -1,7 +1,7 @@
 // The mock's one listed view, the fixture a project's import would bring: its folder served by the
 // mock window's own server, the way the app will serve an installed view's folder.
 
-import type { JsonValue, ListedStudioView } from "../../../shared/tatolab_backend_contract";
+import type { JsonValue, ListedStudioView } from "../../src/shared/tatolab_backend_contract";
 import pictureAndFaderManifestText from "./picture_and_fader/tatolab_view.json?raw";
 
 // Vite rewrites `new URL(<literal>, import.meta.url)` as an asset import, which a folder is not.

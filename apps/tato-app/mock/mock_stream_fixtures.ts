@@ -1,6 +1,6 @@
-import { STUDIO_VIEW_NODE_TYPE } from "../view_host/studio_view_node_wiring";
+import { STUDIO_VIEW_NODE_TYPE } from "../src/renderer/view_host/studio_view_node_wiring";
 import { MOCK_STUDIO_VIEW_TYPE_ID } from "./mock_studio_view/mock_studio_view_listing";
-import type { ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../../shared/tatolab_backend_contract";
+import type { ListedStream, PortFamily, StreamGraphDeclaredPort, StreamGraphLink, StreamLocation, ProjectLogRecord, TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 
 function fnv1aHashOf(text: string): number {
   let hash = 2166136261;

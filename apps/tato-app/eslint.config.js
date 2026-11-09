@@ -77,7 +77,7 @@ const FOCUSED_OR_SKIPPED_TEST_SELECTORS = [
 ];
 
 const MAIN_PROCESS_FILES = ["src/main/**/*.{ts,cts}", "src/preload/**/*.{ts,cts}"];
-const TEST_FILES = ["src/**/*.test.{ts,tsx}"];
+const TEST_FILES = ["src/**/*.test.{ts,tsx}", "mock/**/*.test.{ts,tsx}"];
 
 /** The restrictions that hold for one group of main-process files. */
 function mainProcessRestrictions({ mayImportElectron, mayReadPlatform, isShipped, isTest, mayWriteStandardStreams }) {
@@ -137,7 +137,7 @@ function mainProcessConfigs() {
   ]);
 }
 
-const WINDOW_FILES = ["src/renderer/**/*.{ts,tsx}", "src/shared/**/*.ts"];
+const WINDOW_FILES = ["src/renderer/**/*.{ts,tsx}", "src/shared/**/*.ts", "mock/**/*.{ts,tsx}"];
 const SCREEN_FILES = ["src/renderer/studio_shell/**/*.tsx", "src/renderer/studio_views/**/*.tsx", "src/renderer/setup_and_preferences/**/*.tsx", "src/renderer/tatolab_window_view.tsx"];
 const STUDIO_VIEW_FILES = ["src/renderer/studio_views/**/*.{ts,tsx}"];
 const SHADCN_FILES = ["src/renderer/components/ui/**"];
@@ -159,7 +159,7 @@ function windowRestrictions({ isScreen, mayDrawCircles, isStudioView }) {
 export default defineConfig(
   { ignores: ["out/**", "build/**", "node_modules/**"] },
   {
-    files: ["src/**/*.{ts,tsx,cts}"],
+    files: ["src/**/*.{ts,tsx,cts}", "mock/**/*.{ts,tsx}"],
     languageOptions: { parser: tseslint.parser },
     plugins: { "@typescript-eslint": tseslint.plugin },
     linterOptions: { reportUnusedDisableDirectives: "error" },

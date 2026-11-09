@@ -3,7 +3,7 @@
 // `machine` — and the summary the main process would read from it.
 
 import { mockNodeIdOf, type MockStreamGraph } from "./mock_stream_fixtures";
-import type { PortStreamFacts, StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../../shared/tatolab_backend_contract";
+import type { PortStreamFacts, StreamGraphDeclaredPort, StreamGraphNode, StreamGraphSummary } from "../src/shared/tatolab_backend_contract";
 
 /** Where a mock stream's run stands when its graph is read. */
 export interface MockStreamGraphMoment {

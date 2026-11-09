@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockTatolabBackend, readMockTatolabOptions } from "./mock_tatolab_backend";
-import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, StreamActionFollowed } from "../../shared/tatolab_backend_contract";
-import type { TatolabBackend } from "./tatolab_backend";
+import type { ListedStream, ProjectLogNarrowing, ProjectLogRecord, StreamActionFollowed } from "../src/shared/tatolab_backend_contract";
+import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 
 afterEach(() => {
   vi.useRealTimers();

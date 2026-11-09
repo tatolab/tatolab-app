@@ -3,7 +3,7 @@
 // exist, completes `stream_builder.` with its methods and anything else with the document's own
 // words, and describes those methods on hover.
 
-import type { JsonValue } from "../../shared/tatolab_backend_contract";
+import type { JsonValue } from "../src/shared/tatolab_backend_contract";
 
 type JsonObject = { [key: string]: JsonValue };
 

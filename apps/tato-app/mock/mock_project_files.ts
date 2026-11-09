@@ -1,7 +1,7 @@
 // The mock's files of the open project: the pattern project's graph documents, its two node modules
 // and `pyproject.toml`, which the code pane reads and saves as it would on disk. A save at a version the mock no longer holds is refused as a change on disk.
 
-import type { ProjectFileRead, ProjectFileSaved, ProjectFiles } from "../../shared/tatolab_backend_contract";
+import type { ProjectFileRead, ProjectFileSaved, ProjectFiles } from "../src/shared/tatolab_backend_contract";
 import { mockStreamLocationOf } from "./mock_stream_fixtures";
 
 /** A graph document as the runtime writes one: the stream asset's UUID as `asset`, then its nodes and links. */

@@ -10,7 +10,7 @@ import type {
   PortViewerImageFrameFacts,
   PortViewerMessageReading,
   PortViewerTarget,
-} from "../../shared/tatolab_backend_contract";
+} from "../src/shared/tatolab_backend_contract";
 
 const MOCK_IMAGE_FRAME_EVERY_MILLISECONDS = 33;
 const MOCK_MESSAGE_EVERY_MILLISECONDS = 33;

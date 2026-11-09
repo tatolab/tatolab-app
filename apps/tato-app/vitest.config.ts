@@ -19,7 +19,7 @@ export default defineConfig({
         test: {
           name: "renderer",
           environment: "happy-dom",
-          include: ["src/renderer/**/*.test.{ts,tsx}"],
+          include: ["src/renderer/**/*.test.{ts,tsx}", "mock/**/*.test.{ts,tsx}"],
           exclude: EXCLUDED_FROM_EVERY_PROJECT,
         },
       },

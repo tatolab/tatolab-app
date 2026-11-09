@@ -3,7 +3,7 @@
 // Python, Rust's (`"type": [T, "null"]`, a root `title`, an enum under `$defs`) for a native one — and
 // its ports by name and the family each carries, which the mock serves only when asked.
 
-import type { JsonValue, NodeCatalogEntry, PortFamily } from "../../shared/tatolab_backend_contract";
+import type { JsonValue, NodeCatalogEntry, PortFamily } from "../src/shared/tatolab_backend_contract";
 
 /** What the runtime's Python deriver writes for a node that declares no config. */
 const THE_SCHEMA_OF_A_NODE_DECLARING_NO_CONFIG: JsonValue = { type: "object", description: "This node declares no configuration.", additionalProperties: false };

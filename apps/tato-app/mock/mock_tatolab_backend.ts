@@ -29,8 +29,8 @@ import { MockPortViewers } from "./mock_port_viewers";
 import { mockStudioViewListing } from "./mock_studio_view/mock_studio_view_listing";
 import { MockProjectFiles } from "./mock_project_files";
 import { mockProjectNodeTypeListing } from "./mock_project_node_types";
-import { newProjectFolderNameRefusal } from "../../shared/new_project_folder_name";
-import type { TatolabBackend } from "./tatolab_backend";
+import { newProjectFolderNameRefusal } from "../src/shared/new_project_folder_name";
+import type { TatolabBackend } from "../src/renderer/backend/tatolab_backend";
 import {
   PROJECT_LOG_FOLDER_IN_THE_PROJECT,
   type ListedStream,
@@ -52,7 +52,7 @@ import {
   type TatolabStatus,
   type PythonLanguageServerEvent,
   type SystemMenuBarMenu,
-} from "../../shared/tatolab_backend_contract";
+} from "../src/shared/tatolab_backend_contract";
 
 /** Browser-only stand-ins for the app backend, picked with `?state=`: `starting` is the app's runtime coming up, `not-running` one that exited. */
 export type MockTatolabScenario =

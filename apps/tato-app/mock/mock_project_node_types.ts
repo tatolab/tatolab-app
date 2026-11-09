@@ -3,7 +3,7 @@
 // states no outputs in source, and the installed distributions its imports bring.
 // `?node_types=unreadable_project` lists the pattern project with every module of its own unreadable.
 
-import type { PortFamily, ProjectNodeType, ProjectNodeTypeListing, ProjectNodeTypePort, ProjectNodeTypeSource } from "../../shared/tatolab_backend_contract";
+import type { PortFamily, ProjectNodeType, ProjectNodeTypeListing, ProjectNodeTypePort, ProjectNodeTypeSource } from "../src/shared/tatolab_backend_contract";
 
 const processPort = (name: string, description: string, family: PortFamily): ProjectNodeTypePort => ({ name, description, family, annotation: null });
 

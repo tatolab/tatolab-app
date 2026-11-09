@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mockProjectNodeTypeListing } from "../../backend/mock_project_node_types";
+import { mockProjectNodeTypeListing } from "../../../../mock/mock_project_node_types";
 import { paletteTreeOfTheListing } from "./palette_tree_of_the_listing";
 
 const STREAMS_FOLDER = "/home/jonathanf/streams";

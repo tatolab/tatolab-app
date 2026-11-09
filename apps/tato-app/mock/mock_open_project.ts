@@ -5,8 +5,8 @@
 // one gone from disk; `?recent=none` lists none, as on first run. Documents/Tato Studio already
 // holds an `Untitled project`, so New project suggests `Untitled project 2`, and Browse… answers ~/Shows.
 
-import { untitledProjectNameNumbered } from "../../shared/new_project_folder_name";
-import type { NewProjectDefaults, OpenProjectReading, ProjectOnDisk, RecentProject } from "../../shared/tatolab_backend_contract";
+import { untitledProjectNameNumbered } from "../src/shared/new_project_folder_name";
+import type { NewProjectDefaults, OpenProjectReading, ProjectOnDisk, RecentProject } from "../src/shared/tatolab_backend_contract";
 
 /** What `?project=` names. */
 export type MockOpenProjectScenario = "read" | "none" | "unreadable";

@@ -2,7 +2,7 @@
 // packages a show reaches for and two sample projects. `?catalog=unserved` answers the refusal a
 // Tato Studio gets while the catalog is not served yet.
 
-import type { PackageCatalogEntry, PackageCatalogReading } from "../../shared/tatolab_backend_contract";
+import type { PackageCatalogEntry, PackageCatalogReading } from "../src/shared/tatolab_backend_contract";
 
 const MOCK_CATALOG_VERSION = "0.68.29";
 
