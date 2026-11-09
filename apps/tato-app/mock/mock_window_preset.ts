@@ -3,12 +3,23 @@ import type { TatolabPlatform } from "../src/shared/tatolab_backend_contract";
 const PRESET_STEP_TIMEOUT_MILLISECONDS = 3000;
 const PRESET_POLL_MILLISECONDS = 40;
 
-/** Resolves with the first element `selector` matches once it is in the page, or `null` after `timeoutMilliseconds`. */
+/** The first element `selector` matches in the window, or else in a view's frame; a built-in view's frame is on the window's origin, so its page is reachable. */
+function queryTheWindowAndItsViewFrames<ElementType extends Element>(selector: string): ElementType | null {
+  const inTheWindow = document.querySelector<ElementType>(selector);
+  if (inTheWindow !== null) return inTheWindow;
+  for (const viewFrame of document.querySelectorAll<HTMLIFrameElement>("iframe[data-tatolab-view]")) {
+    const inTheFrame = viewFrame.contentDocument?.querySelector<ElementType>(selector) ?? null;
+    if (inTheFrame !== null) return inTheFrame;
+  }
+  return null;
+}
+
+/** Resolves with the first element `selector` matches once it is in the page or a view's frame, or `null` after `timeoutMilliseconds`. */
 function waitForElement<ElementType extends Element>(selector: string, timeoutMilliseconds = PRESET_STEP_TIMEOUT_MILLISECONDS): Promise<ElementType | null> {
   const startedAt = performance.now();
   return new Promise((resolve) => {
     const look = () => {
-      const element = document.querySelector<ElementType>(selector);
+      const element = queryTheWindowAndItsViewFrames<ElementType>(selector);
       if (element) resolve(element);
       else if (performance.now() - startedAt > timeoutMilliseconds) resolve(null);
       else window.setTimeout(look, PRESET_POLL_MILLISECONDS);
@@ -51,10 +62,15 @@ async function typeWhenShown(selector: string, text: string): Promise<void> {
 async function openEveryOutlinerRow(): Promise<void> {
   await waitForElement(`[data-outliner] [role="treeitem"]`);
   for (;;) {
-    const closedRowToggle = document.querySelector<HTMLElement>(`[data-outliner] [role="treeitem"][aria-expanded="false"] [data-tree-row-toggle]`);
+    const closedRowToggle = queryTheWindowAndItsViewFrames<HTMLElement>(`[data-outliner] [role="treeitem"][aria-expanded="false"] [data-tree-row-toggle]`);
     if (closedRowToggle === null) return;
+    const closedRow = closedRowToggle.closest('[role="treeitem"]');
     closedRowToggle.click();
-    await new Promise((settled) => window.setTimeout(settled, PRESET_POLL_MILLISECONDS));
+    // The Outliner keeps a row's opening in its area's settings, so the row draws open once Studio has kept them.
+    const startedAt = performance.now();
+    while (closedRow?.getAttribute("aria-expanded") === "false" && performance.now() - startedAt < PRESET_STEP_TIMEOUT_MILLISECONDS) {
+      await new Promise((settled) => window.setTimeout(settled, PRESET_POLL_MILLISECONDS));
+    }
   }
 }
 

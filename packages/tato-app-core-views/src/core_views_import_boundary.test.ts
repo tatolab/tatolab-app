@@ -1,8 +1,8 @@
 import { ESLint } from "eslint";
-import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-const CORE_VIEWS_PACKAGE_FOLDER = fileURLToPath(new URL("..", import.meta.url));
+const CORE_VIEWS_PACKAGE_FOLDER = `${path.resolve(import.meta.dirname, "..")}/`;
 
 /** The import-boundary messages lint reports for `sourceText`, linted as a file of this package's `src/`. */
 async function boundaryMessagesOf(sourceText: string): Promise<string[]> {

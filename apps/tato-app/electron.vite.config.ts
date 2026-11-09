@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { createReadStream, existsSync, statSync } from "node:fs";
+import { cp, readFile } from "node:fs/promises";
 import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -39,6 +40,43 @@ function buildFeaturesBesideTheMainBundle(): Plugin {
   };
 }
 
+const BUILT_CORE_VIEWS_FOLDER = path.resolve(import.meta.dirname, "../../packages/tato-app-core-views/dist");
+const SERVED_CORE_VIEWS_PATH = "/core_views/";
+const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".woff2": "font/woff2",
+};
+
+/**
+ * Serves the built core views, `packages/tato-app-core-views/dist/`, at `core_views/` beside the window: from the
+ * dev server, and copied into `out/renderer/core_views/` by a build, where the window's page protocol serves them on
+ * the window's origin as every view's folder is.
+ */
+function builtCoreViewsBesideTheWindow(): Plugin {
+  return {
+    name: "tatolab-built-core-views-beside-the-window",
+    configureServer(devServer) {
+      devServer.middlewares.use((request, response, next) => {
+        const requestPath = decodeURIComponent((request.url ?? "").split("?")[0] ?? "");
+        if (!requestPath.startsWith(SERVED_CORE_VIEWS_PATH)) return next();
+        const servedPath = requestPath.endsWith("/") ? `${requestPath}index.html` : requestPath;
+        const builtFile = path.resolve(BUILT_CORE_VIEWS_FOLDER, `.${servedPath.slice(SERVED_CORE_VIEWS_PATH.length - 1)}`);
+        if (!builtFile.startsWith(`${BUILT_CORE_VIEWS_FOLDER}${path.sep}`) || !existsSync(builtFile) || !statSync(builtFile).isFile()) return next();
+        response.setHeader("Content-Type", CONTENT_TYPE_BY_EXTENSION[path.extname(builtFile)] ?? "application/octet-stream");
+        createReadStream(builtFile).pipe(response);
+      });
+    },
+    async writeBundle(outputOptions) {
+      if (!existsSync(BUILT_CORE_VIEWS_FOLDER)) this.error(`The core views are not built at ${BUILT_CORE_VIEWS_FOLDER}: run \`npm run build --workspace @tatolab/tato-app-core-views\` first.`);
+      await cp(BUILT_CORE_VIEWS_FOLDER, path.join(outputOptions.dir ?? "", "core_views"), { recursive: true });
+    },
+  };
+}
+
 export default defineConfig({
   main: {
     plugins: [buildFeaturesBesideTheMainBundle()],
@@ -52,7 +90,7 @@ export default defineConfig({
     },
   },
   renderer: {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), builtCoreViewsBesideTheWindow()],
     root: "src/renderer",
     resolve: { alias: { "@": path.resolve(import.meta.dirname, "src/renderer") } },
     // Every font ships as its own file: a CSP whose font-src names only 'self' refuses data: URLs.

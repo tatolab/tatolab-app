@@ -3,7 +3,7 @@
 // nullable read the same: Rust's `"type": [T, "null"]` and Python's `anyOf` with `{"type": "null"}`;
 // a `$ref` resolves under the document's own `$defs`.
 
-import type { JsonValue } from "../../view_host/studio_view_contract";
+import type { JsonValue } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 type JsonObject = { [key: string]: JsonValue };
 

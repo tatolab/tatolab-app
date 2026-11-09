@@ -8,6 +8,18 @@ import type { ControlDataAttributes } from "./support/control_data_attributes";
 import { FULL_STRENGTH_FOCUS_RING_CLASS_NAMES } from "./support/full_strength_focus_ring";
 import { studioIconNamed, type StudioIconName } from "./support/studio_icons";
 
+/** What an area header's menu shows its view by: an icon Studio holds, by name, or the image a view's manifest names, drawn in the menu's text colour. */
+export type StudioAreaHeaderMenuIcon = StudioIconName | { image_url: string };
+
+function StudioAreaHeaderMenuIconMark({ icon }: { icon: StudioAreaHeaderMenuIcon }) {
+  if (typeof icon !== "string") {
+    const maskOfTheImage = `url(${JSON.stringify(icon.image_url)}) center / contain no-repeat`;
+    return <span aria-hidden className="size-3.5 shrink-0 bg-fg-2" style={{ mask: maskOfTheImage, WebkitMask: maskOfTheImage }} data-area-header-menu-icon-image={icon.image_url} />;
+  }
+  const HeaderIcon = studioIconNamed(icon);
+  return <HeaderIcon className="size-3.5 text-fg-2" strokeWidth={1.5} aria-hidden />;
+}
+
 /** One area of the studio: a rounded pane on the window's frame, its header over the view it shows. */
 export function StudioAreaFrame({ label, header, children, ...controlDataAttributes }: { label: string; header: ReactNode; children: ReactNode } & ControlDataAttributes) {
   return (
@@ -85,13 +97,12 @@ export function StudioAreaHeaderMenu({
   children,
   ...controlDataAttributes
 }: {
-  icon: StudioIconName;
+  icon: StudioAreaHeaderMenuIcon;
   words: string;
   /** The button's accessible name, saying what choosing does. */
   label: string;
   children: ReactNode;
 } & ControlDataAttributes) {
-  const HeaderIcon = studioIconNamed(icon);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -107,7 +118,7 @@ export function StudioAreaHeaderMenu({
         aria-label={label}
         {...controlDataAttributes}
       >
-        <HeaderIcon className="size-3.5 text-fg-2" strokeWidth={1.5} aria-hidden />
+        <StudioAreaHeaderMenuIconMark icon={icon} />
         {words}
         <ChevronDown className="size-3 text-fg-3" strokeWidth={1.75} aria-hidden />
       </DropdownMenuTrigger>

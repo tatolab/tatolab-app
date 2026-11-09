@@ -2,28 +2,16 @@ import { useViewReading } from "@tatolab/tato-app-view-sdk/design_system/view_re
 import { useCallback, useMemo } from "react";
 import { TreeView } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
 import { WaitingState } from "@tatolab/tato-app-view-sdk/design_system/waiting_state";
-import type { JsonValue, ProjectNodeTypesReading, StopWatching, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
+import type { StopWatching, TatoAppViewConnection } from "@tatolab/tato-app-view-sdk";
+import type { ProjectNodeTypesReading } from "@tatolab/tato-app-view-sdk/studio_readings";
+import { CoreViewFrame } from "../shared/core_view_page";
+import { rowExpansionChoicesOf } from "../shared/row_expansion_settings";
 import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject, type OutlinerRowExpansionChoices } from "./outliner_tree_of_the_project";
-
-/** What an outliner area keeps with the layout: the rows the person opened or closed. */
-export type OutlinerSettings = { row_expansion: { [rowId: string]: boolean } };
-
-function outlinerSettingsFrom(savedSettings: JsonValue): OutlinerSettings | null {
-  if (typeof savedSettings !== "object" || savedSettings === null || Array.isArray(savedSettings)) return null;
-  const rowExpansion = savedSettings["row_expansion"];
-  if (typeof rowExpansion !== "object" || rowExpansion === null || Array.isArray(rowExpansion)) return null;
-  const choices: { [rowId: string]: boolean } = {};
-  for (const [rowId, isOpen] of Object.entries(rowExpansion)) {
-    if (typeof isOpen !== "boolean") return null;
-    choices[rowId] = isOpen;
-  }
-  return { row_expansion: choices };
-}
 
 const NO_PROJECT_FOLDER_TO_LIST: StopWatching = () => undefined;
 
 /** The open project as a tree: the open project, its streams and node types, then its read-only imports. */
-function OutlinerBody({ connection }: { connection: StudioViewHostConnection<OutlinerSettings> }) {
+function OutlinerBody({ connection }: { connection: TatoAppViewConnection }) {
   const openProject = useViewReading(connection.watchOpenProject);
   const listedStreams = useViewReading(connection.watchListedStreams);
   const selection = useViewReading(connection.watchSelection);
@@ -34,7 +22,8 @@ function OutlinerBody({ connection }: { connection: StudioViewHostConnection<Out
     [connection, openProjectFolder],
   );
   const projectNodeTypes = useViewReading(watchTheOpenProjectsNodeTypes);
-  const expansionChoices: OutlinerRowExpansionChoices = connection.settings.row_expansion;
+  const settings = useViewReading(connection.watchSettings);
+  const expansionChoices: OutlinerRowExpansionChoices = useMemo(() => rowExpansionChoicesOf(settings), [settings]);
   const outlinerRows = useMemo(
     () =>
       openProject?.kind === "read"
@@ -54,29 +43,27 @@ function OutlinerBody({ connection }: { connection: StudioViewHostConnection<Out
         selectedRowId={selection === null ? null : outlinerRowIdOfTheSelection(selection)}
         onRowSelected={(rowId) => {
           const meaning = meaningOfRow(rowId);
-          if (meaning.kind === "project") connection.select({ kind: "project", project_name: meaning.project_name, project_folder: meaning.project_folder });
-          if (meaning.kind === "stream") connection.select({ kind: "stream", stream: meaning.stream, project_folder: meaning.project_folder });
+          if (meaning.kind === "project") void connection.select({ kind: "project", project_name: meaning.project_name, project_folder: meaning.project_folder });
+          if (meaning.kind === "stream") void connection.select({ kind: "stream", stream: meaning.stream, project_folder: meaning.project_folder });
         }}
         onRowActivated={(rowId) => {
           const meaning = meaningOfRow(rowId);
-          if (meaning.kind === "stream") connection.openStreamTab({ stream: meaning.stream, project_name: meaning.project_name, display_name: meaning.display_name });
+          if (meaning.kind === "stream") void connection.openStreamTab({ stream: meaning.stream, project_name: meaning.project_name, display_name: meaning.display_name });
           if ((meaning.kind === "node_type_declaration" || meaning.kind === "graph_generator_declaration" || meaning.kind === "unreadable_module") && meaning.file !== null) {
-            connection.openCodeFile(meaning.file);
+            void connection.openView("code", { kind: "file", file: meaning.file });
           }
         }}
-        onExpansionToggled={(rowId, expand) => connection.rememberSettings({ row_expansion: { ...expansionChoices, [rowId]: expand } })}
+        onExpansionToggled={(rowId, expand) => void connection.rememberSettings({ row_expansion: { ...expansionChoices, [rowId]: expand } })}
       />
     </div>
   );
 }
 
-/** The outliner: the open project, its streams and node types, and its imports. */
-export const OUTLINER_VIEW_TYPE: StudioViewType<OutlinerSettings> = {
-  view_type_id: "outliner",
-  title: "Outliner",
-  icon: "outliner",
-  brought_by: { kind: "built_in" },
-  default_settings: { row_expansion: {} },
-  settingsFromSavedLayout: outlinerSettingsFrom,
-  renderStudioView: (connection) => ({ header_tools: null, body: <OutlinerBody connection={connection} /> }),
-};
+/** The Outliner view's whole frame: the open project as a tree, under its header row. */
+export function OutlinerView({ connection }: { connection: TatoAppViewConnection }) {
+  return (
+    <CoreViewFrame connection={connection}>
+      <OutlinerBody connection={connection} />
+    </CoreViewFrame>
+  );
+}

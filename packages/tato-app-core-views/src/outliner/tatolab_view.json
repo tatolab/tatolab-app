@@ -1,0 +1,11 @@
+{
+  "contract": "1.0",
+  "title": "Outliner",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "placement": "area",
+  "settings": {
+    "type": "object",
+    "properties": { "row_expansion": { "type": "object", "additionalProperties": { "type": "boolean" }, "default": {} } }
+  }
+}

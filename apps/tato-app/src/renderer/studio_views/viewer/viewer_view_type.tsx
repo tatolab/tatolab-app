@@ -20,8 +20,8 @@ import type {
   StudioViewHostConnection,
   StudioViewType,
 } from "../../view_host/studio_view_contract";
-import { nodeTitle } from "../node_words";
-import { portStreamFactsWords } from "../port_stream_facts_words";
+import { nodeTitle } from "@tatolab/tato-app-core-views/shared/node_words";
+import { portStreamFactsWords } from "@tatolab/tato-app-core-views/shared/port_stream_facts_words";
 import { PortViewerMessageReadingShown, packetsUnitsSeenWith, type PacketsUnitSeen } from "./port_viewer_message_readings";
 
 /** One output port of a stream's graph: its node's id as `graph` lists it, that node's name, and the port's own name. */

@@ -9,12 +9,12 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
-    "noUncheckedIndexedAccess": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
+    "jsx": "react-jsx",
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node", "vite/client"]
   },
-  "include": ["src", "vitest.config.ts", "eslint.config.js"]
+  "include": ["src", "vitest.config.ts", "vite.config.ts", "core_view_folders.ts"]
 }

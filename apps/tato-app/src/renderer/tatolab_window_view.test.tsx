@@ -7,6 +7,10 @@ import { mockStreamIdOf } from "../../mock/mock_stream_fixtures";
 import type { TatolabBackend } from "./backend/tatolab_backend";
 import { studioLayoutsStorageKey } from "./studio_shell/studio_layouts";
 import { mountTatolabWindow } from "./tatolab_window_view";
+import { drawTheCoreViewsInTheirFrames } from "./view_host/fake_core_view_frames";
+
+/** Stops drawing the core views of the window mounted last, unmounting each. */
+let stopDrawingTheCoreViews: () => void = () => undefined;
 
 /** The keydown listeners each mounted window added to the document, removed after each test so a window from an earlier test never answers a shortcut. */
 const documentKeydownListenersAdded: EventListenerOrEventListenerObject[] = [];
@@ -27,6 +31,7 @@ async function hideTheWindowsOfEarlierTestsAndLetTheirReadsSettle(): Promise<voi
 afterEach(async () => {
   await hideTheWindowsOfEarlierTestsAndLetTheirReadsSettle();
   removeTheKeydownListenersOfEarlierWindows();
+  stopDrawingTheCoreViews();
   vi.unstubAllGlobals();
   document.body.replaceChildren();
   localStorage.clear();
@@ -37,6 +42,8 @@ async function mountedWindowOverTheMock(pageQuery: string, backendChanges: Parti
   const backend: TatolabBackend = { ...createMockTatolabBackend(readMockTatolabOptions(new URLSearchParams(pageQuery))), ...backendChanges };
   const rootElement = document.createElement("div");
   document.body.append(rootElement);
+  stopDrawingTheCoreViews();
+  stopDrawingTheCoreViews = drawTheCoreViewsInTheirFrames();
   let showTatolabStatus: ((status: TatolabStatus) => void) | null = null;
   await backend.onTatolabStatusChanged((status) => showTatolabStatus?.(status));
   const firstStatus = await backend.getTatolabStatus();
@@ -110,16 +117,30 @@ const PATTERN_PROJECT = "/Users/jonathanf/streams/pattern";
 const CAMERA_PROJECT = "/Users/jonathanf/streams/camera";
 const PATTERN_MAIN_STREAM = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "main" });
 
+/** The page of the core view `viewTypeId` drawn in its frame, in the area `areaId` when one is named. */
+function coreViewPage(viewTypeId: string, areaId?: string): Document {
+  const areaSelector = areaId === undefined ? "" : `[data-studio-area="${areaId}"] `;
+  const frame = document.querySelector<HTMLIFrameElement>(`${areaSelector}iframe[data-tatolab-view="${viewTypeId}"]`) ?? expect.unreachable(`no ${viewTypeId} frame`);
+  return frame.contentDocument ?? expect.unreachable(`the ${viewTypeId} frame has no page`);
+}
+
+function inTheCoreView(viewTypeId: string) {
+  return within(coreViewPage(viewTypeId).body);
+}
+
 function outlinerRow(rowId: string): HTMLElement {
-  return document.querySelector<HTMLElement>(`[data-outliner] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no outliner row ${rowId}`);
+  return coreViewPage("outliner").querySelector<HTMLElement>(`[data-outliner] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no outliner row ${rowId}`);
 }
 
 function outlinerRowIds(): string[] {
-  return [...document.querySelectorAll<HTMLElement>("[data-outliner] [data-tree-row-id]")].map((row) => row.dataset.treeRowId ?? "");
+  return [...coreViewPage("outliner").querySelectorAll<HTMLElement>("[data-outliner] [data-tree-row-id]")].map((row) => row.dataset.treeRowId ?? "");
 }
 
-function openTheOutlinerRow(rowId: string): void {
-  fireEvent.click(outlinerRow(rowId).querySelector<HTMLElement>("[data-tree-row-toggle]") ?? expect.unreachable(`no toggle on ${rowId}`));
+/** Opens the row, which the Outliner keeps in its area's settings and draws open once Studio has kept them. */
+async function openTheOutlinerRow(rowId: string): Promise<void> {
+  const row = await waitFor(() => outlinerRow(rowId));
+  fireEvent.click(row.querySelector<HTMLElement>("[data-tree-row-toggle]") ?? expect.unreachable(`no toggle on ${rowId}`));
+  await waitFor(() => expect(outlinerRow(rowId).getAttribute("aria-expanded")).toBe("true"));
 }
 
 async function shownLayout(): Promise<string> {
@@ -149,14 +170,18 @@ describe("the studio", () => {
     expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("false");
     expect(outlinerRow("imports").textContent).toBe("Imports");
     expect(within(outlinerRow("imports")).getByRole("img", { name: "Read only" })).toBeTruthy();
+
+    const outlinerFrame = document.querySelector<HTMLIFrameElement>('[data-studio-area="outliner"] iframe[data-tatolab-view="outliner"]') ?? expect.unreachable("no Outliner frame");
+    expect(outlinerFrame.getAttribute("data-tatolab-view-access")).toBe("full");
+    expect(outlinerFrame.getAttribute("src")).toMatch(/\/core_views\/outliner\/index\.html$/);
   });
 
   it("opens Imports on each import, read-only: its streams and node types, or an unreadable one's refusal", async () => {
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => outlinerRow("imports"));
-    openTheOutlinerRow("imports");
-    openTheOutlinerRow(`project:${CAMERA_PROJECT}`);
-    openTheOutlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights`);
+    await openTheOutlinerRow("imports");
+    await openTheOutlinerRow(`project:${CAMERA_PROJECT}`);
+    await openTheOutlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights`);
 
     expect(within(outlinerRow(`project:${CAMERA_PROJECT}`)).getByRole("img", { name: "Read only" })).toBeTruthy();
     expect(outlinerRow(`stream:${mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" })}`).getAttribute("aria-level")).toBe("4");
@@ -164,7 +189,7 @@ describe("the studio", () => {
       `list_assets failed: ${PATTERN_PROJECT}/imports/stage-lights holds no project: it has no tatolab-project.json`,
     );
     await waitFor(() => outlinerRow(`project:${CAMERA_PROJECT}/node_types`));
-    openTheOutlinerRow(`project:${CAMERA_PROJECT}/node_types`);
+    await openTheOutlinerRow(`project:${CAMERA_PROJECT}/node_types`);
     expect(outlinerRow(`project:${CAMERA_PROJECT}/node_types/category:Camera/node_type:camera.nodes:CameraTilt`).textContent).toBe("CameraTilt");
   });
 
@@ -172,7 +197,7 @@ describe("the studio", () => {
     await mountedWindowOverTheMock("state=running");
     const nodeTypesRowId = `project:${PATTERN_PROJECT}/node_types`;
     await waitFor(() => outlinerRow(nodeTypesRowId));
-    openTheOutlinerRow(nodeTypesRowId);
+    await openTheOutlinerRow(nodeTypesRowId);
     const invertingEffectRowId = `${nodeTypesRowId}/category:Effects/node_type:nodes.inverting_effect:InvertingEffect`;
     await waitFor(() => outlinerRow(invertingEffectRowId));
     expect(outlinerRow(`${nodeTypesRowId}/unreadable:nodes.half_written`).textContent).toBe("nodes/half_written.py:12:5: SyntaxError: expected ':'");
@@ -186,7 +211,7 @@ describe("the studio", () => {
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Palette/ }));
 
-    const paletteRow = (rowId: string) => document.querySelector<HTMLElement>(`[data-palette] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no palette row ${rowId}`);
+    const paletteRow = (rowId: string) => coreViewPage("palette").querySelector<HTMLElement>(`[data-palette] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no palette row ${rowId}`);
     await waitFor(() => paletteRow("source:project"));
     expect(paletteRow("source:project").textContent).toBe("pattern");
     expect(paletteRow("source:project/graph_generators/nodes.scenes:two_cameras_side_by_side").textContent).toBe("two_cameras_side_by_side");
@@ -194,11 +219,11 @@ describe("the studio", () => {
     expect(paletteRow("source:distribution:tatolab-testpattern").getAttribute("aria-expanded")).toBe("false");
 
     fireEvent.click(paletteRow("source:project/unreadable:nodes.half_written"));
-    await waitFor(() => expect(document.querySelector('[data-palette-unreadable-why="nodes.half_written"]')?.textContent).toBe("SyntaxError: expected ':'"));
+    await waitFor(() => expect(coreViewPage("palette").querySelector('[data-palette-unreadable-why="nodes.half_written"]')?.textContent).toBe("SyntaxError: expected ':'"));
     fireEvent.click(paletteRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11/category:Lighting/node_type:nodes.gripper:Gripper"));
-    await waitFor(() => expect(document.querySelector('[data-palette-details="nodes.gripper:Gripper"]')).not.toBeNull());
-    expect(document.querySelector('[data-palette-port="grip"]')?.textContent).toContain("grip");
-    expect(screen.getByText("Outputs stated only by its native half")).toBeTruthy();
+    await waitFor(() => expect(coreViewPage("palette").querySelector('[data-palette-details="nodes.gripper:Gripper"]')).not.toBeNull());
+    expect(coreViewPage("palette").querySelector('[data-palette-port="grip"]')?.textContent).toContain("grip");
+    expect(inTheCoreView("palette").getByText("Outputs stated only by its native half")).toBeTruthy();
   });
 
   it("says in the runtime's own words why the palette lists no node types", async () => {
@@ -207,7 +232,7 @@ describe("the studio", () => {
     pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Palette/ }));
 
-    await waitFor(() => expect(document.querySelector("[data-palette-not-listed-because]")?.textContent).toMatch(/^no runtime answers at /));
+    await waitFor(() => expect(coreViewPage("palette").querySelector("[data-palette-not-listed-because]")?.textContent).toMatch(/^no runtime answers at /));
   });
 
   it("shows a project's streams waiting on the runtime while it lists none", async () => {
@@ -219,22 +244,22 @@ describe("the studio", () => {
   it("moves through the outliner from the keyboard, opening and closing rows and selecting as it goes", async () => {
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => outlinerRow("imports"));
-    const tree = screen.getByRole("tree", { name: "Outliner" });
+    const tree = inTheCoreView("outliner").getByRole("tree", { name: "Outliner" });
     outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).focus();
 
     fireEvent.keyDown(tree, { key: "End" });
     expect(outlinerRow("imports").getAttribute("aria-selected")).toBe("false");
-    expect(document.activeElement).toBe(outlinerRow("imports"));
+    expect(coreViewPage("outliner").activeElement).toBe(outlinerRow("imports"));
     fireEvent.keyDown(tree, { key: "ArrowRight" });
-    expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("true");
+    await waitFor(() => expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("true"));
     fireEvent.keyDown(tree, { key: "ArrowLeft" });
-    expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("false");
+    await waitFor(() => expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("false"));
     fireEvent.keyDown(tree, { key: "Home" });
     fireEvent.keyDown(tree, { key: "ArrowDown" });
-    expect(outlinerRow(`project:${PATTERN_PROJECT}`).getAttribute("aria-selected")).toBe("true");
+    await waitFor(() => expect(outlinerRow(`project:${PATTERN_PROJECT}`).getAttribute("aria-selected")).toBe("true"));
     fireEvent.keyDown(tree, { key: "ArrowDown" });
     fireEvent.keyDown(tree, { key: "ArrowLeft" });
-    expect(document.activeElement).toBe(outlinerRow(`project:${PATTERN_PROJECT}`));
+    expect(coreViewPage("outliner").activeElement).toBe(outlinerRow(`project:${PATTERN_PROJECT}`));
   });
 
   it("opens a stream's tab from the outliner and from the app's request, shows one tab per stream, and closes it", async () => {
@@ -249,7 +274,7 @@ describe("the studio", () => {
     await waitFor(() => expect(within(screen.getByRole("tablist", { name: "Open streams" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["pattern /main"]));
 
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
-    fireEvent.keyDown(screen.getByRole("tree", { name: "Outliner" }), { key: "Enter" });
+    fireEvent.keyDown(inTheCoreView("outliner").getByRole("tree", { name: "Outliner" }), { key: "Enter" });
     const cameraStream = mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" });
     act(() => askToShowAStream(cameraStream));
 
@@ -325,7 +350,7 @@ describe("the studio", () => {
     const playing = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"] [data-viewer-playing]') ?? expect.unreachable("the Viewer plays nothing"));
     expect(playing.getAttribute("data-viewer-playing")).toBe("invertingeffect/video_to_downstream");
     expect(playing.querySelector("canvas")?.getAttribute("aria-label")).toBe("Live picture of Inverting Effect › video_to_downstream");
-    expect(document.querySelector("iframe")).toBeNull();
+    expect(document.querySelector('[data-studio-area="viewer"] iframe')).toBeNull();
     await waitFor(() => expect(playing.getAttribute("data-viewer-port-state")).toBe("ended"));
     expect(playing.textContent).toContain("This page has no WebCodecs VideoFrame to play the mock's frames.");
   });
@@ -372,12 +397,12 @@ describe("the studio", () => {
     expect(await screen.findByText("This project and its imports bring no views.")).toBeTruthy();
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Outliner/ }));
 
-    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-outliner]')).not.toBeNull());
+    await waitFor(() => expect(coreViewPage("outliner", "viewer").querySelector("[data-outliner]")).not.toBeNull());
     expect(localStorage.getItem(studioLayoutsStorageKey(PATTERN_PROJECT))).toContain('"area_id":"viewer","view_type_id":"outliner"');
     document.body.replaceChildren();
 
     await mountedWindowOverTheMock("state=running");
-    await waitFor(() => expect(document.querySelector('[data-studio-area="viewer"] [data-outliner]')).not.toBeNull());
+    await waitFor(() => expect(coreViewPage("outliner", "viewer").querySelector("[data-outliner]")).not.toBeNull());
   });
 
   it("lists a view the project brings, and draws it with full access in a frame of its own on the stream's node of its type", async () => {
@@ -490,8 +515,8 @@ describe("the studio", () => {
 
   it("says why an unreadable project can't be read, in the reader's words", async () => {
     await mountedWindowOverTheMock("state=running&project=unreadable");
-    await waitFor(() => expect(screen.getByText(`${PATTERN_PROJECT} can't be read`)).toBeTruthy());
-    expect(screen.getByText(/holds no project: it has no tatolab-project\.json/)).toBeTruthy();
+    await waitFor(() => expect(inTheCoreView("outliner").getByText(`${PATTERN_PROJECT} can't be read`)).toBeTruthy());
+    expect(inTheCoreView("outliner").getByText(/holds no project: it has no tatolab-project\.json/)).toBeTruthy();
   });
 
   it("shows a refused project choice in its own words, and the open project stays as it was", async () => {

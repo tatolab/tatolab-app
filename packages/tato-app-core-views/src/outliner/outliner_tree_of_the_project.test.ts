@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ListedStream, OpenProject, ProjectNodeTypesReading } from "../../view_host/studio_view_contract";
+import type { ListedStream, OpenProject, ProjectNodeTypesReading } from "@tatolab/tato-app-view-sdk/studio_readings";
 import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject } from "./outliner_tree_of_the_project";
 
 const HALL_OF_LIGHT_PROJECT = "6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11";

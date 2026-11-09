@@ -3,7 +3,7 @@
 // each module of it that does not parse, with why in the parser's own words.
 
 import type { TreeViewRow } from "@tatolab/tato-app-view-sdk/design_system/tree_view";
-import type { ProjectGraphGenerator, ProjectNodeModuleNotReadable, ProjectNodeType, ProjectNodeTypeSource, ProjectNodeTypeSourceOrigin } from "../view_host/studio_view_contract";
+import type { ProjectGraphGenerator, ProjectNodeModuleNotReadable, ProjectNodeType, ProjectNodeTypeSource, ProjectNodeTypeSourceOrigin } from "@tatolab/tato-app-view-sdk/studio_readings";
 
 /** What a node type, graph generator or unreadable module row stands for, with its file as an absolute path when it is the project's own source. */
 export type DeclarationRowMeaning =

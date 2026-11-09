@@ -2,7 +2,7 @@
 // project's own code first, each holding its node types by category, its graph generators and the
 // modules of it that do not parse.
 
-import type { ProjectNodeTypeListing } from "../../view_host/studio_view_contract";
+import type { ProjectNodeTypeListing } from "@tatolab/tato-app-view-sdk/studio_readings";
 import {
   nodeTypeSourceChildren,
   nodeTypeSourceKey,
@@ -12,7 +12,7 @@ import {
   type NothingToChooseRowMeaning,
   type ShownStudioTreeRow,
   type StudioTreeNode,
-} from "../node_type_listing_tree";
+} from "../shared/node_type_listing_tree";
 
 /** What a palette row stands for. */
 export type PaletteRowMeaning = DeclarationRowMeaning | NothingToChooseRowMeaning;
