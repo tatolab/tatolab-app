@@ -69,7 +69,7 @@ function NewProjectSheetFields({ openedWith, sources, onClosed }: { openedWith: 
       isOpen
       onOpenChange={(isOpen) => !isOpen && onClosed()}
       title="New project"
-      description="Tato Studio makes a folder for the project, with a stream.py to start from."
+      description="Tato Studio makes a folder for the project, with a stream to start from."
       focusOnOpen="first_field_selected"
       footer={
         <FormDialogFooter>

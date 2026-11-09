@@ -23,7 +23,6 @@ function commandsCounted(): StudioMenuBarCommands {
     chooseLayout: vi.fn(),
     runTheProjectLive: vi.fn(),
     stopTheProject: vi.fn(),
-    openTheProjectStreamPy: vi.fn(),
     openGetMore: vi.fn(),
   };
 }
@@ -57,13 +56,12 @@ describe("the studio's File menu", () => {
 });
 
 describe("the studio's Run and Stream menus", () => {
-  it("runs, stops and opens stream.py while a project is open", () => {
+  it("runs and stops while a project is open", () => {
     const commands = commandsCounted();
     const menus = studioMenuBarMenus("linux", "code", UP_TO_DATE, commands);
     for (const [menuLabel, entryLabel] of [
       ["Run", "Live"],
       ["Run", "Stop"],
-      ["Stream", "Open stream.py"],
     ] as const) {
       const entry = entryOf(menus, menuLabel, entryLabel);
       if (entry?.kind !== "command") throw new Error(`${menuLabel} › ${entryLabel} is not a command`);
@@ -73,13 +71,11 @@ describe("the studio's Run and Stream menus", () => {
     expect(entryOf(menus, "Run", "Stop")).toMatchObject({ shortcutHint: "Shift F5" });
     expect(commands.runTheProjectLive).toHaveBeenCalledOnce();
     expect(commands.stopTheProject).toHaveBeenCalledOnce();
-    expect(commands.openTheProjectStreamPy).toHaveBeenCalledOnce();
   });
 
   it("says why they wait while no project is open", () => {
     const menus = studioMenuBarMenus("macos", null, UP_TO_DATE, commandsCounted());
     expect(entryOf(menus, "Run", "Live")).toEqual({ kind: "unavailable_command", label: "Live", shortcutHint: "F5", unavailableBecause: NO_PROJECT_OPEN_REASON });
-    expect(entryOf(menus, "Stream", "Open stream.py")).toEqual({ kind: "unavailable_command", label: "Open stream.py", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
 
@@ -121,7 +117,7 @@ describe("Run › Stop", () => {
     return {
       stream,
       display_name: stream,
-      location: { project_directory: projectDirectory, stream_function: `stream:${stream}` },
+      location: { project_directory: projectDirectory, project: `project-of-${projectDirectory}`, stream_asset: `stream-asset-${stream}` },
       state,
       node_count: null,
       failed_because: null,

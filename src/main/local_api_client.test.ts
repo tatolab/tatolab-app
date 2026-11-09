@@ -191,22 +191,38 @@ function listedStream(
   };
 }
 
-function locationOf(projectDirectory: string, streamFunction = "stream:main"): StreamLocation {
-  return { project_directory: projectDirectory, stream_function: streamFunction };
+const A_PROJECT = "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55";
+const A_STREAM_ASSET = "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68";
+
+function locationOf(projectDirectory: string, project = A_PROJECT, streamAsset = A_STREAM_ASSET): StreamLocation {
+  return { project_directory: projectDirectory, project, stream_asset: streamAsset };
 }
 
-const BACK_DOOR_TRACEBACK =
-  'Traceback (most recent call last):\n  File "/tmp/tatolab-proof-projects/doorways/stream.py", line 15, in back_door\n    raise RuntimeError("the back door\'s camera is not plugged in")\nRuntimeError: the back door\'s camera is not plugged in';
+const BACK_DOOR_IMPORT_FAILURE =
+  "cannot describe `nodes.back_door_lock:BackDoorLock`: the stream's interpreter `/home/jonathan-fontanez/scratch/app176/projects/doorways/.venv/bin/python` refused it: its module `nodes.back_door_lock` did not import:\nTraceback (most recent call last):\n  File \"/home/jonathan-fontanez/scratch/app176/tatolab-app/build/streamlib/target/tatolab-runtime/lib/tatolab/lend/tatolab/runtime/_processor_interpreter_bootstrap.py\", line 899, in describe_one_processor_class\n    importlib.import_module(module_name)\n  File \"/home/jonathan-fontanez/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/importlib/__init__.py\", line 90, in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<frozen importlib._bootstrap>\", line 1387, in _gcd_import\n  File \"<frozen importlib._bootstrap>\", line 1360, in _find_and_load\n  File \"<frozen importlib._bootstrap>\", line 1331, in _find_and_load_unlocked\n  File \"<frozen importlib._bootstrap>\", line 935, in _load_unlocked\n  File \"<frozen importlib._bootstrap_external>\", line 999, in exec_module\n  File \"<frozen importlib._bootstrap>\", line 488, in _call_with_frames_removed\n  File \"/home/jonathan-fontanez/scratch/app176/projects/doorways/nodes/back_door_lock.py\", line 11, in <module>\n    BACK_DOOR_KEY = BACK_DOOR_KEY_FILE.read_bytes()\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/jonathan-fontanez/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/pathlib.py\", line 1019, in read_bytes\n    with self.open(mode='rb') as f:\n         ^^^^^^^^^^^^^^^^^^^^\n  File \"/home/jonathan-fontanez/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python3.12/pathlib.py\", line 1013, in open\n    return io.open(self, mode, buffering, encoding, errors, newline)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nFileNotFoundError: [Errno 2] No such file or directory: '/home/jonathan-fontanez/scratch/app176/projects/doorways/keys/back_door.key'";
 
-test("a_real_list_streams_result_lists_a_running_a_stopped_and_a_failed_stream_by_id_and_display_name", async () => {
+const RECORDED_DOORWAYS = "/home/jonathan-fontanez/scratch/app176/projects/doorways";
+const RECORDED_DOORWAYS_PROJECT = "4be1ae19-0c7f-4cff-a959-d596c611e05b";
+const RECORDED_BACK_DOOR = listedStream(
+  "doorways-back_door-a38bd7",
+  "back_door",
+  locationOf(RECORDED_DOORWAYS, RECORDED_DOORWAYS_PROJECT, "b0da5496-c9c2-486d-9d17-f5cdc63cb534"),
+  "failed",
+  null,
+  BACK_DOOR_IMPORT_FAILURE,
+);
+const RECORDED_FRONT_DOOR = listedStream("doorways-front_door-1cd149", "front_door", locationOf(RECORDED_DOORWAYS, RECORDED_DOORWAYS_PROJECT, "04eda0c2-bea3-4534-abe2-6e120edb7267"), "running", 3, null);
+const RECORDED_PATTERN_LOCATION = locationOf("/home/jonathan-fontanez/scratch/app176/projects/pattern", "b1f6f250-de7d-4446-aa1c-492451d9e6bd", "7194d1f9-721a-41e5-9cc9-7db50336a1ed");
+
+test("a_real_list_streams_result_lists_a_running_a_stopped_and_a_failed_stream_by_id_display_name_and_location", async () => {
   const server = await fakeLocalApiServerAnswering([
     httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-streams-tool-result-of-a-running-a-stopped-and-a-failed-stream.json")),
   ]);
 
   expect(answerOf(await server.client().listStreams())).toEqual([
-    listedStream("doorways-back_door-8630d0", "back_door", locationOf("/tmp/tatolab-proof-projects/doorways", "stream:back_door"), "failed", null, BACK_DOOR_TRACEBACK),
-    listedStream("doorways-front_door-2ff456", "front_door", locationOf("/tmp/tatolab-proof-projects/doorways", "stream:front_door"), "running", 1, null),
-    listedStream("pattern-main-d76f70", "main", locationOf("/tmp/tatolab-proof-projects/pattern"), "stopped", null, null),
+    RECORDED_BACK_DOOR,
+    RECORDED_FRONT_DOOR,
+    listedStream("pattern-main-9960f6", "pattern", RECORDED_PATTERN_LOCATION, "stopped", null, null),
   ]);
 });
 
@@ -217,9 +233,9 @@ test("a_real_listing_after_the_runtime_restarted_lists_every_stream_it_re_loaded
 
   const listedStreams = answerOf(await server.client().listStreams());
   expect(listedStreams.map((listed) => [listed.stream, listed.state, listed.node_count])).toEqual([
-    ["doorways-back_door-8630d0", "failed", null],
-    ["doorways-front_door-2ff456", "running", 1],
-    ["pattern-main-d76f70", "stopped", null],
+    ["doorways-back_door-a38bd7", "failed", null],
+    ["doorways-front_door-1cd149", "running", 3],
+    ["pattern-main-9960f6", "stopped", null],
   ]);
 });
 
@@ -230,16 +246,14 @@ test("a_real_listing_names_the_action_and_step_of_a_stream_preparing_or_stopping
   ]);
 
   expect(answerOf(await server.client().listStreams())).toEqual([
-    listedStream("pattern-main-d76f70", "main", locationOf("/tmp/tatolab-proof-projects/pattern"), "preparing", 4, null, {
-      action: "Rnd53mwtsrixjyxk7h3jfq5j5-2",
-      step: "starting",
-    }),
+    RECORDED_BACK_DOOR,
+    RECORDED_FRONT_DOOR,
+    listedStream("pattern-main-9960f6", "pattern", RECORDED_PATTERN_LOCATION, "preparing", null, null, { action: "Ruvjtaprxhhworo0axqwt6ffb-2", step: "starting" }),
   ]);
   expect(answerOf(await server.client().listStreams())).toEqual([
-    listedStream("pattern-main-d76f70", "main", locationOf("/tmp/tatolab-proof-projects/pattern"), "stopping", 4, null, {
-      action: "Rnd53mwtsrixjyxk7h3jfq5j5-3",
-      step: "stopping",
-    }),
+    RECORDED_BACK_DOOR,
+    RECORDED_FRONT_DOOR,
+    listedStream("pattern-main-9960f6", "pattern", RECORDED_PATTERN_LOCATION, "stopping", 3, null, { action: "Ruvjtaprxhhworo0axqwt6ffb-3", step: "stopping" }),
   ]);
 });
 
@@ -249,7 +263,7 @@ test("a_stream_waiting_in_its_projects_queue_is_listed_with_its_action_and_no_st
       {
         stream: "pattern-main-d76f70",
         display_name: "main",
-        location: { project_directory: "/tmp/p", stream_function: "stream:main" },
+        location: { project_directory: "/tmp/p", project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" },
         state: "stopping",
         node_count: 4,
         failed_because: null,
@@ -270,7 +284,7 @@ test("a_stream_in_a_state_or_with_fields_this_app_does_not_know_is_still_listed"
       {
         stream: "newer-main-1a2b3c",
         display_name: "main",
-        location: { project_directory: "/Users/me/newer", stream_function: "stream:main", a_field_from_later: 1 },
+        location: { project_directory: "/Users/me/newer", project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68", a_field_from_later: 1 },
         state: "migrating",
         node_count: 1,
         failed_because: null,
@@ -291,7 +305,7 @@ test("a_stream_waiting_for_capture_device_access_lists_each_device_as_spelled", 
       {
         stream: "camera-main-018da9",
         display_name: "camera",
-        location: { project_directory: "/Users/me/camera", stream_function: "stream:main" },
+        location: { project_directory: "/Users/me/camera", project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" },
         state: "running",
         node_count: 4,
         failed_because: null,
@@ -312,6 +326,14 @@ test("a_stream_waiting_for_capture_device_access_lists_each_device_as_spelled", 
       ),
     ),
   ).toBe("the runtime's list_streams result could not be read: `capture_devices_whose_access_was_never_asked_for` holds a value that is not a string");
+});
+
+test("a_location_naming_no_stream_asset_is_refused_naming_the_missing_field", () => {
+  const toolResult = {
+    streams: [{ stream: "pattern-main-d76f70", display_name: "main", location: { project_directory: "/tmp/p", stream_function: "stream:main" }, state: "running", node_count: 4, failed_because: null }],
+  };
+
+  expect(failureOf(listedStreamsFromTheListStreamsToolResult(JSON.stringify(toolResult)))).toBe("the runtime's list_streams result could not be read: missing field `project`");
 });
 
 test("a_record_an_earlier_runtime_wrote_is_listed_without_a_location", () => {

@@ -24,12 +24,10 @@ export interface StudioMenuBarCommands {
   /** Restart to Update, or a newer version's download: take the version a check found. */
   takeTheNewerAppVersion(): void;
   chooseLayout(layoutName: StudioLayoutName): void;
-  /** Run › Live: run the open project, which loads every `@stream` in it again. */
+  /** Run › Live: run the open project, which loads every stream asset in it again. */
   runTheProjectLive(): void;
   /** Run › Stop: stop the open project's running streams. */
   stopTheProject(): void;
-  /** Stream › Open stream.py: show the open project's `stream.py` in a code area. */
-  openTheProjectStreamPy(): void;
   /** File › Get more…: open the project's Get more window. */
   openGetMore(): void;
 }
@@ -114,7 +112,7 @@ function studioMenuParts(
     undoAndRedoEntries: [laterCommand("Undo"), laterCommand("Redo")],
     preferencesEntry: { kind: "command", label: preferencesLabel, shortcutHint: shortcutHint(platform, ","), onChosen: commands.openPreferences },
     addMenu: { label: "Add", entries: [laterCommand("Node…", "Shift A"), laterCommand("Connection…"), laterCommand("Variable…"), laterCommand("Frame")] },
-    streamMenu: { label: "Stream", entries: [laterCommand("Run on…"), laterCommand("Stream clock"), projectCommand("Open stream.py", commands.openTheProjectStreamPy)] },
+    streamMenu: { label: "Stream", entries: [laterCommand("Run on…"), laterCommand("Stream clock")] },
     runMenu: {
       label: "Run",
       entries: [projectCommand("Live", commands.runTheProjectLive, RUN_LIVE_KEY), projectCommand("Stop", commands.stopTheProject, STOP_KEY_HINT), laterCommand("Render to file…")],

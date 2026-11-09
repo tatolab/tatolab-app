@@ -154,10 +154,6 @@ export function mountTatolabWindow(
       studioWindowModel.projectOpeningRefusal.publish(null);
       backend.openGetMoreWindow().catch((rejection: unknown) => studioWindowModel.projectOpeningRefusal.publish(describeBackendRejection(rejection)));
     },
-    openTheProjectStreamPy: () => {
-      const openProject = studioWindowModel.openProject.readLatest();
-      if (openProject.kind === "read") studioWindowModel.openCodeFile(`${openProject.open_project.project.folder}/stream.py`);
-    },
   };
   let onChosenByEntryIdOfTheMenusSent: ReadonlyMap<string, () => void> = new Map();
   backend.onSystemMenuBarEntryChosen((entryId) => onChosenByEntryIdOfTheMenusSent.get(entryId)?.());

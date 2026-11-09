@@ -71,7 +71,7 @@ function StreamGraphOfTheTab({ connection, streamTab }: { connection: StudioView
     );
   }
   if (canvasContents === null || canvasContents.nodes.length === 0) {
-    return <WaitingState title={`${streamTab.display_name} has no nodes`} explanation="Its stream function added none." data-stream-graph-state="empty" />;
+    return <WaitingState title={`${streamTab.display_name} has no nodes`} explanation="Its graph document holds none." data-stream-graph-state="empty" />;
   }
   const importedProjectName = importedProjectNameOfTheStream(streamTab.stream, openProject, listedStreams);
   return (

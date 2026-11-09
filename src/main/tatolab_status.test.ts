@@ -6,7 +6,7 @@ function listedStreams(streamCount: number): ListedStream[] {
   return Array.from({ length: streamCount }, (_, streamIndex) => ({
     stream: `stream-${streamIndex}-main-3d9f01`,
     display_name: `stream-${streamIndex}`,
-    location: { project_directory: `/projects/stream-${streamIndex}`, stream_function: "stream:main" },
+    location: { project_directory: `/projects/stream-${streamIndex}`, project: "0d4c4e2a-6f1b-4a57-9d0e-3b2f8c1a7e55", stream_asset: "7a9e1c3b-2d4f-4e6a-8b1c-5f3e9d2a4c68" },
     state: "running",
     node_count: 2,
     failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null,
@@ -22,6 +22,7 @@ function statusWith(runtimeState: RuntimeState, streamCount: number | null): Tat
     runtime_not_running_because: runtimeState === "not_running" ? "The runtime stopped: it exited with status 1. Tato Studio starts it again shortly." : null,
     machine_name: null,
     streams: streamCount === null ? null : listedStreams(streamCount),
+    streams_not_listed_because: null,
     command_line_tool_link: { kind: "linked", path: "/Users/someone/.local/bin/tatolab" },
     app_update: { kind: "not_checked" },
     local_api_socket: "/tmp/streamlib-501/local-api.sock",

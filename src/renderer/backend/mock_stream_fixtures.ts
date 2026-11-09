@@ -20,21 +20,48 @@ function castAsAStreamIdPart(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/**
- * The stream id the runtime computes from a location, `<folder>-<function>-<hash>`, with a stand-in hash over the path
- * with its home folder written `~`, so two folders give two ids and a mock stream has the same id on both platforms.
- */
-export function mockStreamIdOf(location: StreamLocation): string {
-  const folder = castAsAStreamIdPart(location.project_directory.split("/").filter((segment) => segment !== "").at(-1) ?? "");
-  const functionName = castAsAStreamIdPart(location.stream_function.split(":").at(-1) ?? "");
-  const projectDirectoryUnderHome = location.project_directory.replace(/^\/(Users|home)\/[^/]+/, "~");
-  const hash = fnv1aHashOf(`${projectDirectoryUnderHome}\n${location.stream_function}`).toString(16).padStart(8, "0").slice(0, 6);
-  return [folder, functionName, hash].filter((part) => part !== "").join("-");
+/** A mock stream as the person names it: the project directory it is loaded from and its stream asset's name, `main` for `streams/main.graph.json`. */
+export interface MockStreamAddress {
+  project_directory: string;
+  stream_name: string;
 }
 
-/** A stream listed running, its graph loaded with `nodeCount` nodes, under the id its location computes to. */
-function runningListing(location: StreamLocation, displayName: string, nodeCount: number): ListedStream {
-  return { stream: mockStreamIdOf(location), display_name: displayName, location, state: "running", node_count: nodeCount, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
+/** `projectDirectory` with the person's home folder written `~`, so a mock stream has the same ids on both platforms. */
+function projectDirectoryUnderHomeOf(projectDirectory: string): string {
+  return projectDirectory.replace(/^\/(Users|home)\/[^/]+/, "~");
+}
+
+/** A stand-in UUID, the same for the same `text`. */
+function mockUuidOf(text: string): string {
+  const hexDigits = [0, 1, 2, 3].map((part) => fnv1aHashOf(`${part}\n${text}`).toString(16).padStart(8, "0")).join("");
+  return `${hexDigits.slice(0, 8)}-${hexDigits.slice(8, 12)}-4${hexDigits.slice(13, 16)}-8${hexDigits.slice(17, 20)}-${hexDigits.slice(20, 32)}`;
+}
+
+/** The location the runtime lists for the stream at `address`: its project directory and stand-in UUIDs for its project and its stream asset. */
+export function mockStreamLocationOf(address: MockStreamAddress): StreamLocation {
+  const projectDirectoryUnderHome = projectDirectoryUnderHomeOf(address.project_directory);
+  return {
+    project_directory: address.project_directory,
+    project: mockUuidOf(`project\n${projectDirectoryUnderHome}`),
+    stream_asset: mockUuidOf(`stream asset\n${projectDirectoryUnderHome}\n${address.stream_name}`),
+  };
+}
+
+/**
+ * The stream id the runtime computes for the stream at `address`, `<project name>-<stream name>-<hash>`, the project
+ * named by its folder as a created project is, with a stand-in hash over its two UUIDs.
+ */
+export function mockStreamIdOf(address: MockStreamAddress): string {
+  const projectName = castAsAStreamIdPart(address.project_directory.split("/").filter((segment) => segment !== "").at(-1) ?? "");
+  const streamName = castAsAStreamIdPart(address.stream_name);
+  const location = mockStreamLocationOf(address);
+  const hash = fnv1aHashOf(`${location.project}\n${location.stream_asset}`).toString(16).padStart(8, "0").slice(0, 6);
+  return [projectName, streamName, hash].filter((part) => part !== "").join("-");
+}
+
+/** A stream listed running, its graph loaded with `nodeCount` nodes, under the id its address computes to. */
+function runningListing(address: MockStreamAddress, displayName: string, nodeCount: number): ListedStream {
+  return { stream: mockStreamIdOf(address), display_name: displayName, location: mockStreamLocationOf(address), state: "running", node_count: nodeCount, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
 }
 
 /** A log record before the mock runtime numbers and stamps it. */
@@ -280,13 +307,13 @@ const TEST_PATTERN_METER_FALLING_BEHIND: MockCounterRates = {
   refusedPerSecondByOutput: [{ node: "invertingeffect", port: "video_to_downstream", perSecond: 2 }],
 };
 
-/** `tatolab new --test-pattern`'s stream function `streamFunction` in `projectDirectory`, shown as `displayName`: the scaffold's four nodes, two of them Python. */
+/** `tatolab new --test-pattern`'s stream asset `streamName` in `projectDirectory`, shown as `displayName`: the scaffold's four nodes, two of them Python. */
 function createTestPatternStream(
   machine: MockMachine,
   options: {
     projectDirectory: string;
-    /** As `module:qualname`, which the stream's id is computed from. */
-    streamFunction: string;
+    /** Its stream asset's name, which the stream's id is computed from. */
+    streamName: string;
     displayName: string;
     withDisplayWindowInError: boolean;
     withTheMeterFallingBehind: boolean;
@@ -295,7 +322,7 @@ function createTestPatternStream(
   },
 ): MockStreamFixture {
   const { projectDirectory, recordsTheStream } = options;
-  const listing = runningListing({ project_directory: projectDirectory, stream_function: options.streamFunction }, options.displayName, recordsTheStream === null ? 4 : 5);
+  const listing = runningListing({ project_directory: projectDirectory, stream_name: options.streamName }, options.displayName, recordsTheStream === null ? 4 : 5);
   const streamId = listing.stream;
   const brightness = (dueAt: number): MockLogRecordDraft => ({
     millisecondsAfterLoad: dueAt,
@@ -377,7 +404,7 @@ function createTestPatternStream(
 /** A camera and a microphone, each watched and metered, loaded with `tatolab run --name camera`. */
 function createCameraStream(machine: MockMachine): MockStreamFixture {
   const projectDirectory = `${machine.homeDirectory}/streams/camera`;
-  const listing = runningListing({ project_directory: projectDirectory, stream_function: "stream:main" }, "camera", 4);
+  const listing = runningListing({ project_directory: projectDirectory, stream_name: "main" }, "camera", 4);
   return {
     listing,
     graph: {
@@ -494,14 +521,14 @@ function patternProjectDirectory(machine: MockMachine): string {
 
 /** A stream its owner stopped with `tatolab stop`. */
 function stoppedPatternTwoListing(machine: MockMachine): ListedStream {
-  const location = { project_directory: patternProjectDirectory(machine), stream_function: "stream:pattern_two" };
-  return { stream: mockStreamIdOf(location), display_name: "pattern-two", location, state: "stopped", node_count: null, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
+  const address = { project_directory: patternProjectDirectory(machine), stream_name: "pattern_two" };
+  return { stream: mockStreamIdOf(address), display_name: "pattern-two", location: mockStreamLocationOf(address), state: "stopped", node_count: null, failed_because: null, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
 }
 
 /** A stream that could not load at the runtime's start. */
 function failedLobbyRecorderListing(machine: MockMachine): ListedStream {
-  const location = { project_directory: `${machine.homeDirectory}/streams/lobby-recorder`, stream_function: "stream:main" };
-  return { stream: mockStreamIdOf(location), display_name: "lobby-recorder", location, state: "failed", node_count: null, failed_because: machine.cameraFailure, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
+  const address = { project_directory: `${machine.homeDirectory}/streams/lobby-recorder`, stream_name: "main" };
+  return { stream: mockStreamIdOf(address), display_name: "lobby-recorder", location: mockStreamLocationOf(address), state: "failed", node_count: null, failed_because: machine.cameraFailure, capture_devices_whose_access_was_never_asked_for: [], action: null, step: null };
 }
 
 /** The machine the mock runtime runs on for `platform`, and the streams it lists. */
@@ -534,7 +561,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
   const projectDirectory = patternProjectDirectory(machine);
   const mainStreamOptions = {
     projectDirectory,
-    streamFunction: "stream:main",
+    streamName: "main",
     displayName: "main",
     withDisplayWindowInError: false,
     withTheMeterFallingBehind: false,
@@ -544,7 +571,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
   const cameraStream = createCameraStream(machine);
   const recorderOfMainStream = createTestPatternStream(machine, {
     ...mainStreamOptions,
-    streamFunction: "stream:recorder",
+    streamName: "recorder",
     displayName: "recorder",
     recordsTheStream: mainStream.listing.stream,
   });
@@ -559,7 +586,7 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
     cameraStreamWaitingForCameraAccess: { ...cameraStream, listing: { ...cameraStream.listing, capture_devices_whose_access_was_never_asked_for: ["camera"] } },
     recorderOfMainStream,
     stoppedPatternTwo,
-    patternTwoStream: createTestPatternStream(machine, { ...mainStreamOptions, streamFunction: "stream:pattern_two", displayName: "pattern-two" }),
+    patternTwoStream: createTestPatternStream(machine, { ...mainStreamOptions, streamName: "pattern_two", displayName: "pattern-two" }),
     failedLobbyRecorder,
     earlierRuntimesRecord: {
       stream: "doorbell",
@@ -578,11 +605,11 @@ export function createMockStreamFixtures(platform: TatolabPlatform): MockStreamF
   };
 }
 
-/** The stream a project folder run from the window loads from `projectDirectory`'s `streamFunction`, shown as `displayName`: the sample's four nodes. */
-export function createMockStreamRunFromAProjectFolder(machine: MockMachine, projectDirectory: string, streamFunction: string, displayName: string): MockStreamFixture {
+/** The stream a project folder run from the window loads from `projectDirectory`'s stream asset `streamName`, shown as `displayName`: the sample's four nodes. */
+export function createMockStreamRunFromAProjectFolder(machine: MockMachine, projectDirectory: string, streamName: string, displayName: string): MockStreamFixture {
   const fixture = createTestPatternStream(machine, {
     projectDirectory,
-    streamFunction,
+    streamName,
     displayName,
     withDisplayWindowInError: false,
     withTheMeterFallingBehind: false,

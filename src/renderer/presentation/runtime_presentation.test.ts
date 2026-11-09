@@ -11,6 +11,7 @@ function statusWith(statusChanges: Partial<TatolabStatus>): TatolabStatus {
     runtime_not_running_because: null,
     machine_name: "ada-macbook-pro",
     streams: [],
+    streams_not_listed_because: null,
     command_line_tool_link: { kind: "linked", path: "/Users/ada/.local/bin/tatolab" },
     app_update: { kind: "not_checked" },
     local_api_socket: "/tmp/streamlib-501/local-api.sock",

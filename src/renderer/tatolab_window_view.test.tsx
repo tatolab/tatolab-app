@@ -99,7 +99,7 @@ function settingsRow(rowName: string): HTMLElement {
 
 const PATTERN_PROJECT = "/Users/jonathanf/streams/pattern";
 const CAMERA_PROJECT = "/Users/jonathanf/streams/camera";
-const PATTERN_MAIN_STREAM = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_function: "stream:main" });
+const PATTERN_MAIN_STREAM = mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "main" });
 
 function outlinerRow(rowId: string): HTMLElement {
   return document.querySelector<HTMLElement>(`[data-outliner] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no outliner row ${rowId}`);
@@ -128,8 +128,8 @@ describe("the studio", () => {
       `project:${PATTERN_PROJECT}`,
       `project:${PATTERN_PROJECT}/pyproject`,
       `stream:${PATTERN_MAIN_STREAM}`,
-      `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_function: "stream:recorder" })}`,
-      `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_function: "stream:pattern_two" })}`,
+      `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "recorder" })}`,
+      `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" })}`,
       "imports",
     ]);
     expect(outlinerRow("open_project_folder").getAttribute("aria-level")).toBe("1");
@@ -150,7 +150,7 @@ describe("the studio", () => {
     openTheOutlinerRow("project:tatolab-testpattern");
 
     expect(within(outlinerRow(`project:${CAMERA_PROJECT}`)).getByRole("img", { name: "Read only" })).toBeTruthy();
-    expect(outlinerRow(`stream:${mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_function: "stream:main" })}`).getAttribute("aria-level")).toBe("4");
+    expect(outlinerRow(`stream:${mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" })}`).getAttribute("aria-level")).toBe("4");
     expect(outlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights/refusal`).textContent).toBe(`${PATTERN_PROJECT}/imports/stage-lights has no pyproject.toml.`);
     expect(outlinerRow("project:tatolab-testpattern/waiting").textContent).toBe("Streams and nodes not read yet");
   });
@@ -195,7 +195,7 @@ describe("the studio", () => {
 
     fireEvent.doubleClick(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`));
     fireEvent.keyDown(screen.getByRole("tree", { name: "Outliner" }), { key: "Enter" });
-    const cameraStream = mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_function: "stream:main" });
+    const cameraStream = mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" });
     act(() => askToShowAStream(cameraStream));
 
     const streamTabs = within(screen.getByRole("tablist", { name: "Open streams" }));

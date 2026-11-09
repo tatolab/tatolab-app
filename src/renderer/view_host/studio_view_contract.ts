@@ -61,8 +61,8 @@ export interface StreamTabAddress {
   display_name: string;
 }
 
-/** The streams the runtime lists, or why it lists none now, in its own words. */
-export type ListedStreamsReading = { kind: "listed"; streams: ListedStream[] } | { kind: "not_listed"; because: string };
+/** The streams the runtime lists; why none are listed while the runtime is not running; or why listing them failed while it runs, in the failure's own words. */
+export type ListedStreamsReading = { kind: "listed"; streams: ListedStream[] } | { kind: "not_listed"; because: string } | { kind: "listing_failed"; because: string };
 
 /** A stream's graph as the runtime renders it now, or why it renders none, in its own words. */
 export type StreamGraphReading = { kind: "read"; graph: StreamGraphSummary } | { kind: "not_read"; because: string };
@@ -87,7 +87,7 @@ export type ProjectLogReading =
   | { kind: "read"; records: ProjectLogRecord[]; records_no_longer_held: boolean }
   | { kind: "not_read"; because: string };
 
-/** The file the studio asked a code view to show, as Stream › Open stream.py does; `ask` counts up so asking for the same file again is a new ask. */
+/** The file the studio asked a code view to show, as opening a node's own file does; `ask` counts up so asking for the same file again is a new ask. */
 export interface CodeFileAsked {
   file: string;
   ask: number;
