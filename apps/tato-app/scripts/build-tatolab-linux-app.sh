@@ -27,8 +27,8 @@
 set -euo pipefail
 
 usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$0" >&2; exit 2; }
-repository_root="$(cd "$(dirname "$0")/.." && pwd)"
-scripts_directory="$repository_root/scripts"
+tato_app_root="$(cd "$(dirname "$0")/.." && pwd)"
+scripts_directory="$tato_app_root/scripts"
 streamlib_ref=main
 prebuilt_runtime_unit=""
 requested_app_version=""
@@ -93,9 +93,9 @@ app_update_feed_arguments=()
 release_build_arguments=()
 $release_build && release_build_arguments=(--release)
 
-cd "$repository_root"
+cd "$tato_app_root"
 echo "==> runtime unit (streamlib $streamlib_ref)"
-fetched_streamlib="$repository_root/build/linux-streamlib"
+fetched_streamlib="$tato_app_root/build/linux-streamlib"
 streamlib_commit="$("$scripts_directory/fetch-streamlib-for-the-app-build.sh" "$fetched_streamlib" --streamlib-ref "$streamlib_ref" | tail -1)"
 if [ -n "$prebuilt_runtime_unit" ]; then
   runtime_unit_directory="$(cd "$prebuilt_runtime_unit" && pwd)"
@@ -116,8 +116,8 @@ runtime_version="${tatolabd_version_output##* }"
 app_version="${requested_app_version:-$runtime_version}"
 [[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "--app-version is not X.Y.Z: $app_version" >&2; exit 1; }
 echo "    $runtime_unit_directory: streamlib $streamlib_commit, runtime $runtime_version, app version $app_version"
-linux_build_directory="$repository_root/build/linux-packaging"
-output_directory="$repository_root/build/linux"
+linux_build_directory="$tato_app_root/build/linux-packaging"
+output_directory="$tato_app_root/build/linux"
 output_deb="$output_directory/Tato-Studio-$app_version$local_proof_name_part-amd64.deb"
 output_appimage="$output_directory/Tato-Studio-$app_version$local_proof_name_part-x86_64.AppImage"
 output_update_manifest="$output_directory/latest-linux.yml"

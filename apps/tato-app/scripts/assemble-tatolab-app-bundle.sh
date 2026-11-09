@@ -39,8 +39,8 @@ while [ $# -gt 0 ]; do
 done
 [[ "$resolved_streamlib_commit" =~ ^[0-9a-f]{40}$ ]] || usage
 
-repository_root="$(cd "$(dirname "$0")/.." && pwd)"
-runtime_helper_info_plist_template="$repository_root/packaging/runtime-helper/Info.plist"
+tato_app_root="$(cd "$(dirname "$0")/.." && pwd)"
+runtime_helper_info_plist_template="$tato_app_root/packaging/runtime-helper/Info.plist"
 runtime_helper_bundle_name="Tatolab Runtime.app"
 marker_file_name="machine-directories-under-a-test-root"
 streamlib_commit_file_name="streamlib-commit"

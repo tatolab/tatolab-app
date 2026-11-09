@@ -12,8 +12,8 @@ usage() { awk '/^# Usage:/{p=1} p&&/^#/{sub(/^# ?/,""); print; next} p{exit}' "$
 cask_version="${1#v}"
 released_dmg="$2"
 tap_checkout="$3"
-repository_root="$(cd "$(dirname "$0")/.." && pwd)"
-cask_template="$repository_root/packaging/homebrew/tato-studio.rb.template"
+tato_app_root="$(cd "$(dirname "$0")/.." && pwd)"
+cask_template="$tato_app_root/packaging/homebrew/tato-studio.rb.template"
 
 [[ "$cask_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "not a version: $1" >&2; exit 1; }
 [ -f "$released_dmg" ] || { echo "no such dmg: $released_dmg" >&2; exit 1; }

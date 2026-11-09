@@ -58,7 +58,8 @@ since apt alone replaces it. The feed's manifests are
 `app/latest-mac.yml` and `app/latest-linux.yml`, which point at `app/releases/<version>/`.
 
 The runtime and the `tatolab` CLI come from [tatolab/streamlib](https://github.com/tatolab/streamlib)
-(BUSL-1.1). This repository is proprietary (see `LICENSE`). It holds the app itself, the packaging
+(BUSL-1.1). This repository is AGPL-3.0-only, or under a commercial licence from the copyright holder (see
+`LICENSE`). It holds the app itself, the packaging
 that wraps streamlib's runtime unit into a signed, notarized `.app` and `.dmg`, and into the Linux
 `.deb` and AppImage.
 
@@ -115,7 +116,7 @@ tato-studio` removes the state directory and the app's settings too.
 
 ## The app's platform layer
 
-Everything that differs by platform sits in `src/main/platform/`, behind the interfaces
+Everything that differs by platform sits in `apps/tato-app/src/main/platform/`, behind the interfaces
 the rest of the main process uses: `CarriedRuntime` (the `tatolabd` the build carries, and the
 environment it runs in), `startTheCarriedRuntimeAsAChildProcess` (which runs it with a raised
 open-file limit and keeps its last line on stderr), `TatolabCommandLineToolLink` (the
@@ -129,14 +130,14 @@ status rounds and stops it as the app quits. Neither platform module needs its O
 
 ```
 Tato Studio.app/Contents/
-  Info.plist                                  LSUIElement, usage strings (packaging/macos/Info.plist)
+  Info.plist                                  LSUIElement, usage strings (apps/tato-app/packaging/macos/Info.plist)
   MacOS/Tatolab                               the app (Electron); its window, main process and
                                               preload in Resources/app.asar
   Frameworks/Electron Framework.framework, Frameworks/Tatolab Helper*.app
                                               Electron, and its GPU, plugin and renderer helpers
   Helpers/Tatolab Runtime.app/Contents/       the runtime, a bundle of its own (com.tatolab.runtime)
     Info.plist                                its id and the usage strings macOS credits it for
-                                              (packaging/runtime-helper/Info.plist)
+                                              (apps/tato-app/packaging/runtime-helper/Info.plist)
     MacOS/tatolabd                            the runtime (streamlib bin/tatolabd)
     MacOS/tatolab-cli                         the CLI (streamlib bin/tatolab)
     MacOS/uv                                  the uv tatolabd runs from beside itself
@@ -158,12 +159,12 @@ file called `tatolab` would overwrite `Tatolab`. Code signing only accepts code 
 import `tatolab.runtime` from that lend with every `PYTHON*` variable stripped. Without the shipped
 bytecode they would write `__pycache__` into the signed bundle, which breaks its seal.
 
-Entitlements: `packaging/entitlements/tatolab-app.entitlements` (the app) and
-`packaging/entitlements/tatolabd.entitlements` (the runtime) carry `device.camera` and
+Entitlements: `apps/tato-app/packaging/entitlements/tatolab-app.entitlements` (the app) and
+`apps/tato-app/packaging/entitlements/tatolabd.entitlements` (the runtime) carry `device.camera` and
 `device.audio-input`. The hardened runtime refuses camera and microphone access without them. The
-app, `Tato Studio Helper (Renderer).app` (`packaging/entitlements/tatolab-renderer-helper.entitlements`)
+app, `Tato Studio Helper (Renderer).app` (`apps/tato-app/packaging/entitlements/tatolab-renderer-helper.entitlements`)
 and the plain `Tato Studio Helper.app`, which hosts utility processes such as the Python language
-server (`packaging/entitlements/tatolab-utility-helper.entitlements`), also carry `cs.allow-jit`,
+server (`apps/tato-app/packaging/entitlements/tatolab-utility-helper.entitlements`), also carry `cs.allow-jit`,
 because V8 maps its code writable and executable; Electron's GPU and Plugin helpers and the CLI
 carry none. The packaged app's Electron fuses turn off `RunAsNode`,
 `NODE_OPTIONS` and `--inspect`, so no other process can run the signed app as plain Node and
@@ -191,7 +192,7 @@ namespaces (on by default on Ubuntu 22.04, restricted by AppArmor on 24.04).
 One command, run under Infisical so the build has the Developer ID it signs with:
 
 ```sh
-infisical run -- scripts/build-tatolab-app.sh
+infisical run -- apps/tato-app/scripts/build-tatolab-app.sh
 ```
 
 Every bundle, a release and a local proof build alike, is signed with the Developer ID
@@ -203,19 +204,19 @@ anything, naming what is missing; there is no other way to sign. Only a release 
 
 It bundles streamlib's latest `main`. It never reads a streamlib checkout elsewhere on the machine:
 it resolves `main` on github.com/tatolab/streamlib to a commit, fetches exactly that commit into
-`build/streamlib` (keeping its cargo `target/` between builds), and builds the runtime unit there
+`apps/tato-app/build/streamlib` (keeping its cargo `target/` between builds), and builds the runtime unit there
 (`cargo xtask build-runtime --release`). The unit records that commit in `streamlib-commit`, the
 helper carries it in `Contents/Helpers/Tatolab Runtime.app/Contents/Resources/streamlib-commit`, and the app's version is the version
 of the `tatolabd` it bundles, or `--app-version X.Y.Z`, which the release workflow passes. When the build finishes it checks `main` again: if `main` moved on
 while it ran, the build fails and says to build again (a `--streamlib-ref` build only notes it,
-and an unreachable GitHub is noted, not fatal). Then the Electron app: `npm run build` (electron-vite bundles the main process into `out/main/`,
-the preload into `out/preload/` and the window into `out/renderer/`, then writes the build features, with the
+and an unreachable GitHub is noted, not fatal). Then the Electron app: `npm run build` (electron-vite bundles the main process into `apps/tato-app/out/main/`,
+the preload into `apps/tato-app/out/preload/` and the window into `apps/tato-app/out/renderer/`, then writes the build features, with the
 tatolab-app commit the checkout is at, which Settings › About shows as `Build 22b07a1-dev`),
-and `scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
+and `apps/tato-app/scripts/package_tatolab_electron_app.mjs`, which packs exactly those into the asar with
 `@electron/packager` and flips the fuses. It assembles the bundle, signs it, builds the
-branded `.dmg` and checks the result. The output is `build/Tato Studio.app`,
-`build/Tato-Studio-<version>-arm64.dmg`, and the update: `build/Tato-Studio-<version>-arm64-mac.zip` and its
-manifest `build/latest-mac.yml`.
+branded `.dmg` and checks the result. The output is `apps/tato-app/build/Tato Studio.app`,
+`apps/tato-app/build/Tato-Studio-<version>-arm64.dmg`, and the update: `apps/tato-app/build/Tato-Studio-<version>-arm64-mac.zip` and its
+manifest `apps/tato-app/build/latest-mac.yml`.
 
 | Option | |
 |---|---|
@@ -230,7 +231,7 @@ manifest `build/latest-mac.yml`.
 `machine-directories-under-a-test-root` feature, and the app with
 `npm run build -- --local-proof-test-root`, which writes
 `machineDirectoriesUnderATestRoot: true` into the build features the main process imports,
-`out/main/tatolab_app_build_features.json` (`src/main/tatolab_app_build_features.json` holds the
+`apps/tato-app/out/main/tatolab_app_build_features.json` (`apps/tato-app/src/main/tatolab_app_build_features.json` holds the
 shipping ones). The app starts the runtime with the `TATOLAB_TEST_MACHINE_ROOT` and
 `TATOLAB_TEST_LOOPBACK_HTTP_PORT` of its own environment, or `/tmp/tatolab-proof` and 14446 when
 they are unset, so the state directory and the socket live under that root, and its loopback HTTP
@@ -241,7 +242,7 @@ never shipped: `assemble-tatolab-app-bundle.sh` refuses a test-root unit without
 features inside the asar give it away, and fails one that checks any
 update feed but get.tatolab.com's.
 
-The individual steps are separate scripts in `scripts/`:
+The individual steps are separate scripts in `apps/tato-app/scripts/`:
 
 | Script | |
 |---|---|
@@ -256,10 +257,10 @@ The individual steps are separate scripts in `scripts/`:
 | `notarize-and-staple.sh <Tato Studio.app\|.dmg>` | `notarytool submit --wait`, `stapler staple`, `spctl --assess` |
 | `verify-tatolab-app-bundle.sh <Tato Studio.app\|.dmg> [--shipping]` | checks the signature (every Mach-O and the image signed by Tatolab's Developer ID team with the hardened runtime, never ad-hoc), layout, plists, that the bundled `tatolabd` is no newer than the app's version and names its streamlib commit, entitlements, fuses, and Gatekeeper once stapled |
 | `write_tatolab_app_update_manifest.mjs <manifest.yml> <version> <file>...` | writes the update feed's manifest for those files: sizes, SHA-512s, and URLs under `releases/<version>/`, beside it in `app/` |
-| `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tato-studio.rb` from `packaging/homebrew/tato-studio.rb.template`, and the tap's `cask_renames.json` entry `tatolab` → `tato-studio` |
+| `bump-homebrew-cask.sh <version> <dmg> <tap>` | writes `Casks/tato-studio.rb` from `apps/tato-app/packaging/homebrew/tato-studio.rb.template`, and the tap's `cask_renames.json` entry `tatolab` → `tato-studio` |
 
-The installer background is `packaging/dmg/tatolab-dmg-background.svg`, rendered to the
-committed `@1x`/`@2x` PNGs by `packaging/dmg/render-dmg-background.sh` (needs `rsvg-convert`; it
+The installer background is `apps/tato-app/packaging/dmg/tatolab-dmg-background.svg`, rendered to the
+committed `@1x`/`@2x` PNGs by `apps/tato-app/packaging/dmg/render-dmg-background.sh` (needs `rsvg-convert`; it
 fetches Instrument Sans with `npm pack`).
 
 Tools: Xcode command line tools, Rust, Node 22+ (the window and the Electron app), `uv` (`uvx` runs the pinned dmgbuild), and
@@ -271,17 +272,17 @@ On x86_64 Linux, with Node 22+, Rust, and whatever streamlib's runtime build nee
 
 ```sh
 sudo apt install dpkg-dev desktop-file-utils curl
-scripts/build-tatolab-linux-app.sh
+apps/tato-app/scripts/build-tatolab-linux-app.sh
 ```
 
-It fetches streamlib's `main`, or `--streamlib-ref REF`, into `build/linux-streamlib` and builds
+It fetches streamlib's `main`, or `--streamlib-ref REF`, into `apps/tato-app/build/linux-streamlib` and builds
 its runtime unit there (`--runtime-unit DIR` takes one already built, when its `streamlib-commit`
 names the commit the build resolved), and carries the unit in the app's `resources/`. The packages' version
 is the version of the `tatolabd` they carry. It then builds and packages the Electron app as on macOS, lays out the `.deb` and builds it with
 `dpkg-deb`, builds the AppImage with a pinned `appimagetool` and AppImage runtime (checksums in
-the script), checks the fuses, the build features, the `.deb`'s members, sandbox helper and desktop entry, and writes `build/linux/Tato-Studio-<version>-amd64.deb`,
-`build/linux/Tato-Studio-<version>-x86_64.AppImage` and the update manifest listing both,
-`build/linux/latest-linux.yml`. `--app-version X.Y.Z` versions the packages in place of the carried
+the script), checks the fuses, the build features, the `.deb`'s members, sandbox helper and desktop entry, and writes `apps/tato-app/build/linux/Tato-Studio-<version>-amd64.deb`,
+`apps/tato-app/build/linux/Tato-Studio-<version>-x86_64.AppImage` and the update manifest listing both,
+`apps/tato-app/build/linux/latest-linux.yml`. `--app-version X.Y.Z` versions the packages in place of the carried
 `tatolabd`'s; `--local-proof-test-root` builds with
 `machineDirectoriesUnderATestRoot` on, so the app reads the runtime under
 `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`, and names both packages `-local-proof`;
@@ -291,22 +292,22 @@ the release workflow passes, makes About read `-release`.
 ## Working on the window
 
 The window is React with Tailwind and shadcn (base-ui). Its design system is the code: the tokens in
-`src/renderer/styles/tokens.css`, shadcn's components, and the Tatolab components and variants in
-`src/renderer/design_system/`. `npm run dev` runs the app unpackaged with electron-vite: the window reloads as it changes, and the
+`apps/tato-app/src/renderer/styles/tokens.css`, shadcn's components, and the Tatolab components and variants in
+`apps/tato-app/src/renderer/design_system/`. `npm run dev` runs the app unpackaged with electron-vite: the window reloads as it changes, and the
 app restarts when the main process or the preload changes. It shows whatever
 runtime is already running on the machine's local API socket; only a `--local-proof-test-root`
 build reads a local-proof runtime's `<TATOLAB_TEST_MACHINE_ROOT>/run/local-api.sock`. An unpackaged app
-carries no runtime, so it starts none and says so while no runtime answers. `node scripts/serve_the_mock_window_in_a_browser.mjs` serves the window alone, in a browser at the URL it prints, against a mock backend; a build leaves the mock
-out, and packaging refuses an `out/renderer/` that carries it.
+carries no runtime, so it starts none and says so while no runtime answers. `node apps/tato-app/scripts/serve_the_mock_window_in_a_browser.mjs` serves the window alone, in a browser at the URL it prints, against a mock backend; a build leaves the mock
+out, and packaging refuses an `apps/tato-app/out/renderer/` that carries it.
 
 ## Checks
 
 No hosted CI runs on this repository; every gate runs on a developer's machine. Before a pull
 request: `npm run lint`, `npm run build` and `npm test`, which the `local-ci-runner` agent runs and reports.
 `npm test` runs both platforms' modules on any OS. A packaging change also carries a signed
-`scripts/build-tatolab-app.sh` build of its branch, whose last step is
-`scripts/verify-tatolab-app-bundle.sh`, and a Linux packaging change a
-`scripts/build-tatolab-linux-app.sh` run on x86_64 Linux.
+`apps/tato-app/scripts/build-tatolab-app.sh` build of its branch, whose last step is
+`apps/tato-app/scripts/verify-tatolab-app-bundle.sh`, and a Linux packaging change a
+`apps/tato-app/scripts/build-tatolab-linux-app.sh` run on x86_64 Linux.
 
 The build scripts read these secrets from Infisical (`infisical run -- …`). Without the Developer
 ID ones the macOS build stops; notarization needs the App Store Connect key:
@@ -326,13 +327,13 @@ ID ones the macOS build stops; notarization needs the App Store Connect key:
 `.github/workflows/release.yml` releases on every merge to `main`, and on every streamlib release:
 streamlib's release workflow dispatches it with the new version once that release's Linux runtime is
 on get.tatolab.com. A dispatch from the Actions tab releases too, or only builds with "Publish"
-unticked. `scripts/plan_tatolab_app_release.mjs` takes the dispatched streamlib version, or on a
+unticked. `apps/tato-app/scripts/plan_tatolab_app_release.mjs` takes the dispatched streamlib version, or on a
 merge the one get.tatolab.com serves as `latest`, and picks the version: the bundled runtime's when
 it is newer than every app shipped, otherwise the last app version's next patch, so every release is
 newer than the one installed and the updaters take it. On a `macos-26` runner
-`scripts/build-tatolab-app.sh --streamlib-ref vX.Y.Z --app-version <version> --release --notarize`
+`apps/tato-app/scripts/build-tatolab-app.sh --streamlib-ref vX.Y.Z --app-version <version> --release --notarize`
 builds, signs, notarizes and verifies Tato Studio.app, its `.dmg` and its update; on `ubuntu-22.04`
-`scripts/build-tatolab-linux-app.sh` builds the `.deb` and the AppImage around the release's Linux
+`apps/tato-app/scripts/build-tatolab-linux-app.sh` builds the `.deb` and the AppImage around the release's Linux
 runtime tarball get.tatolab.com serves, which streamlib built at the glibc floor it promises. Once both
 have built, the files go to `app/releases/<version>/` on get.tatolab.com (everything the app publishes
 is under `app/`; streamlib owns `packages/`, `simple/`, `releases/`, `install.sh` and `latest`), then `app/latest-mac.yml`, `app/latest-linux.yml` and
@@ -340,6 +341,6 @@ is under `app/`; streamlib owns `packages/`, `simple/`, `releases/`, `install.sh
 the `.dmg`, `.deb` and AppImage go on this repository's `v<version>` GitHub release. The secrets
 (the Developer ID, the App Store Connect key as `APPLE_API_KEY_P8_BASE64`, `APPLE_API_KEY_ID` and
 `APPLE_API_ISSUER`, and the R2 keys for get.tatolab.com) come from the repository's Infisical sync.
-`scripts/bump-homebrew-cask.sh` still writes `Casks/tato-studio.rb` for tatolab/homebrew-tap by hand.
+`apps/tato-app/scripts/bump-homebrew-cask.sh` still writes `Casks/tato-studio.rb` for tatolab/homebrew-tap by hand.
 
 A pull request runs only `.github/workflows/ci.yml`: types, lint and the unit tests.

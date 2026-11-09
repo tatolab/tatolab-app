@@ -89,7 +89,7 @@ required_electron_fuse_states=(
   "RunAsNode is Disabled" "EnableNodeOptionsEnvironmentVariable is Disabled" "EnableNodeCliInspectArguments is Disabled"
   "EnableEmbeddedAsarIntegrityValidation is Enabled" "OnlyLoadAppFromAsar is Enabled"
 )
-repository_root="$(cd "$(dirname "$0")/.." && pwd)"
+tato_app_root="$(cd "$(dirname "$0")/.." && pwd)"
 # The team of the Developer ID every Tatolab.app is signed by; a TeamIdentifier is public in every
 # signature it makes.
 tatolab_developer_id_team_identifier=QV2N7EDV53
@@ -247,7 +247,7 @@ verify_app_bundle() {
   local packaged_build_features shipping_build_features_refusals_file shipping_build_features_refusals
   local packaged_build_features_are_shipping=false
   shipping_build_features_refusals_file="$(mktemp)"
-  packaged_build_features="$(node "$repository_root/scripts/tatolab_app_build_features.mjs" read "$contents/Resources/app.asar" --shipping 2>"$shipping_build_features_refusals_file")" \
+  packaged_build_features="$(node "$tato_app_root/scripts/tatolab_app_build_features.mjs" read "$contents/Resources/app.asar" --shipping 2>"$shipping_build_features_refusals_file")" \
     && packaged_build_features_are_shipping=true
   shipping_build_features_refusals="$(cat "$shipping_build_features_refusals_file")"
   rm -f "$shipping_build_features_refusals_file"
@@ -319,7 +319,7 @@ verify_app_bundle() {
   [ "$helper_app_count" -gt 0 ] || fail "Contents/Frameworks holds no Electron helper app"
 
   local electron_fuse_states electron_fuse_state
-  electron_fuse_states="$(cd "$repository_root" && npx --no-install @electron/fuses read --app "$app_bundle" 2>&1 || true)"
+  electron_fuse_states="$(cd "$tato_app_root" && npx --no-install @electron/fuses read --app "$app_bundle" 2>&1 || true)"
   for electron_fuse_state in "${required_electron_fuse_states[@]}"; do
     grep -qF "$electron_fuse_state" <<<"$electron_fuse_states" \
       && pass "Electron fuse: $electron_fuse_state" || fail "Electron fuse is not '$electron_fuse_state'"

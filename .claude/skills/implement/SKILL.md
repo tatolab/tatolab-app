@@ -10,8 +10,8 @@ disable-model-invocation: false
    newer than the body; conflicts resolve toward the comment) — and, when it depends on what the
    runtime serves, that contract from streamlib's plan at `main` as `CLAUDE.md` gives (never a
    local checkout's branch).
-   When it touches the window, read the design system it builds on (`src/renderer/styles/tokens.css`,
-   `src/renderer/design_system/`).
+   When it touches the window, read the design system it builds on (`apps/tato-app/src/renderer/styles/tokens.css`,
+   `apps/tato-app/src/renderer/design_system/`).
 2. **Ultracode gate**: an issue whose body opens with **Run with ultracode** is built only in a run
    that has ultracode on — a system-reminder confirms it when the owner's message carries the
    keyword (`/implement <N> ultracode`) or the session has it on. Without it, **stop** before any
@@ -49,8 +49,8 @@ disable-model-invocation: false
 11. **Prove it**: run `/verify-app` for anything a person sees or the machine feels; its evidence
     goes in the PR. Evidence that needs the owner present, such as a real administrator or privacy
     prompt, is listed in the PR as pending the owner, and the build goes on.
-12. **Review**: spawn `review-pr`, plus `main-process-craftsmanship-reviewer` when `src/main/` or `src/preload/` changed and
-    `window-craftsmanship-reviewer` when `src/renderer/` or `src/shared/` changed, in parallel. Fix-loop capped at 3 rounds;
+12. **Review**: spawn `review-pr`, plus `main-process-craftsmanship-reviewer` when `apps/tato-app/src/main/` or `apps/tato-app/src/preload/` changed and
+    `window-craftsmanship-reviewer` when `apps/tato-app/src/renderer/` or `apps/tato-app/src/shared/` changed, in parallel. Fix-loop capped at 3 rounds;
     a 4th disagreement is posted on the issue as `[NEEDS OWNER]` DISCUSS, and the build stops.
 13. **PR**: run `printf '%s' "<title>" | npx commitlint`, push, `gh pr create` — title
     `type(scope): summary`; body `## Summary`, `## Closes` (one `Closes #N` per line), `## Exit

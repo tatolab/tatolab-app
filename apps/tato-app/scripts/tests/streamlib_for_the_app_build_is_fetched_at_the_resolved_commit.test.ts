@@ -10,8 +10,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
-const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
-const FETCH_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "fetch-streamlib-for-the-app-build.sh");
+const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const FETCH_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "fetch-streamlib-for-the-app-build.sh");
 const GIT_IDENTITY_ENVIRONMENT = {
   GIT_AUTHOR_NAME: "streamlib stand-in",
   GIT_AUTHOR_EMAIL: "stand-in@example.invalid",
@@ -73,7 +73,7 @@ async function tagOnStreamlib(tagName: string): Promise<void> {
 }
 
 function fetchStreamlib(fetchFlags: string[] = []): Promise<ProgramOutcome> {
-  return runProgram("bash", [FETCH_SCRIPT, fetchDestination, "--from-repository", streamlibStandInUrl, ...fetchFlags], REPOSITORY_ROOT);
+  return runProgram("bash", [FETCH_SCRIPT, fetchDestination, "--from-repository", streamlibStandInUrl, ...fetchFlags], TATO_APP_ROOT);
 }
 
 function lastLineOf(output: string): string {
@@ -187,7 +187,7 @@ test("a streamlib it cannot reach is its own failure, apart from a moved main", 
   const checkOutcome = await runProgram(
     "bash",
     [FETCH_SCRIPT, fetchDestination, "--resolve-only", "--expect-commit", "0".repeat(40), "--from-repository", `file://${path.join(scratchDirectory, "no-such-repository.git")}`],
-    REPOSITORY_ROOT,
+    TATO_APP_ROOT,
   );
   expect(checkOutcome.exitCode).toBe(3);
   expect(checkOutcome.stderr).toContain("could not reach streamlib");

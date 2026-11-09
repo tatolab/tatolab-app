@@ -10,10 +10,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
-const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
-const BUILD_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "build-tatolab-app.sh");
-const SIGN_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "sign-tatolab-app-bundle.sh");
-const DMG_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "make-tatolab-dmg.sh");
+const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const BUILD_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "build-tatolab-app.sh");
+const SIGN_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "sign-tatolab-app-bundle.sh");
+const DMG_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "make-tatolab-dmg.sh");
 const CODESIGN_IS_AVAILABLE = existsSync("/usr/bin/codesign");
 
 interface SigningScriptOutcome {
@@ -24,7 +24,7 @@ interface SigningScriptOutcome {
 function runSigningScriptWithOnlyTheseAppleVariables(scriptArguments: string[], onlyTheseAppleVariables: Record<string, string>): Promise<SigningScriptOutcome> {
   const environmentWithOnlyTheseAppleVariables = { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: tmpdir(), ...onlyTheseAppleVariables };
   return new Promise((resolveOutcome) => {
-    execFile("bash", scriptArguments, { cwd: REPOSITORY_ROOT, env: environmentWithOnlyTheseAppleVariables, timeout: 30_000 }, (scriptFailure, stdout, stderr) => {
+    execFile("bash", scriptArguments, { cwd: TATO_APP_ROOT, env: environmentWithOnlyTheseAppleVariables, timeout: 30_000 }, (scriptFailure, stdout, stderr) => {
       const exitCode = scriptFailure === null ? 0 : typeof scriptFailure.code === "number" ? scriptFailure.code : -1;
       resolveOutcome({ exitCode, output: `${stdout}${stderr}` });
     });

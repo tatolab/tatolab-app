@@ -23,7 +23,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const tatoAppRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const buildFeaturesPathInTheAsar = "out/main/tatolab_app_build_features.json";
 const usage =
   "usage: tatolab_app_build_features.mjs write <features.json> [--release] [--local-proof-test-root] [--app-update-feed-url URL]\n" +
@@ -71,9 +71,9 @@ function buildFeaturesFromSource(buildFeaturesSource) {
 async function buildIdOfThisCheckout(buildKind) {
   const runGit = promisify(execFile);
   try {
-    const { stdout: headCommitOutput } = await runGit("git", ["-C", repositoryRoot, "rev-parse", "--verify", "HEAD"]);
+    const { stdout: headCommitOutput } = await runGit("git", ["-C", tatoAppRoot, "rev-parse", "--verify", "HEAD"]);
     // A tree with many untracked files lists more than execFile's default 1 MiB.
-    const { stdout: uncommittedChangesOutput } = await runGit("git", ["-C", repositoryRoot, "status", "--porcelain"], { maxBuffer: 256 * 1024 * 1024 });
+    const { stdout: uncommittedChangesOutput } = await runGit("git", ["-C", tatoAppRoot, "status", "--porcelain"], { maxBuffer: 256 * 1024 * 1024 });
     return { buildId: { tatolabAppCommit: headCommitOutput.trim(), buildKind, builtWithUncommittedChanges: uncommittedChangesOutput.trim() !== "" } };
   } catch (gitFailure) {
     const gitWords = typeof gitFailure.stderr === "string" && gitFailure.stderr.trim() !== "" ? gitFailure.stderr.trim() : gitFailure.message;
@@ -81,7 +81,7 @@ async function buildIdOfThisCheckout(buildKind) {
   }
 }
 
-const shippingBuildFeaturesFile = path.join(repositoryRoot, "src", "main", "tatolab_app_build_features.json");
+const shippingBuildFeaturesFile = path.join(tatoAppRoot, "src", "main", "tatolab_app_build_features.json");
 const shippingBuildFeatures = buildFeaturesFromSource(await readFile(shippingBuildFeaturesFile, "utf8"));
 if (shippingBuildFeatures === null || shippingBuildFeatures.machineDirectoriesUnderATestRoot || shippingBuildFeatures.tatolabAppBuildId !== null) {
   process.stderr.write(`${shippingBuildFeaturesFile} is not the shipping build features, with a tatolabAppBuildId of null\n`);
@@ -118,7 +118,7 @@ if (subcommand === "write") {
   const checkoutBuildId = await buildIdOfThisCheckout(releaseBuild ? "release" : "dev");
   if (checkoutBuildId.gitRefusal !== undefined) {
     process.stderr.write(
-      `git cannot name the commit ${repositoryRoot} is at, and every build records the tatolab-app commit it was built from: ${checkoutBuildId.gitRefusal}\n`,
+      `git cannot name the commit ${tatoAppRoot} is at, and every build records the tatolab-app commit it was built from: ${checkoutBuildId.gitRefusal}\n`,
     );
     process.exit(1);
   }

@@ -17,10 +17,10 @@ Evidence counts only when it was shot on what would ship now:
 - **The app** is built from the PR branch's head commit. A commit that changes anything the build
   takes in after you shot means you rebuild and shoot again.
 - **The runtime** is streamlib's `main` at its current head, fetched and built by this repository's
-  own scripts. `infisical run -- scripts/build-tatolab-app.sh` does that by default: it resolves `main` on GitHub,
-  fetches exactly that commit into `build/streamlib` and builds the unit there. Never build in, read,
+  own scripts. `infisical run -- apps/tato-app/scripts/build-tatolab-app.sh` does that by default: it resolves `main` on GitHub,
+  fetches exactly that commit into `apps/tato-app/build/streamlib` and builds the unit there. Never build in, read,
   or pass a unit from the owner's `../streamlib` or any other checkout or `/tmp` directory. A unit
-  from `build/streamlib/target/tatolab-runtime` may be passed with `--runtime-unit` only when it was
+  from `apps/tato-app/build/streamlib/target/tatolab-runtime` may be passed with `--runtime-unit` only when it was
   built at `main`'s current head; the build refuses it otherwise. `--streamlib-ref` is for a release
   tag, or for unreleased streamlib work the owner names, never to avoid a rebuild.
 - **Check it before you shoot, and put it in the evidence.** These must name one commit:
@@ -35,9 +35,9 @@ Evidence counts only when it was shot on what would ship now:
 ## Pick the lowest rung that proves the claim
 
 1. **Mock (browser).** Pure window changes — layout, copy, a new state's presentation.
-   Start `node scripts/serve_the_mock_window_in_a_browser.mjs` in the background (stop it at the
+   Start `node apps/tato-app/scripts/serve_the_mock_window_in_a_browser.mjs` in the background (stop it at the
    end), then drive the page with Playwright at the URL it prints with the presets
-   `src/renderer/backend/mock_tatolab_backend.ts` and `src/renderer/mock_window_preset.ts` read:
+   `apps/tato-app/src/renderer/backend/mock_tatolab_backend.ts` and `apps/tato-app/src/renderer/mock_window_preset.ts` read:
    `?platform=linux`, `?state=` (running, empty, loading, node-error, camera-access, dropping,
    not-listed, starting, not-running), `?project=none|unreadable`, `?cli_link=not_linked|taken`,
    `?restart=refused`, and the screen keys
@@ -49,15 +49,15 @@ Evidence counts only when it was shot on what would ship now:
    ignored without a word, so check each frame shows the state its URL asks for. The window is dark-only. Label every image **Mock**. A screen the
    presets cannot reach gets a preset in the same change.
 2. **Local-proof live (macOS).** Anything that talks to a runtime — streams appearing and going,
-   graph, logs, the runtime starting and stopping with the app. `infisical run -- scripts/build-tatolab-app.sh --local-proof-test-root`
+   graph, logs, the runtime starting and stopping with the app. `infisical run -- apps/tato-app/scripts/build-tatolab-app.sh --local-proof-test-root`
    builds a runtime unit and an app signed with the Developer ID from Infisical — the identity and
    team the installed release carries — whose machine lock, state and socket live under
    `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`: no administrator prompt, nothing written to
    `/Library` or `/usr/local/bin`. Without the Developer ID the build stops and names what is
    missing; there is no other way to build one, so a proof never runs on a bundle signed
    differently from what ships. Drive streams with that unit's own CLI
-   (`build/streamlib/target/tatolab-runtime/bin/tatolab`, with `TATOLAB_TEST_MACHINE_ROOT` set) —
-   test-pattern streams only. `build/streamlib` keeps cargo's cache between builds, so building
+   (`apps/tato-app/build/streamlib/target/tatolab-runtime/bin/tatolab`, with `TATOLAB_TEST_MACHINE_ROOT` set) —
+   test-pattern streams only. `apps/tato-app/build/streamlib` keeps cargo's cache between builds, so building
    again at an unchanged commit is quick. **The proof build shares the installed app's bundle id**, so
    quit the installed Tato Studio first, which stops its runtime. The proof build starts its own
    carried `tatolabd` under the test root as its child and stops it when it quits. After: quit the
@@ -70,40 +70,40 @@ Evidence counts only when it was shot on what would ship now:
    Without the packaged build — the unpackaged app over a runtime run by hand, as #37 and #38
    did:
    - Fetch streamlib `main` and build its test-root unit with
-     `scripts/fetch-streamlib-for-the-app-build.sh build/streamlib`, then
-     `scripts/build-tatolab-runtime-unit.sh build/streamlib --local-proof-test-root`. The unit's
+     `apps/tato-app/scripts/fetch-streamlib-for-the-app-build.sh apps/tato-app/build/streamlib`, then
+     `apps/tato-app/scripts/build-tatolab-runtime-unit.sh apps/tato-app/build/streamlib --local-proof-test-root`. The unit's
      `streamlib-commit` must name `main`'s current head.
    - Create the lock `tatolabd` asks for (its refusal gives the commands), then run the unit's
      `tatolabd` with `TATOLAB_TEST_MACHINE_ROOT=/tmp/tatolab-proof`,
      and `TATOLAB_TEST_LOOPBACK_HTTP_PORT=14446`.
    - `npm run build -- --local-proof-test-root` (it writes
-     `machineDirectoriesUnderATestRoot: true` into `out/main/tatolab_app_build_features.json`;
+     `machineDirectoriesUnderATestRoot: true` into `apps/tato-app/out/main/tatolab_app_build_features.json`;
      never edit the built `.js`), and run `npx electron . --remote-debugging-port=<port>` with `TATOLAB_TEST_MACHINE_ROOT` and `CFFIXED_USER_HOME` (a
      scratch home) set. Drive it with Playwright over the DevTools protocol; Electron answers no
      window-bounds command there, so a larger page is an emulated viewport, said in the caption.
    - An unpackaged app carries no runtime and starts none: it uses the `tatolabd` you ran, and
      says no runtime is running while none answers.
    - After: quit the app, stop the unit's `tatolabd`, `rm -rf /tmp/tatolab-proof`, and run
-     `npm run build` again so `out/` holds the shipping features.
+     `npm run build` again so `apps/tato-app/out/` holds the shipping features.
 
    A change to what the app reads from the local API also runs the live contract test against
-   that runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=/tmp/tatolab-proof/run/local-api.sock npx vitest
-   run src/main/local_api_client.test.ts`.
+   that runtime, in `apps/tato-app/`: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=/tmp/tatolab-proof/run/local-api.sock
+   npx vitest run src/main/local_api_client.test.ts`.
 3. **Live on the machine.** Only for what the test root cannot reach: Gatekeeper, TCC prompts,
    the real `~/.local/bin/tatolab` link. This
    acts on the owner's real runtime — the `machine-brake` hook notes it — so say what you will
    run, run it only when the owner asked for this proof, and restore what you changed. Label
    **Live**.
-4. **Linux.** On x86_64 Linux: `scripts/build-tatolab-linux-app.sh [--local-proof-test-root]`,
+4. **Linux.** On x86_64 Linux: `apps/tato-app/scripts/build-tatolab-linux-app.sh [--local-proof-test-root]`,
    then run the AppImage or `.deb`. On the Mac (arm64, which that script refuses): in an
    `ubuntu:22.04` container, build and run the unpackaged app (`npm ci && npm run build`,
    then `npx electron .`) with a container volume over `node_modules/`, so Linux's Electron never
    lands in the host's; run it under Xvfb with a StatusNotifier host and capture with
    `import -window root`. Packaging itself (`.deb` Depends, desktop entry, AppImage) is proven only
-   by `scripts/build-tatolab-linux-app.sh` on x86_64 Linux. A runtime stand-in (a fake local API
+   by `apps/tato-app/scripts/build-tatolab-linux-app.sh` on x86_64 Linux. A runtime stand-in (a fake local API
    answering on the socket) is allowed and **named as a stand-in**. Label **Linux** or **Linux (container, unbundled)**.
-   On a Mac, `scripts/verify/run-the-window-in-an-ubuntu-container.sh <folder>` does this with the
-   stand-ins in `scripts/verify/linux-stand-ins/`.
+   On a Mac, `apps/tato-app/scripts/verify/run-the-window-in-an-ubuntu-container.sh <folder>` does this with the
+   stand-ins in `apps/tato-app/scripts/verify/linux-stand-ins/`.
    The carried runtime running as the app's child is proven only by a packaged `.deb` or AppImage
    of a real build.
 

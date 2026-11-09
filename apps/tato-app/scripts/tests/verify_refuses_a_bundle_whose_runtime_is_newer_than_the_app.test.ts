@@ -10,8 +10,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
-const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
-const VERIFY_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "verify-tatolab-app-bundle.sh");
+const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const VERIFY_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "verify-tatolab-app-bundle.sh");
 const PLUTIL_IS_AVAILABLE = existsSync("/usr/bin/plutil");
 const BUNDLED_STREAMLIB_COMMIT = "ef5c8b22995a90b1f7ae671e214c96480615c911";
 
@@ -22,7 +22,7 @@ interface VerifyScriptOutcome {
 
 function runTheVerifyScript(appBundle: string): Promise<VerifyScriptOutcome> {
   return new Promise((resolveOutcome) => {
-    execFile("bash", [VERIFY_SCRIPT, appBundle], { cwd: REPOSITORY_ROOT, timeout: 60_000 }, (scriptFailure, stdout, stderr) => {
+    execFile("bash", [VERIFY_SCRIPT, appBundle], { cwd: TATO_APP_ROOT, timeout: 60_000 }, (scriptFailure, stdout, stderr) => {
       const exitCode = scriptFailure === null ? 0 : typeof scriptFailure.code === "number" ? scriptFailure.code : -1;
       resolveOutcome({ exitCode, output: `${stdout}${stderr}` });
     });

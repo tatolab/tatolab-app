@@ -1,16 +1,16 @@
 ---
 paths:
-  - "src/main/**"
-  - "src/preload/**"
-  - "native/**"
-  - "resources/**"
-  - "packaging/**"
-  - "scripts/**"
+  - "apps/tato-app/src/main/**"
+  - "apps/tato-app/src/preload/**"
+  - "apps/tato-app/native/**"
+  - "apps/tato-app/resources/**"
+  - "apps/tato-app/packaging/**"
+  - "apps/tato-app/scripts/**"
 ---
 
 # Platform layer
 
-- **Everything that differs by platform sits in `src/main/platform/`**, behind the
+- **Everything that differs by platform sits in `apps/tato-app/src/main/platform/`**, behind the
   interfaces the rest of the app uses (`RuntimeAgentRegistration`, `TatolabCommandLineToolLinks`,
   `TatolabUninstall`) and the `TatolabPlatformForThisBuild` each platform module builds. Where a
   platform has nothing to do, its item is `null` or `not_offered` with the reason, and says so in
@@ -33,8 +33,8 @@ paths:
   with the test root or any update feed but get.tatolab.com's.
 - **A build's features are a build-time input, never a patch.** `npm run build --
   [--local-proof-test-root] [--app-update-feed-url URL]` writes
-  `out/main/tatolab_app_build_features.json`, which the main process imports and the bundle checks
-  read out of `app.asar` (`scripts/tatolab_app_build_features.mjs read`). No script edits compiled
+  `apps/tato-app/out/main/tatolab_app_build_features.json`, which the main process imports and the bundle checks
+  read out of `app.asar` (`apps/tato-app/scripts/tatolab_app_build_features.mjs read`). No script edits compiled
   JavaScript, and no check greps the asar for compiler text.
 - **One signing identity.** The bundle is signed with the Developer ID Application identity from
   Infisical, imported for the build and removed after it, and by nothing else. The build scripts
@@ -44,13 +44,13 @@ paths:
 - **Signing and the bundle's seal are load-bearing.** Code lives only under `Contents/MacOS/` and
   `Contents/Frameworks/`; nothing writes into a signed bundle at run time; entitlements change only
   with a stated reason (each one is something the hardened runtime otherwise refuses). A
-  packaging, bundle or release change carries a signed `scripts/build-tatolab-app.sh` build of its
-  branch whose `scripts/verify-tatolab-app-bundle.sh` check passes, and a Linux packaging change a
-  `scripts/build-tatolab-linux-app.sh` run on x86_64 Linux.
+  packaging, bundle or release change carries a signed `apps/tato-app/scripts/build-tatolab-app.sh` build of its
+  branch whose `apps/tato-app/scripts/verify-tatolab-app-bundle.sh` check passes, and a Linux packaging change a
+  `apps/tato-app/scripts/build-tatolab-linux-app.sh` run on x86_64 Linux.
 - **Privacy prompts follow the app.** TCC attributes the runtime's camera and microphone use to
   Tatolab.app, whose login item it is. A protected resource the runtime reads needs its usage
-  string in `packaging/macos/Info.plist` and, where the hardened runtime gates it, the entitlement
-  on both `packaging/entitlements/tatolab-app.entitlements` and `tatolabd.entitlements`. Every key added to `Info.plist`, an
+  string in `apps/tato-app/packaging/macos/Info.plist` and, where the hardened runtime gates it, the entitlement
+  on both `apps/tato-app/packaging/entitlements/tatolab-app.entitlements` and `tatolabd.entitlements`. Every key added to `Info.plist`, an
   or an entitlement gets its assertion in `verify-tatolab-app-bundle.sh` in the same
   PR.
 - **The app's lifecycle is a contract.** The app runs the runtime it carries as its child: it

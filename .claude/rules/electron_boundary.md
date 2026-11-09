@@ -1,12 +1,12 @@
 ---
 paths:
-  - "src/main/electron_adapters/**"
-  - "src/preload/**"
-  - "src/main/tatolab_commands.ts"
-  - "src/main/tatolab_window_page_source.ts"
-  - "scripts/package_tatolab_electron_app.mjs"
-  - "src/renderer/backend/**"
-  - "src/shared/**"
+  - "apps/tato-app/src/main/electron_adapters/**"
+  - "apps/tato-app/src/preload/**"
+  - "apps/tato-app/src/main/tatolab_commands.ts"
+  - "apps/tato-app/src/main/tatolab_window_page_source.ts"
+  - "apps/tato-app/scripts/package_tatolab_electron_app.mjs"
+  - "apps/tato-app/src/renderer/backend/**"
+  - "apps/tato-app/src/shared/**"
 ---
 
 # The Electron boundary
@@ -25,7 +25,7 @@ paths:
 - **The fuses stay flipped.** `RunAsNode`, `EnableNodeOptionsEnvironmentVariable` and
   `EnableNodeCliInspectArguments` off, `OnlyLoadAppFromAsar` on (and asar integrity on macOS):
   otherwise any process can run the signed app as plain Node and inherit its camera and
-  microphone grants. `scripts/verify-tatolab-app-bundle.sh` and the Linux build check them.
+  microphone grants. `apps/tato-app/scripts/verify-tatolab-app-bundle.sh` and the Linux build check them.
 - **`appBundleId` (`com.tatolab.tatolab`) never changes** — the settings directory and TCC
   attribution hang off it.
 - **A command lands whole**: its signature in `TatolabCommandSignatures`, its handler in

@@ -10,8 +10,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
-const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
-const ASSEMBLE_SCRIPT = path.join(REPOSITORY_ROOT, "scripts", "assemble-tatolab-app-bundle.sh");
+const TATO_APP_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const ASSEMBLE_SCRIPT = path.join(TATO_APP_ROOT, "scripts", "assemble-tatolab-app-bundle.sh");
 const PLACED_RUNTIME_UNIT_BINARIES = ["tatolab", "tatolabd", "uv"];
 const PLACED_RUNTIME_UNIT_LIBRARY_DIRECTORIES = ["lend"];
 const RESOLVED_STREAMLIB_COMMIT = "ef5c8b22995a90b1f7ae671e214c96480615c911";
@@ -28,7 +28,7 @@ function runTheAssembleScript(
   assembleFlags: string[] = ["--streamlib-commit", RESOLVED_STREAMLIB_COMMIT],
 ): Promise<AssembleScriptOutcome> {
   return new Promise((resolveOutcome) => {
-    execFile("bash", [ASSEMBLE_SCRIPT, appBundle, runtimeUnitDirectory, ...assembleFlags], { cwd: REPOSITORY_ROOT }, (scriptFailure, _stdout, stderr) => {
+    execFile("bash", [ASSEMBLE_SCRIPT, appBundle, runtimeUnitDirectory, ...assembleFlags], { cwd: TATO_APP_ROOT }, (scriptFailure, _stdout, stderr) => {
       const exitCode = scriptFailure === null ? 0 : typeof scriptFailure.code === "number" ? scriptFailure.code : -1;
       resolveOutcome({ exitCode, stderr });
     });

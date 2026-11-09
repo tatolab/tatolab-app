@@ -1,6 +1,6 @@
 # Naming
 
-shadcn's generated components in `src/renderer/components/ui/` keep shadcn's own file names and
+shadcn's generated components in `apps/tato-app/src/renderer/components/ui/` keep shadcn's own file names and
 identifiers. These rules govern the code that uses them, the design system included.
 
 Names must be understood with zero context — someone reading the name 200 lines from its

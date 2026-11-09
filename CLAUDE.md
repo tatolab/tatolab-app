@@ -2,11 +2,12 @@
 
 ## Licensing (load-bearing — do not modify)
 
-Tatolab.app is proprietary (`LICENSE`), and `LICENSE` covers every file in the repository, so a
-source file carries no licence header of its own. Never suggest an open-source licence for it.
-shadcn's generated components (`src/renderer/components/ui/`) keep their MIT form. The runtime the
-app bundles is streamlib's, BUSL-1.1, and keeps its own licence. Do not modify `LICENSE` without
-explicit approval.
+Tatolab.app is dual-licensed (`LICENSE`): AGPL-3.0-only, or a commercial licence from the
+copyright holder. `LICENSE` covers every file in the repository, so a source file carries no
+licence header of its own. Never suggest another licence for it or drop the commercial option.
+shadcn's generated components (`apps/tato-app/src/renderer/components/ui/`) keep their MIT form.
+The runtime the app bundles is streamlib's, BUSL-1.1, and keeps its own licence. Do not modify
+`LICENSE` without explicit approval.
 
 ---
 
@@ -22,8 +23,8 @@ a parallel one. Search first.
      owner's call, recorded in the tatolab-app issue that builds it. What it needs from the
      runtime — a capability, a local API contract — is streamlib's: filed there, and the app waits
      on it. This repository has no `docs/plan/`; never start one.
-  2. How the window looks, reads and flows is the design system in code — `src/renderer/styles/tokens.css`,
-     then shadcn, then `src/renderer/design_system/` and its variants, then a rare call-site class —
+  2. How the window looks, reads and flows is the design system in code — `apps/tato-app/src/renderer/styles/tokens.css`,
+     then shadcn, then `apps/tato-app/src/renderer/design_system/` and its variants, then a rare call-site class —
      changed with the owner's say-so in the same PR.
   3. How the app's own code is shaped — modules, interfaces, platform items, the window's IPC
      commands, the backend contract — goes in the issue's Design section, settled by `/module-design` before
@@ -34,7 +35,7 @@ a parallel one. Search first.
   never a local checkout's branch**:
   `gh api repos/tatolab/streamlib/contents/docs/plan/ARCHITECTURE.md -q .content | base64 -d`
   (the same for `GLOSSARY.md`), and read only the sections you need — the file is large.
-- Source edits (`src/`, `native/`, `scripts/`, `packaging/`) belong inside `/implement`
+- Source edits (`apps/tato-app/src/`, `apps/tato-app/native/`, `apps/tato-app/scripts/`, `apps/tato-app/packaging/`) belong inside `/implement`
   against a tatolab-app issue. Nothing prompts on one — the distinction is the session's to apply.
 - Lifecycle here: `/file-issue` → `/implement` → `/verify-app` for anything a person sees or the
   machine feels. `/diagnose` for bugs, `/research` for questions, `/explore-idea` for what-ifs,
@@ -94,10 +95,10 @@ attention spent on settled things is unavailable for real forks.
   or other sockets, and never asks for an administrator's password. The only machine state it
   touches is what it owns: the `~/.local/bin/tatolab` link (an AppImage's through a copy of its CLI
   in `~/.local/share/tato-studio/bin/`) and its own settings.
-- **The contract is streamlib's.** Recorded responses under `src/main/test-fixtures/` pin it;
+- **The contract is streamlib's.** Recorded responses under `apps/tato-app/src/main/test-fixtures/` pin it;
   refresh one by recording it from a real runtime — never hand-edit one to make a test pass. A
   change to what the app reads also runs the skipped live contract test against a running runtime
-  (`TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/local_api_client.test.ts`).
+  (in `apps/tato-app/`, `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/local_api_client.test.ts`).
 - **A missing runtime capability is filed in streamlib and the app waits on it.** Never work
   around it in the app (no scraping logs for state the API does not give, no second channel). An
   app issue that needs one names the streamlib issue under "Waits on".
@@ -107,7 +108,7 @@ attention spent on settled things is unavailable for real forks.
 
 ## Non-negotiables
 
-- **Platform code lives in `src/main/platform/`** (enforced); both platforms are checked
+- **Platform code lives in `apps/tato-app/src/main/platform/`** (enforced); both platforms are checked
   on every change: `npm test` runs both platform modules on any OS, and Linux is proven on an
   x86_64 Linux machine or, from a Mac, in an `ubuntu:22.04` container — a Mac cannot exercise the
   Linux module against a real systemd or desktop.
@@ -139,7 +140,7 @@ attention spent on settled things is unavailable for real forks.
   certificates, API keys and tokens never appear in a commit, a log, a PR body or an evidence image.
 - **The version is never hand-edited**: a release takes the streamlib version it bundles, or, when
   the app releases again over the same runtime, the last app version's next patch
-  (`scripts/plan_tatolab_app_release.mjs`).
+  (`apps/tato-app/scripts/plan_tatolab_app_release.mjs`).
 - **Done means seen.** A change to the window, the tray, or how the app runs the runtime is
   done when `/verify-app` has shown it at the lowest rung that proves the claim — Mock for pure
   presentation, Live (local proof) for anything that talks to a runtime — labelled; never when
