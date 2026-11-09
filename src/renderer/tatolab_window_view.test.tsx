@@ -16,7 +16,16 @@ function removeTheKeydownListenersOfEarlierWindows(): void {
   for (const keydownListener of documentKeydownListenersAdded.splice(0)) document.removeEventListener("keydown", keydownListener);
 }
 
-afterEach(() => {
+/** Hides every window mounted so far, so none starts another read, and lets the reads already in flight settle while the page is still here. */
+async function hideTheWindowsOfEarlierTestsAndLetTheirReadsSettle(): Promise<void> {
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+  document.dispatchEvent(new Event("visibilitychange"));
+  await act(() => new Promise<void>((settled) => setTimeout(settled, 100)));
+  Reflect.deleteProperty(document, "visibilityState");
+}
+
+afterEach(async () => {
+  await hideTheWindowsOfEarlierTestsAndLetTheirReadsSettle();
   removeTheKeydownListenersOfEarlierWindows();
   vi.unstubAllGlobals();
   document.body.replaceChildren();
