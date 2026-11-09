@@ -867,6 +867,44 @@ test("a_node_type_listing_the_runtime_refuses_carries_its_own_words", async () =
   expect(failureOf(await server.client().listProjectNodeTypes("/w/pattern")).failureDescription).toBe(refusal);
 });
 
+test("a_real_node_type_listing_reads_the_projects_node_types_generator_unreadable_module_and_installed_distribution", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-node-types-tool-result-of-a-project-with-a-module-that-does-not-parse.json")),
+  ]);
+
+  const listing = answerOf(await server.client().listProjectNodeTypes("/private/tmp/tatolab-proof-185/node-type-proof"));
+
+  expect(listing.project_name).toBe("node-type-proof");
+  expect(listing.sources.map((source) => source.origin)).toEqual([
+    { source: "project" },
+    { source: "installed_distribution", distribution: "tatolab-testpattern", distribution_version: "0.68.41" },
+  ]);
+  const [projectSource, testPatternSource] = listing.sources;
+  expect(projectSource?.node_types.map((nodeType) => [nodeType.type, nodeType.kind, nodeType.category])).toEqual([
+    ["nodes.brightness_meter:BrightnessMeter", "process", "nodes.brightness_meter"],
+    ["nodes.edge_mask:EdgeMask", "process", "Masks"],
+    ["nodes.gain:scale_by_gain", "function", "nodes.gain"],
+    ["nodes.halftone_lens_effect:HalftoneLensEffect", "process", "nodes.halftone_lens_effect"],
+  ]);
+  expect(projectSource?.node_types[1]?.outputs).toEqual([{ name: "mask_out", family: "image", description: "The edge mask.", annotation: null }]);
+  expect(projectSource?.node_types[2]?.inputs?.[1]).toEqual({ name: "gain", family: "channels", description: "", annotation: "float" });
+  expect(projectSource?.graph_generators).toEqual([
+    { generator: "nodes.masked_rig:masked_rig", description: "Wires `mask_count` edge masks in a row.", promoted_config: [{ name: "mask_count", annotation: "int" }], path: "nodes/masked_rig.py", line: 7 },
+  ]);
+  expect(projectSource?.unreadable_modules).toEqual([{ module: "nodes.half_written", path: "nodes/half_written.py", line: 4, column: 11, why: "SyntaxError: '(' was never closed" }]);
+  expect(testPatternSource?.node_types.map((nodeType) => nodeType.type)).toEqual(["tatolab.testpattern:TestPatternSource"]);
+});
+
+test("a_real_node_type_listing_of_a_folder_that_is_not_a_project_is_refused_in_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-node-types-tool-refusal-for-a-folder-that-is-not-a-project.json")),
+  ]);
+
+  expect(failureOf(await server.client().listProjectNodeTypes("/private/tmp/tatolab-proof-185/not-a-project")).failureDescription).toBe(
+    "list_project_node_types failed: /private/tmp/tatolab-proof-185/not-a-project holds no project: it has no tatolab-project.json",
+  );
+});
+
 test("a_node_type_listing_waits_past_the_ordinary_request_timeout_for_the_projects_interpreter", async () => {
   const listingText = JSON.stringify({ project_directory: "/w/pattern", project: "p", project_name: "pattern", sources: [] });
   const server = await FakeLocalApiServer.answering([toolResultResponseOfText(listingText)], 300);
