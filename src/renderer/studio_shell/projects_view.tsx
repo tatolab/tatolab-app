@@ -1,4 +1,4 @@
-import { FolderOpen, FolderPlus, LayoutGrid, Settings, SquareX } from "lucide-react";
+import { FolderOpen, FolderPlus, LayoutGrid, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { RecentProject, TatolabPlatform } from "../../shared/tatolab_backend_contract";
 import projectsBannerStillImageUrl from "../assets/projects_banner_still.jpg";
@@ -7,11 +7,10 @@ import { BANNER_HEADER_HEIGHT_PX, BannerHeader } from "../design_system/banner_h
 import { EmptyState } from "../design_system/empty_state";
 import { IconButton } from "../design_system/icon_button";
 import { ProjectCard } from "../design_system/project_card";
-import { RefusalLine } from "../design_system/refusal_line";
 import { SearchField } from "../design_system/search_field";
 import { WaitingState } from "../design_system/waiting_state";
 import { shortcutHint } from "../presentation/platform_presentation";
-import { presentProjectsWithNoCards, presentRecentProjectCards, STREAMS_NOT_LISTED_LEAD } from "../presentation/projects_presentation";
+import { presentProjectsWithNoCards, presentRecentProjectCards } from "../presentation/projects_presentation";
 import { useTatolabStatus } from "../setup_and_preferences/tatolab_window_context";
 import { useWatchedStudioValue } from "../view_host/in_window_view_host";
 import { PROJECTS_BANNER_STILL_SECONDS, ProjectsBannerScene } from "./projects_banner_scene";
@@ -112,12 +111,11 @@ export function ProjectsView({
   platform: TatolabPlatform;
 }) {
   const status = useTatolabStatus();
-  const listedStreams = useWatchedStudioValue(model.listedStreams);
   const recentProjects = useRecentProjects(projectsSources, model);
   const [searchText, setSearchText] = useState("");
   const wallClockNowMs = Date.now();
-  const cardsShown = presentRecentProjectCards(recentProjects ?? [], listedStreams, wallClockNowMs, searchText);
-  const noCards = presentProjectsWithNoCards(searchText, listedStreams);
+  const cardsShown = presentRecentProjectCards(recentProjects ?? [], wallClockNowMs, searchText);
+  const noCards = presentProjectsWithNoCards(searchText);
   const openTheProject = (folder: string) => {
     projectsSources.openARecentProject(folder);
   };
@@ -148,30 +146,22 @@ export function ProjectsView({
           <WaitingState title="Reading your projects…" />
         ) : cardsShown.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
-            <EmptyState icon={noCards.isFailure ? SquareX : LayoutGrid} isFailure={noCards.isFailure} title={noCards.title} explanation={noCards.explanation} data-projects-empty="" />
+            <EmptyState icon={LayoutGrid} title={noCards.title} explanation={noCards.explanation} data-projects-empty="" />
           </div>
         ) : (
-          <>
-            {listedStreams.kind === "listing_failed" && (
-              <div data-projects-streams-not-listed="">
-                <RefusalLine lead={STREAMS_NOT_LISTED_LEAD} words={listedStreams.because} />
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4.5" role="list" aria-label="Projects">
+            {cardsShown.map((card) => (
+              <div key={card.folder} role="listitem" className="flex min-w-0">
+                <ProjectCard
+                  name={card.name}
+                  detail={`${card.folderWords} · ${card.lastOpenedWords}`}
+                  isUnreadable={card.isUnreadable}
+                  onOpened={() => openTheProject(card.folder)}
+                  data-projects-project={card.folder}
+                />
               </div>
-            )}
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4.5" role="list" aria-label="Projects">
-              {cardsShown.map((card) => (
-                <div key={card.folder} role="listitem" className="flex min-w-0">
-                  <ProjectCard
-                    name={card.name}
-                    detail={`${card.folderWords} · ${card.lastOpenedWords}`}
-                    isRunning={card.isRunning}
-                    isUnreadable={card.isUnreadable}
-                    onOpened={() => openTheProject(card.folder)}
-                    data-projects-project={card.folder}
-                  />
-                </div>
-              ))}
-            </div>
-          </>
+            ))}
+          </div>
         )}
       </main>
     </div>

@@ -342,7 +342,6 @@ describe("the studio", () => {
   it("shows the Projects window with no project open, its recent projects as cards, and opens the one chosen on its stream", async () => {
     await mountedWindowOverTheMock("state=running&project=none");
     const patternCard = await waitFor(() => document.querySelector<HTMLElement>(`[data-projects-project="${PATTERN_PROJECT}"]`) ?? expect.unreachable("no pattern card"));
-    expect(patternCard.textContent).toContain("Running");
     expect(document.querySelectorAll("[data-projects-project]")).toHaveLength(6);
 
     fireEvent.click(patternCard);
