@@ -1,11 +1,11 @@
+import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
 import { useCallback, useMemo, useState } from "react";
-import { KeyValueRows, type KeyValueRow } from "../../design_system/key_value_rows";
-import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "../../design_system/node_graph_canvas";
-import { PropertySection } from "../../design_system/property_fields";
-import { RuntimeFailureWords } from "../../design_system/runtime_failure_words";
-import { TreeView } from "../../design_system/tree_view";
-import { WaitingState } from "../../design_system/waiting_state";
-import { useStudioViewReading } from "../../view_host/in_window_view_host";
+import { KeyValueRows, type KeyValueRow } from "@tatolab/tato-app-view-sdk/kit/key_value_rows";
+import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/kit/node_graph_canvas";
+import { PropertySection } from "@tatolab/tato-app-view-sdk/kit/property_fields";
+import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/kit/runtime_failure_words";
+import { TreeView } from "@tatolab/tato-app-view-sdk/kit/tree_view";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
 import type { JsonValue, ProjectNodeTypePort, ProjectNodeTypesReading, StopWatching, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
 import { whereTheModuleStoppedTheParser, type DeclarationRowMeaning } from "../node_type_listing_tree";
 import { paletteTreeOfTheListing, type PaletteRowMeaning } from "./palette_tree_of_the_listing";
@@ -121,7 +121,7 @@ function PaletteOfTheProject({ connection, projectFolder }: { connection: Studio
     (listener: (reading: ProjectNodeTypesReading) => void): StopWatching => connection.watchProjectNodeTypes(projectFolder, listener),
     [connection, projectFolder],
   );
-  const nodeTypesReading = useStudioViewReading(watchTheProjectsNodeTypes);
+  const nodeTypesReading = useViewReading(watchTheProjectsNodeTypes);
   const expansionChoices = connection.settings.row_expansion;
   const [chosenRowId, setChosenRowId] = useState<string | null>(null);
   const paletteRows = useMemo(
@@ -163,7 +163,7 @@ function PaletteOfTheProject({ connection, projectFolder }: { connection: Studio
 }
 
 function PaletteBody({ connection }: { connection: StudioViewHostConnection<PaletteSettings> }) {
-  const openProject = useStudioViewReading(connection.watchOpenProject);
+  const openProject = useViewReading(connection.watchOpenProject);
   if (openProject === null) return null;
   if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
   if (openProject.kind === "unreadable") return <WaitingState isFailure title={`${openProject.folder} can't be read`} explanation={openProject.refusal} />;

@@ -1,36 +1,9 @@
 import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
+import { DOT_INDICATOR_SELECTORS, ROUND_STATUS_ICON_IMPORTS, SVG_CIRCLE_SELECTORS } from "../../packages/package_lint_rules.js";
 
 // ESLint applies one list per rule to a file, so each group of files below gets the whole list of
 // restrictions that hold for it, composed from these pieces.
-
-const SMALL_SIZE = String.raw`(0\.5|1|1\.5|2|2\.5|3)`;
-
-/** Selectors matched against string literals, template literals and JSX text, with the message each reports. */
-const stringPatterns = (regexSource, message) => [
-  { selector: `Literal[value=/${regexSource}/]`, message },
-  { selector: `TemplateElement[value.raw=/${regexSource}/]`, message },
-  { selector: `JSXText[value=/${regexSource}/]`, message },
-];
-
-const DOT_MESSAGE = "A small rounded-full element is a dot. Status is a word, and a problem is an icon.";
-
-const DOT_INDICATOR_SELECTORS = [
-  ...stringPatterns(String.raw`rounded-full[^"\x60]*\bsize-${SMALL_SIZE}\b|\bsize-${SMALL_SIZE}\b[^"\x60]*rounded-full`, DOT_MESSAGE),
-  ...stringPatterns(String.raw`^(?=.*rounded-full)(?=.*\bw-${SMALL_SIZE}\b)(?=.*\bh-${SMALL_SIZE}\b)`, DOT_MESSAGE),
-  { selector: String.raw`CallExpression:has(> Literal[value=/\brounded-full\b/]):has(> Literal[value=/\bsize-${SMALL_SIZE}\b/])`, message: DOT_MESSAGE },
-  { selector: String.raw`CallExpression:has(> Literal[value=/\brounded-full\b/]):has(> Literal[value=/\bw-${SMALL_SIZE}\b/]):has(> Literal[value=/\bh-${SMALL_SIZE}\b/])`, message: DOT_MESSAGE },
-  ...stringPatterns(String.raw`animate-(ping|pulse|breathe)`, "No pulsing indicators."),
-  ...stringPatterns("[•●◉⬤]", "No bullet glyphs."),
-];
-const SVG_CIRCLE_SELECTORS = [
-  { selector: "JSXOpeningElement[name.name='circle']", message: "No SVG circle in UI markup: it reads as a dot." },
-  ...stringPatterns(String.raw`<circle\b`, "No SVG circle in UI markup: it reads as a dot."),
-];
-const ROUND_STATUS_ICONS = ["OctagonX", "OctagonAlert", "CircleX", "XCircle", "CircleAlert", "AlertCircle", "CircleDot", "CircleSlash", "CirclePlay", "CirclePause", "CircleStop"];
-const ROUND_STATUS_ICON_IMPORTS = [
-  { name: "lucide-react", importNames: ROUND_STATUS_ICONS, message: "A round status icon reads as a dot: use TriangleAlert or SquareX." },
-];
 
 const HAND_BUILT_CONTROL_SELECTORS = [
   { selector: "JSXOpeningElement[name.name=/^(button|input|select|textarea)$/]", message: "A screen uses the design system's control, not a hand-built one." },
@@ -38,15 +11,18 @@ const HAND_BUILT_CONTROL_SELECTORS = [
   { selector: "JSXAttribute[name.name='role'] > JSXExpressionContainer > Literal[value=/^(radio|radiogroup)$/]", message: "A screen uses the design system's SegmentedChoiceControl, not a hand-built radio role." },
 ];
 const SHADCN_IMPORT_PATTERNS = [
-  { group: ["@/components/ui/*", "**/components/ui/*", "@base-ui/react", "@base-ui/react/*"], message: "A screen is composed from src/renderer/design_system/, not from shadcn or base-ui directly." },
+  {
+    group: ["@tatolab/tato-app-view-sdk/kit/ui/*", "@/components/ui/*", "**/components/ui/*", "@base-ui/react", "@base-ui/react/*"],
+    message: "A screen is composed from the view SDK's design kit, not from shadcn or base-ui directly.",
+  },
 ];
 
 const STUDIO_VIEW_IMPORT_PATTERNS = [
   {
-    regex: String.raw`^\.\./\.\./(?!view_host/|design_system/)`,
-    message: "A studio view reads and asks only through view_host/'s contract and draws with design_system/, as a user's view will.",
+    regex: String.raw`^\.\./\.\./(?!view_host/)`,
+    message: "A studio view reads and asks only through view_host/'s contract and draws with the view SDK's design kit, as a user's view will.",
   },
-  { regex: String.raw`^\.\./\.\./\.\./`, message: "A studio view reads and asks only through view_host/'s contract and draws with design_system/, as a user's view will." },
+  { regex: String.raw`^\.\./\.\./\.\./`, message: "A studio view reads and asks only through view_host/'s contract and draws with the view SDK's design kit, as a user's view will." },
 ];
 
 const ELECTRON_IMPORT_PATHS = [{ name: "electron", message: "Only src/main/electron_adapters/ and src/preload/ import electron, so everything else runs in plain Node." }];
@@ -140,7 +116,6 @@ function mainProcessConfigs() {
 const WINDOW_FILES = ["src/renderer/**/*.{ts,tsx}", "src/shared/**/*.ts", "mock/**/*.{ts,tsx}"];
 const SCREEN_FILES = ["src/renderer/studio_shell/**/*.tsx", "src/renderer/studio_views/**/*.tsx", "src/renderer/setup_and_preferences/**/*.tsx", "src/renderer/tatolab_window_view.tsx"];
 const STUDIO_VIEW_FILES = ["src/renderer/studio_views/**/*.{ts,tsx}"];
-const SHADCN_FILES = ["src/renderer/components/ui/**"];
 const ICON_GEOMETRY_FILES = ["src/renderer/icons.ts"];
 
 /** The restrictions that hold for one group of the window's shipped files. */
@@ -165,9 +140,8 @@ export default defineConfig(
     linterOptions: { reportUnusedDisableDirectives: "error" },
   },
   ...mainProcessConfigs(),
-  { files: WINDOW_FILES, ignores: [...TEST_FILES, ...SHADCN_FILES, ...SCREEN_FILES, ...ICON_GEOMETRY_FILES], rules: windowRestrictions({}) },
+  { files: WINDOW_FILES, ignores: [...TEST_FILES, ...SCREEN_FILES, ...ICON_GEOMETRY_FILES], rules: windowRestrictions({}) },
   { files: ICON_GEOMETRY_FILES, rules: windowRestrictions({ mayDrawCircles: true }) },
   { files: SCREEN_FILES, ignores: [...TEST_FILES, ...STUDIO_VIEW_FILES], rules: windowRestrictions({ isScreen: true }) },
   { files: STUDIO_VIEW_FILES, ignores: TEST_FILES, rules: windowRestrictions({ isScreen: true, isStudioView: true }) },
-  { files: SHADCN_FILES, ignores: TEST_FILES, rules: { "no-console": "error", "no-debugger": "error" } },
 );

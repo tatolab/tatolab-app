@@ -292,8 +292,8 @@ the release workflow passes, makes About read `-release`.
 ## Working on the window
 
 The window is React with Tailwind and shadcn (base-ui). Its design system is the code: the tokens in
-`apps/tato-app/src/renderer/styles/tokens.css`, shadcn's components, and the Tatolab components and variants in
-`apps/tato-app/src/renderer/design_system/`. `npm run dev` runs the app unpackaged with electron-vite: the window reloads as it changes, and the
+`packages/tato-app-view-sdk/src/kit/styles/tokens.css`, shadcn's components, and the Tatolab components and variants in
+`packages/tato-app-view-sdk/src/kit/`. `npm run dev` runs the app unpackaged with electron-vite: the window reloads as it changes, and the
 app restarts when the main process or the preload changes. It shows whatever
 runtime is already running on the machine's local API socket; only a `--local-proof-test-root`
 build reads a local-proof runtime's `<TATOLAB_TEST_MACHINE_ROOT>/run/local-api.sock`. An unpackaged app

@@ -3,12 +3,13 @@
 // on the window's origin; one that opts into the sandbox runs on an opaque origin with no Node, no
 // preload and only the permissions its manifest lists.
 
+import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
 import { VIEW_PORT_HANDOVER, type TatolabViewManifest } from "@tatolab/tato-app-view-sdk";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ListedStudioView } from "../../shared/tatolab_backend_contract";
-import { StudioAreaHeaderRowOfAWaitingView } from "../design_system/studio_area_frame";
-import { WaitingState } from "../design_system/waiting_state";
-import { useStudioViewReading, WatchedStudioValue } from "./in_window_view_host";
+import { StudioAreaHeaderRowOfAWaitingView } from "@tatolab/tato-app-view-sdk/kit/studio_area_frame";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
+import {WatchedStudioValue } from "./in_window_view_host";
 import type { JsonValue, StopWatching, StreamGraphReading, StreamTabAddress, StudioViewTypeSource } from "./studio_view_contract";
 import { nodesOfTheStudioViewType, studioViewInputWiring, STUDIO_VIEW_NODE_ISSUE, type StudioViewInputWiring } from "./studio_view_node_wiring";
 import type { RegisteredStudioViewType, StudioAreaOfTheView, StudioViewHostServices } from "./studio_view_type_registry";
@@ -98,7 +99,7 @@ function TatolabNodeViewOfTheTab({ streamTab, ...view }: TatolabViewOfAnArea & {
   const { stream } = streamTab;
   const { hostServices, listed, manifest } = view;
   const watchTheTabsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => hostServices.watchStreamGraph(stream, listener), [hostServices, stream]);
-  const graphReading = useStudioViewReading(watchTheTabsGraph);
+  const graphReading = useViewReading(watchTheTabsGraph);
   if (graphReading === null) {
     return (
       <TatolabViewWaiting>
@@ -130,7 +131,7 @@ function TatolabNodeViewOfTheTab({ streamTab, ...view }: TatolabViewOfAnArea & {
 }
 
 function TatolabNodeView(view: TatolabViewOfAnArea) {
-  const activeStreamTab = useStudioViewReading(view.hostServices.watchActiveStreamTab);
+  const activeStreamTab = useViewReading(view.hostServices.watchActiveStreamTab);
   if (activeStreamTab === null) {
     return (
       <TatolabViewWaiting>

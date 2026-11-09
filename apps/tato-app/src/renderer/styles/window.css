@@ -1,49 +1,12 @@
-/* The window's one stylesheet. Tailwind's utilities sit in the last layer, so the hosted DOM views' sheets go in
-   `base` and `components` below them and never outweigh a utility on a React element. */
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
-@import "@fontsource-variable/geist-mono";
-@import "./tokens.css";
-
-@import "./base.css" layer(base);
-@import "@xyflow/react/dist/base.css" layer(components);
-@import "./node_graph_canvas.css" layer(components);
-
-/* The studio is dark only: `dark` on <html> is set in index.html, so shadcn's `dark:` classes always apply. */
-@custom-variant dark (&:is(.dark *));
+/* The window's one stylesheet: the design kit's, which every view draws with too, and what only the window has. */
+@import "@tatolab/tato-app-view-sdk/kit/styles/kit.css";
 
 @layer base {
-  * {
-    @apply border-border outline-ring;
-  }
-  /* The root keeps the browser's 16 px, so the rem steps Tailwind and shadcn size boxes with land on the window's sizes
-     (h-7 is a 28 px control); text is set in px, 13/18 from the body. */
-  html {
-    font-family: var(--font-sans);
-    font-feature-settings: "calt";
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-  }
-  body {
-    @apply bg-background text-foreground;
-    font-size: 13px;
-    line-height: 18px;
-  }
-  code, kbd, pre, .font-mono {
-    font-variant-ligatures: none;
-    letter-spacing: 0;
-  }
-  ::selection {
-    background: var(--brand-soft);
-  }
-}
+  #app { height: 100%; }
 
-@layer utilities {
-  .tabular { font-variant-numeric: tabular-nums; }
-  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-  .label-caps { font-size: 12px; line-height: 16px; font-weight: 400; color: var(--fg-3); }
-  .title-lg { font-size: 20px; line-height: 26px; font-weight: 600; letter-spacing: -0.012em; }
-  .title-xl { font-size: 26px; line-height: 32px; font-weight: 700; letter-spacing: -0.016em; }
+  /* Chromium drags the window only where app-region says: "deep" drags through a band's children,
+     "" only on the band itself. */
+  [data-window-drag-region] { -webkit-app-region: drag; }
+  [data-window-drag-region=""] *,
+  [data-window-drag-region] :is(button, a, input, select, textarea, label, summary, [contenteditable], [role], [tabindex], [title]) { -webkit-app-region: no-drag; }
 }

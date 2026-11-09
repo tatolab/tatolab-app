@@ -2,7 +2,7 @@
 // studio writes it, its declared ports as pins of their families, and a link per link of the graph, drawn by
 // its state.
 
-import type { NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCardCondition, NodeGraphLinkLook } from "../../design_system/node_graph_canvas";
+import type { NodeGraphCanvasLink, NodeGraphCanvasNode, NodeGraphCardCondition, NodeGraphLinkLook } from "@tatolab/tato-app-view-sdk/kit/node_graph_canvas";
 import type { StreamGraphLink, StreamGraphNode, StreamGraphSummary } from "../../view_host/studio_view_contract";
 import { nodeTitle } from "../node_words";
 import { portStreamFactsWords, streamFactsAnInputReceives } from "../port_stream_facts_words";

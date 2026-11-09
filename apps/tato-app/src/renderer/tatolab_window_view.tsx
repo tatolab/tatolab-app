@@ -2,7 +2,7 @@ import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import type { TatolabPlatform, TatolabStatus, ProjectFolderChosenFor } from "../shared/tatolab_backend_contract";
 import { describeBackendRejection, type TatolabBackend } from "./backend/tatolab_backend";
-import { ControlTooltipProvider } from "./design_system/control_tooltip";
+import { ControlTooltipProvider } from "@tatolab/tato-app-view-sdk/kit/control_tooltip";
 import { afterTheFirstContentfulPaintIsPresented } from "./first_contentful_paint_presented";
 import { holdsWindowShortcutModifier } from "./presentation/platform_presentation";
 import { RuntimeDescriptionReadings } from "./runtime_description_reading";

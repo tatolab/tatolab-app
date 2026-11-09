@@ -1,0 +1,53 @@
+/* The design kit's one stylesheet, which Studio's window and every view that draws with the kit import. Tailwind's
+   utilities sit in the last layer, so the sheets below go in `base` and `components` and never outweigh a utility on a
+   React element. */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "./tokens.css";
+
+@import "./base.css" layer(base);
+@import "@xyflow/react/dist/base.css" layer(components);
+@import "./node_graph_canvas.css" layer(components);
+
+/* The kit's components, wherever the page importing this sheet lives. */
+@source "../";
+
+/* Studio is dark only: `dark` on a page's <html> makes shadcn's `dark:` classes apply, as Studio's window and a view's frame both set. */
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  * {
+    @apply border-border outline-ring;
+  }
+  /* The root keeps the browser's 16 px, so the rem steps Tailwind and shadcn size boxes with land on the window's sizes
+     (h-7 is a 28 px control); text is set in px, 13/18 from the body. */
+  html {
+    font-family: var(--font-sans);
+    font-feature-settings: "calt";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 13px;
+    line-height: 18px;
+  }
+  code, kbd, pre, .font-mono {
+    font-variant-ligatures: none;
+    letter-spacing: 0;
+  }
+  ::selection {
+    background: var(--brand-soft);
+  }
+}
+
+@layer utilities {
+  .tabular { font-variant-numeric: tabular-nums; }
+  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .label-caps { font-size: 12px; line-height: 16px; font-weight: 400; color: var(--fg-3); }
+  .title-lg { font-size: 20px; line-height: 26px; font-weight: 600; letter-spacing: -0.012em; }
+  .title-xl { font-size: 26px; line-height: 32px; font-weight: 700; letter-spacing: -0.016em; }
+}

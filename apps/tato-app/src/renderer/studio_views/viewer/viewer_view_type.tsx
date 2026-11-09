@@ -1,10 +1,10 @@
+import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
 import { PictureInPicture2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FieldMenu, MenuSingleChoiceGroup, type MenuSingleChoice } from "../../design_system/menus";
-import { IconButton } from "../../design_system/icon_button";
-import { RefusalLine } from "../../design_system/refusal_line";
-import { WaitingState } from "../../design_system/waiting_state";
-import { useStudioViewReading } from "../../view_host/in_window_view_host";
+import { FieldMenu, MenuSingleChoiceGroup, type MenuSingleChoice } from "@tatolab/tato-app-view-sdk/kit/menus";
+import { IconButton } from "@tatolab/tato-app-view-sdk/kit/icon_button";
+import { RefusalLine } from "@tatolab/tato-app-view-sdk/kit/refusal_line";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
 import type {
   JsonValue,
   PoppedOutViewerTarget,
@@ -245,13 +245,13 @@ function declaredOutputPortOf(graph: StreamGraphSummary, address: ViewerPortAddr
 
 function useTheGraphOfTheTab(connection: StudioViewHostConnection<ViewerSettings>, stream: string): StreamGraphReading | null {
   const watchTheTabsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(stream, listener), [connection, stream]);
-  return useStudioViewReading(watchTheTabsGraph);
+  return useViewReading(watchTheTabsGraph);
 }
 
 /** The Viewer of the stream tab shown: the live picture of the port it plays. */
 function ViewerOfTheTab({ connection, streamTab }: { connection: StudioViewHostConnection<ViewerSettings>; streamTab: StreamTabAddress }) {
   const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
-  const selection = useStudioViewReading(connection.watchSelection);
+  const selection = useViewReading(connection.watchSelection);
   if (graphReading === null) return null;
   if (graphReading.kind === "not_read") {
     return <WaitingState title={`Nothing of ${streamTab.display_name} to view yet`} explanation={graphReading.because} data-viewer-state="not_read" />;
@@ -280,7 +280,7 @@ function ViewerOfTheTab({ connection, streamTab }: { connection: StudioViewHostC
 
 /** The Viewer of the active stream tab, or what to do while no tab is open. */
 function ViewerBody({ connection }: { connection: StudioViewHostConnection<ViewerSettings> }) {
-  const activeStreamTab = useStudioViewReading(connection.watchActiveStreamTab);
+  const activeStreamTab = useViewReading(connection.watchActiveStreamTab);
   if (activeStreamTab === null) {
     return <WaitingState title="No stream is open" explanation="Double-click a stream in the outliner to view it here." data-viewer-state="no_tab" />;
   }
@@ -290,7 +290,7 @@ function ViewerBody({ connection }: { connection: StudioViewHostConnection<Viewe
 /** The port the Viewer plays, chosen from every output of the tab's graph, or following the selection. */
 function ViewerPortChooser({ connection, streamTab }: { connection: StudioViewHostConnection<ViewerSettings>; streamTab: StreamTabAddress }) {
   const graphReading = useTheGraphOfTheTab(connection, streamTab.stream);
-  const selection = useStudioViewReading(connection.watchSelection);
+  const selection = useViewReading(connection.watchSelection);
   if (graphReading === null || graphReading.kind === "not_read") return null;
   const { graph } = graphReading;
   const playedPort = portTheViewerPlays(graph, selection, connection.settings);
@@ -318,8 +318,8 @@ function ViewerPortChooser({ connection, streamTab }: { connection: StudioViewHo
 
 /** The port chooser and Pop out, in the Viewer's header while a stream tab is open, and why the last pop-out was refused. */
 function ViewerHeaderTools({ connection }: { connection: StudioViewHostConnection<ViewerSettings> }) {
-  const activeStreamTab = useStudioViewReading(connection.watchActiveStreamTab);
-  const selection = useStudioViewReading(connection.watchSelection);
+  const activeStreamTab = useViewReading(connection.watchActiveStreamTab);
+  const selection = useViewReading(connection.watchSelection);
   const [popOutRefusal, setPopOutRefusal] = useState<string | null>(null);
   if (activeStreamTab === null) return null;
   const popOut = () => {

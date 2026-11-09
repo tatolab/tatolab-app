@@ -7,7 +7,7 @@ Tatolab.app is offered under two licences, and you may use it under either one:
    Ask the copyright holder for its terms.
 
 The Tatolab runtime the app bundles is licensed separately (BUSL-1.1, tatolab/streamlib). The
-shadcn components in apps/tato-app/src/renderer/components/ui/ keep their MIT licence, and other
+shadcn components in packages/tato-app-view-sdk/src/kit/ui/ keep their MIT licence, and other
 third-party components keep their own licences (the window's are listed in
 apps/tato-app/src/renderer/public/licenses/window-third-party-notices.txt).
 

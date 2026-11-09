@@ -1,13 +1,13 @@
+import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { ActionButton } from "../../design_system/action_button";
-import { AreaSplit } from "../../design_system/area_split";
-import { CodeFileTabStrip, type OpenableCodeFileGroup } from "../../design_system/code_file_tab_strip";
-import { CodeTextEditor, forgetCodeEditorDocument } from "../../design_system/code_text_editor";
-import { codeEditorLanguageOfFile } from "../../design_system/code_text_editor_types";
-import { LogRecordLines } from "../../design_system/log_record_lines";
-import { ReadOnlyBanner } from "../../design_system/read_only_banner";
-import { WaitingState } from "../../design_system/waiting_state";
-import { useStudioViewReading } from "../../view_host/in_window_view_host";
+import { ActionButton } from "@tatolab/tato-app-view-sdk/kit/action_button";
+import { AreaSplit } from "@tatolab/tato-app-view-sdk/kit/area_split";
+import { CodeFileTabStrip, type OpenableCodeFileGroup } from "@tatolab/tato-app-view-sdk/kit/code_file_tab_strip";
+import { CodeTextEditor, forgetCodeEditorDocument } from "@tatolab/tato-app-view-sdk/kit/code_text_editor";
+import { codeEditorLanguageOfFile } from "@tatolab/tato-app-view-sdk/kit/support/code_text_editor_types";
+import { LogRecordLines } from "@tatolab/tato-app-view-sdk/kit/log_record_lines";
+import { ReadOnlyBanner } from "@tatolab/tato-app-view-sdk/kit/read_only_banner";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
 import type { ProjectLogReading, StopWatching, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
 import {
   codeFileTabsOf,
@@ -48,7 +48,7 @@ function useOpenCodeDocuments(connection: CodeViewConnection): OpenCodeDocuments
 
 /** The files each of the open project and its imports offers to open, listed again whenever the project is read again. */
 function useOpenableFileGroups(connection: CodeViewConnection): OpenableCodeFileGroup[] {
-  const openProject = useStudioViewReading(connection.watchOpenProject);
+  const openProject = useViewReading(connection.watchOpenProject);
   const projects = useMemo(() => projectsWithFilesToOffer(openProject), [openProject]);
   const [groups, setGroups] = useState<OpenableCodeFileGroup[]>([]);
   useEffect(() => {
@@ -184,7 +184,7 @@ function ShownCodeDocument({ documents, file }: { documents: OpenCodeDocuments; 
 
 function ProjectLog({ connection, projectFolder }: { connection: CodeViewConnection; projectFolder: string }) {
   const watchTheProjectsLog = useCallback((listener: (reading: ProjectLogReading) => void): StopWatching => connection.watchProjectLog(projectFolder, listener), [connection, projectFolder]);
-  const reading = useStudioViewReading(watchTheProjectsLog);
+  const reading = useViewReading(watchTheProjectsLog);
   const lines = useMemo(() => (reading?.kind === "read" ? reading.records.map(logRecordLineOf) : []), [reading]);
   return (
     <section aria-label="Project log" className="flex h-full min-h-0 flex-col bg-studio-area" data-code-project-log={projectFolder}>
@@ -203,8 +203,8 @@ function ProjectLog({ connection, projectFolder }: { connection: CodeViewConnect
 function CodeAreaBody({ connection }: { connection: CodeViewConnection }) {
   const documents = useOpenCodeDocuments(connection);
   const { settings } = connection;
-  const codeFileAsked = useStudioViewReading(connection.watchCodeFileAsked);
-  const openProject = useStudioViewReading(connection.watchOpenProject);
+  const codeFileAsked = useViewReading(connection.watchCodeFileAsked);
+  const openProject = useViewReading(connection.watchOpenProject);
   useEffect(() => {
     const host = openCodeDocumentsOf(connection);
     if (codeFileAsked === null || codeFileAsked.ask <= host.last_code_file_ask_taken) return;

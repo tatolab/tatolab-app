@@ -1,7 +1,7 @@
+import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
 import { useCallback, useMemo } from "react";
-import { TreeView } from "../../design_system/tree_view";
-import { WaitingState } from "../../design_system/waiting_state";
-import { useStudioViewReading } from "../../view_host/in_window_view_host";
+import { TreeView } from "@tatolab/tato-app-view-sdk/kit/tree_view";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
 import type { JsonValue, ProjectNodeTypesReading, StopWatching, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
 import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject, type OutlinerRowExpansionChoices } from "./outliner_tree_of_the_project";
 
@@ -24,16 +24,16 @@ const NO_PROJECT_FOLDER_TO_LIST: StopWatching = () => undefined;
 
 /** The open project as a tree: the open project, its streams and node types, then its read-only imports. */
 function OutlinerBody({ connection }: { connection: StudioViewHostConnection<OutlinerSettings> }) {
-  const openProject = useStudioViewReading(connection.watchOpenProject);
-  const listedStreams = useStudioViewReading(connection.watchListedStreams);
-  const selection = useStudioViewReading(connection.watchSelection);
+  const openProject = useViewReading(connection.watchOpenProject);
+  const listedStreams = useViewReading(connection.watchListedStreams);
+  const selection = useViewReading(connection.watchSelection);
   const openProjectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
   const watchTheOpenProjectsNodeTypes = useCallback(
     (listener: (reading: ProjectNodeTypesReading) => void): StopWatching =>
       openProjectFolder === null ? NO_PROJECT_FOLDER_TO_LIST : connection.watchProjectNodeTypes(openProjectFolder, listener),
     [connection, openProjectFolder],
   );
-  const projectNodeTypes = useStudioViewReading(watchTheOpenProjectsNodeTypes);
+  const projectNodeTypes = useViewReading(watchTheOpenProjectsNodeTypes);
   const expansionChoices: OutlinerRowExpansionChoices = connection.settings.row_expansion;
   const outlinerRows = useMemo(
     () =>

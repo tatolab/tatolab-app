@@ -2,7 +2,7 @@
 // `list_project_node_types` lists: each source's node types by category, its graph generators, and
 // each module of it that does not parse, with why in the parser's own words.
 
-import type { TreeViewRow } from "../design_system/tree_view";
+import type { TreeViewRow } from "@tatolab/tato-app-view-sdk/kit/tree_view";
 import type { ProjectGraphGenerator, ProjectNodeModuleNotReadable, ProjectNodeType, ProjectNodeTypeSource, ProjectNodeTypeSourceOrigin } from "../view_host/studio_view_contract";
 
 /** What a node type, graph generator or unreadable module row stands for, with its file as an absolute path when it is the project's own source. */

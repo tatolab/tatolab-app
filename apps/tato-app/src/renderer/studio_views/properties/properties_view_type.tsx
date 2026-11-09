@@ -1,10 +1,10 @@
+import { useViewReading } from "@tatolab/tato-app-view-sdk/kit/view_readings";
 import { useCallback, useMemo } from "react";
-import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "../../design_system/node_graph_canvas";
-import { FailureBanner } from "../../design_system/failure_banner";
-import { RuntimeFailureWords } from "../../design_system/runtime_failure_words";
-import { PropertyCheckbox, PropertyChoiceField, PropertyNumberField, PropertyRow, PropertySection, PropertyTextField } from "../../design_system/property_fields";
-import { WaitingState } from "../../design_system/waiting_state";
-import { useStudioViewReading } from "../../view_host/in_window_view_host";
+import { NodeGraphPinMark, nodeGraphPinFamilyWords } from "@tatolab/tato-app-view-sdk/kit/node_graph_canvas";
+import { FailureBanner } from "@tatolab/tato-app-view-sdk/kit/failure_banner";
+import { RuntimeFailureWords } from "@tatolab/tato-app-view-sdk/kit/runtime_failure_words";
+import { PropertyCheckbox, PropertyChoiceField, PropertyNumberField, PropertyRow, PropertySection, PropertyTextField } from "@tatolab/tato-app-view-sdk/kit/property_fields";
+import { WaitingState } from "@tatolab/tato-app-view-sdk/kit/waiting_state";
 import type {
   NodeCatalogEntry,
   NodeCatalogPort,
@@ -82,8 +82,8 @@ function PortRows({
 function PropertiesOfTheSelectedNode({ connection, stream, nodeName }: { connection: StudioViewHostConnection<null>; stream: string; nodeName: string }) {
   const watchTheStreamsGraph = useCallback((listener: (reading: StreamGraphReading) => void): StopWatching => connection.watchStreamGraph(stream, listener), [connection, stream]);
   const watchTheStreamsCatalog = useCallback((listener: (reading: NodeCatalogReading) => void): StopWatching => connection.watchNodeCatalog(stream, listener), [connection, stream]);
-  const graphReading = useStudioViewReading(watchTheStreamsGraph);
-  const catalogReading = useStudioViewReading(watchTheStreamsCatalog);
+  const graphReading = useViewReading(watchTheStreamsGraph);
+  const catalogReading = useViewReading(watchTheStreamsCatalog);
   const node = graphReading?.kind === "read" ? graphReading.graph.nodes.find((graphNode) => graphNode.name === nodeName) : undefined;
   const catalogEntry: NodeCatalogEntry | undefined = catalogReading?.kind === "listed" && node !== undefined ? catalogReading.catalog.node_types.find((entry) => entry.type === node.type) : undefined;
   const configForm = useMemo(() => (node === undefined ? null : configFormOf(catalogEntry?.config_schema ?? null, node.config)), [node, catalogEntry]);
@@ -150,7 +150,7 @@ function PropertiesOfTheSelectedNode({ connection, stream, nodeName }: { connect
 }
 
 function PropertiesBody({ connection }: { connection: StudioViewHostConnection<null> }) {
-  const selection = useStudioViewReading(connection.watchSelection);
+  const selection = useViewReading(connection.watchSelection);
   if (selection?.kind !== "node") return <WaitingState title="Nothing to show" explanation="Select a node in the stream graph to see its config and ports." data-properties-state="no_node" />;
   return <PropertiesOfTheSelectedNode key={`${selection.stream}/${selection.node}`} connection={connection} stream={selection.stream} nodeName={selection.node} />;
 }
