@@ -17,6 +17,7 @@ import { useWatchedStudioValue } from "../view_host/in_window_view_host";
 import { PROJECTS_BANNER_STILL_SECONDS, ProjectsBannerScene } from "./projects_banner_scene";
 import type { StudioMenuBarCommands } from "./studio_menu_bar_model";
 import type { StudioWindowModel } from "./studio_window_model";
+import { isTatolabWindowVisible } from "../window_visibility";
 
 /** What the Projects window reads its projects from and opens them through. */
 export interface ProjectsSources {
@@ -26,20 +27,42 @@ export interface ProjectsSources {
   openARecentProject(folder: string): void;
 }
 
-/** The recent projects, read as the Projects window shows and again each time the open project changes; `null` until the first read answers. */
+/** How many times the window has come back to the person, focused or shown again, since it opened. */
+function useTimesTheWindowCameBack(): number {
+  const [timesTheWindowCameBack, setTimesTheWindowCameBack] = useState(0);
+  useEffect(() => {
+    const countTheWindowComingBack = () => setTimesTheWindowCameBack((timesBefore) => timesBefore + 1);
+    const countTheWindowShownAgain = () => {
+      if (isTatolabWindowVisible()) countTheWindowComingBack();
+    };
+    window.addEventListener("focus", countTheWindowComingBack);
+    document.addEventListener("visibilitychange", countTheWindowShownAgain);
+    return () => {
+      window.removeEventListener("focus", countTheWindowComingBack);
+      document.removeEventListener("visibilitychange", countTheWindowShownAgain);
+    };
+  }, []);
+  return timesTheWindowCameBack;
+}
+
+/**
+ * The recent projects, read as the Projects window shows, each time it is focused or shown again, and each time the open project changes; `null`
+ * until the first read answers. A project opens in its own studio window, so coming back to this window is when one opened since shows.
+ */
 function useRecentProjects(projectsSources: ProjectsSources, model: StudioWindowModel): RecentProject[] | null {
   const openProject = useWatchedStudioValue(model.openProject);
+  const timesTheWindowCameBack = useTimesTheWindowCameBack();
   const [recentProjects, setRecentProjects] = useState<RecentProject[] | null>(null);
   useEffect(() => {
     let isStillShown = true;
     projectsSources.readRecentProjects().then(
       (readRecentProjects) => isStillShown && setRecentProjects(readRecentProjects),
-      () => isStillShown && setRecentProjects([]),
+      () => isStillShown && setRecentProjects((recentProjectsBefore) => recentProjectsBefore ?? []),
     );
     return () => {
       isStillShown = false;
     };
-  }, [projectsSources, openProject]);
+  }, [projectsSources, openProject, timesTheWindowCameBack]);
   return recentProjects;
 }
 
