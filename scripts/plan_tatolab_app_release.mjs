@@ -1,12 +1,12 @@
-// Decides what the release workflow ships: the streamlib release the app bundles (the one
-// get.tatolab.com serves as `latest`, with its Linux runtime tarball), whether this run releases at all, and the app version it
-// releases as. A merge to main and a dispatch always release; the scheduled run releases only when
-// streamlib has released since the app last shipped. The app version is the bundled runtime's when
-// that is newer than every app version shipped, and otherwise the last shipped app version's next
-// patch, so every release is newer than the last and the updaters take it.
+// Decides what the release workflow ships: the streamlib release the app bundles, with its Linux
+// runtime tarball on get.tatolab.com, and the app version it releases as. The app version is the
+// bundled runtime's when that is newer than every app version shipped, and otherwise the last
+// shipped app version's next patch, so every release is newer than the last and the updaters take it.
 //
-// Usage: node scripts/plan_tatolab_app_release.mjs <push|schedule|workflow_dispatch>
-//   GITHUB_OUTPUT  where the plan is written as step outputs; printed when unset
+// Usage: node scripts/plan_tatolab_app_release.mjs [STREAMLIB_VERSION]
+//   STREAMLIB_VERSION  the streamlib release to bundle; blank bundles the one get.tatolab.com
+//                      serves as `latest`
+//   GITHUB_OUTPUT      where the plan is written as step outputs; printed when unset
 import { appendFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
@@ -40,19 +40,13 @@ function nextPatchOf(version) {
 }
 
 /**
- * The plan for one run: `trigger` is the workflow's event, `streamlibVersion` the streamlib release to bundle, and
- * `publishedRelease` the last release the feed shipped (`{ appVersion, streamlibVersion }`, its streamlib `null` when
- * the feed predates the record), or `null` when the feed has shipped nothing.
+ * The plan for one run: `streamlibVersion` is the streamlib release to bundle, and `publishedAppVersion` the app
+ * version the feed last shipped, or `null` when it has shipped nothing.
  */
-export function planTatolabAppRelease({ trigger, streamlibVersion, publishedRelease }) {
-  if (publishedRelease === null) return { shouldRelease: true, appVersion: streamlibVersion, reason: "the feed has shipped no app yet" };
-  if (trigger === "schedule" && publishedRelease.streamlibVersion === streamlibVersion) {
-    return { shouldRelease: false, appVersion: publishedRelease.appVersion, reason: `the feed already ships streamlib ${streamlibVersion}` };
-  }
-  const nextPatch = nextPatchOf(publishedRelease.appVersion);
-  const appVersion = compareSemver(streamlibVersion, nextPatch) >= 0 ? streamlibVersion : nextPatch;
-  const reason = trigger === "schedule" ? `streamlib released ${streamlibVersion}` : `${trigger} to main`;
-  return { shouldRelease: true, appVersion, reason };
+export function planTatolabAppRelease({ streamlibVersion, publishedAppVersion }) {
+  if (publishedAppVersion === null) return { appVersion: streamlibVersion };
+  const nextPatch = nextPatchOf(publishedAppVersion);
+  return { appVersion: compareSemver(streamlibVersion, nextPatch) >= 0 ? streamlibVersion : nextPatch };
 }
 
 /** The `version:` line of an electron-updater manifest, or `null`. */
@@ -68,47 +62,41 @@ async function fetchOrNull(url, init) {
   return response;
 }
 
-async function streamlibReleaseServedAsLatest() {
+async function streamlibVersionServedAsLatest() {
   const latestResponse = await fetch(`${GET_TATOLAB_COM_URL}/latest`, { cache: "no-store" });
   if (!latestResponse.ok) throw new Error(`${GET_TATOLAB_COM_URL}/latest answered ${latestResponse.status}`);
-  const version = (await latestResponse.text()).trim();
-  if (semverParts(version) === null) throw new Error(`${GET_TATOLAB_COM_URL}/latest names no X.Y.Z version: ${version}`);
+  return (await latestResponse.text()).trim();
+}
+
+async function streamlibReleaseWithItsLinuxRuntime(version) {
+  if (semverParts(version) === null) throw new Error(`not an X.Y.Z streamlib version: ${version}`);
   const linuxRuntimeTarballUrl = `${GET_TATOLAB_COM_URL}/releases/${version}/tatolab-runtime-${version}-x86_64-linux.tar.gz`;
   const tarballResponse = await fetch(linuxRuntimeTarballUrl, { method: "HEAD" });
   if (!tarballResponse.ok) throw new Error(`${linuxRuntimeTarballUrl} answered ${tarballResponse.status}`);
   return { tag: `v${version}`, version, linuxRuntimeTarballUrl };
 }
 
-async function lastPublishedRelease() {
+async function lastPublishedAppVersion() {
   const recordResponse = await fetchOrNull(`${GET_TATOLAB_COM_URL}/${PUBLISHED_RELEASE_RECORD_PATH}`, { cache: "no-store" });
-  if (recordResponse !== null) {
-    const record = await recordResponse.json();
-    return { appVersion: record.app_version, streamlibVersion: record.streamlib_version };
-  }
+  if (recordResponse !== null) return (await recordResponse.json()).app_version;
   const manifestResponse = await fetchOrNull(`${GET_TATOLAB_COM_URL}/app/latest-mac.yml`, { cache: "no-store" });
-  if (manifestResponse === null) return null;
-  const appVersion = versionOfTheUpdateManifest(await manifestResponse.text());
-  return appVersion === null ? null : { appVersion, streamlibVersion: null };
+  return manifestResponse === null ? null : versionOfTheUpdateManifest(await manifestResponse.text());
 }
 
 async function main() {
-  const trigger = process.argv[2];
-  if (!["push", "schedule", "workflow_dispatch"].includes(trigger ?? "")) {
-    process.stderr.write("usage: plan_tatolab_app_release.mjs <push|schedule|workflow_dispatch>\n");
-    process.exit(2);
-  }
-  const streamlibRelease = await streamlibReleaseServedAsLatest();
-  const publishedRelease = await lastPublishedRelease();
-  const plan = planTatolabAppRelease({ trigger, streamlibVersion: streamlibRelease.version, publishedRelease });
+  const requestedStreamlibVersion = (process.argv[2] ?? "").trim();
+  const streamlibRelease = await streamlibReleaseWithItsLinuxRuntime(
+    requestedStreamlibVersion === "" ? await streamlibVersionServedAsLatest() : requestedStreamlibVersion,
+  );
+  const plan = planTatolabAppRelease({ streamlibVersion: streamlibRelease.version, publishedAppVersion: await lastPublishedAppVersion() });
   const outputs = {
-    should_release: String(plan.shouldRelease),
     app_version: plan.appVersion,
     streamlib_tag: streamlibRelease.tag,
     streamlib_version: streamlibRelease.version,
     linux_runtime_tarball_url: streamlibRelease.linuxRuntimeTarballUrl,
   };
   const outputLines = `${Object.entries(outputs).map(([name, value]) => `${name}=${value}`).join("\n")}\n`;
-  process.stdout.write(`${plan.reason}\n${outputLines}`);
+  process.stdout.write(outputLines);
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, outputLines);
 }
 

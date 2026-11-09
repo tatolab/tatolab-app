@@ -323,10 +323,11 @@ ID ones the macOS build stops; notarization needs the App Store Connect key:
 
 ## How a release flows
 
-`.github/workflows/release.yml` releases on every merge to `main`, and from an hourly run whenever
-streamlib has released since the app last shipped; a dispatch from the Actions tab releases too, or
-only builds with "Publish" unticked. `scripts/plan_tatolab_app_release.mjs` picks the streamlib
-release get.tatolab.com serves as `latest` and the version: the bundled runtime's when
+`.github/workflows/release.yml` releases on every merge to `main`, and on every streamlib release:
+streamlib's release workflow dispatches it with the new version once that release's Linux runtime is
+on get.tatolab.com. A dispatch from the Actions tab releases too, or only builds with "Publish"
+unticked. `scripts/plan_tatolab_app_release.mjs` takes the dispatched streamlib version, or on a
+merge the one get.tatolab.com serves as `latest`, and picks the version: the bundled runtime's when
 it is newer than every app shipped, otherwise the last app version's next patch, so every release is
 newer than the one installed and the updaters take it. On a `macos-26` runner
 `scripts/build-tatolab-app.sh --streamlib-ref vX.Y.Z --app-version <version> --release --notarize`
