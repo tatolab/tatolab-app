@@ -50,9 +50,6 @@ export type TatolabPlatform = "macos" | "linux";
  */
 export type RuntimeState = "running" | "starting" | "not_running";
 
-/** A stream action the window asks the runtime to queue on one stream, named as the runtime's tool and the window's command are. */
-export type TatolabStreamActionName = "stop_stream" | "start_stream";
-
 /** How a newer Tatolab found by a check reaches the person: downloaded in the background and installed in place as the app restarts; or its download opened, for a `.deb`, which only apt replaces. */
 export type TatolabAppUpdateDelivery = "install_and_relaunch" | "open_the_download";
 

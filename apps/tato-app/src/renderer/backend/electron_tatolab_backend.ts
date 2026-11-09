@@ -35,9 +35,6 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     takeTheNewerTatolabAppVersion: async () => {
       await invokeTatolabCommand("take_the_newer_tatolab_app_version", undefined);
     },
-    runStreamAction: async (streamAction, streamId) => {
-      await invokeTatolabCommand(streamAction, { stream: streamId });
-    },
     removeProject: async (projectDirectory) => {
       await invokeTatolabCommand("remove_project", { project_directory: projectDirectory });
     },
@@ -113,6 +110,9 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
     saveProjectFile: (file, text, basedOnVersion) => invokeTatolabCommand("save_project_file", { file, text, based_on_version: basedOnVersion }),
     listProjectFiles: (projectFolder) => invokeTatolabCommand("list_project_files", { project_folder: projectFolder }),
     runOpenProject: () => invokeTatolabCommand("run_open_project", undefined),
+    stopOpenProject: async () => {
+      await invokeTatolabCommand("stop_open_project", undefined);
+    },
     startPythonLanguageServer: async (projectFolder) => (await invokeTatolabCommand("start_python_language_server", { project_folder: projectFolder })).session,
     sendToPythonLanguageServer: async (session, message) => {
       await invokeTatolabCommand("send_to_python_language_server", { session, message });

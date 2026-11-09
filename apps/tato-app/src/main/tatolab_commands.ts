@@ -25,7 +25,6 @@ import type {
   ProjectNodeTypeListing,
   StreamProjectFolderChosenFor,
   TatolabStatus,
-  TatolabStreamActionName,
   ProjectFolderChosenFor,
 } from "../shared/tatolab_backend_contract.js";
 import type { TatolabCommandAnswerTo, TatolabCommandName } from "../shared/tatolab_electron_bridge_contract.js";
@@ -130,11 +129,6 @@ function answerTheWindowOnceQueued(
     sharedState.statusPublisher.requestRefresh();
     return queued.ok ? succeeded(undefined) : failedWith(queued.failure.failureDescription);
   });
-}
-
-/** `stop_stream` or `start_stream { stream }`: the runtime's tool of that name queued on `stream`, so the listing shows the stream `stopping` or `preparing`; refused in the runtime's own words. */
-export function runStreamAction(sharedState: TatolabAppSharedState, streamAction: TatolabStreamActionName, stream: string): Promise<Result<void, string>> {
-  return answerTheWindowOnceQueued(sharedState, streamAction, () => sharedState.controller.runStreamAction(streamAction, stream));
 }
 
 /** `remove_project { project_directory }`: the runtime's `remove_project` queued on the project, so the listing shows its streams `stopping`; refused in the runtime's own words. */
@@ -451,6 +445,13 @@ export function runOpenProject(sharedState: TatolabAppSharedState, commandFromWi
   });
 }
 
+/** `stop_open_project`: the runtime's `stop_project` queued on the asking window's project's folder, so the listing shows its streams `stopping`; refused in the Projects window, or in the runtime's own words. */
+export async function stopOpenProject(sharedState: TatolabAppSharedState, commandFromWindow: TatolabCommandFromWindow): Promise<Result<void, string>> {
+  const studioWindow = studioWindowTheCommandCameFrom(sharedState, commandFromWindow);
+  if (!studioWindow.ok) return studioWindow;
+  return answerTheWindowOnceQueued(sharedState, "stop_open_project", () => sharedState.controller.stopProject(studioWindow.value.openProject.projectFolder));
+}
+
 /** `pop_out_viewer`'s arguments as the window sends them, or why they are not. */
 export function popOutViewerArgumentsFrom(commandArguments: unknown): Result<PoppedOutViewerTarget, string> {
   if (
@@ -663,8 +664,6 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       if (!askableProjectDirectory.ok) return { ok: false, refusal: askableProjectDirectory.failure };
       return commandAnswerFrom(await listProjectNodeTypes(sharedState, askableProjectDirectory.value));
     },
-    stop_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "stop_stream", commandArguments)),
-    start_stream: async (commandArguments) => commandAnswerOfNothingFrom(await streamActionOnTheStreamNamedIn(sharedState, "start_stream", commandArguments)),
     remove_project: async (commandArguments) => {
       const projectDirectory = oneTextArgumentFrom("remove_project", commandArguments, "project_directory", "a project's folder as the runtime lists it");
       if (!projectDirectory.ok) return { ok: false, refusal: projectDirectory.failure };
@@ -833,6 +832,7 @@ export function tatolabWindowCommandHandlers(sharedState: TatolabAppSharedState,
       return commandAnswerFrom(await answerTheWindow("list_project_files", () => studioWindow.value.openProjectFiles.listProjectFiles(projectFolder.value)));
     },
     run_open_project: async (_commandArguments, commandFromWindow) => commandAnswerFrom(await runOpenProject(sharedState, commandFromWindow)),
+    stop_open_project: async (_commandArguments, commandFromWindow) => commandAnswerOfNothingFrom(await stopOpenProject(sharedState, commandFromWindow)),
     start_python_language_server: async (commandArguments, commandFromWindow) => {
       const projectFolder = oneTextArgumentFrom("start_python_language_server", commandArguments, "project_folder", "the folder of the open project or of one of its imports");
       if (!projectFolder.ok) return { ok: false, refusal: projectFolder.failure };
@@ -881,13 +881,4 @@ async function streamProjectFolderOpeningOnTheStreamNamedIn(
 ): Promise<Result<void, string>> {
   const streamArguments = streamArgumentsFrom(commandName, commandArguments);
   return streamArguments.ok ? openStreamProjectFolderOnRequest(sharedState, commandName, streamArguments.value.stream) : streamArguments;
-}
-
-async function streamActionOnTheStreamNamedIn(
-  sharedState: TatolabAppSharedState,
-  streamAction: TatolabStreamActionName,
-  commandArguments: unknown,
-): Promise<Result<void, string>> {
-  const streamArguments = streamArgumentsFrom(streamAction, commandArguments);
-  return streamArguments.ok ? runStreamAction(sharedState, streamAction, streamArguments.value.stream) : streamArguments;
 }

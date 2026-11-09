@@ -22,7 +22,6 @@ import type {
   TatolabAppUpdateState,
   TatolabPlatform,
   TatolabStatus,
-  TatolabStreamActionName,
 } from "../shared/tatolab_backend_contract.js";
 import { CarriedRuntimeRunAsTheAppsChild } from "./carried_runtime_run_as_the_apps_child.js";
 import { ConditionOnsetLatch } from "./condition_onset_latch.js";
@@ -216,9 +215,9 @@ export class TatolabAppController {
     return this.localApiClient.readProjectLogRecords(projectDirectory, narrowing, after, PROJECT_LOG_RECORDS_PER_PAGE);
   }
 
-  /** Queue the stream action `streamAction` on `stream`, answering the id of the action the runtime queued. */
-  runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string, LocalApiRequestFailure>> {
-    return this.localApiClient.runStreamAction(streamAction, stream);
+  /** Queue the stop of every stream of the project in `projectDirectory` through the runtime's `stop_project`, answering the id of the action the runtime queued. */
+  stopProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.localApiClient.stopProject(projectDirectory);
   }
 
   /** Queue the removal of every stream the runtime holds from the project in `projectDirectory`, answering the id of the action the runtime queued. */

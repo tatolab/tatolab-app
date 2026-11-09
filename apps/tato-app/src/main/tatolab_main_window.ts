@@ -29,8 +29,17 @@ export interface MainWindowSpecification {
   chrome: MainWindowChrome;
 }
 
-/** Whether a close request closes the window or hides it instead. */
-export type MainWindowCloseRequestAnswer = "hide_instead" | "let_it_close";
+/** Whether a close request closes the window, hides it instead, or keeps it open while the app asks the person first. */
+export type MainWindowCloseRequestAnswer = "hide_instead" | "let_it_close" | "keep_it_open";
+
+/** A question the desktop asks in a message box over the window: its words, and the buttons it offers, the first the default. */
+export interface QuestionOverTheWindow {
+  message: string;
+  detail: string;
+  buttonLabels: readonly string[];
+  /** The button Escape, or closing the message box, chooses. */
+  cancelButtonIndex: number;
+}
 
 /** The window as the platform shows it. */
 export interface MainWindowHost {
@@ -44,6 +53,8 @@ export interface MainWindowHost {
   close(): void;
   /** Whether the window is on screen: shown and not minimized. */
   isShowing(): boolean;
+  /** Ask `question` in a message box over the window, answering the index of the button chosen; refused when the desktop could not show it. */
+  askAQuestionOverTheWindow(question: QuestionOverTheWindow): Promise<Result<number, string>>;
   /** Send the window's page `eventPayload` on `eventChannel`; a page still loading misses it. */
   sendTheWindowAnEvent(eventChannel: string, eventPayload: unknown): void;
   /** Import `sharedTextureImport` and hand it to the window's page with `frameFacts` beside it; `whenEveryReferenceIsReleased` is called once no process holds it, whether or not it reached the page. */
@@ -73,9 +84,11 @@ export function mainWindowSizesOf(windowRole: TatolabWindowRole): Pick<MainWindo
   return { width: 1040, height: 700, minimumWidth: 860, minimumHeight: 580 };
 }
 
-/** What a window tells the windows around it: that it came on screen or went off it, and that it closed for good. */
+/** What a window tells the windows around it: that it came on screen or went off it, that the person asked to close it, and that it closed for good. */
 export interface TatolabMainWindowListeners {
   whenItCameOnScreenOrWentOff(): void;
+  /** Whether a close request the window does not hide on closes it now, or keeps it open while the person is asked. */
+  answerItsCloseRequest(): "let_it_close" | "keep_it_open";
   whenItClosed(): void;
 }
 
@@ -120,6 +133,11 @@ export class TatolabMainWindow implements WindowShowingPortViewers {
   /** Close the window for good. */
   close(): void {
     this.mainWindowHost?.close();
+  }
+
+  /** Ask `question` in a message box over the window, answering the index of the button chosen; refused when the window is not open. */
+  askAQuestionOverTheWindow(question: QuestionOverTheWindow): Promise<Result<number, string>> {
+    return this.mainWindowHost?.askAQuestionOverTheWindow(question) ?? Promise.resolve(failedWith("the window is not open"));
   }
 
   /** Whether the app has the window shown: shown and neither hidden nor closed since. */
@@ -205,7 +223,8 @@ export class TatolabMainWindow implements WindowShowingPortViewers {
   }
 
   private answerCloseRequest(): MainWindowCloseRequestAnswer {
-    if (this.theAppIsQuitting || this.windowRole !== "projects") return "let_it_close";
+    if (this.theAppIsQuitting) return "let_it_close";
+    if (this.windowRole !== "projects") return this.listeners.answerItsCloseRequest();
     this.hide();
     return "hide_instead";
   }

@@ -3,7 +3,7 @@
 // version, uptime and log folder, the MCP tools `list_streams`, `logs` and `graph` over
 // `POST /mcp` list its streams, read a project's log records and draw one stream's graph,
 // `create_project` and `run_project` queue a project's load, which `describe_stream_action` follows,
-// `stop_stream` and `start_stream` queue an action on one stream, `remove_project` queues the
+// `stop_project` queues the stop of every stream of a project, `remove_project` queues the
 // removal of a project's streams, `rename_stream`
 // renames one, `add_dependency`, `update_dependency` and `list_dependencies` copy, copy again and
 // list the projects a project imports, `GET /api/graph` names the machine, and `GET /api/registry` lists the node types a
@@ -32,7 +32,6 @@ import type {
   StreamActionFollowed,
   StreamGraphSummary,
   StreamLocation,
-  TatolabStreamActionName,
 } from "../shared/tatolab_backend_contract.js";
 import {
   arrayOrEmpty,
@@ -221,12 +220,15 @@ function captureDevicesWhoseAccessWasNeverAskedForOnTheWire(listedStream: JsonOb
 }
 
 /** The action id a tool result that queued a stream action names, read from the result of `toolName`. */
-export function queuedStreamActionFromTheToolResult(toolName: TatolabStreamActionName | "remove_project", toolResultText: string): Result<string, string> {
+export function queuedStreamActionFromTheToolResult(toolName: ProjectActionToolName, toolResultText: string): Result<string, string> {
   const parsedToolResult = parseJsonOnTheWire(toolResultText);
   const toolResult = parsedToolResult.ok ? jsonObject(parsedToolResult.value, `the ${toolName} result`) : parsedToolResult;
   const action = toolResult.ok ? requiredText(toolResult.value, "action") : toolResult;
   return action.ok ? action : failedWith(`the runtime's ${toolName} result could not be read: ${action.failure}`);
 }
+
+/** A runtime tool that queues an action on a whole project. */
+type ProjectActionToolName = "stop_project" | "remove_project";
 
 /** `durationMs` as a timeout refusal spells it: whole seconds as `3s`, anything else as `200ms`. */
 function durationAsTheTimeoutRefusalSpellsIt(durationMs: number): string {
@@ -295,9 +297,9 @@ export class LocalApiClient {
     return page.ok ? page : localApiRequestFailure(page.failure);
   }
 
-  /** Queue the runtime's stream action `streamAction` on `stream`, answering the id of the action it queued; refused in the runtime's own words. */
-  runStreamAction(streamAction: TatolabStreamActionName, stream: string): Promise<Result<string, LocalApiRequestFailure>> {
-    return this.queueRuntimeAction(streamAction, { stream });
+  /** Queue the stop of every stream of the project in `projectDirectory`, answering the id of the action it queued; refused in the runtime's own words, as when none of them runs. */
+  stopProject(projectDirectory: string): Promise<Result<string, LocalApiRequestFailure>> {
+    return this.queueRuntimeAction("stop_project", { project_directory: projectDirectory });
   }
 
   /** Queue the removal of every stream the runtime holds from the project in `projectDirectory`, answering the id of the action it queued; refused in the runtime's own words. */
@@ -307,7 +309,7 @@ export class LocalApiClient {
 
   /** Call the tool `toolName` that queues an action, answering the id of the action the runtime queued; refused in the runtime's own words. */
   private async queueRuntimeAction(
-    toolName: TatolabStreamActionName | "remove_project",
+    toolName: ProjectActionToolName,
     toolArguments: Record<string, string>,
   ): Promise<Result<string, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool(toolName, toolArguments);
