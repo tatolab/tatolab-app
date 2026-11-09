@@ -89,18 +89,20 @@ export function createElectronTatolabBackend(tatolabElectronBridge: TatolabElect
       await invokeTatolabCommand("pop_out_viewer", { ...target });
     },
     readPoppedOutViewer: () => invokeTatolabCommand("read_popped_out_viewer", undefined),
-    openGetMoreWindow: async () => {
-      await invokeTatolabCommand("open_get_more_window", undefined);
+    openModuleManagerWindow: async () => {
+      await invokeTatolabCommand("open_module_manager_window", undefined);
     },
-    readGetMoreWorkspace: () => invokeTatolabCommand("read_get_more_workspace", undefined),
+    readModuleManagerWorkspace: () => invokeTatolabCommand("read_module_manager_workspace", undefined),
     readPackageCatalog: () => invokeTatolabCommand("read_package_catalog", undefined),
-    previewImport: (requirement) => invokeTatolabCommand("preview_import", { requirement }),
-    importIntoWorkspace: async (requirement, basedOnVersion) => {
-      await invokeTatolabCommand("import_into_workspace", { requirement, based_on_version: basedOnVersion });
+    listWorkspaceDependencies: (checkForNewer) => invokeTatolabCommand("list_workspace_dependencies", { check_for_newer: checkForNewer }),
+    chooseDependencySource: (sourceKind) => invokeTatolabCommand("choose_dependency_source", { source_kind: sourceKind }),
+    addDependencyToTheWorkspace: (source) => invokeTatolabCommand("add_dependency_to_the_workspace", { source }),
+    updateWorkspaceDependency: (project, overwriteEditedFiles) => invokeTatolabCommand("update_workspace_dependency", { project, overwrite_edited_files: overwriteEditedFiles }),
+    importFromTheMarketplace: (name) => invokeTatolabCommand("import_from_the_marketplace", { name }),
+    openImportToEdit: async (folder) => {
+      await invokeTatolabCommand("open_import_to_edit", { folder });
     },
-    openImportToEdit: async (name) => {
-      await invokeTatolabCommand("open_import_to_edit", { name });
-    },
+    pathOfADroppedFile: (droppedFile) => tatolabElectronBridge.pathOfADroppedFile(droppedFile),
     readRecentProjects: () => invokeTatolabCommand("read_recent_projects", undefined),
     openRecentProject: async (folder) => {
       await invokeTatolabCommand("open_recent_project", { folder });

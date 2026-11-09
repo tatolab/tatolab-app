@@ -766,7 +766,7 @@ test("a_chunked_response_is_dechunked", async () => {
 
 /** Against a real runtime: `TATOLAB_APP_LIVE_LOCAL_API_SOCKET=<socket> npx vitest run src/main/local_api_client.test.ts`. */
 const noLiveRuntimeSocketIsNamed = !process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"];
-test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_logs_and_node_types_and_its_machine_name", async () => {
+test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_description_its_streams_their_graphs_logs_node_types_and_dependencies_and_its_machine_name", async () => {
   const client = new LocalApiClient(process.env["TATOLAB_APP_LIVE_LOCAL_API_SOCKET"] ?? "", 5_000, "0.45.0");
 
   answerOf(await client.checkHealth());
@@ -783,6 +783,7 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
   for (const projectDirectory of new Set(streams.flatMap((listedStream) => (listedStream.location === null ? [] : [listedStream.location.project_directory])))) {
     const projectStreams = streams.filter((listedStream) => listedStream.location?.project_directory === projectDirectory);
     const nodeTypeListing = answerOf(await client.listProjectNodeTypes(projectDirectory));
+    answerOf(await client.listDependencies(projectDirectory, false));
     expect(nodeTypeListing.sources[0]?.origin).toEqual({ source: "project" });
     const wholeLog = answerOf(await client.readProjectLogRecords(projectDirectory, { stream: null, action: null }, null, 500));
     expect(wholeLog.project_directory).toBe(projectDirectory);
@@ -795,6 +796,89 @@ test.skipIf(noLiveRuntimeSocketIsNamed)("a_real_runtime_answers_health_its_descr
 
   const expectedStreamCount = process.env["TATOLAB_APP_LIVE_EXPECTED_STREAM_COUNT"];
   if (expectedStreamCount !== undefined) expect(streams.length).toBe(Number(expectedStreamCount));
+});
+
+test("a_dependency_added_from_a_folder_or_a_zip_answers_the_import_the_runtime_copied", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-add-dependency-tool-result-of-night-show-importing-the-folder-lobby-wall.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-add-dependency-tool-result-of-night-show-importing-the-zip-doorways.json")),
+  ]);
+
+  expect(answerOf(await server.client().addDependency("/tmp/tatolab-proof-projects/night-show", "/tmp/tatolab-proof-projects/lobby-wall"))).toEqual({
+    project: "dde5a62f-b0a8-45d2-a741-79140871f978",
+    folder: "lobby-wall",
+    source: "/tmp/tatolab-proof-projects/lobby-wall",
+    version: "907fd8c1c2e70a58c1a4c6113cc043dc6522f67406da53a3ea6cc3af72976e82",
+  });
+  expect(answerOf(await server.client().addDependency("/tmp/tatolab-proof-projects/night-show", "/tmp/tatolab-proof-projects/doorways.zip"))).toMatchObject({ folder: "doorways", source: "/tmp/tatolab-proof-projects/doorways.zip" });
+  expect(toolCallsReceivedBy(server)).toEqual([
+    ["add_dependency", { project_directory: "/tmp/tatolab-proof-projects/night-show", source: "/tmp/tatolab-proof-projects/lobby-wall" }],
+    ["add_dependency", { project_directory: "/tmp/tatolab-proof-projects/night-show", source: "/tmp/tatolab-proof-projects/doorways.zip" }],
+  ]);
+});
+
+test("a_dependency_the_runtime_refuses_to_add_carries_its_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-add-dependency-refusal-for-a-folder-that-is-not-a-project.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-add-dependency-refusal-for-lobby-wall-imported-already.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-add-dependency-refusal-for-requirements-uv-could-not-resolve-offline.json")),
+  ]);
+
+  expect(failureOf(await server.client().addDependency("/tmp/tatolab-proof-projects/night-show", "/tmp/tatolab-proof-projects/not-a-project"))).toEqual({
+    failureDescription: "add_dependency failed: /tmp/tatolab-proof-projects/not-a-project holds no project to import: it has no `tatolab-project.json` at its root",
+    isTheRuntimesRefusal: true,
+  });
+  expect(failureOf(await server.client().addDependency("/tmp/tatolab-proof-projects/night-show", "/tmp/tatolab-proof-projects/lobby-wall")).failureDescription).toBe(
+    "add_dependency failed: the project already imports dde5a62f-b0a8-45d2-a741-79140871f978; copy it again with update_dependency",
+  );
+  expect(failureOf(await server.client().addDependency("/tmp/tatolab-proof-projects/night-show", "/tmp/tatolab-proof-projects/lobby-wall")).failureDescription).toContain(
+    "the project's Python requirements, with this import change, cannot be resolved, so nothing changed",
+  );
+});
+
+test("an_update_of_a_dependency_edited_since_its_copy_waits_on_the_overwrite_and_then_commits_it", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-update-dependency-tool-result-of-lobby-wall-edited-since-its-copy.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-update-dependency-tool-result-of-lobby-wall-overwriting-its-edits.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-update-dependency-refusal-for-a-project-not-imported.json")),
+  ]);
+  const lobbyWall = "dde5a62f-b0a8-45d2-a741-79140871f978";
+
+  expect(answerOf(await server.client().updateDependency("/tmp/tatolab-proof-projects/night-show", lobbyWall, false))).toEqual({ kind: "edited_since_its_copy", edited_files: ["nodes/brightness_meter.py"] });
+  expect(answerOf(await server.client().updateDependency("/tmp/tatolab-proof-projects/night-show", lobbyWall, true))).toEqual({
+    kind: "updated",
+    dependency: { project: lobbyWall, folder: "lobby-wall", source: "/tmp/tatolab-proof-projects/lobby-wall", version: "27ac758d40fe967b15e1f8c9722755d82d4e093ed69e4617e22c674fbb66dfff" },
+  });
+  expect(failureOf(await server.client().updateDependency("/tmp/tatolab-proof-projects/night-show", "00000000-0000-4000-8000-000000000000", false)).failureDescription).toBe(
+    "update_dependency failed: the project imports no project 00000000-0000-4000-8000-000000000000",
+  );
+  expect(toolCallsReceivedBy(server).map(([, toolArguments]) => toolArguments)).toEqual([
+    { project_directory: "/tmp/tatolab-proof-projects/night-show", project: lobbyWall, overwrite_edited_files: false },
+    { project_directory: "/tmp/tatolab-proof-projects/night-show", project: lobbyWall, overwrite_edited_files: true },
+    { project_directory: "/tmp/tatolab-proof-projects/night-show", project: "00000000-0000-4000-8000-000000000000", overwrite_edited_files: false },
+  ]);
+});
+
+test("the_dependencies_listed_carry_their_edited_files_and_with_a_check_whether_their_source_holds_a_newer_version", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-dependencies-tool-result-of-the-project-night-show-importing-nothing.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-dependencies-tool-result-of-night-show-importing-lobby-wall.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-dependencies-tool-result-of-night-show-with-lobby-wall-edited-and-newer-on-its-source.json")),
+  ]);
+  const lobbyWall = { project: "dde5a62f-b0a8-45d2-a741-79140871f978", folder: "lobby-wall", source: "/tmp/tatolab-proof-projects/lobby-wall", version: "907fd8c1c2e70a58c1a4c6113cc043dc6522f67406da53a3ea6cc3af72976e82" };
+
+  expect(answerOf(await server.client().listDependencies("/tmp/tatolab-proof-projects/night-show", false))).toEqual([]);
+  expect(answerOf(await server.client().listDependencies("/tmp/tatolab-proof-projects/night-show", false))).toEqual([
+    { dependency: lobbyWall, edited_files: [], newer_version_exists: null, check_refused_because: null },
+  ]);
+  expect(answerOf(await server.client().listDependencies("/tmp/tatolab-proof-projects/night-show", true))).toEqual([
+    { dependency: lobbyWall, edited_files: ["nodes/brightness_meter.py"], newer_version_exists: true, check_refused_because: null },
+  ]);
+  expect(toolCallsReceivedBy(server).map(([, toolArguments]) => toolArguments)).toEqual([
+    { project_directory: "/tmp/tatolab-proof-projects/night-show", check_for_newer: false },
+    { project_directory: "/tmp/tatolab-proof-projects/night-show", check_for_newer: false },
+    { project_directory: "/tmp/tatolab-proof-projects/night-show", check_for_newer: true },
+  ]);
 });
 
 /** The tool name and arguments of each MCP request `server` read, in order. */
@@ -903,6 +987,43 @@ test("a_real_node_type_listing_of_a_folder_that_is_not_a_project_is_refused_in_t
   expect(failureOf(await server.client().listProjectNodeTypes("/private/tmp/tatolab-proof-185/not-a-project")).failureDescription).toBe(
     "list_project_node_types failed: /private/tmp/tatolab-proof-185/not-a-project holds no project: it has no tatolab-project.json",
   );
+});
+
+test("a_real_node_type_listing_of_a_project_with_imports_lists_each_import_by_its_uuid_folder_and_version", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-project-node-types-tool-result-of-night-show-importing-doorways-and-lobby-wall.json")),
+  ]);
+
+  const listing = answerOf(await server.client().listProjectNodeTypes("/tmp/tatolab-proof-projects/night-show"));
+
+  expect(listing.sources.map((source) => [source.origin, source.node_types.length])).toEqual([
+    [{ source: "project" }, 2],
+    [{ source: "dependency", project: "27f7b9b7-9a4d-463c-9b72-10bbf0c3c3e1", folder: "doorways", version: "a1202f3410913185a5866e8bbe3423c6b860f9c339164d8f3e78c267562f93c3" }, 2],
+    [{ source: "dependency", project: "dde5a62f-b0a8-45d2-a741-79140871f978", folder: "lobby-wall", version: "27ac758d40fe967b15e1f8c9722755d82d4e093ed69e4617e22c674fbb66dfff" }, 2],
+  ]);
+});
+
+test("a_real_asset_listing_names_the_project_and_a_folder_that_is_not_a_project_is_refused_in_the_runtimes_own_words", async () => {
+  const server = await fakeLocalApiServerAnswering([
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-tool-result-of-the-project-night-show.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-tool-result-of-the-import-lobby-wall-of-night-show.json")),
+    httpResponse("200 OK", "application/json", await recordedResponseBody("local-api-list-assets-refusal-for-a-folder-that-is-not-a-project.json")),
+  ]);
+
+  expect(answerOf(await server.client().nameTheProject("/tmp/tatolab-proof-projects/night-show"))).toEqual({
+    folder: "/tmp/tatolab-proof-projects/night-show",
+    project: "cc5046d5-d8b7-4ecf-82e7-3f0e511b2ab0",
+    name: "night-show",
+  });
+  expect(answerOf(await server.client().nameTheProject("/tmp/tatolab-proof-projects/night-show/imports/lobby-wall"))).toEqual({
+    folder: "/tmp/tatolab-proof-projects/night-show/imports/lobby-wall",
+    project: "dde5a62f-b0a8-45d2-a741-79140871f978",
+    name: "lobby-wall",
+  });
+  expect(failureOf(await server.client().nameTheProject("/tmp/tatolab-proof-projects/not-a-project")).failureDescription).toBe(
+    "list_assets failed: /tmp/tatolab-proof-projects/not-a-project holds no project: it has no tatolab-project.json",
+  );
+  expect(toolCallsReceivedBy(server).map(([toolName]) => toolName)).toEqual(["list_assets", "list_assets", "list_assets"]);
 });
 
 test("a_node_type_listing_waits_past_the_ordinary_request_timeout_for_the_projects_interpreter", async () => {

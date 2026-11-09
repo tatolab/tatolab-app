@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"add_dependency failed: the project already imports dde5a62f-b0a8-45d2-a741-79140871f978; copy it again with update_dependency"}],"isError":true}}

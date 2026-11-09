@@ -135,7 +135,7 @@ describe("the studio", () => {
     expect(outlinerRowIds()).toEqual([
       "open_project_folder",
       `project:${PATTERN_PROJECT}`,
-      `project:${PATTERN_PROJECT}/pyproject`,
+      `project:${PATTERN_PROJECT}/project_file`,
       `stream:${PATTERN_MAIN_STREAM}`,
       `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "recorder" })}`,
       `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" })}`,
@@ -144,27 +144,28 @@ describe("the studio", () => {
     ]);
     expect(outlinerRow("open_project_folder").getAttribute("aria-level")).toBe("1");
     expect(outlinerRow(`project:${PATTERN_PROJECT}`).textContent).toBe("pattern");
-    expect(outlinerRow(`project:${PATTERN_PROJECT}/pyproject`).textContent).toBe("pyproject.toml");
+    expect(outlinerRow(`project:${PATTERN_PROJECT}/project_file`).textContent).toBe("tatolab-project.json");
     expect(outlinerRow(`stream:${PATTERN_MAIN_STREAM}`).textContent).toBe("main");
     expect(outlinerRow("imports").getAttribute("aria-expanded")).toBe("false");
     expect(outlinerRow("imports").textContent).toBe("Imports");
     expect(within(outlinerRow("imports")).getByRole("img", { name: "Read only" })).toBeTruthy();
   });
 
-  it("opens Imports on each import, read-only: a folder import's streams, an unreadable one's refusal, and a package's node types", async () => {
+  it("opens Imports on each import, read-only: its streams and node types, or an unreadable one's refusal", async () => {
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => outlinerRow("imports"));
     openTheOutlinerRow("imports");
     openTheOutlinerRow(`project:${CAMERA_PROJECT}`);
     openTheOutlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights`);
-    openTheOutlinerRow("project:tatolab-testpattern");
 
     expect(within(outlinerRow(`project:${CAMERA_PROJECT}`)).getByRole("img", { name: "Read only" })).toBeTruthy();
     expect(outlinerRow(`stream:${mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" })}`).getAttribute("aria-level")).toBe("4");
-    expect(outlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights/refusal`).textContent).toBe(`${PATTERN_PROJECT}/imports/stage-lights has no pyproject.toml.`);
-    await waitFor(() => outlinerRow("project:tatolab-testpattern/node_types"));
-    openTheOutlinerRow("project:tatolab-testpattern/node_types");
-    expect(outlinerRow("project:tatolab-testpattern/node_types/category:tatolab.testpattern/node_type:tatolab.testpattern:TestPatternSource").textContent).toBe("TestPatternSource");
+    expect(outlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights/refusal`).textContent).toBe(
+      `list_assets failed: ${PATTERN_PROJECT}/imports/stage-lights holds no project: it has no tatolab-project.json`,
+    );
+    await waitFor(() => outlinerRow(`project:${CAMERA_PROJECT}/node_types`));
+    openTheOutlinerRow(`project:${CAMERA_PROJECT}/node_types`);
+    expect(outlinerRow(`project:${CAMERA_PROJECT}/node_types/category:Camera/node_type:camera.nodes:CameraTilt`).textContent).toBe("CameraTilt");
   });
 
   it("lists the open project's own node types in the outliner, and each module that does not parse in the parser's words", async () => {
@@ -189,8 +190,8 @@ describe("the studio", () => {
     await waitFor(() => paletteRow("source:project"));
     expect(paletteRow("source:project").textContent).toBe("pattern");
     expect(paletteRow("source:project/graph_generators/nodes.scenes:two_cameras_side_by_side").textContent).toBe("two_cameras_side_by_side");
-    expect(paletteRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11").textContent).toBe("6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11 at v1");
-    expect(paletteRow("source:distribution:camera").getAttribute("aria-expanded")).toBe("false");
+    expect(paletteRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11").textContent).toBe("imports/hall-of-light");
+    expect(paletteRow("source:distribution:tatolab-testpattern").getAttribute("aria-expanded")).toBe("false");
 
     fireEvent.click(paletteRow("source:project/unreadable:nodes.half_written"));
     await waitFor(() => expect(document.querySelector('[data-palette-unreadable-why="nodes.half_written"]')?.textContent).toBe("SyntaxError: expected ':'"));
@@ -490,7 +491,7 @@ describe("the studio", () => {
   it("says why an unreadable project can't be read, in the reader's words", async () => {
     await mountedWindowOverTheMock("state=running&project=unreadable");
     await waitFor(() => expect(screen.getByText(`${PATTERN_PROJECT} can't be read`)).toBeTruthy());
-    expect(screen.getByText(/pyproject\.toml is not TOML: Invalid TOML document/)).toBeTruthy();
+    expect(screen.getByText(/holds no project: it has no tatolab-project\.json/)).toBeTruthy();
   });
 
   it("shows a refused project choice in its own words, and the open project stays as it was", async () => {
@@ -526,7 +527,7 @@ describe("the studio", () => {
     expect(document.querySelector("[data-projects]")).toBeNull();
     const streamTabs = within(await screen.findByRole("tablist", { name: "Open streams" }));
     await waitFor(() => expect(streamTabs.getAllByRole("tab").map((tab) => tab.getAttribute("aria-selected"))).toEqual(["true"]));
-    expect(streamTabs.getByRole("tab").textContent).toMatch(/^night-show \//);
+    expect(streamTabs.getByRole("tab").textContent).toMatch(/^Night Show \//);
   });
 
   it("refuses a name that is no folder name before Create, and a folder already there in the sheet, which stays open", async () => {
@@ -561,78 +562,104 @@ describe("the studio", () => {
   });
 });
 
-describe("Get more", () => {
-  function getMoreRow(name: string): HTMLElement {
-    return document.querySelector<HTMLElement>(`[data-get-more-row="${name}"]`) ?? expect.unreachable(`no ${name} row`);
+describe("Module manager", () => {
+  function moduleManagerRow(rowId: string): HTMLElement {
+    return document.querySelector<HTMLElement>(`[data-module-manager-row="${rowId}"]`) ?? expect.unreachable(`no ${rowId} row`);
+  }
+  function pressed(selector: string): void {
+    fireEvent.click(document.querySelector<HTMLElement>(selector) ?? expect.unreachable(`nothing at ${selector}`));
   }
 
-  it("lists the catalog's packages and samples, each showing the nodes it brings, and narrows to a search", async () => {
-    await mountedWindowOverTheMock("state=running&get_more=open");
-
-    await waitFor(() => expect(document.querySelector('[data-get-more-row="tatolab-camera"]')).not.toBeNull());
-    expect(document.querySelector("[data-studio-menu]")).toBeNull();
-    expect(document.querySelector('[data-get-more-row="camera-halftone"]')).toBeNull();
-    fireEvent.click(getMoreRow("tatolab-compositor"));
-    expect(textOf('[data-get-more-detail="tatolab-compositor"]')).toContain("LowerThird");
-    expect(getMoreRow("tatolab-testpattern").textContent).toContain("Imported");
-
-    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-scope="samples"]') ?? expect.unreachable("no Samples scope"));
-    await waitFor(() => expect(document.querySelector('[data-get-more-row="camera-halftone"]')).not.toBeNull());
-    expect(document.querySelector('[data-get-more-row="tatolab-camera"]')).toBeNull();
-
-    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-scope="published"]') ?? expect.unreachable("no Published scope"));
-    const searchField = document.querySelector<HTMLInputElement>("[data-get-more-search] input") ?? document.querySelector<HTMLInputElement>("input[data-get-more-search]") ?? expect.unreachable("no search");
-    fireEvent.change(searchField, { target: { value: "opusdecoder" } });
-    await waitFor(() => expect(document.querySelectorAll("[data-get-more-row]").length).toBe(1));
-    expect(getMoreRow("tatolab-opus")).toBeTruthy();
-  });
-
-  it("shows an import's change to pyproject.toml before writing it, and lists it in the project once written", async () => {
-    await mountedWindowOverTheMock("state=running&get_more=open");
-
-    fireEvent.click(await waitFor(() => getMoreRow("tatolab-camera")));
-    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-import="tatolab-camera"]') ?? expect.unreachable("no Import"));
-    await waitFor(() => expect(document.querySelector("[data-import-change]")).not.toBeNull());
-    const addedLines = [...document.querySelectorAll('[data-import-change-line="added"]')].map((line) => line.textContent ?? "");
-    expect(addedLines.some((line) => line.includes('"tatolab-camera>='))).toBe(true);
-
-    fireEvent.click(document.querySelector<HTMLElement>("[data-get-more-import-confirm]") ?? expect.unreachable("no Import in the dialog"));
-    await waitFor(() => expect(document.querySelector("[data-import-change]")).toBeNull());
-    await waitFor(() => expect(getMoreRow("tatolab-camera").textContent).toContain("Imported"));
-    expect(document.querySelector('[data-get-more-import="tatolab-camera"]')).toBeNull();
-  });
-
-  it("says nothing was written when pyproject.toml changed after the import was shown", async () => {
-    const staleRefusal = "pyproject.toml changed since the import was shown; nothing was written. Look at the change again before importing.";
-    await mountedWindowOverTheMock("state=running&get_more=open", { importIntoWorkspace: () => Promise.reject(staleRefusal) });
-
-    fireEvent.click(await waitFor(() => getMoreRow("tatolab-opus")));
-    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-import="tatolab-opus"]') ?? expect.unreachable("no Import"));
-    fireEvent.click(await waitFor(() => document.querySelector<HTMLElement>("[data-get-more-import-confirm]") ?? expect.unreachable("no Import in the dialog")));
-
-    await waitFor(() => expect(document.querySelector("[data-get-more-import-dialog]")?.textContent).toContain(`Nothing was written: ${staleRefusal}`));
-    expect(document.querySelector("[data-import-change]")).not.toBeNull();
-  });
-
-  it("says the catalog didn't load and what it waits on, and still lists what the project imports, a folder import opening to edit", async () => {
-    let namesOpenedToEdit: string[] = [];
-    await mountedWindowOverTheMock("state=running&get_more=open&catalog=unserved", {
-      openImportToEdit: async (name) => {
-        namesOpenedToEdit = [...namesOpenedToEdit, name];
+  it("lists the project's modules as the runtime does, each saying where it was copied from, and opens one to edit by its folder", async () => {
+    let foldersOpenedToEdit: string[] = [];
+    await mountedWindowOverTheMock("state=running&module_manager=open", {
+      openImportToEdit: async (folder) => {
+        foldersOpenedToEdit = [...foldersOpenedToEdit, folder];
       },
     });
 
-    await waitFor(() => expect(document.querySelector('[data-get-more-state="not_read"]')).not.toBeNull());
-    expect(textOf('[data-get-more-state="not_read"]')).toContain("HTTP 404 Not Found");
-    expect(textOf('[data-get-more-state="not_read"]')).toContain("tatolab/streamlib#3216");
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
+    expect(document.querySelector("[data-studio-menu]")).toBeNull();
+    expect(textOf('[data-module-manager-detail="lobby-wall"]')).toContain("Copied from");
+    expect(textOf('[data-module-manager-detail="lobby-wall"]')).toContain("imports/lobby-wall");
+    pressed('[data-module-manager-open-to-edit="lobby-wall"]');
+    await waitFor(() => expect(foldersOpenedToEdit).toEqual(["lobby-wall"]));
+  });
 
-    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-scope="in_this_workspace"]') ?? expect.unreachable("no In this project scope"));
-    fireEvent.click(await waitFor(() => getMoreRow("camera")));
-    fireEvent.click(document.querySelector<HTMLElement>('[data-get-more-open-to-edit="camera"]') ?? expect.unreachable("no Open to edit"));
-    await waitFor(() => expect(namesOpenedToEdit).toEqual(["camera"]));
+  it("adds a project's folder chosen in the dialog, or one dropped on the window, and lists it", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open");
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
 
-    fireEvent.click(getMoreRow("tatolab-stream"));
-    expect(document.querySelector('[data-get-more-open-to-edit="tatolab-stream"]')).toBeNull();
+    pressed('[data-module-manager-add="folder"]');
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="doorways"]')).not.toBeNull());
+
+    const moduleManagerWindow = document.querySelector<HTMLElement>("[data-module-manager-window]") ?? expect.unreachable("no window");
+    fireEvent.drop(moduleManagerWindow, { dataTransfer: { files: [new File(["zip"], "night-lights.zip")], types: ["Files"] } });
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="night-lights"]')).not.toBeNull());
+  });
+
+  it("shows the runtime's refusal of an import in its own words", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open", { addDependencyToTheWorkspace: () => Promise.reject("/Users/jonathanf/streams/doorways is not a project: it holds no tatolab-project.json") });
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
+
+    pressed('[data-module-manager-add="folder"]');
+    await waitFor(() => expect(document.body.textContent).toContain("/Users/jonathanf/streams/doorways is not a project: it holds no tatolab-project.json"));
+  });
+
+  it("asks before an Update overwrites files edited since the copy, and Keep my edits leaves them", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=edited_files");
+    await waitFor(() => expect(moduleManagerRow("lobby-wall").textContent).toContain("Edited"));
+    expect(textOf("[data-module-manager-edited-files]")).toContain("nodes/wall_mapping.py");
+
+    pressed('[data-module-manager-update="lobby-wall"]');
+    await waitFor(() => expect(document.querySelector("[data-module-manager-overwrite-dialog]")?.textContent).toContain("nodes/wall_mapping.py"));
+    pressed("[data-module-manager-keep-my-edits]");
+    await waitFor(() => expect(document.querySelector("[data-module-manager-overwrite-dialog]")).toBeNull());
+    expect(moduleManagerRow("lobby-wall").textContent).toContain("Edited");
+
+    pressed('[data-module-manager-update="lobby-wall"]');
+    pressed(await waitFor(() => (document.querySelector("[data-module-manager-overwrite]") === null ? expect.unreachable("no Overwrite") : "[data-module-manager-overwrite]")));
+    await waitFor(() => expect(document.querySelector("[data-module-manager-overwrite-dialog]")).toBeNull());
+    await waitFor(() => expect(document.querySelector("[data-module-manager-edited-files]")).toBeNull());
+  });
+
+  it("marks a module whose source holds a newer version once checked, and Update takes it", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=newer");
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="lobby-wall"]')).not.toBeNull());
+    expect(document.querySelector("[data-module-manager-newer-version]")).toBeNull();
+
+    pressed("[data-module-manager-check-for-newer]");
+    await waitFor(() => expect(moduleManagerRow("lobby-wall").textContent).toContain("Newer version"));
+    pressed('[data-module-manager-update="lobby-wall"]');
+    await waitFor(() => expect(moduleManagerRow("lobby-wall").textContent).not.toContain("Newer version"));
+  });
+
+  it("lists the Marketplace's projects, narrows to a search, and imports one into the project", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open");
+    pressed(await waitFor(() => (document.querySelector('[data-module-manager-tab="marketplace"]') === null ? expect.unreachable("no Marketplace tab") : '[data-module-manager-tab="marketplace"]')));
+
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="tatolab-camera"]')).not.toBeNull());
+    expect(moduleManagerRow("camera-halftone")).toBeTruthy();
+    fireEvent.click(moduleManagerRow("tatolab-compositor"));
+    expect(textOf('[data-module-manager-detail="tatolab-compositor"]')).toContain("LowerThird");
+
+    const searchField = document.querySelector<HTMLInputElement>("[data-module-manager-search] input") ?? document.querySelector<HTMLInputElement>("input[data-module-manager-search]") ?? expect.unreachable("no search");
+    fireEvent.change(searchField, { target: { value: "opusdecoder" } });
+    await waitFor(() => expect(document.querySelectorAll("[data-module-manager-row]").length).toBe(1));
+    fireEvent.change(searchField, { target: { value: "" } });
+
+    fireEvent.click(moduleManagerRow("tatolab-camera"));
+    pressed('[data-module-manager-import="tatolab-camera"]');
+    await waitFor(() => expect(document.querySelector('[data-module-manager-row="tatolab-camera-0.68.29"]')).not.toBeNull());
+  });
+
+  it("says the catalog didn't load and what it waits on", async () => {
+    await mountedWindowOverTheMock("state=running&module_manager=open&catalog=unserved");
+    pressed(await waitFor(() => (document.querySelector('[data-module-manager-tab="marketplace"]') === null ? expect.unreachable("no Marketplace tab") : '[data-module-manager-tab="marketplace"]')));
+
+    await waitFor(() => expect(document.querySelector('[data-module-manager-state="not_read"]')).not.toBeNull());
+    expect(textOf('[data-module-manager-state="not_read"]')).toContain("HTTP 404 Not Found");
+    expect(textOf('[data-module-manager-state="not_read"]')).toContain("tatolab/streamlib#3216");
   });
 });
 

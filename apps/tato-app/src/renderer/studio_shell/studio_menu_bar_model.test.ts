@@ -23,7 +23,7 @@ function commandsCounted(): StudioMenuBarCommands {
     chooseLayout: vi.fn(),
     runTheProjectLive: vi.fn(),
     stopTheProject: vi.fn(),
-    openGetMore: vi.fn(),
+    openModuleManager: vi.fn(),
   };
 }
 
@@ -45,13 +45,13 @@ describe("the studio's File menu", () => {
     }
   });
 
-  it("opens Get more while a project is open, and says why it waits while none is", () => {
+  it("opens Module manager while a project is open, and says why it waits while none is", () => {
     const commands = commandsCounted();
-    const getMore = entryOf(studioMenuBarMenus("macos", "build", UP_TO_DATE, commands), "File", "Get more…");
-    if (getMore?.kind !== "command") throw new Error("File › Get more… is not a command");
-    getMore.onChosen();
-    expect(commands.openGetMore).toHaveBeenCalledOnce();
-    expect(entryOf(studioMenuBarMenus("macos", null, UP_TO_DATE, commands), "File", "Get more…")).toEqual({ kind: "unavailable_command", label: "Get more…", unavailableBecause: NO_PROJECT_OPEN_REASON });
+    const moduleManager = entryOf(studioMenuBarMenus("macos", "build", UP_TO_DATE, commands), "File", "Module manager…");
+    if (moduleManager?.kind !== "command") throw new Error("File › Module manager… is not a command");
+    moduleManager.onChosen();
+    expect(commands.openModuleManager).toHaveBeenCalledOnce();
+    expect(entryOf(studioMenuBarMenus("macos", null, UP_TO_DATE, commands), "File", "Module manager…")).toEqual({ kind: "unavailable_command", label: "Module manager…", unavailableBecause: NO_PROJECT_OPEN_REASON });
   });
 });
 

@@ -23,8 +23,9 @@ import { electronApplicationMenu } from "./electron_application_menu.js";
 import { openAFolderInTheFileManagerThroughElectron } from "./electron_folder_in_the_file_manager.js";
 import { askThePersonForAStreamProjectFolderThroughElectron } from "./electron_stream_project_folder_dialog.js";
 import { askThePersonForAProjectFolderThroughElectron } from "./electron_project_folder_dialog.js";
+import { askThePersonForADependencySourceThroughElectron } from "./electron_dependency_source_dialog.js";
 import { startANodeLanguageServerInAUtilityProcess } from "./electron_node_language_server_in_a_utility_process.js";
-import { fetchTextOverHttpsThroughElectron } from "./electron_text_over_https.js";
+import { fetchBytesOverHttpsThroughElectron, fetchTextOverHttpsThroughElectron } from "./electron_text_over_https.js";
 import { watchFolderEntriesOnThisMachine } from "../folder_entries_watch_on_this_machine.js";
 import { createElectronMainWindowHostFactory } from "./electron_main_window_host.js";
 import { answerTheWindowsCommandsOverIpc } from "./electron_tatolab_command_handlers.js";
@@ -122,6 +123,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   openAFolderInTheFileManager: openAFolderInTheFileManagerThroughElectron,
   askThePersonForAStreamProjectFolder: askThePersonForAStreamProjectFolderThroughElectron,
   askThePersonForAProjectFolder: askThePersonForAProjectFolderThroughElectron,
+  askThePersonForADependencySource: askThePersonForADependencySourceThroughElectron,
   startANodeLanguageServer: startANodeLanguageServerInAUtilityProcess,
   // A packaged app carries Pyright outside app.asar, in app.asar.unpacked, so its worker threads and typeshed stubs load from plain files;
   // an unpackaged one finds it where the npm workspace installed it, which is usually the monorepo root's node_modules.
@@ -135,6 +137,7 @@ const tatolabElectronAppShell: TatolabElectronAppShell = {
   mainProcessId: process.pid,
   watchFolderEntries: watchFolderEntriesOnThisMachine,
   fetchTextOverHttps: fetchTextOverHttpsThroughElectron,
+  fetchBytesOverHttps: fetchBytesOverHttpsThroughElectron,
   homeDirectory: app.getPath("home"),
   // On Linux Electron reads XDG_DOCUMENTS_DIR from user-dirs.dirs, falling back to ~/Documents.
   documentsDirectory: app.getPath("documents"),

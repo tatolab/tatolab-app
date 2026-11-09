@@ -3,13 +3,13 @@ import type { RecentProject } from "../../shared/tatolab_backend_contract";
 /** One project card in the Projects window. */
 export interface RecentProjectCardPresentation {
   folder: string;
-  /** The project's name, or the folder's own name when its `pyproject.toml` doesn't read now. */
+  /** The project's name, or the folder's own name when the runtime names no project there now. */
   name: string;
   /** When it was last opened, as "2 hours ago". */
   lastOpenedWords: string;
   /** The folder, as the card's second line says where the project is. */
   folderWords: string;
-  /** Its folder or its `pyproject.toml` doesn't read now; it still opens, and the studio says why. */
+  /** The runtime names no project in its folder now; it still opens, and the studio says why. */
   isUnreadable: boolean;
 }
 

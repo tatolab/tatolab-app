@@ -45,7 +45,6 @@
     "react-dom": "^19.3.1",
     "react-resizable-panels": "^4.14.8",
     "shadcn": "^4.22.1",
-    "smol-toml": "^1.9.1",
     "stylelint": "^17.16.0",
     "tailwindcss": "^4.3.3",
     "three": "^0.170.0",

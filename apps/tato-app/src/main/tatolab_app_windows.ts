@@ -1,5 +1,5 @@
 // The app's windows: one Projects window, one studio window per open project, and the Viewers
-// popped out of a studio window and its Get more window, all sharing the one runtime. Opening a
+// popped out of a studio window and its Module manager window, all sharing the one runtime. Opening a
 // project that already has a window brings that window forward. Closing a studio window closes it
 // and the windows it opened; closing the Projects window hides it; with every window gone the app
 // stays in the tray. On macOS the Dock icon shows while any window is on screen.
@@ -7,7 +7,7 @@
 import path from "node:path";
 import type { OpenProjectReading, PoppedOutViewerTarget, PythonLanguageServerEvent, TatolabStatus } from "../shared/tatolab_backend_contract.js";
 import { OpenProjectFiles } from "./open_project_files.js";
-import { OpenProjectOfAStudioWindow, type FolderEntriesWatch } from "./open_project.js";
+import { OpenProjectOfAStudioWindow, type FolderEntriesWatch, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import type { DockIconHost } from "./platform/main_window_chrome.js";
 import type { TatolabPlatformItems } from "./platform/tatolab_platform_items.js";
 import type { LanguageServerOfAStudioWindow } from "./python_language_servers.js";
@@ -40,6 +40,8 @@ export interface TatolabAppWindowsSources {
   platformItems: Pick<TatolabPlatformItems, "mainWindowChrome" | "setDockIconVisible">;
   dockIconHost: DockIconHost;
   watchFolderEntries: FolderEntriesWatch;
+  /** The runtime's list of what a project imports. */
+  projectReadingsOfTheRuntime: ProjectReadingsOfTheRuntime;
   /** Runs `work` once after `delayMs`; the answer cancels it. */
   runAfter: (delayMs: number, work: () => void) => () => void;
   /** A studio window closed: stop the language servers its page started. */
@@ -54,7 +56,7 @@ export class TatolabAppWindows {
   readonly projectsWindow: TatolabMainWindow;
   private readonly studioWindowsByProjectFolder = new Map<string, StudioWindowOfAProject>();
   private readonly studioWindowsOpening = new Map<string, Promise<void>>();
-  private readonly getMoreWindowsByStudioWindow = new Map<StudioWindowOfAProject, TatolabMainWindow>();
+  private readonly moduleManagerWindowsByStudioWindow = new Map<StudioWindowOfAProject, TatolabMainWindow>();
   private lastStatusSent: TatolabStatus | null = null;
 
   constructor(private readonly sources: TatolabAppWindowsSources) {
@@ -139,37 +141,37 @@ export class TatolabAppWindows {
     if (this.lastStatusSent !== null) tatolabMainWindow.sendTheWindowTheStatus(this.lastStatusSent);
   }
 
-  /** Open `studioWindow`'s Get more window, its project the workspace imports go into, or bring it forward when it is open. */
-  openTheGetMoreWindowOf(studioWindow: StudioWindowOfAProject): void {
-    const getMoreWindowOpen = this.getMoreWindowsByStudioWindow.get(studioWindow);
-    if (getMoreWindowOpen !== undefined) {
-      getMoreWindowOpen.show();
+  /** Open `studioWindow`'s Module manager window, its project the workspace imports go into, or bring it forward when it is open. */
+  openTheModuleManagerWindowOf(studioWindow: StudioWindowOfAProject): void {
+    const moduleManagerWindowOpen = this.moduleManagerWindowsByStudioWindow.get(studioWindow);
+    if (moduleManagerWindowOpen !== undefined) {
+      moduleManagerWindowOpen.show();
       return;
     }
-    let getMoreWindowOnceMade: TatolabMainWindow | null = null;
-    const getMoreWindow = new TatolabMainWindow(
+    let moduleManagerWindowOnceMade: TatolabMainWindow | null = null;
+    const moduleManagerWindow = new TatolabMainWindow(
       this.sources.mainWindowHostFactory,
       this.sources.platformItems.mainWindowChrome,
-      "get_more",
-      `Get more · ${studioWindowTitleOf(studioWindow.openProject.readOpenProject(), studioWindow.openProject.projectFolder)}`,
+      "module_manager",
+      `Module manager · ${studioWindowTitleOf(studioWindow.openProject.readOpenProject(), studioWindow.openProject.projectFolder)}`,
       {
         whenItCameOnScreenOrWentOff: () => this.showTheDockIconWhileAWindowIsShown(),
         whenItClosed: () => {
-          if (getMoreWindowOnceMade !== null && this.getMoreWindowsByStudioWindow.get(studioWindow) === getMoreWindowOnceMade) this.getMoreWindowsByStudioWindow.delete(studioWindow);
+          if (moduleManagerWindowOnceMade !== null && this.moduleManagerWindowsByStudioWindow.get(studioWindow) === moduleManagerWindowOnceMade) this.moduleManagerWindowsByStudioWindow.delete(studioWindow);
         },
       },
       this.sources.tatolabAppLog,
     );
-    getMoreWindowOnceMade = getMoreWindow;
-    this.getMoreWindowsByStudioWindow.set(studioWindow, getMoreWindow);
-    getMoreWindow.show();
-    if (this.lastStatusSent !== null) getMoreWindow.sendTheWindowTheStatus(this.lastStatusSent);
+    moduleManagerWindowOnceMade = moduleManagerWindow;
+    this.moduleManagerWindowsByStudioWindow.set(studioWindow, moduleManagerWindow);
+    moduleManagerWindow.show();
+    if (this.lastStatusSent !== null) moduleManagerWindow.sendTheWindowTheStatus(this.lastStatusSent);
   }
 
-  /** The studio window whose Get more window's page is `windowContentsId`; `null` for any other window. */
-  studioWindowOfTheGetMoreWindowWithContents(windowContentsId: number): StudioWindowOfAProject | null {
-    for (const [studioWindow, getMoreWindow] of this.getMoreWindowsByStudioWindow) {
-      if (getMoreWindow.isTheWindowWithContents(windowContentsId)) return studioWindow;
+  /** The studio window whose Module manager window's page is `windowContentsId`; `null` for any other window. */
+  studioWindowOfTheModuleManagerWindowWithContents(windowContentsId: number): StudioWindowOfAProject | null {
+    for (const [studioWindow, moduleManagerWindow] of this.moduleManagerWindowsByStudioWindow) {
+      if (moduleManagerWindow.isTheWindowWithContents(windowContentsId)) return studioWindow;
     }
     return null;
   }
@@ -207,7 +209,9 @@ export class TatolabAppWindows {
 
   /** Send every window `status`, and any window opened later the last one sent. */
   sendEveryWindowTheStatus(status: TatolabStatus): void {
+    const theRuntimeStartedAnswering = status.runtime_state === "running" && this.lastStatusSent?.runtime_state !== "running";
     this.lastStatusSent = status;
+    if (theRuntimeStartedAnswering) for (const studioWindow of this.studioWindowsByProjectFolder.values()) void studioWindow.openProject.readAgain();
     for (const tatolabMainWindow of this.everyWindow()) tatolabMainWindow.sendTheWindowTheStatus(status);
   }
 
@@ -227,7 +231,7 @@ export class TatolabAppWindows {
       ...[...this.studioWindowsByProjectFolder.values()].flatMap((studioWindow) => [
         studioWindow.tatolabMainWindow,
         ...[...studioWindow.poppedOutViewers.values()].map((poppedOutViewer) => poppedOutViewer.tatolabMainWindow),
-        ...[this.getMoreWindowsByStudioWindow.get(studioWindow)].filter((getMoreWindow) => getMoreWindow !== undefined),
+        ...[this.moduleManagerWindowsByStudioWindow.get(studioWindow)].filter((moduleManagerWindow) => moduleManagerWindow !== undefined),
       ]),
     ];
   }
@@ -237,10 +241,11 @@ export class TatolabAppWindows {
     let studioWindowOnceMade: StudioWindowOfAProject | null = null;
     const openProject = new OpenProjectOfAStudioWindow(projectFolder, {
       watchFolderEntries: this.sources.watchFolderEntries,
+      projectReadingsOfTheRuntime: this.sources.projectReadingsOfTheRuntime,
       runAfter: this.sources.runAfter,
       sendTheWindowTheOpenProject: (reading) => {
         windowOfTheProject?.sendTheWindowTheOpenProject(reading);
-        if (studioWindowOnceMade !== null) this.getMoreWindowsByStudioWindow.get(studioWindowOnceMade)?.sendTheWindowTheOpenProject(reading);
+        if (studioWindowOnceMade !== null) this.moduleManagerWindowsByStudioWindow.get(studioWindowOnceMade)?.sendTheWindowTheOpenProject(reading);
       },
     });
     await openProject.readAndWatch();
@@ -284,8 +289,8 @@ export class TatolabAppWindows {
     studioWindow.openProject.stopWatching();
     for (const poppedOutViewer of [...studioWindow.poppedOutViewers.values()]) poppedOutViewer.tatolabMainWindow.close();
     studioWindow.poppedOutViewers.clear();
-    this.getMoreWindowsByStudioWindow.get(studioWindow)?.close();
-    this.getMoreWindowsByStudioWindow.delete(studioWindow);
+    this.moduleManagerWindowsByStudioWindow.get(studioWindow)?.close();
+    this.moduleManagerWindowsByStudioWindow.delete(studioWindow);
     this.sources.whenAStudioWindowClosed(studioWindow);
     this.sources.whenAWindowShowingPortViewersClosed(studioWindow.tatolabMainWindow);
     this.sources.tatolabAppLog.info("closed a project's window", { project_folder: projectFolder });

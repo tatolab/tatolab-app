@@ -5,7 +5,8 @@
 // `create_project` and `run_project` queue a project's load, which `describe_stream_action` follows,
 // `stop_stream` and `start_stream` queue an action on one stream, `remove_project` queues the
 // removal of a project's streams, `rename_stream`
-// renames one, `GET /api/graph` names the machine, and `GET /api/registry` lists the node types a
+// renames one, `add_dependency`, `update_dependency` and `list_dependencies` copy, copy again and
+// list the projects a project imports, `GET /api/graph` names the machine, and `GET /api/registry` lists the node types a
 // stream can add.
 //
 // The MCP request is spelled as StreamLib's runtime requires one (`streamlib-api-server`'s
@@ -16,6 +17,8 @@
 import { isUtf8 } from "node:buffer";
 import net from "node:net";
 import type {
+  ProjectDependency,
+  WorkspaceDependencyUpdate,
   ListedStream,
   NodeCatalog,
   ProjectNodeTypeListing,
@@ -23,6 +26,7 @@ import type {
   ProjectLogNarrowing,
   ProjectLogRecordsPage,
   ProjectRunQueued,
+  ProjectTheRuntimeNames,
   RuntimeDescription,
   StreamActionCancelAnswer,
   StreamActionFollowed,
@@ -46,6 +50,13 @@ import {
 import { describeCaughtFailure, failedWith, succeeded, type Result } from "./result.js";
 import { nodeCatalogFromTheRegistryAnswer, nodeCatalogRequestTarget } from "./node_catalog.js";
 import { projectNodeTypeListingFromTheToolResult } from "./project_node_type_listing.js";
+import { projectTheRuntimeNamesFromTheListAssetsToolResult } from "./project_the_runtime_names.js";
+import {
+  dependencyUpdateFromTheUpdateDependencyToolResult,
+  type ListedProjectDependency,
+  projectDependencyFromTheAddDependencyToolResult,
+  workspaceDependenciesFromTheListDependenciesToolResult,
+} from "./project_dependencies_on_the_wire.js";
 import { streamGraphSummaryFromTheGraphToolResult } from "./stream_graph_summary.js";
 import { projectLogRecordsPageFromTheLogsToolResult } from "./project_log_records_page.js";
 import {
@@ -66,6 +77,9 @@ const LARGEST_LOCAL_API_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 /** How long `list_project_node_types` may go without a byte: the runtime bounds the project's interpreter reading its source at 60 seconds, and answers its refusal soon after. */
 const PROJECT_NODE_TYPE_LISTING_RESPONSE_TIMEOUT_MS = 65_000;
+
+/** How long a dependency tool may go without a byte: an add or an update locks the project's Python requirements with uv, which may resolve them over the network, and a check for newer versions reads every source. */
+const PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS = 180_000;
 
 /** Why a local API request came back without an answer. */
 export interface LocalApiRequestFailure {
@@ -359,12 +373,48 @@ export class LocalApiClient {
     return nodeCatalog.ok ? nodeCatalog : localApiRequestFailure(nodeCatalog.failure);
   }
 
-  /** What the project in `projectDirectory`, each linked dependency at its pin and each installed distribution declare, from the runtime's `list_project_node_types`, read from source without running it; refused in the runtime's own words. */
+  /** What the project in `projectDirectory`, each import and each installed distribution declare, from the runtime's `list_project_node_types`, read from source without running it; refused in the runtime's own words. */
   async listProjectNodeTypes(projectDirectory: string): Promise<Result<ProjectNodeTypeListing, LocalApiRequestFailure>> {
     const toolResultText = await this.callMcpTool("list_project_node_types", { project_directory: projectDirectory }, PROJECT_NODE_TYPE_LISTING_RESPONSE_TIMEOUT_MS);
     if (!toolResultText.ok) return toolResultText;
     const listing = projectNodeTypeListingFromTheToolResult(toolResultText.value);
     return listing.ok ? listing : localApiRequestFailure(listing.failure);
+  }
+
+  /** The project in `projectDirectory` as the runtime's `list_assets` names it; refused in the runtime's own words, as for a folder holding no `tatolab-project.json`. */
+  async nameTheProject(projectDirectory: string): Promise<Result<ProjectTheRuntimeNames, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("list_assets", { project_directory: projectDirectory });
+    if (!toolResultText.ok) return toolResultText;
+    const project = projectTheRuntimeNamesFromTheListAssetsToolResult(toolResultText.value);
+    return project.ok ? project : localApiRequestFailure(project.failure);
+  }
+
+  /** Copy the project in `source`, an absolute folder or `.zip`, into `imports/` of the project in `projectDirectory` through the runtime's `add_dependency`; refused in the runtime's own words. */
+  async addDependency(projectDirectory: string, source: string): Promise<Result<ProjectDependency, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("add_dependency", { project_directory: projectDirectory, source }, PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS);
+    if (!toolResultText.ok) return toolResultText;
+    const dependency = projectDependencyFromTheAddDependencyToolResult(toolResultText.value);
+    return dependency.ok ? dependency : localApiRequestFailure(dependency.failure);
+  }
+
+  /** Copy the import `project` of the project in `projectDirectory` again from its source through the runtime's `update_dependency`, overwriting files edited since its copy only with `overwriteEditedFiles`; refused in the runtime's own words. */
+  async updateDependency(projectDirectory: string, project: string, overwriteEditedFiles: boolean): Promise<Result<WorkspaceDependencyUpdate, LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool(
+      "update_dependency",
+      { project_directory: projectDirectory, project, overwrite_edited_files: overwriteEditedFiles },
+      PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS,
+    );
+    if (!toolResultText.ok) return toolResultText;
+    const update = dependencyUpdateFromTheUpdateDependencyToolResult(toolResultText.value);
+    return update.ok ? update : localApiRequestFailure(update.failure);
+  }
+
+  /** Each import of the project in `projectDirectory` from the runtime's `list_dependencies`, each source read for a newer version with `checkForNewer`; refused in the runtime's own words. */
+  async listDependencies(projectDirectory: string, checkForNewer: boolean): Promise<Result<ListedProjectDependency[], LocalApiRequestFailure>> {
+    const toolResultText = await this.callMcpTool("list_dependencies", { project_directory: projectDirectory, check_for_newer: checkForNewer }, PROJECT_DEPENDENCY_RESPONSE_TIMEOUT_MS);
+    if (!toolResultText.ok) return toolResultText;
+    const dependencies = workspaceDependenciesFromTheListDependenciesToolResult(toolResultText.value);
+    return dependencies.ok ? dependencies : localApiRequestFailure(dependencies.failure);
   }
 
   /** `GET requestTarget`, answering the body of a `200`; any other answer is refused in the runtime's own words when its body carries them. */

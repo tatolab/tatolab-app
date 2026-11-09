@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"update_dependency failed: the project imports no project 00000000-0000-4000-8000-000000000000"}],"isError":true}}

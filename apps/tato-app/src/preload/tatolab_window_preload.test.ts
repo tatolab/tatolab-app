@@ -16,7 +16,12 @@ const fakeElectron = vi.hoisted(() => {
     },
   };
 });
-vi.mock("electron", () => ({ contextBridge: fakeElectron.contextBridge, ipcRenderer: fakeElectron.ipcRenderer, sharedTexture: fakeElectron.sharedTexture }));
+vi.mock("electron", () => ({
+  contextBridge: fakeElectron.contextBridge,
+  ipcRenderer: fakeElectron.ipcRenderer,
+  sharedTexture: fakeElectron.sharedTexture,
+  webUtils: { getPathForFile: (droppedFile: { name: string }) => `/Users/maya/streams/${droppedFile.name}` },
+}));
 
 async function exposedTatolabElectronBridge(): Promise<TatolabElectronBridge> {
   await import("./tatolab_window_preload.js");

@@ -32,13 +32,22 @@ async function aProjectOnDisk() {
   await writeAFile(path.join(projectFolder, ".venv", "lib", "site.py"), "");
   await writeAFile(path.join(projectFolder, "nodes", "__pycache__", "aurora_field.cpython-312.py"), "");
   await writeAFile(path.join(projectFolder, "README.md"), "");
+  await writeAFile(path.join(importFolder, "tatolab-project.json"), "{}\n");
   await writeAFile(path.join(importFolder, "pyproject.toml"), "[project]\nname = \"hall-of-light\"\n");
   await writeAFile(path.join(importFolder, "stream.py"), "# imported\n");
   const reading: OpenProjectReading = {
     kind: "read",
     open_project: {
-      project: { folder: projectFolder, name: "studio", requirements: ["hall-of-light"] },
-      imports: [{ name: "hall-of-light", requirement: "hall-of-light", source: { kind: "folder", project: { folder: importFolder, name: "hall-of-light", requirements: [] } } }],
+      project: { folder: projectFolder, project: "0b6f3c1e-2d4a-4e8b-9c7d-5a1f8e3b6d20", name: "studio" },
+      imports: [
+        {
+          project: "dde5a62f-b0a8-45d2-a741-79140871f978",
+          name: "hall-of-light",
+          folder: "hall-of-light",
+          source: { kind: "folder", project: { folder: importFolder, project: "dde5a62f-b0a8-45d2-a741-79140871f978", name: "hall-of-light" } },
+        },
+      ],
+      imports_not_listed_because: null,
     },
   };
   return { projectFolder, importFolder, openProjectFiles: new OpenProjectFiles(() => reading) };

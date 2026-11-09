@@ -15,7 +15,7 @@ import {
 } from "./fake_tatolab_platform_for_this_build.js";
 import { FakeSystemNotifications } from "./fake_system_notifications.js";
 import { RememberedSwitchFile } from "./remembered_switch_file.js";
-import { ProjectOpening } from "./open_project.js";
+import { ProjectOpening, type ProjectReadingsOfTheRuntime } from "./open_project.js";
 import { PythonLanguageServers } from "./python_language_servers.js";
 import { TatolabAppWindows } from "./tatolab_app_windows.js";
 import { FakeTatolabElectronAppShell, PROJECTS_WINDOW_CONTENTS_ID } from "./fake_tatolab_electron_app_shell.js";
@@ -57,6 +57,11 @@ afterEach(async () => {
 });
 
 const quietTatolabAppLog = createTatolabAppLog("error", () => {});
+
+const NO_RUNTIME_READS_THE_PROJECTS: ProjectReadingsOfTheRuntime = {
+  nameTheProject: async () => failedWith("no runtime answers"),
+  listTheDependencies: async () => failedWith("no runtime answers"),
+};
 
 const recordedResponseBody = (fixtureFileName: string) => readFile(new URL(`./test-fixtures/${fixtureFileName}`, import.meta.url), "utf8");
 
@@ -125,6 +130,7 @@ async function sharedStateOverFakes(
     platformItems: { mainWindowChrome: { titleBarStyle: "default" }, setDockIconVisible: () => {} },
     dockIconHost: fakeShellForTheWindows.tatolabElectronAppShell.dockIconHost,
     watchFolderEntries: () => null,
+    projectReadingsOfTheRuntime: NO_RUNTIME_READS_THE_PROJECTS,
     runAfter: () => () => {},
     whenAStudioWindowClosed: () => {},
     whenAWindowShowingPortViewersClosed: () => {},
@@ -138,6 +144,7 @@ async function sharedStateOverFakes(
     recentProjectFolders: recentProjectFoldersFileIn(appConfigDirectory, quietTatolabAppLog),
     readWallClockNowMs: () => 1_790_000_000_000,
     newProjectCreation: controller,
+    projectReadingsOfTheRuntime: NO_RUNTIME_READS_THE_PROJECTS,
     openTheProjectInItsStudioWindow: (folder) => appWindows.openTheProjectInItsStudioWindow(folder),
   });
   return {
@@ -179,6 +186,9 @@ async function sharedStateOverFakes(
     }),
     menusShownInTheSystemMenuBar,
     fetchTextOverHttps: async () => failedWith("these tests reach no network"),
+    fetchBytesOverHttps: async () => failedWith("these tests reach no network"),
+    moduleDownloadsFolder: path.join(appConfigDirectory, "module-downloads"),
+    dependencySourceDialog: async () => succeeded(null),
     tatolabAppLog: quietTatolabAppLog,
     commandLineToolLink,
     carriedRuntimeStarts,

@@ -226,10 +226,10 @@ export const projectNodeModuleNotReadableSchema = z.object({
 /** A module of a source that does not parse. */
 export type ProjectNodeModuleNotReadable = z.infer<typeof projectNodeModuleNotReadableSchema>;
 
-/** Where a listed source's node code comes from: the project, a linked dependency at its pin, an installed distribution, or an origin newer than this app. */
+/** Where a listed source's node code comes from: the project, an import by its UUID, folder under `imports/` and copied version, an installed distribution, or an origin newer than this app. */
 export const projectNodeTypeSourceOriginSchema = z.discriminatedUnion("source", [
   z.object({ source: z.literal("project") }),
-  z.object({ source: z.literal("dependency"), project: z.string(), revision: z.string() }),
+  z.object({ source: z.literal("dependency"), project: z.string(), folder: z.string(), version: z.string() }),
   z.object({ source: z.literal("installed_distribution"), distribution: z.string(), distribution_version: z.string() }),
   z.object({ source: z.literal("newer_than_this_app"), source_name: z.string() }),
 ]);
@@ -253,45 +253,51 @@ export const projectNodeTypeListingSchema = z.object({
   /** The project's UUID. */
   project: z.string(),
   project_name: z.string(),
-  /** The project first, then each linked dependency, then each installed distribution. */
+  /** The project first, then each import, then each installed distribution. */
   sources: z.array(projectNodeTypeSourceSchema),
 });
 /** What a project and its sources declare. */
 export type ProjectNodeTypeListing = z.infer<typeof projectNodeTypeListingSchema>;
 
-/** A project folder as its `pyproject.toml` describes it. */
-export const projectOnDiskSchema = z.object({
+/** A project as the runtime's `list_assets` names it, from its `tatolab-project.json`. */
+export const projectTheRuntimeNamesSchema = z.object({
   /** The folder, absolute with its links resolved. */
   folder: z.string(),
-  /** `[project] name`. */
+  /** The project's UUID. */
+  project: z.string(),
   name: z.string(),
-  /** `[project] dependencies`, each as `pyproject.toml` spells it. */
-  requirements: z.array(z.string()),
 });
-/** A project folder as its `pyproject.toml` describes it. */
-export type ProjectOnDisk = z.infer<typeof projectOnDiskSchema>;
+/** A project as the runtime names it. */
+export type ProjectTheRuntimeNames = z.infer<typeof projectTheRuntimeNamesSchema>;
 
-/** Where an imported project comes from: a folder a uv `path` source names, read or unreadable with why, or a package index. */
+/** An imported project's copy under `imports/`, named by the runtime or with the runtime's words for why it could not be. */
 export const importedProjectSourceSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("folder"), project: projectOnDiskSchema }),
+  z.object({ kind: z.literal("folder"), project: projectTheRuntimeNamesSchema }),
   z.object({ kind: z.literal("folder_unreadable"), folder: z.string(), refusal: z.string() }),
-  z.object({ kind: z.literal("package_index") }),
 ]);
-/** Where an imported project comes from. */
+/** An imported project's copy under `imports/`. */
 export type ImportedProjectSource = z.infer<typeof importedProjectSourceSchema>;
 
-/** One dependency of the open project, which Studio shows as an import. */
+/** One project the open project imports, as the runtime's `list_dependencies` lists it, which Studio shows as an import. */
 export const importedProjectSchema = z.object({
-  /** The requirement's name, normalized as PEP 503 normalizes a package name. */
+  /** The UUID `list_dependencies` lists it by. */
+  project: z.string(),
+  /** The name the runtime reads from its copy, or its folder's name where the runtime could not read it. */
   name: z.string(),
-  requirement: z.string(),
+  /** Its folder under `imports/`. */
+  folder: z.string(),
   source: importedProjectSourceSchema,
 });
-/** One dependency of the open project. */
+/** One project the open project imports. */
 export type ImportedProject = z.infer<typeof importedProjectSchema>;
 
-/** The open project: its folder's own project, and the projects it imports, in `pyproject.toml`'s order. */
-export const openProjectSchema = z.object({ project: projectOnDiskSchema, imports: z.array(importedProjectSchema) });
+/** The open project: its folder's own project, and the projects it imports in the runtime's order, or why the runtime did not list them. */
+export const openProjectSchema = z.object({
+  project: projectTheRuntimeNamesSchema,
+  imports: z.array(importedProjectSchema),
+  /** The runtime's words, or that no runtime answered, when `imports` could not be listed; `null` when they were. */
+  imports_not_listed_because: z.string().nullable(),
+});
 /** The open project. */
 export type OpenProject = z.infer<typeof openProjectSchema>;
 
