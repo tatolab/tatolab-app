@@ -6,6 +6,7 @@ import type {
   ChosenProjectFolder,
   NewProjectDefaults,
   NodeCatalog,
+  ProjectNodeTypeListing,
   JsonValue,
   ImportPreview,
   OpenProjectReading,
@@ -44,6 +45,7 @@ export const TATOLAB_COMMAND_NAMES = [
   "read_project_log_records",
   "describe_stream_graph",
   "describe_node_catalog",
+  "list_project_node_types",
   "check_for_tatolab_app_updates",
   "take_the_newer_tatolab_app_version",
   "stop_stream",
@@ -180,6 +182,8 @@ export type TatolabCommandSignatures = EveryCommandHasASignature<{
   read_project_log_records: { commandArguments: { project_directory: string; after: string | null } & ProjectLogNarrowing; answer: ProjectLogRecordsPage };
   describe_stream_graph: { commandArguments: { stream: string }; answer: StreamGraphSummary };
   describe_node_catalog: { commandArguments: { stream: string }; answer: NodeCatalog };
+  /** `project_directory` the asking window's project, one of its imports, or a project the runtime lists; refused in the runtime's own words. */
+  list_project_node_types: { commandArguments: { project_directory: string }; answer: ProjectNodeTypeListing };
   check_for_tatolab_app_updates: { commandArguments: undefined; answer: null };
   take_the_newer_tatolab_app_version: { commandArguments: undefined; answer: null };
   /** Answers once the runtime has queued the stop; the stream shows `stopping` in the listing until it has run. */

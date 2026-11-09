@@ -130,6 +130,7 @@ describe("the studio", () => {
       `stream:${PATTERN_MAIN_STREAM}`,
       `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "recorder" })}`,
       `stream:${mockStreamIdOf({ project_directory: PATTERN_PROJECT, stream_name: "pattern_two" })}`,
+      `project:${PATTERN_PROJECT}/node_types`,
       "imports",
     ]);
     expect(outlinerRow("open_project_folder").getAttribute("aria-level")).toBe("1");
@@ -141,7 +142,7 @@ describe("the studio", () => {
     expect(within(outlinerRow("imports")).getByRole("img", { name: "Read only" })).toBeTruthy();
   });
 
-  it("opens Imports on each import, read-only: a folder import's streams, an unreadable one's refusal, and a package's waiting on the runtime", async () => {
+  it("opens Imports on each import, read-only: a folder import's streams, an unreadable one's refusal, and a package's node types", async () => {
     await mountedWindowOverTheMock("state=running");
     await waitFor(() => outlinerRow("imports"));
     openTheOutlinerRow("imports");
@@ -152,7 +153,51 @@ describe("the studio", () => {
     expect(within(outlinerRow(`project:${CAMERA_PROJECT}`)).getByRole("img", { name: "Read only" })).toBeTruthy();
     expect(outlinerRow(`stream:${mockStreamIdOf({ project_directory: CAMERA_PROJECT, stream_name: "main" })}`).getAttribute("aria-level")).toBe("4");
     expect(outlinerRow(`project:${PATTERN_PROJECT}/imports/stage-lights/refusal`).textContent).toBe(`${PATTERN_PROJECT}/imports/stage-lights has no pyproject.toml.`);
-    expect(outlinerRow("project:tatolab-testpattern/waiting").textContent).toBe("Streams and nodes not read yet");
+    await waitFor(() => outlinerRow("project:tatolab-testpattern/node_types"));
+    openTheOutlinerRow("project:tatolab-testpattern/node_types");
+    expect(outlinerRow("project:tatolab-testpattern/node_types/category:tatolab.testpattern/node_type:tatolab.testpattern:TestPatternSource").textContent).toBe("TestPatternSource");
+  });
+
+  it("lists the open project's own node types in the outliner, and each module that does not parse in the parser's words", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const nodeTypesRowId = `project:${PATTERN_PROJECT}/node_types`;
+    await waitFor(() => outlinerRow(nodeTypesRowId));
+    openTheOutlinerRow(nodeTypesRowId);
+    const invertingEffectRowId = `${nodeTypesRowId}/category:Effects/node_type:nodes.inverting_effect:InvertingEffect`;
+    await waitFor(() => outlinerRow(invertingEffectRowId));
+    expect(outlinerRow(`${nodeTypesRowId}/unreadable:nodes.half_written`).textContent).toBe("nodes/half_written.py:12:5: SyntaxError: expected ':'");
+
+    expect(outlinerRow(invertingEffectRowId).textContent).toBe("InvertingEffect");
+  });
+
+  it("lists in the palette each source's node types by category and its generators, and says why a module does not parse", async () => {
+    await mountedWindowOverTheMock("state=running");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Palette/ }));
+
+    const paletteRow = (rowId: string) => document.querySelector<HTMLElement>(`[data-palette] [data-tree-row-id="${CSS.escape(rowId)}"]`) ?? expect.unreachable(`no palette row ${rowId}`);
+    await waitFor(() => paletteRow("source:project"));
+    expect(paletteRow("source:project").textContent).toBe("pattern");
+    expect(paletteRow("source:project/graph_generators/nodes.scenes:two_cameras_side_by_side").textContent).toBe("two_cameras_side_by_side");
+    expect(paletteRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11").textContent).toBe("6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11 at v1");
+    expect(paletteRow("source:distribution:camera").getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(paletteRow("source:project/unreadable:nodes.half_written"));
+    await waitFor(() => expect(document.querySelector('[data-palette-unreadable-why="nodes.half_written"]')?.textContent).toBe("SyntaxError: expected ':'"));
+    fireEvent.click(paletteRow("source:dependency:6f1c2a52-8f0e-4d55-9a57-1f1b8f6f0a11/category:Lighting/node_type:nodes.gripper:Gripper"));
+    await waitFor(() => expect(document.querySelector('[data-palette-details="nodes.gripper:Gripper"]')).not.toBeNull());
+    expect(document.querySelector('[data-palette-port="grip"]')?.textContent).toContain("grip");
+    expect(screen.getByText("Outputs stated only by its native half")).toBeTruthy();
+  });
+
+  it("says in the runtime's own words why the palette lists no node types", async () => {
+    await mountedWindowOverTheMock("state=not-running");
+    const viewerArea = await waitFor(() => document.querySelector<HTMLElement>('[data-studio-area="viewer"]') ?? expect.unreachable("no viewer area"));
+    pressAsAPointerDoes(viewerArea.querySelector<HTMLElement>("[data-area-view-type-menu]") ?? expect.unreachable("no view-type menu"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /^Palette/ }));
+
+    await waitFor(() => expect(document.querySelector("[data-palette-not-listed-because]")?.textContent).toMatch(/^no runtime answers at /));
   });
 
   it("shows a project's streams waiting on the runtime while it lists none", async () => {

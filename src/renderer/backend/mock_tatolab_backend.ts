@@ -28,6 +28,7 @@ import { MockPythonLanguageServer } from "./mock_python_language_server";
 import { MockPortViewers } from "./mock_port_viewers";
 import { mockStudioViewListing } from "./mock_studio_view/mock_studio_view_listing";
 import { MockProjectFiles } from "./mock_project_files";
+import { mockProjectNodeTypeListing } from "./mock_project_node_types";
 import { newProjectFolderNameRefusal } from "../../shared/new_project_folder_name";
 import type { TatolabBackend } from "./tatolab_backend";
 import {
@@ -189,6 +190,8 @@ export interface MockTatolabOptions {
   recentProjectsInTheQuery: string | null;
   /** Each port's family is served in the graph and the node catalog, as the runtime serves it; `?port_families=unserved` serves none, as a runtime from before strict-port-families. */
   arePortFamiliesServed: boolean;
+  /** `?node_types=unreadable_project`: every module of the open project's own node code does not parse; one of them does not by default. */
+  isEveryOwnNodeModuleUnreadable: boolean;
   /** `?popped_out_viewer=<target as JSON>`: the page is a Viewer popped out of the studio, as Pop out opens it in a new tab; the studio by default. */
   poppedOutViewer: PoppedOutViewerTarget | null;
   /** `?get_more=open`: the page is the open project's Get more window, as File › Get more… opens it in a new tab. */
@@ -323,6 +326,7 @@ export function readMockTatolabOptions(pageQuery: URLSearchParams): MockTatolabO
     openProjectScenario: mockOpenProjectScenarioNamed(pageQuery.get("project")),
     recentProjectsInTheQuery: pageQuery.get("recent"),
     arePortFamiliesServed: pageQuery.get("port_families") !== "unserved",
+    isEveryOwnNodeModuleUnreadable: pageQuery.get("node_types") === "unreadable_project",
     poppedOutViewer: mockPoppedOutViewerTargetFrom(pageQuery.get(POPPED_OUT_VIEWER_QUERY_PARAMETER)),
     isAGetMoreWindow: pageQuery.get(GET_MORE_QUERY_PARAMETER) === "open",
     isTheCatalogUnserved: pageQuery.get("catalog") === "unserved",
@@ -1073,6 +1077,13 @@ export function createMockTatolabBackend(mockTatolabOptions: MockTatolabOptions)
         ? [...MOCK_NODE_CATALOG_ENTRIES]
         : MOCK_NODE_CATALOG_ENTRIES.map((entry) => ({ ...entry, inputs: entry.inputs.map((port) => ({ ...port, family: null })), outputs: entry.outputs.map((port) => ({ ...port, family: null })) }));
       return { stream: streamId, node_types: nodeTypes };
+    },
+    listProjectNodeTypes: async (projectDirectory) => {
+      await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);
+      if (mockStatus.runtime_state !== "running") throw noRuntimeAnswersRefusal();
+      const listing = mockProjectNodeTypeListing(projectDirectory, `${fixtures.machine.homeDirectory}/streams`, mockTatolabOptions.isEveryOwnNodeModuleUnreadable);
+      if (listing === null) throw `list_project_node_types failed: ${projectDirectory} holds no tatolab-project.json`;
+      return listing;
     },
     checkForTatolabAppUpdates: async () => {
       await sleep(MOCK_COMMAND_LATENCY_MILLISECONDS);

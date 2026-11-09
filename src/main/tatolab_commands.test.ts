@@ -463,6 +463,8 @@ test("each queued action answers the window null, and a missing argument or a pr
     ok: false,
     refusal: "The runtime lists no stream from /etc.",
   });
+  expect(await commandHandlers.list_project_node_types({ project_directory: "/etc" }, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "The runtime lists no stream from /etc." });
+  expect(await commandHandlers.list_project_node_types({}, FROM_THE_PROJECTS_WINDOW)).toEqual({ ok: false, refusal: "list_project_node_types needs `project_directory`, a project's folder" });
 });
 
 test("reloading a project the runtime lists queues run_project on its folder, answers the action, and observes again; one it does not list is refused", async () => {

@@ -307,6 +307,85 @@ export interface NodeCatalog {
   node_types: NodeCatalogEntry[];
 }
 
+/** One port of a node type as its declaration states it in source, from `list_project_node_types`. */
+export interface ProjectNodeTypePort {
+  name: string;
+  description: string;
+  /** The port's family; `null` where source alone does not say, or for one this app does not know. */
+  family: PortFamily | null;
+  /** A function or shader port's annotation as written; `null` for a process node's port. */
+  annotation: string | null;
+}
+
+/** One node type a project's source declares, as `list_project_node_types` lists it. */
+export interface ProjectNodeType {
+  /** The type `add_node` takes: the import path `<module>:<qualname>`. */
+  type: string;
+  /** `process`, `function` or `shader`, or a kind newer than this app; `null` where source does not show it. */
+  kind: string | null;
+  description: string;
+  /** The palette category, the declaring module when none is declared. */
+  category: string;
+  /** `null` where only the node's native half states its ports. */
+  inputs: ProjectNodeTypePort[] | null;
+  outputs: ProjectNodeTypePort[] | null;
+  /** The declaring file, relative to its source's root. */
+  path: string | null;
+  line: number | null;
+}
+
+/** One setting a graph generator promotes, as its parameter states it. */
+export interface ProjectGraphGeneratorPromotedSetting {
+  name: string;
+  annotation: string | null;
+}
+
+/** One `@graph_generator` a project's source declares, as `list_project_node_types` lists it. */
+export interface ProjectGraphGenerator {
+  /** The import path `import_graph_generator` takes: `<module>:<function>`. */
+  generator: string;
+  /** Its docstring. */
+  description: string;
+  promoted_config: ProjectGraphGeneratorPromotedSetting[];
+  path: string;
+  line: number;
+}
+
+/** A module of a source that does not parse, with why in the parser's words and where it stopped. */
+export interface ProjectNodeModuleNotReadable {
+  module: string;
+  path: string;
+  line: number | null;
+  column: number | null;
+  why: string;
+}
+
+/** Where a listed source's node code comes from: the project, a linked dependency at its pin, an installed distribution, or an origin newer than this app, by the name the runtime gives it. */
+export type ProjectNodeTypeSourceOrigin =
+  | { source: "project" }
+  | { source: "dependency"; project: string; revision: string }
+  | { source: "installed_distribution"; distribution: string; distribution_version: string }
+  | { source: "newer_than_this_app"; source_name: string };
+
+/** One source's node types, graph generators, and the modules of it that do not parse. */
+export interface ProjectNodeTypeSource {
+  origin: ProjectNodeTypeSourceOrigin;
+  node_types: ProjectNodeType[];
+  graph_generators: ProjectGraphGenerator[];
+  unreadable_modules: ProjectNodeModuleNotReadable[];
+}
+
+/** What `list_project_node_types` answers: what the project and each source it draws node code from declares, read from source without running it. */
+export interface ProjectNodeTypeListing {
+  /** The project's folder, its links resolved. */
+  project_directory: string;
+  /** The project's UUID. */
+  project: string;
+  project_name: string;
+  /** The project first, then each linked dependency, then each installed distribution. */
+  sources: ProjectNodeTypeSource[];
+}
+
 /** What a project folder is chosen for in the app's folder dialog: a project to import, or the folder a new project is created in, which may not exist yet. */
 export type StreamProjectFolderChosenFor = "project_to_run" | "new_project_directory";
 

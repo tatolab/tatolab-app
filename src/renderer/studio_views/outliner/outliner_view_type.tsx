@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { TreeView } from "../../design_system/tree_view";
 import { WaitingState } from "../../design_system/waiting_state";
 import { useStudioViewReading } from "../../view_host/in_window_view_host";
-import type { JsonValue, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
+import type { JsonValue, ProjectNodeTypesReading, StopWatching, StudioViewHostConnection, StudioViewType } from "../../view_host/studio_view_contract";
 import { outlinerRowIdOfTheSelection, outlinerTreeOfTheProject, type OutlinerRowExpansionChoices } from "./outliner_tree_of_the_project";
 
 /** What an outliner area keeps with the layout: the rows the person opened or closed. */
@@ -20,15 +20,27 @@ function outlinerSettingsFrom(savedSettings: JsonValue): OutlinerSettings | null
   return { row_expansion: choices };
 }
 
-/** The open project as a tree: the open project and its streams, then its read-only imports. */
+const NO_PROJECT_FOLDER_TO_LIST: StopWatching = () => undefined;
+
+/** The open project as a tree: the open project, its streams and node types, then its read-only imports. */
 function OutlinerBody({ connection }: { connection: StudioViewHostConnection<OutlinerSettings> }) {
   const openProject = useStudioViewReading(connection.watchOpenProject);
   const listedStreams = useStudioViewReading(connection.watchListedStreams);
   const selection = useStudioViewReading(connection.watchSelection);
+  const openProjectFolder = openProject?.kind === "read" ? openProject.open_project.project.folder : null;
+  const watchTheOpenProjectsNodeTypes = useCallback(
+    (listener: (reading: ProjectNodeTypesReading) => void): StopWatching =>
+      openProjectFolder === null ? NO_PROJECT_FOLDER_TO_LIST : connection.watchProjectNodeTypes(openProjectFolder, listener),
+    [connection, openProjectFolder],
+  );
+  const projectNodeTypes = useStudioViewReading(watchTheOpenProjectsNodeTypes);
   const expansionChoices: OutlinerRowExpansionChoices = connection.settings.row_expansion;
   const outlinerRows = useMemo(
-    () => (openProject?.kind === "read" ? outlinerTreeOfTheProject(openProject.open_project, listedStreams ?? { kind: "not_listed", because: "" }, expansionChoices) : []),
-    [openProject, listedStreams, expansionChoices],
+    () =>
+      openProject?.kind === "read"
+        ? outlinerTreeOfTheProject(openProject.open_project, listedStreams ?? { kind: "not_listed", because: "" }, projectNodeTypes, expansionChoices)
+        : [],
+    [openProject, listedStreams, projectNodeTypes, expansionChoices],
   );
   if (openProject === null) return null;
   if (openProject.kind === "none_open") return <WaitingState title="No project is open" explanation="Open or create one from the File menu." />;
@@ -48,6 +60,9 @@ function OutlinerBody({ connection }: { connection: StudioViewHostConnection<Out
         onRowActivated={(rowId) => {
           const meaning = meaningOfRow(rowId);
           if (meaning.kind === "stream") connection.openStreamTab({ stream: meaning.stream, project_name: meaning.project_name, display_name: meaning.display_name });
+          if ((meaning.kind === "node_type_declaration" || meaning.kind === "graph_generator_declaration" || meaning.kind === "unreadable_module") && meaning.file !== null) {
+            connection.openCodeFile(meaning.file);
+          }
         }}
         onExpansionToggled={(rowId, expand) => connection.rememberSettings({ row_expansion: { ...expansionChoices, [rowId]: expand } })}
       />
@@ -55,7 +70,7 @@ function OutlinerBody({ connection }: { connection: StudioViewHostConnection<Out
   );
 }
 
-/** The outliner: the open project, its streams and its imports. */
+/** The outliner: the open project, its streams and node types, and its imports. */
 export const OUTLINER_VIEW_TYPE: StudioViewType<OutlinerSettings> = {
   view_type_id: "outliner",
   title: "Outliner",

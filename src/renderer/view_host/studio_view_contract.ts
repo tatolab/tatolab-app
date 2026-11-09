@@ -15,6 +15,7 @@ import type {
   StreamGraphSummary,
   ProjectFileRead,
   ProjectFiles,
+  ProjectNodeTypeListing,
 } from "../../shared/tatolab_backend_contract";
 import type { StudioIconName } from "../design_system/studio_icons";
 
@@ -41,6 +42,13 @@ export type {
   StreamGraphSummary,
   ProjectFileRead,
   ProjectFiles,
+  ProjectGraphGenerator,
+  ProjectNodeModuleNotReadable,
+  ProjectNodeType,
+  ProjectNodeTypeListing,
+  ProjectNodeTypePort,
+  ProjectNodeTypeSource,
+  ProjectNodeTypeSourceOrigin,
 } from "../../shared/tatolab_backend_contract";
 export type { StudioIconName } from "../design_system/studio_icons";
 
@@ -69,6 +77,9 @@ export type StreamGraphReading = { kind: "read"; graph: StreamGraphSummary } | {
 
 /** The node types a stream can add, or why the runtime lists none, in its own words. */
 export type NodeCatalogReading = { kind: "listed"; catalog: NodeCatalog } | { kind: "not_listed"; because: string };
+
+/** What a project and each source it draws node code from declares, read from source without running it, or why the runtime lists none, in its own words. */
+export type ProjectNodeTypesReading = { kind: "listed"; listing: ProjectNodeTypeListing } | { kind: "not_listed"; because: string };
 
 /** A file of the open project and its imports as read from disk, or why it was not, in the words of what refused. */
 export type ProjectFileReading = { kind: "read"; file_read: ProjectFileRead } | { kind: "not_read"; because: string };
@@ -144,6 +155,8 @@ export interface StudioViewHostConnection<ViewSettings extends JsonValue> {
   listProjectFiles(projectFolder: string): Promise<ProjectFilesListing>;
   /** `projectFolder`'s log, read while any view watches it and the window is shown; the first reading arrives once read. */
   watchProjectLog(projectFolder: string, listener: (reading: ProjectLogReading) => void): StopWatching;
+  /** What `projectFolder` and each source it draws node code from declares, listed while any view watches it and the window is shown; the first reading arrives once listed. */
+  watchProjectNodeTypes(projectFolder: string, listener: (reading: ProjectNodeTypesReading) => void): StopWatching;
   /** Pop a Viewer pinned to `target` out into a window of its own, or bring forward the one already pinned there. */
   popOutViewer(target: PoppedOutViewerTarget): Promise<ViewerPopOut>;
   /** Start Pyright's language server for `projectFolder`, each message and its end arriving on `onEvent`. */
